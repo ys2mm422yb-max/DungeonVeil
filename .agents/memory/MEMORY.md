@@ -1,0 +1,1 @@
+- [Dungeon RPG pixel-art overhaul](dungeon-rpg-pixelart.md) — sprites.ts defines all 8×8 pixel-art sprites; lighting uses a persistent off-screen canvas ref to avoid per-frame allocation.

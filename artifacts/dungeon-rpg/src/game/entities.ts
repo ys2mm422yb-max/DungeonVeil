@@ -1,3 +1,6 @@
+import { ClassKey } from './classes';
+import { EnemyTypeName } from './sprites';
+
 export interface Entity {
   id: string;
   x: number;
@@ -10,11 +13,15 @@ export interface Entity {
 
 export interface Player extends Entity {
   type: 'player';
+  playerName: string;
+  playerClass: ClassKey;
   hp: number;
   maxHp: number;
   attack: number;
   defense: number;
   speed: number;
+  attackRange: number;
+  skillRange: number;
   level: number;
   xp: number;
   color: string;
@@ -24,9 +31,11 @@ export interface Player extends Entity {
   skillCooldown: number;
   dodgeCooldown: number;
   attackCooldown: number;
+  /** Timestamp when this player was created (for animation) */
+  spawnTime: number;
 }
 
-export type EnemyType = 'slime' | 'skeleton' | 'demon';
+export type EnemyType = EnemyTypeName;
 
 export interface Enemy extends Entity {
   type: 'enemy';
@@ -42,6 +51,17 @@ export interface Enemy extends Entity {
   targetY: number;
   nextAttackTime: number;
   flashUntil: number;
+  /** Timestamp when this enemy spawned (for animation phase offset) */
+  spawnTime: number;
+}
+
+export interface Chest extends Entity {
+  type: 'chest';
+  locked: boolean;
+  opened: boolean;
+  lootType: 'gold' | 'potion' | 'big_potion';
+  lootValue: number;
+  roomIndex: number;
 }
 
 export interface Item extends Entity {
