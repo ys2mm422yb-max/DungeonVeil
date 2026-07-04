@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine, GameState } from '../game/engine';
+import { UpgradeKey } from '../i18n/translations';
 import { GameCanvas } from '../components/GameCanvas';
 import { VirtualJoystick } from '../components/VirtualJoystick';
 import { ActionButtons } from '../components/ActionButtons';
@@ -7,45 +8,31 @@ import { HUD } from '../components/HUD';
 import { StartScreen } from '../components/screens/StartScreen';
 import { GameOverScreen } from '../components/screens/GameOverScreen';
 import { LevelUpScreen } from '../components/screens/LevelUpScreen';
+import { LanguageSelectScreen } from '../components/screens/LanguageSelectScreen';
+import { useLanguage } from '../i18n/LanguageContext';
+import { Language } from '../i18n/translations';
 
 export default function Game() {
+  const { t, language, setLanguage, hasChosen } = useLanguage();
   const engineRef = useRef<GameEngine | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
 
   useEffect(() => {
-    // Initialize engine once
     engineRef.current = new GameEngine();
-    
-    // Subscribe to state changes
     engineRef.current.onStateChange = (state) => {
       setGameState(state);
     };
-
-    // Initial state
     setGameState(engineRef.current.state);
 
     let animationFrameId: number;
-
     const gameLoop = (time: number) => {
       if (engineRef.current) {
         engineRef.current.update(time);
-        
-        // Only force react render if not already triggered by state change events
-        // Mostly we rely on the canvas rendering itself from the engineRef state
-        // but for HUD we need occasional react updates.
-        // For performance, we don't call setGameState every frame. The GameCanvas 
-        // reads from the same gameState object reference which mutates.
-        // Wait, React needs new object to re-render. Let's just rely on the engine's 
-        // explicit onStateChange calls for major state transitions (HP change, level up, etc.)
       }
       animationFrameId = requestAnimationFrame(gameLoop);
     };
-
     animationFrameId = requestAnimationFrame(gameLoop);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
+    return () => { cancelAnimationFrame(animationFrameId); };
   }, []);
 
   const handleStart = useCallback(() => {
@@ -59,21 +46,10 @@ export default function Game() {
     }
   }, []);
 
-  const handleAttack = useCallback(() => {
-    if (engineRef.current) engineRef.current.input.attack = true;
-  }, []);
-
-  const handleDodge = useCallback(() => {
-    if (engineRef.current) engineRef.current.input.dodge = true;
-  }, []);
-
-  const handleSkill = useCallback(() => {
-    if (engineRef.current) engineRef.current.input.skill = true;
-  }, []);
-
-  const handleInteract = useCallback(() => {
-    if (engineRef.current) engineRef.current.input.interact = true;
-  }, []);
+  const handleAttack   = useCallback(() => { if (engineRef.current) engineRef.current.input.attack = true; }, []);
+  const handleDodge    = useCallback(() => { if (engineRef.current) engineRef.current.input.dodge = true; }, []);
+  const handleSkill    = useCallback(() => { if (engineRef.current) engineRef.current.input.skill = true; }, []);
+  const handleInteract = useCallback(() => { if (engineRef.current) engineRef.current.input.interact = true; }, []);
 
   const handlePause = useCallback(() => {
     if (engineRef.current && engineRef.current.state.status === 'playing') {
@@ -85,50 +61,83 @@ export default function Game() {
   const handleResume = useCallback(() => {
     if (engineRef.current && engineRef.current.state.status === 'paused') {
       engineRef.current.state.status = 'playing';
-      engineRef.current.lastTime = performance.now(); // prevent time jump
+      engineRef.current.lastTime = performance.now();
       setGameState({...engineRef.current.state});
     }
   }, []);
 
-  const handleLevelUpSelect = useCallback((choice: string) => {
+  const handleLevelUpSelect = useCallback((choice: UpgradeKey) => {
     if (engineRef.current) engineRef.current.applyUpgrade(choice);
   }, []);
+
+  const toggleLanguage = useCallback(() => {
+    setLanguage(language === 'en' ? 'de' : 'en');
+  }, [language, setLanguage]);
+
+  // Show language picker on very first launch (no stored preference)
+  if (!hasChosen) {
+    return <LanguageSelectScreen />;
+  }
 
   if (!gameState) return null;
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none">
-      {/* 
-        GameCanvas needs to receive the mutated state reference directly. 
-        It has its own requestAnimationFrame loop to render the canvas at 60fps.
-      */}
       <GameCanvas gameState={engineRef.current?.state!} />
 
       {gameState.status === 'start' && <StartScreen onStart={handleStart} />}
-      
-      {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleStart} />}
-      
+
+      {gameState.status === 'gameover' && (
+        <GameOverScreen gameState={gameState} onRetry={handleStart} />
+      )}
+
       {gameState.status === 'levelup' && (
         <LevelUpScreen choices={gameState.upgradeChoices} onSelect={handleLevelUpSelect} />
       )}
 
       {gameState.status === 'paused' && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
-          <h2 className="font-serif text-4xl text-white mb-8 tracking-widest">PAUSED</h2>
-          <button 
+          <h2 className="font-serif text-4xl text-white mb-8 tracking-widest">{t.paused}</h2>
+
+          <button
             onClick={handleResume}
             onTouchStart={(e) => { e.preventDefault(); handleResume(); }}
-            className="bg-primary text-primary-foreground font-bold px-8 py-4 rounded text-xl mb-4"
+            className="bg-primary text-primary-foreground font-bold px-8 py-4 rounded text-xl mb-4 tracking-widest"
+            data-testid="button-resume"
           >
-            RESUME
+            {t.resume}
           </button>
-          <button 
+
+          <button
             onClick={handleStart}
             onTouchStart={(e) => { e.preventDefault(); handleStart(); }}
-            className="bg-transparent border border-muted text-muted-foreground font-bold px-8 py-4 rounded text-xl"
+            className="bg-transparent border border-muted text-muted-foreground font-bold px-8 py-4 rounded text-xl mb-8 tracking-widest"
+            data-testid="button-restart"
           >
-            RESTART
+            {t.restart}
           </button>
+
+          {/* Language toggle */}
+          <div className="flex items-center gap-4 mt-4 bg-card/60 border border-primary/20 rounded-xl px-6 py-4">
+            <span className="text-muted-foreground text-sm tracking-widest uppercase">{t.language}</span>
+            <div className="flex gap-2">
+              {(['en', 'de'] as Language[]).map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => setLanguage(lang)}
+                  onTouchStart={(e) => { e.preventDefault(); setLanguage(lang); }}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm tracking-widest transition-all border-2 ${
+                    language === lang
+                      ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(232,160,32,0.4)]'
+                      : 'bg-transparent text-muted-foreground border-muted/40 active:scale-95'
+                  }`}
+                  data-testid={`button-lang-${lang}`}
+                >
+                  {lang === 'en' ? '🇬🇧 EN' : '🇩🇪 DE'}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -136,7 +145,7 @@ export default function Game() {
         <>
           <HUD gameState={gameState} onPause={handlePause} />
           <VirtualJoystick onMove={handleJoystickMove} />
-          <ActionButtons 
+          <ActionButtons
             gameState={gameState}
             onAttack={handleAttack}
             onDodge={handleDodge}

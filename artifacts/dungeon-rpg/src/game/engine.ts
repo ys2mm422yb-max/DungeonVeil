@@ -1,4 +1,5 @@
 import { Player, Enemy, Item, DamageNumber, Particle, VisualEffect, EnemyType } from './entities';
+import { UpgradeKey } from '../i18n/translations';
 import { DungeonMap, generateDungeon, TILE_SIZE, isWalkable, TileType } from './dungeon';
 import { performPlayerAttack, performPlayerSkill, distance, checkCollision } from './combat';
 
@@ -12,7 +13,7 @@ export interface GameState {
   damageNumbers: DamageNumber[];
   particles: Particle[];
   effects: VisualEffect[];
-  upgradeChoices: string[];
+  upgradeChoices: UpgradeKey[];
   killCount: number;
   camera: { x: number, y: number };
 }
@@ -209,22 +210,22 @@ export class GameEngine {
   }
 
   generateUpgradeChoices() {
-    const options = ['+20 Max HP', '+5 Attack', '+1 Speed tier', '+1 Defense', '+50% Heal'];
+    const options: UpgradeKey[] = ['maxHp', 'attack', 'speed', 'defense', 'heal'];
     this.state.upgradeChoices = options.sort(() => 0.5 - Math.random()).slice(0, 3);
   }
 
-  applyUpgrade(choice: string) {
+  applyUpgrade(choice: UpgradeKey) {
     const { player } = this.state;
-    if (choice === '+20 Max HP') {
+    if (choice === 'maxHp') {
       player.maxHp += 20;
       player.hp += 20;
-    } else if (choice === '+5 Attack') {
+    } else if (choice === 'attack') {
       player.attack += 5;
-    } else if (choice === '+1 Speed tier') {
+    } else if (choice === 'speed') {
       player.speed += 15;
-    } else if (choice === '+1 Defense') {
+    } else if (choice === 'defense') {
       player.defense += 1;
-    } else if (choice === '+50% Heal') {
+    } else if (choice === 'heal') {
       player.hp = Math.min(player.maxHp, player.hp + player.maxHp * 0.5);
     }
     this.state.status = 'playing';
