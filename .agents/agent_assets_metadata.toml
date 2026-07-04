@@ -6,3 +6,9 @@ id = "8nBTJ0XKdra7u-sxLL7Po"
 uri = "file://screenshots/dungeon-veil-gameplay.jpg"
 type = "image"
 title = "Dungeon Veil – Gameplay Screenshot"
+
+[[outputs]]
+id = "ld3Lt4hM4DcDIU8VEqv7d"
+uri = "file://screenshots/dungeon-rpg-game-verification.jpg"
+type = "image"
+title = "Dungeon RPG – Game Verification Screenshot"

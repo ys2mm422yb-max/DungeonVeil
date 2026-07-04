@@ -53,7 +53,7 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
         >
           <CooldownOverlay progress={cooldowns.attack} />
           <span className="text-white font-black text-xl z-10">⚔</span>
-          <span className="text-white/80 font-bold text-xs tracking-widest z-10">{t.attack}</span>
+          <span className="text-white/80 font-bold text-xs tracking-widest z-10">TEST</span>
         </button>
 
         {/* DODGE — top-left */}

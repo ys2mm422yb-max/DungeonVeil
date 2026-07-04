@@ -1,9 +1,10 @@
-loimport { UpgradeKey } from '../i18n/translations';
+import { UpgradeKey } from '../i18n/translations';
 import { ClassKey, CLASS_DEFS } from './classes';
 import { DungeonMap, generateDungeon, TILE_SIZE, isWalkable, TileType, ChestSpawn } from './dungeon';
 import { ROOM_TYPE_DEFS } from './roomTypes';
 import { performPlayerAttack, performPlayerSkill, distance, checkCollision, makeParticles, makeHitSpark, makeStepDust } from './combat';
 import { saveGame, SaveData } from './saveManager';
+import { Player, Enemy, EnemyType, Item, Chest, DamageNumber, Particle, VisualEffect } from './entities';
 
 export interface GameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';

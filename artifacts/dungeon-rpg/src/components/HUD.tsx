@@ -74,7 +74,7 @@ export function HUD({ gameState, onPause }: Props) {
         <div className="w-48 bg-black/80 border-2 border-zinc-800 rounded p-1 shadow-lg pointer-events-auto">
           <div className="h-6 bg-zinc-900 rounded-sm relative overflow-hidden border border-black">
             <div
-              className="absolute top-0 left-0 h-full bg-destructive transition-all duration-300 ease-out"
+              className="absolute top-0 left-0 h-full bg-green-500 transition-all duration-300 ease-out"
               style={{ width: `${hpPercent}%` }}
             />
             <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow-md font-sans tracking-wide">
