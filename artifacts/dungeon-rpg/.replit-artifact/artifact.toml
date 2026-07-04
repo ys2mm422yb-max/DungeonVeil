@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Dungeon RPG"
+version = "1.0.0"
+id = "artifacts/dungeon-rpg"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22167
+
+[services.development]
+run = "pnpm --filter @workspace/dungeon-rpg run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/dungeon-rpg", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/dungeon-rpg/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22167"
+BASE_PATH = "/"
