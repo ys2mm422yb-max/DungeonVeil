@@ -101,7 +101,7 @@ export function MainMenuScreen({ saveData, onNewGame, onContinue, onSettings, on
       {/* Logo area */}
       <div className="z-10 flex flex-col items-center pt-20 px-8">
         <h1 className="font-serif text-6xl text-primary font-black tracking-widest text-center leading-tight drop-shadow-[0_0_40px_rgba(232,160,32,0.35)]">
-          DUNGEON<br />ABYSS
+          DUNGEON<br />VEIL
         </h1>
         <p className="text-white/30 tracking-[0.35em] uppercase text-xs mt-3">
           {t.subtitle}

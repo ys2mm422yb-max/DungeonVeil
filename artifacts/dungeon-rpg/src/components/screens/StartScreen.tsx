@@ -57,7 +57,7 @@ export function StartScreen({ onStart }: Props) {
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
       <div className="z-10 flex flex-col items-center animate-in fade-in duration-1000 slide-in-from-bottom-8">
         <h1 className="font-serif text-6xl md:text-8xl text-primary font-black tracking-widest drop-shadow-[0_0_30px_rgba(232,160,32,0.4)] text-center mb-4">
-          DUNGEON<br />ABYSS
+          DUNGEON<br />VEIL
         </h1>
         <p className="text-muted-foreground tracking-[0.3em] uppercase text-sm md:text-base mb-16 text-center px-4">
           {t.subtitle}

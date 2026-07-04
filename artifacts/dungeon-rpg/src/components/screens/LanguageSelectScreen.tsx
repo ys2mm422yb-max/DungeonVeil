@@ -57,7 +57,7 @@ export function LanguageSelectScreen() {
 
       <div className="z-10 flex flex-col items-center gap-8 px-8 w-full max-w-sm animate-in fade-in duration-700 slide-in-from-bottom-4">
         <h1 className="font-serif text-5xl text-primary font-black tracking-widest drop-shadow-[0_0_24px_rgba(232,160,32,0.4)] text-center">
-          DUNGEON<br />ABYSS
+          DUNGEON<br />VEIL
         </h1>
 
         <div className="w-full flex flex-col gap-4">
