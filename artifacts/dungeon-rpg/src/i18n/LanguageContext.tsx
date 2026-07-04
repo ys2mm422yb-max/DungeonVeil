@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Language, Translations, translations } from './translations';
 
-const STORAGE_KEY = 'dungeon-abyss-language';
+const STORAGE_KEY = 'dungeon-veil-language';
 
 interface LanguageContextValue {
   language: Language;

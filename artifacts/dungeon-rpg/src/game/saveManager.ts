@@ -1,6 +1,6 @@
 import { ClassKey } from './classes';
 
-const SAVE_KEY = 'dungeon-abyss-save';
+const SAVE_KEY = 'dungeon-veil-save';
 
 export interface SaveData {
   playerName: string;

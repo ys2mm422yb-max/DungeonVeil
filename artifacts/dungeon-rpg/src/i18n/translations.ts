@@ -101,7 +101,7 @@ const en = {
 
   // Credits
   creditsTitle: 'Credits',
-  creditsGame: 'DUNGEON ABYSS',
+  creditsGame: 'DUNGEON VEIL',
   creditsTagline: 'A mobile-first action RPG',
   creditsBuiltWith: 'Built with React + TypeScript',
   creditsDesign: 'Design & Game Dev',
@@ -206,7 +206,7 @@ const de: typeof en = {
   version: 'Version 1.0',
 
   creditsTitle: 'Credits',
-  creditsGame: 'DUNGEON ABYSS',
+  creditsGame: 'DUNGEON VEIL',
   creditsTagline: 'Ein mobiles Action-RPG',
   creditsBuiltWith: 'Erstellt mit React + TypeScript',
   creditsDesign: 'Design & Spielentwicklung',
