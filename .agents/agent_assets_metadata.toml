@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "8nBTJ0XKdra7u-sxLL7Po"
+uri = "file://screenshots/dungeon-veil-gameplay.jpg"
+type = "image"
+title = "Dungeon Veil – Gameplay Screenshot"

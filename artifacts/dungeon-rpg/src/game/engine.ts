@@ -3,7 +3,7 @@ import { UpgradeKey } from '../i18n/translations';
 import { ClassKey, CLASS_DEFS } from './classes';
 import { DungeonMap, generateDungeon, TILE_SIZE, isWalkable, TileType, ChestSpawn } from './dungeon';
 import { ROOM_TYPE_DEFS } from './roomTypes';
-import { performPlayerAttack, performPlayerSkill, distance, checkCollision } from './combat';
+import { performPlayerAttack, performPlayerSkill, distance, checkCollision, makeParticles, makeHitSpark, makeStepDust } from './combat';
 import { saveGame, SaveData } from './saveManager';
 
 export interface GameState {
@@ -51,6 +51,7 @@ export class GameEngine {
   state: GameState;
   lastTime: number = 0;
   private lastSaveKillCount: number = 0;
+  private lastStepTime: number = 0;
 
   input = {
     joyX: 0,
@@ -126,6 +127,7 @@ export class GameEngine {
       dodgeCooldown: 0,
       attackCooldown: 0,
       spawnTime: Date.now(),
+      lastAttackTime: 0,
     };
   }
 
@@ -222,6 +224,7 @@ export class GameEngine {
     this.state.chests = [];
     this.state.effects = [];
     this.state.damageNumbers = [];
+    this.state.particles = [];
     this.spawnEntities(this.state.floor);
     this.doSave();
     this.onStateChange({ ...this.state });
@@ -231,7 +234,6 @@ export class GameEngine {
     const { map } = this.state;
     const now = Date.now();
 
-    // Build chests from map data
     this.state.chests = map.chests.map((c: ChestSpawn, idx: number) =>
       this.makeChest(c, idx, floor),
     );
@@ -241,12 +243,10 @@ export class GameEngine {
       const def = ROOM_TYPE_DEFS[room.roomType];
 
       if (def.peaceful) {
-        // Potions only
         this.spawnPotions(room, def.potionBonus + Math.floor(Math.random() * 2), floor);
         continue;
       }
 
-      // Enemies
       const baseCount = Math.floor(Math.random() * 3) + Math.floor(floor / 2);
       const count = Math.round(baseCount * def.enemyMult);
       const pool = def.enemyTypes.length > 0 ? def.enemyTypes : this.defaultPool(floor);
@@ -276,11 +276,13 @@ export class GameEngine {
           targetX: ex, targetY: ey,
           nextAttackTime: 0,
           flashUntil: 0,
-          spawnTime: now + Math.random() * 1000, // phase offset for animation
+          spawnTime: now + Math.random() * 1000,
+          lastAttackTime: 0,
+          deathTime: 0,
+          isDead: false,
         });
       }
 
-      // Potions
       this.spawnPotions(room, def.potionBonus, floor);
     }
   }
@@ -303,6 +305,7 @@ export class GameEngine {
       lootType,
       lootValue: lootType === 'big_potion' ? 60 + floor * 10 : 25 + floor * 5,
       roomIndex: c.roomIndex,
+      openTime: 0,
     };
   }
 
@@ -311,6 +314,7 @@ export class GameEngine {
     count: number,
     floor: number,
   ): void {
+    const now = Date.now();
     for (let p = 0; p < count; p++) {
       const px = (room.x + 1 + Math.random() * (room.w - 2)) * TILE_SIZE;
       const py = (room.y + 1 + Math.random() * (room.h - 2)) * TILE_SIZE;
@@ -323,6 +327,7 @@ export class GameEngine {
         x: px, y: py,
         width: 16, height: 16,
         vx: 0, vy: 0,
+        spawnTime: now + Math.random() * 500,
       });
     }
   }
@@ -344,11 +349,11 @@ export class GameEngine {
 
     this.updatePlayer(dt, timestamp);
     this.updateEnemies(dt, timestamp);
-    this.updateItems();
+    this.updateItems(timestamp);
     this.updateEffects(dt);
+    this.updateParticles(dt);
     this.updateCamera();
 
-    // Exploration
     const px = Math.floor((this.state.player.x + 16) / TILE_SIZE);
     const py = Math.floor((this.state.player.y + 16) / TILE_SIZE);
     for (let dy = -3; dy <= 3; dy++) {
@@ -365,7 +370,6 @@ export class GameEngine {
       return;
     }
 
-    // Level up
     const xpNeeded = this.state.player.level * 100;
     if (this.state.player.xp >= xpNeeded) {
       this.state.player.xp -= xpNeeded;
@@ -377,24 +381,22 @@ export class GameEngine {
       return;
     }
 
-    // Auto-save every 5 kills
     if (this.state.killCount >= this.lastSaveKillCount + 5) {
       this.lastSaveKillCount = this.state.killCount;
       this.doSave();
     }
 
-    // Stairs / chest interaction
     if (this.input.interact) {
       this.input.interact = false;
       if (this.state.map.tiles[py]?.[px] === TileType.STAIRS_DOWN) {
         this.nextFloor();
         return;
       }
-      this.tryOpenNearbyChest();
+      this.tryOpenNearbyChest(timestamp);
     }
   }
 
-  private tryOpenNearbyChest(): void {
+  private tryOpenNearbyChest(time: number): void {
     const { player, chests } = this.state;
     const pcx = player.x + 16, pcy = player.y + 16;
 
@@ -403,7 +405,6 @@ export class GameEngine {
       const ccx = chest.x + chest.width / 2;
       const ccy = chest.y + chest.height / 2;
       if (distance(pcx, pcy, ccx, ccy) < 64) {
-        // Locked chests cost HP to pry open (small amount)
         if (chest.locked) {
           const cost = Math.max(1, Math.floor(player.maxHp * 0.06));
           player.hp = Math.max(1, player.hp - cost);
@@ -412,10 +413,12 @@ export class GameEngine {
             x: ccx, y: chest.y - 10,
             value: `-${cost} HP`, color: '#e74c3c',
             lifeTime: 0, maxLifeTime: 1200,
+            scale: 1.2,
           });
-          chest.locked = false; // pried open
+          chest.locked = false;
         }
         chest.opened = true;
+        chest.openTime = time;
         this.applyChestLoot(chest);
         return;
       }
@@ -435,19 +438,19 @@ export class GameEngine {
         x: cx, y: cy - 10,
         value: `+${heal} HP`, color: '#33cc66',
         lifeTime: 0, maxLifeTime: 1500,
+        scale: 1.3,
       });
     } else {
-      // Gold gives XP equivalent
       player.xp += chest.lootValue;
       this.state.damageNumbers.push({
         id: Math.random().toString(36),
         x: cx, y: cy - 10,
         value: `+${chest.lootValue} XP`, color: '#ffdd33',
         lifeTime: 0, maxLifeTime: 1500,
+        scale: 1.3,
       });
     }
 
-    // Sparkle effect
     this.state.effects.push({
       id: Math.random().toString(36),
       x: cx, y: cy,
@@ -456,6 +459,7 @@ export class GameEngine {
       lifeTime: 0, maxLifeTime: 400,
       type: 'sweep',
     });
+    this.state.particles.push(...makeParticles(cx, cy, '#ffdd33', 12, 70, 2.5));
 
     this.onStateChange({ ...this.state });
   }
@@ -495,6 +499,11 @@ export class GameEngine {
       this.moveEntity(player, dx * def.dashDistance, dy * def.dashDistance);
       isDodging = true;
       this.input.dodge = false;
+      // Dash dust
+      const cx = player.x + player.width / 2;
+      const cy = player.y + player.height / 2;
+      this.state.particles.push(...makeStepDust(cx, cy + 12, '#a0a0c0'));
+      this.state.particles.push(...makeStepDust(cx, cy + 12, def.glowColor));
     }
 
     if (!isDodging) {
@@ -504,6 +513,13 @@ export class GameEngine {
         if (mx !== 0) player.facing.x = Math.sign(mx);
         if (my !== 0) player.facing.y = Math.sign(my);
         player.state = 'moving';
+        // step dust every 240ms
+        if (time - this.lastStepTime > 240) {
+          this.lastStepTime = time;
+          const cx = player.x + player.width / 2;
+          const cy = player.y + player.height - 4;
+          this.state.particles.push(...makeStepDust(cx, cy));
+        }
       } else {
         player.state = 'idle';
       }
@@ -512,17 +528,19 @@ export class GameEngine {
 
     if (this.input.attack && player.attackCooldown <= 0) {
       player.attackCooldown = def.attackCooldownMs;
-      const { damageNumbers, effects } = performPlayerAttack(player, this.state.enemies, time);
-      this.state.damageNumbers.push(...damageNumbers);
-      this.state.effects.push(...effects);
+      const result = performPlayerAttack(player, this.state.enemies, time);
+      this.state.damageNumbers.push(...result.damageNumbers);
+      this.state.effects.push(...result.effects);
+      this.state.particles.push(...result.particles);
       this.input.attack = false;
     }
 
     if (this.input.skill && player.skillCooldown <= 0) {
       player.skillCooldown = def.skillCooldownMs;
-      const { damageNumbers, effects } = performPlayerSkill(player, this.state.enemies, time);
-      this.state.damageNumbers.push(...damageNumbers);
-      this.state.effects.push(...effects);
+      const result = performPlayerSkill(player, this.state.enemies, time);
+      this.state.damageNumbers.push(...result.damageNumbers);
+      this.state.effects.push(...result.effects);
+      this.state.particles.push(...result.particles);
       this.input.skill = false;
     }
   }
@@ -533,37 +551,52 @@ export class GameEngine {
     for (let i = enemies.length - 1; i >= 0; i--) {
       const enemy = enemies[i];
       if (enemy.hp <= 0) {
-        this.state.killCount++;
-        const base = ENEMY_BASE_STATS[enemy.enemyType];
-        player.xp += base.xp;
+        if (!enemy.isDead) {
+          // Rewards are given immediately when the enemy dies, preserving original mechanics.
+          enemy.isDead = true;
+          enemy.state = 'dead';
+          enemy.deathTime = time;
+          this.state.killCount++;
+          const base = ENEMY_BASE_STATS[enemy.enemyType];
+          player.xp += base.xp;
 
-        // Drop XP orb
-        this.state.items.push({
-          id: Math.random().toString(36),
-          type: 'item',
-          itemType: 'xp_orb',
-          value: 0,
-          color: '#ffaa00',
-          x: enemy.x + enemy.width / 2 - 8,
-          y: enemy.y + enemy.height / 2 - 8,
-          width: 12, height: 12, vx: 0, vy: 0,
-        });
+          const cx = enemy.x + enemy.width / 2;
+          const cy = enemy.y + enemy.height / 2;
+          this.state.particles.push(...makeParticles(cx, cy, enemy.color, 16, 90, 3));
+          this.state.particles.push(...makeParticles(cx, cy, '#ffcc00', 8, 70, 2));
 
-        // Random potion drop (~15%)
-        if (Math.random() < 0.15) {
           this.state.items.push({
             id: Math.random().toString(36),
             type: 'item',
-            itemType: 'potion',
-            value: 15 + this.state.floor * 3,
-            color: '#33cc66',
-            x: enemy.x + enemy.width / 2 - 8,
-            y: enemy.y + enemy.height / 2 + 10,
-            width: 14, height: 14, vx: 0, vy: 0,
+            itemType: 'xp_orb',
+            value: 0,
+            color: '#ffaa00',
+            x: cx - 8,
+            y: cy - 8,
+            width: 12, height: 12, vx: 0, vy: 0,
+            spawnTime: time,
           });
-        }
 
-        enemies.splice(i, 1);
+          if (Math.random() < 0.15) {
+            this.state.items.push({
+              id: Math.random().toString(36),
+              type: 'item',
+              itemType: 'potion',
+              value: 15 + this.state.floor * 3,
+              color: '#33cc66',
+              x: cx - 8,
+              y: cy + 10,
+              width: 14, height: 14, vx: 0, vy: 0,
+              spawnTime: time,
+            });
+          }
+
+          this.onStateChange({ ...this.state });
+        }
+        // Leave corpse for 400ms, then remove it
+        if (time - enemy.deathTime > 400) {
+          enemies.splice(i, 1);
+        }
         continue;
       }
 
@@ -588,8 +621,8 @@ export class GameEngine {
                                  enemy.enemyType === 'boss'  ? 700  :
                                  enemy.enemyType === 'slime' ? 1200 : 1000;
           enemy.nextAttackTime = time + attackInterval;
+          enemy.lastAttackTime = time;
           if (time > player.invincibleUntil) {
-            const def2 = enemy.defense ?? 0;
             const dmg = Math.max(1, enemy.attack - player.defense + Math.floor(Math.random() * 3));
             player.hp -= dmg;
             this.state.damageNumbers.push({
@@ -597,13 +630,14 @@ export class GameEngine {
               x: player.x + 16, y: player.y - 10,
               value: `-${dmg}`, color: '#c0392b',
               lifeTime: 0, maxLifeTime: 1000,
+              scale: 1.2,
             });
-            void def2;
+            // Player hit particles
+            this.state.particles.push(...makeHitSpark(player.x + 16, player.y + 16, '#ff3333', 10));
             this.onStateChange({ ...this.state });
           }
         }
       } else {
-        // Patrol – wander randomly
         if (Math.random() < 0.015) {
           enemy.targetX = enemy.x + (Math.random() * 120 - 60);
           enemy.targetY = enemy.y + (Math.random() * 120 - 60);
@@ -617,7 +651,7 @@ export class GameEngine {
     }
   }
 
-  updateItems(): void {
+  updateItems(time: number): void {
     const { items, player } = this.state;
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
@@ -629,7 +663,9 @@ export class GameEngine {
             x: player.x, y: player.y - 10,
             value: `+${item.value}`, color: '#33cc66',
             lifeTime: 0, maxLifeTime: 1000,
+            scale: 1.2,
           });
+          this.state.particles.push(...makeHitSpark(player.x + 16, player.y + 16, '#33cc66', 6));
         }
         items.splice(i, 1);
         this.onStateChange({ ...this.state });
@@ -650,6 +686,24 @@ export class GameEngine {
         effects[i].radius = (effects[i].lifeTime / effects[i].maxLifeTime) * effects[i].maxRadius;
       }
       if (effects[i].lifeTime >= effects[i].maxLifeTime) effects.splice(i, 1);
+    }
+  }
+
+  updateParticles(dt: number): void {
+    const { particles } = this.state;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.lifeTime += dt;
+      p.x += p.vx * (dt / 1000);
+      p.y += p.vy * (dt / 1000);
+      if (p.drag) {
+        p.vx *= p.drag;
+        p.vy *= p.drag;
+      }
+      if (p.gravity) {
+        p.vy += p.gravity * (dt / 1000);
+      }
+      if (p.lifeTime >= p.maxLifeTime) particles.splice(i, 1);
     }
   }
 

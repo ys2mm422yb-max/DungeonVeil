@@ -1,4 +1,4 @@
-import { Player, Enemy, DamageNumber, VisualEffect } from './entities';
+import { Player, Enemy, DamageNumber, VisualEffect, Particle } from './entities';
 import { CLASS_DEFS } from './classes';
 
 export function calculateDamage(attacker: { attack: number }, defender: { defense?: number }): number {
@@ -24,28 +24,98 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 }
 
+export function makeParticles(
+  x: number,
+  y: number,
+  color: string,
+  count: number,
+  speed = 80,
+  size = 2,
+): Particle[] {
+  const particles: Particle[] = [];
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const sp = speed * (0.4 + Math.random() * 0.8);
+    particles.push({
+      id: Math.random().toString(),
+      x, y,
+      vx: Math.cos(angle) * sp,
+      vy: Math.sin(angle) * sp,
+      color,
+      lifeTime: 0,
+      maxLifeTime: 400 + Math.random() * 400,
+      size: size + Math.random() * 2,
+      drag: 0.92,
+      gravity: 0,
+      fade: true,
+    });
+  }
+  return particles;
+}
+
+export function makeHitSpark(
+  x: number,
+  y: number,
+  color: string,
+  count = 8,
+): Particle[] {
+  return makeParticles(x, y, color, count, 120, 1.5);
+}
+
+export function makeStepDust(
+  x: number,
+  y: number,
+  color = '#6a6a6a',
+): Particle[] {
+  return makeParticles(x, y, color, 4, 30, 1.5).map(p => ({
+    ...p,
+    maxLifeTime: 350,
+    gravity: -20,
+  }));
+}
+
 export function performPlayerAttack(
   player: Player,
   enemies: Enemy[],
   currentTime: number
-): { hits: Enemy[]; damageNumbers: DamageNumber[]; effects: VisualEffect[] } {
+): { hits: Enemy[]; damageNumbers: DamageNumber[]; effects: VisualEffect[]; particles: Particle[] } {
   const hits: Enemy[] = [];
   const damageNumbers: DamageNumber[] = [];
   const effects: VisualEffect[] = [];
+  const particles: Particle[] = [];
   const attackRange = player.attackRange;
   const classDef = CLASS_DEFS[player.playerClass];
+  const cx = player.x + player.width / 2;
+  const cy = player.y + player.height / 2;
+  player.lastAttackTime = currentTime;
+
+  // Slash effect
+  const slashAngle = Math.atan2(player.facing.y, player.facing.x);
+  effects.push({
+    id: Math.random().toString(),
+    x: cx + player.facing.x * attackRange * 0.5,
+    y: cy + player.facing.y * attackRange * 0.5,
+    radius: attackRange * 0.6,
+    maxRadius: attackRange * 0.8,
+    color: classDef.skillEffectColor.replace('0.55', '0.45'),
+    lifeTime: 0,
+    maxLifeTime: 160,
+    type: 'slash',
+    angle: slashAngle,
+    width: 18,
+  });
 
   enemies.forEach(enemy => {
+    if (enemy.hp <= 0 || enemy.state === 'dead') return;
     const dist = distance(
-      player.x + player.width / 2,
-      player.y + player.height / 2,
+      cx, cy,
       enemy.x + enemy.width / 2,
       enemy.y + enemy.height / 2
     );
     if (dist <= attackRange) {
       const dmg = calculateDamage(player, enemy);
       enemy.hp -= dmg;
-      enemy.flashUntil = currentTime + 200;
+      enemy.flashUntil = currentTime + 220;
       hits.push(enemy);
       damageNumbers.push({
         id: Math.random().toString(),
@@ -55,41 +125,74 @@ export function performPlayerAttack(
         color: '#e74c3c',
         lifeTime: 0,
         maxLifeTime: 1000,
+        scale: 1.4,
       });
+      particles.push(...makeHitSpark(
+        enemy.x + enemy.width / 2,
+        enemy.y + enemy.height / 2,
+        enemy.color,
+        10,
+      ));
     }
   });
 
-  effects.push({
-    id: Math.random().toString(),
-    x: player.x + player.width / 2 + player.facing.x * 20,
-    y: player.y + player.height / 2 + player.facing.y * 20,
-    radius: attackRange * 0.8,
-    maxRadius: attackRange,
-    color: classDef.skillEffectColor.replace('0.55', '0.35'),
-    lifeTime: 0,
-    maxLifeTime: 200,
-    type: 'flash',
-  });
-
-  return { hits, damageNumbers, effects };
+  return { hits, damageNumbers, effects, particles };
 }
 
 export function performPlayerSkill(
   player: Player,
   enemies: Enemy[],
   currentTime: number
-): { hits: Enemy[]; damageNumbers: DamageNumber[]; effects: VisualEffect[] } {
+): { hits: Enemy[]; damageNumbers: DamageNumber[]; effects: VisualEffect[]; particles: Particle[] } {
   const hits: Enemy[] = [];
   const damageNumbers: DamageNumber[] = [];
   const effects: VisualEffect[] = [];
+  const particles: Particle[] = [];
   const classDef = CLASS_DEFS[player.playerClass];
   const skillRange = player.skillRange;
   const damageMult = classDef.skillDamageMult;
+  const cx = player.x + player.width / 2;
+  const cy = player.y + player.height / 2;
+
+  // Skill beam/slash based on class
+  if (player.playerClass === 'mage') {
+    effects.push({
+      id: Math.random().toString(),
+      x: cx, y: cy,
+      radius: 0, maxRadius: skillRange,
+      color: classDef.skillEffectColor,
+      lifeTime: 0, maxLifeTime: 500,
+      type: 'sweep',
+    });
+  } else if (player.playerClass === 'archer') {
+    effects.push({
+      id: Math.random().toString(),
+      x: cx + player.facing.x * skillRange * 0.5,
+      y: cy + player.facing.y * skillRange * 0.5,
+      radius: skillRange * 0.6,
+      maxRadius: skillRange,
+      color: classDef.skillEffectColor,
+      lifeTime: 0, maxLifeTime: 250,
+      type: 'slash',
+      angle: Math.atan2(player.facing.y, player.facing.x),
+      width: 12,
+    });
+  } else {
+    // warrior spin
+    effects.push({
+      id: Math.random().toString(),
+      x: cx, y: cy,
+      radius: 0, maxRadius: skillRange,
+      color: classDef.skillEffectColor,
+      lifeTime: 0, maxLifeTime: 400,
+      type: 'sweep',
+    });
+  }
 
   enemies.forEach(enemy => {
+    if (enemy.hp <= 0 || enemy.state === 'dead') return;
     const dist = distance(
-      player.x + player.width / 2,
-      player.y + player.height / 2,
+      cx, cy,
       enemy.x + enemy.width / 2,
       enemy.y + enemy.height / 2
     );
@@ -106,21 +209,16 @@ export function performPlayerSkill(
         color: player.color,
         lifeTime: 0,
         maxLifeTime: 1200,
+        scale: 1.3,
       });
+      particles.push(...makeHitSpark(
+        enemy.x + enemy.width / 2,
+        enemy.y + enemy.height / 2,
+        player.color,
+        12,
+      ));
     }
   });
 
-  effects.push({
-    id: Math.random().toString(),
-    x: player.x + player.width / 2,
-    y: player.y + player.height / 2,
-    radius: 0,
-    maxRadius: skillRange,
-    color: classDef.skillEffectColor,
-    lifeTime: 0,
-    maxLifeTime: 450,
-    type: 'sweep',
-  });
-
-  return { hits, damageNumbers, effects };
+  return { hits, damageNumbers, effects, particles };
 }

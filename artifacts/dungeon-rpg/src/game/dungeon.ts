@@ -39,6 +39,8 @@ export interface DungeonMap {
   wallVariant: number[][];
   /** floor colour variant index per tile (0-3) */
   floorVariant: number[][];
+  /** wall tint/style key per tile (e.g. 'mossy', 'blood', 'broken') */
+  wallTint: string[][];
   explored: boolean[][];
   rooms: Room[];
   startX: number;
@@ -72,6 +74,9 @@ export function generateDungeon(
   );
   const floorVariant: number[][] = Array.from({ length: height }, () =>
     new Array<number>(width).fill(0),
+  );
+  const wallTint: string[][] = Array.from({ length: height }, () =>
+    new Array<string>(width).fill('default'),
   );
 
   const rooms: Room[] = [];
@@ -155,13 +160,34 @@ export function generateDungeon(
     }
   }
 
-  // ── Wall variant: 1 = front face ──────────────────────────────────────────────
+  // ── Wall variant: 1 = front face ─────────────────────────────────────────────
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (tiles[y][x] === TileType.WALL) {
         const below = y + 1 < height ? tiles[y + 1][x] : TileType.EMPTY;
         wallVariant[y][x] =
           (below === TileType.FLOOR || below === TileType.DOOR || below === TileType.STAIRS_DOWN) ? 1 : 0;
+      }
+    }
+  }
+
+  // ── Wall tint per room type + random damage ───────────────────────────────
+  for (let i = 0; i < rooms.length; i++) {
+    const room = rooms[i];
+    const tintKey = tintToKey(ROOM_TYPE_DEFS[room.roomType].wallTint);
+    if (tintKey === 'default') continue;
+    for (let wy = room.y - 1; wy <= room.y + room.h; wy++) {
+      for (let wx = room.x - 1; wx <= room.x + room.w; wx++) {
+        if (wy >= 0 && wy < height && wx >= 0 && wx < width && tiles[wy][wx] === TileType.WALL) {
+          wallTint[wy][wx] = tintKey;
+        }
+      }
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (tiles[y][x] === TileType.WALL && Math.random() < 0.025) {
+        wallTint[y][x] = 'broken';
       }
     }
   }
@@ -258,9 +284,17 @@ export function generateDungeon(
   }
 
   return {
-    width, height, tiles, wallVariant, floorVariant, explored,
+    width, height, tiles, wallVariant, floorVariant, wallTint, explored,
     rooms, startX, startY, chests, decorations, torches,
   };
+}
+
+function tintToKey(tint?: string): string {
+  if (!tint) return 'default';
+  if (tint.includes('green') || tint.includes('003300')) return 'mossy';
+  if (tint.includes('red') || tint.includes('880000') || tint.includes('440000')) return 'blood';
+  if (tint.includes('purple') || tint.includes('220011')) return 'default';
+  return 'default';
 }
 
 function tryPlaceDoor(
