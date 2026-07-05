@@ -404,6 +404,10 @@ export class GameEngine {
         const hashVal = Math.abs(((x * 374761393 + y * 1234567891 + now) & 0x7fffffff) / 0x7fffffff);
         let type: EnemyType | null = null;
 
+        // Only spawn enemies on tiles the player can actually reach.
+        const isReachable = map.reachable?.[y]?.[x] ?? true;
+        if (!isReachable) continue;
+
         if (tile === TileType.FOREST && hashVal < 0.03) {
           type = hashVal < 0.015 ? 'goblin' : 'spider';
         } else if (tile === TileType.GRASS && hashVal < 0.015) {

@@ -49,6 +49,8 @@ export interface DungeonMap {
   /** wall tint/style key per tile (e.g. 'mossy', 'blood', 'broken') */
   wallTint: string[][];
   explored: boolean[][];
+  /** Walkable-reachable mask for the overworld; used by enemy spawning */
+  reachable?: boolean[][];
   rooms: Room[];
   startX: number;
   startY: number;

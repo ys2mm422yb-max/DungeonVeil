@@ -4,7 +4,7 @@ import { DungeonMap, TileType } from './dungeon';
  * Procedural open-world generator for the overworld.
  *
  * Replaces the room-crawler dungeon with a large continuous biome map:
- * meadows, forests, rivers, roads, villages and dungeon entrances.
+ * meadows, forests, rivers, hills, villages, roads, rocks, flowers and dungeon entrances.
  * Dungeons are generated separately when the player enters an entrance.
  */
 
@@ -14,8 +14,8 @@ export interface WorldPoint {
 }
 
 export interface WorldGenConfig {
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   seed?: number;
   villageCount?: number;
   dungeonEntranceCount?: number;
@@ -81,8 +81,18 @@ function shuffle<T>(arr: T[], seed: number): T[] {
   return out;
 }
 
+function posKey(x: number, y: number): string { return `${x},${y}`; }
+
+function isWalkable(t: TileType): boolean {
+  return t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE || t === TileType.DUNGEON_ENTRANCE;
+}
+
+function inBounds(x: number, y: number, width: number, height: number): boolean {
+  return x >= 0 && x < width && y >= 0 && y < height;
+}
+
 /**
- * Generate a large connected overworld map.
+ * Generate a large connected, organic overworld map.
  *
  * The returned map uses the same DungeonMap shape so the engine and renderer
  * can consume it without a full rewrite. Dungeons are NOT generated here; the
@@ -107,228 +117,248 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
   const wallTint: string[][] = Array.from({ length: height }, () =>
     new Array<string>(width).fill('default'),
   );
+  const reachable: boolean[][] = Array.from({ length: height }, () =>
+    new Array<boolean>(width).fill(false),
+  );
 
-  const scale = 0.05;
-
-  // 1. Biome base pass (water, grass, forest)
+  // 1. Large-scale biome pass: water / grass / forest with smooth thresholds
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const n = fbm(x * scale, y * scale, seed, 5);
+      const n = fbm(x * 0.035, y * 0.035, seed, 5);
       const h = n * 0.5 + 0.5;
-
-      if (h < 0.28) {
+      if (h < 0.26) {
         tiles[y][x] = TileType.WATER;
-      } else if (h > 0.72) {
+      } else if (h > 0.68) {
         tiles[y][x] = TileType.FOREST;
       } else {
         tiles[y][x] = TileType.GRASS;
       }
-
-      // many grass variants for visual diversity
-      if (tiles[y][x] === TileType.GRASS) {
-        const v = Math.abs(noise2D(x * 0.3, y * 0.3, seed + 10));
-        floorVariant[y][x] = Math.floor(v * 8);
-      }
-      // forest edge hint + tree type
+      // visual variation index
+      floorVariant[y][x] = Math.floor(Math.abs(noise2D(x * 0.3, y * 0.3, seed + 10)) * 8);
+      // forest tree type: 0 = broadleaf, 1 = pine
       if (tiles[y][x] === TileType.FOREST) {
         wallVariant[y][x] = Math.abs(noise2D(x * 0.3, y * 0.3, seed + 20)) < 0.5 ? 1 : 0;
       }
     }
   }
 
-  // 1b. Carve curved rivers across the world
+  // 1b. Smooth small isolated noise specks into larger organic regions
+  for (let pass = 0; pass < 2; pass++) {
+    const next = tiles.map(row => [...row]);
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const counts = new Map<TileType, number>();
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const t = tiles[y + dy][x + dx];
+            counts.set(t, (counts.get(t) ?? 0) + 1);
+          }
+        }
+        let best = tiles[y][x];
+        let bestCount = 0;
+        counts.forEach((c, t) => { if (c > bestCount) { bestCount = c; best = t; } });
+        if (bestCount >= 5) next[y][x] = best;
+      }
+    }
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) tiles[y][x] = next[y][x];
+  }
+
+  // 1c. Carve organic meandering rivers from one edge to another
   const riverCount = 2 + Math.floor(Math.abs(noise2D(seed, seed, seed * 2)) * 3);
   for (let r = 0; r < riverCount; r++) {
     let rx = Math.floor(Math.abs(noise2D(seed + r, 0, seed)) * width);
     let ry = Math.floor(Math.abs(noise2D(0, seed + r, seed)) * height);
-    const riverSteps = Math.floor(Math.abs(noise2D(r, r, seed + 5)) * 120) + 80;
-    for (let s = 0; s < riverSteps; s++) {
-      if (rx >= 0 && rx < width && ry >= 0 && ry < height) {
+    const steps = 160 + Math.floor(Math.abs(noise2D(r, r, seed + 5)) * 120);
+    for (let s = 0; s < steps; s++) {
+      if (inBounds(rx, ry, width, height)) {
         tiles[ry][rx] = TileType.WATER;
-        // widen the river to 2-3 cells
+        // carve a gently wandering channel 2-3 cells wide
         for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
           const nx = rx + dx, ny = ry + dy;
-          if (nx >= 0 && nx < width && ny >= 0 && ny < height && tiles[ny][nx] !== TileType.WATER) {
-            if (Math.abs(noise2D(nx, ny, seed + r + 100)) < 0.45) tiles[ny][nx] = TileType.WATER;
+          if (inBounds(nx, ny, width, height) && tiles[ny][nx] !== TileType.WATER) {
+            if (Math.abs(noise2D(nx, ny, seed + r + 100)) < 0.42) tiles[ny][nx] = TileType.WATER;
           }
         }
       }
-      const angle = (s / riverSteps) * Math.PI * 2 + noise2D(rx, ry, seed + r) * 2;
-      rx += Math.round(Math.cos(angle));
-      ry += Math.round(Math.sin(angle));
+      const targetAngle = (s / steps) * Math.PI * 2 + noise2D(rx, ry, seed + r) * 3;
+      const turn = noise2D(rx * 0.2, ry * 0.2, seed + r + 200) * 2;
+      rx += Math.round(Math.cos(targetAngle + turn));
+      ry += Math.round(Math.sin(targetAngle + turn));
     }
   }
 
-  // 1c. Add small ponds
-  const pondCount = 3 + Math.floor(Math.abs(noise2D(seed, seed, seed + 7)) * 4);
+  // 1d. Add natural ponds and lakes
+  const pondCount = 4 + Math.floor(Math.abs(noise2D(seed, seed, seed + 7)) * 4);
   for (let p = 0; p < pondCount; p++) {
-    const cx = Math.floor(Math.abs(noise2D(seed + p, 0, seed + 8)) * width);
-    const cy = Math.floor(Math.abs(noise2D(0, seed + p, seed + 9)) * height);
-    const radius = 2 + Math.floor(Math.abs(noise2D(cx, cy, seed + p + 10)) * 4);
+    const cx = Math.floor(Math.abs(noise2D(seed + p, 0, seed + 8)) * (width - 8)) + 4;
+    const cy = Math.floor(Math.abs(noise2D(0, seed + p, seed + 9)) * (height - 8)) + 4;
+    const radius = 2 + Math.floor(Math.abs(noise2D(cx, cy, seed + p + 10)) * 5);
     for (let y = -radius; y <= radius; y++) {
       for (let x = -radius; x <= radius; x++) {
-        if (x * x + y * y <= radius * radius + Math.abs(noise2D(cx + x, cy + y, seed + p + 11)) * 2) {
+        const d = Math.sqrt(x * x + y * y);
+        const noisy = Math.abs(noise2D(cx + x, cy + y, seed + p + 11)) * 1.5;
+        if (d <= radius - noisy) {
           const nx = cx + x, ny = cy + y;
-          if (nx >= 0 && nx < width && ny >= 0 && ny < height) tiles[ny][nx] = TileType.WATER;
+          if (inBounds(nx, ny, width, height)) tiles[ny][nx] = TileType.WATER;
         }
       }
     }
   }
 
-  // 2. Build a list of candidate clearings (grass cells away from water)
-  const candidates: WorldPoint[] = [];
-  for (let y = 4; y < height - 4; y++) {
-    for (let x = 4; x < width - 4; x++) {
-      let ok = true;
-      for (let dy = -2; dy <= 2 && ok; dy++) {
-        for (let dx = -2; dx <= 2 && ok; dx++) {
-          if (tiles[y + dy][x + dx] !== TileType.GRASS) ok = false;
+  // 2. Find grass clearings for villages (large 7x7 and smaller 5x5)
+  const largeClearings: WorldPoint[] = [];
+  const smallClearings: WorldPoint[] = [];
+  for (let y = 5; y < height - 5; y++) {
+    for (let x = 5; x < width - 5; x++) {
+      let large = true;
+      for (let dy = -3; dy <= 3 && large; dy++) {
+        for (let dx = -3; dx <= 3 && large; dx++) {
+          if (tiles[y + dy][x + dx] !== TileType.GRASS) large = false;
         }
       }
-      if (ok) candidates.push({ tx: x, ty: y });
+      if (large) largeClearings.push({ tx: x, ty: y });
+      else {
+        let small = true;
+        for (let dy = -2; dy <= 2 && small; dy++) {
+          for (let dx = -2; dx <= 2 && small; dx++) {
+            if (tiles[y + dy][x + dx] !== TileType.GRASS) small = false;
+          }
+        }
+        if (small) smallClearings.push({ tx: x, ty: y });
+      }
     }
   }
-  const shuffled = shuffle(candidates, seed + 30);
+  const shuffledClearings = shuffle([...largeClearings, ...smallClearings], seed + 30);
 
-  // 3. Place villages
+  // 3. Place organic villages: a cluster of houses around a central square
   const villages: WorldPoint[] = [];
-  for (let i = 0; i < Math.min(villageCount, shuffled.length); i++) {
-    const p = shuffled[i];
-    if (villages.some(v => distanceSq(v, p) < 225)) continue;
+  const villageCenters: WorldPoint[] = [];
+  let clearingIdx = 0;
+  while (villageCenters.length < villageCount && clearingIdx < shuffledClearings.length) {
+    const center = shuffledClearings[clearingIdx++];
+    if (villageCenters.some(v => distanceSq(v, center) < 400)) continue;
 
-    villages.push(p);
+    villageCenters.push(center);
+    // central village square / road
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
-        const nx = p.tx + dx;
-        const ny = p.ty + dy;
-        if (dx === 0 && dy === 0) {
-          tiles[ny][nx] = TileType.VILLAGE;
-          floorVariant[ny][nx] = 1;
-        } else if (Math.abs(dx) + Math.abs(dy) <= 2) {
-          tiles[ny][nx] = TileType.VILLAGE;
-          floorVariant[ny][nx] = 0;
+        const nx = center.tx + dx, ny = center.ty + dy;
+        if (inBounds(nx, ny, width, height)) tiles[ny][nx] = TileType.ROAD;
+      }
+    }
+    // 2-5 houses around the square
+    const houseCount = 2 + Math.floor(Math.abs(noise2D(center.tx, center.ty, seed + 60)) * 4);
+    const houseDirs: WorldPoint[] = [];
+    const dirs: Array<[number, number]> = [[-2,-2],[-2,0],[-2,2],[0,-2],[0,2],[2,-2],[2,0],[2,2]];
+    const shuffledDirs = shuffle([...dirs], seed + center.tx + center.ty);
+    for (let h = 0; h < Math.min(houseCount, shuffledDirs.length); h++) {
+      const [dx, dy] = shuffledDirs[h];
+      const hx = center.tx + dx;
+      const hy = center.ty + dy;
+      if (!inBounds(hx, hy, width, height)) continue;
+      // house footprint + small yard
+      for (let hyOff = -1; hyOff <= 1; hyOff++) {
+        for (let hxOff = -1; hxOff <= 1; hxOff++) {
+          const nx = hx + hxOff, ny = hy + hyOff;
+          if (inBounds(nx, ny, width, height)) {
+            tiles[ny][nx] = (hxOff === 0 && hyOff === 0) ? TileType.VILLAGE : TileType.ROAD;
+          }
         }
+      }
+      villages.push({ tx: hx, ty: hy });
+      floorVariant[hy][hx] = Math.floor(Math.abs(noise2D(hx, hy, seed + 70)) * 4);
+      // connect house to square with road
+      for (let cx = Math.min(hx, center.tx); cx <= Math.max(hx, center.tx); cx++) {
+        if (inBounds(cx, center.ty, width, height) && tiles[center.ty][cx] !== TileType.VILLAGE) tiles[center.ty][cx] = TileType.ROAD;
+      }
+      for (let cy = Math.min(hy, center.ty); cy <= Math.max(hy, center.ty); cy++) {
+        if (inBounds(hx, cy, width, height) && tiles[cy][hx] !== TileType.VILLAGE) tiles[cy][hx] = TileType.ROAD;
       }
     }
   }
 
-  // 4. Place dungeon entrances in forest edges or remote grass
+  // 4. Place dungeon entrances in remote forest edges or quiet clearings
   const entrances: WorldPoint[] = [];
   const entranceCandidates = shuffle(
-    candidates.filter(p => tiles[p.ty][p.tx] === TileType.GRASS || tiles[p.ty][p.tx] === TileType.FOREST),
+    shuffledClearings.filter(p => tiles[p.ty][p.tx] === TileType.GRASS || tiles[p.ty][p.tx] === TileType.FOREST),
     seed + 40,
   );
   for (const p of entranceCandidates) {
     if (entrances.length >= dungeonEntranceCount) break;
-    if (villages.some(v => distanceSq(v, p) < 400)) continue;
+    if (villageCenters.some(v => distanceSq(v, p) < 400)) continue;
     if (entrances.some(e => distanceSq(e, p) < 400)) continue;
     if (p.tx < 5 || p.tx >= width - 5 || p.ty < 5 || p.ty >= height - 5) continue;
 
-    // Ensure it is reachable (grass/road/village neighbor)
-    let reachable = false;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    // Ensure it is reachable from a grass/road/village neighbor
+    let neighborReachable = false;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
       const t = tiles[p.ty + dy][p.tx + dx];
       if (t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE) {
-        reachable = true;
+        neighborReachable = true;
         break;
       }
     }
-    if (!reachable) continue;
+    if (!neighborReachable) continue;
 
     tiles[p.ty][p.tx] = TileType.DUNGEON_ENTRANCE;
     entrances.push(p);
   }
+  // Fallback: if clearings didn't yield enough, sample any interior grass/forest tile
+  let fallbackScan = 0;
+  while (entrances.length < dungeonEntranceCount && fallbackScan < 1000) {
+    fallbackScan++;
+    const x = Math.floor(Math.abs(noise2D(seed, fallbackScan, seed + 130)) * (width - 10)) + 5;
+    const y = Math.floor(Math.abs(noise2D(fallbackScan, seed, seed + 131)) * (height - 10)) + 5;
+    if (tiles[y][x] !== TileType.GRASS && tiles[y][x] !== TileType.FOREST) continue;
+    if (villageCenters.some(v => distanceSq(v, { tx: x, ty: y }) < 225)) continue;
+    if (entrances.some(e => distanceSq(e, { tx: x, ty: y }) < 225)) continue;
+    let neighborReachable = false;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const t = tiles[y + dy][x + dx];
+      if (t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE) {
+        neighborReachable = true;
+        break;
+      }
+    }
+    if (!neighborReachable) continue;
+    tiles[y][x] = TileType.DUNGEON_ENTRANCE;
+    entrances.push({ tx: x, ty: y });
+  }
 
-  // 5. Roads: connect villages to nearest village/entrance with drunken walk
-  const roadTargets = [...villages, ...entrances];
-  for (let i = 0; i < roadTargets.length; i++) {
-    const start = roadTargets[i];
-    const target = roadTargets[(i + 1) % roadTargets.length];
-    let cx = start.tx;
-    let cy = start.ty;
+  // 5. Build roads: connect every village and entrance to the nearest POI
+  const roadTargets = [...villageCenters, ...entrances];
+  for (const start of roadTargets) {
+    // connect to nearest other POI
+    let nearest: WorldPoint | null = null;
+    let bestDist = Infinity;
+    for (const target of roadTargets) {
+      if (target === start) continue;
+      const d = distanceSq(start, target);
+      if (d < bestDist) { bestDist = d; nearest = target; }
+    }
+    if (!nearest) continue;
+    let cx = start.tx, cy = start.ty;
     let steps = 0;
-    const maxSteps = (Math.abs(target.tx - start.tx) + Math.abs(target.ty - start.ty)) * 2 + 40;
-    while ((cx !== target.tx || cy !== target.ty) && steps < maxSteps) {
-      const dx = Math.sign(target.tx - cx);
-      const dy = Math.sign(target.ty - cy);
+    const maxSteps = (Math.abs(nearest.tx - start.tx) + Math.abs(nearest.ty - start.ty)) * 3 + 60;
+    while ((cx !== nearest.tx || cy !== nearest.ty) && steps < maxSteps) {
+      const dx = Math.sign(nearest.tx - cx);
+      const dy = Math.sign(nearest.ty - cy);
+      const nudge = noise2D(cx, cy, seed + 50);
       if (dx !== 0 && dy !== 0) {
-        if (Math.abs(noise2D(cx, cy, seed + 50)) < 0.5) {
-          cx += dx;
-        } else {
-          cy += dy;
-        }
+        if (Math.abs(nudge) < 0.55) cx += dx; else cy += dy;
       } else if (dx !== 0) {
         cx += dx;
       } else if (dy !== 0) {
         cy += dy;
       }
-      if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
-        if (tiles[cy][cx] === TileType.GRASS || tiles[cy][cx] === TileType.FOREST) {
-          tiles[cy][cx] = TileType.ROAD;
-        }
+      if (inBounds(cx, cy, width, height)) {
+        if (tiles[cy][cx] === TileType.GRASS || tiles[cy][cx] === TileType.FOREST) tiles[cy][cx] = TileType.ROAD;
       }
       steps++;
     }
   }
 
-  // 6. Add a few chests near villages/entrances
-  const chests: { tx: number; ty: number; locked: boolean; roomIndex: number }[] = [];
-  const occupied = new Set<string>();
-  for (const p of [...villages, ...entrances]) {
-    for (let t = 0; t < 12; t++) {
-      const dx = Math.floor(noise2D(t + p.tx, p.ty, seed + 60) * 4);
-      const dy = Math.floor(noise2D(p.tx, t + p.ty, seed + 61) * 4);
-      const cx = p.tx + dx;
-      const cy = p.ty + dy;
-      const key = `${cx},${cy}`;
-      if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
-        const t = tiles[cy][cx];
-        if (
-          (t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE) &&
-          !occupied.has(key)
-        ) {
-          occupied.add(key);
-          chests.push({ tx: cx, ty: cy, locked: Math.random() < 0.3, roomIndex: -1 });
-          break;
-        }
-      }
-    }
-  }
-
-  // 7. Decorations (shrines/altars in villages, skulls in forests, torches at villages)
-  const decorations: { tx: number; ty: number; kind: 'torch' | 'shrine' | 'skull' | 'forge' | 'bookshelf' | 'altar' }[] = [];
-  const torches: WorldPoint[] = [];
-  for (const v of villages) {
-    if (Math.random() < 0.5) {
-      decorations.push({ tx: v.tx - 1, ty: v.ty - 1, kind: 'shrine' });
-    }
-    torches.push({ tx: v.tx - 1, ty: v.ty });
-    torches.push({ tx: v.tx + 1, ty: v.ty });
-  }
-  for (const e of entrances) {
-    torches.push({ tx: e.tx - 1, ty: e.ty });
-    torches.push({ tx: e.tx + 1, ty: e.ty });
-  }
-
-  // 8. Start position: first village centre, or a grass clearing if no villages
-  const startX = villages.length > 0 ? villages[0].tx : Math.floor(width / 2);
-  const startY = villages.length > 0 ? villages[0].ty : Math.floor(height / 2);
-
-  // Mark the area around the start as explored so the player sees something immediately
-  for (let dy = -5; dy <= 5; dy++) {
-    for (let dx = -5; dx <= 5; dx++) {
-      const nx = startX + dx;
-      const ny = startY + dy;
-      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-        explored[ny][nx] = true;
-      }
-    }
-  }
-
-  // 8b. Connectivity guard: ensure the player can always reach every dungeon entrance.
-  // If new water bodies partitioned the map, build bridges (roads) across the water.
-  const isWalkable = (t: TileType) => t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE || t === TileType.DUNGEON_ENTRANCE;
-  const posKey = (x: number, y: number) => `${x},${y}`;
+  // 6. Connectivity guard: build bridges over water so every entrance is reachable
   const reachableFrom = (sx: number, sy: number): Set<string> => {
     const seen = new Set<string>();
     const q: WorldPoint[] = [{ tx: sx, ty: sy }];
@@ -337,7 +367,7 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
       const { tx, ty } = q.shift()!;
       for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
         const nx = tx + dx, ny = ty + dy;
-        if (nx >= 0 && nx < width && ny >= 0 && ny < height && !seen.has(posKey(nx, ny)) && isWalkable(tiles[ny][nx])) {
+        if (inBounds(nx, ny, width, height) && !seen.has(posKey(nx, ny)) && isWalkable(tiles[ny][nx])) {
           seen.add(posKey(nx, ny));
           q.push({ tx: nx, ty: ny });
         }
@@ -355,7 +385,7 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
       for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
         const nx = p.tx + dx, ny = p.ty + dy;
         if (
-          nx >= 0 && nx < width && ny >= 0 && ny < height &&
+          inBounds(nx, ny, width, height) &&
           !seen.has(posKey(nx, ny)) &&
           (isWalkable(tiles[ny][nx]) || tiles[ny][nx] === TileType.WATER)
         ) {
@@ -366,10 +396,14 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     }
     return null;
   };
-  let reachable = reachableFrom(startX, startY);
-  for (const e of entrances) {
-    if (!reachable.has(posKey(e.tx, e.ty))) {
-      const path = findPath(startX, startY, e.tx, e.ty);
+  const startX = villageCenters.length > 0 ? villageCenters[0].tx : Math.floor(width / 2);
+  const startY = villageCenters.length > 0 ? villageCenters[0].ty : Math.floor(height / 2);
+  let reachableSet = reachableFrom(startX, startY);
+  // All village centers, every placed house tile, and every dungeon entrance must be reachable.
+  const allPois = [...villageCenters, ...villages, ...entrances];
+  for (const poi of allPois) {
+    if (!reachableSet.has(posKey(poi.tx, poi.ty))) {
+      const path = findPath(startX, startY, poi.tx, poi.ty);
       if (path) {
         for (const p of path) {
           if (tiles[p.ty][p.tx] === TileType.WATER) tiles[p.ty][p.tx] = TileType.ROAD;
@@ -377,7 +411,88 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
       }
     }
   }
-  reachable = reachableFrom(startX, startY);
+  // Recompute after all bridges; if any POI still isolated, carve a direct corridor through anything.
+  reachableSet = reachableFrom(startX, startY);
+  for (const poi of allPois) {
+    if (reachableSet.has(posKey(poi.tx, poi.ty))) continue;
+    const dx = Math.sign(poi.tx - startX);
+    const dy = Math.sign(poi.ty - startY);
+    let cx = startX, cy = startY;
+    while (cx !== poi.tx || cy !== poi.ty) {
+      if (inBounds(cx, cy, width, height) && (tiles[cy][cx] === TileType.WATER || tiles[cy][cx] === TileType.FOREST)) tiles[cy][cx] = TileType.ROAD;
+      if (cx !== poi.tx) cx += dx;
+      else if (cy !== poi.ty) cy += dy;
+    }
+  }
+  reachableSet = reachableFrom(startX, startY);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      reachable[y][x] = reachableSet.has(posKey(x, y));
+    }
+  }
+  // Forest tiles directly adjacent to the walkable network are reachable for spawning,
+  // so goblins/spiders can appear in woods near paths while isolated forests stay empty.
+  // We expand from a snapshot to avoid cascading through whole forest regions.
+  const baseReachable = reachable.map(row => [...row]);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (tiles[y][x] === TileType.FOREST && !baseReachable[y][x]) {
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (inBounds(nx, ny, width, height) && baseReachable[ny][nx]) {
+            reachable[y][x] = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 7. Add chests near villages and dungeon entrances
+  const chests: { tx: number; ty: number; locked: boolean; roomIndex: number }[] = [];
+  const occupied = new Set<string>();
+  for (const p of [...villageCenters, ...entrances]) {
+    for (let t = 0; t < 16; t++) {
+      const dx = Math.floor(noise2D(t + p.tx, p.ty, seed + 60) * 5);
+      const dy = Math.floor(noise2D(p.tx, t + p.ty, seed + 61) * 5);
+      const cx = p.tx + dx;
+      const cy = p.ty + dy;
+      const key = `${cx},${cy}`;
+      if (inBounds(cx, cy, width, height)) {
+        const t = tiles[cy][cx];
+        if (
+          (t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE) &&
+          reachable[cy][cx] &&
+          !occupied.has(key)
+        ) {
+          occupied.add(key);
+          chests.push({ tx: cx, ty: cy, locked: Math.abs(noise2D(cx, cy, seed + 80)) < 0.3, roomIndex: -1 });
+          break;
+        }
+      }
+    }
+  }
+
+  // 8. Decorations (shrines/altars in villages, torches at entrances)
+  const decorations: { tx: number; ty: number; kind: 'torch' | 'shrine' | 'skull' | 'forge' | 'bookshelf' | 'altar' }[] = [];
+  const torches: WorldPoint[] = [];
+  for (const v of villageCenters) {
+    if (Math.abs(noise2D(v.tx, v.ty, seed + 90)) < 0.5) {
+      decorations.push({ tx: v.tx - 1, ty: v.ty - 1, kind: 'shrine' });
+    }
+  }
+  for (const e of entrances) {
+    torches.push({ tx: e.tx - 1, ty: e.ty });
+    torches.push({ tx: e.tx + 1, ty: e.ty });
+  }
+
+  // 9. Mark the start area as explored
+  for (let dy = -6; dy <= 6; dy++) {
+    for (let dx = -6; dx <= 6; dx++) {
+      const nx = startX + dx, ny = startY + dy;
+      if (inBounds(nx, ny, width, height)) explored[ny][nx] = true;
+    }
+  }
 
   return {
     width,
@@ -387,6 +502,7 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     floorVariant,
     wallTint,
     explored,
+    reachable,
     rooms: [],
     startX,
     startY,
