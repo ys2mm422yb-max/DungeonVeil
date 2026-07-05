@@ -24,7 +24,11 @@ export function GameCanvas({ gameState }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const lightRef     = useRef<HTMLCanvasElement | null>(null);
   const lightCtxRef  = useRef<CanvasRenderingContext2D | null>(null);
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
 
+  // Use a ref for the render loop so the RAF effect is created once and not torn
+  // down/recreated on every engine tick (which caused freezes/stutters).
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -43,7 +47,7 @@ export function GameCanvas({ gameState }: Props) {
       }
 
       const now = Date.now();
-      const { camera, map, player, enemies, items, chests, effects, damageNumbers, particles } = gameState;
+      const { camera, map, player, enemies, items, chests, effects, damageNumbers, particles } = gameStateRef.current;
       const classDef = CLASS_DEFS[player.playerClass];
       const camOffX = Math.round(canvas.width  / 2 - camera.x);
       const camOffY = Math.round(canvas.height / 2 - camera.y);
@@ -577,7 +581,7 @@ export function GameCanvas({ gameState }: Props) {
 
     render();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [gameState]);
+  }, []);
 
   return (
     <canvas

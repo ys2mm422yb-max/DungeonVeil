@@ -1,1 +1,2 @@
 - [Dungeon RPG pixel-art overhaul](dungeon-rpg-pixelart.md) — sprites.ts defines all 8×8 pixel-art sprites; lighting uses a persistent off-screen canvas ref to avoid per-frame allocation.
+- [Dungeon RPG canvas effect loop](dungeon-rpg-canvas-effect.md) — RAF-driven canvas loops must use a ref for the latest state, never put the mutable state in the effect dependency array.
