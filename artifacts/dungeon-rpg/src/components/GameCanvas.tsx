@@ -11,6 +11,7 @@ import {
   SPRITE_CHEST_CLOSED, SPRITE_CHEST_OPEN,
   SPRITE_POTION, SPRITE_XP_ORB,
   SPRITE_TORCH, SPRITE_SHRINE, SPRITE_SKULL, SPRITE_FORGE, SPRITE_BOOKSHELF, SPRITE_ALTAR, SPRITE_BARREL, SPRITE_CRATE,
+  SPRITE_GRASS, SPRITE_ROAD, SPRITE_WATER, SPRITE_FOREST, SPRITE_VILLAGE, SPRITE_DUNGEON_ENTRANCE,
   PLAYER_SPRITES, ENEMY_SPRITES,
   SpriteData,
 } from '../game/sprites';
@@ -67,7 +68,7 @@ export function GameCanvas({ gameState }: Props) {
       const startRow = Math.max(0, Math.floor((camera.y - half_h) / TILE_SIZE) - 1);
       const endRow   = Math.min(map.height, Math.ceil ((camera.y + half_h) / TILE_SIZE) + 1);
 
-      // ── Draw map tiles (floor + walls) ───────────────────────────────────────
+      // ── Draw map tiles (overworld + dungeon) ─────────────────────────────────
       for (let ty = startRow; ty < endRow; ty++) {
         for (let tx = startCol; tx < endCol; tx++) {
           if (!map.explored[ty][tx]) continue;
@@ -77,74 +78,126 @@ export function GameCanvas({ gameState }: Props) {
           const wx = tx * TILE_SIZE;
           const wy = ty * TILE_SIZE;
 
-          // WALL
-          if (tile === TileType.WALL) {
-            const variant = map.wallVariant[ty][tx];
-            const tint = map.wallTint[ty][tx] ?? 'default';
-            const spr = variant === 1
-              ? SPRITE_WALL_FRONT
-              : (WALL_SPRITES_BY_TINT[tint] ?? SPRITE_WALL);
-            drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, spr, 0);
-            continue;
-          }
+          switch (tile) {
+            // DUNGEON TILES
+            case TileType.WALL: {
+              const variant = map.wallVariant[ty][tx];
+              const tint = map.wallTint[ty][tx] ?? 'default';
+              const spr = variant === 1
+                ? SPRITE_WALL_FRONT
+                : (WALL_SPRITES_BY_TINT[tint] ?? SPRITE_WALL);
+              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, spr, 0);
+              break;
+            }
+            case TileType.FLOOR:
+            case TileType.DOOR:
+            case TileType.STAIRS_DOWN: {
+              const fv = Math.min(3, map.floorVariant[ty][tx] ?? 0);
+              const above = ty > 0 ? map.tiles[ty - 1][tx] : TileType.EMPTY;
+              if (above === TileType.WALL && fv === 0) {
+                drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_FLOOR_EDGE[0], 0);
+              } else {
+                drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_FLOOR[fv], 0);
+              }
+              if (tile === TileType.DOOR) {
+                drawSprite(ctx, wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, SPRITE_DOOR_OPEN, 0);
+              } else if (tile === TileType.STAIRS_DOWN) {
+                const sf = animFrame(SPRITE_STAIRS, now, 1.5);
+                drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_STAIRS, sf);
+                const pulsed = 0.25 + 0.15 * Math.sin(now / 300);
+                ctx.save();
+                ctx.shadowBlur = 24;
+                ctx.shadowColor = `rgba(160,80,255,${pulsed})`;
+                ctx.beginPath();
+                ctx.arc(wx + TILE_SIZE / 2, wy + TILE_SIZE / 2, 8, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(160,80,255,${pulsed * 0.4})`;
+                ctx.fill();
+                ctx.restore();
+              }
+              break;
+            }
 
-          // FLOOR (all walkable tiles get a floor first)
-          const fv = Math.min(3, map.floorVariant[ty][tx] ?? 0);
-          // Edge shading when a wall is directly above
-          const above = ty > 0 ? map.tiles[ty - 1][tx] : TileType.EMPTY;
-          if (above === TileType.WALL && fv === 0) {
-            drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_FLOOR_EDGE[0], 0);
-          } else {
-            drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_FLOOR[fv], 0);
-          }
-
-          // DOOR (always walkable in this game → open visual)
-          if (tile === TileType.DOOR) {
-            drawSprite(ctx, wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, SPRITE_DOOR_OPEN, 0);
-            continue;
-          }
-
-          // STAIRS
-          if (tile === TileType.STAIRS_DOWN) {
-            const sf = animFrame(SPRITE_STAIRS, now, 1.5);
-            drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_STAIRS, sf);
-            const pulsed = 0.25 + 0.15 * Math.sin(now / 300);
-            ctx.save();
-            ctx.shadowBlur = 24;
-            ctx.shadowColor = `rgba(160,80,255,${pulsed})`;
-            ctx.beginPath();
-            ctx.arc(wx + TILE_SIZE / 2, wy + TILE_SIZE / 2, 8, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(160,80,255,${pulsed * 0.4})`;
-            ctx.fill();
-            ctx.restore();
+            // OVERWORLD TILES
+            case TileType.GRASS: {
+              const gv = map.floorVariant[ty][tx] ?? 0;
+              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_GRASS[gv % SPRITE_GRASS.length], 0);
+              break;
+            }
+            case TileType.ROAD: {
+              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_ROAD, 0);
+              break;
+            }
+            case TileType.WATER: {
+              const wf = animFrame(SPRITE_WATER, now + tx * 100 + ty * 50, 2);
+              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_WATER, wf);
+              break;
+            }
+            case TileType.FOREST: {
+              drawSprite(ctx, wx, wy - 8, TILE_SIZE, TILE_SIZE + 8, SPRITE_FOREST, 0);
+              break;
+            }
+            case TileType.VILLAGE: {
+              drawSprite(ctx, wx, wy - 8, TILE_SIZE, TILE_SIZE + 8, SPRITE_VILLAGE, 0);
+              break;
+            }
+            case TileType.DUNGEON_ENTRANCE: {
+              drawSprite(ctx, wx, wy - 8, TILE_SIZE, TILE_SIZE + 8, SPRITE_DUNGEON_ENTRANCE, 0);
+              const pulse = 0.25 + 0.15 * Math.sin(now / 300);
+              ctx.save();
+              ctx.shadowBlur = 24;
+              ctx.shadowColor = `rgba(120,80,200,${pulse})`;
+              ctx.beginPath();
+              ctx.arc(wx + TILE_SIZE / 2, wy + TILE_SIZE / 2, 10, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(120,80,200,${pulse * 0.4})`;
+              ctx.fill();
+              ctx.restore();
+              break;
+            }
           }
         }
       }
 
       // ── Ambient occlusion / wall-base shading ───────────────────────────────
       ctx.save();
-      for (let ty = startRow; ty < endRow; ty++) {
-        for (let tx = startCol; tx < endCol; tx++) {
-          if (!map.explored[ty]?.[tx]) continue;
-          const tile = map.tiles[ty][tx];
-          const wx = tx * TILE_SIZE;
-          const wy = ty * TILE_SIZE;
-          if (tile === TileType.WALL) {
-            // Darken the base of walls where they meet floor
-            const grad = ctx.createLinearGradient(wx, wy, wx, wy + TILE_SIZE);
-            grad.addColorStop(0, 'rgba(0,0,0,0)');
-            grad.addColorStop(0.6, 'rgba(0,0,0,0.22)');
-            grad.addColorStop(1, 'rgba(0,0,0,0.42)');
-            ctx.fillStyle = grad;
-            ctx.fillRect(wx, wy, TILE_SIZE, TILE_SIZE);
-          } else if (tile !== TileType.EMPTY) {
-            // Slight vignette in corners where walls might be above
-            if (ty > 0 && map.tiles[ty - 1][tx] === TileType.WALL) {
-              const grad = ctx.createLinearGradient(wx, wy + TILE_SIZE, wx, wy);
+      if (gameStateRef.current.inDungeon) {
+        for (let ty = startRow; ty < endRow; ty++) {
+          for (let tx = startCol; tx < endCol; tx++) {
+            if (!map.explored[ty]?.[tx]) continue;
+            const tile = map.tiles[ty][tx];
+            const wx = tx * TILE_SIZE;
+            const wy = ty * TILE_SIZE;
+            if (tile === TileType.WALL) {
+              const grad = ctx.createLinearGradient(wx, wy, wx, wy + TILE_SIZE);
               grad.addColorStop(0, 'rgba(0,0,0,0)');
-              grad.addColorStop(1, 'rgba(0,0,0,0.18)');
+              grad.addColorStop(0.6, 'rgba(0,0,0,0.22)');
+              grad.addColorStop(1, 'rgba(0,0,0,0.42)');
               ctx.fillStyle = grad;
               ctx.fillRect(wx, wy, TILE_SIZE, TILE_SIZE);
+            } else if (tile !== TileType.EMPTY) {
+              if (ty > 0 && map.tiles[ty - 1][tx] === TileType.WALL) {
+                const grad = ctx.createLinearGradient(wx, wy + TILE_SIZE, wx, wy);
+                grad.addColorStop(0, 'rgba(0,0,0,0)');
+                grad.addColorStop(1, 'rgba(0,0,0,0.18)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(wx, wy, TILE_SIZE, TILE_SIZE);
+              }
+            }
+          }
+        }
+      } else {
+        // Overworld: subtle shadow under tall trees/villages/entrances
+        for (let ty = startRow; ty < endRow; ty++) {
+          for (let tx = startCol; tx < endCol; tx++) {
+            if (!map.explored[ty]?.[tx]) continue;
+            const tile = map.tiles[ty][tx];
+            if (tile === TileType.FOREST || tile === TileType.VILLAGE || tile === TileType.DUNGEON_ENTRANCE) {
+              const wx = tx * TILE_SIZE;
+              const wy = ty * TILE_SIZE + TILE_SIZE - 6;
+              const grad = ctx.createLinearGradient(wx, wy, wx, wy + 8);
+              grad.addColorStop(0, 'rgba(0,0,0,0.25)');
+              grad.addColorStop(1, 'rgba(0,0,0,0)');
+              ctx.fillStyle = grad;
+              ctx.fillRect(wx, wy, TILE_SIZE, 8);
             }
           }
         }
@@ -215,17 +268,19 @@ export function GameCanvas({ gameState }: Props) {
       }
 
       // Extra room props: barrels / crates near walls (deterministic from hash)
-      for (let ty = startRow; ty < endRow; ty++) {
-        for (let tx = startCol; tx < endCol; tx++) {
-          if (!map.explored[ty]?.[tx]) continue;
-          const tile = map.tiles[ty][tx];
-          if (tile !== TileType.FLOOR) continue;
-          const h = hash(tx, ty);
-          if (h < 0.02) {
-            const wx = tx * TILE_SIZE;
-            const wy = ty * TILE_SIZE;
-            const spr = h < 0.01 ? SPRITE_BARREL : SPRITE_CRATE;
-            drawSprite(ctx, wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, spr, 0);
+      if (gameStateRef.current.inDungeon) {
+        for (let ty = startRow; ty < endRow; ty++) {
+          for (let tx = startCol; tx < endCol; tx++) {
+            if (!map.explored[ty]?.[tx]) continue;
+            const tile = map.tiles[ty][tx];
+            if (tile !== TileType.FLOOR) continue;
+            const h = hash(tx, ty);
+            if (h < 0.02) {
+              const wx = tx * TILE_SIZE;
+              const wy = ty * TILE_SIZE;
+              const spr = h < 0.01 ? SPRITE_BARREL : SPRITE_CRATE;
+              drawSprite(ctx, wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, spr, 0);
+            }
           }
         }
       }
@@ -535,12 +590,18 @@ export function GameCanvas({ gameState }: Props) {
         const lctx = lightCtxRef.current!;
 
         lctx.globalCompositeOperation = 'source-over';
-        // Soft base darkness with a faint blue moon/cave ambient
-        const baseGrad = lctx.createLinearGradient(0, 0, 0, lc.height);
-        baseGrad.addColorStop(0, 'rgba(4,5,14,0.86)');
-        baseGrad.addColorStop(1, 'rgba(6,5,12,0.92)');
-        lctx.fillStyle = baseGrad;
-        lctx.fillRect(0, 0, lc.width, lc.height);
+        if (gameStateRef.current.inDungeon) {
+          // Soft base darkness with a faint blue moon/cave ambient
+          const baseGrad = lctx.createLinearGradient(0, 0, 0, lc.height);
+          baseGrad.addColorStop(0, 'rgba(4,5,14,0.86)');
+          baseGrad.addColorStop(1, 'rgba(6,5,12,0.92)');
+          lctx.fillStyle = baseGrad;
+          lctx.fillRect(0, 0, lc.width, lc.height);
+        } else {
+          // Overworld: bright daylight with a very faint atmospheric tint
+          lctx.fillStyle = 'rgba(10,14,26,0.15)';
+          lctx.fillRect(0, 0, lc.width, lc.height);
+        }
         lctx.globalCompositeOperation = 'destination-out';
 
         // Player torch light with layered warm glow and subtle flicker

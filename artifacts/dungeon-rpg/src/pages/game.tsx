@@ -112,6 +112,10 @@ export default function Game() {
   const handleSkill    = useCallback(() => { if (engineRef.current) engineRef.current.input.skill  = true; }, []);
   const handleInteract = useCallback(() => { if (engineRef.current) engineRef.current.input.interact = true; }, []);
 
+  const handleExitDungeon = useCallback(() => {
+    engineRef.current?.exitDungeon();
+  }, []);
+
   const handlePause = useCallback(() => {
     if (engineRef.current && engineRef.current.state.status === 'playing') {
       engineRef.current.state.status = 'paused';
@@ -254,7 +258,7 @@ export default function Game() {
           {/* HUD + controls (visible while playing or paused) */}
           {(gameState.status === 'playing' || gameState.status === 'paused') && (
             <>
-              <HUD gameState={gameState} onPause={handlePause} />
+              <HUD gameState={gameState} onPause={handlePause} onExitDungeon={handleExitDungeon} />
               <VirtualJoystick onMove={handleJoystickMove} />
               <ActionButtons
                 gameState={gameState}

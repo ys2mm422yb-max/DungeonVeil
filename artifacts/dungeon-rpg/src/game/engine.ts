@@ -1,6 +1,7 @@
 import { UpgradeKey } from '../i18n/translations';
 import { ClassKey, CLASS_DEFS } from './classes';
 import { DungeonMap, generateDungeon, TILE_SIZE, isWalkable, TileType, ChestSpawn } from './dungeon';
+import { generateWorld } from './world';
 import { ROOM_TYPE_DEFS } from './roomTypes';
 import { performPlayerAttack, performPlayerSkill, distance, checkCollision, makeParticles, makeHitSpark, makeStepDust } from './combat';
 import { saveGame, SaveData } from './saveManager';
@@ -10,6 +11,7 @@ export interface GameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';
   floor: number;
   map: DungeonMap;
+  inDungeon: boolean;
   player: Player;
   enemies: Enemy[];
   items: Item[];
@@ -52,6 +54,7 @@ export class GameEngine {
   lastTime: number = 0;
   private lastSaveKillCount: number = 0;
   private lastStepTime: number = 0;
+  private overworldMap: DungeonMap | null = null;
 
   input = {
     joyX: 0,
@@ -69,11 +72,12 @@ export class GameEngine {
   }
 
   private makePlaceholderState(): GameState {
-    const map = generateDungeon(20, 20, 3, 1);
+    const map = generateWorld({ width: 96, height: 96 });
     return {
       status: 'playing',
       floor: 1,
       map,
+      inDungeon: false,
       player: this.buildPlayer('Hero', 'warrior', map, 1, 0, CLASS_DEFS['warrior'].maxHp),
       enemies: [],
       items: [],
@@ -132,11 +136,13 @@ export class GameEngine {
   }
 
   startNewGame(name: string, cls: ClassKey): void {
-    const map = generateDungeon(32, 32, 8, 1);
+    const map = generateWorld({ width: 96, height: 96 });
+    this.overworldMap = map;
     this.state = {
       status: 'playing',
       floor: 1,
       map,
+      inDungeon: false,
       player: this.buildPlayer(name, cls, map, 1, 0, CLASS_DEFS[cls].maxHp),
       enemies: [],
       items: [],
@@ -156,17 +162,20 @@ export class GameEngine {
   }
 
   continueGame(save: SaveData): void {
-    const numRooms = Math.min(15, 6 + Math.floor(save.floor / 2));
-    const w = 32 + save.floor * 2;
-    const h = 32 + save.floor * 2;
-    const map = generateDungeon(w, h, numRooms, save.floor);
+    const isLegacy = !save.overworldMap;
+    const overworldMap = save.overworldMap || generateWorld({ width: 96, height: 96 });
+    this.overworldMap = overworldMap;
+    const inDungeon = !isLegacy && save.inDungeon && save.dungeonMap ? true : false;
+    const currentMap = inDungeon ? save.dungeonMap! : overworldMap;
     const def = CLASS_DEFS[save.playerClass];
+    const safePos = this.safePlayerPos(overworldMap);
 
     this.state = {
       status: 'playing',
       floor: save.floor,
-      map,
-      player: this.buildPlayer(save.playerName, save.playerClass, map, save.level, save.xp, save.hp, {
+      map: currentMap,
+      inDungeon,
+      player: this.buildPlayer(save.playerName, save.playerClass, currentMap, save.level, save.xp, save.hp, {
         maxHp: save.maxHp,
         attack: save.attack,
         defense: save.defense,
@@ -184,6 +193,27 @@ export class GameEngine {
       killCount: save.killCount,
       camera: { x: 0, y: 0 },
     };
+    // Resume the player on the correct map: use current-map coords when they exist,
+    // otherwise fall back to the last known overworld position (legacy saves).
+    let targetX = safePos.x;
+    let targetY = safePos.y;
+    if (isLegacy) {
+      // Defensive: some older schemas may have stored raw position keys.
+      const legacy = save as SaveData & { x?: number; y?: number };
+      targetX = typeof legacy.x === 'number' ? legacy.x : safePos.x;
+      targetY = typeof legacy.y === 'number' ? legacy.y : safePos.y;
+    } else if (inDungeon) {
+      targetX = save.playerX ?? save.worldX ?? safePos.x;
+      targetY = save.playerY ?? save.worldY ?? safePos.y;
+    } else {
+      targetX = save.worldX ?? save.playerX ?? safePos.x;
+      targetY = save.worldY ?? save.playerY ?? safePos.y;
+    }
+    const clamped = this.clampPos(currentMap, targetX, targetY);
+    this.state.player.x = clamped.x;
+    this.state.player.y = clamped.y;
+    this.dungeonEntranceX = save.dungeonEntranceX ?? safePos.x;
+    this.dungeonEntranceY = save.dungeonEntranceY ?? safePos.y;
     this.lastTime = 0;
     this.lastSaveKillCount = save.killCount;
     this.spawnEntities(save.floor);
@@ -191,7 +221,13 @@ export class GameEngine {
   }
 
   private doSave(): void {
-    const { player, floor, killCount } = this.state;
+    const { player, floor, killCount, inDungeon } = this.state;
+    const overworldMap = inDungeon ? (this.overworldMap ?? this.state.map) : this.state.map;
+    const dungeonMap = inDungeon ? this.state.map : undefined;
+    // worldX/worldY always describe the player's last known overworld position;
+    // playerX/playerY describe the current map position (dungeon or overworld).
+    const worldX = inDungeon ? this.dungeonEntranceX : player.x;
+    const worldY = inDungeon ? this.dungeonEntranceY : player.y;
     const data: SaveData = {
       playerName: player.playerName,
       playerClass: player.playerClass,
@@ -206,6 +242,15 @@ export class GameEngine {
       attackRange: player.attackRange,
       skillRange: player.skillRange,
       killCount,
+      worldX,
+      worldY,
+      dungeonEntranceX: this.dungeonEntranceX,
+      dungeonEntranceY: this.dungeonEntranceY,
+      playerX: player.x,
+      playerY: player.y,
+      inDungeon,
+      overworldMap,
+      dungeonMap,
       savedAt: Date.now(),
     };
     saveGame(data);
@@ -219,24 +264,86 @@ export class GameEngine {
     this.state.map = generateDungeon(width, height, numRooms, this.state.floor);
     this.state.player.x = this.state.map.startX * TILE_SIZE + TILE_SIZE / 2 - 16;
     this.state.player.y = this.state.map.startY * TILE_SIZE + TILE_SIZE / 2 - 16;
+    this.clearTransientEntities();
+    this.spawnEntities(this.state.floor);
+    this.doSave();
+    this.onStateChange({ ...this.state });
+  }
+
+  private dungeonEntranceX = 0;
+  private dungeonEntranceY = 0;
+
+  enterDungeon(): void {
+    if (!this.overworldMap || this.state.inDungeon) return;
+    this.dungeonEntranceX = this.state.player.x;
+    this.dungeonEntranceY = this.state.player.y;
+    this.overworldMap = this.state.map;
+    this.state.floor = 1;
+    this.state.map = generateDungeon(32, 32, 8, 1);
+    this.state.inDungeon = true;
+    this.state.player.x = this.state.map.startX * TILE_SIZE + TILE_SIZE / 2 - 16;
+    this.state.player.y = this.state.map.startY * TILE_SIZE + TILE_SIZE / 2 - 16;
+    this.clearTransientEntities();
+    this.spawnEntities(1);
+    this.doSave();
+    this.onStateChange({ ...this.state });
+  }
+
+  exitDungeon(): void {
+    if (!this.overworldMap || !this.state.inDungeon) return;
+    this.state.map = this.overworldMap;
+    this.state.inDungeon = false;
+    this.state.floor = 1;
+    this.state.player.x = this.dungeonEntranceX;
+    this.state.player.y = this.dungeonEntranceY;
+    this.clearTransientEntities();
+    this.spawnEntities(1);
+    this.doSave();
+    this.onStateChange({ ...this.state });
+  }
+
+  private safePlayerPos(map: DungeonMap): { x: number; y: number } {
+    return {
+      x: map.startX * TILE_SIZE + TILE_SIZE / 2 - 16,
+      y: map.startY * TILE_SIZE + TILE_SIZE / 2 - 16,
+    };
+  }
+
+  private clampPos(map: DungeonMap, x: number, y: number): { x: number; y: number } {
+    const maxX = map.width * TILE_SIZE - 32;
+    const maxY = map.height * TILE_SIZE - 32;
+    return {
+      x: Math.max(0, Math.min(maxX, x)),
+      y: Math.max(0, Math.min(maxY, y)),
+    };
+  }
+
+  private clearTransientEntities(): void {
     this.state.enemies = [];
     this.state.items = [];
     this.state.chests = [];
     this.state.effects = [];
     this.state.damageNumbers = [];
     this.state.particles = [];
-    this.spawnEntities(this.state.floor);
-    this.doSave();
-    this.onStateChange({ ...this.state });
   }
 
   spawnEntities(floor: number): void {
-    const { map } = this.state;
+    const { map, inDungeon } = this.state;
     const now = Date.now();
 
     this.state.chests = map.chests.map((c: ChestSpawn, idx: number) =>
       this.makeChest(c, idx, floor),
     );
+
+    if (inDungeon) {
+      this.spawnDungeonEntities(floor, now);
+    } else {
+      this.spawnOverworldEntities(floor, now);
+    }
+  }
+
+  private spawnDungeonEntities(floor: number, now: number): void {
+    const { map } = this.state;
 
     for (let i = 1; i < map.rooms.length; i++) {
       const room = map.rooms[i];
@@ -260,7 +367,7 @@ export class GameEngine {
         const floorScale = 1 + (floor - 1) * 0.18;
 
         this.state.enemies.push({
-          id: `${now}-${i}-${j}`,
+          id: `${now}-room-${i}-${j}`,
           type: 'enemy',
           enemyType: type,
           x: ex, y: ey,
@@ -284,6 +391,78 @@ export class GameEngine {
       }
 
       this.spawnPotions(room, def.potionBonus, floor);
+    }
+  }
+
+  private spawnOverworldEntities(floor: number, now: number): void {
+    const { map } = this.state;
+    const floorScale = 1 + (floor - 1) * 0.18;
+
+    for (let y = 1; y < map.height - 1; y++) {
+      for (let x = 1; x < map.width - 1; x++) {
+        const tile = map.tiles[y][x];
+        const hashVal = Math.abs(((x * 374761393 + y * 1234567891 + now) & 0x7fffffff) / 0x7fffffff);
+        let type: EnemyType | null = null;
+
+        if (tile === TileType.FOREST && hashVal < 0.03) {
+          type = hashVal < 0.015 ? 'goblin' : 'spider';
+        } else if (tile === TileType.GRASS && hashVal < 0.015) {
+          type = hashVal < 0.007 ? 'slime' : 'orc';
+        } else if (tile === TileType.ROAD && hashVal < 0.008) {
+          type = 'skeleton';
+        }
+
+        if (type) {
+          const base = ENEMY_BASE_STATS[type];
+          const ex = x * TILE_SIZE + TILE_SIZE / 2 - base.size / 2;
+          const ey = y * TILE_SIZE + TILE_SIZE / 2 - base.size / 2;
+          this.state.enemies.push({
+            id: `${now}-world-${x}-${y}`,
+            type: 'enemy',
+            enemyType: type,
+            x: ex, y: ey,
+            width: base.size, height: base.size,
+            vx: 0, vy: 0,
+            hp: Math.round(base.hp * floorScale),
+            maxHp: Math.round(base.hp * floorScale),
+            attack: Math.round(base.attack + floor * 1.5),
+            defense: base.defense,
+            speed: base.speed,
+            color: base.color,
+            state: 'patrol',
+            targetX: ex, targetY: ey,
+            nextAttackTime: 0,
+            flashUntil: 0,
+            spawnTime: now + Math.random() * 1000,
+            lastAttackTime: 0,
+            deathTime: 0,
+            isDead: false,
+          });
+        }
+      }
+    }
+
+    // Spawn a few potions near villages
+    for (let y = 1; y < map.height - 1; y++) {
+      for (let x = 1; x < map.width - 1; x++) {
+        if (map.tiles[y][x] === TileType.VILLAGE) {
+          const h = Math.abs(((x * 374761393 + y * 1234567891 + now) & 0x7fffffff) / 0x7fffffff);
+          if (h < 0.2) {
+            this.state.items.push({
+              id: `potion-${x}-${y}`,
+              type: 'item',
+              itemType: 'potion',
+              value: 20 + floor * 5,
+              color: '#33cc66',
+              x: x * TILE_SIZE + 12,
+              y: y * TILE_SIZE + 12,
+              width: 16, height: 16,
+              vx: 0, vy: 0,
+              spawnTime: now,
+            });
+          }
+        }
+      }
     }
   }
 
@@ -388,7 +567,11 @@ export class GameEngine {
 
     if (this.input.interact) {
       this.input.interact = false;
-      if (this.state.map.tiles[py]?.[px] === TileType.STAIRS_DOWN) {
+      if (!this.state.inDungeon && this.state.map.tiles[py]?.[px] === TileType.DUNGEON_ENTRANCE) {
+        this.enterDungeon();
+        return;
+      }
+      if (this.state.inDungeon && this.state.map.tiles[py]?.[px] === TileType.STAIRS_DOWN) {
         this.nextFloor();
         return;
       }

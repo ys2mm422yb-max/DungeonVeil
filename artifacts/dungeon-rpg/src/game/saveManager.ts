@@ -1,4 +1,5 @@
 import { ClassKey } from './classes';
+import { DungeonMap } from './dungeon';
 
 const SAVE_KEY = 'dungeon-veil-save';
 
@@ -16,6 +17,16 @@ export interface SaveData {
   attackRange: number;
   skillRange: number;
   killCount: number;
+  // Open-world persistent state
+  worldX: number;
+  worldY: number;
+  dungeonEntranceX: number;
+  dungeonEntranceY: number;
+  playerX: number;
+  playerY: number;
+  inDungeon: boolean;
+  overworldMap: DungeonMap;
+  dungeonMap?: DungeonMap;
   savedAt: number;
 }
 

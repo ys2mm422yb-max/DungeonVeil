@@ -8,6 +8,13 @@ export enum TileType {
   WALL = 2,
   DOOR = 3,
   STAIRS_DOWN = 4,
+  // Overworld biomes
+  GRASS = 5,
+  FOREST = 6,
+  WATER = 7,
+  ROAD = 8,
+  VILLAGE = 9,
+  DUNGEON_ENTRANCE = 10,
 }
 
 export interface Room {
@@ -324,7 +331,15 @@ export function isWalkable(map: DungeonMap, px: number, py: number): boolean {
   const ty = Math.floor(py / TILE_SIZE);
   if (tx < 0 || tx >= map.width || ty < 0 || ty >= map.height) return false;
   const t = map.tiles[ty][tx];
-  return t === TileType.FLOOR || t === TileType.DOOR || t === TileType.STAIRS_DOWN;
+  return (
+    t === TileType.FLOOR ||
+    t === TileType.DOOR ||
+    t === TileType.STAIRS_DOWN ||
+    t === TileType.GRASS ||
+    t === TileType.ROAD ||
+    t === TileType.VILLAGE ||
+    t === TileType.DUNGEON_ENTRANCE
+  );
 }
 
 export function getRoomAt(map: DungeonMap, tx: number, ty: number): number {

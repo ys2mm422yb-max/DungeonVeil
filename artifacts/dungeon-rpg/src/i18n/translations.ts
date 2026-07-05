@@ -75,6 +75,9 @@ const en = {
   lvlLabel: 'LVL',
   experience: 'EXPERIENCE',
   hpLabel: 'HP',
+  exitDungeon: 'Exit Dungeon',
+  worldLabel: 'WORLD',
+  dungeonLabel: 'DUNGEON',
 
   // Action Buttons
   attack: 'ATK',
@@ -184,6 +187,9 @@ const de: typeof en = {
   lvlLabel: 'LV',
   experience: 'ERFAHRUNG',
   hpLabel: 'LP',
+  exitDungeon: 'Dungeon verlassen',
+  worldLabel: 'WELT',
+  dungeonLabel: 'DUNGEON',
 
   attack: 'ATK',
   dodge: 'DASH',

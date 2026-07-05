@@ -6,9 +6,10 @@ import { useLanguage } from '../i18n/LanguageContext';
 interface Props {
   gameState: GameState;
   onPause: () => void;
+  onExitDungeon?: () => void;
 }
 
-export function HUD({ gameState, onPause }: Props) {
+export function HUD({ gameState, onPause, onExitDungeon }: Props) {
   const { t } = useLanguage();
   const { player, floor, map } = gameState;
 
@@ -47,6 +48,12 @@ export function HUD({ gameState, onPause }: Props) {
           if (tile !== TileType.EMPTY) {
             let color = 'bg-gray-600';
             if (tile === TileType.STAIRS_DOWN) color = 'bg-purple-500';
+            else if (tile === TileType.DUNGEON_ENTRANCE) color = 'bg-orange-500';
+            else if (tile === TileType.WATER) color = 'bg-blue-500';
+            else if (tile === TileType.FOREST) color = 'bg-green-800';
+            else if (tile === TileType.GRASS) color = 'bg-green-600';
+            else if (tile === TileType.ROAD) color = 'bg-yellow-700';
+            else if (tile === TileType.VILLAGE) color = 'bg-yellow-500';
             else if (mx === px && my === py) color = 'bg-blue-400';
             dots.push(
               <div
@@ -84,18 +91,31 @@ export function HUD({ gameState, onPause }: Props) {
         </div>
 
         {/* Center Info — tap to pause */}
-        <div
-          className="flex flex-col items-center pointer-events-auto cursor-pointer active:scale-95 transition-transform"
-          onTouchStart={(e) => { e.preventDefault(); onPause(); }}
-          onClick={onPause}
-          data-testid="button-pause"
-        >
-          <div className="bg-black/80 border border-primary/50 text-primary px-6 py-1 rounded-t shadow-lg font-serif tracking-widest text-lg font-bold">
-            {t.floorLabel} {floor}
+        <div className="flex flex-col items-center gap-2">
+          <div
+            className="flex flex-col items-center pointer-events-auto cursor-pointer active:scale-95 transition-transform"
+            onTouchStart={(e) => { e.preventDefault(); onPause(); }}
+            onClick={onPause}
+            data-testid="button-pause"
+          >
+            <div className="bg-black/80 border border-primary/50 text-primary px-6 py-1 rounded-t shadow-lg font-serif tracking-widest text-lg font-bold">
+              {gameState.inDungeon ? `${t.dungeonLabel} ${floor}` : t.worldLabel}
+            </div>
+            <div className="bg-zinc-900 border-x border-b border-primary/30 text-white/80 px-4 py-0.5 rounded-b text-xs font-bold tracking-wider">
+              {t.lvlLabel} {stats.level}
+            </div>
           </div>
-          <div className="bg-zinc-900 border-x border-b border-primary/30 text-white/80 px-4 py-0.5 rounded-b text-xs font-bold tracking-wider">
-            {t.lvlLabel} {stats.level}
-          </div>
+
+          {gameState.inDungeon && onExitDungeon && (
+            <button
+              onClick={onExitDungeon}
+              onTouchStart={(e) => { e.preventDefault(); onExitDungeon(); }}
+              className="pointer-events-auto bg-red-900/80 border border-red-500/50 text-white/90 px-4 py-1 rounded shadow-lg text-xs font-bold tracking-wider active:scale-95 transition-transform"
+              data-testid="button-exit-dungeon"
+            >
+              {t.exitDungeon}
+            </button>
+          )}
         </div>
 
         {/* Minimap */}
