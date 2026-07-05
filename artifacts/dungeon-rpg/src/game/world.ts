@@ -116,7 +116,7 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
       const n = fbm(x * scale, y * scale, seed, 5);
       const h = n * 0.5 + 0.5;
 
-      if (h < 0.32) {
+      if (h < 0.28) {
         tiles[y][x] = TileType.WATER;
       } else if (h > 0.72) {
         tiles[y][x] = TileType.FOREST;
@@ -124,13 +124,53 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
         tiles[y][x] = TileType.GRASS;
       }
 
-      // grass variation for visual diversity
+      // many grass variants for visual diversity
       if (tiles[y][x] === TileType.GRASS) {
-        floorVariant[y][x] = Math.abs(noise2D(x * 0.2, y * 0.2, seed + 10)) < 0.33 ? 1 : 0;
+        const v = Math.abs(noise2D(x * 0.3, y * 0.3, seed + 10));
+        floorVariant[y][x] = Math.floor(v * 8);
       }
-      // forest edge hint
+      // forest edge hint + tree type
       if (tiles[y][x] === TileType.FOREST) {
         wallVariant[y][x] = Math.abs(noise2D(x * 0.3, y * 0.3, seed + 20)) < 0.5 ? 1 : 0;
+      }
+    }
+  }
+
+  // 1b. Carve curved rivers across the world
+  const riverCount = 2 + Math.floor(Math.abs(noise2D(seed, seed, seed * 2)) * 3);
+  for (let r = 0; r < riverCount; r++) {
+    let rx = Math.floor(Math.abs(noise2D(seed + r, 0, seed)) * width);
+    let ry = Math.floor(Math.abs(noise2D(0, seed + r, seed)) * height);
+    const riverSteps = Math.floor(Math.abs(noise2D(r, r, seed + 5)) * 120) + 80;
+    for (let s = 0; s < riverSteps; s++) {
+      if (rx >= 0 && rx < width && ry >= 0 && ry < height) {
+        tiles[ry][rx] = TileType.WATER;
+        // widen the river to 2-3 cells
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const nx = rx + dx, ny = ry + dy;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height && tiles[ny][nx] !== TileType.WATER) {
+            if (Math.abs(noise2D(nx, ny, seed + r + 100)) < 0.45) tiles[ny][nx] = TileType.WATER;
+          }
+        }
+      }
+      const angle = (s / riverSteps) * Math.PI * 2 + noise2D(rx, ry, seed + r) * 2;
+      rx += Math.round(Math.cos(angle));
+      ry += Math.round(Math.sin(angle));
+    }
+  }
+
+  // 1c. Add small ponds
+  const pondCount = 3 + Math.floor(Math.abs(noise2D(seed, seed, seed + 7)) * 4);
+  for (let p = 0; p < pondCount; p++) {
+    const cx = Math.floor(Math.abs(noise2D(seed + p, 0, seed + 8)) * width);
+    const cy = Math.floor(Math.abs(noise2D(0, seed + p, seed + 9)) * height);
+    const radius = 2 + Math.floor(Math.abs(noise2D(cx, cy, seed + p + 10)) * 4);
+    for (let y = -radius; y <= radius; y++) {
+      for (let x = -radius; x <= radius; x++) {
+        if (x * x + y * y <= radius * radius + Math.abs(noise2D(cx + x, cy + y, seed + p + 11)) * 2) {
+          const nx = cx + x, ny = cy + y;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) tiles[ny][nx] = TileType.WATER;
+        }
       }
     }
   }
@@ -284,6 +324,60 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
       }
     }
   }
+
+  // 8b. Connectivity guard: ensure the player can always reach every dungeon entrance.
+  // If new water bodies partitioned the map, build bridges (roads) across the water.
+  const isWalkable = (t: TileType) => t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE || t === TileType.DUNGEON_ENTRANCE;
+  const posKey = (x: number, y: number) => `${x},${y}`;
+  const reachableFrom = (sx: number, sy: number): Set<string> => {
+    const seen = new Set<string>();
+    const q: WorldPoint[] = [{ tx: sx, ty: sy }];
+    seen.add(posKey(sx, sy));
+    while (q.length) {
+      const { tx, ty } = q.shift()!;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = tx + dx, ny = ty + dy;
+        if (nx >= 0 && nx < width && ny >= 0 && ny < height && !seen.has(posKey(nx, ny)) && isWalkable(tiles[ny][nx])) {
+          seen.add(posKey(nx, ny));
+          q.push({ tx: nx, ty: ny });
+        }
+      }
+    }
+    return seen;
+  };
+  const findPath = (sx: number, sy: number, tx: number, ty: number): WorldPoint[] | null => {
+    const seen = new Set<string>();
+    const q: { p: WorldPoint; path: WorldPoint[] }[] = [{ p: { tx: sx, ty: sy }, path: [{ tx: sx, ty: sy }] }];
+    seen.add(posKey(sx, sy));
+    while (q.length) {
+      const { p, path } = q.shift()!;
+      if (p.tx === tx && p.ty === ty) return path;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = p.tx + dx, ny = p.ty + dy;
+        if (
+          nx >= 0 && nx < width && ny >= 0 && ny < height &&
+          !seen.has(posKey(nx, ny)) &&
+          (isWalkable(tiles[ny][nx]) || tiles[ny][nx] === TileType.WATER)
+        ) {
+          seen.add(posKey(nx, ny));
+          q.push({ p: { tx: nx, ty: ny }, path: [...path, { tx: nx, ty: ny }] });
+        }
+      }
+    }
+    return null;
+  };
+  let reachable = reachableFrom(startX, startY);
+  for (const e of entrances) {
+    if (!reachable.has(posKey(e.tx, e.ty))) {
+      const path = findPath(startX, startY, e.tx, e.ty);
+      if (path) {
+        for (const p of path) {
+          if (tiles[p.ty][p.tx] === TileType.WATER) tiles[p.ty][p.tx] = TileType.ROAD;
+        }
+      }
+    }
+  }
+  reachable = reachableFrom(startX, startY);
 
   return {
     width,

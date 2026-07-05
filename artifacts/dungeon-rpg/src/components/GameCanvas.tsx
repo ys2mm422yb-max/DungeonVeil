@@ -15,6 +15,12 @@ import {
   PLAYER_SPRITES, ENEMY_SPRITES,
   SpriteData,
 } from '../game/sprites';
+import {
+  SPRITE_RH_GRASS, SPRITE_RH_GRASS_FLOWERS, SPRITE_RH_BUSH, SPRITE_RH_ROCK_SMALL,
+  SPRITE_RH_STUMP, SPRITE_RH_HILL, SPRITE_RH_WATER, SPRITE_RH_ROAD, SPRITE_RH_TREE,
+  SPRITE_RH_TREE_PINE, SPRITE_RH_HOUSE, SPRITE_RH_DUNGEON_ENTRANCE,
+  SPRITE_RH_FLOWER_RED, SPRITE_RH_FLOWER_YELLOW, SPRITE_RH_GRASS_TUFT,
+} from '../game/overworldSprites';
 import { Chest } from '../game/entities';
 
 interface Props {
@@ -117,31 +123,36 @@ export function GameCanvas({ gameState }: Props) {
               break;
             }
 
-            // OVERWORLD TILES
+            // OVERWORLD TILES (Rumble Heroes style)
             case TileType.GRASS: {
               const gv = map.floorVariant[ty][tx] ?? 0;
-              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_GRASS[gv % SPRITE_GRASS.length], 0);
+              const grassVariants = SPRITE_RH_GRASS;
+              const spr = grassVariants[gv % grassVariants.length];
+              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, spr, 0);
               break;
             }
             case TileType.ROAD: {
-              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_ROAD, 0);
+              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_RH_ROAD, 0);
               break;
             }
             case TileType.WATER: {
-              const wf = animFrame(SPRITE_WATER, now + tx * 100 + ty * 50, 2);
-              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_WATER, wf);
+              const wf = animFrame(SPRITE_RH_WATER, now + tx * 100 + ty * 50, 2);
+              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_RH_WATER, wf);
               break;
             }
             case TileType.FOREST: {
-              drawSprite(ctx, wx, wy - 8, TILE_SIZE, TILE_SIZE + 8, SPRITE_FOREST, 0);
+              const isPine = (map.wallVariant[ty][tx] ?? 0) === 1;
+              const tree = isPine ? SPRITE_RH_TREE_PINE : SPRITE_RH_TREE;
+              // Big tree with slight overshoot to fill the cell canopy
+              drawSprite(ctx, wx - 4, wy - 14, TILE_SIZE + 8, TILE_SIZE + 14, tree, 0);
               break;
             }
             case TileType.VILLAGE: {
-              drawSprite(ctx, wx, wy - 8, TILE_SIZE, TILE_SIZE + 8, SPRITE_VILLAGE, 0);
+              drawSprite(ctx, wx - 2, wy - 8, TILE_SIZE + 4, TILE_SIZE + 8, SPRITE_RH_HOUSE, 0);
               break;
             }
             case TileType.DUNGEON_ENTRANCE: {
-              drawSprite(ctx, wx, wy - 8, TILE_SIZE, TILE_SIZE + 8, SPRITE_DUNGEON_ENTRANCE, 0);
+              drawSprite(ctx, wx - 2, wy - 8, TILE_SIZE + 4, TILE_SIZE + 8, SPRITE_RH_DUNGEON_ENTRANCE, 0);
               const pulse = 0.25 + 0.15 * Math.sin(now / 300);
               ctx.save();
               ctx.shadowBlur = 24;
@@ -152,6 +163,61 @@ export function GameCanvas({ gameState }: Props) {
               ctx.fill();
               ctx.restore();
               break;
+            }
+          }
+        }
+      }
+
+      // ── Overworld decoration overlays (flowers, bushes, rocks, stumps, hills) ─
+      if (!gameStateRef.current.inDungeon) {
+        const hash = (tx: number, ty: number) => {
+          let h = ((tx * 374761393 + ty * 1234567891) & 0x7fffffff);
+          h = ((h ^ (h >>> 13)) * 1540483477) & 0x7fffffff;
+          return (h ^ (h >>> 15)) / 0x7fffffff;
+        };
+        const hasNeighbor = (tx: number, ty: number, t: TileType) => {
+          return (tx > 0 && map.tiles[ty][tx - 1] === t) ||
+                 (tx < map.width - 1 && map.tiles[ty][tx + 1] === t) ||
+                 (ty > 0 && map.tiles[ty - 1][tx] === t) ||
+                 (ty < map.height - 1 && map.tiles[ty + 1][tx] === t);
+        };
+        for (let ty = startRow; ty < endRow; ty++) {
+          for (let tx = startCol; tx < endCol; tx++) {
+            if (!map.explored[ty]?.[tx]) continue;
+            if (map.tiles[ty][tx] !== TileType.GRASS) continue;
+            if (hasNeighbor(tx, ty, TileType.WATER) || hasNeighbor(tx, ty, TileType.ROAD)) continue;
+            const h = Math.abs(hash(tx, ty));
+            const wx = tx * TILE_SIZE;
+            const wy = ty * TILE_SIZE;
+            // Sparse wind-sway grass blades
+            if (h > 0.72 && h < 0.80) {
+              const sway = Math.sin(now / 500 + tx * 0.7 + ty * 0.5) * 3;
+              ctx.save();
+              ctx.strokeStyle = '#8fd070';
+              ctx.lineWidth = 1.5;
+              ctx.globalAlpha = 0.7;
+              ctx.beginPath();
+              ctx.moveTo(wx + 16, wy + 26);
+              ctx.quadraticCurveTo(wx + 16 + sway, wy + 19, wx + 16 + sway * 1.4, wy + 13);
+              ctx.stroke();
+              ctx.restore();
+            }
+            if (h < 0.05) {
+              const variant = Math.floor(h * 1000) % SPRITE_RH_GRASS_FLOWERS.length;
+              drawSprite(ctx, wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, SPRITE_RH_GRASS_FLOWERS[variant], 0);
+            } else if (h < 0.08) {
+              drawSprite(ctx, wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, SPRITE_RH_BUSH, 0);
+            } else if (h < 0.11) {
+              drawSprite(ctx, wx + 6, wy + 6, TILE_SIZE - 12, TILE_SIZE - 12, SPRITE_RH_ROCK_SMALL, 0);
+            } else if (h < 0.13) {
+              drawSprite(ctx, wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, SPRITE_RH_STUMP, 0);
+            } else if (h < 0.14) {
+              drawSprite(ctx, wx - 4, wy - 4, TILE_SIZE + 8, TILE_SIZE + 8, SPRITE_RH_HILL, 0);
+            } else if (h < 0.20) {
+              const flower = (Math.floor(h * 1000) % 2 === 0) ? SPRITE_RH_FLOWER_RED : SPRITE_RH_FLOWER_YELLOW;
+              drawSprite(ctx, wx + 12, wy + 12, TILE_SIZE - 24, TILE_SIZE - 24, flower, 0);
+            } else if (h < 0.35) {
+              drawSprite(ctx, wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, SPRITE_RH_GRASS_TUFT, 0);
             }
           }
         }
@@ -598,8 +664,12 @@ export function GameCanvas({ gameState }: Props) {
           lctx.fillStyle = baseGrad;
           lctx.fillRect(0, 0, lc.width, lc.height);
         } else {
-          // Overworld: bright daylight with a very faint atmospheric tint
-          lctx.fillStyle = 'rgba(10,14,26,0.15)';
+          // Overworld: soft warm daylight with a gentle sky gradient
+          const baseGrad = lctx.createLinearGradient(0, 0, 0, lc.height);
+          baseGrad.addColorStop(0, 'rgba(255,250,220,0.10)');
+          baseGrad.addColorStop(0.5, 'rgba(180,220,255,0.06)');
+          baseGrad.addColorStop(1, 'rgba(80,120,180,0.12)');
+          lctx.fillStyle = baseGrad;
           lctx.fillRect(0, 0, lc.width, lc.height);
         }
         lctx.globalCompositeOperation = 'destination-out';
