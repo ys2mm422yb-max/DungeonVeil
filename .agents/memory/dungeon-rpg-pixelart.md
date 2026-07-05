@@ -34,6 +34,11 @@ description: Key decisions from the pixel-art / room-type overhaul session.
 - Corpse visuals can be delayed, but rewards (XP, drops, kill count) must be granted immediately when `hp <= 0` is detected to preserve mechanics.
 - Always guard combat target loops against `hp <= 0` / `state === 'dead'` to avoid corpse hits and particle spam.
 
+## Movement regression
+- `moveEntity` in `engine.ts` must check the **full leading edge** of the entity (top, middle, and bottom corners) against `isWalkable`. The original code used `entity.y` and `entity.y + entity.height`; a graphics-overhaul refactor changed these to `entity.y + 2` and `entity.y + entity.height - 2`. This caused the player to snag on walls and appear unable to move.
+- **Why:** Checking only 2 px in from the corners let the outer 2 px of the entity overlap a wall tile, at which point the post-move revert could fail to extract the player, especially in tight corridors or near corners.
+- **How to apply:** When moving an entity, sample the leading edge at the entity's actual corners (top, middle, bottom for horizontal; left, middle, right for vertical), not inset points. This keeps the whole entity out of non-walkable tiles without widening the collision volume artificially.
+
 ## What's missing / future
 - Keys for locked chests (currently pried open at HP cost).
 - Boss-only rooms (boss_arena) need a dedicated boss spawn path.

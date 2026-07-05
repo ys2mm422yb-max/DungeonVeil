@@ -12,3 +12,9 @@ id = "ld3Lt4hM4DcDIU8VEqv7d"
 uri = "file://screenshots/dungeon-rpg-game-verification.jpg"
 type = "image"
 title = "Dungeon RPG – Game Verification Screenshot"
+
+[[outputs]]
+id = "Og8NogZN7i7wHRw6rRgOC"
+uri = "file://screenshots/dungeon-rpg-movement-verification.jpg"
+type = "image"
+title = "Dungeon RPG – Movement Verification Screenshot"

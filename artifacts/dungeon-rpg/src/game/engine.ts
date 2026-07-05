@@ -719,20 +719,20 @@ export class GameEngine {
   ): void {
     if (dx !== 0) {
       entity.x += dx;
-      const ex = dx > 0 ? entity.x + entity.width : entity.x;
+      const ex = entity.x + (dx > 0 ? entity.width : 0);
       if (
         !isWalkable(this.state.map, ex, entity.y + entity.height / 2) ||
-        !isWalkable(this.state.map, ex, entity.y + 2) ||
-        !isWalkable(this.state.map, ex, entity.y + entity.height - 2)
+        !isWalkable(this.state.map, ex, entity.y) ||
+        !isWalkable(this.state.map, ex, entity.y + entity.height)
       ) entity.x -= dx;
     }
     if (dy !== 0) {
       entity.y += dy;
-      const ey = dy > 0 ? entity.y + entity.height : entity.y;
+      const ey = entity.y + (dy > 0 ? entity.height : 0);
       if (
         !isWalkable(this.state.map, entity.x + entity.width / 2, ey) ||
-        !isWalkable(this.state.map, entity.x + 2, ey) ||
-        !isWalkable(this.state.map, entity.x + entity.width - 2, ey)
+        !isWalkable(this.state.map, entity.x, ey) ||
+        !isWalkable(this.state.map, entity.x + entity.width, ey)
       ) entity.y -= dy;
     }
   }
