@@ -477,9 +477,9 @@ export function GameCanvas({ gameState }: Props) {
           // Bright core + tapering blade gradient
           const blade = ctx.createLinearGradient(0, -sw, 0, sw);
           blade.addColorStop(0, 'rgba(255,255,255,0)');
-          blade.addColorStop(0.25, effect.color.replace(/[\d.]\)$/,'0.55)'));
+          blade.addColorStop(0.25, replaceAlpha(effect.color, 0.55));
           blade.addColorStop(0.5, '#ffffff');
-          blade.addColorStop(0.75, effect.color.replace(/[\d.]\)$/,'0.55)'));
+          blade.addColorStop(0.75, replaceAlpha(effect.color, 0.55));
           blade.addColorStop(1, 'rgba(255,255,255,0)');
           ctx.fillStyle = blade;
           ctx.shadowBlur = 10;
@@ -615,6 +615,15 @@ function drawEntityShadow(
   ctx.ellipse(gx, gy, w / 2, h, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+}
+
+function replaceAlpha(color: string, alpha: number): string {
+  // Only mutate well-formed rgba(...) strings; otherwise leave the color as-is
+  // so addColorStop never receives a malformed string.
+  return color.replace(
+    /^rgba\((\d{1,3},\s*\d{1,3},\s*\d{1,3}),\s*[\d.]+\)$/,
+    `rgba($1,${alpha})`,
+  );
 }
 
 function hash(x: number, y: number): number {
