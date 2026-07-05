@@ -117,6 +117,49 @@ export function GameCanvas({ gameState }: Props) {
         }
       }
 
+      // ── Ambient occlusion / wall-base shading ───────────────────────────────
+      ctx.save();
+      for (let ty = startRow; ty < endRow; ty++) {
+        for (let tx = startCol; tx < endCol; tx++) {
+          if (!map.explored[ty]?.[tx]) continue;
+          const tile = map.tiles[ty][tx];
+          const wx = tx * TILE_SIZE;
+          const wy = ty * TILE_SIZE;
+          if (tile === TileType.WALL) {
+            // Darken the base of walls where they meet floor
+            const grad = ctx.createLinearGradient(wx, wy, wx, wy + TILE_SIZE);
+            grad.addColorStop(0, 'rgba(0,0,0,0)');
+            grad.addColorStop(0.6, 'rgba(0,0,0,0.22)');
+            grad.addColorStop(1, 'rgba(0,0,0,0.42)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(wx, wy, TILE_SIZE, TILE_SIZE);
+          } else if (tile !== TileType.EMPTY) {
+            // Slight vignette in corners where walls might be above
+            if (ty > 0 && map.tiles[ty - 1][tx] === TileType.WALL) {
+              const grad = ctx.createLinearGradient(wx, wy + TILE_SIZE, wx, wy);
+              grad.addColorStop(0, 'rgba(0,0,0,0)');
+              grad.addColorStop(1, 'rgba(0,0,0,0.18)');
+              ctx.fillStyle = grad;
+              ctx.fillRect(wx, wy, TILE_SIZE, TILE_SIZE);
+            }
+          }
+        }
+      }
+      ctx.restore();
+
+      // ── Subtle screen-space dust / mist ─────────────────────────────────────
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+      ctx.fillStyle = '#aaccff';
+      const dustPhase = now / 2000;
+      for (let i = 0; i < 12; i++) {
+        const dx = ((Math.sin(i * 1.7 + dustPhase) * 0.5 + 0.5) * canvas.width);
+        const dy = ((Math.cos(i * 2.3 + dustPhase * 0.7) * 0.5 + 0.5) * canvas.height);
+        const dsize = 2 + (i % 3);
+        ctx.fillRect(dx, dy, dsize, dsize);
+      }
+      ctx.restore();
+
       // ── Torches (on wall tiles) ─────────────────────────────────────────────
       for (const torch of map.torches) {
         if (!map.explored[torch.ty]?.[torch.tx]) continue;
@@ -241,7 +284,14 @@ export function GameCanvas({ gameState }: Props) {
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.fillStyle = p.color;
+        ctx.shadowBlur = p.size * 1.5;
+        ctx.shadowColor = p.color;
         ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+        // motion streak for fast particles
+        if (Math.abs(p.vx) + Math.abs(p.vy) > 60) {
+          ctx.globalAlpha = alpha * 0.4;
+          ctx.fillRect(p.x - p.vx * 0.03 - p.size / 2, p.y - p.vy * 0.03 - p.size / 2, p.size, p.size);
+        }
         ctx.restore();
       }
 
@@ -418,9 +468,20 @@ export function GameCanvas({ gameState }: Props) {
           ctx.save();
           ctx.translate(effect.x, effect.y);
           ctx.rotate(effect.angle ?? 0);
-          ctx.fillStyle = effect.color;
+          const sw = effect.width ?? 10;
+          const sr = effect.radius;
+          // Bright core + tapering blade gradient
+          const blade = ctx.createLinearGradient(0, -sw, 0, sw);
+          blade.addColorStop(0, 'rgba(255,255,255,0)');
+          blade.addColorStop(0.25, effect.color.replace(/[\d.]\)$/,'0.55)'));
+          blade.addColorStop(0.5, '#ffffff');
+          blade.addColorStop(0.75, effect.color.replace(/[\d.]\)$/,'0.55)'));
+          blade.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = blade;
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = effect.color;
           ctx.beginPath();
-          ctx.ellipse(0, 0, effect.radius, effect.width ?? 10, 0, 0, Math.PI * 2);
+          ctx.ellipse(sr * 0.5, 0, sr * 0.6, sw, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         } else if (effect.type === 'circle') {
@@ -470,33 +531,41 @@ export function GameCanvas({ gameState }: Props) {
         const lctx = lightCtxRef.current!;
 
         lctx.globalCompositeOperation = 'source-over';
-        lctx.fillStyle = 'rgba(4,5,12,0.88)';
+        // Soft base darkness with a faint blue moon/cave ambient
+        const baseGrad = lctx.createLinearGradient(0, 0, 0, lc.height);
+        baseGrad.addColorStop(0, 'rgba(4,5,14,0.86)');
+        baseGrad.addColorStop(1, 'rgba(6,5,12,0.92)');
+        lctx.fillStyle = baseGrad;
         lctx.fillRect(0, 0, lc.width, lc.height);
         lctx.globalCompositeOperation = 'destination-out';
 
+        // Player torch light with layered warm glow and subtle flicker
         const pwx = Math.round(canvas.width / 2 + 16);
         const pwy = Math.round(canvas.height / 2 + 16);
-        const pFlicker = 1 + 0.04 * Math.sin(now / 120) + 0.02 * Math.sin(now / 37);
-        const pg = lctx.createRadialGradient(pwx, pwy, 20, pwx, pwy, 240 * pFlicker);
-        pg.addColorStop(0, 'rgba(255,190,100,0.95)');
-        pg.addColorStop(0.35, 'rgba(255,140,60,0.6)');
-        pg.addColorStop(0.7, 'rgba(200,90,30,0.25)');
+        const pFlicker = 1 + 0.05 * Math.sin(now / 120) + 0.03 * Math.sin(now / 37) + 0.02 * Math.sin(now / 19);
+        const pg = lctx.createRadialGradient(pwx, pwy, 8, pwx, pwy, 260 * pFlicker);
+        pg.addColorStop(0, 'rgba(255,210,140,0.98)');
+        pg.addColorStop(0.25, 'rgba(255,170,80,0.72)');
+        pg.addColorStop(0.55, 'rgba(255,130,50,0.38)');
+        pg.addColorStop(0.85, 'rgba(200,80,20,0.12)');
         pg.addColorStop(1, 'rgba(0,0,0,0)');
         lctx.fillStyle = pg;
         lctx.fillRect(0, 0, lc.width, lc.height);
 
+        // Torch wall lights with stronger color and jitter
         for (const torch of map.torches) {
           if (!map.explored[torch.ty]?.[torch.tx]) continue;
           const twx = Math.round(canvas.width / 2 - camera.x + torch.tx * TILE_SIZE + TILE_SIZE / 2);
           const twy = Math.round(canvas.height / 2 - camera.y + torch.ty * TILE_SIZE + TILE_SIZE / 2);
-          if (twx < -120 || twx > lc.width + 120 || twy < -120 || twy > lc.height + 120) continue;
-          const flicker = 1 + 0.1 * Math.sin(now / 80 + torch.tx + torch.ty) + 0.05 * Math.sin(now / 29);
-          const tg = lctx.createRadialGradient(twx, twy, 4, twx, twy, 95 * flicker);
-          tg.addColorStop(0, 'rgba(255,170,50,0.75)');
-          tg.addColorStop(0.45, 'rgba(220,100,20,0.28)');
+          if (twx < -140 || twx > lc.width + 140 || twy < -140 || twy > lc.height + 140) continue;
+          const flicker = 1 + 0.12 * Math.sin(now / 80 + torch.tx + torch.ty) + 0.07 * Math.sin(now / 29) + 0.04 * Math.sin(now / 13);
+          const tg = lctx.createRadialGradient(twx, twy, 2, twx, twy, 105 * flicker);
+          tg.addColorStop(0, 'rgba(255,190,80,0.82)');
+          tg.addColorStop(0.35, 'rgba(255,130,40,0.42)');
+          tg.addColorStop(0.7, 'rgba(220,80,15,0.16)');
           tg.addColorStop(1, 'rgba(0,0,0,0)');
           lctx.fillStyle = tg;
-          lctx.fillRect(twx - 100, twy - 100, 200, 200);
+          lctx.fillRect(twx - 110, twy - 110, 220, 220);
         }
 
         ctx.globalCompositeOperation = 'source-over';
@@ -525,12 +594,21 @@ function drawEntityShadow(
   by: number,
   w: number,
   h: number,
+  lightDir: { x: number; y: number } = { x: 0.3, y: -0.8 },
 ): void {
   ctx.save();
-  ctx.globalAlpha = 0.35;
-  ctx.fillStyle = '#000';
+  // Soft shadow offset away from the dominant light source (player torch)
+  const offsetX = lightDir.x * h * 0.8;
+  const offsetY = lightDir.y * h * 0.3;
+  const gx = cx + offsetX;
+  const gy = by + offsetY + h * 0.3;
+  const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(w, h * 2));
+  grad.addColorStop(0, 'rgba(0,0,0,0.45)');
+  grad.addColorStop(0.6, 'rgba(0,0,0,0.18)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.ellipse(cx, by, w / 2, h, 0, 0, Math.PI * 2);
+  ctx.ellipse(gx, gy, w / 2, h, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }

@@ -39,6 +39,11 @@ description: Key decisions from the pixel-art / room-type overhaul session.
 - **Why:** Checking only 2 px in from the corners let the outer 2 px of the entity overlap a wall tile, at which point the post-move revert could fail to extract the player, especially in tight corridors or near corners.
 - **How to apply:** When moving an entity, sample the leading edge at the entity's actual corners (top, middle, bottom for horizontal; left, middle, right for vertical), not inset points. This keeps the whole entity out of non-walkable tiles without widening the collision volume artificially.
 
+## Visual-only upgrade policy
+- Visual upgrades are applied to `sprites.ts` and `GameCanvas.tsx` only. The player and enemy sprite definitions, floor/wall tiles, torches, chests, doors, and effects can be improved, but `engine.ts`, `combat.ts`, `dungeon.ts`, `entities.ts`, and `classes.ts` are left untouched so movement, combat logic, and save systems stay intact.
+- **Why:** A previous graphics overhaul inadvertently rewrote the `moveEntity` collision checks and broke movement. Keeping visual changes isolated from mechanics prevents regressions.
+- **How to apply:** When upgrading sprites, keep the same `SpriteData` interface, export names, and frame count compatibility. Rendering improvements (shadows, lighting, particles) belong in `GameCanvas.tsx`; hit-spark generation can be tuned in `combat.ts` because it is purely visual and does not alter damage calculations.
+
 ## What's missing / future
 - Keys for locked chests (currently pried open at HP cost).
 - Boss-only rooms (boss_arena) need a dedicated boss spawn path.
