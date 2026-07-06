@@ -56,10 +56,12 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
   const CooldownOverlay = ({ progress }: { progress: number }) =>
     progress > 0 ? (
       <div
-        className="absolute bottom-0 left-0 right-0 rounded-2xl bg-black/55 pointer-events-none"
+        className="absolute bottom-0 left-0 right-0 bg-black/55 pointer-events-none"
         style={{ height: `${progress * 100}%` }}
       />
     ) : null;
+
+  const ringClass = 'rounded-full border-[3px] border-[#8b6a35] bg-black/85 shadow-[inset_0_0_14px_rgba(255,210,120,0.18),0_6px_18px_rgba(0,0,0,0.75)] active:scale-90 transition-transform overflow-hidden touch-none select-none';
 
   return (
     <div
@@ -70,65 +72,69 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
       }}
     >
       <div className="relative w-full h-full">
-        {/* ATTACK — large, bottom-left */}
+        {/* ATTACK — large, bottom-right */}
         <button
           type="button"
           onPointerDown={press('attack', onAttack)}
           onPointerUp={release}
           onPointerCancel={release}
-          className="absolute bottom-0 left-0 w-[46%] aspect-square rounded-2xl border-2 border-destructive/60 bg-destructive/70 shadow-[0_0_18px_rgba(192,57,43,0.45)] active:scale-90 transition-transform flex flex-col items-center justify-center overflow-hidden touch-none gap-0.5 select-none"
+          className={`absolute bottom-0 right-0 w-[48%] aspect-square ${ringClass} flex items-center justify-center`}
           style={{ WebkitTapHighlightColor: 'transparent' }}
           data-testid="button-attack"
         >
           <CooldownOverlay progress={cooldowns.attack} />
-          <span className="text-white font-black text-xl z-10 pointer-events-none">⚔</span>
-          <span className="text-white/80 font-bold text-xs tracking-widest z-10 pointer-events-none">ATK</span>
+          <div className="absolute inset-[9%] rounded-full border border-white/10 bg-gradient-to-br from-zinc-900 via-black to-zinc-950" />
+          <span className="text-white text-4xl z-10 pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">⚔</span>
         </button>
 
-        {/* DODGE — top-left */}
+        {/* DODGE — lower-left */}
         <button
           type="button"
           onPointerDown={press('dodge', onDodge)}
           onPointerUp={release}
           onPointerCancel={release}
-          className="absolute top-0 left-[12%] w-[34%] aspect-square rounded-2xl border-2 border-blue-400/60 bg-blue-600/70 shadow-[0_0_14px_rgba(41,128,185,0.4)] active:scale-90 transition-transform flex flex-col items-center justify-center overflow-hidden touch-none gap-0.5 select-none"
+          className={`absolute bottom-[12%] left-[2%] w-[34%] aspect-square ${ringClass} flex items-center justify-center`}
           style={{ WebkitTapHighlightColor: 'transparent' }}
           data-testid="button-dodge"
         >
           <CooldownOverlay progress={cooldowns.dodge} />
-          <span className="text-white/80 font-bold text-xs tracking-widest z-10 pointer-events-none">{t.dodge}</span>
+          <div className="absolute inset-[10%] rounded-full bg-gradient-to-br from-purple-800 via-purple-950 to-black" />
+          <span className="font-black text-lg tracking-widest z-10 text-white pointer-events-none">↯</span>
         </button>
 
-        {/* SKILL — top-right */}
+        {/* SKILL — upper-left */}
         <button
           type="button"
           onPointerDown={press('skill', onSkill)}
           onPointerUp={release}
           onPointerCancel={release}
-          className="absolute top-0 right-0 w-[40%] aspect-square rounded-2xl border-2 active:scale-90 transition-transform flex flex-col items-center justify-center overflow-hidden touch-none gap-0.5 select-none"
+          className={`absolute top-[8%] left-[20%] w-[38%] aspect-square ${ringClass} flex items-center justify-center`}
           style={{
-            background: `${classDef.color}b3`,
-            borderColor: `${classDef.color}99`,
-            boxShadow: `0 0 16px ${classDef.glowColor}`,
+            boxShadow: `inset 0 0 14px ${classDef.glowColor}, 0 6px 18px rgba(0,0,0,0.75)`,
             WebkitTapHighlightColor: 'transparent',
           }}
           data-testid="button-skill"
         >
           <CooldownOverlay progress={cooldowns.skill} />
-          <span className="font-black text-xs tracking-widest z-10 text-white pointer-events-none">{skillName}</span>
+          <div
+            className="absolute inset-[10%] rounded-full"
+            style={{ background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), ${classDef.color}cc 35%, rgba(0,0,0,0.9) 100%)` }}
+          />
+          <span className="font-black text-[11px] tracking-widest z-10 text-white pointer-events-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]">{skillName}</span>
         </button>
 
-        {/* INTERACT — bottom-right */}
+        {/* INTERACT — right middle */}
         <button
           type="button"
           onPointerDown={press('interact', onInteract)}
           onPointerUp={release}
           onPointerCancel={release}
-          className="absolute bottom-0 right-0 w-[32%] aspect-square rounded-2xl border-2 border-primary/50 bg-primary/60 shadow-[0_0_12px_rgba(232,160,32,0.35)] active:scale-90 transition-transform flex items-center justify-center touch-none select-none"
+          className={`absolute right-0 top-[34%] w-[30%] aspect-square ${ringClass} flex items-center justify-center`}
           style={{ WebkitTapHighlightColor: 'transparent' }}
           data-testid="button-interact"
         >
-          <span className="text-white font-bold text-xs tracking-widest pointer-events-none">{t.interact}</span>
+          <div className="absolute inset-[11%] rounded-full bg-gradient-to-br from-red-800 via-red-950 to-black" />
+          <span className="text-white font-black text-xs tracking-widest pointer-events-none z-10">{t.interact}</span>
         </button>
       </div>
     </div>
