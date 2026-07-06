@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameState } from '../game/engine';
 import { TILE_SIZE, TileType } from '../game/dungeon';
 import { useLanguage } from '../i18n/LanguageContext';
+import { CLASS_DEFS } from '../game/classes';
+import { drawSprite, PLAYER_SPRITES } from '../game/sprites';
 
 interface Props {
   gameState: GameState;
@@ -9,131 +11,263 @@ interface Props {
   onExitDungeon?: () => void;
 }
 
+interface StatBarProps {
+  value: number;
+  max: number;
+  label: string;
+  fillClass: string;
+  glow: string;
+}
+
+function clampPercent(value: number, max: number): number {
+  return Math.max(0, Math.min(100, max > 0 ? (value / max) * 100 : 0));
+}
+
+function StatBar({ value, max, label, fillClass, glow }: StatBarProps) {
+  const percent = clampPercent(value, max);
+  return (
+    <div className="h-[22px] rounded-md border border-black/70 bg-black/80 shadow-inner overflow-hidden relative">
+      <div
+        className={`absolute inset-y-0 left-0 ${fillClass} transition-all duration-300 ease-out`}
+        style={{ width: `${percent}%`, boxShadow: glow }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/35" />
+      <div className="absolute inset-0 flex items-center justify-center text-[13px] font-black text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)] tracking-wide">
+        {Math.ceil(value)} / {max} {label}
+      </div>
+    </div>
+  );
+}
+
+function PlayerPortrait({ gameState }: { gameState: GameState }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { player } = gameState;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = 80;
+    canvas.height = 80;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const grad = ctx.createRadialGradient(40, 34, 6, 40, 40, 44);
+    grad.addColorStop(0, CLASS_DEFS[player.playerClass].glowColor);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const sprite = PLAYER_SPRITES[player.playerClass];
+    drawSprite(ctx, 14, 12, 52, 52, sprite, 0);
+  }, [player.playerClass]);
+
+  return (
+    <div className="w-[74px] h-[74px] rounded-lg border-2 border-[#9b6b2e] bg-[#17100b]/95 shadow-[0_0_18px_rgba(0,0,0,0.8)] p-1 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/50 pointer-events-none" />
+      <canvas ref={canvasRef} className="w-full h-full relative z-10" />
+    </div>
+  );
+}
+
 export function HUD({ gameState, onPause, onExitDungeon }: Props) {
   const { t } = useLanguage();
   const { player, floor, map } = gameState;
 
-  const [stats, setStats] = useState({ hp: player.hp, maxHp: player.maxHp, xp: player.xp, level: player.level });
+  const [stats, setStats] = useState({
+    hp: player.hp,
+    maxHp: player.maxHp,
+    xp: player.xp,
+    level: player.level,
+    skillCooldown: player.skillCooldown,
+  });
 
   useEffect(() => {
     let frameId: number;
     const updateStats = () => {
-      setStats({ hp: player.hp, maxHp: player.maxHp, xp: player.xp, level: player.level });
+      setStats({
+        hp: player.hp,
+        maxHp: player.maxHp,
+        xp: player.xp,
+        level: player.level,
+        skillCooldown: player.skillCooldown,
+      });
       frameId = requestAnimationFrame(updateStats);
     };
     frameId = requestAnimationFrame(updateStats);
     return () => cancelAnimationFrame(frameId);
   }, [player]);
 
-  const hpPercent = Math.max(0, Math.min(100, (stats.hp / stats.maxHp) * 100));
+  const classDef = CLASS_DEFS[player.playerClass];
+  const mpMax = 100;
+  const mpValue = Math.round((1 - Math.min(1, stats.skillCooldown / classDef.skillCooldownMs)) * mpMax);
   const xpNeeded = stats.level * 100;
   const xpPercent = Math.min(100, (stats.xp / xpNeeded) * 100);
+  const coins = gameState.killCount * 8 + floor * 20;
+  const crystals = Math.max(0, stats.level - 1);
+  const questKills = Math.min(gameState.killCount, 10);
 
-  const renderMinimap = () => {
-    const size = 80;
-    const scale = 2;
+  const minimapDots = useMemo(() => {
+    const size = 108;
+    const scale = 3;
     const mmW = Math.floor(size / scale);
     const mmH = Math.floor(size / scale);
     const px = Math.floor(player.x / TILE_SIZE);
     const py = Math.floor(player.y / TILE_SIZE);
     const startX = Math.max(0, px - Math.floor(mmW / 2));
     const startY = Math.max(0, py - Math.floor(mmH / 2));
-    const dots = [];
+    const dots: React.ReactNode[] = [];
+
     for (let y = 0; y < mmH; y++) {
       for (let x = 0; x < mmW; x++) {
         const mx = startX + x;
         const my = startY + y;
-        if (my >= 0 && my < map.height && mx >= 0 && mx < map.width && map.explored[my][mx]) {
-          const tile = map.tiles[my][mx];
-          if (tile !== TileType.EMPTY) {
-            let color = 'bg-gray-600';
-            if (tile === TileType.STAIRS_DOWN) color = 'bg-purple-500';
-            else if (tile === TileType.DUNGEON_ENTRANCE) color = 'bg-orange-500';
-            else if (tile === TileType.WATER) color = 'bg-blue-500';
-            else if (tile === TileType.FOREST) color = 'bg-green-800';
-            else if (tile === TileType.GRASS) color = 'bg-green-600';
-            else if (tile === TileType.ROAD) color = 'bg-yellow-700';
-            else if (tile === TileType.VILLAGE) color = 'bg-yellow-500';
-            else if (mx === px && my === py) color = 'bg-blue-400';
-            dots.push(
-              <div
-                key={`${mx}-${my}`}
-                className={`absolute w-0.5 h-0.5 ${color}`}
-                style={{ left: x * scale, top: y * scale }}
-              />
-            );
-          }
-        }
+        if (my < 0 || my >= map.height || mx < 0 || mx >= map.width || !map.explored[my][mx]) continue;
+
+        const tile = map.tiles[my][mx];
+        if (tile === TileType.EMPTY) continue;
+
+        let color = '#5f6368';
+        if (mx === px && my === py) color = '#ffffff';
+        else if (tile === TileType.STAIRS_DOWN) color = '#b86cff';
+        else if (tile === TileType.DUNGEON_ENTRANCE) color = '#28d7ff';
+        else if (tile === TileType.WATER) color = '#167ca4';
+        else if (tile === TileType.FOREST) color = '#183f18';
+        else if (tile === TileType.GRASS) color = '#477c2d';
+        else if (tile === TileType.ROAD) color = '#ad8a49';
+        else if (tile === TileType.VILLAGE) color = '#d5b65a';
+
+        dots.push(
+          <div
+            key={`${mx}-${my}`}
+            className="absolute rounded-[1px]"
+            style={{ left: x * scale, top: y * scale, width: scale, height: scale, background: color }}
+          />,
+        );
       }
     }
-    return (
-      <div className="w-[80px] h-[80px] bg-black/60 border border-white/20 rounded-md relative overflow-hidden flex-shrink-0">
-        {dots}
-      </div>
-    );
-  };
+
+    return dots;
+  }, [map, player.x, player.y]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-40 flex flex-col justify-between">
-      {/* Top Bar */}
-      <div className="flex justify-between items-start p-4">
-        {/* HP Bar */}
-        <div className="w-48 bg-black/80 border-2 border-zinc-800 rounded p-1 shadow-lg pointer-events-auto">
-          <div className="h-6 bg-zinc-900 rounded-sm relative overflow-hidden border border-black">
-            <div
-              className="absolute top-0 left-0 h-full bg-green-500 transition-all duration-300 ease-out"
-              style={{ width: `${hpPercent}%` }}
+    <div className="fixed inset-0 pointer-events-none z-40 select-none">
+      {/* Player panel */}
+      <div
+        className="absolute top-3 left-3 pointer-events-auto"
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingLeft: 'env(safe-area-inset-left)' }}
+      >
+        <div className="flex items-start gap-2">
+          <div className="relative">
+            <PlayerPortrait gameState={gameState} />
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 min-w-[58px] rounded-md border border-[#9b6b2e] bg-[#21170e]/95 px-2 py-0.5 text-center text-[13px] font-black text-[#ffd35b] shadow-lg">
+              Lv. {stats.level}
+            </div>
+          </div>
+
+          <div className="w-[min(58vw,245px)] pt-1 space-y-1">
+            <StatBar
+              value={stats.hp}
+              max={stats.maxHp}
+              label={t.hpLabel}
+              fillClass="bg-gradient-to-r from-[#7c0505] via-[#d90d0d] to-[#ff3d2e]"
+              glow="0 0 12px rgba(255,0,0,0.45)"
             />
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow-md font-sans tracking-wide">
-              {Math.ceil(stats.hp)} / {stats.maxHp} {t.hpLabel}
-            </div>
+            <StatBar
+              value={mpValue}
+              max={mpMax}
+              label="MP"
+              fillClass="bg-gradient-to-r from-[#063f88] via-[#0b79d0] to-[#35b7ff]"
+              glow="0 0 12px rgba(40,160,255,0.45)"
+            />
           </div>
         </div>
 
-        {/* Center Info — tap to pause */}
-        <div className="flex flex-col items-center gap-2">
-          <div
-            className="flex flex-col items-center pointer-events-auto cursor-pointer active:scale-95 transition-transform"
-            onTouchStart={(e) => { e.preventDefault(); onPause(); }}
-            onClick={onPause}
-            data-testid="button-pause"
-          >
-            <div className="bg-black/80 border border-primary/50 text-primary px-6 py-1 rounded-t shadow-lg font-serif tracking-widest text-lg font-bold">
-              {gameState.inDungeon ? `${t.dungeonLabel} ${floor}` : t.worldLabel}
+        <div className="mt-7 w-[min(72vw,290px)] rounded-lg border border-white/15 bg-black/72 px-3 py-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm">
+          <div className="text-[#ffd35b] text-[12px] font-black tracking-widest uppercase mb-2">Active Quests</div>
+          <div className="space-y-1.5 text-[12px] text-white/90 font-semibold leading-tight">
+            <div className="flex justify-between gap-3">
+              <span>Defeat 10 enemies</span>
+              <span className="text-white/80">{questKills} / 10</span>
             </div>
-            <div className="bg-zinc-900 border-x border-b border-primary/30 text-white/80 px-4 py-0.5 rounded-b text-xs font-bold tracking-wider">
-              {t.lvlLabel} {stats.level}
+            <div className="flex justify-between gap-3">
+              <span>Find the old shrine</span>
+              <span className="text-white/55">-</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span>Open a chest</span>
+              <span className="text-white/55">-</span>
             </div>
           </div>
+        </div>
+      </div>
 
-          {gameState.inDungeon && onExitDungeon && (
+      {/* Minimap and currencies */}
+      <div
+        className="absolute top-3 right-3 pointer-events-auto flex flex-col items-end gap-2"
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingRight: 'env(safe-area-inset-right)' }}
+      >
+        <div className="rounded-lg border-2 border-white/18 bg-black/75 p-2 shadow-[0_8px_28px_rgba(0,0,0,0.6)] backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <div>
+              <div className="font-serif text-[13px] text-white/90 font-black tracking-widest uppercase leading-none">
+                {gameState.inDungeon ? t.dungeonLabel : 'Greenwald'}
+              </div>
+              <div className="text-[11px] text-white/60 font-bold tracking-wider mt-1">
+                {gameState.inDungeon ? `${t.floorLabel} ${floor}` : t.worldLabel}
+              </div>
+            </div>
             <button
-              onClick={onExitDungeon}
-              onTouchStart={(e) => { e.preventDefault(); onExitDungeon(); }}
-              className="pointer-events-auto bg-red-900/80 border border-red-500/50 text-white/90 px-4 py-1 rounded shadow-lg text-xs font-bold tracking-wider active:scale-95 transition-transform"
-              data-testid="button-exit-dungeon"
+              onClick={onPause}
+              onTouchStart={(e) => { e.preventDefault(); onPause(); }}
+              className="w-9 h-9 rounded-lg border border-[#9b6b2e] bg-[#21170e]/95 text-[#ffd35b] text-xl font-black active:scale-95 transition-transform"
+              data-testid="button-pause"
             >
-              {t.exitDungeon}
+              ⚙
             </button>
-          )}
+          </div>
+
+          <div className="w-[108px] h-[108px] bg-[#10150d] border border-white/15 rounded-md relative overflow-hidden shadow-inner">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_65%)]" />
+            {minimapDots}
+          </div>
         </div>
 
-        {/* Minimap */}
-        <div className="pointer-events-auto">
-          {renderMinimap()}
+        <div className="flex gap-2">
+          <div className="min-w-[72px] h-9 rounded-md border border-white/15 bg-black/72 px-2 flex items-center gap-2 shadow-lg">
+            <span className="w-5 h-5 rounded-full bg-gradient-to-br from-[#fff27a] via-[#e4a51c] to-[#8b4c05] border border-yellow-900/70" />
+            <span className="text-white font-black text-sm">{coins}</span>
+          </div>
+          <div className="min-w-[60px] h-9 rounded-md border border-white/15 bg-black/72 px-2 flex items-center gap-2 shadow-lg">
+            <span className="w-5 h-5 rotate-45 rounded-sm bg-gradient-to-br from-[#e6b7ff] via-[#8c32d9] to-[#3b136c] border border-purple-950" />
+            <span className="text-white font-black text-sm">{crystals}</span>
+          </div>
         </div>
+
+        {gameState.inDungeon && onExitDungeon && (
+          <button
+            onClick={onExitDungeon}
+            onTouchStart={(e) => { e.preventDefault(); onExitDungeon(); }}
+            className="bg-red-900/80 border border-red-500/50 text-white/90 px-4 py-1 rounded shadow-lg text-xs font-bold tracking-wider active:scale-95 transition-transform"
+            data-testid="button-exit-dungeon"
+          >
+            {t.exitDungeon}
+          </button>
+        )}
       </div>
 
       {/* Bottom XP Bar */}
-      <div className="w-full px-4 pb-2">
-        <div className="w-full h-2 bg-black/80 border border-zinc-800 rounded-full overflow-hidden shadow-[0_0_10px_rgba(0,0,0,0.8)] relative">
+      <div
+        className="absolute left-4 right-4 bottom-2"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="h-2 bg-black/80 border border-zinc-800 rounded-full overflow-hidden shadow-[0_0_10px_rgba(0,0,0,0.8)] relative">
           <div
             className="absolute top-0 left-0 h-full bg-primary transition-all duration-300 shadow-[0_0_8px_hsl(var(--primary))]"
             style={{ width: `${xpPercent}%` }}
           />
-        </div>
-        <div className="text-[10px] text-center text-primary font-bold tracking-widest mt-1 opacity-70">
-          {t.experience}
         </div>
       </div>
     </div>
