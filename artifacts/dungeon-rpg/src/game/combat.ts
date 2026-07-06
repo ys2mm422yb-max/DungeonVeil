@@ -62,20 +62,20 @@ export function makeHitSpark(
   const particles: Particle[] = [];
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 58 + Math.random() * 82;
+    const speed = 48 + Math.random() * 64;
     const brightEveryThird = i % 3 === 0;
     particles.push({
       id: Math.random().toString(),
-      x: x + (Math.random() * 5 - 2.5),
-      y: y + (Math.random() * 5 - 2.5),
+      x: x + (Math.random() * 4 - 2),
+      y: y + (Math.random() * 4 - 2),
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      color: brightEveryThird ? '#fff4bf' : color,
+      color: brightEveryThird ? '#fff7d0' : color,
       lifeTime: 0,
-      maxLifeTime: 180 + Math.random() * 220,
-      size: brightEveryThird ? 1.7 + Math.random() * 0.8 : 1.1 + Math.random() * 1.0,
-      drag: 0.86,
-      gravity: brightEveryThird ? -4 : 8,
+      maxLifeTime: 150 + Math.random() * 180,
+      size: brightEveryThird ? 1.5 + Math.random() * 0.7 : 1 + Math.random() * 0.8,
+      drag: 0.84,
+      gravity: brightEveryThird ? -3 : 7,
       fade: true,
     });
   }
@@ -104,25 +104,23 @@ export function performPlayerAttack(
   const effects: VisualEffect[] = [];
   const particles: Particle[] = [];
   const attackRange = player.attackRange;
-  const classDef = CLASS_DEFS[player.playerClass];
   const cx = player.x + player.width / 2;
   const cy = player.y + player.height / 2;
   player.lastAttackTime = currentTime;
 
   const slashAngle = Math.atan2(player.facing.y, player.facing.x);
-  const slashRadius = Math.min(30, Math.max(22, attackRange * 0.38));
   effects.push({
     id: Math.random().toString(),
-    x: cx + player.facing.x * 14,
-    y: cy + player.facing.y * 14,
-    radius: slashRadius,
-    maxRadius: slashRadius,
-    color: classDef.skillEffectColor.replace('0.55', '0.42'),
+    x: cx + player.facing.x * 12,
+    y: cy + player.facing.y * 12,
+    radius: 18,
+    maxRadius: 18,
+    color: 'rgba(255,224,120,0.72)',
     lifeTime: 0,
-    maxLifeTime: 115,
+    maxLifeTime: 95,
     type: 'slash',
     angle: slashAngle,
-    width: 9,
+    width: 5,
   });
 
   enemies.forEach(enemy => {
@@ -150,8 +148,8 @@ export function performPlayerAttack(
       particles.push(...makeHitSpark(
         enemy.x + enemy.width / 2,
         enemy.y + enemy.height / 2,
-        enemy.color,
-        10,
+        '#ffd76a',
+        8,
       ));
     }
   });
