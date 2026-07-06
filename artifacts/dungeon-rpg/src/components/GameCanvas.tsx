@@ -4,10 +4,7 @@ import { TILE_SIZE, TileType } from '../game/dungeon';
 import { CLASS_DEFS } from '../game/classes';
 import {
   drawSprite, animFrame, bobOffset,
-  SPRITE_WALL, SPRITE_WALL_FRONT, WALL_SPRITES_BY_TINT,
-  SPRITE_FLOOR, SPRITE_FLOOR_EDGE,
   SPRITE_STAIRS,
-  SPRITE_DOOR_OPEN,
   SPRITE_POTION, SPRITE_XP_ORB,
   SPRITE_TORCH, SPRITE_SHRINE, SPRITE_SKULL, SPRITE_FORGE, SPRITE_BOOKSHELF, SPRITE_BARREL, SPRITE_CRATE,
   PLAYER_SPRITES, ENEMY_SPRITES,
@@ -18,6 +15,7 @@ import {
   SPRITE_RH_DUNGEON_ENTRANCE, SPRITE_RH_GRASS_TUFT,
 } from '../game/overworldSprites';
 import {
+  drawPremiumArrow,
   drawPremiumChest,
   drawPremiumEnemy,
   drawPremiumPlayer,
@@ -96,9 +94,7 @@ export function GameCanvas({ gameState }: Props) {
           switch (tile) {
             case TileType.WALL: {
               const variant = map.wallVariant[ty][tx];
-              const tint = map.wallTint[ty][tx] ?? 'default';
-              const spr = variant === 1 ? SPRITE_WALL_FRONT : (WALL_SPRITES_BY_TINT[tint] ?? SPRITE_WALL);
-              drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, spr, 0);
+              drawPremiumTile(ctx, 'wall', wx, wy, TILE_SIZE, TILE_SIZE, variant);
               break;
             }
             case TileType.FLOOR:
@@ -106,10 +102,9 @@ export function GameCanvas({ gameState }: Props) {
             case TileType.STAIRS_DOWN: {
               const fv = Math.min(3, map.floorVariant[ty][tx] ?? 0);
               const above = ty > 0 ? map.tiles[ty - 1][tx] : TileType.EMPTY;
-              if (above === TileType.WALL && fv === 0) drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_FLOOR_EDGE[0], 0);
-              else drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_FLOOR[fv], 0);
+              drawPremiumTile(ctx, 'floor', wx, wy, TILE_SIZE, TILE_SIZE, above === TileType.WALL && fv === 0 ? 12 : fv);
               if (tile === TileType.DOOR) {
-                drawSprite(ctx, wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, SPRITE_DOOR_OPEN, 0);
+                drawPremiumTile(ctx, 'door', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, fv);
               } else if (tile === TileType.STAIRS_DOWN) {
                 const sf = animFrame(SPRITE_STAIRS, now, 1.5);
                 drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_STAIRS, sf);
@@ -497,18 +492,7 @@ export function GameCanvas({ gameState }: Props) {
           ctx.restore();
         } else {
           ctx.save();
-          ctx.strokeStyle = '#cc8833';
-          ctx.lineWidth = 2;
-          ctx.shadowBlur = 4;
-          ctx.shadowColor = '#ff9900';
-          ctx.beginPath();
-          ctx.moveTo(cx + fx * 16, cy + fy * 16);
-          ctx.lineTo(cx + fx * 30, cy + fy * 30);
-          ctx.stroke();
-          ctx.fillStyle = '#ff9900';
-          ctx.beginPath();
-          ctx.arc(cx + fx * 30, cy + fy * 30, 4, 0, Math.PI * 2);
-          ctx.fill();
+          drawPremiumArrow(ctx, cx + fx * 22, cy + fy * 22, Math.atan2(fy, fx), 28);
           ctx.restore();
         }
       }
