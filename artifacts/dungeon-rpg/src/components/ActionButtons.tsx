@@ -62,7 +62,13 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
     ) : null;
 
   return (
-    <div className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+1rem))] w-[clamp(10.5rem,42vw,12rem)] aspect-square pointer-events-auto z-50 touch-none select-none">
+    <div
+      className="fixed w-[clamp(10.5rem,42vw,12rem)] aspect-square pointer-events-auto z-50 touch-none select-none"
+      style={{
+        right: 'max(1rem, env(safe-area-inset-right))',
+        bottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem))',
+      }}
+    >
       <div className="relative w-full h-full">
         {/* ATTACK — large, bottom-left */}
         <button
