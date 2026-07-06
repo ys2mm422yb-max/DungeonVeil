@@ -1,3 +1,4 @@
+import type { ClassKey } from './classes';
 import type { EnemyTypeName } from './sprites';
 
 type TileKind =
@@ -317,10 +318,16 @@ export function drawPremiumPlayer(
   frame = 0,
   flipX = false,
   flash = false,
+  playerClass: ClassKey = 'warrior',
 ): void {
   const src = `${CHARS}/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Walk-Sheet.png`;
   ctx.save();
-  if (flash) ctx.filter = 'brightness(2.2) saturate(0.4)';
+  const classFilter: Record<ClassKey, string> = {
+    warrior: 'none',
+    mage: 'hue-rotate(72deg) saturate(1.25) brightness(1.08)',
+    archer: 'hue-rotate(-38deg) saturate(1.25) brightness(1.04)',
+  };
+  ctx.filter = flash ? 'brightness(2.2) saturate(0.4)' : classFilter[playerClass];
   const drawn = drawSheetFrame(ctx, src, 96, 96, frame, x - w * 0.5, y - h * 0.78, w * 2, h * 2.2, flipX);
   ctx.restore();
   if (!drawn) drawWhole(ctx, `${MW}/characters/player.png`, x, y, w, h);
@@ -378,5 +385,65 @@ export function drawPremiumArrow(
   ctx.fillStyle = '#8a5a2d';
   ctx.fillRect(Math.floor(-length * 0.5), -3, 4, 2);
   ctx.fillRect(Math.floor(-length * 0.5), 1, 4, 2);
+  ctx.restore();
+}
+
+export function drawPremiumSwordArc(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  angle: number,
+  progress: number,
+): void {
+  const sweep = Math.max(0, Math.min(1, progress));
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+  ctx.globalAlpha = 1 - sweep * 0.45;
+  ctx.lineCap = 'round';
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = '#ffd66a';
+  ctx.strokeStyle = '#fff7d8';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(0, 0, 28, -0.78 + sweep * 0.5, 0.78 + sweep * 0.5);
+  ctx.stroke();
+  ctx.strokeStyle = '#e8a833';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, 22, -0.55 + sweep * 0.5, 0.55 + sweep * 0.5);
+  ctx.stroke();
+  ctx.fillStyle = '#fff1a6';
+  for (let i = 0; i < 4; i++) {
+    const a = -0.4 + i * 0.28 + sweep * 0.4;
+    ctx.fillRect(Math.cos(a) * 30, Math.sin(a) * 30, 2, 2);
+  }
+  ctx.restore();
+}
+
+export function drawPremiumMagicBolt(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  time: number,
+  color = '#a66cff',
+): void {
+  const pulse = 0.5 + Math.sin(time / 120) * 0.5;
+  ctx.save();
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = color;
+  const grad = ctx.createRadialGradient(cx, cy, 1, cx, cy, 14 + pulse * 4);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.35, color);
+  grad.addColorStop(1, 'rgba(120,70,255,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 14 + pulse * 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#f0dcff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 9, time / 220, time / 220 + Math.PI * 1.25);
+  ctx.stroke();
   ctx.restore();
 }
