@@ -131,7 +131,7 @@ export function VirtualJoystick({ onMove }: Props) {
   return (
     <div
       ref={containerRef}
-      className="fixed rounded-full bg-black/40 border-2 border-white/10 opacity-0 pointer-events-none z-50 transition-opacity duration-100 shadow-[0_0_20px_rgba(0,0,0,0.5)] will-change-[opacity,transform]"
+      className="fixed rounded-full bg-black/40 border-2 border-white/10 opacity-0 pointer-events-none z-50 transition-opacity duration-100 shadow-[0_0_20px_rgba(0,0,0,0.5)] will-change-transform"
       style={{
         width: 120,
         height: 120,
