@@ -18,10 +18,27 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { Language } from '../i18n/translations';
 
 type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'game';
+type MoveVector = { x: number; y: number };
+
+type KeyState = {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+};
+
+function normalizeMove({ x, y }: MoveVector): MoveVector {
+  const length = Math.hypot(x, y);
+  if (length <= 1) return { x, y };
+  return { x: x / length, y: y / length };
+}
 
 export default function Game() {
   const { t, language, setLanguage, hasChosen } = useLanguage();
   const engineRef = useRef<GameEngine | null>(null);
+  const touchMoveRef = useRef<MoveVector>({ x: 0, y: 0 });
+  const keyMoveRef = useRef<MoveVector>({ x: 0, y: 0 });
+  const keyStateRef = useRef<KeyState>({ up: false, down: false, left: false, right: false });
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const settingsReturnRef = useRef<UiState>('main_menu');
@@ -30,12 +47,34 @@ export default function Game() {
     !hasChosen ? 'lang_select' : 'main_menu'
   );
 
+  const applyMovementInput = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+
+    const move = normalizeMove({
+      x: touchMoveRef.current.x + keyMoveRef.current.x,
+      y: touchMoveRef.current.y + keyMoveRef.current.y,
+    });
+
+    engine.input.joyX = move.x;
+    engine.input.joyY = move.y;
+  }, []);
+
+  const refreshKeyboardMove = useCallback(() => {
+    const keys = keyStateRef.current;
+    keyMoveRef.current = normalizeMove({
+      x: (keys.right ? 1 : 0) - (keys.left ? 1 : 0),
+      y: (keys.down ? 1 : 0) - (keys.up ? 1 : 0),
+    });
+    applyMovementInput();
+  }, [applyMovementInput]);
+
   // Transition to main_menu once language is chosen
   useEffect(() => {
     if (hasChosen && uiState === 'lang_select') {
       setUiState('main_menu');
     }
-  }, [hasChosen]);
+  }, [hasChosen, uiState]);
 
   // Refresh save data whenever returning to main menu
   useEffect(() => {
@@ -85,8 +124,12 @@ export default function Game() {
   }, []);
 
   const handleMainMenu = useCallback(() => {
+    touchMoveRef.current = { x: 0, y: 0 };
+    keyMoveRef.current = { x: 0, y: 0 };
+    keyStateRef.current = { up: false, down: false, left: false, right: false };
+    applyMovementInput();
     setUiState('main_menu');
-  }, []);
+  }, [applyMovementInput]);
 
   const handleSettingsBack = useCallback(() => {
     const returnTo = settingsReturnRef.current;
@@ -104,8 +147,9 @@ export default function Game() {
   // ─── In-game controls ─────────────────────────────────────────────────────
 
   const handleJoystickMove = useCallback((x: number, y: number) => {
-    if (engineRef.current) { engineRef.current.input.joyX = x; engineRef.current.input.joyY = y; }
-  }, []);
+    touchMoveRef.current = { x, y };
+    applyMovementInput();
+  }, [applyMovementInput]);
 
   const handleAttack   = useCallback(() => { if (engineRef.current) engineRef.current.input.attack = true; }, []);
   const handleDodge    = useCallback(() => { if (engineRef.current) engineRef.current.input.dodge  = true; }, []);
@@ -135,10 +179,71 @@ export default function Game() {
     engineRef.current?.applyUpgrade(choice);
   }, []);
 
+  useEffect(() => {
+    if (uiState !== 'game') return;
+
+    const setMoveKey = (code: string, pressed: boolean): boolean => {
+      const keys = keyStateRef.current;
+      if (code === 'KeyW' || code === 'ArrowUp') keys.up = pressed;
+      else if (code === 'KeyS' || code === 'ArrowDown') keys.down = pressed;
+      else if (code === 'KeyA' || code === 'ArrowLeft') keys.left = pressed;
+      else if (code === 'KeyD' || code === 'ArrowRight') keys.right = pressed;
+      else return false;
+      refreshKeyboardMove();
+      return true;
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (setMoveKey(e.code, true)) {
+        e.preventDefault();
+        return;
+      }
+
+      if (e.code === 'Space' || e.code === 'KeyJ') {
+        e.preventDefault();
+        handleAttack();
+      } else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK') {
+        e.preventDefault();
+        handleDodge();
+      } else if (e.code === 'KeyE' || e.code === 'KeyL') {
+        e.preventDefault();
+        handleSkill();
+      } else if (e.code === 'KeyF' || e.code === 'Enter') {
+        e.preventDefault();
+        handleInteract();
+      } else if (e.code === 'Escape') {
+        e.preventDefault();
+        if (engineRef.current?.state.status === 'paused') handleResume();
+        else handlePause();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (setMoveKey(e.code, false)) e.preventDefault();
+    };
+
+    const clearKeys = () => {
+      keyStateRef.current = { up: false, down: false, left: false, right: false };
+      refreshKeyboardMove();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', clearKeys);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', clearKeys);
+      clearKeys();
+    };
+  }, [uiState, refreshKeyboardMove, handleAttack, handleDodge, handleSkill, handleInteract, handlePause, handleResume]);
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none">
+    <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none overscroll-none">
 
       {/* ── Language picker (first launch) ── */}
       {uiState === 'lang_select' && <LanguageSelectScreen />}
