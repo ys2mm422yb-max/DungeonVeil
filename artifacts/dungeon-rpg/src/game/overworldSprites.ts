@@ -1,11 +1,10 @@
-// Rumble Heroes style 32×32 hand-painted pixel-art overworld sprites.
-// Authored at 32×32 but rendered at the tile size for sharp detail.
-
 import { SpriteData } from './sprites';
-import { inBounds } from './world';
+
 export type PixelGrid = number[][];
 
 const EMPTY = 0;
+const W = 32;
+const H = 32;
 
 export function grid(w: number, h: number, fill = EMPTY): PixelGrid {
   return Array.from({ length: h }, () => new Array(w).fill(fill));
@@ -16,11 +15,9 @@ export function paletteSprite(frames: PixelGrid[], palette: string[]): SpriteDat
 }
 
 export function rect(g: PixelGrid, x: number, y: number, w: number, h: number, color: number): void {
-  for (let r = y; r < y + h; r++) {
-    for (let c = x; c < x + w; c++) {
-      if (r >= 0 && r < g.length && c >= 0 && c < g[0].length) {
-        g[r][c] = color;
-      }
+  for (let yy = y; yy < y + h; yy++) {
+    for (let xx = x; xx < x + w; xx++) {
+      if (yy >= 0 && yy < g.length && xx >= 0 && xx < g[0].length) g[yy][xx] = color;
     }
   }
 }
@@ -28,11 +25,8 @@ export function rect(g: PixelGrid, x: number, y: number, w: number, h: number, c
 export function circle(g: PixelGrid, cx: number, cy: number, r: number, color: number): void {
   for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) {
     for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
-      if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) {
-        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r + 0.5) {
-          g[y][x] = color;
-        }
-      }
+      if (y < 0 || y >= g.length || x < 0 || x >= g[0].length) continue;
+      if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r + 0.5) g[y][x] = color;
     }
   }
 }
@@ -40,13 +34,9 @@ export function circle(g: PixelGrid, cx: number, cy: number, r: number, color: n
 export function softCircle(g: PixelGrid, cx: number, cy: number, r: number, colors: number[]): void {
   for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) {
     for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
-      if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) {
-        const d = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-        if (d <= r) {
-          const idx = Math.floor((d / r) * (colors.length - 1));
-          g[y][x] = colors[Math.min(idx, colors.length - 1)];
-        }
-      }
+      if (y < 0 || y >= g.length || x < 0 || x >= g[0].length) continue;
+      const d = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+      if (d <= r) g[y][x] = colors[Math.min(colors.length - 1, Math.floor((d / r) * colors.length))];
     }
   }
 }
@@ -54,7 +44,7 @@ export function softCircle(g: PixelGrid, cx: number, cy: number, r: number, colo
 export function seededNoise(g: PixelGrid, seed: number, colors: number[], scale = 0.25): void {
   for (let y = 0; y < g.length; y++) {
     for (let x = 0; x < g[0].length; x++) {
-      const n = Math.abs((Math.sin(x * scale + seed) * Math.cos(y * scale + seed * 1.7)));
+      const n = Math.abs(Math.sin(x * scale + seed) * Math.cos(y * scale + seed * 1.73));
       g[y][x] = colors[Math.floor(n * colors.length) % colors.length];
     }
   }
@@ -63,9 +53,7 @@ export function seededNoise(g: PixelGrid, seed: number, colors: number[], scale 
 export function blendNoise(g: PixelGrid, base: number, seed: number, chance: number, accent: number): void {
   for (let y = 0; y < g.length; y++) {
     for (let x = 0; x < g[0].length; x++) {
-      if (g[y][x] === base && Math.abs(noise2D(x, y, seed)) < chance) {
-        g[y][x] = accent;
-      }
+      if (g[y][x] === base && Math.abs(noise2D(x, y, seed)) < chance) g[y][x] = accent;
     }
   }
 }
@@ -73,27 +61,20 @@ export function blendNoise(g: PixelGrid, base: number, seed: number, chance: num
 export function drawBlob(g: PixelGrid, cx: number, cy: number, rx: number, ry: number, color: number, seed = 0): void {
   for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
     for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
-      if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) {
-        const dx = (x - cx) / rx;
-        const dy = (y - cy) / ry;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d <= 1) {
-          const ripple = Math.sin(x * 0.5 + seed) * Math.cos(y * 0.5 + seed) * 0.08;
-          if (d + ripple <= 1) g[y][x] = color;
-        }
-      }
+      if (y < 0 || y >= g.length || x < 0 || x >= g[0].length) continue;
+      const dx = (x - cx) / rx;
+      const dy = (y - cy) / ry;
+      const edge = Math.sin(x * 0.55 + seed) * Math.cos(y * 0.45 + seed) * 0.1;
+      if (Math.sqrt(dx * dx + dy * dy) + edge <= 1) g[y][x] = color;
     }
   }
 }
 
 export function drawLeafCluster(g: PixelGrid, cx: number, cy: number, r: number, color: number, darkColor: number, seed: number): void {
-  for (let i = 0; i < 9; i++) {
-    const angle = (i / 9) * Math.PI * 2 + seed;
-    const dist = r * (0.4 + Math.abs(noise2D(i, seed, seed)) * 0.6);
-    const lx = cx + Math.cos(angle) * dist;
-    const ly = cy + Math.sin(angle) * dist * 0.7;
-    const lr = r * (0.35 + Math.abs(noise2D(seed, i, seed)) * 0.3);
-    softCircle(g, lx, ly, lr, [color, darkColor, color]);
+  for (let i = 0; i < 11; i++) {
+    const a = (i / 11) * Math.PI * 2 + seed;
+    const dist = r * (0.32 + Math.abs(noise2D(i, seed, seed)) * 0.72);
+    softCircle(g, cx + Math.cos(a) * dist, cy + Math.sin(a) * dist * 0.62, r * 0.34, [color, color, darkColor]);
   }
 }
 
@@ -103,9 +84,9 @@ function noise2D(nx: number, ny: number, seed: number): number {
   const fx = nx - x;
   const fy = ny - y;
   const hash = (hx: number, hy: number): number => {
-    let h = ((hx * 374761393 + hy * 1234567891 + seed * 718281828) & 0x7fffffff);
-    h = ((h ^ (h >>> 13)) * 1540483477) & 0x7fffffff;
-    return (h ^ (h >>> 15)) / 0x7fffffff;
+    let h = ((hx * 374761393 + hy * 668265263 + seed * 1442695041) & 0x7fffffff);
+    h = ((h ^ (h >>> 13)) * 1274126177) & 0x7fffffff;
+    return ((h ^ (h >>> 16)) / 0x7fffffff) * 2 - 1;
   };
   const a = hash(x, y);
   const b = hash(x + 1, y);
@@ -116,116 +97,94 @@ function noise2D(nx: number, ny: number, seed: number): number {
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
 
-// ───────────────────────────────────────────────────────────────────────────────
-// GRASS TILES
-// ───────────────────────────────────────────────────────────────────────────────
-
-const GRASS_PALETTE = ['#3a7a2e', '#4a8c3a', '#5a9e46', '#6ab052', '#7bc460', '#2e6a24', '#8fd070', '#a0e080', '#367a28', '#1e4a18', '#9ee080', '#c0f090', '#2f5e22'];
-const FLOWER_PALETTE = ['#ff6b6b', '#ffd93d', '#ff9ff3', '#54a0ff', '#5f27cd', '#ff9f43', '#feca57', '#ff6b81', '#48dbfb'];
+const GRASS_PALETTE = ['#1f4519', '#2f6824', '#3d8130', '#4c9a3d', '#5faf4d', '#77c864', '#11300f', '#24551d', '#8bd672', '#b3ee8f', '#e7f7b2', '#fff1a5', '#f77272', '#d957ff', '#6bd7ff'];
+const WATER_PALETTE = ['#0b2636', '#0d3c59', '#136083', '#1881a6', '#22a6ca', '#55d7ef', '#8cf5ff', '#06202e', '#ffffff'];
+const ROAD_PALETTE = ['#4b3827', '#655036', '#80683f', '#9a8050', '#b89a61', '#d0b878', '#33251b', '#e6d193'];
+const WOOD_PALETTE = ['#3b2113', '#5b341d', '#764b2a', '#976a3c', '#bd8b54', '#dfb873', '#21140d'];
+const STONE_PALETTE = ['#333838', '#4d5652', '#69756e', '#87928a', '#a9b4aa', '#222726', '#5a6f5a', '#8aa35f'];
+const TREE_PALETTE = ['#0c240d', '#173e15', '#245f1f', '#327d2d', '#43a03b', '#67c057', '#90df73', '#5b341e', '#7e5530', '#a07747', '#d9f08b', '#0a1809'];
+const FLOWER_PALETTE = ['#2f6824', '#5faf4d', '#fff6a1', '#ff7a7a', '#d65cff', '#7bdcff', '#ffffff'];
 
 function makeGrassBase(seed: number): PixelGrid {
-  const g = grid(32, 32);
-  // base mottled grass
-  seededNoise(g, seed, [1, 2, 3, 4, 5, 6], 0.28);
-  blendNoise(g, 2, seed + 1, 0.20, 6);
-  blendNoise(g, 3, seed + 2, 0.14, 7);
-  blendNoise(g, 4, seed + 3, 0.10, 8);
-  // lighter sun patches
-  blendNoise(g, 1, seed + 4, 0.06, 12);
-  blendNoise(g, 5, seed + 5, 0.08, 10);
+  const g = grid(W, H);
+  seededNoise(g, seed, [1, 2, 3, 4, 7], 0.34);
+  blendNoise(g, 2, seed + 1, 0.24, 5);
+  blendNoise(g, 3, seed + 2, 0.18, 8);
+  blendNoise(g, 4, seed + 3, 0.12, 9);
+  blendNoise(g, 1, seed + 4, 0.16, 6);
+  for (let i = 0; i < 18; i++) {
+    const x = Math.floor(Math.abs(noise2D(i, seed, seed)) * 30 + 1);
+    const y = Math.floor(Math.abs(noise2D(seed, i, seed)) * 30 + 1);
+    g[y][x] = i % 5 === 0 ? 10 : (i % 2 === 0 ? 5 : 8);
+  }
   return g;
 }
 
-export const SPRITE_RH_GRASS: SpriteData[] = [];
-for (let v = 0; v < 8; v++) {
-  SPRITE_RH_GRASS.push(paletteSprite([makeGrassBase(v * 13.7)], GRASS_PALETTE));
-}
+export const SPRITE_RH_GRASS: SpriteData[] = Array.from({ length: 10 }, (_, i) => paletteSprite([makeGrassBase(i * 17.31)], GRASS_PALETTE));
 
-export const SPRITE_RH_GRASS_FLOWERS: SpriteData[] = [];
-for (let v = 0; v < 4; v++) {
-  const g = makeGrassBase(v * 19.3);
-  const flowerCount = 3 + Math.floor(Math.abs(noise2D(v, v, v)) * 5);
-  for (let i = 0; i < flowerCount; i++) {
-    const fx = Math.floor(Math.abs(noise2D(i, seedNoise(i, v), v)) * 28 + 2);
-    const fy = Math.floor(Math.abs(noise2D(v, i, seedNoise(i, v))) * 28 + 2);
-    const color = 10 + Math.floor(Math.abs(noise2D(i, v, v)) * 5);
-    g[fy][fx] = color;
-    if (fy > 0) g[fy - 1][fx] = color;
-    if (fx > 0) g[fy][fx - 1] = color;
-    if (fx < 31) g[fy][fx + 1] = color;
+export const SPRITE_RH_GRASS_FLOWERS: SpriteData[] = Array.from({ length: 6 }, (_, v) => {
+  const g = makeGrassBase(80 + v * 9.7);
+  for (let i = 0; i < 12; i++) {
+    const x = Math.floor(Math.abs(noise2D(i, v, 17)) * 26 + 3);
+    const y = Math.floor(Math.abs(noise2D(v, i, 23)) * 24 + 4);
+    const c = 11 + (i % 5);
+    g[y][x] = c;
+    if (x > 0) g[y][x - 1] = c;
+    if (x < 31) g[y][x + 1] = c;
+    if (y > 0) g[y - 1][x] = c;
   }
-  SPRITE_RH_GRASS_FLOWERS.push(paletteSprite([g], [...GRASS_PALETTE, ...FLOWER_PALETTE]));
-}
-function seedNoise(a: number, b: number): number { return a * 13.7 + b * 19.3; }
+  return paletteSprite([g], [...GRASS_PALETTE, ...FLOWER_PALETTE]);
+});
 
 export const SPRITE_RH_BUSH: SpriteData = (() => {
-  const g = makeGrassBase(44.1);
-  drawBlob(g, 16, 19, 10, 7, 3, 44.1);
-  drawBlob(g, 12, 22, 7, 5, 2, 44.2);
-  drawBlob(g, 22, 22, 7, 5, 2, 44.3);
-  drawBlob(g, 16, 24, 5, 4, 6, 44.4);
+  const g = makeGrassBase(42);
+  drawBlob(g, 15, 19, 11, 7, 3, 42);
+  drawBlob(g, 10, 21, 7, 5, 2, 44);
+  drawBlob(g, 21, 21, 8, 5, 4, 46);
+  drawBlob(g, 16, 15, 8, 5, 5, 48);
+  blendNoise(g, 3, 50, 0.18, 9);
   return paletteSprite([g], GRASS_PALETTE);
 })();
 
 export const SPRITE_RH_ROCK_SMALL: SpriteData = (() => {
-  const g = makeGrassBase(55.2);
-  const rockPalette = ['#7a8a7a', '#8a9a8a', '#9aaaaa', '#6a7a6a', '#aababa', '#5a6a5a'];
-  const rg = grid(32, 32);
-  drawBlob(rg, 16, 18, 10, 7, 1, 55.2);
-  drawBlob(rg, 12, 15, 6, 5, 2, 55.3);
-  drawBlob(rg, 20, 19, 5, 4, 3, 55.4);
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      if (rg[y][x] !== EMPTY) g[y][x] = rg[y][x] + 7;
-    }
-  }
-  return paletteSprite([g], [...GRASS_PALETTE, ...rockPalette]);
+  const g = makeGrassBase(55);
+  drawBlob(g, 16, 19, 10, 7, 16, 55);
+  drawBlob(g, 12, 16, 6, 4, 17, 57);
+  drawBlob(g, 21, 20, 5, 4, 18, 59);
+  g[14][13] = 20; g[15][14] = 20; g[18][20] = 19;
+  return paletteSprite([g], [...GRASS_PALETTE, ...STONE_PALETTE]);
 })();
 
 export const SPRITE_RH_STUMP: SpriteData = (() => {
-  const g = makeGrassBase(66.3);
-  const stumpPalette = ['#5a3a22', '#6a4a2a', '#7a5a32', '#4a2e1a', '#8a6a42'];
-  rect(g, 13, 18, 6, 10, 8);
-  rect(g, 12, 16, 8, 4, 9);
-  rect(g, 14, 17, 4, 1, 10);
-  g[18][12] = 11;
-  g[18][21] = 11;
-  return paletteSprite([g], [...GRASS_PALETTE, ...stumpPalette]);
+  const g = makeGrassBase(66);
+  rect(g, 13, 18, 7, 10, 18);
+  rect(g, 11, 16, 11, 4, 19);
+  rect(g, 14, 17, 5, 1, 20);
+  g[18][12] = 21; g[18][22] = 21; g[19][17] = 22;
+  return paletteSprite([g], [...GRASS_PALETTE, ...WOOD_PALETTE]);
 })();
 
 export const SPRITE_RH_HILL: SpriteData = (() => {
-  const g = makeGrassBase(77.4);
-  const hillPalette = ['#5a8a4a', '#6a9e5a', '#4a7a3a', '#7ab06a', '#3a6a2a', '#8ac070'];
-  const hg = grid(32, 32);
-  drawBlob(hg, 16, 24, 17, 9, 1, 77.4);
-  drawBlob(hg, 12, 21, 9, 6, 2, 77.5);
-  drawBlob(hg, 22, 23, 8, 6, 3, 77.6);
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      if (hg[y][x] !== EMPTY) g[y][x] = hg[y][x] + 6;
-    }
-  }
-  return paletteSprite([g], [...GRASS_PALETTE, ...hillPalette]);
+  const g = makeGrassBase(77);
+  drawBlob(g, 16, 24, 18, 9, 2, 77);
+  drawBlob(g, 12, 21, 9, 6, 5, 78);
+  drawBlob(g, 22, 23, 8, 6, 7, 79);
+  blendNoise(g, 2, 80, 0.2, 8);
+  return paletteSprite([g], GRASS_PALETTE);
 })();
-
-// ───────────────────────────────────────────────────────────────────────────────
-// WATER
-// ───────────────────────────────────────────────────────────────────────────────
-
-const WATER_PALETTE = ['#1a3a5a', '#1e4a78', '#2266a0', '#2e80c0', '#3aa0e0', '#4ab8f0', '#103a60', '#6ad0ff', '#8ae0ff', '#0f2a48', '#5fd0ff'];
 
 export const SPRITE_RH_WATER: SpriteData = (() => {
   const frames: PixelGrid[] = [];
   for (let f = 0; f < 4; f++) {
-    const g = grid(32, 32);
-    seededNoise(g, f * 10.5, [1, 2, 3, 4, 5, 6, 9], 0.22 + f * 0.03);
-    for (let y = 0; y < 32; y++) {
-      for (let x = 0; x < 32; x++) {
-        const wave = Math.sin((x + y) * 0.5 + f * 1.5) * 0.5 + 0.5;
-        const cross = Math.sin(x * 0.7 + f * 0.7) * Math.cos(y * 0.6 + f * 0.5) * 0.5 + 0.5;
-        if (wave > 0.7 && g[y][x] < 6) g[y][x] = 8;
-        else if (wave < 0.3 && g[y][x] > 1) g[y][x] = 1;
-        else if (cross > 0.75 && g[y][x] > 2) g[y][x] = 7;
+    const g = grid(W, H);
+    seededNoise(g, f * 12.4, [1, 2, 3, 4, 7], 0.28);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const wave = Math.sin((x * 0.65 + y * 0.28) + f * 1.25);
+        const ripple = Math.sin((x - y) * 0.42 + f * 1.9);
+        if (wave > 0.58) g[y][x] = 6;
+        else if (ripple > 0.7) g[y][x] = 5;
+        else if (wave < -0.6) g[y][x] = 1;
       }
     }
     frames.push(g);
@@ -235,311 +194,172 @@ export const SPRITE_RH_WATER: SpriteData = (() => {
 
 export const SPRITE_RH_WATERFALL: SpriteData = (() => {
   const frames: PixelGrid[] = [];
-  const FOAM = 10;
-  const palette = [...WATER_PALETTE, '#ffffff', '#a0e0ff'];
   for (let f = 0; f < 4; f++) {
-    const g = grid(32, 32);
-    for (let y = 0; y < 32; y++) {
-      for (let x = 0; x < 32; x++) {
-        const fall = Math.sin(y * 0.8 + f * 1.5) * 0.5 + 0.5;
-        const foam = Math.sin(x * 1.2 + y * 0.6 + f * 2.3) * 0.5 + 0.5;
-        if (foam > 0.78) g[y][x] = FOAM;
-        else if (fall > 0.6) g[y][x] = 6;
-        else g[y][x] = 3 + Math.floor((y / 32) * 3);
+    const g = grid(W, H);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const stream = Math.sin(x * 0.8 + y * 0.35 + f * 1.6);
+        g[y][x] = stream > 0.65 ? 9 : (stream > 0.2 ? 6 : 4);
       }
     }
     frames.push(g);
   }
-  return paletteSprite(frames, palette);
+  return paletteSprite(frames, WATER_PALETTE);
 })();
 
-// Water edge with grass bank
 export const SPRITE_RH_WATER_EDGE: SpriteData = (() => {
-  const g = makeGrassBase(111.1);
-  const wg = grid(32, 32);
-  for (let y = 18; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      const d = (y - 18) / 14;
-      const n = Math.abs(noise2D(x, y, 111.2));
-      if (d + n * 0.25 > 0.45) wg[y][x] = 1;
+  const g = makeGrassBase(111);
+  for (let y = 17; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const bank = (y - 17) / 15 + Math.abs(noise2D(x, y, 111)) * 0.28;
+      if (bank > 0.35) g[y][x] = 16 + (x + y) % 5;
+      if (bank > 0.78 && (x + y) % 3 === 0) g[y][x] = 22;
     }
   }
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      if (wg[y][x] !== EMPTY) g[y][x] = wg[y][x] + 7;
-    }
-  }
-  return paletteSprite([g], [...GRASS_PALETTE, ...WATER_PALETTE]);
+  return paletteSprite([g], [...GRASS_PALETTE, ...WATER_PALETTE, ...STONE_PALETTE]);
 })();
-
-// ───────────────────────────────────────────────────────────────────────────────
-// CLIFFS / ROCKS
-// ───────────────────────────────────────────────────────────────────────────────
-
-const CLIFF_PALETTE = ['#3a3a3a', '#4a4a4a', '#5a5a5a', '#6a6a6a', '#7a7a7a', '#2a2a2a', '#8a8a8a', '#5a6a5a', '#4a5a4a', '#6a5a4a'];
 
 export const SPRITE_RH_CLIFF: SpriteData = (() => {
-  const g = grid(32, 32);
-  // rocky top surface
-  drawBlob(g, 16, 10, 17, 10, 3, 201.1);
-  seededNoise(g, 201.2, [1, 2, 4, 5, 6], 0.35);
-  // dark cliff face
-  for (let y = 14; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      if (g[y][x] === 3 || g[y][x] === 0) g[y][x] = 5;
-    }
+  const g = grid(W, H);
+  seededNoise(g, 201, [1, 2, 3, 5], 0.4);
+  drawBlob(g, 16, 10, 17, 9, 4, 201);
+  for (let y = 13; y < H; y++) {
+    for (let x = 0; x < W; x++) if (g[y][x] === EMPTY || g[y][x] === 4) g[y][x] = 1 + (x + y) % 4;
   }
-  // highlights
-  blendNoise(g, 5, 201.3, 0.15, 4);
-  blendNoise(g, 3, 201.4, 0.12, 2);
-  // cracks / moss
-  for (let i = 0; i < 10; i++) {
-    const sx = Math.floor(Math.abs(noise2D(i, 201, 201)) * 30 + 1);
-    const sy = Math.floor(Math.abs(noise2D(201, i, 201)) * 18 + 14);
-    for (let j = 0; j < 6; j++) {
-      if (inBounds(sx + j, sy + j, g[0].length, g.length)) g[sy + j][sx + j] = 1;
-    }
+  for (let i = 0; i < 11; i++) {
+    const x = Math.floor(Math.abs(noise2D(i, 2, 201)) * 27 + 2);
+    const y = Math.floor(Math.abs(noise2D(2, i, 201)) * 12 + 15);
+    rect(g, x, y, 1, 5, i % 2 ? 6 : 7);
   }
-  return paletteSprite([g], CLIFF_PALETTE);
+  return paletteSprite([g], STONE_PALETTE);
 })();
 
 export const SPRITE_RH_ROCK: SpriteData = (() => {
-  const g = makeGrassBase(55.2);
-  const rockPalette = ['#7a8a7a', '#8a9a8a', '#9aaaaa', '#6a7a6a', '#aababa', '#5a6a5a', '#4a5a5a', '#b0c0c0'];
-  const rg = grid(32, 32);
-  drawBlob(rg, 16, 18, 12, 8, 1, 55.2);
-  drawBlob(rg, 12, 15, 8, 6, 2, 55.3);
-  drawBlob(rg, 20, 19, 6, 5, 3, 55.4);
-  drawBlob(rg, 16, 14, 5, 4, 6, 55.5);
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      if (rg[y][x] !== EMPTY) g[y][x] = rg[y][x] + 7;
-    }
-  }
-  return paletteSprite([g], [...GRASS_PALETTE, ...rockPalette]);
+  const g = makeGrassBase(56);
+  drawBlob(g, 16, 18, 13, 8, 16, 56);
+  drawBlob(g, 11, 15, 8, 5, 17, 57);
+  drawBlob(g, 21, 19, 7, 5, 18, 58);
+  g[12][14] = 20; g[15][10] = 20; g[20][23] = 19;
+  return paletteSprite([g], [...GRASS_PALETTE, ...STONE_PALETTE]);
 })();
 
-// ───────────────────────────────────────────────────────────────────────────────
-// ROAD / BRIDGE
-// ───────────────────────────────────────────────────────────────────────────────
-
-const ROAD_PALETTE = ['#6a5a42', '#7d6b4e', '#8f7d5a', '#a08e68', '#5c4e38', '#b29e72', '#4a3e2e', '#c2b082'];
-
 export const SPRITE_RH_BRIDGE: SpriteData = (() => {
-  const g = grid(32, 32);
-  const woodPalette = ['#6a4a2a', '#7a5a3a', '#8b6a4a', '#5a3a22', '#9a7a5a', '#4a2e1a', '#a08060'];
-  // planks
-  for (let y = 2; y < 30; y += 5) {
-    for (let x = 2; x < 30; x++) {
-      g[y][x] = 1 + Math.floor(Math.abs(noise2D(x, y, 301)) * 3);
-    }
-  }
-  // rails
-  for (let y = 0; y < 32; y++) {
-    g[y][2] = 4; g[y][29] = 4;
-  }
-  for (let x = 2; x < 30; x += 6) {
-    g[2][x] = 5; g[29][x] = 5;
-  }
-  // supports
-  for (let y = 14; y < 32; y++) {
-    g[y][5] = 1; g[y][26] = 1;
-  }
-  return paletteSprite([g], woodPalette);
+  const g = grid(W, H);
+  rect(g, 0, 0, W, H, 8);
+  for (let y = 4; y < 29; y += 5) rect(g, 3, y, 26, 4, 2 + (y % 3));
+  rect(g, 2, 1, 4, 30, 1); rect(g, 26, 1, 4, 30, 1);
+  for (let y = 3; y < 30; y += 7) { rect(g, 1, y, 6, 2, 5); rect(g, 25, y, 6, 2, 5); }
+  for (let x = 5; x < 28; x += 5) rect(g, x, 2, 2, 28, 6);
+  return paletteSprite([g], WOOD_PALETTE);
 })();
 
 export const SPRITE_RH_ROAD: SpriteData = (() => {
-  const g = grid(32, 32);
-  seededNoise(g, 88.5, [1, 2, 3, 4, 5], 0.3);
-  blendNoise(g, 2, 88.6, 0.15, 4);
-  blendNoise(g, 3, 88.7, 0.1, 6);
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      const edge = Math.min(x, 31 - x, y, 31 - y);
-      if (edge < 2 && Math.abs(noise2D(x, y, 88.8)) < 0.4) g[y][x] = 7;
-    }
-  }
+  const g = grid(W, H);
+  seededNoise(g, 88, [1, 2, 3, 4], 0.35);
+  blendNoise(g, 2, 89, 0.2, 5);
+  blendNoise(g, 3, 90, 0.16, 6);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (Math.min(x, 31 - x, y, 31 - y) < 3 && Math.abs(noise2D(x, y, 91)) < 0.5) g[y][x] = 7;
   return paletteSprite([g], ROAD_PALETTE);
 })();
 
 export const SPRITE_RH_ROAD_OVERGRASS: SpriteData = (() => {
-  const g = makeGrassBase(99.1);
-  const rg = grid(32, 32);
-  seededNoise(rg, 99.2, [1, 2, 3, 4], 0.25);
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      if (rg[y][x] !== EMPTY) g[y][x] = rg[y][x] + 6;
+  const g = makeGrassBase(99);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const path = Math.abs(y - 16 + noise2D(x, y, 99) * 5);
+      if (path < 8) g[y][x] = 16 + ((x + y) % 6);
     }
   }
   return paletteSprite([g], [...GRASS_PALETTE, ...ROAD_PALETTE]);
 })();
 
-// ───────────────────────────────────────────────────────────────────────────────
-// FOREST / BIG TREES
-// ───────────────────────────────────────────────────────────────────────────────
-
-const TREE_PALETTE = ['#1a3a10', '#2a5a1a', '#3a7a24', '#4a9a32', '#5aba40', '#6ad050', '#5a3a22', '#7a5a3a', '#8b6a4a', '#8ad060', '#3a8a28', '#a0e070', '#2e4a18', '#c0e080'];
-
 export const SPRITE_RH_TREE: SpriteData = (() => {
-  const g = grid(32, 32);
-  // ground shadow
-  rect(g, 6, 28, 20, 3, 9);
-  // trunk
-  rect(g, 14, 20, 4, 10, 7);
-  rect(g, 13, 19, 6, 4, 6);
-  // canopy as a cluster of soft blobs
-  drawBlob(g, 16, 13, 15, 11, 3, 101.1);
-  drawBlob(g, 12, 18, 11, 9, 2, 101.2);
-  drawBlob(g, 22, 18, 11, 9, 2, 101.3);
-  drawBlob(g, 16, 7, 13, 10, 4, 101.4);
-  drawBlob(g, 10, 12, 10, 9, 1, 101.5);
-  drawBlob(g, 24, 12, 10, 9, 1, 101.6);
-  drawBlob(g, 14, 9, 6, 5, 5, 101.7);
-  drawBlob(g, 20, 14, 5, 4, 5, 101.8);
-  drawBlob(g, 18, 9, 4, 3, 11, 101.9);
-  drawBlob(g, 16, 11, 4, 3, 12, 102.0);
+  const g = grid(W, H);
+  drawBlob(g, 16, 29, 12, 3, 12, 12);
+  rect(g, 14, 18, 5, 12, 8); rect(g, 13, 22, 3, 6, 9); rect(g, 18, 21, 3, 7, 10);
+  drawLeafCluster(g, 16, 13, 15, 4, 2, 101);
+  drawBlob(g, 16, 8, 13, 8, 5, 102); drawBlob(g, 9, 14, 10, 8, 3, 103); drawBlob(g, 23, 15, 10, 8, 3, 104);
+  drawBlob(g, 13, 8, 4, 3, 11, 105); drawBlob(g, 20, 12, 4, 3, 7, 106);
   return paletteSprite([g], TREE_PALETTE);
 })();
 
 export const SPRITE_RH_TREE_PINE: SpriteData = (() => {
-  const g = grid(32, 32);
-  rect(g, 6, 28, 20, 3, 9);
-  rect(g, 15, 20, 2, 10, 7);
-  drawBlob(g, 16, 23, 7, 4, 2, 102.1);
-  drawBlob(g, 16, 18, 10, 6, 3, 102.2);
-  drawBlob(g, 16, 13, 10, 6, 4, 102.3);
-  drawBlob(g, 16, 8, 8, 5, 5, 102.4);
-  drawBlob(g, 16, 5, 5, 3, 11, 102.5);
+  const g = grid(W, H);
+  drawBlob(g, 16, 29, 12, 3, 12, 11);
+  rect(g, 15, 18, 3, 12, 8);
+  drawBlob(g, 16, 23, 10, 5, 2, 121); drawBlob(g, 16, 18, 12, 6, 3, 122); drawBlob(g, 16, 13, 11, 6, 4, 123); drawBlob(g, 16, 8, 8, 5, 5, 124); drawBlob(g, 16, 5, 5, 3, 10, 125);
   return paletteSprite([g], TREE_PALETTE);
 })();
 
-// ───────────────────────────────────────────────────────────────────────────────
-// VILLAGE / HOUSES
-// ───────────────────────────────────────────────────────────────────────────────
-
-const HOUSE_PALETTE = ['#7a5a3a', '#8f6d4a', '#a0805a', '#c0a070', '#5a3a22', '#8b5a3a', '#663322', '#442211', '#d0c0a0', '#9a7a5a', '#b09070', '#e0d0b0', '#5a4028', '#a04030', '#3a2218'];
+const HOUSE_PALETTE = ['#4f2e1d', '#744a2b', '#9b6c3d', '#c89a5f', '#e5c88d', '#3b2115', '#9d3f2d', '#c45a3c', '#2b1710', '#f6df9b', '#6b7e8a', '#9fb9c7', '#d9c4a0'];
 
 function makeHouse(seed: number): PixelGrid {
-  const g = grid(32, 32);
-  const wall = 1 + Math.floor(Math.abs(noise2D(seed, 1, seed)) * 2);
-  // ground shadow
-  rect(g, 4, 28, 24, 3, 13);
-  // wall body
-  rect(g, 5, 15, 22, 15, wall);
-  rect(g, 5, 14, 22, 2, 5); // top trim
-  rect(g, 4, 27, 24, 2, 12); // foundation
-  // door
-  rect(g, 13, 22, 6, 8, 6);
-  rect(g, 14, 23, 4, 6, 7);
-  rect(g, 13, 21, 6, 1, 14); // lintel
-  // windows
-  rect(g, 8, 17, 4, 4, 9);
-  rect(g, 20, 17, 4, 4, 9);
-  rect(g, 9, 18, 2, 2, 12);
-  rect(g, 21, 18, 2, 2, 12);
-  // roof
-  drawBlob(g, 16, 12, 15, 8, 5, 103.1 + seed);
-  drawBlob(g, 16, 13, 13, 7, 7, 103.2 + seed);
-  // roof texture / shingles
-  blendNoise(g, 5, 103.3 + seed, 0.10, 14);
-  blendNoise(g, 7, 103.4 + seed, 0.12, 12);
-  // chimney
-  if (Math.abs(noise2D(seed, 2, seed)) < 0.6) {
-    rect(g, 22, 4, 3, 9, 5);
-    rect(g, 22, 3, 3, 1, 13);
-  }
+  const g = grid(W, H);
+  drawBlob(g, 16, 29, 14, 3, 9, seed);
+  rect(g, 5, 15, 22, 14, 2 + Math.floor(Math.abs(noise2D(seed, 1, seed)) * 2));
+  rect(g, 4, 27, 24, 2, 13);
+  drawBlob(g, 16, 11, 16, 8, 7, seed + 1);
+  drawBlob(g, 16, 13, 14, 6, 8, seed + 2);
+  rect(g, 13, 22, 6, 7, 6); rect(g, 14, 23, 4, 6, 8);
+  rect(g, 8, 17, 5, 4, 11); rect(g, 20, 17, 5, 4, 11); rect(g, 9, 18, 3, 2, 12); rect(g, 21, 18, 3, 2, 12);
+  if (Math.abs(noise2D(seed, 2, seed)) < 0.7) { rect(g, 22, 4, 3, 8, 5); rect(g, 21, 3, 5, 2, 13); }
+  blendNoise(g, 7, seed + 3, 0.12, 4);
   return g;
 }
 
-export const SPRITE_RH_HOUSE_VARIANTS: SpriteData[] = [];
-for (let v = 0; v < 4; v++) {
-  SPRITE_RH_HOUSE_VARIANTS.push(paletteSprite([makeHouse(v * 17.3)], HOUSE_PALETTE));
-}
-
+export const SPRITE_RH_HOUSE_VARIANTS: SpriteData[] = Array.from({ length: 4 }, (_, i) => paletteSprite([makeHouse(i * 13.3)], HOUSE_PALETTE));
 export const SPRITE_RH_HOUSE: SpriteData = SPRITE_RH_HOUSE_VARIANTS[0];
 
 export const SPRITE_RH_WELL: SpriteData = (() => {
-  const g = makeGrassBase(112.1);
-  const stonePalette = ['#6a6a6a', '#7a7a7a', '#8a8a8a', '#5a5a5a', '#9a9a9a'];
-  const sg = grid(32, 32);
-  drawBlob(sg, 16, 20, 6, 5, 1, 112.2);
-  drawBlob(sg, 16, 14, 5, 3, 2, 112.3);
-  rect(sg, 14, 10, 4, 1, 3);
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      if (sg[y][x] !== EMPTY) g[y][x] = sg[y][x] + 7;
-    }
-  }
-  return paletteSprite([g], [...GRASS_PALETTE, ...stonePalette]);
+  const g = makeGrassBase(112);
+  drawBlob(g, 16, 20, 8, 6, 16, 112); drawBlob(g, 16, 15, 6, 4, 17, 113); rect(g, 13, 9, 6, 2, 19); rect(g, 14, 8, 4, 1, 20);
+  return paletteSprite([g], [...GRASS_PALETTE, ...STONE_PALETTE]);
 })();
 
 export const SPRITE_RH_FENCE: SpriteData = (() => {
-  const g = makeGrassBase(113.1);
-  const woodPalette = ['#7a5a3a', '#8b6a4a', '#6a4a2a', '#5a3a22'];
-  for (let x = 0; x < 32; x++) {
-    if (x % 6 === 0) for (let y = 22; y < 30; y++) g[y][x] = 1;
-    else for (let y = 24; y < 27; y++) g[y][x] = 2;
-  }
-  return paletteSprite([g], [...GRASS_PALETTE, ...woodPalette]);
+  const g = makeGrassBase(113);
+  for (let x = 1; x < 32; x += 6) rect(g, x, 20, 3, 10, 16);
+  rect(g, 0, 23, 32, 3, 17); rect(g, 0, 27, 32, 2, 18);
+  return paletteSprite([g], [...GRASS_PALETTE, ...WOOD_PALETTE]);
 })();
 
 export const SPRITE_RH_CART: SpriteData = (() => {
-  const g = makeGrassBase(114.1);
-  const woodPalette = ['#7a5a3a', '#8b6a4a', '#6a4a2a', '#5a3a22', '#9a7a5a'];
-  rect(g, 8, 18, 16, 8, 1); // cart body
-  rect(g, 10, 24, 3, 4, 2); // wheel
-  rect(g, 19, 24, 3, 4, 2); // wheel
-  rect(g, 8, 16, 16, 2, 3); // load
-  return paletteSprite([g], [...GRASS_PALETTE, ...woodPalette]);
+  const g = makeGrassBase(114);
+  rect(g, 8, 17, 17, 8, 16); rect(g, 9, 16, 15, 3, 18); rect(g, 6, 22, 22, 2, 17);
+  circle(g, 11, 26, 3, 20); circle(g, 22, 26, 3, 20); rect(g, 26, 18, 5, 2, 19);
+  return paletteSprite([g], [...GRASS_PALETTE, ...WOOD_PALETTE]);
 })();
 
-// ───────────────────────────────────────────────────────────────────────────────
-// DUNGEON ENTRANCE
-// ───────────────────────────────────────────────────────────────────────────────
-
-const DUNGEON_PALETTE = ['#2a2a2a', '#3a3a3a', '#4a4a4a', '#5a5a5a', '#6a6a6a', '#1a1a1a', '#7a6a9a', '#9a8ac0'];
+const DUNGEON_PALETTE = ['#1d2022', '#343a3c', '#525a5d', '#778083', '#9ba5a8', '#071c2e', '#0d76b8', '#22c9ff', '#bff7ff', '#52347a', '#8b63d9'];
 
 export const SPRITE_RH_DUNGEON_ENTRANCE: SpriteData = (() => {
-  const g = grid(32, 32);
-  drawBlob(g, 16, 18, 14, 13, 2, 104.1);
-  drawBlob(g, 16, 18, 12, 11, 3, 104.2);
-  drawBlob(g, 16, 20, 7, 8, 6, 104.3);
-  rect(g, 7, 28, 18, 2, 4);
-  rect(g, 9, 26, 14, 2, 5);
-  for (let i = 0; i < 20; i++) {
-    const x = Math.floor(Math.abs(noise2D(i, 104, 104)) * 28 + 2);
-    const y = Math.floor(Math.abs(noise2D(104, i, 104)) * 20 + 8);
-    if (g[y][x] !== EMPTY && g[y][x] !== 6) g[y][x] = 7;
+  const frames: PixelGrid[] = [];
+  for (let f = 0; f < 3; f++) {
+    const g = grid(W, H);
+    drawBlob(g, 16, 18, 15, 13, 2, 104); drawBlob(g, 16, 18, 12, 10, 3, 105); drawBlob(g, 16, 20, 7, 8, 6 + f, 106);
+    rect(g, 7, 28, 18, 2, 4); rect(g, 9, 26, 14, 2, 5); circle(g, 16, 18, 5, 8 + f);
+    for (let i = 0; i < 20; i++) { const x = Math.floor(Math.abs(noise2D(i, 104, 104)) * 28 + 2); const y = Math.floor(Math.abs(noise2D(104, i, 104)) * 18 + 8); if (g[y][x] > 0 && g[y][x] < 6) g[y][x] = 4; }
+    frames.push(g);
   }
-  return paletteSprite([g], DUNGEON_PALETTE);
+  return paletteSprite(frames, DUNGEON_PALETTE);
 })();
 
-// ───────────────────────────────────────────────────────────────────────────────
-// SMALL DECORATIONS (drawn as overlays on top of base tiles)
-// ───────────────────────────────────────────────────────────────────────────────
-
-const DECO_GRASS = ['#3a7a2e', '#4a8c3a', '#5a9e46'];
+const DECO_GRASS = ['#24551d', '#4c9a3d', '#77c864', '#fff6a1', '#ff7a7a', '#d65cff', '#7bdcff'];
 
 export const SPRITE_RH_FLOWER_RED: SpriteData = (() => {
   const g = grid(16, 16);
-  g[12][8] = 1; g[11][7] = 2; g[11][9] = 2; g[10][8] = 2; g[11][8] = 2;
-  g[13][8] = 3; g[14][8] = 3;
-  return paletteSprite([g], ['', '#4a8c3a', '#ff4a4a', '#2e5a24']);
+  rect(g, 7, 10, 2, 5, 1); g[9][6] = 5; g[8][7] = 5; g[9][8] = 5; g[10][7] = 5; g[9][7] = 7;
+  return paletteSprite([g], DECO_GRASS);
 })();
 
 export const SPRITE_RH_FLOWER_YELLOW: SpriteData = (() => {
   const g = grid(16, 16);
-  g[12][8] = 1; g[11][7] = 2; g[11][9] = 2; g[10][8] = 2; g[12][7] = 2; g[12][9] = 2;
-  g[13][8] = 3; g[14][8] = 3;
-  return paletteSprite([g], ['', '#4a8c3a', '#ffd93d', '#2e5a24']);
+  rect(g, 7, 10, 2, 5, 1); g[9][6] = 4; g[8][7] = 4; g[9][8] = 4; g[10][7] = 4; g[9][7] = 7;
+  return paletteSprite([g], DECO_GRASS);
 })();
 
 export const SPRITE_RH_GRASS_TUFT: SpriteData = (() => {
   const g = grid(16, 16);
-  for (let i = 0; i < 8; i++) {
-    const x = Math.floor(Math.abs(noise2D(i, 115, 115)) * 14 + 1);
-    const y = Math.floor(Math.abs(noise2D(115, i, 115)) * 8 + 6);
-    g[y][x] = 1 + Math.floor(Math.abs(noise2D(i, i, 115)) * 3);
-  }
-  return paletteSprite([g], ['', ...DECO_GRASS]);
+  for (let i = 0; i < 12; i++) { const x = Math.floor(Math.abs(noise2D(i, 115, 115)) * 14 + 1); const y = Math.floor(Math.abs(noise2D(115, i, 115)) * 8 + 6); g[y][x] = 1 + (i % 3); if (y > 0) g[y - 1][x] = 2; }
+  return paletteSprite([g], DECO_GRASS);
 })();
