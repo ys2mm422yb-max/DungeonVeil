@@ -27,6 +27,13 @@ type PropKind =
 const MW = '/assets/rpg-pack/mystic_woods_free_2.2/sprites';
 const CHARS = '/assets/rpg-pack/FreeCharactersAnimationsAssetPack/FreeCharactersAnimationsAssetPack/SpriteSheets(96x96)';
 
+// Verified from the committed PNGs. These lists intentionally avoid cells that contain
+// "Premium version!" preview text or mixed non-game atlas areas.
+const SAFE_PLAINS_GRASS = [28, 32, 33, 34];
+const SAFE_PLAINS_ROAD = [4, 8, 9, 14, 15, 20, 21];
+const SAFE_WALLS = [32, 33, 34, 35, 36, 37, 40, 41, 42, 43, 44, 45];
+const SAFE_FLOORS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
 const imageCache = new Map<string, HTMLImageElement>();
 
 function getImage(src: string): HTMLImageElement | null {
@@ -81,7 +88,7 @@ function drawSheetFrame(
   return true;
 }
 
-function drawTileFrame(
+function drawTileCell(
   ctx: CanvasRenderingContext2D,
   src: string,
   tileSize: number,
@@ -95,17 +102,92 @@ function drawTileFrame(
   if (!img) return false;
   const cols = Math.max(1, Math.floor(img.naturalWidth / tileSize));
   const rows = Math.max(1, Math.floor(img.naturalHeight / tileSize));
-  const frame = Math.abs(tileIndex) % (cols * rows);
-  const sx = (frame % cols) * tileSize;
-  const sy = Math.floor(frame / cols) * tileSize;
+  if (tileIndex < 0 || tileIndex >= cols * rows) return false;
+  const sx = (tileIndex % cols) * tileSize;
+  const sy = Math.floor(tileIndex / cols) * tileSize;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(img, sx, sy, tileSize, tileSize, Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h));
   return true;
 }
 
-function drawFallback(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
+function pick(list: number[], variant: number): number {
+  return list[Math.abs(variant) % list.length];
+}
+
+function fill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
   ctx.fillStyle = color;
   ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h));
+}
+
+function seed(variant: number, i: number): number {
+  const n = Math.sin((variant + 1) * 97.17 + i * 43.71) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function drawProceduralGrass(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
+  fill(ctx, x, y, w, h, '#315f2f');
+  ctx.globalAlpha = 0.35;
+  for (let i = 0; i < 10; i++) {
+    const px = x + seed(variant, i) * w;
+    const py = y + seed(variant + 4, i) * h;
+    fill(ctx, px, py, Math.max(1, w / 18), Math.max(2, h / 10), i % 2 ? '#6dac55' : '#234d27');
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawProceduralRoad(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
+  drawProceduralGrass(ctx, x, y, w, h, variant);
+  fill(ctx, x, y + h * 0.18, w, h * 0.64, '#7f623d');
+  ctx.globalAlpha = 0.28;
+  for (let i = 0; i < 8; i++) fill(ctx, x + seed(variant, i) * w, y + h * (0.25 + seed(variant + 6, i) * 0.45), w / 10, h / 18, '#d0b071');
+  ctx.globalAlpha = 1;
+}
+
+function drawProceduralWater(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
+  fill(ctx, x, y, w, h, '#0d4665');
+  fill(ctx, x, y, w, h * 0.28, '#176f8f');
+  fill(ctx, x, y + h * 0.75, w, h * 0.25, '#08334d');
+  ctx.globalAlpha = 0.55;
+  for (let i = 0; i < 3; i++) fill(ctx, x + seed(variant, i) * w * 0.8, y + h * (0.25 + i * 0.18), w * 0.28, Math.max(1, h / 18), '#75d9e8');
+  ctx.globalAlpha = 1;
+}
+
+function ellipse(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, color: string): void {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawProceduralTree(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pine: boolean, variant: number): void {
+  ellipse(ctx, x + w * 0.5, y + h * 0.86, w * 0.34, h * 0.11, 'rgba(0,0,0,0.32)');
+  fill(ctx, x + w * 0.45, y + h * 0.55, w * 0.12, h * 0.32, '#664021');
+  if (pine) {
+    ellipse(ctx, x + w * 0.5, y + h * 0.62, w * 0.34, h * 0.16, '#123d21');
+    ellipse(ctx, x + w * 0.5, y + h * 0.44, w * 0.42, h * 0.18, '#1f612d');
+    ellipse(ctx, x + w * 0.5, y + h * 0.26, w * 0.31, h * 0.16, '#3d8f3b');
+  } else {
+    ellipse(ctx, x + w * 0.5, y + h * 0.38, w * 0.43, h * 0.27, '#174718');
+    ellipse(ctx, x + w * 0.33, y + h * 0.49, w * 0.30, h * 0.20, '#2f7a2e');
+    ellipse(ctx, x + w * 0.67, y + h * 0.48, w * 0.31, h * 0.21, '#3b8d35');
+    ellipse(ctx, x + w * (0.42 + seed(variant, 1) * 0.12), y + h * 0.30, w * 0.22, h * 0.13, '#70bd58');
+  }
+}
+
+function drawProceduralHouse(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
+  ellipse(ctx, x + w * 0.5, y + h * 0.86, w * 0.42, h * 0.12, 'rgba(0,0,0,0.35)');
+  fill(ctx, x + w * 0.16, y + h * 0.46, w * 0.68, h * 0.38, '#9a6a3e');
+  fill(ctx, x + w * 0.09, y + h * 0.28, w * 0.82, h * 0.20, variant % 2 ? '#7a392b' : '#8c4d2f');
+  fill(ctx, x + w * 0.38, y + h * 0.62, w * 0.20, h * 0.22, '#302014');
+  fill(ctx, x + w * 0.22, y + h * 0.54, w * 0.16, h * 0.12, '#9dc4ca');
+  fill(ctx, x + w * 0.63, y + h * 0.54, w * 0.16, h * 0.12, '#9dc4ca');
+}
+
+function drawProceduralEntrance(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+  ellipse(ctx, x + w * 0.5, y + h * 0.78, w * 0.42, h * 0.14, 'rgba(0,0,0,0.38)');
+  ellipse(ctx, x + w * 0.5, y + h * 0.55, w * 0.40, h * 0.34, '#566064');
+  ellipse(ctx, x + w * 0.5, y + h * 0.60, w * 0.24, h * 0.27, '#10253a');
+  ellipse(ctx, x + w * 0.5, y + h * 0.58, w * 0.14, h * 0.18, '#25bdf4');
 }
 
 export function drawPremiumTile(
@@ -119,52 +201,40 @@ export function drawPremiumTile(
 ): void {
   switch (kind) {
     case 'grass':
-      if (drawTileFrame(ctx, `${MW}/tilesets/plains.png`, 16, 8 + (variant % 8), x, y, w, h)) return;
       if (drawWhole(ctx, `${MW}/tilesets/grass.png`, x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#315f2f');
+      if (drawTileCell(ctx, `${MW}/tilesets/plains.png`, 16, pick(SAFE_PLAINS_GRASS, variant), x, y, w, h)) return;
+      drawProceduralGrass(ctx, x, y, w, h, variant);
       return;
     case 'road':
-      if (drawTileFrame(ctx, `${MW}/tilesets/plains.png`, 16, 32 + (variant % 10), x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#80613d');
+      if (drawTileCell(ctx, `${MW}/tilesets/plains.png`, 16, pick(SAFE_PLAINS_ROAD, variant), x, y, w, h)) return;
+      drawProceduralRoad(ctx, x, y, w, h, variant);
       return;
-    case 'water': {
-      const frame = 1 + (Math.abs(variant) % 6);
-      if (drawWhole(ctx, `${MW}/tilesets/water${frame}.png`, x, y, w, h)) return;
-      if (drawTileFrame(ctx, `${MW}/tilesets/water-sheet.png`, 16, variant, x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#246f8f');
+    case 'water':
+      drawProceduralWater(ctx, x, y, w, h, variant);
       return;
-    }
     case 'broadTree':
-      if (drawTileFrame(ctx, `${MW}/objects/objects.png`, 32, 16 + (variant % 8), x, y, w, h)) return;
-      if (drawTileFrame(ctx, `${MW}/tilesets/decor_16x16.png`, 16, 48 + (variant % 8), x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#1f4d24');
+      drawProceduralTree(ctx, x, y, w, h, false, variant);
       return;
     case 'pineTree':
-      if (drawTileFrame(ctx, `${MW}/objects/objects.png`, 32, 24 + (variant % 8), x, y, w, h)) return;
-      if (drawTileFrame(ctx, `${MW}/tilesets/decor_16x16.png`, 16, 56 + (variant % 8), x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#1b422c');
+      drawProceduralTree(ctx, x, y, w, h, true, variant);
       return;
     case 'house':
-      if (drawTileFrame(ctx, `${MW}/objects/objects.png`, 32, 40 + (variant % 6), x, y, w, h)) return;
-      if (drawTileFrame(ctx, `${MW}/tilesets/walls/wooden_door.png`, 16, variant, x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#74523b');
+      drawProceduralHouse(ctx, x, y, w, h, variant);
       return;
     case 'dungeonEntrance':
-      if (drawTileFrame(ctx, `${MW}/tilesets/walls/wooden_door_b.png`, 16, variant, x, y, w, h)) return;
-      if (drawTileFrame(ctx, `${MW}/tilesets/walls/walls.png`, 16, 12 + (variant % 4), x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#40384c');
+      drawProceduralEntrance(ctx, x, y, w, h);
       return;
     case 'wall':
-      if (drawTileFrame(ctx, `${MW}/tilesets/walls/walls.png`, 16, variant, x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#3d3946');
+      if (drawTileCell(ctx, `${MW}/tilesets/walls/walls.png`, 16, pick(SAFE_WALLS, variant), x, y, w, h)) return;
+      fill(ctx, x, y, w, h, '#3d4354');
       return;
     case 'floor':
-      if (drawTileFrame(ctx, `${MW}/tilesets/floors/flooring.png`, 16, variant, x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#5f564c');
+      if (drawTileCell(ctx, `${MW}/tilesets/floors/flooring.png`, 16, pick(SAFE_FLOORS, variant), x, y, w, h)) return;
+      fill(ctx, x, y, w, h, '#4f493f');
       return;
     case 'door':
-      if (drawTileFrame(ctx, `${MW}/tilesets/walls/wooden_door.png`, 16, variant, x, y, w, h)) return;
-      drawFallback(ctx, x, y, w, h, '#7b5136');
+      if (drawTileCell(ctx, `${MW}/tilesets/walls/wooden_door.png`, 16, variant % 2, x, y, w, h)) return;
+      fill(ctx, x, y, w, h, '#7b5136');
       return;
   }
 }
@@ -178,27 +248,51 @@ export function drawPremiumProp(
   h: number,
   variant = 0,
 ): void {
-  const decor = `${MW}/tilesets/decor_16x16.png`;
-  const objects = `${MW}/objects/objects.png`;
-  const fences = `${MW}/tilesets/fences.png`;
-  const wooden = `${MW}/tilesets/floors/wooden.png`;
-  const plains = `${MW}/tilesets/plains.png`;
-  const byKind: Record<PropKind, { src: string; size: number; base: number; span: number; color: string }> = {
-    flowers: { src: decor, size: 16, base: 80, span: 12, color: '#b9d86a' },
-    bush: { src: decor, size: 16, base: 64, span: 8, color: '#2f6f35' },
-    rock: { src: objects, size: 32, base: 4, span: 8, color: '#7a7d78' },
-    log: { src: objects, size: 32, base: 36, span: 4, color: '#6f4b2f' },
-    mushrooms: { src: decor, size: 16, base: 96, span: 8, color: '#d65a5a' },
-    ruins: { src: `${MW}/tilesets/walls/walls.png`, size: 16, base: 20, span: 8, color: '#6c6872' },
-    bridge: { src: wooden, size: 16, base: 0, span: 8, color: '#7a5631' },
-    well: { src: objects, size: 32, base: 48, span: 4, color: '#5e6470' },
-    fence: { src: fences, size: 16, base: 0, span: 8, color: '#7b5935' },
-    cart: { src: objects, size: 32, base: 52, span: 4, color: '#805b35' },
-  };
-  const entry = byKind[kind];
-  if (drawTileFrame(ctx, entry.src, entry.size, entry.base + (Math.abs(variant) % entry.span), x, y, w, h)) return;
-  if ((kind === 'flowers' || kind === 'bush' || kind === 'mushrooms') && drawTileFrame(ctx, plains, 16, entry.base + (Math.abs(variant) % entry.span), x, y, w, h)) return;
-  drawFallback(ctx, x, y, w, h, entry.color);
+  switch (kind) {
+    case 'flowers':
+      drawProceduralGrass(ctx, x, y, w, h, variant);
+      fill(ctx, x + w * 0.25, y + h * 0.42, w * 0.12, h * 0.12, '#f0e28a');
+      fill(ctx, x + w * 0.55, y + h * 0.38, w * 0.12, h * 0.12, '#d96dce');
+      fill(ctx, x + w * 0.70, y + h * 0.58, w * 0.10, h * 0.10, '#ffffff');
+      return;
+    case 'bush':
+      ellipse(ctx, x + w * 0.5, y + h * 0.62, w * 0.42, h * 0.24, '#276b2b');
+      ellipse(ctx, x + w * 0.38, y + h * 0.54, w * 0.24, h * 0.17, '#3f9238');
+      return;
+    case 'rock':
+    case 'ruins':
+      ellipse(ctx, x + w * 0.5, y + h * 0.60, w * 0.35, h * 0.22, '#747b78');
+      fill(ctx, x + w * 0.35, y + h * 0.38, w * 0.26, h * 0.12, '#9ba39d');
+      if (kind === 'ruins') fill(ctx, x + w * 0.18, y + h * 0.18, w * 0.18, h * 0.50, '#656d68');
+      return;
+    case 'log':
+      fill(ctx, x + w * 0.20, y + h * 0.45, w * 0.60, h * 0.20, '#714522');
+      ellipse(ctx, x + w * 0.22, y + h * 0.55, w * 0.10, h * 0.13, '#b9864f');
+      return;
+    case 'mushrooms':
+      fill(ctx, x + w * 0.40, y + h * 0.52, w * 0.08, h * 0.20, '#e3c89a');
+      ellipse(ctx, x + w * 0.44, y + h * 0.48, w * 0.16, h * 0.10, '#c2523a');
+      return;
+    case 'bridge':
+      fill(ctx, x, y + h * 0.28, w, h * 0.44, '#7a5430');
+      fill(ctx, x, y + h * 0.38, w, h * 0.08, '#be8b52');
+      fill(ctx, x, y + h * 0.58, w, h * 0.08, '#be8b52');
+      return;
+    case 'well':
+      ellipse(ctx, x + w * 0.5, y + h * 0.62, w * 0.28, h * 0.18, '#707a74');
+      fill(ctx, x + w * 0.34, y + h * 0.30, w * 0.32, h * 0.08, '#76502e');
+      return;
+    case 'fence':
+      fill(ctx, x, y + h * 0.58, w, h * 0.12, '#8a5f34');
+      fill(ctx, x + w * 0.18, y + h * 0.35, w * 0.10, h * 0.45, '#60401f');
+      fill(ctx, x + w * 0.70, y + h * 0.35, w * 0.10, h * 0.45, '#60401f');
+      return;
+    case 'cart':
+      fill(ctx, x + w * 0.18, y + h * 0.36, w * 0.58, h * 0.30, '#8b5f34');
+      ellipse(ctx, x + w * 0.28, y + h * 0.72, w * 0.10, h * 0.10, '#2f1e13');
+      ellipse(ctx, x + w * 0.68, y + h * 0.72, w * 0.10, h * 0.10, '#2f1e13');
+      return;
+  }
 }
 
 export function drawPremiumChest(
@@ -210,7 +304,7 @@ export function drawPremiumChest(
   opened: boolean,
 ): void {
   const src = opened ? `${MW}/objects/chest_02.png` : `${MW}/objects/chest_01.png`;
-  if (drawWhole(ctx, src, x, y, w, h)) return;
+  if (drawSheetFrame(ctx, src, 16, 16, opened ? 1 : 0, x, y, w, h)) return;
   drawPremiumProp(ctx, 'cart', x, y, w, h, opened ? 1 : 0);
 }
 
@@ -253,7 +347,7 @@ export function drawPremiumEnemy(
     drawn = drawWhole(ctx, `${MW}/characters/slime.png`, x - w * 0.15, y - h * 0.2, w * 1.3, h * 1.35);
   }
   ctx.restore();
-  if (!drawn) drawFallback(ctx, x, y, w, h, '#4e8f46');
+  if (!drawn) drawPremiumProp(ctx, 'bush', x, y, w, h, frame);
 }
 
 export function drawPremiumArrow(
