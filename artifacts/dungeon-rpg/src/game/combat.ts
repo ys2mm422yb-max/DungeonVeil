@@ -59,7 +59,27 @@ export function makeHitSpark(
   color: string,
   count = 8,
 ): Particle[] {
-  return makeParticles(x, y, color, count, 120, 1.5);
+  const particles: Particle[] = [];
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 95 + Math.random() * 150;
+    const brightEveryThird = i % 3 === 0;
+    particles.push({
+      id: Math.random().toString(),
+      x: x + (Math.random() * 8 - 4),
+      y: y + (Math.random() * 8 - 4),
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      color: brightEveryThird ? '#fff4bf' : color,
+      lifeTime: 0,
+      maxLifeTime: 280 + Math.random() * 360,
+      size: brightEveryThird ? 2.4 + Math.random() * 1.6 : 1.4 + Math.random() * 2.1,
+      drag: 0.88,
+      gravity: brightEveryThird ? -8 : 12,
+      fade: true,
+    });
+  }
+  return particles;
 }
 
 export function makeStepDust(
@@ -89,20 +109,32 @@ export function performPlayerAttack(
   const cy = player.y + player.height / 2;
   player.lastAttackTime = currentTime;
 
-  // Slash effect
   const slashAngle = Math.atan2(player.facing.y, player.facing.x);
+  const slashX = cx + player.facing.x * attackRange * 0.52;
+  const slashY = cy + player.facing.y * attackRange * 0.52;
   effects.push({
     id: Math.random().toString(),
-    x: cx + player.facing.x * attackRange * 0.5,
-    y: cy + player.facing.y * attackRange * 0.5,
-    radius: attackRange * 0.6,
-    maxRadius: attackRange * 0.8,
-    color: classDef.skillEffectColor.replace('0.55', '0.45'),
+    x: slashX,
+    y: slashY,
+    radius: attackRange * 0.82,
+    maxRadius: attackRange,
+    color: classDef.skillEffectColor.replace('0.55', '0.68'),
     lifeTime: 0,
-    maxLifeTime: 160,
+    maxLifeTime: 190,
     type: 'slash',
     angle: slashAngle,
-    width: 18,
+    width: 24,
+  });
+  effects.push({
+    id: Math.random().toString(),
+    x: cx + player.facing.x * 14,
+    y: cy + player.facing.y * 14,
+    radius: attackRange * 0.28,
+    maxRadius: attackRange * 0.5,
+    color: 'rgba(255,230,140,0.32)',
+    lifeTime: 0,
+    maxLifeTime: 140,
+    type: 'circle',
   });
 
   enemies.forEach(enemy => {
@@ -122,16 +154,16 @@ export function performPlayerAttack(
         x: enemy.x + enemy.width / 2 + (Math.random() * 20 - 10),
         y: enemy.y - 10,
         value: `-${dmg}`,
-        color: '#e74c3c',
+        color: '#ffcf4a',
         lifeTime: 0,
         maxLifeTime: 1000,
-        scale: 1.4,
+        scale: 1.48,
       });
       particles.push(...makeHitSpark(
         enemy.x + enemy.width / 2,
         enemy.y + enemy.height / 2,
         enemy.color,
-        10,
+        16,
       ));
     }
   });
@@ -154,7 +186,6 @@ export function performPlayerSkill(
   const cx = player.x + player.width / 2;
   const cy = player.y + player.height / 2;
 
-  // Skill beam/slash based on class
   if (player.playerClass === 'mage') {
     effects.push({
       id: Math.random().toString(),
@@ -169,16 +200,15 @@ export function performPlayerSkill(
       id: Math.random().toString(),
       x: cx + player.facing.x * skillRange * 0.5,
       y: cy + player.facing.y * skillRange * 0.5,
-      radius: skillRange * 0.6,
+      radius: skillRange * 0.72,
       maxRadius: skillRange,
       color: classDef.skillEffectColor,
       lifeTime: 0, maxLifeTime: 250,
       type: 'slash',
       angle: Math.atan2(player.facing.y, player.facing.x),
-      width: 12,
+      width: 16,
     });
   } else {
-    // warrior spin
     effects.push({
       id: Math.random().toString(),
       x: cx, y: cy,
@@ -209,13 +239,13 @@ export function performPlayerSkill(
         color: player.color,
         lifeTime: 0,
         maxLifeTime: 1200,
-        scale: 1.3,
+        scale: 1.35,
       });
       particles.push(...makeHitSpark(
         enemy.x + enemy.width / 2,
         enemy.y + enemy.height / 2,
         player.color,
-        12,
+        18,
       ));
     }
   });
