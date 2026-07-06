@@ -5,11 +5,9 @@ import { defineConfig } from 'vite';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
-  const rawPort = process.env.PORT ?? "3000";
-  const port = Number(rawPort);
-
-  const basePath = process.env.BASE_PATH ?? "/";
-}
+const rawPort = process.env.PORT ?? '3000';
+const port = Number(rawPort);
+const basePath = process.env.BASE_PATH ?? '/';
 
 export default defineConfig({
   base: basePath,
