@@ -87,7 +87,7 @@ function isWalkable(t: TileType): boolean {
   return t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE || t === TileType.DUNGEON_ENTRANCE;
 }
 
-function inBounds(x: number, y: number, width: number, height: number): boolean {
+  export function inBounds(x: number, y: number, width: number, height: number): boolean {
   return x >= 0 && x < width && y >= 0 && y < height;
 }
 

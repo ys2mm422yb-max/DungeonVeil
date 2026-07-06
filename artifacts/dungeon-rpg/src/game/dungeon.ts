@@ -15,6 +15,9 @@ export enum TileType {
   ROAD = 8,
   VILLAGE = 9,
   DUNGEON_ENTRANCE = 10,
+  CLIFF = 11,
+  WATERFALL = 12,
+  BRIDGE = 13,
 }
 
 export interface Room {
@@ -340,7 +343,8 @@ export function isWalkable(map: DungeonMap, px: number, py: number): boolean {
     t === TileType.GRASS ||
     t === TileType.ROAD ||
     t === TileType.VILLAGE ||
-    t === TileType.DUNGEON_ENTRANCE
+    t === TileType.DUNGEON_ENTRANCE ||
+    t === TileType.BRIDGE
   );
 }
 

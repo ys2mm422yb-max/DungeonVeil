@@ -2,7 +2,7 @@
 // Authored at 32×32 but rendered at the tile size for sharp detail.
 
 import { SpriteData } from './sprites';
-
+import { inBounds } from './world';
 export type PixelGrid = number[][];
 
 const EMPTY = 0;
@@ -120,15 +120,19 @@ function noise2D(nx: number, ny: number, seed: number): number {
 // GRASS TILES
 // ───────────────────────────────────────────────────────────────────────────────
 
-const GRASS_PALETTE = ['#3a7a2e', '#4a8c3a', '#5a9e46', '#6ab052', '#7bc460', '#2e6a24', '#8fd070', '#a0e080', '#367a28'];
-const FLOWER_PALETTE = ['#ff6b6b', '#ffd93d', '#ff9ff3', '#54a0ff', '#5f27cd'];
+const GRASS_PALETTE = ['#3a7a2e', '#4a8c3a', '#5a9e46', '#6ab052', '#7bc460', '#2e6a24', '#8fd070', '#a0e080', '#367a28', '#1e4a18', '#9ee080', '#c0f090', '#2f5e22'];
+const FLOWER_PALETTE = ['#ff6b6b', '#ffd93d', '#ff9ff3', '#54a0ff', '#5f27cd', '#ff9f43', '#feca57', '#ff6b81', '#48dbfb'];
 
 function makeGrassBase(seed: number): PixelGrid {
   const g = grid(32, 32);
-  seededNoise(g, seed, [1, 2, 3, 4, 5], 0.32);
-  blendNoise(g, 2, seed + 1, 0.18, 6);
-  blendNoise(g, 3, seed + 2, 0.12, 7);
-  blendNoise(g, 4, seed + 3, 0.08, 8);
+  // base mottled grass
+  seededNoise(g, seed, [1, 2, 3, 4, 5, 6], 0.28);
+  blendNoise(g, 2, seed + 1, 0.20, 6);
+  blendNoise(g, 3, seed + 2, 0.14, 7);
+  blendNoise(g, 4, seed + 3, 0.10, 8);
+  // lighter sun patches
+  blendNoise(g, 1, seed + 4, 0.06, 12);
+  blendNoise(g, 5, seed + 5, 0.08, 10);
   return g;
 }
 
@@ -208,23 +212,45 @@ export const SPRITE_RH_HILL: SpriteData = (() => {
 // WATER
 // ───────────────────────────────────────────────────────────────────────────────
 
-const WATER_PALETTE = ['#1a4a7a', '#2266a0', '#2e80c0', '#3aa0e0', '#4ab8f0', '#103a60', '#6ad0ff'];
+const WATER_PALETTE = ['#1a3a5a', '#1e4a78', '#2266a0', '#2e80c0', '#3aa0e0', '#4ab8f0', '#103a60', '#6ad0ff', '#8ae0ff', '#0f2a48', '#5fd0ff'];
 
 export const SPRITE_RH_WATER: SpriteData = (() => {
   const frames: PixelGrid[] = [];
   for (let f = 0; f < 4; f++) {
     const g = grid(32, 32);
-    seededNoise(g, f * 10.5, [1, 2, 3, 4, 5, 6], 0.22 + f * 0.03);
+    seededNoise(g, f * 10.5, [1, 2, 3, 4, 5, 6, 9], 0.22 + f * 0.03);
     for (let y = 0; y < 32; y++) {
       for (let x = 0; x < 32; x++) {
         const wave = Math.sin((x + y) * 0.5 + f * 1.5) * 0.5 + 0.5;
-        if (wave > 0.7 && g[y][x] < 4) g[y][x] = 5;
+        const cross = Math.sin(x * 0.7 + f * 0.7) * Math.cos(y * 0.6 + f * 0.5) * 0.5 + 0.5;
+        if (wave > 0.7 && g[y][x] < 6) g[y][x] = 8;
         else if (wave < 0.3 && g[y][x] > 1) g[y][x] = 1;
+        else if (cross > 0.75 && g[y][x] > 2) g[y][x] = 7;
       }
     }
     frames.push(g);
   }
   return paletteSprite(frames, WATER_PALETTE);
+})();
+
+export const SPRITE_RH_WATERFALL: SpriteData = (() => {
+  const frames: PixelGrid[] = [];
+  const FOAM = 10;
+  const palette = [...WATER_PALETTE, '#ffffff', '#a0e0ff'];
+  for (let f = 0; f < 4; f++) {
+    const g = grid(32, 32);
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const fall = Math.sin(y * 0.8 + f * 1.5) * 0.5 + 0.5;
+        const foam = Math.sin(x * 1.2 + y * 0.6 + f * 2.3) * 0.5 + 0.5;
+        if (foam > 0.78) g[y][x] = FOAM;
+        else if (fall > 0.6) g[y][x] = 6;
+        else g[y][x] = 3 + Math.floor((y / 32) * 3);
+      }
+    }
+    frames.push(g);
+  }
+  return paletteSprite(frames, palette);
 })();
 
 // Water edge with grass bank
@@ -247,10 +273,80 @@ export const SPRITE_RH_WATER_EDGE: SpriteData = (() => {
 })();
 
 // ───────────────────────────────────────────────────────────────────────────────
-// ROAD
+// CLIFFS / ROCKS
+// ───────────────────────────────────────────────────────────────────────────────
+
+const CLIFF_PALETTE = ['#3a3a3a', '#4a4a4a', '#5a5a5a', '#6a6a6a', '#7a7a7a', '#2a2a2a', '#8a8a8a', '#5a6a5a', '#4a5a4a', '#6a5a4a'];
+
+export const SPRITE_RH_CLIFF: SpriteData = (() => {
+  const g = grid(32, 32);
+  // rocky top surface
+  drawBlob(g, 16, 10, 17, 10, 3, 201.1);
+  seededNoise(g, 201.2, [1, 2, 4, 5, 6], 0.35);
+  // dark cliff face
+  for (let y = 14; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+      if (g[y][x] === 3 || g[y][x] === 0) g[y][x] = 5;
+    }
+  }
+  // highlights
+  blendNoise(g, 5, 201.3, 0.15, 4);
+  blendNoise(g, 3, 201.4, 0.12, 2);
+  // cracks / moss
+  for (let i = 0; i < 10; i++) {
+    const sx = Math.floor(Math.abs(noise2D(i, 201, 201)) * 30 + 1);
+    const sy = Math.floor(Math.abs(noise2D(201, i, 201)) * 18 + 14);
+    for (let j = 0; j < 6; j++) {
+      if (inBounds(sx + j, sy + j, g[0].length, g.length)) g[sy + j][sx + j] = 1;
+    }
+  }
+  return paletteSprite([g], CLIFF_PALETTE);
+})();
+
+export const SPRITE_RH_ROCK: SpriteData = (() => {
+  const g = makeGrassBase(55.2);
+  const rockPalette = ['#7a8a7a', '#8a9a8a', '#9aaaaa', '#6a7a6a', '#aababa', '#5a6a5a', '#4a5a5a', '#b0c0c0'];
+  const rg = grid(32, 32);
+  drawBlob(rg, 16, 18, 12, 8, 1, 55.2);
+  drawBlob(rg, 12, 15, 8, 6, 2, 55.3);
+  drawBlob(rg, 20, 19, 6, 5, 3, 55.4);
+  drawBlob(rg, 16, 14, 5, 4, 6, 55.5);
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+      if (rg[y][x] !== EMPTY) g[y][x] = rg[y][x] + 7;
+    }
+  }
+  return paletteSprite([g], [...GRASS_PALETTE, ...rockPalette]);
+})();
+
+// ───────────────────────────────────────────────────────────────────────────────
+// ROAD / BRIDGE
 // ───────────────────────────────────────────────────────────────────────────────
 
 const ROAD_PALETTE = ['#6a5a42', '#7d6b4e', '#8f7d5a', '#a08e68', '#5c4e38', '#b29e72', '#4a3e2e', '#c2b082'];
+
+export const SPRITE_RH_BRIDGE: SpriteData = (() => {
+  const g = grid(32, 32);
+  const woodPalette = ['#6a4a2a', '#7a5a3a', '#8b6a4a', '#5a3a22', '#9a7a5a', '#4a2e1a', '#a08060'];
+  // planks
+  for (let y = 2; y < 30; y += 5) {
+    for (let x = 2; x < 30; x++) {
+      g[y][x] = 1 + Math.floor(Math.abs(noise2D(x, y, 301)) * 3);
+    }
+  }
+  // rails
+  for (let y = 0; y < 32; y++) {
+    g[y][2] = 4; g[y][29] = 4;
+  }
+  for (let x = 2; x < 30; x += 6) {
+    g[2][x] = 5; g[29][x] = 5;
+  }
+  // supports
+  for (let y = 14; y < 32; y++) {
+    g[y][5] = 1; g[y][26] = 1;
+  }
+  return paletteSprite([g], woodPalette);
+})();
 
 export const SPRITE_RH_ROAD: SpriteData = (() => {
   const g = grid(32, 32);
@@ -282,34 +378,38 @@ export const SPRITE_RH_ROAD_OVERGRASS: SpriteData = (() => {
 // FOREST / BIG TREES
 // ───────────────────────────────────────────────────────────────────────────────
 
-const TREE_PALETTE = ['#2a5a1a', '#3a7a24', '#4a9a32', '#5aba40', '#6ad050', '#1a3a10', '#5a3a22', '#7a5a3a', '#8b6a4a', '#8ad060', '#3a8a28'];
+const TREE_PALETTE = ['#1a3a10', '#2a5a1a', '#3a7a24', '#4a9a32', '#5aba40', '#6ad050', '#5a3a22', '#7a5a3a', '#8b6a4a', '#8ad060', '#3a8a28', '#a0e070', '#2e4a18', '#c0e080'];
 
 export const SPRITE_RH_TREE: SpriteData = (() => {
   const g = grid(32, 32);
-  rect(g, 14, 22, 4, 9, 7);
-  rect(g, 13, 20, 6, 5, 6);
-  g[30][12] = 8; g[30][13] = 8; g[30][18] = 8; g[30][19] = 8;
-  rect(g, 8, 29, 16, 2, 9);
-  drawBlob(g, 16, 14, 13, 10, 3, 101.1);
-  drawBlob(g, 12, 18, 10, 8, 2, 101.2);
-  drawBlob(g, 22, 18, 10, 8, 2, 101.3);
-  drawBlob(g, 16, 9, 11, 9, 4, 101.4);
-  drawBlob(g, 10, 12, 9, 8, 1, 101.5);
-  drawBlob(g, 24, 12, 9, 8, 1, 101.6);
-  drawBlob(g, 14, 10, 5, 4, 5, 101.7);
-  drawBlob(g, 20, 14, 4, 3, 5, 101.8);
-  drawBlob(g, 18, 10, 3, 2, 10, 101.9);
+  // ground shadow
+  rect(g, 6, 28, 20, 3, 9);
+  // trunk
+  rect(g, 14, 20, 4, 10, 7);
+  rect(g, 13, 19, 6, 4, 6);
+  // canopy as a cluster of soft blobs
+  drawBlob(g, 16, 13, 15, 11, 3, 101.1);
+  drawBlob(g, 12, 18, 11, 9, 2, 101.2);
+  drawBlob(g, 22, 18, 11, 9, 2, 101.3);
+  drawBlob(g, 16, 7, 13, 10, 4, 101.4);
+  drawBlob(g, 10, 12, 10, 9, 1, 101.5);
+  drawBlob(g, 24, 12, 10, 9, 1, 101.6);
+  drawBlob(g, 14, 9, 6, 5, 5, 101.7);
+  drawBlob(g, 20, 14, 5, 4, 5, 101.8);
+  drawBlob(g, 18, 9, 4, 3, 11, 101.9);
+  drawBlob(g, 16, 11, 4, 3, 12, 102.0);
   return paletteSprite([g], TREE_PALETTE);
 })();
 
 export const SPRITE_RH_TREE_PINE: SpriteData = (() => {
   const g = grid(32, 32);
-  rect(g, 15, 22, 2, 8, 7);
-  rect(g, 9, 29, 14, 2, 9);
-  drawBlob(g, 16, 22, 7, 4, 2, 102.1);
-  drawBlob(g, 16, 17, 9, 5, 3, 102.2);
-  drawBlob(g, 16, 12, 8, 5, 4, 102.3);
-  drawBlob(g, 16, 8, 6, 4, 5, 102.4);
+  rect(g, 6, 28, 20, 3, 9);
+  rect(g, 15, 20, 2, 10, 7);
+  drawBlob(g, 16, 23, 7, 4, 2, 102.1);
+  drawBlob(g, 16, 18, 10, 6, 3, 102.2);
+  drawBlob(g, 16, 13, 10, 6, 4, 102.3);
+  drawBlob(g, 16, 8, 8, 5, 5, 102.4);
+  drawBlob(g, 16, 5, 5, 3, 11, 102.5);
   return paletteSprite([g], TREE_PALETTE);
 })();
 
@@ -317,27 +417,36 @@ export const SPRITE_RH_TREE_PINE: SpriteData = (() => {
 // VILLAGE / HOUSES
 // ───────────────────────────────────────────────────────────────────────────────
 
-const HOUSE_PALETTE = ['#7a5a3a', '#8f6d4a', '#a0805a', '#c0a070', '#5a3a22', '#8b5a3a', '#663322', '#442211', '#d0c0a0', '#9a7a5a', '#b09070'];
+const HOUSE_PALETTE = ['#7a5a3a', '#8f6d4a', '#a0805a', '#c0a070', '#5a3a22', '#8b5a3a', '#663322', '#442211', '#d0c0a0', '#9a7a5a', '#b09070', '#e0d0b0', '#5a4028', '#a04030', '#3a2218'];
 
 function makeHouse(seed: number): PixelGrid {
   const g = grid(32, 32);
-  // wall
-  rect(g, 5, 14, 22, 17, 1 + Math.floor(Math.abs(noise2D(seed, 1, seed)) * 2));
-  rect(g, 5, 14, 22, 2, 5);
+  const wall = 1 + Math.floor(Math.abs(noise2D(seed, 1, seed)) * 2);
+  // ground shadow
+  rect(g, 4, 28, 24, 3, 13);
+  // wall body
+  rect(g, 5, 15, 22, 15, wall);
+  rect(g, 5, 14, 22, 2, 5); // top trim
+  rect(g, 4, 27, 24, 2, 12); // foundation
   // door
-  rect(g, 14, 22, 4, 9, 6);
-  rect(g, 14, 22, 4, 1, 7);
+  rect(g, 13, 22, 6, 8, 6);
+  rect(g, 14, 23, 4, 6, 7);
+  rect(g, 13, 21, 6, 1, 14); // lintel
   // windows
   rect(g, 8, 17, 4, 4, 9);
   rect(g, 20, 17, 4, 4, 9);
-  rect(g, 9, 18, 2, 2, 8);
-  rect(g, 21, 18, 2, 2, 8);
+  rect(g, 9, 18, 2, 2, 12);
+  rect(g, 21, 18, 2, 2, 12);
   // roof
-  drawBlob(g, 16, 12, 14, 7, 5, 103.1 + seed);
-  drawBlob(g, 16, 13, 12, 6, 7, 103.2 + seed);
+  drawBlob(g, 16, 12, 15, 8, 5, 103.1 + seed);
+  drawBlob(g, 16, 13, 13, 7, 7, 103.2 + seed);
+  // roof texture / shingles
+  blendNoise(g, 5, 103.3 + seed, 0.10, 14);
+  blendNoise(g, 7, 103.4 + seed, 0.12, 12);
   // chimney
   if (Math.abs(noise2D(seed, 2, seed)) < 0.6) {
-    rect(g, 22, 5, 3, 8, 5);
+    rect(g, 22, 4, 3, 9, 5);
+    rect(g, 22, 3, 3, 1, 13);
   }
   return g;
 }
