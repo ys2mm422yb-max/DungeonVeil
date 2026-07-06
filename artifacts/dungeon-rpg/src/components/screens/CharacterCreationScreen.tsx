@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { ClassKey, CLASS_DEFS } from '../../game/classes';
 import { useLanguage } from '../../i18n/LanguageContext';
 
@@ -7,191 +7,170 @@ interface Props {
   onBack: () => void;
 }
 
+const CLASS_ORDER: ClassKey[] = ['warrior', 'mage', 'archer'];
+const HERO_SHEET = '/assets/rpg-pack/FreeCharactersAnimationsAssetPack/FreeCharactersAnimationsAssetPack/SpriteSheets(96x96)/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Walk-Sheet.png';
+
 const CLASS_STAT_BARS: Record<ClassKey, { hp: number; atk: number; def: number; spd: number }> = {
   warrior: { hp: 100, atk: 60, def: 100, spd: 69 },
-  mage:    { hp: 53,  atk: 100, def: 25, spd: 76 },
-  archer:  { hp: 67,  atk: 50,  def: 50, spd: 100 },
+  mage: { hp: 53, atk: 100, def: 25, spd: 76 },
+  archer: { hp: 67, atk: 50, def: 50, spd: 100 },
 };
 
-const CLASS_ORDER: ClassKey[] = ['warrior', 'mage', 'archer'];
+const CLASS_COPY: Record<ClassKey, { strengths: string; weaknesses: string; kit: string }> = {
+  warrior: {
+    strengths: 'High armor, steady melee pressure, forgiving health pool.',
+    weaknesses: 'Short reach and slower repositioning.',
+    kit: 'Sword swing, guard dash, rage burst.',
+  },
+  mage: {
+    strengths: 'Explosive magic damage, strong area control, high skill burst.',
+    weaknesses: 'Low defense and demands clean spacing.',
+    kit: 'Arcane bolt, blink dash, nova burst.',
+  },
+  archer: {
+    strengths: 'Fast movement, long reach, safest basic attacks.',
+    weaknesses: 'Lower durability and lighter single hits.',
+    kit: 'Arrow shot, evasive dash, arrow rain.',
+  },
+};
 
 function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-white/40 text-[10px] w-8 font-mono tracking-wider shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${value}%`, background: color }}
-        />
+    <div className="grid grid-cols-[2.5rem_1fr_2rem] items-center gap-2">
+      <span className="text-[10px] font-mono tracking-widest text-amber-100/55">{label}</span>
+      <div className="h-2 overflow-hidden rounded-sm border border-amber-200/15 bg-black/35">
+        <div className="h-full transition-all duration-500" style={{ width: `${value}%`, background: color }} />
       </div>
-      <span className="text-white/30 text-[10px] w-6 text-right font-mono">{value}</span>
+      <span className="text-right text-[10px] font-mono text-amber-100/45">{value}</span>
     </div>
   );
 }
 
-function ClassIcon({ cls, selected }: { cls: ClassKey; selected: boolean }) {
-  const def = CLASS_DEFS[cls];
-  const shapes: Record<ClassKey, React.ReactElement> = {
-    warrior: (
-      <div className="w-8 h-8 rounded-md" style={{ background: def.color, boxShadow: selected ? `0 0 16px ${def.color}` : 'none' }} />
-    ),
-    mage: (
-      <div className="w-7 h-7 rotate-45 rounded-sm" style={{ background: def.color, boxShadow: selected ? `0 0 16px ${def.color}` : 'none' }} />
-    ),
-    archer: (
-      <div className="w-8 h-8 rounded-full" style={{ background: def.color, boxShadow: selected ? `0 0 16px ${def.color}` : 'none' }} />
-    ),
+function CharacterPreview({ cls, selected }: { cls: ClassKey; selected: boolean }) {
+  const hue: Record<ClassKey, string> = {
+    warrior: 'none',
+    mage: 'hue-rotate(72deg) saturate(1.25) brightness(1.08)',
+    archer: 'hue-rotate(-38deg) saturate(1.25) brightness(1.04)',
   };
-  return shapes[cls];
+  return (
+    <div className={['relative mx-auto h-28 w-28 overflow-hidden rounded border bg-black/35 transition-all', selected ? 'border-amber-300/70 shadow-[0_0_22px_rgba(232,178,74,0.24)]' : 'border-amber-100/15'].join(' ')}>
+      <div className="absolute inset-x-4 bottom-4 h-4 rounded-full bg-black/45 blur-sm" />
+      <div
+        className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 bg-no-repeat"
+        style={{
+          backgroundImage: `url("${HERO_SHEET}")`,
+          backgroundSize: '768px 96px',
+          backgroundPosition: selected ? '-96px 0px' : '0px 0px',
+          filter: hue[cls],
+          imageRendering: 'pixelated',
+          transform: 'translate(-50%, -50%) scale(1.12)',
+        }}
+      />
+    </div>
+  );
 }
 
 export function CharacterCreationScreen({ onConfirm, onBack }: Props) {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const [name, setName] = useState('');
   const [selected, setSelected] = useState<ClassKey>('warrior');
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const trimmedName = name.trim();
   const isValid = trimmedName.length >= 2;
   const classDef = CLASS_DEFS[selected];
   const stats = CLASS_STAT_BARS[selected];
+  const copy = CLASS_COPY[selected];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col bg-background"
-      style={{ touchAction: 'auto' }}
-    >
-      {/* Header */}
-      <div className="shrink-0 flex items-center gap-3 px-5 pt-safe-top pt-6 pb-4 border-b border-white/8">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#090807] text-amber-50" style={{ touchAction: 'auto' }}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(179,116,36,0.20),transparent_34%),linear-gradient(180deg,rgba(31,22,13,0.96),rgba(5,5,6,1))]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-36 border-b border-amber-100/10 bg-gradient-to-b from-amber-900/15 to-transparent" />
+
+      <div className="relative z-10 flex shrink-0 items-center gap-3 px-5 pb-4 pt-6 pt-safe-top">
         <button
           onClick={onBack}
           onTouchStart={e => { e.preventDefault(); onBack(); }}
-          className="w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 text-white/60 active:scale-90 transition-transform"
+          className="flex h-11 w-11 items-center justify-center rounded border border-amber-100/20 bg-black/35 text-2xl text-amber-100/75 active:scale-95"
         >
-          ‹
+          &lsaquo;
         </button>
-        <h1 className="font-serif text-xl text-white/90 tracking-widest flex-1">{t.characterCreation}</h1>
+        <div className="min-w-0">
+          <p className="text-[10px] font-mono uppercase tracking-[0.35em] text-amber-200/45">Dungeon Veil</p>
+          <h1 className="font-serif text-2xl tracking-widest text-amber-50">{t.characterCreation}</h1>
+        </div>
       </div>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-6">
-        {/* Name input */}
-        <div>
-          <label className="block text-white/40 text-xs tracking-widest uppercase mb-2 font-mono">
-            {t.heroName}
-          </label>
-          <div className="relative">
-            <input
-              ref={inputRef}
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value.slice(0, 18))}
-              placeholder={t.heroNamePlaceholder}
-              maxLength={18}
-              className="w-full bg-white/5 border-b-2 border-white/20 focus:border-primary text-white text-xl font-serif tracking-wide py-2 px-1 outline-none placeholder:text-white/20 transition-colors"
-              style={{ touchAction: 'auto', userSelect: 'text' }}
-            />
-            {name.length > 0 && (
-              <span className="absolute right-1 bottom-2 text-white/20 text-xs font-mono">{name.length}/18</span>
-            )}
-          </div>
-          {name.length > 0 && trimmedName.length < 2 && (
-            <p className="text-red-400/80 text-xs mt-1 tracking-wide">{t.nameTooShort}</p>
-          )}
+      <div className="relative z-10 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
+        <div className="mb-5 rounded border border-amber-100/15 bg-black/32 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.34)]">
+          <label className="mb-2 block text-[10px] font-mono uppercase tracking-[0.28em] text-amber-100/45">{t.heroName}</label>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value.slice(0, 18))}
+            placeholder={t.heroNamePlaceholder}
+            maxLength={18}
+            className="w-full border-b border-amber-100/25 bg-transparent px-1 py-3 font-serif text-2xl tracking-wide text-amber-50 outline-none placeholder:text-amber-100/20 focus:border-amber-300/80"
+            style={{ touchAction: 'auto', userSelect: 'text' }}
+          />
+          {name.length > 0 && trimmedName.length < 2 && <p className="mt-2 text-xs text-red-300/85">{t.nameTooShort}</p>}
         </div>
 
-        {/* Class selection */}
-        <div>
-          <label className="block text-white/40 text-xs tracking-widest uppercase mb-3 font-mono">
-            {t.chooseClass}
-          </label>
-
-          {/* Class tabs */}
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {CLASS_ORDER.map(cls => {
-              const isSelected = selected === cls;
-              const def = CLASS_DEFS[cls];
-              return (
-                <button
-                  key={cls}
-                  onClick={() => setSelected(cls)}
-                  onTouchStart={e => { e.preventDefault(); setSelected(cls); }}
-                  className={[
-                    'flex flex-col items-center gap-2 py-4 px-2 rounded-xl border-2 transition-all active:scale-95',
-                    isSelected
-                      ? 'border-2 bg-white/8'
-                      : 'border-white/10 bg-white/3',
-                  ].join(' ')}
-                  style={isSelected ? { borderColor: def.color } : {}}
-                >
-                  <ClassIcon cls={cls} selected={isSelected} />
-                  <span
-                    className="text-xs font-bold tracking-wider"
-                    style={{ color: isSelected ? def.color : 'rgba(255,255,255,0.5)' }}
-                  >
-                    {t.className[cls]}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Class detail panel */}
-          <div
-            className="rounded-xl border p-4 space-y-4 transition-all duration-300"
-            style={{ borderColor: `${classDef.color}40`, background: `${classDef.color}0d` }}
-          >
-            {/* Class name + role */}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="font-serif text-xl font-bold" style={{ color: classDef.color }}>
-                  {t.className[selected]}
-                </h2>
-                <span className="text-white/30 text-xs font-mono border border-white/15 px-2 py-0.5 rounded-full">
-                  {t.classRole[selected]}
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {CLASS_ORDER.map(cls => {
+            const isSelected = selected === cls;
+            const def = CLASS_DEFS[cls];
+            return (
+              <button
+                key={cls}
+                onClick={() => setSelected(cls)}
+                onTouchStart={e => { e.preventDefault(); setSelected(cls); }}
+                className={['rounded border p-2 active:scale-95 transition-all', isSelected ? 'bg-amber-200/10' : 'bg-black/25'].join(' ')}
+                style={{ borderColor: isSelected ? def.color : 'rgba(253,230,138,0.16)' }}
+              >
+                <CharacterPreview cls={cls} selected={isSelected} />
+                <span className="mt-2 block truncate text-xs font-bold tracking-wider" style={{ color: isSelected ? def.color : 'rgba(254,243,199,0.62)' }}>
+                  {t.className[cls]}
                 </span>
-              </div>
-              <p className="text-white/50 text-xs leading-relaxed">
-                {t.classDesc[selected]}
-              </p>
-            </div>
+              </button>
+            );
+          })}
+        </div>
 
-            {/* Stats */}
-            <div className="space-y-2">
-              <StatBar label={t.statHp}  value={stats.hp}  color={classDef.color} />
-              <StatBar label={t.statAtk} value={stats.atk} color={classDef.color} />
-              <StatBar label={t.statDef} value={stats.def} color={classDef.color} />
-              <StatBar label={t.statSpd} value={stats.spd} color={classDef.color} />
+        <div className="rounded border border-amber-100/15 bg-black/38 p-4">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-serif text-3xl font-bold tracking-wider" style={{ color: classDef.color }}>{t.className[selected]}</h2>
+              <p className="mt-1 text-xs font-mono uppercase tracking-[0.22em] text-amber-100/45">{t.classRole[selected]}</p>
             </div>
+            <div className="rounded border border-amber-100/15 bg-amber-100/5 px-3 py-2 text-right text-[10px] font-mono uppercase tracking-widest text-amber-100/55">
+              Lv. 1
+            </div>
+          </div>
 
-            {/* Skill */}
-            <div className="pt-1 border-t border-white/10">
-              <p className="text-white/30 text-[10px] tracking-widest uppercase font-mono mb-1">Special Ability</p>
-              <p className="text-xs font-bold" style={{ color: classDef.color }}>
-                {t.classSkill[selected]}
-              </p>
-            </div>
+          <p className="mb-4 text-sm leading-relaxed text-amber-50/68">{t.classDesc[selected]}</p>
+
+          <div className="mb-4 grid gap-2">
+            <StatBar label={t.statHp} value={stats.hp} color={classDef.color} />
+            <StatBar label={t.statAtk} value={stats.atk} color={classDef.color} />
+            <StatBar label={t.statDef} value={stats.def} color={classDef.color} />
+            <StatBar label={t.statSpd} value={stats.spd} color={classDef.color} />
+          </div>
+
+          <div className="grid gap-3 text-xs leading-relaxed text-amber-50/62">
+            <p><span className="font-bold text-amber-200/85">Strengths:</span> {copy.strengths}</p>
+            <p><span className="font-bold text-amber-200/85">Weaknesses:</span> {copy.weaknesses}</p>
+            <p><span className="font-bold text-amber-200/85">Starting abilities:</span> {copy.kit}</p>
           </div>
         </div>
       </div>
 
-      {/* Confirm button */}
-      <div className="shrink-0 px-5 py-4 border-t border-white/8">
+      <div className="relative z-10 shrink-0 border-t border-amber-100/12 bg-black/55 px-5 py-4">
         <button
           onClick={() => { if (isValid) onConfirm(trimmedName, selected); }}
-          onTouchStart={e => {
-            e.preventDefault();
-            if (isValid) onConfirm(trimmedName, selected);
-          }}
+          onTouchStart={e => { e.preventDefault(); if (isValid) onConfirm(trimmedName, selected); }}
           disabled={!isValid}
-          className={[
-            'w-full py-4 rounded-xl font-bold tracking-widest text-base transition-all active:scale-95 border-2',
-            isValid
-              ? 'border-primary text-primary-foreground shadow-[0_0_20px_rgba(232,160,32,0.25)]'
-              : 'border-white/10 text-white/30 cursor-not-allowed',
-          ].join(' ')}
-          style={isValid ? { background: classDef.color, borderColor: classDef.color } : {}}
+          className="w-full rounded border-2 py-4 text-base font-bold tracking-[0.22em] transition-all active:scale-95 disabled:border-white/10 disabled:bg-white/5 disabled:text-white/25"
+          style={isValid ? { background: classDef.color, borderColor: classDef.color, color: '#080604', boxShadow: `0 0 24px ${classDef.color}40` } : {}}
         >
           {t.startGame}
         </button>
