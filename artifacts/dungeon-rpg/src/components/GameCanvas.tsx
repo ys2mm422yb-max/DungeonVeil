@@ -18,8 +18,10 @@ import {
   drawPremiumArrow,
   drawPremiumChest,
   drawPremiumEnemy,
+  drawPremiumMagicBolt,
   drawPremiumPlayer,
   drawPremiumProp,
+  drawPremiumSwordArc,
   drawPremiumTile,
 } from '../game/premiumPixelArt';
 import { Chest } from '../game/entities';
@@ -134,6 +136,11 @@ export function GameCanvas({ gameState }: Props) {
               const wf = animFrame(SPRITE_RH_WATER, now + tx * 100 + ty * 50, 2);
               drawPremiumTile(ctx, 'water', wx, wy, TILE_SIZE, TILE_SIZE, wf + tx * 3 + ty);
               if (hasNeighbor(tx, ty, TileType.ROAD)) drawPremiumProp(ctx, 'bridge', wx, wy, TILE_SIZE, TILE_SIZE, tx + ty);
+              break;
+            }
+            case TileType.BRIDGE: {
+              drawPremiumTile(ctx, 'water', wx, wy, TILE_SIZE, TILE_SIZE, tx + ty);
+              drawPremiumProp(ctx, 'bridge', wx, wy, TILE_SIZE, TILE_SIZE, tx + ty);
               break;
             }
             case TileType.FOREST: {
@@ -458,26 +465,17 @@ export function GameCanvas({ gameState }: Props) {
         if (isInvincible) {
           const blink = Math.floor(now / 60) % 2 === 0;
           ctx.globalAlpha = blink ? 0.55 : 0.9;
-          drawPremiumPlayer(ctx, player.x, player.y, player.width, player.height, pf, fx < 0, true);
+          drawPremiumPlayer(ctx, player.x, player.y, player.width, player.height, pf, fx < 0, true, player.playerClass);
         } else {
           ctx.save();
           ctx.shadowBlur = 20;
           ctx.shadowColor = classDef.glowColor;
-          drawPremiumPlayer(ctx, player.x, player.y, player.width, player.height, pf, fx < 0, false);
+          drawPremiumPlayer(ctx, player.x, player.y, player.width, player.height, pf, fx < 0, false, player.playerClass);
           ctx.restore();
         }
         ctx.restore();
         if (player.playerClass === 'warrior') {
-          ctx.save();
-          ctx.strokeStyle = '#c8d8ff';
-          ctx.lineWidth = 3;
-          ctx.shadowBlur = 6;
-          ctx.shadowColor = '#88aaff';
-          ctx.beginPath();
-          ctx.moveTo(cx + fx * 18, cy + fy * 18);
-          ctx.lineTo(cx + fx * 30 + fy * 5, cy + fy * 30 + fx * 5);
-          ctx.stroke();
-          ctx.restore();
+          if (isAttacking) drawPremiumSwordArc(ctx, cx, cy, Math.atan2(fy, fx), (now - player.lastAttackTime) / 180);
         } else if (player.playerClass === 'mage') {
           const orbitAngle = now / 600;
           const ox = cx + Math.cos(orbitAngle) * 22;
@@ -490,6 +488,7 @@ export function GameCanvas({ gameState }: Props) {
           ctx.fillStyle = classDef.color;
           ctx.fill();
           ctx.restore();
+          if (isAttacking) drawPremiumMagicBolt(ctx, cx + fx * 24, cy + fy * 24, now, classDef.color);
         } else {
           ctx.save();
           drawPremiumArrow(ctx, cx + fx * 22, cy + fy * 22, Math.atan2(fy, fx), 28);
