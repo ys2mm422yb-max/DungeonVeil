@@ -13,6 +13,8 @@ interface Props {
 
 type ActionName = 'attack' | 'dodge' | 'skill' | 'interact';
 
+const baseButtonClass = 'rounded-full border-[3px] border-[#8b6a35] bg-black/85 shadow-[inset_0_0_14px_rgba(255,210,120,0.18),0_6px_18px_rgba(0,0,0,0.75)] active:scale-90 transition-transform overflow-hidden touch-none select-none flex items-center justify-center';
+
 export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInteract }: Props) {
   const { t, language } = useLanguage();
   const { player } = gameState;
@@ -61,8 +63,6 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
       />
     ) : null;
 
-  const ringClass = 'rounded-full border-[3px] border-[#8b6a35] bg-black/85 shadow-[inset_0_0_14px_rgba(255,210,120,0.18),0_6px_18px_rgba(0,0,0,0.75)] active:scale-90 transition-transform overflow-hidden touch-none select-none';
-
   return (
     <div
       className="fixed w-[clamp(10.5rem,42vw,12rem)] aspect-square pointer-events-auto z-50 touch-none select-none"
@@ -72,48 +72,48 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
       }}
     >
       <div className="relative w-full h-full">
-        {/* ATTACK — large, bottom-right */}
         <button
           type="button"
           onPointerDown={press('attack', onAttack)}
           onPointerUp={release}
           onPointerCancel={release}
-          className={`absolute bottom-0 right-0 w-[48%] aspect-square ${ringClass} flex items-center justify-center`}
+          className={`absolute bottom-0 right-0 w-[48%] aspect-square ${baseButtonClass}`}
           style={{ WebkitTapHighlightColor: 'transparent' }}
           data-testid="button-attack"
+          aria-label="Attack"
         >
           <CooldownOverlay progress={cooldowns.attack} />
           <div className="absolute inset-[9%] rounded-full border border-white/10 bg-gradient-to-br from-zinc-900 via-black to-zinc-950" />
           <span className="text-white text-4xl z-10 pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">⚔</span>
         </button>
 
-        {/* DODGE — lower-left */}
         <button
           type="button"
           onPointerDown={press('dodge', onDodge)}
           onPointerUp={release}
           onPointerCancel={release}
-          className={`absolute bottom-[12%] left-[2%] w-[34%] aspect-square ${ringClass} flex items-center justify-center`}
+          className={`absolute bottom-[12%] left-[2%] w-[34%] aspect-square ${baseButtonClass}`}
           style={{ WebkitTapHighlightColor: 'transparent' }}
           data-testid="button-dodge"
+          aria-label="Dash"
         >
           <CooldownOverlay progress={cooldowns.dodge} />
           <div className="absolute inset-[10%] rounded-full bg-gradient-to-br from-purple-800 via-purple-950 to-black" />
           <span className="font-black text-lg tracking-widest z-10 text-white pointer-events-none">↯</span>
         </button>
 
-        {/* SKILL — upper-left */}
         <button
           type="button"
           onPointerDown={press('skill', onSkill)}
           onPointerUp={release}
           onPointerCancel={release}
-          className={`absolute top-[8%] left-[20%] w-[38%] aspect-square ${ringClass} flex items-center justify-center`}
+          className={`absolute top-[8%] left-[20%] w-[38%] aspect-square ${baseButtonClass}`}
           style={{
             boxShadow: `inset 0 0 14px ${classDef.glowColor}, 0 6px 18px rgba(0,0,0,0.75)`,
             WebkitTapHighlightColor: 'transparent',
           }}
           data-testid="button-skill"
+          aria-label={skillName}
         >
           <CooldownOverlay progress={cooldowns.skill} />
           <div
@@ -123,15 +123,15 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
           <span className="font-black text-[11px] tracking-widest z-10 text-white pointer-events-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]">{skillName}</span>
         </button>
 
-        {/* INTERACT — right middle */}
         <button
           type="button"
           onPointerDown={press('interact', onInteract)}
           onPointerUp={release}
           onPointerCancel={release}
-          className={`absolute right-0 top-[34%] w-[30%] aspect-square ${ringClass} flex items-center justify-center`}
+          className={`absolute right-0 top-[34%] w-[30%] aspect-square ${baseButtonClass}`}
           style={{ WebkitTapHighlightColor: 'transparent' }}
           data-testid="button-interact"
+          aria-label={t.interact}
         >
           <div className="absolute inset-[11%] rounded-full bg-gradient-to-br from-red-800 via-red-950 to-black" />
           <span className="text-white font-black text-xs tracking-widest pointer-events-none z-10">{t.interact}</span>
