@@ -25,8 +25,8 @@ const DEFAULT_CONFIG: Required<WorldGenConfig> = {
   width: 96,
   height: 96,
   seed: 0,
-  villageCount: 4,
-  dungeonEntranceCount: 5,
+  villageCount: 6,
+  dungeonEntranceCount: 7,
 };
 
 // Fast 2D value noise with deterministic integer hashing
@@ -84,7 +84,7 @@ function shuffle<T>(arr: T[], seed: number): T[] {
 function posKey(x: number, y: number): string { return `${x},${y}`; }
 
 function isWalkable(t: TileType): boolean {
-  return t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE || t === TileType.DUNGEON_ENTRANCE;
+  return t === TileType.GRASS || t === TileType.ROAD || t === TileType.VILLAGE || t === TileType.DUNGEON_ENTRANCE || t === TileType.BRIDGE;
 }
 
   export function inBounds(x: number, y: number, width: number, height: number): boolean {
@@ -248,7 +248,6 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     }
     // 2-5 houses around the square
     const houseCount = 2 + Math.floor(Math.abs(noise2D(center.tx, center.ty, seed + 60)) * 4);
-    const houseDirs: WorldPoint[] = [];
     const dirs: Array<[number, number]> = [[-2,-2],[-2,0],[-2,2],[0,-2],[0,2],[2,-2],[2,0],[2,2]];
     const shuffledDirs = shuffle([...dirs], seed + center.tx + center.ty);
     for (let h = 0; h < Math.min(houseCount, shuffledDirs.length); h++) {
@@ -406,7 +405,7 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
       const path = findPath(startX, startY, poi.tx, poi.ty);
       if (path) {
         for (const p of path) {
-          if (tiles[p.ty][p.tx] === TileType.WATER) tiles[p.ty][p.tx] = TileType.ROAD;
+          if (tiles[p.ty][p.tx] === TileType.WATER) tiles[p.ty][p.tx] = TileType.BRIDGE;
         }
       }
     }
@@ -419,7 +418,8 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     const dy = Math.sign(poi.ty - startY);
     let cx = startX, cy = startY;
     while (cx !== poi.tx || cy !== poi.ty) {
-      if (inBounds(cx, cy, width, height) && (tiles[cy][cx] === TileType.WATER || tiles[cy][cx] === TileType.FOREST)) tiles[cy][cx] = TileType.ROAD;
+      if (inBounds(cx, cy, width, height) && tiles[cy][cx] === TileType.WATER) tiles[cy][cx] = TileType.BRIDGE;
+      else if (inBounds(cx, cy, width, height) && tiles[cy][cx] === TileType.FOREST) tiles[cy][cx] = TileType.ROAD;
       if (cx !== poi.tx) cx += dx;
       else if (cy !== poi.ty) cy += dy;
     }
@@ -473,17 +473,23 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     }
   }
 
-  // 8. Decorations (shrines/altars in villages, torches at entrances)
+  // 8. Decorations (shrines, blacksmiths, tavern/library markers, ruins and entrance torches)
   const decorations: { tx: number; ty: number; kind: 'torch' | 'shrine' | 'skull' | 'forge' | 'bookshelf' | 'altar' }[] = [];
   const torches: WorldPoint[] = [];
   for (const v of villageCenters) {
-    if (Math.abs(noise2D(v.tx, v.ty, seed + 90)) < 0.5) {
-      decorations.push({ tx: v.tx - 1, ty: v.ty - 1, kind: 'shrine' });
+    const civic: Array<'shrine' | 'forge' | 'bookshelf' | 'altar'> = ['shrine', 'forge', 'bookshelf', 'altar'];
+    for (let i = 0; i < civic.length; i++) {
+      const px = v.tx + (i % 2 === 0 ? -2 : 2);
+      const py = v.ty + (i < 2 ? -2 : 2);
+      if (inBounds(px, py, width, height) && reachable[py][px]) {
+        decorations.push({ tx: px, ty: py, kind: civic[i] });
+      }
     }
   }
   for (const e of entrances) {
     torches.push({ tx: e.tx - 1, ty: e.ty });
     torches.push({ tx: e.tx + 1, ty: e.ty });
+    if (inBounds(e.tx, e.ty + 1, width, height)) decorations.push({ tx: e.tx, ty: e.ty + 1, kind: 'skull' });
   }
 
   // 9. Mark the start area as explored
