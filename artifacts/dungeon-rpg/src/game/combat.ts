@@ -62,20 +62,20 @@ export function makeHitSpark(
   const particles: Particle[] = [];
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 95 + Math.random() * 150;
+    const speed = 58 + Math.random() * 82;
     const brightEveryThird = i % 3 === 0;
     particles.push({
       id: Math.random().toString(),
-      x: x + (Math.random() * 8 - 4),
-      y: y + (Math.random() * 8 - 4),
+      x: x + (Math.random() * 5 - 2.5),
+      y: y + (Math.random() * 5 - 2.5),
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       color: brightEveryThird ? '#fff4bf' : color,
       lifeTime: 0,
-      maxLifeTime: 280 + Math.random() * 360,
-      size: brightEveryThird ? 2.4 + Math.random() * 1.6 : 1.4 + Math.random() * 2.1,
-      drag: 0.88,
-      gravity: brightEveryThird ? -8 : 12,
+      maxLifeTime: 180 + Math.random() * 220,
+      size: brightEveryThird ? 1.7 + Math.random() * 0.8 : 1.1 + Math.random() * 1.0,
+      drag: 0.86,
+      gravity: brightEveryThird ? -4 : 8,
       fade: true,
     });
   }
@@ -110,31 +110,19 @@ export function performPlayerAttack(
   player.lastAttackTime = currentTime;
 
   const slashAngle = Math.atan2(player.facing.y, player.facing.x);
-  const slashX = cx + player.facing.x * attackRange * 0.52;
-  const slashY = cy + player.facing.y * attackRange * 0.52;
-  effects.push({
-    id: Math.random().toString(),
-    x: slashX,
-    y: slashY,
-    radius: attackRange * 0.82,
-    maxRadius: attackRange,
-    color: classDef.skillEffectColor.replace('0.55', '0.68'),
-    lifeTime: 0,
-    maxLifeTime: 190,
-    type: 'slash',
-    angle: slashAngle,
-    width: 24,
-  });
+  const slashRadius = Math.min(30, Math.max(22, attackRange * 0.38));
   effects.push({
     id: Math.random().toString(),
     x: cx + player.facing.x * 14,
     y: cy + player.facing.y * 14,
-    radius: attackRange * 0.28,
-    maxRadius: attackRange * 0.5,
-    color: 'rgba(255,230,140,0.32)',
+    radius: slashRadius,
+    maxRadius: slashRadius,
+    color: classDef.skillEffectColor.replace('0.55', '0.42'),
     lifeTime: 0,
-    maxLifeTime: 140,
-    type: 'circle',
+    maxLifeTime: 115,
+    type: 'slash',
+    angle: slashAngle,
+    width: 9,
   });
 
   enemies.forEach(enemy => {
@@ -163,7 +151,7 @@ export function performPlayerAttack(
         enemy.x + enemy.width / 2,
         enemy.y + enemy.height / 2,
         enemy.color,
-        16,
+        10,
       ));
     }
   });
