@@ -21,6 +21,8 @@ function nearbyStandable(map: DungeonMap, tx: number, ty: number): { tx: number;
 }
 
 export function getSaveShrines(map: DungeonMap, inDungeon: boolean, floor: number): SaveShrine[] {
+  if (map.width === 18 && map.height === 24) return [];
+
   if (inDungeon) {
     if (floor !== 1 && floor % 3 !== 0) return [];
     const spot = nearbyStandable(map, map.startX + 2, map.startY) ?? nearbyStandable(map, map.startX, map.startY) ?? { tx: map.startX, ty: map.startY };
