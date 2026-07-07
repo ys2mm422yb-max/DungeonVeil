@@ -6,6 +6,17 @@ import { addSceneJobs } from './sceneJobs';
 import { drawSceneFog } from './sceneFog';
 import { drawSceneOverlay } from './sceneOverlay';
 
+const exploredRenderCache = new WeakMap<object, boolean[][]>();
+
+function terrainRenderState(state: GameState): GameState {
+  let explored = exploredRenderCache.get(state.map);
+  if (!explored) {
+    explored = Array.from({ length: state.map.height }, () => Array(state.map.width).fill(true));
+    exploredRenderCache.set(state.map, explored);
+  }
+  return { ...state, map: { ...state.map, explored } };
+}
+
 export function runScene(canvas: HTMLCanvasElement, readState: () => GameState): () => void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return () => {};
@@ -17,7 +28,6 @@ export function runScene(canvas: HTMLCanvasElement, readState: () => GameState):
 
   const render = () => {
     if (stopped) return;
-
     try {
       if (canvas.width !== innerWidth || canvas.height !== innerHeight) {
         canvas.width = innerWidth;
@@ -47,16 +57,12 @@ export function runScene(canvas: HTMLCanvasElement, readState: () => GameState):
       ctx.scale(zoom, zoom);
       ctx.translate(-Math.round(cameraX), -Math.round(cameraY));
 
-      const terrainJobs = renderSceneTerrain(ctx, state, now, x0, x1, y0, y1);
-      const jobs: SceneJob[] = terrainJobs.filter(job => job.y !== Number.MAX_SAFE_INTEGER);
+      const jobs: SceneJob[] = renderSceneTerrain(ctx, terrainRenderState(state), now, x0, x1, y0, y1);
       addSceneJobs(ctx, state, jobs, now);
       jobs.sort((a, b) => a.y - b.y);
       for (const job of jobs) {
-        try {
-          job.draw();
-        } catch (error) {
-          console.error('Dungeon Veil scene job failed', error);
-        }
+        try { job.draw(); }
+        catch (error) { console.error('Dungeon Veil scene job failed', error); }
       }
 
       drawSceneFog(ctx, state, x0, x1, y0, y1);
