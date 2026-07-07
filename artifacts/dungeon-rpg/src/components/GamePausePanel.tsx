@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { GameState } from '../game/engine';
 import { Language } from '../i18n/translations';
 
@@ -24,8 +24,24 @@ function trigger(event: React.PointerEvent<HTMLButtonElement>, action: () => voi
 
 export function GamePausePanel(props: GamePausePanelProps) {
   const de = props.language === 'de';
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const hiddenControls = Array.from(document.querySelectorAll<HTMLElement>('[data-ui-control]'))
+      .filter(control => control !== panel && !panel.contains(control));
+    const previousDisplays = hiddenControls.map(control => control.style.display);
+
+    hiddenControls.forEach(control => { control.style.display = 'none'; });
+    return () => {
+      hiddenControls.forEach((control, index) => { control.style.display = previousDisplays[index]; });
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm" data-ui-control>
+    <div ref={panelRef} className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm" data-ui-control>
       <h2 className="mb-2 font-serif text-4xl tracking-widest text-white">{props.paused}</h2>
       <p className="mb-10 font-mono text-xs tracking-widest text-white/30">{props.gameState.player.playerName} · {props.classNameText}</p>
       <div className="flex w-full max-w-xs flex-col gap-3 px-6">
