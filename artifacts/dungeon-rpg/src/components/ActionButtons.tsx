@@ -91,7 +91,7 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
         >
           <CooldownOverlay progress={cooldowns.attack} />
           <div className="absolute inset-[9%] rounded-full border border-white/10 bg-gradient-to-br from-zinc-900 via-black to-zinc-950" />
-          <span className="text-white text-4xl z-10 pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">âš”</span>
+          <span className="text-white text-[13px] font-black tracking-widest z-10 pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">ATK</span>
         </button>
 
         <button
@@ -106,7 +106,7 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
         >
           <CooldownOverlay progress={cooldowns.dodge} />
           <div className="absolute inset-[10%] rounded-full bg-gradient-to-br from-purple-800 via-purple-950 to-black" />
-          <span className="font-black text-lg tracking-widest z-10 text-white pointer-events-none">â†¯</span>
+          <span className="font-black text-[10px] tracking-widest z-10 text-white pointer-events-none">DASH</span>
         </button>
 
         <button
