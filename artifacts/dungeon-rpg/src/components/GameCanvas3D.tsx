@@ -16,6 +16,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
 
     let disposed = false;
     let frame = 0;
+    let THREE: any;
     let renderer: any;
     let scene: any;
     let camera: any;
@@ -25,11 +26,84 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
     let runAction: any;
     let activeAction: any;
     let clock: any;
+    let desiredCamera: any;
     const enemyMeshes = new Map<string, any>();
-    const natureObjects: any[] = [];
+
+    const resize = () => {
+      if (!renderer || !camera) return;
+      const width = host.clientWidth || window.innerWidth;
+      const height = host.clientHeight || window.innerHeight;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / Math.max(1, height);
+      camera.updateProjectionMatrix();
+    };
+
+    const setAnimation = (moving: boolean) => {
+      const next = moving ? runAction : idleAction;
+      if (!next || next === activeAction) return;
+      next.reset().fadeIn(0.15).play();
+      activeAction?.fadeOut(0.15);
+      activeAction = next;
+    };
+
+    const syncEnemies = (state: GameState) => {
+      const aliveIds = new Set(state.enemies.map(enemy => enemy.id));
+      for (const [id, mesh] of enemyMeshes) {
+        if (!aliveIds.has(id)) {
+          scene.remove(mesh);
+          mesh.geometry?.dispose?.();
+          mesh.material?.dispose?.();
+          enemyMeshes.delete(id);
+        }
+      }
+
+      const now = Date.now();
+      for (const enemy of state.enemies) {
+        let mesh = enemyMeshes.get(enemy.id);
+        if (!mesh) {
+          mesh = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(enemy.enemyType === 'boss' ? 0.8 : 0.45, 1),
+            new THREE.MeshStandardMaterial({ color: enemy.color, roughness: 0.72 }),
+          );
+          mesh.castShadow = true;
+          scene.add(mesh);
+          enemyMeshes.set(enemy.id, mesh);
+        }
+        mesh.position.set(
+          enemy.x / 40 - 8.5,
+          enemy.enemyType === 'boss' ? 0.82 : 0.48,
+          enemy.y / 40 - 11.5,
+        );
+        mesh.scale.setScalar(enemy.flashUntil > now ? 1.15 : 1);
+      }
+    };
+
+    const renderLoop = () => {
+      if (disposed || !renderer || !scene || !camera || !THREE) return;
+      const state = stateRef.current;
+      const player = state.player;
+      const px = player.x / 40 - 8.5;
+      const pz = player.y / 40 - 11.5;
+
+      if (hero) {
+        hero.position.set(px, 0, pz);
+        setAnimation(player.state === 'moving');
+        if (Math.hypot(player.facing.x, player.facing.y) > 0.1) {
+          hero.rotation.y = Math.atan2(player.facing.x, player.facing.y);
+        }
+      }
+
+      syncEnemies(state);
+      mixer?.update(Math.min(clock?.getDelta?.() ?? 0.016, 0.05));
+      desiredCamera.set(px, 14.5, pz + 12.5);
+      camera.position.lerp(desiredCamera, 0.08);
+      camera.lookAt(px, 0, pz - 1.7);
+      renderer.render(scene, camera);
+      frame = requestAnimationFrame(renderLoop);
+    };
 
     const boot = async () => {
-      const THREE: any = await import(/* @vite-ignore */ THREE_URL);
+      THREE = await import(/* @vite-ignore */ THREE_URL);
       const loaderModule: any = await import(/* @vite-ignore */ GLTF_URL);
       if (disposed) return;
 
@@ -39,7 +113,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       scene.fog = new THREE.Fog(0x162317, 24, 48);
 
       renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.35));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -47,9 +121,9 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
 
       camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
       camera.position.set(0, 15, 13);
+      desiredCamera = new THREE.Vector3();
 
-      const hemi = new THREE.HemisphereLight(0xe6f2ff, 0x243019, 2.2);
-      scene.add(hemi);
+      scene.add(new THREE.HemisphereLight(0xe6f2ff, 0x243019, 2.2));
       const sun = new THREE.DirectionalLight(0xfff1d0, 3.2);
       sun.position.set(-8, 16, 8);
       sun.castShadow = true;
@@ -69,15 +143,13 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       scene.add(floor);
 
       const loader = new GLTFLoader();
-      const load = (name: string) => new Promise<any>((resolve, reject) => loader.load(`${ASSET_ROOT}${name}`, resolve, undefined, reject));
+      const load = (name: string) => new Promise<any>((resolve, reject) => {
+        loader.load(`${ASSET_ROOT}${name}`, resolve, undefined, reject);
+      });
 
       const [heroGltf, animationsGltf, treeGltf, pineGltf, rockGltf, bushGltf] = await Promise.all([
-        load('ranger.glb'),
-        load('animations.glb'),
-        load('tree.glb'),
-        load('pine.glb'),
-        load('rock.glb'),
-        load('bush.glb'),
+        load('ranger.glb'), load('animations.glb'), load('tree.glb'),
+        load('pine.glb'), load('rock.glb'), load('bush.glb'),
       ]);
       if (disposed) return;
 
@@ -93,7 +165,9 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
 
       mixer = new THREE.AnimationMixer(hero);
       const clips = animationsGltf.animations ?? [];
-      const findClip = (terms: string[]) => clips.find((clip: any) => terms.some(term => clip.name.toLowerCase().includes(term)));
+      const findClip = (terms: string[]) => clips.find((clip: any) =>
+        terms.some(term => clip.name.toLowerCase().includes(term)),
+      );
       const idleClip = findClip(['idle']);
       const runClip = findClip(['jog', 'run']);
       if (idleClip) idleAction = mixer.clipAction(idleClip);
@@ -108,6 +182,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
         [-8.2, -5.7, 2], [-8.2, -1.5, 3], [-8.2, 3, 2], [-8.1, 6.7, 3],
         [8.2, -6.5, 3], [8.2, -2.2, 2], [8.2, 2.8, 3], [8.2, 6.8, 2],
       ] as const;
+
       for (const [x, z, prototypeIndex] of placements) {
         const object = prototypes[prototypeIndex].clone(true);
         object.position.set(x, 0, z);
@@ -119,80 +194,12 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
             node.receiveShadow = true;
           }
         });
-        natureObjects.push(object);
         scene.add(object);
       }
 
       clock = new THREE.Clock();
       resize();
       renderLoop();
-    };
-
-    const resize = () => {
-      if (!renderer || !camera) return;
-      const width = host.clientWidth || window.innerWidth;
-      const height = host.clientHeight || window.innerHeight;
-      renderer.setSize(width, height, false);
-      camera.aspect = width / Math.max(1, height);
-      camera.updateProjectionMatrix();
-    };
-
-    const setAnimation = (moving: boolean) => {
-      const next = moving ? runAction : idleAction;
-      if (!next || next === activeAction) return;
-      next.reset().fadeIn(0.15).play();
-      activeAction?.fadeOut(0.15);
-      activeAction = next;
-    };
-
-    const syncEnemies = (THREE: any, state: GameState) => {
-      const aliveIds = new Set(state.enemies.map(enemy => enemy.id));
-      for (const [id, mesh] of enemyMeshes) {
-        if (!aliveIds.has(id)) {
-          scene.remove(mesh);
-          enemyMeshes.delete(id);
-        }
-      }
-      for (const enemy of state.enemies) {
-        let mesh = enemyMeshes.get(enemy.id);
-        if (!mesh) {
-          mesh = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(enemy.enemyType === 'boss' ? 0.8 : 0.45, 1),
-            new THREE.MeshStandardMaterial({ color: enemy.color, roughness: 0.72 }),
-          );
-          mesh.castShadow = true;
-          scene.add(mesh);
-          enemyMeshes.set(enemy.id, mesh);
-        }
-        mesh.position.set((enemy.x / 40) - 9 + 0.5, enemy.enemyType === 'boss' ? 0.82 : 0.48, (enemy.y / 40) - 12 + 0.5);
-        mesh.scale.setScalar(enemy.flashUntil > Date.now() ? 1.15 : 1);
-      }
-    };
-
-    const renderLoop = async () => {
-      if (disposed || !renderer || !scene || !camera) return;
-      const THREE: any = await import(/* @vite-ignore */ THREE_URL);
-      const state = stateRef.current;
-      const player = state.player;
-      const px = (player.x / 40) - 9 + 0.5;
-      const pz = (player.y / 40) - 12 + 0.5;
-
-      if (hero) {
-        hero.position.set(px, 0, pz);
-        const moving = player.state === 'moving';
-        setAnimation(moving);
-        const facingLength = Math.hypot(player.facing.x, player.facing.y);
-        if (facingLength > 0.1) hero.rotation.y = Math.atan2(player.facing.x, player.facing.y);
-      }
-
-      syncEnemies(THREE, state);
-      mixer?.update(Math.min(clock?.getDelta?.() ?? 0.016, 0.05));
-
-      const desired = new THREE.Vector3(px, 14.5, pz + 12.5);
-      camera.position.lerp(desired, 0.08);
-      camera.lookAt(px, 0, pz - 1.7);
-      renderer.render(scene, camera);
-      frame = requestAnimationFrame(renderLoop);
     };
 
     window.addEventListener('resize', resize);
@@ -203,10 +210,13 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', resize);
       mixer?.stopAllAction?.();
+      for (const mesh of enemyMeshes.values()) {
+        mesh.geometry?.dispose?.();
+        mesh.material?.dispose?.();
+      }
+      enemyMeshes.clear();
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
-      enemyMeshes.clear();
-      natureObjects.length = 0;
     };
   }, []);
 
