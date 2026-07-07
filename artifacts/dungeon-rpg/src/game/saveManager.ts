@@ -1,8 +1,9 @@
 import { ClassKey } from './classes';
 import { DungeonMap, generateDungeon } from './dungeon';
+import { UpgradeKey } from '../i18n/translations';
 
 const SAVE_KEY = 'dungeon-veil-save';
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export interface SaveData {
   saveVersion?: number;
@@ -10,6 +11,8 @@ export interface SaveData {
   playerName: string;
   playerClass: ClassKey;
   floor: number;
+  chapter?: number;
+  runSkills?: Partial<Record<UpgradeKey, number>>;
   level: number;
   xp: number;
   hp: number;
@@ -63,6 +66,8 @@ export function loadGame(): SaveData | null {
     return {
       ...parsed,
       saveVersion: parsed.saveVersion ?? 1,
+      chapter: Math.max(1, parsed.chapter ?? 1),
+      runSkills: parsed.runSkills ?? {},
       inDungeon,
       dungeonMap: inDungeon ? (parsed.dungeonMap ?? rebuildDungeon(parsed.floor)) : undefined,
       worldX: Number.isFinite(parsed.worldX) ? parsed.worldX : parsed.playerX ?? 0,
