@@ -73,7 +73,7 @@ export const CLASS_DEFS: Record<ClassKey, ClassDef> = {
 };
 
 export const CLASS_SKILL_NAMES: Record<ClassKey, { en: string; de: string }> = {
-  warrior: { en: 'RAGE', de: 'WUTH' },
+  warrior: { en: 'RAGE', de: 'WUT' },
   mage:    { en: 'BOLT', de: 'BLITZ' },
-  archer:  { en: 'RAIN', de: 'REGEN' },
+  archer:  { en: 'RAIN', de: 'PFEILREGEN' },
 };
