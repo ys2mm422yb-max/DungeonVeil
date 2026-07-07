@@ -25,18 +25,120 @@ type PropKind =
   | 'fence'
   | 'cart'
   | 'waterRock'
-  | 'lilies';
+  | 'lilies'
+  | 'torch'
+  | 'shrine'
+  | 'skull'
+  | 'forge'
+  | 'bookshelf'
+  | 'barrel'
+  | 'crate';
 
-const MW = '/assets/rpg-pack/mystic_woods_free_2.2/sprites';
-const CHARS = '/assets/rpg-pack/FreeCharactersAnimationsAssetPack/FreeCharactersAnimationsAssetPack/SpriteSheets(96x96)';
+const TS = '/assets/rpg-pack/Tiny Swords/Tiny Swords (Update 010)';
+const TS_FREE = '/assets/rpg-pack/Tiny Swords (Free Pack)/Tiny Swords (Free Pack)';
 
-// Verified from the committed PNGs. These lists intentionally avoid cells that contain
-// "Premium version!" preview text or mixed non-game atlas areas.
-const SAFE_PLAINS_GRASS = [28, 32, 33, 34];
-const SAFE_PLAINS_ROAD = [4, 8, 9, 14, 15, 20, 21];
-const SAFE_WALLS = [32, 33, 34, 35, 36, 37, 40, 41, 42, 43, 44, 45];
-const SAFE_FLOORS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-const SAFE_LILIES = [0, 1, 2, 3, 4, 5];
+const TINY = {
+  ground: `${TS}/Terrain/Ground/Tilemap_Flat.png`,
+  elevation: `${TS}/Terrain/Ground/Tilemap_Elevation.png`,
+  water: `${TS}/Terrain/Water/Water.png`,
+  foam: `${TS}/Terrain/Water/Foam/Foam.png`,
+  shadows: `${TS}/Terrain/Ground/Shadows.png`,
+  tree: `${TS}/Resources/Trees/Tree.png`,
+  bridge: `${TS}/Terrain/Bridge/Bridge_All.png`,
+  freeGround: `${TS_FREE}/Terrain/Tileset/Tilemap_color1.png`,
+  freeGroundAlt: `${TS_FREE}/Terrain/Tileset/Tilemap_color2.png`,
+  freeWater: `${TS_FREE}/Terrain/Tileset/Water Background color.png`,
+  freeFoam: `${TS_FREE}/Terrain/Tileset/Water Foam.png`,
+  freeShadow: `${TS_FREE}/Terrain/Tileset/Shadow.png`,
+  waterRocks: [
+    `${TS}/Terrain/Water/Rocks/Rocks_01.png`,
+    `${TS}/Terrain/Water/Rocks/Rocks_02.png`,
+    `${TS}/Terrain/Water/Rocks/Rocks_03.png`,
+    `${TS}/Terrain/Water/Rocks/Rocks_04.png`,
+  ],
+  deco: Array.from({ length: 18 }, (_, i) => `${TS}/Deco/${String(i + 1).padStart(2, '0')}.png`),
+  houses: [
+    `${TS_FREE}/Buildings/Blue Buildings/House1.png`,
+    `${TS_FREE}/Buildings/Blue Buildings/House2.png`,
+    `${TS_FREE}/Buildings/Blue Buildings/House3.png`,
+    `${TS_FREE}/Buildings/Blue Buildings/Barracks.png`,
+    `${TS_FREE}/Buildings/Blue Buildings/Archery.png`,
+    `${TS_FREE}/Buildings/Blue Buildings/Monastery.png`,
+    `${TS}/Factions/Knights/Buildings/House/House_Blue.png`,
+    `${TS}/Factions/Knights/Buildings/House/House_Yellow.png`,
+    `${TS}/Factions/Knights/Buildings/House/House_Red.png`,
+    `${TS}/Factions/Knights/Buildings/Tower/Tower_Blue.png`,
+  ],
+  entrances: [
+    `${TS_FREE}/Buildings/Purple Buildings/Castle.png`,
+    `${TS_FREE}/Buildings/Black Buildings/Tower.png`,
+    `${TS}/Factions/Knights/Buildings/Castle/Castle_Blue.png`,
+    `${TS}/Factions/Knights/Buildings/Tower/Tower_Purple.png`,
+    `${TS}/Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Destroyed.png`,
+  ],
+  chestClosed: `${TS}/Resources/Resources/G_Idle.png`,
+  chestOpen: `${TS}/Resources/Resources/G_Spawn.png`,
+  warrior: `${TS}/Factions/Knights/Troops/Warrior/Blue/Warrior_Blue.png`,
+  mage: `${TS}/Factions/Knights/Troops/Pawn/Purple/Pawn_Purple.png`,
+  archer: `${TS}/Factions/Knights/Troops/Archer/Blue/Archer_Blue.png`,
+  units: {
+    warrior: {
+      idle: `${TS_FREE}/Units/Blue Units/Warrior/Warrior_Idle.png`,
+      run: `${TS_FREE}/Units/Blue Units/Warrior/Warrior_Run.png`,
+      attack: `${TS_FREE}/Units/Blue Units/Warrior/Warrior_Attack1.png`,
+    },
+    mage: {
+      idle: `${TS_FREE}/Units/Purple Units/Monk/Idle.png`,
+      run: `${TS_FREE}/Units/Purple Units/Monk/Run.png`,
+      attack: `${TS_FREE}/Units/Purple Units/Monk/Heal.png`,
+    },
+    archer: {
+      idle: `${TS_FREE}/Units/Yellow Units/Archer/Archer_Idle.png`,
+      run: `${TS_FREE}/Units/Yellow Units/Archer/Archer_Run.png`,
+      attack: `${TS_FREE}/Units/Yellow Units/Archer/Archer_Shoot.png`,
+    },
+    enemy: {
+      goblin: `${TS_FREE}/Units/Red Units/Pawn/Pawn_Run Knife.png`,
+      skeleton: `${TS_FREE}/Units/Black Units/Warrior/Warrior_Run.png`,
+      slime: `${TS}/Factions/Goblins/Troops/Barrel/Purple/Barrel_Purple.png`,
+    },
+  },
+  goblin: `${TS}/Factions/Goblins/Troops/Torch/Red/Torch_Red.png`,
+  skeleton: `${TS}/Factions/Knights/Troops/Dead/Dead.png`,
+  slime: `${TS}/Factions/Goblins/Troops/Barrel/Purple/Barrel_Purple.png`,
+  arrow: `${TS}/Factions/Knights/Troops/Archer/Arrow/Arrow.png`,
+  freeArrow: `${TS_FREE}/Units/Yellow Units/Archer/Arrow.png`,
+  fire: `${TS}/Effects/Fire/Fire.png`,
+  explosion: `${TS}/Effects/Explosion/Explosions.png`,
+  dust: `${TS_FREE}/Particle FX/Dust_01.png`,
+  fireSmall: `${TS_FREE}/Particle FX/Fire_01.png`,
+  icons: Array.from({ length: 10 }, (_, i) => `${TS}/UI/Icons/Regular_${String(i + 1).padStart(2, '0')}.png`),
+  uiIcons: Array.from({ length: 12 }, (_, i) => `${TS_FREE}/UI Elements/UI Elements/Icons/Icon_${String(i + 1).padStart(2, '0')}.png`),
+  ui: {
+    banner: `${TS_FREE}/UI Elements/UI Elements/Banners/Banner.png`,
+    slots: `${TS_FREE}/UI Elements/UI Elements/Banners/Banner_Slots.png`,
+    bigBarBase: `${TS_FREE}/UI Elements/UI Elements/Bars/BigBar_Base.png`,
+    bigBarFill: `${TS_FREE}/UI Elements/UI Elements/Bars/BigBar_Fill.png`,
+    smallBarBase: `${TS_FREE}/UI Elements/UI Elements/Bars/SmallBar_Base.png`,
+    smallBarFill: `${TS_FREE}/UI Elements/UI Elements/Bars/SmallBar_Fill.png`,
+    roundButtonBlue: `${TS_FREE}/UI Elements/UI Elements/Buttons/SmallBlueRoundButton_Regular.png`,
+    roundButtonRed: `${TS_FREE}/UI Elements/UI Elements/Buttons/SmallRedRoundButton_Regular.png`,
+    squareButtonBlue: `${TS_FREE}/UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Regular.png`,
+    squareButtonRed: `${TS_FREE}/UI Elements/UI Elements/Buttons/SmallRedSquareButton_Regular.png`,
+  },
+  buttons: {
+    blue: `${TS}/UI/Buttons/Button_Blue.png`,
+    red: `${TS}/UI/Buttons/Button_Red.png`,
+  },
+};
+
+export const TINY_CLASS_SPRITES: Record<ClassKey, string> = {
+  warrior: TINY.units.warrior.idle,
+  mage: TINY.units.mage.idle,
+  archer: TINY.units.archer.idle,
+};
+
+export const TINY_UI = TINY.ui;
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -58,6 +160,13 @@ function drawWhole(ctx: CanvasRenderingContext2D, src: string, x: number, y: num
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(img, Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h));
   return true;
+}
+
+function drawFirst(ctx: CanvasRenderingContext2D, srcs: string[], x: number, y: number, w: number, h: number): boolean {
+  for (const src of srcs) {
+    if (drawWhole(ctx, src, x, y, w, h)) return true;
+  }
+  return false;
 }
 
 function drawSheetFrame(
@@ -106,54 +215,17 @@ function drawTileCell(
   if (!img) return false;
   const cols = Math.max(1, Math.floor(img.naturalWidth / tileSize));
   const rows = Math.max(1, Math.floor(img.naturalHeight / tileSize));
-  if (tileIndex < 0 || tileIndex >= cols * rows) return false;
-  const sx = (tileIndex % cols) * tileSize;
-  const sy = Math.floor(tileIndex / cols) * tileSize;
+  const safeIndex = Math.abs(tileIndex) % (cols * rows);
+  const sx = (safeIndex % cols) * tileSize;
+  const sy = Math.floor(safeIndex / cols) * tileSize;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(img, sx, sy, tileSize, tileSize, Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h));
   return true;
 }
 
-function pick(list: number[], variant: number): number {
-  return list[Math.abs(variant) % list.length];
-}
-
 function fill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
   ctx.fillStyle = color;
   ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h));
-}
-
-function seed(variant: number, i: number): number {
-  const n = Math.sin((variant + 1) * 97.17 + i * 43.71) * 43758.5453;
-  return n - Math.floor(n);
-}
-
-function drawProceduralGrass(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
-  fill(ctx, x, y, w, h, '#315f2f');
-  ctx.globalAlpha = 0.35;
-  for (let i = 0; i < 10; i++) {
-    const px = x + seed(variant, i) * w;
-    const py = y + seed(variant + 4, i) * h;
-    fill(ctx, px, py, Math.max(1, w / 18), Math.max(2, h / 10), i % 2 ? '#6dac55' : '#234d27');
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawProceduralRoad(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
-  drawProceduralGrass(ctx, x, y, w, h, variant);
-  fill(ctx, x, y + h * 0.18, w, h * 0.64, '#7f623d');
-  ctx.globalAlpha = 0.28;
-  for (let i = 0; i < 8; i++) fill(ctx, x + seed(variant, i) * w, y + h * (0.25 + seed(variant + 6, i) * 0.45), w / 10, h / 18, '#d0b071');
-  ctx.globalAlpha = 1;
-}
-
-function drawProceduralWater(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
-  fill(ctx, x, y, w, h, '#0d4665');
-  fill(ctx, x, y, w, h * 0.28, '#176f8f');
-  fill(ctx, x, y + h * 0.75, w, h * 0.25, '#08334d');
-  ctx.globalAlpha = 0.55;
-  for (let i = 0; i < 3; i++) fill(ctx, x + seed(variant, i) * w * 0.8, y + h * (0.25 + i * 0.18), w * 0.28, Math.max(1, h / 18), '#75d9e8');
-  ctx.globalAlpha = 1;
 }
 
 function ellipse(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, color: string): void {
@@ -163,35 +235,42 @@ function ellipse(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: numb
   ctx.fill();
 }
 
-function drawProceduralTree(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, pine: boolean, variant: number): void {
-  ellipse(ctx, x + w * 0.5, y + h * 0.86, w * 0.34, h * 0.11, 'rgba(0,0,0,0.32)');
-  fill(ctx, x + w * 0.45, y + h * 0.55, w * 0.12, h * 0.32, '#664021');
-  if (pine) {
-    ellipse(ctx, x + w * 0.5, y + h * 0.62, w * 0.34, h * 0.16, '#123d21');
-    ellipse(ctx, x + w * 0.5, y + h * 0.44, w * 0.42, h * 0.18, '#1f612d');
-    ellipse(ctx, x + w * 0.5, y + h * 0.26, w * 0.31, h * 0.16, '#3d8f3b');
-  } else {
-    ellipse(ctx, x + w * 0.5, y + h * 0.38, w * 0.43, h * 0.27, '#174718');
-    ellipse(ctx, x + w * 0.33, y + h * 0.49, w * 0.30, h * 0.20, '#2f7a2e');
-    ellipse(ctx, x + w * 0.67, y + h * 0.48, w * 0.31, h * 0.21, '#3b8d35');
-    ellipse(ctx, x + w * (0.42 + seed(variant, 1) * 0.12), y + h * 0.30, w * 0.22, h * 0.13, '#70bd58');
+function seeded(variant: number, i: number): number {
+  const n = Math.sin((variant + 1) * 91.13 + i * 37.71) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function tint(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, alpha: number): void {
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = alpha;
+  fill(ctx, x, y, w, h, color);
+  ctx.restore();
+}
+
+function drawGroundBase(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
+  if (!drawTileCell(ctx, TINY.freeGround, 64, [0, 1, 2, 3, 9, 10, 11, 18][Math.abs(variant) % 8], x, y, w, h) &&
+      !drawTileCell(ctx, TINY.ground, 64, [0, 1, 2, 3, 10, 11, 12, 13][Math.abs(variant) % 8], x, y, w, h)) {
+    fill(ctx, x, y, w, h, '#4d8b3e');
   }
+  if (variant % 5 === 0) tint(ctx, x, y, w, h, '#3f7a35', 0.16);
 }
 
-function drawProceduralHouse(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
-  ellipse(ctx, x + w * 0.5, y + h * 0.86, w * 0.42, h * 0.12, 'rgba(0,0,0,0.35)');
-  fill(ctx, x + w * 0.16, y + h * 0.46, w * 0.68, h * 0.38, '#9a6a3e');
-  fill(ctx, x + w * 0.09, y + h * 0.28, w * 0.82, h * 0.20, variant % 2 ? '#7a392b' : '#8c4d2f');
-  fill(ctx, x + w * 0.38, y + h * 0.62, w * 0.20, h * 0.22, '#302014');
-  fill(ctx, x + w * 0.22, y + h * 0.54, w * 0.16, h * 0.12, '#9dc4ca');
-  fill(ctx, x + w * 0.63, y + h * 0.54, w * 0.16, h * 0.12, '#9dc4ca');
+function drawTinyUnit(
+  ctx: CanvasRenderingContext2D,
+  src: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  frame: number,
+  flipX = false,
+): boolean {
+  return drawSheetFrame(ctx, src, 192, 192, frame, x, y, w, h, flipX);
 }
 
-function drawProceduralEntrance(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  ellipse(ctx, x + w * 0.5, y + h * 0.78, w * 0.42, h * 0.14, 'rgba(0,0,0,0.38)');
-  ellipse(ctx, x + w * 0.5, y + h * 0.55, w * 0.40, h * 0.34, '#566064');
-  ellipse(ctx, x + w * 0.5, y + h * 0.60, w * 0.24, h * 0.27, '#10253a');
-  ellipse(ctx, x + w * 0.5, y + h * 0.58, w * 0.14, h * 0.18, '#25bdf4');
+function classSheet(playerClass: ClassKey, action: 'idle' | 'run' | 'attack'): string {
+  return TINY.units[playerClass][action] ?? TINY_CLASS_SPRITES[playerClass];
 }
 
 export function drawPremiumTile(
@@ -205,40 +284,48 @@ export function drawPremiumTile(
 ): void {
   switch (kind) {
     case 'grass':
-      if (drawWhole(ctx, `${MW}/tilesets/grass.png`, x, y, w, h)) return;
-      if (drawTileCell(ctx, `${MW}/tilesets/plains.png`, 16, pick(SAFE_PLAINS_GRASS, variant), x, y, w, h)) return;
-      drawProceduralGrass(ctx, x, y, w, h, variant);
+      drawGroundBase(ctx, x, y, w, h, variant);
       return;
     case 'road':
-      if (drawTileCell(ctx, `${MW}/tilesets/plains.png`, 16, pick(SAFE_PLAINS_ROAD, variant), x, y, w, h)) return;
-      drawProceduralRoad(ctx, x, y, w, h, variant);
+      drawGroundBase(ctx, x, y, w, h, variant);
+      if (drawTileCell(ctx, TINY.freeGroundAlt, 64, 22 + (Math.abs(variant) % 5), x, y, w, h) ||
+          drawTileCell(ctx, TINY.ground, 64, 22 + (Math.abs(variant) % 5), x, y, w, h)) return;
+      fill(ctx, x, y + h * 0.18, w, h * 0.62, '#9b7b4d');
       return;
     case 'water':
-      drawProceduralWater(ctx, x, y, w, h, variant);
+      if (!drawWhole(ctx, TINY.freeWater, x, y, w, h) && !drawWhole(ctx, TINY.water, x, y, w, h)) fill(ctx, x, y, w, h, '#247aa0');
+      if (variant % 3 === 0 && !drawWhole(ctx, TINY.freeFoam, x - w * 0.04, y - h * 0.04, w * 1.08, h * 1.08)) {
+        drawSheetFrame(ctx, TINY.foam, 192, 192, variant, x - w * 0.12, y - h * 0.12, w * 1.24, h * 1.24);
+      }
       return;
     case 'broadTree':
-      drawProceduralTree(ctx, x, y, w, h, false, variant);
+    case 'pineTree': {
+      drawGroundBase(ctx, x, y + h * 0.42, w, h * 0.58, variant);
+      const frame = kind === 'pineTree' ? 1 + (Math.abs(variant) % 6) : Math.abs(variant) % 10;
+      drawSheetFrame(ctx, TINY.tree, 192, 192, frame, x - w * 0.10, y - h * 0.04, w * 1.20, h * 1.14);
       return;
-    case 'pineTree':
-      drawProceduralTree(ctx, x, y, w, h, true, variant);
-      return;
+    }
     case 'house':
-      drawProceduralHouse(ctx, x, y, w, h, variant);
+      drawGroundBase(ctx, x, y + h * 0.32, w, h * 0.68, variant);
+      drawWhole(ctx, TINY.houses[Math.abs(variant) % TINY.houses.length], x - w * 0.45, y - h * 0.92, w * 1.9, h * 2.2);
       return;
     case 'dungeonEntrance':
-      drawProceduralEntrance(ctx, x, y, w, h);
+      drawGroundBase(ctx, x, y + h * 0.46, w, h * 0.54, variant);
+      drawWhole(ctx, TINY.entrances[Math.abs(variant) % TINY.entrances.length], x - w * 0.55, y - h * 1.15, w * 2.15, h * 2.55);
       return;
     case 'wall':
-      if (drawTileCell(ctx, `${MW}/tilesets/walls/walls.png`, 16, pick(SAFE_WALLS, variant), x, y, w, h)) return;
-      fill(ctx, x, y, w, h, '#3d4354');
+      if (!drawTileCell(ctx, TINY.freeGroundAlt, 64, 28 + (Math.abs(variant) % 8), x, y, w, h) &&
+          !drawTileCell(ctx, TINY.elevation, 64, 8 + (Math.abs(variant) % 12), x, y, w, h)) fill(ctx, x, y, w, h, '#5d604e');
+      tint(ctx, x, y, w, h, '#6a5c45', 0.2);
       return;
     case 'floor':
-      if (drawTileCell(ctx, `${MW}/tilesets/floors/flooring.png`, 16, pick(SAFE_FLOORS, variant), x, y, w, h)) return;
-      fill(ctx, x, y, w, h, '#4f493f');
+      if (!drawTileCell(ctx, TINY.freeGroundAlt, 64, 30 + (Math.abs(variant) % 8), x, y, w, h) &&
+          !drawTileCell(ctx, TINY.ground, 64, 30 + (Math.abs(variant) % 8), x, y, w, h)) fill(ctx, x, y, w, h, '#686055');
+      tint(ctx, x, y, w, h, '#7b6a58', 0.24);
       return;
     case 'door':
-      if (drawTileCell(ctx, `${MW}/tilesets/walls/wooden_door.png`, 16, variant % 2, x, y, w, h)) return;
-      fill(ctx, x, y, w, h, '#7b5136');
+      drawTileCell(ctx, TINY.elevation, 64, 13 + (Math.abs(variant) % 3), x, y, w, h);
+      fill(ctx, x + w * 0.34, y + h * 0.25, w * 0.32, h * 0.58, '#5e3b25');
       return;
   }
 }
@@ -254,57 +341,66 @@ export function drawPremiumProp(
 ): void {
   switch (kind) {
     case 'flowers':
-      drawProceduralGrass(ctx, x, y, w, h, variant);
-      fill(ctx, x + w * 0.25, y + h * 0.42, w * 0.12, h * 0.12, '#f0e28a');
-      fill(ctx, x + w * 0.55, y + h * 0.38, w * 0.12, h * 0.12, '#d96dce');
-      fill(ctx, x + w * 0.70, y + h * 0.58, w * 0.10, h * 0.10, '#ffffff');
+      drawWhole(ctx, TINY.deco[Math.abs(variant) % 6], x - w * 0.15, y - h * 0.15, w * 1.3, h * 1.3);
       return;
     case 'bush':
-      ellipse(ctx, x + w * 0.5, y + h * 0.62, w * 0.42, h * 0.24, '#276b2b');
-      ellipse(ctx, x + w * 0.38, y + h * 0.54, w * 0.24, h * 0.17, '#3f9238');
+      drawWhole(ctx, TINY.deco[6 + (Math.abs(variant) % 4)], x - w * 0.1, y - h * 0.1, w * 1.2, h * 1.2);
       return;
     case 'rock':
+      drawWhole(ctx, TINY.deco[10 + (Math.abs(variant) % 4)], x, y, w, h);
+      return;
     case 'ruins':
-      ellipse(ctx, x + w * 0.5, y + h * 0.60, w * 0.35, h * 0.22, '#747b78');
-      fill(ctx, x + w * 0.35, y + h * 0.38, w * 0.26, h * 0.12, '#9ba39d');
-      if (kind === 'ruins') fill(ctx, x + w * 0.18, y + h * 0.18, w * 0.18, h * 0.50, '#656d68');
+      drawFirst(ctx, [TINY.deco[14], TINY.entrances[2], TINY.houses[3]], x - w * 0.35, y - h * 0.45, w * 1.7, h * 1.8);
       return;
     case 'log':
-      fill(ctx, x + w * 0.20, y + h * 0.45, w * 0.60, h * 0.20, '#714522');
-      ellipse(ctx, x + w * 0.22, y + h * 0.55, w * 0.10, h * 0.13, '#b9864f');
+      drawWhole(ctx, `${TS}/Resources/Resources/W_Idle.png`, x - w * 0.35, y - h * 0.35, w * 1.7, h * 1.7);
       return;
     case 'mushrooms':
-      fill(ctx, x + w * 0.40, y + h * 0.52, w * 0.08, h * 0.20, '#e3c89a');
-      ellipse(ctx, x + w * 0.44, y + h * 0.48, w * 0.16, h * 0.10, '#c2523a');
+      drawWhole(ctx, TINY.deco[15 + (Math.abs(variant) % 3)], x - w * 0.2, y - h * 0.2, w * 1.4, h * 1.4);
       return;
     case 'bridge':
-      fill(ctx, x, y + h * 0.28, w, h * 0.44, '#7a5430');
-      fill(ctx, x, y + h * 0.38, w, h * 0.08, '#be8b52');
-      fill(ctx, x, y + h * 0.58, w, h * 0.08, '#be8b52');
+      if (!drawSheetFrame(ctx, TINY.bridge, 192, 192, variant, x - w * 0.15, y - h * 0.28, w * 1.3, h * 1.52)) {
+        fill(ctx, x, y + h * 0.25, w, h * 0.48, '#8a5f34');
+      }
       return;
     case 'waterRock':
-      if (drawWhole(ctx, `${MW}/objects/rock_in_water_0${(Math.abs(variant) % 6) + 1}.png`, x, y, w, h)) return;
-      ellipse(ctx, x + w * 0.5, y + h * 0.56, w * 0.34, h * 0.20, '#6f7c7e');
+      drawWhole(ctx, TINY.waterRocks[Math.abs(variant) % TINY.waterRocks.length], x - w * 0.1, y - h * 0.1, w * 1.2, h * 1.2);
       return;
     case 'lilies':
-      if (drawTileCell(ctx, `${MW}/tilesets/water_lillies.png`, 16, pick(SAFE_LILIES, variant), x, y, w, h)) return;
-      ellipse(ctx, x + w * 0.35, y + h * 0.55, w * 0.16, h * 0.07, '#59a85a');
-      ellipse(ctx, x + w * 0.62, y + h * 0.42, w * 0.13, h * 0.06, '#75bd65');
+      drawSheetFrame(ctx, TINY.foam, 192, 192, variant + 3, x - w * 0.2, y - h * 0.2, w * 1.4, h * 1.4);
       return;
     case 'well':
-      ellipse(ctx, x + w * 0.5, y + h * 0.62, w * 0.28, h * 0.18, '#707a74');
-      fill(ctx, x + w * 0.34, y + h * 0.30, w * 0.32, h * 0.08, '#76502e');
+      drawWhole(ctx, `${TS}/Resources/Gold Mine/GoldMine_Inactive.png`, x - w * 0.55, y - h * 0.85, w * 2.1, h * 2.25);
       return;
     case 'fence':
-      if (drawTileCell(ctx, `${MW}/tilesets/fences.png`, 16, Math.abs(variant) % 3, x, y, w, h)) return;
-      fill(ctx, x, y + h * 0.58, w, h * 0.12, '#8a5f34');
-      fill(ctx, x + w * 0.18, y + h * 0.35, w * 0.10, h * 0.45, '#60401f');
-      fill(ctx, x + w * 0.70, y + h * 0.35, w * 0.10, h * 0.45, '#60401f');
+      drawWhole(ctx, TINY.deco[variant % 2 === 0 ? 16 : 17], x - w * 0.2, y - h * 0.28, w * 1.4, h * 1.5);
       return;
     case 'cart':
-      fill(ctx, x + w * 0.18, y + h * 0.36, w * 0.58, h * 0.30, '#8b5f34');
-      ellipse(ctx, x + w * 0.28, y + h * 0.72, w * 0.10, h * 0.10, '#2f1e13');
-      ellipse(ctx, x + w * 0.68, y + h * 0.72, w * 0.10, h * 0.10, '#2f1e13');
+      drawWhole(ctx, `${TS}/Resources/Resources/W_Idle_(NoShadow).png`, x - w * 0.25, y - h * 0.25, w * 1.5, h * 1.5);
+      return;
+    case 'torch':
+      if (!drawSheetFrame(ctx, TINY.fire, 192, 192, variant, x - w * 1.1, y - h * 1.55, w * 3.2, h * 3.2)) {
+        ellipse(ctx, x + w * 0.5, y + h * 0.25, w * 0.18, h * 0.18, '#ffb545');
+      }
+      fill(ctx, x + w * 0.42, y + h * 0.48, w * 0.16, h * 0.42, '#5c3a20');
+      return;
+    case 'shrine':
+      drawWhole(ctx, TINY.entrances[1], x - w * 0.65, y - h * 1.05, w * 2.3, h * 2.4);
+      return;
+    case 'skull':
+      drawWhole(ctx, TINY.deco[13], x - w * 0.1, y - h * 0.1, w * 1.2, h * 1.2);
+      return;
+    case 'forge':
+      drawWhole(ctx, `${TS}/Resources/Gold Mine/GoldMine_Active.png`, x - w * 0.7, y - h * 0.95, w * 2.4, h * 2.45);
+      return;
+    case 'bookshelf':
+      drawWhole(ctx, TINY.houses[3], x - w * 0.55, y - h * 0.95, w * 2.1, h * 2.25);
+      return;
+    case 'barrel':
+      drawWhole(ctx, `${TS}/Factions/Goblins/Troops/Barrel/Blue/Barrel_Blue.png`, x - w * 0.62, y - h * 0.75, w * 2.2, h * 2.2);
+      return;
+    case 'crate':
+      drawWhole(ctx, `${TS}/Resources/Resources/W_Idle.png`, x - w * 0.62, y - h * 0.75, w * 2.2, h * 2.2);
       return;
   }
 }
@@ -317,9 +413,10 @@ export function drawPremiumChest(
   h: number,
   opened: boolean,
 ): void {
-  const src = opened ? `${MW}/objects/chest_02.png` : `${MW}/objects/chest_01.png`;
-  if (drawSheetFrame(ctx, src, 16, 16, opened ? 1 : 0, x, y, w, h)) return;
-  drawPremiumProp(ctx, 'cart', x, y, w, h, opened ? 1 : 0);
+  const src = opened ? TINY.chestOpen : TINY.chestClosed;
+  if (!drawSheetFrame(ctx, src, 192, 192, opened ? 3 : 0, x - w * 0.72, y - h * 0.82, w * 2.45, h * 2.45)) {
+    drawPremiumProp(ctx, 'cart', x, y, w, h, opened ? 1 : 0);
+  }
 }
 
 export function drawPremiumPlayer(
@@ -332,18 +429,17 @@ export function drawPremiumPlayer(
   flipX = false,
   flash = false,
   playerClass: ClassKey = 'warrior',
+  action: 'idle' | 'run' | 'attack' = 'idle',
 ): void {
-  const src = `${CHARS}/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Walk-Sheet.png`;
+  const src = classSheet(playerClass, action);
   ctx.save();
-  const classFilter: Record<ClassKey, string> = {
-    warrior: 'none',
-    mage: 'hue-rotate(72deg) saturate(1.25) brightness(1.08)',
-    archer: 'hue-rotate(-38deg) saturate(1.25) brightness(1.04)',
-  };
-  ctx.filter = flash ? 'brightness(2.2) saturate(0.4)' : classFilter[playerClass];
-  const drawn = drawSheetFrame(ctx, src, 96, 96, frame, x - w * 0.82, y - h * 1.12, w * 2.65, h * 2.85, flipX);
+  if (flash) ctx.filter = 'brightness(2.2) saturate(0.45)';
+  const drawn = drawTinyUnit(ctx, src, x - w * 1.52, y - h * 1.72, w * 4.05, h * 4.2, frame, flipX) ||
+    drawTinyUnit(ctx, TINY_CLASS_SPRITES[playerClass], x - w * 1.34, y - h * 1.55, w * 3.65, h * 3.85, frame, flipX);
   ctx.restore();
-  if (!drawn) drawWhole(ctx, `${MW}/characters/player.png`, x, y, w, h);
+  if (!drawn) {
+    ellipse(ctx, x + w * 0.5, y + h * 0.55, w * 0.42, h * 0.42, '#4d8bd8');
+  }
 }
 
 export function drawPremiumEnemy(
@@ -356,16 +452,12 @@ export function drawPremiumEnemy(
   frame = 0,
   flash = false,
 ): void {
-  let drawn = false;
+  const src = enemyType === 'skeleton' ? TINY.units.enemy.skeleton : enemyType === 'slime' ? TINY.units.enemy.slime : TINY.units.enemy.goblin;
   ctx.save();
-  if (flash) ctx.filter = 'brightness(2.4) saturate(0.4)';
-  if (enemyType === 'slime') {
-    drawn = drawSheetFrame(ctx, `${CHARS}/Monster_Slime/No_Shadows/Monster_Slime_Walk-Sheet.png`, 96, 96, frame, x - w * 0.78, y - h * 0.95, w * 2.55, h * 2.45);
-  } else if (enemyType === 'skeleton') {
-    drawn = drawSheetFrame(ctx, `${MW}/characters/skeleton.png`, 48, 48, frame, x - w * 0.42, y - h * 0.60, w * 1.85, h * 1.95);
-  } else {
-    drawn = drawWhole(ctx, `${MW}/characters/slime.png`, x - w * 0.35, y - h * 0.45, w * 1.7, h * 1.75);
-  }
+  if (flash) ctx.filter = 'brightness(2.35) saturate(0.5)';
+  const scale = enemyType === 'skeleton' ? 3.75 : 3.35;
+  const drawn = drawTinyUnit(ctx, src, x - w * 1.18, y - h * 1.42, w * scale, h * scale, frame) ||
+    drawTinyUnit(ctx, enemyType === 'skeleton' ? TINY.skeleton : enemyType === 'slime' ? TINY.slime : TINY.goblin, x - w * 1.02, y - h * 1.22, w * 3.05, h * 3.05, frame);
   ctx.restore();
   if (!drawn) drawPremiumProp(ctx, 'bush', x, y, w, h, frame);
 }
@@ -380,24 +472,15 @@ export function drawPremiumArrow(
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(angle);
-  ctx.imageSmoothingEnabled = false;
-  ctx.strokeStyle = '#d7c19a';
-  ctx.fillStyle = '#eadfbd';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-length * 0.42, 0);
-  ctx.lineTo(length * 0.32, 0);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(length * 0.48, 0);
-  ctx.lineTo(length * 0.20, -5);
-  ctx.lineTo(length * 0.26, 0);
-  ctx.lineTo(length * 0.20, 5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#8a5a2d';
-  ctx.fillRect(Math.floor(-length * 0.5), -3, 4, 2);
-  ctx.fillRect(Math.floor(-length * 0.5), 1, 4, 2);
+  if (!drawWhole(ctx, TINY.freeArrow, -length * 0.55, -length * 0.20, length * 1.1, length * 0.4) &&
+      !drawWhole(ctx, TINY.arrow, -length * 0.55, -length * 0.20, length * 1.1, length * 0.4)) {
+    ctx.strokeStyle = '#eadfbd';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-length * 0.45, 0);
+    ctx.lineTo(length * 0.42, 0);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -412,24 +495,23 @@ export function drawPremiumSwordArc(
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(angle);
-  ctx.globalAlpha = 1 - sweep * 0.45;
+  ctx.globalAlpha = 1 - sweep * 0.4;
   ctx.lineCap = 'round';
   ctx.shadowBlur = 12;
   ctx.shadowColor = '#ffd66a';
   ctx.strokeStyle = '#fff7d8';
   ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.arc(0, 0, 28, -0.78 + sweep * 0.5, 0.78 + sweep * 0.5);
+  ctx.arc(0, 0, 30, -0.72 + sweep * 0.45, 0.72 + sweep * 0.45);
   ctx.stroke();
-  ctx.strokeStyle = '#e8a833';
+  ctx.strokeStyle = '#f0bd45';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(0, 0, 22, -0.55 + sweep * 0.5, 0.55 + sweep * 0.5);
+  ctx.arc(0, 0, 24, -0.50 + sweep * 0.45, 0.50 + sweep * 0.45);
   ctx.stroke();
-  ctx.fillStyle = '#fff1a6';
-  for (let i = 0; i < 4; i++) {
-    const a = -0.4 + i * 0.28 + sweep * 0.4;
-    ctx.fillRect(Math.cos(a) * 30, Math.sin(a) * 30, 2, 2);
+  for (let i = 0; i < 5; i++) {
+    const a = -0.36 + i * 0.18 + sweep * 0.5;
+    fill(ctx, Math.cos(a) * (30 + seeded(progress * 100, i) * 8), Math.sin(a) * 30, 2, 2, '#fff1a6');
   }
   ctx.restore();
 }
@@ -441,22 +523,36 @@ export function drawPremiumMagicBolt(
   time: number,
   color = '#a66cff',
 ): void {
-  const pulse = 0.5 + Math.sin(time / 120) * 0.5;
   ctx.save();
   ctx.shadowBlur = 18;
   ctx.shadowColor = color;
-  const grad = ctx.createRadialGradient(cx, cy, 1, cx, cy, 14 + pulse * 4);
-  grad.addColorStop(0, '#ffffff');
-  grad.addColorStop(0.35, color);
-  grad.addColorStop(1, 'rgba(120,70,255,0)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 14 + pulse * 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#f0dcff';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 9, time / 220, time / 220 + Math.PI * 1.25);
-  ctx.stroke();
+  if (!drawSheetFrame(ctx, TINY.explosion, 192, 192, Math.floor(time / 90), cx - 18, cy - 18, 36, 36)) {
+    const pulse = 0.5 + Math.sin(time / 120) * 0.5;
+    const grad = ctx.createRadialGradient(cx, cy, 1, cx, cy, 14 + pulse * 4);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.35, color);
+    grad.addColorStop(1, 'rgba(120,70,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14 + pulse * 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
+}
+
+export function getTinyIcon(index: number): string {
+  return TINY.uiIcons[Math.abs(index) % TINY.uiIcons.length] ?? TINY.icons[Math.abs(index) % TINY.icons.length];
+}
+
+export function drawPremiumIcon(
+  ctx: CanvasRenderingContext2D,
+  index: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  if (!drawWhole(ctx, getTinyIcon(index), x, y, w, h)) {
+    ellipse(ctx, x + w * 0.5, y + h * 0.5, w * 0.38, h * 0.38, '#f3c763');
+  }
 }
