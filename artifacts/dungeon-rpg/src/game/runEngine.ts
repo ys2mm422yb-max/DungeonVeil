@@ -44,6 +44,7 @@ export class GameEngine {
   lastTime = 0;
   private lastStepTime = 0;
   private roomAnnouncedClear = false;
+  private lootCounter = 0;
 
   input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
   onStateChange: (state: RunGameState) => void = () => {};
@@ -192,6 +193,8 @@ export class GameEngine {
       if (p.attackCooldown <= 0 && this.livingEnemies().length > 0) this.autoShoot(time);
     }
 
+    this.pickupItems(time);
+
     if (this.input.attack) {
       this.input.attack = false;
       if (p.attackCooldown <= 0) this.autoShoot(time);
@@ -240,8 +243,8 @@ export class GameEngine {
         if (!enemy.isDead) {
           enemy.isDead = true; enemy.state = 'dead'; enemy.deathTime = time;
           this.state.killCount++;
-          p.xp += ENEMY_STATS[enemy.enemyType].xp;
           const cx = enemy.x + enemy.width / 2, cy = enemy.y + enemy.height / 2;
+          this.spawnLoot(cx, cy, enemy.enemyType);
           this.state.particles.push(...makeParticles(cx, cy, enemy.color, 12, 80, 2.5));
         }
         if (time - enemy.deathTime > 320) this.state.enemies.splice(i, 1);
@@ -371,6 +374,50 @@ export class GameEngine {
 
   private emit(): void {
     this.onStateChange({ ...this.state });
+  }
+
+  private spawnLoot(x: number, y: number, enemyType: EnemyType): void {
+    const now = Date.now();
+    const id = ++this.lootCounter;
+    let cx = x + (Math.random() - 0.5) * 14;
+    let cy = y + (Math.random() - 0.5) * 14;
+    // XP drop must always happen; if jittered spot is blocked, fall back to the enemy center.
+    if (!isWalkable(this.state.map, cx, cy)) { cx = x; cy = y; }
+    this.state.items.push({
+      id: `xp-${id}`, type: 'item', itemType: 'xp_orb', value: ENEMY_STATS[enemyType].xp,
+      x: cx - 8, y: cy - 8, width: 16, height: 16, vx: 0, vy: 0, color: '#5fd0ff', spawnTime: now,
+    });
+    if (Math.random() < 0.18) {
+      this.state.items.push({
+        id: `potion-${id}`, type: 'item', itemType: 'potion', value: 25,
+        x: cx - 8, y: cy - 8, width: 16, height: 16, vx: 0, vy: 0, color: '#ff6b6b', spawnTime: now,
+      });
+    }
+  }
+
+  private pickupItems(time: number): void {
+    const p = this.state.player;
+    const px = p.x + p.width / 2;
+    const py = p.y + p.height / 2;
+    const radius = 28;
+    for (let i = this.state.items.length - 1; i >= 0; i--) {
+      const item = this.state.items[i];
+      const ix = item.x + item.width / 2;
+      const iy = item.y + item.height / 2;
+      const dist = Math.hypot(px - ix, py - iy);
+      if (dist < radius) {
+        if (item.itemType === 'xp_orb') {
+          p.xp += item.value;
+          this.state.damageNumbers.push({ id: `xp-${time}-${i}`, x: ix, y: iy - 8, value: `+${item.value} XP`, color: '#5fd0ff', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
+        } else if (item.itemType === 'potion') {
+          const heal = Math.min(item.value, p.maxHp - p.hp);
+          if (heal > 0) p.hp += heal;
+          this.state.damageNumbers.push({ id: `heal-${time}-${i}`, x: ix, y: iy - 8, value: `+${heal}`, color: '#43c968', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
+        }
+        this.state.particles.push(...makeHitSpark(ix, iy, item.color, 5));
+        this.state.items.splice(i, 1);
+      }
+    }
   }
 }
 
