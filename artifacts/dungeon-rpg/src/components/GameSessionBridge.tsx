@@ -1,8 +1,12 @@
 import { useEffect } from 'react';
-import { GameEngine } from '../game/engine';
 import { saveEngineSession } from '../game/sessionStore';
 
-export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {
+type SessionEngine = {
+  state: { player: { playerName: string } };
+  saveNow: (reason?: string) => boolean;
+};
+
+export function GameSessionBridge({ getEngine, active }: { getEngine: () => SessionEngine | null; active: boolean }) {
   useEffect(() => {
     if (!active) return;
     const save = () => {
@@ -16,6 +20,6 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       window.removeEventListener('pagehide', save);
       document.removeEventListener('visibilitychange', hide);
     };
-  }, [active]);
+  }, [active, getEngine]);
   return null;
 }
