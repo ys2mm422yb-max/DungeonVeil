@@ -3,6 +3,7 @@ import { TILE_SIZE } from '../../game/dungeon';
 import { renderSceneTerrain, SceneJob } from '../../game/overworldSprites';
 import { attractLoot } from './sceneRenderUtils';
 import { addSceneJobs } from './sceneJobs';
+import { drawSceneFog } from './sceneFog';
 import { drawSceneOverlay } from './sceneOverlay';
 
 export function runScene(canvas: HTMLCanvasElement, readState: () => GameState): () => void {
@@ -46,7 +47,8 @@ export function runScene(canvas: HTMLCanvasElement, readState: () => GameState):
       ctx.scale(zoom, zoom);
       ctx.translate(-Math.round(cameraX), -Math.round(cameraY));
 
-      const jobs: SceneJob[] = renderSceneTerrain(ctx, state, now, x0, x1, y0, y1);
+      const terrainJobs = renderSceneTerrain(ctx, state, now, x0, x1, y0, y1);
+      const jobs: SceneJob[] = terrainJobs.filter(job => job.y !== Number.MAX_SAFE_INTEGER);
       addSceneJobs(ctx, state, jobs, now);
       jobs.sort((a, b) => a.y - b.y);
       for (const job of jobs) {
@@ -57,6 +59,7 @@ export function runScene(canvas: HTMLCanvasElement, readState: () => GameState):
         }
       }
 
+      drawSceneFog(ctx, state, x0, x1, y0, y1);
       drawSceneOverlay(ctx, state);
       ctx.restore();
     } catch (error) {
