@@ -126,9 +126,11 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     for (let x = 0; x < width; x++) {
       const n = fbm(x * 0.035, y * 0.035, seed, 5);
       const h = n * 0.5 + 0.5;
+      const groveNoise = fbm(x * 0.09 + 17, y * 0.09 - 11, seed + 44, 3);
+      const clearingNoise = fbm(x * 0.16 - 3, y * 0.16 + 5, seed + 77, 2);
       if (h < 0.26) {
         tiles[y][x] = TileType.WATER;
-      } else if (h > 0.68) {
+      } else if (h > 0.64 && groveNoise > 0.48 && clearingNoise < 0.82) {
         tiles[y][x] = TileType.FOREST;
       } else {
         tiles[y][x] = TileType.GRASS;
@@ -163,7 +165,26 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) tiles[y][x] = next[y][x];
   }
 
-  // 1c. Carve organic meandering rivers from one edge to another
+  // 1c. Break forests into groves with readable clearings instead of square blocks.
+  for (let y = 2; y < height - 2; y++) {
+    for (let x = 2; x < width - 2; x++) {
+      if (tiles[y][x] !== TileType.FOREST) continue;
+      const meadow = fbm(x * 0.11, y * 0.11, seed + 155, 4);
+      const pocket = fbm(x * 0.23 + 9, y * 0.23 - 4, seed + 156, 2);
+      let forestNeighbors = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          if (tiles[y + dy][x + dx] === TileType.FOREST) forestNeighbors++;
+        }
+      }
+      if ((meadow > 0.58 && pocket > 0.46) || forestNeighbors <= 2) {
+        tiles[y][x] = TileType.GRASS;
+      }
+    }
+  }
+
+  // 1d. Carve organic meandering rivers from one edge to another
   const riverCount = 2 + Math.floor(Math.abs(noise2D(seed, seed, seed * 2)) * 3);
   for (let r = 0; r < riverCount; r++) {
     let rx = Math.floor(Math.abs(noise2D(seed + r, 0, seed)) * width);
@@ -187,7 +208,7 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     }
   }
 
-  // 1d. Add natural ponds and lakes
+  // 1e. Add natural ponds and lakes
   const pondCount = 4 + Math.floor(Math.abs(noise2D(seed, seed, seed + 7)) * 4);
   for (let p = 0; p < pondCount; p++) {
     const cx = Math.floor(Math.abs(noise2D(seed + p, 0, seed + 8)) * (width - 8)) + 4;
@@ -239,16 +260,16 @@ export function generateWorld(config: Partial<WorldGenConfig> = {}): DungeonMap 
     if (villageCenters.some(v => distanceSq(v, center) < 400)) continue;
 
     villageCenters.push(center);
-    // central village square / road
-    for (let dy = -2; dy <= 2; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
+    // central village square / road with an uneven village green.
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
         const nx = center.tx + dx, ny = center.ty + dy;
-        if (inBounds(nx, ny, width, height)) tiles[ny][nx] = TileType.ROAD;
+        if (inBounds(nx, ny, width, height) && Math.abs(dx) + Math.abs(dy) < 6) tiles[ny][nx] = TileType.ROAD;
       }
     }
-    // 2-5 houses around the square
-    const houseCount = 2 + Math.floor(Math.abs(noise2D(center.tx, center.ty, seed + 60)) * 4);
-    const dirs: Array<[number, number]> = [[-2,-2],[-2,0],[-2,2],[0,-2],[0,2],[2,-2],[2,0],[2,2]];
+    // 4-8 houses around the square, with offset footprints to read like hamlets.
+    const houseCount = 4 + Math.floor(Math.abs(noise2D(center.tx, center.ty, seed + 60)) * 5);
+    const dirs: Array<[number, number]> = [[-4,-2],[-3,0],[-4,3],[-1,-4],[1,4],[3,-3],[4,0],[4,3],[-2,4],[2,-4]];
     const shuffledDirs = shuffle([...dirs], seed + center.tx + center.ty);
     for (let h = 0; h < Math.min(houseCount, shuffledDirs.length); h++) {
       const [dx, dy] = shuffledDirs[h];
