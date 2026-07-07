@@ -2,22 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { GameState } from '../game/engine';
 import { TILE_SIZE, TileType } from '../game/dungeon';
 import { CLASS_DEFS } from '../game/classes';
-import {
-  drawSprite, animFrame, bobOffset,
-  SPRITE_STAIRS,
-  SPRITE_POTION, SPRITE_XP_ORB,
-  SPRITE_TORCH, SPRITE_SHRINE, SPRITE_SKULL, SPRITE_FORGE, SPRITE_BOOKSHELF, SPRITE_BARREL, SPRITE_CRATE,
-  PLAYER_SPRITES, ENEMY_SPRITES,
-  SpriteData,
-} from '../game/sprites';
-import {
-  SPRITE_RH_WATER, SPRITE_RH_WATER_EDGE,
-  SPRITE_RH_DUNGEON_ENTRANCE, SPRITE_RH_GRASS_TUFT,
-} from '../game/overworldSprites';
+import { bobOffset } from '../game/sprites';
 import {
   drawPremiumArrow,
   drawPremiumChest,
   drawPremiumEnemy,
+  drawPremiumIcon,
   drawPremiumMagicBolt,
   drawPremiumPlayer,
   drawPremiumProp,
@@ -108,8 +98,7 @@ export function GameCanvas({ gameState }: Props) {
               if (tile === TileType.DOOR) {
                 drawPremiumTile(ctx, 'door', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, fv);
               } else if (tile === TileType.STAIRS_DOWN) {
-                const sf = animFrame(SPRITE_STAIRS, now, 1.5);
-                drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_STAIRS, sf);
+                drawPremiumTile(ctx, 'dungeonEntrance', wx - 4, wy - 8, TILE_SIZE + 8, TILE_SIZE + 10, Math.floor(now / 250));
                 const pulsed = 0.25 + 0.15 * Math.sin(now / 300);
                 ctx.save();
                 ctx.shadowBlur = 24;
@@ -125,7 +114,6 @@ export function GameCanvas({ gameState }: Props) {
             case TileType.GRASS: {
               const gv = map.floorVariant[ty][tx] ?? 0;
               drawPremiumTile(ctx, 'grass', wx, wy, TILE_SIZE, TILE_SIZE, gv);
-              if (hasNeighbor(tx, ty, TileType.WATER)) drawSprite(ctx, wx, wy, TILE_SIZE, TILE_SIZE, SPRITE_RH_WATER_EDGE, 0);
               break;
             }
             case TileType.ROAD: {
@@ -133,7 +121,7 @@ export function GameCanvas({ gameState }: Props) {
               break;
             }
             case TileType.WATER: {
-              const wf = animFrame(SPRITE_RH_WATER, now + tx * 100 + ty * 50, 2);
+              const wf = Math.floor((now + tx * 100 + ty * 50) / 500) % 4;
               drawPremiumTile(ctx, 'water', wx, wy, TILE_SIZE, TILE_SIZE, wf + tx * 3 + ty);
               const waterDetail = Math.abs(hash(tx + 11, ty + 13));
               if (waterDetail < 0.06) drawPremiumProp(ctx, 'lilies', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
@@ -154,8 +142,14 @@ export function GameCanvas({ gameState }: Props) {
               const offY = Math.abs(hash(tx + 1, ty)) * 10 - 5;
               const scale = 0.92 + Math.abs(hash(tx + 3, ty + 5)) * 0.34;
               drawPremiumTile(ctx, 'grass', wx, wy, TILE_SIZE, TILE_SIZE, tx + ty * 5);
-              if (h > 0.16) {
+              const north = ty > 0 && map.tiles[ty - 1][tx] === TileType.FOREST;
+              const west = tx > 0 && map.tiles[ty][tx - 1] === TileType.FOREST;
+              const clusterGap = (north && west && h < 0.22) || h < 0.10;
+              if (!clusterGap) {
                 drawPremiumTile(ctx, isPine ? 'pineTree' : 'broadTree', wx - 8 + offX, wy - 20 + offY, (TILE_SIZE + 16) * scale, (TILE_SIZE + 24) * scale, tx * 13 + ty * 17);
+                if (h > 0.70 && !north) {
+                  drawPremiumTile(ctx, isPine ? 'broadTree' : 'pineTree', wx + 5 - offX * 0.3, wy - 28 + offY * 0.4, (TILE_SIZE + 10) * 0.95, (TILE_SIZE + 20) * 0.95, tx * 19 + ty * 23);
+                }
               } else if (h > 0.08) {
                 drawPremiumProp(ctx, 'bush', wx + 3 + offX * 0.3, wy + 7 + offY * 0.2, TILE_SIZE - 6, TILE_SIZE - 8, tx + ty);
               } else {
@@ -164,14 +158,20 @@ export function GameCanvas({ gameState }: Props) {
               break;
             }
             case TileType.VILLAGE: {
-              const variant = Math.floor(Math.abs(hash(tx, ty + 3)) * 1000) % 4;
-              const offX = Math.abs(hash(tx + 2, ty)) * 4 - 2;
-              const offY = Math.abs(hash(tx, ty + 5)) * 4 - 2;
-              drawPremiumTile(ctx, 'house', wx - 2 + offX, wy - 8 + offY, TILE_SIZE + 4, TILE_SIZE + 8, variant);
+              const vh = Math.abs(hash(tx, ty + 3));
+              drawPremiumTile(ctx, vh < 0.34 ? 'road' : 'grass', wx, wy, TILE_SIZE, TILE_SIZE, tx * 7 + ty * 11);
+              if (vh > 0.42 && vh < 0.72) {
+                const variant = Math.floor(vh * 1000) % 10;
+                const offX = Math.abs(hash(tx + 2, ty)) * 8 - 4;
+                const offY = Math.abs(hash(tx, ty + 5)) * 6 - 3;
+                drawPremiumTile(ctx, 'house', wx - 8 + offX, wy - 18 + offY, TILE_SIZE + 16, TILE_SIZE + 22, variant);
+              } else if (vh >= 0.72) {
+                drawPremiumProp(ctx, vh > 0.88 ? 'well' : vh > 0.80 ? 'fence' : 'cart', wx + 3, wy + 6, TILE_SIZE - 6, TILE_SIZE - 10, tx + ty);
+              }
               break;
             }
             case TileType.DUNGEON_ENTRANCE: {
-              drawPremiumTile(ctx, 'dungeonEntrance', wx - 2, wy - 8, TILE_SIZE + 4, TILE_SIZE + 8, animFrame(SPRITE_RH_DUNGEON_ENTRANCE, now, 2));
+              drawPremiumTile(ctx, 'dungeonEntrance', wx - 2, wy - 8, TILE_SIZE + 4, TILE_SIZE + 8, Math.floor(now / 500));
               const pulse = 0.25 + 0.15 * Math.sin(now / 300);
               ctx.save();
               ctx.shadowBlur = 24;
@@ -197,25 +197,13 @@ export function GameCanvas({ gameState }: Props) {
             const wy = ty * TILE_SIZE;
 
             if (tile === TileType.GRASS && !hasNeighbor(tx, ty, TileType.WATER) && !hasNeighbor(tx, ty, TileType.ROAD)) {
-              if (h > 0.72 && h < 0.80) {
-                const sway = Math.sin(now / 500 + tx * 0.7 + ty * 0.5) * 3;
-                ctx.save();
-                ctx.strokeStyle = '#8fd070';
-                ctx.lineWidth = 1.5;
-                ctx.globalAlpha = 0.7;
-                ctx.beginPath();
-                ctx.moveTo(wx + 16, wy + 26);
-                ctx.quadraticCurveTo(wx + 16 + sway, wy + 19, wx + 16 + sway * 1.4, wy + 13);
-                ctx.stroke();
-                ctx.restore();
-              }
               if (h < 0.08) drawPremiumProp(ctx, 'flowers', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
               else if (h < 0.13) drawPremiumProp(ctx, 'bush', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
               else if (h < 0.17) drawPremiumProp(ctx, 'rock', wx + 6, wy + 6, TILE_SIZE - 12, TILE_SIZE - 12, tx + ty);
               else if (h < 0.21) drawPremiumProp(ctx, 'log', wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, tx + ty);
               else if (h < 0.23) drawPremiumProp(ctx, 'ruins', wx - 4, wy - 4, TILE_SIZE + 8, TILE_SIZE + 8, tx + ty);
               else if (h < 0.30) drawPremiumProp(ctx, 'mushrooms', wx + 10, wy + 10, TILE_SIZE - 20, TILE_SIZE - 20, tx + ty);
-              else if (h < 0.46) drawSprite(ctx, wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, SPRITE_RH_GRASS_TUFT, 0);
+              else if (h < 0.46) drawPremiumProp(ctx, 'bush', wx + 9, wy + 9, TILE_SIZE - 18, TILE_SIZE - 18, tx + ty);
             }
 
             if (tile === TileType.ROAD && hasNeighbor(tx, ty, TileType.VILLAGE)) {
@@ -224,6 +212,14 @@ export function GameCanvas({ gameState }: Props) {
               else if (vh < 0.22) drawPremiumProp(ctx, 'fence', wx + 4, wy + 18, TILE_SIZE - 8, TILE_SIZE - 18, tx + ty);
               else if (vh < 0.30) drawPremiumProp(ctx, 'cart', wx + 4, wy + 8, TILE_SIZE - 8, TILE_SIZE - 16, tx + ty);
               else if (vh < 0.40) drawPremiumProp(ctx, 'flowers', wx + 6, wy + 10, TILE_SIZE - 12, TILE_SIZE - 14, tx + ty);
+            }
+
+            if (tile === TileType.VILLAGE) {
+              const vh = Math.abs(hash(tx + 17, ty + 19));
+              if (vh < 0.16) drawPremiumProp(ctx, 'flowers', wx + 6, wy + 10, TILE_SIZE - 12, TILE_SIZE - 14, tx + ty);
+              else if (vh < 0.30) drawPremiumProp(ctx, 'bush', wx + 6, wy + 8, TILE_SIZE - 12, TILE_SIZE - 12, tx + ty);
+              else if (vh < 0.42) drawPremiumProp(ctx, 'crate', wx + 9, wy + 10, TILE_SIZE - 18, TILE_SIZE - 18, tx + ty);
+              else if (vh < 0.54) drawPremiumProp(ctx, 'barrel', wx + 9, wy + 10, TILE_SIZE - 18, TILE_SIZE - 18, tx + ty);
             }
           }
         }
@@ -287,8 +283,8 @@ export function GameCanvas({ gameState }: Props) {
         if (!map.explored[torch.ty]?.[torch.tx]) continue;
         const wx = torch.tx * TILE_SIZE;
         const wy = torch.ty * TILE_SIZE;
-        const tf = animFrame(SPRITE_TORCH, now + torch.tx * 200 + torch.ty * 400, 6);
-        drawSprite(ctx, wx + 10, wy + 2, 20, 28, SPRITE_TORCH, tf);
+        const tf = Math.floor((now + torch.tx * 200 + torch.ty * 400) / 120) % 8;
+        drawPremiumProp(ctx, 'torch', wx + 10, wy + 2, 20, 28, tf);
         const glow = ctx.createRadialGradient(wx + 20, wy + 12, 2, wx + 20, wy + 12, 32);
         glow.addColorStop(0, 'rgba(255,140,30,0.18)');
         glow.addColorStop(1, 'rgba(255,90,0,0)');
@@ -300,31 +296,25 @@ export function GameCanvas({ gameState }: Props) {
         if (!map.explored[dec.ty]?.[dec.tx]) continue;
         const wx = dec.tx * TILE_SIZE;
         const wy = dec.ty * TILE_SIZE;
-        let spr: SpriteData | null = null;
-        let frm = 0;
         switch (dec.kind) {
           case 'shrine':
           case 'altar':
-            frm = animFrame(SPRITE_SHRINE, now, 2);
-            spr = SPRITE_SHRINE;
+            drawPremiumProp(ctx, 'shrine', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, now);
             break;
           case 'skull':
-            spr = SPRITE_SKULL;
+            drawPremiumProp(ctx, 'skull', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, now);
             break;
           case 'forge':
-            frm = animFrame(SPRITE_FORGE, now, 3);
-            spr = SPRITE_FORGE;
             ctx.save();
             ctx.shadowBlur = 18;
             ctx.shadowColor = '#ff6600';
-            drawSprite(ctx, wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, spr, frm);
+            drawPremiumProp(ctx, 'forge', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, Math.floor(now / 140));
             ctx.restore();
-            continue;
+            break;
           case 'bookshelf':
-            spr = SPRITE_BOOKSHELF;
+            drawPremiumProp(ctx, 'bookshelf', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, now);
             break;
         }
-        if (spr) drawSprite(ctx, wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, spr, frm);
       }
 
       if (gameStateRef.current.inDungeon) {
@@ -333,11 +323,13 @@ export function GameCanvas({ gameState }: Props) {
             if (!map.explored[ty]?.[tx]) continue;
             if (map.tiles[ty][tx] !== TileType.FLOOR) continue;
             const h = hash(tx, ty);
-            if (h < 0.02) {
+            if (h < 0.055) {
               const wx = tx * TILE_SIZE;
               const wy = ty * TILE_SIZE;
-              const spr = h < 0.01 ? SPRITE_BARREL : SPRITE_CRATE;
-              drawSprite(ctx, wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, spr, 0);
+              if (h < 0.014) drawPremiumProp(ctx, 'barrel', wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, tx + ty);
+              else if (h < 0.028) drawPremiumProp(ctx, 'crate', wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, tx + ty);
+              else if (h < 0.040) drawPremiumProp(ctx, 'ruins', wx + 4, wy + 2, TILE_SIZE - 8, TILE_SIZE - 6, tx + ty);
+              else drawPremiumProp(ctx, 'skull', wx + 10, wy + 10, TILE_SIZE - 20, TILE_SIZE - 20, tx + ty);
             }
           }
         }
@@ -370,20 +362,16 @@ export function GameCanvas({ gameState }: Props) {
       for (const item of items) {
         const bob = bobOffset((now + (item.spawnTime ?? 0)) / 2, 2);
         if (item.itemType === 'potion') {
-          const pf = animFrame(SPRITE_POTION, now + item.x * 100, 3);
-          drawSprite(ctx, item.x, item.y + bob, item.width, item.height, SPRITE_POTION, pf);
           ctx.save();
           ctx.shadowBlur = 12;
           ctx.shadowColor = '#33cc66';
-          drawSprite(ctx, item.x, item.y + bob, item.width, item.height, SPRITE_POTION, pf);
+          drawPremiumIcon(ctx, 3, item.x, item.y + bob, item.width, item.height);
           ctx.restore();
         } else {
-          const of2 = animFrame(SPRITE_XP_ORB, now + item.x * 80, 4);
-          drawSprite(ctx, item.x, item.y + bob, item.width, item.height, SPRITE_XP_ORB, of2);
           ctx.save();
           ctx.shadowBlur = 10;
           ctx.shadowColor = '#ffaa00';
-          drawSprite(ctx, item.x, item.y + bob, item.width, item.height, SPRITE_XP_ORB, of2);
+          drawPremiumIcon(ctx, 0, item.x, item.y + bob, item.width, item.height);
           ctx.restore();
         }
       }
@@ -408,12 +396,11 @@ export function GameCanvas({ gameState }: Props) {
         const tileX = Math.floor((enemy.x + enemy.width / 2) / TILE_SIZE);
         const tileY = Math.floor((enemy.y + enemy.height / 2) / TILE_SIZE);
         if (!map.explored[tileY]?.[tileX]) continue;
-        const spr = ENEMY_SPRITES[enemy.enemyType] ?? ENEMY_SPRITES['slime'];
         const isFlash = enemy.flashUntil > now;
         const isDying = enemy.hp <= 0;
         const ageMs = now - enemy.spawnTime;
         const isMoving = enemy.state === 'chase' || enemy.state === 'patrol';
-        const ef = isMoving ? animFrame(spr, ageMs, 4) : 0;
+        const ef = isMoving ? Math.floor(ageMs / 120) : 0;
         const bob = isMoving ? bobOffset(ageMs, 1.5) : 0;
         const dyingScale = isDying ? 1 - Math.min(1, (now - enemy.deathTime) / 400) : 1;
         drawEntityShadow(ctx, enemy.x + enemy.width / 2, enemy.y + enemy.height - 2, enemy.width * 0.65, 4 * dyingScale);
@@ -457,12 +444,11 @@ export function GameCanvas({ gameState }: Props) {
       }
 
       {
-        const spr = PLAYER_SPRITES[player.playerClass] ?? PLAYER_SPRITES['warrior'];
         const isInvincible = player.invincibleUntil > now;
         const ageMs = now - player.spawnTime;
         const isMoving = player.state === 'moving';
         const isAttacking = now - player.lastAttackTime < 180;
-        const pf = isMoving ? animFrame(spr, ageMs, 6) : 0;
+        const pf = isMoving ? Math.floor(ageMs / 110) : isAttacking ? 2 : 0;
         const bob = isMoving ? bobOffset(ageMs, 1.5) : 0;
         const cx = player.x + player.width / 2;
         const cy = player.y + player.height / 2;
@@ -479,12 +465,12 @@ export function GameCanvas({ gameState }: Props) {
         if (isInvincible) {
           const blink = Math.floor(now / 60) % 2 === 0;
           ctx.globalAlpha = blink ? 0.55 : 0.9;
-          drawPremiumPlayer(ctx, player.x, player.y, player.width, player.height, pf, fx < 0, true, player.playerClass);
+          drawPremiumPlayer(ctx, player.x, player.y, player.width, player.height, pf, fx < 0, true, player.playerClass, isAttacking ? 'attack' : isMoving ? 'run' : 'idle');
         } else {
           ctx.save();
           ctx.shadowBlur = 20;
           ctx.shadowColor = classDef.glowColor;
-          drawPremiumPlayer(ctx, player.x, player.y, player.width, player.height, pf, fx < 0, false, player.playerClass);
+          drawPremiumPlayer(ctx, player.x, player.y, player.width, player.height, pf, fx < 0, false, player.playerClass, isAttacking ? 'attack' : isMoving ? 'run' : 'idle');
           ctx.restore();
         }
         ctx.restore();
@@ -523,24 +509,7 @@ export function GameCanvas({ gameState }: Props) {
           ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
           ctx.fill();
         } else if (effect.type === 'slash') {
-          ctx.save();
-          ctx.translate(effect.x, effect.y);
-          ctx.rotate(effect.angle ?? 0);
-          const sw = effect.width ?? 10;
-          const sr = effect.radius;
-          const blade = ctx.createLinearGradient(0, -sw, 0, sw);
-          blade.addColorStop(0, 'rgba(255,255,255,0)');
-          blade.addColorStop(0.25, replaceAlpha(effect.color, 0.55));
-          blade.addColorStop(0.5, '#ffffff');
-          blade.addColorStop(0.75, replaceAlpha(effect.color, 0.55));
-          blade.addColorStop(1, 'rgba(255,255,255,0)');
-          ctx.fillStyle = blade;
-          ctx.shadowBlur = 10;
-          ctx.shadowColor = effect.color;
-          ctx.beginPath();
-          ctx.ellipse(sr * 0.5, 0, sr * 0.6, sw, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
+          drawPremiumSwordArc(ctx, effect.x, effect.y, effect.angle ?? 0, progress);
         } else if (effect.type === 'circle') {
           ctx.strokeStyle = effect.color;
           ctx.lineWidth = 3;
@@ -658,11 +627,4 @@ function drawEntityShadow(
   ctx.ellipse(gx, gy, w / 2, h, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-}
-
-function replaceAlpha(color: string, alpha: number): string {
-  return color.replace(
-    /^rgba\((\d{1,3},\s*\d{1,3},\s*\d{1,3}),\s*[\d.]+\)$/,
-    `rgba($1,${alpha})`,
-  );
 }
