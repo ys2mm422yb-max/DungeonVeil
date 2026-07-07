@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ClassKey, CLASS_DEFS } from '../../game/classes';
+import { TINY_CLASS_SPRITES } from '../../game/premiumPixelArt';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 interface Props {
@@ -8,7 +9,11 @@ interface Props {
 }
 
 const CLASS_ORDER: ClassKey[] = ['warrior', 'mage', 'archer'];
-const HERO_SHEET = '/assets/rpg-pack/FreeCharactersAnimationsAssetPack/FreeCharactersAnimationsAssetPack/SpriteSheets(96x96)/Human_Soldier_Sword_Shield/No_Shadows/Human_Soldier_Sword_Shield_Walk-Sheet.png';
+const CLASS_SHEET_GRID: Record<ClassKey, { cols: number; rows: number }> = {
+  warrior: { cols: 8, rows: 1 },
+  mage: { cols: 6, rows: 1 },
+  archer: { cols: 6, rows: 1 },
+};
 
 const CLASS_STAT_BARS: Record<ClassKey, { hp: number; atk: number; def: number; spd: number }> = {
   warrior: { hp: 100, atk: 60, def: 100, spd: 69 },
@@ -47,22 +52,20 @@ function StatBar({ label, value, color }: { label: string; value: number; color:
 }
 
 function CharacterPreview({ cls, selected }: { cls: ClassKey; selected: boolean }) {
-  const hue: Record<ClassKey, string> = {
-    warrior: 'none',
-    mage: 'hue-rotate(72deg) saturate(1.25) brightness(1.08)',
-    archer: 'hue-rotate(-38deg) saturate(1.25) brightness(1.04)',
-  };
+  const grid = CLASS_SHEET_GRID[cls];
+  const frame = selected ? 1 : 0;
+  const frameX = frame % grid.cols;
+  const frameY = Math.floor(frame / grid.cols);
   return (
     <div className={['relative mx-auto h-40 w-full min-w-0 overflow-hidden rounded border bg-[radial-gradient(circle_at_50%_34%,rgba(255,224,142,0.14),transparent_38%),linear-gradient(180deg,rgba(37,25,14,0.72),rgba(0,0,0,0.42))] transition-all', selected ? 'border-amber-300/70 shadow-[0_0_28px_rgba(232,178,74,0.28)]' : 'border-amber-100/15'].join(' ')}>
       <div className="absolute inset-x-5 bottom-7 h-6 rounded-full bg-black/50 blur-sm" />
       <div
-        className="absolute left-1/2 top-[52%] h-24 w-24 -translate-x-1/2 -translate-y-1/2 bg-no-repeat [image-rendering:pixelated]"
+        className="absolute left-1/2 top-[54%] h-36 w-36 -translate-x-1/2 -translate-y-1/2 bg-no-repeat [image-rendering:pixelated]"
         style={{
-          backgroundImage: `url("${HERO_SHEET}")`,
-          backgroundSize: '768px 96px',
-          backgroundPosition: selected ? '-192px 0px' : '0px 0px',
-          filter: hue[cls],
-          transform: 'translate(-50%, -50%) scale(1.95)',
+          backgroundImage: `url("${TINY_CLASS_SPRITES[cls]}")`,
+          backgroundSize: `${grid.cols * 100}% ${grid.rows * 100}%`,
+          backgroundPosition: `${grid.cols === 1 ? 0 : (frameX / (grid.cols - 1)) * 100}% ${grid.rows === 1 ? 0 : (frameY / (grid.rows - 1)) * 100}%`,
+          transform: 'translate(-50%, -50%) scale(1.42)',
         }}
       />
       <div className="pointer-events-none absolute inset-0 border border-white/5" />
