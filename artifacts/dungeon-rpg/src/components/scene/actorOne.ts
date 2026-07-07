@@ -8,12 +8,13 @@ export function drawActor(ctx: CanvasRenderingContext2D, actor: any, now: number
   const fade = dead ? 1 - Math.min(1, (now - actor.deathTime) / 400) : 1;
   const cx = actor.x + actor.width / 2;
   const cy = actor.y + actor.height / 2;
+  const renderType = actor.enemyType === 'slime' ? 'goblin' : actor.enemyType;
 
   ctx.save();
   ctx.translate(cx, cy + (moving ? bobOffset(now - actor.spawnTime, 1.1) : 0));
   ctx.scale(0.58 * fade, 0.58 * fade);
   ctx.translate(-cx, -cy);
-  art.drawPremiumEnemy(ctx, actor.enemyType, actor.x, actor.y, actor.width, actor.height, frame, actor.flashUntil > now);
+  art.drawPremiumEnemy(ctx, renderType, actor.x, actor.y, actor.width, actor.height, frame, actor.flashUntil > now);
   ctx.restore();
 
   if (!dead && (actor.hp < actor.maxHp || actor.state === 'chase')) {
