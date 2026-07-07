@@ -31,6 +31,14 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
     let lastAttackTime = 0;
     const enemyMeshes = new Map<string, any>();
     const arrowMeshes = new Map<string, any>();
+    const itemMeshes = new Map<string, any>();
+
+    const disposeObject = (object: any) => {
+      object?.traverse?.((node: any) => {
+        node.geometry?.dispose?.();
+        node.material?.dispose?.();
+      });
+    };
 
     const resize = () => {
       if (!renderer || !camera) return;
@@ -53,8 +61,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       for (const [id, mesh] of enemyMeshes) {
         if (!aliveIds.has(id)) {
           scene.remove(mesh);
-          mesh.geometry?.dispose?.();
-          mesh.material?.dispose?.();
+          disposeObject(mesh);
           enemyMeshes.delete(id);
         }
       }
@@ -101,10 +108,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       for (const [id, group] of arrowMeshes) {
         if (!activeIds.has(id)) {
           scene.remove(group);
-          group.traverse((node: any) => {
-            node.geometry?.dispose?.();
-            node.material?.dispose?.();
-          });
+          disposeObject(group);
           arrowMeshes.delete(id);
         }
       }
@@ -118,6 +122,49 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
         const angle = effect.angle ?? 0;
         arrow.position.set(startX + Math.cos(angle) * travel * progress, 0.72, startZ + Math.sin(angle) * travel * progress);
         arrow.rotation.y = -angle;
+      }
+    };
+
+    const createItemMesh = (item: GameState['items'][number]) => {
+      const group = new THREE.Group();
+      if (item.itemType === 'xp_orb') {
+        const orb = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.18, 0),
+          new THREE.MeshStandardMaterial({ color: 0x5fd0ff, emissive: 0x2a9fd8, emissiveIntensity: 1.15, roughness: 0.2 }),
+        );
+        group.add(orb);
+      } else {
+        const bottle = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.12, 0.16, 0.32, 8),
+          new THREE.MeshStandardMaterial({ color: 0xff5e64, emissive: 0x7c1b20, emissiveIntensity: 0.5, roughness: 0.35 }),
+        );
+        const neck = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.07, 0.07, 0.12, 8),
+          new THREE.MeshStandardMaterial({ color: 0xe8c28f, roughness: 0.8 }),
+        );
+        neck.position.y = 0.22;
+        group.add(bottle, neck);
+      }
+      group.traverse((node: any) => { if (node.isMesh) node.castShadow = true; });
+      scene.add(group);
+      itemMeshes.set(item.id, group);
+      return group;
+    };
+
+    const syncItems = (state: GameState, now: number) => {
+      const activeIds = new Set(state.items.map(item => item.id));
+      for (const [id, group] of itemMeshes) {
+        if (!activeIds.has(id)) {
+          scene.remove(group);
+          disposeObject(group);
+          itemMeshes.delete(id);
+        }
+      }
+      for (const item of state.items) {
+        const group = itemMeshes.get(item.id) ?? createItemMesh(item);
+        const bob = Math.sin((now - item.spawnTime) / 220) * 0.08;
+        group.position.set(item.x / 40 - 8.5, 0.34 + bob, item.y / 40 - 11.5);
+        group.rotation.y += 0.035;
       }
     };
 
@@ -146,8 +193,10 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
         }
       }
 
+      const now = Date.now();
       syncEnemies(state);
       syncArrows(state);
+      syncItems(state, now);
       mixer?.update(Math.min(clock?.getDelta?.() ?? 0.016, 0.05));
       desiredCamera.set(px, 14.5, pz + 12.5);
       camera.position.lerp(desiredCamera, 0.08);
@@ -256,13 +305,12 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', resize);
       mixer?.stopAllAction?.();
-      for (const mesh of enemyMeshes.values()) {
-        mesh.geometry?.dispose?.();
-        mesh.material?.dispose?.();
-      }
-      for (const group of arrowMeshes.values()) group.traverse((node: any) => { node.geometry?.dispose?.(); node.material?.dispose?.(); });
+      for (const mesh of enemyMeshes.values()) disposeObject(mesh);
+      for (const group of arrowMeshes.values()) disposeObject(group);
+      for (const group of itemMeshes.values()) disposeObject(group);
       enemyMeshes.clear();
       arrowMeshes.clear();
+      itemMeshes.clear();
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
     };
