@@ -53,19 +53,19 @@ function CharacterPreview({ cls, selected }: { cls: ClassKey; selected: boolean 
     archer: 'hue-rotate(-38deg) saturate(1.25) brightness(1.04)',
   };
   return (
-    <div className={['relative mx-auto h-28 w-28 overflow-hidden rounded border bg-black/35 transition-all', selected ? 'border-amber-300/70 shadow-[0_0_22px_rgba(232,178,74,0.24)]' : 'border-amber-100/15'].join(' ')}>
-      <div className="absolute inset-x-4 bottom-4 h-4 rounded-full bg-black/45 blur-sm" />
+    <div className={['relative mx-auto h-40 w-full min-w-0 overflow-hidden rounded border bg-[radial-gradient(circle_at_50%_34%,rgba(255,224,142,0.14),transparent_38%),linear-gradient(180deg,rgba(37,25,14,0.72),rgba(0,0,0,0.42))] transition-all', selected ? 'border-amber-300/70 shadow-[0_0_28px_rgba(232,178,74,0.28)]' : 'border-amber-100/15'].join(' ')}>
+      <div className="absolute inset-x-5 bottom-7 h-6 rounded-full bg-black/50 blur-sm" />
       <div
-        className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 bg-no-repeat"
+        className="absolute left-1/2 top-[52%] h-24 w-24 -translate-x-1/2 -translate-y-1/2 bg-no-repeat [image-rendering:pixelated]"
         style={{
           backgroundImage: `url("${HERO_SHEET}")`,
           backgroundSize: '768px 96px',
-          backgroundPosition: selected ? '-96px 0px' : '0px 0px',
+          backgroundPosition: selected ? '-192px 0px' : '0px 0px',
           filter: hue[cls],
-          imageRendering: 'pixelated',
-          transform: 'translate(-50%, -50%) scale(1.12)',
+          transform: 'translate(-50%, -50%) scale(1.95)',
         }}
       />
+      <div className="pointer-events-none absolute inset-0 border border-white/5" />
     </div>
   );
 }
