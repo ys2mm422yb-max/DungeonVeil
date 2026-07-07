@@ -12,6 +12,7 @@ function canStand(map: DungeonMap, tx: number, ty: number): boolean {
 }
 
 function nearbyStandable(map: DungeonMap, tx: number, ty: number): { tx: number; ty: number } | null {
+  if (canStand(map, tx, ty)) return { tx, ty };
   const offsets = [[1,0],[-1,0],[0,1],[0,-1],[2,0],[-2,0],[0,2],[0,-2]] as const;
   for (const [dx, dy] of offsets) {
     if (canStand(map, tx + dx, ty + dy)) return { tx: tx + dx, ty: ty + dy };
@@ -21,13 +22,19 @@ function nearbyStandable(map: DungeonMap, tx: number, ty: number): { tx: number;
 
 export function getSaveShrines(map: DungeonMap, inDungeon: boolean, floor: number): SaveShrine[] {
   if (inDungeon) {
-    if (floor % 3 !== 0 && floor % 5 !== 0) return [];
-    const spot = nearbyStandable(map, map.startX, map.startY) ?? { tx: map.startX, ty: map.startY };
+    if (floor !== 1 && floor % 3 !== 0) return [];
+    const spot = nearbyStandable(map, map.startX + 2, map.startY) ?? nearbyStandable(map, map.startX, map.startY) ?? { tx: map.startX, ty: map.startY };
     return [{ id: `dungeon-${floor}`, ...spot }];
   }
 
   const shrines: SaveShrine[] = [];
   const used: Array<{ tx: number; ty: number }> = [];
+  const start = nearbyStandable(map, map.startX + 2, map.startY) ?? nearbyStandable(map, map.startX, map.startY);
+  if (start) {
+    shrines.push({ id: 'world-start', ...start });
+    used.push(start);
+  }
+
   for (let ty = 1; ty < map.height - 1; ty++) {
     for (let tx = 1; tx < map.width - 1; tx++) {
       const tile = map.tiles[ty]?.[tx];
@@ -35,7 +42,7 @@ export function getSaveShrines(map: DungeonMap, inDungeon: boolean, floor: numbe
       if (used.some(point => Math.hypot(point.tx - tx, point.ty - ty) < 8)) continue;
       const spot = nearbyStandable(map, tx, ty);
       if (!spot) continue;
-      used.push({ tx, ty });
+      used.push(spot);
       shrines.push({ id: `${tile === TileType.VILLAGE ? 'village' : 'entrance'}-${tx}-${ty}`, ...spot });
     }
   }
