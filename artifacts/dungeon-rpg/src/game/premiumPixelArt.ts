@@ -23,7 +23,9 @@ type PropKind =
   | 'bridge'
   | 'well'
   | 'fence'
-  | 'cart';
+  | 'cart'
+  | 'waterRock'
+  | 'lilies';
 
 const MW = '/assets/rpg-pack/mystic_woods_free_2.2/sprites';
 const CHARS = '/assets/rpg-pack/FreeCharactersAnimationsAssetPack/FreeCharactersAnimationsAssetPack/SpriteSheets(96x96)';
@@ -34,6 +36,7 @@ const SAFE_PLAINS_GRASS = [28, 32, 33, 34];
 const SAFE_PLAINS_ROAD = [4, 8, 9, 14, 15, 20, 21];
 const SAFE_WALLS = [32, 33, 34, 35, 36, 37, 40, 41, 42, 43, 44, 45];
 const SAFE_FLOORS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+const SAFE_LILIES = [0, 1, 2, 3, 4, 5];
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -279,11 +282,21 @@ export function drawPremiumProp(
       fill(ctx, x, y + h * 0.38, w, h * 0.08, '#be8b52');
       fill(ctx, x, y + h * 0.58, w, h * 0.08, '#be8b52');
       return;
+    case 'waterRock':
+      if (drawWhole(ctx, `${MW}/objects/rock_in_water_0${(Math.abs(variant) % 6) + 1}.png`, x, y, w, h)) return;
+      ellipse(ctx, x + w * 0.5, y + h * 0.56, w * 0.34, h * 0.20, '#6f7c7e');
+      return;
+    case 'lilies':
+      if (drawTileCell(ctx, `${MW}/tilesets/water_lillies.png`, 16, pick(SAFE_LILIES, variant), x, y, w, h)) return;
+      ellipse(ctx, x + w * 0.35, y + h * 0.55, w * 0.16, h * 0.07, '#59a85a');
+      ellipse(ctx, x + w * 0.62, y + h * 0.42, w * 0.13, h * 0.06, '#75bd65');
+      return;
     case 'well':
       ellipse(ctx, x + w * 0.5, y + h * 0.62, w * 0.28, h * 0.18, '#707a74');
       fill(ctx, x + w * 0.34, y + h * 0.30, w * 0.32, h * 0.08, '#76502e');
       return;
     case 'fence':
+      if (drawTileCell(ctx, `${MW}/tilesets/fences.png`, 16, Math.abs(variant) % 3, x, y, w, h)) return;
       fill(ctx, x, y + h * 0.58, w, h * 0.12, '#8a5f34');
       fill(ctx, x + w * 0.18, y + h * 0.35, w * 0.10, h * 0.45, '#60401f');
       fill(ctx, x + w * 0.70, y + h * 0.35, w * 0.10, h * 0.45, '#60401f');
