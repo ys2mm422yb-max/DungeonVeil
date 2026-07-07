@@ -135,11 +135,15 @@ export function GameCanvas({ gameState }: Props) {
             case TileType.WATER: {
               const wf = animFrame(SPRITE_RH_WATER, now + tx * 100 + ty * 50, 2);
               drawPremiumTile(ctx, 'water', wx, wy, TILE_SIZE, TILE_SIZE, wf + tx * 3 + ty);
+              const waterDetail = Math.abs(hash(tx + 11, ty + 13));
+              if (waterDetail < 0.06) drawPremiumProp(ctx, 'lilies', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
+              else if (waterDetail < 0.10) drawPremiumProp(ctx, 'waterRock', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
               if (hasNeighbor(tx, ty, TileType.ROAD)) drawPremiumProp(ctx, 'bridge', wx, wy, TILE_SIZE, TILE_SIZE, tx + ty);
               break;
             }
             case TileType.BRIDGE: {
               drawPremiumTile(ctx, 'water', wx, wy, TILE_SIZE, TILE_SIZE, tx + ty);
+              if (Math.abs(hash(tx + 5, ty + 2)) < 0.18) drawPremiumProp(ctx, 'waterRock', wx + 3, wy + 3, TILE_SIZE - 6, TILE_SIZE - 6, tx + ty);
               drawPremiumProp(ctx, 'bridge', wx, wy, TILE_SIZE, TILE_SIZE, tx + ty);
               break;
             }
