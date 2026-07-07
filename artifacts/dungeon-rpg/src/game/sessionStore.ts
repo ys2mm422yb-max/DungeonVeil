@@ -1,12 +1,12 @@
-import { GameEngine } from './engine';
-
 export const SESSION_AUTOSAVE_MS = 30000;
 
-export function saveEngineSession(engine: GameEngine): boolean {
+export interface SaveableGameEngine {
+  saveNow: (reason?: string) => boolean;
+}
+
+export function saveEngineSession(engine: SaveableGameEngine): boolean {
   try {
-    const saveable = engine as unknown as { doSave: () => void };
-    saveable.doSave();
-    return true;
+    return engine.saveNow('session');
   } catch (error) {
     console.error('Dungeon Veil session save failed', error);
     return false;
