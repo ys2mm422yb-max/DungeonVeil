@@ -24,10 +24,13 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
     let mixer: any;
     let idleAction: any;
     let runAction: any;
+    let attackAction: any;
     let activeAction: any;
     let clock: any;
     let desiredCamera: any;
+    let lastAttackTime = 0;
     const enemyMeshes = new Map<string, any>();
+    const arrowMeshes = new Map<string, any>();
 
     const resize = () => {
       if (!renderer || !camera) return;
@@ -38,11 +41,10 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       camera.updateProjectionMatrix();
     };
 
-    const setAnimation = (moving: boolean) => {
-      const next = moving ? runAction : idleAction;
+    const fadeTo = (next: any, duration = 0.12) => {
       if (!next || next === activeAction) return;
-      next.reset().fadeIn(0.15).play();
-      activeAction?.fadeOut(0.15);
+      next.reset().fadeIn(duration).play();
+      activeAction?.fadeOut(duration);
       activeAction = next;
     };
 
@@ -69,12 +71,53 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
           scene.add(mesh);
           enemyMeshes.set(enemy.id, mesh);
         }
-        mesh.position.set(
-          enemy.x / 40 - 8.5,
-          enemy.enemyType === 'boss' ? 0.82 : 0.48,
-          enemy.y / 40 - 11.5,
-        );
+        mesh.position.set(enemy.x / 40 - 8.5, enemy.enemyType === 'boss' ? 0.82 : 0.48, enemy.y / 40 - 11.5);
         mesh.scale.setScalar(enemy.flashUntil > now ? 1.15 : 1);
+      }
+    };
+
+    const createArrow = (effect: any) => {
+      const group = new THREE.Group();
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.62, 6),
+        new THREE.MeshStandardMaterial({ color: effect.color, emissive: effect.color, emissiveIntensity: 0.45 }),
+      );
+      shaft.rotation.z = Math.PI / 2;
+      const head = new THREE.Mesh(
+        new THREE.ConeGeometry(0.08, 0.2, 6),
+        new THREE.MeshStandardMaterial({ color: effect.color, emissive: effect.color, emissiveIntensity: 0.55 }),
+      );
+      head.rotation.z = -Math.PI / 2;
+      head.position.x = 0.38;
+      group.add(shaft, head);
+      scene.add(group);
+      arrowMeshes.set(effect.id, group);
+      return group;
+    };
+
+    const syncArrows = (state: GameState) => {
+      const shots = state.effects.filter(effect => effect.type === 'beam');
+      const activeIds = new Set(shots.map(effect => effect.id));
+      for (const [id, group] of arrowMeshes) {
+        if (!activeIds.has(id)) {
+          scene.remove(group);
+          group.traverse((node: any) => {
+            node.geometry?.dispose?.();
+            node.material?.dispose?.();
+          });
+          arrowMeshes.delete(id);
+        }
+      }
+
+      for (const effect of shots) {
+        const arrow = arrowMeshes.get(effect.id) ?? createArrow(effect);
+        const progress = Math.max(0, Math.min(1, effect.lifeTime / effect.maxLifeTime));
+        const startX = effect.x / 40 - 8.5;
+        const startZ = effect.y / 40 - 11.5;
+        const travel = effect.maxRadius / 40;
+        const angle = effect.angle ?? 0;
+        arrow.position.set(startX + Math.cos(angle) * travel * progress, 0.72, startZ + Math.sin(angle) * travel * progress);
+        arrow.rotation.y = -angle;
       }
     };
 
@@ -87,13 +130,24 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
 
       if (hero) {
         hero.position.set(px, 0, pz);
-        setAnimation(player.state === 'moving');
-        if (Math.hypot(player.facing.x, player.facing.y) > 0.1) {
-          hero.rotation.y = Math.atan2(player.facing.x, player.facing.y);
+        if (Math.hypot(player.facing.x, player.facing.y) > 0.1) hero.rotation.y = Math.atan2(player.facing.x, player.facing.y);
+        if (player.lastAttackTime > lastAttackTime) {
+          lastAttackTime = player.lastAttackTime;
+          if (attackAction) {
+            attackAction.reset().setLoop(THREE.LoopOnce, 1).clampWhenFinished = true;
+            attackAction.fadeIn(0.05).play();
+            activeAction?.fadeOut(0.05);
+            activeAction = attackAction;
+          }
+        } else if (activeAction === attackAction && !attackAction?.isRunning?.()) {
+          fadeTo(player.state === 'moving' ? runAction : idleAction);
+        } else if (activeAction !== attackAction) {
+          fadeTo(player.state === 'moving' ? runAction : idleAction);
         }
       }
 
       syncEnemies(state);
+      syncArrows(state);
       mixer?.update(Math.min(clock?.getDelta?.() ?? 0.016, 0.05));
       desiredCamera.set(px, 14.5, pz + 12.5);
       camera.position.lerp(desiredCamera, 0.08);
@@ -134,22 +188,15 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       sun.shadow.camera.bottom = -18;
       scene.add(sun);
 
-      const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(18, 24),
-        new THREE.MeshStandardMaterial({ color: 0x53783c, roughness: 1 }),
-      );
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(18, 24), new THREE.MeshStandardMaterial({ color: 0x53783c, roughness: 1 }));
       floor.rotation.x = -Math.PI / 2;
       floor.receiveShadow = true;
       scene.add(floor);
 
       const loader = new GLTFLoader();
-      const load = (name: string) => new Promise<any>((resolve, reject) => {
-        loader.load(`${ASSET_ROOT}${name}`, resolve, undefined, reject);
-      });
-
+      const load = (name: string) => new Promise<any>((resolve, reject) => loader.load(`${ASSET_ROOT}${name}`, resolve, undefined, reject));
       const [heroGltf, animationsGltf, treeGltf, pineGltf, rockGltf, bushGltf] = await Promise.all([
-        load('ranger.glb'), load('animations.glb'), load('tree.glb'),
-        load('pine.glb'), load('rock.glb'), load('bush.glb'),
+        load('ranger.glb'), load('animations.glb'), load('tree.glb'), load('pine.glb'), load('rock.glb'), load('bush.glb'),
       ]);
       if (disposed) return;
 
@@ -165,13 +212,13 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
 
       mixer = new THREE.AnimationMixer(hero);
       const clips = animationsGltf.animations ?? [];
-      const findClip = (terms: string[]) => clips.find((clip: any) =>
-        terms.some(term => clip.name.toLowerCase().includes(term)),
-      );
+      const findClip = (terms: string[]) => clips.find((clip: any) => terms.some(term => clip.name.toLowerCase().includes(term)));
       const idleClip = findClip(['idle']);
       const runClip = findClip(['jog', 'run']);
+      const attackClip = findClip(['bow', 'archery', 'shoot', 'ranged attack', 'attack']);
       if (idleClip) idleAction = mixer.clipAction(idleClip);
       if (runClip) runAction = mixer.clipAction(runClip);
+      if (attackClip) attackAction = mixer.clipAction(attackClip);
       activeAction = idleAction ?? runAction;
       activeAction?.play();
 
@@ -182,7 +229,6 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
         [-8.2, -5.7, 2], [-8.2, -1.5, 3], [-8.2, 3, 2], [-8.1, 6.7, 3],
         [8.2, -6.5, 3], [8.2, -2.2, 2], [8.2, 2.8, 3], [8.2, 6.8, 2],
       ] as const;
-
       for (const [x, z, prototypeIndex] of placements) {
         const object = prototypes[prototypeIndex].clone(true);
         object.position.set(x, 0, z);
@@ -214,7 +260,9 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
         mesh.geometry?.dispose?.();
         mesh.material?.dispose?.();
       }
+      for (const group of arrowMeshes.values()) group.traverse((node: any) => { node.geometry?.dispose?.(); node.material?.dispose?.(); });
       enemyMeshes.clear();
+      arrowMeshes.clear();
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
     };
