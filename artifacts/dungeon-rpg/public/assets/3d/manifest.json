@@ -1,0 +1,19 @@
+{
+  "hero": "ranger.glb",
+  "baseCharacter": "base-male.glb",
+  "animations": "animations.glb",
+  "nature": [
+    "tree.glb",
+    "pine.glb",
+    "rock.glb",
+    "bush.glb"
+  ],
+  "sourcePacks": [
+    "Stylized Nature MegaKit",
+    "Universal Base Characters",
+    "Universal Animation Library",
+    "Modular Character Outfits - Fantasy"
+  ],
+  "textureMaxSize": 256,
+  "note": "Prepared for Dungeon Veil mobile 3D prototype."
+}
