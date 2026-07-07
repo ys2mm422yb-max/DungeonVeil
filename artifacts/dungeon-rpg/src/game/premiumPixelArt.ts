@@ -328,7 +328,7 @@ export function drawPremiumPlayer(
     archer: 'hue-rotate(-38deg) saturate(1.25) brightness(1.04)',
   };
   ctx.filter = flash ? 'brightness(2.2) saturate(0.4)' : classFilter[playerClass];
-  const drawn = drawSheetFrame(ctx, src, 96, 96, frame, x - w * 0.5, y - h * 0.78, w * 2, h * 2.2, flipX);
+  const drawn = drawSheetFrame(ctx, src, 96, 96, frame, x - w * 0.82, y - h * 1.12, w * 2.65, h * 2.85, flipX);
   ctx.restore();
   if (!drawn) drawWhole(ctx, `${MW}/characters/player.png`, x, y, w, h);
 }
@@ -347,11 +347,11 @@ export function drawPremiumEnemy(
   ctx.save();
   if (flash) ctx.filter = 'brightness(2.4) saturate(0.4)';
   if (enemyType === 'slime') {
-    drawn = drawSheetFrame(ctx, `${CHARS}/Monster_Slime/No_Shadows/Monster_Slime_Walk-Sheet.png`, 96, 96, frame, x - w * 0.55, y - h * 0.72, w * 2.1, h * 2.05);
+    drawn = drawSheetFrame(ctx, `${CHARS}/Monster_Slime/No_Shadows/Monster_Slime_Walk-Sheet.png`, 96, 96, frame, x - w * 0.78, y - h * 0.95, w * 2.55, h * 2.45);
   } else if (enemyType === 'skeleton') {
-    drawn = drawSheetFrame(ctx, `${MW}/characters/skeleton.png`, 48, 48, frame, x - w * 0.25, y - h * 0.35, w * 1.5, h * 1.55);
+    drawn = drawSheetFrame(ctx, `${MW}/characters/skeleton.png`, 48, 48, frame, x - w * 0.42, y - h * 0.60, w * 1.85, h * 1.95);
   } else {
-    drawn = drawWhole(ctx, `${MW}/characters/slime.png`, x - w * 0.15, y - h * 0.2, w * 1.3, h * 1.35);
+    drawn = drawWhole(ctx, `${MW}/characters/slime.png`, x - w * 0.35, y - h * 0.45, w * 1.7, h * 1.75);
   }
   ctx.restore();
   if (!drawn) drawPremiumProp(ctx, 'bush', x, y, w, h, frame);
