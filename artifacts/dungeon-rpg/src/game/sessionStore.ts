@@ -1,0 +1,1 @@
+export const SESSION_AUTOSAVE_MS = 30000;
