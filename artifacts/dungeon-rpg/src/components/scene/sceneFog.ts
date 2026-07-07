@@ -53,27 +53,37 @@ function rebuildFogMask(state: GameState, x0: number, x1: number, y0: number, y1
   const mask = canvas.getContext('2d');
   if (!mask) return null;
 
+  mask.globalCompositeOperation = 'source-over';
+  mask.globalAlpha = 1;
   mask.clearRect(0, 0, canvas.width, canvas.height);
-  mask.fillStyle = 'rgba(3,8,6,.92)';
+  mask.fillStyle = 'rgba(3,8,6,.94)';
   mask.fillRect(0, 0, canvas.width, canvas.height);
   mask.globalCompositeOperation = 'destination-out';
+  mask.fillStyle = '#000';
 
+  const exploredCells: Array<{ x: number; y: number }> = [];
   for (let ty = y0; ty < y1; ty++) {
     for (let tx = x0; tx < x1; tx++) {
       if (!state.map.explored[ty]?.[tx]) continue;
-      const cx = (tx - x0 + 0.5) * MASK_SCALE;
-      const cy = (ty - y0 + 0.5) * MASK_SCALE;
-      const radius = MASK_SCALE * 1.7;
-      const gradient = mask.createRadialGradient(cx, cy, MASK_SCALE * 0.38, cx, cy, radius);
-      gradient.addColorStop(0, 'rgba(0,0,0,1)');
-      gradient.addColorStop(0.58, 'rgba(0,0,0,.96)');
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      mask.fillStyle = gradient;
-      mask.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+      exploredCells.push({ x: (tx - x0) * MASK_SCALE, y: (ty - y0) * MASK_SCALE });
     }
   }
 
+  mask.globalAlpha = 0.18;
+  for (const cell of exploredCells) mask.fillRect(cell.x - 5, cell.y - 5, MASK_SCALE + 10, MASK_SCALE + 10);
+
+  mask.globalAlpha = 0.34;
+  for (const cell of exploredCells) mask.fillRect(cell.x - 3, cell.y - 3, MASK_SCALE + 6, MASK_SCALE + 6);
+
+  mask.globalAlpha = 0.62;
+  for (const cell of exploredCells) mask.fillRect(cell.x - 1, cell.y - 1, MASK_SCALE + 2, MASK_SCALE + 2);
+
+  mask.globalAlpha = 1;
+  for (const cell of exploredCells) mask.fillRect(cell.x, cell.y, MASK_SCALE, MASK_SCALE);
+
   mask.globalCompositeOperation = 'source-over';
+  mask.globalAlpha = 1;
+
   cache.map = state.map;
   cache.x0 = x0;
   cache.x1 = x1;
@@ -99,7 +109,6 @@ export function drawSceneFog(
 
   ctx.save();
   ctx.imageSmoothingEnabled = true;
-  ctx.globalAlpha = 0.98;
   ctx.drawImage(mask, x0 * 40, y0 * 40, (x1 - x0) * 40, (y1 - y0) * 40);
   ctx.restore();
 }
