@@ -219,7 +219,7 @@ function drawTileCell(
   const sx = (safeIndex % cols) * tileSize;
   const sy = Math.floor(safeIndex / cols) * tileSize;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(img, sx, sy, tileSize, tileSize, Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h));
+  ctx.drawImage(img, sx, sy, tileSize, tileSize, Math.floor(x) - 1, Math.floor(y) - 1, Math.ceil(w) + 2, Math.ceil(h) + 2);
   return true;
 }
 
@@ -249,6 +249,7 @@ function tint(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h:
 }
 
 function drawGroundBase(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, variant: number): void {
+  fill(ctx, x, y, w, h, '#5e9b46');
   if (!drawTileCell(ctx, TINY.freeGround, 64, [0, 1, 2, 3, 9, 10, 11, 18][Math.abs(variant) % 8], x, y, w, h) &&
       !drawTileCell(ctx, TINY.ground, 64, [0, 1, 2, 3, 10, 11, 12, 13][Math.abs(variant) % 8], x, y, w, h)) {
     fill(ctx, x, y, w, h, '#4d8b3e');
@@ -293,10 +294,8 @@ export function drawPremiumTile(
       fill(ctx, x, y + h * 0.18, w, h * 0.62, '#9b7b4d');
       return;
     case 'water':
-      if (!drawWhole(ctx, TINY.freeWater, x, y, w, h) && !drawWhole(ctx, TINY.water, x, y, w, h)) fill(ctx, x, y, w, h, '#247aa0');
-      if (variant % 3 === 0 && !drawWhole(ctx, TINY.freeFoam, x - w * 0.04, y - h * 0.04, w * 1.08, h * 1.08)) {
-        drawSheetFrame(ctx, TINY.foam, 192, 192, variant, x - w * 0.12, y - h * 0.12, w * 1.24, h * 1.24);
-      }
+      fill(ctx, x, y, w, h, '#216f89');
+      if (!drawWhole(ctx, TINY.freeWater, x - 1, y - 1, w + 2, h + 2) && !drawWhole(ctx, TINY.water, x - 1, y - 1, w + 2, h + 2)) fill(ctx, x, y, w, h, '#247aa0');
       return;
     case 'broadTree':
     case 'pineTree': {
@@ -367,7 +366,7 @@ export function drawPremiumProp(
       drawWhole(ctx, TINY.waterRocks[Math.abs(variant) % TINY.waterRocks.length], x - w * 0.1, y - h * 0.1, w * 1.2, h * 1.2);
       return;
     case 'lilies':
-      drawSheetFrame(ctx, TINY.foam, 192, 192, variant + 3, x - w * 0.2, y - h * 0.2, w * 1.4, h * 1.4);
+      drawWhole(ctx, TINY.waterRocks[Math.abs(variant + 1) % TINY.waterRocks.length], x - w * 0.05, y - h * 0.05, w * 1.1, h * 1.1);
       return;
     case 'well':
       drawWhole(ctx, `${TS}/Resources/Gold Mine/GoldMine_Inactive.png`, x - w * 0.55, y - h * 0.85, w * 2.1, h * 2.25);
