@@ -22,7 +22,6 @@ export function generateRunRoom(room: number): DungeonMap {
   }
 
   const exitX = Math.floor(width / 2);
-  tiles[1][exitX] = TileType.WALL;
   tiles[2][exitX] = TileType.STAIRS_DOWN;
 
   const obstacleRows = room % 3 === 0 ? [9, 14] : room % 2 === 0 ? [11] : [];
@@ -43,7 +42,7 @@ export function generateRunRoom(room: number): DungeonMap {
     wallTint,
     explored,
     reachable: fill(height, width, true),
-    rooms: [{ x: 2, y: 2, w: width - 4, h: height - 4, roomType: room === CHAPTER_ROOMS ? 'boss' : 'combat' }],
+    rooms: [{ x: 2, y: 2, w: width - 4, h: height - 4, roomType: room === CHAPTER_ROOMS ? 'boss_arena' : 'barracks' }],
     startX: exitX,
     startY: height - 4,
     chests: [],
