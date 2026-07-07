@@ -1,6 +1,8 @@
 import type { GameState } from './engine';
 import { TileType } from './dungeon';
-import { drawPremiumTile } from './premiumPixelArt';
+import { CLASS_DEFS } from './classes';
+import { bobOffset } from './sprites';
+import { drawPremiumArrow, drawPremiumChest, drawPremiumEnemy, drawPremiumIcon, drawPremiumMagicBolt, drawPremiumPlayer, drawPremiumSwordArc, drawPremiumTile } from './premiumPixelArt';
 
 export type SceneObjectKind = 'tree'|'pine'|'house'|'entrance'|'cliff'|'bridge'|'torch'|'flowers'|'bush'|'rock'|'log'|'mushrooms'|'skull'|'barrel'|'crate';
 export type SceneJob = { y:number; draw:()=>void };
@@ -58,3 +60,23 @@ export function renderSceneTerrain(c:CanvasRenderingContext2D,s:GameState,now:nu
   for(const t of m.torches){if(!seen(t.tx,t.ty)||t.tx<x0-1||t.tx>x1+1||t.ty<y0-1||t.ty>y1+1)continue;const x=t.tx*40,y=t.ty*40;j.push({y:y+25,draw:()=>{drawSceneObject(c,'torch',x-13,y-22,66,66,0,Math.floor((now+t.tx*91)/110));const g=c.createRadialGradient(x+20,y+14,2,x+20,y+14,44);g.addColorStop(0,'rgba(255,145,45,.25)');g.addColorStop(1,'rgba(255,80,0,0)');c.fillStyle=g;c.fillRect(x-24,y-30,88,88);}});}
   return j;
 }
+
+export function renderGameScene(c:CanvasRenderingContext2D,s:GameState,now:number,w:number,h:number,vx:number,vy:number){
+  const p=s.player,m=s.map,z=w<520?1.06:1.12,bias=s.inDungeon?12:24,hw=w/z/2,hh=h/z/2;
+  const x0=Math.max(0,Math.floor((vx-hw)/40)-3),x1=Math.min(m.width,Math.ceil((vx+hw)/40)+3),y0=Math.max(0,Math.floor((vy-hh)/40)-4),y1=Math.min(m.height,Math.ceil((vy+hh)/40)+4);
+  c.fillStyle=s.inDungeon?'#020207':'#172811';c.fillRect(0,0,w,h);c.save();c.translate(w/2,h/2+bias);c.scale(z,z);c.translate(-Math.round(vx),-Math.round(vy));
+  const jobs=renderSceneTerrain(c,s,now,x0,x1,y0,y1);
+  for(const q of s.chests)jobs.push({y:q.y+q.height,draw:()=>{shadow(c,q.x+q.width/2,q.y+q.height-1,q.width*.72,5);drawPremiumChest(c,q.x,q.y,q.width,q.height,q.opened);if(!q.opened&&q.locked)drawPremiumIcon(c,4,q.x+q.width-8,q.y-7,11,11);}});
+  for(const q of s.items)jobs.push({y:q.y+q.height,draw:()=>{const b=bobOffset((now+q.spawnTime)/2,2);c.save();c.shadowBlur=9;c.shadowColor=q.itemType==='potion'?'#33cc66':'#ffaa00';drawPremiumIcon(c,q.itemType==='potion'?3:0,q.x,q.y+b,q.width,q.height);c.restore();}});
+  for(const e of s.enemies)jobs.push({y:e.y+e.height,draw:()=>drawEnemy(c,e,now)});
+  jobs.push({y:p.y+p.height,draw:()=>drawPlayer(c,p,now)});
+  jobs.sort((a,b)=>a.y-b.y).forEach(q=>q.draw());
+  for(const particle of s.particles){const life=particle.lifeTime/particle.maxLifeTime;c.save();c.globalAlpha=particle.fade?1-life:1;c.fillStyle=particle.color;c.shadowBlur=particle.size;c.shadowColor=particle.color;c.fillRect(particle.x-particle.size/2,particle.y-particle.size/2,particle.size,particle.size);c.restore();}
+  for(const effect of s.effects){const progress=effect.lifeTime/effect.maxLifeTime;c.save();c.globalAlpha=1-progress;if(effect.type==='slash')drawPremiumSwordArc(c,effect.x,effect.y,effect.angle??0,progress);else if(effect.type==='circle'){c.strokeStyle=effect.color;c.lineWidth=3;c.beginPath();c.arc(effect.x,effect.y,effect.radius,0,Math.PI*2);c.stroke();}else{const g=c.createRadialGradient(effect.x,effect.y,0,effect.x,effect.y,effect.radius);g.addColorStop(0,effect.color);g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(effect.x,effect.y,effect.radius,0,Math.PI*2);c.fill();}c.restore();}
+  for(const d of s.damageNumbers){c.save();c.globalAlpha=Math.max(0,1-d.lifeTime/d.maxLifeTime);c.font=`bold ${Math.round(14*(d.scale??1))}px monospace`;c.textAlign='center';c.strokeStyle='#000';c.lineWidth=3;c.strokeText(d.value,d.x,d.y);c.fillStyle=d.color;c.fillText(d.value,d.x,d.y);c.restore();}
+  c.restore();const v=c.createRadialGradient(w/2,h/2+bias,Math.min(w,h)*.2,w/2,h/2+bias,Math.max(w,h)*.7);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,s.inDungeon?'rgba(2,3,10,.76)':'rgba(13,28,10,.18)');c.fillStyle=v;c.fillRect(0,0,w,h);
+}
+
+function drawEnemy(c:CanvasRenderingContext2D,e:GameState['enemies'][number],now:number){const age=now-e.spawnTime,moving=e.state==='chase'||e.state==='patrol',f=moving?Math.floor(age/120):0,b=moving?bobOffset(age,1.2):0,dead=e.hp<=0,scale=dead?1-Math.min(1,(now-e.deathTime)/400):1,x=e.x+e.width/2,y=e.y+e.height/2;shadow(c,x,e.y+e.height-1,e.width*.7,4*scale);c.save();c.translate(x,y+b);c.scale(scale,scale);c.translate(-x,-y);drawPremiumEnemy(c,e.enemyType,e.x,e.y,e.width,e.height,f,e.flashUntil>now);c.restore();if(!dead&&e.hp<e.maxHp){const p=Math.max(0,e.hp/e.maxHp);c.fillStyle='rgba(0,0,0,.8)';c.fillRect(e.x-2,e.y-7,e.width+4,4);c.fillStyle=p>.5?'#39b85a':p>.25?'#d89a2c':'#c93a32';c.fillRect(e.x-1,e.y-6,(e.width+2)*p,2);}}
+function drawPlayer(c:CanvasRenderingContext2D,p:GameState['player'],now:number){const d=CLASS_DEFS[p.playerClass],age=now-p.spawnTime,moving=p.state==='moving',attacking=now-p.lastAttackTime<180,f=moving?Math.floor(age/110):attacking?2:0,b=moving?bobOffset(age,1.2):0,x=p.x+p.width/2,y=p.y+p.height/2,fx=p.facing.x,fy=p.facing.y;shadow(c,x,p.y+p.height-1,p.width*.75,5);c.save();c.translate(x,y+b);if(attacking){const l=1-(now-p.lastAttackTime)/180;c.translate(fx*l*5,fy*l*5);}c.translate(-x,-y);if(p.invincibleUntil>now)c.globalAlpha=Math.floor(now/60)%2?.55:.9;c.shadowBlur=8;c.shadowColor=d.glowColor;drawPremiumPlayer(c,p.x,p.y,p.width,p.height,f,fx<0,false,p.playerClass,attacking?'attack':moving?'run':'idle');c.restore();if(attacking&&p.playerClass==='warrior')drawPremiumSwordArc(c,x,y,Math.atan2(fy,fx),(now-p.lastAttackTime)/180);else if(attacking&&p.playerClass==='mage')drawPremiumMagicBolt(c,x+fx*24,y+fy*24,now,d.color);else if(attacking)drawPremiumArrow(c,x+fx*23,y+fy*23,Math.atan2(fy,fx),30);}
+function shadow(c:CanvasRenderingContext2D,x:number,y:number,w:number,h:number){c.save();c.fillStyle='rgba(0,0,0,.34)';c.beginPath();c.ellipse(x,y,w/2,h,0,0,Math.PI*2);c.fill();c.restore();}
