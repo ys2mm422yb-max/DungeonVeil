@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GameState } from '../game/engine';
 import { useLanguage } from '../i18n/LanguageContext';
 import { CLASS_DEFS, CLASS_SKILL_NAMES } from '../game/classes';
+import { TINY_UI } from '../game/premiumPixelArt';
 
 interface Props {
   gameState: GameState;
@@ -14,6 +15,12 @@ interface Props {
 type ActionName = 'attack' | 'dodge' | 'skill' | 'interact';
 
 const baseButtonClass = 'rounded-full border-[3px] border-[#8b6a35] bg-black/85 shadow-[inset_0_0_14px_rgba(255,210,120,0.18),0_6px_18px_rgba(0,0,0,0.75)] active:scale-90 transition-transform overflow-hidden touch-none select-none flex items-center justify-center';
+const pixelButtonStyle: React.CSSProperties = {
+  backgroundImage: `url("${TINY_UI.roundButtonBlue}")`,
+  backgroundSize: '100% 100%',
+  imageRendering: 'pixelated',
+  WebkitTapHighlightColor: 'transparent',
+};
 
 export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInteract }: Props) {
   const { t, language } = useLanguage();
@@ -78,13 +85,13 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
           onPointerUp={release}
           onPointerCancel={release}
           className={`absolute bottom-0 right-0 w-[48%] aspect-square ${baseButtonClass}`}
-          style={{ WebkitTapHighlightColor: 'transparent' }}
+          style={{ ...pixelButtonStyle, backgroundImage: `url("${TINY_UI.roundButtonRed}")` }}
           data-testid="button-attack"
           aria-label="Attack"
         >
           <CooldownOverlay progress={cooldowns.attack} />
           <div className="absolute inset-[9%] rounded-full border border-white/10 bg-gradient-to-br from-zinc-900 via-black to-zinc-950" />
-          <span className="text-white text-4xl z-10 pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">⚔</span>
+          <span className="text-white text-4xl z-10 pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">âš”</span>
         </button>
 
         <button
@@ -93,13 +100,13 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
           onPointerUp={release}
           onPointerCancel={release}
           className={`absolute bottom-[12%] left-[2%] w-[34%] aspect-square ${baseButtonClass}`}
-          style={{ WebkitTapHighlightColor: 'transparent' }}
+          style={pixelButtonStyle}
           data-testid="button-dodge"
           aria-label="Dash"
         >
           <CooldownOverlay progress={cooldowns.dodge} />
           <div className="absolute inset-[10%] rounded-full bg-gradient-to-br from-purple-800 via-purple-950 to-black" />
-          <span className="font-black text-lg tracking-widest z-10 text-white pointer-events-none">↯</span>
+          <span className="font-black text-lg tracking-widest z-10 text-white pointer-events-none">â†¯</span>
         </button>
 
         <button
@@ -110,7 +117,7 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
           className={`absolute top-[8%] left-[20%] w-[38%] aspect-square ${baseButtonClass}`}
           style={{
             boxShadow: `inset 0 0 14px ${classDef.glowColor}, 0 6px 18px rgba(0,0,0,0.75)`,
-            WebkitTapHighlightColor: 'transparent',
+            ...pixelButtonStyle,
           }}
           data-testid="button-skill"
           aria-label={skillName}
@@ -129,7 +136,7 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
           onPointerUp={release}
           onPointerCancel={release}
           className={`absolute right-0 top-[34%] w-[30%] aspect-square ${baseButtonClass}`}
-          style={{ WebkitTapHighlightColor: 'transparent' }}
+          style={{ ...pixelButtonStyle, backgroundImage: `url("${TINY_UI.roundButtonRed}")` }}
           data-testid="button-interact"
           aria-label={t.interact}
         >
