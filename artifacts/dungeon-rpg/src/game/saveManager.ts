@@ -1,8 +1,8 @@
 import { ClassKey } from './classes';
-import { DungeonMap } from './dungeon';
+import { DungeonMap, generateDungeon } from './dungeon';
 
 const SAVE_KEY = 'dungeon-veil-save';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface SaveData {
   saveVersion?: number;
@@ -32,9 +32,18 @@ export interface SaveData {
   savedAt: number;
 }
 
+function rebuildDungeon(floor: number): DungeonMap {
+  if (floor <= 1) return generateDungeon(32, 32, 8, 1);
+  const numRooms = Math.min(15, 6 + Math.floor(floor / 2));
+  const width = 32 + floor * 2;
+  const height = 32 + floor * 2;
+  return generateDungeon(width, height, numRooms, floor);
+}
+
 export function saveGame(data: SaveData): boolean {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...data, saveVersion: SAVE_VERSION }));
+    const { dungeonMap: _dungeonMap, ...compactData } = data;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...compactData, saveVersion: SAVE_VERSION }));
     return true;
   } catch (error) {
     console.error('Dungeon Veil save failed', error);
@@ -49,9 +58,13 @@ export function loadGame(): SaveData | null {
     const parsed = JSON.parse(raw) as SaveData;
     if (!parsed || typeof parsed.playerName !== 'string' || !parsed.overworldMap) return null;
     if (!['warrior', 'mage', 'archer'].includes(parsed.playerClass)) return null;
+
+    const inDungeon = !!parsed.inDungeon;
     return {
       ...parsed,
       saveVersion: parsed.saveVersion ?? 1,
+      inDungeon,
+      dungeonMap: inDungeon ? (parsed.dungeonMap ?? rebuildDungeon(parsed.floor)) : undefined,
       worldX: Number.isFinite(parsed.worldX) ? parsed.worldX : parsed.playerX ?? 0,
       worldY: Number.isFinite(parsed.worldY) ? parsed.worldY : parsed.playerY ?? 0,
       playerX: Number.isFinite(parsed.playerX) ? parsed.playerX : parsed.worldX ?? 0,
