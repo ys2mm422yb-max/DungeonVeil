@@ -134,7 +134,7 @@ export function generateDungeon(
         tiles[ry][rx] = TileType.FLOOR;
   }
 
-  // ── Connect rooms with L-shaped corridors ─────────────────────────────────────
+  // ── Connect rooms with L-shaped corridors ───────────────────────────────────
   for (let i = 1; i < rooms.length; i++) {
     const r1 = rooms[i - 1];
     const r2 = rooms[i];
@@ -152,12 +152,11 @@ export function generateDungeon(
       while (cx !== c2x) { cx += Math.sign(c2x - cx); tiles[cy][cx] = TileType.FLOOR; }
     }
 
-    // Door tiles at the corridor mouth near each room
     tryPlaceDoor(tiles, rooms[i - 1], c1x, c1y, width, height);
     tryPlaceDoor(tiles, rooms[i], c2x, c2y, width, height);
   }
 
-  // ── Walls ────────────────────────────────────────────────────────────────────
+  // ── Walls ───────────────────────────────────────────────────────────────────
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (tiles[y][x] === TileType.FLOOR || tiles[y][x] === TileType.DOOR) {
@@ -172,7 +171,7 @@ export function generateDungeon(
     }
   }
 
-  // ── Wall variant: 1 = front face ─────────────────────────────────────────────
+  // ── Wall variant: 1 = front face ────────────────────────────────────────────
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (tiles[y][x] === TileType.WALL) {
@@ -183,7 +182,7 @@ export function generateDungeon(
     }
   }
 
-  // ── Wall tint per room type + random damage ───────────────────────────────
+  // ── Wall tint per room type + random damage ────────────────────────────────
   for (let i = 0; i < rooms.length; i++) {
     const room = rooms[i];
     const tintKey = tintToKey(ROOM_TYPE_DEFS[room.roomType].wallTint);
@@ -204,7 +203,7 @@ export function generateDungeon(
     }
   }
 
-  // ── Stairs ───────────────────────────────────────────────────────────────────
+  // ── Stairs ──────────────────────────────────────────────────────────────────
   const lastRoom = rooms[rooms.length - 1];
   const stairX = Math.floor(lastRoom.x + lastRoom.w / 2);
   const stairY = Math.floor(lastRoom.y + lastRoom.h / 2);
@@ -214,7 +213,7 @@ export function generateDungeon(
   const startX = Math.floor(startRoom.x + startRoom.w / 2);
   const startY = Math.floor(startRoom.y + startRoom.h / 2);
 
-  // ── Floor variants ─────────────────────────────────────────────────────────────
+  // ── Floor variants ──────────────────────────────────────────────────────────
   for (let i = 0; i < rooms.length; i++) {
     const room = rooms[i];
     const def: RoomTypeDef = ROOM_TYPE_DEFS[room.roomType];
@@ -229,7 +228,7 @@ export function generateDungeon(
     }
   }
 
-  // ── Chests & decorations (shared occupancy set prevents overlap) ─────────────
+  // ── Chests & decorations ────────────────────────────────────────────────────
   const occupied = new Set<string>();
   occupied.add(`${startX},${startY}`);
   occupied.add(`${stairX},${stairY}`);
@@ -257,7 +256,6 @@ export function generateDungeon(
     }
   }
 
-  // ── Decorations & torches ─────────────────────────────────────────────────────
   const decorations: Decoration[] = [];
   const torches: Array<{ tx: number; ty: number }> = [];
 
@@ -265,7 +263,6 @@ export function generateDungeon(
     const room = rooms[i];
     const def: RoomTypeDef = ROOM_TYPE_DEFS[room.roomType];
 
-    // Place a decoration at room centre if applicable, avoiding occupied tiles
     if (def.decoration && room.roomType !== 'exit') {
       const dx = Math.floor(room.x + room.w / 2);
       const dy = Math.floor(room.y + room.h / 2);
@@ -276,7 +273,6 @@ export function generateDungeon(
       }
     }
 
-    // Torches on wall tiles surrounding the room
     const spacing = 4;
     let counter = 0;
     for (let rx = room.x; rx < room.x + room.w; rx++) {
@@ -317,7 +313,6 @@ function tryPlaceDoor(
   width: number,
   height: number,
 ): void {
-  // Walk outward from (cx, cy) until we hit the room border; place door there
   const dirs: [number, number][] = [[1,0],[-1,0],[0,1],[0,-1]];
   for (const [dx, dy] of dirs) {
     let nx = cx, ny = cy;
@@ -342,7 +337,6 @@ export function isWalkable(map: DungeonMap, px: number, py: number): boolean {
     t === TileType.STAIRS_DOWN ||
     t === TileType.GRASS ||
     t === TileType.ROAD ||
-    t === TileType.VILLAGE ||
     t === TileType.DUNGEON_ENTRANCE ||
     t === TileType.BRIDGE
   );
