@@ -1,231 +1,43 @@
 export type Language = 'de' | 'en';
-export type UpgradeKey = 'maxHp' | 'attack' | 'speed' | 'defense' | 'heal';
+export type UpgradeKey = 'maxHp' | 'attack' | 'speed' | 'defense' | 'heal' | 'multishot' | 'ricochet' | 'fireArrow' | 'attackSpeed' | 'piercing';
 
 const en = {
-  // Language Select
-  selectLanguage: 'Select Language',
-  selectLanguageSubtitle: 'Choose your preferred language',
-  continueInEnglish: 'English',
-  continueInGerman: 'Deutsch',
-
-  // Main Menu
-  newGame: 'New Game',
-  continueGame: 'Continue',
-  settings: 'Settings',
-  credits: 'Credits',
-  lastSave: 'LV {level} · Floor {floor}',
-  noSave: 'No save found',
-
-  // Character Creation
-  characterCreation: 'Create Hero',
-  heroName: 'Hero Name',
-  heroNamePlaceholder: 'Enter your name…',
-  chooseClass: 'Choose Class',
-  startGame: 'Enter the Dungeon',
-  back: 'Back',
-  nameTooShort: 'Name must be at least 2 characters',
-
-  // Classes
-  className: {
-    warrior: 'Warrior',
-    mage: 'Mage',
-    archer: 'Archer',
-  } as Record<string, string>,
-  classRole: {
-    warrior: 'Tank · Melee',
-    mage: 'Glass Canon · Arcane',
-    archer: 'Skirmisher · Ranged',
-  } as Record<string, string>,
-  classDesc: {
-    warrior: 'Unbreakable shield, unmatched strength. Built to absorb punishment and unleash devastating close-range fury.',
-    mage: 'Master of arcane destruction. Fragile but devastating — obliterates packs of enemies with each spell cast.',
-    archer: 'Swift and relentless. Dances through battle with superior range and blistering attack speed.',
-  } as Record<string, string>,
-  classSkill: {
-    warrior: 'RAGE — Massive AOE slam that shatters everything nearby.',
-    mage: 'BOLT — Arcane pulse that obliterates foes in a wide radius.',
-    archer: 'RAIN — Arrow storm peppering all enemies around you.',
-  } as Record<string, string>,
-
-  // Stats
-  statHp: 'HP',
-  statAtk: 'ATK',
-  statDef: 'DEF',
-  statSpd: 'SPD',
-
-  // Start Screen (legacy, kept for compat)
-  subtitle: 'Descend into the darkness',
-  enterDungeon: 'Enter the Dungeon',
-
-  // Game Over
-  youDied: 'YOU DIED',
-  finalStats: 'FINAL STATS',
-  floorReached: 'Floor Reached:',
-  levelReached: 'Level Reached:',
-  enemiesSlain: 'Enemies Slain:',
-  retry: 'NEW GAME',
-  mainMenu: 'MAIN MENU',
-
-  // Level Up
-  levelUp: 'LEVEL UP!',
-  chooseUpgrade: 'Choose your upgrade',
-
-  // HUD
-  floorLabel: 'FLOOR',
-  lvlLabel: 'LVL',
-  experience: 'EXPERIENCE',
-  hpLabel: 'HP',
-  exitDungeon: 'Exit Dungeon',
-  worldLabel: 'WORLD',
-  dungeonLabel: 'DUNGEON',
-
-  // Action Buttons
-  attack: 'ATK',
-  dodge: 'DASH',
-  skill: 'SKILL',
-  interact: 'USE',
-
-  // Pause
-  paused: 'PAUSED',
-  resume: 'RESUME',
-  restart: 'MAIN MENU',
-
-  // Settings
-  language: 'Language',
-  languageShort: 'EN',
-  sound: 'Sound',
-  soundOn: 'On',
-  soundOff: 'Off',
-  deleteSave: 'Delete Save',
-  deleteSaveConfirm: 'Are you sure? This cannot be undone.',
-  confirm: 'Confirm',
-  cancel: 'Cancel',
-  version: 'Version 1.0',
-
-  // Credits
-  creditsTitle: 'Credits',
-  creditsGame: 'DUNGEON VEIL',
-  creditsTagline: 'A mobile-first action RPG',
-  creditsBuiltWith: 'Built with React + TypeScript',
-  creditsDesign: 'Design & Game Dev',
-  creditsSpecialThanks: 'Special Thanks',
-  creditsThanksText: 'To every adventurer brave enough to descend.',
-  creditsClose: 'Back',
-
-  // Upgrades
+  selectLanguage: 'Select Language', selectLanguageSubtitle: 'Choose your preferred language', continueInEnglish: 'English', continueInGerman: 'Deutsch',
+  newGame: 'New Run', continueGame: 'Continue', settings: 'Settings', credits: 'Credits', lastSave: 'LV {level} · Room {floor}', noSave: 'No save found',
+  characterCreation: 'Name your Archer', heroName: 'Hero Name', heroNamePlaceholder: 'Enter your name…', chooseClass: 'Hero', startGame: 'START RUN', back: 'Back', nameTooShort: 'Name must be at least 2 characters',
+  className: { warrior: 'Warrior', mage: 'Mage', archer: 'Archer' } as Record<string, string>,
+  classRole: { warrior: 'Tank · Melee', mage: 'Glass Canon · Arcane', archer: 'Ranged · Auto Shot' } as Record<string, string>,
+  classDesc: { warrior: '', mage: '', archer: 'Move to dodge. Stop to automatically fire at the nearest enemy. Build a new skill combo every run.' } as Record<string, string>,
+  classSkill: { warrior: '', mage: '', archer: 'AUTO SHOT — stop moving to fire.' } as Record<string, string>,
+  statHp: 'HP', statAtk: 'ATK', statDef: 'DEF', statSpd: 'SPD', subtitle: 'Build. Dodge. Survive.', enterDungeon: 'Start Run',
+  youDied: 'RUN ENDED', finalStats: 'RUN STATS', floorReached: 'Room Reached:', levelReached: 'Level Reached:', enemiesSlain: 'Enemies Slain:', retry: 'NEW RUN', mainMenu: 'MAIN MENU',
+  levelUp: 'NEW ABILITY!', chooseUpgrade: 'Choose one for this run', floorLabel: 'ROOM', lvlLabel: 'LVL', experience: 'EXPERIENCE', hpLabel: 'HP', exitDungeon: 'Leave Run', worldLabel: 'CHAPTER', dungeonLabel: 'RUN',
+  attack: 'AUTO', dodge: 'DASH', skill: 'BUILD', interact: 'NEXT', paused: 'PAUSED', resume: 'RESUME', restart: 'MAIN MENU',
+  language: 'Language', languageShort: 'EN', sound: 'Sound', soundOn: 'On', soundOff: 'Off', deleteSave: 'Delete Save', deleteSaveConfirm: 'Are you sure? This cannot be undone.', confirm: 'Confirm', cancel: 'Cancel', version: 'Version 1.0',
+  creditsTitle: 'Credits', creditsGame: 'DUNGEON VEIL', creditsTagline: 'A room-run action roguelite', creditsBuiltWith: 'Built with React + TypeScript', creditsDesign: 'Design & Game Dev', creditsSpecialThanks: 'Special Thanks', creditsThanksText: 'To every adventurer brave enough to enter the Veil.', creditsClose: 'Back',
   upgrades: {
-    maxHp: '+20 Max HP',
-    attack: '+5 Attack',
-    speed: '+1 Speed tier',
-    defense: '+1 Defense',
-    heal: '+50% Heal',
+    maxHp: '+20 Max HP', attack: '+5 Attack', speed: '+15 Move Speed', defense: '+1 Defense', heal: 'Heal 50%',
+    multishot: 'MULTISHOT · +1 arrow', ricochet: 'RICOCHET · Hit another enemy', fireArrow: 'FIRE ARROW · Burn damage', attackSpeed: 'QUICK DRAW · Faster attacks', piercing: 'PIERCING · Arrow hits through targets',
   } as Record<UpgradeKey, string>,
 };
 
 const de: typeof en = {
-  selectLanguage: 'Sprache wählen',
-  selectLanguageSubtitle: 'Wähle deine bevorzugte Sprache',
-  continueInEnglish: 'English',
-  continueInGerman: 'Deutsch',
-
-  newGame: 'Neues Spiel',
-  continueGame: 'Fortsetzen',
-  settings: 'Einstellungen',
-  credits: 'Credits',
-  lastSave: 'LV {level} · Etage {floor}',
-  noSave: 'Kein Speicherstand',
-
-  characterCreation: 'Held erstellen',
-  heroName: 'Heldenname',
-  heroNamePlaceholder: 'Deinen Namen eingeben…',
-  chooseClass: 'Klasse wählen',
-  startGame: 'Dungeon betreten',
-  back: 'Zurück',
-  nameTooShort: 'Name muss mindestens 2 Zeichen haben',
-
-  className: {
-    warrior: 'Krieger',
-    mage: 'Magier',
-    archer: 'Bogenschütze',
-  } as Record<string, string>,
-  classRole: {
-    warrior: 'Tank · Nahkampf',
-    mage: 'Glaskanone · Arkan',
-    archer: 'Scharmützler · Fernkampf',
-  } as Record<string, string>,
-  classDesc: {
-    warrior: 'Unzerbrechlicher Schild, unvergleichliche Stärke. Gebaut, um Schaden zu absorbieren und verheerende Nahkampffurien zu entfesseln.',
-    mage: 'Meister arkanischer Zerstörung. Fragil, aber verheerend — vernichtet Gruppen von Feinden mit jedem Zauber.',
-    archer: 'Schnell und unerbittlich. Tanzt durch die Schlacht mit überlegener Reichweite und rasanter Angriffsgeschwindigkeit.',
-  } as Record<string, string>,
-  classSkill: {
-    warrior: 'WUTH — Massiver AOE-Schlag, der alles in der Nähe erschüttert.',
-    mage: 'BLITZ — Arkaner Puls, der Feinde in weitem Radius vernichtet.',
-    archer: 'REGEN — Pfeilhagel, der alle Feinde um dich trifft.',
-  } as Record<string, string>,
-
-  statHp: 'LP',
-  statAtk: 'ATK',
-  statDef: 'VER',
-  statSpd: 'GES',
-
-  subtitle: 'Tauche in die Dunkelheit',
-  enterDungeon: 'Dungeon betreten',
-
-  youDied: 'GESTORBEN',
-  finalStats: 'ENDSTATISTIK',
-  floorReached: 'Etage erreicht:',
-  levelReached: 'Level erreicht:',
-  enemiesSlain: 'Feinde besiegt:',
-  retry: 'NEUES SPIEL',
-  mainMenu: 'HAUPTMENÜ',
-
-  levelUp: 'AUFGESTIEGEN!',
-  chooseUpgrade: 'Wähle deine Verbesserung',
-
-  floorLabel: 'ETAGE',
-  lvlLabel: 'LV',
-  experience: 'ERFAHRUNG',
-  hpLabel: 'LP',
-  exitDungeon: 'Dungeon verlassen',
-  worldLabel: 'WELT',
-  dungeonLabel: 'DUNGEON',
-
-  attack: 'ATK',
-  dodge: 'DASH',
-  skill: 'SKILL',
-  interact: 'USE',
-
-  paused: 'PAUSE',
-  resume: 'WEITER',
-  restart: 'HAUPTMENÜ',
-
-  language: 'Sprache',
-  languageShort: 'DE',
-  sound: 'Sound',
-  soundOn: 'An',
-  soundOff: 'Aus',
-  deleteSave: 'Speicher löschen',
-  deleteSaveConfirm: 'Bist du sicher? Das kann nicht rückgängig gemacht werden.',
-  confirm: 'Bestätigen',
-  cancel: 'Abbrechen',
-  version: 'Version 1.0',
-
-  creditsTitle: 'Credits',
-  creditsGame: 'DUNGEON VEIL',
-  creditsTagline: 'Ein mobiles Action-RPG',
-  creditsBuiltWith: 'Erstellt mit React + TypeScript',
-  creditsDesign: 'Design & Spielentwicklung',
-  creditsSpecialThanks: 'Besonderer Dank',
-  creditsThanksText: 'An jeden Abenteurer, der mutig genug ist, hinabzusteigen.',
-  creditsClose: 'Zurück',
-
+  selectLanguage: 'Sprache wählen', selectLanguageSubtitle: 'Wähle deine bevorzugte Sprache', continueInEnglish: 'English', continueInGerman: 'Deutsch',
+  newGame: 'Neuer Run', continueGame: 'Fortsetzen', settings: 'Einstellungen', credits: 'Credits', lastSave: 'LV {level} · Raum {floor}', noSave: 'Kein Speicherstand',
+  characterCreation: 'Bogenschütze benennen', heroName: 'Name', heroNamePlaceholder: 'Deinen Namen eingeben…', chooseClass: 'Held', startGame: 'RUN STARTEN', back: 'Zurück', nameTooShort: 'Name muss mindestens 2 Zeichen haben',
+  className: { warrior: 'Krieger', mage: 'Magier', archer: 'Bogenschütze' } as Record<string, string>,
+  classRole: { warrior: 'Tank · Nahkampf', mage: 'Glaskanone · Arkan', archer: 'Fernkampf · Auto-Schuss' } as Record<string, string>,
+  classDesc: { warrior: '', mage: '', archer: 'Bewege dich zum Ausweichen. Bleib stehen und dein Held schießt automatisch auf den nächsten Gegner. Jeder Run baut einen neuen Skill-Build.' } as Record<string, string>,
+  classSkill: { warrior: '', mage: '', archer: 'AUTO-SCHUSS — im Stand wird automatisch geschossen.' } as Record<string, string>,
+  statHp: 'LP', statAtk: 'ATK', statDef: 'VER', statSpd: 'GES', subtitle: 'Bauen. Ausweichen. Überleben.', enterDungeon: 'Run starten',
+  youDied: 'RUN BEENDET', finalStats: 'RUN-STATISTIK', floorReached: 'Raum erreicht:', levelReached: 'Level erreicht:', enemiesSlain: 'Feinde besiegt:', retry: 'NEUER RUN', mainMenu: 'HAUPTMENÜ',
+  levelUp: 'NEUE FÄHIGKEIT!', chooseUpgrade: 'Wähle eine für diesen Run', floorLabel: 'RAUM', lvlLabel: 'LV', experience: 'ERFAHRUNG', hpLabel: 'LP', exitDungeon: 'Run verlassen', worldLabel: 'KAPITEL', dungeonLabel: 'RUN',
+  attack: 'AUTO', dodge: 'DASH', skill: 'BUILD', interact: 'WEITER', paused: 'PAUSE', resume: 'WEITER', restart: 'HAUPTMENÜ',
+  language: 'Sprache', languageShort: 'DE', sound: 'Sound', soundOn: 'An', soundOff: 'Aus', deleteSave: 'Speicher löschen', deleteSaveConfirm: 'Bist du sicher? Das kann nicht rückgängig gemacht werden.', confirm: 'Bestätigen', cancel: 'Abbrechen', version: 'Version 1.0',
+  creditsTitle: 'Credits', creditsGame: 'DUNGEON VEIL', creditsTagline: 'Ein Raum-Run Action-Roguelite', creditsBuiltWith: 'Erstellt mit React + TypeScript', creditsDesign: 'Design & Spielentwicklung', creditsSpecialThanks: 'Besonderer Dank', creditsThanksText: 'An jeden Abenteurer, der den Schleier betritt.', creditsClose: 'Zurück',
   upgrades: {
-    maxHp: '+20 Max LP',
-    attack: '+5 Angriff',
-    speed: '+1 Tempo',
-    defense: '+1 Verteidigung',
-    heal: '+50% Heilung',
+    maxHp: '+20 Max LP', attack: '+5 Angriff', speed: '+15 Bewegung', defense: '+1 Verteidigung', heal: '50% Heilung',
+    multishot: 'MEHRFACHPFEIL · +1 Pfeil', ricochet: 'ABPRALLER · Trifft weiteren Gegner', fireArrow: 'FEUERPFEIL · Brandschaden', attackSpeed: 'SCHNELLZUG · Schnellere Angriffe', piercing: 'DURCHBOHREN · Pfeile treffen durch',
   } as Record<UpgradeKey, string>,
 };
 
