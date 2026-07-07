@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { GameState } from '../game/engine';
 import { TILE_SIZE, TileType } from '../game/dungeon';
 import { useLanguage } from '../i18n/LanguageContext';
 import { CLASS_DEFS } from '../game/classes';
-import { drawSprite, PLAYER_SPRITES } from '../game/sprites';
+import { TINY_CLASS_SPRITES, TINY_UI } from '../game/premiumPixelArt';
 
 interface Props {
   gameState: GameState;
@@ -26,10 +26,23 @@ function clampPercent(value: number, max: number): number {
 function StatBar({ value, max, label, fillClass, glow }: StatBarProps) {
   const percent = clampPercent(value, max);
   return (
-    <div className="h-[20px] sm:h-[22px] rounded-md border border-black/70 bg-black/80 shadow-inner overflow-hidden relative">
+    <div
+      className="h-[20px] sm:h-[22px] rounded-md border border-black/70 bg-black/80 shadow-inner overflow-hidden relative"
+      style={{
+        backgroundImage: `url("${TINY_UI.smallBarBase}")`,
+        backgroundSize: '100% 100%',
+        imageRendering: 'pixelated',
+      }}
+    >
       <div
         className={`absolute inset-y-0 left-0 ${fillClass} transition-all duration-300 ease-out`}
-        style={{ width: `${percent}%`, boxShadow: glow }}
+        style={{
+          width: `${percent}%`,
+          boxShadow: glow,
+          backgroundImage: `url("${TINY_UI.smallBarFill}")`,
+          backgroundSize: '100% 100%',
+          imageRendering: 'pixelated',
+        }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/35" />
       <div className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[13px] font-black text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)] tracking-wide whitespace-nowrap">
@@ -40,34 +53,29 @@ function StatBar({ value, max, label, fillClass, glow }: StatBarProps) {
 }
 
 function PlayerPortrait({ gameState }: { gameState: GameState }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { player } = gameState;
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = 80;
-    canvas.height = 80;
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const grad = ctx.createRadialGradient(40, 34, 6, 40, 40, 44);
-    grad.addColorStop(0, CLASS_DEFS[player.playerClass].glowColor);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const sprite = PLAYER_SPRITES[player.playerClass];
-    drawSprite(ctx, 14, 12, 52, 52, sprite, 0);
-  }, [player.playerClass]);
+  const sheetGrid = player.playerClass === 'archer'
+    ? { cols: 6, rows: 1 }
+    : player.playerClass === 'mage'
+      ? { cols: 6, rows: 1 }
+      : { cols: 8, rows: 1 };
 
   return (
     <div className="w-[56px] h-[56px] sm:w-[74px] sm:h-[74px] rounded-lg border-2 border-[#9b6b2e] bg-[#17100b]/95 shadow-[0_0_18px_rgba(0,0,0,0.8)] p-1 relative overflow-hidden">
+      <div
+        className="absolute inset-0 opacity-70"
+        style={{ background: `radial-gradient(circle at 50% 42%, ${CLASS_DEFS[player.playerClass].glowColor}, transparent 66%)` }}
+      />
       <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/50 pointer-events-none" />
-      <canvas ref={canvasRef} className="w-full h-full relative z-10" />
+      <div
+        className="absolute left-1/2 top-[58%] h-14 w-14 -translate-x-1/2 -translate-y-1/2 bg-no-repeat sm:h-[72px] sm:w-[72px] [image-rendering:pixelated]"
+        style={{
+          backgroundImage: `url("${TINY_CLASS_SPRITES[player.playerClass]}")`,
+          backgroundSize: `${sheetGrid.cols * 100}% ${sheetGrid.rows * 100}%`,
+          backgroundPosition: '0% 0%',
+          transform: 'translate(-50%, -50%) scale(1.18)',
+        }}
+      />
     </div>
   );
 }
@@ -185,7 +193,14 @@ export function HUD({ gameState, onPause, onExitDungeon }: Props) {
           </div>
         </div>
 
-        <div className="mt-7 w-[228px] sm:w-[min(72vw,290px)] rounded-lg border border-white/15 bg-black/72 px-3 py-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm">
+        <div
+          className="mt-7 w-[228px] sm:w-[min(72vw,290px)] rounded-lg border border-white/15 bg-black/72 px-3 py-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm"
+          style={{
+            backgroundImage: `linear-gradient(rgba(0,0,0,.72), rgba(0,0,0,.72)), url("${TINY_UI.banner}")`,
+            backgroundSize: '100% 100%',
+            imageRendering: 'pixelated',
+          }}
+        >
           <div className="text-[#ffd35b] text-[11px] sm:text-[12px] font-black tracking-widest uppercase mb-2">Active Quests</div>
           <div className="space-y-1.5 text-[11px] sm:text-[12px] text-white/90 font-semibold leading-tight">
             <div className="flex justify-between gap-3">
@@ -209,7 +224,14 @@ export function HUD({ gameState, onPause, onExitDungeon }: Props) {
         className="absolute top-3 right-3 pointer-events-auto flex flex-col items-end gap-4 w-[120px] sm:w-auto"
         style={{ paddingTop: 'env(safe-area-inset-top)', paddingRight: 'env(safe-area-inset-right)' }}
       >
-        <div className="w-[120px] sm:w-auto rounded-lg border-2 border-white/18 bg-black/75 p-2 shadow-[0_8px_28px_rgba(0,0,0,0.6)] backdrop-blur-sm">
+        <div
+          className="w-[120px] sm:w-auto rounded-lg border-2 border-white/18 bg-black/75 p-2 shadow-[0_8px_28px_rgba(0,0,0,0.6)] backdrop-blur-sm"
+          style={{
+            backgroundImage: `linear-gradient(rgba(0,0,0,.72), rgba(0,0,0,.72)), url("${TINY_UI.slots}")`,
+            backgroundSize: '100% 100%',
+            imageRendering: 'pixelated',
+          }}
+        >
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="min-w-0">
               <div className="font-serif text-[10px] sm:text-[13px] text-white/90 font-black tracking-widest uppercase leading-none truncate">
@@ -225,7 +247,7 @@ export function HUD({ gameState, onPause, onExitDungeon }: Props) {
               className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-[#9b6b2e] bg-[#21170e]/95 text-[#ffd35b] text-lg sm:text-xl font-black active:scale-95 transition-transform shrink-0"
               data-testid="button-pause"
             >
-              ⚙
+              âš™
             </button>
           </div>
 
