@@ -1,8 +1,17 @@
 import React,{useEffect,useState}from'react';
-import{GameState}from'../game/engine';
-import{CLASS_DEFS,CLASS_SKILL_NAMES}from'../game/classes';
-import{TINY_UI}from'../game/premiumPixelArt';
-import{TINY_SEMANTIC_UI}from'../game/tinyUiAssets';
-import{useLanguage}from'../i18n/LanguageContext';
+import type{GameState}from'../game/runEngine';
+import{CLASS_DEFS}from'../game/classes';
+
 interface Props{gameState:GameState;onAttack:()=>void;onDodge:()=>void;onSkill:()=>void;onInteract:()=>void}
-export function ActionButtons({gameState:g,onAttack,onDodge,onSkill,onInteract}:Props){const{language}=useLanguage(),p=g.player,d=CLASS_DEFS[p.playerClass],skill=CLASS_SKILL_NAMES[p.playerClass][language==='de'?'de':'en'],[cd,setCd]=useState([0,0,0]);useEffect(()=>{let id=0;const tick=()=>{setCd([p.attackCooldown/d.attackCooldownMs,p.dodgeCooldown/d.dodgeCooldownMs,p.skillCooldown/d.skillCooldownMs]);id=requestAnimationFrame(tick)};id=requestAnimationFrame(tick);return()=>cancelAnimationFrame(id)},[p,d]);const icon=p.playerClass==='mage'?TINY_SEMANTIC_UI.magic:p.playerClass==='archer'?TINY_SEMANTIC_UI.arrow:TINY_SEMANTIC_UI.attack;const B=({fn,src,label,style,red=false,cool=0}:{fn:()=>void;src?:string;label:string;style:React.CSSProperties;red?:boolean;cool?:number})=><button type="button" onPointerDown={e=>{e.preventDefault();e.stopPropagation();fn()}} className="absolute grid place-items-center overflow-hidden rounded-full border border-[#d2a957]/65 bg-black/68 shadow-[0_7px_18px_rgba(0,0,0,.62)] active:scale-90 touch-none" style={{...style,backgroundImage:`url("${red?TINY_UI.roundButtonRed:TINY_UI.roundButtonBlue}")`,backgroundSize:'100% 100%',imageRendering:'pixelated'}}>{src&&<img src={src} alt="" className="relative z-10 h-[42%] w-[42%] object-contain [image-rendering:pixelated]"/>}<span className="absolute inset-x-1 bottom-[7%] z-10 truncate text-center text-[7px] font-black text-white drop-shadow-[0_1px_2px_#000]">{label}</span>{cool>0&&<div className="absolute inset-[9%] rounded-full" style={{background:`conic-gradient(rgba(0,0,0,.72) ${Math.min(1,cool)*360}deg,transparent 0deg)`,transform:'rotate(-90deg)'}}/>}</button>;return <div className="fixed z-50 pointer-events-auto touch-none select-none" style={{width:150,height:142,right:'max(8px,env(safe-area-inset-right))',bottom:'max(12px,calc(env(safe-area-inset-bottom) + 8px))'}} data-ui-control><B fn={onAttack} src={TINY_SEMANTIC_UI.attack} label="ATK" red cool={cd[0]} style={{width:70,height:70,right:0,bottom:0}}/><B fn={onSkill} src={icon} label={skill} cool={cd[2]} style={{width:58,height:58,right:54,top:0}}/><B fn={onDodge} label="DASH" cool={cd[1]} style={{width:50,height:50,left:0,bottom:4}}/><B fn={onInteract} label={language==='de'?'AKTION':'USE'} red style={{width:42,height:42,right:0,top:28}}/></div>}
+
+export function ActionButtons({gameState:g,onDodge}:Props){
+ const p=g.player,d=CLASS_DEFS.archer,[dash,setDash]=useState(0);
+ useEffect(()=>{let id=0;const tick=()=>{setDash(Math.max(0,Math.min(1,p.dodgeCooldown/d.dodgeCooldownMs)));id=requestAnimationFrame(tick)};id=requestAnimationFrame(tick);return()=>cancelAnimationFrame(id)},[p,d]);
+ return <div className="fixed z-50 pointer-events-auto touch-none select-none" style={{width:86,height:86,right:'max(16px,env(safe-area-inset-right))',bottom:'max(22px,calc(env(safe-area-inset-bottom) + 14px))'}} data-ui-control>
+  <button type="button" onPointerDown={e=>{e.preventDefault();e.stopPropagation();onDodge()}} className="absolute inset-0 grid place-items-center overflow-hidden rounded-full border border-amber-300/55 bg-black/60 shadow-[0_10px_30px_rgba(0,0,0,.6)] backdrop-blur-sm active:scale-90">
+   <div className="absolute inset-2 rounded-full border border-white/10 bg-[radial-gradient(circle_at_35%_30%,rgba(84,177,218,.75),rgba(18,66,91,.9))]"/>
+   <span className="relative z-10 text-[11px] font-black tracking-[.18em] text-white">DASH</span>
+   {dash>0&&<div className="absolute inset-2 rounded-full" style={{background:`conic-gradient(rgba(0,0,0,.72) ${dash*360}deg,transparent 0deg)`,transform:'rotate(-90deg)'}}/>}
+  </button>
+ </div>
+}
