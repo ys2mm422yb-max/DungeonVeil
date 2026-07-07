@@ -55,17 +55,26 @@ function CharacterPreview({ cls, selected }: { cls: ClassKey; selected: boolean 
   const grid = CLASS_SHEET_GRID[cls];
   const frame = selected ? 1 : 0;
   const frameX = frame % grid.cols;
-  const frameY = Math.floor(frame / grid.cols);
   return (
     <div className={['relative mx-auto h-40 w-full min-w-0 overflow-hidden rounded border bg-[radial-gradient(circle_at_50%_34%,rgba(255,224,142,0.14),transparent_38%),linear-gradient(180deg,rgba(37,25,14,0.72),rgba(0,0,0,0.42))] transition-all', selected ? 'border-amber-300/70 shadow-[0_0_28px_rgba(232,178,74,0.28)]' : 'border-amber-100/15'].join(' ')}>
       <div className="absolute inset-x-5 bottom-7 h-6 rounded-full bg-black/50 blur-sm" />
+      <div className="absolute left-1/2 top-[54%] h-36 w-36 -translate-x-1/2 -translate-y-1/2 overflow-hidden">
+        <img
+          src={TINY_CLASS_SPRITES[cls]}
+          alt=""
+          draggable={false}
+          className="absolute left-0 top-0 h-full max-w-none select-none [image-rendering:pixelated]"
+          style={{
+            width: `${grid.cols * 100}%`,
+            transform: `translateX(-${(frameX / grid.cols) * 100}%)`,
+            transformOrigin: 'top left',
+          }}
+        />
+      </div>
       <div
-        className="absolute left-1/2 top-[54%] h-36 w-36 -translate-x-1/2 -translate-y-1/2 bg-no-repeat [image-rendering:pixelated]"
+        className="pointer-events-none absolute left-1/2 top-[54%] h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 blur-2xl"
         style={{
-          backgroundImage: `url("${TINY_CLASS_SPRITES[cls]}")`,
-          backgroundSize: `${grid.cols * 100}% ${grid.rows * 100}%`,
-          backgroundPosition: `${grid.cols === 1 ? 0 : (frameX / (grid.cols - 1)) * 100}% ${grid.rows === 1 ? 0 : (frameY / (grid.rows - 1)) * 100}%`,
-          transform: 'translate(-50%, -50%) scale(1.42)',
+          background: CLASS_DEFS[cls].glowColor,
         }}
       />
       <div className="pointer-events-none absolute inset-0 border border-white/5" />
