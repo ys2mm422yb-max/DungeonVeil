@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GameState } from '../game/engine';
 import { useLanguage } from '../i18n/LanguageContext';
 import { CLASS_DEFS, CLASS_SKILL_NAMES } from '../game/classes';
-import { TINY_UI } from '../game/premiumPixelArt';
+import { getTinyIcon, TINY_UI } from '../game/premiumPixelArt';
 
 interface Props {
   gameState: GameState;
@@ -14,13 +14,7 @@ interface Props {
 
 type ActionName = 'attack' | 'dodge' | 'skill' | 'interact';
 
-const baseButtonClass = 'rounded-full border-[3px] border-[#8b6a35] bg-black/85 shadow-[inset_0_0_14px_rgba(255,210,120,0.18),0_6px_18px_rgba(0,0,0,0.75)] active:scale-90 transition-transform overflow-hidden touch-none select-none flex items-center justify-center';
-const pixelButtonStyle: React.CSSProperties = {
-  backgroundImage: `url("${TINY_UI.roundButtonBlue}")`,
-  backgroundSize: '100% 100%',
-  imageRendering: 'pixelated',
-  WebkitTapHighlightColor: 'transparent',
-};
+const BUTTON_BASE = 'absolute grid place-items-center overflow-hidden rounded-full border border-[#d2a957]/65 bg-black/72 shadow-[0_7px_18px_rgba(0,0,0,.62)] active:scale-90 transition-transform touch-none select-none';
 
 export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInteract }: Props) {
   const { t, language } = useLanguage();
@@ -28,7 +22,6 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
   const classDef = CLASS_DEFS[player.playerClass];
   const skillName = CLASS_SKILL_NAMES[player.playerClass][language === 'de' ? 'de' : 'en'];
   const activePointers = useRef(new Map<number, ActionName>());
-
   const [cooldowns, setCooldowns] = useState({ attack: 0, dodge: 0, skill: 0 });
 
   useEffect(() => {
@@ -36,8 +29,8 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
     const update = () => {
       setCooldowns({
         attack: Math.max(0, player.attackCooldown / classDef.attackCooldownMs),
-        dodge:  Math.max(0, player.dodgeCooldown  / classDef.dodgeCooldownMs),
-        skill:  Math.max(0, player.skillCooldown  / classDef.skillCooldownMs),
+        dodge: Math.max(0, player.dodgeCooldown / classDef.dodgeCooldownMs),
+        skill: Math.max(0, player.skillCooldown / classDef.skillCooldownMs),
       });
       frameId = requestAnimationFrame(update);
     };
@@ -62,88 +55,86 @@ export function ActionButtons({ gameState, onAttack, onDodge, onSkill, onInterac
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   }, []);
 
-  const CooldownOverlay = ({ progress }: { progress: number }) =>
-    progress > 0 ? (
-      <div
-        className="absolute bottom-0 left-0 right-0 bg-black/55 pointer-events-none"
-        style={{ height: `${progress * 100}%` }}
-      />
-    ) : null;
+  const actionStyle = (image: string): React.CSSProperties => ({
+    backgroundImage: `url("${image}")`,
+    backgroundSize: '100% 100%',
+    imageRendering: 'pixelated',
+    WebkitTapHighlightColor: 'transparent',
+  });
+
+  const Cooldown = ({ value }: { value: number }) => value > 0 ? (
+    <div
+      className="absolute inset-[9%] rounded-full pointer-events-none"
+      style={{ background: `conic-gradient(rgba(0,0,0,.72) ${value * 360}deg, transparent 0deg)`, transform: 'rotate(-90deg)' }}
+    />
+  ) : null;
+
+  const Icon = ({ index, label }: { index: number; label: string }) => (
+    <>
+      <img src={getTinyIcon(index)} alt="" draggable={false} className="relative z-10 h-[46%] w-[46%] object-contain [image-rendering:pixelated] drop-shadow-[0_2px_3px_rgba(0,0,0,.95)]" />
+      <span className="absolute inset-x-1 bottom-[8%] z-10 truncate text-center text-[7px] font-black tracking-[.12em] text-white/90 drop-shadow-[0_1px_2px_#000]">{label}</span>
+    </>
+  );
 
   return (
     <div
-      className="fixed w-[clamp(10.5rem,42vw,12rem)] aspect-square pointer-events-auto z-50 touch-none select-none"
-      style={{
-        right: 'max(1rem, env(safe-area-inset-right))',
-        bottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem))',
-      }}
+      className="fixed z-50 h-[154px] w-[164px] pointer-events-auto touch-none select-none"
+      style={{ right: 'max(.55rem, env(safe-area-inset-right))', bottom: 'max(.7rem, calc(env(safe-area-inset-bottom) + .3rem))' }}
     >
-      <div className="relative w-full h-full">
-        <button
-          type="button"
-          onPointerDown={press('attack', onAttack)}
-          onPointerUp={release}
-          onPointerCancel={release}
-          className={`absolute bottom-0 right-0 w-[48%] aspect-square ${baseButtonClass}`}
-          style={{ ...pixelButtonStyle, backgroundImage: `url("${TINY_UI.roundButtonRed}")` }}
-          data-testid="button-attack"
-          aria-label="Attack"
-        >
-          <CooldownOverlay progress={cooldowns.attack} />
-          <div className="absolute inset-[9%] rounded-full border border-white/10 bg-gradient-to-br from-zinc-900 via-black to-zinc-950" />
-          <span className="text-white text-[13px] font-black tracking-widest z-10 pointer-events-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]">ATK</span>
-        </button>
+      <button
+        type="button"
+        onPointerDown={press('attack', onAttack)}
+        onPointerUp={release}
+        onPointerCancel={release}
+        className={`${BUTTON_BASE} bottom-0 right-0 h-[78px] w-[78px]`}
+        style={actionStyle(TINY_UI.roundButtonRed)}
+        aria-label="Attack"
+        data-testid="button-attack"
+      >
+        <Cooldown value={cooldowns.attack} />
+        <Icon index={1} label="ATK" />
+      </button>
 
-        <button
-          type="button"
-          onPointerDown={press('dodge', onDodge)}
-          onPointerUp={release}
-          onPointerCancel={release}
-          className={`absolute bottom-[12%] left-[2%] w-[34%] aspect-square ${baseButtonClass}`}
-          style={pixelButtonStyle}
-          data-testid="button-dodge"
-          aria-label="Dash"
-        >
-          <CooldownOverlay progress={cooldowns.dodge} />
-          <div className="absolute inset-[10%] rounded-full bg-gradient-to-br from-purple-800 via-purple-950 to-black" />
-          <span className="font-black text-[10px] tracking-widest z-10 text-white pointer-events-none">DASH</span>
-        </button>
+      <button
+        type="button"
+        onPointerDown={press('skill', onSkill)}
+        onPointerUp={release}
+        onPointerCancel={release}
+        className={`${BUTTON_BASE} right-[60px] top-0 h-[64px] w-[64px]`}
+        style={{ ...actionStyle(TINY_UI.roundButtonBlue), boxShadow: `0 0 18px ${classDef.glowColor}, 0 7px 18px rgba(0,0,0,.62)` }}
+        aria-label={skillName}
+        data-testid="button-skill"
+      >
+        <Cooldown value={cooldowns.skill} />
+        <Icon index={player.playerClass === 'warrior' ? 4 : player.playerClass === 'mage' ? 7 : 2} label={skillName} />
+      </button>
 
-        <button
-          type="button"
-          onPointerDown={press('skill', onSkill)}
-          onPointerUp={release}
-          onPointerCancel={release}
-          className={`absolute top-[8%] left-[20%] w-[38%] aspect-square ${baseButtonClass}`}
-          style={{
-            boxShadow: `inset 0 0 14px ${classDef.glowColor}, 0 6px 18px rgba(0,0,0,0.75)`,
-            ...pixelButtonStyle,
-          }}
-          data-testid="button-skill"
-          aria-label={skillName}
-        >
-          <CooldownOverlay progress={cooldowns.skill} />
-          <div
-            className="absolute inset-[10%] rounded-full"
-            style={{ background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), ${classDef.color}cc 35%, rgba(0,0,0,0.9) 100%)` }}
-          />
-          <span className="font-black text-[11px] tracking-widest z-10 text-white pointer-events-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]">{skillName}</span>
-        </button>
+      <button
+        type="button"
+        onPointerDown={press('dodge', onDodge)}
+        onPointerUp={release}
+        onPointerCancel={release}
+        className={`${BUTTON_BASE} bottom-[8px] left-[3px] h-[56px] w-[56px]`}
+        style={actionStyle(TINY_UI.roundButtonBlue)}
+        aria-label="Dash"
+        data-testid="button-dodge"
+      >
+        <Cooldown value={cooldowns.dodge} />
+        <Icon index={8} label="DASH" />
+      </button>
 
-        <button
-          type="button"
-          onPointerDown={press('interact', onInteract)}
-          onPointerUp={release}
-          onPointerCancel={release}
-          className={`absolute right-0 top-[34%] w-[30%] aspect-square ${baseButtonClass}`}
-          style={{ ...pixelButtonStyle, backgroundImage: `url("${TINY_UI.roundButtonRed}")` }}
-          data-testid="button-interact"
-          aria-label={t.interact}
-        >
-          <div className="absolute inset-[11%] rounded-full bg-gradient-to-br from-red-800 via-red-950 to-black" />
-          <span className="text-white font-black text-xs tracking-widest pointer-events-none z-10">{t.interact}</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        onPointerDown={press('interact', onInteract)}
+        onPointerUp={release}
+        onPointerCancel={release}
+        className={`${BUTTON_BASE} right-[3px] top-[21px] h-[48px] w-[48px]`}
+        style={actionStyle(TINY_UI.roundButtonRed)}
+        aria-label={t.interact}
+        data-testid="button-interact"
+      >
+        <Icon index={0} label={language === 'de' ? 'AKTION' : 'USE'} />
+      </button>
     </div>
   );
 }
