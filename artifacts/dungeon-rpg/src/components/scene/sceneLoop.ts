@@ -6,15 +6,17 @@ import { addSceneJobs } from './sceneJobs';
 import { drawSceneFog } from './sceneFog';
 import { drawSceneOverlay } from './sceneOverlay';
 
-const exploredRenderCache = new WeakMap<object, boolean[][]>();
+const terrainStateCache = new WeakMap<object, GameState>();
 
 function terrainRenderState(state: GameState): GameState {
-  let explored = exploredRenderCache.get(state.map);
-  if (!explored) {
-    explored = Array.from({ length: state.map.height }, () => Array(state.map.width).fill(true));
-    exploredRenderCache.set(state.map, explored);
+  let cached = terrainStateCache.get(state.map);
+  if (!cached) {
+    const explored = Array.from({ length: state.map.height }, () => Array(state.map.width).fill(true));
+    cached = { ...state, map: { ...state.map, explored } };
+    terrainStateCache.set(state.map, cached);
   }
-  return { ...state, map: { ...state.map, explored } };
+  cached.inDungeon = state.inDungeon;
+  return cached;
 }
 
 export function runScene(canvas: HTMLCanvasElement, readState: () => GameState): () => void {
