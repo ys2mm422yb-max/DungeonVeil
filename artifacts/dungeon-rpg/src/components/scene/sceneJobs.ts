@@ -12,15 +12,37 @@ export function addSceneJobs(ctx: CanvasRenderingContext2D, state: GameState, jo
     const y = shrine.ty * 40;
     if (!isExplored(state, x + 20, y + 20)) continue;
     jobs.push({
-      y: y + 36,
+      y: y + 38,
       draw: () => {
-        const pulse = 0.18 + Math.sin((now + shrine.tx * 73) / 320) * 0.06;
-        const glow = ctx.createRadialGradient(x + 20, y + 18, 2, x + 20, y + 18, 42);
-        glow.addColorStop(0, `rgba(172,112,255,${pulse})`);
-        glow.addColorStop(1, 'rgba(94,45,180,0)');
+        const wave = (Math.sin((now + shrine.tx * 73) / 300) + 1) / 2;
+        const pulse = 0.24 + wave * 0.14;
+        const glow = ctx.createRadialGradient(x + 20, y + 14, 4, x + 20, y + 14, 58);
+        glow.addColorStop(0, `rgba(205,160,255,${pulse})`);
+        glow.addColorStop(0.45, `rgba(142,76,230,${pulse * 0.7})`);
+        glow.addColorStop(1, 'rgba(72,20,150,0)');
         ctx.fillStyle = glow;
-        ctx.fillRect(x - 22, y - 24, 84, 84);
-        drawPremiumProp(ctx, 'shrine', x - 8, y - 22, 56, 62, shrine.tx + shrine.ty);
+        ctx.fillRect(x - 40, y - 46, 120, 120);
+
+        ctx.save();
+        ctx.strokeStyle = `rgba(197,145,255,${0.5 + wave * 0.35})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(x + 20, y + 28, 24 + wave * 3, 9 + wave, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        drawPremiumProp(ctx, 'shrine', x - 18, y - 34, 76, 82, shrine.tx + shrine.ty);
+
+        const runeY = y - 34 - wave * 7;
+        ctx.save();
+        ctx.translate(x + 20, runeY);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = `rgba(221,190,255,${0.78 + wave * 0.22})`;
+        ctx.fillRect(-6, -6, 12, 12);
+        ctx.strokeStyle = 'rgba(116,49,210,.95)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-6, -6, 12, 12);
+        ctx.restore();
       },
     });
   }
