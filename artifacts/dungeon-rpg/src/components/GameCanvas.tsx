@@ -145,9 +145,18 @@ export function GameCanvas({ gameState }: Props) {
             }
             case TileType.FOREST: {
               const isPine = (map.wallVariant[ty][tx] ?? 0) === 1;
-              const offX = Math.abs(hash(tx, ty)) * 6 - 3;
-              const offY = Math.abs(hash(tx + 1, ty)) * 4 - 2;
-              drawPremiumTile(ctx, isPine ? 'pineTree' : 'broadTree', wx - 5 + offX, wy - 15 + offY, TILE_SIZE + 10, TILE_SIZE + 16, tx * 13 + ty * 17);
+              const h = Math.abs(hash(tx, ty));
+              const offX = Math.abs(hash(tx, ty)) * 14 - 7;
+              const offY = Math.abs(hash(tx + 1, ty)) * 10 - 5;
+              const scale = 0.92 + Math.abs(hash(tx + 3, ty + 5)) * 0.34;
+              drawPremiumTile(ctx, 'grass', wx, wy, TILE_SIZE, TILE_SIZE, tx + ty * 5);
+              if (h > 0.16) {
+                drawPremiumTile(ctx, isPine ? 'pineTree' : 'broadTree', wx - 8 + offX, wy - 20 + offY, (TILE_SIZE + 16) * scale, (TILE_SIZE + 24) * scale, tx * 13 + ty * 17);
+              } else if (h > 0.08) {
+                drawPremiumProp(ctx, 'bush', wx + 3 + offX * 0.3, wy + 7 + offY * 0.2, TILE_SIZE - 6, TILE_SIZE - 8, tx + ty);
+              } else {
+                drawPremiumProp(ctx, 'rock', wx + 7 + offX * 0.2, wy + 9 + offY * 0.2, TILE_SIZE - 14, TILE_SIZE - 14, tx + ty);
+              }
               break;
             }
             case TileType.VILLAGE: {
@@ -196,20 +205,21 @@ export function GameCanvas({ gameState }: Props) {
                 ctx.stroke();
                 ctx.restore();
               }
-              if (h < 0.05) drawPremiumProp(ctx, 'flowers', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
-              else if (h < 0.08) drawPremiumProp(ctx, 'bush', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
-              else if (h < 0.11) drawPremiumProp(ctx, 'rock', wx + 6, wy + 6, TILE_SIZE - 12, TILE_SIZE - 12, tx + ty);
-              else if (h < 0.13) drawPremiumProp(ctx, 'log', wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, tx + ty);
-              else if (h < 0.14) drawPremiumProp(ctx, 'ruins', wx - 4, wy - 4, TILE_SIZE + 8, TILE_SIZE + 8, tx + ty);
-              else if (h < 0.20) drawPremiumProp(ctx, 'mushrooms', wx + 10, wy + 10, TILE_SIZE - 20, TILE_SIZE - 20, tx + ty);
-              else if (h < 0.35) drawSprite(ctx, wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, SPRITE_RH_GRASS_TUFT, 0);
+              if (h < 0.08) drawPremiumProp(ctx, 'flowers', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
+              else if (h < 0.13) drawPremiumProp(ctx, 'bush', wx + 4, wy + 4, TILE_SIZE - 8, TILE_SIZE - 8, tx + ty);
+              else if (h < 0.17) drawPremiumProp(ctx, 'rock', wx + 6, wy + 6, TILE_SIZE - 12, TILE_SIZE - 12, tx + ty);
+              else if (h < 0.21) drawPremiumProp(ctx, 'log', wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, tx + ty);
+              else if (h < 0.23) drawPremiumProp(ctx, 'ruins', wx - 4, wy - 4, TILE_SIZE + 8, TILE_SIZE + 8, tx + ty);
+              else if (h < 0.30) drawPremiumProp(ctx, 'mushrooms', wx + 10, wy + 10, TILE_SIZE - 20, TILE_SIZE - 20, tx + ty);
+              else if (h < 0.46) drawSprite(ctx, wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, SPRITE_RH_GRASS_TUFT, 0);
             }
 
             if (tile === TileType.ROAD && hasNeighbor(tx, ty, TileType.VILLAGE)) {
               const vh = Math.abs(hash(tx + 7, ty + 9));
-              if (vh < 0.05) drawPremiumProp(ctx, 'well', wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, tx + ty);
-              else if (vh < 0.10) drawPremiumProp(ctx, 'fence', wx + 4, wy + 18, TILE_SIZE - 8, TILE_SIZE - 18, tx + ty);
-              else if (vh < 0.14) drawPremiumProp(ctx, 'cart', wx + 4, wy + 8, TILE_SIZE - 8, TILE_SIZE - 16, tx + ty);
+              if (vh < 0.08) drawPremiumProp(ctx, 'well', wx + 8, wy + 8, TILE_SIZE - 16, TILE_SIZE - 16, tx + ty);
+              else if (vh < 0.22) drawPremiumProp(ctx, 'fence', wx + 4, wy + 18, TILE_SIZE - 8, TILE_SIZE - 18, tx + ty);
+              else if (vh < 0.30) drawPremiumProp(ctx, 'cart', wx + 4, wy + 8, TILE_SIZE - 8, TILE_SIZE - 16, tx + ty);
+              else if (vh < 0.40) drawPremiumProp(ctx, 'flowers', wx + 6, wy + 10, TILE_SIZE - 12, TILE_SIZE - 14, tx + ty);
             }
           }
         }
