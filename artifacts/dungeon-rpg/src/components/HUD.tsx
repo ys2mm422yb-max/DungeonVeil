@@ -67,15 +67,15 @@ function PlayerPortrait({ gameState }: { gameState: GameState }) {
         style={{ background: `radial-gradient(circle at 50% 42%, ${CLASS_DEFS[player.playerClass].glowColor}, transparent 66%)` }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/50 pointer-events-none" />
-      <div
-        className="absolute left-1/2 top-[58%] h-14 w-14 -translate-x-1/2 -translate-y-1/2 bg-no-repeat sm:h-[72px] sm:w-[72px] [image-rendering:pixelated]"
-        style={{
-          backgroundImage: `url("${TINY_CLASS_SPRITES[player.playerClass]}")`,
-          backgroundSize: `${sheetGrid.cols * 100}% ${sheetGrid.rows * 100}%`,
-          backgroundPosition: '0% 0%',
-          transform: 'translate(-50%, -50%) scale(1.18)',
-        }}
-      />
+      <div className="absolute left-1/2 top-[58%] h-14 w-14 -translate-x-1/2 -translate-y-1/2 overflow-hidden sm:h-[72px] sm:w-[72px]">
+        <img
+          src={TINY_CLASS_SPRITES[player.playerClass]}
+          alt=""
+          draggable={false}
+          className="absolute left-0 top-0 h-full max-w-none select-none [image-rendering:pixelated]"
+          style={{ width: `${sheetGrid.cols * 100}%` }}
+        />
+      </div>
     </div>
   );
 }
@@ -194,15 +194,15 @@ export function HUD({ gameState, onPause, onExitDungeon }: Props) {
         </div>
 
         <div
-          className="mt-7 w-[228px] sm:w-[min(72vw,290px)] rounded-lg border border-white/15 bg-black/72 px-3 py-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm"
+          className="mt-6 w-[214px] rounded-lg border border-white/15 bg-black/72 px-2.5 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm sm:w-[min(72vw,290px)] sm:px-3 sm:py-2.5"
           style={{
             backgroundImage: `linear-gradient(rgba(0,0,0,.72), rgba(0,0,0,.72)), url("${TINY_UI.banner}")`,
             backgroundSize: '100% 100%',
             imageRendering: 'pixelated',
           }}
         >
-          <div className="text-[#ffd35b] text-[11px] sm:text-[12px] font-black tracking-widest uppercase mb-2">Active Quests</div>
-          <div className="space-y-1.5 text-[11px] sm:text-[12px] text-white/90 font-semibold leading-tight">
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-[#ffd35b] sm:text-[12px]">Active Quests</div>
+          <div className="space-y-1 text-[10px] font-semibold leading-tight text-white/90 sm:space-y-1.5 sm:text-[12px]">
             <div className="flex justify-between gap-3">
               <span className="truncate">Defeat 10 enemies</span>
               <span className="text-white/80 shrink-0">{questKills} / 10</span>
