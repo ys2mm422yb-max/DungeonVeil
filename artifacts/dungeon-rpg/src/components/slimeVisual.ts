@@ -69,15 +69,26 @@ function pickClip(clips: any[], wanted: 'idle' | 'move' | 'attack' | 'death') {
 }
 
 function normalizeModel(THREE: any, model: any, targetHeight: number) {
-  const box = new THREE.Box3().setFromObject(model);
-  const size = new THREE.Vector3();
-  const center = new THREE.Vector3();
-  box.getSize(size);
-  box.getCenter(center);
-  model.position.x -= center.x;
-  model.position.z -= center.z;
-  model.position.y -= box.min.y;
-  model.scale.setScalar(targetHeight / Math.max(size.y, 0.0001));
+  model.position.set(0, 0, 0);
+  model.scale.setScalar(1);
+  model.updateMatrixWorld(true);
+
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialSize = new THREE.Vector3();
+  initialBox.getSize(initialSize);
+  const sourceHeight = Math.max(initialSize.y, 0.0001);
+  const scale = targetHeight / sourceHeight;
+  model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+
+  const scaledBox = new THREE.Box3().setFromObject(model);
+  const scaledCenter = new THREE.Vector3();
+  scaledBox.getCenter(scaledCenter);
+  model.position.x -= scaledCenter.x;
+  model.position.z -= scaledCenter.z;
+  model.position.y -= scaledBox.min.y;
+  model.updateMatrixWorld(true);
+
   model.traverse((node: any) => {
     if (!node.isMesh) return;
     node.castShadow = true;
@@ -172,7 +183,7 @@ export function createSlimeVisual(THREE: any, enemy: any): SlimeVisual {
       if (!root.parent && root.userData.disposed) return;
       const targetHeight = kind === 'dragon' ? 3.2 : kind === 'bat' ? 1.05 : 1.65;
       normalizeModel(THREE, model, targetHeight);
-      if (kind === 'bat') model.position.y = 0.72;
+      if (kind === 'bat') model.position.y += 0.72;
       if (kind === 'dragon') model.rotation.y = Math.PI;
       root.add(model);
       visual.model = model;
@@ -237,7 +248,9 @@ export function updateSlimeVisual(visual: SlimeVisual, enemy: any, now: number) 
     visual.model.position.x = hitWave * 0.08;
     visual.model.rotation.z = hitWave * 0.06;
     if (visual.kind === 'bat' && !isDead) {
-      visual.model.position.y = 0.72 + Math.sin(now * 0.006 + visual.seed) * 0.12;
+      const groundedY = visual.model.userData.hoverBaseY ?? visual.model.position.y;
+      visual.model.userData.hoverBaseY = groundedY;
+      visual.model.position.y = groundedY + Math.sin(now * 0.006 + visual.seed) * 0.12;
       visual.shadow.scale.setScalar(0.82 + Math.sin(now * 0.006 + visual.seed) * 0.08);
     }
   }
