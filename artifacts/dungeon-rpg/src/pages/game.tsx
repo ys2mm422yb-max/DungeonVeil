@@ -185,7 +185,7 @@ export default function Game() {
         <CombatStage gameState={gameState} />
         {saveNotice && <div className="fixed left-1/2 top-[18%] z-[80] -translate-x-1/2 rounded border border-violet-300/40 bg-black/80 px-4 py-2 text-[10px] font-black tracking-[.18em] text-violet-100">✓ {saveNotice}</div>}
         {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />}
-        {gameState.status === 'levelup' && <LevelUpScreen choices={gameState.upgradeChoices} onSelect={handleLevelUpSelect} />}
+        {gameState.status === 'levelup' && <LevelUpScreen choices={gameState.upgradeChoices} runSkills={gameState.runSkills} onSelect={handleLevelUpSelect} />}
         {gameState.status === 'paused' && <GamePausePanel gameState={gameState} language={language as Language} paused={t.paused} resume={t.resume} settings={t.settings} classNameText={t.className.archer} onResume={handleResume} onSave={() => saveCurrentGame(true)} onSettings={() => goSettings('game')} onMainMenu={handleMainMenu} onLanguage={setLanguage} onRestartRoom={handleRestartRoom} />}
         {(gameState.status === 'playing' || gameState.status === 'paused') && <>
           <HUD gameState={gameState} onPause={handlePause} onExitDungeon={handleExitDungeon} />
