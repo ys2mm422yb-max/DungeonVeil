@@ -16,6 +16,7 @@ export type SlimeVisual = {
   ready?: boolean;
   failed?: boolean;
   lastDead?: boolean;
+  THREE?: any;
 };
 
 const FBX_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/FBXLoader.js';
@@ -160,6 +161,7 @@ export function createSlimeVisual(THREE: any, enemy: any): SlimeVisual {
     ready: false,
     failed: false,
     lastDead: false,
+    THREE,
   };
 
   loadPrototype(THREE, kind)
@@ -183,11 +185,15 @@ export function createSlimeVisual(THREE: any, enemy: any): SlimeVisual {
       const clips = model.animations ?? [];
       const mixer = new THREE.AnimationMixer(model);
       visual.mixer = mixer;
+      const idleClip = pickClip(clips, 'idle');
+      const moveClip = pickClip(clips, 'move');
+      const attackClip = pickClip(clips, 'attack');
+      const deathClip = pickClip(clips, 'death');
       visual.actions = {
-        idle: pickClip(clips, 'idle') ? mixer.clipAction(pickClip(clips, 'idle')) : null,
-        move: pickClip(clips, 'move') ? mixer.clipAction(pickClip(clips, 'move')) : null,
-        attack: pickClip(clips, 'attack') ? mixer.clipAction(pickClip(clips, 'attack')) : null,
-        death: pickClip(clips, 'death') ? mixer.clipAction(pickClip(clips, 'death')) : null,
+        idle: idleClip ? mixer.clipAction(idleClip) : null,
+        move: moveClip ? mixer.clipAction(moveClip) : null,
+        attack: attackClip ? mixer.clipAction(attackClip) : null,
+        death: deathClip ? mixer.clipAction(deathClip) : null,
       };
       playAction(THREE, visual, kind === 'bat' ? 'move' : 'idle', 0);
       visual.ready = true;
@@ -201,15 +207,13 @@ export function createSlimeVisual(THREE: any, enemy: any): SlimeVisual {
 }
 
 export function updateSlimeVisual(visual: SlimeVisual, enemy: any, now: number) {
-  const THREE = (globalThis as any).__DUNGEON_VEIL_THREE__;
+  const THREE = visual.THREE;
   const isDead = enemy.isDead || enemy.hp <= 0;
-  const delta = 1 / 60;
-  visual.mixer?.update(delta);
+  visual.mixer?.update(1 / 60);
 
   if (enemy.flashUntil > visual.lastFlashUntil) {
     visual.lastFlashUntil = enemy.flashUntil;
     visual.hitStart = now;
-    if (THREE && !isDead) playAction(THREE, visual, 'attack', 0.05);
   }
 
   if (isDead && !visual.lastDead) {
@@ -247,8 +251,4 @@ export function updateSlimeVisual(visual: SlimeVisual, enemy: any, now: number) 
   }
 
   visual.shadow.material.opacity = isDead ? 0.3 * Math.max(0, 1 - Math.min(1, (now - (enemy.deathTime || now)) / 320)) : 0.3;
-}
-
-export function registerMonsterThree(THREE: any) {
-  (globalThis as any).__DUNGEON_VEIL_THREE__ = THREE;
 }
