@@ -1,5 +1,5 @@
 export type Language = 'de' | 'en';
-export type UpgradeKey = 'maxHp' | 'attack' | 'speed' | 'defense' | 'heal' | 'multishot' | 'ricochet' | 'fireArrow' | 'attackSpeed' | 'piercing';
+export type UpgradeKey = 'maxHp' | 'attack' | 'speed' | 'defense' | 'heal' | 'multishot' | 'ricochet' | 'fireArrow' | 'iceArrow' | 'attackSpeed' | 'piercing';
 
 const en = {
   selectLanguage: 'Select Language', selectLanguageSubtitle: 'Choose your preferred language', continueInEnglish: 'English', continueInGerman: 'Deutsch',
@@ -17,7 +17,7 @@ const en = {
   creditsTitle: 'Credits', creditsGame: 'DUNGEON VEIL', creditsTagline: 'A room-run action roguelite', creditsBuiltWith: 'Built with React + TypeScript', creditsDesign: 'Design & Game Dev', creditsSpecialThanks: 'Special Thanks', creditsThanksText: 'To every adventurer brave enough to enter the Veil.', creditsClose: 'Back',
   upgrades: {
     maxHp: '+20 Max HP', attack: '+5 Attack', speed: '+15 Move Speed', defense: '+1 Defense', heal: 'Heal 50%',
-    multishot: 'MULTISHOT · +1 arrow', ricochet: 'RICOCHET · Hit another enemy', fireArrow: 'FIRE ARROW · Burn damage', attackSpeed: 'QUICK DRAW · Faster attacks', piercing: 'PIERCING · Arrow hits through targets',
+    multishot: 'MULTISHOT · +1 arrow', ricochet: 'RICOCHET · Hit another enemy', fireArrow: 'FIRE ARROW · Burn damage', iceArrow: 'FROST ARROW · Ice damage', attackSpeed: 'QUICK DRAW · Faster attacks', piercing: 'PIERCING · Arrow hits through targets',
   } as Record<UpgradeKey, string>,
 };
 
@@ -37,7 +37,7 @@ const de: typeof en = {
   creditsTitle: 'Credits', creditsGame: 'DUNGEON VEIL', creditsTagline: 'Ein Raum-Run Action-Roguelite', creditsBuiltWith: 'Erstellt mit React + TypeScript', creditsDesign: 'Design & Spielentwicklung', creditsSpecialThanks: 'Besonderer Dank', creditsThanksText: 'An jeden Abenteurer, der den Schleier betritt.', creditsClose: 'Zurück',
   upgrades: {
     maxHp: '+20 Max LP', attack: '+5 Angriff', speed: '+15 Bewegung', defense: '+1 Verteidigung', heal: '50% Heilung',
-    multishot: 'MEHRFACHPFEIL · +1 Pfeil', ricochet: 'ABPRALLER · Trifft weiteren Gegner', fireArrow: 'FEUERPFEIL · Brandschaden', attackSpeed: 'SCHNELLZUG · Schnellere Angriffe', piercing: 'DURCHBOHREN · Pfeile treffen durch',
+    multishot: 'MEHRFACHPFEIL · +1 Pfeil', ricochet: 'ABPRALLER · Trifft weiteren Gegner', fireArrow: 'FEUERPFEIL · Brandschaden', iceArrow: 'FROSTPFEIL · Eisschaden', attackSpeed: 'SCHNELLZUG · Schnellere Angriffe', piercing: 'DURCHBOHREN · Pfeile treffen durch',
   } as Record<UpgradeKey, string>,
 };
 
