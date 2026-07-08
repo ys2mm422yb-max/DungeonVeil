@@ -35,8 +35,8 @@ export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig 
   bow.rotation.order = 'YXZ';
 
   if (bestScore >= 130) {
-    bow.position.set(0.018, -0.01, 0.02);
-    bow.rotation.set(0, 0, Math.PI / 2);
+    bow.position.set(0.006, -0.015, 0.018);
+    bow.rotation.set(0.05, -0.06, 0);
   } else if (bestScore > 0) {
     bow.position.set(0.015, -0.015, 0.035);
     bow.rotation.set(-0.08, Math.PI / 2, -Math.PI / 2);
@@ -59,7 +59,9 @@ export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig 
       bow.position.copy(basePosition);
       bow.rotation.copy(baseRotation);
       bow.position.z -= pulse * 0.035;
-      bow.rotation.y += pulse * 0.08;
+      bow.position.y += pulse * 0.012;
+      bow.rotation.x -= pulse * 0.05;
+      bow.rotation.y += pulse * 0.035;
     },
   };
 }
