@@ -26,7 +26,6 @@ function chooseVerticalBowRotation(THREE: any, heroRoot: any, bow: any) {
     [0, 0, Math.PI / 2],
     [0, 0, -Math.PI / 2],
   ];
-
   const bounds = new THREE.Box3();
   const size = new THREE.Vector3();
   let best = candidates[0];
@@ -48,6 +47,19 @@ function chooseVerticalBowRotation(THREE: any, heroRoot: any, bow: any) {
   bow.rotation.set(best[0], best[1], best[2]);
 }
 
+function centerGripOnAnchor(THREE: any, heroRoot: any, anchor: any, bow: any) {
+  heroRoot.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(bow);
+  const centerWorld = bounds.getCenter(new THREE.Vector3());
+  const centerLocal = anchor.worldToLocal(centerWorld.clone());
+  bow.position.sub(centerLocal);
+
+  // Der geometrische Mittelpunkt entspricht beim KayKit-Bogen sehr gut dem Griffbereich.
+  // Ein kleiner seitlicher Offset verhindert, dass der Griff im Handschuh verschwindet.
+  bow.position.x += 0.018;
+  bow.position.z += 0.012;
+}
+
 export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
@@ -65,8 +77,9 @@ export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
   bow.rotation.order = 'YXZ';
 
   if (bestScore >= 130) {
-    bow.position.set(0.006, -0.015, 0.018);
+    bow.position.set(0, 0, 0);
     chooseVerticalBowRotation(THREE, heroRoot, bow);
+    centerGripOnAnchor(THREE, heroRoot, anchor, bow);
     bow.rotation.y -= 0.08;
     bow.rotation.x += 0.04;
   } else if (bestScore > 0) {
