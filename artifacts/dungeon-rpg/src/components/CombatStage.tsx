@@ -19,12 +19,21 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   const previousHpRef = useRef(gameState.player.hp);
   const previousFloorRef = useRef(gameState.floor);
   const lastDamageIdRef = useRef('');
-  const [shakeKey, setShakeKey] = useState(0);
-  const [heavy, setHeavy] = useState(false);
+  const shakeTimerRef = useRef<number | null>(null);
+  const [shakeClass, setShakeClass] = useState('');
   const [hurtFlash, setHurtFlash] = useState(false);
   const [hitFlash, setHitFlash] = useState(false);
   const [roomTitle, setRoomTitle] = useState(() => ROOM_NAMES[Math.max(0, Math.min(9, gameState.floor - 1))]);
   const [showRoomTitle, setShowRoomTitle] = useState(true);
+
+  const triggerShake = (heavy: boolean) => {
+    if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
+    setShakeClass('');
+    requestAnimationFrame(() => {
+      setShakeClass(heavy ? 'dv-heavy-impact' : 'dv-light-impact');
+      shakeTimerRef.current = window.setTimeout(() => setShakeClass(''), heavy ? 200 : 110);
+    });
+  };
 
   useEffect(() => {
     if (previousFloorRef.current === gameState.floor) return undefined;
@@ -39,9 +48,8 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   useEffect(() => {
     const previousHp = previousHpRef.current;
     if (gameState.player.hp < previousHp) {
-      setHeavy(true);
       setHurtFlash(true);
-      setShakeKey(key => key + 1);
+      triggerShake(true);
       try { navigator.vibrate?.([24, 18, 40]); } catch {}
       const timer = window.setTimeout(() => setHurtFlash(false), 220);
       previousHpRef.current = gameState.player.hp;
@@ -55,8 +63,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
     const isPlayerHit = latest.id.startsWith('hit-');
     const isHeavy = (latest.scale ?? 1) >= 1.3;
     if (!isPlayerHit) {
-      setHeavy(isHeavy);
-      setShakeKey(key => key + 1);
+      triggerShake(isHeavy);
       setHitFlash(true);
       const flashTimer = window.setTimeout(() => setHitFlash(false), isHeavy ? 100 : 55);
       if (isHeavy) {
@@ -73,12 +80,13 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => () => {
+    if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
+  }, []);
+
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <div
-        key={shakeKey}
-        className={`absolute inset-0 ${heavy ? 'dv-heavy-impact' : 'dv-light-impact'}`}
-      >
+      <div className={`absolute inset-0 ${shakeClass}`}>
         <GameCanvas gameState={gameState} />
       </div>
 
