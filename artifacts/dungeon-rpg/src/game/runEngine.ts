@@ -8,6 +8,7 @@ import { UpgradeKey } from '../i18n/translations';
 import { enemyArchetype, planEnemyMove } from './enemyRunAI';
 import { collidesWithRoomProp, shotBlockedByRoomProp } from './roomCollision3D';
 import { getRoomSpawnPoints, sceneSpawnToGame } from './roomSpawn3D';
+import { availableRunSkills, nextSkillRank, skillRank } from './runSkills';
 
 export interface RunGameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';
@@ -26,7 +27,24 @@ export interface RunGameState {
   runSkills: Partial<Record<UpgradeKey, number>>;
   killCount: number;
   camera: { x: number; y: number };
+  roomClearReady: boolean;
+  roomClearAt: number;
+  exitHintUntil: number;
+  exitHintCount: number;
 }
+
+type RoomEntrySnapshot = {
+  floor: number;
+  chapter: number;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
+  speed: number;
+  level: number;
+  killCount: number;
+  runSkills: Partial<Record<UpgradeKey, number>>;
+};
 
 const ENEMY_STATS: Record<EnemyType, { hp: number; attack: number; defense: number; speed: number; size: number; xp: number; color: string }> = {
   slime: { hp: 24, attack: 4, defense: 0, speed: 42, size: 24, xp: 18, color: '#43c968' },
@@ -41,6 +59,9 @@ const ENEMY_STATS: Record<EnemyType, { hp: number; attack: number; defense: numb
 };
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
+const NORMAL_DEATH_MS = 920;
+const BOSS_DEATH_MS = 1650;
+const UNSTUCK_MS = 7000;
 
 export class GameEngine {
   state: RunGameState;
@@ -48,6 +69,7 @@ export class GameEngine {
   private lastStepTime = 0;
   private roomAnnouncedClear = false;
   private lootCounter = 0;
+  private roomEntrySnapshot: RoomEntrySnapshot | null = null;
 
   input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
   onStateChange: (state: RunGameState) => void = () => {};
@@ -67,6 +89,7 @@ export class GameEngine {
       attackRange: overrides.attackRange ?? 520, skillRange: overrides.skillRange ?? def.skillRange,
       level, xp, color: def.color, state: 'idle', facing: { x: 0, y: -1 }, invincibleUntil: 0,
       skillCooldown: 0, dodgeCooldown: 0, lastDodgeTime: 0, attackCooldown: 0, spawnTime: Date.now(), lastAttackTime: 0,
+      lastHitTime: 0, lastGuardTime: 0, lastGiftTime: 0, lastGiftKey: '',
     };
   }
 
@@ -75,6 +98,7 @@ export class GameEngine {
       status: 'playing', floor: room, chapter, map, inDungeon: true,
       player: this.makePlayer(name, map), enemies: [], items: [], chests: [], damageNumbers: [], particles: [], effects: [],
       upgradeChoices: [], runSkills: {}, killCount: 0, camera: { x: map.startX * TILE_SIZE, y: map.startY * TILE_SIZE },
+      roomClearReady: false, roomClearAt: 0, exitHintUntil: 0, exitHintCount: 0,
     };
   }
 
@@ -83,6 +107,7 @@ export class GameEngine {
     this.state = this.makeState(name, map, 1, 1);
     this.lastTime = 0;
     this.spawnRoom();
+    this.captureRoomEntrySnapshot();
     this.saveNow('new-run');
     this.emit();
   }
@@ -99,6 +124,7 @@ export class GameEngine {
     this.state.runSkills = save.runSkills ?? {};
     this.lastTime = 0;
     this.spawnRoom();
+    this.captureRoomEntrySnapshot();
     this.emit();
   }
 
@@ -120,21 +146,78 @@ export class GameEngine {
   }
 
   applyUpgrade(choice: UpgradeKey): void {
+    if (this.state.status !== 'levelup' || !this.state.upgradeChoices.includes(choice)) return;
     const p = this.state.player;
-    this.state.runSkills[choice] = (this.state.runSkills[choice] ?? 0) + 1;
-    if (choice === 'maxHp') { p.maxHp += 20; p.hp += 20; }
-    else if (choice === 'attack') p.attack += 4;
-    else if (choice === 'speed') p.speed += 12;
-    else if (choice === 'defense') p.defense += 1;
+    const rank = nextSkillRank(this.state.runSkills, choice);
+    this.state.runSkills[choice] = rank;
+    if (choice === 'maxHp') {
+      const gain = rank === 1 ? 20 : rank === 2 ? 25 : 30;
+      p.maxHp += gain;
+      p.hp = Math.min(p.maxHp, p.hp + gain);
+    } else if (choice === 'attack') p.attack += rank === 3 ? 5 : 4;
+    else if (choice === 'speed') p.speed += rank === 1 ? 12 : rank === 2 ? 10 : 8;
+    else if (choice === 'defense') p.defense += rank === 1 ? 1 : 2;
     else if (choice === 'heal') p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.5);
+    p.lastGiftTime = Date.now();
+    p.lastGiftKey = choice;
     this.state.upgradeChoices = [];
     this.state.status = 'playing';
+    this.captureRoomEntrySnapshot();
     this.saveNow('ability');
     this.emit();
   }
 
   private generateUpgradeChoices(): void {
-    this.state.upgradeChoices = [...RUN_UPGRADES].sort(() => Math.random() - 0.5).slice(0, 3);
+    const available = availableRunSkills(this.state.runSkills, RUN_UPGRADES);
+    const pool = available.length >= 3 ? available : [...available, 'heal' as UpgradeKey];
+    this.state.upgradeChoices = [...pool].sort(() => Math.random() - 0.5).slice(0, 3);
+  }
+
+  private captureRoomEntrySnapshot(): void {
+    const p = this.state.player;
+    this.roomEntrySnapshot = {
+      floor: this.state.floor, chapter: this.state.chapter, hp: p.hp, maxHp: p.maxHp, attack: p.attack,
+      defense: p.defense, speed: p.speed, level: p.level, killCount: this.state.killCount,
+      runSkills: { ...this.state.runSkills },
+    };
+  }
+
+  restartCurrentRoom(): void {
+    const snapshot = this.roomEntrySnapshot;
+    if (!snapshot || snapshot.floor !== this.state.floor || snapshot.chapter !== this.state.chapter) this.captureRoomEntrySnapshot();
+    const entry = this.roomEntrySnapshot!;
+    const p = this.state.player;
+    this.state.map = generateRunRoom(this.state.floor);
+    p.hp = entry.hp;
+    p.maxHp = entry.maxHp;
+    p.attack = entry.attack;
+    p.defense = entry.defense;
+    p.speed = entry.speed;
+    p.level = entry.level;
+    p.x = this.state.map.startX * TILE_SIZE + 4;
+    p.y = this.state.map.startY * TILE_SIZE + 4;
+    p.state = 'idle';
+    p.attackCooldown = 0;
+    p.dodgeCooldown = 0;
+    p.invincibleUntil = 0;
+    this.state.killCount = entry.killCount;
+    this.state.runSkills = { ...entry.runSkills };
+    this.state.enemies = [];
+    this.state.items = [];
+    this.state.effects = [];
+    this.state.particles = [];
+    this.state.damageNumbers = [];
+    this.state.upgradeChoices = [];
+    this.state.roomClearReady = false;
+    this.state.roomClearAt = 0;
+    this.state.exitHintUntil = 0;
+    this.state.exitHintCount = 0;
+    this.roomAnnouncedClear = false;
+    this.lastTime = performance.now();
+    this.spawnRoom();
+    this.state.status = 'playing';
+    this.saveNow('restart-room');
+    this.emit();
   }
 
   update(timestamp: number): void {
@@ -147,7 +230,7 @@ export class GameEngine {
     this.updateEnemies(dt, timestamp);
     this.updateEffects(dt);
     this.updateParticles(dt);
-    this.updateRoomFlow();
+    this.updateRoomFlow(timestamp);
     this.state.camera.x = this.state.player.x + 16;
     this.state.camera.y = this.state.player.y + 16;
 
@@ -165,6 +248,8 @@ export class GameEngine {
 
     const mag = Math.hypot(this.input.joyX, this.input.joyY);
     if (this.input.dodge && p.dodgeCooldown <= 0) {
+      const speedRank = skillRank(this.state.runSkills, 'speed');
+      const dashScale = speedRank >= 3 ? 1.15 : 1;
       p.dodgeCooldown = def.dodgeCooldownMs;
       p.invincibleUntil = time + 260;
       p.lastDodgeTime = time;
@@ -173,16 +258,16 @@ export class GameEngine {
       const dy = mag > 0 ? this.input.joyY / mag : p.facing.y;
       const startX = p.x + 16;
       const startY = p.y + 16;
-      this.moveEntity(p, dx * def.dashDistance, dy * def.dashDistance);
+      this.moveEntity(p, dx * def.dashDistance * dashScale, dy * def.dashDistance * dashScale);
       const endX = p.x + 16;
       const endY = p.y + 16;
       const dashDistance = Math.max(24, Math.hypot(endX - startX, endY - startY));
       this.state.effects.push({
         id: `dash-${time}`, x: startX, y: startY, radius: 0, maxRadius: dashDistance,
-        color: '#efb44f', lifeTime: 0, maxLifeTime: 180, type: 'dash',
-        angle: Math.atan2(endY - startY, endX - startX), width: 5,
+        color: speedRank >= 2 ? '#c7f4ff' : '#efb44f', lifeTime: 0, maxLifeTime: 180, type: 'dash',
+        angle: Math.atan2(endY - startY, endX - startX), width: speedRank >= 2 ? 7 : 5,
       });
-      this.state.particles.push(...makeStepDust(p.x + 16, p.y + 24, '#efb44f'));
+      this.state.particles.push(...makeStepDust(p.x + 16, p.y + 24, speedRank >= 2 ? '#c7f4ff' : '#efb44f'));
       this.input.dodge = false;
     } else if (mag > 0.08) {
       const dx = this.input.joyX * p.speed * dt / 1000;
@@ -190,9 +275,11 @@ export class GameEngine {
       p.facing = { x: this.input.joyX / mag, y: this.input.joyY / mag };
       p.state = 'moving';
       this.moveEntity(p, dx, dy);
-      if (time - this.lastStepTime > 250) {
+      const speedRank = skillRank(this.state.runSkills, 'speed');
+      const stepDelay = speedRank >= 2 ? 150 : 250;
+      if (time - this.lastStepTime > stepDelay) {
         this.lastStepTime = time;
-        this.state.particles.push(...makeStepDust(p.x + 16, p.y + 27));
+        this.state.particles.push(...makeStepDust(p.x + 16, p.y + 27, speedRank >= 2 ? '#d9f7ff' : undefined));
       }
     } else {
       p.state = 'idle';
@@ -212,73 +299,198 @@ export class GameEngine {
     const p = this.state.player;
     const px = p.x + 16;
     const py = p.y + 16;
-    const enemies = this.livingEnemies()
+    const visible = this.visibleEnemiesFrom(px, py);
+    if (!visible.length) return;
+
+    const speedRank = skillRank(this.state.runSkills, 'attackSpeed');
+    const cooldownFactors = [1, 0.84, 0.70, 0.58];
+    p.attackCooldown = Math.max(120, CLASS_DEFS.archer.attackCooldownMs * cooldownFactors[speedRank]);
+    p.lastAttackTime = time;
+
+    const primary = visible[0];
+    const tx = primary.x + primary.width / 2;
+    const ty = primary.y + primary.height / 2;
+    const baseAngle = Math.atan2(ty - py, tx - px);
+    p.facing = { x: Math.cos(baseAngle), y: Math.sin(baseAngle) };
+
+    const multiRank = skillRank(this.state.runSkills, 'multishot');
+    const arrowCount = 1 + multiRank;
+    const spread = multiRank === 0 ? 0 : multiRank === 1 ? 0.12 : multiRank === 2 ? 0.13 : 0.15;
+    const offsets = Array.from({ length: arrowCount }, (_, index) => (index - (arrowCount - 1) / 2) * spread);
+    const hitIds = new Set<string>();
+
+    offsets.forEach((offset, index) => {
+      const angle = baseAngle + offset;
+      const target = this.findEnemyAlongRay(px, py, angle, p.attackRange, hitIds) ?? (index === 0 ? primary : null);
+      const endX = target ? target.x + target.width / 2 : px + Math.cos(angle) * p.attackRange;
+      const endY = target ? target.y + target.height / 2 : py + Math.sin(angle) * p.attackRange;
+      const element = this.chooseShotElement(time, index);
+      this.addShotEffect(`shot-${time}-${index}`, px, py, endX, endY, angle, element.color, element.kind, index === 0 ? 4 : 3);
+      if (!target) return;
+      hitIds.add(target.id);
+      const damage = this.baseArrowDamage(target, index === 0 ? 1 : 0.82);
+      this.damageEnemy(target, damage, time, px, py, element.kind, index === 0 ? 1.2 : 1);
+      this.applyElementStatus(target, element.kind, time);
+      if (index === 0) {
+        this.applyPiercing(target, px, py, angle, damage, time, element.kind, hitIds);
+        this.applyRicochet(target, damage, time, element.kind, hitIds);
+      }
+    });
+  }
+
+  private visibleEnemiesFrom(x: number, y: number, excluded = new Set<string>()) {
+    return this.livingEnemies()
+      .filter(enemy => !excluded.has(enemy.id))
       .filter(enemy => {
         const ex = enemy.x + enemy.width / 2;
         const ey = enemy.y + enemy.height / 2;
-        return !shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, px, py, ex, ey);
+        return !shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, x, y, ex, ey);
       })
-      .sort((a, b) => distance(p.x, p.y, a.x, a.y) - distance(p.x, p.y, b.x, b.y));
-    if (!enemies.length) return;
+      .sort((a, b) => distance(x, y, a.x + a.width / 2, a.y + a.height / 2) - distance(x, y, b.x + b.width / 2, b.y + b.height / 2));
+  }
 
-    const speedRanks = this.state.runSkills.attackSpeed ?? 0;
-    p.attackCooldown = Math.max(120, CLASS_DEFS.archer.attackCooldownMs * Math.pow(0.84, speedRanks));
-    p.lastAttackTime = time;
+  private findEnemyAlongRay(x: number, y: number, angle: number, range: number, excluded = new Set<string>()) {
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    return this.livingEnemies()
+      .filter(enemy => !excluded.has(enemy.id))
+      .map(enemy => {
+        const ex = enemy.x + enemy.width / 2;
+        const ey = enemy.y + enemy.height / 2;
+        const rx = ex - x;
+        const ry = ey - y;
+        const forward = rx * dx + ry * dy;
+        const perpendicular = Math.abs(rx * dy - ry * dx);
+        return { enemy, forward, perpendicular };
+      })
+      .filter(hit => hit.forward > 0 && hit.forward <= range && hit.perpendicular <= hit.enemy.width * 0.72 + 12)
+      .filter(hit => !shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, x, y, hit.enemy.x + hit.enemy.width / 2, hit.enemy.y + hit.enemy.height / 2))
+      .sort((a, b) => a.forward - b.forward)[0]?.enemy ?? null;
+  }
 
-    const multishot = this.state.runSkills.multishot ?? 0;
-    const ricochet = this.state.runSkills.ricochet ?? 0;
-    const piercing = this.state.runSkills.piercing ?? 0;
-    const targetCount = Math.min(enemies.length, 1 + multishot + (ricochet > 0 ? 1 : 0) + (piercing > 0 ? 1 : 0));
-    const targets = enemies.slice(0, targetCount);
-    const fireRanks = this.state.runSkills.fireArrow ?? 0;
-    const iceRanks = this.state.runSkills.iceArrow ?? 0;
+  private chooseShotElement(time: number, index: number) {
+    const fire = skillRank(this.state.runSkills, 'fireArrow');
+    const ice = skillRank(this.state.runSkills, 'iceArrow');
+    if (fire && ice) return (Math.floor(time / 240) + index) % 2 === 0
+      ? { kind: 'fire' as const, color: '#ff642c' }
+      : { kind: 'ice' as const, color: '#62d9ff' };
+    if (fire) return { kind: 'fire' as const, color: '#ff642c' };
+    if (ice) return { kind: 'ice' as const, color: '#62d9ff' };
+    return { kind: 'normal' as const, color: '#ffe5a3' };
+  }
 
-    targets.forEach((enemy, index) => {
-      const ex = enemy.x + enemy.width / 2;
-      const ey = enemy.y + enemy.height / 2;
-      const angle = Math.atan2(ey - py, ex - px);
-      p.facing = { x: Math.cos(angle), y: Math.sin(angle) };
-      const baseDamage = Math.max(1, Math.round((p.attack - (enemy.defense ?? 0) * 0.5) * (index === 0 ? 1 : 0.72)));
-      const fireBonus = fireRanks > 0 ? Math.max(1, Math.round(baseDamage * (0.25 + fireRanks * 0.1))) : 0;
-      const iceBonus = iceRanks > 0 ? Math.max(1, Math.round(baseDamage * (0.12 + iceRanks * 0.06))) : 0;
-      const damage = baseDamage + fireBonus + iceBonus;
-      const alternateElement = fireRanks > 0 && iceRanks > 0;
-      const useFire = fireRanks > 0 && (!alternateElement || (Math.floor(time / 240) + index) % 2 === 0);
-      const useIce = iceRanks > 0 && !useFire;
-      const shotColor = useFire ? '#ff642c' : useIce ? '#62d9ff' : '#ffe5a3';
-      const hitColor = useFire ? '#ff7a28' : useIce ? '#8ae8ff' : '#ffe08a';
-
-      enemy.hp -= damage;
-      enemy.flashUntil = time + 130;
-      this.state.damageNumbers.push({ id: `arrow-${time}-${index}`, x: ex, y: enemy.y - 8, value: `-${damage}`, color: shotColor, lifeTime: 0, maxLifeTime: 700, scale: index === 0 ? 1.15 : 0.95 });
-      this.state.effects.push({ id: `shot-${time}-${index}`, x: px, y: py, radius: 0, maxRadius: distance(px, py, ex, ey), color: shotColor, lifeTime: 0, maxLifeTime: 145, type: 'beam', angle, width: index === 0 ? 3 : 2 });
-      this.state.particles.push(...makeHitSpark(ex, ey, hitColor, useFire || useIce ? 9 : 5));
+  private addShotEffect(id: string, x: number, y: number, toX: number, toY: number, angle: number, color: string, element: VisualEffect['element'], width: number, fromEnemyId?: string, toEnemyId?: string) {
+    this.state.effects.push({
+      id, x, y, radius: 0, maxRadius: distance(x, y, toX, toY), color, lifeTime: 0, maxLifeTime: element === 'arcane' ? 190 : 165,
+      type: 'beam', angle, width, element, fromEnemyId, toEnemyId,
     });
+  }
+
+  private baseArrowDamage(enemy: Enemy, multiplier = 1) {
+    return Math.max(1, Math.round((this.state.player.attack - (enemy.defense ?? 0) * 0.5) * multiplier));
+  }
+
+  private damageEnemy(enemy: Enemy, damage: number, time: number, fromX: number, fromY: number, element: VisualEffect['element'], scale = 1) {
+    enemy.hp -= damage;
+    enemy.flashUntil = time + 140;
+    enemy.lastHitTime = time;
+    enemy.hitFromX = fromX;
+    enemy.hitFromY = fromY;
+    const ex = enemy.x + enemy.width / 2;
+    const ey = enemy.y + enemy.height / 2;
+    const attackRank = skillRank(this.state.runSkills, 'attack');
+    const color = element === 'fire' ? '#ff642c' : element === 'ice' ? '#62d9ff' : element === 'arcane' ? '#b693ff' : element === 'piercing' ? '#f3fbff' : '#ffe5a3';
+    this.state.damageNumbers.push({ id: `dmg-${time}-${enemy.id}-${Math.random()}`, x: ex, y: enemy.y - 8, value: `-${damage}`, color, lifeTime: 0, maxLifeTime: 700, scale: scale + attackRank * 0.08 });
+    this.state.particles.push(...makeHitSpark(ex, ey, color, 5 + attackRank * 2 + (element === 'fire' || element === 'ice' ? 4 : 0)));
+  }
+
+  private applyElementStatus(enemy: Enemy, element: VisualEffect['element'], time: number) {
+    if (element === 'fire') {
+      const rank = skillRank(this.state.runSkills, 'fireArrow');
+      const ticks = rank === 1 ? 3 : rank === 2 ? 4 : 5;
+      enemy.burnRanks = rank;
+      enemy.burnDamage = rank + 1;
+      enemy.burnUntil = time + ticks * 520;
+      enemy.nextBurnTick = time + 520;
+    } else if (element === 'ice') {
+      const rank = skillRank(this.state.runSkills, 'iceArrow');
+      const slows = [0, 0.2, 0.32, 0.45];
+      const duration = [0, 2000, 2500, 3000];
+      enemy.frostSlow = slows[rank];
+      enemy.frostUntil = time + duration[rank];
+    }
+  }
+
+  private applyPiercing(primary: Enemy, x: number, y: number, angle: number, baseDamage: number, time: number, element: VisualEffect['element'], hitIds: Set<string>) {
+    const rank = skillRank(this.state.runSkills, 'piercing');
+    if (!rank) return;
+    let fromX = primary.x + primary.width / 2;
+    let fromY = primary.y + primary.height / 2;
+    for (let i = 0; i < rank; i++) {
+      const target = this.findEnemyAlongRay(fromX, fromY, angle, this.state.player.attackRange, hitIds);
+      if (!target) break;
+      hitIds.add(target.id);
+      const tx = target.x + target.width / 2;
+      const ty = target.y + target.height / 2;
+      const multiplier = rank === 1 ? 0.7 : rank === 2 ? 0.75 : 0.8;
+      const damage = Math.max(1, Math.round(baseDamage * multiplier));
+      this.addShotEffect(`pierce-${time}-${i}`, fromX, fromY, tx, ty, angle, '#f3fbff', 'piercing', 5, primary.id, target.id);
+      this.damageEnemy(target, damage, time, fromX, fromY, 'piercing', 1.05);
+      this.applyElementStatus(target, element, time);
+      fromX = tx;
+      fromY = ty;
+    }
+  }
+
+  private applyRicochet(primary: Enemy, baseDamage: number, time: number, element: VisualEffect['element'], hitIds: Set<string>) {
+    const rank = skillRank(this.state.runSkills, 'ricochet');
+    if (!rank) return;
+    let source = primary;
+    for (let i = 0; i < rank; i++) {
+      const sx = source.x + source.width / 2;
+      const sy = source.y + source.height / 2;
+      const next = this.visibleEnemiesFrom(sx, sy, hitIds)[0];
+      if (!next) break;
+      hitIds.add(next.id);
+      const tx = next.x + next.width / 2;
+      const ty = next.y + next.height / 2;
+      const angle = Math.atan2(ty - sy, tx - sx);
+      const multiplier = rank === 1 ? 0.65 : rank === 2 ? 0.7 : 0.75;
+      const damage = Math.max(1, Math.round(baseDamage * multiplier));
+      this.addShotEffect(`rico-${time}-${i}`, sx, sy, tx, ty, angle, '#b693ff', 'arcane', 4, source.id, next.id);
+      this.damageEnemy(next, damage, time, sx, sy, 'arcane', 1);
+      this.applyElementStatus(next, element, time);
+      source = next;
+    }
   }
 
   private updateEnemies(dt: number, time: number): void {
     const p = this.state.player;
     for (let i = this.state.enemies.length - 1; i >= 0; i--) {
       const enemy = this.state.enemies[i];
+
+      if (!enemy.isDead && enemy.burnUntil && time < enemy.burnUntil && enemy.nextBurnTick && time >= enemy.nextBurnTick) {
+        enemy.nextBurnTick += 520;
+        const burnDamage = enemy.burnDamage ?? 2;
+        enemy.hp -= burnDamage;
+        const ex = enemy.x + enemy.width / 2;
+        const ey = enemy.y + enemy.height / 2;
+        this.state.damageNumbers.push({ id: `burn-${time}-${enemy.id}`, x: ex, y: enemy.y - 5, value: `-${burnDamage}`, color: '#ff6a2c', lifeTime: 0, maxLifeTime: 550, scale: 0.78 });
+        this.state.particles.push(...makeHitSpark(ex, ey, '#ff6a2c', 4));
+      }
+
       if (enemy.hp <= 0) {
-        if (!enemy.isDead) {
-          enemy.isDead = true;
-          enemy.state = 'dead';
-          enemy.deathTime = time;
-          this.state.killCount++;
-          const cx = enemy.x + enemy.width / 2;
-          const cy = enemy.y + enemy.height / 2;
-          this.spawnLoot(cx, cy, enemy.enemyType);
-          this.state.particles.push(...makeParticles(cx, cy, enemy.color, 12, 80, 2.5));
-        }
-        if (time - enemy.deathTime > 480) this.state.enemies.splice(i, 1);
+        if (!enemy.isDead) this.beginEnemyDeath(enemy, time);
+        if (time - enemy.deathTime >= (enemy.deathDuration ?? NORMAL_DEATH_MS)) this.state.enemies.splice(i, 1);
         continue;
       }
 
       const dist = Math.max(1, Math.hypot(p.x - enemy.x, p.y - enemy.y));
       const plan = planEnemyMove(enemy, p, dt, time);
       enemy.state = dist <= plan.attackRange ? 'attack' : 'chase';
-      if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx, plan.dy);
+      const frostFactor = enemy.frostUntil && time < enemy.frostUntil ? 1 - (enemy.frostSlow ?? 0) : 1;
+      if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx * frostFactor, plan.dy * frostFactor);
+      this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
 
       if (dist < plan.attackRange && time > enemy.nextAttackTime) {
         enemy.nextAttackTime = time + plan.attackDelay;
@@ -291,34 +503,112 @@ export class GameEngine {
           const targetX = p.x + 16;
           const targetY = p.y + 16;
           const angle = Math.atan2(targetY - ey, targetX - ex);
-          this.state.effects.push({ id: `dragon-shot-${time}-${i}`, x: ex, y: ey, radius: 0, maxRadius: distance(ex, ey, targetX, targetY), color: '#ff633d', lifeTime: 0, maxLifeTime: 180, type: 'beam', angle, width: 7 });
+          this.addShotEffect(`dragon-shot-${time}-${i}`, ex, ey, targetX, targetY, angle, '#ff633d', 'fire', 7);
           this.state.particles.push(...makeHitSpark(targetX, targetY, '#ff633d', 10));
         }
         if (time > p.invincibleUntil) {
-          const damage = Math.max(1, enemy.attack - p.defense + Math.floor(Math.random() * 3));
+          const raw = enemy.attack - p.defense + Math.floor(Math.random() * 3);
+          const damage = Math.max(1, raw);
           p.hp -= damage;
+          p.lastHitTime = time;
+          if (skillRank(this.state.runSkills, 'defense') > 0) p.lastGuardTime = time;
           this.state.damageNumbers.push({ id: `hit-${time}-${i}`, x: p.x + 16, y: p.y - 8, value: `-${damage}`, color: '#e34b43', lifeTime: 0, maxLifeTime: 800, scale: archetype === 'dragon' ? 1.35 : 1.1 });
-          this.state.particles.push(...makeHitSpark(p.x + 16, p.y + 16, archetype === 'dragon' ? '#ff633d' : '#ff453f', archetype === 'dragon' ? 12 : 7));
+          this.state.particles.push(...makeHitSpark(p.x + 16, p.y + 16, skillRank(this.state.runSkills, 'defense') >= 2 ? '#83d6af' : '#ff453f', archetype === 'dragon' ? 12 : 7));
         }
       }
     }
   }
 
-  private updateRoomFlow(): void {
-    const alive = this.livingEnemies().length;
-    if (alive === 0 && !this.roomAnnouncedClear) {
-      this.roomAnnouncedClear = true;
-      this.state.damageNumbers.push({ id: `clear-${Date.now()}`, x: this.state.player.x + 16, y: this.state.player.y - 24, value: this.state.floor === CHAPTER_ROOMS ? 'BOSS BESIEGT · AUSGANG OFFEN' : 'RAUM GESCHAFFT · AUSGANG OFFEN', color: '#d9b8ff', lifeTime: 0, maxLifeTime: 1800, scale: 0.9 });
+  private beginEnemyDeath(enemy: Enemy, time: number) {
+    enemy.isDead = true;
+    enemy.state = 'dead';
+    enemy.deathTime = time;
+    enemy.deathDuration = enemy.enemyType === 'boss' ? BOSS_DEATH_MS : NORMAL_DEATH_MS;
+    this.state.killCount++;
+    const cx = enemy.x + enemy.width / 2;
+    const cy = enemy.y + enemy.height / 2;
+    this.spawnLoot(cx, cy, enemy.enemyType);
+    this.state.particles.push(...makeParticles(cx, cy, enemy.color, enemy.enemyType === 'boss' ? 28 : 12, enemy.enemyType === 'boss' ? 130 : 80, enemy.enemyType === 'boss' ? 4 : 2.5));
+    if ((enemy.burnRanks ?? 0) >= 3) {
+      this.state.effects.push({ id: `fire-death-${time}-${enemy.id}`, x: cx, y: cy, radius: 0, maxRadius: 72, color: '#ff642c', lifeTime: 0, maxLifeTime: 360, type: 'circle', element: 'fire' });
+      this.state.particles.push(...makeParticles(cx, cy, '#ff642c', 20, 120, 3.5));
     }
-    if (alive > 0) return;
+  }
+
+  private checkEnemyStuck(enemy: Enemy, time: number, dist: number, attackRange: number) {
+    if (enemy.state !== 'chase' || dist <= attackRange + 20) {
+      enemy.lastProgressX = enemy.x;
+      enemy.lastProgressY = enemy.y;
+      enemy.lastProgressTime = time;
+      return;
+    }
+    if (enemy.lastProgressTime === undefined) {
+      enemy.lastProgressX = enemy.x;
+      enemy.lastProgressY = enemy.y;
+      enemy.lastProgressTime = time;
+      return;
+    }
+    const progress = Math.hypot(enemy.x - (enemy.lastProgressX ?? enemy.x), enemy.y - (enemy.lastProgressY ?? enemy.y));
+    if (progress >= 8) {
+      enemy.lastProgressX = enemy.x;
+      enemy.lastProgressY = enemy.y;
+      enemy.lastProgressTime = time;
+      return;
+    }
+    if (time - enemy.lastProgressTime >= UNSTUCK_MS) this.relocateStuckEnemy(enemy, time);
+  }
+
+  private relocateStuckEnemy(enemy: Enemy, time: number) {
+    const candidates = getRoomSpawnPoints(this.state.floor);
+    const p = this.state.player;
+    for (const point of candidates) {
+      const spawn = sceneSpawnToGame(point, this.state.map.width, this.state.map.height, enemy.width);
+      const farEnough = Math.hypot(spawn.x - p.x, spawn.y - p.y) > 120;
+      if (!farEnough || !isWalkable(this.state.map, spawn.x + enemy.width / 2, spawn.y + enemy.height / 2)) continue;
+      if (collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, spawn.x, spawn.y, enemy.width, enemy.height, 0.22)) continue;
+      enemy.x = spawn.x;
+      enemy.y = spawn.y;
+      enemy.targetX = spawn.x;
+      enemy.targetY = spawn.y;
+      enemy.lastProgressX = spawn.x;
+      enemy.lastProgressY = spawn.y;
+      enemy.lastProgressTime = time;
+      enemy.nextAttackTime = time + 500;
+      this.state.effects.push({ id: `unstuck-${time}-${enemy.id}`, x: spawn.x + enemy.width / 2, y: spawn.y + enemy.height / 2, radius: 0, maxRadius: 38, color: '#8c62ff', lifeTime: 0, maxLifeTime: 280, type: 'circle', element: 'arcane' });
+      return;
+    }
+    enemy.lastProgressTime = time;
+  }
+
+  canExitRoom(): boolean {
+    return this.state.status === 'playing' && this.state.enemies.length === 0 && this.state.roomClearReady;
+  }
+
+  private updateRoomFlow(time: number): void {
+    const living = this.livingEnemies().length;
+    const deathPending = this.state.enemies.some(enemy => enemy.isDead);
+    if (living === 0 && !deathPending && this.state.enemies.length === 0 && !this.roomAnnouncedClear) {
+      this.roomAnnouncedClear = true;
+      this.state.roomClearReady = true;
+      this.state.roomClearAt = time;
+      this.state.damageNumbers.push({ id: `clear-${time}`, x: this.state.player.x + 16, y: this.state.player.y - 24, value: this.state.floor === CHAPTER_ROOMS ? 'BOSS BESIEGT · AUSGANG OFFEN' : 'RAUM FREI · AUSGANG OFFEN', color: '#d9b8ff', lifeTime: 0, maxLifeTime: 1800, scale: 0.9 });
+      this.state.effects.push({ id: `clear-wave-${time}`, x: this.state.player.x + 16, y: this.state.player.y + 16, radius: 0, maxRadius: 100, color: '#b693ff', lifeTime: 0, maxLifeTime: 520, type: 'circle', element: 'arcane' });
+    }
+
     const p = this.state.player;
     const tx = Math.floor((p.x + 16) / TILE_SIZE);
     const ty = Math.floor((p.y + 16) / TILE_SIZE);
     if (this.state.map.tiles[ty]?.[tx] !== TileType.STAIRS_DOWN) return;
+    if (!this.canExitRoom()) {
+      this.state.exitHintCount = living + (deathPending ? 1 : 0);
+      this.state.exitHintUntil = time + 850;
+      return;
+    }
     this.nextRoom();
   }
 
   private nextRoom(): void {
+    if (!this.canExitRoom()) return;
     const completedChapter = this.state.floor >= CHAPTER_ROOMS;
     this.state.floor = completedChapter ? 1 : this.state.floor + 1;
     if (completedChapter) this.state.chapter++;
@@ -330,7 +620,12 @@ export class GameEngine {
     this.state.enemies = [];
     this.state.items = [];
     this.state.effects = [];
+    this.state.particles = [];
     this.state.damageNumbers = [];
+    this.state.roomClearReady = false;
+    this.state.roomClearAt = 0;
+    this.state.exitHintUntil = 0;
+    this.state.exitHintCount = 0;
     this.roomAnnouncedClear = false;
     this.spawnRoom();
     this.generateUpgradeChoices();
@@ -346,6 +641,8 @@ export class GameEngine {
     const map = this.state.map;
     const now = Date.now();
     this.roomAnnouncedClear = false;
+    this.state.roomClearReady = false;
+    this.state.roomClearAt = 0;
 
     if (room === CHAPTER_ROOMS) {
       const bossPoint = getRoomSpawnPoints(room)[0];
@@ -376,7 +673,9 @@ export class GameEngine {
       id: `${now}-${this.state.floor}-${index}`, type: 'enemy', enemyType: type, x, y, width: base.size, height: base.size, vx: 0, vy: 0,
       hp: Math.round(base.hp * scale), maxHp: Math.round(base.hp * scale), attack: Math.round(base.attack * scale), defense: base.defense,
       speed: base.speed, color: base.color, state: 'chase', targetX: x, targetY: y, nextAttackTime: now + 500, flashUntil: 0,
-      spawnTime: now + index * 40, lastAttackTime: 0, deathTime: 0, isDead: false,
+      spawnTime: now + index * 40, lastAttackTime: 0, deathTime: 0, deathDuration: type === 'boss' ? BOSS_DEATH_MS : NORMAL_DEATH_MS, isDead: false,
+      lastHitTime: 0, burnUntil: 0, nextBurnTick: 0, frostUntil: 0, frostSlow: 0,
+      lastProgressX: x, lastProgressY: y, lastProgressTime: now,
     };
   }
 
