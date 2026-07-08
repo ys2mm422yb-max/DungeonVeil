@@ -1,9 +1,32 @@
 import { useEffect } from 'react';
 import { saveEngineSession } from '../game/sessionStore';
+import { loadGame } from '../game/saveManager';
 import type { GameEngine } from '../game/runEngine';
+import type { UpgradeKey } from '../i18n/translations';
+import { availableRunSkills } from '../game/runSkills';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 
+const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
+
+function restorePendingRoomGift(engine: GameEngine): void {
+  const save = loadGame();
+  if (!save || (save.saveReason !== 'room-complete' && save.saveReason !== 'chapter-complete')) return;
+  if (engine.state.status !== 'playing' || engine.state.upgradeChoices.length > 0) return;
+
+  const available = availableRunSkills(engine.state.runSkills, RUN_UPGRADES);
+  const pool = available.length >= 3 ? available : [...available, 'heal' as UpgradeKey];
+  engine.state.upgradeChoices = [...pool].sort(() => Math.random() - 0.5).slice(0, 3);
+  engine.state.status = 'levelup';
+  engine.onStateChange({ ...engine.state });
+}
+
 export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {
+  useEffect(() => {
+    if (!active) return;
+    const engine = getEngine();
+    if (engine) restorePendingRoomGift(engine);
+  }, [active]);
+
   useEffect(() => {
     if (!active) return;
     const save = () => {
@@ -17,7 +40,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       window.removeEventListener('pagehide', save);
       document.removeEventListener('visibilitychange', hide);
     };
-  }, [active, getEngine]);
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
@@ -30,7 +53,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     };
     frame = requestAnimationFrame(update);
     return () => cancelAnimationFrame(frame);
-  }, [active, getEngine]);
+  }, [active]);
 
   return null;
 }
