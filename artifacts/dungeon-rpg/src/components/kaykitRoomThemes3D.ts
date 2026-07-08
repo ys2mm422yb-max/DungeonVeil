@@ -1,4 +1,5 @@
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
+import { buildKayKitOuterWorld } from './kaykitOuterWorld3D';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
@@ -61,8 +62,11 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   root.name = `KayKitThemeRoom${room}`;
   let active = true;
 
+  const outer = buildKayKitOuterWorld(THREE, 24, 32);
+  root.add(outer);
+
   if (room < 6) {
-    root.userData.dispose = () => { active = false; };
+    root.userData.dispose = () => { active = false; outer.userData?.dispose?.(); };
     return root;
   }
 
@@ -86,6 +90,6 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     });
   }).catch(error => console.error('KayKit room theme failed', error));
 
-  root.userData.dispose = () => { active = false; };
+  root.userData.dispose = () => { active = false; outer.userData?.dispose?.(); };
   return root;
 }
