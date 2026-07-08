@@ -6,8 +6,8 @@ const fill = <T,>(height: number, width: number, value: T): T[][] =>
 export const CHAPTER_ROOMS = 10;
 
 export function generateRunRoom(room: number): DungeonMap {
-  const width = 18;
-  const height = 24;
+  const width = 24;
+  const height = 32;
   const tiles = fill(height, width, TileType.WALL);
   const explored = fill(height, width, true);
   const wallVariant = fill(height, width, 0);
@@ -24,10 +24,15 @@ export function generateRunRoom(room: number): DungeonMap {
   const exitX = Math.floor(width / 2);
   tiles[2][exitX] = TileType.STAIRS_DOWN;
 
-  const obstacleRows = room % 3 === 0 ? [9, 14] : room % 2 === 0 ? [11] : [];
+  const obstacleRows = room % 3 === 0 ? [12, 20] : room % 2 === 0 ? [16] : [];
+  const obstacleStart = 6;
+  const obstacleEnd = width - 7;
+  const centerLeft = exitX - 1;
+  const centerRight = exitX;
+
   for (const y of obstacleRows) {
-    for (let x = 5; x <= 12; x++) {
-      if (x === 8 || x === 9) continue;
+    for (let x = obstacleStart; x <= obstacleEnd; x++) {
+      if (x === centerLeft || x === centerRight) continue;
       tiles[y][x] = TileType.WALL;
       wallVariant[y][x] = (x + y + room) % 6;
     }
