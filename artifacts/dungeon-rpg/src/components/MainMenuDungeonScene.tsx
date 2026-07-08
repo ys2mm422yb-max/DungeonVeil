@@ -93,10 +93,10 @@ export function MainMenuDungeonScene() {
 
       const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 90);
       camera.position.set(-0.45, 5.8, 11.2);
-      camera.lookAt(0.1, 1.55, -5.1);
+      camera.lookAt(0.05, 1.5, -6.2);
 
+      // Raum und Veil teilen jetzt dieselben Koordinaten: Das Portal sitzt im Tor.
       const room = buildKayKitDungeonRoom(THREE, 1, 24, 32);
-      room.position.z = -4.7;
       scene.add(room);
 
       scene.add(new THREE.HemisphereLight(0xc8b897, 0x060605, 0.72));
@@ -105,22 +105,23 @@ export function MainMenuDungeonScene() {
       scene.add(keyLight);
 
       const leftTorch = new THREE.PointLight(0xff8a36, 7.4, 11, 2);
-      leftTorch.position.set(-4.5, 2.5, -4.4);
+      leftTorch.position.set(-4.5, 2.5, -7.2);
       scene.add(leftTorch);
       const rightTorch = new THREE.PointLight(0xff6f2d, 6.3, 10, 2);
-      rightTorch.position.set(4.4, 2.35, -5.8);
+      rightTorch.position.set(4.4, 2.35, -8.1);
       scene.add(rightTorch);
 
       const portal = buildMenuVeil(THREE);
-      portal.position.set(1.1, 2.45, -11.95);
-      portal.rotation.y = -0.08;
+      portal.position.set(0.65, 2.38, -14.55);
+      portal.rotation.y = -0.05;
+      portal.scale.setScalar(1.06);
       scene.add(portal);
 
       ranger = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
-      ranger.root.scale.setScalar(0.74);
-      ranger.root.position.set(-1.25, 0, -3.3);
-      ranger.root.rotation.y = Math.PI - 0.18;
+      ranger.root.scale.setScalar(0.72);
+      ranger.root.position.set(-1.2, 0, -3.1);
+      ranger.root.rotation.y = Math.PI - 0.13;
       scene.add(ranger.root);
 
       const clock = new THREE.Clock();
@@ -141,7 +142,7 @@ export function MainMenuDungeonScene() {
         const pulse = 0.5 + Math.sin(now * 0.0022) * 0.5;
 
         ranger?.update(delta);
-        if (ranger) ranger.root.rotation.y = Math.PI - 0.18 + Math.sin(now * 0.00035) * 0.055;
+        if (ranger) ranger.root.rotation.y = Math.PI - 0.13 + Math.sin(now * 0.00035) * 0.055;
 
         portal.userData.outer.rotation.z = now * 0.00018;
         portal.userData.inner.rotation.z = -now * 0.00031;
@@ -162,7 +163,7 @@ export function MainMenuDungeonScene() {
         rightTorch.intensity = 5.8 + Math.sin(now * 0.011 + 1.4) * 0.6;
         camera.position.x = -0.45 + Math.sin(now * 0.00016) * 0.22;
         camera.position.y = 5.8 + Math.sin(now * 0.00012) * 0.08;
-        camera.lookAt(0.1, 1.55, -5.1);
+        camera.lookAt(0.05, 1.5, -6.2);
         renderer.render(scene, camera);
         raf = requestAnimationFrame(loop);
       };
