@@ -143,6 +143,10 @@ async function loadLibrary() {
   return libraryPromise;
 }
 
+export function preloadKayKitEnemyVisuals() {
+  return loadLibrary().then(() => undefined);
+}
+
 export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
   const [library, skeletonUtils] = await Promise.all([
     loadLibrary(),
