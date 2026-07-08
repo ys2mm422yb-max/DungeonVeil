@@ -13,12 +13,7 @@ function colliderSize(room: number) {
       const rotated = Math.abs(Math.sin(placement.rotation ?? 0)) > 0.7;
       const width = (rotated ? base[1] : base[0]) * scale;
       const height = (rotated ? base[0] : base[1]) * scale;
-      return {
-        x: placement.x,
-        z: placement.z,
-        halfW: width / 2,
-        halfH: height / 2,
-      };
+      return { x: placement.x, z: placement.z, halfW: width / 2, halfH: height / 2 };
     })
     .filter((value): value is { x: number; z: number; halfW: number; halfH: number } => Boolean(value));
 }
@@ -50,4 +45,50 @@ export function collidesWithRoomProp(
     Math.abs(centerX - collider.x) < halfW + collider.halfW
     && Math.abs(centerZ - collider.z) < halfH + collider.halfH,
   );
+}
+
+function segmentHitsAabb(x1: number, z1: number, x2: number, z2: number, cx: number, cz: number, halfW: number, halfH: number) {
+  const dx = x2 - x1;
+  const dz = z2 - z1;
+  let tMin = 0;
+  let tMax = 1;
+
+  const clip = (start: number, delta: number, min: number, max: number) => {
+    if (Math.abs(delta) < 1e-6) return start >= min && start <= max;
+    let t1 = (min - start) / delta;
+    let t2 = (max - start) / delta;
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    tMin = Math.max(tMin, t1);
+    tMax = Math.min(tMax, t2);
+    return tMin <= tMax;
+  };
+
+  return clip(x1, dx, cx - halfW, cx + halfW) && clip(z1, dz, cz - halfH, cz + halfH);
+}
+
+export function shotBlockedByRoomProp(
+  room: number,
+  mapWidth: number,
+  mapHeight: number,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  padding = 0.05,
+) {
+  const x1 = fromX / 40 - mapWidth / 2 + 0.5;
+  const z1 = fromY / 40 - mapHeight / 2 + 0.5;
+  const x2 = toX / 40 - mapWidth / 2 + 0.5;
+  const z2 = toY / 40 - mapHeight / 2 + 0.5;
+
+  return roomColliders(room).some(collider => segmentHitsAabb(
+    x1,
+    z1,
+    x2,
+    z2,
+    collider.x,
+    collider.z,
+    collider.halfW + padding,
+    collider.halfH + padding,
+  ));
 }
