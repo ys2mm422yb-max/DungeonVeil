@@ -8,6 +8,12 @@ type LoadedGltf = { scene: any };
 let forestPromise: Promise<any[]> | null = null;
 let halloweenPromise: Promise<any[]> | null = null;
 
+function keepCachedResource(resource: any) {
+  if (!resource || resource.userData?.kayKitPersistent) return;
+  resource.userData = { ...(resource.userData ?? {}), kayKitPersistent: true };
+  resource.dispose = () => undefined;
+}
+
 function scoreForest(path: string) {
   const name = path.toLowerCase();
   let score = 0;
@@ -82,6 +88,9 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
       object.scale.setScalar(0.78 + ((index + room) % 4) * 0.08);
       object.traverse((node: any) => {
         if (!node.isMesh) return;
+        keepCachedResource(node.geometry);
+        if (Array.isArray(node.material)) node.material.forEach(keepCachedResource);
+        else keepCachedResource(node.material);
         node.castShadow = !IS_MOBILE;
         node.receiveShadow = !IS_MOBILE;
         node.frustumCulled = true;
