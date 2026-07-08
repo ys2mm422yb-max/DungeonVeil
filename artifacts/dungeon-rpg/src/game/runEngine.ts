@@ -7,6 +7,7 @@ import { makeHitSpark, makeParticles, makeStepDust, distance } from './combat';
 import { UpgradeKey } from '../i18n/translations';
 import { enemyArchetype, planEnemyMove } from './enemyRunAI';
 import { collidesWithRoomProp } from './roomCollision3D';
+import { getRoomSpawnPoints, sceneSpawnToGame } from './roomSpawn3D';
 
 export interface RunGameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';
@@ -344,42 +345,29 @@ export class GameEngine {
     this.roomAnnouncedClear = false;
 
     if (room === CHAPTER_ROOMS) {
-      const x = (Math.floor(map.width / 2) - 0.5) * TILE_SIZE;
-      const y = 6 * TILE_SIZE;
-      this.state.enemies.push(this.makeEnemy('boss', x, y, chapterScale * roomScale, now, 0));
+      const bossPoint = getRoomSpawnPoints(room)[0];
+      const bossSize = ENEMY_STATS.boss.size;
+      const spawn = sceneSpawnToGame(bossPoint, map.width, map.height, bossSize);
+      this.state.enemies.push(this.makeEnemy('boss', spawn.x, spawn.y, chapterScale * roomScale, now, 0));
       return;
     }
 
-    const pool: EnemyType[] = room <= 3
-      ? ['skeleton']
-      : room <= 6
-        ? ['skeleton', 'spider']
-        : ['skeleton', 'spider', 'vampire'];
-    const count = Math.min(8, 2 + room);
-    const usableWidth = Math.max(1, map.width - 8);
-    const usableHeight = Math.max(1, map.height - 14);
+    const pool: EnemyType[] = room <= 2
+      ? ['skeleton', 'spider']
+      : room <= 5
+        ? ['skeleton', 'spider', 'vampire']
+        : ['skeleton', 'spider', 'vampire', 'demon'];
+    const points = getRoomSpawnPoints(room);
+    const count = Math.min(points.length, Math.min(8, 2 + room));
 
     for (let i = 0; i < count; i++) {
       const type = pool[(i + room + this.state.chapter) % pool.length];
-      let xTile = 4 + ((i * 5 + room * 3) % usableWidth);
-      let yTile = 5 + ((i * 7 + room * 2) % usableHeight);
-      let attempts = 0;
-      while (attempts < 18) {
-        const x = xTile * TILE_SIZE;
-        const y = yTile * TILE_SIZE;
-        const clearOfMap = isWalkable(map, x + 16, y + 16);
-        const clearOfProps = !collidesWithRoomProp(room, map.width, map.height, x, y, 30, 30, 0.35);
-        const farFromPlayer = Math.hypot(x - this.state.player.x, y - this.state.player.y) > 240;
-        if (clearOfMap && clearOfProps && farFromPlayer) break;
-        xTile = 3 + ((xTile + 3 + attempts) % Math.max(1, map.width - 6));
-        yTile = 4 + ((yTile + 5 + attempts) % Math.max(1, map.height - 9));
-        attempts++;
-      }
-      const x = xTile * TILE_SIZE;
-      const y = yTile * TILE_SIZE;
-      if (!isWalkable(map, x + 16, y + 16)) continue;
-      if (collidesWithRoomProp(room, map.width, map.height, x, y, 30, 30, 0.35)) continue;
-      this.state.enemies.push(this.makeEnemy(type, x, y, chapterScale * roomScale, now, i));
+      const size = ENEMY_STATS[type].size;
+      const point = points[i % points.length];
+      const spawn = sceneSpawnToGame(point, map.width, map.height, size);
+      if (!isWalkable(map, spawn.x + size / 2, spawn.y + size / 2)) continue;
+      if (collidesWithRoomProp(room, map.width, map.height, spawn.x, spawn.y, size, size, 0.22)) continue;
+      this.state.enemies.push(this.makeEnemy(type, spawn.x, spawn.y, chapterScale * roomScale, now, i));
     }
   }
 
