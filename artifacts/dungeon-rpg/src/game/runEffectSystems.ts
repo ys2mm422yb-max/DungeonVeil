@@ -17,9 +17,7 @@ export function createRunEffectSystemState(): RunEffectSystemState {
 }
 
 function cleanInstantEffectsFromBuild(engine: GameEngine): void {
-  if (!Object.prototype.hasOwnProperty.call(engine.state.runSkills, 'heal')) return;
-  delete engine.state.runSkills.heal;
-  engine.saveNow('ability-cleanup');
+  if (Object.prototype.hasOwnProperty.call(engine.state.runSkills, 'heal')) delete engine.state.runSkills.heal;
 }
 
 function applyFinalBurnTicks(engine: GameEngine, system: RunEffectSystemState, time: number): void {
