@@ -7,6 +7,7 @@ import { availableRunSkills } from '../game/runSkills';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 import { rewardMetaRoomClear } from '../game/metaProgression';
+import { MetaRewardBanner } from './MetaRewardBanner';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 
@@ -67,5 +68,5 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     return () => cancelAnimationFrame(frame);
   }, [active]);
 
-  return null;
+  return active ? <MetaRewardBanner /> : null;
 }
