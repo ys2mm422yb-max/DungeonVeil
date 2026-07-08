@@ -90,7 +90,19 @@ export default function Game() {
   useEffect(() => {
     const engine = new GameEngine();
     engineRef.current = engine;
-    engine.onStateChange = state => setGameState({ ...state });
+    engine.onStateChange = state => {
+      const live = engine.state;
+      setGameState({
+        ...state,
+        player: live.player,
+        enemies: live.enemies,
+        items: live.items,
+        damageNumbers: live.damageNumbers,
+        particles: live.particles,
+        effects: live.effects,
+        camera: live.camera,
+      });
+    };
     setGameState(engine.state);
     let animationId = 0;
     const loop = (time: number) => { engine.update(time); animationId = requestAnimationFrame(loop); };
