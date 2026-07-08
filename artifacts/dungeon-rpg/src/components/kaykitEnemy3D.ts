@@ -186,6 +186,12 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
     if (!visual.deathPlayed) {
       visual.deathPlayed = true;
       visual.deathElapsed = 0;
+      visual.hitElapsed = 0;
+      visual.attackRemaining = 0;
+      visual.scene.position.set(0, 0, 0);
+      visual.scene.rotation.z = 0;
+      visual.root.position.y = 0;
+      visual.root.rotation.z = 0;
       if (visual.death) transition(visual, visual.death, 0.04);
       else visual.mixer.stopAllAction();
     }
