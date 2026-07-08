@@ -70,16 +70,13 @@ function buildArrowPrototype(THREE: any, arrow: any) {
   prepareModel(model);
   root.add(model);
 
-  const trailMaterial = new THREE.LineBasicMaterial({ color: 0xdaf4ff, transparent: true, opacity: 0.5, depthWrite: false });
   const makeTrail = (x: number, z: number, length: number, opacity: number) => {
     const geometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(x, -0.08, z),
       new THREE.Vector3(x, -length, z),
     ]);
-    const material = trailMaterial.clone();
-    material.opacity = opacity;
-    const line = new THREE.Line(geometry, material);
-    root.add(line);
+    const material = new THREE.LineBasicMaterial({ color: 0xdaf4ff, transparent: true, opacity, depthWrite: false });
+    root.add(new THREE.Line(geometry, material));
   };
   makeTrail(0, 0, 1.15, 0.58);
   makeTrail(0.045, 0.02, 0.82, 0.3);
@@ -138,6 +135,12 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   attachQuiver(spine, quiverGltf.scene);
   const arrowPrototype = buildArrowPrototype(THREE, weapons.arrow);
 
+  const upperArmL = findBone(visual, ['upperarml']);
+  const lowerArmL = findBone(visual, ['lowerarml']);
+  const upperArmR = findBone(visual, ['upperarmr']);
+  const lowerArmR = findBone(visual, ['lowerarmr']);
+  const chest = findBone(visual, ['spine2', 'chest']);
+
   let moving = false;
   let shotTime = 0;
   let dashRemaining = 0;
@@ -151,6 +154,18 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     current = next;
   };
 
+  const applyShotPose = (pulse: number) => {
+    bowRig.updateShotPose(pulse);
+    if (upperArmL) { upperArmL.rotation.y += pulse * 0.28; upperArmL.rotation.z -= pulse * 0.72; }
+    if (lowerArmL) lowerArmL.rotation.z -= pulse * 0.18;
+    if (upperArmR) { upperArmR.rotation.y -= pulse * 0.34; upperArmR.rotation.z += pulse * 0.9; }
+    if (lowerArmR) { lowerArmR.rotation.y -= pulse * 0.2; lowerArmR.rotation.z += pulse * 1.05; }
+    if (chest) chest.rotation.y += pulse * 0.1;
+    visual.rotation.z = -pulse * 0.045;
+    visual.position.z = pulse * 0.035;
+    visual.position.y = pulse * 0.02;
+  };
+
   return {
     root,
     arrowPrototype,
@@ -159,7 +174,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       if (dashRemaining <= 0) playBase();
     },
     triggerAttack() {
-      shotTime = 0.22;
+      shotTime = 0.24;
     },
     triggerDash() {
       if (!dash) return;
@@ -171,26 +186,23 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       current = dash;
     },
     update(delta: number) {
-      if (shotTime > 0) {
-        shotTime = Math.max(0, shotTime - delta);
-        const progress = 1 - shotTime / 0.22;
-        const pulse = Math.sin(progress * Math.PI);
-        bowRig.updateShotPose(pulse);
-        visual.rotation.z = -pulse * 0.055;
-        visual.position.z = pulse * 0.035;
-        visual.position.y = pulse * 0.025;
-      } else {
-        bowRig.updateShotPose(0);
-        visual.rotation.z *= 0.72;
-        visual.position.z *= 0.72;
-        visual.position.y *= 0.72;
-      }
-
       if (dashRemaining > 0) {
         dashRemaining = Math.max(0, dashRemaining - delta);
         if (dashRemaining === 0) playBase();
       }
       mixer.update(delta);
+
+      if (shotTime > 0) {
+        shotTime = Math.max(0, shotTime - delta);
+        const progress = 1 - shotTime / 0.24;
+        const draw = progress < 0.58 ? progress / 0.58 : Math.max(0, 1 - (progress - 0.58) / 0.42);
+        applyShotPose(Math.sin(draw * Math.PI * 0.5));
+      } else {
+        bowRig.updateShotPose(0);
+        visual.rotation.z *= 0.68;
+        visual.position.z *= 0.68;
+        visual.position.y *= 0.68;
+      }
     },
     stop() {
       mixer.stopAllAction();
