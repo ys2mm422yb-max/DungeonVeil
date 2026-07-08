@@ -50,6 +50,8 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const effects = createRunEffectSystemState();
     const balance = createRunBalanceState();
     let frame = 0;
+    let checkedClearKey = '';
+
     const update = (time: number) => {
       const engine = getEngine();
       if (engine) {
@@ -57,9 +59,16 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           updateRunBalance(engine, balance);
           updateRunEffectSystems(engine, effects, time);
         }
+
         if (engine.state.roomClearReady) {
-          const reward = rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
-          if (reward) window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
+          const clearKey = `${engine.state.chapter}:${engine.state.floor}:${engine.state.roomClearAt}`;
+          if (checkedClearKey !== clearKey) {
+            checkedClearKey = clearKey;
+            const reward = rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
+            if (reward) window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
+          }
+        } else {
+          checkedClearKey = '';
         }
       }
       frame = requestAnimationFrame(update);
