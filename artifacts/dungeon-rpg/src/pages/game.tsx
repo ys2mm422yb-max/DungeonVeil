@@ -18,12 +18,14 @@ import { MainMenuScreen } from '../components/screens/MainMenuScreen';
 import { CharacterCreationScreen } from '../components/screens/CharacterCreationScreen';
 import { SettingsScreen } from '../components/screens/SettingsScreen';
 import { CreditsScreen } from '../components/screens/CreditsScreen';
+import { VeilChamberScreen } from '../components/screens/VeilChamberScreen';
 import { preloadKayKitDungeonRoom } from '../components/kaykitRoom3D';
 import { preloadKayKitEnemyVisuals } from '../components/kaykitEnemy3D';
 import { preloadKayKitHealingPotion } from '../components/kaykitLoot3D';
 import { preloadKayKitOuterWorld } from '../components/kaykitOuterWorld3D';
+import { applyMetaLoadoutToNewRun, beginMetaRun } from '../game/metaProgression';
 
-type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'game';
+type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'veil_chamber' | 'game';
 type MoveVector = { x: number; y: number };
 type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
 
@@ -101,11 +103,21 @@ export default function Game() {
 
   const goSettings = useCallback((returnTo: UiState) => { settingsReturnRef.current = returnTo; setUiState('settings'); }, []);
   const handleNewGame = useCallback(() => setUiState('char_create'), []);
-  const handleContinue = useCallback(() => { const save = loadGame(); if (!save) return; engineRef.current?.continueGame(save); setUiState('game'); }, []);
+  const handleContinue = useCallback(() => {
+    const save = loadGame();
+    if (!save) return;
+    engineRef.current?.continueGame(save);
+    setUiState('game');
+  }, []);
   const handleCharConfirm = useCallback(async (name: string, _cls: ClassKey) => {
     await Promise.all([preloadKayKitDungeonRoom(1), preloadKayKitEnemyVisuals(), preloadKayKitHealingPotion(), preloadKayKitOuterWorld()]);
-    engineRef.current?.startNewGame(name, 'archer');
+    const engine = engineRef.current;
+    if (!engine) return;
+    beginMetaRun();
+    engine.startNewGame(name, 'archer');
+    applyMetaLoadoutToNewRun(engine);
     setSaveData(loadGame());
+    setGameState({ ...engine.state });
     setUiState('game');
   }, []);
   const handleRetry = useCallback(() => setUiState('char_create'), []);
@@ -186,10 +198,11 @@ export default function Game() {
     <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none overscroll-none">
       <GameSessionBridge getEngine={() => engineRef.current} active={uiState === 'game'} />
       {uiState === 'lang_select' && <LanguageSelectScreen />}
-      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={handleNewGame} onContinue={handleContinue} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
+      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={handleNewGame} onContinue={handleContinue} onVeilChamber={() => setUiState('veil_chamber')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
       {uiState === 'char_create' && <CharacterCreationScreen onConfirm={handleCharConfirm} onBack={handleMainMenu} />}
       {uiState === 'settings' && <SettingsScreen onBack={handleSettingsBack} onSaveDeleted={handleSaveDeleted} />}
       {uiState === 'credits' && <CreditsScreen onBack={handleMainMenu} />}
+      {uiState === 'veil_chamber' && <VeilChamberScreen onBack={() => setUiState('main_menu')} />}
       {uiState === 'game' && gameState && <>
         <CombatStage gameState={gameState} />
         {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />}
