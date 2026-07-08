@@ -2,7 +2,7 @@ const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loader
 const ROOT = '/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/';
 const MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
-type Library = { floor: any; wall: any; corner: any; column: any };
+type Library = { floor: any; floorBroken: any; wall: any; wallBroken: any; corner: any; pillar: any; torch: any };
 let libraryPromise: Promise<Library> | null = null;
 
 async function loadLibrary(): Promise<Library> {
@@ -10,13 +10,24 @@ async function loadLibrary(): Promise<Library> {
     libraryPromise = (async () => {
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       const loader = new GLTFLoader();
-      const [floor, wall, corner, column] = await Promise.all([
-        loader.loadAsync(`${ROOT}floor_dirt_large.gltf`),
-        loader.loadAsync(`${ROOT}barrier.gltf`),
-        loader.loadAsync(`${ROOT}barrier_corner.gltf`),
-        loader.loadAsync(`${ROOT}barrier_column.gltf`),
+      const [floor, floorBroken, wall, wallBroken, corner, pillar, torch] = await Promise.all([
+        loader.loadAsync(`${ROOT}floor_tile_large.gltf`),
+        loader.loadAsync(`${ROOT}floor_tile_large_rocks.gltf`),
+        loader.loadAsync(`${ROOT}wall.gltf`),
+        loader.loadAsync(`${ROOT}wall_broken.gltf`),
+        loader.loadAsync(`${ROOT}wall_corner.gltf`),
+        loader.loadAsync(`${ROOT}wall_pillar.gltf`),
+        loader.loadAsync(`${ROOT}torch_mounted.gltf`),
       ]);
-      return { floor: floor.scene, wall: wall.scene, corner: corner.scene, column: column.scene };
+      return {
+        floor: floor.scene,
+        floorBroken: floorBroken.scene,
+        wall: wall.scene,
+        wallBroken: wallBroken.scene,
+        corner: corner.scene,
+        pillar: pillar.scene,
+        torch: torch.scene,
+      };
     })();
   }
   return libraryPromise;
@@ -44,10 +55,11 @@ function prepare(root: any) {
   });
 }
 
-function cloneAt(group: any, source: any, x: number, z: number, rotation = 0, y = -0.14) {
+function cloneAt(group: any, source: any, x: number, z: number, rotation = 0, y = -0.12, scale = 1) {
   const object = source.clone(true);
   object.position.set(x, y, z);
   object.rotation.y = rotation;
+  object.scale.setScalar(scale);
   group.add(object);
 }
 
@@ -60,7 +72,7 @@ export function buildKayKitOuterWorld(THREE: any, mapWidth: number, mapHeight: n
     if (!active) return;
     Object.values(library).forEach(prepare);
 
-    const margin = MOBILE ? 8 : 12;
+    const margin = MOBILE ? 10 : 14;
     const step = 4;
     const left = -mapWidth / 2 - margin;
     const right = mapWidth / 2 + margin;
@@ -70,29 +82,42 @@ export function buildKayKitOuterWorld(THREE: any, mapWidth: number, mapHeight: n
     for (let z = top + step / 2; z < bottom; z += step) {
       for (let x = left + step / 2; x < right; x += step) {
         const inside = x > -mapWidth / 2 - 1 && x < mapWidth / 2 + 1 && z > -mapHeight / 2 - 1 && z < mapHeight / 2 + 1;
-        if (!inside) cloneAt(root, library.floor, x, z);
+        if (inside) continue;
+        const index = Math.abs(Math.round(x / step) * 17 + Math.round(z / step) * 31);
+        const source = index % 7 === 0 ? library.floorBroken : library.floor;
+        cloneAt(root, source, x, z, index % 2 ? Math.PI / 2 : 0);
       }
     }
 
-    const wallStep = MOBILE ? 4 : 2;
+    const wallStep = 2;
     for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
-      cloneAt(root, library.wall, x, top, 0, -0.1);
-      cloneAt(root, library.wall, x, bottom, Math.PI, -0.1);
+      const sourceTop = Math.abs(Math.round(x)) % 8 === 0 ? library.wallBroken : library.wall;
+      const sourceBottom = Math.abs(Math.round(x + 3)) % 9 === 0 ? library.wallBroken : library.wall;
+      cloneAt(root, sourceTop, x, top, 0, -0.08);
+      cloneAt(root, sourceBottom, x, bottom, Math.PI, -0.08);
     }
     for (let z = top + wallStep; z < bottom - wallStep; z += wallStep) {
-      cloneAt(root, library.wall, left, z, Math.PI / 2, -0.1);
-      cloneAt(root, library.wall, right, z, -Math.PI / 2, -0.1);
+      const sourceLeft = Math.abs(Math.round(z)) % 8 === 0 ? library.wallBroken : library.wall;
+      const sourceRight = Math.abs(Math.round(z + 3)) % 9 === 0 ? library.wallBroken : library.wall;
+      cloneAt(root, sourceLeft, left, z, Math.PI / 2, -0.08);
+      cloneAt(root, sourceRight, right, z, -Math.PI / 2, -0.08);
     }
 
-    cloneAt(root, library.corner, left, top, Math.PI / 2, -0.1);
-    cloneAt(root, library.corner, right, top, Math.PI, -0.1);
-    cloneAt(root, library.corner, right, bottom, -Math.PI / 2, -0.1);
-    cloneAt(root, library.corner, left, bottom, 0, -0.1);
+    cloneAt(root, library.corner, left, top, Math.PI / 2, -0.08);
+    cloneAt(root, library.corner, right, top, Math.PI, -0.08);
+    cloneAt(root, library.corner, right, bottom, -Math.PI / 2, -0.08);
+    cloneAt(root, library.corner, left, bottom, 0, -0.08);
 
     for (const x of [-8, 0, 8]) {
-      cloneAt(root, library.column, x, top + 0.1, 0, -0.1);
-      cloneAt(root, library.column, x, bottom - 0.1, Math.PI, -0.1);
+      cloneAt(root, library.pillar, x, top + 0.15, 0, -0.08);
+      cloneAt(root, library.pillar, x, bottom - 0.15, Math.PI, -0.08);
     }
+
+    const torchPositions: Array<[number, number, number]> = [
+      [-8, top + 0.25, 0], [8, top + 0.25, 0], [-8, bottom - 0.25, Math.PI], [8, bottom - 0.25, Math.PI],
+      [left + 0.25, -5, Math.PI / 2], [left + 0.25, 5, Math.PI / 2], [right - 0.25, -5, -Math.PI / 2], [right - 0.25, 5, -Math.PI / 2],
+    ];
+    torchPositions.forEach(([x, z, rotation]) => cloneAt(root, library.torch, x, z, rotation, -0.02, 0.95));
   }).catch(error => console.error('KayKit outer dungeon failed', error));
 
   root.userData.dispose = () => { active = false; };
