@@ -58,7 +58,7 @@ export const CLASS_DEFS: Record<ClassKey, ClassDef> = {
     maxHp: 100,
     attack: 10,
     defense: 4,
-    speed: 145,
+    speed: 185,
     color: '#e67e22',
     glowColor: 'rgba(230,126,34,0.6)',
     attackRange: 105,
