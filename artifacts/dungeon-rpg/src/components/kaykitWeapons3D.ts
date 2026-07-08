@@ -8,6 +8,7 @@ export type KayKitRangerWeapons = {
 };
 
 let weaponPromise: Promise<KayKitRangerWeapons | null> | null = null;
+let bossWeaponPromise: Promise<any | null> | null = null;
 
 function rank(path: string, terms: string[]) {
   const name = path.toLowerCase();
@@ -45,4 +46,22 @@ export async function loadKayKitRangerWeapons(): Promise<KayKitRangerWeapons | n
     })();
   }
   return weaponPromise;
+}
+
+export async function loadKayKitBossWeapon() {
+  if (!bossWeaponPromise) {
+    bossWeaponPromise = (async () => {
+      const manifest = await loadKayKitManifest();
+      const weaponModels = findKayKitModels(manifest, 'weapons', /\/assets\/gltf\/.*\.(?:gltf|glb)$/i);
+      const path = best(weaponModels, ['halberd'])
+        ?? best(weaponModels, ['hammer_c', 'hammer'])
+        ?? best(weaponModels, ['axe_c', 'axe']);
+      if (!path) return null;
+      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
+      const loader = new GLTFLoader();
+      const gltf = await loader.loadAsync(modelUrl(manifest, path));
+      return gltf.scene;
+    })();
+  }
+  return bossWeaponPromise;
 }
