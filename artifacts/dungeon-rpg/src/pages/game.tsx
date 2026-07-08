@@ -7,7 +7,7 @@ import { hasSave, loadGame, SaveData } from '../game/saveManager';
 import { saveEngineSession } from '../game/sessionStore';
 import { UpgradeKey, Language } from '../i18n/translations';
 import { useLanguage } from '../i18n/LanguageContext';
-import { GameCanvas } from '../components/GameCanvas';
+import { CombatStage } from '../components/CombatStage';
 import { VirtualJoystick } from '../components/VirtualJoystick';
 import { ActionButtons } from '../components/ActionButtons';
 import { HUD } from '../components/HUD';
@@ -163,7 +163,7 @@ export default function Game() {
       {uiState === 'settings' && <SettingsScreen onBack={handleSettingsBack} onSaveDeleted={handleSaveDeleted} />}
       {uiState === 'credits' && <CreditsScreen onBack={handleMainMenu} />}
       {uiState === 'game' && gameState && <>
-        <GameCanvas gameState={gameState} />
+        <CombatStage gameState={gameState} />
         {saveNotice && <div className="fixed left-1/2 top-[18%] z-[80] -translate-x-1/2 rounded border border-violet-300/40 bg-black/80 px-4 py-2 text-[10px] font-black tracking-[.18em] text-violet-100">✓ {saveNotice}</div>}
         {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />}
         {gameState.status === 'levelup' && <LevelUpScreen choices={gameState.upgradeChoices} onSelect={handleLevelUpSelect} />}
