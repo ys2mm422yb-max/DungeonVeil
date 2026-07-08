@@ -53,7 +53,8 @@ export async function createKayKitLootVisual(item: Item) {
   root.name = `KayKitHealingPotion_${item.id}`;
 
   const object = prototype.clone(true);
-  object.scale.setScalar(0.64);
+  object.scale.setScalar(0.9);
+  object.position.y = 0.04;
   object.traverse((node: any) => {
     if (!node.isMesh) return;
     node.castShadow = !IS_MOBILE;
@@ -63,18 +64,27 @@ export async function createKayKitLootVisual(item: Item) {
   root.add(object);
 
   const halo = new THREE.Mesh(
-    new THREE.RingGeometry(0.2, 0.34, 24),
-    new THREE.MeshBasicMaterial({ color: 0xff6b4a, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }),
+    new THREE.RingGeometry(0.3, 0.54, 32),
+    new THREE.MeshBasicMaterial({ color: 0xff6b4a, transparent: true, opacity: 0.46, depthWrite: false, side: THREE.DoubleSide }),
   );
   halo.rotation.x = -Math.PI / 2;
-  halo.position.y = -0.12;
+  halo.position.y = -0.14;
   root.add(halo);
 
-  const glow = new THREE.PointLight(0xff5a38, IS_MOBILE ? 1.35 : 1.8, 2.4, 2);
-  glow.position.y = 0.18;
+  const innerHalo = new THREE.Mesh(
+    new THREE.CircleGeometry(0.28, 28),
+    new THREE.MeshBasicMaterial({ color: 0xff4f35, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }),
+  );
+  innerHalo.rotation.x = -Math.PI / 2;
+  innerHalo.position.y = -0.145;
+  root.add(innerHalo);
+
+  const glow = new THREE.PointLight(0xff5a38, IS_MOBILE ? 2.1 : 2.8, 3.4, 2);
+  glow.position.y = 0.32;
   root.add(glow);
 
   root.userData.halo = halo;
+  root.userData.innerHalo = innerHalo;
   root.userData.glow = glow;
   return root;
 }
