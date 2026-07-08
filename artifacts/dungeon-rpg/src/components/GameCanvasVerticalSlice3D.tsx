@@ -38,6 +38,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
     let monsterLibrary: MonsterLibrary = {};
     let roomRoot: any = null;
     let portal: any = null;
+    let playerLight: any = null;
     let lastRoomKey = '';
     let lastAttack = 0;
     let attackPulse = 0;
@@ -85,10 +86,10 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       canvas.height = 256;
       const ctx = canvas.getContext('2d')!;
       const palettes = [
-        ['#17130f', '#211b14', '#2d241a'],
-        ['#16161a', '#202027', '#2b2933'],
-        ['#15130f', '#242017', '#332a19'],
-        ['#171214', '#25191d', '#351f25'],
+        ['#342a20', '#413429', '#4c3d30'],
+        ['#2d2b31', '#3a3740', '#46424c'],
+        ['#30291e', '#403626', '#4d402c'],
+        ['#32252a', '#422f35', '#503740'],
       ];
       const palette = palettes[(Math.max(1, state.floor) - 1) % palettes.length];
       ctx.fillStyle = palette[0];
@@ -96,7 +97,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       for (let y = 0; y < 256; y += 32) {
         for (let x = 0; x < 256; x += 32) {
           ctx.fillStyle = ((x / 32 + y / 32) % 2 === 0) ? palette[1] : palette[2];
-          ctx.globalAlpha = 0.34;
+          ctx.globalAlpha = 0.48;
           ctx.fillRect(x + 1, y + 1, 30, 30);
           ctx.globalAlpha = 1;
         }
@@ -107,7 +108,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       texture.colorSpace = THREE.SRGBColorSpace;
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(state.map.width, state.map.height),
-        new THREE.MeshStandardMaterial({ map: texture, roughness: 1, color: 0xb9ad96 }),
+        new THREE.MeshStandardMaterial({ map: texture, roughness: 0.92, color: 0xffffff }),
       );
       ground.rotation.x = -Math.PI / 2;
       ground.position.y = -0.04;
@@ -282,6 +283,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
         rangerRig.update(delta);
       }
 
+      if (playerLight) playerLight.position.set(playerX, 4.2, playerZ + 1.2);
       syncEnemies(state, now, delta);
       syncArrows(state);
       syncItems(state, now);
@@ -301,27 +303,32 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       if (disposed) return;
 
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x08090c);
-      scene.fog = new THREE.Fog(0x08090c, 26, 52);
+      scene.background = new THREE.Color(0x17151b);
+      scene.fog = new THREE.Fog(0x17151b, 38, 72);
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.45;
       host.appendChild(renderer.domElement);
 
       camera = new THREE.PerspectiveCamera(RUN_CAMERA.fov, 1, 0.1, 150);
       camera.position.set(0, RUN_CAMERA.height, RUN_CAMERA.distance);
       cameraGoal = new THREE.Vector3();
-      scene.add(new THREE.HemisphereLight(0xffdfb5, 0x08090c, 1.15));
-      const keyLight = new THREE.DirectionalLight(0xffc06c, 2.2);
+      scene.add(new THREE.AmbientLight(0xfff0dc, 1.45));
+      scene.add(new THREE.HemisphereLight(0xffe6c7, 0x2b2230, 2.05));
+      const keyLight = new THREE.DirectionalLight(0xffc982, 3.3);
       keyLight.position.set(-7, 14, 7);
       keyLight.castShadow = true;
       keyLight.shadow.mapSize.set(1024, 1024);
       scene.add(keyLight);
-      const fillLight = new THREE.PointLight(0x7b61ff, 5.5, 22, 2);
-      fillLight.position.set(0, 5.5, -8);
+      const fillLight = new THREE.PointLight(0x8f76ff, 8.5, 30, 1.7);
+      fillLight.position.set(0, 6.5, -8);
       scene.add(fillLight);
+      playerLight = new THREE.PointLight(0xffd6a0, 5.5, 18, 1.6);
+      scene.add(playerLight);
 
       const loader = new GLTFLoader();
       const loadGltf = (name: string) => loader.loadAsync(`${ROOT}${name}`);
