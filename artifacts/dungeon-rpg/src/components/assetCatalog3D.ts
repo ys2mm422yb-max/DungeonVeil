@@ -41,6 +41,7 @@ export const DUNGEON_ASSETS: Record<string, ObjAssetSpec> = {
   trapSpikes: { folder: 'dungeon', file: 'Trap_spikes', targetSize: 2.0 },
   trapdoor: { folder: 'dungeon', file: 'Trapdoor', targetSize: 2.0 },
   vase: { folder: 'dungeon', file: 'Vase', targetSize: 0.85 },
+  skull: { folder: 'dungeon', file: 'Skull', targetSize: 0.55 },
   swordWallMount: { folder: 'dungeon', file: 'Sword_WallMount', targetSize: 1.4 },
   tableBig: { folder: 'dungeon', file: 'Table_Big', targetSize: 2.2 },
   tableSmall: { folder: 'dungeon', file: 'Table_Small', targetSize: 1.6 },
