@@ -162,11 +162,11 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const attack = attackClip ? mixer.clipAction(attackClip) : null;
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   idle?.reset().play();
-  if (move) move.timeScale = enemy.enemyType === 'boss' ? 0.58 : 1.06;
+  if (move) move.timeScale = enemy.enemyType === 'boss' ? 0.92 : 1.06;
   if (attack) {
     attack.setLoop(THREE.LoopOnce, 1);
     attack.clampWhenFinished = false;
-    attack.timeScale = enemy.enemyType === 'boss' ? 0.86 : 1.12;
+    attack.timeScale = enemy.enemyType === 'boss' ? 0.98 : 1.12;
   }
   if (death && deathClip) {
     death.setLoop(THREE.LoopOnce, 1);
@@ -199,19 +199,19 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   bossAura.visible = enemy.enemyType === 'boss';
   const bossRingOuter = new THREE.Mesh(
     new THREE.TorusGeometry(0.7, 0.055, 8, 36),
-    new THREE.MeshBasicMaterial({ color: 0xc33b49, transparent: true, opacity: 0.5, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0x8f4864, transparent: true, opacity: 0.42, depthWrite: false }),
   );
   bossRingOuter.rotation.x = Math.PI / 2;
   bossRingOuter.userData.bossRing = 'outer';
   bossAura.add(bossRingOuter);
   const bossRingInner = new THREE.Mesh(
     new THREE.TorusGeometry(0.48, 0.035, 8, 32),
-    new THREE.MeshBasicMaterial({ color: 0x8c62ff, transparent: true, opacity: 0.42, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0x765bd3, transparent: true, opacity: 0.36, depthWrite: false }),
   );
   bossRingInner.rotation.x = Math.PI / 2;
   bossRingInner.userData.bossRing = 'inner';
   bossAura.add(bossRingInner);
-  const bossCore = new THREE.PointLight(0xb93145, IS_MOBILE ? 2.8 : 4.2, 5.5, 2);
+  const bossCore = new THREE.PointLight(0x8d3e65, IS_MOBILE ? 2.1 : 3.2, 5.5, 2);
   bossCore.position.y = 0.75;
   bossAura.add(bossCore);
   statusRoot.add(bossAura);
@@ -274,29 +274,29 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   visual.frostHalo.scale.setScalar(frozen ? 0.96 + Math.sin(now * 0.005) * 0.07 : 1);
 
   if (enemy.enemyType === 'boss') {
-    visual.bossAura.rotation.y += delta * 0.4;
+    visual.bossAura.rotation.y += delta * 0.5;
     visual.bossAura.traverse((node: any) => {
       if (node.userData?.bossRing === 'outer') {
-        node.rotation.z = now * 0.00055;
-        node.material.opacity = 0.42 + Math.sin(now * 0.004) * 0.12;
+        node.rotation.z = now * 0.0007;
+        node.material.opacity = 0.34 + Math.sin(now * 0.004) * 0.09;
       } else if (node.userData?.bossRing === 'inner') {
-        node.rotation.z = -now * 0.0009;
-        node.material.opacity = 0.32 + Math.sin(now * 0.006 + 1.2) * 0.1;
+        node.rotation.z = -now * 0.00105;
+        node.material.opacity = 0.28 + Math.sin(now * 0.006 + 1.2) * 0.08;
       }
     });
-    visual.bossCore.intensity = (IS_MOBILE ? 2.7 : 4) + Math.sin(now * 0.007) * 0.8;
+    visual.bossCore.intensity = (IS_MOBILE ? 1.9 : 2.9) + Math.sin(now * 0.007) * 0.55;
   }
 
-  if (burning && enemy.enemyType === 'boss') setMeshTint(visual.scene, 0x6f241e, 0.045);
+  // Boss-Materialien bleiben lesbar. Feuer/Frost werden über Partikel und Halos gezeigt,
+  // nicht mehr über eine permanente Ganzkörper-Tönung.
+  if (enemy.enemyType === 'boss') setMeshTint(visual.scene, null, 0);
   else if (burning) setMeshTint(visual.scene, 0xff2d00, 0.2);
-  else if (frozen && enemy.enemyType === 'boss') setMeshTint(visual.scene, 0x356b86, 0.045);
   else if (frozen) setMeshTint(visual.scene, 0x46bfff, 0.07);
-  else if (enemy.enemyType === 'boss') setMeshTint(visual.scene, 0x6a101a, 0.055);
   else setMeshTint(visual.scene, null, 0);
 
   if ((enemy.lastHitTime ?? 0) > visual.lastHitTime) {
     visual.lastHitTime = enemy.lastHitTime ?? 0;
-    visual.hitElapsed = enemy.enemyType === 'boss' ? 0.1 : 0.16;
+    visual.hitElapsed = enemy.enemyType === 'boss' ? 0.08 : 0.16;
   }
 
   if (enemy.isDead || enemy.state === 'dead') {
@@ -336,7 +336,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   }
 
   if (visual.hitElapsed > 0) {
-    const hitDuration = enemy.enemyType === 'boss' ? 0.1 : 0.16;
+    const hitDuration = enemy.enemyType === 'boss' ? 0.08 : 0.16;
     visual.hitElapsed = Math.max(0, visual.hitElapsed - delta);
     const pulse = Math.sin((visual.hitElapsed / hitDuration) * Math.PI);
     const fromX = enemy.hitFromX ?? enemy.x;
@@ -344,10 +344,10 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
     const dx = enemy.x - fromX;
     const dy = enemy.y - fromY;
     const len = Math.max(1, Math.hypot(dx, dy));
-    const strength = enemy.enemyType === 'boss' ? 0.022 : 0.13;
+    const strength = enemy.enemyType === 'boss' ? 0.012 : 0.13;
     visual.scene.position.x = dx / len * pulse * strength;
     visual.scene.position.z = dy / len * pulse * strength;
-    visual.scene.rotation.z = -pulse * (enemy.enemyType === 'boss' ? 0.014 : 0.09);
+    visual.scene.rotation.z = -pulse * (enemy.enemyType === 'boss' ? 0.008 : 0.09);
   } else {
     visual.scene.position.x *= 0.6;
     visual.scene.position.z *= 0.6;
@@ -357,7 +357,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   if (enemy.lastAttackTime > visual.lastAttackTime) {
     visual.lastAttackTime = enemy.lastAttackTime;
     const duration = visual.attack?.getClip?.()?.duration ?? 0.5;
-    visual.attackRemaining = Math.max(0.22, duration / (enemy.enemyType === 'boss' ? 0.86 : 1.12));
+    visual.attackRemaining = Math.max(0.22, duration / (enemy.enemyType === 'boss' ? 0.98 : 1.12));
     transition(visual, visual.attack, 0.045);
     visual.lastState = 'attack';
   }
@@ -377,9 +377,9 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   }
 
   if (visual.move) {
-    const baseMoveSpeed = enemy.enemyType === 'boss' ? 0.58 : 1.06;
+    const baseMoveSpeed = enemy.enemyType === 'boss' ? 0.92 : 1.06;
     visual.move.timeScale = frozen
-      ? Math.max(enemy.enemyType === 'boss' ? 0.28 : 0.5, baseMoveSpeed * (1 - (enemy.frostSlow ?? 0)))
+      ? Math.max(enemy.enemyType === 'boss' ? 0.48 : 0.5, baseMoveSpeed * (1 - (enemy.frostSlow ?? 0)))
       : baseMoveSpeed;
   }
   visual.mixer.update(delta);
