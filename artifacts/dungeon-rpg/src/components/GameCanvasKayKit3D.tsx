@@ -13,6 +13,8 @@ import { loadKayKitManifest } from './kaykitManifest3D';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const TILE = 40;
+const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const MAX_PARTICLES = IS_MOBILE ? 64 : 110;
 
 export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -37,6 +39,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let portal: any = null;
     let playerLight: any = null;
     let playerPulse: any = null;
+    let particlePoints: any = null;
+    let particlePositions: Float32Array | null = null;
+    let particleColors: Float32Array | null = null;
     let lastRoomKey = '';
     let lastAttack = 0;
     let lastDodge = 0;
@@ -48,6 +53,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const arrowVisuals = new Map<string, any>();
     const lootVisuals = new Map<string, any>();
     const lootLoading = new Set<string>();
+    const circleVisuals = new Map<string, any>();
+    const damageVisuals = new Map<string, any>();
+    const particleColorCache = new Map<string, [number, number, number]>();
 
     const mapX = (state: GameState, value: number) => value / TILE - state.map.width / 2 + 0.5;
     const mapZ = (state: GameState, value: number) => value / TILE - state.map.height / 2 + 0.5;
@@ -186,6 +194,142 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           glow.scale.setScalar((glow.userData.baseScale ?? 0.04) * (0.92 + pulse * 0.12));
         });
         if (arrow.userData.elementLight) arrow.userData.elementLight.intensity = 3.1 + pulse * 1.9;
+      }
+    };
+
+    const syncCircleEffects = (state: GameState) => {
+      const effects = state.effects.filter(effect => effect.type === 'circle');
+      const active = new Set(effects.map(effect => effect.id));
+      for (const [id, visual] of circleVisuals) {
+        if (active.has(id)) continue;
+        scene.remove(visual);
+        disposeObject(visual);
+        circleVisuals.delete(id);
+      }
+
+      for (const effect of effects) {
+        let visual = circleVisuals.get(effect.id);
+        if (!visual) {
+          visual = new THREE.Group();
+          const ring = new THREE.Mesh(
+            new THREE.RingGeometry(0.72, 1, 32),
+            new THREE.MeshBasicMaterial({ color: effect.color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
+          );
+          ring.rotation.x = -Math.PI / 2;
+          visual.add(ring);
+          if (effect.element === 'fire' || effect.element === 'arcane') {
+            const light = new THREE.PointLight(effect.color, effect.element === 'fire' ? 5 : 3.6, 5, 2);
+            light.position.y = 0.5;
+            visual.add(light);
+            visual.userData.light = light;
+          }
+          visual.userData.ring = ring;
+          scene.add(visual);
+          circleVisuals.set(effect.id, visual);
+        }
+        const progress = Math.max(0, Math.min(1, effect.lifeTime / effect.maxLifeTime));
+        const scale = Math.max(0.05, effect.maxRadius / TILE * progress);
+        visual.position.set(mapX(state, effect.x), 0.045, mapZ(state, effect.y));
+        visual.scale.setScalar(scale);
+        visual.userData.ring.material.opacity = Math.max(0, 0.9 * (1 - progress));
+        if (visual.userData.light) visual.userData.light.intensity = (effect.element === 'fire' ? 5 : 3.6) * (1 - progress);
+      }
+    };
+
+    const ensureParticleLayer = () => {
+      if (particlePoints) return;
+      particlePositions = new Float32Array(MAX_PARTICLES * 3);
+      particleColors = new Float32Array(MAX_PARTICLES * 3);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+      geometry.setDrawRange(0, 0);
+      const material = new THREE.PointsMaterial({ size: IS_MOBILE ? 0.075 : 0.09, vertexColors: true, transparent: true, opacity: 0.88, depthWrite: false, sizeAttenuation: true });
+      particlePoints = new THREE.Points(geometry, material);
+      particlePoints.frustumCulled = false;
+      scene.add(particlePoints);
+    };
+
+    const particleColor = (value: string): [number, number, number] => {
+      const cached = particleColorCache.get(value);
+      if (cached) return cached;
+      const color = new THREE.Color(value);
+      const rgb: [number, number, number] = [color.r, color.g, color.b];
+      particleColorCache.set(value, rgb);
+      return rgb;
+    };
+
+    const syncParticles = (state: GameState) => {
+      ensureParticleLayer();
+      if (!particlePoints || !particlePositions || !particleColors) return;
+      const particles = state.particles.slice(-MAX_PARTICLES);
+      for (let index = 0; index < particles.length; index++) {
+        const particle = particles[index];
+        const progress = Math.max(0, Math.min(1, particle.lifeTime / particle.maxLifeTime));
+        const offset = index * 3;
+        particlePositions[offset] = mapX(state, particle.x);
+        particlePositions[offset + 1] = 0.2 + Math.sin(progress * Math.PI) * 0.48 + Math.min(0.12, particle.size * 0.015);
+        particlePositions[offset + 2] = mapZ(state, particle.y);
+        const [r, g, b] = particleColor(particle.color);
+        const fade = 1 - progress * 0.7;
+        particleColors[offset] = r * fade;
+        particleColors[offset + 1] = g * fade;
+        particleColors[offset + 2] = b * fade;
+      }
+      particlePoints.geometry.setDrawRange(0, particles.length);
+      particlePoints.geometry.attributes.position.needsUpdate = true;
+      particlePoints.geometry.attributes.color.needsUpdate = true;
+    };
+
+    const createDamageSprite = (damage: GameState['damageNumbers'][number]) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 96;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      const scale = Math.max(0.7, damage.scale ?? 1);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = `900 ${Math.round(42 * Math.min(1.35, scale))}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 9;
+      ctx.strokeStyle = 'rgba(0,0,0,.82)';
+      ctx.strokeText(damage.value, 128, 48);
+      ctx.fillStyle = damage.color;
+      ctx.fillText(damage.value, 128, 48);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(1.25 * scale, 0.47 * scale, 1);
+      sprite.userData.texture = texture;
+      sprite.userData.baseX = mapX(stateRef.current, damage.x);
+      sprite.userData.baseZ = mapZ(stateRef.current, damage.y);
+      return sprite;
+    };
+
+    const syncDamageNumbers = (state: GameState) => {
+      const numbers = state.damageNumbers.filter(number => !number.id.startsWith('clear-'));
+      const active = new Set(numbers.map(number => number.id));
+      for (const [id, sprite] of damageVisuals) {
+        if (active.has(id)) continue;
+        scene.remove(sprite);
+        sprite.userData.texture?.dispose?.();
+        sprite.material?.dispose?.();
+        damageVisuals.delete(id);
+      }
+
+      for (const damage of numbers) {
+        let sprite = damageVisuals.get(damage.id);
+        if (!sprite) {
+          sprite = createDamageSprite(damage);
+          if (!sprite) continue;
+          scene.add(sprite);
+          damageVisuals.set(damage.id, sprite);
+        }
+        const progress = Math.max(0, Math.min(1, damage.lifeTime / damage.maxLifeTime));
+        sprite.position.set(sprite.userData.baseX, 1.25 + progress * 0.7, sprite.userData.baseZ);
+        sprite.material.opacity = Math.max(0, 1 - progress);
       }
     };
 
@@ -335,6 +479,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (playerLight) playerLight.position.set(playerX, 4.2, playerZ + 1.2);
       syncEnemies(state, delta, gameNow);
       syncArrows(state, wallNow);
+      syncCircleEffects(state);
+      syncParticles(state);
+      syncDamageNumbers(state);
       syncLoot(state, wallNow);
       syncPortal(state, gameNow, wallNow);
       syncPlayerFeedback(state, wallNow, gameNow);
@@ -396,6 +543,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       for (const visual of enemyVisuals.values()) { visual.mixer?.stopAllAction?.(); disposeObject(visual.root); }
       for (const mesh of arrowVisuals.values()) disposeObject(mesh);
       for (const mesh of lootVisuals.values()) disposeObject(mesh);
+      for (const visual of circleVisuals.values()) disposeObject(visual);
+      for (const sprite of damageVisuals.values()) { sprite.userData.texture?.dispose?.(); sprite.material?.dispose?.(); }
+      if (particlePoints) disposeObject(particlePoints);
       if (roomRoot) disposeObject(roomRoot);
       if (portal) disposeObject(portal);
       if (playerPulse) disposeObject(playerPulse);
