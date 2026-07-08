@@ -103,6 +103,7 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
 
   let movingState = false;
   let attackRemaining = 0;
+  let lastAttackSignal = root.userData.rangerAttackSignal ?? 0;
   const attackDuration = attackClip ? Math.max(0.22, attackClip.duration / 1.2) : 0;
 
   const restoreMovement = () => {
@@ -115,9 +116,28 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
     }
   };
 
+  const playAttack = () => {
+    if (!attackClip) return false;
+    attackRemaining = attackDuration;
+    for (const layer of layers) {
+      if (!layer.attack) continue;
+      layer.attack.stop();
+      layer.attack.reset().fadeIn(0.06).play();
+      layer.active?.fadeOut(0.08);
+      layer.active = layer.attack;
+    }
+    return true;
+  };
+
   return {
     root,
     update(delta: number) {
+      const attackSignal = root.userData.rangerAttackSignal ?? 0;
+      if (attackSignal !== lastAttackSignal) {
+        lastAttackSignal = attackSignal;
+        playAttack();
+      }
+
       if (attackRemaining > 0) {
         attackRemaining = Math.max(0, attackRemaining - delta);
         if (attackRemaining === 0) restoreMovement();
@@ -136,16 +156,7 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
       }
     },
     triggerAttack() {
-      if (!attackClip) return false;
-      attackRemaining = attackDuration;
-      for (const layer of layers) {
-        if (!layer.attack) continue;
-        layer.attack.stop();
-        layer.attack.reset().fadeIn(0.06).play();
-        layer.active?.fadeOut(0.08);
-        layer.active = layer.attack;
-      }
-      return true;
+      return playAttack();
     },
     stop() {
       for (const layer of layers) layer.mixer.stopAllAction();
