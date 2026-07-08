@@ -17,6 +17,8 @@ export type MonsterVisual = {
   activeAction: string;
   lastAttackTime: number;
   deathStarted: boolean;
+  marker: any;
+  healthFill: any;
 };
 
 export type MonsterLibrary = Record<string, MonsterPrototype>;
@@ -74,6 +76,31 @@ export async function createMonsterVisual(THREE: any, library: MonsterLibrary, e
   const model = SkeletonUtils.clone(prototype.root);
   const root = new THREE.Group();
   root.add(model);
+
+  const marker = new THREE.Mesh(
+    new THREE.RingGeometry(0.48, 0.64, 28),
+    new THREE.MeshBasicMaterial({ color: enemy.enemyType === 'boss' ? 0xffb43a : 0xff4c5f, transparent: true, opacity: 0.72, depthWrite: false }),
+  );
+  marker.rotation.x = -Math.PI / 2;
+  marker.position.y = 0.025;
+  root.add(marker);
+
+  const healthBack = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.05, 0.09),
+    new THREE.MeshBasicMaterial({ color: 0x1b090c, depthTest: false }),
+  );
+  healthBack.position.set(0, 1.9, 0);
+  healthBack.renderOrder = 30;
+  root.add(healthBack);
+
+  const healthFill = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 0.06),
+    new THREE.MeshBasicMaterial({ color: 0xff5366, depthTest: false }),
+  );
+  healthFill.position.set(0, 1.9, 0.01);
+  healthFill.renderOrder = 31;
+  root.add(healthFill);
+
   const scale = enemy.enemyType === 'boss' ? 1.8 : enemy.enemyType === 'golem' ? 1.35 : 1;
   root.scale.setScalar(scale);
   const mixer = prototype.animations.length ? new THREE.AnimationMixer(model) : null;
@@ -89,7 +116,7 @@ export async function createMonsterVisual(THREE: any, library: MonsterLibrary, e
     if (death) actions.death = mixer.clipAction(death);
     (actions.idle ?? actions.move)?.play();
   }
-  return { root, mixer, actions, activeAction: actions.idle ? 'idle' : 'move', lastAttackTime: enemy.lastAttackTime, deathStarted: false };
+  return { root, mixer, actions, activeAction: actions.idle ? 'idle' : 'move', lastAttackTime: enemy.lastAttackTime, deathStarted: false, marker, healthFill };
 }
 
 function play(visual: MonsterVisual, name: string, once = false) {
@@ -105,11 +132,18 @@ function play(visual: MonsterVisual, name: string, once = false) {
 
 export function updateMonsterVisual(visual: MonsterVisual, enemy: Enemy, delta: number, now: number) {
   visual.mixer?.update(delta);
+  const health = Math.max(0, Math.min(1, enemy.hp / Math.max(1, enemy.maxHp)));
+  visual.healthFill.scale.x = health;
+  visual.healthFill.position.x = -(1 - health) * 0.5;
+  visual.marker.material.opacity = 0.55 + Math.sin(now * 0.006) * 0.16;
+
   if (enemy.isDead || enemy.hp <= 0) {
     if (!visual.deathStarted) {
       visual.deathStarted = true;
       play(visual, 'death', true);
     }
+    visual.marker.visible = false;
+    visual.healthFill.visible = false;
     const elapsed = Math.max(0, now - (enemy.deathTime || now));
     visual.root.rotation.z = Math.min(Math.PI / 2, elapsed / 340 * Math.PI / 2);
     visual.root.scale.multiplyScalar(Math.max(0.96, 1 - delta * 0.6));
@@ -122,16 +156,9 @@ export function updateMonsterVisual(visual: MonsterVisual, enemy: Enemy, delta: 
   }
   const moving = Math.hypot(enemy.vx, enemy.vy) > 4 || enemy.state === 'chase';
   play(visual, moving ? 'move' : 'idle');
-  if (enemy.flashUntil > now) {
-    visual.root.traverse((node: any) => {
-      if (node.material?.emissive) {
-        node.material.emissive.setHex(0xffffff);
-        node.material.emissiveIntensity = 0.9;
-      }
-    });
-  } else {
-    visual.root.traverse((node: any) => {
-      if (node.material?.emissive) node.material.emissiveIntensity = 0;
-    });
-  }
+  visual.root.traverse((node: any) => {
+    if (!node.material?.emissive || node === visual.marker || node === visual.healthFill) return;
+    node.material.emissive.setHex(enemy.flashUntil > now ? 0xffffff : 0x28180c);
+    node.material.emissiveIntensity = enemy.flashUntil > now ? 1.1 : 0.22;
+  });
 }
