@@ -18,7 +18,37 @@ function scoreLeftHand(name: string) {
   return 0;
 }
 
-export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig {
+function chooseVerticalBowRotation(THREE: any, heroRoot: any, bow: any) {
+  const candidates: Array<[number, number, number]> = [
+    [0, 0, 0],
+    [Math.PI / 2, 0, 0],
+    [-Math.PI / 2, 0, 0],
+    [0, 0, Math.PI / 2],
+    [0, 0, -Math.PI / 2],
+  ];
+
+  const bounds = new THREE.Box3();
+  const size = new THREE.Vector3();
+  let best = candidates[0];
+  let bestScore = -Infinity;
+
+  for (const candidate of candidates) {
+    bow.rotation.set(candidate[0], candidate[1], candidate[2]);
+    heroRoot.updateMatrixWorld(true);
+    bounds.setFromObject(bow);
+    bounds.getSize(size);
+    const horizontal = Math.max(size.x, size.z, 0.001);
+    const score = size.y / horizontal;
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+
+  bow.rotation.set(best[0], best[1], best[2]);
+}
+
+export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
   let previousPulse = 0;
@@ -36,7 +66,9 @@ export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig 
 
   if (bestScore >= 130) {
     bow.position.set(0.006, -0.015, 0.018);
-    bow.rotation.set(0.05, -0.06, 0);
+    chooseVerticalBowRotation(THREE, heroRoot, bow);
+    bow.rotation.y -= 0.08;
+    bow.rotation.x += 0.04;
   } else if (bestScore > 0) {
     bow.position.set(0.015, -0.015, 0.035);
     bow.rotation.set(-0.08, Math.PI / 2, -Math.PI / 2);
