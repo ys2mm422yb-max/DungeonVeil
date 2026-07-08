@@ -1,12 +1,9 @@
 import { useEffect } from 'react';
 import { saveEngineSession } from '../game/sessionStore';
+import type { GameEngine } from '../game/runEngine';
+import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 
-type SessionEngine = {
-  state: { player: { playerName: string } };
-  saveNow: (reason?: string) => boolean;
-};
-
-export function GameSessionBridge({ getEngine, active }: { getEngine: () => SessionEngine | null; active: boolean }) {
+export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {
   useEffect(() => {
     if (!active) return;
     const save = () => {
@@ -21,5 +18,19 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Sess
       document.removeEventListener('visibilitychange', hide);
     };
   }, [active, getEngine]);
+
+  useEffect(() => {
+    if (!active) return;
+    const system = createRunEffectSystemState();
+    let frame = 0;
+    const update = (time: number) => {
+      const engine = getEngine();
+      if (engine?.state.status === 'playing') updateRunEffectSystems(engine, system, time);
+      frame = requestAnimationFrame(update);
+    };
+    frame = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(frame);
+  }, [active, getEngine]);
+
   return null;
 }
