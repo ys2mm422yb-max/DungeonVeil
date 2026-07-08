@@ -13,7 +13,8 @@ export function HUD({gameState:g,onPause}:Props){
  const gifts=Object.entries(g.runSkills).reduce((sum,[key,value])=>key==='heal'?sum:sum+(value??0),0);
  const living=g.enemies.filter(enemy=>enemy.hp>0&&!enemy.isDead).length;
  const pending=g.enemies.filter(enemy=>enemy.isDead).length;
- const enemyText=g.roomClearReady?'RAUM FREI':living>0?`${living} GEGNER`:'RAUM WIRD FREIGEGEBEN';
+ const boss=g.enemies.find(enemy=>enemy.enemyType==='boss'&&enemy.hp>0&&!enemy.isDead);
+ const enemyText=g.roomClearReady?'RAUM FREI':boss?'BOSSRAUM':living>0?`${living} GEGNER`:'RAUM WIRD FREIGEGEBEN';
  const hintVisible=performance.now()<g.exitHintUntil;
  const exitHint=pending>0&&living===0?'AUSGANG WIRD FREIGEGEBEN':`NOCH ${living} GEGNER`;
  return <div className="fixed inset-0 z-40 pointer-events-none select-none">
@@ -25,7 +26,11 @@ export function HUD({gameState:g,onPause}:Props){
    </div>
    <button type="button" onPointerDown={e=>{e.preventDefault();e.stopPropagation();onPause()}} className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 text-sm font-black text-white/85 backdrop-blur-sm active:scale-90" data-ui-control>Ⅱ</button>
   </div>
-  <div className={`absolute left-1/2 top-[max(5.6rem,calc(env(safe-area-inset-top)+4.6rem))] -translate-x-1/2 rounded-full border px-4 py-1.5 text-[9px] font-black tracking-[.2em] backdrop-blur-sm ${g.roomClearReady?'border-violet-300/30 bg-violet-500/15 text-violet-100':'border-white/10 bg-black/38 text-white/60'}`}>{enemyText}</div>
-  {hintVisible&&<div className="absolute left-1/2 top-[max(8.4rem,calc(env(safe-area-inset-top)+7.2rem))] -translate-x-1/2 rounded-xl border border-orange-300/35 bg-black/72 px-4 py-2 text-[10px] font-black tracking-[.18em] text-orange-100 shadow-xl">{exitHint}</div>}
+  <div className={`absolute left-1/2 top-[max(5.6rem,calc(env(safe-area-inset-top)+4.6rem))] -translate-x-1/2 rounded-full border px-4 py-1.5 text-[9px] font-black tracking-[.2em] backdrop-blur-sm ${g.roomClearReady?'border-violet-300/30 bg-violet-500/15 text-violet-100':boss?'border-red-300/30 bg-red-950/55 text-red-100':'border-white/10 bg-black/38 text-white/60'}`}>{enemyText}</div>
+  {boss&&<div className="absolute left-1/2 top-[max(8.2rem,calc(env(safe-area-inset-top)+7rem))] w-[min(78vw,320px)] -translate-x-1/2 rounded-2xl border border-red-300/20 bg-black/68 px-4 py-3 shadow-[0_14px_40px_rgba(0,0,0,.45)] backdrop-blur-md">
+   <div className="mb-2 flex items-center justify-between text-[8px] font-black tracking-[.24em] text-red-100/75"><span>DER WÄCHTER</span><span>KAPITELBOSS</span></div>
+   <Bar v={boss.hp} m={boss.maxHp} c="#9f2f33"/>
+  </div>}
+  {hintVisible&&<div className="absolute left-1/2 top-[max(11.5rem,calc(env(safe-area-inset-top)+10.2rem))] -translate-x-1/2 rounded-xl border border-orange-300/35 bg-black/72 px-4 py-2 text-[10px] font-black tracking-[.18em] text-orange-100 shadow-xl">{exitHint}</div>}
  </div>
 }
