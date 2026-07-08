@@ -12,12 +12,8 @@ const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loader
 const OBJ_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/OBJLoader.js';
 const MTL_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/MTLLoader.js';
 const ROOT = '/assets/3d/';
+const WEAPON_ROOT = '/assets/3d/library/weapons/';
 const TILE = 40;
-
-function hash(seed: number) {
-  const value = Math.sin(seed * 91.73) * 43758.5453;
-  return value - Math.floor(value);
-}
 
 export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -39,7 +35,6 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
     let rangerRig: ReturnType<typeof composeFullRanger> | null = null;
     let bowRig: ReturnType<typeof attachBowToRanger> | null = null;
     let arrowProto: any = null;
-    let natureAssets: Record<string, any> = {};
     let roomRoot: any = null;
     let portal: any = null;
     let lastRoomKey = '';
@@ -82,44 +77,38 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       return object;
     };
 
-    const cloneNature = (name: string, x: number, z: number, scale: number, rotation: number) => {
-      const source = natureAssets[name];
-      if (!source) return null;
-      const object = source.clone(true);
-      object.position.set(x, 0, z);
-      object.rotation.y = rotation;
-      object.scale.multiplyScalar(scale);
-      return object;
-    };
-
     const makeGround = (state: GameState) => {
       const canvas = document.createElement('canvas');
       canvas.width = 256;
       canvas.height = 256;
       const ctx = canvas.getContext('2d')!;
-      const roomColors = ['#536e3d', '#65714a', '#505f39', '#475735'];
-      ctx.fillStyle = roomColors[(Math.max(1, state.floor) - 1) % roomColors.length];
+      const palettes = [
+        ['#17130f', '#211b14', '#2d241a'],
+        ['#16161a', '#202027', '#2b2933'],
+        ['#15130f', '#242017', '#332a19'],
+        ['#171214', '#25191d', '#351f25'],
+      ];
+      const palette = palettes[(Math.max(1, state.floor) - 1) % palettes.length];
+      ctx.fillStyle = palette[0];
       ctx.fillRect(0, 0, 256, 256);
-      for (let index = 0; index < 240; index++) {
-        const x = hash(index + state.floor * 17) * 256;
-        const y = hash(index * 3 + state.floor * 29) * 256;
-        const r = 1 + hash(index * 7) * 5;
-        ctx.fillStyle = index % 3 === 0 ? 'rgba(191,168,91,.11)' : 'rgba(25,50,29,.14)';
-        ctx.beginPath();
-        ctx.ellipse(x, y, r * 1.7, r * 0.7, hash(index * 13) * Math.PI, 0, Math.PI * 2);
-        ctx.fill();
+      for (let y = 0; y < 256; y += 32) {
+        for (let x = 0; x < 256; x += 32) {
+          ctx.fillStyle = ((x / 32 + y / 32) % 2 === 0) ? palette[1] : palette[2];
+          ctx.globalAlpha = 0.34;
+          ctx.fillRect(x + 1, y + 1, 30, 30);
+          ctx.globalAlpha = 1;
+        }
       }
       const texture = new THREE.CanvasTexture(canvas);
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(7, 9);
+      texture.repeat.set(3, 4);
       texture.colorSpace = THREE.SRGBColorSpace;
-
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(state.map.width, state.map.height),
-        new THREE.MeshStandardMaterial({ map: texture, roughness: 1, color: 0xe9ead8 }),
+        new THREE.MeshStandardMaterial({ map: texture, roughness: 1, color: 0xb9ad96 }),
       );
       ground.rotation.x = -Math.PI / 2;
-      ground.position.y = -0.025;
+      ground.position.y = -0.04;
       ground.receiveShadow = true;
       return ground;
     };
@@ -130,48 +119,16 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       lastRoomKey = key;
       if (roomRoot) {
         scene.remove(roomRoot);
+        roomRoot.userData?.decor?.userData?.dispose?.();
         disposeObject(roomRoot);
       }
 
       const root = new THREE.Group();
       root.add(makeGround(state));
-
       const room = Math.max(1, Math.min(4, state.floor));
       const decor = buildChapterRoomDecor(THREE, room);
       root.add(decor);
       root.userData.decor = decor;
-
-      const halfW = state.map.width / 2;
-      const halfH = state.map.height / 2;
-      for (let index = 0; index < 44; index++) {
-        const edge = index % 4;
-        const t = hash(index * 17 + room * 101);
-        let x = 0;
-        let z = 0;
-        if (edge === 0) { x = -halfW - 1.2 - hash(index) * 3; z = -halfH + t * state.map.height; }
-        else if (edge === 1) { x = halfW + 1.2 + hash(index) * 3; z = -halfH + t * state.map.height; }
-        else if (edge === 2) { x = -halfW + t * state.map.width; z = -halfH - 1.5 - hash(index) * 3; }
-        else { x = -halfW + t * state.map.width; z = halfH + 1.5 + hash(index) * 3; }
-
-        const n = hash(index * 29 + room * 11);
-        const name = n < 0.42 ? 'rock' : n < 0.68 ? 'bush' : n < 0.84 ? 'tree' : 'pine';
-        if (edge === 3 && Math.abs(x) < 5 && (name === 'tree' || name === 'pine')) continue;
-        const scale = name === 'tree' || name === 'pine' ? 0.55 + n * 0.22 : 0.38 + n * 0.18;
-        const object = cloneNature(name, x, z, scale, n * Math.PI * 2);
-        if (object) root.add(object);
-      }
-
-      for (let y = 0; y < state.map.height; y++) {
-        for (let x = 0; x < state.map.width; x++) {
-          if (state.map.tiles[y][x] !== TileType.WALL) continue;
-          if (x !== 0 && y !== 0 && x !== state.map.width - 1 && y !== state.map.height - 1) continue;
-          const px = x + 0.5 - state.map.width / 2;
-          const pz = y + 0.5 - state.map.height / 2;
-          const rock = cloneNature('rock', px, pz, 0.32 + hash(x * 31 + y * 17) * 0.12, hash(x + y) * Math.PI * 2);
-          if (rock) root.add(rock);
-        }
-      }
-
       roomRoot = root;
       scene.add(root);
     };
@@ -353,8 +310,8 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       if (disposed) return;
 
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x172b20);
-      scene.fog = new THREE.Fog(0x172b20, 34, 64);
+      scene.background = new THREE.Color(0x08090c);
+      scene.fog = new THREE.Fog(0x08090c, 26, 52);
 
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
@@ -367,43 +324,35 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       camera.position.set(0, RUN_CAMERA.height, RUN_CAMERA.distance);
       cameraGoal = new THREE.Vector3();
 
-      scene.add(new THREE.HemisphereLight(0xfff4db, 0x17271d, 2.0));
-      const sun = new THREE.DirectionalLight(0xffd89a, 2.75);
-      sun.position.set(-9, 16, 8);
-      sun.castShadow = true;
-      sun.shadow.mapSize.set(1024, 1024);
-      scene.add(sun);
+      scene.add(new THREE.HemisphereLight(0xffdfb5, 0x08090c, 1.15));
+      const keyLight = new THREE.DirectionalLight(0xffc06c, 2.2);
+      keyLight.position.set(-7, 14, 7);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(1024, 1024);
+      scene.add(keyLight);
+      const fillLight = new THREE.PointLight(0x7b61ff, 5.5, 22, 2);
+      fillLight.position.set(0, 5.5, -8);
+      scene.add(fillLight);
 
       const loader = new GLTFLoader();
       const loadGltf = (name: string) => loader.loadAsync(`${ROOT}${name}`);
-      const [base, outfit, animations, tree, pine, rock, bush] = await Promise.all([
+      const [base, outfit, animations] = await Promise.all([
         loadGltf('base-male.glb'),
         loadGltf('ranger.glb'),
         loadGltf('animations.glb'),
-        loadGltf('tree.glb'),
-        loadGltf('pine.glb'),
-        loadGltf('rock.glb'),
-        loadGltf('bush.glb'),
       ]);
       if (disposed) return;
-
-      natureAssets = {
-        tree: normalize(tree.scene, 3.8),
-        pine: normalize(pine.scene, 4.2),
-        rock: normalize(rock.scene, 1.15),
-        bush: normalize(bush.scene, 1.05),
-      };
 
       rangerRig = composeFullRanger(THREE, base.scene, outfit.scene, animations.animations ?? []);
       rangerRig.root.scale.setScalar(1.04);
       scene.add(rangerRig.root);
 
       const loadObj = async (name: string) => {
-        const materials = await new MTLLoader().loadAsync(`${ROOT}${name}.mtl`);
+        const materials = await new MTLLoader().loadAsync(`${WEAPON_ROOT}${name}.mtl`);
         materials.preload();
         const objLoader = new OBJLoader();
         objLoader.setMaterials(materials);
-        return objLoader.loadAsync(`${ROOT}${name}.obj`);
+        return objLoader.loadAsync(`${WEAPON_ROOT}${name}.obj`);
       };
       const [bow, arrow] = await Promise.all([loadObj('Bow_Wooden2'), loadObj('Arrow')]);
       bowRig = attachBowToRanger(THREE, rangerRig.root, normalize(bow, 1.02));
