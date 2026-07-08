@@ -25,6 +25,8 @@ export type KayKitEnemyVisual = {
   attack: any;
   death: any;
   lastState: string;
+  lastAttackTime: number;
+  attackRemaining: number;
   deathPlayed: boolean;
 };
 
@@ -181,7 +183,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
 
   const idleClip = chooseClip(prototype.clips, [['idle', 'a'], ['idle']], ['crouch', 'sit']);
   const moveClip = chooseClip(prototype.clips, [['run'], ['walk']], ['back', 'left', 'right', 'crouch']);
-  const attackClip = chooseClip(prototype.clips, [['attack', 'a'], ['attack'], ['melee']], ['bow', 'crossbow']);
+  const attackClip = chooseClip(prototype.clips, [['attack', 'a'], ['melee', 'attack'], ['attack']], ['bow', 'crossbow', 'ranged']);
   const deathClip = chooseClip(prototype.clips, [['death', 'a'], ['death']], []);
 
   const mixer = new THREE.AnimationMixer(scene);
@@ -192,10 +194,14 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
 
   idle?.reset().play();
   if (move) move.timeScale = 1.06;
-  for (const action of [attack, death]) {
-    if (!action) continue;
-    action.setLoop(THREE.LoopOnce, 1);
-    action.clampWhenFinished = true;
+  if (attack) {
+    attack.setLoop(THREE.LoopOnce, 1);
+    attack.clampWhenFinished = false;
+    attack.timeScale = 1.12;
+  }
+  if (death) {
+    death.setLoop(THREE.LoopOnce, 1);
+    death.clampWhenFinished = true;
   }
 
   const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
@@ -209,6 +215,8 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     attack,
     death,
     lastState: 'idle',
+    lastAttackTime: enemy.lastAttackTime,
+    attackRemaining: 0,
     deathPlayed: false,
   };
 }
@@ -219,7 +227,7 @@ function transition(visual: KayKitEnemyVisual, next: any, fade = 0.1) {
   for (const action of actions) {
     if (action !== next && action.isRunning?.()) action.fadeOut(fade);
   }
-  if (!next.isRunning?.()) next.reset().fadeIn(fade).play();
+  next.reset().fadeIn(fade).play();
 }
 
 export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy, delta: number) {
@@ -232,11 +240,27 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
     return;
   }
 
-  if (enemy.state !== visual.lastState) {
-    visual.lastState = enemy.state;
-    if (enemy.state === 'attack') transition(visual, visual.attack, 0.06);
-    else if (enemy.state === 'chase') transition(visual, visual.move, 0.1);
-    else transition(visual, visual.idle, 0.12);
+  if (enemy.lastAttackTime > visual.lastAttackTime) {
+    visual.lastAttackTime = enemy.lastAttackTime;
+    const duration = visual.attack?.getClip?.()?.duration ?? 0.5;
+    visual.attackRemaining = Math.max(0.22, duration / 1.12);
+    transition(visual, visual.attack, 0.045);
+    visual.lastState = 'attack';
+  }
+
+  if (visual.attackRemaining > 0) {
+    visual.attackRemaining = Math.max(0, visual.attackRemaining - delta);
+    if (visual.attackRemaining === 0) {
+      const next = enemy.state === 'chase' ? visual.move : visual.idle;
+      transition(visual, next, 0.08);
+      visual.lastState = enemy.state === 'chase' ? 'chase' : 'idle';
+    }
+  } else {
+    const desiredState = enemy.state === 'chase' ? 'chase' : 'idle';
+    if (desiredState !== visual.lastState) {
+      transition(visual, desiredState === 'chase' ? visual.move : visual.idle, 0.1);
+      visual.lastState = desiredState;
+    }
   }
 
   visual.mixer.update(delta);
