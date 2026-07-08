@@ -165,14 +165,14 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   };
 
   if (prototype.role === 'mage') {
-    attachEquipment(rightHand, cloneWeapon('staff'), [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], 1.02);
+    attachEquipment(rightHand, cloneWeapon('staff'), [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], 0.92);
   } else if (prototype.role === 'rogue') {
-    attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.96);
+    attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.86);
   } else if (prototype.role === 'warrior') {
-    attachEquipment(rightHand, cloneWeapon('axe'), [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], 1.04);
-    attachEquipment(leftHand, cloneWeapon(enemy.enemyType === 'boss' ? 'shieldLarge' : 'shieldSmall'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], 1.02);
+    attachEquipment(rightHand, cloneWeapon('axe'), [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], 0.92);
+    attachEquipment(leftHand, cloneWeapon(enemy.enemyType === 'boss' ? 'shieldLarge' : 'shieldSmall'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], 0.9);
   } else {
-    attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.9);
+    attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.82);
   }
 
   const idleClip = chooseClip(prototype.clips, [['idle', 'a'], ['idle']], ['crouch', 'sit']);
@@ -187,15 +187,15 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const death = deathClip ? mixer.clipAction(deathClip) : null;
 
   idle?.reset().play();
-  if (move) move.timeScale = 0.96;
+  if (move) move.timeScale = 1.06;
   for (const action of [attack, death]) {
     if (!action) continue;
     action.setLoop(THREE.LoopOnce, 1);
     action.clampWhenFinished = true;
   }
 
-  const roleScale = prototype.role === 'warrior' ? 1.12 : prototype.role === 'mage' ? 1.06 : prototype.role === 'rogue' ? 1.04 : 1;
-  root.scale.setScalar((enemy.enemyType === 'boss' ? 1.78 : 1.28) * roleScale);
+  const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
+  root.scale.setScalar((enemy.enemyType === 'boss' ? 1.36 : 0.96) * roleScale);
 
   return {
     root,
