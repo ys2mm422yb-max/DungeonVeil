@@ -22,6 +22,7 @@ export function MainMenuScreen({ saveData, onNewGame, onContinue, onSettings, on
       ? `Kapitel ${saveData.chapter ?? 1} · Raum ${saveData.floor} · ${gifts} Gaben`
       : `Chapter ${saveData.chapter ?? 1} · Room ${saveData.floor} · ${gifts} gifts`
     : t.noSave;
+  const veilLabel = language === 'de' ? 'BETRITT DEN SCHLEIER' : 'ENTER THE VEIL';
 
   const menuButton = (
     label: string,
@@ -61,7 +62,7 @@ export function MainMenuScreen({ saveData, onNewGame, onContinue, onSettings, on
 
       <div className="relative flex h-full flex-col px-5 pb-[max(24px,calc(env(safe-area-inset-bottom)+10px))] pt-[max(34px,calc(env(safe-area-inset-top)+12px))]">
         <header className="text-center">
-          <div className="text-[8px] font-black uppercase tracking-[.52em] text-amber-200/45">Enter the veil</div>
+          <div className="text-[8px] font-black uppercase tracking-[.52em] text-amber-200/45">{veilLabel}</div>
           <h1 className="mx-auto mt-2 max-w-[92vw] font-serif text-[clamp(2.7rem,12vw,4.15rem)] font-black leading-[.9] tracking-[.08em] text-[#e4b14e] drop-shadow-[0_8px_30px_rgba(0,0,0,.78)]">
             <span className="block">DUNGEON</span>
             <span className="mt-1 block">VEIL</span>
