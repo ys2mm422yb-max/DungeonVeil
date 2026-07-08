@@ -43,10 +43,20 @@ function rebuildDungeon(floor: number): DungeonMap {
   return generateDungeon(width, height, numRooms, floor);
 }
 
+function persistentRunSkills(skills: Partial<Record<UpgradeKey, number>> | undefined): Partial<Record<UpgradeKey, number>> {
+  const persistent = { ...(skills ?? {}) };
+  delete persistent.heal;
+  return persistent;
+}
+
 export function saveGame(data: SaveData): boolean {
   try {
     const { dungeonMap: _dungeonMap, ...compactData } = data;
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...compactData, saveVersion: SAVE_VERSION }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      ...compactData,
+      runSkills: persistentRunSkills(compactData.runSkills),
+      saveVersion: SAVE_VERSION,
+    }));
     return true;
   } catch (error) {
     console.error('Dungeon Veil save failed', error);
@@ -67,7 +77,7 @@ export function loadGame(): SaveData | null {
       ...parsed,
       saveVersion: parsed.saveVersion ?? 1,
       chapter: Math.max(1, parsed.chapter ?? 1),
-      runSkills: parsed.runSkills ?? {},
+      runSkills: persistentRunSkills(parsed.runSkills),
       inDungeon,
       dungeonMap: inDungeon ? (parsed.dungeonMap ?? rebuildDungeon(parsed.floor)) : undefined,
       worldX: Number.isFinite(parsed.worldX) ? parsed.worldX : parsed.playerX ?? 0,
