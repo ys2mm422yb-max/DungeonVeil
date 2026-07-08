@@ -5,10 +5,7 @@ import { CLASS_DEFS } from '../game/classes';
 
 interface Props {
   gameState: GameState;
-  onAttack: () => void;
   onDodge: () => void;
-  onSkill: () => void;
-  onInteract: () => void;
 }
 
 export function ActionButtons({ gameState: g, onDodge }: Props) {
