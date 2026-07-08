@@ -6,6 +6,7 @@ import { Enemy, EnemyType, Item, Chest, DamageNumber, Particle, Player, VisualEf
 import { makeHitSpark, makeParticles, makeStepDust, distance } from './combat';
 import { UpgradeKey } from '../i18n/translations';
 import { enemyArchetype, planEnemyMove } from './enemyRunAI';
+import { collidesWithRoomProp } from './roomCollision3D';
 
 export interface RunGameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';
@@ -363,13 +364,22 @@ export class GameEngine {
       let xTile = 4 + ((i * 5 + room * 3) % usableWidth);
       let yTile = 5 + ((i * 7 + room * 2) % usableHeight);
       let attempts = 0;
-      while (attempts < 8 && !isWalkable(map, xTile * TILE_SIZE + 16, yTile * TILE_SIZE + 16)) {
-        xTile = 4 + ((xTile + 3) % usableWidth);
-        yTile = 5 + ((yTile + 5) % usableHeight);
+      while (attempts < 18) {
+        const x = xTile * TILE_SIZE;
+        const y = yTile * TILE_SIZE;
+        const clearOfMap = isWalkable(map, x + 16, y + 16);
+        const clearOfProps = !collidesWithRoomProp(room, map.width, map.height, x, y, 30, 30, 0.35);
+        const farFromPlayer = Math.hypot(x - this.state.player.x, y - this.state.player.y) > 240;
+        if (clearOfMap && clearOfProps && farFromPlayer) break;
+        xTile = 3 + ((xTile + 3 + attempts) % Math.max(1, map.width - 6));
+        yTile = 4 + ((yTile + 5 + attempts) % Math.max(1, map.height - 9));
         attempts++;
       }
-      if (!isWalkable(map, xTile * TILE_SIZE + 16, yTile * TILE_SIZE + 16)) continue;
-      this.state.enemies.push(this.makeEnemy(type, xTile * TILE_SIZE, yTile * TILE_SIZE, chapterScale * roomScale, now, i));
+      const x = xTile * TILE_SIZE;
+      const y = yTile * TILE_SIZE;
+      if (!isWalkable(map, x + 16, y + 16)) continue;
+      if (collidesWithRoomProp(room, map.width, map.height, x, y, 30, 30, 0.35)) continue;
+      this.state.enemies.push(this.makeEnemy(type, x, y, chapterScale * roomScale, now, i));
     }
   }
 
@@ -407,16 +417,34 @@ export class GameEngine {
     }
   }
 
+  private blockedByRoomProp(entity: { x: number; y: number; width: number; height: number }) {
+    return collidesWithRoomProp(
+      this.state.floor,
+      this.state.map.width,
+      this.state.map.height,
+      entity.x,
+      entity.y,
+      entity.width,
+      entity.height,
+    );
+  }
+
   private moveEntity(entity: { x: number; y: number; width: number; height: number }, dx: number, dy: number): void {
     if (dx !== 0) {
       entity.x += dx;
       const ex = entity.x + (dx > 0 ? entity.width : 0);
-      if (!isWalkable(this.state.map, ex, entity.y + entity.height / 2) || !isWalkable(this.state.map, ex, entity.y + 2) || !isWalkable(this.state.map, ex, entity.y + entity.height - 2)) entity.x -= dx;
+      const blockedByTiles = !isWalkable(this.state.map, ex, entity.y + entity.height / 2)
+        || !isWalkable(this.state.map, ex, entity.y + 2)
+        || !isWalkable(this.state.map, ex, entity.y + entity.height - 2);
+      if (blockedByTiles || this.blockedByRoomProp(entity)) entity.x -= dx;
     }
     if (dy !== 0) {
       entity.y += dy;
       const ey = entity.y + (dy > 0 ? entity.height : 0);
-      if (!isWalkable(this.state.map, entity.x + entity.width / 2, ey) || !isWalkable(this.state.map, entity.x + 2, ey) || !isWalkable(this.state.map, entity.x + entity.width - 2, ey)) entity.y -= dy;
+      const blockedByTiles = !isWalkable(this.state.map, entity.x + entity.width / 2, ey)
+        || !isWalkable(this.state.map, entity.x + 2, ey)
+        || !isWalkable(this.state.map, entity.x + entity.width - 2, ey);
+      if (blockedByTiles || this.blockedByRoomProp(entity)) entity.y -= dy;
     }
   }
 
@@ -462,16 +490,13 @@ export class GameEngine {
           if (heal > 0) p.hp += heal;
           this.state.damageNumbers.push({ id: `heal-${time}-${i}`, x: ix, y: iy - 8, value: `+${heal}`, color: '#43c968', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
         }
-        this.state.effects.push({
-          id: `pickup-${time}-${i}`, x: ix, y: iy, radius: 0, maxRadius: 36,
-          color: item.color, lifeTime: 0, maxLifeTime: 220, type: 'pickup', width: item.itemType === 'potion' ? 5 : 3,
-        });
-        this.state.particles.push(...makeHitSpark(ix, iy, item.color, 5));
         this.state.items.splice(i, 1);
-      } else if (dist < magnetRadius) {
-        const pull = item.itemType === 'xp_orb' ? 0.22 : 0.16;
-        item.x += (px - ix) * pull;
-        item.y += (py - iy) * pull;
+        continue;
+      }
+      if (dist < magnetRadius) {
+        const speed = 210;
+        item.x += (px - ix) / dist * speed * 0.016;
+        item.y += (py - iy) / dist * speed * 0.016;
       }
     }
   }
