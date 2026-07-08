@@ -19,6 +19,7 @@ function scoreLeftHand(name: string) {
 export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
+  let previousPulse = 0;
 
   heroRoot.traverse((node: any) => {
     const score = scoreLeftHand(normalizeName(node.name));
@@ -30,8 +31,6 @@ export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
 
   anchor.add(bow);
 
-  // Quaternius bow is authored in object space; orient it vertically in the grip,
-  // with the curved limbs facing away from the ranger's forearm.
   if (bestScore > 0) {
     bow.position.set(0.015, -0.015, 0.035);
     bow.rotation.order = 'YXZ';
@@ -51,9 +50,13 @@ export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
     basePosition,
     baseRotation,
     updateShotPose(pulse: number) {
+      if (pulse > 0.82 && previousPulse <= 0.82) {
+        heroRoot.userData.rangerAttackSignal = (heroRoot.userData.rangerAttackSignal ?? 0) + 1;
+      }
+      previousPulse = pulse;
+
       bow.position.copy(basePosition);
       bow.rotation.copy(baseRotation);
-      // Small hand-local recoil only. The bow remains vertical while firing.
       bow.position.z -= pulse * 0.035;
       bow.rotation.y += pulse * 0.08;
     },
