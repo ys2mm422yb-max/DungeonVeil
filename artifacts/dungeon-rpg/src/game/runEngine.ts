@@ -63,7 +63,7 @@ export class GameEngine {
       attack: overrides.attack ?? def.attack, defense: overrides.defense ?? def.defense, speed: overrides.speed ?? def.speed,
       attackRange: overrides.attackRange ?? 520, skillRange: overrides.skillRange ?? def.skillRange,
       level, xp, color: def.color, state: 'idle', facing: { x: 0, y: -1 }, invincibleUntil: 0,
-      skillCooldown: 0, dodgeCooldown: 0, attackCooldown: 0, spawnTime: Date.now(), lastAttackTime: 0,
+      skillCooldown: 0, dodgeCooldown: 0, lastDodgeTime: 0, attackCooldown: 0, spawnTime: Date.now(), lastAttackTime: 0,
     };
   }
 
@@ -173,9 +173,21 @@ export class GameEngine {
     if (this.input.dodge && p.dodgeCooldown <= 0) {
       p.dodgeCooldown = def.dodgeCooldownMs;
       p.invincibleUntil = time + 260;
+      p.lastDodgeTime = time;
+      p.state = 'dodging';
       const dx = mag > 0 ? this.input.joyX / mag : p.facing.x;
       const dy = mag > 0 ? this.input.joyY / mag : p.facing.y;
+      const startX = p.x + 16;
+      const startY = p.y + 16;
       this.moveEntity(p, dx * def.dashDistance, dy * def.dashDistance);
+      const endX = p.x + 16;
+      const endY = p.y + 16;
+      const dashDistance = Math.max(24, Math.hypot(endX - startX, endY - startY));
+      this.state.effects.push({
+        id: `dash-${time}`, x: startX, y: startY, radius: 0, maxRadius: dashDistance,
+        color: '#efb44f', lifeTime: 0, maxLifeTime: 180, type: 'dash',
+        angle: Math.atan2(endY - startY, endX - startX), width: 5,
+      });
       this.state.particles.push(...makeStepDust(p.x + 16, p.y + 24, '#efb44f'));
       this.input.dodge = false;
     } else if (mag > 0.08) {
@@ -399,13 +411,14 @@ export class GameEngine {
     const p = this.state.player;
     const px = p.x + p.width / 2;
     const py = p.y + p.height / 2;
-    const radius = 28;
+    const pickupRadius = 30;
+    const magnetRadius = 92;
     for (let i = this.state.items.length - 1; i >= 0; i--) {
       const item = this.state.items[i];
       const ix = item.x + item.width / 2;
       const iy = item.y + item.height / 2;
-      const dist = Math.hypot(px - ix, py - iy);
-      if (dist < radius) {
+      const dist = Math.max(1, Math.hypot(px - ix, py - iy));
+      if (dist < pickupRadius) {
         if (item.itemType === 'xp_orb') {
           p.xp += item.value;
           this.state.damageNumbers.push({ id: `xp-${time}-${i}`, x: ix, y: iy - 8, value: `+${item.value} XP`, color: '#5fd0ff', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
@@ -414,8 +427,16 @@ export class GameEngine {
           if (heal > 0) p.hp += heal;
           this.state.damageNumbers.push({ id: `heal-${time}-${i}`, x: ix, y: iy - 8, value: `+${heal}`, color: '#43c968', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
         }
+        this.state.effects.push({
+          id: `pickup-${time}-${i}`, x: ix, y: iy, radius: 0, maxRadius: 36,
+          color: item.color, lifeTime: 0, maxLifeTime: 220, type: 'pickup', width: item.itemType === 'potion' ? 5 : 3,
+        });
         this.state.particles.push(...makeHitSpark(ix, iy, item.color, 5));
         this.state.items.splice(i, 1);
+      } else if (dist < magnetRadius) {
+        const pull = item.itemType === 'xp_orb' ? 0.22 : 0.16;
+        item.x += (px - ix) * pull;
+        item.y += (py - iy) * pull;
       }
     }
   }

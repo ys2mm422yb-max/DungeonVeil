@@ -30,6 +30,7 @@ export interface Player extends Entity {
   invincibleUntil: number;
   skillCooldown: number;
   dodgeCooldown: number;
+  lastDodgeTime: number;
   attackCooldown: number;
   /** Timestamp when this player was created (for animation) */
   spawnTime: number;
@@ -121,7 +122,7 @@ export interface VisualEffect {
   color: string;
   lifeTime: number;
   maxLifeTime: number;
-  type: 'sweep' | 'flash' | 'circle' | 'slash' | 'beam';
+  type: 'sweep' | 'flash' | 'circle' | 'slash' | 'beam' | 'dash' | 'pickup';
   /** Rotation for slash effect */
   angle?: number;
   /** Source width */

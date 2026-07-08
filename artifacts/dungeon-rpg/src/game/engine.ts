@@ -129,6 +129,7 @@ export class GameEngine {
       invincibleUntil: 0,
       skillCooldown: 0,
       dodgeCooldown: 0,
+      lastDodgeTime: 0,
       attackCooldown: 0,
       spawnTime: Date.now(),
       lastAttackTime: 0,
