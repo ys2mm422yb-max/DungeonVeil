@@ -32,7 +32,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
     setRoomTitle(ROOM_NAMES[Math.max(0, Math.min(9, gameState.floor - 1))]);
     setShowRoomTitle(true);
     try { navigator.vibrate?.([12, 35, 18]); } catch {}
-    const timer = window.setTimeout(() => setShowRoomTitle(false), 1350);
+    const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
     return () => window.clearTimeout(timer);
   }, [gameState.floor]);
 
@@ -69,7 +69,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   }, [gameState.damageNumbers, gameState.player.hp]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setShowRoomTitle(false), 1350);
+    const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -88,11 +88,11 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
 
       <div className={`pointer-events-none absolute inset-0 z-20 bg-white transition-opacity duration-75 ${hitFlash ? 'opacity-[.06]' : 'opacity-0'}`} />
 
-      <div className={`pointer-events-none absolute inset-x-0 top-[19%] z-30 flex justify-center transition-all duration-500 ${showRoomTitle ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0'}`}>
-        <div className="relative min-w-[255px] overflow-hidden rounded-2xl border border-amber-200/20 bg-black/65 px-7 py-4 text-center shadow-[0_20px_55px_rgba(0,0,0,.45)] backdrop-blur-md">
-          <div className="absolute inset-x-7 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent" />
-          <div className="text-[8px] font-black uppercase tracking-[.42em] text-amber-200/45">KAPITEL {gameState.chapter} · RAUM {gameState.floor}</div>
-          <div className="mt-1.5 font-serif text-[20px] tracking-[.1em] text-[#f4ead5]">{roomTitle}</div>
+      <div className={`pointer-events-none absolute inset-x-0 top-[22%] z-30 flex justify-center transition-all duration-400 ${showRoomTitle ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}>
+        <div className="relative min-w-[220px] max-w-[78vw] overflow-hidden rounded-xl border border-amber-200/18 bg-black/62 px-5 py-3 text-center shadow-[0_14px_38px_rgba(0,0,0,.38)] backdrop-blur-md">
+          <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/65 to-transparent" />
+          <div className="text-[7px] font-black uppercase tracking-[.34em] text-amber-200/45">KAPITEL {gameState.chapter} · RAUM {gameState.floor}</div>
+          <div className="mt-1 font-serif text-[16px] tracking-[.08em] text-[#f4ead5]">{roomTitle}</div>
         </div>
       </div>
 
