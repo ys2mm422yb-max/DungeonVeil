@@ -32,10 +32,12 @@ export interface Player extends Entity {
   dodgeCooldown: number;
   lastDodgeTime: number;
   attackCooldown: number;
-  /** Timestamp when this player was created (for animation) */
   spawnTime: number;
-  /** When the player last attacked (for attack animation) */
   lastAttackTime: number;
+  lastHitTime?: number;
+  lastGuardTime?: number;
+  lastGiftTime?: number;
+  lastGiftKey?: string;
 }
 
 export type EnemyType = EnemyTypeName;
@@ -50,18 +52,28 @@ export interface Enemy extends Entity {
   speed: number;
   color: string;
   state: 'patrol' | 'chase' | 'attack' | 'dead';
-  /** True when hp reached 0; rewards already given, just waiting for corpse fade. */
   isDead: boolean;
   targetX: number;
   targetY: number;
   nextAttackTime: number;
   flashUntil: number;
-  /** Timestamp when this enemy spawned (for animation phase offset) */
   spawnTime: number;
-  /** When the enemy last attacked (for attack animation) */
   lastAttackTime: number;
-  /** For death animation */
   deathTime: number;
+  deathDuration?: number;
+  lastHitTime?: number;
+  hitFromX?: number;
+  hitFromY?: number;
+  burnUntil?: number;
+  nextBurnTick?: number;
+  burnDamage?: number;
+  burnRanks?: number;
+  frostUntil?: number;
+  frostSlow?: number;
+  stuckSince?: number;
+  lastProgressX?: number;
+  lastProgressY?: number;
+  lastProgressTime?: number;
 }
 
 export interface Chest extends Entity {
@@ -71,7 +83,6 @@ export interface Chest extends Entity {
   lootType: 'gold' | 'potion' | 'big_potion';
   lootValue: number;
   roomIndex: number;
-  /** For opening animation */
   openTime: number;
 }
 
@@ -80,7 +91,6 @@ export interface Item extends Entity {
   itemType: 'potion' | 'xp_orb';
   value: number;
   color: string;
-  /** Spawn time for bobbing animation */
   spawnTime: number;
 }
 
@@ -92,7 +102,6 @@ export interface DamageNumber {
   color: string;
   lifeTime: number;
   maxLifeTime: number;
-  /** Scale pop at start */
   scale?: number;
 }
 
@@ -106,10 +115,8 @@ export interface Particle {
   lifeTime: number;
   maxLifeTime: number;
   size: number;
-  /** Gravity or drag factor */
   drag?: number;
   gravity?: number;
-  /** Fade to this alpha */
   fade?: boolean;
 }
 
@@ -123,8 +130,9 @@ export interface VisualEffect {
   lifeTime: number;
   maxLifeTime: number;
   type: 'sweep' | 'flash' | 'circle' | 'slash' | 'beam' | 'dash' | 'pickup';
-  /** Rotation for slash effect */
   angle?: number;
-  /** Source width */
   width?: number;
+  element?: 'fire' | 'ice' | 'arcane' | 'piercing' | 'normal';
+  fromEnemyId?: string;
+  toEnemyId?: string;
 }
