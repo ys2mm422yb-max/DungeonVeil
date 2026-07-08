@@ -33,7 +33,7 @@ export function GamePausePanel(props: GamePausePanelProps) {
   const [restartArmed, setRestartArmed] = useState(false);
   const names = de ? NAMES_DE : NAMES_EN;
   const gifts = useMemo(() => Object.entries(props.gameState.runSkills)
-    .filter(([, value]) => (value ?? 0) > 0)
+    .filter(([key, value]) => key !== 'heal' && (value ?? 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b)) as Array<[UpgradeKey, number]>, [props.gameState.runSkills]);
 
   useEffect(() => {
