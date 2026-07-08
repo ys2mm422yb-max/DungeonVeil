@@ -39,28 +39,17 @@ export default function Game() {
   const keyMoveRef = useRef<MoveVector>({ x: 0, y: 0 });
   const keyStateRef = useRef<KeyState>({ up: false, down: false, left: false, right: false });
   const settingsReturnRef = useRef<UiState>('main_menu');
-  const saveNoticeTimerRef = useRef<number | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
-  const [saveNotice, setSaveNotice] = useState('');
   const [uiState, setUiState] = useState<UiState>(() => !hasChosen ? 'lang_select' : 'main_menu');
 
-  const showSaveNotice = useCallback((text?: string) => {
-    if (saveNoticeTimerRef.current !== null) window.clearTimeout(saveNoticeTimerRef.current);
-    setSaveNotice(text ?? (language === 'de' ? 'Run gespeichert' : 'Run saved'));
-    saveNoticeTimerRef.current = window.setTimeout(() => setSaveNotice(''), 1700);
-  }, [language]);
-
-  const saveCurrentGame = useCallback((showNotice = false): boolean => {
+  const saveCurrentGame = useCallback((): boolean => {
     const engine = engineRef.current;
     if (!engine || engine.state.player.playerName === 'Hero') return false;
     const saved = saveEngineSession(engine);
-    if (saved) {
-      setSaveData(loadGame());
-      if (showNotice) showSaveNotice();
-    }
+    if (saved) setSaveData(loadGame());
     return saved;
-  }, [showSaveNotice]);
+  }, []);
 
   const applyMovementInput = useCallback(() => {
     const engine = engineRef.current;
@@ -110,8 +99,6 @@ export default function Game() {
     return () => cancelAnimationFrame(animationId);
   }, []);
 
-  useEffect(() => () => { if (saveNoticeTimerRef.current !== null) window.clearTimeout(saveNoticeTimerRef.current); }, []);
-
   const goSettings = useCallback((returnTo: UiState) => { settingsReturnRef.current = returnTo; setUiState('settings'); }, []);
   const handleNewGame = useCallback(() => setUiState('char_create'), []);
   const handleContinue = useCallback(() => { const save = loadGame(); if (!save) return; engineRef.current?.continueGame(save); setUiState('game'); }, []);
@@ -122,7 +109,7 @@ export default function Game() {
     setUiState('game');
   }, []);
   const handleRetry = useCallback(() => setUiState('char_create'), []);
-  const handleMainMenu = useCallback(() => { saveCurrentGame(false); resetMovement(); setUiState('main_menu'); }, [resetMovement, saveCurrentGame]);
+  const handleMainMenu = useCallback(() => { saveCurrentGame(); resetMovement(); setUiState('main_menu'); }, [resetMovement, saveCurrentGame]);
   const handleSettingsBack = useCallback(() => {
     const returnTo = settingsReturnRef.current;
     if (returnTo === 'game' && engineRef.current) { engineRef.current.state.status = 'paused'; setGameState({ ...engineRef.current.state }); }
@@ -132,20 +119,22 @@ export default function Game() {
   const handleJoystickMove = useCallback((x: number, y: number) => { touchMoveRef.current = { x, y }; applyMovementInput(); }, [applyMovementInput]);
   const handleAttack = useCallback(() => { if (engineRef.current) engineRef.current.input.attack = true; }, []);
   const handleDodge = useCallback(() => { if (engineRef.current) engineRef.current.input.dodge = true; }, []);
-  const handleSkill = useCallback(() => {}, []);
-  const handleInteract = useCallback(() => {}, []);
-  const handleExitDungeon = useCallback(() => { engineRef.current?.exitDungeon(); saveCurrentGame(false); }, [saveCurrentGame]);
 
   const handlePause = useCallback(() => {
     const engine = engineRef.current;
     if (!engine || engine.state.status !== 'playing') return;
-    resetMovement(); saveCurrentGame(false); engine.state.status = 'paused'; setGameState({ ...engine.state });
+    resetMovement();
+    saveCurrentGame();
+    engine.state.status = 'paused';
+    setGameState({ ...engine.state });
   }, [resetMovement, saveCurrentGame]);
 
   const handleResume = useCallback(() => {
     const engine = engineRef.current;
     if (!engine || engine.state.status !== 'paused') return;
-    engine.state.status = 'playing'; engine.lastTime = performance.now(); setGameState({ ...engine.state });
+    engine.state.status = 'playing';
+    engine.lastTime = performance.now();
+    setGameState({ ...engine.state });
   }, []);
 
   const handleRestartRoom = useCallback(() => {
@@ -171,7 +160,8 @@ export default function Game() {
       else if (code === 'KeyA' || code === 'ArrowLeft') keys.left = pressed;
       else if (code === 'KeyD' || code === 'ArrowRight') keys.right = pressed;
       else return false;
-      refreshKeyboardMove(); return true;
+      refreshKeyboardMove();
+      return true;
     };
     const keyDown = (event: KeyboardEvent) => {
       if (event.repeat) return;
@@ -181,8 +171,15 @@ export default function Game() {
       else if (event.code === 'Escape') engineRef.current?.state.status === 'paused' ? handleResume() : handlePause();
     };
     const keyUp = (event: KeyboardEvent) => { if (setMoveKey(event.code, false)) event.preventDefault(); };
-    window.addEventListener('keydown', keyDown); window.addEventListener('keyup', keyUp); window.addEventListener('blur', resetMovement);
-    return () => { window.removeEventListener('keydown', keyDown); window.removeEventListener('keyup', keyUp); window.removeEventListener('blur', resetMovement); resetMovement(); };
+    window.addEventListener('keydown', keyDown);
+    window.addEventListener('keyup', keyUp);
+    window.addEventListener('blur', resetMovement);
+    return () => {
+      window.removeEventListener('keydown', keyDown);
+      window.removeEventListener('keyup', keyUp);
+      window.removeEventListener('blur', resetMovement);
+      resetMovement();
+    };
   }, [uiState, refreshKeyboardMove, handleAttack, handleDodge, handlePause, handleResume, resetMovement]);
 
   return (
@@ -195,14 +192,13 @@ export default function Game() {
       {uiState === 'credits' && <CreditsScreen onBack={handleMainMenu} />}
       {uiState === 'game' && gameState && <>
         <CombatStage gameState={gameState} />
-        {saveNotice && <div className="fixed left-1/2 top-[18%] z-[80] -translate-x-1/2 rounded border border-violet-300/40 bg-black/80 px-4 py-2 text-[10px] font-black tracking-[.18em] text-violet-100">✓ {saveNotice}</div>}
         {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />}
         {gameState.status === 'levelup' && <LevelUpScreen choices={gameState.upgradeChoices} runSkills={gameState.runSkills} onSelect={handleLevelUpSelect} />}
-        {gameState.status === 'paused' && <GamePausePanel gameState={gameState} language={language as Language} paused={t.paused} resume={t.resume} settings={t.settings} classNameText={t.className.archer} onResume={handleResume} onSave={() => saveCurrentGame(true)} onSettings={() => goSettings('game')} onMainMenu={handleMainMenu} onLanguage={setLanguage} onRestartRoom={handleRestartRoom} />}
+        {gameState.status === 'paused' && <GamePausePanel gameState={gameState} language={language as Language} paused={t.paused} resume={t.resume} settings={t.settings} classNameText={t.className.archer} onResume={handleResume} onSettings={() => goSettings('game')} onMainMenu={handleMainMenu} onLanguage={setLanguage} onRestartRoom={handleRestartRoom} />}
         {(gameState.status === 'playing' || gameState.status === 'paused') && <>
-          <HUD gameState={gameState} onPause={handlePause} onExitDungeon={handleExitDungeon} />
+          <HUD gameState={gameState} onPause={handlePause} />
           <VirtualJoystick onMove={handleJoystickMove} />
-          <ActionButtons gameState={gameState} onAttack={handleAttack} onDodge={handleDodge} onSkill={handleSkill} onInteract={handleInteract} />
+          <ActionButtons gameState={gameState} onDodge={handleDodge} />
         </>}
       </>}
     </div>
