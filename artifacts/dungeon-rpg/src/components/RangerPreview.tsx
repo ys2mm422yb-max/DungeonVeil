@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { composeFullRanger } from './rangerCharacterRig';
+import { attachBowToRanger } from './bowRig';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -34,7 +35,6 @@ export function RangerPreview() {
     let scene: any;
     let camera: any;
     let rangerRig: ReturnType<typeof composeFullRanger> | null = null;
-    let bow: any;
     let clock: any;
     let showcaseTime = 0;
 
@@ -62,24 +62,6 @@ export function RangerPreview() {
         }
       });
       return object;
-    };
-
-    const attachBow = () => {
-      const root = rangerRig?.root;
-      if (!root || !bow) return;
-      let hand: any = null;
-      root.traverse((node: any) => {
-        const name = String(node.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!hand && (name.includes('lefthand') || name.includes('handl') || name.endsWith('lhand'))) hand = node;
-      });
-      (hand ?? root).add(bow);
-      if (hand) {
-        bow.position.set(0.01, 0.015, 0.01);
-        bow.rotation.set(0, Math.PI / 2, Math.PI / 2);
-      } else {
-        bow.position.set(-0.34, 1.02, 0.04);
-        bow.rotation.set(0, 0, Math.PI / 2);
-      }
     };
 
     const boot = async () => {
@@ -124,30 +106,20 @@ export function RangerPreview() {
       rim.position.set(-2, 3, -4);
       scene.add(rim);
 
-      const floor = new THREE.Mesh(
-        new THREE.CircleGeometry(1.18, 40),
-        new THREE.MeshStandardMaterial({ color: 0x1b130d, roughness: 1 }),
-      );
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(1.18, 40), new THREE.MeshStandardMaterial({ color: 0x1b130d, roughness: 1 }));
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = 0;
       floor.receiveShadow = true;
       scene.add(floor);
 
-      const pedestal = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.74, 0.92, 0.09, 28),
-        new THREE.MeshStandardMaterial({ color: 0x2a1c11, roughness: 0.9, metalness: 0.05 }),
-      );
+      const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.92, 0.09, 28), new THREE.MeshStandardMaterial({ color: 0x2a1c11, roughness: 0.9, metalness: 0.05 }));
       pedestal.position.y = 0.045;
       pedestal.receiveShadow = true;
       scene.add(pedestal);
 
       const loader = new GLTFLoader();
       const load = (name: string) => new Promise<any>((resolve, reject) => loader.load(`${ASSET_ROOT}${name}`, resolve, undefined, reject));
-      const [baseGltf, outfitGltf, animationsGltf] = await Promise.all([
-        load('base-male.glb'),
-        load('ranger.glb'),
-        load('animations.glb'),
-      ]);
+      const [baseGltf, outfitGltf, animationsGltf] = await Promise.all([load('base-male.glb'), load('ranger.glb'), load('animations.glb')]);
       if (disposed) return;
 
       rangerRig = composeFullRanger(THREE, baseGltf.scene, outfitGltf.scene, animationsGltf.animations ?? []);
@@ -159,8 +131,8 @@ export function RangerPreview() {
       materials.preload();
       const objLoader = new OBJLoader();
       objLoader.setMaterials(materials);
-      bow = normalize(await objLoader.loadAsync(`${ASSET_ROOT}Bow_Wooden2.obj`), 1.18);
-      attachBow();
+      const bow = normalize(await objLoader.loadAsync(`${ASSET_ROOT}Bow_Wooden2.obj`), 1.18);
+      attachBowToRanger(THREE, rangerRig.root, bow);
 
       if (!disposed) setState('ready');
       clock = new THREE.Clock();
@@ -171,9 +143,7 @@ export function RangerPreview() {
         const dt = Math.min(clock.getDelta(), 0.05);
         showcaseTime += dt;
         rangerRig?.update(dt);
-        if (rangerRig?.root) {
-          rangerRig.root.rotation.y = -0.34 + Math.sin(showcaseTime * 0.42) * 0.22;
-        }
+        if (rangerRig?.root) rangerRig.root.rotation.y = -0.34 + Math.sin(showcaseTime * 0.42) * 0.22;
         renderer.render(scene, camera);
         frame = requestAnimationFrame(render);
       };
@@ -206,11 +176,7 @@ export function RangerPreview() {
 
   return (
     <div ref={hostRef} className="relative h-full w-full">
-      {state === 'loading' && (
-        <div className="flex h-full w-full items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d7a441]/30 border-t-[#d7a441]" />
-        </div>
-      )}
+      {state === 'loading' && <div className="flex h-full w-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d7a441]/30 border-t-[#d7a441]" /></div>}
       {state === 'fallback' && <StaticArcher />}
     </div>
   );
