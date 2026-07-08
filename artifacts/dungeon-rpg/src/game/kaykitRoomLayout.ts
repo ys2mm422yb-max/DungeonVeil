@@ -101,15 +101,15 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
 };
 
 export const KAYKIT_COLLISION_SIZE: Partial<Record<KayKitRoomAsset, [number, number]>> = {
-  column: [0.58, 0.58],
-  barrel: [0.48, 0.48],
-  barrelDecorated: [0.52, 0.52],
-  barrelStack: [0.9, 0.62],
-  crates: [0.95, 0.75],
-  boxLarge: [0.7, 0.7],
-  chest: [0.82, 0.55],
-  chestGold: [0.82, 0.55],
-  candle: [0.2, 0.2],
-  chair: [0.48, 0.48],
-  bed: [0.72, 1.25],
+  column: [0.95, 0.95],
+  barrel: [0.9, 0.9],
+  barrelDecorated: [1.0, 1.0],
+  barrelStack: [1.75, 1.25],
+  crates: [1.9, 1.55],
+  boxLarge: [1.3, 1.3],
+  chest: [1.5, 1.05],
+  chestGold: [1.5, 1.05],
+  candle: [0.32, 0.32],
+  chair: [0.88, 0.88],
+  bed: [1.2, 2.1],
 };
