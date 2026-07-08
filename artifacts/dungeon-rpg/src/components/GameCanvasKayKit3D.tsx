@@ -104,18 +104,14 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         }
         visual = enemyVisuals.get(enemy.id);
         if (!visual) continue;
-        visual.root.position.set(
-          mapX(state, enemy.x + enemy.width / 2),
-          0,
-          mapZ(state, enemy.y + enemy.height / 2),
-        );
+        visual.root.position.set(mapX(state, enemy.x + enemy.width / 2), 0, mapZ(state, enemy.y + enemy.height / 2));
         visual.root.rotation.y = Math.atan2(state.player.x - enemy.x, state.player.y - enemy.y);
         updateKayKitEnemyVisual(visual, enemy, delta);
       }
     };
 
     const syncArrows = (state: GameState) => {
-      const shots = state.effects.filter(effect => effect.type === 'beam');
+      const shots = state.effects.filter(effect => effect.type === 'beam' && effect.id.startsWith('shot-'));
       const active = new Set(shots.map(effect => effect.id));
       for (const [id, mesh] of arrowVisuals) {
         if (active.has(id)) continue;
@@ -128,11 +124,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         let arrow = arrowVisuals.get(shot.id);
         if (!arrow && arrowPrototype) {
           arrow = arrowPrototype.clone(true);
-          arrow.scale.setScalar(0.9);
+          arrow.scale.setScalar(1.08);
           arrow.traverse((node: any) => {
-            if (!node.isMesh) return;
-            node.castShadow = true;
-            node.frustumCulled = false;
+            if (node.isLine && node.material) node.material = node.material.clone();
+            if (!node.isMesh && !node.isLine) return;
+            node.castShadow = false;
+            node.frustumCulled = true;
           });
           scene.add(arrow);
           arrowVisuals.set(shot.id, arrow);
@@ -148,6 +145,11 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           mapZ(state, shot.y) + Math.sin(angle) * travel * progress,
         );
         arrow.rotation.set(Math.PI / 2, -angle - Math.PI / 2, 0);
+        arrow.traverse((node: any) => {
+          if (!node.isLine || !node.material?.color) return;
+          node.material.color.set(shot.color);
+          node.material.opacity = Math.max(0.15, 0.72 * (1 - progress * 0.35));
+        });
       }
     };
 
@@ -221,11 +223,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       let exitY = 2;
       for (let y = 0; y < state.map.height; y++) {
         const x = state.map.tiles[y].findIndex(tile => tile === TileType.STAIRS_DOWN);
-        if (x >= 0) {
-          exitX = x;
-          exitY = y;
-          break;
-        }
+        if (x >= 0) { exitX = x; exitY = y; break; }
       }
       portal.position.set(exitX + 0.5 - state.map.width / 2, 0.02, exitY + 0.5 - state.map.height / 2);
       portal.userData.ring.rotation.z = now * 0.0007;
@@ -250,21 +248,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const playerZ = mapZ(state, state.player.y);
 
       buildRoom(state);
-
       if (playerRig) {
         playerRig.root.position.set(playerX, 0, playerZ);
-        if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) {
-          playerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
-        }
+        if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) playerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
         playerRig.setMoving(state.player.state === 'moving');
-        if (state.player.lastAttackTime > lastAttack) {
-          lastAttack = state.player.lastAttackTime;
-          playerRig.triggerAttack();
-        }
-        if (state.player.lastDodgeTime > lastDodge) {
-          lastDodge = state.player.lastDodgeTime;
-          playerRig.triggerDash();
-        }
+        if (state.player.lastAttackTime > lastAttack) { lastAttack = state.player.lastAttackTime; playerRig.triggerAttack(); }
+        if (state.player.lastDodgeTime > lastDodge) { lastDodge = state.player.lastDodgeTime; playerRig.triggerDash(); }
         playerRig.update(delta);
       }
 
@@ -285,8 +274,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (disposed) return;
 
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x14151a);
-      scene.fog = new THREE.Fog(0x14151a, 42, 76);
+      scene.background = new THREE.Color(0x8a725e);
+      scene.fog = new THREE.Fog(0x8a725e, 34, 64);
 
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
@@ -302,13 +291,13 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       cameraGoal = new THREE.Vector3();
 
       scene.add(new THREE.AmbientLight(0xfff2e3, 1.1));
-      scene.add(new THREE.HemisphereLight(0xffe8d2, 0x252735, 1.5));
+      scene.add(new THREE.HemisphereLight(0xffe8d2, 0x51483f, 1.5));
       const keyLight = new THREE.DirectionalLight(0xffd6ad, 2.35);
       keyLight.position.set(-7, 14, 7);
       keyLight.castShadow = true;
       keyLight.shadow.mapSize.set(1024, 1024);
       scene.add(keyLight);
-      const fillLight = new THREE.PointLight(0x7566d8, 4.2, 28, 1.8);
+      const fillLight = new THREE.PointLight(0x7566d8, 3.0, 24, 1.8);
       fillLight.position.set(0, 6.5, -8);
       scene.add(fillLight);
       playerLight = new THREE.PointLight(0xffddb4, 3.2, 15, 1.7);
@@ -332,10 +321,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       playerRig?.stop();
-      for (const visual of enemyVisuals.values()) {
-        visual.mixer?.stopAllAction?.();
-        disposeObject(visual.root);
-      }
+      for (const visual of enemyVisuals.values()) { visual.mixer?.stopAllAction?.(); disposeObject(visual.root); }
       for (const mesh of arrowVisuals.values()) disposeObject(mesh);
       for (const mesh of lootVisuals.values()) disposeObject(mesh);
       if (roomRoot) disposeObject(roomRoot);
