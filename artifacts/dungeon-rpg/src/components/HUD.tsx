@@ -10,7 +10,7 @@ function Bar({v,m,c}:{v:number;m:number;c:string}){
 
 export function HUD({gameState:g,onPause}:Props){
  const p=g.player;
- const gifts=Object.values(g.runSkills).reduce((sum,value)=>sum+(value??0),0);
+ const gifts=Object.entries(g.runSkills).reduce((sum,[key,value])=>key==='heal'?sum:sum+(value??0),0);
  const living=g.enemies.filter(enemy=>enemy.hp>0&&!enemy.isDead).length;
  const pending=g.enemies.filter(enemy=>enemy.isDead).length;
  const enemyText=g.roomClearReady?'RAUM FREI':living>0?`${living} GEGNER`:'RAUM WIRD FREIGEGEBEN';
