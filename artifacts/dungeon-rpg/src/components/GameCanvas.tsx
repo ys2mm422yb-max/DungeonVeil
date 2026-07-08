@@ -1,1 +1,1 @@
-export { GameCanvasForest3D as GameCanvas } from './GameCanvasForest3D';
+export { GameCanvasCentered3D as GameCanvas } from './GameCanvasCentered3D';
