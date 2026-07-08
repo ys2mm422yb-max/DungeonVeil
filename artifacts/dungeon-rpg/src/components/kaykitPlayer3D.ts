@@ -90,14 +90,14 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const clips = [...(rangerGltf.animations ?? []), ...(generalGltf.animations ?? []), ...(movementGltf.animations ?? []), ...(advancedGltf.animations ?? [])];
   const idleClip = chooseClip(clips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep', 'aim', 'bow']);
   const runClip = chooseClip(clips, [['run'], ['jog'], ['walk']], ['back', 'left', 'right', 'crouch', 'aim']);
-  const dashClip = chooseClip(clips, [['dodge', 'forward'], ['dodge'], ['roll', 'forward'], ['roll']], ['back']);
+  const dashClip = chooseClip(clips, [['dodge', 'forward'], ['roll', 'forward'], ['dodge'], ['roll']], ['back', 'left', 'right']);
   const mixer = new THREE.AnimationMixer(visual);
   const idle = idleClip ? mixer.clipAction(idleClip) : null;
   const run = runClip ? mixer.clipAction(runClip) : null;
   const dash = dashClip ? mixer.clipAction(dashClip) : null;
   const base = idle ?? run;
   base?.reset().play();
-  if (dash) { dash.setLoop(THREE.LoopOnce, 1); dash.clampWhenFinished = false; }
+  if (dash) { dash.setLoop(THREE.LoopOnce, 1); dash.clampWhenFinished = true; }
 
   prepareModel(weapons.bow);
   prepareModel(quiverGltf.scene);
@@ -115,21 +115,22 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   let shotTime = 0;
   let shotDuration = 0.24;
   let dashRemaining = 0;
+  let dashDuration = 0.24;
   let movementMultiplier = 1;
   let attackMultiplier = 1;
   let current = base;
 
   const applySpeeds = () => {
     if (run) run.timeScale = 1.04 * movementMultiplier;
-    if (dash) dash.timeScale = 1.16 * Math.max(1, movementMultiplier * 0.92);
+    if (dash) dash.timeScale = Math.max(1.18, 1.32 * movementMultiplier);
   };
   applySpeeds();
 
   const playBase = () => {
     const next = moving ? run : idle;
     if (!next || next === current) return;
-    next.reset().fadeIn(0.1).play();
-    current?.fadeOut(0.1);
+    next.reset().fadeIn(0.08).play();
+    current?.fadeOut(0.08);
     current = next;
   };
   const applyShotPose = (pulse: number) => {
@@ -154,18 +155,41 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       shotDuration = 0.24 / attackMultiplier;
       applySpeeds();
     },
-    triggerAttack() { shotTime = shotDuration; },
+    triggerAttack() { if (dashRemaining <= 0) shotTime = shotDuration; },
     triggerDash() {
-      if (!dash) return;
-      const duration = Math.max(0.18, dashClip!.duration / dash.timeScale);
-      dashRemaining = duration;
-      dash.stop();
-      dash.reset().fadeIn(0.04).play();
-      current?.fadeOut(0.05);
-      current = dash;
+      shotTime = 0;
+      bowRig.updateShotPose(0);
+      dashDuration = dash ? Math.max(0.2, Math.min(0.34, dashClip!.duration / dash.timeScale)) : 0.24;
+      dashRemaining = dashDuration;
+      if (dash) {
+        dash.stop();
+        dash.reset().fadeIn(0.025).play();
+        current?.fadeOut(0.035);
+        current = dash;
+      }
     },
     update(delta: number) {
-      if (dashRemaining > 0) { dashRemaining = Math.max(0, dashRemaining - delta); if (dashRemaining === 0) playBase(); }
+      if (dashRemaining > 0) {
+        dashRemaining = Math.max(0, dashRemaining - delta);
+        const progress = 1 - dashRemaining / Math.max(0.001, dashDuration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const travel = 2.5 * (1 - eased);
+        visual.position.z = -travel;
+        visual.position.y = Math.sin(progress * Math.PI) * 0.1;
+        visual.rotation.x = -Math.sin(progress * Math.PI) * 0.16;
+        visual.rotation.z = Math.sin(progress * Math.PI * 2) * 0.025;
+        bowRig.updateShotPose(0);
+        mixer.update(delta);
+        if (dashRemaining === 0) {
+          visual.position.set(0, 0, 0);
+          visual.rotation.x = 0;
+          visual.rotation.z = 0;
+          current = null;
+          playBase();
+        }
+        return;
+      }
+
       mixer.update(delta);
       if (shotTime > 0) {
         shotTime = Math.max(0, shotTime - delta);
@@ -174,6 +198,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
         applyShotPose(Math.sin(draw * Math.PI * 0.5));
       } else {
         bowRig.updateShotPose(0);
+        visual.rotation.x *= 0.68;
         visual.rotation.z *= 0.68;
         visual.position.z *= 0.68;
         visual.position.y *= 0.68;
