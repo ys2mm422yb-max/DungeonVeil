@@ -66,9 +66,13 @@ export function GamePausePanel(props: GamePausePanelProps) {
           {gifts.length ? <div className="flex flex-wrap gap-2">{gifts.map(([key, rank]) => <span key={key} className="rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-[8px] font-black tracking-[.1em] text-white/70">{names[key]} {roman(rank)}</span>)}</div> : <div className="text-[10px] text-white/30">{de ? 'Noch keine Gaben' : 'No gifts yet'}</div>}
         </div>
 
+        <div className="mt-3 rounded-xl border border-violet-300/15 bg-violet-500/[.06] px-3 py-2 text-center">
+          <div className="text-[8px] font-black tracking-[.2em] text-violet-100/65">{de ? 'CHECKPOINT AKTIV' : 'CHECKPOINT ACTIVE'}</div>
+          <div className="mt-1 text-[9px] text-white/35">{de ? 'Raumbeginn und Gaben werden automatisch gespeichert' : 'Room entry and gifts are saved automatically'}</div>
+        </div>
+
         <div className="mt-4 flex flex-col gap-2.5">
           <button onPointerDown={e => trigger(e, props.onResume)} className="w-full rounded-xl border-2 border-primary bg-primary py-3.5 text-sm font-bold tracking-widest text-primary-foreground active:scale-95">{props.resume}</button>
-          <button onPointerDown={e => trigger(e, props.onSave)} className="w-full rounded-xl border border-violet-300/30 bg-violet-500/10 py-3 text-sm font-bold tracking-widest text-violet-100 active:scale-95">{de ? 'SPEICHERN' : 'SAVE GAME'}</button>
           <button onPointerDown={e => trigger(e, restart)} className={`w-full rounded-xl border py-3 text-[11px] font-bold tracking-[.12em] active:scale-95 ${restartArmed ? 'border-orange-300/70 bg-orange-500/20 text-orange-100' : 'border-orange-400/25 bg-orange-500/[.07] text-orange-200/75'}`}>{restartArmed ? (de ? 'NOCHMAL TIPPEN ZUM BESTÄTIGEN' : 'TAP AGAIN TO CONFIRM') : (de ? 'RAUM NEU STARTEN' : 'RESTART ROOM')}</button>
           <button onPointerDown={e => trigger(e, props.onSettings)} className="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-sm font-bold tracking-widest text-white/60 active:scale-95">{props.settings}</button>
           <button onPointerDown={e => trigger(e, props.onMainMenu)} className="w-full rounded-xl border border-white/8 bg-transparent py-3 text-xs font-bold tracking-widest text-white/30 active:scale-95">{de ? 'ZUM HAUPTMENÜ' : 'MAIN MENU'}</button>
