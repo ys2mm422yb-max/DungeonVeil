@@ -5,6 +5,7 @@ import type { GameEngine } from '../game/runEngine';
 import type { UpgradeKey } from '../i18n/translations';
 import { availableRunSkills } from '../game/runSkills';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
+import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 
@@ -44,11 +45,15 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
 
   useEffect(() => {
     if (!active) return;
-    const system = createRunEffectSystemState();
+    const effects = createRunEffectSystemState();
+    const balance = createRunBalanceState();
     let frame = 0;
     const update = (time: number) => {
       const engine = getEngine();
-      if (engine?.state.status === 'playing') updateRunEffectSystems(engine, system, time);
+      if (engine?.state.status === 'playing') {
+        updateRunBalance(engine, balance);
+        updateRunEffectSystems(engine, effects, time);
+      }
       frame = requestAnimationFrame(update);
     };
     frame = requestAnimationFrame(update);
