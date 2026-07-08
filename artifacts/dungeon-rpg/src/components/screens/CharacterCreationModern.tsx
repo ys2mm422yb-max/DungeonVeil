@@ -13,7 +13,7 @@ export function CharacterCreationModern({onConfirm,onBack}:Props){
  const[starting,setStarting]=useState(false);
  const valid=name.trim().length>=2&&!starting;
  useEffect(()=>{void Promise.all([preloadKayKitDungeonRoom(1),preloadKayKitEnemyVisuals()]).catch(error=>console.error('KayKit preload failed',error));},[]);
- const start=async()=>{if(!valid)return;setStarting(true);try{await onConfirm(name.trim(),'archer');}finally{setStarting(false);}};
+ const start=async()=>{if(!valid)return;setStarting(true);try{await Promise.all([preloadKayKitDungeonRoom(1),preloadKayKitEnemyVisuals()]);await onConfirm(name.trim(),'archer');}finally{setStarting(false);}};
  return <div className="fixed left-0 top-0 z-50 flex h-[100dvh] w-full flex-col overflow-hidden bg-[#090807] text-amber-50" style={{touchAction:'auto'}}>
   <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_25%,rgba(179,116,36,.25),transparent_38%),linear-gradient(180deg,rgba(31,22,13,.97),rgba(5,5,6,1))]"/>
   <header className="relative z-10 flex shrink-0 items-center gap-3 px-5 pb-2 pt-5 pt-safe-top"><button onClick={onBack} className="h-11 w-11 rounded border border-amber-100/20 bg-black/35 text-2xl">‹</button><div><p className="text-[10px] tracking-[.35em] text-amber-200/45">DUNGEON VEIL</p><h1 className="font-serif text-2xl tracking-widest">{language==='de'?'DEIN SCHÜTZE':'YOUR ARCHER'}</h1></div></header>
