@@ -44,8 +44,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   maxHp: {
     maxRank: 3,
-    rankTextDe: ['+20 Max-LP', '+25 Max-LP', '+30 Max-LP'],
-    rankTextEn: ['+20 max HP', '+25 max HP', '+30 max HP'],
+    rankTextDe: ['+20 Max-LP und +20 LP', '+25 Max-LP und +25 LP', '+30 Max-LP und +30 LP'],
+    rankTextEn: ['+20 max HP and +20 HP', '+25 max HP and +25 HP', '+30 max HP and +30 HP'],
   },
   speed: {
     maxRank: 3,
@@ -54,8 +54,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   defense: {
     maxRank: 3,
-    rankTextDe: ['+1 Verteidigung', '+2 Verteidigung', '+2 Verteidigung · starker Schutzflash'],
-    rankTextEn: ['+1 defense', '+2 defense', '+2 defense · strong guard flash'],
+    rankTextDe: ['+1 Verteidigung · Schutzflash bei Treffern', '+2 Verteidigung · grüne Schutzfunken', '+2 Verteidigung · maximale Schadensreduktion'],
+    rankTextEn: ['+1 defense · guard flash on hits', '+2 defense · green guard sparks', '+2 defense · maximum damage reduction'],
   },
   heal: {
     maxRank: 1,
