@@ -21,6 +21,7 @@ on:
       - '.github/workflows/dungeon-rpg-check.yml'
   workflow_dispatch:
 
+# Verification branch uses this PR trigger to expose check results to the connector.
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
