@@ -2,6 +2,7 @@ import { KAYKIT_ROOM_PROPS, type KayKitRoomAsset, type KayKitRoomPlacement } fro
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const DUNGEON_ROOT = '/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/';
+const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 const ROOM_ASSETS: Record<KayKitRoomAsset, string> = {
   floor: 'floor_dirt_large.gltf',
@@ -55,9 +56,9 @@ export async function preloadKayKitDungeonRoom(room: number) {
 function prepare(root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
-    node.castShadow = true;
-    node.receiveShadow = true;
-    node.frustumCulled = false;
+    node.castShadow = !IS_MOBILE;
+    node.receiveShadow = !IS_MOBILE;
+    node.frustumCulled = true;
   });
 }
 
