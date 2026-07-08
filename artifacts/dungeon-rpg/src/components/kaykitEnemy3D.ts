@@ -25,14 +25,25 @@ let libraryPromise: Promise<EnemyLibrary> | null = null;
 function clipName(clip: any) { return String(clip?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_'); }
 function chooseClip(clips: any[], groups: string[][], rejects: string[] = []) {
   for (const terms of groups) {
-    const match = clips.find(clip => { const name = clipName(clip); return terms.every(term => name.includes(term)) && rejects.every(term => !name.includes(term)); });
+    const match = clips.find(clip => {
+      const name = clipName(clip);
+      return terms.every(term => name.includes(term)) && rejects.every(term => !name.includes(term));
+    });
     if (match) return match;
   }
   return null;
 }
 function hashId(id: string) { let hash = 2166136261; for (let i = 0; i < id.length; i++) { hash ^= id.charCodeAt(i); hash = Math.imul(hash, 16777619); } return hash >>> 0; }
 function roleFromPath(path: string): EnemyRole { const key = path.toLowerCase(); if (key.includes('mage')) return 'mage'; if (key.includes('rogue')) return 'rogue'; if (key.includes('warrior')) return 'warrior'; return 'minion'; }
-function findBone(root: any, names: string[]) { let result: any = null; root.traverse((node: any) => { if (result) return; const key = String(node.name ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''); if (names.some(name => key.includes(name))) result = node; }); return result; }
+function findBone(root: any, names: string[]) {
+  let result: any = null;
+  root.traverse((node: any) => {
+    if (result) return;
+    const key = String(node.name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (names.some(name => key.includes(name))) result = node;
+  });
+  return result;
+}
 function keepGeometry(geometry: any) {
   if (!geometry || geometry.userData?.kayKitPersistent) return;
   geometry.userData = { ...(geometry.userData ?? {}), kayKitPersistent: true };
@@ -43,7 +54,9 @@ function prepareModel(root: any) {
     if (!node.isMesh && !node.isSkinnedMesh) return;
     keepGeometry(node.geometry);
     if (node.material) node.material = Array.isArray(node.material) ? node.material.map((m: any) => m.clone()) : node.material.clone();
-    node.castShadow = !IS_MOBILE; node.receiveShadow = !IS_MOBILE; node.frustumCulled = true;
+    node.castShadow = !IS_MOBILE;
+    node.receiveShadow = !IS_MOBILE;
+    node.frustumCulled = true;
   });
 }
 function attachEquipment(parent: any, object: any, position: [number, number, number], rotation: [number, number, number], scale = 1) {
@@ -138,7 +151,9 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   }
 
   const idleClip = chooseClip(prototype.clips, [['idle', 'a'], ['idle']], ['crouch', 'sit']);
-  const moveClip = chooseClip(prototype.clips, [['run'], ['walk']], ['back', 'left', 'right', 'crouch']);
+  const normalMoveClip = chooseClip(prototype.clips, [['run'], ['walk']], ['back', 'left', 'right', 'crouch']);
+  const bossMoveClip = chooseClip(prototype.clips, [['walk', 'forward'], ['walk']], ['back', 'left', 'right', 'crouch']) ?? normalMoveClip;
+  const moveClip = enemy.enemyType === 'boss' ? bossMoveClip : normalMoveClip;
   const attackClip = chooseClip(prototype.clips, [['attack', 'a'], ['melee', 'attack'], ['attack']], ['bow', 'crossbow', 'ranged']);
   const deathClip = chooseClip(prototype.clips, [['death', 'a'], ['death', 'b'], ['death']], []);
   const mixer = new THREE.AnimationMixer(scene);
@@ -147,11 +162,11 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const attack = attackClip ? mixer.clipAction(attackClip) : null;
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   idle?.reset().play();
-  if (move) move.timeScale = 1.06;
+  if (move) move.timeScale = enemy.enemyType === 'boss' ? 0.58 : 1.06;
   if (attack) {
     attack.setLoop(THREE.LoopOnce, 1);
     attack.clampWhenFinished = false;
-    attack.timeScale = enemy.enemyType === 'boss' ? 0.92 : 1.12;
+    attack.timeScale = enemy.enemyType === 'boss' ? 0.86 : 1.12;
   }
   if (death && deathClip) {
     death.setLoop(THREE.LoopOnce, 1);
@@ -272,14 +287,16 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
     visual.bossCore.intensity = (IS_MOBILE ? 2.7 : 4) + Math.sin(now * 0.007) * 0.8;
   }
 
-  if (burning) setMeshTint(visual.scene, 0xff2d00, 0.2);
+  if (burning && enemy.enemyType === 'boss') setMeshTint(visual.scene, 0x6f241e, 0.045);
+  else if (burning) setMeshTint(visual.scene, 0xff2d00, 0.2);
+  else if (frozen && enemy.enemyType === 'boss') setMeshTint(visual.scene, 0x356b86, 0.045);
   else if (frozen) setMeshTint(visual.scene, 0x46bfff, 0.07);
-  else if (enemy.enemyType === 'boss') setMeshTint(visual.scene, 0x6a101a, 0.08);
+  else if (enemy.enemyType === 'boss') setMeshTint(visual.scene, 0x6a101a, 0.055);
   else setMeshTint(visual.scene, null, 0);
 
   if ((enemy.lastHitTime ?? 0) > visual.lastHitTime) {
     visual.lastHitTime = enemy.lastHitTime ?? 0;
-    visual.hitElapsed = 0.16;
+    visual.hitElapsed = enemy.enemyType === 'boss' ? 0.1 : 0.16;
   }
 
   if (enemy.isDead || enemy.state === 'dead') {
@@ -319,17 +336,18 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   }
 
   if (visual.hitElapsed > 0) {
+    const hitDuration = enemy.enemyType === 'boss' ? 0.1 : 0.16;
     visual.hitElapsed = Math.max(0, visual.hitElapsed - delta);
-    const pulse = Math.sin((visual.hitElapsed / 0.16) * Math.PI);
+    const pulse = Math.sin((visual.hitElapsed / hitDuration) * Math.PI);
     const fromX = enemy.hitFromX ?? enemy.x;
     const fromY = enemy.hitFromY ?? enemy.y;
     const dx = enemy.x - fromX;
     const dy = enemy.y - fromY;
     const len = Math.max(1, Math.hypot(dx, dy));
-    const strength = enemy.enemyType === 'boss' ? 0.05 : 0.13;
+    const strength = enemy.enemyType === 'boss' ? 0.022 : 0.13;
     visual.scene.position.x = dx / len * pulse * strength;
     visual.scene.position.z = dy / len * pulse * strength;
-    visual.scene.rotation.z = -pulse * (enemy.enemyType === 'boss' ? 0.035 : 0.09);
+    visual.scene.rotation.z = -pulse * (enemy.enemyType === 'boss' ? 0.014 : 0.09);
   } else {
     visual.scene.position.x *= 0.6;
     visual.scene.position.z *= 0.6;
@@ -339,7 +357,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   if (enemy.lastAttackTime > visual.lastAttackTime) {
     visual.lastAttackTime = enemy.lastAttackTime;
     const duration = visual.attack?.getClip?.()?.duration ?? 0.5;
-    visual.attackRemaining = Math.max(0.22, duration / (enemy.enemyType === 'boss' ? 0.92 : 1.12));
+    visual.attackRemaining = Math.max(0.22, duration / (enemy.enemyType === 'boss' ? 0.86 : 1.12));
     transition(visual, visual.attack, 0.045);
     visual.lastState = 'attack';
   }
@@ -357,6 +375,12 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
       visual.lastState = desiredState;
     }
   }
-  if (visual.move) visual.move.timeScale = frozen ? Math.max(0.5, 1 - (enemy.frostSlow ?? 0)) : 1.06;
+
+  if (visual.move) {
+    const baseMoveSpeed = enemy.enemyType === 'boss' ? 0.58 : 1.06;
+    visual.move.timeScale = frozen
+      ? Math.max(enemy.enemyType === 'boss' ? 0.28 : 0.5, baseMoveSpeed * (1 - (enemy.frostSlow ?? 0)))
+      : baseMoveSpeed;
+  }
   visual.mixer.update(delta);
 }
