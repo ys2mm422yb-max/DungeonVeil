@@ -24,16 +24,20 @@ export function generateRunRoom(room: number): DungeonMap {
   }
 
   const exitX = Math.floor(width / 2);
-  tiles[2][exitX] = TileType.STAIRS_DOWN;
+
+  // Der Ausgang sitzt bewusst in einer kleinen Tormulde direkt an der oberen
+  // Architektur. So steht das Veil nicht mehr zwei Felder vor dem Dungeon-Tor.
+  for (let x = exitX - 2; x <= exitX + 2; x++) tiles[1][x] = TileType.FLOOR;
+  tiles[1][exitX] = TileType.STAIRS_DOWN;
 
   // Spawn- und Ausgangsbereiche bleiben garantiert frei.
   for (let y = height - 7; y < height - 2; y++) {
     for (let x = exitX - 3; x <= exitX + 3; x++) tiles[y][x] = TileType.FLOOR;
   }
-  for (let y = 2; y <= 6; y++) {
+  for (let y = 1; y <= 6; y++) {
     for (let x = exitX - 2; x <= exitX + 2; x++) tiles[y][x] = TileType.FLOOR;
   }
-  tiles[2][exitX] = TileType.STAIRS_DOWN;
+  tiles[1][exitX] = TileType.STAIRS_DOWN;
 
   return {
     width,
