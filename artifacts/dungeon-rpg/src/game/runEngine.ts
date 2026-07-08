@@ -62,11 +62,13 @@ const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceAr
 const NORMAL_DEATH_MS = 920;
 const BOSS_DEATH_MS = 1650;
 const UNSTUCK_MS = 7000;
+const UI_EMIT_MS = 100;
 
 export class GameEngine {
   state: RunGameState;
   lastTime = 0;
   private lastStepTime = 0;
+  private lastUiEmitTime = 0;
   private roomAnnouncedClear = false;
   private lootCounter = 0;
   private roomEntrySnapshot: RoomEntrySnapshot | null = null;
@@ -88,7 +90,7 @@ export class GameEngine {
       attack: overrides.attack ?? def.attack, defense: overrides.defense ?? def.defense, speed: overrides.speed ?? def.speed,
       attackRange: overrides.attackRange ?? 520, skillRange: overrides.skillRange ?? def.skillRange,
       level, xp, color: def.color, state: 'idle', facing: { x: 0, y: -1 }, invincibleUntil: 0,
-      skillCooldown: 0, dodgeCooldown: 0, lastDodgeTime: 0, attackCooldown: 0, spawnTime: Date.now(), lastAttackTime: 0,
+      skillCooldown: 0, dodgeCooldown: 0, lastDodgeTime: 0, attackCooldown: 0, spawnTime: performance.now(), lastAttackTime: 0,
       lastHitTime: 0, lastGuardTime: 0, lastGiftTime: 0, lastGiftKey: '',
     };
   }
@@ -106,6 +108,7 @@ export class GameEngine {
     const map = generateRunRoom(1);
     this.state = this.makeState(name, map, 1, 1);
     this.lastTime = 0;
+    this.lastUiEmitTime = 0;
     this.spawnRoom();
     this.captureRoomEntrySnapshot();
     this.saveNow('new-run');
@@ -123,6 +126,7 @@ export class GameEngine {
     this.state.killCount = save.killCount || 0;
     this.state.runSkills = save.runSkills ?? {};
     this.lastTime = 0;
+    this.lastUiEmitTime = 0;
     this.spawnRoom();
     this.captureRoomEntrySnapshot();
     this.emit();
@@ -214,6 +218,7 @@ export class GameEngine {
     this.state.exitHintCount = 0;
     this.roomAnnouncedClear = false;
     this.lastTime = performance.now();
+    this.lastUiEmitTime = this.lastTime;
     this.spawnRoom();
     this.state.status = 'playing';
     this.saveNow('restart-room');
@@ -236,6 +241,12 @@ export class GameEngine {
 
     if (this.state.player.hp <= 0) {
       this.state.status = 'gameover';
+      this.emit();
+      return;
+    }
+
+    if (timestamp - this.lastUiEmitTime >= UI_EMIT_MS) {
+      this.lastUiEmitTime = timestamp;
       this.emit();
     }
   }
@@ -322,11 +333,11 @@ export class GameEngine {
     offsets.forEach((offset, index) => {
       const angle = baseAngle + offset;
       const target = this.findEnemyAlongRay(px, py, angle, p.attackRange, hitIds) ?? (index === 0 ? primary : null);
-      const endX = target ? target.x + target.width / 2 : px + Math.cos(angle) * p.attackRange;
-      const endY = target ? target.y + target.height / 2 : py + Math.sin(angle) * p.attackRange;
+      if (!target) return;
+      const endX = target.x + target.width / 2;
+      const endY = target.y + target.height / 2;
       const element = this.chooseShotElement(time, index);
       this.addShotEffect(`shot-${time}-${index}`, px, py, endX, endY, angle, element.color, element.kind, index === 0 ? 4 : 3);
-      if (!target) return;
       hitIds.add(target.id);
       const damage = this.baseArrowDamage(target, index === 0 ? 1 : 0.82);
       this.damageEnemy(target, damage, time, px, py, element.kind, index === 0 ? 1.2 : 1);
@@ -639,7 +650,8 @@ export class GameEngine {
     const chapterScale = 1 + (this.state.chapter - 1) * 0.42;
     const roomScale = 1 + (room - 1) * 0.1;
     const map = this.state.map;
-    const now = Date.now();
+    const now = performance.now();
+    const spawnId = Date.now();
     this.roomAnnouncedClear = false;
     this.state.roomClearReady = false;
     this.state.roomClearAt = 0;
@@ -648,7 +660,7 @@ export class GameEngine {
       const bossPoint = getRoomSpawnPoints(room)[0];
       const bossSize = ENEMY_STATS.boss.size;
       const spawn = sceneSpawnToGame(bossPoint, map.width, map.height, bossSize);
-      this.state.enemies.push(this.makeEnemy('boss', spawn.x, spawn.y, chapterScale * roomScale, now, 0));
+      this.state.enemies.push(this.makeEnemy('boss', spawn.x, spawn.y, chapterScale * roomScale, now, spawnId, 0));
       return;
     }
 
@@ -663,14 +675,14 @@ export class GameEngine {
       const spawn = sceneSpawnToGame(point, map.width, map.height, size);
       if (!isWalkable(map, spawn.x + size / 2, spawn.y + size / 2)) continue;
       if (collidesWithRoomProp(room, map.width, map.height, spawn.x, spawn.y, size, size, 0.22)) continue;
-      this.state.enemies.push(this.makeEnemy(type, spawn.x, spawn.y, chapterScale * roomScale, now, i));
+      this.state.enemies.push(this.makeEnemy(type, spawn.x, spawn.y, chapterScale * roomScale, now, spawnId, i));
     }
   }
 
-  private makeEnemy(type: EnemyType, x: number, y: number, scale: number, now: number, index: number): Enemy {
+  private makeEnemy(type: EnemyType, x: number, y: number, scale: number, now: number, spawnId: number, index: number): Enemy {
     const base = ENEMY_STATS[type];
     return {
-      id: `${now}-${this.state.floor}-${index}`, type: 'enemy', enemyType: type, x, y, width: base.size, height: base.size, vx: 0, vy: 0,
+      id: `${spawnId}-${this.state.floor}-${index}`, type: 'enemy', enemyType: type, x, y, width: base.size, height: base.size, vx: 0, vy: 0,
       hp: Math.round(base.hp * scale), maxHp: Math.round(base.hp * scale), attack: Math.round(base.attack * scale), defense: base.defense,
       speed: base.speed, color: base.color, state: 'chase', targetX: x, targetY: y, nextAttackTime: now + 500, flashUntil: 0,
       spawnTime: now + index * 40, lastAttackTime: 0, deathTime: 0, deathDuration: type === 'boss' ? BOSS_DEATH_MS : NORMAL_DEATH_MS, isDead: false,
@@ -733,7 +745,18 @@ export class GameEngine {
   }
 
   private emit(): void {
-    this.onStateChange({ ...this.state });
+    this.onStateChange({
+      ...this.state,
+      player: { ...this.state.player, facing: { ...this.state.player.facing } },
+      enemies: this.state.enemies.map(enemy => ({ ...enemy })),
+      items: this.state.items.map(item => ({ ...item })),
+      damageNumbers: this.state.damageNumbers.map(number => ({ ...number })),
+      particles: this.state.particles.map(particle => ({ ...particle })),
+      effects: this.state.effects.map(effect => ({ ...effect })),
+      upgradeChoices: [...this.state.upgradeChoices],
+      runSkills: { ...this.state.runSkills },
+      camera: { ...this.state.camera },
+    });
   }
 
   private spawnLoot(x: number, y: number, _enemyType: EnemyType): void {
