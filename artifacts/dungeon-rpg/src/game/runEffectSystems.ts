@@ -6,13 +6,47 @@ const FIRE_DEATH_DAMAGE = 12;
 
 export type RunEffectSystemState = {
   processedFireBursts: Set<string>;
+  finalizedBurns: Map<string, number>;
 };
 
 export function createRunEffectSystemState(): RunEffectSystemState {
-  return { processedFireBursts: new Set<string>() };
+  return {
+    processedFireBursts: new Set<string>(),
+    finalizedBurns: new Map<string, number>(),
+  };
 }
 
-export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+function applyFinalBurnTicks(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  const activeEnemyIds = new Set(engine.state.enemies.map(enemy => enemy.id));
+  for (const enemyId of system.finalizedBurns.keys()) {
+    if (!activeEnemyIds.has(enemyId)) system.finalizedBurns.delete(enemyId);
+  }
+
+  for (const enemy of engine.state.enemies) {
+    if (enemy.isDead || enemy.hp <= 0 || !enemy.burnUntil || !enemy.nextBurnTick || !enemy.burnDamage) continue;
+    if (time < enemy.burnUntil || enemy.nextBurnTick > enemy.burnUntil) continue;
+    if (system.finalizedBurns.get(enemy.id) === enemy.burnUntil) continue;
+
+    system.finalizedBurns.set(enemy.id, enemy.burnUntil);
+    enemy.nextBurnTick = enemy.burnUntil + 1;
+    enemy.hp -= enemy.burnDamage;
+    const enemyX = enemy.x + enemy.width / 2;
+    const enemyY = enemy.y + enemy.height / 2;
+    engine.state.damageNumbers.push({
+      id: `burn-final-${enemy.id}-${enemy.burnUntil}`,
+      x: enemyX,
+      y: enemy.y - 5,
+      value: `-${enemy.burnDamage}`,
+      color: '#ff6a2c',
+      lifeTime: 0,
+      maxLifeTime: 550,
+      scale: 0.78,
+    });
+    engine.state.particles.push(...makeHitSpark(enemyX, enemyY, '#ff6a2c', 4));
+  }
+}
+
+function applyFireDeathBursts(engine: GameEngine, system: RunEffectSystemState, time: number): void {
   const activeFireBursts = engine.state.effects.filter(effect => effect.id.startsWith('fire-death-'));
   const activeIds = new Set(activeFireBursts.map(effect => effect.id));
 
@@ -51,4 +85,9 @@ export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSyst
       engine.state.particles.push(...makeHitSpark(enemyX, enemyY, '#ff642c', 10));
     }
   }
+}
+
+export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  applyFinalBurnTicks(engine, system, time);
+  applyFireDeathBursts(engine, system, time);
 }
