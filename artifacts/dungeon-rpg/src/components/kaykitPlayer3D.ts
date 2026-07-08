@@ -63,6 +63,30 @@ function attachQuiver(parent: any, object: any) {
   parent.add(object);
 }
 
+function buildArrowPrototype(THREE: any, arrow: any) {
+  const root = new THREE.Group();
+  root.name = 'KayKitArrowWithWindTrail';
+  const model = arrow.clone(true);
+  prepareModel(model);
+  root.add(model);
+
+  const trailMaterial = new THREE.LineBasicMaterial({ color: 0xdaf4ff, transparent: true, opacity: 0.5, depthWrite: false });
+  const makeTrail = (x: number, z: number, length: number, opacity: number) => {
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x, -0.08, z),
+      new THREE.Vector3(x, -length, z),
+    ]);
+    const material = trailMaterial.clone();
+    material.opacity = opacity;
+    const line = new THREE.Line(geometry, material);
+    root.add(line);
+  };
+  makeTrail(0, 0, 1.15, 0.58);
+  makeTrail(0.045, 0.02, 0.82, 0.3);
+  makeTrail(-0.04, -0.015, 0.68, 0.22);
+  return root;
+}
+
 export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
   const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, weapons] = await Promise.all([
@@ -112,6 +136,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   attachQuiver(spine, quiverGltf.scene);
+  const arrowPrototype = buildArrowPrototype(THREE, weapons.arrow);
 
   let moving = false;
   let shotTime = 0;
@@ -128,7 +153,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   return {
     root,
-    arrowPrototype: weapons.arrow,
+    arrowPrototype,
     setMoving(value: boolean) {
       moving = value;
       if (dashRemaining <= 0) playBase();
