@@ -11,7 +11,7 @@ const ASSET_ROOT = '/assets/3d/';
 function StaticArcher() {
   return (
     <div className="flex h-full w-full items-center justify-center">
-      <svg viewBox="0 0 100 100" className="h-24 w-24 text-[#d7a441]" fill="currentColor">
+      <svg viewBox="0 0 100 100" className="h-40 w-40 text-[#d7a441]" fill="currentColor">
         <circle cx="50" cy="50" r="38" opacity="0.15" />
         <path d="M50 18 C38 18 30 28 30 38 C30 48 36 54 42 58 L42 80 L46 80 L46 62 L54 62 L54 80 L58 80 L58 58 C64 54 70 48 70 38 C70 28 62 18 50 18 Z" />
         <path d="M26 44 Q50 70 74 44" stroke="currentColor" strokeWidth="3" fill="none" opacity="0.85" />
@@ -89,9 +89,9 @@ export function RangerPreview() {
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       host.appendChild(renderer.domElement);
 
-      camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-      camera.position.set(1.55, 1.55, 4.25);
-      camera.lookAt(0, 0.88, 0);
+      camera = new THREE.PerspectiveCamera(31, 1, 0.1, 100);
+      camera.position.set(1.18, 1.43, 3.15);
+      camera.lookAt(0, 0.9, 0);
 
       scene.add(new THREE.HemisphereLight(0xfff3df, 0x25180e, 2.2));
       const key = new THREE.DirectionalLight(0xffe0a8, 3.1);
@@ -133,7 +133,7 @@ export function RangerPreview() {
       if (disposed) return;
 
       rangerRig = composeFullRanger(THREE, baseGltf.scene, outfitGltf.scene, animationsGltf.animations ?? []);
-      rangerRig.root.scale.setScalar(1.04);
+      rangerRig.root.scale.setScalar(1.28);
       rangerRig.root.position.y = 0.03;
       rangerRig.root.rotation.y = -0.3;
       scene.add(rangerRig.root);
