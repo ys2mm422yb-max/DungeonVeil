@@ -1,9 +1,9 @@
+import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
+
 const KAYKIT_ROOT = '/assets/kaykit';
 
 export const KAYKIT_PLAYER_ASSETS = {
   ranger: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb`,
-  bow: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/bow_withString.gltf`,
-  arrow: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_bow.gltf`,
   quiver: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf`,
   general: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb`,
   movement: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb`,
@@ -65,16 +65,16 @@ function attachToBone(parent: any, object: any, position: [number, number, numbe
 
 export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
-  const [rangerGltf, bowGltf, arrowGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, rangedGltf] = await Promise.all([
+  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, rangedGltf, weapons] = await Promise.all([
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.bow),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.arrow),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranged),
+    loadKayKitRangerWeapons(),
   ]);
+  if (!weapons) throw new Error('No KayKit bow and arrow found in the complete weapons/adventurers libraries');
 
   const root = new THREE.Group();
   root.name = 'KayKitRangerPlayer';
@@ -122,7 +122,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   const rightHand = findBone(visual, ['righthand', 'handr', 'handright']);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
-  const bow = bowGltf.scene;
+  const bow = weapons.bow;
   const quiver = quiverGltf.scene;
   prepareModel(bow);
   prepareModel(quiver);
@@ -155,7 +155,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   return {
     root,
-    arrowPrototype: arrowGltf.scene,
+    arrowPrototype: weapons.arrow,
     setMoving(value: boolean) {
       moving = value;
       if (attackRemaining > 0 || dashRemaining > 0) return;
