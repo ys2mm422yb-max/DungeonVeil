@@ -5,6 +5,7 @@ import { saveGame, SaveData } from './saveManager';
 import { Enemy, EnemyType, Item, Chest, DamageNumber, Particle, Player, VisualEffect } from './entities';
 import { makeHitSpark, makeParticles, makeStepDust, distance } from './combat';
 import { UpgradeKey } from '../i18n/translations';
+import { enemyArchetype, planEnemyMove } from './enemyRunAI';
 
 export interface RunGameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';
@@ -253,30 +254,50 @@ export class GameEngine {
       const enemy = this.state.enemies[i];
       if (enemy.hp <= 0) {
         if (!enemy.isDead) {
-          enemy.isDead = true; enemy.state = 'dead'; enemy.deathTime = time;
+          enemy.isDead = true;
+          enemy.state = 'dead';
+          enemy.deathTime = time;
           this.state.killCount++;
-          const cx = enemy.x + enemy.width / 2, cy = enemy.y + enemy.height / 2;
+          const cx = enemy.x + enemy.width / 2;
+          const cy = enemy.y + enemy.height / 2;
           this.spawnLoot(cx, cy, enemy.enemyType);
           this.state.particles.push(...makeParticles(cx, cy, enemy.color, 12, 80, 2.5));
         }
-        if (time - enemy.deathTime > 320) this.state.enemies.splice(i, 1);
+        if (time - enemy.deathTime > 480) this.state.enemies.splice(i, 1);
         continue;
       }
 
-      const dx0 = p.x - enemy.x, dy0 = p.y - enemy.y;
-      const dist = Math.max(1, Math.hypot(dx0, dy0));
-      const dx = dx0 / dist * enemy.speed * dt / 1000;
-      const dy = dy0 / dist * enemy.speed * dt / 1000;
-      enemy.state = 'chase';
-      this.moveEntity(enemy, dx, dy);
+      const dist = Math.max(1, Math.hypot(p.x - enemy.x, p.y - enemy.y));
+      const plan = planEnemyMove(enemy, p, dt, time);
+      enemy.state = dist <= plan.attackRange ? 'attack' : 'chase';
+      if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') {
+        this.moveEntity(enemy, plan.dx, plan.dy);
+      }
 
-      if (dist < 42 + enemy.width / 2 && time > enemy.nextAttackTime) {
-        enemy.nextAttackTime = time + (enemy.enemyType === 'boss' ? 650 : 1050);
+      if (dist < plan.attackRange && time > enemy.nextAttackTime) {
+        enemy.nextAttackTime = time + plan.attackDelay;
+        enemy.lastAttackTime = time;
+        enemy.state = 'attack';
+
+        const archetype = enemyArchetype(enemy.enemyType);
+        if (archetype === 'dragon') {
+          const ex = enemy.x + enemy.width / 2;
+          const ey = enemy.y + enemy.height / 2;
+          const px = p.x + 16;
+          const py = p.y + 16;
+          const angle = Math.atan2(py - ey, px - ex);
+          this.state.effects.push({
+            id: `dragon-shot-${time}-${i}`, x: ex, y: ey, radius: 0, maxRadius: distance(ex, ey, px, py),
+            color: '#ff633d', lifeTime: 0, maxLifeTime: 180, type: 'beam', angle, width: 7,
+          });
+          this.state.particles.push(...makeHitSpark(px, py, '#ff633d', 10));
+        }
+
         if (time > p.invincibleUntil) {
           const damage = Math.max(1, enemy.attack - p.defense + Math.floor(Math.random() * 3));
           p.hp -= damage;
-          this.state.damageNumbers.push({ id: `hit-${time}-${i}`, x: p.x + 16, y: p.y - 8, value: `-${damage}`, color: '#e34b43', lifeTime: 0, maxLifeTime: 800, scale: 1.1 });
-          this.state.particles.push(...makeHitSpark(p.x + 16, p.y + 16, '#ff453f', 7));
+          this.state.damageNumbers.push({ id: `hit-${time}-${i}`, x: p.x + 16, y: p.y - 8, value: `-${damage}`, color: '#e34b43', lifeTime: 0, maxLifeTime: 800, scale: archetype === 'dragon' ? 1.35 : 1.1 });
+          this.state.particles.push(...makeHitSpark(p.x + 16, p.y + 16, archetype === 'dragon' ? '#ff633d' : '#ff453f', archetype === 'dragon' ? 12 : 7));
         }
       }
     }
@@ -322,18 +343,33 @@ export class GameEngine {
     this.roomAnnouncedClear = false;
 
     if (room === CHAPTER_ROOMS) {
-      this.state.enemies.push(this.makeEnemy('boss', 9 * TILE_SIZE, 8 * TILE_SIZE, chapterScale * roomScale, now, 0));
+      const x = (Math.floor(map.width / 2) - 0.5) * TILE_SIZE;
+      const y = 6 * TILE_SIZE;
+      this.state.enemies.push(this.makeEnemy('boss', x, y, chapterScale * roomScale, now, 0));
       return;
     }
 
-    const pool: EnemyType[] = room <= 3 ? ['slime', 'goblin'] : room <= 6 ? ['goblin', 'skeleton', 'spider'] : ['skeleton', 'orc', 'spider', 'vampire'];
-    const count = Math.min(9, 2 + room);
+    const pool: EnemyType[] = room <= 3
+      ? ['skeleton']
+      : room <= 6
+        ? ['skeleton', 'spider']
+        : ['skeleton', 'spider', 'vampire'];
+    const count = Math.min(8, 2 + room);
+    const usableWidth = Math.max(1, map.width - 8);
+    const usableHeight = Math.max(1, map.height - 14);
+
     for (let i = 0; i < count; i++) {
       const type = pool[(i + room + this.state.chapter) % pool.length];
-      const x = (4 + ((i * 4 + room * 2) % 10)) * TILE_SIZE;
-      const y = (5 + ((i * 5 + room) % 11)) * TILE_SIZE;
-      if (!isWalkable(map, x + 16, y + 16)) continue;
-      this.state.enemies.push(this.makeEnemy(type, x, y, chapterScale * roomScale, now, i));
+      let xTile = 4 + ((i * 5 + room * 3) % usableWidth);
+      let yTile = 5 + ((i * 7 + room * 2) % usableHeight);
+      let attempts = 0;
+      while (attempts < 8 && !isWalkable(map, xTile * TILE_SIZE + 16, yTile * TILE_SIZE + 16)) {
+        xTile = 4 + ((xTile + 3) % usableWidth);
+        yTile = 5 + ((yTile + 5) % usableHeight);
+        attempts++;
+      }
+      if (!isWalkable(map, xTile * TILE_SIZE + 16, yTile * TILE_SIZE + 16)) continue;
+      this.state.enemies.push(this.makeEnemy(type, xTile * TILE_SIZE, yTile * TILE_SIZE, chapterScale * roomScale, now, i));
     }
   }
 
@@ -393,7 +429,6 @@ export class GameEngine {
     const id = ++this.lootCounter;
     let cx = x + (Math.random() - 0.5) * 14;
     let cy = y + (Math.random() - 0.5) * 14;
-    // XP drop must always happen; if jittered spot is blocked, fall back to the enemy center.
     if (!isWalkable(this.state.map, cx, cy)) { cx = x; cy = y; }
     this.state.items.push({
       id: `xp-${id}`, type: 'item', itemType: 'xp_orb', value: ENEMY_STATS[enemyType].xp,
