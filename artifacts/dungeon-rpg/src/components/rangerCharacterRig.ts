@@ -10,14 +10,34 @@ function findClip(clips: any[], exactName: string, fallback: (name: string) => b
     ?? clips.find(clip => fallback(String(clip.name || '').toLowerCase()));
 }
 
+function findLocomotionClip(clips: any[]) {
+  const walk = findClip(
+    clips,
+    'Walk_Fwd_Loop',
+    name => name.includes('walk') && name.includes('fwd') && !name.includes('crouch'),
+  );
+  if (walk) return walk;
+
+  return findClip(
+    clips,
+    'Jog_Fwd_Loop',
+    name => (name.includes('jog') || name.includes('run_fwd')) && !name.includes('crouch'),
+  );
+}
+
 export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, clips: any[]): RangerRig {
   const root = new THREE.Group();
   root.name = 'DungeonVeilFullRanger';
 
+  const visualRoot = new THREE.Group();
+  visualRoot.name = 'DungeonVeilRangerVisual';
+  visualRoot.scale.set(0.82, 0.88, 0.82);
+  root.add(visualRoot);
+
   baseScene.name = 'RangerBaseBody';
   outfitScene.name = 'RangerFantasyOutfit';
-  root.add(baseScene);
-  root.add(outfitScene);
+  visualRoot.add(baseScene);
+  visualRoot.add(outfitScene);
 
   for (const scene of [baseScene, outfitScene]) {
     scene.traverse((node: any) => {
@@ -34,15 +54,17 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
     'Idle_Loop',
     name => name.includes('idle') && !name.includes('crouch') && !name.includes('talking') && !name.includes('torch') && !name.includes('pistol'),
   );
-  const runClip = findClip(clips, 'Jog_Fwd_Loop', name => name.includes('jog') || name.includes('run_fwd'));
+  const moveClip = findLocomotionClip(clips);
 
   const layers = [baseScene, outfitScene].map(scene => {
     const mixer = new THREE.AnimationMixer(scene);
     const idle = idleClip ? mixer.clipAction(idleClip) : null;
-    const run = runClip ? mixer.clipAction(runClip) : null;
-    const initial = idle ?? run;
+    const move = moveClip ? mixer.clipAction(moveClip) : null;
+    if (idle) idle.timeScale = 0.92;
+    if (move) move.timeScale = 0.84;
+    const initial = idle ?? move;
     initial?.reset().play();
-    return { mixer, idle, run, active: initial };
+    return { mixer, idle, move, active: initial };
   });
 
   let movingState = false;
@@ -56,10 +78,10 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
       if (moving === movingState) return;
       movingState = moving;
       for (const layer of layers) {
-        const next = moving ? layer.run : layer.idle;
+        const next = moving ? layer.move : layer.idle;
         if (!next || next === layer.active) continue;
-        next.reset().fadeIn(0.12).play();
-        layer.active?.fadeOut(0.12);
+        next.reset().fadeIn(0.22).play();
+        layer.active?.fadeOut(0.22);
         layer.active = next;
       }
     },
