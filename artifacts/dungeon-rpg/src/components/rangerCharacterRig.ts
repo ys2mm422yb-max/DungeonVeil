@@ -16,39 +16,39 @@ function findClip(clips: any[], exactName: string, fallback: (name: string) => b
 }
 
 function findLocomotionClip(clips: any[]) {
-  const walk = findClip(
+  const jog = findClip(
     clips,
-    'Walk_Fwd_Loop',
-    name => name.includes('walk') && name.includes('fwd') && !name.includes('crouch'),
+    'Jog_Fwd_Loop',
+    name => (name.includes('jog') || name.includes('run_fwd') || (name.includes('run') && name.includes('forward'))) && !name.includes('crouch'),
   );
-  if (walk) return walk;
+  if (jog) return jog;
 
   return findClip(
     clips,
-    'Jog_Fwd_Loop',
-    name => (name.includes('jog') || name.includes('run_fwd')) && !name.includes('crouch'),
+    'Walk_Fwd_Loop',
+    name => name.includes('walk') && name.includes('fwd') && !name.includes('crouch'),
   );
 }
 
 function scoreAttackClip(name: string) {
   let score = 0;
-  if (name.includes('bow')) score += 100;
-  if (name.includes('archer') || name.includes('archery')) score += 95;
-  if (name.includes('arrow')) score += 85;
-  if (name.includes('ranged')) score += 70;
-  if (name.includes('shoot') || name.includes('shot')) score += 60;
+  if (name.includes('bow')) score += 130;
+  if (name.includes('archer') || name.includes('archery')) score += 120;
+  if (name.includes('arrow')) score += 105;
+  if (name.includes('ranged')) score += 85;
+  if (name.includes('shoot') || name.includes('shot') || name.includes('release')) score += 75;
+  if (name.includes('draw')) score += 32;
   if (name.includes('attack')) score += 18;
-  if (name.includes('draw')) score += 12;
-  if (name.includes('loop')) score -= 28;
-  if (name.includes('pistol') || name.includes('rifle') || name.includes('gun')) score -= 120;
-  if (name.includes('spell') || name.includes('magic') || name.includes('melee')) score -= 80;
+  if (name.includes('loop')) score -= 45;
+  if (name.includes('pistol') || name.includes('rifle') || name.includes('gun')) score -= 180;
+  if (name.includes('spell') || name.includes('magic') || name.includes('melee') || name.includes('punch')) score -= 120;
   return score;
 }
 
 function findAttackClip(clips: any[]) {
   return [...clips]
     .map(clip => ({ clip, score: scoreAttackClip(clipName(clip)) }))
-    .filter(entry => entry.score > 20)
+    .filter(entry => entry.score > 30)
     .sort((a, b) => b.score - a.score)[0]?.clip ?? null;
 }
 
@@ -58,7 +58,8 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
 
   const visualRoot = new THREE.Group();
   visualRoot.name = 'DungeonVeilRangerVisual';
-  visualRoot.scale.set(0.82, 0.88, 0.82);
+  visualRoot.scale.set(0.76, 0.84, 0.76);
+  visualRoot.position.y = 0.02;
   root.add(visualRoot);
 
   baseScene.name = 'RangerBaseBody';
@@ -89,12 +90,12 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
     const idle = idleClip ? mixer.clipAction(idleClip) : null;
     const move = moveClip ? mixer.clipAction(moveClip) : null;
     const attack = attackClip ? mixer.clipAction(attackClip) : null;
-    if (idle) idle.timeScale = 0.92;
-    if (move) move.timeScale = 0.84;
+    if (idle) idle.timeScale = 1;
+    if (move) move.timeScale = clipName(moveClip).includes('walk') ? 1.36 : 1.08;
     if (attack) {
-      attack.timeScale = 1.2;
+      attack.timeScale = 1.46;
       attack.setLoop(THREE.LoopOnce, 1);
-      attack.clampWhenFinished = true;
+      attack.clampWhenFinished = false;
     }
     const initial = idle ?? move;
     initial?.reset().play();
@@ -104,14 +105,15 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
   let movingState = false;
   let attackRemaining = 0;
   let lastAttackSignal = root.userData.rangerAttackSignal ?? 0;
-  const attackDuration = attackClip ? Math.max(0.22, attackClip.duration / 1.2) : 0;
+  let movementBlend = 0;
+  const attackDuration = attackClip ? Math.max(0.18, attackClip.duration / 1.46) : 0;
 
   const restoreMovement = () => {
     for (const layer of layers) {
       const next = movingState ? layer.move : layer.idle;
-      if (!next) continue;
-      next.reset().fadeIn(0.12).play();
-      layer.attack?.fadeOut(0.1);
+      if (!next || next === layer.active) continue;
+      next.reset().fadeIn(0.08).play();
+      layer.attack?.fadeOut(0.06);
       layer.active = next;
     }
   };
@@ -122,8 +124,8 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
     for (const layer of layers) {
       if (!layer.attack) continue;
       layer.attack.stop();
-      layer.attack.reset().fadeIn(0.06).play();
-      layer.active?.fadeOut(0.08);
+      layer.attack.reset().fadeIn(0.035).play();
+      if (layer.active && layer.active !== layer.attack) layer.active.fadeOut(0.05);
       layer.active = layer.attack;
     }
     return true;
@@ -138,6 +140,10 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
         playAttack();
       }
 
+      movementBlend += ((movingState ? 1 : 0) - movementBlend) * Math.min(1, delta * 14);
+      visualRoot.rotation.z = Math.sin(performance.now() * 0.012) * 0.018 * movementBlend;
+      visualRoot.position.y = 0.02 + Math.abs(Math.sin(performance.now() * 0.014)) * 0.025 * movementBlend;
+
       if (attackRemaining > 0) {
         attackRemaining = Math.max(0, attackRemaining - delta);
         if (attackRemaining === 0) restoreMovement();
@@ -150,8 +156,8 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
       for (const layer of layers) {
         const next = moving ? layer.move : layer.idle;
         if (!next || next === layer.active) continue;
-        next.reset().fadeIn(0.22).play();
-        layer.active?.fadeOut(0.22);
+        next.reset().fadeIn(0.1).play();
+        layer.active?.fadeOut(0.1);
         layer.active = next;
       }
     },
