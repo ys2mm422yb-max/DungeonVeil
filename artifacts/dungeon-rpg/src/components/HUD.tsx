@@ -10,15 +10,13 @@ function Bar({v,m,c}:{v:number;m:number;c:string}){
 
 export function HUD({gameState:g,onPause}:Props){
  const p=g.player;
- const xpNeed=70+(p.level-1)*55;
- const xp=Math.max(0,Math.min(100,p.xp/xpNeed*100));
+ const gifts=Object.values(g.runSkills).reduce((sum,value)=>sum+(value??0),0);
  return <div className="fixed inset-0 z-40 pointer-events-none select-none">
   <div className="absolute left-3 right-3 top-3 flex items-start justify-between" style={{paddingTop:'env(safe-area-inset-top)',paddingLeft:'env(safe-area-inset-left)',paddingRight:'env(safe-area-inset-right)'}}>
    <div className="w-[190px] rounded-2xl border border-white/10 bg-black/55 p-3 shadow-xl backdrop-blur-sm">
     <div className="mb-2 flex items-center justify-between text-[10px] font-black tracking-[.18em] text-white/75"><span>KAPITEL {g.chapter}</span><span>RAUM {g.floor}/10</span></div>
     <Bar v={p.hp} m={p.maxHp} c="#cb463d"/>
-    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[#d8a845]" style={{width:`${xp}%`}}/></div>
-    <div className="mt-1 flex justify-between text-[8px] font-bold text-white/45"><span>LV {p.level}</span><span>{p.xp}/{xpNeed} XP</span></div>
+    <div className="mt-2 flex items-center justify-between border-t border-white/8 pt-2 text-[8px] font-bold tracking-[.16em] text-white/45"><span>WALDLÄUFER</span><span>{gifts} GABEN</span></div>
    </div>
    <button type="button" onPointerDown={e=>{e.preventDefault();e.stopPropagation();onPause()}} className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 text-sm font-black text-white/85 backdrop-blur-sm active:scale-90" data-ui-control>Ⅱ</button>
   </div>
