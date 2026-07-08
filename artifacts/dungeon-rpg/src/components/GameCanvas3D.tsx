@@ -44,6 +44,9 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
     const pickupMeshes = new Map<string, any>();
     const itemMeshes = new Map<string, any>();
     let hitSparks: { mesh: any; life: number }[] = [];
+    let wallInstancedMesh: any = null;
+    let gridLines: any = null;
+    let lastMapKey: string | null = null;
 
     const disposeObject = (object: any) => {
       object?.traverse?.((node: any) => {
@@ -545,6 +548,50 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       }
     };
 
+    const syncWalls = (state: GameState) => {
+      const map = state.map;
+      const key = `${map.width}x${map.height}|${map.tiles.map(row => row.join('')).join('')}`;
+      if (key === lastMapKey) return;
+      lastMapKey = key;
+
+      if (wallInstancedMesh) {
+        scene.remove(wallInstancedMesh);
+        wallInstancedMesh.geometry?.dispose?.();
+        wallInstancedMesh.material?.dispose?.();
+        wallInstancedMesh = null;
+      }
+
+      const walls: { x: number; y: number }[] = [];
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          if (map.tiles[y][x] === TileType.WALL) walls.push({ x, y });
+        }
+      }
+      if (walls.length === 0) return;
+
+      const wallGeo = new THREE.IcosahedronGeometry(0.48, 0);
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x6d5e50, roughness: 0.95, emissive: 0x221a16, emissiveIntensity: 0.04 });
+      wallInstancedMesh = new THREE.InstancedMesh(wallGeo, wallMat, walls.length);
+      wallInstancedMesh.castShadow = true;
+      wallInstancedMesh.receiveShadow = true;
+
+      const dummy = new THREE.Object3D();
+      for (let i = 0; i < walls.length; i++) {
+        const { x, y } = walls[i];
+        const wx = (x + 0.5) * TILE_SIZE / TILE_WORLD - WORLD_OFFSET_X;
+        const wz = (y + 0.5) * TILE_SIZE / TILE_WORLD - WORLD_OFFSET_Z;
+        const isEdge = x < 2 || x >= map.width - 2 || y < 2 || y >= map.height - 2;
+        const s = isEdge ? 0.92 + Math.random() * 0.35 : 0.62 + Math.random() * 0.28;
+        dummy.position.set(wx, s * 0.55, wz);
+        dummy.rotation.set(Math.random() * 0.35, Math.random() * Math.PI * 2, Math.random() * 0.35);
+        dummy.scale.setScalar(s);
+        dummy.updateMatrix();
+        wallInstancedMesh.setMatrixAt(i, dummy.matrix);
+      }
+      wallInstancedMesh.instanceMatrix.needsUpdate = true;
+      scene.add(wallInstancedMesh);
+    };
+
     const renderLoop = () => {
       if (disposed || !renderer || !scene || !camera || !THREE) return;
       const state = stateRef.current;
@@ -578,6 +625,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       syncPickups(state);
       syncItems(state, now);
       syncPortal(state, now);
+      syncWalls(state);
       updateHitSparks(dt);
       mixer?.update(dt);
       desiredCamera.set(px, 14.5, pz + 12.5);
@@ -625,6 +673,22 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       floor.receiveShadow = true;
       scene.add(floor);
 
+      const gridGeo = new THREE.BufferGeometry();
+      const gridPositions: number[] = [];
+      const gx0 = -9, gx1 = 9, gz0 = -12, gz1 = 12;
+      for (let i = 0; i <= 18; i++) {
+        const x = gx0 + (gx1 - gx0) * i / 18;
+        gridPositions.push(x, 0, gz0, x, 0, gz1);
+      }
+      for (let i = 0; i <= 24; i++) {
+        const z = gz0 + (gz1 - gz0) * i / 24;
+        gridPositions.push(gx0, 0, z, gx1, 0, z);
+      }
+      gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridPositions, 3));
+      gridLines = new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({ color: 0x3d4f30, transparent: true, opacity: 0.35 }));
+      gridLines.position.y = 0.015;
+      scene.add(gridLines);
+
       const loader = new GLTFLoader();
       const load = (name: string) => new Promise<any>((resolve, reject) => loader.load(`${ASSET_ROOT}${name}`, resolve, undefined, reject));
       const [heroGltf, animationsGltf, treeGltf, pineGltf, rockGltf, bushGltf] = await Promise.all([
@@ -644,10 +708,13 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
 
       mixer = new THREE.AnimationMixer(hero);
       const clips = animationsGltf.animations ?? [];
-      const findClip = (terms: string[]) => clips.find((clip: any) => terms.some(term => clip.name.toLowerCase().includes(term)));
-      const idleClip = findClip(['idle']);
-      const runClip = findClip(['jog', 'run']);
-      const attackClip = findClip(['bow', 'archery', 'shoot', 'ranged attack', 'attack']);
+      const findClip = (terms: string[], excludeTerms: string[] = []) => clips.find((clip: any) => {
+        const name = clip.name.toLowerCase();
+        return terms.some(term => name.includes(term)) && !excludeTerms.some(term => name.includes(term));
+      });
+      const idleClip = findClip(['idle_loop'], ['crouch', 'talking', 'torch', 'pistol']);
+      const runClip = findClip(['jog_fwd_loop']);
+      const attackClip = findClip(['spell_simple_shoot', 'sword_attack', 'shoot'], ['pistol']);
       if (idleClip) idleAction = mixer.clipAction(idleClip);
       if (runClip) runAction = mixer.clipAction(runClip);
       if (attackClip) attackAction = mixer.clipAction(attackClip);
@@ -700,6 +767,8 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       }
       hitSparks = [];
       if (portalMesh) { scene.remove(portalMesh); disposeObject(portalMesh); portalMesh = null; }
+      if (wallInstancedMesh) { scene.remove(wallInstancedMesh); wallInstancedMesh.geometry?.dispose?.(); wallInstancedMesh.material?.dispose?.(); wallInstancedMesh = null; }
+      if (gridLines) { scene.remove(gridLines); gridLines.geometry?.dispose?.(); gridLines.material?.dispose?.(); gridLines = null; }
       enemyMeshes.clear();
       arrowMeshes.clear();
       dashMeshes.clear();

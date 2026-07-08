@@ -1,6 +1,7 @@
 import React,{useState}from'react';
 import{ClassKey}from'../../game/classes';
 import{useLanguage}from'../../i18n/LanguageContext';
+import{RangerPreview}from'../RangerPreview';
 
 interface Props{onConfirm:(name:string,cls:ClassKey)=>void;onBack:()=>void}
 
@@ -14,7 +15,9 @@ export function CharacterCreationModern({onConfirm,onBack}:Props){
   <main className="relative z-10 flex flex-1 flex-col overflow-y-auto px-5 pb-5">
    <section className="mb-5 shrink-0 rounded border border-amber-100/15 bg-black/30 p-4"><label className="mb-2 block text-[10px] tracking-[.28em] text-amber-100/45">{t.heroName}</label><input value={name} onChange={e=>setName(e.target.value.slice(0,18))} placeholder={t.heroNamePlaceholder} maxLength={18} className="w-full border-b border-amber-100/25 bg-transparent px-1 py-3 font-serif text-2xl outline-none placeholder:text-amber-100/20"/></section>
    <section className="flex flex-1 flex-col items-center justify-center rounded border border-amber-100/15 bg-black/40 px-6 py-8 text-center">
-    <div className="grid h-28 w-28 place-items-center rounded-full border border-amber-300/25 bg-[radial-gradient(circle,rgba(212,157,66,.24),rgba(0,0,0,.2)_62%)] text-6xl shadow-[0_0_45px_rgba(212,157,66,.12)]">🏹</div>
+    <div className="relative h-28 w-28 overflow-hidden rounded-full border border-amber-300/25 bg-[radial-gradient(circle,rgba(212,157,66,.24),rgba(0,0,0,.2)_62%)] shadow-[0_0_45px_rgba(212,157,66,.12)]">
+      <RangerPreview />
+    </div>
     <h2 className="mt-6 font-serif text-4xl font-bold tracking-wider text-[#d7a441]">{t.className.archer}</h2>
     <p className="mt-2 text-xs uppercase tracking-[.22em] text-amber-100/45">{t.classRole.archer}</p>
     <p className="mt-6 max-w-sm text-sm leading-relaxed text-amber-50/70">{t.classDesc.archer}</p>
