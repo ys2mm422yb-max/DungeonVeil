@@ -1,8 +1,8 @@
 export const RUN_CAMERA = {
-  fov: 38,
-  height: 10.8,
-  distance: 18.6,
-  lookHeight: 0.9,
+  fov: 40,
+  height: 15.2,
+  distance: 15.4,
+  lookHeight: 0.75,
   followLerp: 0.085,
 } as const;
 
