@@ -110,7 +110,32 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       }
     };
 
-    const syncArrows = (state: GameState) => {
+    const addElementVisual = (arrow: any, color: string) => {
+      const normalized = color.toLowerCase();
+      const isFire = normalized === '#ff642c';
+      const isIce = normalized === '#62d9ff';
+      if (!isFire && !isIce) return;
+
+      const positions = [0, -0.22, -0.44, -0.68];
+      const scales = [0.11, 0.085, 0.06, 0.04];
+      const glows: any[] = [];
+      positions.forEach((y, index) => {
+        const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
+        const glow = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), material);
+        glow.position.set(0, y, 0);
+        glow.scale.setScalar(scales[index]);
+        arrow.add(glow);
+        glows.push(glow);
+      });
+
+      const light = new THREE.PointLight(color, isFire ? 4.2 : 3.6, 3.6, 2);
+      light.position.set(0, -0.08, 0);
+      arrow.add(light);
+      arrow.userData.elementGlows = glows;
+      arrow.userData.elementLight = light;
+    };
+
+    const syncArrows = (state: GameState, now: number) => {
       const shots = state.effects.filter(effect => effect.type === 'beam' && effect.id.startsWith('shot-'));
       const active = new Set(shots.map(effect => effect.id));
       for (const [id, mesh] of arrowVisuals) {
@@ -124,13 +149,14 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         let arrow = arrowVisuals.get(shot.id);
         if (!arrow && arrowPrototype) {
           arrow = arrowPrototype.clone(true);
-          arrow.scale.setScalar(1.08);
+          arrow.scale.setScalar(1.14);
           arrow.traverse((node: any) => {
             if (node.isLine && node.material) node.material = node.material.clone();
             if (!node.isMesh && !node.isLine) return;
             node.castShadow = false;
             node.frustumCulled = true;
           });
+          addElementVisual(arrow, shot.color);
           scene.add(arrow);
           arrowVisuals.set(shot.id, arrow);
         }
@@ -148,8 +174,16 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         arrow.traverse((node: any) => {
           if (!node.isLine || !node.material?.color) return;
           node.material.color.set(shot.color);
-          node.material.opacity = Math.max(0.15, 0.72 * (1 - progress * 0.35));
+          node.material.opacity = Math.max(0.22, 0.92 * (1 - progress * 0.28));
         });
+
+        const pulse = 0.82 + Math.sin(now * 0.025 + progress * 8) * 0.18;
+        const glows = arrow.userData.elementGlows as any[] | undefined;
+        glows?.forEach((glow, index) => {
+          glow.material.opacity = Math.max(0.25, pulse - index * 0.12);
+          glow.scale.setScalar((0.11 - index * 0.02) * (0.85 + pulse * 0.3));
+        });
+        if (arrow.userData.elementLight) arrow.userData.elementLight.intensity = 3.3 + pulse * 1.9;
       }
     };
 
@@ -259,7 +293,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
       if (playerLight) playerLight.position.set(playerX, 4.2, playerZ + 1.2);
       syncEnemies(state, delta);
-      syncArrows(state);
+      syncArrows(state, now);
       syncLoot(state, now);
       syncPortal(state, now);
       updateRunCamera(camera, cameraGoal, playerX, playerZ);
@@ -274,8 +308,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (disposed) return;
 
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x8a725e);
-      scene.fog = new THREE.Fog(0x8a725e, 34, 64);
+      scene.background = new THREE.Color(0x171512);
+      scene.fog = new THREE.Fog(0x171512, 30, 58);
 
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
@@ -283,24 +317,24 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.2;
+      renderer.toneMappingExposure = 1.12;
       host.appendChild(renderer.domElement);
 
       camera = new THREE.PerspectiveCamera(RUN_CAMERA.fov, 1, 0.1, 150);
       camera.position.set(0, RUN_CAMERA.height, RUN_CAMERA.distance);
       cameraGoal = new THREE.Vector3();
 
-      scene.add(new THREE.AmbientLight(0xfff2e3, 1.1));
-      scene.add(new THREE.HemisphereLight(0xffe8d2, 0x51483f, 1.5));
-      const keyLight = new THREE.DirectionalLight(0xffd6ad, 2.35);
+      scene.add(new THREE.AmbientLight(0xd8d1c5, 0.74));
+      scene.add(new THREE.HemisphereLight(0xd9c7aa, 0x171512, 1.05));
+      const keyLight = new THREE.DirectionalLight(0xffc98b, 1.85);
       keyLight.position.set(-7, 14, 7);
       keyLight.castShadow = true;
       keyLight.shadow.mapSize.set(1024, 1024);
       scene.add(keyLight);
-      const fillLight = new THREE.PointLight(0x7566d8, 3.0, 24, 1.8);
+      const fillLight = new THREE.PointLight(0x6f61c8, 2.2, 22, 1.8);
       fillLight.position.set(0, 6.5, -8);
       scene.add(fillLight);
-      playerLight = new THREE.PointLight(0xffddb4, 3.2, 15, 1.7);
+      playerLight = new THREE.PointLight(0xffd29b, 2.5, 13, 1.7);
       scene.add(playerLight);
 
       playerRig = await loadKayKitRanger(THREE, GLTFLoader);
