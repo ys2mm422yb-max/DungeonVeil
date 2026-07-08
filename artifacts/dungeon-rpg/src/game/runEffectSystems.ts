@@ -16,6 +16,12 @@ export function createRunEffectSystemState(): RunEffectSystemState {
   };
 }
 
+function cleanInstantEffectsFromBuild(engine: GameEngine): void {
+  if (!Object.prototype.hasOwnProperty.call(engine.state.runSkills, 'heal')) return;
+  delete engine.state.runSkills.heal;
+  engine.saveNow('ability-cleanup');
+}
+
 function applyFinalBurnTicks(engine: GameEngine, system: RunEffectSystemState, time: number): void {
   const activeEnemyIds = new Set(engine.state.enemies.map(enemy => enemy.id));
   for (const enemyId of system.finalizedBurns.keys()) {
@@ -88,6 +94,7 @@ function applyFireDeathBursts(engine: GameEngine, system: RunEffectSystemState, 
 }
 
 export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  cleanInstantEffectsFromBuild(engine);
   applyFinalBurnTicks(engine, system, time);
   applyFireDeathBursts(engine, system, time);
 }
