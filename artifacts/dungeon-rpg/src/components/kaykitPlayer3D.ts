@@ -1,4 +1,5 @@
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
+import { attachBowToRanger, type BowRig } from './bowRig';
 
 const KAYKIT_ROOT = '/assets/kaykit';
 
@@ -8,7 +9,6 @@ export const KAYKIT_PLAYER_ASSETS = {
   general: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb`,
   movement: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb`,
   movementAdvanced: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb`,
-  ranged: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatRanged.glb`,
 } as const;
 
 export type KayKitPlayerRig = {
@@ -51,31 +51,29 @@ function prepareModel(root: any) {
     if (!node.isMesh && !node.isSkinnedMesh) return;
     node.castShadow = true;
     node.receiveShadow = true;
-    node.frustumCulled = false;
+    node.frustumCulled = true;
   });
 }
 
-function attachToBone(parent: any, object: any, position: [number, number, number], rotation: [number, number, number], scale: number) {
+function attachQuiver(parent: any, object: any) {
   if (!parent || !object) return;
-  object.position.set(...position);
-  object.rotation.order = 'YXZ';
-  object.rotation.set(...rotation);
-  object.scale.setScalar(scale);
+  object.position.set(-0.17, 0.05, -0.16);
+  object.rotation.set(0.15, 0.2, -0.08);
+  object.scale.setScalar(1);
   parent.add(object);
 }
 
 export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
-  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, rangedGltf, weapons] = await Promise.all([
+  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, weapons] = await Promise.all([
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranged),
     loadKayKitRangerWeapons(),
   ]);
-  if (!weapons) throw new Error('No KayKit bow and arrow found in the complete weapons/adventurers libraries');
+  if (!weapons) throw new Error('No KayKit bow and arrow found in the supplied KayKit libraries');
 
   const root = new THREE.Group();
   root.name = 'KayKitRangerPlayer';
@@ -85,74 +83,47 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   prepareModel(visual);
   root.add(visual);
 
-  const allClips = [
+  const clips = [
     ...(rangerGltf.animations ?? []),
     ...(generalGltf.animations ?? []),
     ...(movementGltf.animations ?? []),
     ...(advancedGltf.animations ?? []),
-    ...(rangedGltf.animations ?? []),
   ];
 
-  const idleClip = chooseClip(allClips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep', 'aim', 'bow']);
-  const runClip = chooseClip(allClips, [['run'], ['jog'], ['walk']], ['back', 'left', 'right', 'crouch', 'aim']);
-  const attackClip = chooseClip(allClips, [
-    ['bow', 'shoot'],
-    ['shoot', 'bow'],
-    ['ranged', 'attack'],
-    ['attack', 'bow'],
-  ], ['crossbow', 'idle', 'aim', 'ready']);
-  const dashClip = chooseClip(allClips, [['dodge', 'forward'], ['dodge'], ['roll', 'forward'], ['roll']], ['back']);
+  const idleClip = chooseClip(clips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep', 'aim', 'bow']);
+  const runClip = chooseClip(clips, [['run'], ['jog'], ['walk']], ['back', 'left', 'right', 'crouch', 'aim']);
+  const dashClip = chooseClip(clips, [['dodge', 'forward'], ['dodge'], ['roll', 'forward'], ['roll']], ['back']);
 
   const mixer = new THREE.AnimationMixer(visual);
   const idle = idleClip ? mixer.clipAction(idleClip) : null;
   const run = runClip ? mixer.clipAction(runClip) : null;
-  const attack = attackClip ? mixer.clipAction(attackClip) : null;
   const dash = dashClip ? mixer.clipAction(dashClip) : null;
   const base = idle ?? run;
   base?.reset().play();
   if (run) run.timeScale = 1.04;
-  if (attack) {
-    attack.setLoop(THREE.LoopOnce, 1);
-    attack.clampWhenFinished = false;
-    attack.timeScale = 1.22;
-  }
   if (dash) {
     dash.setLoop(THREE.LoopOnce, 1);
     dash.clampWhenFinished = false;
     dash.timeScale = 1.16;
   }
 
-  const leftHand = findBone(visual, ['lefthand', 'handl', 'handleft', 'leftwrist', 'wristl']);
+  prepareModel(weapons.bow);
+  prepareModel(quiverGltf.scene);
+  const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
-  const bow = weapons.bow;
-  const quiver = quiverGltf.scene;
-  prepareModel(bow);
-  prepareModel(quiver);
-  attachToBone(leftHand, bow, [0.015, -0.015, 0.035], [-0.08, Math.PI / 2, -Math.PI / 2], 1);
-  attachToBone(spine, quiver, [-0.17, 0.05, -0.16], [0.15, 0.2, -0.08], 1);
+  attachQuiver(spine, quiverGltf.scene);
 
   let moving = false;
-  let attackRemaining = 0;
+  let shotTime = 0;
   let dashRemaining = 0;
   let current = base;
 
   const playBase = () => {
     const next = moving ? run : idle;
     if (!next || next === current) return;
-    next.reset().fadeIn(0.12).play();
-    current?.fadeOut(0.12);
+    next.reset().fadeIn(0.1).play();
+    current?.fadeOut(0.1);
     current = next;
-  };
-
-  const playOneShot = (action: any, duration: number) => {
-    if (!action) return false;
-    action.stop();
-    action.reset().fadeIn(0.045).play();
-    current?.fadeOut(0.06);
-    current = action;
-    if (action === attack) attackRemaining = duration;
-    if (action === dash) dashRemaining = duration;
-    return true;
   };
 
   return {
@@ -160,22 +131,36 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     arrowPrototype: weapons.arrow,
     setMoving(value: boolean) {
       moving = value;
-      if (attackRemaining > 0 || dashRemaining > 0) return;
-      playBase();
+      if (dashRemaining <= 0) playBase();
     },
     triggerAttack() {
-      const duration = attackClip ? Math.max(0.22, attackClip.duration / 1.22) : 0.24;
-      playOneShot(attack, duration);
+      shotTime = 0.22;
     },
     triggerDash() {
-      const duration = dashClip ? Math.max(0.18, dashClip.duration / 1.16) : 0.3;
-      playOneShot(dash, duration);
+      if (!dash) return;
+      const duration = Math.max(0.18, dashClip!.duration / 1.16);
+      dashRemaining = duration;
+      dash.stop();
+      dash.reset().fadeIn(0.04).play();
+      current?.fadeOut(0.05);
+      current = dash;
     },
     update(delta: number) {
-      if (attackRemaining > 0) {
-        attackRemaining = Math.max(0, attackRemaining - delta);
-        if (attackRemaining === 0) playBase();
+      if (shotTime > 0) {
+        shotTime = Math.max(0, shotTime - delta);
+        const progress = 1 - shotTime / 0.22;
+        const pulse = Math.sin(progress * Math.PI);
+        bowRig.updateShotPose(pulse);
+        visual.rotation.z = -pulse * 0.055;
+        visual.position.z = pulse * 0.035;
+        visual.position.y = pulse * 0.025;
+      } else {
+        bowRig.updateShotPose(0);
+        visual.rotation.z *= 0.72;
+        visual.position.z *= 0.72;
+        visual.position.y *= 0.72;
       }
+
       if (dashRemaining > 0) {
         dashRemaining = Math.max(0, dashRemaining - delta);
         if (dashRemaining === 0) playBase();
