@@ -41,7 +41,7 @@ const CARD_STYLES: Record<UpgradeKey, CardStyle> = {
   attackSpeed: { Icon: Gauge, accent: '#62d9ff', glow: 'rgba(98,217,255,.44)', labelDe: 'SCHNELLZUG', labelEn: 'QUICK DRAW', tierDe: 'TEMPO', tierEn: 'TEMPO', rune: '»' },
   piercing: { Icon: ArrowUpRight, accent: '#d7e4ec', glow: 'rgba(215,228,236,.42)', labelDe: 'DURCHBOHREN', labelEn: 'PIERCING', tierDe: 'PRÄZISION', tierEn: 'PRECISION', rune: '↑' },
   maxHp: { Icon: HeartPulse, accent: '#ff6e7e', glow: 'rgba(255,110,126,.46)', labelDe: 'LEBENSKRAFT', labelEn: 'VITALITY', tierDe: 'VITALITÄT', tierEn: 'VITALITY', rune: '♥' },
-  heal: { Icon: Sparkles, accent: '#70e5a2', glow: 'rgba(112,229,162,.44)', labelDe: 'ERHOLUNG', labelEn: 'RECOVERY', tierDe: 'HEILUNG', tierEn: 'HEALING', rune: '+' },
+  heal: { Icon: Sparkles, accent: '#70e5a2', glow: 'rgba(112,229,162,.44)', labelDe: 'ERHOLUNG', labelEn: 'RECOVERY', tierDe: 'SOFORT', tierEn: 'INSTANT', rune: '+' },
   attack: { Icon: Swords, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERINSTINKT', labelEn: 'HUNTER INSTINCT', tierDe: 'ANGRIFF', tierEn: 'ATTACK', rune: 'X' },
   speed: { Icon: WandSparkles, accent: '#69cbff', glow: 'rgba(105,203,255,.44)', labelDe: 'WINDLÄUFER', labelEn: 'WINDRUNNER', tierDe: 'TEMPO', tierEn: 'TEMPO', rune: '≈' },
   defense: { Icon: Shield, accent: '#8eb2ff', glow: 'rgba(142,178,255,.44)', labelDe: 'WALDHAUT', labelEn: 'FOREST SKIN', tierDe: 'SCHUTZ', tierEn: 'GUARD', rune: '⬡' },
@@ -56,10 +56,12 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
     const style = CARD_STYLES[key];
     const rank = nextSkillRank(runSkills, key);
     const def = RUN_SKILL_DEFS[key];
+    const instant = key === 'heal';
     return {
       key,
       ...style,
       rank,
+      instant,
       label: language === 'de' ? style.labelDe : style.labelEn,
       tier: language === 'de' ? style.tierDe : style.tierEn,
       detail: language === 'de' ? def.rankTextDe[Math.max(0, rank - 1)] : def.rankTextEn[Math.max(0, rank - 1)],
@@ -84,7 +86,7 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full border border-amber-300/45 bg-amber-400/10 shadow-[0_0_48px_rgba(229,176,73,.22)]"><Sparkles size={24} strokeWidth={1.7} /></div>
           <div className="text-[9px] font-black uppercase tracking-[.44em] text-amber-200/55">{language === 'de' ? 'RAUM BEZWUNGEN' : 'ROOM CLEARED'}</div>
           <h1 className="mt-2 font-serif text-[36px] leading-[.95] tracking-[.08em] text-[#f4ead5]">{language === 'de' ? 'WÄHLE DEINE GABE' : 'CHOOSE YOUR GIFT'}</h1>
-          <p className="mt-3 text-[10px] uppercase tracking-[.25em] text-white/38">{language === 'de' ? 'Eine Gabe vor dem nächsten Raum' : 'One gift before the next room'}</p>
+          <p className="mt-3 text-[10px] uppercase tracking-[.25em] text-white/38">{language === 'de' ? 'Eine Wahl vor dem nächsten Raum' : 'One choice before the next room'}</p>
         </header>
 
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-3">
@@ -92,6 +94,9 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
             const picked = selected === card.key;
             const faded = selected !== null && !picked;
             const Icon = card.Icon;
+            const rankLabel = card.instant
+              ? (language === 'de' ? `WAHL ${index + 1} · SOFORTEFFEKT` : `CHOICE ${index + 1} · INSTANT EFFECT`)
+              : (language === 'de' ? `GABE ${index + 1} · RANG ${roman(card.rank)}` : `GIFT ${index + 1} · RANK ${roman(card.rank)}`);
             return (
               <button
                 key={card.key}
@@ -109,10 +114,10 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex items-center gap-2">
-                      <span className="text-[8px] font-black uppercase tracking-[.32em]" style={{ color: card.accent }}>{language === 'de' ? `GABE ${index + 1} · RANG ${roman(card.rank)}` : `GIFT ${index + 1} · RANK ${roman(card.rank)}`}</span>
+                      <span className="text-[8px] font-black uppercase tracking-[.32em]" style={{ color: card.accent }}>{rankLabel}</span>
                       <span className="h-px flex-1 bg-white/10" />
                     </div>
-                    <div className="text-[20px] font-black tracking-[.05em] text-[#f8f3e9]">{card.label} {roman(card.rank)}</div>
+                    <div className="text-[20px] font-black tracking-[.05em] text-[#f8f3e9]">{card.label}{card.instant ? '' : ` ${roman(card.rank)}`}</div>
                     <div className="mt-1.5 text-[13px] leading-snug text-white/60">{card.detail}</div>
                   </div>
                 </div>
