@@ -30,39 +30,39 @@ export function MainMenuDungeonScene() {
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.1));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.92;
+      renderer.toneMappingExposure = 0.96;
       renderer.shadowMap.enabled = false;
       host.appendChild(renderer.domElement);
 
       const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 80);
-      camera.position.set(0, 5.8, 10.8);
-      camera.lookAt(0, 1.1, -3.8);
+      camera.position.set(0, 6.35, 11.8);
+      camera.lookAt(0, 1.45, -5.3);
 
       const room = buildKayKitDungeonRoom(THREE, 1, 24, 32);
       room.position.z = -4.5;
       scene.add(room);
 
-      scene.add(new THREE.HemisphereLight(0xc3b49b, 0x080706, 0.62));
+      scene.add(new THREE.HemisphereLight(0xc3b49b, 0x080706, 0.68));
       const leftTorch = new THREE.PointLight(0xff8a36, 6.8, 10, 2);
       leftTorch.position.set(-4.4, 2.4, -3.8);
       scene.add(leftTorch);
       const rightTorch = new THREE.PointLight(0xff6f2d, 5.4, 9, 2);
       rightTorch.position.set(4.2, 2.1, -5.2);
       scene.add(rightTorch);
-      const veilLight = new THREE.PointLight(0x7562d8, 4.2, 12, 2);
+      const veilLight = new THREE.PointLight(0x7562d8, 5.1, 13, 2);
       veilLight.position.set(0, 2.8, -10.5);
       scene.add(veilLight);
 
       const gate = new THREE.Group();
       const outer = new THREE.Mesh(
         new THREE.TorusGeometry(2.25, 0.12, 10, 48),
-        new THREE.MeshBasicMaterial({ color: 0x7b61cb, transparent: true, opacity: 0.26 }),
+        new THREE.MeshBasicMaterial({ color: 0x7b61cb, transparent: true, opacity: 0.34 }),
       );
       outer.position.set(0, 2.2, -11.4);
       gate.add(outer);
       const inner = new THREE.Mesh(
         new THREE.CircleGeometry(2.08, 48),
-        new THREE.MeshBasicMaterial({ color: 0x33234f, transparent: true, opacity: 0.18, depthWrite: false }),
+        new THREE.MeshBasicMaterial({ color: 0x33234f, transparent: true, opacity: 0.22, depthWrite: false }),
       );
       inner.position.set(0, 2.2, -11.42);
       gate.add(inner);
@@ -70,8 +70,8 @@ export function MainMenuDungeonScene() {
 
       ranger = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
-      ranger.root.scale.setScalar(1.18);
-      ranger.root.position.set(0, 0, -1.2);
+      ranger.root.scale.setScalar(0.9);
+      ranger.root.position.set(0, 0, -3.1);
       ranger.root.rotation.y = Math.PI;
       scene.add(ranger.root);
 
@@ -93,11 +93,11 @@ export function MainMenuDungeonScene() {
         ranger?.update(delta);
         if (ranger) ranger.root.rotation.y = Math.PI + Math.sin(now * 0.00025) * 0.08;
         outer.rotation.z = now * 0.00008;
-        inner.material.opacity = 0.13 + Math.sin(now * 0.0016) * 0.05;
+        inner.material.opacity = 0.17 + Math.sin(now * 0.0016) * 0.06;
         leftTorch.intensity = 6.2 + Math.sin(now * 0.009) * 0.6;
         rightTorch.intensity = 5 + Math.sin(now * 0.011 + 1.4) * 0.5;
-        camera.position.x = Math.sin(now * 0.00018) * 0.2;
-        camera.lookAt(0, 1.1, -3.8);
+        camera.position.x = Math.sin(now * 0.00018) * 0.18;
+        camera.lookAt(0, 1.45, -5.3);
         renderer.render(scene, camera);
         raf = requestAnimationFrame(loop);
       };
