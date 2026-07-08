@@ -10,6 +10,15 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - 'lib/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/dungeon-rpg-check.yml'
   workflow_dispatch:
 
 jobs:
