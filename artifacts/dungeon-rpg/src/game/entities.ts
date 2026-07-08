@@ -35,6 +35,8 @@ export interface Player extends Entity {
   spawnTime: number;
   /** When the player last attacked (for attack animation) */
   lastAttackTime: number;
+  /** When the player last dashed, for renderer-only dash trails and cooldown feedback. */
+  lastDodgeTime?: number;
 }
 
 export type EnemyType = EnemyTypeName;
@@ -121,8 +123,8 @@ export interface VisualEffect {
   color: string;
   lifeTime: number;
   maxLifeTime: number;
-  type: 'sweep' | 'flash' | 'circle' | 'slash' | 'beam';
-  /** Rotation for slash effect */
+  type: 'sweep' | 'flash' | 'circle' | 'slash' | 'beam' | 'dash' | 'pickup';
+  /** Rotation for slash, beam, and dash effects */
   angle?: number;
   /** Source width */
   width?: number;
