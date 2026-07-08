@@ -10,7 +10,6 @@ export interface GamePausePanelProps {
   settings: string;
   classNameText: string;
   onResume: () => void;
-  onSave: () => void;
   onSettings: () => void;
   onMainMenu: () => void;
   onLanguage: (language: Language) => void;
