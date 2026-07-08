@@ -1,3 +1,5 @@
+import { ROOM_ASSETS, type ObjAssetSpec, OBJ_LIBRARY_ROOT } from './assetCatalog3D';
+
 export type RoomDecorAssetMap = Record<string, any>;
 
 type DecorPoint = {
@@ -8,83 +10,106 @@ type DecorPoint = {
   rotation?: number;
 };
 
-type AssetSpec = {
-  kind: string;
-  folder: 'dungeon' | 'props';
-  file: string;
-  targetSize: number;
-};
-
 const OBJ_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/OBJLoader.js';
 const MTL_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/MTLLoader.js';
-const ROOM_ROOT = '/assets/3d/rooms/';
+const assetCache = new Map<string, Promise<any | null>>();
 
-const ASSET_SPECS: AssetSpec[] = [
-  { kind: 'arch', folder: 'dungeon', file: 'Arch', targetSize: 4.4 },
-  { kind: 'archDoor', folder: 'dungeon', file: 'Arch_Door', targetSize: 4.4 },
-  { kind: 'wall', folder: 'dungeon', file: 'Wall_Modular', targetSize: 4.2 },
-  { kind: 'wallCover', folder: 'dungeon', file: 'Wall_Modular', targetSize: 4.2 },
-  { kind: 'torch', folder: 'dungeon', file: 'Torch', targetSize: 1.8 },
-  { kind: 'woodfire', folder: 'dungeon', file: 'Woodfire', targetSize: 1.4 },
-  { kind: 'vase', folder: 'dungeon', file: 'Vase', targetSize: 0.9 },
-  { kind: 'trapdoor', folder: 'dungeon', file: 'Trapdoor', targetSize: 2.2 },
-  { kind: 'weaponStand', folder: 'props', file: 'WeaponStand', targetSize: 2.3 },
-  { kind: 'workbench', folder: 'props', file: 'Workbench', targetSize: 2.4 },
-];
+const ROOM_HALF_W = 9.6;
+const ROOM_HALF_H = 13.4;
+const WALL_STEP = 3.35;
+
+function range(start: number, end: number, step: number) {
+  const values: number[] = [];
+  for (let value = start; value <= end + 0.001; value += step) values.push(value);
+  return values;
+}
+
+function architecture(): DecorPoint[] {
+  const points: DecorPoint[] = [];
+
+  for (const x of range(-8.4, 8.4, WALL_STEP)) {
+    if (Math.abs(x) > 2) points.push({ kind: 'wall', x, z: -ROOM_HALF_H });
+    points.push({ kind: 'wall', x, z: ROOM_HALF_H, rotation: Math.PI });
+  }
+
+  for (const z of range(-10.2, 10.2, WALL_STEP)) {
+    points.push({ kind: 'wall', x: -ROOM_HALF_W, z, rotation: Math.PI / 2 });
+    points.push({ kind: 'wall', x: ROOM_HALF_W, z, rotation: -Math.PI / 2 });
+  }
+
+  points.push({ kind: 'archDoor', x: 0, z: -ROOM_HALF_H + 0.1 });
+  points.push({ kind: 'column', x: -7.8, z: -11.8, scale: 0.9 });
+  points.push({ kind: 'column', x: 7.8, z: -11.8, scale: 0.9 });
+  points.push({ kind: 'column2', x: -7.8, z: 11.8, scale: 0.9 });
+  points.push({ kind: 'column2', x: 7.8, z: 11.8, scale: 0.9 });
+  points.push({ kind: 'bannerWall', x: -5.4, z: -13.05, scale: 0.9 });
+  points.push({ kind: 'bannerWall', x: 5.4, z: -13.05, scale: 0.9 });
+  points.push({ kind: 'torch', x: -2.8, z: -12.9, scale: 0.85 });
+  points.push({ kind: 'torch', x: 2.8, z: -12.9, scale: 0.85 });
+
+  for (const x of range(-8, 8, 4)) {
+    for (const z of range(-11.5, 11.5, 4)) {
+      if (Math.abs(x) < 2.4 && Math.abs(z) > 9.5) continue;
+      points.push({ kind: (x + z) % 8 === 0 ? 'floorBricks' : 'floor', x, z, scale: 1.03 });
+    }
+  }
+
+  return points;
+}
 
 const ROOM_LAYOUTS: Record<number, DecorPoint[]> = {
   1: [
-    { kind: 'arch', x: 0, z: -10.5, scale: 0.82 },
-    { kind: 'wall', x: -5.7, z: -9.5, scale: 0.76 },
-    { kind: 'wall', x: -2.9, z: -9.5, scale: 0.76 },
-    { kind: 'wall', x: 2.9, z: -9.5, scale: 0.76 },
-    { kind: 'wall', x: 5.7, z: -9.5, scale: 0.76 },
-    { kind: 'wall', x: -7.2, z: -6.8, scale: 0.72, rotation: Math.PI / 2 },
-    { kind: 'wall', x: -7.2, z: -3.4, scale: 0.72, rotation: Math.PI / 2 },
-    { kind: 'wall', x: 7.2, z: -6.8, scale: 0.72, rotation: Math.PI / 2 },
-    { kind: 'wall', x: 7.2, z: -3.4, scale: 0.72, rotation: Math.PI / 2 },
-    { kind: 'torch', x: -2.0, z: -9.1, scale: 0.72 },
-    { kind: 'torch', x: 2.0, z: -9.1, scale: 0.72 },
-    { kind: 'woodfire', x: -5.5, z: -6.0, scale: 0.78 },
-    { kind: 'weaponStand', x: 5.5, z: -5.9, scale: 0.82, rotation: -0.25 },
-    { kind: 'workbench', x: -5.6, z: -3.0, scale: 0.78, rotation: Math.PI / 2 },
-    { kind: 'workbench', x: 5.6, z: -3.0, scale: 0.78, rotation: -Math.PI / 2 },
-    { kind: 'vase', x: -4.4, z: -7.4, scale: 0.62 },
-    { kind: 'vase', x: 4.5, z: -7.2, scale: 0.58 },
-    { kind: 'trapdoor', x: -3.4, z: -5.1, scale: 0.75, rotation: 0.14 },
-    { kind: 'trapdoor', x: 3.5, z: -4.7, scale: 0.68, rotation: -0.18 },
+    ...architecture(),
+    { kind: 'weaponStand', x: 7.1, z: -7.3, rotation: -Math.PI / 2 },
+    { kind: 'dummy', x: 6.7, z: -3.8, rotation: -Math.PI / 2 },
+    { kind: 'workbenchDrawers', x: 7.1, z: 0.2, rotation: -Math.PI / 2 },
+    { kind: 'anvil', x: 5.8, z: 2.2 },
+    { kind: 'barrel', x: 7.2, z: 5.5 },
+    { kind: 'crateWood', x: 6.1, z: 6.4, rotation: 0.2 },
+    { kind: 'woodfire', x: -6.9, z: -6.5 },
+    { kind: 'bench', x: -6.9, z: -3.3, rotation: Math.PI / 2 },
+    { kind: 'tableSmall', x: -6.5, z: 0.1, rotation: Math.PI / 2 },
+    { kind: 'candleTriple', x: -6.5, z: 0.1 },
+    { kind: 'barrel2', x: -7.1, z: 5.2 },
+    { kind: 'chest', x: -6.1, z: 6.4, rotation: 0.25 },
+    { kind: 'swordWallMount', x: 8.9, z: -0.6, rotation: -Math.PI / 2 },
   ],
   2: [
-    { kind: 'archDoor', x: 0, z: -10.3, scale: 0.9 },
-    { kind: 'wall', x: -6.0, z: -7.9, scale: 0.85, rotation: Math.PI / 2 },
-    { kind: 'wallCover', x: 6.0, z: -7.9, scale: 0.85, rotation: Math.PI / 2 },
-    { kind: 'vase', x: -3.8, z: -5.4, scale: 0.85 },
-    { kind: 'vase', x: 3.7, z: -5.1, scale: 0.72 },
-    { kind: 'torch', x: -4.5, z: -8.6, scale: 0.82 },
-    { kind: 'torch', x: 4.5, z: -8.6, scale: 0.82 },
+    ...architecture(),
+    { kind: 'bookcase', x: -7.2, z: -6.4, rotation: Math.PI / 2 },
+    { kind: 'bookcase', x: -7.2, z: -2.8, rotation: Math.PI / 2 },
+    { kind: 'shelfArch', x: 7.1, z: -5.8, rotation: -Math.PI / 2 },
+    { kind: 'shelfBottles', x: 7.1, z: -2.8, rotation: -Math.PI / 2 },
+    { kind: 'cauldron', x: -5.4, z: 3.4 },
+    { kind: 'cage', x: 5.8, z: 4.1 },
+    { kind: 'cobweb', x: -8.5, z: 8.8, rotation: Math.PI / 2 },
+    { kind: 'cobweb2', x: 8.5, z: 8.6, rotation: -Math.PI / 2 },
+    { kind: 'potion', x: 6.5, z: -1.8, scale: 1.3 },
   ],
   3: [
-    { kind: 'woodfire', x: 0, z: -6.3, scale: 1.0 },
-    { kind: 'weaponStand', x: -6.3, z: -5.9, scale: 0.9, rotation: Math.PI / 2 },
-    { kind: 'weaponStand', x: 6.3, z: -5.9, scale: 0.9, rotation: -Math.PI / 2 },
-    { kind: 'workbench', x: -4.1, z: -8.7, scale: 0.9, rotation: 0.12 },
-    { kind: 'workbench', x: 4.1, z: -8.7, scale: 0.9, rotation: -0.12 },
-    { kind: 'torch', x: -2.3, z: -9.4, scale: 0.82 },
-    { kind: 'torch', x: 2.3, z: -9.4, scale: 0.82 },
+    ...architecture(),
+    { kind: 'pedestal', x: 0, z: -5.8 },
+    { kind: 'statueHorse', x: 0, z: -8.5, rotation: Math.PI },
+    { kind: 'decorativeWall', x: -6.5, z: -9.8 },
+    { kind: 'decorativeWall', x: 6.5, z: -9.8 },
+    { kind: 'banner', x: -5.7, z: -7.1 },
+    { kind: 'banner', x: 5.7, z: -7.1 },
+    { kind: 'chestGold', x: 0, z: 7.1, rotation: Math.PI },
+    { kind: 'candleTriple', x: -2.2, z: 5.9 },
+    { kind: 'candleTriple', x: 2.2, z: 5.9 },
   ],
   4: [
-    { kind: 'arch', x: 0, z: -10.3, scale: 0.96 },
-    { kind: 'wall', x: -6.1, z: -8.0, scale: 0.9, rotation: Math.PI / 2 },
-    { kind: 'wall', x: 6.1, z: -8.0, scale: 0.9, rotation: Math.PI / 2 },
-    { kind: 'trapdoor', x: 0, z: -4.2, scale: 1.15 },
-    { kind: 'torch', x: -4.0, z: -7.3, scale: 0.9 },
-    { kind: 'torch', x: 4.0, z: -7.3, scale: 0.9 },
-    { kind: 'vase', x: -5.0, z: -4.6, scale: 0.8 },
-    { kind: 'vase', x: 5.0, z: -4.6, scale: 0.8 },
+    ...architecture(),
+    { kind: 'trapSpikes', x: -4.3, z: -2.5 },
+    { kind: 'trapSpikes', x: 4.3, z: -2.5 },
+    { kind: 'trapEmpty', x: 0, z: 2.3 },
+    { kind: 'trapdoor', x: 0, z: 7.0 },
+    { kind: 'crate', x: -7.0, z: 5.6 },
+    { kind: 'barrel', x: 7.0, z: 5.6 },
+    { kind: 'skull', x: -5.6, z: -6.0 },
+    { kind: 'skull', x: 5.6, z: -6.0, rotation: 1.4 },
   ],
 };
-
-const assetCache = new Map<string, Promise<any | null>>();
 
 function normalizeAsset(THREE: any, object: any, targetSize: number) {
   object.position.set(0, 0, 0);
@@ -111,7 +136,7 @@ function normalizeAsset(THREE: any, object: any, targetSize: number) {
   return object;
 }
 
-async function loadAsset(THREE: any, spec: AssetSpec) {
+async function loadAsset(THREE: any, spec: ObjAssetSpec) {
   const key = `${spec.folder}:${spec.file}`;
   let pending = assetCache.get(key);
   if (!pending) {
@@ -121,7 +146,7 @@ async function loadAsset(THREE: any, spec: AssetSpec) {
           import(/* @vite-ignore */ OBJ_URL),
           import(/* @vite-ignore */ MTL_URL),
         ]) as any;
-        const base = `${ROOM_ROOT}${spec.folder}/${spec.file}`;
+        const base = `${OBJ_LIBRARY_ROOT}${spec.folder}/${spec.file}`;
         const materials = await new MTLLoader().loadAsync(`${base}.mtl`);
         materials.preload();
         const loader = new OBJLoader();
@@ -143,17 +168,12 @@ function cloneAsset(source: any, point: DecorPoint) {
   object.position.set(point.x, 0, point.z);
   object.rotation.y = point.rotation ?? 0;
   object.scale.multiplyScalar(point.scale ?? 1);
-  object.traverse((node: any) => {
-    if (!node.isMesh) return;
-    node.castShadow = true;
-    node.receiveShadow = true;
-  });
   return object;
 }
 
 export function buildChapterRoomDecor(THREE: any, room: number, assets: RoomDecorAssetMap = {}) {
   const root = new THREE.Group();
-  root.name = `DungeonVeilRoomDecor-${room}`;
+  root.name = `DungeonVeilClosedRoom-${room}`;
   const points = ROOM_LAYOUTS[Math.max(1, Math.min(4, room))] ?? ROOM_LAYOUTS[1];
   let active = true;
 
@@ -161,24 +181,16 @@ export function buildChapterRoomDecor(THREE: any, room: number, assets: RoomDeco
     if (!active) return;
     for (const point of points) {
       const source = available[point.kind];
-      if (!source) continue;
-      root.add(cloneAsset(source, point));
+      if (source) root.add(cloneAsset(source, point));
     }
   };
 
   renderAvailable(assets);
-
   const missingKinds = [...new Set(points.map(point => point.kind).filter(kind => !assets[kind]))];
-  Promise.all(
-    missingKinds.map(async kind => {
-      const spec = ASSET_SPECS.find(candidate => candidate.kind === kind);
-      if (!spec) return [kind, null] as const;
-      return [kind, await loadAsset(THREE, spec)] as const;
-    }),
-  ).then(entries => {
-    if (!active) return;
-    renderAvailable(Object.fromEntries(entries.filter(([, object]) => object)));
-  });
+  Promise.all(missingKinds.map(async kind => [kind, ROOM_ASSETS[kind] ? await loadAsset(THREE, ROOM_ASSETS[kind]) : null] as const))
+    .then(entries => {
+      if (active) renderAvailable(Object.fromEntries(entries.filter(([, object]) => object)));
+    });
 
   root.userData.update = (_now: number) => {};
   root.userData.dispose = () => { active = false; };
