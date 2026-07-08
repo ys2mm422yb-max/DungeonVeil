@@ -22,6 +22,10 @@ async function loadLibrary(): Promise<Library> {
   return libraryPromise;
 }
 
+export function preloadKayKitOuterWorld() {
+  return loadLibrary().then(() => undefined);
+}
+
 function prepare(root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh) return;
