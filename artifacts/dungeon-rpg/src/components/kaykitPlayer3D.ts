@@ -58,6 +58,7 @@ function prepareModel(root: any) {
 function attachToBone(parent: any, object: any, position: [number, number, number], rotation: [number, number, number], scale: number) {
   if (!parent || !object) return;
   object.position.set(...position);
+  object.rotation.order = 'YXZ';
   object.rotation.set(...rotation);
   object.scale.setScalar(scale);
   parent.add(object);
@@ -92,14 +93,14 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     ...(rangedGltf.animations ?? []),
   ];
 
-  const idleClip = chooseClip(allClips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep']);
-  const runClip = chooseClip(allClips, [['run'], ['jog'], ['walk']], ['back', 'left', 'right', 'crouch']);
+  const idleClip = chooseClip(allClips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep', 'aim', 'bow']);
+  const runClip = chooseClip(allClips, [['run'], ['jog'], ['walk']], ['back', 'left', 'right', 'crouch', 'aim']);
   const attackClip = chooseClip(allClips, [
-    ['bow', 'attack'],
     ['bow', 'shoot'],
+    ['shoot', 'bow'],
     ['ranged', 'attack'],
-    ['bow'],
-  ], ['crossbow']);
+    ['attack', 'bow'],
+  ], ['crossbow', 'idle', 'aim', 'ready']);
   const dashClip = chooseClip(allClips, [['dodge', 'forward'], ['dodge'], ['roll', 'forward'], ['roll']], ['back']);
 
   const mixer = new THREE.AnimationMixer(visual);
@@ -121,13 +122,13 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     dash.timeScale = 1.16;
   }
 
-  const rightHand = findBone(visual, ['righthand', 'handr', 'handright']);
+  const leftHand = findBone(visual, ['lefthand', 'handl', 'handleft', 'leftwrist', 'wristl']);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   const bow = weapons.bow;
   const quiver = quiverGltf.scene;
   prepareModel(bow);
   prepareModel(quiver);
-  attachToBone(rightHand, bow, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], 1);
+  attachToBone(leftHand, bow, [0.015, -0.015, 0.035], [-0.08, Math.PI / 2, -Math.PI / 2], 1);
   attachToBone(spine, quiver, [-0.17, 0.05, -0.16], [0.15, 0.2, -0.08], 1);
 
   let moving = false;
@@ -163,7 +164,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       playBase();
     },
     triggerAttack() {
-      const duration = attackClip ? Math.max(0.22, attackClip.duration / 1.22) : 0.34;
+      const duration = attackClip ? Math.max(0.22, attackClip.duration / 1.22) : 0.24;
       playOneShot(attack, duration);
     },
     triggerDash() {
