@@ -1,17 +1,66 @@
-import React,{useEffect,useState}from'react';
-import type{GameState}from'../game/runEngine';
-import{CLASS_DEFS}from'../game/classes';
+import React, { useEffect, useState } from 'react';
+import { Wind } from 'lucide-react';
+import type { GameState } from '../game/runEngine';
+import { CLASS_DEFS } from '../game/classes';
 
-interface Props{gameState:GameState;onAttack:()=>void;onDodge:()=>void;onSkill:()=>void;onInteract:()=>void}
+interface Props {
+  gameState: GameState;
+  onAttack: () => void;
+  onDodge: () => void;
+  onSkill: () => void;
+  onInteract: () => void;
+}
 
-export function ActionButtons({gameState:g,onDodge}:Props){
- const p=g.player,d=CLASS_DEFS.archer,[dash,setDash]=useState(0);
- useEffect(()=>{let id=0;const tick=()=>{setDash(Math.max(0,Math.min(1,p.dodgeCooldown/d.dodgeCooldownMs)));id=requestAnimationFrame(tick)};id=requestAnimationFrame(tick);return()=>cancelAnimationFrame(id)},[p,d]);
- return <div className="fixed z-50 pointer-events-auto touch-none select-none" style={{width:86,height:86,right:'max(16px,env(safe-area-inset-right))',bottom:'max(22px,calc(env(safe-area-inset-bottom) + 14px))'}} data-ui-control>
-  <button type="button" onPointerDown={e=>{e.preventDefault();e.stopPropagation();onDodge()}} className="absolute inset-0 grid place-items-center overflow-hidden rounded-full border border-amber-300/55 bg-black/60 shadow-[0_10px_30px_rgba(0,0,0,.6)] backdrop-blur-sm active:scale-90">
-   <div className="absolute inset-2 rounded-full border border-white/10 bg-[radial-gradient(circle_at_35%_30%,rgba(84,177,218,.75),rgba(18,66,91,.9))]"/>
-   <span className="relative z-10 text-[11px] font-black tracking-[.18em] text-white">DASH</span>
-   {dash>0&&<div className="absolute inset-2 rounded-full" style={{background:`conic-gradient(rgba(0,0,0,.72) ${dash*360}deg,transparent 0deg)`,transform:'rotate(-90deg)'}}/>}
-  </button>
- </div>
+export function ActionButtons({ gameState: g, onDodge }: Props) {
+  const p = g.player;
+  const def = CLASS_DEFS.archer;
+  const [dash, setDash] = useState(0);
+
+  useEffect(() => {
+    let id = 0;
+    const tick = () => {
+      setDash(Math.max(0, Math.min(1, p.dodgeCooldown / def.dodgeCooldownMs)));
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [p, def.dodgeCooldownMs]);
+
+  const ready = dash <= 0.001;
+  const seconds = Math.max(0, dash * def.dodgeCooldownMs / 1000);
+
+  return (
+    <div
+      className="fixed z-50 pointer-events-auto touch-none select-none"
+      style={{ width: 92, height: 92, right: 'max(16px,env(safe-area-inset-right))', bottom: 'max(22px,calc(env(safe-area-inset-bottom) + 14px))' }}
+      data-ui-control
+    >
+      <button
+        type="button"
+        aria-label="Dash"
+        onPointerDown={event => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!ready) return;
+          try { navigator.vibrate?.(14); } catch {}
+          onDodge();
+        }}
+        className={`absolute inset-0 grid place-items-center overflow-hidden rounded-full border backdrop-blur-md transition-all duration-150 ${ready ? 'border-amber-300/70 bg-black/65 shadow-[0_12px_34px_rgba(0,0,0,.62),0_0_24px_rgba(91,184,227,.16)] active:scale-90' : 'border-white/10 bg-black/70 opacity-75'}`}
+      >
+        <div className={`absolute inset-2 rounded-full border ${ready ? 'border-cyan-100/20 bg-[radial-gradient(circle_at_35%_28%,rgba(101,205,241,.88),rgba(16,58,82,.96)_58%,rgba(6,24,38,.98))]' : 'border-white/5 bg-[radial-gradient(circle_at_35%_28%,rgba(60,80,90,.7),rgba(12,25,32,.96))]'}`} />
+        {ready && <div className="absolute inset-0 rounded-full border border-cyan-200/25 animate-[pulse_1.6s_ease-in-out_infinite]" />}
+        <div className="relative z-10 flex flex-col items-center gap-1">
+          <Wind size={24} strokeWidth={1.8} className={ready ? 'text-cyan-50' : 'text-white/35'} />
+          <span className={`text-[10px] font-black tracking-[.2em] ${ready ? 'text-white' : 'text-white/35'}`}>DASH</span>
+          {!ready && <span className="text-[9px] font-black tabular-nums text-cyan-100/55">{seconds.toFixed(1)}s</span>}
+        </div>
+        {dash > 0 && (
+          <div
+            className="absolute inset-2 rounded-full"
+            style={{ background: `conic-gradient(rgba(0,0,0,.74) ${dash * 360}deg,transparent 0deg)`, transform: 'rotate(-90deg)' }}
+          />
+        )}
+      </button>
+    </div>
+  );
 }
