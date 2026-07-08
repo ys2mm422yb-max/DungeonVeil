@@ -8,6 +8,10 @@ type LootLibrary = {
   potion: any[];
 };
 
+type LoadedGltf = {
+  scene: any;
+};
+
 let libraryPromise: Promise<LootLibrary> | null = null;
 
 function scoreXp(path: string) {
@@ -52,8 +56,8 @@ async function loadLibrary() {
         .map(entry => entry.path);
 
       const [xp, potion] = await Promise.all([
-        Promise.all(xpPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then(gltf => gltf.scene))),
-        Promise.all(potionPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then(gltf => gltf.scene))),
+        Promise.all(xpPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene))),
+        Promise.all(potionPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene))),
       ]);
 
       return { xp, potion };
