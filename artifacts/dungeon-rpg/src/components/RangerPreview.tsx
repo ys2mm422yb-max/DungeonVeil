@@ -20,6 +20,7 @@ export function RangerPreview() {
     let clock: any;
     let rangerRig: KayKitPlayerRig | null = null;
     let showcaseTime = 0;
+    let nextShotAt = 1.2;
 
     const resize = () => {
       if (!renderer || !camera) return;
@@ -82,6 +83,10 @@ export function RangerPreview() {
         if (disposed || !renderer || !scene || !camera || !clock) return;
         const dt = Math.min(clock.getDelta(), 0.05);
         showcaseTime += dt;
+        if (rangerRig && showcaseTime >= nextShotAt) {
+          rangerRig.triggerAttack();
+          nextShotAt = showcaseTime + 2.8;
+        }
         rangerRig?.update(dt);
         if (rangerRig?.root) rangerRig.root.rotation.y = -0.35 + Math.sin(showcaseTime * 0.35) * 0.12;
         renderer.render(scene, camera);
