@@ -9,8 +9,8 @@ export type SkillRankDef = {
 export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   multishot: {
     maxRank: 3,
-    rankTextDe: ['2 Pfeile im Fächer', '3 Pfeile im Fächer', '4 Pfeile im breiten Fächer'],
-    rankTextEn: ['2 arrows in a fan', '3 arrows in a fan', '4 arrows in a wide fan'],
+    rankTextDe: ['2 Pfeile im Fächer · Zusatzpfeil 82% Schaden', '3 Pfeile im Fächer · Zusatzpfeile 82% Schaden', '4 Pfeile im breiten Fächer · Zusatzpfeile 82% Schaden'],
+    rankTextEn: ['2 arrows in a fan · extra arrow 82% damage', '3 arrows in a fan · extra arrows 82% damage', '4 arrows in a wide fan · extra arrows 82% damage'],
   },
   ricochet: {
     maxRank: 3,
@@ -24,8 +24,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   iceArrow: {
     maxRank: 3,
-    rankTextDe: ['20% Slow · 2,0s', '32% Slow · 2,5s', '45% Slow · 3,0s'],
-    rankTextEn: ['20% slow · 2.0s', '32% slow · 2.5s', '45% slow · 3.0s'],
+    rankTextDe: ['Gegnerbewegung -20% · 2,0s', 'Gegnerbewegung -32% · 2,5s', 'Gegnerbewegung -45% · 3,0s'],
+    rankTextEn: ['Enemy movement -20% · 2.0s', 'Enemy movement -32% · 2.5s', 'Enemy movement -45% · 3.0s'],
   },
   attackSpeed: {
     maxRank: 3,
@@ -59,8 +59,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   heal: {
     maxRank: 1,
-    rankTextDe: ['50% Heilung'],
-    rankTextEn: ['50% heal'],
+    rankTextDe: ['Sofort 50% Max-LP heilen'],
+    rankTextEn: ['Instantly heal 50% max HP'],
   },
 };
 
