@@ -419,13 +419,15 @@ export class GameEngine {
     const p = this.state.player;
     const px = p.x + p.width / 2;
     const py = p.y + p.height / 2;
-    const radius = 28;
+    const pickupRadius = 30;
+    const magnetRadius = 92;
     for (let i = this.state.items.length - 1; i >= 0; i--) {
       const item = this.state.items[i];
       const ix = item.x + item.width / 2;
       const iy = item.y + item.height / 2;
-      const dist = Math.hypot(px - ix, py - iy);
-      if (dist < radius) {
+      const dist = Math.max(1, Math.hypot(px - ix, py - iy));
+
+      if (dist < pickupRadius) {
         if (item.itemType === 'xp_orb') {
           p.xp += item.value;
           this.state.damageNumbers.push({ id: `xp-${time}-${i}`, x: ix, y: iy - 8, value: `+${item.value} XP`, color: '#5fd0ff', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
@@ -434,8 +436,24 @@ export class GameEngine {
           if (heal > 0) p.hp += heal;
           this.state.damageNumbers.push({ id: `heal-${time}-${i}`, x: ix, y: iy - 8, value: `+${heal}`, color: '#43c968', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
         }
+        this.state.effects.push({
+          id: `pickup-${time}-${i}`,
+          x: ix,
+          y: iy,
+          radius: 0,
+          maxRadius: 36,
+          color: item.color,
+          lifeTime: 0,
+          maxLifeTime: 220,
+          type: 'pickup',
+          width: item.itemType === 'potion' ? 5 : 3,
+        });
         this.state.particles.push(...makeHitSpark(ix, iy, item.color, 5));
         this.state.items.splice(i, 1);
+      } else if (dist < magnetRadius) {
+        const pull = item.itemType === 'xp_orb' ? 0.22 : 0.16;
+        item.x += (px - ix) * pull;
+        item.y += (py - iy) * pull;
       }
     }
   }
