@@ -93,10 +93,7 @@ export default function Game() {
     engine.onStateChange = state => setGameState({ ...state });
     setGameState(engine.state);
     let animationId = 0;
-    const loop = (time: number) => {
-      engine.update(time);
-      animationId = requestAnimationFrame(loop);
-    };
+    const loop = (time: number) => { engine.update(time); animationId = requestAnimationFrame(loop); };
     animationId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationId);
   }, []);
@@ -105,19 +102,9 @@ export default function Game() {
 
   const goSettings = useCallback((returnTo: UiState) => { settingsReturnRef.current = returnTo; setUiState('settings'); }, []);
   const handleNewGame = useCallback(() => setUiState('char_create'), []);
-  const handleContinue = useCallback(() => {
-    const save = loadGame();
-    if (!save) return;
-    engineRef.current?.continueGame(save);
-    setUiState('game');
-  }, []);
+  const handleContinue = useCallback(() => { const save = loadGame(); if (!save) return; engineRef.current?.continueGame(save); setUiState('game'); }, []);
   const handleCharConfirm = useCallback(async (name: string, _cls: ClassKey) => {
-    await Promise.all([
-      preloadKayKitDungeonRoom(1),
-      preloadKayKitEnemyVisuals(),
-      preloadKayKitHealingPotion(),
-      preloadKayKitOuterWorld(),
-    ]);
+    await Promise.all([preloadKayKitDungeonRoom(1), preloadKayKitEnemyVisuals(), preloadKayKitHealingPotion(), preloadKayKitOuterWorld()]);
     engineRef.current?.startNewGame(name, 'archer');
     setSaveData(loadGame());
     setUiState('game');
@@ -148,6 +135,14 @@ export default function Game() {
     if (!engine || engine.state.status !== 'paused') return;
     engine.state.status = 'playing'; engine.lastTime = performance.now(); setGameState({ ...engine.state });
   }, []);
+
+  const handleRestartRoom = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || engine.state.status !== 'paused') return;
+    resetMovement();
+    engine.restartCurrentRoom();
+    setGameState({ ...engine.state });
+  }, [resetMovement]);
 
   const handleLevelUpSelect = useCallback((choice: UpgradeKey) => {
     const engine = engineRef.current;
@@ -191,7 +186,7 @@ export default function Game() {
         {saveNotice && <div className="fixed left-1/2 top-[18%] z-[80] -translate-x-1/2 rounded border border-violet-300/40 bg-black/80 px-4 py-2 text-[10px] font-black tracking-[.18em] text-violet-100">✓ {saveNotice}</div>}
         {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />}
         {gameState.status === 'levelup' && <LevelUpScreen choices={gameState.upgradeChoices} onSelect={handleLevelUpSelect} />}
-        {gameState.status === 'paused' && <GamePausePanel gameState={gameState} language={language as Language} paused={t.paused} resume={t.resume} settings={t.settings} classNameText={t.className.archer} onResume={handleResume} onSave={() => saveCurrentGame(true)} onSettings={() => goSettings('game')} onMainMenu={handleMainMenu} onLanguage={setLanguage} />}
+        {gameState.status === 'paused' && <GamePausePanel gameState={gameState} language={language as Language} paused={t.paused} resume={t.resume} settings={t.settings} classNameText={t.className.archer} onResume={handleResume} onSave={() => saveCurrentGame(true)} onSettings={() => goSettings('game')} onMainMenu={handleMainMenu} onLanguage={setLanguage} onRestartRoom={handleRestartRoom} />}
         {(gameState.status === 'playing' || gameState.status === 'paused') && <>
           <HUD gameState={gameState} onPause={handlePause} onExitDungeon={handleExitDungeon} />
           <VirtualJoystick onMove={handleJoystickMove} />
