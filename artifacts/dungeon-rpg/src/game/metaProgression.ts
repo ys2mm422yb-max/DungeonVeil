@@ -53,7 +53,7 @@ export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   },
   'veil-key': {
     id: 'veil-key', slot: 'talisman', nameDe: 'Schleierschlüssel', nameEn: 'Veil Key',
-    descriptionDe: '+4 % Bewegung und -2 % Dash-Cooldown pro Stufe', descriptionEn: '+4% movement and -2% dash cooldown per level', pack: 'dungeon',
+    descriptionDe: '+4 % Bewegung und +2 Leben pro Stufe', descriptionEn: '+4% movement and +2 health per level', pack: 'dungeon',
     assetPath: 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/key.gltf', unlockRank: 1, accent: '#a58aff',
   },
   'guardian-sigil': {
@@ -131,7 +131,6 @@ export function saveMetaProgression(meta: MetaProgression) {
 export function beginMetaRun() {
   const meta = loadMetaProgression();
   meta.currentRunId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  meta.rewardLedger = meta.rewardLedger.filter(key => !key.startsWith(`${meta.currentRunId}:`));
   saveMetaProgression(meta);
   return meta.currentRunId;
 }
@@ -177,6 +176,7 @@ export function rewardMetaRoomClear(chapter: number, floor: number): MetaReward 
     }
   }
 
+  live.dust += dust;
   saveMetaProgression(live);
   return { xp, dust, rankBefore, rankAfter: live.rank, item, duplicate };
 }
@@ -221,7 +221,7 @@ export function applyMetaLoadoutToNewRun(engine: GameEngine) {
     else if (id === 'ranger-quiver') p.speed *= 1 + 0.03 * level;
     else if (id === 'black-quiver') ensureSkill(engine, 'multishot');
     else if (id === 'rune-quiver') ensureSkill(engine, 'ricochet');
-    else if (id === 'veil-key') { p.speed *= 1 + 0.04 * level; p.dodgeCooldown = Math.max(0, p.dodgeCooldown - 18 * level); }
+    else if (id === 'veil-key') { p.speed *= 1 + 0.04 * level; p.maxHp += 2 * level; p.hp += 2 * level; }
     else if (id === 'guardian-sigil') { p.maxHp += 8 * level; p.hp += 8 * level; p.defense += level; }
     else if (id === 'frost-grimoire') ensureSkill(engine, 'iceArrow');
   }
