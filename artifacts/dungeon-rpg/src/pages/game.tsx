@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GameEngine, GameState } from '../game/runEngine';
 import { ClassKey } from '../game/classes';
-import { TILE_SIZE } from '../game/dungeon';
-import { getSaveShrines } from '../game/saveShrines';
 import { hasSave, loadGame, SaveData } from '../game/saveManager';
 import { saveEngineSession } from '../game/sessionStore';
 import { UpgradeKey, Language } from '../i18n/translations';
@@ -21,14 +19,21 @@ import { CharacterCreationScreen } from '../components/screens/CharacterCreation
 import { SettingsScreen } from '../components/screens/SettingsScreen';
 import { CreditsScreen } from '../components/screens/CreditsScreen';
 import { preloadKayKitDungeonRoom } from '../components/kaykitRoom3D';
+import { preloadKayKitEnemyVisuals } from '../components/kaykitEnemy3D';
 
 type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'game';
 type MoveVector = { x: number; y: number };
 type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
 
+const ROOM_GIFTS: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
+
 function normalizeMove({ x, y }: MoveVector): MoveVector {
   const length = Math.hypot(x, y);
   return length <= 1 ? { x, y } : { x: x / length, y: y / length };
+}
+
+function pickRoomGifts(): UpgradeKey[] {
+  return [...ROOM_GIFTS].sort(() => Math.random() - 0.5).slice(0, 3);
 }
 
 export default function Game() {
@@ -39,6 +44,8 @@ export default function Game() {
   const keyStateRef = useRef<KeyState>({ up: false, down: false, left: false, right: false });
   const settingsReturnRef = useRef<UiState>('main_menu');
   const saveNoticeTimerRef = useRef<number | null>(null);
+  const lastGiftRoomRef = useRef(1);
+  const seenPickupIdsRef = useRef(new Set<string>());
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [saveNotice, setSaveNotice] = useState('');
@@ -89,10 +96,33 @@ export default function Game() {
   useEffect(() => {
     const engine = new GameEngine();
     engineRef.current = engine;
-    engine.onStateChange = state => setGameState({ ...state });
+    engine.onStateChange = state => {
+      state.player.xp = 0;
+      if (state.floor !== lastGiftRoomRef.current && state.status === 'playing') {
+        lastGiftRoomRef.current = state.floor;
+        state.upgradeChoices = pickRoomGifts();
+        state.status = 'levelup';
+      }
+      setGameState({ ...state });
+    };
     setGameState(engine.state);
     let animationId = 0;
-    const loop = (time: number) => { engine.update(time); animationId = requestAnimationFrame(loop); };
+    const loop = (time: number) => {
+      engine.update(time);
+      engine.state.player.xp = 0;
+      for (let i = engine.state.items.length - 1; i >= 0; i--) {
+        const item = engine.state.items[i];
+        if (item.itemType === 'xp_orb') {
+          engine.state.items.splice(i, 1);
+          continue;
+        }
+        if (!seenPickupIdsRef.current.has(item.id)) {
+          seenPickupIdsRef.current.add(item.id);
+          if (Math.random() >= 0.28) engine.state.items.splice(i, 1);
+        }
+      }
+      animationId = requestAnimationFrame(loop);
+    };
     animationId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationId);
   }, []);
@@ -101,14 +131,20 @@ export default function Game() {
 
   const goSettings = useCallback((returnTo: UiState) => { settingsReturnRef.current = returnTo; setUiState('settings'); }, []);
   const handleNewGame = useCallback(() => setUiState('char_create'), []);
-  const handleContinue = useCallback(() => { const save = loadGame(); if (!save) return; engineRef.current?.continueGame(save); setUiState('game'); }, []);
+  const handleContinue = useCallback(() => {
+    const save = loadGame();
+    if (!save) return;
+    lastGiftRoomRef.current = Math.max(1, save.floor || 1);
+    seenPickupIdsRef.current.clear();
+    engineRef.current?.continueGame(save);
+    setUiState('game');
+  }, []);
   const handleCharConfirm = useCallback(async (name: string, _cls: ClassKey) => {
-    try {
-      await preloadKayKitDungeonRoom(1);
-    } catch (error) {
-      console.error('KayKit room preload failed', error);
-    }
+    await Promise.all([preloadKayKitDungeonRoom(1), preloadKayKitEnemyVisuals()]);
+    lastGiftRoomRef.current = 1;
+    seenPickupIdsRef.current.clear();
     engineRef.current?.startNewGame(name, 'archer');
+    if (engineRef.current) engineRef.current.state.player.xp = 0;
     setSaveData(loadGame());
     setUiState('game');
   }, []);
