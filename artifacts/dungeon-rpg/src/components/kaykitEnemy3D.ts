@@ -134,8 +134,23 @@ function setMeshTint(root: any, color: number | null, intensity: number) {
     const mats = Array.isArray(node.material) ? node.material : [node.material];
     mats.forEach((material: any) => {
       if (!material?.emissive) return;
-      material.emissive.set(color ?? 0x000000);
-      material.emissiveIntensity = color === null ? 0 : intensity;
+      if (!material.userData?.kayKitBaseEmissive) {
+        material.userData = {
+          ...(material.userData ?? {}),
+          kayKitBaseEmissive: {
+            color: material.emissive.getHex(),
+            intensity: material.emissiveIntensity ?? 1,
+          },
+        };
+      }
+      const base = material.userData.kayKitBaseEmissive;
+      if (color === null) {
+        material.emissive.setHex(base.color);
+        material.emissiveIntensity = base.intensity;
+      } else {
+        material.emissive.setHex(color);
+        material.emissiveIntensity = Math.max(base.intensity, intensity);
+      }
     });
   });
 }
