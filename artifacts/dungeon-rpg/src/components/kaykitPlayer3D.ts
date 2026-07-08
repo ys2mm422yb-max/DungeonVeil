@@ -15,27 +15,21 @@ export type KayKitPlayerRig = {
   root: any;
   arrowPrototype: any;
   setMoving: (moving: boolean) => void;
+  setMotionSpeed: (movementMultiplier: number, attackMultiplier: number) => void;
   triggerAttack: () => void;
   triggerDash: () => void;
   update: (delta: number) => void;
   stop: () => void;
 };
 
-function clipKey(clip: any) {
-  return String(clip?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-}
-
+function clipKey(clip: any) { return String(clip?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_'); }
 function chooseClip(clips: any[], groups: string[][], rejects: string[] = []) {
   for (const terms of groups) {
-    const match = clips.find(clip => {
-      const key = clipKey(clip);
-      return terms.every(term => key.includes(term)) && rejects.every(term => !key.includes(term));
-    });
+    const match = clips.find(clip => { const key = clipKey(clip); return terms.every(term => key.includes(term)) && rejects.every(term => !key.includes(term)); });
     if (match) return match;
   }
   return null;
 }
-
 function findBone(root: any, names: string[]) {
   let result: any = null;
   root.traverse((node: any) => {
@@ -45,7 +39,6 @@ function findBone(root: any, names: string[]) {
   });
   return result;
 }
-
 function prepareModel(root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
@@ -54,7 +47,6 @@ function prepareModel(root: any) {
     node.frustumCulled = true;
   });
 }
-
 function attachQuiver(parent: any, object: any) {
   if (!parent || !object) return;
   object.position.set(-0.17, 0.05, -0.16);
@@ -62,19 +54,14 @@ function attachQuiver(parent: any, object: any) {
   object.scale.setScalar(1);
   parent.add(object);
 }
-
 function buildArrowPrototype(THREE: any, arrow: any) {
   const root = new THREE.Group();
   root.name = 'KayKitArrowWithWindTrail';
   const model = arrow.clone(true);
   prepareModel(model);
   root.add(model);
-
   const makeTrail = (x: number, z: number, length: number, opacity: number) => {
-    const geometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(x, -0.08, z),
-      new THREE.Vector3(x, -length, z),
-    ]);
+    const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, -0.08, z), new THREE.Vector3(x, -length, z)]);
     const material = new THREE.LineBasicMaterial({ color: 0xdaf4ff, transparent: true, opacity, depthWrite: false });
     root.add(new THREE.Line(geometry, material));
   };
@@ -87,12 +74,8 @@ function buildArrowPrototype(THREE: any, arrow: any) {
 export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
   const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, weapons] = await Promise.all([
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),
-    loadKayKitRangerWeapons(),
+    loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger), loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver), loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
+    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement), loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced), loadKayKitRangerWeapons(),
   ]);
   if (!weapons) throw new Error('No KayKit bow and arrow found in the supplied KayKit libraries');
 
@@ -104,29 +87,17 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   prepareModel(visual);
   root.add(visual);
 
-  const clips = [
-    ...(rangerGltf.animations ?? []),
-    ...(generalGltf.animations ?? []),
-    ...(movementGltf.animations ?? []),
-    ...(advancedGltf.animations ?? []),
-  ];
-
+  const clips = [...(rangerGltf.animations ?? []), ...(generalGltf.animations ?? []), ...(movementGltf.animations ?? []), ...(advancedGltf.animations ?? [])];
   const idleClip = chooseClip(clips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep', 'aim', 'bow']);
   const runClip = chooseClip(clips, [['run'], ['jog'], ['walk']], ['back', 'left', 'right', 'crouch', 'aim']);
   const dashClip = chooseClip(clips, [['dodge', 'forward'], ['dodge'], ['roll', 'forward'], ['roll']], ['back']);
-
   const mixer = new THREE.AnimationMixer(visual);
   const idle = idleClip ? mixer.clipAction(idleClip) : null;
   const run = runClip ? mixer.clipAction(runClip) : null;
   const dash = dashClip ? mixer.clipAction(dashClip) : null;
   const base = idle ?? run;
   base?.reset().play();
-  if (run) run.timeScale = 1.04;
-  if (dash) {
-    dash.setLoop(THREE.LoopOnce, 1);
-    dash.clampWhenFinished = false;
-    dash.timeScale = 1.16;
-  }
+  if (dash) { dash.setLoop(THREE.LoopOnce, 1); dash.clampWhenFinished = false; }
 
   prepareModel(weapons.bow);
   prepareModel(quiverGltf.scene);
@@ -134,7 +105,6 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   attachQuiver(spine, quiverGltf.scene);
   const arrowPrototype = buildArrowPrototype(THREE, weapons.arrow);
-
   const upperArmL = findBone(visual, ['upperarml']);
   const lowerArmL = findBone(visual, ['lowerarml']);
   const upperArmR = findBone(visual, ['upperarmr']);
@@ -143,8 +113,17 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   let moving = false;
   let shotTime = 0;
+  let shotDuration = 0.24;
   let dashRemaining = 0;
+  let movementMultiplier = 1;
+  let attackMultiplier = 1;
   let current = base;
+
+  const applySpeeds = () => {
+    if (run) run.timeScale = 1.04 * movementMultiplier;
+    if (dash) dash.timeScale = 1.16 * Math.max(1, movementMultiplier * 0.92);
+  };
+  applySpeeds();
 
   const playBase = () => {
     const next = moving ? run : idle;
@@ -153,7 +132,6 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     current?.fadeOut(0.1);
     current = next;
   };
-
   const applyShotPose = (pulse: number) => {
     bowRig.updateShotPose(pulse);
     if (upperArmL) { upperArmL.rotation.y += pulse * 0.28; upperArmL.rotation.z -= pulse * 0.72; }
@@ -169,16 +147,17 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   return {
     root,
     arrowPrototype,
-    setMoving(value: boolean) {
-      moving = value;
-      if (dashRemaining <= 0) playBase();
+    setMoving(value: boolean) { moving = value; if (dashRemaining <= 0) playBase(); },
+    setMotionSpeed(moveMultiplier: number, attackSpeedMultiplier: number) {
+      movementMultiplier = Math.max(0.8, Math.min(1.8, moveMultiplier));
+      attackMultiplier = Math.max(1, Math.min(1.9, attackSpeedMultiplier));
+      shotDuration = 0.24 / attackMultiplier;
+      applySpeeds();
     },
-    triggerAttack() {
-      shotTime = 0.24;
-    },
+    triggerAttack() { shotTime = shotDuration; },
     triggerDash() {
       if (!dash) return;
-      const duration = Math.max(0.18, dashClip!.duration / 1.16);
+      const duration = Math.max(0.18, dashClip!.duration / dash.timeScale);
       dashRemaining = duration;
       dash.stop();
       dash.reset().fadeIn(0.04).play();
@@ -186,15 +165,11 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       current = dash;
     },
     update(delta: number) {
-      if (dashRemaining > 0) {
-        dashRemaining = Math.max(0, dashRemaining - delta);
-        if (dashRemaining === 0) playBase();
-      }
+      if (dashRemaining > 0) { dashRemaining = Math.max(0, dashRemaining - delta); if (dashRemaining === 0) playBase(); }
       mixer.update(delta);
-
       if (shotTime > 0) {
         shotTime = Math.max(0, shotTime - delta);
-        const progress = 1 - shotTime / 0.24;
+        const progress = 1 - shotTime / shotDuration;
         const draw = progress < 0.58 ? progress / 0.58 : Math.max(0, 1 - (progress - 0.58) / 0.42);
         applyShotPose(Math.sin(draw * Math.PI * 0.5));
       } else {
@@ -204,8 +179,6 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
         visual.position.y *= 0.68;
       }
     },
-    stop() {
-      mixer.stopAllAction();
-    },
+    stop() { mixer.stopAllAction(); },
   };
 }
