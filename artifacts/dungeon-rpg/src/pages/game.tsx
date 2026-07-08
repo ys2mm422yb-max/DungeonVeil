@@ -20,6 +20,7 @@ import { MainMenuScreen } from '../components/screens/MainMenuScreen';
 import { CharacterCreationScreen } from '../components/screens/CharacterCreationScreen';
 import { SettingsScreen } from '../components/screens/SettingsScreen';
 import { CreditsScreen } from '../components/screens/CreditsScreen';
+import { preloadKayKitDungeonRoom } from '../components/kaykitRoom3D';
 
 type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'game';
 type MoveVector = { x: number; y: number };
@@ -101,7 +102,16 @@ export default function Game() {
   const goSettings = useCallback((returnTo: UiState) => { settingsReturnRef.current = returnTo; setUiState('settings'); }, []);
   const handleNewGame = useCallback(() => setUiState('char_create'), []);
   const handleContinue = useCallback(() => { const save = loadGame(); if (!save) return; engineRef.current?.continueGame(save); setUiState('game'); }, []);
-  const handleCharConfirm = useCallback((name: string, _cls: ClassKey) => { engineRef.current?.startNewGame(name, 'archer'); setSaveData(loadGame()); setUiState('game'); }, []);
+  const handleCharConfirm = useCallback(async (name: string, _cls: ClassKey) => {
+    try {
+      await preloadKayKitDungeonRoom(1);
+    } catch (error) {
+      console.error('KayKit room preload failed', error);
+    }
+    engineRef.current?.startNewGame(name, 'archer');
+    setSaveData(loadGame());
+    setUiState('game');
+  }, []);
   const handleRetry = useCallback(() => setUiState('char_create'), []);
   const handleMainMenu = useCallback(() => { saveCurrentGame(false); resetMovement(); setUiState('main_menu'); }, [resetMovement, saveCurrentGame]);
   const handleSettingsBack = useCallback(() => {
