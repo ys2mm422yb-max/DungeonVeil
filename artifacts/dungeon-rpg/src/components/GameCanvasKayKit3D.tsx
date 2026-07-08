@@ -358,8 +358,15 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         }
         visual = lootVisuals.get(item.id);
         if (!visual) continue;
-        visual.position.set(mapX(state, item.x + item.width / 2), 0.18 + Math.sin((wallNow - item.spawnTime) * 0.005) * 0.05, mapZ(state, item.y + item.height / 2));
-        visual.rotation.y += 0.028;
+        const bob = Math.sin((wallNow - item.spawnTime) * 0.0045);
+        visual.position.set(mapX(state, item.x + item.width / 2), 0.31 + bob * 0.1, mapZ(state, item.y + item.height / 2));
+        visual.rotation.y += 0.018;
+        if (visual.userData.halo) {
+          visual.userData.halo.material.opacity = 0.4 + bob * 0.1;
+          visual.userData.halo.scale.setScalar(0.94 + bob * 0.08);
+        }
+        if (visual.userData.innerHalo) visual.userData.innerHalo.material.opacity = 0.13 + bob * 0.05;
+        if (visual.userData.glow) visual.userData.glow.intensity = (IS_MOBILE ? 2 : 2.7) + bob * 0.45;
       }
     };
 
@@ -377,17 +384,67 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (!portal) {
         portal = new THREE.Group();
         portal.name = 'RunExitEffect';
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.045, 8, 32), new THREE.MeshBasicMaterial({ color: 0xb693ff, transparent: true, opacity: 0.95 }));
-        ring.rotation.x = Math.PI / 2;
-        portal.add(ring);
-        const veil = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 1.25, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0x8c62ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }));
-        veil.position.y = 0.62;
+
+        const groundRing = new THREE.Mesh(
+          new THREE.RingGeometry(0.6, 1.02, 48),
+          new THREE.MeshBasicMaterial({ color: 0x9f78ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+        );
+        groundRing.rotation.x = -Math.PI / 2;
+        groundRing.position.y = 0.035;
+        portal.add(groundRing);
+
+        const outerRing = new THREE.Mesh(
+          new THREE.TorusGeometry(0.92, 0.065, 10, 64),
+          new THREE.MeshBasicMaterial({ color: 0xb99bff, transparent: true, opacity: 0.92, depthWrite: false, blending: THREE.AdditiveBlending }),
+        );
+        outerRing.position.y = 1.12;
+        outerRing.scale.y = 1.28;
+        portal.add(outerRing);
+
+        const innerRing = new THREE.Mesh(
+          new THREE.TorusGeometry(0.69, 0.035, 8, 56),
+          new THREE.MeshBasicMaterial({ color: 0x7d4dff, transparent: true, opacity: 0.76, depthWrite: false, blending: THREE.AdditiveBlending }),
+        );
+        innerRing.position.y = 1.12;
+        innerRing.scale.y = 1.32;
+        portal.add(innerRing);
+
+        const veil = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.58, 2.25, 1, 1),
+          new THREE.MeshBasicMaterial({ color: 0x7244d8, transparent: true, opacity: 0.34, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+        );
+        veil.position.y = 1.12;
         portal.add(veil);
-        const core = new THREE.PointLight(0x9d76ff, 5.2, 5.5, 2);
-        core.position.y = 0.6;
+
+        const innerVeil = new THREE.Mesh(
+          new THREE.CircleGeometry(0.68, 48),
+          new THREE.MeshBasicMaterial({ color: 0x321b68, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+        );
+        innerVeil.position.set(0, 1.12, -0.02);
+        innerVeil.scale.y = 1.35;
+        portal.add(innerVeil);
+
+        const motes: any[] = [];
+        for (let index = 0; index < (IS_MOBILE ? 8 : 12); index++) {
+          const mote = new THREE.Mesh(
+            new THREE.SphereGeometry(0.045 + (index % 3) * 0.012, 6, 6),
+            new THREE.MeshBasicMaterial({ color: index % 2 ? 0xd3c2ff : 0x8d66ff, transparent: true, opacity: 0.82, depthWrite: false, blending: THREE.AdditiveBlending }),
+          );
+          mote.userData.phase = index / (IS_MOBILE ? 8 : 12) * Math.PI * 2;
+          portal.add(mote);
+          motes.push(mote);
+        }
+
+        const core = new THREE.PointLight(0x9d76ff, IS_MOBILE ? 7.2 : 9.5, 8.5, 2);
+        core.position.y = 1.05;
         portal.add(core);
-        portal.userData.ring = ring;
+
+        portal.userData.groundRing = groundRing;
+        portal.userData.outerRing = outerRing;
+        portal.userData.innerRing = innerRing;
         portal.userData.veil = veil;
+        portal.userData.innerVeil = innerVeil;
+        portal.userData.motes = motes;
         portal.userData.core = core;
         scene.add(portal);
       }
@@ -398,12 +455,28 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         const x = state.map.tiles[y].findIndex(tile => tile === TileType.STAIRS_DOWN);
         if (x >= 0) { exitX = x; exitY = y; break; }
       }
+
       portal.position.set(exitX + 0.5 - state.map.width / 2, 0.02, exitY + 0.5 - state.map.height / 2);
-      const activateProgress = Math.min(1, Math.max(0, (gameNow - state.roomClearAt) / 520));
-      portal.scale.setScalar(0.15 + activateProgress * 0.85);
-      portal.userData.ring.rotation.z = wallNow * 0.0012;
-      portal.userData.veil.material.opacity = (0.16 + Math.sin(wallNow * 0.004) * 0.06) * activateProgress;
-      portal.userData.core.intensity = (4.2 + Math.sin(wallNow * 0.006) * 1.5) * activateProgress;
+      const activateProgress = Math.min(1, Math.max(0, (gameNow - state.roomClearAt) / 620));
+      const pulse = 0.5 + Math.sin(wallNow * 0.005) * 0.5;
+      portal.scale.setScalar(0.12 + activateProgress * 0.88);
+      portal.userData.outerRing.rotation.z = wallNow * 0.00065;
+      portal.userData.innerRing.rotation.z = -wallNow * 0.00115;
+      portal.userData.groundRing.rotation.z = wallNow * 0.0008;
+      portal.userData.groundRing.material.opacity = (0.48 + pulse * 0.24) * activateProgress;
+      portal.userData.veil.material.opacity = (0.24 + pulse * 0.16) * activateProgress;
+      portal.userData.innerVeil.material.opacity = (0.38 + pulse * 0.18) * activateProgress;
+      portal.userData.veil.scale.x = 0.94 + pulse * 0.08;
+      portal.userData.innerVeil.scale.x = 0.9 + pulse * 0.12;
+      portal.userData.core.intensity = ((IS_MOBILE ? 6.5 : 8.8) + pulse * 2.2) * activateProgress;
+      (portal.userData.motes as any[]).forEach((mote, index) => {
+        const phase = mote.userData.phase + wallNow * (0.0011 + index * 0.000025);
+        const radius = 0.65 + (index % 3) * 0.13;
+        mote.position.x = Math.sin(phase) * radius;
+        mote.position.y = 0.22 + ((wallNow * 0.00042 + index / 11) % 1) * 2.0;
+        mote.position.z = 0.08 + Math.cos(phase) * 0.11;
+        mote.material.opacity = (0.42 + Math.sin(phase * 2) * 0.3) * activateProgress;
+      });
     };
 
     const ensurePlayerPulse = () => {
