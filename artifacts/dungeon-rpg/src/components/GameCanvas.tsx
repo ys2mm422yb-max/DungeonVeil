@@ -1,1 +1,1 @@
-export { GameCanvasProduction3D as GameCanvas } from './GameCanvasProduction3D';
+export { GameCanvasCharacter3D as GameCanvas } from './GameCanvasCharacter3D';
