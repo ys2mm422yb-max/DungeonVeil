@@ -47,13 +47,6 @@ function architecture(): DecorPoint[] {
   points.push({ kind: 'torch', x: -2.8, z: -12.9, scale: 0.85 });
   points.push({ kind: 'torch', x: 2.8, z: -12.9, scale: 0.85 });
 
-  for (const x of range(-8, 8, 4)) {
-    for (const z of range(-11.5, 11.5, 4)) {
-      if (Math.abs(x) < 2.4 && Math.abs(z) > 9.5) continue;
-      points.push({ kind: (x + z) % 8 === 0 ? 'floorBricks' : 'floor', x, z, scale: 1.03 });
-    }
-  }
-
   return points;
 }
 
