@@ -30,7 +30,7 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
     const direction = dist > desiredRange + 24 ? 1 : dist < desiredRange - 26 ? -0.65 : 0;
     const strafeDirection = Math.floor((time - enemy.spawnTime) / 2400) % 2 === 0 ? 1 : -1;
     const strafeStrength = phase > 4800 ? 0.18 : 0.62;
-    const speedMultiplier = phase > 4800 ? 1.45 : 0.9;
+    const speedMultiplier = phase > 4800 ? 1.28 : 0.86;
     const speed = enemy.speed * speedMultiplier * dt / 1000;
     const sideX = -ny * strafeDirection;
     const sideY = nx * strafeDirection;
@@ -39,7 +39,7 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
       dx: (nx * direction + sideX * strafeStrength) * speed,
       dy: (ny * direction + sideY * strafeStrength) * speed,
       attackRange: phase > 4800 ? 118 : 235,
-      attackDelay: phase > 4800 ? 620 : 980,
+      attackDelay: phase > 4800 ? 760 : 1120,
     };
   }
 
@@ -48,6 +48,6 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
     dx: nx * speed,
     dy: ny * speed,
     attackRange: 42 + enemy.width / 2,
-    attackDelay: 1050,
+    attackDelay: 1250,
   };
 }
