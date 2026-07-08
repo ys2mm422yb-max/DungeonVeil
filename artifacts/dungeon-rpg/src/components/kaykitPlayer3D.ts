@@ -80,6 +80,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   root.name = 'KayKitRangerPlayer';
   const visual = rangerGltf.scene;
   visual.name = 'KayKitRanger';
+  visual.scale.setScalar(1.18);
   prepareModel(visual);
   root.add(visual);
 
