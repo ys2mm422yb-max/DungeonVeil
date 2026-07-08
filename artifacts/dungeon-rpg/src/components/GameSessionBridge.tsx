@@ -6,6 +6,7 @@ import type { UpgradeKey } from '../i18n/translations';
 import { availableRunSkills } from '../game/runSkills';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
+import { rewardMetaRoomClear } from '../game/metaProgression';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 
@@ -50,9 +51,12 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     let frame = 0;
     const update = (time: number) => {
       const engine = getEngine();
-      if (engine?.state.status === 'playing') {
-        updateRunBalance(engine, balance);
-        updateRunEffectSystems(engine, effects, time);
+      if (engine) {
+        if (engine.state.status === 'playing') {
+          updateRunBalance(engine, balance);
+          updateRunEffectSystems(engine, effects, time);
+        }
+        if (engine.state.roomClearReady) rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
       }
       frame = requestAnimationFrame(update);
     };
