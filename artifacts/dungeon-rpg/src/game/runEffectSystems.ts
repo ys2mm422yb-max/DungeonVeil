@@ -1,23 +1,67 @@
 import type { GameEngine } from './runEngine';
 import { makeHitSpark, distance } from './combat';
+import { skillRank } from './runSkills';
 
 const FIRE_DEATH_RADIUS = 72;
 const FIRE_DEATH_DAMAGE = 12;
+const ARCHER_BASE_COOLDOWN_MS = 270;
 
 export type RunEffectSystemState = {
   processedFireBursts: Set<string>;
   finalizedBurns: Map<string, number>;
+  processedDamageNumbers: Set<string>;
+  lastNormalizedShotTime: number;
 };
 
 export function createRunEffectSystemState(): RunEffectSystemState {
   return {
     processedFireBursts: new Set<string>(),
     finalizedBurns: new Map<string, number>(),
+    processedDamageNumbers: new Set<string>(),
+    lastNormalizedShotTime: 0,
   };
 }
 
 function cleanInstantEffectsFromBuild(engine: GameEngine): void {
   if (Object.prototype.hasOwnProperty.call(engine.state.runSkills, 'heal')) delete engine.state.runSkills.heal;
+}
+
+function normalizeQuickDraw(engine: GameEngine, system: RunEffectSystemState): void {
+  const shotTime = engine.state.player.lastAttackTime;
+  if (!shotTime || shotTime === system.lastNormalizedShotTime) return;
+  system.lastNormalizedShotTime = shotTime;
+  const rank = skillRank(engine.state.runSkills, 'attackSpeed');
+  const speedMultipliers = [1, 1.16, 1.3, 1.42];
+  engine.state.player.attackCooldown = ARCHER_BASE_COOLDOWN_MS / speedMultipliers[rank];
+}
+
+function improveDamageNumberReadability(engine: GameEngine, system: RunEffectSystemState): void {
+  const activeIds = new Set(engine.state.damageNumbers.map(number => number.id));
+  for (const id of system.processedDamageNumbers) {
+    if (!activeIds.has(id)) system.processedDamageNumbers.delete(id);
+  }
+
+  let stackIndex = 0;
+  for (const number of engine.state.damageNumbers) {
+    if (system.processedDamageNumbers.has(number.id)) continue;
+    system.processedDamageNumbers.add(number.id);
+
+    const isBurn = number.id.startsWith('burn-');
+    const isBurst = number.id.startsWith('fire-burst-');
+    const isHeal = number.id.startsWith('heal-') || number.value.startsWith('+');
+    const isPlayerHit = number.id.startsWith('hit-');
+
+    if (isBurn) number.scale = Math.max(number.scale ?? 1, 1.02);
+    else if (isBurst) number.scale = Math.max(number.scale ?? 1, 1.58);
+    else if (isHeal) number.scale = Math.max(number.scale ?? 1, 1.55);
+    else if (isPlayerHit) number.scale = Math.max(number.scale ?? 1, 1.48);
+    else number.scale = Math.max(number.scale ?? 1, 1.38);
+
+    const stagger = ((stackIndex % 3) - 1) * 8;
+    number.x += stagger;
+    number.y -= Math.floor(stackIndex / 3) * 5;
+    stackIndex++;
+  }
 }
 
 function applyFinalBurnTicks(engine: GameEngine, system: RunEffectSystemState, time: number): void {
@@ -44,7 +88,7 @@ function applyFinalBurnTicks(engine: GameEngine, system: RunEffectSystemState, t
       color: '#ff6a2c',
       lifeTime: 0,
       maxLifeTime: 550,
-      scale: 0.78,
+      scale: 1.02,
     });
     engine.state.particles.push(...makeHitSpark(enemyX, enemyY, '#ff6a2c', 4));
   }
@@ -84,7 +128,7 @@ function applyFireDeathBursts(engine: GameEngine, system: RunEffectSystemState, 
         color: '#ff642c',
         lifeTime: 0,
         maxLifeTime: 700,
-        scale: 1.08,
+        scale: 1.58,
       });
       engine.state.particles.push(...makeHitSpark(enemyX, enemyY, '#ff642c', 10));
     }
@@ -93,6 +137,8 @@ function applyFireDeathBursts(engine: GameEngine, system: RunEffectSystemState, 
 
 export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSystemState, time: number): void {
   cleanInstantEffectsFromBuild(engine);
+  normalizeQuickDraw(engine, system);
   applyFinalBurnTicks(engine, system, time);
   applyFireDeathBursts(engine, system, time);
+  improveDamageNumberReadability(engine, system);
 }
