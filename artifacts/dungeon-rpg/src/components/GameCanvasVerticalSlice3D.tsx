@@ -127,7 +127,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       }
       const root = new THREE.Group();
       root.add(makeGround(state));
-      const room = Math.max(1, Math.min(4, state.floor));
+      const room = Math.max(1, Math.min(10, state.floor));
       const decor = buildChapterRoomDecor(THREE, room);
       root.add(decor);
       root.userData.decor = decor;
@@ -342,7 +342,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       monsterLibrary = loadedMonsters;
 
       rangerRig = composeFullRanger(THREE, base.scene, outfit.scene, animations.animations ?? []);
-      rangerRig.root.scale.setScalar(1.04);
+      rangerRig.root.scale.setScalar(1.28);
       scene.add(rangerRig.root);
 
       const loadObj = async (name: string) => {
