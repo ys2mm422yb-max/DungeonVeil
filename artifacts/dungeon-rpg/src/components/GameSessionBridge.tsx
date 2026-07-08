@@ -56,7 +56,10 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           updateRunBalance(engine, balance);
           updateRunEffectSystems(engine, effects, time);
         }
-        if (engine.state.roomClearReady) rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
+        if (engine.state.roomClearReady) {
+          const reward = rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
+          if (reward) window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
+        }
       }
       frame = requestAnimationFrame(update);
     };
