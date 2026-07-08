@@ -33,6 +33,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
     let lastAttackTime = 0;
     const enemyMeshes = new Map<string, any>();
     const arrowMeshes = new Map<string, any>();
+    const dashMeshes = new Map<string, any>();
     const itemMeshes = new Map<string, any>();
 
     const disposeObject = (object: any) => {
@@ -196,6 +197,58 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       }
     };
 
+    const createDash = (effect: any) => {
+      const group = new THREE.Group();
+      const trail = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055, 0.055, Math.max(0.65, effect.maxRadius / 40), 6),
+        new THREE.MeshStandardMaterial({ color: effect.color, emissive: effect.color, emissiveIntensity: 1.2, transparent: true, opacity: 0.5, roughness: 0.35 }),
+      );
+      trail.rotation.z = Math.PI / 2;
+      trail.position.x = Math.max(0.65, effect.maxRadius / 40) / 2;
+
+      const startRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.18, 0.018, 5, 12),
+        new THREE.MeshStandardMaterial({ color: 0xfff1b5, emissive: effect.color, emissiveIntensity: 1, transparent: true, opacity: 0.65, roughness: 0.3 }),
+      );
+      startRing.rotation.x = Math.PI / 2;
+
+      const endRing = startRing.clone();
+      endRing.position.x = Math.max(0.65, effect.maxRadius / 40);
+      endRing.scale.setScalar(1.45);
+
+      group.add(trail, startRing, endRing);
+      scene.add(group);
+      dashMeshes.set(effect.id, group);
+      return group;
+    };
+
+    const syncDashes = (state: GameState) => {
+      const dashes = state.effects.filter(effect => effect.type === 'dash');
+      const activeIds = new Set(dashes.map(effect => effect.id));
+      for (const [id, group] of dashMeshes) {
+        if (!activeIds.has(id)) {
+          scene.remove(group);
+          disposeObject(group);
+          dashMeshes.delete(id);
+        }
+      }
+
+      for (const effect of dashes) {
+        const dash = dashMeshes.get(effect.id) ?? createDash(effect);
+        const progress = Math.max(0, Math.min(1, effect.lifeTime / effect.maxLifeTime));
+        const fade = Math.max(0, 1 - progress);
+        const startX = effect.x / 40 - 8.5;
+        const startZ = effect.y / 40 - 11.5;
+        const angle = effect.angle ?? 0;
+        dash.position.set(startX, 0.08, startZ);
+        dash.rotation.y = -angle;
+        dash.scale.set(1, Math.max(0.25, fade), 1);
+        dash.traverse((node: any) => {
+          if (node.material?.transparent) node.material.opacity = node.geometry?.type === 'TorusGeometry' ? 0.65 * fade : 0.5 * fade;
+        });
+      }
+    };
+
     const createItemMesh = (item: GameState['items'][number]) => {
       const group = new THREE.Group();
       if (item.itemType === 'xp_orb') {
@@ -294,6 +347,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       const now = Date.now();
       syncEnemies(state);
       syncArrows(state);
+      syncDashes(state);
       syncItems(state, now);
       syncPortal(state, now);
       mixer?.update(Math.min(clock?.getDelta?.() ?? 0.016, 0.05));
@@ -420,10 +474,12 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       mixer?.stopAllAction?.();
       for (const mesh of enemyMeshes.values()) disposeObject(mesh);
       for (const group of arrowMeshes.values()) disposeObject(group);
+      for (const group of dashMeshes.values()) disposeObject(group);
       for (const group of itemMeshes.values()) disposeObject(group);
       disposeObject(portalMesh);
       enemyMeshes.clear();
       arrowMeshes.clear();
+      dashMeshes.clear();
       itemMeshes.clear();
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
