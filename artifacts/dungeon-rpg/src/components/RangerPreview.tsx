@@ -89,9 +89,9 @@ export function RangerPreview() {
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       host.appendChild(renderer.domElement);
 
-      camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
-      camera.position.set(1.3, 1.45, 3.15);
-      camera.lookAt(0, 0.92, 0);
+      camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+      camera.position.set(1.55, 1.55, 4.25);
+      camera.lookAt(0, 0.88, 0);
 
       scene.add(new THREE.HemisphereLight(0xfff3df, 0x25180e, 2.2));
       const key = new THREE.DirectionalLight(0xffe0a8, 3.1);
@@ -106,32 +106,43 @@ export function RangerPreview() {
       rim.position.set(-2, 3, -4);
       scene.add(rim);
 
-      const floor = new THREE.Mesh(new THREE.CircleGeometry(1.18, 40), new THREE.MeshStandardMaterial({ color: 0x1b130d, roughness: 1 }));
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(1.08, 40),
+        new THREE.MeshStandardMaterial({ color: 0x1b130d, roughness: 1 }),
+      );
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = 0;
       floor.receiveShadow = true;
       scene.add(floor);
 
-      const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.92, 0.09, 28), new THREE.MeshStandardMaterial({ color: 0x2a1c11, roughness: 0.9, metalness: 0.05 }));
-      pedestal.position.y = 0.045;
+      const pedestal = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.68, 0.84, 0.08, 28),
+        new THREE.MeshStandardMaterial({ color: 0x2a1c11, roughness: 0.9, metalness: 0.05 }),
+      );
+      pedestal.position.y = 0.04;
       pedestal.receiveShadow = true;
       scene.add(pedestal);
 
       const loader = new GLTFLoader();
       const load = (name: string) => new Promise<any>((resolve, reject) => loader.load(`${ASSET_ROOT}${name}`, resolve, undefined, reject));
-      const [baseGltf, outfitGltf, animationsGltf] = await Promise.all([load('base-male.glb'), load('ranger.glb'), load('animations.glb')]);
+      const [baseGltf, outfitGltf, animationsGltf] = await Promise.all([
+        load('base-male.glb'),
+        load('ranger.glb'),
+        load('animations.glb'),
+      ]);
       if (disposed) return;
 
       rangerRig = composeFullRanger(THREE, baseGltf.scene, outfitGltf.scene, animationsGltf.animations ?? []);
-      rangerRig.root.scale.setScalar(1.22);
-      rangerRig.root.rotation.y = -0.35;
+      rangerRig.root.scale.setScalar(1.04);
+      rangerRig.root.position.y = 0.03;
+      rangerRig.root.rotation.y = -0.3;
       scene.add(rangerRig.root);
 
       const materials = await new MTLLoader().loadAsync(`${ASSET_ROOT}Bow_Wooden2.mtl`);
       materials.preload();
       const objLoader = new OBJLoader();
       objLoader.setMaterials(materials);
-      const bow = normalize(await objLoader.loadAsync(`${ASSET_ROOT}Bow_Wooden2.obj`), 1.18);
+      const bow = normalize(await objLoader.loadAsync(`${ASSET_ROOT}Bow_Wooden2.obj`), 0.94);
       attachBowToRanger(THREE, rangerRig.root, bow);
 
       if (!disposed) setState('ready');
@@ -143,7 +154,7 @@ export function RangerPreview() {
         const dt = Math.min(clock.getDelta(), 0.05);
         showcaseTime += dt;
         rangerRig?.update(dt);
-        if (rangerRig?.root) rangerRig.root.rotation.y = -0.34 + Math.sin(showcaseTime * 0.42) * 0.22;
+        if (rangerRig?.root) rangerRig.root.rotation.y = -0.3 + Math.sin(showcaseTime * 0.35) * 0.16;
         renderer.render(scene, camera);
         frame = requestAnimationFrame(render);
       };
@@ -176,7 +187,11 @@ export function RangerPreview() {
 
   return (
     <div ref={hostRef} className="relative h-full w-full">
-      {state === 'loading' && <div className="flex h-full w-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d7a441]/30 border-t-[#d7a441]" /></div>}
+      {state === 'loading' && (
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d7a441]/30 border-t-[#d7a441]" />
+        </div>
+      )}
       {state === 'fallback' && <StaticArcher />}
     </div>
   );
