@@ -34,6 +34,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
     const enemyMeshes = new Map<string, any>();
     const arrowMeshes = new Map<string, any>();
     const dashMeshes = new Map<string, any>();
+    const pickupMeshes = new Map<string, any>();
     const itemMeshes = new Map<string, any>();
 
     const disposeObject = (object: any) => {
@@ -249,6 +250,61 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       }
     };
 
+    const createPickup = (effect: any) => {
+      const group = new THREE.Group();
+      const color = effect.color ?? '#5fd0ff';
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.16 + (effect.width ?? 3) * 0.012, 0.018, 5, 16),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.25, transparent: true, opacity: 0.8, roughness: 0.3 }),
+      );
+      ring.rotation.x = Math.PI / 2;
+
+      const burst = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.09, 0),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.4, transparent: true, opacity: 0.85, roughness: 0.25 }),
+      );
+      burst.position.y = 0.18;
+
+      for (let i = 0; i < 4; i++) {
+        const spark = new THREE.Mesh(
+          new THREE.SphereGeometry(0.035, 5, 4),
+          new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.15, transparent: true, opacity: 0.75, roughness: 0.35 }),
+        );
+        const angle = i * Math.PI / 2 + Math.PI / 4;
+        spark.position.set(Math.cos(angle) * 0.22, 0.12, Math.sin(angle) * 0.22);
+        group.add(spark);
+      }
+
+      group.add(ring, burst);
+      scene.add(group);
+      pickupMeshes.set(effect.id, group);
+      return group;
+    };
+
+    const syncPickups = (state: GameState) => {
+      const pickups = state.effects.filter(effect => effect.type === 'pickup');
+      const activeIds = new Set(pickups.map(effect => effect.id));
+      for (const [id, group] of pickupMeshes) {
+        if (!activeIds.has(id)) {
+          scene.remove(group);
+          disposeObject(group);
+          pickupMeshes.delete(id);
+        }
+      }
+
+      for (const effect of pickups) {
+        const pickup = pickupMeshes.get(effect.id) ?? createPickup(effect);
+        const progress = Math.max(0, Math.min(1, effect.lifeTime / effect.maxLifeTime));
+        const fade = Math.max(0, 1 - progress);
+        pickup.position.set(effect.x / 40 - 8.5, 0.22 + progress * 0.32, effect.y / 40 - 11.5);
+        pickup.rotation.y += 0.08;
+        pickup.scale.setScalar(0.85 + progress * 1.1);
+        pickup.traverse((node: any) => {
+          if (node.material?.transparent) node.material.opacity = (node.geometry?.type === 'TorusGeometry' ? 0.8 : 0.75) * fade;
+        });
+      }
+    };
+
     const createItemMesh = (item: GameState['items'][number]) => {
       const group = new THREE.Group();
       if (item.itemType === 'xp_orb') {
@@ -348,6 +404,7 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       syncEnemies(state);
       syncArrows(state);
       syncDashes(state);
+      syncPickups(state);
       syncItems(state, now);
       syncPortal(state, now);
       mixer?.update(Math.min(clock?.getDelta?.() ?? 0.016, 0.05));
@@ -475,11 +532,13 @@ export function GameCanvas3D({ gameState }: { gameState: GameState }) {
       for (const mesh of enemyMeshes.values()) disposeObject(mesh);
       for (const group of arrowMeshes.values()) disposeObject(group);
       for (const group of dashMeshes.values()) disposeObject(group);
+      for (const group of pickupMeshes.values()) disposeObject(group);
       for (const group of itemMeshes.values()) disposeObject(group);
       disposeObject(portalMesh);
       enemyMeshes.clear();
       arrowMeshes.clear();
       dashMeshes.clear();
+      pickupMeshes.clear();
       itemMeshes.clear();
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
