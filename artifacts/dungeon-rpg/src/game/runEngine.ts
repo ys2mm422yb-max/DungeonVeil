@@ -6,7 +6,7 @@ import { Enemy, EnemyType, Item, Chest, DamageNumber, Particle, Player, VisualEf
 import { makeHitSpark, makeParticles, makeStepDust, distance } from './combat';
 import { UpgradeKey } from '../i18n/translations';
 import { enemyArchetype, planEnemyMove } from './enemyRunAI';
-import { collidesWithRoomProp } from './roomCollision3D';
+import { collidesWithRoomProp, shotBlockedByRoomProp } from './roomCollision3D';
 import { getRoomSpawnPoints, sceneSpawnToGame } from './roomSpawn3D';
 
 export interface RunGameState {
@@ -40,7 +40,7 @@ const ENEMY_STATS: Record<EnemyType, { hp: number; attack: number; defense: numb
   boss: { hp: 520, attack: 24, defense: 7, speed: 54, size: 44, xp: 180, color: '#ff493a' },
 };
 
-const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'heal'];
+const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 
 export class GameEngine {
   state: RunGameState;
@@ -92,7 +92,7 @@ export class GameEngine {
     const chapter = Math.max(1, save.chapter ?? 1);
     const map = generateRunRoom(room);
     this.state = this.makeState(save.playerName, map, room, chapter);
-    this.state.player = this.makePlayer(save.playerName, map, save.level, save.xp, save.hp, {
+    this.state.player = this.makePlayer(save.playerName, map, save.level, 0, save.hp, {
       maxHp: save.maxHp, attack: save.attack, defense: save.defense, speed: save.speed, attackRange: 520,
     });
     this.state.killCount = save.killCount || 0;
@@ -106,7 +106,7 @@ export class GameEngine {
     const p = this.state.player;
     return saveGame({
       playerName: p.playerName, playerClass: 'archer', floor: this.state.floor, chapter: this.state.chapter,
-      level: p.level, xp: p.xp, hp: p.hp, maxHp: p.maxHp, attack: p.attack, defense: p.defense, speed: p.speed,
+      level: p.level, xp: 0, hp: p.hp, maxHp: p.maxHp, attack: p.attack, defense: p.defense, speed: p.speed,
       attackRange: p.attackRange, skillRange: p.skillRange, killCount: this.state.killCount,
       worldX: p.x, worldY: p.y, dungeonEntranceX: 0, dungeonEntranceY: 0, playerX: p.x, playerY: p.y,
       inDungeon: false, overworldMap: this.state.map, savedAt: Date.now(), saveReason: reason, runSkills: this.state.runSkills,
@@ -127,6 +127,7 @@ export class GameEngine {
     else if (choice === 'speed') p.speed += 12;
     else if (choice === 'defense') p.defense += 1;
     else if (choice === 'heal') p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.5);
+    this.state.upgradeChoices = [];
     this.state.status = 'playing';
     this.saveNow('ability');
     this.emit();
@@ -152,16 +153,6 @@ export class GameEngine {
 
     if (this.state.player.hp <= 0) {
       this.state.status = 'gameover';
-      this.emit();
-      return;
-    }
-
-    const xpNeeded = 70 + (this.state.player.level - 1) * 55;
-    if (this.state.player.xp >= xpNeeded) {
-      this.state.player.xp -= xpNeeded;
-      this.state.player.level++;
-      this.state.status = 'levelup';
-      this.generateUpgradeChoices();
       this.emit();
     }
   }
@@ -209,7 +200,6 @@ export class GameEngine {
     }
 
     this.pickupItems(time);
-
     if (this.input.attack) {
       this.input.attack = false;
       if (p.attackCooldown <= 0) this.autoShoot(time);
@@ -220,8 +210,17 @@ export class GameEngine {
 
   private autoShoot(time: number): void {
     const p = this.state.player;
-    const enemies = this.livingEnemies().sort((a, b) => distance(p.x, p.y, a.x, a.y) - distance(p.x, p.y, b.x, b.y));
+    const px = p.x + 16;
+    const py = p.y + 16;
+    const enemies = this.livingEnemies()
+      .filter(enemy => {
+        const ex = enemy.x + enemy.width / 2;
+        const ey = enemy.y + enemy.height / 2;
+        return !shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, px, py, ex, ey);
+      })
+      .sort((a, b) => distance(p.x, p.y, a.x, a.y) - distance(p.x, p.y, b.x, b.y));
     if (!enemies.length) return;
+
     const speedRanks = this.state.runSkills.attackSpeed ?? 0;
     p.attackCooldown = Math.max(120, CLASS_DEFS.archer.attackCooldownMs * Math.pow(0.84, speedRanks));
     p.lastAttackTime = time;
@@ -231,22 +230,29 @@ export class GameEngine {
     const piercing = this.state.runSkills.piercing ?? 0;
     const targetCount = Math.min(enemies.length, 1 + multishot + (ricochet > 0 ? 1 : 0) + (piercing > 0 ? 1 : 0));
     const targets = enemies.slice(0, targetCount);
+    const fireRanks = this.state.runSkills.fireArrow ?? 0;
+    const iceRanks = this.state.runSkills.iceArrow ?? 0;
 
     targets.forEach((enemy, index) => {
       const ex = enemy.x + enemy.width / 2;
       const ey = enemy.y + enemy.height / 2;
-      const px = p.x + 16;
-      const py = p.y + 16;
       const angle = Math.atan2(ey - py, ex - px);
       p.facing = { x: Math.cos(angle), y: Math.sin(angle) };
       const baseDamage = Math.max(1, Math.round((p.attack - (enemy.defense ?? 0) * 0.5) * (index === 0 ? 1 : 0.72)));
-      const fireBonus = (this.state.runSkills.fireArrow ?? 0) > 0 ? Math.max(1, Math.round(baseDamage * 0.35)) : 0;
-      const damage = baseDamage + fireBonus;
+      const fireBonus = fireRanks > 0 ? Math.max(1, Math.round(baseDamage * (0.25 + fireRanks * 0.1))) : 0;
+      const iceBonus = iceRanks > 0 ? Math.max(1, Math.round(baseDamage * (0.12 + iceRanks * 0.06))) : 0;
+      const damage = baseDamage + fireBonus + iceBonus;
+      const alternateElement = fireRanks > 0 && iceRanks > 0;
+      const useFire = fireRanks > 0 && (!alternateElement || (Math.floor(time / 240) + index) % 2 === 0);
+      const useIce = iceRanks > 0 && !useFire;
+      const shotColor = useFire ? '#ff642c' : useIce ? '#62d9ff' : '#ffe5a3';
+      const hitColor = useFire ? '#ff7a28' : useIce ? '#8ae8ff' : '#ffe08a';
+
       enemy.hp -= damage;
       enemy.flashUntil = time + 130;
-      this.state.damageNumbers.push({ id: `arrow-${time}-${index}`, x: ex, y: enemy.y - 8, value: `-${damage}`, color: fireBonus ? '#ff8d32' : '#ffd76a', lifeTime: 0, maxLifeTime: 700, scale: index === 0 ? 1.15 : 0.95 });
-      this.state.effects.push({ id: `shot-${time}-${index}`, x: px, y: py, radius: 0, maxRadius: distance(px, py, ex, ey), color: fireBonus ? '#ff8a32' : '#ffe5a3', lifeTime: 0, maxLifeTime: 120, type: 'beam', angle, width: index === 0 ? 3 : 2 });
-      this.state.particles.push(...makeHitSpark(ex, ey, fireBonus ? '#ff7a28' : '#ffe08a', 5));
+      this.state.damageNumbers.push({ id: `arrow-${time}-${index}`, x: ex, y: enemy.y - 8, value: `-${damage}`, color: shotColor, lifeTime: 0, maxLifeTime: 700, scale: index === 0 ? 1.15 : 0.95 });
+      this.state.effects.push({ id: `shot-${time}-${index}`, x: px, y: py, radius: 0, maxRadius: distance(px, py, ex, ey), color: shotColor, lifeTime: 0, maxLifeTime: 145, type: 'beam', angle, width: index === 0 ? 3 : 2 });
+      this.state.particles.push(...makeHitSpark(ex, ey, hitColor, useFire || useIce ? 9 : 5));
     });
   }
 
@@ -272,29 +278,22 @@ export class GameEngine {
       const dist = Math.max(1, Math.hypot(p.x - enemy.x, p.y - enemy.y));
       const plan = planEnemyMove(enemy, p, dt, time);
       enemy.state = dist <= plan.attackRange ? 'attack' : 'chase';
-      if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') {
-        this.moveEntity(enemy, plan.dx, plan.dy);
-      }
+      if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx, plan.dy);
 
       if (dist < plan.attackRange && time > enemy.nextAttackTime) {
         enemy.nextAttackTime = time + plan.attackDelay;
         enemy.lastAttackTime = time;
         enemy.state = 'attack';
-
         const archetype = enemyArchetype(enemy.enemyType);
         if (archetype === 'dragon') {
           const ex = enemy.x + enemy.width / 2;
           const ey = enemy.y + enemy.height / 2;
-          const px = p.x + 16;
-          const py = p.y + 16;
-          const angle = Math.atan2(py - ey, px - ex);
-          this.state.effects.push({
-            id: `dragon-shot-${time}-${i}`, x: ex, y: ey, radius: 0, maxRadius: distance(ex, ey, px, py),
-            color: '#ff633d', lifeTime: 0, maxLifeTime: 180, type: 'beam', angle, width: 7,
-          });
-          this.state.particles.push(...makeHitSpark(px, py, '#ff633d', 10));
+          const targetX = p.x + 16;
+          const targetY = p.y + 16;
+          const angle = Math.atan2(targetY - ey, targetX - ex);
+          this.state.effects.push({ id: `dragon-shot-${time}-${i}`, x: ex, y: ey, radius: 0, maxRadius: distance(ex, ey, targetX, targetY), color: '#ff633d', lifeTime: 0, maxLifeTime: 180, type: 'beam', angle, width: 7 });
+          this.state.particles.push(...makeHitSpark(targetX, targetY, '#ff633d', 10));
         }
-
         if (time > p.invincibleUntil) {
           const damage = Math.max(1, enemy.attack - p.defense + Math.floor(Math.random() * 3));
           p.hp -= damage;
@@ -326,12 +325,16 @@ export class GameEngine {
     this.state.map = generateRunRoom(this.state.floor);
     this.state.player.x = this.state.map.startX * TILE_SIZE + 4;
     this.state.player.y = this.state.map.startY * TILE_SIZE + 4;
+    this.state.player.level++;
+    this.state.player.xp = 0;
     this.state.enemies = [];
     this.state.items = [];
     this.state.effects = [];
     this.state.damageNumbers = [];
     this.roomAnnouncedClear = false;
     this.spawnRoom();
+    this.generateUpgradeChoices();
+    this.state.status = 'levelup';
     this.saveNow(completedChapter ? 'chapter-complete' : 'room-complete');
     this.emit();
   }
@@ -352,11 +355,7 @@ export class GameEngine {
       return;
     }
 
-    const pool: EnemyType[] = room <= 2
-      ? ['skeleton', 'spider']
-      : room <= 5
-        ? ['skeleton', 'spider', 'vampire']
-        : ['skeleton', 'spider', 'vampire', 'demon'];
+    const pool: EnemyType[] = room <= 2 ? ['skeleton', 'spider'] : room <= 5 ? ['skeleton', 'spider', 'vampire'] : ['skeleton', 'spider', 'vampire', 'demon'];
     const points = getRoomSpawnPoints(room);
     const count = Math.min(points.length, Math.min(8, 2 + room));
 
@@ -387,18 +386,24 @@ export class GameEngine {
 
   private updateEffects(dt: number): void {
     for (let i = this.state.damageNumbers.length - 1; i >= 0; i--) {
-      const damage = this.state.damageNumbers[i]; damage.lifeTime += dt; damage.y -= dt / 1000 * 20;
+      const damage = this.state.damageNumbers[i];
+      damage.lifeTime += dt;
+      damage.y -= dt / 1000 * 20;
       if (damage.lifeTime >= damage.maxLifeTime) this.state.damageNumbers.splice(i, 1);
     }
     for (let i = this.state.effects.length - 1; i >= 0; i--) {
-      const effect = this.state.effects[i]; effect.lifeTime += dt;
+      const effect = this.state.effects[i];
+      effect.lifeTime += dt;
       if (effect.lifeTime >= effect.maxLifeTime) this.state.effects.splice(i, 1);
     }
   }
 
   private updateParticles(dt: number): void {
     for (let i = this.state.particles.length - 1; i >= 0; i--) {
-      const p = this.state.particles[i]; p.lifeTime += dt; p.x += p.vx * dt / 1000; p.y += p.vy * dt / 1000;
+      const p = this.state.particles[i];
+      p.lifeTime += dt;
+      p.x += p.vx * dt / 1000;
+      p.y += p.vy * dt / 1000;
       if (p.drag) { p.vx *= p.drag; p.vy *= p.drag; }
       if (p.gravity) p.vy += p.gravity * dt / 1000;
       if (p.lifeTime >= p.maxLifeTime) this.state.particles.splice(i, 1);
@@ -406,15 +411,7 @@ export class GameEngine {
   }
 
   private blockedByRoomProp(entity: { x: number; y: number; width: number; height: number }) {
-    return collidesWithRoomProp(
-      this.state.floor,
-      this.state.map.width,
-      this.state.map.height,
-      entity.x,
-      entity.y,
-      entity.width,
-      entity.height,
-    );
+    return collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, entity.x, entity.y, entity.width, entity.height);
   }
 
   private moveEntity(entity: { x: number; y: number; width: number; height: number }, dx: number, dy: number): void {
@@ -440,22 +437,17 @@ export class GameEngine {
     this.onStateChange({ ...this.state });
   }
 
-  private spawnLoot(x: number, y: number, enemyType: EnemyType): void {
+  private spawnLoot(x: number, y: number, _enemyType: EnemyType): void {
+    if (Math.random() >= 0.05) return;
     const now = Date.now();
     const id = ++this.lootCounter;
     let cx = x + (Math.random() - 0.5) * 14;
     let cy = y + (Math.random() - 0.5) * 14;
-    if (!isWalkable(this.state.map, cx, cy)) { cx = x; cy = y; }
+    if (!isWalkable(this.state.map, cx, cy) || collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, cx - 8, cy - 8, 16, 16)) { cx = x; cy = y; }
     this.state.items.push({
-      id: `xp-${id}`, type: 'item', itemType: 'xp_orb', value: ENEMY_STATS[enemyType].xp,
-      x: cx - 8, y: cy - 8, width: 16, height: 16, vx: 0, vy: 0, color: '#5fd0ff', spawnTime: now,
+      id: `potion-${id}`, type: 'item', itemType: 'potion', value: 25,
+      x: cx - 8, y: cy - 8, width: 16, height: 16, vx: 0, vy: 0, color: '#ff6b6b', spawnTime: now,
     });
-    if (Math.random() < 0.18) {
-      this.state.items.push({
-        id: `potion-${id}`, type: 'item', itemType: 'potion', value: 25,
-        x: cx - 8, y: cy - 8, width: 16, height: 16, vx: 0, vy: 0, color: '#ff6b6b', spawnTime: now,
-      });
-    }
   }
 
   private pickupItems(time: number): void {
@@ -470,10 +462,7 @@ export class GameEngine {
       const iy = item.y + item.height / 2;
       const dist = Math.max(1, Math.hypot(px - ix, py - iy));
       if (dist < pickupRadius) {
-        if (item.itemType === 'xp_orb') {
-          p.xp += item.value;
-          this.state.damageNumbers.push({ id: `xp-${time}-${i}`, x: ix, y: iy - 8, value: `+${item.value} XP`, color: '#5fd0ff', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
-        } else if (item.itemType === 'potion') {
+        if (item.itemType === 'potion') {
           const heal = Math.min(item.value, p.maxHp - p.hp);
           if (heal > 0) p.hp += heal;
           this.state.damageNumbers.push({ id: `heal-${time}-${i}`, x: ix, y: iy - 8, value: `+${heal}`, color: '#43c968', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
