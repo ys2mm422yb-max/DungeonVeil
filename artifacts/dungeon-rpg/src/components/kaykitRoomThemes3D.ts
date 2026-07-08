@@ -1,17 +1,11 @@
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
-type ThemeLibrary = {
-  forest: any[];
-  halloween: any[];
-};
-
-type LoadedGltf = {
-  scene: any;
-};
-
-let themePromise: Promise<ThemeLibrary> | null = null;
+type LoadedGltf = { scene: any };
+let forestPromise: Promise<any[]> | null = null;
+let halloweenPromise: Promise<any[]> | null = null;
 
 function scoreForest(path: string) {
   const name = path.toLowerCase();
@@ -32,34 +26,28 @@ function scoreHalloween(path: string) {
   return score;
 }
 
-async function loadThemes() {
-  if (!themePromise) {
-    themePromise = (async () => {
-      const manifest = await loadKayKitManifest();
-      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
-      const loader = new GLTFLoader();
+async function loadThemePack(pack: 'forest' | 'halloween') {
+  const manifest = await loadKayKitManifest();
+  const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
+  const loader = new GLTFLoader();
+  const score = pack === 'forest' ? scoreForest : scoreHalloween;
+  const paths = findKayKitModels(manifest, pack, /\.(?:gltf|glb)$/i)
+    .map(path => ({ path, score: score(path) }))
+    .filter(entry => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
+    .slice(0, 10)
+    .map(entry => entry.path);
+  return Promise.all(paths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene)));
+}
 
-      const forestPaths = findKayKitModels(manifest, 'forest', /\.(?:gltf|glb)$/i)
-        .map(path => ({ path, score: scoreForest(path) }))
-        .filter(entry => entry.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 28)
-        .map(entry => entry.path);
-      const halloweenPaths = findKayKitModels(manifest, 'halloween', /\.(?:gltf|glb)$/i)
-        .map(path => ({ path, score: scoreHalloween(path) }))
-        .filter(entry => entry.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 28)
-        .map(entry => entry.path);
+function loadForest() {
+  if (!forestPromise) forestPromise = loadThemePack('forest');
+  return forestPromise;
+}
 
-      const [forest, halloween] = await Promise.all([
-        Promise.all(forestPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene))),
-        Promise.all(halloweenPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene))),
-      ]);
-      return { forest, halloween };
-    })();
-  }
-  return themePromise;
+function loadHalloween() {
+  if (!halloweenPromise) halloweenPromise = loadThemePack('halloween');
+  return halloweenPromise;
 }
 
 const EDGE_POSITIONS = [
@@ -73,12 +61,16 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   root.name = `KayKitThemeRoom${room}`;
   let active = true;
 
-  loadThemes().then(library => {
-    if (!active) return;
-    const pool = room >= 8 ? library.halloween : room >= 6 ? library.forest : [];
-    if (!pool.length) return;
+  if (room < 6) {
+    root.userData.dispose = () => { active = false; };
+    return root;
+  }
 
-    EDGE_POSITIONS.forEach(([x, z, rotation], index) => {
+  const loadPool = room >= 8 ? loadHalloween : loadForest;
+  loadPool().then(pool => {
+    if (!active || !pool.length) return;
+    const positions = IS_MOBILE ? EDGE_POSITIONS.slice(0, 8) : EDGE_POSITIONS;
+    positions.forEach(([x, z, rotation], index) => {
       const prototype = pool[(index * 5 + room * 3) % pool.length];
       const object = prototype.clone(true);
       object.position.set(x, 0, z);
@@ -86,9 +78,9 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
       object.scale.setScalar(0.78 + ((index + room) % 4) * 0.08);
       object.traverse((node: any) => {
         if (!node.isMesh) return;
-        node.castShadow = true;
-        node.receiveShadow = true;
-        node.frustumCulled = false;
+        node.castShadow = !IS_MOBILE;
+        node.receiveShadow = !IS_MOBILE;
+        node.frustumCulled = true;
       });
       root.add(object);
     });
