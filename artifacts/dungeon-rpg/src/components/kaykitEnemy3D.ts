@@ -10,8 +10,9 @@ type EnemyPrototype = { scene: any; clips: any[]; role: EnemyRole };
 type EnemyLibrary = { prototypes: EnemyPrototype[]; weapons: Partial<Record<'axe' | 'blade' | 'staff' | 'shieldSmall' | 'shieldLarge', any>> };
 
 export type KayKitEnemyVisual = {
-  root: any; mixer: any; idle: any; move: any; attack: any; death: any;
-  lastState: string; lastAttackTime: number; attackRemaining: number; deathPlayed: boolean; deathElapsed: number;
+  root: any; scene: any; mixer: any; idle: any; move: any; attack: any; death: any;
+  lastState: string; lastAttackTime: number; lastHitTime: number; attackRemaining: number; deathPlayed: boolean; deathElapsed: number;
+  baseScale: number; hitElapsed: number; statusRoot: any; burnGlows: any[]; frostGlows: any[];
 };
 
 let libraryPromise: Promise<EnemyLibrary> | null = null;
@@ -69,6 +70,17 @@ async function loadLibrary() {
 
 export function preloadKayKitEnemyVisuals() { return loadLibrary().then(() => undefined); }
 
+function buildStatusGlows(THREE: any, color: number, count: number, yBase: number) {
+  const glows: any[] = [];
+  for (let i = 0; i < count; i++) {
+    const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 6), material);
+    mesh.position.set(Math.sin(i * 2.3) * 0.32, yBase + (i % 3) * 0.26, Math.cos(i * 1.7) * 0.25);
+    glows.push(mesh);
+  }
+  return glows;
+}
+
 export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
   const [library, skeletonUtils] = await Promise.all([loadLibrary(), import(/* @vite-ignore */ SKELETON_UTILS_URL) as any]);
   if (!library.prototypes.length) return null;
@@ -86,7 +98,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const idleClip = chooseClip(prototype.clips, [['idle', 'a'], ['idle']], ['crouch', 'sit']);
   const moveClip = chooseClip(prototype.clips, [['run'], ['walk']], ['back', 'left', 'right', 'crouch']);
   const attackClip = chooseClip(prototype.clips, [['attack', 'a'], ['melee', 'attack'], ['attack']], ['bow', 'crossbow', 'ranged']);
-  const deathClip = chooseClip(prototype.clips, [['death', 'a'], ['death']], []);
+  const deathClip = chooseClip(prototype.clips, [['death', 'a'], ['death', 'b'], ['death']], []);
   const mixer = new THREE.AnimationMixer(scene);
   const idle = idleClip ? mixer.clipAction(idleClip) : null;
   const move = moveClip ? mixer.clipAction(moveClip) : null;
@@ -94,29 +106,130 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   idle?.reset().play(); if (move) move.timeScale = 1.06;
   if (attack) { attack.setLoop(THREE.LoopOnce, 1); attack.clampWhenFinished = false; attack.timeScale = 1.12; }
-  if (death) { death.setLoop(THREE.LoopOnce, 1); death.clampWhenFinished = true; death.timeScale = 1.35; }
+  if (death) { death.setLoop(THREE.LoopOnce, 1); death.clampWhenFinished = true; death.timeScale = enemy.enemyType === 'boss' ? 0.82 : 1.0; }
   const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
-  root.scale.setScalar((enemy.enemyType === 'boss' ? 1.36 : 0.96) * roleScale);
-  return { root, mixer, idle, move, attack, death, lastState: 'idle', lastAttackTime: enemy.lastAttackTime, attackRemaining: 0, deathPlayed: false, deathElapsed: 0 };
+  const baseScale = (enemy.enemyType === 'boss' ? 1.36 : 0.96) * roleScale;
+  root.scale.setScalar(baseScale);
+
+  const statusRoot = new THREE.Group();
+  statusRoot.name = `EnemyStatus_${enemy.id}`;
+  root.add(statusRoot);
+  const burnGlows = buildStatusGlows(THREE, 0xff642c, IS_MOBILE ? 4 : 7, 0.22);
+  const frostGlows = buildStatusGlows(THREE, 0x62d9ff, IS_MOBILE ? 4 : 7, 0.18);
+  [...burnGlows, ...frostGlows].forEach(mesh => statusRoot.add(mesh));
+
+  return { root, scene, mixer, idle, move, attack, death, lastState: 'idle', lastAttackTime: enemy.lastAttackTime, lastHitTime: enemy.lastHitTime ?? 0, attackRemaining: 0, deathPlayed: false, deathElapsed: 0, baseScale, hitElapsed: 0, statusRoot, burnGlows, frostGlows };
 }
 
 function transition(visual: KayKitEnemyVisual, next: any, fade = 0.1) {
-  if (!next) return; const actions = [visual.idle, visual.move, visual.attack, visual.death].filter(Boolean); for (const action of actions) if (action !== next && action.isRunning?.()) action.fadeOut(fade); next.reset().fadeIn(fade).play();
+  if (!next) return;
+  const actions = [visual.idle, visual.move, visual.attack, visual.death].filter(Boolean);
+  for (const action of actions) if (action !== next && action.isRunning?.()) action.fadeOut(fade);
+  next.reset().fadeIn(fade).play();
 }
 
-export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy, delta: number) {
-  if (enemy.isDead || enemy.state === 'dead') {
-    if (!visual.deathPlayed) { visual.deathPlayed = true; visual.deathElapsed = 0; transition(visual, visual.death, 0.04); }
-    visual.deathElapsed += delta;
-    const p = Math.min(1, visual.deathElapsed / 0.44);
-    visual.root.rotation.z = p * (enemy.enemyType === 'boss' ? 0.72 : 1.35);
-    visual.root.position.y = Math.sin(Math.min(1, p * 1.8) * Math.PI) * 0.18 - p * 0.12;
-    const scale = Math.max(0.72, 1 - p * 0.18); visual.root.scale.multiplyScalar(scale / Math.max(0.0001, visual.root.userData.lastDeathScale ?? 1)); visual.root.userData.lastDeathScale = scale;
-    visual.root.traverse((node: any) => { if (!node.isMesh && !node.isSkinnedMesh) return; const mats = Array.isArray(node.material) ? node.material : [node.material]; mats.forEach((m: any) => { if (!m) return; m.transparent = true; m.opacity = Math.max(0, 1 - Math.max(0, p - 0.35) / 0.65); }); });
-    visual.mixer.update(delta); return;
+function setMeshTint(root: any, color: number | null, intensity: number) {
+  root.traverse((node: any) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    const mats = Array.isArray(node.material) ? node.material : [node.material];
+    mats.forEach((material: any) => {
+      if (!material?.emissive) return;
+      material.emissive.set(color ?? 0x000000);
+      material.emissiveIntensity = color === null ? 0 : intensity;
+    });
+  });
+}
+
+export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy, delta: number, now = Date.now()) {
+  const burning = !!enemy.burnUntil && now < enemy.burnUntil;
+  const frozen = !!enemy.frostUntil && now < enemy.frostUntil;
+  visual.burnGlows.forEach((glow, index) => {
+    glow.material.opacity = burning ? 0.45 + Math.sin(now * 0.012 + index) * 0.28 : 0;
+    glow.position.y += burning ? delta * (0.16 + index * 0.018) : 0;
+    if (glow.position.y > 1.7) glow.position.y = 0.2;
+  });
+  visual.frostGlows.forEach((glow, index) => {
+    glow.material.opacity = frozen ? 0.4 + Math.sin(now * 0.008 + index * 1.6) * 0.22 : 0;
+    glow.rotation.y += delta * 0.8;
+  });
+  if (burning) setMeshTint(visual.scene, 0xff2d00, 0.2);
+  else if (frozen) setMeshTint(visual.scene, 0x46bfff, 0.22);
+  else setMeshTint(visual.scene, null, 0);
+
+  if ((enemy.lastHitTime ?? 0) > visual.lastHitTime) {
+    visual.lastHitTime = enemy.lastHitTime ?? 0;
+    visual.hitElapsed = 0.16;
   }
-  if (enemy.lastAttackTime > visual.lastAttackTime) { visual.lastAttackTime = enemy.lastAttackTime; const duration = visual.attack?.getClip?.()?.duration ?? 0.5; visual.attackRemaining = Math.max(0.22, duration / 1.12); transition(visual, visual.attack, 0.045); visual.lastState = 'attack'; }
-  if (visual.attackRemaining > 0) { visual.attackRemaining = Math.max(0, visual.attackRemaining - delta); if (visual.attackRemaining === 0) { const next = enemy.state === 'chase' ? visual.move : visual.idle; transition(visual, next, 0.08); visual.lastState = enemy.state === 'chase' ? 'chase' : 'idle'; } }
-  else { const desiredState = enemy.state === 'chase' ? 'chase' : 'idle'; if (desiredState !== visual.lastState) { transition(visual, desiredState === 'chase' ? visual.move : visual.idle, 0.1); visual.lastState = desiredState; } }
+
+  if (enemy.isDead || enemy.state === 'dead') {
+    if (!visual.deathPlayed) {
+      visual.deathPlayed = true;
+      visual.deathElapsed = 0;
+      if (visual.death) transition(visual, visual.death, 0.04);
+      else visual.mixer.stopAllAction();
+    }
+    visual.deathElapsed += delta;
+    const duration = Math.max(0.5, (enemy.deathDuration ?? 920) / 1000);
+    const p = Math.min(1, visual.deathElapsed / duration);
+    const hasClip = Boolean(visual.death);
+    if (!hasClip) {
+      const recoil = Math.min(1, p / 0.18);
+      const fall = Math.max(0, (p - 0.14) / 0.58);
+      visual.root.rotation.z = fall * (enemy.enemyType === 'boss' ? 0.8 : 1.42);
+      visual.root.position.y = Math.sin(recoil * Math.PI) * 0.2 - fall * 0.18;
+    } else {
+      visual.root.position.y = -Math.max(0, p - 0.72) * 0.18;
+    }
+    const fadeStart = enemy.enemyType === 'boss' ? 0.78 : 0.7;
+    const opacity = p <= fadeStart ? 1 : Math.max(0, 1 - (p - fadeStart) / (1 - fadeStart));
+    visual.root.traverse((node: any) => {
+      if (!node.isMesh && !node.isSkinnedMesh) return;
+      const mats = Array.isArray(node.material) ? node.material : [node.material];
+      mats.forEach((m: any) => { if (!m) return; m.transparent = true; m.opacity = opacity; });
+    });
+    visual.mixer.update(delta);
+    return;
+  }
+
+  if (visual.hitElapsed > 0) {
+    visual.hitElapsed = Math.max(0, visual.hitElapsed - delta);
+    const pulse = Math.sin((visual.hitElapsed / 0.16) * Math.PI);
+    const fromX = enemy.hitFromX ?? enemy.x;
+    const fromY = enemy.hitFromY ?? enemy.y;
+    const dx = enemy.x - fromX;
+    const dy = enemy.y - fromY;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const strength = enemy.enemyType === 'boss' ? 0.05 : 0.13;
+    visual.scene.position.x = dx / len * pulse * strength;
+    visual.scene.position.z = dy / len * pulse * strength;
+    visual.scene.rotation.z = -pulse * (enemy.enemyType === 'boss' ? 0.035 : 0.09);
+  } else {
+    visual.scene.position.x *= 0.6;
+    visual.scene.position.z *= 0.6;
+    visual.scene.rotation.z *= 0.6;
+  }
+
+  if (enemy.lastAttackTime > visual.lastAttackTime) {
+    visual.lastAttackTime = enemy.lastAttackTime;
+    const duration = visual.attack?.getClip?.()?.duration ?? 0.5;
+    visual.attackRemaining = Math.max(0.22, duration / 1.12);
+    transition(visual, visual.attack, 0.045);
+    visual.lastState = 'attack';
+  }
+  if (visual.attackRemaining > 0) {
+    visual.attackRemaining = Math.max(0, visual.attackRemaining - delta);
+    if (visual.attackRemaining === 0) {
+      const next = enemy.state === 'chase' ? visual.move : visual.idle;
+      transition(visual, next, 0.08);
+      visual.lastState = enemy.state === 'chase' ? 'chase' : 'idle';
+    }
+  } else {
+    const desiredState = enemy.state === 'chase' ? 'chase' : 'idle';
+    if (desiredState !== visual.lastState) {
+      transition(visual, desiredState === 'chase' ? visual.move : visual.idle, 0.1);
+      visual.lastState = desiredState;
+    }
+  }
+  if (visual.move) visual.move.timeScale = frozen ? Math.max(0.5, 1 - (enemy.frostSlow ?? 0)) : 1.06;
   visual.mixer.update(delta);
 }
