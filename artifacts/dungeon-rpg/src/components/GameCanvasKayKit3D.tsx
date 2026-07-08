@@ -80,7 +80,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       scene.add(root);
     };
 
-    const syncEnemies = (state: GameState, delta: number, now: number) => {
+    const syncEnemies = (state: GameState, delta: number, gameNow: number) => {
       const active = new Set(state.enemies.map(enemy => enemy.id));
       for (const [id, visual] of enemyVisuals) {
         if (active.has(id)) continue;
@@ -109,7 +109,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         if (!visual) continue;
         visual.root.position.set(mapX(state, enemy.x + enemy.width / 2), 0, mapZ(state, enemy.y + enemy.height / 2));
         if (!enemy.isDead) visual.root.rotation.y = Math.atan2(state.player.x - enemy.x, state.player.y - enemy.y);
-        updateKayKitEnemyVisual(visual, enemy, delta, now);
+        updateKayKitEnemyVisual(visual, enemy, delta, gameNow);
       }
     };
 
@@ -126,8 +126,10 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       positions.forEach((y, index) => {
         const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
         const glow = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), material);
+        const baseScale = scales[index] ?? 0.04;
         glow.position.set(0, y, 0);
-        glow.scale.setScalar(scales[index] ?? 0.04);
+        glow.scale.setScalar(baseScale);
+        glow.userData.baseScale = baseScale;
         arrow.add(glow);
         glows.push(glow);
       });
@@ -140,7 +142,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       arrow.userData.elementKind = element;
     };
 
-    const syncArrows = (state: GameState, now: number) => {
+    const syncArrows = (state: GameState, wallNow: number) => {
       const shots = state.effects.filter(effect => effect.type === 'beam' && (effect.id.startsWith('shot-') || effect.id.startsWith('pierce-') || effect.id.startsWith('rico-')));
       const active = new Set(shots.map(effect => effect.id));
       for (const [id, mesh] of arrowVisuals) {
@@ -177,17 +179,17 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           node.material.color.set(shot.color);
           node.material.opacity = Math.max(0.22, 0.92 * (1 - progress * 0.28));
         });
-        const pulse = 0.82 + Math.sin(now * 0.025 + progress * 8) * 0.18;
+        const pulse = 0.82 + Math.sin(wallNow * 0.025 + progress * 8) * 0.18;
         const glows = arrow.userData.elementGlows as any[] | undefined;
         glows?.forEach((glow, index) => {
           glow.material.opacity = Math.max(0.25, pulse - index * 0.12);
-          glow.scale.multiplyScalar(0.94 + pulse * 0.07);
+          glow.scale.setScalar((glow.userData.baseScale ?? 0.04) * (0.92 + pulse * 0.12));
         });
         if (arrow.userData.elementLight) arrow.userData.elementLight.intensity = 3.1 + pulse * 1.9;
       }
     };
 
-    const syncLoot = (state: GameState, now: number) => {
+    const syncLoot = (state: GameState, wallNow: number) => {
       const active = new Set(state.items.map(item => item.id));
       for (const [id, visual] of lootVisuals) {
         if (active.has(id)) continue;
@@ -212,12 +214,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         }
         visual = lootVisuals.get(item.id);
         if (!visual) continue;
-        visual.position.set(mapX(state, item.x + item.width / 2), 0.18 + Math.sin((now - item.spawnTime) * 0.005) * 0.05, mapZ(state, item.y + item.height / 2));
+        visual.position.set(mapX(state, item.x + item.width / 2), 0.18 + Math.sin((wallNow - item.spawnTime) * 0.005) * 0.05, mapZ(state, item.y + item.height / 2));
         visual.rotation.y += 0.028;
       }
     };
 
-    const syncPortal = (state: GameState, now: number) => {
+    const syncPortal = (state: GameState, gameNow: number, wallNow: number) => {
       const clear = state.roomClearReady && state.status === 'playing';
       if (!clear) {
         if (portal) {
@@ -253,11 +255,11 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         if (x >= 0) { exitX = x; exitY = y; break; }
       }
       portal.position.set(exitX + 0.5 - state.map.width / 2, 0.02, exitY + 0.5 - state.map.height / 2);
-      const activateProgress = Math.min(1, Math.max(0, (now - state.roomClearAt) / 520));
+      const activateProgress = Math.min(1, Math.max(0, (gameNow - state.roomClearAt) / 520));
       portal.scale.setScalar(0.15 + activateProgress * 0.85);
-      portal.userData.ring.rotation.z = now * 0.0012;
-      portal.userData.veil.material.opacity = (0.16 + Math.sin(now * 0.004) * 0.06) * activateProgress;
-      portal.userData.core.intensity = (4.2 + Math.sin(now * 0.006) * 1.5) * activateProgress;
+      portal.userData.ring.rotation.z = wallNow * 0.0012;
+      portal.userData.veil.material.opacity = (0.16 + Math.sin(wallNow * 0.004) * 0.06) * activateProgress;
+      portal.userData.core.intensity = (4.2 + Math.sin(wallNow * 0.006) * 1.5) * activateProgress;
     };
 
     const ensurePlayerPulse = () => {
@@ -270,7 +272,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       scene.add(playerPulse);
     };
 
-    const syncPlayerFeedback = (state: GameState, now: number) => {
+    const syncPlayerFeedback = (state: GameState, wallNow: number, gameNow: number) => {
       ensurePlayerPulse();
       const px = mapX(state, state.player.x + 16);
       const pz = mapZ(state, state.player.y + 16);
@@ -279,8 +281,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const guardTime = state.player.lastGuardTime ?? 0;
       if (giftTime > lastGift) lastGift = giftTime;
       if (guardTime > lastGuard) lastGuard = guardTime;
-      const giftAge = now - lastGift;
-      const guardAge = now - lastGuard;
+      const giftAge = wallNow - lastGift;
+      const guardAge = gameNow - lastGuard;
       const activeGift = giftAge >= 0 && giftAge < 650;
       const activeGuard = guardAge >= 0 && guardAge < 260;
       const ring = playerPulse.userData.ring;
@@ -311,7 +313,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const renderLoop = () => {
       if (disposed || !renderer || !scene || !camera || !clock) return;
       const state = stateRef.current;
-      const now = Date.now();
+      const wallNow = Date.now();
+      const gameNow = performance.now();
       const delta = Math.min(clock.getDelta(), 0.05);
       const playerX = mapX(state, state.player.x);
       const playerZ = mapZ(state, state.player.y);
@@ -330,11 +333,11 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       }
 
       if (playerLight) playerLight.position.set(playerX, 4.2, playerZ + 1.2);
-      syncEnemies(state, delta, now);
-      syncArrows(state, now);
-      syncLoot(state, now);
-      syncPortal(state, now);
-      syncPlayerFeedback(state, now);
+      syncEnemies(state, delta, gameNow);
+      syncArrows(state, wallNow);
+      syncLoot(state, wallNow);
+      syncPortal(state, gameNow, wallNow);
+      syncPlayerFeedback(state, wallNow, gameNow);
       updateRunCamera(camera, cameraGoal, playerX, playerZ);
       renderer.render(scene, camera);
       raf = requestAnimationFrame(renderLoop);
