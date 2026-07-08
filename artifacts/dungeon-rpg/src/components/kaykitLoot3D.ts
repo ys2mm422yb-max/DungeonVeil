@@ -36,6 +36,10 @@ async function loadPotion() {
   return potionPromise;
 }
 
+export function preloadKayKitHealingPotion() {
+  return loadPotion().then(() => undefined);
+}
+
 export async function createKayKitLootVisual(item: Item) {
   if (item.itemType !== 'potion') return null;
   const prototype = await loadPotion();
