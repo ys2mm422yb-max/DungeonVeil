@@ -44,24 +44,24 @@ export function RangerPreview() {
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.12;
+      renderer.toneMappingExposure = 1.08;
       host.appendChild(renderer.domElement);
 
-      camera = new THREE.PerspectiveCamera(34, 1, 0.1, 50);
-      camera.position.set(1.65, 1.65, 4.7);
-      camera.lookAt(0, 0.9, 0);
+      camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
+      camera.position.set(2.15, 1.75, 6.6);
+      camera.lookAt(0, 0.88, 0);
 
       scene.add(new THREE.HemisphereLight(0xfff0d8, 0x17110d, 2.1));
-      const key = new THREE.DirectionalLight(0xffd79a, 3.4);
+      const key = new THREE.DirectionalLight(0xffd79a, 3.2);
       key.position.set(4, 6, 5);
       key.castShadow = true;
       scene.add(key);
-      const rim = new THREE.DirectionalLight(0x8875d8, 1.25);
+      const rim = new THREE.DirectionalLight(0x8875d8, 1.1);
       rim.position.set(-4, 3, -4);
       scene.add(rim);
 
       const floor = new THREE.Mesh(
-        new THREE.CircleGeometry(1.25, 40),
+        new THREE.CircleGeometry(1.35, 40),
         new THREE.MeshStandardMaterial({ color: 0x21160f, roughness: 1 }),
       );
       floor.rotation.x = -Math.PI / 2;
@@ -70,8 +70,8 @@ export function RangerPreview() {
 
       rangerRig = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
-      rangerRig.root.scale.setScalar(1.14);
-      rangerRig.root.rotation.y = -0.28;
+      rangerRig.root.scale.setScalar(0.98);
+      rangerRig.root.rotation.y = -0.35;
       scene.add(rangerRig.root);
 
       clock = new THREE.Clock();
@@ -83,7 +83,7 @@ export function RangerPreview() {
         const dt = Math.min(clock.getDelta(), 0.05);
         showcaseTime += dt;
         rangerRig?.update(dt);
-        if (rangerRig?.root) rangerRig.root.rotation.y = -0.28 + Math.sin(showcaseTime * 0.45) * 0.14;
+        if (rangerRig?.root) rangerRig.root.rotation.y = -0.35 + Math.sin(showcaseTime * 0.35) * 0.12;
         renderer.render(scene, camera);
         frame = requestAnimationFrame(render);
       };
