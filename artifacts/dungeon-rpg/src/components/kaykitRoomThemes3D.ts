@@ -7,6 +7,10 @@ type ThemeLibrary = {
   halloween: any[];
 };
 
+type LoadedGltf = {
+  scene: any;
+};
+
 let themePromise: Promise<ThemeLibrary> | null = null;
 
 function scoreForest(path: string) {
@@ -49,8 +53,8 @@ async function loadThemes() {
         .map(entry => entry.path);
 
       const [forest, halloween] = await Promise.all([
-        Promise.all(forestPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then(gltf => gltf.scene))),
-        Promise.all(halloweenPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then(gltf => gltf.scene))),
+        Promise.all(forestPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene))),
+        Promise.all(halloweenPaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene))),
       ]);
       return { forest, halloween };
     })();
