@@ -4,8 +4,8 @@ import { TileType } from '../game/dungeon';
 import { RUN_CAMERA, updateRunCamera } from './RunCameraRig';
 import { composeFullRanger } from './rangerCharacterRig';
 import { attachBowToRanger } from './bowRig';
-import { createSlimeVisual, updateSlimeVisual } from './slimeVisual';
 import { buildChapterRoomDecor } from './roomDecor3D';
+import { createMonsterVisual, loadMonsterLibrary, updateMonsterVisual, type MonsterLibrary, type MonsterVisual } from './monsterVisual3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -35,13 +35,15 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
     let rangerRig: ReturnType<typeof composeFullRanger> | null = null;
     let bowRig: ReturnType<typeof attachBowToRanger> | null = null;
     let arrowProto: any = null;
+    let monsterLibrary: MonsterLibrary = {};
     let roomRoot: any = null;
     let portal: any = null;
     let lastRoomKey = '';
     let lastAttack = 0;
     let attackPulse = 0;
 
-    const enemyVisuals = new Map<string, ReturnType<typeof createSlimeVisual>>();
+    const enemyVisuals = new Map<string, MonsterVisual>();
+    const enemyLoading = new Set<string>();
     const arrowVisuals = new Map<string, any>();
     const itemVisuals = new Map<string, any>();
 
@@ -122,7 +124,6 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
         roomRoot.userData?.decor?.userData?.dispose?.();
         disposeObject(roomRoot);
       }
-
       const root = new THREE.Group();
       root.add(makeGround(state));
       const room = Math.max(1, Math.min(4, state.floor));
@@ -133,25 +134,36 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       scene.add(root);
     };
 
-    const syncEnemies = (state: GameState, now: number) => {
+    const syncEnemies = (state: GameState, now: number, delta: number) => {
       const active = new Set(state.enemies.map(enemy => enemy.id));
       for (const [id, visual] of enemyVisuals) {
         if (active.has(id)) continue;
         scene.remove(visual.root);
+        visual.mixer?.stopAllAction?.();
         disposeObject(visual.root);
         enemyVisuals.delete(id);
       }
 
       for (const enemy of state.enemies) {
         let visual = enemyVisuals.get(enemy.id);
-        if (!visual) {
-          visual = createSlimeVisual(THREE, enemy);
-          scene.add(visual.root);
-          enemyVisuals.set(enemy.id, visual);
+        if (!visual && !enemyLoading.has(enemy.id)) {
+          enemyLoading.add(enemy.id);
+          createMonsterVisual(THREE, monsterLibrary, enemy).then(created => {
+            enemyLoading.delete(enemy.id);
+            if (!created || disposed || !stateRef.current.enemies.some(current => current.id === enemy.id)) return;
+            enemyVisuals.set(enemy.id, created);
+            scene.add(created.root);
+          }).catch(error => {
+            enemyLoading.delete(enemy.id);
+            console.warn('Monster visual failed', error);
+          });
+          continue;
         }
+        visual = enemyVisuals.get(enemy.id);
+        if (!visual) continue;
         visual.root.position.set(mapX(state, enemy.x + enemy.width / 2), 0, mapZ(state, enemy.y + enemy.height / 2));
         visual.root.rotation.y = Math.atan2(state.player.x - enemy.x, state.player.y - enemy.y);
-        updateSlimeVisual(visual, enemy, now);
+        updateMonsterVisual(visual, enemy, delta, now);
       }
     };
 
@@ -198,20 +210,12 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
           const xp = item.itemType === 'xp_orb';
           mesh = new THREE.Mesh(
             xp ? new THREE.OctahedronGeometry(0.15, 0) : new THREE.IcosahedronGeometry(0.16, 0),
-            new THREE.MeshStandardMaterial({
-              color: xp ? 0x78ddff : 0xdb3952,
-              emissive: xp ? 0x147da5 : 0x6b1323,
-              emissiveIntensity: xp ? 1.8 : 0.75,
-            }),
+            new THREE.MeshStandardMaterial({ color: xp ? 0x78ddff : 0xdb3952, emissive: xp ? 0x147da5 : 0x6b1323, emissiveIntensity: xp ? 1.8 : 0.75 }),
           );
           scene.add(mesh);
           itemVisuals.set(item.id, mesh);
         }
-        mesh.position.set(
-          mapX(state, item.x + item.width / 2),
-          0.24 + Math.sin((now - item.spawnTime) * 0.005) * 0.06,
-          mapZ(state, item.y + item.height / 2),
-        );
+        mesh.position.set(mapX(state, item.x + item.width / 2), 0.24 + Math.sin((now - item.spawnTime) * 0.005) * 0.06, mapZ(state, item.y + item.height / 2));
         mesh.rotation.y += 0.035;
       }
     };
@@ -219,25 +223,15 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
     const syncPortal = (state: GameState, now: number) => {
       const clear = state.enemies.every(enemy => enemy.hp <= 0 || enemy.isDead) && state.status === 'playing';
       if (!clear) {
-        if (portal) {
-          scene.remove(portal);
-          disposeObject(portal);
-          portal = null;
-        }
+        if (portal) { scene.remove(portal); disposeObject(portal); portal = null; }
         return;
       }
       if (!portal) {
         portal = new THREE.Group();
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(0.7, 0.045, 8, 32),
-          new THREE.MeshBasicMaterial({ color: 0xb693ff, transparent: true, opacity: 0.95 }),
-        );
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.045, 8, 32), new THREE.MeshBasicMaterial({ color: 0xb693ff, transparent: true, opacity: 0.95 }));
         ring.rotation.x = Math.PI / 2;
         portal.add(ring);
-        const veil = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.58, 0.58, 1.25, 24, 1, true),
-          new THREE.MeshBasicMaterial({ color: 0x8c62ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }),
-        );
+        const veil = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 1.25, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0x8c62ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }));
         veil.position.y = 0.62;
         portal.add(veil);
         portal.userData.ring = ring;
@@ -271,15 +265,12 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       const delta = Math.min(clock.getDelta(), 0.05);
       const playerX = mapX(state, state.player.x);
       const playerZ = mapZ(state, state.player.y);
-
       buildRoom(state);
       roomRoot?.userData?.decor?.userData?.update?.(now);
 
       if (rangerRig) {
         rangerRig.root.position.set(playerX, 0, playerZ);
-        if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) {
-          rangerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
-        }
+        if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) rangerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
         rangerRig.setMoving(state.player.state === 'moving');
         if (state.player.lastAttackTime > lastAttack) {
           lastAttack = state.player.lastAttackTime;
@@ -291,7 +282,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
         rangerRig.update(delta);
       }
 
-      syncEnemies(state, now);
+      syncEnemies(state, now, delta);
       syncArrows(state);
       syncItems(state, now);
       syncPortal(state, now);
@@ -312,7 +303,6 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x08090c);
       scene.fog = new THREE.Fog(0x08090c, 26, 52);
-
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
       renderer.shadowMap.enabled = true;
@@ -323,7 +313,6 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       camera = new THREE.PerspectiveCamera(RUN_CAMERA.fov, 1, 0.1, 150);
       camera.position.set(0, RUN_CAMERA.height, RUN_CAMERA.distance);
       cameraGoal = new THREE.Vector3();
-
       scene.add(new THREE.HemisphereLight(0xffdfb5, 0x08090c, 1.15));
       const keyLight = new THREE.DirectionalLight(0xffc06c, 2.2);
       keyLight.position.set(-7, 14, 7);
@@ -336,12 +325,14 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
 
       const loader = new GLTFLoader();
       const loadGltf = (name: string) => loader.loadAsync(`${ROOT}${name}`);
-      const [base, outfit, animations] = await Promise.all([
+      const [base, outfit, animations, loadedMonsters] = await Promise.all([
         loadGltf('base-male.glb'),
         loadGltf('ranger.glb'),
         loadGltf('animations.glb'),
+        loadMonsterLibrary(THREE),
       ]);
       if (disposed) return;
+      monsterLibrary = loadedMonsters;
 
       rangerRig = composeFullRanger(THREE, base.scene, outfit.scene, animations.animations ?? []);
       rangerRig.root.scale.setScalar(1.04);
@@ -357,7 +348,6 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       const [bow, arrow] = await Promise.all([loadObj('Bow_Wooden2'), loadObj('Arrow')]);
       bowRig = attachBowToRanger(THREE, rangerRig.root, normalize(bow, 1.02));
       arrowProto = normalize(arrow, 0.78);
-
       clock = new THREE.Clock();
       resize();
       renderLoop();
@@ -365,13 +355,12 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
 
     window.addEventListener('resize', resize);
     boot().catch(error => console.error('Vertical slice renderer failed', error));
-
     return () => {
       disposed = true;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       rangerRig?.stop();
-      for (const visual of enemyVisuals.values()) disposeObject(visual.root);
+      for (const visual of enemyVisuals.values()) { visual.mixer?.stopAllAction?.(); disposeObject(visual.root); }
       for (const mesh of arrowVisuals.values()) disposeObject(mesh);
       for (const mesh of itemVisuals.values()) disposeObject(mesh);
       if (roomRoot) disposeObject(roomRoot);
