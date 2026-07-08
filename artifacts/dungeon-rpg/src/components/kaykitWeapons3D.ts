@@ -28,10 +28,11 @@ export async function loadKayKitRangerWeapons(): Promise<KayKitRangerWeapons | n
       const manifest = await loadKayKitManifest();
       const weaponModels = findKayKitModels(manifest, 'weapons', /\.(?:gltf|glb)$/i);
       const adventurerModels = findKayKitModels(manifest, 'adventurers', /\/assets\/gltf\/.*\.(?:gltf|glb)$/i);
-      const bowPath = best(weaponModels, ['bow', 'wood'], /crossbow/i)
-        ?? best(adventurerModels, ['bow_withstring', 'bow'], /crossbow/i);
-      const arrowPath = best(weaponModels, ['arrow'], /crossbow/i)
-        ?? best(adventurerModels, ['arrow_bow', 'arrow'], /crossbow/i);
+
+      const bowPath = best(adventurerModels, ['bow_withstring', 'bow'], /crossbow/i)
+        ?? best(weaponModels, ['bow', 'wood'], /crossbow/i);
+      const arrowPath = best(adventurerModels, ['arrow_bow', 'arrow'], /crossbow/i)
+        ?? best(weaponModels, ['arrow'], /crossbow/i);
       if (!bowPath || !arrowPath) return null;
 
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
