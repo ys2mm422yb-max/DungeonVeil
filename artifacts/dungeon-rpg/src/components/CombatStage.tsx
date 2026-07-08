@@ -27,7 +27,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   const [showRoomTitle, setShowRoomTitle] = useState(true);
 
   useEffect(() => {
-    if (previousFloorRef.current === gameState.floor) return;
+    if (previousFloorRef.current === gameState.floor) return undefined;
     previousFloorRef.current = gameState.floor;
     setRoomTitle(ROOM_NAMES[Math.max(0, Math.min(9, gameState.floor - 1))]);
     setShowRoomTitle(true);
@@ -50,10 +50,10 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
     previousHpRef.current = gameState.player.hp;
 
     const latest = gameState.damageNumbers[gameState.damageNumbers.length - 1];
-    if (!latest || latest.id === lastDamageIdRef.current || latest.id.startsWith('clear-')) return;
+    if (!latest || latest.id === lastDamageIdRef.current || latest.id.startsWith('clear-')) return undefined;
     lastDamageIdRef.current = latest.id;
     const isPlayerHit = latest.id.startsWith('hit-');
-    const isHeavy = latest.scale >= 1.3;
+    const isHeavy = (latest.scale ?? 1) >= 1.3;
     if (!isPlayerHit) {
       setHeavy(isHeavy);
       setShakeKey(key => key + 1);
@@ -64,6 +64,8 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
       }
       return () => window.clearTimeout(flashTimer);
     }
+
+    return undefined;
   }, [gameState.damageNumbers, gameState.player.hp]);
 
   useEffect(() => {
