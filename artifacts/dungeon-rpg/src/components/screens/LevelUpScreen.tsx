@@ -7,6 +7,7 @@ import {
   HeartPulse,
   Route,
   Shield,
+  Snowflake,
   Sparkles,
   Swords,
   WandSparkles,
@@ -32,7 +33,8 @@ type CardStyle = {
 const CARD_STYLES: Record<UpgradeKey, CardStyle> = {
   multishot: { Icon: ChevronsRight, accent: '#e7b750', glow: 'rgba(231,183,80,.48)', label: 'MEHRFACHPFEIL', detail: '+1 zusätzlicher Pfeil', tier: 'ANGRIFF', rune: 'III' },
   ricochet: { Icon: Route, accent: '#9c83ff', glow: 'rgba(156,131,255,.46)', label: 'ABPRALLER', detail: 'Springt auf ein weiteres Ziel', tier: 'ARCAN', rune: '◇' },
-  fireArrow: { Icon: Flame, accent: '#ff7045', glow: 'rgba(255,112,69,.5)', label: 'FEUERPFEIL', detail: 'Treffer verursachen Feuerschaden', tier: 'ELEMENT', rune: '△' },
+  fireArrow: { Icon: Flame, accent: '#ff7045', glow: 'rgba(255,112,69,.5)', label: 'FEUERPFEIL', detail: 'Pfeile glühen und verursachen Feuerschaden', tier: 'ELEMENT', rune: '△' },
+  iceArrow: { Icon: Snowflake, accent: '#71d9ff', glow: 'rgba(113,217,255,.5)', label: 'FROSTPFEIL', detail: 'Pfeile vereisen und verursachen Eisschaden', tier: 'ELEMENT', rune: '✦' },
   attackSpeed: { Icon: Gauge, accent: '#62d9ff', glow: 'rgba(98,217,255,.44)', label: 'SCHNELLZUG', detail: 'Bogen schneller spannen', tier: 'TEMPO', rune: '»' },
   piercing: { Icon: ArrowUpRight, accent: '#d7e4ec', glow: 'rgba(215,228,236,.42)', label: 'DURCHBOHREN', detail: 'Pfeile durchdringen Gegner', tier: 'PRÄZISION', rune: '↑' },
   maxHp: { Icon: HeartPulse, accent: '#ff6e7e', glow: 'rgba(255,110,126,.46)', label: 'LEBENSKRAFT', detail: '+20 maximale Lebenspunkte', tier: 'VITALITÄT', rune: '♥' },
