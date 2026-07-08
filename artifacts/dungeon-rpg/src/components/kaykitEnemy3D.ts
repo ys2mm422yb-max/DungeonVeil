@@ -106,7 +106,13 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   idle?.reset().play(); if (move) move.timeScale = 1.06;
   if (attack) { attack.setLoop(THREE.LoopOnce, 1); attack.clampWhenFinished = false; attack.timeScale = 1.12; }
-  if (death) { death.setLoop(THREE.LoopOnce, 1); death.clampWhenFinished = true; death.timeScale = enemy.enemyType === 'boss' ? 0.82 : 1.0; }
+  if (death && deathClip) {
+    death.setLoop(THREE.LoopOnce, 1);
+    death.clampWhenFinished = true;
+    const phaseSeconds = enemy.enemyType === 'boss' ? 1.65 : 0.92;
+    const clipWindow = enemy.enemyType === 'boss' ? 0.76 : 0.68;
+    death.timeScale = Math.max(0.35, deathClip.duration / (phaseSeconds * clipWindow));
+  }
   const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
   const baseScale = (enemy.enemyType === 'boss' ? 1.36 : 0.96) * roleScale;
   root.scale.setScalar(baseScale);
