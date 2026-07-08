@@ -9,6 +9,8 @@ export type BowRig = {
 const normalizeName = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 function scoreLeftHand(name: string) {
+  if (name === 'handslotl' || name.endsWith('handslotl')) return 140;
+  if (name.includes('handslotl') || name.includes('lefthandslot')) return 130;
   if (name === 'lefthand' || name.endsWith('lefthand')) return 100;
   if (name.includes('lefthand')) return 90;
   if (name.includes('handl') || name.endsWith('lhand')) return 80;
@@ -16,7 +18,7 @@ function scoreLeftHand(name: string) {
   return 0;
 }
 
-export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
+export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
   let previousPulse = 0;
@@ -30,14 +32,16 @@ export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
   });
 
   anchor.add(bow);
+  bow.rotation.order = 'YXZ';
 
-  if (bestScore > 0) {
+  if (bestScore >= 130) {
+    bow.position.set(0, 0, 0);
+    bow.rotation.set(0, 0, 0);
+  } else if (bestScore > 0) {
     bow.position.set(0.015, -0.015, 0.035);
-    bow.rotation.order = 'YXZ';
     bow.rotation.set(-0.08, Math.PI / 2, -Math.PI / 2);
   } else {
     bow.position.set(-0.4, 1.02, 0.12);
-    bow.rotation.order = 'YXZ';
     bow.rotation.set(-0.08, Math.PI / 2, -Math.PI / 2);
   }
 
@@ -50,11 +54,8 @@ export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
     basePosition,
     baseRotation,
     updateShotPose(pulse: number) {
-      if (pulse > 0.82 && previousPulse <= 0.82) {
-        heroRoot.userData.rangerAttackSignal = (heroRoot.userData.rangerAttackSignal ?? 0) + 1;
-      }
+      if (pulse > 0.82 && previousPulse <= 0.82) heroRoot.userData.rangerAttackSignal = (heroRoot.userData.rangerAttackSignal ?? 0) + 1;
       previousPulse = pulse;
-
       bow.position.copy(basePosition);
       bow.rotation.copy(baseRotation);
       bow.position.z -= pulse * 0.035;
