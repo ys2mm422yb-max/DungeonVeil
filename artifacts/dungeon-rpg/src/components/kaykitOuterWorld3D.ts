@@ -26,9 +26,18 @@ export function preloadKayKitOuterWorld() {
   return loadLibrary().then(() => undefined);
 }
 
+function keepCachedResource(resource: any) {
+  if (!resource || resource.userData?.kayKitPersistent) return;
+  resource.userData = { ...(resource.userData ?? {}), kayKitPersistent: true };
+  resource.dispose = () => undefined;
+}
+
 function prepare(root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh) return;
+    keepCachedResource(node.geometry);
+    if (Array.isArray(node.material)) node.material.forEach(keepCachedResource);
+    else keepCachedResource(node.material);
     node.castShadow = false;
     node.receiveShadow = !MOBILE;
     node.frustumCulled = true;
