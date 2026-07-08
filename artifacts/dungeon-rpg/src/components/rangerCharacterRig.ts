@@ -58,8 +58,8 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
 
   const visualRoot = new THREE.Group();
   visualRoot.name = 'DungeonVeilRangerVisual';
-  visualRoot.scale.set(0.76, 0.84, 0.76);
-  visualRoot.position.y = 0.02;
+  visualRoot.scale.set(0.9, 0.96, 0.9);
+  visualRoot.position.y = 0.015;
   root.add(visualRoot);
 
   baseScene.name = 'RangerBaseBody';
@@ -90,10 +90,10 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
     const idle = idleClip ? mixer.clipAction(idleClip) : null;
     const move = moveClip ? mixer.clipAction(moveClip) : null;
     const attack = attackClip ? mixer.clipAction(attackClip) : null;
-    if (idle) idle.timeScale = 1;
-    if (move) move.timeScale = clipName(moveClip).includes('walk') ? 1.36 : 1.08;
+    if (idle) idle.timeScale = 0.94;
+    if (move) move.timeScale = clipName(moveClip).includes('walk') ? 1.18 : 0.96;
     if (attack) {
-      attack.timeScale = 1.46;
+      attack.timeScale = 1.32;
       attack.setLoop(THREE.LoopOnce, 1);
       attack.clampWhenFinished = false;
     }
@@ -106,14 +106,14 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
   let attackRemaining = 0;
   let lastAttackSignal = root.userData.rangerAttackSignal ?? 0;
   let movementBlend = 0;
-  const attackDuration = attackClip ? Math.max(0.18, attackClip.duration / 1.46) : 0;
+  const attackDuration = attackClip ? Math.max(0.18, attackClip.duration / 1.32) : 0;
 
   const restoreMovement = () => {
     for (const layer of layers) {
       const next = movingState ? layer.move : layer.idle;
       if (!next || next === layer.active) continue;
-      next.reset().fadeIn(0.08).play();
-      layer.attack?.fadeOut(0.06);
+      next.reset().fadeIn(0.12).play();
+      layer.attack?.fadeOut(0.08);
       layer.active = next;
     }
   };
@@ -124,8 +124,8 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
     for (const layer of layers) {
       if (!layer.attack) continue;
       layer.attack.stop();
-      layer.attack.reset().fadeIn(0.035).play();
-      if (layer.active && layer.active !== layer.attack) layer.active.fadeOut(0.05);
+      layer.attack.reset().fadeIn(0.045).play();
+      if (layer.active && layer.active !== layer.attack) layer.active.fadeOut(0.07);
       layer.active = layer.attack;
     }
     return true;
@@ -140,9 +140,10 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
         playAttack();
       }
 
-      movementBlend += ((movingState ? 1 : 0) - movementBlend) * Math.min(1, delta * 14);
-      visualRoot.rotation.z = Math.sin(performance.now() * 0.012) * 0.018 * movementBlend;
-      visualRoot.position.y = 0.02 + Math.abs(Math.sin(performance.now() * 0.014)) * 0.025 * movementBlend;
+      movementBlend += ((movingState ? 1 : 0) - movementBlend) * Math.min(1, delta * 10);
+      const motionTime = performance.now() * 0.009;
+      visualRoot.rotation.z = Math.sin(motionTime) * 0.006 * movementBlend;
+      visualRoot.position.y = 0.015 + Math.abs(Math.sin(motionTime * 1.08)) * 0.008 * movementBlend;
 
       if (attackRemaining > 0) {
         attackRemaining = Math.max(0, attackRemaining - delta);
@@ -156,8 +157,8 @@ export function composeFullRanger(THREE: any, baseScene: any, outfitScene: any, 
       for (const layer of layers) {
         const next = moving ? layer.move : layer.idle;
         if (!next || next === layer.active) continue;
-        next.reset().fadeIn(0.1).play();
-        layer.active?.fadeOut(0.1);
+        next.reset().fadeIn(0.14).play();
+        layer.active?.fadeOut(0.14);
         layer.active = next;
       }
     },
