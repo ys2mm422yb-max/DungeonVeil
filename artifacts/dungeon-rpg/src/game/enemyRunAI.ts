@@ -30,41 +30,39 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
   const { dist, nx, ny } = normalizedDirection(enemy, player);
 
   if (archetype === 'guardian') {
-    const phase = ((time - enemy.spawnTime) % 7800 + 7800) % 7800;
+    const phase = ((time - enemy.spawnTime) % 6200 + 6200) % 6200;
     const speed = enemy.speed * dt / 1000;
 
-    // Der Wächter bewegt sich bewusst schwer und lesbar:
-    // erst annähern, dann kurze seitliche Neuorientierung, dann Druckphase.
-    if (phase < 3100) {
-      const advance = dist > 150 ? 0.78 : dist < 118 ? -0.22 : 0;
+    if (phase < 2300) {
+      const advance = dist > 145 ? 1 : dist < 108 ? -0.18 : 0.18;
       return {
         dx: nx * advance * speed,
         dy: ny * advance * speed,
-        attackRange: 155,
-        attackDelay: 1180,
+        attackRange: 150,
+        attackDelay: 1050,
       };
     }
 
-    if (phase < 5000) {
-      const strafeDirection = Math.floor((time - enemy.spawnTime) / 1900) % 2 === 0 ? 1 : -1;
+    if (phase < 3800) {
+      const strafeDirection = Math.floor((time - enemy.spawnTime) / 1500) % 2 === 0 ? 1 : -1;
       const sideX = -ny * strafeDirection;
       const sideY = nx * strafeDirection;
-      const toward = dist > 150 ? 0.28 : dist < 112 ? -0.18 : 0;
-      const move = normalizedMove(nx * toward + sideX * 0.42, ny * toward + sideY * 0.42);
+      const toward = dist > 145 ? 0.38 : dist < 105 ? -0.14 : 0;
+      const move = normalizedMove(nx * toward + sideX * 0.54, ny * toward + sideY * 0.54);
       return {
-        dx: move.x * speed * 0.58,
-        dy: move.y * speed * 0.58,
-        attackRange: 165,
-        attackDelay: 1260,
+        dx: move.x * speed * 0.72,
+        dy: move.y * speed * 0.72,
+        attackRange: 160,
+        attackDelay: 1160,
       };
     }
 
-    const pressure = dist > 100 ? 0.92 : dist < 72 ? -0.12 : 0;
+    const pressure = dist > 94 ? 1.08 : dist < 68 ? -0.08 : 0.22;
     return {
-      dx: nx * pressure * speed * 0.9,
-      dy: ny * pressure * speed * 0.9,
-      attackRange: 112,
-      attackDelay: 880,
+      dx: nx * pressure * speed,
+      dy: ny * pressure * speed,
+      attackRange: 108,
+      attackDelay: 820,
     };
   }
 
@@ -73,6 +71,6 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
     dx: nx * speed,
     dy: ny * speed,
     attackRange: 42 + enemy.width / 2,
-    attackDelay: 1250,
+    attackDelay: 1180,
   };
 }
