@@ -5,6 +5,63 @@ import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 
+function buildMenuVeil(THREE: any) {
+  const root = new THREE.Group();
+  root.name = 'DungeonVeilMenuPortal';
+
+  const outer = new THREE.Mesh(
+    new THREE.TorusGeometry(2.15, 0.105, 10, 64),
+    new THREE.MeshBasicMaterial({ color: 0xa78aff, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  outer.scale.y = 1.24;
+  root.add(outer);
+
+  const inner = new THREE.Mesh(
+    new THREE.TorusGeometry(1.72, 0.048, 8, 60),
+    new THREE.MeshBasicMaterial({ color: 0x6f48d7, transparent: true, opacity: 0.54, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  inner.scale.y = 1.28;
+  root.add(inner);
+
+  const core = new THREE.Mesh(
+    new THREE.CircleGeometry(1.68, 64),
+    new THREE.MeshBasicMaterial({ color: 0x160d2b, transparent: true, opacity: 0.84, depthWrite: false }),
+  );
+  core.scale.y = 1.28;
+  core.position.z = -0.03;
+  root.add(core);
+
+  const veil = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.0, 4.15),
+    new THREE.MeshBasicMaterial({ color: 0x5f36bc, transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+  );
+  veil.position.z = 0.015;
+  root.add(veil);
+
+  const motes: any[] = [];
+  for (let index = 0; index < 12; index++) {
+    const mote = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035 + (index % 3) * 0.015, 6, 6),
+      new THREE.MeshBasicMaterial({ color: index % 2 ? 0xd9ccff : 0x8d6cff, transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    mote.userData.phase = index / 12 * Math.PI * 2;
+    root.add(mote);
+    motes.push(mote);
+  }
+
+  const light = new THREE.PointLight(0x8565e5, 7.5, 13, 2);
+  light.position.z = 1.2;
+  root.add(light);
+
+  root.userData.outer = outer;
+  root.userData.inner = inner;
+  root.userData.core = core;
+  root.userData.veil = veil;
+  root.userData.motes = motes;
+  root.userData.light = light;
+  return root;
+}
+
 export function MainMenuDungeonScene() {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -23,56 +80,47 @@ export function MainMenuDungeonScene() {
       if (disposed) return;
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x070706);
-      scene.fog = new THREE.Fog(0x070706, 11, 30);
+      scene.background = new THREE.Color(0x060605);
+      scene.fog = new THREE.Fog(0x060605, 13, 34);
 
       renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.1));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.96;
+      renderer.toneMappingExposure = 1.02;
       renderer.shadowMap.enabled = false;
       host.appendChild(renderer.domElement);
 
-      const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 80);
-      camera.position.set(0, 6.35, 11.8);
-      camera.lookAt(0, 1.45, -5.3);
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 90);
+      camera.position.set(-0.45, 5.8, 11.2);
+      camera.lookAt(0.1, 1.55, -5.1);
 
       const room = buildKayKitDungeonRoom(THREE, 1, 24, 32);
-      room.position.z = -4.5;
+      room.position.z = -4.7;
       scene.add(room);
 
-      scene.add(new THREE.HemisphereLight(0xc3b49b, 0x080706, 0.68));
-      const leftTorch = new THREE.PointLight(0xff8a36, 6.8, 10, 2);
-      leftTorch.position.set(-4.4, 2.4, -3.8);
-      scene.add(leftTorch);
-      const rightTorch = new THREE.PointLight(0xff6f2d, 5.4, 9, 2);
-      rightTorch.position.set(4.2, 2.1, -5.2);
-      scene.add(rightTorch);
-      const veilLight = new THREE.PointLight(0x7562d8, 5.1, 13, 2);
-      veilLight.position.set(0, 2.8, -10.5);
-      scene.add(veilLight);
+      scene.add(new THREE.HemisphereLight(0xc8b897, 0x060605, 0.72));
+      const keyLight = new THREE.DirectionalLight(0xffc987, 1.05);
+      keyLight.position.set(-5, 10, 7);
+      scene.add(keyLight);
 
-      const gate = new THREE.Group();
-      const outer = new THREE.Mesh(
-        new THREE.TorusGeometry(2.25, 0.12, 10, 48),
-        new THREE.MeshBasicMaterial({ color: 0x7b61cb, transparent: true, opacity: 0.34 }),
-      );
-      outer.position.set(0, 2.2, -11.4);
-      gate.add(outer);
-      const inner = new THREE.Mesh(
-        new THREE.CircleGeometry(2.08, 48),
-        new THREE.MeshBasicMaterial({ color: 0x33234f, transparent: true, opacity: 0.22, depthWrite: false }),
-      );
-      inner.position.set(0, 2.2, -11.42);
-      gate.add(inner);
-      scene.add(gate);
+      const leftTorch = new THREE.PointLight(0xff8a36, 7.4, 11, 2);
+      leftTorch.position.set(-4.5, 2.5, -4.4);
+      scene.add(leftTorch);
+      const rightTorch = new THREE.PointLight(0xff6f2d, 6.3, 10, 2);
+      rightTorch.position.set(4.4, 2.35, -5.8);
+      scene.add(rightTorch);
+
+      const portal = buildMenuVeil(THREE);
+      portal.position.set(1.1, 2.45, -11.95);
+      portal.rotation.y = -0.08;
+      scene.add(portal);
 
       ranger = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
-      ranger.root.scale.setScalar(0.9);
-      ranger.root.position.set(0, 0, -3.1);
-      ranger.root.rotation.y = Math.PI;
+      ranger.root.scale.setScalar(0.74);
+      ranger.root.position.set(-1.25, 0, -3.3);
+      ranger.root.rotation.y = Math.PI - 0.18;
       scene.add(ranger.root);
 
       const clock = new THREE.Clock();
@@ -90,14 +138,31 @@ export function MainMenuDungeonScene() {
         if (disposed) return;
         const delta = Math.min(clock.getDelta(), 0.05);
         const now = performance.now();
+        const pulse = 0.5 + Math.sin(now * 0.0022) * 0.5;
+
         ranger?.update(delta);
-        if (ranger) ranger.root.rotation.y = Math.PI + Math.sin(now * 0.00025) * 0.08;
-        outer.rotation.z = now * 0.00008;
-        inner.material.opacity = 0.17 + Math.sin(now * 0.0016) * 0.06;
-        leftTorch.intensity = 6.2 + Math.sin(now * 0.009) * 0.6;
-        rightTorch.intensity = 5 + Math.sin(now * 0.011 + 1.4) * 0.5;
-        camera.position.x = Math.sin(now * 0.00018) * 0.18;
-        camera.lookAt(0, 1.45, -5.3);
+        if (ranger) ranger.root.rotation.y = Math.PI - 0.18 + Math.sin(now * 0.00035) * 0.055;
+
+        portal.userData.outer.rotation.z = now * 0.00018;
+        portal.userData.inner.rotation.z = -now * 0.00031;
+        portal.userData.core.material.opacity = 0.78 + pulse * 0.1;
+        portal.userData.veil.material.opacity = 0.13 + pulse * 0.12;
+        portal.userData.veil.scale.x = 0.94 + pulse * 0.08;
+        portal.userData.light.intensity = 6.6 + pulse * 2.2;
+        (portal.userData.motes as any[]).forEach((mote, index) => {
+          const phase = mote.userData.phase + now * (0.00075 + index * 0.000012);
+          const radius = 1.45 + (index % 3) * 0.18;
+          mote.position.x = Math.sin(phase) * radius;
+          mote.position.y = -1.7 + ((now * 0.00018 + index / 12) % 1) * 3.6;
+          mote.position.z = 0.05 + Math.cos(phase) * 0.12;
+          mote.material.opacity = 0.38 + Math.sin(phase * 2.1) * 0.28;
+        });
+
+        leftTorch.intensity = 6.8 + Math.sin(now * 0.009) * 0.7;
+        rightTorch.intensity = 5.8 + Math.sin(now * 0.011 + 1.4) * 0.6;
+        camera.position.x = -0.45 + Math.sin(now * 0.00016) * 0.22;
+        camera.position.y = 5.8 + Math.sin(now * 0.00012) * 0.08;
+        camera.lookAt(0.1, 1.55, -5.1);
         renderer.render(scene, camera);
         raf = requestAnimationFrame(loop);
       };
