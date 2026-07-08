@@ -39,6 +39,19 @@ async function loadAsset(asset: KayKitRoomAsset) {
   return cache.get(asset)!;
 }
 
+function requiredAssets(room: number) {
+  const roomKey = Math.max(1, Math.min(10, room));
+  const placements = KAYKIT_ROOM_PROPS[roomKey] ?? KAYKIT_ROOM_PROPS[1];
+  const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'corner', 'wallColumn']);
+  for (const placement of placements) required.add(placement.asset);
+  return { placements, required };
+}
+
+export async function preloadKayKitDungeonRoom(room: number) {
+  const { required } = requiredAssets(room);
+  await Promise.all([...required].map(asset => loadAsset(asset)));
+}
+
 function prepare(root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
@@ -60,11 +73,7 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
   const root = new THREE.Group();
   root.name = `KayKitDungeonRoom${room}`;
   let active = true;
-  const roomKey = Math.max(1, Math.min(10, room));
-  const placements = KAYKIT_ROOM_PROPS[roomKey] ?? KAYKIT_ROOM_PROPS[1];
-
-  const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'corner', 'wallColumn']);
-  for (const placement of placements) required.add(placement.asset);
+  const { placements, required } = requiredAssets(room);
 
   Promise.all([...required].map(async asset => [asset, await loadAsset(asset)] as const)).then(entries => {
     if (!active) return;
