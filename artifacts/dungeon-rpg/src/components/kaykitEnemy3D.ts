@@ -27,9 +27,15 @@ function chooseClip(clips: any[], groups: string[][], rejects: string[] = []) {
 function hashId(id: string) { let hash = 2166136261; for (let i = 0; i < id.length; i++) { hash ^= id.charCodeAt(i); hash = Math.imul(hash, 16777619); } return hash >>> 0; }
 function roleFromPath(path: string): EnemyRole { const key = path.toLowerCase(); if (key.includes('mage')) return 'mage'; if (key.includes('rogue')) return 'rogue'; if (key.includes('warrior')) return 'warrior'; return 'minion'; }
 function findBone(root: any, names: string[]) { let result: any = null; root.traverse((node: any) => { if (result) return; const key = String(node.name ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''); if (names.some(name => key.includes(name))) result = node; }); return result; }
+function keepGeometry(geometry: any) {
+  if (!geometry || geometry.userData?.kayKitPersistent) return;
+  geometry.userData = { ...(geometry.userData ?? {}), kayKitPersistent: true };
+  geometry.dispose = () => undefined;
+}
 function prepareModel(root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
+    keepGeometry(node.geometry);
     if (node.material) node.material = Array.isArray(node.material) ? node.material.map((m: any) => m.clone()) : node.material.clone();
     node.castShadow = !IS_MOBILE; node.receiveShadow = !IS_MOBILE; node.frustumCulled = true;
   });
@@ -88,7 +94,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   idle?.reset().play(); if (move) move.timeScale = 1.06;
   if (attack) { attack.setLoop(THREE.LoopOnce, 1); attack.clampWhenFinished = false; attack.timeScale = 1.12; }
-  if (death) { death.setLoop(THREE.LoopOnce, 1); death.clampWhenFinished = true; }
+  if (death) { death.setLoop(THREE.LoopOnce, 1); death.clampWhenFinished = true; death.timeScale = 1.35; }
   const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
   root.scale.setScalar((enemy.enemyType === 'boss' ? 1.36 : 0.96) * roleScale);
   return { root, mixer, idle, move, attack, death, lastState: 'idle', lastAttackTime: enemy.lastAttackTime, attackRemaining: 0, deathPlayed: false, deathElapsed: 0 };
@@ -100,13 +106,13 @@ function transition(visual: KayKitEnemyVisual, next: any, fade = 0.1) {
 
 export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy, delta: number) {
   if (enemy.isDead || enemy.state === 'dead') {
-    if (!visual.deathPlayed) { visual.deathPlayed = true; visual.deathElapsed = 0; transition(visual, visual.death, 0.05); }
+    if (!visual.deathPlayed) { visual.deathPlayed = true; visual.deathElapsed = 0; transition(visual, visual.death, 0.04); }
     visual.deathElapsed += delta;
-    const p = Math.min(1, visual.deathElapsed / 0.72);
+    const p = Math.min(1, visual.deathElapsed / 0.44);
     visual.root.rotation.z = p * (enemy.enemyType === 'boss' ? 0.72 : 1.35);
     visual.root.position.y = Math.sin(Math.min(1, p * 1.8) * Math.PI) * 0.18 - p * 0.12;
     const scale = Math.max(0.72, 1 - p * 0.18); visual.root.scale.multiplyScalar(scale / Math.max(0.0001, visual.root.userData.lastDeathScale ?? 1)); visual.root.userData.lastDeathScale = scale;
-    visual.root.traverse((node: any) => { if (!node.isMesh && !node.isSkinnedMesh) return; const mats = Array.isArray(node.material) ? node.material : [node.material]; mats.forEach((m: any) => { if (!m) return; m.transparent = true; m.opacity = Math.max(0, 1 - Math.max(0, p - 0.48) / 0.52); }); });
+    visual.root.traverse((node: any) => { if (!node.isMesh && !node.isSkinnedMesh) return; const mats = Array.isArray(node.material) ? node.material : [node.material]; mats.forEach((m: any) => { if (!m) return; m.transparent = true; m.opacity = Math.max(0, 1 - Math.max(0, p - 0.35) / 0.65); }); });
     visual.mixer.update(delta); return;
   }
   if (enemy.lastAttackTime > visual.lastAttackTime) { visual.lastAttackTime = enemy.lastAttackTime; const duration = visual.attack?.getClip?.()?.duration ?? 0.5; visual.attackRemaining = Math.max(0.22, duration / 1.12); transition(visual, visual.attack, 0.045); visual.lastState = 'attack'; }
