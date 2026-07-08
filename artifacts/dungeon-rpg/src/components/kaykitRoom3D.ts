@@ -49,7 +49,7 @@ async function loadAsset(asset: KayKitRoomAsset) {
 function requiredAssets(room: number) {
   const roomKey = Math.max(1, Math.min(10, room));
   const placements = KAYKIT_ROOM_PROPS[roomKey] ?? KAYKIT_ROOM_PROPS[1];
-  const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'corner', 'wallColumn', 'torchMounted']);
+  const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'wallHalf', 'corner', 'wallColumn', 'torchMounted']);
   for (const placement of placements) required.add(placement.asset);
   return { placements, required };
 }
@@ -83,6 +83,16 @@ function addClone(group: any, prototype: any, placement: KayKitRoomPlacement) {
   object.rotation.y = placement.rotation ?? 0;
   object.scale.setScalar(placement.scale ?? 1);
   group.add(object);
+  return object;
+}
+
+function addArchitecturalClone(group: any, prototype: any, x: number, y: number, z: number, rotation = 0, scale = 1) {
+  const object = prototype.clone(true);
+  object.position.set(x, y, z);
+  object.rotation.y = rotation;
+  object.scale.setScalar(scale);
+  group.add(object);
+  return object;
 }
 
 export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: number, mapHeight: number) {
@@ -106,6 +116,7 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     }
 
     const wall = loaded.get('wall')!.scene;
+    const wallHalf = loaded.get('wallHalf')!.scene;
     const wallStep = 2;
     const left = -mapWidth / 2 + 0.45;
     const right = mapWidth / 2 - 0.45;
@@ -133,8 +144,29 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
       addClone(root, wallColumn, { asset: 'wallColumn', x, z: bottom, rotation: Math.PI });
     }
 
-    // Der Ausgang hat jetzt immer einen festen architektonischen Rahmen.
-    // Das aktive violette Portal sitzt später exakt zwischen diesen beiden Säulen.
+    // Zweite Architektur-Ebene hinter der Kollisionswand: rein visuell, aber mit klarer Tiefe.
+    // Dadurch bleibt die Kampfzone unverändert, während Wände und Randbereiche räumlicher wirken.
+    const rearZ = top - 1.45;
+    for (let x = left + 1.2; x < right - 1.2; x += 2.4) {
+      if (Math.abs(x) < 2.15) continue;
+      addArchitecturalClone(root, wallHalf, x, 0.68, rearZ, 0, room === 10 ? 1.12 : 1);
+    }
+    for (const x of [-8.2, -5.2, 5.2, 8.2]) {
+      if (x <= left || x >= right) continue;
+      addArchitecturalClone(root, wallColumn, x, 0.34, rearZ + 0.18, 0, room === 10 ? 1.28 : 1.12);
+    }
+
+    const sideDepthStep = room >= 6 ? 5.2 : 6.4;
+    for (let z = top + 3.8; z < bottom - 3.2; z += sideDepthStep) {
+      addArchitecturalClone(root, wallColumn, left - 0.7, 0.28, z, Math.PI / 2, 1.08);
+      addArchitecturalClone(root, wallColumn, right + 0.7, 0.28, z, -Math.PI / 2, 1.08);
+      if (room >= 6) {
+        addArchitecturalClone(root, wallHalf, left - 1.05, 0.54, z + 1.15, Math.PI / 2, 0.94);
+        addArchitecturalClone(root, wallHalf, right + 1.05, 0.54, z + 1.15, -Math.PI / 2, 0.94);
+      }
+    }
+
+    // Der Ausgang hat immer einen festen architektonischen Rahmen.
     addClone(root, wallColumn, { asset: 'wallColumn', x: -1.65, z: top, scale: room === 10 ? 1.2 : 1.05 });
     addClone(root, wallColumn, { asset: 'wallColumn', x: 1.65, z: top, scale: room === 10 ? 1.2 : 1.05 });
     const torch = loaded.get('torchMounted')?.scene;
