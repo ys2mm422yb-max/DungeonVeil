@@ -1,6 +1,5 @@
 import type { GameEngine } from './runEngine';
-import { makeHitSpark } from './combat';
-import { distance } from './combat';
+import { makeHitSpark, distance } from './combat';
 
 const FIRE_DEATH_RADIUS = 72;
 const FIRE_DEATH_DAMAGE = 12;
@@ -32,7 +31,9 @@ export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSyst
       if (distance(effect.x, effect.y, enemyX, enemyY) > FIRE_DEATH_RADIUS) continue;
 
       const damage = Math.min(FIRE_DEATH_DAMAGE, Math.max(1, Math.ceil(enemy.maxHp * 0.12)));
+      const lethal = enemy.hp - damage <= 0;
       enemy.hp -= damage;
+      if (lethal) enemy.burnRanks = 0;
       enemy.flashUntil = time + 150;
       enemy.lastHitTime = time;
       enemy.hitFromX = effect.x;
