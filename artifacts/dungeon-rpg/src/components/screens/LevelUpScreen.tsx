@@ -65,12 +65,12 @@ export function LevelUpScreen({ choices, onSelect }: Props) {
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full border border-amber-300/45 bg-amber-400/10 shadow-[0_0_48px_rgba(229,176,73,.22)]">
             <Sparkles size={24} strokeWidth={1.7} />
           </div>
-          <div className="text-[9px] font-black uppercase tracking-[.44em] text-amber-200/55">RUN LEVEL UP</div>
+          <div className="text-[9px] font-black uppercase tracking-[.44em] text-amber-200/55">RAUM BEZWUNGEN</div>
           <h1 className="mt-2 font-serif text-[36px] leading-[.95] tracking-[.08em] text-[#f4ead5]">
             {language === 'de' ? 'WÄHLE DEINE GABE' : 'CHOOSE YOUR GIFT'}
           </h1>
           <p className="mt-3 text-[10px] uppercase tracking-[.25em] text-white/38">
-            {language === 'de' ? 'Diese Macht bleibt bis zum Ende des Runs' : 'This power lasts until the run ends'}
+            {language === 'de' ? 'Eine Gabe vor dem nächsten Raum' : 'One gift before the next room'}
           </p>
         </header>
 
