@@ -2,18 +2,13 @@ import React, { useEffect, useRef } from 'react';
 import type { GameState } from '../game/runEngine';
 import { TileType } from '../game/dungeon';
 import { RUN_CAMERA, updateRunCamera } from './RunCameraRig';
-import { composeFullRanger } from './rangerCharacterRig';
-import { attachBowToRanger } from './bowRig';
+import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
 import { buildChapterRoomDecor } from './roomDecor3D';
 import { buildQuaterniusDungeonFloor } from './quaterniusFloor3D';
 import { createMonsterVisual, loadMonsterLibrary, updateMonsterVisual, type MonsterLibrary, type MonsterVisual } from './monsterVisual3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
-const OBJ_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/OBJLoader.js';
-const MTL_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/MTLLoader.js';
-const ROOT = '/assets/3d/';
-const WEAPON_ROOT = '/assets/3d/library/weapons/';
 const TILE = 40;
 
 export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState }) {
@@ -33,8 +28,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
     let camera: any;
     let cameraGoal: any;
     let clock: any;
-    let rangerRig: ReturnType<typeof composeFullRanger> | null = null;
-    let bowRig: ReturnType<typeof attachBowToRanger> | null = null;
+    let rangerRig: KayKitPlayerRig | null = null;
     let arrowProto: any = null;
     let monsterLibrary: MonsterLibrary = {};
     let roomRoot: any = null;
@@ -42,7 +36,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
     let playerLight: any = null;
     let lastRoomKey = '';
     let lastAttack = 0;
-    let attackPulse = 0;
+    let lastDodge = 0;
 
     const enemyVisuals = new Map<string, MonsterVisual>();
     const enemyLoading = new Set<string>();
@@ -57,29 +51,6 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
       else node.material?.dispose?.();
     });
-
-    const normalize = (object: any, targetSize: number) => {
-      object.position.set(0, 0, 0);
-      object.scale.setScalar(1);
-      object.updateMatrixWorld(true);
-      let box = new THREE.Box3().setFromObject(object);
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      object.scale.setScalar(targetSize / Math.max(size.x, size.y, size.z, 0.0001));
-      object.updateMatrixWorld(true);
-      box = new THREE.Box3().setFromObject(object);
-      const center = new THREE.Vector3();
-      box.getCenter(center);
-      object.position.x -= center.x;
-      object.position.z -= center.z;
-      object.position.y -= box.min.y;
-      object.traverse((node: any) => {
-        if (!node.isMesh) return;
-        node.castShadow = true;
-        node.receiveShadow = true;
-      });
-      return object;
-    };
 
     const buildRoom = (state: GameState) => {
       const key = `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
@@ -239,15 +210,18 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
 
       if (rangerRig) {
         rangerRig.root.position.set(playerX, 0, playerZ);
-        if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) rangerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
+        if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) {
+          rangerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
+        }
         rangerRig.setMoving(state.player.state === 'moving');
         if (state.player.lastAttackTime > lastAttack) {
           lastAttack = state.player.lastAttackTime;
-          attackPulse = 1;
           rangerRig.triggerAttack();
         }
-        attackPulse = Math.max(0, attackPulse - delta * 6.8);
-        bowRig?.updateShotPose(attackPulse);
+        if (state.player.lastDodgeTime > lastDodge) {
+          lastDodge = state.player.lastDodgeTime;
+          rangerRig.triggerDash();
+        }
         rangerRig.update(delta);
       }
 
@@ -263,11 +237,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
 
     const boot = async () => {
       THREE = await import(/* @vite-ignore */ THREE_URL);
-      const [{ GLTFLoader }, { OBJLoader }, { MTLLoader }] = await Promise.all([
-        import(/* @vite-ignore */ GLTF_URL),
-        import(/* @vite-ignore */ OBJ_URL),
-        import(/* @vite-ignore */ MTL_URL),
-      ]) as any;
+      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       if (disposed) return;
 
       scene = new THREE.Scene();
@@ -298,31 +268,17 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       playerLight = new THREE.PointLight(0xffddb0, 3.8, 16, 1.6);
       scene.add(playerLight);
 
-      const loader = new GLTFLoader();
-      const loadGltf = (name: string) => loader.loadAsync(`${ROOT}${name}`);
-      const [base, outfit, animations, loadedMonsters] = await Promise.all([
-        loadGltf('base-male.glb'),
-        loadGltf('ranger.glb'),
-        loadGltf('animations.glb'),
+      const [loadedRanger, loadedMonsters] = await Promise.all([
+        loadKayKitRanger(THREE, GLTFLoader),
         loadMonsterLibrary(THREE),
       ]);
       if (disposed) return;
+      rangerRig = loadedRanger;
       monsterLibrary = loadedMonsters;
-
-      rangerRig = composeFullRanger(THREE, base.scene, outfit.scene, animations.animations ?? []);
-      rangerRig.root.scale.setScalar(1.16);
+      arrowProto = rangerRig.arrowPrototype;
+      rangerRig.root.scale.setScalar(1.08);
       scene.add(rangerRig.root);
 
-      const loadObj = async (name: string) => {
-        const materials = await new MTLLoader().loadAsync(`${WEAPON_ROOT}${name}.mtl`);
-        materials.preload();
-        const objLoader = new OBJLoader();
-        objLoader.setMaterials(materials);
-        return objLoader.loadAsync(`${WEAPON_ROOT}${name}.obj`);
-      };
-      const [bow, arrow] = await Promise.all([loadObj('Bow_Wooden2'), loadObj('Arrow')]);
-      bowRig = attachBowToRanger(THREE, rangerRig.root, normalize(bow, 1.02));
-      arrowProto = normalize(arrow, 0.78);
       clock = new THREE.Clock();
       resize();
       renderLoop();
