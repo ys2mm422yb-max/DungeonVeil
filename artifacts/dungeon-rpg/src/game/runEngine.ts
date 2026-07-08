@@ -63,7 +63,7 @@ export class GameEngine {
       attack: overrides.attack ?? def.attack, defense: overrides.defense ?? def.defense, speed: overrides.speed ?? def.speed,
       attackRange: overrides.attackRange ?? 520, skillRange: overrides.skillRange ?? def.skillRange,
       level, xp, color: def.color, state: 'idle', facing: { x: 0, y: -1 }, invincibleUntil: 0,
-      skillCooldown: 0, dodgeCooldown: 0, attackCooldown: 0, spawnTime: Date.now(), lastAttackTime: 0,
+      skillCooldown: 0, dodgeCooldown: 0, attackCooldown: 0, spawnTime: Date.now(), lastAttackTime: 0, lastDodgeTime: 0,
     };
   }
 
@@ -173,9 +173,29 @@ export class GameEngine {
     if (this.input.dodge && p.dodgeCooldown <= 0) {
       p.dodgeCooldown = def.dodgeCooldownMs;
       p.invincibleUntil = time + 260;
+      p.lastDodgeTime = time;
+      p.state = 'dodging';
       const dx = mag > 0 ? this.input.joyX / mag : p.facing.x;
       const dy = mag > 0 ? this.input.joyY / mag : p.facing.y;
+      const startX = p.x + 16;
+      const startY = p.y + 16;
       this.moveEntity(p, dx * def.dashDistance, dy * def.dashDistance);
+      const endX = p.x + 16;
+      const endY = p.y + 16;
+      const dashDistance = Math.max(24, Math.hypot(endX - startX, endY - startY));
+      this.state.effects.push({
+        id: `dash-${time}`,
+        x: startX,
+        y: startY,
+        radius: 0,
+        maxRadius: dashDistance,
+        color: '#efb44f',
+        lifeTime: 0,
+        maxLifeTime: 180,
+        type: 'dash',
+        angle: Math.atan2(endY - startY, endX - startX),
+        width: 5,
+      });
       this.state.particles.push(...makeStepDust(p.x + 16, p.y + 24, '#efb44f'));
       this.input.dodge = false;
     } else if (mag > 0.08) {
