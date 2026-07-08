@@ -17,6 +17,7 @@ export type SlimeVisual = {
   failed?: boolean;
   lastDead?: boolean;
   THREE?: any;
+  lastAttackTime?: number;
 };
 
 const FBX_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/FBXLoader.js';
@@ -119,6 +120,7 @@ function playAction(THREE: any, visual: SlimeVisual, name: 'idle' | 'move' | 'at
     next.clampWhenFinished = true;
   } else {
     next.setLoop(THREE.LoopRepeat, Infinity);
+    next.clampWhenFinished = false;
   }
   next.reset().fadeIn(fade).play();
   visual.activeAction?.fadeOut(fade);
@@ -162,6 +164,7 @@ export function createSlimeVisual(THREE: any, enemy: any): SlimeVisual {
     failed: false,
     lastDead: false,
     THREE,
+    lastAttackTime: 0,
   };
 
   loadPrototype(THREE, kind)
@@ -221,6 +224,11 @@ export function updateSlimeVisual(visual: SlimeVisual, enemy: any, now: number) 
     if (THREE) playAction(THREE, visual, 'death', 0.08);
   }
 
+  if (!isDead && enemy.lastAttackTime > (visual.lastAttackTime ?? 0)) {
+    visual.lastAttackTime = enemy.lastAttackTime;
+    if (THREE) playAction(THREE, visual, 'attack', 0.05);
+  }
+
   const hitAge = now - visual.hitStart;
   const hitPulse = hitAge >= 0 && hitAge < 170 ? 1 - hitAge / 170 : 0;
   const hitWave = Math.sin(hitAge * 0.095) * hitPulse;
@@ -237,7 +245,7 @@ export function updateSlimeVisual(visual: SlimeVisual, enemy: any, now: number) 
   const flashing = enemy.flashUntil > now;
   for (const material of visual.materials) {
     if (!material) continue;
-    material.opacity = isDead ? Math.max(0, 1 - Math.min(1, (now - (enemy.deathTime || now)) / 320)) : 1;
+    material.opacity = isDead ? Math.max(0, 1 - Math.min(1, (now - (enemy.deathTime || now)) / 480)) : 1;
     if (material.emissive) {
       material.emissive.setHex(flashing ? 0xffffff : (material.userData.baseEmissive ?? 0x000000));
       material.emissiveIntensity = flashing ? 1.65 : (material.userData.baseEmissiveIntensity ?? 0);
@@ -247,8 +255,12 @@ export function updateSlimeVisual(visual: SlimeVisual, enemy: any, now: number) 
   if (!isDead && THREE && visual.ready && visual.activeAction === visual.actions?.attack) {
     const action = visual.actions?.attack;
     const clip = action?.getClip?.();
-    if (clip && action.time >= clip.duration * 0.92) playAction(THREE, visual, visual.kind === 'bat' ? 'move' : 'idle', 0.1);
+    if (clip && action.time >= clip.duration * 0.9) {
+      playAction(THREE, visual, enemy.state === 'chase' || visual.kind === 'bat' ? 'move' : 'idle', 0.1);
+    }
+  } else if (!isDead && THREE && visual.ready && visual.activeAction !== visual.actions?.attack) {
+    playAction(THREE, visual, enemy.state === 'chase' || visual.kind === 'bat' ? 'move' : 'idle', 0.12);
   }
 
-  visual.shadow.material.opacity = isDead ? 0.3 * Math.max(0, 1 - Math.min(1, (now - (enemy.deathTime || now)) / 320)) : 0.3;
+  visual.shadow.material.opacity = isDead ? 0.3 * Math.max(0, 1 - Math.min(1, (now - (enemy.deathTime || now)) / 480)) : 0.3;
 }
