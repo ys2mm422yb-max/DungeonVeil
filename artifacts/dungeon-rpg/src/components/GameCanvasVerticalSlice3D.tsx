@@ -5,6 +5,7 @@ import { RUN_CAMERA, updateRunCamera } from './RunCameraRig';
 import { composeFullRanger } from './rangerCharacterRig';
 import { attachBowToRanger } from './bowRig';
 import { buildChapterRoomDecor } from './roomDecor3D';
+import { buildQuaterniusDungeonFloor } from './quaterniusFloor3D';
 import { createMonsterVisual, loadMonsterLibrary, updateMonsterVisual, type MonsterLibrary, type MonsterVisual } from './monsterVisual3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
@@ -80,42 +81,6 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       return object;
     };
 
-    const makeGround = (state: GameState) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 256;
-      const ctx = canvas.getContext('2d')!;
-      const palettes = [
-        ['#342a20', '#413429', '#4c3d30'],
-        ['#2d2b31', '#3a3740', '#46424c'],
-        ['#30291e', '#403626', '#4d402c'],
-        ['#32252a', '#422f35', '#503740'],
-      ];
-      const palette = palettes[(Math.max(1, state.floor) - 1) % palettes.length];
-      ctx.fillStyle = palette[0];
-      ctx.fillRect(0, 0, 256, 256);
-      for (let y = 0; y < 256; y += 32) {
-        for (let x = 0; x < 256; x += 32) {
-          ctx.fillStyle = ((x / 32 + y / 32) % 2 === 0) ? palette[1] : palette[2];
-          ctx.globalAlpha = 0.48;
-          ctx.fillRect(x + 1, y + 1, 30, 30);
-          ctx.globalAlpha = 1;
-        }
-      }
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(3, 4);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(state.map.width, state.map.height),
-        new THREE.MeshStandardMaterial({ map: texture, roughness: 0.92, color: 0xffffff }),
-      );
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.y = -0.04;
-      ground.receiveShadow = true;
-      return ground;
-    };
-
     const buildRoom = (state: GameState) => {
       const key = `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
       if (key === lastRoomKey) return;
@@ -123,13 +88,16 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       if (roomRoot) {
         scene.remove(roomRoot);
         roomRoot.userData?.decor?.userData?.dispose?.();
+        roomRoot.userData?.floor?.userData?.dispose?.();
         disposeObject(roomRoot);
       }
       const root = new THREE.Group();
-      root.add(makeGround(state));
+      const floor = buildQuaterniusDungeonFloor(THREE, state.map.width, state.map.height);
+      root.add(floor);
       const room = Math.max(1, Math.min(10, state.floor));
       const decor = buildChapterRoomDecor(THREE, room);
       root.add(decor);
+      root.userData.floor = floor;
       root.userData.decor = decor;
       roomRoot = root;
       scene.add(root);
@@ -311,23 +279,23 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.45;
+      renderer.toneMappingExposure = 1.25;
       host.appendChild(renderer.domElement);
 
       camera = new THREE.PerspectiveCamera(RUN_CAMERA.fov, 1, 0.1, 150);
       camera.position.set(0, RUN_CAMERA.height, RUN_CAMERA.distance);
       cameraGoal = new THREE.Vector3();
-      scene.add(new THREE.AmbientLight(0xfff0dc, 1.45));
-      scene.add(new THREE.HemisphereLight(0xffe6c7, 0x2b2230, 2.05));
-      const keyLight = new THREE.DirectionalLight(0xffc982, 3.3);
+      scene.add(new THREE.AmbientLight(0xfff1df, 1.15));
+      scene.add(new THREE.HemisphereLight(0xffe7cf, 0x282231, 1.65));
+      const keyLight = new THREE.DirectionalLight(0xffd3a2, 2.7);
       keyLight.position.set(-7, 14, 7);
       keyLight.castShadow = true;
       keyLight.shadow.mapSize.set(1024, 1024);
       scene.add(keyLight);
-      const fillLight = new THREE.PointLight(0x8f76ff, 8.5, 30, 1.7);
+      const fillLight = new THREE.PointLight(0x8f76ff, 5.8, 28, 1.7);
       fillLight.position.set(0, 6.5, -8);
       scene.add(fillLight);
-      playerLight = new THREE.PointLight(0xffd6a0, 5.5, 18, 1.6);
+      playerLight = new THREE.PointLight(0xffddb0, 3.8, 16, 1.6);
       scene.add(playerLight);
 
       const loader = new GLTFLoader();
@@ -342,7 +310,7 @@ export function GameCanvasVerticalSlice3D({ gameState }: { gameState: GameState 
       monsterLibrary = loadedMonsters;
 
       rangerRig = composeFullRanger(THREE, base.scene, outfit.scene, animations.animations ?? []);
-      rangerRig.root.scale.setScalar(1.28);
+      rangerRig.root.scale.setScalar(1.16);
       scene.add(rangerRig.root);
 
       const loadObj = async (name: string) => {
