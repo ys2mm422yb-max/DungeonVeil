@@ -35,8 +35,8 @@ export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig 
   bow.rotation.order = 'YXZ';
 
   if (bestScore >= 130) {
-    bow.position.set(0, 0, 0);
-    bow.rotation.set(0, 0, 0);
+    bow.position.set(0.018, -0.01, 0.02);
+    bow.rotation.set(0, 0, Math.PI / 2);
   } else if (bestScore > 0) {
     bow.position.set(0.015, -0.015, 0.035);
     bow.rotation.set(-0.08, Math.PI / 2, -Math.PI / 2);
