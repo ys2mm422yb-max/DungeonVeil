@@ -5,10 +5,11 @@ import{RangerPreview}from'../RangerPreview';
 import{preloadKayKitDungeonRoom}from'../kaykitRoom3D';
 import{preloadKayKitEnemyVisuals}from'../kaykitEnemy3D';
 import{preloadKayKitHealingPotion}from'../kaykitLoot3D';
+import{preloadKayKitOuterWorld}from'../kaykitOuterWorld3D';
 
 interface Props{onConfirm:(name:string,cls:ClassKey)=>void|Promise<void>;onBack:()=>void}
 
-const preloadRun=()=>Promise.all([preloadKayKitDungeonRoom(1),preloadKayKitEnemyVisuals(),preloadKayKitHealingPotion()]);
+const preloadRun=()=>Promise.all([preloadKayKitDungeonRoom(1),preloadKayKitEnemyVisuals(),preloadKayKitHealingPotion(),preloadKayKitOuterWorld()]);
 
 export function CharacterCreationModern({onConfirm,onBack}:Props){
  const{t,language}=useLanguage();
