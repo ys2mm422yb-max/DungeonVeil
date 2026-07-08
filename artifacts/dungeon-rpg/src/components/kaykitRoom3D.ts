@@ -32,31 +32,52 @@ const ROOM_ASSETS: Record<KayKitRoomAsset, string> = {
   bannerGreen: 'banner_patternA_green.gltf',
 };
 
+const DEPTH_ASSETS = {
+  platformFloor: 'floor_tile_large.gltf',
+  stairs: 'stairs_wide.gltf',
+  wallPillar: 'wall_pillar.gltf',
+  pillarDecorated: 'pillar_decorated.gltf',
+  arch: 'wall_arched.gltf',
+  rubble: 'rubble_large.gltf',
+} as const;
+
 type LoadedAsset = { scene: any };
 const cache = new Map<KayKitRoomAsset, Promise<LoadedAsset>>();
+const depthCache = new Map<string, Promise<LoadedAsset>>();
+
+async function gltfLoader() {
+  const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
+  return new GLTFLoader();
+}
 
 async function loadAsset(asset: KayKitRoomAsset) {
   if (!cache.has(asset)) {
-    cache.set(asset, (async () => {
-      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
-      const loader = new GLTFLoader();
-      return loader.loadAsync(`${DUNGEON_ROOT}${ROOM_ASSETS[asset]}`);
-    })());
+    cache.set(asset, (async () => (await gltfLoader()).loadAsync(`${DUNGEON_ROOT}${ROOM_ASSETS[asset]}`))());
   }
   return cache.get(asset)!;
+}
+
+async function loadDepthAsset(name: keyof typeof DEPTH_ASSETS) {
+  if (!depthCache.has(name)) {
+    depthCache.set(name, (async () => (await gltfLoader()).loadAsync(`${DUNGEON_ROOT}${DEPTH_ASSETS[name]}`))());
+  }
+  return depthCache.get(name)!;
 }
 
 function requiredAssets(room: number) {
   const roomKey = Math.max(1, Math.min(10, room));
   const placements = KAYKIT_ROOM_PROPS[roomKey] ?? KAYKIT_ROOM_PROPS[1];
-  const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'wallHalf', 'corner', 'wallColumn', 'torchMounted']);
+  const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'corner', 'wallColumn', 'torchMounted']);
   for (const placement of placements) required.add(placement.asset);
   return { placements, required };
 }
 
 export async function preloadKayKitDungeonRoom(room: number) {
   const { required } = requiredAssets(room);
-  await Promise.all([...required].map(asset => loadAsset(asset)));
+  await Promise.all([
+    ...[...required].map(asset => loadAsset(asset)),
+    ...Object.keys(DEPTH_ASSETS).map(name => loadDepthAsset(name as keyof typeof DEPTH_ASSETS)),
+  ]);
 }
 
 function keepCachedResource(resource: any) {
@@ -77,16 +98,7 @@ function prepare(root: any) {
   });
 }
 
-function addClone(group: any, prototype: any, placement: KayKitRoomPlacement) {
-  const object = prototype.clone(true);
-  object.position.set(placement.x, 0, placement.z);
-  object.rotation.y = placement.rotation ?? 0;
-  object.scale.setScalar(placement.scale ?? 1);
-  group.add(object);
-  return object;
-}
-
-function addArchitecturalClone(group: any, prototype: any, x: number, y: number, z: number, rotation = 0, scale = 1) {
+function addObject(group: any, prototype: any, x: number, y: number, z: number, rotation = 0, scale = 1) {
   const object = prototype.clone(true);
   object.position.set(x, y, z);
   object.rotation.y = rotation;
@@ -95,28 +107,78 @@ function addArchitecturalClone(group: any, prototype: any, x: number, y: number,
   return object;
 }
 
+function addClone(group: any, prototype: any, placement: KayKitRoomPlacement) {
+  return addObject(group, prototype, placement.x, 0, placement.z, placement.rotation ?? 0, placement.scale ?? 1);
+}
+
+function buildDepthZones(root: any, room: number, mapWidth: number, mapHeight: number, depth: Record<keyof typeof DEPTH_ASSETS, any>) {
+  const left = -mapWidth / 2 + 0.45;
+  const right = mapWidth / 2 - 0.45;
+  const top = -mapHeight / 2 + 0.45;
+  const bottom = mapHeight / 2 - 0.45;
+  const platformY = room === 10 ? 1.05 : 0.78;
+  const platformZ = top - 3.4;
+  const platformScale = room >= 7 ? 1.08 : 1;
+
+  // Echte erhöhte Hinterebene: Boden liegt sichtbar höher als die Arena.
+  for (let x = left + 2; x <= right - 2; x += 4) {
+    addObject(root, depth.platformFloor, x, platformY, platformZ, ((Math.round(x) + room) & 1) ? Math.PI / 2 : 0, platformScale);
+  }
+
+  // Frontkante der erhöhten Ebene. Portalmitte bleibt offen und wird von einer Treppe erschlossen.
+  for (let x = left + 1.2; x < right - 1.2; x += 2.35) {
+    if (Math.abs(x) < 2.15) continue;
+    addObject(root, depth.wallPillar, x, platformY * 0.46, top - 1.25, 0, room === 10 ? 1.12 : 1);
+  }
+  addObject(root, depth.stairs, 0, 0, top - 1.2, Math.PI, room === 10 ? 1.2 : 1.05);
+  addObject(root, depth.arch, 0, platformY, platformZ - 0.55, 0, room === 10 ? 1.28 : 1.08);
+
+  const pillarXs = room === 10 ? [-8.2, -5.1, 5.1, 8.2] : [-7.2, 7.2];
+  for (const x of pillarXs) {
+    if (x <= left || x >= right) continue;
+    addObject(root, depth.pillarDecorated, x, platformY, platformZ + 0.15, 0, room === 10 ? 1.28 : 1.08);
+  }
+
+  if (room >= 6) {
+    addObject(root, depth.rubble, left - 0.45, 0, top + 4.2, Math.PI / 2, 1.1);
+    addObject(root, depth.rubble, right + 0.45, 0, top + 4.2, -Math.PI / 2, 1.1);
+  }
+
+  // Vordergrundanker außerhalb der Spielzone geben der Kamera eine echte Nah-Ebene.
+  if (room === 3 || room === 7 || room === 9 || room === 10) {
+    addObject(root, depth.pillarDecorated, left + 1.15, -0.05, bottom + 1.15, Math.PI, 1.2);
+    addObject(root, depth.pillarDecorated, right - 1.15, -0.05, bottom + 1.15, Math.PI, 1.2);
+  }
+}
+
 export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: number, mapHeight: number) {
   const root = new THREE.Group();
   root.name = `KayKitDungeonRoom${room}`;
   let active = true;
   const { placements, required } = requiredAssets(room);
 
-  Promise.all([...required].map(async asset => [asset, await loadAsset(asset)] as const)).then(entries => {
+  Promise.all([
+    ...[...required].map(async asset => [`room:${asset}`, await loadAsset(asset)] as const),
+    ...Object.keys(DEPTH_ASSETS).map(async name => [`depth:${name}`, await loadDepthAsset(name as keyof typeof DEPTH_ASSETS)] as const),
+  ]).then(entries => {
     if (!active) return;
     const loaded = new Map(entries);
     for (const [, gltf] of entries) prepare(gltf.scene);
 
-    const floor = loaded.get('floor')!.scene;
+    const roomAsset = (asset: KayKitRoomAsset) => loaded.get(`room:${asset}`)!.scene;
+    const depthAsset = (asset: keyof typeof DEPTH_ASSETS) => loaded.get(`depth:${asset}`)!.scene;
+    const depth = Object.fromEntries(Object.keys(DEPTH_ASSETS).map(name => [name, depthAsset(name as keyof typeof DEPTH_ASSETS)])) as Record<keyof typeof DEPTH_ASSETS, any>;
+
+    const floor = roomAsset('floor');
     const floorStep = 4;
     for (let z = -mapHeight / 2 + floorStep / 2; z < mapHeight / 2; z += floorStep) {
       for (let x = -mapWidth / 2 + floorStep / 2; x < mapWidth / 2; x += floorStep) {
         const variantRotation = ((Math.floor(x / floorStep) + Math.floor(z / floorStep) + room) & 1) ? Math.PI / 2 : 0;
-        addClone(root, floor, { asset: 'floor', x, z, rotation: variantRotation });
+        addObject(root, floor, x, 0, z, variantRotation);
       }
     }
 
-    const wall = loaded.get('wall')!.scene;
-    const wallHalf = loaded.get('wallHalf')!.scene;
+    const wall = roomAsset('wall');
     const wallStep = 2;
     const left = -mapWidth / 2 + 0.45;
     const right = mapWidth / 2 - 0.45;
@@ -124,59 +186,36 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     const bottom = mapHeight / 2 - 0.45;
 
     for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
-      if (Math.abs(x) > 1.25) addClone(root, wall, { asset: 'wall', x, z: top });
-      addClone(root, wall, { asset: 'wall', x, z: bottom, rotation: Math.PI });
+      if (Math.abs(x) > 1.25) addObject(root, wall, x, 0, top);
+      addObject(root, wall, x, 0, bottom, Math.PI);
     }
     for (let z = top + wallStep; z < bottom - wallStep; z += wallStep) {
-      addClone(root, wall, { asset: 'wall', x: left, z, rotation: Math.PI / 2 });
-      addClone(root, wall, { asset: 'wall', x: right, z, rotation: -Math.PI / 2 });
+      addObject(root, wall, left, 0, z, Math.PI / 2);
+      addObject(root, wall, right, 0, z, -Math.PI / 2);
     }
 
-    const corner = loaded.get('corner')!.scene;
-    addClone(root, corner, { asset: 'corner', x: left, z: top, rotation: Math.PI / 2 });
-    addClone(root, corner, { asset: 'corner', x: right, z: top, rotation: Math.PI });
-    addClone(root, corner, { asset: 'corner', x: right, z: bottom, rotation: -Math.PI / 2 });
-    addClone(root, corner, { asset: 'corner', x: left, z: bottom });
+    const corner = roomAsset('corner');
+    addObject(root, corner, left, 0, top, Math.PI / 2);
+    addObject(root, corner, right, 0, top, Math.PI);
+    addObject(root, corner, right, 0, bottom, -Math.PI / 2);
+    addObject(root, corner, left, 0, bottom);
 
-    const wallColumn = loaded.get('wallColumn')!.scene;
+    const wallColumn = roomAsset('wallColumn');
     for (const x of [-4, 4]) {
-      addClone(root, wallColumn, { asset: 'wallColumn', x, z: top });
-      addClone(root, wallColumn, { asset: 'wallColumn', x, z: bottom, rotation: Math.PI });
+      addObject(root, wallColumn, x, 0, top);
+      addObject(root, wallColumn, x, 0, bottom, Math.PI);
     }
 
-    // Zweite Architektur-Ebene hinter der Kollisionswand: rein visuell, aber mit klarer Tiefe.
-    // Dadurch bleibt die Kampfzone unverändert, während Wände und Randbereiche räumlicher wirken.
-    const rearZ = top - 1.45;
-    for (let x = left + 1.2; x < right - 1.2; x += 2.4) {
-      if (Math.abs(x) < 2.15) continue;
-      addArchitecturalClone(root, wallHalf, x, 0.68, rearZ, 0, room === 10 ? 1.12 : 1);
-    }
-    for (const x of [-8.2, -5.2, 5.2, 8.2]) {
-      if (x <= left || x >= right) continue;
-      addArchitecturalClone(root, wallColumn, x, 0.34, rearZ + 0.18, 0, room === 10 ? 1.28 : 1.12);
-    }
+    buildDepthZones(root, room, mapWidth, mapHeight, depth);
 
-    const sideDepthStep = room >= 6 ? 5.2 : 6.4;
-    for (let z = top + 3.8; z < bottom - 3.2; z += sideDepthStep) {
-      addArchitecturalClone(root, wallColumn, left - 0.7, 0.28, z, Math.PI / 2, 1.08);
-      addArchitecturalClone(root, wallColumn, right + 0.7, 0.28, z, -Math.PI / 2, 1.08);
-      if (room >= 6) {
-        addArchitecturalClone(root, wallHalf, left - 1.05, 0.54, z + 1.15, Math.PI / 2, 0.94);
-        addArchitecturalClone(root, wallHalf, right + 1.05, 0.54, z + 1.15, -Math.PI / 2, 0.94);
-      }
-    }
-
-    // Der Ausgang hat immer einen festen architektonischen Rahmen.
-    addClone(root, wallColumn, { asset: 'wallColumn', x: -1.65, z: top, scale: room === 10 ? 1.2 : 1.05 });
-    addClone(root, wallColumn, { asset: 'wallColumn', x: 1.65, z: top, scale: room === 10 ? 1.2 : 1.05 });
-    const torch = loaded.get('torchMounted')?.scene;
-    if (torch) {
-      addClone(root, torch, { asset: 'torchMounted', x: -1.7, z: top + 0.18, rotation: Math.PI, scale: room === 10 ? 1.15 : 1 });
-      addClone(root, torch, { asset: 'torchMounted', x: 1.7, z: top + 0.18, rotation: Math.PI, scale: room === 10 ? 1.15 : 1 });
-    }
+    addObject(root, wallColumn, -1.65, 0, top, 0, room === 10 ? 1.2 : 1.05);
+    addObject(root, wallColumn, 1.65, 0, top, 0, room === 10 ? 1.2 : 1.05);
+    const torch = roomAsset('torchMounted');
+    addObject(root, torch, -1.7, 0, top + 0.18, Math.PI, room === 10 ? 1.15 : 1);
+    addObject(root, torch, 1.7, 0, top + 0.18, Math.PI, room === 10 ? 1.15 : 1);
 
     for (const placement of placements) {
-      const prototype = loaded.get(placement.asset)?.scene;
+      const prototype = loaded.get(`room:${placement.asset}`)?.scene;
       if (prototype) addClone(root, prototype, placement);
     }
   }).catch(error => console.error('KayKit dungeon room failed', error));
