@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { composeFullRanger } from './rangerCharacterRig';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -11,9 +12,6 @@ function StaticArcher() {
         <circle cx="50" cy="50" r="38" opacity="0.15" />
         <path d="M50 18 C38 18 30 28 30 38 C30 48 36 54 42 58 L42 80 L46 80 L46 62 L54 62 L54 80 L58 80 L58 58 C64 54 70 48 70 38 C70 28 62 18 50 18 Z" />
         <path d="M26 44 Q50 70 74 44" stroke="currentColor" strokeWidth="3" fill="none" opacity="0.85" />
-        <line x1="50" y1="44" x2="74" y2="44" stroke="currentColor" strokeWidth="2" opacity="0.7" />
-        <line x1="50" y1="44" x2="50" y2="62" stroke="currentColor" strokeWidth="2" opacity="0.7" />
-        <circle cx="50" cy="36" r="8" />
       </svg>
     </div>
   );
@@ -33,8 +31,7 @@ export function RangerPreview() {
     let renderer: any;
     let scene: any;
     let camera: any;
-    let mixer: any;
-    let hero: any;
+    let rangerRig: ReturnType<typeof composeFullRanger> | null = null;
     let clock: any;
 
     const boot = async () => {
@@ -49,60 +46,55 @@ export function RangerPreview() {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
       try {
         renderer = new THREE.WebGLRenderer({ antialias: !isMobile, alpha: false, powerPreference: 'default' });
-      } catch (e) {
+      } catch {
         if (!disposed) setState('fallback');
         return;
       }
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.0 : 1.5));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1 : 1.5));
       renderer.setSize(host.clientWidth, host.clientHeight);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       host.appendChild(renderer.domElement);
 
-      camera = new THREE.PerspectiveCamera(45, host.clientWidth / Math.max(1, host.clientHeight), 0.1, 100);
-      camera.position.set(0, 1.05, 2.35);
-      camera.lookAt(0, 0.75, 0);
+      camera = new THREE.PerspectiveCamera(36, host.clientWidth / Math.max(1, host.clientHeight), 0.1, 100);
+      camera.position.set(0.85, 1.28, 3.2);
+      camera.lookAt(0, 0.9, 0);
 
-      scene.add(new THREE.HemisphereLight(0xe6f2ff, 0x332211, 1.8));
-      const key = new THREE.DirectionalLight(0xfff1d0, 1.8);
-      key.position.set(2, 4, 3);
-      key.castShadow = true;
+      scene.add(new THREE.HemisphereLight(0xe6f2ff, 0x332211, 2.1));
+      const key = new THREE.DirectionalLight(0xfff1d0, 2.2);
+      key.position.set(2.4, 4.5, 3.5);
       scene.add(key);
-      const rim = new THREE.DirectionalLight(0x9bbfff, 0.8);
-      rim.position.set(-2, 2, -3);
+      const rim = new THREE.DirectionalLight(0x9bbfff, 0.9);
+      rim.position.set(-2, 2.5, -3);
       scene.add(rim);
+
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(0.82, 32),
+        new THREE.MeshStandardMaterial({ color: 0x17110b, roughness: 1 }),
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = 0.005;
+      scene.add(floor);
 
       const loader = new GLTFLoader();
       const load = (name: string) => new Promise<any>((resolve, reject) => loader.load(`${ASSET_ROOT}${name}`, resolve, undefined, reject));
-      const [heroGltf, animationsGltf] = await Promise.all([load('ranger.glb'), load('animations.glb')]);
+      const [baseGltf, outfitGltf, animationsGltf] = await Promise.all([
+        load('base-male.glb'),
+        load('ranger.glb'),
+        load('animations.glb'),
+      ]);
       if (disposed) return;
 
-      hero = heroGltf.scene;
-      hero.traverse((node: any) => {
-        if (node.isMesh) {
-          node.castShadow = true;
-          node.receiveShadow = true;
-        }
-      });
-      scene.add(hero);
-
-      mixer = new THREE.AnimationMixer(hero);
-      const clips = animationsGltf.animations ?? [];
-      const idleClip = clips.find((c: any) => c.name.toLowerCase() === 'idle_loop') ||
-        clips.find((c: any) => {
-          const n = c.name.toLowerCase();
-          return n.includes('idle') && !n.includes('crouch') && !n.includes('talking') && !n.includes('torch') && !n.includes('pistol');
-        });
-      if (idleClip) {
-        const action = mixer.clipAction(idleClip);
-        action.reset().fadeIn(0.2).play();
-      }
+      rangerRig = composeFullRanger(THREE, baseGltf.scene, outfitGltf.scene, animationsGltf.animations ?? []);
+      rangerRig.root.scale.setScalar(1.12);
+      rangerRig.root.rotation.y = -0.28;
+      scene.add(rangerRig.root);
 
       if (!disposed) setState('ready');
       clock = new THREE.Clock();
       const render = () => {
-        if (disposed || !renderer || !scene || !camera || !THREE) return;
+        if (disposed || !renderer || !scene || !camera) return;
         const dt = Math.min(clock.getDelta(), 0.05);
-        if (mixer) mixer.update(dt);
+        rangerRig?.update(dt);
         renderer.render(scene, camera);
         frame = requestAnimationFrame(render);
       };
@@ -117,12 +109,12 @@ export function RangerPreview() {
     return () => {
       disposed = true;
       cancelAnimationFrame(frame);
-      mixer?.stopAllAction?.();
-      if (hero) {
-        scene.remove(hero);
-        hero.traverse((node: any) => {
+      rangerRig?.stop();
+      if (rangerRig?.root) {
+        scene?.remove(rangerRig.root);
+        rangerRig.root.traverse((node: any) => {
           node.geometry?.dispose?.();
-          if (Array.isArray(node.material)) node.material.forEach((m: any) => m?.dispose?.());
+          if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
           else node.material?.dispose?.();
         });
       }
