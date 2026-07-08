@@ -53,9 +53,18 @@ export async function preloadKayKitDungeonRoom(room: number) {
   await Promise.all([...required].map(asset => loadAsset(asset)));
 }
 
+function keepCachedResource(resource: any) {
+  if (!resource || resource.userData?.kayKitPersistent) return;
+  resource.userData = { ...(resource.userData ?? {}), kayKitPersistent: true };
+  resource.dispose = () => undefined;
+}
+
 function prepare(root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
+    keepCachedResource(node.geometry);
+    if (Array.isArray(node.material)) node.material.forEach(keepCachedResource);
+    else keepCachedResource(node.material);
     node.castShadow = !IS_MOBILE;
     node.receiveShadow = !IS_MOBILE;
     node.frustumCulled = true;
