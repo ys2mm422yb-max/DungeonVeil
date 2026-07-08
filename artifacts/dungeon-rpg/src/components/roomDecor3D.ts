@@ -50,58 +50,143 @@ function architecture(): DecorPoint[] {
   return points;
 }
 
+const ARMORY: DecorPoint[] = [
+  { kind: 'weaponStand', x: 5.6, z: -5.5, rotation: -Math.PI / 2 },
+  { kind: 'dummy', x: 4.6, z: -2.2, rotation: -Math.PI / 2 },
+  { kind: 'workbenchDrawers', x: 5.8, z: 1.0, rotation: -Math.PI / 2 },
+  { kind: 'anvil', x: 4.2, z: 3.2 },
+  { kind: 'crateWood', x: 5.4, z: 5.3, rotation: 0.2 },
+  { kind: 'woodfire', x: -5.2, z: -5.0 },
+  { kind: 'bench', x: -4.8, z: -2.0, rotation: Math.PI / 2 },
+  { kind: 'tableSmall', x: -4.8, z: 1.1, rotation: Math.PI / 2 },
+  { kind: 'candleTriple', x: -4.7, z: 1.0 },
+  { kind: 'chest', x: -5.3, z: 5.0, rotation: 0.25 },
+  { kind: 'bowGolden', x: 5.1, z: -4.3, scale: 1.15 },
+];
+
+const LIBRARY: DecorPoint[] = [
+  { kind: 'bookcase', x: -5.4, z: -5.3, rotation: Math.PI / 2 },
+  { kind: 'bookcase', x: -5.4, z: -1.9, rotation: Math.PI / 2 },
+  { kind: 'shelfArch', x: 5.4, z: -5.1, rotation: -Math.PI / 2 },
+  { kind: 'shelfBottles', x: 5.4, z: -1.8, rotation: -Math.PI / 2 },
+  { kind: 'cauldron', x: -4.3, z: 3.5 },
+  { kind: 'cage', x: 4.7, z: 3.8 },
+  { kind: 'bookStand', x: 0, z: -4.3 },
+  { kind: 'potion', x: 3.8, z: 0.3, scale: 1.4 },
+  { kind: 'cobweb', x: -7.8, z: 8.6, rotation: Math.PI / 2 },
+  { kind: 'cobweb2', x: 7.8, z: 8.4, rotation: -Math.PI / 2 },
+];
+
+const SHRINE: DecorPoint[] = [
+  { kind: 'pedestal', x: 0, z: -5.4 },
+  { kind: 'statueHorse', x: 0, z: -7.8, rotation: Math.PI },
+  { kind: 'decorativeWall', x: -5.6, z: -9.2 },
+  { kind: 'decorativeWall', x: 5.6, z: -9.2 },
+  { kind: 'banner', x: -4.6, z: -6.6 },
+  { kind: 'banner', x: 4.6, z: -6.6 },
+  { kind: 'chestGold', x: 0, z: 6.4, rotation: Math.PI },
+  { kind: 'candleTriple', x: -2.0, z: 4.9 },
+  { kind: 'candleTriple', x: 2.0, z: 4.9 },
+  { kind: 'skull', x: -3.6, z: 2.7 },
+  { kind: 'skull', x: 3.6, z: 2.7, rotation: 1.4 },
+];
+
+const TRAPS: DecorPoint[] = [
+  { kind: 'trapSpikes', x: -3.4, z: -2.1 },
+  { kind: 'trapSpikes', x: 3.4, z: -2.1 },
+  { kind: 'trapEmpty', x: 0, z: 2.2 },
+  { kind: 'trapdoor', x: 0, z: 6.2 },
+  { kind: 'crate', x: -5.1, z: 5.1 },
+  { kind: 'barrel', x: 5.1, z: 5.1 },
+  { kind: 'skull', x: -4.4, z: -5.0 },
+  { kind: 'skull', x: 4.4, z: -5.0, rotation: 1.4 },
+];
+
+const PRISON: DecorPoint[] = [
+  { kind: 'cage', x: -4.7, z: -4.5 },
+  { kind: 'cage', x: 4.7, z: -4.5 },
+  { kind: 'archBars', x: 0, z: -7.2 },
+  { kind: 'bench', x: -4.5, z: 2.8, rotation: Math.PI / 2 },
+  { kind: 'bench', x: 4.5, z: 2.8, rotation: -Math.PI / 2 },
+  { kind: 'barrel2', x: -5.1, z: 5.3 },
+  { kind: 'crate', x: 5.1, z: 5.1 },
+  { kind: 'rope', x: 3.8, z: -1.0 },
+  { kind: 'skull', x: -3.8, z: 0.8 },
+];
+
+const WAR_ROOM: DecorPoint[] = [
+  { kind: 'tableBig', x: 0, z: -3.4 },
+  { kind: 'weaponStand', x: -4.8, z: -5.0, rotation: Math.PI / 2 },
+  { kind: 'weaponStand', x: 4.8, z: -5.0, rotation: -Math.PI / 2 },
+  { kind: 'shieldWood', x: -4.8, z: -1.1, scale: 1.2 },
+  { kind: 'swordWallMount', x: 4.8, z: -1.1, rotation: -Math.PI / 2 },
+  { kind: 'bench', x: -4.2, z: 3.6, rotation: Math.PI / 2 },
+  { kind: 'bench', x: 4.2, z: 3.6, rotation: -Math.PI / 2 },
+  { kind: 'chest', x: 0, z: 6.0, rotation: Math.PI },
+];
+
+const RITUAL: DecorPoint[] = [
+  { kind: 'pedestal', x: 0, z: -4.8 },
+  { kind: 'cauldron', x: 0, z: -1.4, scale: 1.25 },
+  { kind: 'candleTriple', x: -3.7, z: -2.6 },
+  { kind: 'candleTriple', x: 3.7, z: -2.6 },
+  { kind: 'skull', x: -3.9, z: 2.3 },
+  { kind: 'skull', x: 3.9, z: 2.3, rotation: 0.8 },
+  { kind: 'chestLegendary', x: 0, z: 6.2, rotation: Math.PI },
+  { kind: 'cobweb', x: -6.6, z: 5.8, rotation: Math.PI / 2 },
+  { kind: 'cobweb2', x: 6.6, z: 5.8, rotation: -Math.PI / 2 },
+];
+
+const STORE: DecorPoint[] = [
+  { kind: 'barrelApples', x: -5.0, z: -4.6 },
+  { kind: 'barrel', x: -4.1, z: -3.8 },
+  { kind: 'barrel2', x: -5.0, z: -2.8 },
+  { kind: 'crateWood', x: 5.0, z: -4.6 },
+  { kind: 'crate', x: 4.1, z: -3.8 },
+  { kind: 'chest', x: 5.0, z: -2.7 },
+  { kind: 'workbench', x: -4.8, z: 3.2, rotation: Math.PI / 2 },
+  { kind: 'shelfBottles', x: 4.8, z: 3.2, rotation: -Math.PI / 2 },
+  { kind: 'lanternWall', x: -5.4, z: 0.2 },
+  { kind: 'lanternWall', x: 5.4, z: 0.2 },
+];
+
+const CHAPEL: DecorPoint[] = [
+  { kind: 'pedestal', x: 0, z: -5.3 },
+  { kind: 'banner', x: -4.5, z: -5.7 },
+  { kind: 'banner', x: 4.5, z: -5.7 },
+  { kind: 'bench', x: -3.2, z: -1.0, rotation: 0 },
+  { kind: 'bench', x: 3.2, z: -1.0, rotation: 0 },
+  { kind: 'bench', x: -3.2, z: 2.3, rotation: 0 },
+  { kind: 'bench', x: 3.2, z: 2.3, rotation: 0 },
+  { kind: 'candleTriple', x: -2.0, z: 5.6 },
+  { kind: 'candleTriple', x: 2.0, z: 5.6 },
+];
+
+const BOSS: DecorPoint[] = [
+  { kind: 'column', x: -5.2, z: -5.8, scale: 1.15 },
+  { kind: 'column', x: 5.2, z: -5.8, scale: 1.15 },
+  { kind: 'column2', x: -5.2, z: 4.0, scale: 1.15 },
+  { kind: 'column2', x: 5.2, z: 4.0, scale: 1.15 },
+  { kind: 'statueHorse', x: -5.8, z: 7.2, rotation: 0.45 },
+  { kind: 'statueHorse', x: 5.8, z: 7.2, rotation: -0.45 },
+  { kind: 'chestLegendary', x: 0, z: 8.0, rotation: Math.PI },
+  { kind: 'woodfire', x: -3.0, z: -7.2 },
+  { kind: 'woodfire', x: 3.0, z: -7.2 },
+  { kind: 'bannerWall', x: -4.7, z: -12.8 },
+  { kind: 'bannerWall', x: 4.7, z: -12.8 },
+];
+
 const ROOM_LAYOUTS: Record<number, DecorPoint[]> = {
-  1: [
-    ...architecture(),
-    { kind: 'weaponStand', x: 7.1, z: -7.3, rotation: -Math.PI / 2 },
-    { kind: 'dummy', x: 6.7, z: -3.8, rotation: -Math.PI / 2 },
-    { kind: 'workbenchDrawers', x: 7.1, z: 0.2, rotation: -Math.PI / 2 },
-    { kind: 'anvil', x: 5.8, z: 2.2 },
-    { kind: 'barrel', x: 7.2, z: 5.5 },
-    { kind: 'crateWood', x: 6.1, z: 6.4, rotation: 0.2 },
-    { kind: 'woodfire', x: -6.9, z: -6.5 },
-    { kind: 'bench', x: -6.9, z: -3.3, rotation: Math.PI / 2 },
-    { kind: 'tableSmall', x: -6.5, z: 0.1, rotation: Math.PI / 2 },
-    { kind: 'candleTriple', x: -6.5, z: 0.1 },
-    { kind: 'barrel2', x: -7.1, z: 5.2 },
-    { kind: 'chest', x: -6.1, z: 6.4, rotation: 0.25 },
-    { kind: 'swordWallMount', x: 8.9, z: -0.6, rotation: -Math.PI / 2 },
-  ],
-  2: [
-    ...architecture(),
-    { kind: 'bookcase', x: -7.2, z: -6.4, rotation: Math.PI / 2 },
-    { kind: 'bookcase', x: -7.2, z: -2.8, rotation: Math.PI / 2 },
-    { kind: 'shelfArch', x: 7.1, z: -5.8, rotation: -Math.PI / 2 },
-    { kind: 'shelfBottles', x: 7.1, z: -2.8, rotation: -Math.PI / 2 },
-    { kind: 'cauldron', x: -5.4, z: 3.4 },
-    { kind: 'cage', x: 5.8, z: 4.1 },
-    { kind: 'cobweb', x: -8.5, z: 8.8, rotation: Math.PI / 2 },
-    { kind: 'cobweb2', x: 8.5, z: 8.6, rotation: -Math.PI / 2 },
-    { kind: 'potion', x: 6.5, z: -1.8, scale: 1.3 },
-  ],
-  3: [
-    ...architecture(),
-    { kind: 'pedestal', x: 0, z: -5.8 },
-    { kind: 'statueHorse', x: 0, z: -8.5, rotation: Math.PI },
-    { kind: 'decorativeWall', x: -6.5, z: -9.8 },
-    { kind: 'decorativeWall', x: 6.5, z: -9.8 },
-    { kind: 'banner', x: -5.7, z: -7.1 },
-    { kind: 'banner', x: 5.7, z: -7.1 },
-    { kind: 'chestGold', x: 0, z: 7.1, rotation: Math.PI },
-    { kind: 'candleTriple', x: -2.2, z: 5.9 },
-    { kind: 'candleTriple', x: 2.2, z: 5.9 },
-  ],
-  4: [
-    ...architecture(),
-    { kind: 'trapSpikes', x: -4.3, z: -2.5 },
-    { kind: 'trapSpikes', x: 4.3, z: -2.5 },
-    { kind: 'trapEmpty', x: 0, z: 2.3 },
-    { kind: 'trapdoor', x: 0, z: 7.0 },
-    { kind: 'crate', x: -7.0, z: 5.6 },
-    { kind: 'barrel', x: 7.0, z: 5.6 },
-    { kind: 'skull', x: -5.6, z: -6.0 },
-    { kind: 'skull', x: 5.6, z: -6.0, rotation: 1.4 },
-  ],
+  1: [...architecture(), ...ARMORY],
+  2: [...architecture(), ...LIBRARY],
+  3: [...architecture(), ...SHRINE],
+  4: [...architecture(), ...TRAPS],
+  5: [...architecture(), ...PRISON],
+  6: [...architecture(), ...WAR_ROOM],
+  7: [...architecture(), ...RITUAL],
+  8: [...architecture(), ...STORE],
+  9: [...architecture(), ...CHAPEL],
+  10: [...architecture(), ...BOSS],
 };
 
 function normalizeAsset(THREE: any, object: any, targetSize: number) {
@@ -166,8 +251,9 @@ function cloneAsset(source: any, point: DecorPoint) {
 
 export function buildChapterRoomDecor(THREE: any, room: number, assets: RoomDecorAssetMap = {}) {
   const root = new THREE.Group();
-  root.name = `DungeonVeilClosedRoom-${room}`;
-  const points = ROOM_LAYOUTS[Math.max(1, Math.min(4, room))] ?? ROOM_LAYOUTS[1];
+  const roomNumber = Math.max(1, Math.min(10, room));
+  root.name = `DungeonVeilClosedRoom-${roomNumber}`;
+  const points = ROOM_LAYOUTS[roomNumber] ?? ROOM_LAYOUTS[1];
   let active = true;
 
   const renderAvailable = (available: RoomDecorAssetMap) => {
