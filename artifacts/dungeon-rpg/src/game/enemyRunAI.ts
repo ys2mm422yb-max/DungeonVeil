@@ -1,9 +1,9 @@
 import type { Enemy, EnemyType, Player } from './entities';
 
-export type EnemyArchetype = 'skeleton' | 'dragon';
+export type EnemyArchetype = 'skeleton' | 'guardian';
 
 export function enemyArchetype(type: EnemyType): EnemyArchetype {
-  return type === 'boss' ? 'dragon' : 'skeleton';
+  return type === 'boss' ? 'guardian' : 'skeleton';
 }
 
 export type EnemyMovePlan = {
@@ -20,26 +20,51 @@ function normalizedDirection(enemy: Enemy, player: Player) {
   return { dist, nx: dx / dist, ny: dy / dist };
 }
 
+function normalizedMove(x: number, y: number) {
+  const length = Math.max(1, Math.hypot(x, y));
+  return { x: x / length, y: y / length };
+}
+
 export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: number): EnemyMovePlan {
   const archetype = enemyArchetype(enemy.enemyType);
   const { dist, nx, ny } = normalizedDirection(enemy, player);
 
-  if (archetype === 'dragon') {
-    const phase = ((time - enemy.spawnTime) % 7200 + 7200) % 7200;
-    const desiredRange = phase < 2400 ? 220 : phase < 4800 ? 145 : 95;
-    const direction = dist > desiredRange + 24 ? 1 : dist < desiredRange - 26 ? -0.65 : 0;
-    const strafeDirection = Math.floor((time - enemy.spawnTime) / 2400) % 2 === 0 ? 1 : -1;
-    const strafeStrength = phase > 4800 ? 0.18 : 0.62;
-    const speedMultiplier = phase > 4800 ? 1.28 : 0.86;
-    const speed = enemy.speed * speedMultiplier * dt / 1000;
-    const sideX = -ny * strafeDirection;
-    const sideY = nx * strafeDirection;
+  if (archetype === 'guardian') {
+    const phase = ((time - enemy.spawnTime) % 7800 + 7800) % 7800;
+    const speed = enemy.speed * dt / 1000;
 
+    // Der Wächter bewegt sich bewusst schwer und lesbar:
+    // erst annähern, dann kurze seitliche Neuorientierung, dann Druckphase.
+    if (phase < 3100) {
+      const advance = dist > 150 ? 0.78 : dist < 118 ? -0.22 : 0;
+      return {
+        dx: nx * advance * speed,
+        dy: ny * advance * speed,
+        attackRange: 155,
+        attackDelay: 1180,
+      };
+    }
+
+    if (phase < 5000) {
+      const strafeDirection = Math.floor((time - enemy.spawnTime) / 1900) % 2 === 0 ? 1 : -1;
+      const sideX = -ny * strafeDirection;
+      const sideY = nx * strafeDirection;
+      const toward = dist > 150 ? 0.28 : dist < 112 ? -0.18 : 0;
+      const move = normalizedMove(nx * toward + sideX * 0.42, ny * toward + sideY * 0.42);
+      return {
+        dx: move.x * speed * 0.58,
+        dy: move.y * speed * 0.58,
+        attackRange: 165,
+        attackDelay: 1260,
+      };
+    }
+
+    const pressure = dist > 100 ? 0.92 : dist < 72 ? -0.12 : 0;
     return {
-      dx: (nx * direction + sideX * strafeStrength) * speed,
-      dy: (ny * direction + sideY * strafeStrength) * speed,
-      attackRange: phase > 4800 ? 118 : 235,
-      attackDelay: phase > 4800 ? 760 : 1120,
+      dx: nx * pressure * speed * 0.9,
+      dy: ny * pressure * speed * 0.9,
+      attackRange: 112,
+      attackDelay: 880,
     };
   }
 
