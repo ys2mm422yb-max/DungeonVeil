@@ -5,15 +5,12 @@ const DUNGEON_ROOT = '/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/A
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 const ROOM_ASSETS: Record<KayKitRoomAsset, string> = {
-  floor: 'floor_dirt_large.gltf',
+  floor: 'floor_tile_large.gltf',
   wall: 'barrier.gltf',
   wallHalf: 'barrier_half.gltf',
   corner: 'barrier_corner.gltf',
   wallColumn: 'barrier_column.gltf',
   column: 'column.gltf',
-  bannerRed: 'banner_patternA_red.gltf',
-  bannerBlue: 'banner_patternA_blue.gltf',
-  bannerGreen: 'banner_patternA_green.gltf',
   barrel: 'barrel_large.gltf',
   barrelDecorated: 'barrel_large_decorated.gltf',
   barrelStack: 'barrel_small_stack.gltf',
@@ -24,6 +21,11 @@ const ROOM_ASSETS: Record<KayKitRoomAsset, string> = {
   candle: 'candle_lit.gltf',
   chair: 'chair.gltf',
   bed: 'bed_decorated.gltf',
+  torchMounted: 'torch_mounted.gltf',
+  wallShelves: 'wall_shelves.gltf',
+  swordShield: 'sword_shield.gltf',
+  tableLong: 'table_long_decorated_A.gltf',
+  tableMedium: 'table_medium_decorated_A.gltf',
 };
 
 type LoadedAsset = { scene: any };
@@ -66,7 +68,7 @@ function prepare(root: any) {
     if (Array.isArray(node.material)) node.material.forEach(keepCachedResource);
     else keepCachedResource(node.material);
     node.castShadow = !IS_MOBILE;
-    node.receiveShadow = !IS_MOBILE;
+    node.receiveShadow = true;
     node.frustumCulled = true;
   });
 }
@@ -94,7 +96,8 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     const floorStep = 4;
     for (let z = -mapHeight / 2 + floorStep / 2; z < mapHeight / 2; z += floorStep) {
       for (let x = -mapWidth / 2 + floorStep / 2; x < mapWidth / 2; x += floorStep) {
-        addClone(root, floor, { asset: 'floor', x, z });
+        const variantRotation = ((Math.floor(x / floorStep) + Math.floor(z / floorStep) + room) & 1) ? Math.PI / 2 : 0;
+        addClone(root, floor, { asset: 'floor', x, z, rotation: variantRotation });
       }
     }
 
