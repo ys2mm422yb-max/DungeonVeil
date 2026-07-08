@@ -26,6 +26,10 @@ const ROOM_ASSETS: Record<KayKitRoomAsset, string> = {
   swordShield: 'sword_shield.gltf',
   tableLong: 'table_long_decorated_A.gltf',
   tableMedium: 'table_medium_decorated_A.gltf',
+  bannerRed: 'banner_patternC_red.gltf',
+  bannerShieldRed: 'banner_shield_red.gltf',
+  bannerBlue: 'banner_patternB_blue.gltf',
+  bannerGreen: 'banner_patternA_green.gltf',
 };
 
 type LoadedAsset = { scene: any };
@@ -45,7 +49,7 @@ async function loadAsset(asset: KayKitRoomAsset) {
 function requiredAssets(room: number) {
   const roomKey = Math.max(1, Math.min(10, room));
   const placements = KAYKIT_ROOM_PROPS[roomKey] ?? KAYKIT_ROOM_PROPS[1];
-  const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'corner', 'wallColumn']);
+  const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'corner', 'wallColumn', 'torchMounted']);
   for (const placement of placements) required.add(placement.asset);
   return { placements, required };
 }
@@ -127,6 +131,16 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     for (const x of [-4, 4]) {
       addClone(root, wallColumn, { asset: 'wallColumn', x, z: top });
       addClone(root, wallColumn, { asset: 'wallColumn', x, z: bottom, rotation: Math.PI });
+    }
+
+    // Der Ausgang hat jetzt immer einen festen architektonischen Rahmen.
+    // Das aktive violette Portal sitzt später exakt zwischen diesen beiden Säulen.
+    addClone(root, wallColumn, { asset: 'wallColumn', x: -1.65, z: top, scale: room === 10 ? 1.2 : 1.05 });
+    addClone(root, wallColumn, { asset: 'wallColumn', x: 1.65, z: top, scale: room === 10 ? 1.2 : 1.05 });
+    const torch = loaded.get('torchMounted')?.scene;
+    if (torch) {
+      addClone(root, torch, { asset: 'torchMounted', x: -1.7, z: top + 0.18, rotation: Math.PI, scale: room === 10 ? 1.15 : 1 });
+      addClone(root, torch, { asset: 'torchMounted', x: 1.7, z: top + 0.18, rotation: Math.PI, scale: room === 10 ? 1.15 : 1 });
     }
 
     for (const placement of placements) {
