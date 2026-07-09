@@ -1,15 +1,15 @@
 import type { GameEngine } from './runEngine';
 
 const ENEMY_SPEED_FACTOR: Record<string, number> = {
-  slime: 1.16,
-  goblin: 1.18,
-  skeleton: 1.16,
-  orc: 1.1,
-  spider: 1.18,
-  vampire: 1.17,
-  demon: 1.15,
-  golem: 1.08,
-  boss: 1.34,
+  slime: 1.18,
+  goblin: 1.21,
+  skeleton: 1.19,
+  orc: 1.13,
+  spider: 1.22,
+  vampire: 1.21,
+  demon: 1.18,
+  golem: 1.1,
+  boss: 1.36,
 };
 
 export type RunBalanceState = {
@@ -21,25 +21,25 @@ export function createRunBalanceState(): RunBalanceState {
 }
 
 function hpFactorForRoom(room: number): number {
-  if (room <= 2) return 0.9 + room * 0.03;
-  if (room <= 5) return 1.02 + (room - 3) * 0.04;
-  if (room <= 9) return 1.14 + (room - 6) * 0.05;
-  if (room === 10) return 0.82;
-  if (room <= 14) return 1.18 + (room - 11) * 0.06;
-  if (room <= 18) return 1.42 + (room - 15) * 0.065;
-  if (room === 19) return 1.7;
+  if (room <= 2) return 0.94 + room * 0.03;
+  if (room <= 5) return 1.08 + (room - 3) * 0.055;
+  if (room <= 9) return 1.28 + (room - 6) * 0.07;
+  if (room === 10) return 0.9;
+  if (room <= 14) return 1.32 + (room - 11) * 0.075;
+  if (room <= 18) return 1.62 + (room - 15) * 0.08;
+  if (room === 19) return 1.94;
   return 1;
 }
 
 function attackCapForRoom(room: number): number {
-  if (room <= 2) return 7 + room;
-  if (room <= 5) return 10 + (room - 3) * 2;
-  if (room <= 9) return 15 + Math.floor((room - 6) * 1.5);
-  if (room === 10) return 20;
-  if (room <= 14) return 18 + (room - 11) * 2;
-  if (room <= 18) return 26 + (room - 15) * 2;
-  if (room === 19) return 34;
-  return 38;
+  if (room <= 2) return 8 + room;
+  if (room <= 5) return 11 + (room - 3) * 2;
+  if (room <= 9) return 17 + Math.floor((room - 6) * 1.75);
+  if (room === 10) return 22;
+  if (room <= 14) return 21 + (room - 11) * 2;
+  if (room <= 18) return 29 + (room - 15) * 2;
+  if (room === 19) return 38;
+  return 42;
 }
 
 export function updateRunBalance(engine: GameEngine, state: RunBalanceState): void {
@@ -57,19 +57,19 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
     enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * hpFactorForRoom(room)));
     enemy.hp = Math.max(1, Math.round(enemy.maxHp * hpRatio));
     enemy.attack = Math.min(enemy.attack, attackCapForRoom(room));
-    enemy.speed *= ENEMY_SPEED_FACTOR[enemy.enemyType] ?? 1.14;
+    enemy.speed *= ENEMY_SPEED_FACTOR[enemy.enemyType] ?? 1.17;
 
     if (enemy.enemyType === 'boss') {
       if (room === 20) {
-        enemy.maxHp = Math.max(1520, enemy.maxHp);
-        enemy.attack = Math.min(36, Math.max(28, enemy.attack));
-        enemy.speed *= 1.12;
-        enemy.nextAttackTime = performance.now() + 560;
+        enemy.maxHp = Math.max(1760, enemy.maxHp);
+        enemy.attack = Math.min(40, Math.max(31, enemy.attack));
+        enemy.speed *= 1.14;
+        enemy.nextAttackTime = performance.now() + 520;
       } else {
-        enemy.maxHp = Math.max(760, enemy.maxHp);
-        enemy.attack = 21;
-        enemy.speed *= 1.04;
-        enemy.nextAttackTime = performance.now() + 660;
+        enemy.maxHp = Math.max(860, enemy.maxHp);
+        enemy.attack = 23;
+        enemy.speed *= 1.06;
+        enemy.nextAttackTime = performance.now() + 620;
       }
       enemy.hp = enemy.maxHp;
     }
