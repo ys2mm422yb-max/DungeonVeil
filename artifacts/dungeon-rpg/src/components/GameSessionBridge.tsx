@@ -11,6 +11,7 @@ import { createRunRetentionState, updateRunRetentionSystems } from '../game/runR
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
 import { activatePendingWeeklyRift, createWeeklyRiftRunState, updateWeeklyRiftRun } from '../game/weeklyRiftRun';
+import { createRunSynergyState, updateRunSynergies } from '../game/runSynergies';
 import { pushCloudSave } from '../game/cloudSave';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
@@ -69,6 +70,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const relicEffects = createRunRelicEffectState();
     const roomMechanics = createRoomMechanicState();
     const weeklyRift = createWeeklyRiftRunState();
+    const synergies = createRunSynergyState();
     let frame = 0;
     let checkedClearKey = '';
     let lastFrame = performance.now();
@@ -84,6 +86,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           updateRunEffectSystems(engine, effects, time);
           updateRunRetentionSystems(engine, retention, time);
           updateRoomMechanics(engine, roomMechanics, time, dt);
+          updateRunSynergies(engine, synergies, time);
         }
         updateRunRelicEffects(engine, relicEffects, time);
         if (engine.state.roomClearReady) {
