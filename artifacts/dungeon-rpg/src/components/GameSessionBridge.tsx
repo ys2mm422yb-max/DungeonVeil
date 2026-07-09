@@ -10,6 +10,7 @@ import { rewardMetaRoomClear } from '../game/metaProgression';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
+import { activatePendingWeeklyRift, createWeeklyRiftRunState, updateWeeklyRiftRun } from '../game/weeklyRiftRun';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 
@@ -34,7 +35,10 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
   useEffect(() => {
     if (!active) return;
     const engine = getEngineRef.current();
-    if (engine) restorePendingRoomGift(engine);
+    if (engine) {
+      activatePendingWeeklyRift();
+      restorePendingRoomGift(engine);
+    }
   }, [active]);
 
   useEffect(() => {
@@ -59,6 +63,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const retention = createRunRetentionState();
     const relicEffects = createRunRelicEffectState();
     const roomMechanics = createRoomMechanicState();
+    const weeklyRift = createWeeklyRiftRunState();
     let frame = 0;
     let checkedClearKey = '';
     let lastFrame = performance.now();
@@ -68,6 +73,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       const dt = Math.min(100, Math.max(0, time - lastFrame));
       lastFrame = time;
       if (engine) {
+        updateWeeklyRiftRun(engine, weeklyRift);
         if (engine.state.status === 'playing') {
           updateRunBalance(engine, balance);
           updateRunEffectSystems(engine, effects, time);
