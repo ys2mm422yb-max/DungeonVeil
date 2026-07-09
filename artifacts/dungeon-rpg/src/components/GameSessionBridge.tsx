@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import '../game/runEncounterOverride';
 import { saveEngineSession } from '../game/sessionStore';
 import { loadGame } from '../game/saveManager';
 import type { GameEngine } from '../game/runEngine';
