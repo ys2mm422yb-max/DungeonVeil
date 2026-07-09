@@ -1,34 +1,27 @@
-import { KAYKIT_COLLISION_SIZE, KAYKIT_ROOM_PROPS } from './kaykitRoomLayout';
-import { getChapterTwoRoomProps } from './kaykitRoomChapter2';
+import { roomSetpieces } from './roomSetpieceLayout';
 
 function entityCenterToScene(value: number, size: number, mapTiles: number) {
   return (value + size / 2) / 40 - mapTiles / 2 + 0.5;
 }
 
-function placementsForRoom(room: number) {
-  const key = Math.max(1, Math.min(20, room));
-  return getChapterTwoRoomProps(key) ?? KAYKIT_ROOM_PROPS[key] ?? [];
-}
-
-function colliderSize(room: number) {
-  return placementsForRoom(room)
-    .map(placement => {
-      const base = KAYKIT_COLLISION_SIZE[placement.asset];
-      if (!base) return null;
-      const scale = placement.scale ?? 1;
-      const rotated = Math.abs(Math.sin(placement.rotation ?? 0)) > 0.7;
+function collidersForRoom(room: number) {
+  return roomSetpieces(room)
+    .filter(piece => piece.collider)
+    .map(piece => {
+      const base = piece.collider!;
+      const scale = piece.scale ?? 1;
+      const rotated = Math.abs(Math.sin(piece.rotation ?? 0)) > 0.7;
       const width = (rotated ? base[1] : base[0]) * scale;
       const height = (rotated ? base[0] : base[1]) * scale;
-      return { x: placement.x, z: placement.z, halfW: width / 2, halfH: height / 2 };
-    })
-    .filter((value): value is { x: number; z: number; halfW: number; halfH: number } => Boolean(value));
+      return { x: piece.x, z: piece.z, halfW: width / 2, halfH: height / 2 };
+    });
 }
 
-const ROOM_COLLIDERS = new Map<number, ReturnType<typeof colliderSize>>();
+const ROOM_COLLIDERS = new Map<number, ReturnType<typeof collidersForRoom>>();
 
 function roomColliders(room: number) {
   const key = Math.max(1, Math.min(20, room));
-  if (!ROOM_COLLIDERS.has(key)) ROOM_COLLIDERS.set(key, colliderSize(key));
+  if (!ROOM_COLLIDERS.has(key)) ROOM_COLLIDERS.set(key, collidersForRoom(key));
   return ROOM_COLLIDERS.get(key)!;
 }
 
@@ -46,7 +39,6 @@ export function collidesWithRoomProp(
   const centerZ = entityCenterToScene(y, height, mapHeight);
   const halfW = width / 80 + padding;
   const halfH = height / 80 + padding;
-
   return roomColliders(room).some(collider =>
     Math.abs(centerX - collider.x) < halfW + collider.halfW
     && Math.abs(centerZ - collider.z) < halfH + collider.halfH,
@@ -58,7 +50,6 @@ function segmentHitsAabb(x1: number, z1: number, x2: number, z2: number, cx: num
   const dz = z2 - z1;
   let tMin = 0;
   let tMax = 1;
-
   const clip = (start: number, delta: number, min: number, max: number) => {
     if (Math.abs(delta) < 1e-6) return start >= min && start <= max;
     let t1 = (min - start) / delta;
@@ -68,7 +59,6 @@ function segmentHitsAabb(x1: number, z1: number, x2: number, z2: number, cx: num
     tMax = Math.min(tMax, t2);
     return tMin <= tMax;
   };
-
   return clip(x1, dx, cx - halfW, cx + halfW) && clip(z1, dz, cz - halfH, cz + halfH);
 }
 
@@ -86,14 +76,9 @@ export function shotBlockedByRoomProp(
   const z1 = fromY / 40 - mapHeight / 2 + 0.5;
   const x2 = toX / 40 - mapWidth / 2 + 0.5;
   const z2 = toY / 40 - mapHeight / 2 + 0.5;
-
   return roomColliders(room).some(collider => segmentHitsAabb(
-    x1,
-    z1,
-    x2,
-    z2,
-    collider.x,
-    collider.z,
+    x1, z1, x2, z2,
+    collider.x, collider.z,
     collider.halfW + padding,
     collider.halfH + padding,
   ));
