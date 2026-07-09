@@ -1,6 +1,6 @@
 import { CLASS_DEFS, ClassKey } from './classes';
 import { DungeonMap, TILE_SIZE, isWalkable, TileType } from './dungeon';
-import { CHAPTER_ROOMS, generateRunRoom } from './chapterRun';
+import { CHAPTER_ROOMS, generateRunRoom, isBossRoom } from './chapterRun';
 import { saveGame, SaveData } from './saveManager';
 import { Enemy, EnemyType, Item, Chest, DamageNumber, Particle, Player, VisualEffect } from './entities';
 import { makeHitSpark, makeParticles, makeStepDust, distance } from './combat';
@@ -9,6 +9,7 @@ import { enemyArchetype, planEnemyMove } from './enemyRunAI';
 import { collidesWithRoomProp, shotBlockedByRoomProp } from './roomCollision3D';
 import { getRoomSpawnPoints, sceneSpawnToGame } from './roomSpawn3D';
 import { availableRunSkills, nextSkillRank, skillRank } from './runSkills';
+import { getEncounterPlan } from './encounterPlan';
 
 export interface RunGameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';
@@ -46,6 +47,13 @@ type RoomEntrySnapshot = {
   runSkills: Partial<Record<UpgradeKey, number>>;
 };
 
+type EnemyWindup = {
+  hitAt: number;
+  range: number;
+  archetype: ReturnType<typeof enemyArchetype>;
+  index: number;
+};
+
 const ENEMY_STATS: Record<EnemyType, { hp: number; attack: number; defense: number; speed: number; size: number; xp: number; color: string }> = {
   slime: { hp: 24, attack: 4, defense: 0, speed: 42, size: 24, xp: 18, color: '#43c968' },
   goblin: { hp: 34, attack: 6, defense: 1, speed: 68, size: 23, xp: 24, color: '#89a94b' },
@@ -72,6 +80,7 @@ export class GameEngine {
   private roomAnnouncedClear = false;
   private lootCounter = 0;
   private roomEntrySnapshot: RoomEntrySnapshot | null = null;
+  private enemyWindups = new Map<string, EnemyWindup>();
 
   input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
   onStateChange: (state: RunGameState) => void = () => {};
@@ -109,6 +118,7 @@ export class GameEngine {
     this.state = this.makeState(name, map, 1, 1);
     this.lastTime = 0;
     this.lastUiEmitTime = 0;
+    this.enemyWindups.clear();
     this.spawnRoom();
     this.captureRoomEntrySnapshot();
     this.saveNow('new-run');
@@ -127,6 +137,7 @@ export class GameEngine {
     this.state.runSkills = save.runSkills ?? {};
     this.lastTime = 0;
     this.lastUiEmitTime = 0;
+    this.enemyWindups.clear();
     this.spawnRoom();
     this.captureRoomEntrySnapshot();
     this.emit();
@@ -217,6 +228,7 @@ export class GameEngine {
     this.state.exitHintUntil = 0;
     this.state.exitHintCount = 0;
     this.roomAnnouncedClear = false;
+    this.enemyWindups.clear();
     this.lastTime = performance.now();
     this.lastUiEmitTime = this.lastTime;
     this.spawnRoom();
@@ -411,7 +423,8 @@ export class GameEngine {
     const ey = enemy.y + enemy.height / 2;
     const attackRank = skillRank(this.state.runSkills, 'attack');
     const color = element === 'fire' ? '#ff642c' : element === 'ice' ? '#62d9ff' : element === 'arcane' ? '#b693ff' : element === 'piercing' ? '#f3fbff' : '#ffe5a3';
-    this.state.damageNumbers.push({ id: `dmg-${time}-${enemy.id}-${Math.random()}`, x: ex, y: enemy.y - 8, value: `-${damage}`, color, lifeTime: 0, maxLifeTime: 700, scale: scale + attackRank * 0.08 });
+    const numberX = ex + (Math.random() - 0.5) * 18;
+    this.state.damageNumbers.push({ id: `dmg-${time}-${enemy.id}-${Math.random()}`, x: numberX, y: enemy.y - 8, value: `-${damage}`, color, lifeTime: 0, maxLifeTime: 700, scale: scale + attackRank * 0.08 });
     this.state.particles.push(...makeHitSpark(ex, ey, color, 5 + attackRank * 2 + (element === 'fire' || element === 'ice' ? 4 : 0)));
   }
 
@@ -475,6 +488,49 @@ export class GameEngine {
     }
   }
 
+  private attackWindupMs(archetype: ReturnType<typeof enemyArchetype>) {
+    if (archetype === 'skirmisher') return 165;
+    if (archetype === 'guardian') return 340;
+    if (archetype === 'dragon') return this.state.floor === 20 ? 480 : 410;
+    return 225;
+  }
+
+  private resolveEnemyAttack(enemy: Enemy, windup: EnemyWindup, time: number): void {
+    const p = this.state.player;
+    const dist = Math.hypot((p.x + 16) - (enemy.x + enemy.width / 2), (p.y + 16) - (enemy.y + enemy.height / 2));
+    if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;
+
+    if (windup.archetype === 'dragon') {
+      const ex = enemy.x + enemy.width / 2;
+      const ey = enemy.y + enemy.height / 2;
+      const targetX = p.x + 16;
+      const targetY = p.y + 16;
+      const angle = Math.atan2(targetY - ey, targetX - ex);
+      const color = this.state.floor === 20 ? '#765cff' : '#ff633d';
+      const element = this.state.floor === 20 ? 'arcane' as const : 'fire' as const;
+      this.addShotEffect(`boss-shot-${time}-${windup.index}`, ex, ey, targetX, targetY, angle, color, element, 7);
+      this.state.particles.push(...makeHitSpark(targetX, targetY, color, 10));
+    }
+
+    if (time <= p.invincibleUntil) return;
+    const raw = enemy.attack - p.defense + Math.floor(Math.random() * 3);
+    const damage = Math.max(1, raw);
+    p.hp -= damage;
+    p.lastHitTime = time;
+    if (skillRank(this.state.runSkills, 'defense') > 0) p.lastGuardTime = time;
+    this.state.damageNumbers.push({
+      id: `hit-${time}-${windup.index}`,
+      x: p.x + 16 + (Math.random() - 0.5) * 14,
+      y: p.y - 8,
+      value: `-${damage}`,
+      color: '#e34b43',
+      lifeTime: 0,
+      maxLifeTime: 800,
+      scale: windup.archetype === 'dragon' ? 1.35 : 1.1,
+    });
+    this.state.particles.push(...makeHitSpark(p.x + 16, p.y + 16, skillRank(this.state.runSkills, 'defense') >= 2 ? '#83d6af' : '#ff453f', windup.archetype === 'dragon' ? 12 : 7));
+  }
+
   private updateEnemies(dt: number, time: number): void {
     const p = this.state.player;
     for (let i = this.state.enemies.length - 1; i >= 0; i--) {
@@ -486,13 +542,24 @@ export class GameEngine {
         enemy.hp -= burnDamage;
         const ex = enemy.x + enemy.width / 2;
         const ey = enemy.y + enemy.height / 2;
-        this.state.damageNumbers.push({ id: `burn-${time}-${enemy.id}`, x: ex, y: enemy.y - 5, value: `-${burnDamage}`, color: '#ff6a2c', lifeTime: 0, maxLifeTime: 550, scale: 0.78 });
+        this.state.damageNumbers.push({ id: `burn-${time}-${enemy.id}`, x: ex + (Math.random() - 0.5) * 14, y: enemy.y - 5, value: `-${burnDamage}`, color: '#ff6a2c', lifeTime: 0, maxLifeTime: 550, scale: 0.78 });
         this.state.particles.push(...makeHitSpark(ex, ey, '#ff6a2c', 4));
       }
 
       if (enemy.hp <= 0) {
+        this.enemyWindups.delete(enemy.id);
         if (!enemy.isDead) this.beginEnemyDeath(enemy, time);
         if (time - enemy.deathTime >= (enemy.deathDuration ?? NORMAL_DEATH_MS)) this.state.enemies.splice(i, 1);
+        continue;
+      }
+
+      const activeWindup = this.enemyWindups.get(enemy.id);
+      if (activeWindup) {
+        enemy.state = 'attack';
+        if (time >= activeWindup.hitAt) {
+          this.enemyWindups.delete(enemy.id);
+          this.resolveEnemyAttack(enemy, activeWindup, time);
+        }
         continue;
       }
 
@@ -504,28 +571,57 @@ export class GameEngine {
       this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
 
       if (dist < plan.attackRange && time > enemy.nextAttackTime) {
-        enemy.nextAttackTime = time + plan.attackDelay;
+        const archetype = enemyArchetype(enemy.enemyType);
+        const windupMs = this.attackWindupMs(archetype);
+        enemy.nextAttackTime = time + plan.attackDelay + windupMs;
         enemy.lastAttackTime = time;
         enemy.state = 'attack';
-        const archetype = enemyArchetype(enemy.enemyType);
-        if (archetype === 'dragon') {
-          const ex = enemy.x + enemy.width / 2;
-          const ey = enemy.y + enemy.height / 2;
-          const targetX = p.x + 16;
-          const targetY = p.y + 16;
-          const angle = Math.atan2(targetY - ey, targetX - ex);
-          this.addShotEffect(`dragon-shot-${time}-${i}`, ex, ey, targetX, targetY, angle, '#ff633d', 'fire', 7);
-          this.state.particles.push(...makeHitSpark(targetX, targetY, '#ff633d', 10));
+        this.enemyWindups.set(enemy.id, { hitAt: time + windupMs, range: plan.attackRange, archetype, index: i });
+        const ex = enemy.x + enemy.width / 2;
+        const ey = enemy.y + enemy.height / 2;
+        const warningColor = archetype === 'dragon' ? (this.state.floor === 20 ? '#765cff' : '#ff633d') : archetype === 'guardian' ? '#e8a45d' : '#e6c987';
+        this.state.effects.push({
+          id: `telegraph-${time}-${enemy.id}`,
+          x: ex,
+          y: ey,
+          radius: 0,
+          maxRadius: Math.max(30, plan.attackRange * 0.58),
+          color: warningColor,
+          lifeTime: 0,
+          maxLifeTime: windupMs,
+          type: 'circle',
+          element: archetype === 'dragon' ? (this.state.floor === 20 ? 'arcane' : 'fire') : 'normal',
+        });
+      }
+    }
+    this.separateEnemies();
+  }
+
+  private separateEnemies(): void {
+    const living = this.livingEnemies();
+    for (let i = 0; i < living.length; i++) {
+      for (let j = i + 1; j < living.length; j++) {
+        const a = living[i];
+        const b = living[j];
+        const ax = a.x + a.width / 2;
+        const ay = a.y + a.height / 2;
+        const bx = b.x + b.width / 2;
+        const by = b.y + b.height / 2;
+        let dx = ax - bx;
+        let dy = ay - by;
+        let dist = Math.hypot(dx, dy);
+        const minDistance = Math.max(18, (a.width + b.width) * 0.34);
+        if (dist >= minDistance) continue;
+        if (dist < 0.01) {
+          dx = i % 2 === 0 ? 1 : -1;
+          dy = j % 2 === 0 ? 0.5 : -0.5;
+          dist = Math.hypot(dx, dy);
         }
-        if (time > p.invincibleUntil) {
-          const raw = enemy.attack - p.defense + Math.floor(Math.random() * 3);
-          const damage = Math.max(1, raw);
-          p.hp -= damage;
-          p.lastHitTime = time;
-          if (skillRank(this.state.runSkills, 'defense') > 0) p.lastGuardTime = time;
-          this.state.damageNumbers.push({ id: `hit-${time}-${i}`, x: p.x + 16, y: p.y - 8, value: `-${damage}`, color: '#e34b43', lifeTime: 0, maxLifeTime: 800, scale: archetype === 'dragon' ? 1.35 : 1.1 });
-          this.state.particles.push(...makeHitSpark(p.x + 16, p.y + 16, skillRank(this.state.runSkills, 'defense') >= 2 ? '#83d6af' : '#ff453f', archetype === 'dragon' ? 12 : 7));
-        }
+        const push = Math.min(1.6, (minDistance - dist) * 0.16);
+        const nx = dx / dist;
+        const ny = dy / dist;
+        this.moveEntity(a, nx * push, ny * push);
+        this.moveEntity(b, -nx * push, -ny * push);
       }
     }
   }
@@ -585,6 +681,7 @@ export class GameEngine {
       enemy.lastProgressY = spawn.y;
       enemy.lastProgressTime = time;
       enemy.nextAttackTime = time + 500;
+      this.enemyWindups.delete(enemy.id);
       this.state.effects.push({ id: `unstuck-${time}-${enemy.id}`, x: spawn.x + enemy.width / 2, y: spawn.y + enemy.height / 2, radius: 0, maxRadius: 38, color: '#8c62ff', lifeTime: 0, maxLifeTime: 280, type: 'circle', element: 'arcane' });
       return;
     }
@@ -602,7 +699,7 @@ export class GameEngine {
       this.roomAnnouncedClear = true;
       this.state.roomClearReady = true;
       this.state.roomClearAt = time;
-      this.state.damageNumbers.push({ id: `clear-${time}`, x: this.state.player.x + 16, y: this.state.player.y - 24, value: this.state.floor === CHAPTER_ROOMS ? 'BOSS BESIEGT · AUSGANG OFFEN' : 'RAUM FREI · AUSGANG OFFEN', color: '#d9b8ff', lifeTime: 0, maxLifeTime: 1800, scale: 0.9 });
+      this.state.damageNumbers.push({ id: `clear-${time}`, x: this.state.player.x + 16, y: this.state.player.y - 24, value: isBossRoom(this.state.floor) ? 'BOSS BESIEGT · AUSGANG OFFEN' : 'RAUM FREI · AUSGANG OFFEN', color: '#d9b8ff', lifeTime: 0, maxLifeTime: 1800, scale: 0.9 });
       this.state.effects.push({ id: `clear-wave-${time}`, x: this.state.player.x + 16, y: this.state.player.y + 16, radius: 0, maxRadius: 100, color: '#b693ff', lifeTime: 0, maxLifeTime: 520, type: 'circle', element: 'arcane' });
     }
 
@@ -638,6 +735,7 @@ export class GameEngine {
     this.state.exitHintUntil = 0;
     this.state.exitHintCount = 0;
     this.roomAnnouncedClear = false;
+    this.enemyWindups.clear();
     this.spawnRoom();
     this.generateUpgradeChoices();
     this.state.status = 'levelup';
@@ -647,29 +745,31 @@ export class GameEngine {
 
   private spawnRoom(): void {
     const room = this.state.floor;
-    const chapterScale = 1 + (this.state.chapter - 1) * 0.42;
-    const roomScale = 1 + (room - 1) * 0.1;
+    const chapterScale = 1 + (this.state.chapter - 1) * 0.36;
+    const roomScale = 1 + (room - 1) * 0.07;
     const map = this.state.map;
     const now = performance.now();
     const spawnId = Date.now();
     this.roomAnnouncedClear = false;
     this.state.roomClearReady = false;
     this.state.roomClearAt = 0;
+    this.enemyWindups.clear();
 
-    if (room === CHAPTER_ROOMS) {
+    if (isBossRoom(room)) {
       const bossPoint = getRoomSpawnPoints(room)[0];
       const bossSize = ENEMY_STATS.boss.size;
       const spawn = sceneSpawnToGame(bossPoint, map.width, map.height, bossSize);
-      this.state.enemies.push(this.makeEnemy('boss', spawn.x, spawn.y, chapterScale * roomScale, now, spawnId, 0));
+      const bossScale = chapterScale * roomScale * (room === 20 ? 1.18 : 1);
+      this.state.enemies.push(this.makeEnemy('boss', spawn.x, spawn.y, bossScale, now, spawnId, 0));
       return;
     }
 
-    const pool: EnemyType[] = room <= 2 ? ['skeleton', 'spider'] : room <= 5 ? ['skeleton', 'spider', 'vampire'] : ['skeleton', 'spider', 'vampire', 'demon'];
+    const encounter = getEncounterPlan(room);
     const points = getRoomSpawnPoints(room);
-    const count = Math.min(points.length, Math.min(8, 2 + room));
+    const count = Math.min(points.length, encounter.length);
 
     for (let i = 0; i < count; i++) {
-      const type = pool[(i + room + this.state.chapter) % pool.length];
+      const type = encounter[i];
       const size = ENEMY_STATS[type].size;
       const point = points[i % points.length];
       const spawn = sceneSpawnToGame(point, map.width, map.height, size);
@@ -787,7 +887,9 @@ export class GameEngine {
         if (item.itemType === 'potion') {
           const heal = Math.min(item.value, p.maxHp - p.hp);
           if (heal > 0) p.hp += heal;
-          this.state.damageNumbers.push({ id: `heal-${time}-${i}`, x: ix, y: iy - 8, value: `+${heal}`, color: '#43c968', lifeTime: 0, maxLifeTime: 700, scale: 0.9 });
+          this.state.damageNumbers.push({ id: `heal-${time}-${i}`, x: ix + (Math.random() - 0.5) * 10, y: iy - 8, value: `+${heal}`, color: '#43c968', lifeTime: 0, maxLifeTime: 700, scale: 1.05 });
+          this.state.effects.push({ id: `heal-wave-${time}-${i}`, x: px, y: py, radius: 0, maxRadius: 54, color: '#67e89a', lifeTime: 0, maxLifeTime: 420, type: 'circle', element: 'normal' });
+          this.state.particles.push(...makeParticles(px, py, '#67e89a', 10, 64, 2.4));
         }
         this.state.items.splice(i, 1);
         continue;
