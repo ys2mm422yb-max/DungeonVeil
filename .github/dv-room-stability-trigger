@@ -1,2 +1,0 @@
-trigger atomic room stability pass
-retry 2
