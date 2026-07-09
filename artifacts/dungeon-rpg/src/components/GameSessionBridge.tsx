@@ -8,6 +8,7 @@ import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runE
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 import { rewardMetaRoomClear } from '../game/metaProgression';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
+import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 
@@ -55,6 +56,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const effects = createRunEffectSystemState();
     const balance = createRunBalanceState();
     const retention = createRunRetentionState();
+    const relicEffects = createRunRelicEffectState();
     let frame = 0;
     let checkedClearKey = '';
 
@@ -66,6 +68,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           updateRunEffectSystems(engine, effects, time);
           updateRunRetentionSystems(engine, retention, time);
         }
+        updateRunRelicEffects(engine, relicEffects, time);
 
         if (engine.state.roomClearReady) {
           const clearKey = `${engine.state.chapter}:${engine.state.floor}:${engine.state.roomClearAt}`;
