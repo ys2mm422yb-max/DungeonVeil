@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { Language, UpgradeKey } from '../i18n/translations';
+import { DailyQuestPanel } from './DailyQuestPanel';
 
 export interface GamePausePanelProps {
   gameState: GameState;
@@ -55,12 +56,14 @@ export function GamePausePanel(props: GamePausePanelProps) {
   };
 
   return (
-    <div ref={panelRef} className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 px-5 backdrop-blur-sm" data-ui-control>
+    <div ref={panelRef} className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto bg-black/80 px-5 py-5 backdrop-blur-sm" data-ui-control>
       <div className="w-full max-w-sm rounded-[26px] border border-white/10 bg-[#0a0908]/95 p-5 shadow-2xl">
         <h2 className="text-center font-serif text-4xl tracking-widest text-white">{props.paused}</h2>
-        <p className="mt-2 text-center font-mono text-[10px] tracking-widest text-white/35">{props.gameState.player.playerName} · {props.classNameText} · {de ? 'RAUM' : 'ROOM'} {props.gameState.floor}/10</p>
+        <p className="mt-2 text-center font-mono text-[10px] tracking-widest text-white/35">{props.gameState.player.playerName} · {props.classNameText} · {de ? 'RAUM' : 'ROOM'} {props.gameState.floor}/20</p>
 
-        <div className="mt-4 rounded-2xl border border-white/8 bg-white/[.03] p-3">
+        <div className="mt-4"><DailyQuestPanel compact /></div>
+
+        <div className="mt-3 rounded-2xl border border-white/8 bg-white/[.03] p-3">
           <div className="mb-2 text-[8px] font-black tracking-[.24em] text-amber-200/45">{de ? 'AKTIVE GABEN' : 'ACTIVE GIFTS'}</div>
           {gifts.length ? <div className="flex flex-wrap gap-2">{gifts.map(([key, rank]) => <span key={key} className="rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-[8px] font-black tracking-[.1em] text-white/70">{names[key]} {roman(rank)}</span>)}</div> : <div className="text-[10px] text-white/30">{de ? 'Noch keine Gaben' : 'No gifts yet'}</div>}
         </div>
