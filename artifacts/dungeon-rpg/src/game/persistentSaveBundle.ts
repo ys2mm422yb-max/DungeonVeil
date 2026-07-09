@@ -1,0 +1,58 @@
+const PLAYER_ID_KEY = 'dungeon-veil-player-id';
+const BUNDLE_KEYS = [
+  'dungeon-veil-save',
+  'dungeon-veil-meta',
+  'dungeon-veil-relics-v1',
+  'dungeon-veil-retention-v2',
+  'dungeon-veil-weekly-rift-records-v1',
+] as const;
+
+export type DungeonVeilSaveBundle = {
+  version: 1;
+  playerId: string;
+  updatedAt: string;
+  data: Record<string, string>;
+};
+
+function createPlayerId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `veil-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+export function persistentPlayerId(): string {
+  try {
+    const stored = localStorage.getItem(PLAYER_ID_KEY);
+    if (stored) return stored;
+    const id = createPlayerId();
+    localStorage.setItem(PLAYER_ID_KEY, id);
+    return id;
+  } catch {
+    return createPlayerId();
+  }
+}
+
+export function exportSaveBundle(): DungeonVeilSaveBundle {
+  const data: Record<string, string> = {};
+  for (const key of BUNDLE_KEYS) {
+    try {
+      const value = localStorage.getItem(key);
+      if (value !== null) data[key] = value;
+    } catch {}
+  }
+  return { version: 1, playerId: persistentPlayerId(), updatedAt: new Date().toISOString(), data };
+}
+
+export function importSaveBundle(bundle: DungeonVeilSaveBundle): boolean {
+  if (!bundle || bundle.version !== 1 || typeof bundle.playerId !== 'string' || !bundle.data) return false;
+  try {
+    for (const key of BUNDLE_KEYS) {
+      const value = bundle.data[key];
+      if (typeof value === 'string') localStorage.setItem(key, value);
+    }
+    localStorage.setItem(PLAYER_ID_KEY, bundle.playerId);
+    window.dispatchEvent(new Event('dungeon-veil-cloud-save-restored'));
+    return true;
+  } catch {
+    return false;
+  }
+}
