@@ -1,5 +1,6 @@
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 import { attachBowToRanger, type BowRig } from './bowRig';
+import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
 
 const KAYKIT_ROOT = '/assets/kaykit';
 
@@ -47,11 +48,38 @@ function prepareModel(root: any) {
     node.frustumCulled = true;
   });
 }
+function fitAttachment(THREE: any, object: any, targetSize: number) {
+  object.scale.setScalar(1);
+  object.position.set(0, 0, 0);
+  object.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(object);
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  object.scale.setScalar(targetSize / Math.max(size.x, size.y, size.z, 0.001));
+  object.position.sub(center.multiplyScalar(object.scale.x));
+}
 function attachQuiver(parent: any, object: any) {
   if (!parent || !object) return;
   object.position.set(-0.17, 0.05, -0.16);
   object.rotation.set(0.15, 0.2, -0.08);
   object.scale.setScalar(1);
+  parent.add(object);
+}
+function attachQuiverVariant(THREE: any, parent: any, object: any, variant: 'black-quiver' | 'rune-quiver') {
+  if (!parent || !object) return;
+  prepareModel(object);
+  fitAttachment(THREE, object, variant === 'rune-quiver' ? 0.58 : 0.72);
+  object.position.set(variant === 'rune-quiver' ? -0.05 : -0.12, 0.08, -0.24);
+  object.rotation.set(0.12, variant === 'rune-quiver' ? -0.18 : 0.16, variant === 'rune-quiver' ? 0.2 : -0.08);
+  parent.add(object);
+}
+function attachTalisman(THREE: any, parent: any, object: any, id: string) {
+  if (!parent || !object) return;
+  prepareModel(object);
+  const targetSize = id === 'frost-grimoire' ? 0.34 : id === 'guardian-sigil' ? 0.28 : 0.22;
+  fitAttachment(THREE, object, targetSize);
+  object.position.set(id === 'frost-grimoire' ? 0.22 : 0.03, id === 'frost-grimoire' ? 0.02 : 0.13, id === 'frost-grimoire' ? -0.15 : 0.16);
+  object.rotation.set(id === 'frost-grimoire' ? 0.15 : Math.PI / 2, 0, id === 'frost-grimoire' ? -0.28 : 0);
   parent.add(object);
 }
 function buildArrowPrototype(THREE: any, arrow: any) {
@@ -73,9 +101,16 @@ function buildArrowPrototype(THREE: any, arrow: any) {
 
 export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
-  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, weapons] = await Promise.all([
+  const meta = loadMetaProgression();
+  const quiverId = meta.equipped.quiver;
+  const talismanId = meta.equipped.talisman;
+  const quiverVariant = quiverId === 'ranger-quiver' ? null : EQUIPMENT[quiverId];
+  const talismanDefinition = EQUIPMENT[talismanId];
+  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, weapons, quiverVariantGltf, talismanGltf] = await Promise.all([
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger), loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver), loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement), loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced), loadKayKitRangerWeapons(),
+    quiverVariant ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverVariant.assetPath}`) : Promise.resolve(null),
+    talismanDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${talismanDefinition.assetPath}`) : Promise.resolve(null),
   ]);
   if (!weapons) throw new Error('No KayKit bow and arrow found in the supplied KayKit libraries');
 
@@ -103,13 +138,15 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   prepareModel(quiverGltf.scene);
   const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
+  const chest = findBone(visual, ['spine2', 'chest', 'spine1']);
   attachQuiver(spine, quiverGltf.scene);
+  if (quiverVariantGltf && (quiverId === 'black-quiver' || quiverId === 'rune-quiver')) attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
+  if (talismanGltf) attachTalisman(THREE, chest, talismanGltf.scene, talismanId);
   const arrowPrototype = buildArrowPrototype(THREE, weapons.arrow);
   const upperArmL = findBone(visual, ['upperarml']);
   const lowerArmL = findBone(visual, ['lowerarml']);
   const upperArmR = findBone(visual, ['upperarmr']);
   const lowerArmR = findBone(visual, ['lowerarmr']);
-  const chest = findBone(visual, ['spine2', 'chest']);
 
   let moving = false;
   let shotTime = 0;
