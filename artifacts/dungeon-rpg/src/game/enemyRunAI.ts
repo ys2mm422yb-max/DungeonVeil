@@ -31,15 +31,15 @@ function normalizedMove(x: number, y: number) {
 function roomFromEnemyId(enemy: Enemy) {
   const parts = enemy.id.split('-');
   const parsed = Number(parts.at(-2));
-  return Number.isFinite(parsed) ? Math.max(1, Math.min(10, parsed)) : 1;
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(20, parsed)) : 1;
 }
 
 export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: number): EnemyMovePlan {
   const archetype = enemyArchetype(enemy.enemyType);
   const { dist, nx, ny } = normalizedDirection(enemy, player);
   const room = roomFromEnemyId(enemy);
-  const movePressure = 1 + Math.min(0.18, (room - 1) * 0.022);
-  const attackPressure = 1 - Math.min(0.14, (room - 1) * 0.018);
+  const movePressure = 1 + Math.min(0.28, (room - 1) * 0.016);
+  const attackPressure = 1 - Math.min(0.22, (room - 1) * 0.012);
   const speed = enemy.speed * movePressure * dt / 1000;
   const plan = (dx: number, dy: number, attackRange: number, attackDelay: number): EnemyMovePlan => ({
     dx,
