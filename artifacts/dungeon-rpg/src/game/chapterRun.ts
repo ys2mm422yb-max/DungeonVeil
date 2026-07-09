@@ -3,7 +3,13 @@ import { DungeonMap, TileType } from './dungeon';
 const fill = <T,>(height: number, width: number, value: T): T[][] =>
   Array.from({ length: height }, () => Array<T>(width).fill(value));
 
-export const CHAPTER_ROOMS = 10;
+export const CHAPTER_ROOMS = 20;
+export const MID_CHAPTER_BOSS_ROOM = 10;
+export const FINAL_BOSS_ROOM = 20;
+
+export function isBossRoom(room: number): boolean {
+  return room === MID_CHAPTER_BOSS_ROOM || room === FINAL_BOSS_ROOM;
+}
 
 export function generateRunRoom(room: number): DungeonMap {
   const width = 24;
@@ -53,7 +59,7 @@ export function generateRunRoom(room: number): DungeonMap {
       y: 2,
       w: width - 4,
       h: height - 4,
-      roomType: room === CHAPTER_ROOMS ? 'boss_arena' : 'barracks',
+      roomType: isBossRoom(room) ? 'boss_arena' : 'barracks',
     }],
     startX: exitX,
     startY: height - 4,
