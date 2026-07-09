@@ -10,7 +10,6 @@ import { rewardMetaRoomClear } from '../game/metaProgression';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
-import { activatePendingWeeklyRift, createWeeklyRiftRunState, updateWeeklyRiftRun } from '../game/weeklyRiftRun';
 import { createRunSynergyState, updateRunSynergies } from '../game/runSynergies';
 import { createFirstWardenFinaleState, updateFirstWardenFinale } from '../game/firstWardenFinale';
 import { pushCloudSave } from '../game/cloudSave';
@@ -38,10 +37,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
   useEffect(() => {
     if (!active) return;
     const engine = getEngineRef.current();
-    if (engine) {
-      activatePendingWeeklyRift();
-      restorePendingRoomGift(engine);
-    }
+    if (engine) restorePendingRoomGift(engine);
   }, [active]);
 
   useEffect(() => {
@@ -71,7 +67,6 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const retention = createRunRetentionState();
     const relicEffects = createRunRelicEffectState();
     const roomMechanics = createRoomMechanicState();
-    const weeklyRift = createWeeklyRiftRunState();
     const synergies = createRunSynergyState();
     const firstWarden = createFirstWardenFinaleState();
     let frame = 0;
@@ -83,7 +78,6 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       const dt = Math.min(100, Math.max(0, time - lastFrame));
       lastFrame = time;
       if (engine) {
-        updateWeeklyRiftRun(engine, weeklyRift);
         if (engine.state.status === 'playing') {
           updateRunBalance(engine, balance);
           updateRunEffectSystems(engine, effects, time);
