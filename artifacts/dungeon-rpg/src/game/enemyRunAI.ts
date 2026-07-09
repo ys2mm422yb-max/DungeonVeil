@@ -28,10 +28,25 @@ function normalizedMove(x: number, y: number) {
   return { x: x / length, y: y / length };
 }
 
+function roomFromEnemyId(enemy: Enemy) {
+  const parts = enemy.id.split('-');
+  const parsed = Number(parts.at(-2));
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(10, parsed)) : 1;
+}
+
 export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: number): EnemyMovePlan {
   const archetype = enemyArchetype(enemy.enemyType);
   const { dist, nx, ny } = normalizedDirection(enemy, player);
-  const speed = enemy.speed * dt / 1000;
+  const room = roomFromEnemyId(enemy);
+  const movePressure = 1 + Math.min(0.18, (room - 1) * 0.022);
+  const attackPressure = 1 - Math.min(0.14, (room - 1) * 0.018);
+  const speed = enemy.speed * movePressure * dt / 1000;
+  const plan = (dx: number, dy: number, attackRange: number, attackDelay: number): EnemyMovePlan => ({
+    dx,
+    dy,
+    attackRange,
+    attackDelay: Math.max(560, Math.round(attackDelay * attackPressure)),
+  });
 
   if (archetype === 'skirmisher') {
     const cycle = ((time - enemy.spawnTime) % 3600 + 3600) % 3600;
@@ -42,17 +57,17 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
     if (cycle < 1500) {
       const toward = dist > 155 ? 0.72 : dist < 95 ? -0.2 : 0.12;
       const move = normalizedMove(nx * toward + sideX * 0.8, ny * toward + sideY * 0.8);
-      return { dx: move.x * speed * 0.92, dy: move.y * speed * 0.92, attackRange: 48 + enemy.width / 2, attackDelay: 930 };
+      return plan(move.x * speed * 0.92, move.y * speed * 0.92, 48 + enemy.width / 2, 930);
     }
 
     if (cycle < 2350) {
       const pressure = dist > 52 ? 1.62 : 0.32;
-      return { dx: nx * pressure * speed, dy: ny * pressure * speed, attackRange: 50 + enemy.width / 2, attackDelay: 760 };
+      return plan(nx * pressure * speed, ny * pressure * speed, 50 + enemy.width / 2, 760);
     }
 
     const retreat = dist < 118 ? -0.55 : 0.08;
     const move = normalizedMove(nx * retreat + sideX * 0.64, ny * retreat + sideY * 0.64);
-    return { dx: move.x * speed * 0.78, dy: move.y * speed * 0.78, attackRange: 48 + enemy.width / 2, attackDelay: 900 };
+    return plan(move.x * speed * 0.78, move.y * speed * 0.78, 48 + enemy.width / 2, 900);
   }
 
   if (archetype === 'guardian' || archetype === 'dragon') {
@@ -62,12 +77,12 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
     if (phase < phaseLength * 0.36) {
       const ideal = archetype === 'dragon' ? 132 : 72;
       const advance = dist > ideal ? 1.16 : dist < ideal * 0.66 ? -0.12 : 0.28;
-      return {
-        dx: nx * advance * speed,
-        dy: ny * advance * speed,
-        attackRange: archetype === 'dragon' ? 150 : 58 + enemy.width / 2,
-        attackDelay: archetype === 'dragon' ? 900 : 980,
-      };
+      return plan(
+        nx * advance * speed,
+        ny * advance * speed,
+        archetype === 'dragon' ? 150 : 58 + enemy.width / 2,
+        archetype === 'dragon' ? 900 : 980,
+      );
     }
 
     if (phase < phaseLength * 0.67) {
@@ -76,29 +91,24 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
       const sideY = nx * strafeDirection;
       const toward = dist > (archetype === 'dragon' ? 138 : 84) ? 0.46 : dist < 62 ? -0.16 : 0.05;
       const move = normalizedMove(nx * toward + sideX * 0.72, ny * toward + sideY * 0.72);
-      return {
-        dx: move.x * speed * 0.82,
-        dy: move.y * speed * 0.82,
-        attackRange: archetype === 'dragon' ? 162 : 60 + enemy.width / 2,
-        attackDelay: archetype === 'dragon' ? 980 : 1040,
-      };
+      return plan(
+        move.x * speed * 0.82,
+        move.y * speed * 0.82,
+        archetype === 'dragon' ? 162 : 60 + enemy.width / 2,
+        archetype === 'dragon' ? 980 : 1040,
+      );
     }
 
     const pressure = dist > (archetype === 'dragon' ? 86 : 56) ? 1.42 : 0.28;
-    return {
-      dx: nx * pressure * speed,
-      dy: ny * pressure * speed,
-      attackRange: archetype === 'dragon' ? 112 : 60 + enemy.width / 2,
-      attackDelay: archetype === 'dragon' ? 690 : 790,
-    };
+    return plan(
+      nx * pressure * speed,
+      ny * pressure * speed,
+      archetype === 'dragon' ? 112 : 60 + enemy.width / 2,
+      archetype === 'dragon' ? 690 : 790,
+    );
   }
 
   const weave = Math.sin((time - enemy.spawnTime) * 0.0021 + enemy.x * 0.01) * 0.22;
   const move = normalizedMove(nx - ny * weave, ny + nx * weave);
-  return {
-    dx: move.x * speed,
-    dy: move.y * speed,
-    attackRange: 42 + enemy.width / 2,
-    attackDelay: 1020,
-  };
+  return plan(move.x * speed, move.y * speed, 42 + enemy.width / 2, 1020);
 }
