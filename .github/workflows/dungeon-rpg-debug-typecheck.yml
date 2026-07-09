@@ -1,0 +1,37 @@
+name: Dungeon RPG Debug Typecheck
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  debug-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Capture typecheck
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg typecheck > typecheck-errors.txt 2>&1
+          code=$?
+          echo "exit_code=$code" >> typecheck-errors.txt
+          exit 0
+      - name: Upload typecheck output
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-rpg-typecheck-errors
+          path: typecheck-errors.txt
