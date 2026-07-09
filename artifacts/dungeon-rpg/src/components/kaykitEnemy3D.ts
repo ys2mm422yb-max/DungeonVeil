@@ -1,6 +1,6 @@
 import type { Enemy } from '../game/entities';
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
-import { loadKayKitBossWeapon } from './kaykitWeapons3D';
+import { loadKayKitBossWeapon, loadKayKitFinalBossFocus } from './kaykitWeapons3D';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const SKELETON_UTILS_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/SkeletonUtils.js';
@@ -12,6 +12,7 @@ type EnemyLibrary = {
   prototypes: EnemyPrototype[];
   weapons: Partial<Record<'axe' | 'blade' | 'staff' | 'shieldSmall' | 'shieldLarge', any>>;
   bossWeapon: any | null;
+  finalBossFocus: any | null;
 };
 
 export type KayKitEnemyVisual = {
@@ -99,11 +100,12 @@ async function loadLibrary() {
       const gltf = await loader.loadAsync(modelUrl(manifest, path));
       return [key, gltf.scene] as const;
     }));
-    const bossWeapon = await loadKayKitBossWeapon();
+    const [bossWeapon, finalBossFocus] = await Promise.all([loadKayKitBossWeapon(), loadKayKitFinalBossFocus()]);
     return {
       prototypes: characters.map((gltf, index) => ({ scene: gltf.scene, clips: [...(gltf.animations ?? []), ...sharedClips], role: roleFromPath(skeletonModels[index]) })),
       weapons: Object.fromEntries(weaponEntries.filter(([, scene]) => Boolean(scene))) as EnemyLibrary['weapons'],
       bossWeapon,
+      finalBossFocus,
     };
   })();
   return libraryPromise;
@@ -143,7 +145,8 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   };
 
   if (prototype.role === 'mage') {
-    attachEquipment(rightHand, cloneWeapon('staff'), [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], 0.92);
+    const focus = finalBoss && library.finalBossFocus ? library.finalBossFocus.clone(true) : cloneWeapon('staff');
+    attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.92);
   } else if (prototype.role === 'rogue') {
     attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.86);
   } else if (prototype.role === 'warrior') {
