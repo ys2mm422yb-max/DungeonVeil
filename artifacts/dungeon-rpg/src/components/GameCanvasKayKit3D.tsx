@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import type { GameState } from '../game/runEngine';
 import { TileType } from '../game/dungeon';
 import { skillRank } from '../game/runSkills';
+import { CHAPTER_ROOMS } from '../game/chapterRun';
 import { RUN_CAMERA, updateRunCamera } from './RunCameraRig';
 import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
 import { buildKayKitDungeonRoom, preloadKayKitDungeonRoom } from './kaykitRoom3D';
@@ -13,8 +14,11 @@ import { loadKayKitManifest } from './kaykitManifest3D';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const TILE = 40;
+const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
-const MAX_PARTICLES = IS_MOBILE ? 64 : 110;
+const MAX_PARTICLES = IS_ANDROID ? 38 : IS_MOBILE ? 64 : 110;
+const PERFORMANCE_KEY = 'dungeon-veil-performance';
+const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 
 export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -42,6 +46,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let particlePoints: any = null;
     let particlePositions: Float32Array | null = null;
     let particleColors: Float32Array | null = null;
+    let particleBudget = MAX_PARTICLES;
     let lastRoomKey = '';
     let pendingRoomKey = '';
     let preloadRoomKey = '';
@@ -50,6 +55,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let lastDodge = 0;
     let lastGift = 0;
     let lastGuard = 0;
+    let perfWindowStarted = performance.now();
+    let perfFrames = 0;
+    let lowFpsWindows = 0;
 
     const enemyVisuals = new Map<string, KayKitEnemyVisual>();
     const enemyLoading = new Set<string>();
@@ -118,8 +126,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
     const preloadNextRoom = (state: GameState) => {
       if (!state.roomClearReady) return;
-      const nextFloor = state.floor >= 10 ? 1 : state.floor + 1;
-      const key = `${state.chapter}:${nextFloor}`;
+      const nextFloor = state.floor >= CHAPTER_ROOMS ? 1 : state.floor + 1;
+      const nextChapter = state.floor >= CHAPTER_ROOMS ? state.chapter + 1 : state.chapter;
+      const key = `${nextChapter}:${nextFloor}`;
       if (key === preloadRoomKey) return;
       preloadRoomKey = key;
       void Promise.all([preloadKayKitDungeonRoom(nextFloor), preloadKayKitRoomTheme(nextFloor)]).catch(error => {
@@ -168,12 +177,13 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const isPiercing = element === 'piercing';
       if (!isFire && !isIce && !isArcane && !isPiercing) return;
 
-      const positions = isArcane ? [0, -0.18, -0.36] : [0, -0.22, -0.44, -0.68];
+      const fullPositions = isArcane ? [0, -0.18, -0.36] : [0, -0.22, -0.44, -0.68];
+      const positions = IS_ANDROID ? fullPositions.slice(0, 2) : fullPositions;
       const scales = isPiercing ? [0.09, 0.06, 0.04, 0.025] : [0.11, 0.085, 0.06, 0.04];
       const glows: any[] = [];
       positions.forEach((y, index) => {
         const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
-        const glow = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), material);
+        const glow = new THREE.Mesh(new THREE.SphereGeometry(1, IS_ANDROID ? 5 : 8, IS_ANDROID ? 5 : 8), material);
         const baseScale = scales[index] ?? 0.04;
         glow.position.set(0, y, 0);
         glow.scale.setScalar(baseScale);
@@ -181,13 +191,16 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         arrow.add(glow);
         glows.push(glow);
       });
-      const lightStrength = isFire ? 4.2 : isIce ? 3.6 : isArcane ? 3.2 : 2.5;
-      const light = new THREE.PointLight(color, lightStrength, 3.6, 2);
-      light.position.set(0, -0.08, 0);
-      arrow.add(light);
       arrow.userData.elementGlows = glows;
-      arrow.userData.elementLight = light;
       arrow.userData.elementKind = element;
+
+      if (!IS_ANDROID) {
+        const lightStrength = isFire ? 4.2 : isIce ? 3.6 : isArcane ? 3.2 : 2.5;
+        const light = new THREE.PointLight(color, lightStrength, 3.6, 2);
+        light.position.set(0, -0.08, 0);
+        arrow.add(light);
+        arrow.userData.elementLight = light;
+      }
     };
 
     const syncArrows = (state: GameState, wallNow: number) => {
@@ -204,7 +217,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         let arrow = arrowVisuals.get(shot.id);
         if (!arrow && arrowPrototype) {
           arrow = arrowPrototype.clone(true);
-          arrow.scale.setScalar(shot.element === 'piercing' ? 1.26 : 1.14);
+          arrow.scale.setScalar(shot.element === 'piercing' ? 1.32 : 1.2);
           arrow.traverse((node: any) => {
             if (node.isLine && node.material) node.material = node.material.clone();
             if (!node.isMesh && !node.isLine) return;
@@ -225,7 +238,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         arrow.traverse((node: any) => {
           if (!node.isLine || !node.material?.color) return;
           node.material.color.set(shot.color);
-          node.material.opacity = Math.max(0.22, 0.92 * (1 - progress * 0.28));
+          node.material.opacity = Math.max(0.3, 0.96 * (1 - progress * 0.32));
         });
         const pulse = 0.82 + Math.sin(wallNow * 0.025 + progress * 8) * 0.18;
         const glows = arrow.userData.elementGlows as any[] | undefined;
@@ -252,12 +265,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         if (!visual) {
           visual = new THREE.Group();
           const ring = new THREE.Mesh(
-            new THREE.RingGeometry(0.72, 1, 32),
+            new THREE.RingGeometry(0.72, 1, IS_ANDROID ? 20 : 32),
             new THREE.MeshBasicMaterial({ color: effect.color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
           );
           ring.rotation.x = -Math.PI / 2;
           visual.add(ring);
-          if (effect.element === 'fire' || effect.element === 'arcane') {
+          if (!IS_ANDROID && (effect.element === 'fire' || effect.element === 'arcane')) {
             const light = new THREE.PointLight(effect.color, effect.element === 'fire' ? 5 : 3.6, 5, 2);
             light.position.y = 0.5;
             visual.add(light);
@@ -302,7 +315,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const syncParticles = (state: GameState) => {
       ensureParticleLayer();
       if (!particlePoints || !particlePositions || !particleColors) return;
-      const particles = state.particles.slice(-MAX_PARTICLES);
+      const particles = state.particles.slice(-particleBudget);
       for (let index = 0; index < particles.length; index++) {
         const particle = particles[index];
         const progress = Math.max(0, Math.min(1, particle.lifeTime / particle.maxLifeTime));
@@ -426,7 +439,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         portal.name = 'RunExitEffect';
 
         const groundRing = new THREE.Mesh(
-          new THREE.RingGeometry(0.6, 1.02, 48),
+          new THREE.RingGeometry(0.6, 1.02, IS_ANDROID ? 28 : 48),
           new THREE.MeshBasicMaterial({ color: 0x9f78ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
         );
         groundRing.rotation.x = -Math.PI / 2;
@@ -434,7 +447,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         portal.add(groundRing);
 
         const outerRing = new THREE.Mesh(
-          new THREE.TorusGeometry(0.92, 0.065, 10, 64),
+          new THREE.TorusGeometry(0.92, 0.065, IS_ANDROID ? 7 : 10, IS_ANDROID ? 36 : 64),
           new THREE.MeshBasicMaterial({ color: 0xb99bff, transparent: true, opacity: 0.92, depthWrite: false, blending: THREE.AdditiveBlending }),
         );
         outerRing.position.y = 1.12;
@@ -442,7 +455,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         portal.add(outerRing);
 
         const innerRing = new THREE.Mesh(
-          new THREE.TorusGeometry(0.69, 0.035, 8, 56),
+          new THREE.TorusGeometry(0.69, 0.035, IS_ANDROID ? 6 : 8, IS_ANDROID ? 30 : 56),
           new THREE.MeshBasicMaterial({ color: 0x7d4dff, transparent: true, opacity: 0.76, depthWrite: false, blending: THREE.AdditiveBlending }),
         );
         innerRing.position.y = 1.12;
@@ -457,25 +470,26 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         portal.add(veil);
 
         const innerVeil = new THREE.Mesh(
-          new THREE.CircleGeometry(0.68, 48),
+          new THREE.CircleGeometry(0.68, IS_ANDROID ? 28 : 48),
           new THREE.MeshBasicMaterial({ color: 0x321b68, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
         );
         innerVeil.position.set(0, 1.12, -0.02);
         innerVeil.scale.y = 1.35;
         portal.add(innerVeil);
 
+        const moteCount = IS_ANDROID ? 5 : IS_MOBILE ? 8 : 12;
         const motes: any[] = [];
-        for (let index = 0; index < (IS_MOBILE ? 8 : 12); index++) {
+        for (let index = 0; index < moteCount; index++) {
           const mote = new THREE.Mesh(
             new THREE.SphereGeometry(0.045 + (index % 3) * 0.012, 6, 6),
             new THREE.MeshBasicMaterial({ color: index % 2 ? 0xd3c2ff : 0x8d66ff, transparent: true, opacity: 0.82, depthWrite: false, blending: THREE.AdditiveBlending }),
           );
-          mote.userData.phase = index / (IS_MOBILE ? 8 : 12) * Math.PI * 2;
+          mote.userData.phase = index / moteCount * Math.PI * 2;
           portal.add(mote);
           motes.push(mote);
         }
 
-        const core = new THREE.PointLight(0x9d76ff, IS_MOBILE ? 7.2 : 9.5, 8.5, 2);
+        const core = new THREE.PointLight(0x9d76ff, IS_ANDROID ? 4.8 : IS_MOBILE ? 7.2 : 9.5, 8.5, 2);
         core.position.y = 1.05;
         portal.add(core);
 
@@ -508,12 +522,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       portal.userData.innerVeil.material.opacity = (0.38 + pulse * 0.18) * activateProgress;
       portal.userData.veil.scale.x = 0.94 + pulse * 0.08;
       portal.userData.innerVeil.scale.x = 0.9 + pulse * 0.12;
-      portal.userData.core.intensity = ((IS_MOBILE ? 6.5 : 8.8) + pulse * 2.2) * activateProgress;
+      portal.userData.core.intensity = ((IS_ANDROID ? 4.4 : IS_MOBILE ? 6.5 : 8.8) + pulse * 2.2) * activateProgress;
       (portal.userData.motes as any[]).forEach((mote, index) => {
         const phase = mote.userData.phase + wallNow * (0.0011 + index * 0.000025);
         const radius = 0.65 + (index % 3) * 0.13;
         mote.position.x = Math.sin(phase) * radius;
-        mote.position.y = 0.22 + ((wallNow * 0.00042 + index / 11) % 1) * 2.0;
+        mote.position.y = 0.22 + ((wallNow * 0.00042 + index / Math.max(1, portal.userData.motes.length - 1)) % 1) * 2.0;
         mote.position.z = 0.08 + Math.cos(phase) * 0.11;
         mote.material.opacity = (0.42 + Math.sin(phase * 2) * 0.3) * activateProgress;
       });
@@ -556,6 +570,35 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         ring.material.opacity = 0.8 * (1 - progress);
         ring.scale.setScalar(0.75 + progress * 0.5);
       } else ring.material.opacity = 0;
+    };
+
+    const updatePerformanceDiagnostics = (now: number) => {
+      perfFrames += 1;
+      const elapsed = now - perfWindowStarted;
+      if (elapsed < 2000 || !renderer) return;
+      const fps = Math.round(perfFrames * 1000 / elapsed);
+      const snapshot = {
+        platform: IS_ANDROID ? 'android-balanced' : IS_MOBILE ? 'mobile' : 'desktop',
+        fps,
+        frameMs: Number((elapsed / Math.max(1, perfFrames)).toFixed(2)),
+        calls: renderer.info?.render?.calls ?? 0,
+        triangles: renderer.info?.render?.triangles ?? 0,
+        geometries: renderer.info?.memory?.geometries ?? 0,
+        textures: renderer.info?.memory?.textures ?? 0,
+        particleBudget,
+        floor: stateRef.current.floor,
+        at: Date.now(),
+      };
+      try { localStorage.setItem(PERFORMANCE_KEY, JSON.stringify(snapshot)); } catch {}
+      if (IS_ANDROID) {
+        lowFpsWindows = fps < 42 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
+        if (lowFpsWindows >= 2 && particleBudget > 26) {
+          particleBudget = 26;
+          try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
+        }
+      }
+      perfFrames = 0;
+      perfWindowStarted = now;
     };
 
     const resize = () => {
@@ -601,6 +644,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       syncPlayerFeedback(state, wallNow, gameNow);
       updateRunCamera(camera, cameraGoal, playerX, playerZ);
       renderer.render(scene, camera);
+      updatePerformanceDiagnostics(gameNow);
       raf = requestAnimationFrame(renderLoop);
     };
 
@@ -614,32 +658,34 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       scene.background = new THREE.Color(0x171512);
       scene.fog = new THREE.Fog(0x171512, 30, 58);
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.25));
-      renderer.shadowMap.enabled = true;
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 1 : 1.25));
+      renderer.shadowMap.enabled = !IS_ANDROID;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.12;
+      renderer.toneMappingExposure = IS_ANDROID ? 1.16 : 1.12;
       host.appendChild(renderer.domElement);
       camera = new THREE.PerspectiveCamera(RUN_CAMERA.fov, 1, 0.1, 150);
       camera.position.set(0, RUN_CAMERA.height, RUN_CAMERA.distance);
       cameraGoal = new THREE.Vector3();
-      scene.add(new THREE.AmbientLight(0xd8d1c5, 0.74));
-      scene.add(new THREE.HemisphereLight(0xd9c7aa, 0x171512, 1.05));
-      const keyLight = new THREE.DirectionalLight(0xffc98b, 1.85);
+      scene.add(new THREE.AmbientLight(0xd8d1c5, IS_ANDROID ? 0.88 : 0.74));
+      scene.add(new THREE.HemisphereLight(0xd9c7aa, 0x171512, IS_ANDROID ? 1.18 : 1.05));
+      const keyLight = new THREE.DirectionalLight(0xffc98b, IS_ANDROID ? 1.65 : 1.85);
       keyLight.position.set(-7, 14, 7);
-      keyLight.castShadow = true;
-      keyLight.shadow.mapSize.set(1024, 1024);
+      keyLight.castShadow = !IS_ANDROID;
+      keyLight.shadow.mapSize.set(IS_ANDROID ? 512 : 1024, IS_ANDROID ? 512 : 1024);
       scene.add(keyLight);
-      const fillLight = new THREE.PointLight(0x6f61c8, 2.2, 22, 1.8);
+      const fillLight = new THREE.PointLight(0x6f61c8, IS_ANDROID ? 1.55 : 2.2, 22, 1.8);
       fillLight.position.set(0, 6.5, -8);
       scene.add(fillLight);
-      playerLight = new THREE.PointLight(0xffd29b, 2.5, 13, 1.7);
-      scene.add(playerLight);
+      if (!IS_ANDROID) {
+        playerLight = new THREE.PointLight(0xffd29b, 2.5, 13, 1.7);
+        scene.add(playerLight);
+      }
 
       playerRig = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
-      playerRig.root.scale.setScalar(1.08);
+      playerRig.root.scale.setScalar(0.96);
       arrowPrototype = playerRig.arrowPrototype;
       scene.add(playerRig.root);
       clock = new THREE.Clock();
