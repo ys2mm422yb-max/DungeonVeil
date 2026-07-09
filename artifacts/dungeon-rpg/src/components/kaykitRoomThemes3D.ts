@@ -3,11 +3,16 @@ import { buildKayKitOuterWorld } from './kaykitOuterWorld3D';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 
 type LoadedGltf = { scene: any };
 type ThemePosition = readonly [number, number, number, number?];
 let forestPromise: Promise<any[]> | null = null;
 let halloweenPromise: Promise<any[]> | null = null;
+
+function lowGpuSession() {
+  try { return sessionStorage.getItem(LOW_GPU_KEY) === '1'; } catch { return false; }
+}
 
 function keepCachedResource(resource: any) {
   if (!resource || resource.userData?.kayKitPersistent) return;
@@ -60,18 +65,25 @@ function loadHalloween() {
 
 function addArchitectureLights(THREE: any, root: any, room: number) {
   const warm = room >= 9 ? 0xd98a58 : 0xffb86d;
-  const sideStrength = IS_MOBILE ? 2.45 : 3.15;
-  const gateStrength = IS_MOBILE ? 2.8 : 3.6;
+  const gateColor = room === 7 ? 0x8a7de8 : room >= 9 ? 0xb06c58 : 0xe6b27a;
 
-  const left = new THREE.PointLight(warm, sideStrength, 10.5, 2);
+  if (IS_MOBILE) {
+    const light = new THREE.PointLight(gateColor, lowGpuSession() ? 2.2 : 3.4, 15.5, 2);
+    light.position.set(0, 4.2, -11.8);
+    root.add(light);
+    root.userData.architectureLights = [light];
+    return;
+  }
+
+  const left = new THREE.PointLight(warm, 3.15, 10.5, 2);
   left.position.set(-5.8, 3.8, -11.4);
   root.add(left);
 
-  const right = new THREE.PointLight(warm, sideStrength, 10.5, 2);
+  const right = new THREE.PointLight(warm, 3.15, 10.5, 2);
   right.position.set(5.8, 3.8, -11.4);
   root.add(right);
 
-  const gate = new THREE.PointLight(room === 7 ? 0x8a7de8 : room >= 9 ? 0xb06c58 : 0xe6b27a, gateStrength, 9.5, 2);
+  const gate = new THREE.PointLight(gateColor, 3.6, 9.5, 2);
   gate.position.set(0, 3.0, -14.1);
   root.add(gate);
 
@@ -119,7 +131,8 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   const loadPool = room === 7 ? loadForest : loadHalloween;
   loadPool().then(pool => {
     if (!active || !pool.length) return;
-    const visiblePositions = IS_MOBILE ? positions.slice(0, 6) : positions;
+    const mobileLimit = lowGpuSession() ? 3 : 5;
+    const visiblePositions = IS_MOBILE ? positions.slice(0, mobileLimit) : positions;
     visiblePositions.forEach(([x, z, rotation, scale], index) => {
       const prototype = pool[(index * 5 + room * 3) % pool.length];
       const object = prototype.clone(true);
