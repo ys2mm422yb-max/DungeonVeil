@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { saveEngineSession } from '../game/sessionStore';
 import { loadGame } from '../game/saveManager';
 import type { GameEngine } from '../game/runEngine';
@@ -26,16 +26,19 @@ function restorePendingRoomGift(engine: GameEngine): void {
 }
 
 export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {
+  const getEngineRef = useRef(getEngine);
+  getEngineRef.current = getEngine;
+
   useEffect(() => {
     if (!active) return;
-    const engine = getEngine();
+    const engine = getEngineRef.current();
     if (engine) restorePendingRoomGift(engine);
-  }, [active, getEngine]);
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
     const save = () => {
-      const engine = getEngine();
+      const engine = getEngineRef.current();
       if (engine && engine.state.player.playerName !== 'Hero') saveEngineSession(engine);
     };
     const hide = () => { if (document.hidden) save(); };
@@ -45,7 +48,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       window.removeEventListener('pagehide', save);
       document.removeEventListener('visibilitychange', hide);
     };
-  }, [active, getEngine]);
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
@@ -56,7 +59,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     let checkedClearKey = '';
 
     const update = (time: number) => {
-      const engine = getEngine();
+      const engine = getEngineRef.current();
       if (engine) {
         if (engine.state.status === 'playing') {
           updateRunBalance(engine, balance);
@@ -77,9 +80,10 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       }
       frame = requestAnimationFrame(update);
     };
+
     frame = requestAnimationFrame(update);
     return () => cancelAnimationFrame(frame);
-  }, [active, getEngine]);
+  }, [active]);
 
   return active ? <><MetaRewardBanner /><RunRetentionOverlay /></> : null;
 }
