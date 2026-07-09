@@ -1,5 +1,6 @@
 import type { GameEngine } from './runEngine';
 import { skillRank } from './runSkills';
+import { isBossRoom } from './chapterRun';
 
 export type EquipmentSlot = 'bow' | 'quiver' | 'talisman';
 export type EquipmentId =
@@ -155,9 +156,18 @@ export function rewardMetaRoomClear(chapter: number, floor: number): MetaReward 
   if (live.rewardLedger.includes(rewardKey)) return null;
   live.rewardLedger.push(rewardKey);
 
-  const boss = floor === 10;
-  const xp = boss ? 130 + chapter * 20 : 14 + floor * 4 + Math.max(0, chapter - 1) * 8;
-  let dust = boss ? 55 + chapter * 10 : 4 + Math.ceil(floor * 0.8);
+  const boss = isBossRoom(floor);
+  const finalBoss = floor === 20;
+  const xp = finalBoss
+    ? 260 + chapter * 30
+    : boss
+      ? 130 + chapter * 20
+      : 14 + floor * 4 + Math.max(0, chapter - 1) * 8;
+  let dust = finalBoss
+    ? 105 + chapter * 15
+    : boss
+      ? 55 + chapter * 10
+      : 4 + Math.ceil(floor * 0.8);
   const rankBefore = live.rank;
   addRankXp(live, xp);
 
