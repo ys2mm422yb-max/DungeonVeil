@@ -6,16 +6,42 @@ const FIRE_DEATH_RADIUS = 72;
 const FIRE_DEATH_DAMAGE = 12;
 const ARCHER_BASE_COOLDOWN_MS = 270;
 
+export type VeilRoomModifier = 'pressure' | 'blood' | 'storm' | null;
+
 export type RunEffectSystemState = {
   processedFireBursts: Set<string>;
   finalizedBurns: Map<string, number>;
   processedDamageNumbers: Set<string>;
   processedTelegraphs: Set<string>;
+  pressureBoosted: Set<string>;
+  bloodFrenzy: Set<string>;
+  bossPhaseTriggered: Set<string>;
   lastNormalizedShotTime: number;
   lastPlayerHp: number | null;
   lastGiftTime: number;
   healSequence: number;
+  roomKey: string;
+  nextRuneStormAt: number;
+  runeStrikeAt: number;
+  runeStrikeX: number;
+  runeStrikeY: number;
 };
+
+export function veilModifierForRoom(room: number): VeilRoomModifier {
+  if (room === 11 || room === 14 || room === 17) return 'pressure';
+  if (room === 12 || room === 15 || room === 18) return 'blood';
+  if (room === 13 || room === 16 || room === 19) return 'storm';
+  return null;
+}
+
+export function veilModifierLabel(room: number): string | null {
+  const modifier = veilModifierForRoom(room);
+  if (modifier === 'pressure') return 'SCHLEIERDRUCK';
+  if (modifier === 'blood') return 'BLUTSCHLEIER';
+  if (modifier === 'storm') return 'RUNENSTURM';
+  if (room === 20) return 'SCHLEIERKERN';
+  return null;
+}
 
 export function createRunEffectSystemState(): RunEffectSystemState {
   return {
@@ -23,11 +49,132 @@ export function createRunEffectSystemState(): RunEffectSystemState {
     finalizedBurns: new Map<string, number>(),
     processedDamageNumbers: new Set<string>(),
     processedTelegraphs: new Set<string>(),
+    pressureBoosted: new Set<string>(),
+    bloodFrenzy: new Set<string>(),
+    bossPhaseTriggered: new Set<string>(),
     lastNormalizedShotTime: 0,
     lastPlayerHp: null,
     lastGiftTime: 0,
     healSequence: 0,
+    roomKey: '',
+    nextRuneStormAt: 0,
+    runeStrikeAt: 0,
+    runeStrikeX: 0,
+    runeStrikeY: 0,
   };
+}
+
+function announceVeilRoom(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  const roomKey = `${engine.state.chapter}:${engine.state.floor}`;
+  if (system.roomKey === roomKey) return;
+  system.roomKey = roomKey;
+  system.nextRuneStormAt = time + 2600;
+  system.runeStrikeAt = 0;
+  system.pressureBoosted.clear();
+  system.bloodFrenzy.clear();
+
+  const modifier = veilModifierForRoom(engine.state.floor);
+  if (!modifier) return;
+  const p = engine.state.player;
+  const x = p.x + p.width / 2;
+  const y = p.y + p.height / 2;
+  const title = modifier === 'pressure' ? 'SCHLEIERDRUCK' : modifier === 'blood' ? 'BLUTSCHLEIER' : 'RUNENSTURM';
+  const text = modifier === 'pressure'
+    ? 'Die Feinde werden vom Schleier beschleunigt.'
+    : modifier === 'blood'
+      ? 'Verwundete Feinde geraten in Raserei.'
+      : 'Instabile Runen markieren tödliche Zonen.';
+  const color = modifier === 'pressure' ? '#8e74ff' : modifier === 'blood' ? '#db4a55' : '#b793ff';
+
+  engine.state.damageNumbers.push({ id: `veil-room-${roomKey}`, x, y: p.y - 24, value: title, color, lifeTime: 0, maxLifeTime: 2200, scale: 1.2 });
+  engine.state.effects.push({ id: `veil-room-wave-${roomKey}`, x, y, radius: 0, maxRadius: 118, color, lifeTime: 0, maxLifeTime: 800, type: 'circle', element: 'arcane' });
+  window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title, text, tone: modifier === 'blood' ? 'relic' : 'hunt' } }));
+}
+
+function applyVeilPressure(engine: GameEngine, system: RunEffectSystemState): void {
+  if (veilModifierForRoom(engine.state.floor) !== 'pressure') return;
+  for (const enemy of engine.state.enemies) {
+    if (enemy.isDead || enemy.hp <= 0 || system.pressureBoosted.has(enemy.id)) continue;
+    system.pressureBoosted.add(enemy.id);
+    enemy.speed *= 1.14;
+    enemy.nextAttackTime = Math.max(0, enemy.nextAttackTime - 160);
+  }
+}
+
+function applyBloodVeil(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  if (veilModifierForRoom(engine.state.floor) !== 'blood') return;
+  for (const enemy of engine.state.enemies) {
+    if (enemy.isDead || enemy.hp <= 0 || enemy.hp > enemy.maxHp * 0.5 || system.bloodFrenzy.has(enemy.id)) continue;
+    system.bloodFrenzy.add(enemy.id);
+    enemy.attack = Math.max(enemy.attack + 2, Math.round(enemy.attack * 1.28));
+    enemy.speed *= 1.18;
+    enemy.nextAttackTime = time + 280;
+    const x = enemy.x + enemy.width / 2;
+    const y = enemy.y + enemy.height / 2;
+    engine.state.damageNumbers.push({ id: `blood-rage-${enemy.id}`, x, y: enemy.y - 12, value: 'RASEREI', color: '#ff5968', lifeTime: 0, maxLifeTime: 1200, scale: 1.05 });
+    engine.state.effects.push({ id: `blood-rage-wave-${enemy.id}`, x, y, radius: 0, maxRadius: 54, color: '#d93d50', lifeTime: 0, maxLifeTime: 520, type: 'circle', element: 'fire' });
+    engine.state.particles.push(...makeHitSpark(x, y, '#ff5968', 10));
+  }
+}
+
+function triggerFinalBossPhase(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  if (engine.state.floor !== 20) return;
+  const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss' && !enemy.isDead && enemy.hp > 0);
+  if (!boss || boss.hp > boss.maxHp * 0.5 || system.bossPhaseTriggered.has(boss.id)) return;
+  system.bossPhaseTriggered.add(boss.id);
+  boss.attack = Math.round(boss.attack * 1.22);
+  boss.speed *= 1.18;
+  boss.nextAttackTime = time + 320;
+  system.nextRuneStormAt = time + 1200;
+
+  const x = boss.x + boss.width / 2;
+  const y = boss.y + boss.height / 2;
+  engine.state.damageNumbers.push({ id: `boss-phase-${boss.id}`, x, y: boss.y - 28, value: 'SCHLEIERBRUCH', color: '#c6a5ff', lifeTime: 0, maxLifeTime: 2400, scale: 1.55 });
+  engine.state.effects.push({ id: `boss-phase-wave-${boss.id}`, x, y, radius: 0, maxRadius: 180, color: '#875dff', lifeTime: 0, maxLifeTime: 1050, type: 'circle', element: 'arcane' });
+  engine.state.particles.push(...makeHitSpark(x, y, '#a77cff', 24));
+  window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title: 'DER SCHLEIER BRICHT', text: 'Der Wächter entfesselt den Kern. Runenstürme erwachen.', tone: 'relic' } }));
+}
+
+function updateRuneStorm(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  const stormRoom = veilModifierForRoom(engine.state.floor) === 'storm';
+  const finalBossStorm = engine.state.floor === 20 && system.bossPhaseTriggered.size > 0;
+  if (!stormRoom && !finalBossStorm) return;
+
+  if (system.runeStrikeAt > 0 && time >= system.runeStrikeAt) {
+    const p = engine.state.player;
+    const px = p.x + p.width / 2;
+    const py = p.y + p.height / 2;
+    const hit = distance(px, py, system.runeStrikeX, system.runeStrikeY) <= 70;
+    if (hit && time > p.invincibleUntil) {
+      const damage = Math.min(24, 8 + Math.floor(engine.state.floor * 0.55));
+      p.hp -= damage;
+      p.lastHitTime = time;
+      engine.state.damageNumbers.push({ id: `rune-hit-${time}`, x: px, y: p.y - 8, value: `-${damage}`, color: '#b68cff', lifeTime: 0, maxLifeTime: 850, scale: 1.45 });
+      engine.state.particles.push(...makeHitSpark(px, py, '#b68cff', 14));
+    }
+    engine.state.effects.push({ id: `rune-impact-${time}`, x: system.runeStrikeX, y: system.runeStrikeY, radius: 0, maxRadius: 88, color: '#8b5cff', lifeTime: 0, maxLifeTime: 460, type: 'circle', element: 'arcane' });
+    system.runeStrikeAt = 0;
+    system.nextRuneStormAt = time + (finalBossStorm ? 3300 : 4600);
+    return;
+  }
+
+  if (system.runeStrikeAt > 0 || time < system.nextRuneStormAt) return;
+  const p = engine.state.player;
+  system.runeStrikeX = p.x + p.width / 2;
+  system.runeStrikeY = p.y + p.height / 2;
+  system.runeStrikeAt = time + 900;
+  engine.state.effects.push({
+    id: `rune-warning-${time}`,
+    x: system.runeStrikeX,
+    y: system.runeStrikeY,
+    radius: 0,
+    maxRadius: 70,
+    color: '#c2a2ff',
+    lifeTime: 0,
+    maxLifeTime: 900,
+    type: 'circle',
+    element: 'arcane',
+  });
 }
 
 function cleanInstantEffectsFromBuild(engine: GameEngine): void {
@@ -160,7 +307,7 @@ function improveDamageNumberReadability(engine: GameEngine, system: RunEffectSys
     const isBurn = number.id.startsWith('burn-');
     const isBurst = number.id.startsWith('fire-burst-');
     const isHeal = number.id.startsWith('heal-') || number.id.startsWith('heal-visible-') || number.value.startsWith('+');
-    const isPlayerHit = number.id.startsWith('hit-');
+    const isPlayerHit = number.id.startsWith('hit-') || number.id.startsWith('rune-hit-');
 
     if (isBurn) number.scale = Math.max(number.scale ?? 1, 1.02);
     else if (isBurst) number.scale = Math.max(number.scale ?? 1, 1.58);
@@ -247,11 +394,16 @@ function applyFireDeathBursts(engine: GameEngine, system: RunEffectSystemState, 
 }
 
 export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  announceVeilRoom(engine, system, time);
   cleanInstantEffectsFromBuild(engine);
   normalizeQuickDraw(engine, system);
   showGiftPulse(engine, system);
   reinforceEnemyTelegraphs(engine, system);
   showHealing(engine, system, time);
+  applyVeilPressure(engine, system);
+  applyBloodVeil(engine, system, time);
+  triggerFinalBossPhase(engine, system, time);
+  updateRuneStorm(engine, system, time);
   applyFinalBurnTicks(engine, system, time);
   applyFireDeathBursts(engine, system, time);
   improveDamageNumberReadability(engine, system);
