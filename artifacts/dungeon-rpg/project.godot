@@ -8,8 +8,6 @@ config/name="Dungeon Veil — Xogot Port"
 run/main_scene="res://godot/main.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
 
-[display]
-
 [display/window]
 size/viewport_width=1179
 size/viewport_height=2556
@@ -25,13 +23,6 @@ textures/default_filters/use_nearest_mipmap_filter=false
 anti_aliasing/quality/msaa_3d=0
 anti_aliasing/quality/screen_space_aa=0
 shadows/directional_shadow/size=2048
-
-[input]
-move_left={"deadzone":0.25,"events":[Object(InputEventKey,"physical_keycode":65),Object(InputEventKey,"physical_keycode":4194311)]}
-move_right={"deadzone":0.25,"events":[Object(InputEventKey,"physical_keycode":68),Object(InputEventKey,"physical_keycode":4194313)]}
-move_up={"deadzone":0.25,"events":[Object(InputEventKey,"physical_keycode":87),Object(InputEventKey,"physical_keycode":4194320)]}
-move_down={"deadzone":0.25,"events":[Object(InputEventKey,"physical_keycode":83),Object(InputEventKey,"physical_keycode":4194322)]}
-dash={"deadzone":0.25,"events":[Object(InputEventKey,"physical_keycode":32)]}
 
 [debug]
 settings/fps/force_fps=0
