@@ -1,14 +1,8 @@
 name: Apply room20 and Android pass
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/dv-room20-mobile-trigger'
   pull_request:
     branches: [main]
-    paths:
-      - '.github/dv-room20-mobile-trigger'
 
 permissions:
   contents: write
