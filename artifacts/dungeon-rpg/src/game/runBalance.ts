@@ -20,6 +20,10 @@ export function createRunBalanceState(): RunBalanceState {
   return { balancedEnemyIds: new Set<string>() };
 }
 
+function balanceKey(id: string): string {
+  return id.replace(/-hunt-\d+$/, '');
+}
+
 function hpFactorForRoom(room: number): number {
   if (room <= 2) return 0.94 + room * 0.03;
   if (room <= 5) return 1.08 + (room - 3) * 0.055;
@@ -43,15 +47,16 @@ function attackCapForRoom(room: number): number {
 }
 
 export function updateRunBalance(engine: GameEngine, state: RunBalanceState): void {
-  const active = new Set(engine.state.enemies.map(enemy => enemy.id));
+  const active = new Set(engine.state.enemies.map(enemy => balanceKey(enemy.id)));
   for (const id of state.balancedEnemyIds) {
     if (!active.has(id)) state.balancedEnemyIds.delete(id);
   }
 
   const room = Math.max(1, Math.min(20, engine.state.floor));
   for (const enemy of engine.state.enemies) {
-    if (state.balancedEnemyIds.has(enemy.id)) continue;
-    state.balancedEnemyIds.add(enemy.id);
+    const key = balanceKey(enemy.id);
+    if (state.balancedEnemyIds.has(key)) continue;
+    state.balancedEnemyIds.add(key);
 
     const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1;
     enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * hpFactorForRoom(room)));
