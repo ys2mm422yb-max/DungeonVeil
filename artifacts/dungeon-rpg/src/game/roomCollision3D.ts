@@ -1,11 +1,17 @@
 import { KAYKIT_COLLISION_SIZE, KAYKIT_ROOM_PROPS } from './kaykitRoomLayout';
+import { getChapterTwoRoomProps } from './kaykitRoomChapter2';
 
 function entityCenterToScene(value: number, size: number, mapTiles: number) {
   return (value + size / 2) / 40 - mapTiles / 2 + 0.5;
 }
 
+function placementsForRoom(room: number) {
+  const key = Math.max(1, Math.min(20, room));
+  return getChapterTwoRoomProps(key) ?? KAYKIT_ROOM_PROPS[key] ?? [];
+}
+
 function colliderSize(room: number) {
-  return (KAYKIT_ROOM_PROPS[Math.max(1, Math.min(10, room))] ?? [])
+  return placementsForRoom(room)
     .map(placement => {
       const base = KAYKIT_COLLISION_SIZE[placement.asset];
       if (!base) return null;
@@ -21,7 +27,7 @@ function colliderSize(room: number) {
 const ROOM_COLLIDERS = new Map<number, ReturnType<typeof colliderSize>>();
 
 function roomColliders(room: number) {
-  const key = Math.max(1, Math.min(10, room));
+  const key = Math.max(1, Math.min(20, room));
   if (!ROOM_COLLIDERS.has(key)) ROOM_COLLIDERS.set(key, colliderSize(key));
   return ROOM_COLLIDERS.get(key)!;
 }
