@@ -20,6 +20,7 @@ import { SettingsScreen } from '../components/screens/SettingsScreen';
 import { CreditsScreen } from '../components/screens/CreditsScreen';
 import { VeilChamberScreen } from '../components/screens/VeilChamberScreen';
 import { preloadKayKitDungeonRoom } from '../components/kaykitRoom3D';
+import { preloadKayKitRoomTheme } from '../components/kaykitRoomThemes3D';
 import { preloadKayKitEnemyVisuals } from '../components/kaykitEnemy3D';
 import { preloadKayKitHealingPotion } from '../components/kaykitLoot3D';
 import { preloadKayKitOuterWorld } from '../components/kaykitOuterWorld3D';
@@ -55,6 +56,8 @@ export default function Game() {
   const keyStateRef = useRef<KeyState>({ up: false, down: false, left: false, right: false });
   const settingsReturnRef = useRef<UiState>('main_menu');
   const resumeSessionOnBootRef = useRef(hasActiveRunSession());
+  const roomVisualReadyRef = useRef(true);
+  const [roomPreparing, setRoomPreparing] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [uiState, setUiState] = useState<UiState>(() => !hasChosen ? 'lang_select' : 'main_menu');
@@ -121,7 +124,11 @@ export default function Game() {
     }
 
     let animationId = 0;
-    const loop = (time: number) => { engine.update(time); animationId = requestAnimationFrame(loop); };
+    const loop = (time: number) => {
+      if (roomVisualReadyRef.current) engine.update(time);
+      else engine.lastTime = time;
+      animationId = requestAnimationFrame(loop);
+    };
     animationId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationId);
   }, [hasChosen]);
@@ -129,12 +136,33 @@ export default function Game() {
   useEffect(() => {
     const handleRendererLost = () => {
       markActiveRun(true);
+      roomVisualReadyRef.current = false;
+      setRoomPreparing(true);
       resetMovement();
       saveCurrentGame();
     };
     window.addEventListener('dungeon-veil-renderer-lost', handleRendererLost);
     return () => window.removeEventListener('dungeon-veil-renderer-lost', handleRendererLost);
   }, [resetMovement, saveCurrentGame]);
+
+  useEffect(() => {
+    const handleRoomPreparing = () => {
+      roomVisualReadyRef.current = false;
+      setRoomPreparing(true);
+      resetMovement();
+    };
+    const handleRoomReady = () => {
+      roomVisualReadyRef.current = true;
+      setRoomPreparing(false);
+      if (engineRef.current) engineRef.current.lastTime = performance.now();
+    };
+    window.addEventListener('dungeon-veil-room-preparing', handleRoomPreparing);
+    window.addEventListener('dungeon-veil-room-ready', handleRoomReady);
+    return () => {
+      window.removeEventListener('dungeon-veil-room-preparing', handleRoomPreparing);
+      window.removeEventListener('dungeon-veil-room-ready', handleRoomReady);
+    };
+  }, [resetMovement]);
 
   const goSettings = useCallback((returnTo: UiState) => { settingsReturnRef.current = returnTo; setUiState('settings'); }, []);
   const handleNewGame = useCallback(() => { markActiveRun(false); setUiState('char_create'); }, []);
@@ -146,7 +174,7 @@ export default function Game() {
     setUiState('game');
   }, []);
   const handleCharConfirm = useCallback(async (name: string, _cls: ClassKey) => {
-    await Promise.all([preloadKayKitDungeonRoom(1), preloadKayKitEnemyVisuals(), preloadKayKitHealingPotion(), preloadKayKitOuterWorld()]);
+    await Promise.all([preloadKayKitDungeonRoom(1), preloadKayKitRoomTheme(1), preloadKayKitEnemyVisuals(), preloadKayKitHealingPotion(), preloadKayKitOuterWorld()]);
     const engine = engineRef.current;
     if (!engine) return;
     beginMetaRun();
@@ -247,6 +275,7 @@ export default function Game() {
       {uiState === 'veil_chamber' && <VeilChamberScreen onBack={() => setUiState('main_menu')} />}
       {uiState === 'game' && gameState && <>
         <CombatStage gameState={gameState} />
+        {roomPreparing && <div className="pointer-events-none absolute left-1/2 top-[31%] z-40 -translate-x-1/2 rounded-full border border-violet-300/25 bg-black/72 px-4 py-2 text-[9px] font-black tracking-[.28em] text-violet-100/80 backdrop-blur-md">RAUM WIRD AUFGEBAUT…</div>}
         {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />}
         {gameState.status === 'levelup' && <LevelUpScreen choices={gameState.upgradeChoices} runSkills={gameState.runSkills} onSelect={handleLevelUpSelect} />}
         {gameState.status === 'paused' && <GamePausePanel gameState={gameState} language={language as Language} paused={t.paused} resume={t.resume} settings={t.settings} classNameText={t.className.archer} onResume={handleResume} onSettings={() => goSettings('game')} onMainMenu={handleMainMenu} onLanguage={setLanguage} onRestartRoom={handleRestartRoom} />}
