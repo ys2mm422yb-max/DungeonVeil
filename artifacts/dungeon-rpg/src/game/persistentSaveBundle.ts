@@ -1,4 +1,5 @@
 const PLAYER_ID_KEY = 'dungeon-veil-player-id';
+const CLOUD_REVISION_KEY = 'dungeon-veil-cloud-revision';
 const BUNDLE_KEYS = [
   'dungeon-veil-save',
   'dungeon-veil-meta',
@@ -31,6 +32,14 @@ export function persistentPlayerId(): string {
   }
 }
 
+export function cloudRevision(): string {
+  try { return localStorage.getItem(CLOUD_REVISION_KEY) ?? ''; } catch { return ''; }
+}
+
+export function markCloudRevision(updatedAt: string): void {
+  try { localStorage.setItem(CLOUD_REVISION_KEY, updatedAt); } catch {}
+}
+
 export function exportSaveBundle(): DungeonVeilSaveBundle {
   const data: Record<string, string> = {};
   for (const key of BUNDLE_KEYS) {
@@ -50,6 +59,7 @@ export function importSaveBundle(bundle: DungeonVeilSaveBundle): boolean {
       if (typeof value === 'string') localStorage.setItem(key, value);
     }
     localStorage.setItem(PLAYER_ID_KEY, bundle.playerId);
+    markCloudRevision(bundle.updatedAt);
     window.dispatchEvent(new Event('dungeon-veil-cloud-save-restored'));
     return true;
   } catch {
