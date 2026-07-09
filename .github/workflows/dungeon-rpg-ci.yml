@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   apply-room20-mobile-pass:
-    if: github.event_name == 'push'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout current main
