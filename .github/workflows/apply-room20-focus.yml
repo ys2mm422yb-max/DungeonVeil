@@ -1,0 +1,48 @@
+name: Apply room 20 focus weapon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/dv-room20-focus-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Equip the final boss with the ninth-pack focus weapon
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts')
+          text = path.read_text()
+          text = text.replace("import { loadKayKitBossWeapon } from './kaykitWeapons3D';", "import { loadKayKitBossWeapon, loadKayKitFinalBossFocus } from './kaykitWeapons3D';")
+          text = text.replace("  bossWeapon: any | null;\n};", "  bossWeapon: any | null;\n  finalBossFocus: any | null;\n};")
+          text = text.replace("    const bossWeapon = await loadKayKitBossWeapon();\n    return {", "    const [bossWeapon, finalBossFocus] = await Promise.all([loadKayKitBossWeapon(), loadKayKitFinalBossFocus()]);\n    return {")
+          text = text.replace("      bossWeapon,\n    };", "      bossWeapon,\n      finalBossFocus,\n    };")
+          old = """  if (prototype.role === 'mage') {\n    attachEquipment(rightHand, cloneWeapon('staff'), [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], 0.92);"""
+          new = """  if (prototype.role === 'mage') {\n    const focus = finalBoss && library.finalBossFocus ? library.finalBossFocus.clone(true) : cloneWeapon('staff');\n    attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.92);"""
+          if old not in text and new not in text:
+              raise SystemExit('mage equipment block not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Commit room 20 focus weapon
+        shell: bash
+        run: |
+          git config user.name 'Dungeon Veil CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts
+          git commit -m 'Give the room 20 boss a ninth-pack caster focus' || exit 0
+          git push origin HEAD:main
