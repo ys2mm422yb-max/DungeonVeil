@@ -20,7 +20,6 @@ export function RangerPreview() {
     let clock: any;
     let rangerRig: KayKitPlayerRig | null = null;
     let showcaseTime = 0;
-    let nextShotAt = 1.2;
 
     const resize = () => {
       if (!renderer || !camera) return;
@@ -72,7 +71,8 @@ export function RangerPreview() {
       rangerRig = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
       rangerRig.root.scale.setScalar(0.98);
-      rangerRig.root.rotation.y = -0.35;
+      rangerRig.root.rotation.y = -0.42;
+      rangerRig.setMoving(false);
       scene.add(rangerRig.root);
 
       clock = new THREE.Clock();
@@ -83,12 +83,9 @@ export function RangerPreview() {
         if (disposed || !renderer || !scene || !camera || !clock) return;
         const dt = Math.min(clock.getDelta(), 0.05);
         showcaseTime += dt;
-        if (rangerRig && showcaseTime >= nextShotAt) {
-          rangerRig.triggerAttack();
-          nextShotAt = showcaseTime + 2.8;
-        }
+        rangerRig?.setMoving(false);
         rangerRig?.update(dt);
-        if (rangerRig?.root) rangerRig.root.rotation.y = -0.35 + Math.sin(showcaseTime * 0.35) * 0.12;
+        if (rangerRig?.root) rangerRig.root.rotation.y = -0.42 + Math.sin(showcaseTime * 0.28) * 0.08;
         renderer.render(scene, camera);
         frame = requestAnimationFrame(render);
       };
