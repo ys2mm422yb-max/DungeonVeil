@@ -11,6 +11,7 @@ import { createRunRetentionState, updateRunRetentionSystems } from '../game/runR
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
 import { activatePendingWeeklyRift, createWeeklyRiftRunState, updateWeeklyRiftRun } from '../game/weeklyRiftRun';
+import { pushCloudSave } from '../game/cloudSave';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 
@@ -20,7 +21,6 @@ function restorePendingRoomGift(engine: GameEngine): void {
   const save = loadGame();
   if (!save || (save.saveReason !== 'room-complete' && save.saveReason !== 'chapter-complete')) return;
   if (engine.state.status !== 'playing' || engine.state.upgradeChoices.length > 0) return;
-
   const available = availableRunSkills(engine.state.runSkills, RUN_UPGRADES);
   const pool = available.length >= 3 ? available : [...available, 'heal' as UpgradeKey];
   engine.state.upgradeChoices = [...pool].sort(() => Math.random() - 0.5).slice(0, 3);
@@ -45,12 +45,17 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     if (!active) return;
     const save = () => {
       const engine = getEngineRef.current();
-      if (engine && engine.state.player.playerName !== 'Hero') saveEngineSession(engine);
+      if (engine && engine.state.player.playerName !== 'Hero') {
+        saveEngineSession(engine);
+        void pushCloudSave();
+      }
     };
     const hide = () => { if (document.hidden) save(); };
+    const interval = window.setInterval(save, 30_000);
     window.addEventListener('pagehide', save);
     document.addEventListener('visibilitychange', hide);
     return () => {
+      window.clearInterval(interval);
       window.removeEventListener('pagehide', save);
       document.removeEventListener('visibilitychange', hide);
     };
@@ -81,13 +86,13 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           updateRoomMechanics(engine, roomMechanics, time, dt);
         }
         updateRunRelicEffects(engine, relicEffects, time);
-
         if (engine.state.roomClearReady) {
           const clearKey = `${engine.state.chapter}:${engine.state.floor}:${engine.state.roomClearAt}`;
           if (checkedClearKey !== clearKey) {
             checkedClearKey = clearKey;
             const reward = rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
             if (reward) window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
+            void pushCloudSave();
           }
         } else {
           checkedClearKey = '';
