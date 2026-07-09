@@ -1,0 +1,42 @@
+name: Dungeon RPG Debug Typecheck
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/dungeon-rpg-debug-typecheck.yml'
+
+jobs:
+  capture-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Capture typecheck
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg typecheck > typecheck.log 2>&1
+          echo $? > typecheck.exit
+          cat typecheck.log
+          exit 0
+      - name: Upload typecheck log
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-rpg-typecheck-log
+          path: |
+            typecheck.log
+            typecheck.exit
