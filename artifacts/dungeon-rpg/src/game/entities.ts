@@ -38,6 +38,7 @@ export interface Player extends Entity {
   lastGuardTime?: number;
   lastGiftTime?: number;
   lastGiftKey?: string;
+  relicAttackSpeedUntil?: number;
 }
 
 export type EnemyType = EnemyTypeName;
@@ -74,6 +75,10 @@ export interface Enemy extends Entity {
   lastProgressX?: number;
   lastProgressY?: number;
   lastProgressTime?: number;
+  isHuntTarget?: boolean;
+  huntName?: string;
+  huntReward?: number;
+  huntVisualVariant?: number;
 }
 
 export interface Chest extends Entity {
