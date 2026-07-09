@@ -57,9 +57,9 @@ const HUNT_NAMES = [
 ];
 
 export const DAILY_TASKS: DailyTask[] = [
-  { id: 'rooms', title: 'Tiefer hinab', description: 'Schließe 6 Räume ab', target: 6, reward: 12 },
-  { id: 'kills', title: 'Schleierbrecher', description: 'Besiege 30 Gegner', target: 30, reward: 16 },
-  { id: 'hunt', title: 'Gezeichnete Beute', description: 'Besiege 1 Jagd-Gegner', target: 1, reward: 28 },
+  { id: 'rooms', title: 'Tiefer hinab', description: 'Schließe 15 Räume ab', target: 15, reward: 22 },
+  { id: 'kills', title: 'Schleierbrecher', description: 'Besiege 80 Gegner', target: 80, reward: 34 },
+  { id: 'hunt', title: 'Gezeichnete Beute', description: 'Besiege 2 Jagd-Gegner', target: 2, reward: 52 },
 ];
 
 function localDateKey(): string {
