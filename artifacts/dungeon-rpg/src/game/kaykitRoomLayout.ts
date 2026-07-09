@@ -102,13 +102,17 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'candle', x: -0.2, z: 7.3 },
   ],
 
-  // 4 · Barrikadenraum — offset diagonal cover breaks direct fire lines.
+  // 4 · Barrikadenraum — staggered cover forces a lane swap instead of straight retreat.
   4: [
     { asset: 'crates', x: -7.2, z: -9.2 },
     { asset: 'barrelStack', x: -5.8, z: -7.7, rotation: Math.PI / 2 },
     { asset: 'boxLarge', x: -4.8, z: -6.1 },
     { asset: 'crates', x: -3.8, z: -4.4, rotation: Math.PI / 2 },
     { asset: 'barrelDecorated', x: -2.9, z: -2.8 },
+    { asset: 'boxLarge', x: 2.7, z: -1.2, rotation: Math.PI / 2 },
+    { asset: 'candle', x: 2.7, z: -2.25 },
+    { asset: 'boxLarge', x: -2.5, z: 2.2 },
+    { asset: 'candle', x: -2.5, z: 1.15 },
 
     { asset: 'wallShelves', x: RIGHT_WALL, z: -9.0, rotation: -Math.PI / 2 },
     { asset: 'swordShield', x: RIGHT_WALL, z: -4.2, rotation: -Math.PI / 2 },
@@ -124,7 +128,7 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'torchMounted', x: 5.2, z: TOP_WALL, rotation: Math.PI },
   ],
 
-  // 5 · Schlafquartier — two bed lanes frame a wider middle escape route.
+  // 5 · Schlafquartier — twin bed lanes plus staggered center pillars form an S-shaped dodge route.
   5: [
     { asset: 'bed', x: -6.3, z: -9.8, rotation: Math.PI / 2 },
     { asset: 'bed', x: -6.3, z: -5.8, rotation: Math.PI / 2 },
@@ -144,6 +148,10 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'wallShelves', x: RIGHT_WALL, z: 8.8, rotation: -Math.PI / 2 },
     { asset: 'torchMounted', x: LEFT_WALL, z: -0.4, rotation: Math.PI / 2 },
     { asset: 'torchMounted', x: RIGHT_WALL, z: -0.4, rotation: -Math.PI / 2 },
+    { asset: 'column', x: -2.6, z: -3.2, scale: 1.08 },
+    { asset: 'candle', x: -1.55, z: -3.2 },
+    { asset: 'column', x: 2.6, z: 1.4, scale: 1.08 },
+    { asset: 'candle', x: 1.55, z: 1.4 },
   ],
 
   // 6 · Bannerhalle — broad ceremonial middle lane.
