@@ -9,6 +9,7 @@ import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 import { rewardMetaRoomClear } from '../game/metaProgression';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
+import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 
@@ -57,16 +58,21 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const balance = createRunBalanceState();
     const retention = createRunRetentionState();
     const relicEffects = createRunRelicEffectState();
+    const roomMechanics = createRoomMechanicState();
     let frame = 0;
     let checkedClearKey = '';
+    let lastFrame = performance.now();
 
     const update = (time: number) => {
       const engine = getEngineRef.current();
+      const dt = Math.min(100, Math.max(0, time - lastFrame));
+      lastFrame = time;
       if (engine) {
         if (engine.state.status === 'playing') {
           updateRunBalance(engine, balance);
           updateRunEffectSystems(engine, effects, time);
           updateRunRetentionSystems(engine, retention, time);
+          updateRoomMechanics(engine, roomMechanics, time, dt);
         }
         updateRunRelicEffects(engine, relicEffects, time);
 
