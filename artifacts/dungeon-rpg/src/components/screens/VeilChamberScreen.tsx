@@ -18,6 +18,8 @@ const SLOT_LABELS: Record<EquipmentSlot, { de: string; en: string }> = {
   talisman: { de: 'TALISMAN', en: 'TALISMAN' },
 };
 
+const RELIC_ITEMS = new Set<EquipmentId>(['hunter-bow', 'rune-quiver', 'frost-grimoire']);
+
 export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const { language } = useLanguage();
   const [meta, setMeta] = useState(loadMetaProgression);
@@ -32,6 +34,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const cost = equipmentUpgradeCost(selected, meta);
   const xpTarget = xpForNextRank(meta.rank);
   const xpPercent = Math.max(0, Math.min(100, meta.xp / xpTarget * 100));
+  const relic = RELIC_ITEMS.has(selected);
 
   const refresh = (next = loadMetaProgression()) => setMeta({ ...next });
   const changeSlot = (next: EquipmentSlot) => {
@@ -75,17 +78,21 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
           ))}
         </div>
 
-        <section className="mt-4 overflow-hidden rounded-3xl border border-white/10 bg-black/52">
-          <div className="grid min-h-[210px] grid-cols-[42%_58%]">
-            <div className="relative border-r border-white/8 bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,.07),transparent_62%)]">
-              <KayKitEquipmentPreview assetPath={selectedItem.assetPath} accent={selectedItem.accent} />
+        <section className={`relative mt-4 overflow-hidden rounded-3xl border bg-black/52 ${relic ? 'min-h-[250px] border-violet-300/30 shadow-[0_0_42px_rgba(130,91,255,.16),0_24px_70px_rgba(0,0,0,.55)]' : 'border-white/10'}`}>
+          {relic && <>
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_28%_48%,rgba(142,94,255,.2),transparent_38%),linear-gradient(120deg,rgba(255,255,255,.025),transparent_38%)]" />
+            <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-violet-200/25 bg-violet-400/10 px-3 py-1 text-[7px] font-black tracking-[.22em] text-violet-100">{de ? 'SCHLEIER-RELIKT' : 'VEIL RELIC'}</div>
+          </>}
+          <div className={`relative grid ${relic ? 'min-h-[250px] grid-cols-[48%_52%]' : 'min-h-[210px] grid-cols-[42%_58%]'}`}>
+            <div className={`relative border-r border-white/8 ${relic ? 'bg-[radial-gradient(circle_at_50%_45%,rgba(160,109,255,.16),rgba(255,255,255,.025)_40%,transparent_68%)]' : 'bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,.07),transparent_62%)]'}`}>
+              <KayKitEquipmentPreview assetPath={selectedItem.assetPath} accent={selectedItem.accent} itemId={selectedItem.id} />
               <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[7px] font-black uppercase tracking-[.2em] text-white/25">{selectedItem.pack}</div>
             </div>
-            <div className="flex flex-col p-4">
+            <div className={`flex flex-col ${relic ? 'p-4 pt-12' : 'p-4'}`}>
               <div className="text-[8px] font-black tracking-[.22em]" style={{ color: selectedItem.accent }}>{SLOT_LABELS[selectedItem.slot][de ? 'de' : 'en']}</div>
-              <h2 className="mt-2 text-xl font-black leading-tight text-white">{de ? selectedItem.nameDe : selectedItem.nameEn}</h2>
+              <h2 className={`${relic ? 'mt-2 text-[1.42rem] drop-shadow-[0_0_18px_rgba(255,255,255,.14)]' : 'mt-2 text-xl'} font-black leading-tight text-white`}>{de ? selectedItem.nameDe : selectedItem.nameEn}</h2>
               <div className="mt-2 text-[9px] font-black tracking-[.18em] text-white/40">{selectedLevel > 0 ? `${de ? 'STUFE' : 'LEVEL'} ${selectedLevel}/5` : `${de ? 'FREISCHALTUNG' : 'UNLOCK'} · RANG ${selectedItem.unlockRank}`}</div>
-              <p className="mt-4 text-[12px] leading-relaxed text-white/62">{de ? selectedItem.descriptionDe : selectedItem.descriptionEn}</p>
+              <p className={`${relic ? 'mt-4 text-[12.5px] text-white/72' : 'mt-4 text-[12px] text-white/62'} leading-relaxed`}>{de ? selectedItem.descriptionDe : selectedItem.descriptionEn}</p>
               <div className="flex-1" />
               {selectedLevel > 0 ? (
                 <div className="mt-4 grid grid-cols-2 gap-2">
@@ -93,7 +100,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
                   <button type="button" onPointerDown={event => { event.preventDefault(); refresh(upgradeMetaItem(selected)); }} disabled={cost === 0 || meta.dust < cost} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-2 py-3 text-[9px] font-black tracking-[.1em] text-amber-100 disabled:opacity-30 active:scale-[.98]">{cost === 0 ? 'MAX' : `✦ ${cost}`}</button>
                 </div>
               ) : (
-                <div className="mt-4 rounded-xl border border-white/8 bg-white/[.03] px-3 py-3 text-center text-[8px] font-black tracking-[.14em] text-white/30">{meta.rank >= selectedItem.unlockRank ? (de ? 'KANN IM RUN GEFUNDEN WERDEN' : 'CAN DROP IN A RUN') : `${de ? 'AB SCHLEIER-RANG' : 'FROM VEIL RANK'} ${selectedItem.unlockRank}`}</div>
+                <div className={`mt-4 rounded-xl border px-3 py-3 text-center text-[8px] font-black tracking-[.14em] ${relic ? 'border-violet-300/15 bg-violet-400/[.055] text-violet-100/42' : 'border-white/8 bg-white/[.03] text-white/30'}`}>{meta.rank >= selectedItem.unlockRank ? (de ? 'KANN IM RUN GEFUNDEN WERDEN' : 'CAN DROP IN A RUN') : `${de ? 'AB SCHLEIER-RANG' : 'FROM VEIL RANK'} ${selectedItem.unlockRank}`}</div>
               )}
             </div>
           </div>
@@ -103,11 +110,13 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
           {items.map(item => {
             const level = meta.owned[item.id] ?? 0;
             const isEquipped = meta.equipped[item.slot] === item.id;
+            const isRelic = RELIC_ITEMS.has(item.id);
             return (
-              <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); setSelected(item.id); }} className={`flex items-center gap-3 rounded-2xl border p-3 text-left active:scale-[.99] ${selected === item.id ? 'border-white/22 bg-white/[.075]' : 'border-white/8 bg-black/38'}`}>
+              <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); setSelected(item.id); }} className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left active:scale-[.99] ${selected === item.id ? (isRelic ? 'border-violet-300/35 bg-violet-400/[.09]' : 'border-white/22 bg-white/[.075]') : 'border-white/8 bg-black/38'}`}>
+                {isRelic && <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-[linear-gradient(180deg,#75dfff,#ad7cff,#d8b26b)]" />}
                 <div className="h-3 w-3 shrink-0 rounded-full shadow-[0_0_16px_currentColor]" style={{ color: item.accent, background: item.accent }} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] font-black text-white/82">{de ? item.nameDe : item.nameEn}</div>
+                  <div className="flex items-center gap-2"><div className="truncate text-[12px] font-black text-white/82">{de ? item.nameDe : item.nameEn}</div>{isRelic && <span className="text-[6px] font-black tracking-[.16em] text-violet-200/55">RELIKT</span>}</div>
                   <div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/30">{level ? `${de ? 'STUFE' : 'LEVEL'} ${level}` : `${de ? 'GESPERRT' : 'LOCKED'} · RANG ${item.unlockRank}`}</div>
                 </div>
                 {isEquipped && <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[7px] font-black tracking-[.12em] text-emerald-200">{de ? 'AKTIV' : 'ACTIVE'}</span>}
