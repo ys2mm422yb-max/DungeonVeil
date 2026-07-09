@@ -49,7 +49,7 @@ export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   'rune-quiver': {
     id: 'rune-quiver', slot: 'quiver', nameDe: 'Runenköcher', nameEn: 'Rune Quiver',
     descriptionDe: 'Startet jeden Run mit Abpraller I', descriptionEn: 'Start each run with Ricochet I', pack: 'adventurers',
-    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_bow_bundle.gltf', unlockRank: 7, accent: '#b184ff',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_crossbow_bundle.gltf', unlockRank: 7, accent: '#b184ff',
   },
   'veil-key': {
     id: 'veil-key', slot: 'talisman', nameDe: 'Schleierschlüssel', nameEn: 'Veil Key',
