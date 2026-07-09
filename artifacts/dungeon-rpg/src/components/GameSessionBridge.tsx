@@ -7,7 +7,9 @@ import { availableRunSkills } from '../game/runSkills';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 import { rewardMetaRoomClear } from '../game/metaProgression';
+import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { MetaRewardBanner } from './MetaRewardBanner';
+import { RunRetentionOverlay } from './RunRetentionOverlay';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 
@@ -28,7 +30,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     if (!active) return;
     const engine = getEngine();
     if (engine) restorePendingRoomGift(engine);
-  }, [active]);
+  }, [active, getEngine]);
 
   useEffect(() => {
     if (!active) return;
@@ -43,12 +45,13 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       window.removeEventListener('pagehide', save);
       document.removeEventListener('visibilitychange', hide);
     };
-  }, [active]);
+  }, [active, getEngine]);
 
   useEffect(() => {
     if (!active) return;
     const effects = createRunEffectSystemState();
     const balance = createRunBalanceState();
+    const retention = createRunRetentionState();
     let frame = 0;
     let checkedClearKey = '';
 
@@ -58,6 +61,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
         if (engine.state.status === 'playing') {
           updateRunBalance(engine, balance);
           updateRunEffectSystems(engine, effects, time);
+          updateRunRetentionSystems(engine, retention, time);
         }
 
         if (engine.state.roomClearReady) {
@@ -75,7 +79,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     };
     frame = requestAnimationFrame(update);
     return () => cancelAnimationFrame(frame);
-  }, [active]);
+  }, [active, getEngine]);
 
-  return active ? <MetaRewardBanner /> : null;
+  return active ? <><MetaRewardBanner /><RunRetentionOverlay /></> : null;
 }
