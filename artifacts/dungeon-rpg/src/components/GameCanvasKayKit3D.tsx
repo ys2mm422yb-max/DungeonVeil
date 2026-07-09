@@ -650,6 +650,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
     const boot = async () => {
       await loadKayKitManifest();
+      const initialState = stateRef.current;
+      await Promise.all([
+        preloadKayKitDungeonRoom(initialState.floor),
+        preloadKayKitRoomTheme(initialState.floor),
+      ]);
+      if (disposed) return;
       THREE = await import(/* @vite-ignore */ THREE_URL);
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       if (disposed) return;
