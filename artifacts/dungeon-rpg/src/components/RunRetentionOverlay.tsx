@@ -44,7 +44,6 @@ export function RunRetentionOverlay() {
   const activeTask = useMemo(() => DAILY_TASKS.find(task => !profile.daily.claimed.includes(task.id)) ?? DAILY_TASKS[0], [profile]);
   const activeProgress = Math.min(activeTask.target, progress(profile, activeTask.id));
   const completed = profile.daily.claimed.length;
-  const discoveries = profile.codex.enemies.length + profile.codex.bosses.length + profile.codex.hunts.length + profile.codex.relics.length;
 
   const toastClass = toast?.tone === 'hunt'
     ? 'border-amber-300/35 bg-[linear-gradient(120deg,rgba(79,49,15,.96),rgba(14,10,7,.97))] text-amber-100'
@@ -54,21 +53,19 @@ export function RunRetentionOverlay() {
 
   return (
     <>
-      <div className="pointer-events-none fixed right-3 top-[max(5.8rem,calc(env(safe-area-inset-top)+4.8rem))] z-[46] w-[150px] rounded-2xl border border-white/10 bg-black/52 p-3 text-white shadow-xl backdrop-blur-md">
-        <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-[.2em] text-white/45">
+      <div className="pointer-events-none fixed right-3 top-[max(6.2rem,calc(env(safe-area-inset-top)+5.2rem))] z-[45] w-[132px] rounded-xl border border-white/10 bg-black/48 px-2.5 py-2 text-white shadow-lg backdrop-blur-md">
+        <div className="flex items-center justify-between text-[6px] font-black uppercase tracking-[.18em] text-white/45">
           <span>Tagesriss</span>
           <span>{completed}/3</span>
         </div>
-        <div className="mt-2 text-[10px] font-black text-white/85">{activeTask.title}</div>
-        <div className="mt-1 text-[7px] font-bold leading-tight text-white/45">{activeTask.description}</div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
+        <div className="mt-1.5 truncate text-[8px] font-black text-white/80">{activeTask.title}</div>
+        <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/8">
           <div className="h-full rounded-full bg-amber-300/75 transition-all duration-300" style={{ width: `${activeTask.target ? activeProgress / activeTask.target * 100 : 0}%` }} />
         </div>
-        <div className="mt-1.5 flex items-center justify-between text-[7px] font-black text-white/45">
+        <div className="mt-1 flex items-center justify-between text-[6px] font-black text-white/40">
           <span>{activeProgress}/{activeTask.target}</span>
           <span className="text-amber-200">✦ {profile.sigils}</span>
         </div>
-        <div className="mt-2 border-t border-white/8 pt-2 text-[7px] font-bold tracking-[.12em] text-violet-200/45">KODEX {discoveries} ENTDECKUNGEN</div>
       </div>
 
       {toast && (
