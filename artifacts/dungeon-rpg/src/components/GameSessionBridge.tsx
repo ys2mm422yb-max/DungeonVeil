@@ -12,9 +12,11 @@ import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRel
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
 import { activatePendingWeeklyRift, createWeeklyRiftRunState, updateWeeklyRiftRun } from '../game/weeklyRiftRun';
 import { createRunSynergyState, updateRunSynergies } from '../game/runSynergies';
+import { createFirstWardenFinaleState, updateFirstWardenFinale } from '../game/firstWardenFinale';
 import { pushCloudSave } from '../game/cloudSave';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
+import { FirstWardenOverlay } from './FirstWardenOverlay';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 
@@ -71,6 +73,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const roomMechanics = createRoomMechanicState();
     const weeklyRift = createWeeklyRiftRunState();
     const synergies = createRunSynergyState();
+    const firstWarden = createFirstWardenFinaleState();
     let frame = 0;
     let checkedClearKey = '';
     let lastFrame = performance.now();
@@ -87,6 +90,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           updateRunRetentionSystems(engine, retention, time);
           updateRoomMechanics(engine, roomMechanics, time, dt);
           updateRunSynergies(engine, synergies, time);
+          updateFirstWardenFinale(engine, firstWarden, time);
         }
         updateRunRelicEffects(engine, relicEffects, time);
         if (engine.state.roomClearReady) {
@@ -108,5 +112,5 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     return () => cancelAnimationFrame(frame);
   }, [active]);
 
-  return active ? <><MetaRewardBanner /><RunRetentionOverlay /></> : null;
+  return active ? <><MetaRewardBanner /><RunRetentionOverlay /><FirstWardenOverlay /></> : null;
 }
