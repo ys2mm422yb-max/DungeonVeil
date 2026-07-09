@@ -1,7 +1,7 @@
 name: Apply room20 and Android pass
 
 on:
-  pull_request:
+  push:
     branches: [main]
 
 permissions:
