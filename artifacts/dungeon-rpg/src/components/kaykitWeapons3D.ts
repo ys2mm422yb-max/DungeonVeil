@@ -12,6 +12,7 @@ export type KayKitRangerWeapons = {
 
 const rangerWeaponCache = new Map<string, Promise<KayKitRangerWeapons | null>>();
 let bossWeaponPromise: Promise<any | null> | null = null;
+let finalBossFocusPromise: Promise<any | null> | null = null;
 
 function rank(path: string, terms: string[]) {
   const name = path.toLowerCase();
@@ -95,5 +96,24 @@ export async function loadKayKitBossWeapon() {
     })();
   }
   const prototype = await bossWeaponPromise;
+  return prototype?.clone?.(true) ?? prototype;
+}
+
+export async function loadKayKitFinalBossFocus() {
+  if (!finalBossFocusPromise) {
+    finalBossFocusPromise = (async () => {
+      const manifest = await loadKayKitManifest();
+      const weaponModels = findKayKitModels(manifest, 'weapons', /\/assets\/gltf\/.*\.(?:gltf|glb)$/i);
+      const path = best(weaponModels, ['staff_b'])
+        ?? best(weaponModels, ['staff_a', 'staff'])
+        ?? best(weaponModels, ['wand_a', 'wand']);
+      if (!path) return null;
+      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
+      const loader = new GLTFLoader();
+      const gltf = await loader.loadAsync(modelUrl(manifest, path));
+      return gltf.scene;
+    })();
+  }
+  const prototype = await finalBossFocusPromise;
   return prototype?.clone?.(true) ?? prototype;
 }
