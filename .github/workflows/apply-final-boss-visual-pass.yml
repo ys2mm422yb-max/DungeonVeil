@@ -1,0 +1,90 @@
+name: Apply final boss visual pass
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/dv-final-boss-visual-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch final boss visuals and animation pool
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts')
+          text = path.read_text()
+
+          def patch(old, new):
+              global text
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f'Expected block missing: {old[:180]!r}')
+              text = text.replace(old, new, 1)
+
+          patch(
+              "function hashId(id: string) { let hash = 2166136261; for (let i = 0; i < id.length; i++) { hash ^= id.charCodeAt(i); hash = Math.imul(hash, 16777619); } return hash >>> 0; }",
+              "function hashId(id: string) { let hash = 2166136261; for (let i = 0; i < id.length; i++) { hash ^= id.charCodeAt(i); hash = Math.imul(hash, 16777619); } return hash >>> 0; }\nfunction roomFromEnemyId(enemy: Enemy) { const parts = enemy.id.split('-'); const room = Number(parts.at(-2)); return Number.isFinite(room) ? room : 1; }"
+          )
+          patch(
+              "...findKayKitModels(manifest, 'animations', /rig_medium_combatmelee\\.glb$/i),\n    ];",
+              "...findKayKitModels(manifest, 'animations', /rig_medium_combatmelee\\.glb$/i),\n      ...findKayKitModels(manifest, 'animations', /rig_medium_combatranged\\.glb$/i),\n      ...findKayKitModels(manifest, 'animations', /rig_medium_special\\.glb$/i),\n    ];"
+          )
+          patch(
+              "const prototype = enemy.enemyType === 'boss'\n    ? library.prototypes.find(entry => entry.role === 'warrior') ?? library.prototypes[0]\n    : library.prototypes[hashId(enemy.id) % library.prototypes.length];",
+              "const finalBoss = enemy.enemyType === 'boss' && roomFromEnemyId(enemy) === 20;\n  const prototype = enemy.enemyType === 'boss'\n    ? library.prototypes.find(entry => entry.role === (finalBoss ? 'mage' : 'warrior')) ?? library.prototypes[0]\n    : library.prototypes[hashId(enemy.id) % library.prototypes.length];"
+          )
+          patch(
+              "const attackClip = chooseClip(prototype.clips, [['attack', 'a'], ['melee', 'attack'], ['attack']], ['bow', 'crossbow', 'ranged']);",
+              "const attackClip = finalBoss\n    ? chooseClip(prototype.clips, [['cast'], ['spell'], ['magic'], ['ranged', 'attack'], ['attack']], ['bow', 'crossbow'])\n    : chooseClip(prototype.clips, [['attack', 'a'], ['melee', 'attack'], ['attack']], ['bow', 'crossbow', 'ranged']);"
+          )
+          patch(
+              "if (move) move.timeScale = enemy.enemyType === 'boss' ? 0.92 : 1.06;",
+              "if (move) move.timeScale = finalBoss ? 1.08 : enemy.enemyType === 'boss' ? 0.98 : 1.06;"
+          )
+          patch(
+              "attack.timeScale = enemy.enemyType === 'boss' ? 0.98 : 1.12;",
+              "attack.timeScale = finalBoss ? 1.14 : enemy.enemyType === 'boss' ? 0.98 : 1.12;"
+          )
+          patch(
+              "const baseScale = (enemy.enemyType === 'boss' ? 1.56 : 0.96) * roleScale;",
+              "const baseScale = (enemy.enemyType === 'boss' ? (finalBoss ? 1.78 : 1.62) : prototype.role === 'warrior' ? 1.08 : 0.92) * roleScale;"
+          )
+          patch(
+              "new THREE.MeshBasicMaterial({ color: 0x8f4864, transparent: true, opacity: 0.42, depthWrite: false }),",
+              "new THREE.MeshBasicMaterial({ color: finalBoss ? 0x6f5cff : 0x8f4864, transparent: true, opacity: 0.42, depthWrite: false }),"
+          )
+          patch(
+              "new THREE.MeshBasicMaterial({ color: 0x765bd3, transparent: true, opacity: 0.36, depthWrite: false }),",
+              "new THREE.MeshBasicMaterial({ color: finalBoss ? 0x62d9ff : 0x765bd3, transparent: true, opacity: 0.36, depthWrite: false }),"
+          )
+          patch(
+              "const bossCore = new THREE.PointLight(0x8d3e65, IS_MOBILE ? 2.1 : 3.2, 5.5, 2);",
+              "const bossCore = new THREE.PointLight(finalBoss ? 0x7766ff : 0x8d3e65, IS_MOBILE ? 2.1 : 3.2, 5.5, 2);"
+          )
+
+          path.write_text(text)
+          PY
+      - name: Commit source patch
+        shell: bash
+        run: |
+          git config user.name 'Dungeon Veil CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts
+          git commit -m 'Give room twenty a distinct KayKit mage boss' || exit 0
+          git push origin HEAD:main
