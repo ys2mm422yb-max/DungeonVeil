@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
+import { CHAPTER_ROOMS } from '../game/chapterRun';
 import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
 import { CombatFeedbackOverlay } from './CombatFeedbackOverlay';
 import { preloadKayKitDungeonRoom } from './kaykitRoom3D';
@@ -88,8 +89,8 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
 
   useEffect(() => {
     if (!gameState.roomClearReady) return;
-    const nextFloor = gameState.floor >= 10 ? 1 : gameState.floor + 1;
-    const nextChapter = gameState.floor >= 10 ? gameState.chapter + 1 : gameState.chapter;
+    const nextFloor = gameState.floor >= CHAPTER_ROOMS ? 1 : gameState.floor + 1;
+    const nextChapter = gameState.floor >= CHAPTER_ROOMS ? gameState.chapter + 1 : gameState.chapter;
     const key = `${nextChapter}:${nextFloor}`;
     if (preloadKeyRef.current === key) return;
     preloadKeyRef.current = key;
