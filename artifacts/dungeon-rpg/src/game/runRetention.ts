@@ -1,6 +1,13 @@
 import type { GameEngine } from './runEngine';
-import type { Enemy } from './entities';
 import { isBossRoom } from './chapterRun';
+import {
+  HUNT_RELIC_POOL,
+  ROOM_TWENTY_RELIC_POOL,
+  VEIL_RELICS,
+  equippedVeilRelic,
+  unlockVeilRelic,
+  type VeilRelicId,
+} from './veilRelics';
 
 const STORAGE_KEY = 'dungeon-veil-retention-v1';
 
@@ -31,12 +38,6 @@ export type RetentionProfile = {
   };
 };
 
-type HuntEnemy = Enemy & {
-  isHuntTarget?: boolean;
-  huntName?: string;
-  huntReward?: number;
-};
-
 export type RunRetentionState = {
   roomKey: string;
   roomClearKey: string;
@@ -53,12 +54,6 @@ const HUNT_NAMES = [
   'Knochenrufer',
   'Veyra die Verlorene',
   'Schleierhetzer',
-];
-
-const ROOM_TWENTY_RELICS = [
-  'Herz des Schleiers',
-  'Krone des gebrochenen Wächters',
-  'Runensplitter der Tiefe',
 ];
 
 export const DAILY_TASKS: DailyTask[] = [
@@ -173,11 +168,14 @@ function markDiscoveries(engine: GameEngine): void {
 }
 
 function spawnHuntTarget(engine: GameEngine, state: RunRetentionState): void {
-  if (engine.state.floor < 8 || isBossRoom(engine.state.floor)) return;
-  const living = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead) as HuntEnemy[];
+  const relic = equippedVeilRelic();
+  const minimumFloor = relic === 'ash-eye' ? 6 : 8;
+  if (engine.state.floor < minimumFloor || isBossRoom(engine.state.floor)) return;
+  const living = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead);
   if (!living.length) return;
 
-  const chance = Math.min(0.18 + state.roomsSinceHunt * 0.09, 0.72);
+  const relicBonus = relic === 'ash-eye' ? 0.16 : 0;
+  const chance = Math.min(0.18 + relicBonus + state.roomsSinceHunt * 0.09, relic === 'ash-eye' ? 0.88 : 0.72);
   if (Math.random() > chance) {
     state.roomsSinceHunt++;
     return;
@@ -188,6 +186,7 @@ function spawnHuntTarget(engine: GameEngine, state: RunRetentionState): void {
   target.isHuntTarget = true;
   target.huntName = name;
   target.huntReward = 25;
+  target.huntVisualVariant = Math.floor(Math.random() * 3);
   target.maxHp = Math.max(target.maxHp + 80, Math.round(target.maxHp * 3.1));
   target.hp = target.maxHp;
   target.attack = Math.max(target.attack + 5, Math.round(target.attack * 1.5));
@@ -198,9 +197,10 @@ function spawnHuntTarget(engine: GameEngine, state: RunRetentionState): void {
 
   const x = target.x + target.width / 2;
   const y = target.y + target.height / 2;
-  engine.state.effects.push({ id: `hunt-spawn-${Date.now()}`, x, y, radius: 0, maxRadius: 120, color: '#f4c45f', lifeTime: 0, maxLifeTime: 850, type: 'circle', element: 'arcane' });
-  engine.state.damageNumbers.push({ id: `hunt-name-${Date.now()}`, x, y: target.y - 18, value: `JAGD: ${name.toUpperCase()}`, color: '#ffd775', lifeTime: 0, maxLifeTime: 2200, scale: 1.15 });
-  toast('JAGDZEICHEN ERKANNT', `${name} lauert in Raum ${engine.state.floor}`, 'hunt');
+  engine.state.effects.push({ id: `hunt-spawn-outer-${Date.now()}`, x, y, radius: 0, maxRadius: 170, color: '#f4c45f', lifeTime: 0, maxLifeTime: 1150, type: 'circle', element: 'arcane' });
+  engine.state.effects.push({ id: `hunt-spawn-inner-${Date.now()}`, x, y, radius: 0, maxRadius: 92, color: '#fff0a6', lifeTime: 0, maxLifeTime: 680, type: 'circle', element: 'arcane' });
+  engine.state.damageNumbers.push({ id: `hunt-name-${Date.now()}`, x, y: target.y - 28, value: `JAGD: ${name.toUpperCase()}`, color: '#ffd775', lifeTime: 0, maxLifeTime: 2500, scale: 1.38 });
+  toast(relic === 'ash-eye' ? 'DAS ASCHEAUGE REAGIERT' : 'JAGDZEICHEN ERKANNT', `${name} lauert in Raum ${engine.state.floor}`, 'hunt');
 }
 
 function handleRoomEntry(engine: GameEngine, state: RunRetentionState): void {
@@ -214,8 +214,8 @@ function handleRoomEntry(engine: GameEngine, state: RunRetentionState): void {
 }
 
 function pulseHuntAura(engine: GameEngine, state: RunRetentionState, time: number): void {
-  if (!state.huntTargetId || time - state.lastAuraAt < 850) return;
-  const target = engine.state.enemies.find(enemy => enemy.id === state.huntTargetId && enemy.hp > 0 && !enemy.isDead) as HuntEnemy | undefined;
+  if (!state.huntTargetId || time - state.lastAuraAt < 620) return;
+  const target = engine.state.enemies.find(enemy => enemy.id === state.huntTargetId && enemy.hp > 0 && !enemy.isDead);
   if (!target) return;
   state.lastAuraAt = time;
   engine.state.effects.push({
@@ -223,10 +223,10 @@ function pulseHuntAura(engine: GameEngine, state: RunRetentionState, time: numbe
     x: target.x + target.width / 2,
     y: target.y + target.height / 2,
     radius: 12,
-    maxRadius: 48,
-    color: '#f1b94f',
+    maxRadius: 58,
+    color: target.huntVisualVariant === 1 ? '#d692ff' : target.huntVisualVariant === 2 ? '#ff7558' : '#f1b94f',
     lifeTime: 0,
-    maxLifeTime: 700,
+    maxLifeTime: 620,
     type: 'circle',
     element: 'arcane',
   });
@@ -235,21 +235,25 @@ function pulseHuntAura(engine: GameEngine, state: RunRetentionState, time: numbe
 function maybeRareRelic(source: 'hunt' | 'room20'): void {
   const chance = source === 'hunt' ? 0.18 : 0.02;
   if (Math.random() > chance) return;
-  const pool = source === 'hunt' ? ['Auge des Aschenjägers', 'Gezeichnete Kralle', 'Siegel der Nachtjagd'] : ROOM_TWENTY_RELICS;
-  const relic = pool[Math.floor(Math.random() * pool.length)];
+  const pool = source === 'hunt' ? HUNT_RELIC_POOL : ROOM_TWENTY_RELIC_POOL;
+  const relicId = pool[Math.floor(Math.random() * pool.length)] as VeilRelicId;
+  const relic = VEIL_RELICS[relicId];
+  const result = unlockVeilRelic(relicId);
   mutateProfile(profile => {
-    profile.codex.relics.push(relic);
+    profile.codex.relics.push(relic.nameDe);
     profile.sigils += source === 'hunt' ? 18 : 60;
   });
-  toast('SELTENER FUND', `${relic} wurde dem Kodex hinzugefügt`, 'relic');
+  toast(result.newUnlock ? 'SELTENES RELIKT' : 'RELIKT-DUPLIKAT', result.newUnlock ? `${relic.nameDe} freigeschaltet` : `${relic.nameDe} erneut gefunden · Bonus-Siegel erhalten`, 'relic');
 }
 
-function processDeaths(engine: GameEngine, state: RunRetentionState): void {
-  for (const enemy of engine.state.enemies as HuntEnemy[]) {
+function processDeaths(engine: GameEngine, state: RunRetentionState, time: number): void {
+  for (const enemy of engine.state.enemies) {
     if (!enemy.isDead || state.processedDeaths.has(enemy.id)) continue;
     state.processedDeaths.add(enemy.id);
     const isHunt = enemy.isHuntTarget || enemy.id === state.huntTargetId;
     const huntName = enemy.huntName ?? 'Gezeichnete Beute';
+    const activeRelic = equippedVeilRelic();
+    const huntReward = Math.round((enemy.huntReward ?? 25) * (activeRelic === 'night-hunt-sigil' ? 1.5 : 1));
 
     mutateProfile(profile => {
       profile.daily.kills++;
@@ -257,13 +261,23 @@ function processDeaths(engine: GameEngine, state: RunRetentionState): void {
       if (enemy.enemyType === 'boss') profile.codex.bosses.push(`${engine.state.chapter}:${engine.state.floor}`);
       if (isHunt) {
         profile.daily.hunts++;
-        profile.sigils += enemy.huntReward ?? 25;
+        profile.sigils += huntReward;
         profile.codex.hunts.push(huntName);
       }
     });
 
+    if (activeRelic === 'marked-claw') {
+      engine.state.player.relicAttackSpeedUntil = time + 2500;
+      engine.state.effects.push({ id: `claw-rush-${time}`, x: engine.state.player.x + 16, y: engine.state.player.y + 16, radius: 0, maxRadius: 54, color: '#e15e4e', lifeTime: 0, maxLifeTime: 420, type: 'circle', element: 'fire' });
+    }
+
+    if (enemy.enemyType === 'boss' && activeRelic === 'broken-guardian-crown') {
+      engine.state.player.attack = Math.max(engine.state.player.attack + 1, Math.round(engine.state.player.attack * 1.1));
+      toast('DIE KRONE ERWACHT', '+10 % Angriff für den restlichen Run', 'relic');
+    }
+
     if (isHunt) {
-      toast('JAGD ABGESCHLOSSEN', `${huntName} besiegt · +${enemy.huntReward ?? 25} Schleier-Siegel`, 'hunt');
+      toast('JAGD ABGESCHLOSSEN', `${huntName} besiegt · +${huntReward} Schleier-Siegel`, 'hunt');
       maybeRareRelic('hunt');
       state.huntTargetId = '';
     }
@@ -281,7 +295,7 @@ function processRoomClear(engine: GameEngine, state: RunRetentionState): void {
 
 export function updateRunRetentionSystems(engine: GameEngine, state: RunRetentionState, time: number): void {
   handleRoomEntry(engine, state);
-  processDeaths(engine, state);
+  processDeaths(engine, state, time);
   processRoomClear(engine, state);
   pulseHuntAura(engine, state, time);
 }
