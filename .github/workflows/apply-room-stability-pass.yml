@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - '.github/dv-room-stability-trigger'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/dv-room-stability-trigger'
 
 permissions:
   contents: write
