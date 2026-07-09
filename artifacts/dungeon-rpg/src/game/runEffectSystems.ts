@@ -11,6 +11,8 @@ export type RunEffectSystemState = {
   finalizedBurns: Map<string, number>;
   processedDamageNumbers: Set<string>;
   lastNormalizedShotTime: number;
+  lastPlayerHp: number | null;
+  healSequence: number;
 };
 
 export function createRunEffectSystemState(): RunEffectSystemState {
@@ -19,6 +21,8 @@ export function createRunEffectSystemState(): RunEffectSystemState {
     finalizedBurns: new Map<string, number>(),
     processedDamageNumbers: new Set<string>(),
     lastNormalizedShotTime: 0,
+    lastPlayerHp: null,
+    healSequence: 0,
   };
 }
 
@@ -35,6 +39,46 @@ function normalizeQuickDraw(engine: GameEngine, system: RunEffectSystemState): v
   engine.state.player.attackCooldown = ARCHER_BASE_COOLDOWN_MS / speedMultipliers[rank];
 }
 
+function showHealing(engine: GameEngine, system: RunEffectSystemState, time: number): void {
+  const hp = engine.state.player.hp;
+  if (system.lastPlayerHp === null) {
+    system.lastPlayerHp = hp;
+    return;
+  }
+
+  const healed = Math.round(hp - system.lastPlayerHp);
+  system.lastPlayerHp = hp;
+  if (healed <= 0) return;
+
+  const p = engine.state.player;
+  const cx = p.x + p.width / 2;
+  const cy = p.y + p.height / 2;
+  const id = `heal-visible-${time}-${system.healSequence++}`;
+  engine.state.damageNumbers.push({
+    id,
+    x: cx + (Math.random() - 0.5) * 8,
+    y: p.y - 14,
+    value: `+${healed}`,
+    color: '#72f0a5',
+    lifeTime: 0,
+    maxLifeTime: 900,
+    scale: healed >= 20 ? 1.72 : 1.5,
+  });
+  engine.state.particles.push(...makeHitSpark(cx, cy, '#72f0a5', healed >= 20 ? 12 : 8));
+  engine.state.effects.push({
+    id: `${id}-pulse`,
+    x: cx,
+    y: cy,
+    radius: 0,
+    maxRadius: healed >= 20 ? 72 : 54,
+    color: '#72f0a5',
+    lifeTime: 0,
+    maxLifeTime: 480,
+    type: 'circle',
+    element: 'normal',
+  });
+}
+
 function improveDamageNumberReadability(engine: GameEngine, system: RunEffectSystemState): void {
   const activeIds = new Set(engine.state.damageNumbers.map(number => number.id));
   for (const id of system.processedDamageNumbers) {
@@ -48,7 +92,7 @@ function improveDamageNumberReadability(engine: GameEngine, system: RunEffectSys
 
     const isBurn = number.id.startsWith('burn-');
     const isBurst = number.id.startsWith('fire-burst-');
-    const isHeal = number.id.startsWith('heal-') || number.value.startsWith('+');
+    const isHeal = number.id.startsWith('heal-') || number.id.startsWith('heal-visible-') || number.value.startsWith('+');
     const isPlayerHit = number.id.startsWith('hit-');
 
     if (isBurn) number.scale = Math.max(number.scale ?? 1, 1.02);
@@ -138,6 +182,7 @@ function applyFireDeathBursts(engine: GameEngine, system: RunEffectSystemState, 
 export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSystemState, time: number): void {
   cleanInstantEffectsFromBuild(engine);
   normalizeQuickDraw(engine, system);
+  showHealing(engine, system, time);
   applyFinalBurnTicks(engine, system, time);
   applyFireDeathBursts(engine, system, time);
   improveDamageNumberReadability(engine, system);
