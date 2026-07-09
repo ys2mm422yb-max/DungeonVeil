@@ -1,5 +1,6 @@
 import { ClassKey } from './classes';
 import { EnemyTypeName } from './sprites';
+import type { VeilRelicId } from './veilRelics';
 
 export interface Entity {
   id: string;
@@ -93,10 +94,11 @@ export interface Chest extends Entity {
 
 export interface Item extends Entity {
   type: 'item';
-  itemType: 'potion' | 'xp_orb';
+  itemType: 'potion' | 'xp_orb' | 'relic';
   value: number;
   color: string;
   spawnTime: number;
+  relicId?: VeilRelicId;
 }
 
 export interface DamageNumber {
