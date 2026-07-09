@@ -1,6 +1,13 @@
 import { Player, Enemy, DamageNumber, VisualEffect, Particle } from './entities';
 import { CLASS_DEFS } from './classes';
 
+const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+const PARTICLE_FACTOR = IS_ANDROID ? 0.58 : 1;
+
+function particleCount(count: number, minimum = 2) {
+  return Math.max(minimum, Math.round(count * PARTICLE_FACTOR));
+}
+
 export function calculateDamage(attacker: { attack: number }, defender: { defense?: number }): number {
   const def = defender.defense || 0;
   const baseDamage = Math.max(1, attacker.attack - def * 0.5);
@@ -33,7 +40,8 @@ export function makeParticles(
   size = 2,
 ): Particle[] {
   const particles: Particle[] = [];
-  for (let i = 0; i < count; i++) {
+  const finalCount = particleCount(count);
+  for (let i = 0; i < finalCount; i++) {
     const angle = Math.random() * Math.PI * 2;
     const sp = speed * (0.4 + Math.random() * 0.8);
     particles.push({
@@ -43,7 +51,7 @@ export function makeParticles(
       vy: Math.sin(angle) * sp,
       color,
       lifeTime: 0,
-      maxLifeTime: 400 + Math.random() * 400,
+      maxLifeTime: IS_ANDROID ? 280 + Math.random() * 300 : 400 + Math.random() * 400,
       size: size + Math.random() * 2,
       drag: 0.92,
       gravity: 0,
@@ -60,7 +68,8 @@ export function makeHitSpark(
   count = 8,
 ): Particle[] {
   const particles: Particle[] = [];
-  for (let i = 0; i < count; i++) {
+  const finalCount = particleCount(count);
+  for (let i = 0; i < finalCount; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 48 + Math.random() * 64;
     const brightEveryThird = i % 3 === 0;
@@ -72,7 +81,7 @@ export function makeHitSpark(
       vy: Math.sin(angle) * speed,
       color: brightEveryThird ? '#fff7d0' : color,
       lifeTime: 0,
-      maxLifeTime: 150 + Math.random() * 180,
+      maxLifeTime: IS_ANDROID ? 120 + Math.random() * 130 : 150 + Math.random() * 180,
       size: brightEveryThird ? 1.5 + Math.random() * 0.7 : 1 + Math.random() * 0.8,
       drag: 0.84,
       gravity: brightEveryThird ? -3 : 7,
@@ -87,9 +96,9 @@ export function makeStepDust(
   y: number,
   color = '#6a6a6a',
 ): Particle[] {
-  return makeParticles(x, y, color, 4, 30, 1.5).map(p => ({
+  return makeParticles(x, y, color, IS_ANDROID ? 2 : 4, 30, 1.5).map(p => ({
     ...p,
-    maxLifeTime: 350,
+    maxLifeTime: IS_ANDROID ? 240 : 350,
     gravity: -20,
   }));
 }
