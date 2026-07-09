@@ -5,40 +5,15 @@ const DUNGEON_ROOT = '/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/A
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 const ROOM_ASSETS: Record<KayKitRoomAsset, string> = {
-  floor: 'floor_tile_large.gltf',
-  wall: 'barrier.gltf',
-  wallHalf: 'barrier_half.gltf',
-  corner: 'barrier_corner.gltf',
-  wallColumn: 'barrier_column.gltf',
-  column: 'column.gltf',
-  barrel: 'barrel_large.gltf',
-  barrelDecorated: 'barrel_large_decorated.gltf',
-  barrelStack: 'barrel_small_stack.gltf',
-  crates: 'crates_stacked.gltf',
-  boxLarge: 'box_large.gltf',
-  chest: 'chest.gltf',
-  chestGold: 'chest_gold.gltf',
-  candle: 'candle_lit.gltf',
-  chair: 'chair.gltf',
-  bed: 'bed_decorated.gltf',
-  torchMounted: 'torch_mounted.gltf',
-  wallShelves: 'wall_shelves.gltf',
-  swordShield: 'sword_shield.gltf',
-  tableLong: 'table_long_decorated_A.gltf',
-  tableMedium: 'table_medium_decorated_A.gltf',
-  bannerRed: 'banner_patternC_red.gltf',
-  bannerShieldRed: 'banner_shield_red.gltf',
-  bannerBlue: 'banner_patternB_blue.gltf',
-  bannerGreen: 'banner_patternA_green.gltf',
+  floor: 'floor_tile_large.gltf', wall: 'barrier.gltf', wallHalf: 'barrier_half.gltf', corner: 'barrier_corner.gltf', wallColumn: 'barrier_column.gltf', column: 'column.gltf',
+  barrel: 'barrel_large.gltf', barrelDecorated: 'barrel_large_decorated.gltf', barrelStack: 'barrel_small_stack.gltf', crates: 'crates_stacked.gltf', boxLarge: 'box_large.gltf',
+  chest: 'chest.gltf', chestGold: 'chest_gold.gltf', candle: 'candle_lit.gltf', chair: 'chair.gltf', bed: 'bed_decorated.gltf', torchMounted: 'torch_mounted.gltf',
+  wallShelves: 'wall_shelves.gltf', swordShield: 'sword_shield.gltf', tableLong: 'table_long_decorated_A.gltf', tableMedium: 'table_medium_decorated_A.gltf',
+  bannerRed: 'banner_patternC_red.gltf', bannerShieldRed: 'banner_shield_red.gltf', bannerBlue: 'banner_patternB_blue.gltf', bannerGreen: 'banner_patternA_green.gltf',
 };
 
 const DEPTH_ASSETS = {
-  platformFloor: 'floor_tile_large.gltf',
-  stairs: 'stairs_wide.gltf',
-  wallPillar: 'wall_pillar.gltf',
-  pillarDecorated: 'pillar_decorated.gltf',
-  arch: 'wall_arched.gltf',
-  rubble: 'rubble_large.gltf',
+  platformFloor: 'floor_tile_large.gltf', stairs: 'stairs_wide.gltf', wallPillar: 'wall_pillar.gltf', pillarDecorated: 'pillar_decorated.gltf', arch: 'wall_arched.gltf', rubble: 'rubble_large.gltf',
 } as const;
 
 type LoadedAsset = { scene: any };
@@ -51,16 +26,12 @@ async function gltfLoader() {
 }
 
 async function loadAsset(asset: KayKitRoomAsset) {
-  if (!cache.has(asset)) {
-    cache.set(asset, (async () => (await gltfLoader()).loadAsync(`${DUNGEON_ROOT}${ROOM_ASSETS[asset]}`))());
-  }
+  if (!cache.has(asset)) cache.set(asset, (async () => (await gltfLoader()).loadAsync(`${DUNGEON_ROOT}${ROOM_ASSETS[asset]}`))());
   return cache.get(asset)!;
 }
 
 async function loadDepthAsset(name: keyof typeof DEPTH_ASSETS) {
-  if (!depthCache.has(name)) {
-    depthCache.set(name, (async () => (await gltfLoader()).loadAsync(`${DUNGEON_ROOT}${DEPTH_ASSETS[name]}`))());
-  }
+  if (!depthCache.has(name)) depthCache.set(name, (async () => (await gltfLoader()).loadAsync(`${DUNGEON_ROOT}${DEPTH_ASSETS[name]}`))());
   return depthCache.get(name)!;
 }
 
@@ -120,12 +91,7 @@ function buildDepthZones(root: any, room: number, mapWidth: number, mapHeight: n
   const platformZ = top - 3.4;
   const platformScale = room >= 7 ? 1.08 : 1;
 
-  // Echte erhöhte Hinterebene: Boden liegt sichtbar höher als die Arena.
-  for (let x = left + 2; x <= right - 2; x += 4) {
-    addObject(root, depth.platformFloor, x, platformY, platformZ, ((Math.round(x) + room) & 1) ? Math.PI / 2 : 0, platformScale);
-  }
-
-  // Frontkante der erhöhten Ebene. Portalmitte bleibt offen und wird von einer Treppe erschlossen.
+  for (let x = left + 2; x <= right - 2; x += 4) addObject(root, depth.platformFloor, x, platformY, platformZ, ((Math.round(x) + room) & 1) ? Math.PI / 2 : 0, platformScale);
   for (let x = left + 1.2; x < right - 1.2; x += 2.35) {
     if (Math.abs(x) < 2.15) continue;
     addObject(root, depth.wallPillar, x, platformY * 0.46, top - 1.25, 0, room === 10 ? 1.12 : 1);
@@ -144,7 +110,6 @@ function buildDepthZones(root: any, room: number, mapWidth: number, mapHeight: n
     addObject(root, depth.rubble, right + 0.45, 0, top + 4.2, -Math.PI / 2, 1.1);
   }
 
-  // Vordergrundanker außerhalb der Spielzone geben der Kamera eine echte Nah-Ebene.
   if (room === 3 || room === 7 || room === 9 || room === 10) {
     addObject(root, depth.pillarDecorated, left + 1.15, -0.05, bottom + 1.15, Math.PI, 1.2);
     addObject(root, depth.pillarDecorated, right - 1.15, -0.05, bottom + 1.15, Math.PI, 1.2);
@@ -157,7 +122,7 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
   let active = true;
   const { placements, required } = requiredAssets(room);
 
-  Promise.all([
+  const ready = Promise.all([
     ...[...required].map(async asset => [`room:${asset}`, await loadAsset(asset)] as const),
     ...Object.keys(DEPTH_ASSETS).map(async name => [`depth:${name}`, await loadDepthAsset(name as keyof typeof DEPTH_ASSETS)] as const),
   ]).then(entries => {
@@ -207,7 +172,6 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     }
 
     buildDepthZones(root, room, mapWidth, mapHeight, depth);
-
     addObject(root, wallColumn, -1.65, 0, top, 0, room === 10 ? 1.2 : 1.05);
     addObject(root, wallColumn, 1.65, 0, top, 0, room === 10 ? 1.2 : 1.05);
     const torch = roomAsset('torchMounted');
@@ -218,8 +182,12 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
       const prototype = loaded.get(`room:${placement.asset}`)?.scene;
       if (prototype) addClone(root, prototype, placement);
     }
-  }).catch(error => console.error('KayKit dungeon room failed', error));
+  }).catch(error => {
+    console.error('KayKit dungeon room failed', error);
+    throw error;
+  });
 
+  root.userData.ready = ready;
   root.userData.dispose = () => { active = false; };
   return root;
 }
