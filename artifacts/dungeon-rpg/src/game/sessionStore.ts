@@ -7,8 +7,7 @@ export interface SaveableGameEngine {
 
 export function saveEngineSession(engine: SaveableGameEngine): boolean {
   try {
-    if (engine.state?.inDungeon) return true;
-    return engine.saveNow('session');
+    return engine.saveNow(engine.state?.inDungeon ? 'dungeon-session' : 'session');
   } catch (error) {
     console.error('Dungeon Veil session save failed', error);
     return false;
