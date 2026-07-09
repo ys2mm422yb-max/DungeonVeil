@@ -53,9 +53,6 @@ function centerGripOnAnchor(THREE: any, heroRoot: any, anchor: any, bow: any) {
   const centerWorld = bounds.getCenter(new THREE.Vector3());
   const centerLocal = anchor.worldToLocal(centerWorld.clone());
   bow.position.sub(centerLocal);
-
-  // Der geometrische Mittelpunkt entspricht beim KayKit-Bogen sehr gut dem Griffbereich.
-  // Ein kleiner seitlicher Offset verhindert, dass der Griff im Handschuh verschwindet.
   bow.position.x += 0.018;
   bow.position.z += 0.012;
 }
@@ -80,14 +77,14 @@ export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
     bow.position.set(0, 0, 0);
     chooseVerticalBowRotation(THREE, heroRoot, bow);
     centerGripOnAnchor(THREE, heroRoot, anchor, bow);
-    bow.rotation.y -= 0.08;
+    bow.rotation.y += Math.PI - 0.08;
     bow.rotation.x += 0.04;
   } else if (bestScore > 0) {
     bow.position.set(0.015, -0.015, 0.035);
-    bow.rotation.set(-0.08, Math.PI / 2, -Math.PI / 2);
+    bow.rotation.set(-0.08, -Math.PI / 2, -Math.PI / 2);
   } else {
     bow.position.set(-0.4, 1.02, 0.12);
-    bow.rotation.set(-0.08, Math.PI / 2, -Math.PI / 2);
+    bow.rotation.set(-0.08, -Math.PI / 2, -Math.PI / 2);
   }
 
   const basePosition = bow.position.clone();
