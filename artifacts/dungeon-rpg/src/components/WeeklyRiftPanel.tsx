@@ -1,27 +1,33 @@
-import React, { useMemo, useState } from 'react';
-import { currentWeeklyRift, nextWeeklyRiftReset } from '../game/weeklyRift';
-import { loadWeeklyRiftRecords, queueWeeklyRiftRun } from '../game/weeklyRiftRun';
+import React, { useMemo } from 'react';
+import { nextWeeklyRiftReset } from '../game/weeklyRift';
 
-export function WeeklyRiftPanel({ language, onEnter }: { language: 'de' | 'en'; onEnter: () => void }) {
-  const [open, setOpen] = useState(false);
-  const rift = useMemo(() => currentWeeklyRift(), []);
-  const records = useMemo(() => loadWeeklyRiftRecords(), []);
+const BOSSES = [
+  { de: 'Vorakh, der Schleierfresser', en: 'Vorakh, Veil Devourer', accent: '#a978ff' },
+  { de: 'Morgra, die Aschenkönigin', en: 'Morgra, Ash Queen', accent: '#e47755' },
+  { de: 'Kharos, der gefrorene Eid', en: 'Kharos, Frozen Oath', accent: '#72dfff' },
+] as const;
+
+function weekIndex() {
+  return Math.floor(Date.now() / (7 * 86_400_000));
+}
+
+export function WeeklyRiftPanel({ language }: { language: 'de' | 'en' }) {
+  const boss = useMemo(() => BOSSES[weekIndex() % BOSSES.length], []);
   const daysLeft = useMemo(() => Math.max(1, Math.ceil((nextWeeklyRiftReset().getTime() - Date.now()) / 86_400_000)), []);
   const de = language === 'de';
-  const best = records[rift.id] ?? 0;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-violet-300/18 bg-[linear-gradient(120deg,rgba(48,29,79,.72),rgba(9,8,12,.9))] shadow-[0_12px_34px_rgba(0,0,0,.3)] backdrop-blur-xl">
-      <button type="button" onPointerDown={event => { event.preventDefault(); setOpen(value => !value); }} className="flex w-full items-center gap-3 px-4 py-3 text-left active:scale-[.985]">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-violet-300/25 bg-violet-300/10 text-violet-100">◈</div>
-        <div className="min-w-0 flex-1"><div className="text-[7px] font-black uppercase tracking-[.22em] text-violet-100/48">{de ? 'WOCHEN-RISS' : 'WEEKLY RIFT'}</div><div className="mt-1 truncate text-[11px] font-black text-white/82">{de ? rift.nameDe : rift.nameEn}</div></div>
-        <span className={`text-lg text-violet-100/50 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
-      </button>
-      {open && <div className="border-t border-white/8 px-4 pb-4 pt-3">
-        <div className="rounded-xl border border-white/8 bg-black/25 px-3 py-3"><div className="text-[10px] font-black" style={{ color: rift.accent }}>{de ? rift.nameDe : rift.nameEn}</div><div className="mt-1.5 text-[8px] font-bold leading-relaxed text-white/48">{de ? rift.ruleDe : rift.ruleEn}</div><div className="mt-2 text-[7px] font-black tracking-[.16em] text-violet-100/45">{de ? `BESTE RISS-TIEFE ${best}` : `BEST RIFT DEPTH ${best}`}</div></div>
-        <button type="button" onPointerDown={event => { event.preventDefault(); event.stopPropagation(); queueWeeklyRiftRun(); onEnter(); }} className="mt-3 w-full rounded-xl border border-violet-200/35 bg-violet-500/18 py-3 text-[10px] font-black tracking-[.2em] text-violet-100 active:scale-[.98]">{de ? 'RISS BETRETEN' : 'ENTER RIFT'}</button>
-        <div className="mt-2 text-[7px] font-black uppercase tracking-[.16em] text-white/30">{de ? `WECHSEL IN ${daysLeft} TAG${daysLeft === 1 ? '' : 'EN'}` : `ROTATES IN ${daysLeft} DAY${daysLeft === 1 ? '' : 'S'}`}</div>
-      </div>}
+    <div className="rounded-3xl border border-violet-300/20 bg-[linear-gradient(145deg,rgba(54,31,89,.92),rgba(7,6,10,.97))] p-5 shadow-2xl">
+      <div className="text-[8px] font-black uppercase tracking-[.32em] text-violet-200/50">{de ? 'WOCHEN-RISS · GEMEINSAMER BOSS' : 'WEEKLY RIFT · SHARED BOSS'}</div>
+      <div className="mt-3 font-serif text-[1.6rem] font-black leading-tight" style={{ color: boss.accent }}>{de ? boss.de : boss.en}</div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="rounded-2xl border border-white/8 bg-black/30 p-3"><div className="text-[7px] font-black uppercase tracking-[.16em] text-white/30">{de ? 'KAMPF' : 'FIGHT'}</div><div className="mt-1 text-[11px] font-black text-white/78">90 SEK.</div></div>
+        <div className="rounded-2xl border border-white/8 bg-black/30 p-3"><div className="text-[7px] font-black uppercase tracking-[.16em] text-white/30">{de ? 'WECHSEL' : 'RESET'}</div><div className="mt-1 text-[11px] font-black text-white/78">{daysLeft} {de ? 'TAGE' : 'DAYS'}</div></div>
+      </div>
+      <p className="mt-4 text-[9px] font-bold leading-relaxed text-white/48">{de
+        ? 'Alle Teilnehmer schlagen auf denselben Wochenboss. Persönlicher Schaden, Clan-Schaden und der gemeinsame Boss-Kill bestimmen die Belohnungen.'
+        : 'All participants attack the same weekly boss. Personal damage, clan damage and the shared kill determine rewards.'}</p>
+      <div className="mt-4 rounded-2xl border border-violet-200/15 bg-violet-400/[.07] px-4 py-3 text-[8px] font-black uppercase tracking-[.15em] text-violet-100/55">{de ? 'ONLINE-KAMPF WIRD MIT DEM BACKEND VERBUNDEN' : 'ONLINE FIGHT AWAITS BACKEND CONNECTION'}</div>
     </div>
   );
 }
