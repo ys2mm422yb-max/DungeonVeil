@@ -13,7 +13,7 @@ const ROOM_ASSETS: Record<KayKitRoomAsset, string> = {
 };
 
 const DEPTH_ASSETS = {
-  platformFloor: 'floor_tile_large.gltf', stairs: 'stairs_wide.gltf', wallPillar: 'wall_pillar.gltf', pillarDecorated: 'pillar_decorated.gltf', arch: 'wall_arched.gltf', rubble: 'rubble_large.gltf',
+  platformFloor: 'floor_tile_large.gltf', stairs: 'stairs_wide.gltf', wallPillar: 'wall_pillar.gltf', pillarDecorated: 'pillar_decorated.gltf', arch: 'wall_arched.gltf', rubble: 'rubble_large.gltf', halfBarrier: 'barrier_half.gltf',
 } as const;
 
 type LoadedAsset = { scene: any };
@@ -82,6 +82,30 @@ function addClone(group: any, prototype: any, placement: KayKitRoomPlacement) {
   return addObject(group, prototype, placement.x, 0, placement.z, placement.rotation ?? 0, placement.scale ?? 1);
 }
 
+function buildSideGalleries(root: any, room: number, left: number, right: number, top: number, depth: Record<keyof typeof DEPTH_ASSETS, any>) {
+  const galleryY = room >= 7 ? 0.72 : 0.56;
+  const sideScale = room === 10 ? 1.15 : room >= 7 ? 1.05 : 0.94;
+  const zSets = room <= 2 ? [-8.5, 5.5] : room <= 5 ? [-10.2, -1.2, 7.4] : room <= 8 ? [-9.2, 1.0, 8.0] : [-10.0, -3.0, 4.5];
+
+  for (const side of [-1, 1]) {
+    const edge = side < 0 ? left - 2.6 : right + 2.6;
+    const railX = side < 0 ? left - 0.62 : right + 0.62;
+    const rotation = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    for (let index = 0; index < zSets.length; index++) {
+      const z = zSets[index];
+      addObject(root, depth.platformFloor, edge, galleryY, z, index % 2 ? Math.PI / 2 : 0, sideScale);
+      addObject(root, depth.halfBarrier, railX, galleryY + 0.04, z, rotation, sideScale);
+      addObject(root, depth.wallPillar, edge + side * 0.4, galleryY * 0.5, z - 1.05, rotation, sideScale * 0.92);
+      if ((room + index) % 2 === 0) addObject(root, depth.rubble, edge - side * 0.45, galleryY + 0.02, z + 0.85, rotation, 0.72 * sideScale);
+    }
+  }
+
+  if (room >= 6) {
+    addObject(root, depth.pillarDecorated, left - 2.45, galleryY, top + 5.2, Math.PI / 2, 1.12);
+    addObject(root, depth.pillarDecorated, right + 2.45, galleryY, top + 5.2, -Math.PI / 2, 1.12);
+  }
+}
+
 function buildDepthZones(root: any, room: number, mapWidth: number, mapHeight: number, depth: Record<keyof typeof DEPTH_ASSETS, any>) {
   const left = -mapWidth / 2 + 0.45;
   const right = mapWidth / 2 - 0.45;
@@ -104,6 +128,8 @@ function buildDepthZones(root: any, room: number, mapWidth: number, mapHeight: n
     if (x <= left || x >= right) continue;
     addObject(root, depth.pillarDecorated, x, platformY, platformZ + 0.15, 0, room === 10 ? 1.28 : 1.08);
   }
+
+  buildSideGalleries(root, room, left, right, top, depth);
 
   if (room >= 6) {
     addObject(root, depth.rubble, left - 0.45, 0, top + 4.2, Math.PI / 2, 1.1);
