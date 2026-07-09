@@ -4,6 +4,7 @@ import { SaveData } from '../../game/saveManager';
 import { loadMetaProgression } from '../../game/metaProgression';
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { DailyQuestPanel } from '../DailyQuestPanel';
+import { WeeklyRiftPanel } from '../WeeklyRiftPanel';
 
 interface Props {
   saveData: SaveData | null;
@@ -89,8 +90,9 @@ export function MainMenuScreen({ saveData, onNewGame, onContinue, onVeilChamber,
 
         <div className="flex-1" />
 
-        <div className="mx-auto w-full max-w-sm space-y-2.5">
+        <div className="mx-auto max-h-[62dvh] w-full max-w-sm space-y-2.5 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ touchAction: 'pan-y' }}>
           <DailyQuestPanel />
+          <WeeklyRiftPanel language={language} />
           {menuButton(t.newGame, onNewGame, { primary: true })}
           {menuButton(t.continueGame, onContinue, { disabled: !hasSaveData, meta: continueMeta })}
           {menuButton(chamberLabel, onVeilChamber, { chamber: true, meta: chamberMeta })}
