@@ -58,6 +58,7 @@ function buildArrowPrototype(THREE: any, arrow: any) {
   const root = new THREE.Group();
   root.name = 'KayKitArrowWithWindTrail';
   const model = arrow.clone(true);
+  model.scale.setScalar(1.18);
   prepareModel(model);
   root.add(model);
   const makeTrail = (x: number, z: number, length: number, opacity: number) => {
@@ -65,9 +66,8 @@ function buildArrowPrototype(THREE: any, arrow: any) {
     const material = new THREE.LineBasicMaterial({ color: 0xdaf4ff, transparent: true, opacity, depthWrite: false });
     root.add(new THREE.Line(geometry, material));
   };
-  makeTrail(0, 0, 1.15, 0.58);
-  makeTrail(0.045, 0.02, 0.82, 0.3);
-  makeTrail(-0.04, -0.015, 0.68, 0.22);
+  makeTrail(0, 0, 0.82, 0.72);
+  makeTrail(0.045, 0.02, 0.56, 0.38);
   return root;
 }
 
@@ -172,18 +172,21 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       if (dashRemaining > 0) {
         dashRemaining = Math.max(0, dashRemaining - delta);
         const progress = 1 - dashRemaining / Math.max(0.001, dashDuration);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const travel = 2.5 * (1 - eased);
-        visual.position.z = -travel;
-        visual.position.y = Math.sin(progress * Math.PI) * 0.1;
-        visual.rotation.x = -Math.sin(progress * Math.PI) * 0.16;
-        visual.rotation.z = Math.sin(progress * Math.PI * 2) * 0.025;
+        const bodyPulse = Math.sin(progress * Math.PI);
+        const launchPulse = Math.sin(Math.min(1, progress * 1.8) * Math.PI);
+        visual.position.z = -bodyPulse * 0.14;
+        visual.position.y = bodyPulse * 0.12;
+        visual.rotation.x = -bodyPulse * 0.38;
+        visual.rotation.z = Math.sin(progress * Math.PI * 2) * 0.04;
+        visual.scale.z = 1 + launchPulse * 0.045;
+        visual.scale.y = 1 - launchPulse * 0.035;
         bowRig.updateShotPose(0);
         mixer.update(delta);
         if (dashRemaining === 0) {
           visual.position.set(0, 0, 0);
           visual.rotation.x = 0;
           visual.rotation.z = 0;
+          visual.scale.setScalar(1);
           current = null;
           playBase();
         }
@@ -202,6 +205,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
         visual.rotation.z *= 0.68;
         visual.position.z *= 0.68;
         visual.position.y *= 0.68;
+        visual.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, delta * 18));
       }
     },
     stop() { mixer.stopAllAction(); },
