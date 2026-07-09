@@ -14,6 +14,7 @@ type RuntimeDiagnostics = {
 };
 
 const DIAGNOSTICS_KEY = 'dungeon-veil-runtime-diagnostics';
+const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 
 function updateDiagnostics(event: string, patch: Partial<RuntimeDiagnostics> = {}) {
   try {
@@ -71,13 +72,15 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
       let webglContextLosses = 1;
       try { webglContextLosses = (JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY) || '{}').webglContextLosses || 0) + 1; } catch {}
       updateDiagnostics('webglcontextlost', { webglContextLosses });
+      try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
+      window.dispatchEvent(new CustomEvent('dungeon-veil-renderer-lost', { detail: { webglContextLosses } }));
       if (recoveryTimer !== null) window.clearTimeout(recoveryTimer);
       recoveryTimer = window.setTimeout(() => {
         let rendererRecoveries = 1;
         try { rendererRecoveries = (JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY) || '{}').rendererRecoveries || 0) + 1; } catch {}
         updateDiagnostics('renderer-recovery', { rendererRecoveries });
         setRendererGeneration(generation => generation + 1);
-      }, 120);
+      }, 240);
     };
 
     const bindCanvas = () => {
