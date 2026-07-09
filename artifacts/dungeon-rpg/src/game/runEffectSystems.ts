@@ -10,8 +10,10 @@ export type RunEffectSystemState = {
   processedFireBursts: Set<string>;
   finalizedBurns: Map<string, number>;
   processedDamageNumbers: Set<string>;
+  processedTelegraphs: Set<string>;
   lastNormalizedShotTime: number;
   lastPlayerHp: number | null;
+  lastGiftTime: number;
   healSequence: number;
 };
 
@@ -20,8 +22,10 @@ export function createRunEffectSystemState(): RunEffectSystemState {
     processedFireBursts: new Set<string>(),
     finalizedBurns: new Map<string, number>(),
     processedDamageNumbers: new Set<string>(),
+    processedTelegraphs: new Set<string>(),
     lastNormalizedShotTime: 0,
     lastPlayerHp: null,
+    lastGiftTime: 0,
     healSequence: 0,
   };
 }
@@ -37,6 +41,69 @@ function normalizeQuickDraw(engine: GameEngine, system: RunEffectSystemState): v
   const rank = skillRank(engine.state.runSkills, 'attackSpeed');
   const speedMultipliers = [1, 1.16, 1.3, 1.42];
   engine.state.player.attackCooldown = ARCHER_BASE_COOLDOWN_MS / speedMultipliers[rank];
+}
+
+function giftColor(key: string | undefined): string {
+  if (key === 'maxHp') return '#71ef9f';
+  if (key === 'defense') return '#72d6a5';
+  if (key === 'speed') return '#a7efff';
+  if (key === 'attack') return '#ffc56f';
+  if (key === 'attackSpeed') return '#ffef9b';
+  if (key === 'fireArrow') return '#ff642c';
+  if (key === 'iceArrow') return '#62d9ff';
+  if (key === 'multishot') return '#91e6c0';
+  if (key === 'piercing') return '#f3fbff';
+  if (key === 'ricochet') return '#b693ff';
+  return '#d8b6ff';
+}
+
+function showGiftPulse(engine: GameEngine, system: RunEffectSystemState): void {
+  const giftTime = engine.state.player.lastGiftTime ?? 0;
+  if (!giftTime || giftTime <= system.lastGiftTime) return;
+  system.lastGiftTime = giftTime;
+
+  const p = engine.state.player;
+  const cx = p.x + p.width / 2;
+  const cy = p.y + p.height / 2;
+  const color = giftColor(p.lastGiftKey);
+  engine.state.effects.push({
+    id: `gift-pulse-${giftTime}-${p.lastGiftKey ?? 'unknown'}`,
+    x: cx,
+    y: cy,
+    radius: 0,
+    maxRadius: 84,
+    color,
+    lifeTime: 0,
+    maxLifeTime: 620,
+    type: 'circle',
+    element: p.lastGiftKey === 'fireArrow' ? 'fire' : p.lastGiftKey === 'iceArrow' ? 'ice' : p.lastGiftKey === 'ricochet' ? 'arcane' : 'normal',
+  });
+  engine.state.particles.push(...makeHitSpark(cx, cy, color, p.lastGiftKey === 'fireArrow' || p.lastGiftKey === 'iceArrow' ? 14 : 10));
+}
+
+function reinforceEnemyTelegraphs(engine: GameEngine, system: RunEffectSystemState): void {
+  const telegraphs = engine.state.effects.filter(effect => effect.id.startsWith('telegraph-') && !effect.id.startsWith('telegraph-inner-'));
+  const activeIds = new Set(telegraphs.map(effect => effect.id));
+  for (const id of system.processedTelegraphs) {
+    if (!activeIds.has(id)) system.processedTelegraphs.delete(id);
+  }
+
+  for (const effect of telegraphs) {
+    if (system.processedTelegraphs.has(effect.id)) continue;
+    system.processedTelegraphs.add(effect.id);
+    engine.state.effects.push({
+      id: `telegraph-inner-${effect.id}`,
+      x: effect.x,
+      y: effect.y,
+      radius: 0,
+      maxRadius: Math.max(18, effect.maxRadius * 0.56),
+      color: effect.color,
+      lifeTime: 0,
+      maxLifeTime: effect.maxLifeTime,
+      type: 'circle',
+      element: effect.element,
+    });
+  }
 }
 
 function showHealing(engine: GameEngine, system: RunEffectSystemState, time: number): void {
@@ -182,6 +249,8 @@ function applyFireDeathBursts(engine: GameEngine, system: RunEffectSystemState, 
 export function updateRunEffectSystems(engine: GameEngine, system: RunEffectSystemState, time: number): void {
   cleanInstantEffectsFromBuild(engine);
   normalizeQuickDraw(engine, system);
+  showGiftPulse(engine, system);
+  reinforceEnemyTelegraphs(engine, system);
   showHealing(engine, system, time);
   applyFinalBurnTicks(engine, system, time);
   applyFireDeathBursts(engine, system, time);
