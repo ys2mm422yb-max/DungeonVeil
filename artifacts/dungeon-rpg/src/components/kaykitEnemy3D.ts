@@ -34,6 +34,7 @@ function chooseClip(clips: any[], groups: string[][], rejects: string[] = []) {
   return null;
 }
 function hashId(id: string) { let hash = 2166136261; for (let i = 0; i < id.length; i++) { hash ^= id.charCodeAt(i); hash = Math.imul(hash, 16777619); } return hash >>> 0; }
+function roomFromEnemyId(enemy: Enemy) { const parts = enemy.id.split('-'); const room = Number(parts.at(-2)); return Number.isFinite(room) ? room : 1; }
 function roleFromPath(path: string): EnemyRole { const key = path.toLowerCase(); if (key.includes('mage')) return 'mage'; if (key.includes('rogue')) return 'rogue'; if (key.includes('warrior')) return 'warrior'; return 'minion'; }
 function findBone(root: any, names: string[]) {
   let result: any = null;
@@ -78,6 +79,8 @@ async function loadLibrary() {
       ...findKayKitModels(manifest, 'animations', /rig_medium_general\.glb$/i),
       ...findKayKitModels(manifest, 'animations', /rig_medium_movementbasic\.glb$/i),
       ...findKayKitModels(manifest, 'animations', /rig_medium_combatmelee\.glb$/i),
+      ...findKayKitModels(manifest, 'animations', /rig_medium_combatranged\.glb$/i),
+      ...findKayKitModels(manifest, 'animations', /rig_medium_special\.glb$/i),
     ];
     const skeletonAssets = findKayKitModels(manifest, 'skeletons', /\/assets\/gltf\/.*\.(?:gltf|glb)$/i);
     const findAsset = (pattern: RegExp) => skeletonAssets.find(path => pattern.test(path)) ?? null;
@@ -122,8 +125,9 @@ function buildStatusGlows(THREE: any, color: number, count: number, yBase: numbe
 export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
   const [library, skeletonUtils] = await Promise.all([loadLibrary(), import(/* @vite-ignore */ SKELETON_UTILS_URL) as any]);
   if (!library.prototypes.length) return null;
+  const finalBoss = enemy.enemyType === 'boss' && roomFromEnemyId(enemy) === 20;
   const prototype = enemy.enemyType === 'boss'
-    ? library.prototypes.find(entry => entry.role === 'warrior') ?? library.prototypes[0]
+    ? library.prototypes.find(entry => entry.role === (finalBoss ? 'mage' : 'warrior')) ?? library.prototypes[0]
     : library.prototypes[hashId(enemy.id) % library.prototypes.length];
   const scene = skeletonUtils.clone(prototype.scene);
   const root = new THREE.Group();
@@ -154,7 +158,9 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const normalMoveClip = chooseClip(prototype.clips, [['run'], ['walk']], ['back', 'left', 'right', 'crouch']);
   const bossMoveClip = chooseClip(prototype.clips, [['walk', 'forward'], ['walk']], ['back', 'left', 'right', 'crouch']) ?? normalMoveClip;
   const moveClip = enemy.enemyType === 'boss' ? bossMoveClip : normalMoveClip;
-  const attackClip = chooseClip(prototype.clips, [['attack', 'a'], ['melee', 'attack'], ['attack']], ['bow', 'crossbow', 'ranged']);
+  const attackClip = finalBoss
+    ? chooseClip(prototype.clips, [['cast'], ['spell'], ['magic'], ['ranged', 'attack'], ['attack']], ['bow', 'crossbow'])
+    : chooseClip(prototype.clips, [['attack', 'a'], ['melee', 'attack'], ['attack']], ['bow', 'crossbow', 'ranged']);
   const deathClip = chooseClip(prototype.clips, [['death', 'a'], ['death', 'b'], ['death']], []);
   const mixer = new THREE.AnimationMixer(scene);
   const idle = idleClip ? mixer.clipAction(idleClip) : null;
@@ -162,11 +168,11 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const attack = attackClip ? mixer.clipAction(attackClip) : null;
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   idle?.reset().play();
-  if (move) move.timeScale = enemy.enemyType === 'boss' ? 0.92 : 1.06;
+  if (move) move.timeScale = finalBoss ? 1.08 : enemy.enemyType === 'boss' ? 0.98 : 1.06;
   if (attack) {
     attack.setLoop(THREE.LoopOnce, 1);
     attack.clampWhenFinished = false;
-    attack.timeScale = enemy.enemyType === 'boss' ? 0.98 : 1.12;
+    attack.timeScale = finalBoss ? 1.14 : enemy.enemyType === 'boss' ? 0.98 : 1.12;
   }
   if (death && deathClip) {
     death.setLoop(THREE.LoopOnce, 1);
@@ -177,7 +183,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   }
 
   const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
-  const baseScale = (enemy.enemyType === 'boss' ? 1.56 : 0.96) * roleScale;
+  const baseScale = (enemy.enemyType === 'boss' ? (finalBoss ? 1.78 : 1.62) : prototype.role === 'warrior' ? 1.08 : 0.92) * roleScale;
   root.scale.setScalar(baseScale);
 
   const statusRoot = new THREE.Group();
@@ -199,19 +205,19 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   bossAura.visible = enemy.enemyType === 'boss';
   const bossRingOuter = new THREE.Mesh(
     new THREE.TorusGeometry(0.7, 0.055, 8, 36),
-    new THREE.MeshBasicMaterial({ color: 0x8f4864, transparent: true, opacity: 0.42, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: finalBoss ? 0x6f5cff : 0x8f4864, transparent: true, opacity: 0.42, depthWrite: false }),
   );
   bossRingOuter.rotation.x = Math.PI / 2;
   bossRingOuter.userData.bossRing = 'outer';
   bossAura.add(bossRingOuter);
   const bossRingInner = new THREE.Mesh(
     new THREE.TorusGeometry(0.48, 0.035, 8, 32),
-    new THREE.MeshBasicMaterial({ color: 0x765bd3, transparent: true, opacity: 0.36, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: finalBoss ? 0x62d9ff : 0x765bd3, transparent: true, opacity: 0.36, depthWrite: false }),
   );
   bossRingInner.rotation.x = Math.PI / 2;
   bossRingInner.userData.bossRing = 'inner';
   bossAura.add(bossRingInner);
-  const bossCore = new THREE.PointLight(0x8d3e65, IS_MOBILE ? 2.1 : 3.2, 5.5, 2);
+  const bossCore = new THREE.PointLight(finalBoss ? 0x7766ff : 0x8d3e65, IS_MOBILE ? 2.1 : 3.2, 5.5, 2);
   bossCore.position.y = 0.75;
   bossAura.add(bossCore);
   statusRoot.add(bossAura);
