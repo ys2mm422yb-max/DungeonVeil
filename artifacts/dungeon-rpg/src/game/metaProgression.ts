@@ -24,18 +24,18 @@ export type EquipmentDefinition = {
 export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   'ash-bow': {
     id: 'ash-bow', slot: 'bow', nameDe: 'Aschenbogen', nameEn: 'Ash Bow',
-    descriptionDe: '+6 % Angriff pro Stufe', descriptionEn: '+6% attack per level', pack: 'weapons',
-    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_A_withString.gltf', unlockRank: 1, accent: '#d59b45',
+    descriptionDe: '+6 % Angriff pro Stufe', descriptionEn: '+6% attack per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/bow_withString.gltf', unlockRank: 1, accent: '#d59b45',
   },
   'ember-bow': {
     id: 'ember-bow', slot: 'bow', nameDe: 'Glutbogen', nameEn: 'Ember Bow',
     descriptionDe: 'Startet jeden Run mit Feuerpfeil I', descriptionEn: 'Start each run with Fire Arrow I', pack: 'weapons',
-    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_B_withString.gltf', unlockRank: 3, accent: '#ff673d',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_A_withString.gltf', unlockRank: 3, accent: '#ff673d',
   },
   'hunter-bow': {
     id: 'hunter-bow', slot: 'bow', nameDe: 'Bogen des Jägers', nameEn: "Hunter's Bow",
-    descriptionDe: '+2 Angriff und +2 % Bewegung pro Stufe', descriptionEn: '+2 attack and +2% movement per level', pack: 'adventurers',
-    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/bow_withString.gltf', unlockRank: 6, accent: '#a8d381',
+    descriptionDe: '+2 Angriff und +2 % Bewegung pro Stufe', descriptionEn: '+2 attack and +2% movement per level', pack: 'weapons',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_B_withString.gltf', unlockRank: 6, accent: '#a8d381',
   },
   'ranger-quiver': {
     id: 'ranger-quiver', slot: 'quiver', nameDe: 'Waldläuferköcher', nameEn: 'Ranger Quiver',
@@ -49,8 +49,8 @@ export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   },
   'rune-quiver': {
     id: 'rune-quiver', slot: 'quiver', nameDe: 'Runenköcher', nameEn: 'Rune Quiver',
-    descriptionDe: 'Startet jeden Run mit Abpraller I', descriptionEn: 'Start each run with Ricochet I', pack: 'adventurers',
-    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_crossbow_bundle.gltf', unlockRank: 7, accent: '#b184ff',
+    descriptionDe: 'Startet jeden Run mit Abpraller I', descriptionEn: 'Start each run with Ricochet I', pack: 'weapons',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/arrow_B.gltf', unlockRank: 7, accent: '#b184ff',
   },
   'veil-key': {
     id: 'veil-key', slot: 'talisman', nameDe: 'Schleierschlüssel', nameEn: 'Veil Key',
