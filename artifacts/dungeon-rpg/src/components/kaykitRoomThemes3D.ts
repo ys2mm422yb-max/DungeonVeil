@@ -8,8 +8,10 @@ const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 
 type LoadedGltf = { scene: any };
 type ThemePosition = readonly [number, number, number, number?];
+type ThemePack = 'forest' | 'halloween' | 'resources';
 let forestPromise: Promise<any[]> | null = null;
 let halloweenPromise: Promise<any[]> | null = null;
+let resourcesPromise: Promise<any[]> | null = null;
 
 function lowGpuSession() {
   try { return IS_ANDROID || sessionStorage.getItem(LOW_GPU_KEY) === '1'; } catch { return IS_ANDROID; }
@@ -25,7 +27,7 @@ function scoreForest(path: string) {
   const name = path.toLowerCase();
   let score = 0;
   if (/(root|stump|mushroom|rock|bush|fern)/.test(name)) score += 70;
-  if (/(tree|branch|grass)/.test(name)) score += 35;
+  if (/(tree|branch|grass|flower|log)/.test(name)) score += 35;
   if (/(large|huge)/.test(name)) score -= 12;
   if (/(texture|sample|preview)/.test(name)) score -= 200;
   return score;
@@ -35,21 +37,31 @@ function scoreHalloween(path: string) {
   const name = path.toLowerCase();
   let score = 0;
   if (/(grave|tomb|coffin|skull|bone|candle|pumpkin|crypt)/.test(name)) score += 75;
-  if (/(web|spider|ghost|cauldron|lantern)/.test(name)) score += 45;
+  if (/(web|spider|ghost|cauldron|lantern|cross|fence)/.test(name)) score += 45;
   if (/(texture|sample|preview)/.test(name)) score -= 200;
   return score;
 }
 
-async function loadThemePack(pack: 'forest' | 'halloween') {
+function scoreResources(path: string) {
+  const name = path.toLowerCase();
+  let score = 0;
+  if (/(ore|crystal|gem|ingot|coal|stone|rock|metal)/.test(name)) score += 80;
+  if (/(log|wood|plank|rope|cloth|leather|sack|bundle)/.test(name)) score += 55;
+  if (/(coin|gold|silver|copper)/.test(name)) score += 30;
+  if (/(texture|sample|preview)/.test(name)) score -= 200;
+  return score;
+}
+
+async function loadThemePack(pack: ThemePack) {
   const manifest = await loadKayKitManifest();
   const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
   const loader = new GLTFLoader();
-  const score = pack === 'forest' ? scoreForest : scoreHalloween;
+  const score = pack === 'forest' ? scoreForest : pack === 'halloween' ? scoreHalloween : scoreResources;
   const paths = findKayKitModels(manifest, pack, /\.(?:gltf|glb)$/i)
     .map(path => ({ path, score: score(path) }))
     .filter(entry => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
-    .slice(0, 10)
+    .slice(0, 24)
     .map(entry => entry.path);
   return Promise.all(paths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene)));
 }
@@ -64,7 +76,13 @@ function loadHalloween() {
   return halloweenPromise;
 }
 
+function loadResources() {
+  if (!resourcesPromise) resourcesPromise = loadThemePack('resources');
+  return resourcesPromise;
+}
+
 function themeLoader(room: number) {
+  if ([1, 2, 4, 6, 16, 18].includes(room)) return loadResources;
   if (room === 7 || (room >= 11 && room <= 15)) return loadForest;
   return loadHalloween;
 }
@@ -95,6 +113,12 @@ function addArchitectureLights(THREE: any, root: any, room: number) {
 }
 
 const ROOM_THEME_POSITIONS: Partial<Record<number, ThemePosition[]>> = {
+  1: [[-9.4, -1.8, 0.3, 0.78], [9.5, 1.8, 2.8, 0.78], [-8.8, 8.4, 1.2, 0.72], [8.7, 8.8, 2.0, 0.72]],
+  2: [[-9.6, -7.7, 0.5, 0.82], [9.6, -7.4, 2.6, 0.82], [-8.8, 2.0, 1.2, 0.74], [8.9, 2.4, 1.9, 0.74], [0, 9.2, 2.7, 0.68]],
+  3: [[-9.2, -8.5, 0.4, 0.76], [9.2, -8.5, 2.7, 0.76], [-9.0, 2.8, 1.2, 0.7], [9.0, 3.2, 1.9, 0.7]],
+  4: [[-9.6, -9.2, 0.3, 0.82], [9.4, -8.0, 2.8, 0.78], [-8.8, 1.0, 1.1, 0.72], [8.9, 6.8, 2.0, 0.74], [-1.5, 9.0, 2.4, 0.66]],
+  5: [[-9.1, -10.2, 0.5, 0.74], [9.2, -10.0, 2.6, 0.74], [-8.9, 7.8, 1.3, 0.7], [8.8, 7.6, 1.9, 0.7]],
+  6: [[-9.5, -9.8, 0.4, 0.82], [9.5, -9.8, 2.7, 0.82], [-9.0, -1.4, 1.2, 0.74], [9.0, -1.4, 1.9, 0.74], [0, 8.4, 2.5, 0.7]],
   7: [[-9.3, -9.5, 0.25, 0.9], [9.3, -9.5, 2.8, 0.9], [-9.4, -2.8, 1.2, 0.82], [9.4, -2.8, 1.9, 0.82], [-9.2, 5.6, 2.2, 0.88], [9.2, 5.6, 0.8, 0.88]],
   8: [[-10.0, -11.0, 0.4, 0.72], [10.0, -11.0, 2.7, 0.72], [-10.1, 1.8, 1.3, 0.68], [10.1, 1.8, 1.9, 0.68], [-9.8, 9.0, 2.2, 0.7], [9.8, 9.0, 0.8, 0.7]],
   9: [[-9.5, -10.2, 0.3, 0.86], [9.5, -10.2, 2.8, 0.86], [-9.8, -3.8, 1.2, 0.78], [9.8, -3.8, 1.9, 0.78], [-9.5, 4.5, 2.25, 0.8], [9.5, 4.5, 0.85, 0.8]],
@@ -132,10 +156,10 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     ? Promise.resolve()
     : themeLoader(room)().then(pool => {
         if (!active || !pool.length) return;
-        const mobileLimit = lowGpuSession() ? (IS_ANDROID ? 2 : 3) : 5;
+        const mobileLimit = lowGpuSession() ? (IS_ANDROID ? 3 : 4) : 6;
         const visiblePositions = IS_MOBILE ? positions.slice(0, mobileLimit) : positions;
         visiblePositions.forEach(([x, z, rotation, scale], index) => {
-          const prototype = pool[(index * 5 + room * 3) % pool.length];
+          const prototype = pool[(index * 7 + room * 11) % pool.length];
           const object = prototype.clone(true);
           object.position.set(x, 0, z);
           object.rotation.y = rotation;
