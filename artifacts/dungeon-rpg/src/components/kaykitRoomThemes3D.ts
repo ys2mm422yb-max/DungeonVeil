@@ -5,6 +5,7 @@ const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loader
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 type LoadedGltf = { scene: any };
+type ThemePosition = readonly [number, number, number, number?];
 let forestPromise: Promise<any[]> | null = null;
 let halloweenPromise: Promise<any[]> | null = null;
 
@@ -57,11 +58,32 @@ function loadHalloween() {
   return halloweenPromise;
 }
 
-const EDGE_POSITIONS = [
-  [-6.5, -6.7, 0.15], [-5.7, -3.0, 1.25], [-6.3, 1.5, 0.55], [-5.7, 5.6, 2.2],
-  [6.5, -6.7, 2.8], [5.7, -3.0, 1.85], [6.3, 1.5, 2.5], [5.7, 5.6, 0.8],
-  [-3.8, -8.5, 0.4], [3.8, -8.5, 2.6], [-3.8, 7.4, 1.2], [3.8, 7.4, 2.1],
-] as const;
+const ROOM_THEME_POSITIONS: Partial<Record<number, ThemePosition[]>> = {
+  // Ritual hall: organic growth is kept to the outer ring and corners.
+  7: [
+    [-9.3, -9.5, 0.25, 0.9], [9.3, -9.5, 2.8, 0.9],
+    [-9.4, -2.8, 1.2, 0.82], [9.4, -2.8, 1.9, 0.82],
+    [-9.2, 5.6, 2.2, 0.88], [9.2, 5.6, 0.8, 0.88],
+  ],
+  // Storage vault: first signs of the crypt appear at the far walls only.
+  8: [
+    [-10.0, -11.0, 0.4, 0.72], [10.0, -11.0, 2.7, 0.72],
+    [-10.1, 1.8, 1.3, 0.68], [10.1, 1.8, 1.9, 0.68],
+    [-9.8, 9.0, 2.2, 0.7], [9.8, 9.0, 0.8, 0.7],
+  ],
+  // Guardian antechamber: crypt debris is symmetrical and subordinate to the candle route.
+  9: [
+    [-9.5, -10.2, 0.3, 0.86], [9.5, -10.2, 2.8, 0.86],
+    [-9.8, -3.8, 1.2, 0.78], [9.8, -3.8, 1.9, 0.78],
+    [-9.5, 4.5, 2.25, 0.8], [9.5, 4.5, 0.85, 0.8],
+  ],
+  // Boss chamber: heavier Halloween silhouettes sit behind the side pillar axes.
+  10: [
+    [-9.4, -10.2, 0.35, 1.02], [9.4, -10.2, 2.75, 1.02],
+    [-9.6, -3.0, 1.15, 0.9], [9.6, -3.0, 1.95, 0.9],
+    [-9.4, 5.0, 2.2, 0.88], [9.4, 5.0, 0.85, 0.88],
+  ],
+};
 
 export function buildKayKitRoomTheme(THREE: any, room: number) {
   const root = new THREE.Group();
@@ -71,21 +93,22 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   const outer = buildKayKitOuterWorld(THREE, 24, 32);
   root.add(outer);
 
-  if (room < 6) {
+  const positions = ROOM_THEME_POSITIONS[room];
+  if (!positions?.length) {
     root.userData.dispose = () => { active = false; outer.userData?.dispose?.(); };
     return root;
   }
 
-  const loadPool = room >= 8 ? loadHalloween : loadForest;
+  const loadPool = room === 7 ? loadForest : loadHalloween;
   loadPool().then(pool => {
     if (!active || !pool.length) return;
-    const positions = IS_MOBILE ? EDGE_POSITIONS.slice(0, 8) : EDGE_POSITIONS;
-    positions.forEach(([x, z, rotation], index) => {
+    const visiblePositions = IS_MOBILE ? positions.slice(0, 6) : positions;
+    visiblePositions.forEach(([x, z, rotation, scale], index) => {
       const prototype = pool[(index * 5 + room * 3) % pool.length];
       const object = prototype.clone(true);
       object.position.set(x, 0, z);
       object.rotation.y = rotation;
-      object.scale.setScalar(0.78 + ((index + room) % 4) * 0.08);
+      object.scale.setScalar(scale ?? 0.82);
       object.traverse((node: any) => {
         if (!node.isMesh) return;
         keepCachedResource(node.geometry);
