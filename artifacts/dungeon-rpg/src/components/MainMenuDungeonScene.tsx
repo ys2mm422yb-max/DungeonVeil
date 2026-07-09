@@ -4,27 +4,28 @@ import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
 function buildMenuVeil(THREE: any) {
   const root = new THREE.Group();
   root.name = 'DungeonVeilMenuPortal';
 
   const outer = new THREE.Mesh(
-    new THREE.TorusGeometry(2.15, 0.105, 10, 64),
+    new THREE.TorusGeometry(2.15, 0.105, IS_ANDROID ? 7 : 10, IS_ANDROID ? 36 : 64),
     new THREE.MeshBasicMaterial({ color: 0xa78aff, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   outer.scale.y = 1.24;
   root.add(outer);
 
   const inner = new THREE.Mesh(
-    new THREE.TorusGeometry(1.72, 0.048, 8, 60),
+    new THREE.TorusGeometry(1.72, 0.048, IS_ANDROID ? 6 : 8, IS_ANDROID ? 32 : 60),
     new THREE.MeshBasicMaterial({ color: 0x6f48d7, transparent: true, opacity: 0.54, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   inner.scale.y = 1.28;
   root.add(inner);
 
   const core = new THREE.Mesh(
-    new THREE.CircleGeometry(1.68, 64),
+    new THREE.CircleGeometry(1.68, IS_ANDROID ? 32 : 64),
     new THREE.MeshBasicMaterial({ color: 0x160d2b, transparent: true, opacity: 0.84, depthWrite: false }),
   );
   core.scale.y = 1.28;
@@ -38,18 +39,19 @@ function buildMenuVeil(THREE: any) {
   veil.position.z = 0.015;
   root.add(veil);
 
+  const moteCount = IS_ANDROID ? 6 : 12;
   const motes: any[] = [];
-  for (let index = 0; index < 12; index++) {
+  for (let index = 0; index < moteCount; index++) {
     const mote = new THREE.Mesh(
       new THREE.SphereGeometry(0.035 + (index % 3) * 0.015, 6, 6),
       new THREE.MeshBasicMaterial({ color: index % 2 ? 0xd9ccff : 0x8d6cff, transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.AdditiveBlending }),
     );
-    mote.userData.phase = index / 12 * Math.PI * 2;
+    mote.userData.phase = index / moteCount * Math.PI * 2;
     root.add(mote);
     motes.push(mote);
   }
 
-  const light = new THREE.PointLight(0x8565e5, 7.5, 13, 2);
+  const light = new THREE.PointLight(0x8565e5, IS_ANDROID ? 5.2 : 7.5, 13, 2);
   light.position.z = 1.2;
   root.add(light);
 
@@ -84,10 +86,10 @@ export function MainMenuDungeonScene() {
       scene.fog = new THREE.Fog(0x060605, 13, 34);
 
       renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.1));
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 1 : 1.1));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.02;
+      renderer.toneMappingExposure = IS_ANDROID ? 1.08 : 1.02;
       renderer.shadowMap.enabled = false;
       host.appendChild(renderer.domElement);
 
@@ -95,19 +97,18 @@ export function MainMenuDungeonScene() {
       camera.position.set(-0.45, 5.8, 11.2);
       camera.lookAt(0.05, 1.5, -6.2);
 
-      // Raum und Veil teilen jetzt dieselben Koordinaten: Das Portal sitzt im Tor.
       const room = buildKayKitDungeonRoom(THREE, 1, 24, 32);
       scene.add(room);
 
-      scene.add(new THREE.HemisphereLight(0xc8b897, 0x060605, 0.72));
-      const keyLight = new THREE.DirectionalLight(0xffc987, 1.05);
+      scene.add(new THREE.HemisphereLight(0xc8b897, 0x060605, IS_ANDROID ? 0.82 : 0.72));
+      const keyLight = new THREE.DirectionalLight(0xffc987, IS_ANDROID ? 1.18 : 1.05);
       keyLight.position.set(-5, 10, 7);
       scene.add(keyLight);
 
-      const leftTorch = new THREE.PointLight(0xff8a36, 7.4, 11, 2);
+      const leftTorch = new THREE.PointLight(0xff8a36, IS_ANDROID ? 5.0 : 7.4, 11, 2);
       leftTorch.position.set(-4.5, 2.5, -7.2);
       scene.add(leftTorch);
-      const rightTorch = new THREE.PointLight(0xff6f2d, 6.3, 10, 2);
+      const rightTorch = new THREE.PointLight(0xff6f2d, IS_ANDROID ? 4.2 : 6.3, 10, 2);
       rightTorch.position.set(4.4, 2.35, -8.1);
       scene.add(rightTorch);
 
@@ -149,18 +150,18 @@ export function MainMenuDungeonScene() {
         portal.userData.core.material.opacity = 0.78 + pulse * 0.1;
         portal.userData.veil.material.opacity = 0.13 + pulse * 0.12;
         portal.userData.veil.scale.x = 0.94 + pulse * 0.08;
-        portal.userData.light.intensity = 6.6 + pulse * 2.2;
+        portal.userData.light.intensity = (IS_ANDROID ? 4.6 : 6.6) + pulse * (IS_ANDROID ? 1.3 : 2.2);
         (portal.userData.motes as any[]).forEach((mote, index) => {
           const phase = mote.userData.phase + now * (0.00075 + index * 0.000012);
           const radius = 1.45 + (index % 3) * 0.18;
           mote.position.x = Math.sin(phase) * radius;
-          mote.position.y = -1.7 + ((now * 0.00018 + index / 12) % 1) * 3.6;
+          mote.position.y = -1.7 + ((now * 0.00018 + index / Math.max(1, portal.userData.motes.length)) % 1) * 3.6;
           mote.position.z = 0.05 + Math.cos(phase) * 0.12;
           mote.material.opacity = 0.38 + Math.sin(phase * 2.1) * 0.28;
         });
 
-        leftTorch.intensity = 6.8 + Math.sin(now * 0.009) * 0.7;
-        rightTorch.intensity = 5.8 + Math.sin(now * 0.011 + 1.4) * 0.6;
+        leftTorch.intensity = (IS_ANDROID ? 4.7 : 6.8) + Math.sin(now * 0.009) * 0.5;
+        rightTorch.intensity = (IS_ANDROID ? 4.0 : 5.8) + Math.sin(now * 0.011 + 1.4) * 0.45;
         camera.position.x = -0.45 + Math.sin(now * 0.00016) * 0.22;
         camera.position.y = 5.8 + Math.sin(now * 0.00012) * 0.08;
         camera.lookAt(0.05, 1.5, -6.2);
