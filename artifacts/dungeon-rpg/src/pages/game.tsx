@@ -25,6 +25,8 @@ import { preloadKayKitHealingPotion } from '../components/kaykitLoot3D';
 import { preloadKayKitOuterWorld } from '../components/kaykitOuterWorld3D';
 import { applyMetaLoadoutToNewRun, beginMetaRun } from '../game/metaProgression';
 
+const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
+
 type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'veil_chamber' | 'game';
 type MoveVector = { x: number; y: number };
 type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
@@ -34,6 +36,17 @@ function normalizeMove({ x, y }: MoveVector): MoveVector {
   return length <= 1 ? { x, y } : { x: x / length, y: y / length };
 }
 
+function hasActiveRunSession(): boolean {
+  try { return sessionStorage.getItem(ACTIVE_RUN_SESSION_KEY) === '1' && hasSave(); } catch { return false; }
+}
+
+function markActiveRun(active: boolean): void {
+  try {
+    if (active) sessionStorage.setItem(ACTIVE_RUN_SESSION_KEY, '1');
+    else sessionStorage.removeItem(ACTIVE_RUN_SESSION_KEY);
+  } catch {}
+}
+
 export default function Game() {
   const { t, language, setLanguage, hasChosen } = useLanguage();
   const engineRef = useRef<GameEngine | null>(null);
@@ -41,6 +54,7 @@ export default function Game() {
   const keyMoveRef = useRef<MoveVector>({ x: 0, y: 0 });
   const keyStateRef = useRef<KeyState>({ up: false, down: false, left: false, right: false });
   const settingsReturnRef = useRef<UiState>('main_menu');
+  const resumeSessionOnBootRef = useRef(hasActiveRunSession());
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [uiState, setUiState] = useState<UiState>(() => !hasChosen ? 'lang_select' : 'main_menu');
@@ -94,19 +108,41 @@ export default function Game() {
         camera: live.camera,
       });
     };
-    setGameState(engine.state);
+
+    const sessionSave = resumeSessionOnBootRef.current ? loadGame() : null;
+    if (sessionSave && hasChosen) {
+      engine.continueGame(sessionSave);
+      setSaveData(sessionSave);
+      setGameState({ ...engine.state });
+      setUiState('game');
+      markActiveRun(true);
+    } else {
+      setGameState(engine.state);
+    }
+
     let animationId = 0;
     const loop = (time: number) => { engine.update(time); animationId = requestAnimationFrame(loop); };
     animationId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [hasChosen]);
+
+  useEffect(() => {
+    const handleRendererLost = () => {
+      markActiveRun(true);
+      resetMovement();
+      saveCurrentGame();
+    };
+    window.addEventListener('dungeon-veil-renderer-lost', handleRendererLost);
+    return () => window.removeEventListener('dungeon-veil-renderer-lost', handleRendererLost);
+  }, [resetMovement, saveCurrentGame]);
 
   const goSettings = useCallback((returnTo: UiState) => { settingsReturnRef.current = returnTo; setUiState('settings'); }, []);
-  const handleNewGame = useCallback(() => setUiState('char_create'), []);
+  const handleNewGame = useCallback(() => { markActiveRun(false); setUiState('char_create'); }, []);
   const handleContinue = useCallback(() => {
     const save = loadGame();
     if (!save) return;
     engineRef.current?.continueGame(save);
+    markActiveRun(true);
     setUiState('game');
   }, []);
   const handleCharConfirm = useCallback(async (name: string, _cls: ClassKey) => {
@@ -118,16 +154,22 @@ export default function Game() {
     applyMetaLoadoutToNewRun(engine);
     setSaveData(loadGame());
     setGameState({ ...engine.state });
+    markActiveRun(true);
     setUiState('game');
   }, []);
-  const handleRetry = useCallback(() => setUiState('char_create'), []);
-  const handleMainMenu = useCallback(() => { saveCurrentGame(); resetMovement(); setUiState('main_menu'); }, [resetMovement, saveCurrentGame]);
+  const handleRetry = useCallback(() => { markActiveRun(false); setUiState('char_create'); }, []);
+  const handleMainMenu = useCallback(() => {
+    saveCurrentGame();
+    resetMovement();
+    markActiveRun(false);
+    setUiState('main_menu');
+  }, [resetMovement, saveCurrentGame]);
   const handleSettingsBack = useCallback(() => {
     const returnTo = settingsReturnRef.current;
     if (returnTo === 'game' && engineRef.current) { engineRef.current.state.status = 'paused'; setGameState({ ...engineRef.current.state }); }
     setUiState(returnTo);
   }, []);
-  const handleSaveDeleted = useCallback(() => setSaveData(null), []);
+  const handleSaveDeleted = useCallback(() => { markActiveRun(false); setSaveData(null); }, []);
   const handleJoystickMove = useCallback((x: number, y: number) => { touchMoveRef.current = { x, y }; applyMovementInput(); }, [applyMovementInput]);
   const handleAttack = useCallback(() => { if (engineRef.current) engineRef.current.input.attack = true; }, []);
   const handleDodge = useCallback(() => { if (engineRef.current) engineRef.current.input.dodge = true; }, []);
