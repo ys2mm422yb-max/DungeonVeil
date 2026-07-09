@@ -6,7 +6,9 @@ export type KayKitPackName =
   | 'forest'
   | 'halloween'
   | 'resources'
-  | 'skeletons';
+  | 'skeletons'
+  | 'furniture'
+  | 'tools';
 
 export type KayKitManifestPack = {
   fileCount: number;
@@ -23,6 +25,13 @@ export type KayKitManifest = {
   generatedAt: string;
   root: string;
   packs: Record<KayKitPackName, KayKitManifestPack>;
+};
+
+type RawManifestPack = Partial<KayKitManifestPack> & { files?: unknown };
+type RawManifest = {
+  generatedAt?: unknown;
+  root?: unknown;
+  packs?: Record<string, RawManifestPack>;
 };
 
 const NINTH_PACK_GLTF_ROOT = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
@@ -42,8 +51,45 @@ const NINTH_PACK_MODEL_NAMES = [
 ] as const;
 
 const NINTH_PACK_MODELS = NINTH_PACK_MODEL_NAMES.map(name => `${NINTH_PACK_GLTF_ROOT}/${name}.gltf`);
+const PACK_NAMES: KayKitPackName[] = ['adventurers', 'animations', 'dungeon', 'weapons', 'forest', 'halloween', 'resources', 'skeletons', 'furniture', 'tools'];
 
 let manifestPromise: Promise<KayKitManifest> | null = null;
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+function normalizePack(raw: RawManifestPack | undefined): KayKitManifestPack {
+  const files = asStringArray(raw?.files);
+  const models = asStringArray(raw?.models);
+  const textures = asStringArray(raw?.textures);
+  const buffers = asStringArray(raw?.buffers);
+
+  const normalizedModels = models.length ? models : files.filter(path => /\.(?:gltf|glb)$/i.test(path));
+  const normalizedTextures = textures.length ? textures : files.filter(path => /\.(?:png|jpe?g|webp)$/i.test(path));
+  const normalizedBuffers = buffers.length ? buffers : files.filter(path => /\.bin$/i.test(path));
+
+  return {
+    fileCount: files.length,
+    modelCount: normalizedModels.length,
+    textureCount: normalizedTextures.length,
+    bufferCount: normalizedBuffers.length,
+    files: [...files],
+    models: normalizedModels,
+    textures: normalizedTextures,
+    buffers: normalizedBuffers,
+  };
+}
+
+function normalizeManifest(raw: RawManifest): KayKitManifest {
+  const packs = {} as Record<KayKitPackName, KayKitManifestPack>;
+  for (const pack of PACK_NAMES) packs[pack] = normalizePack(raw.packs?.[pack]);
+  return {
+    generatedAt: typeof raw.generatedAt === 'string' ? raw.generatedAt : new Date(0).toISOString(),
+    root: typeof raw.root === 'string' ? raw.root : '/assets/kaykit',
+    packs,
+  };
+}
 
 function includeNinthPack(manifest: KayKitManifest): KayKitManifest {
   const weapons = manifest.packs.weapons;
@@ -64,7 +110,7 @@ export function loadKayKitManifest(): Promise<KayKitManifest> {
         if (!response.ok) throw new Error(`KayKit manifest ${response.status}`);
         return response.json();
       })
-      .then((manifest: KayKitManifest) => includeNinthPack(manifest));
+      .then((raw: RawManifest) => includeNinthPack(normalizeManifest(raw)));
   }
   return manifestPromise;
 }
@@ -79,7 +125,7 @@ export function findKayKitModels(
   include: RegExp,
   exclude?: RegExp,
 ) {
-  return manifest.packs[pack].models.filter(path => include.test(path) && (!exclude || !exclude.test(path)));
+  return (manifest.packs[pack]?.models ?? []).filter(path => include.test(path) && (!exclude || !exclude.test(path)));
 }
 
 export function firstKayKitModel(
