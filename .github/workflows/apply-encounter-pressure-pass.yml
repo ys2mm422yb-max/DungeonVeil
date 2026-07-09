@@ -1,6 +1,10 @@
 name: Apply encounter pressure pass
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/dv-encounter-pressure-trigger'
   pull_request:
     branches: [main]
     paths:
