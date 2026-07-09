@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { SaveData } from '../../game/saveManager';
 import { loadMetaProgression } from '../../game/metaProgression';
+import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { DailyQuestPanel } from '../DailyQuestPanel';
 import { WeeklyRiftPanel } from '../WeeklyRiftPanel';
@@ -11,27 +12,20 @@ interface Props {
   onNewGame: () => void;
   onContinue: () => void;
   onVeilChamber: () => void;
+  onCodex: () => void;
   onSettings: () => void;
   onCredits: () => void;
 }
 
-export function MainMenuScreen({ saveData, onNewGame, onContinue, onVeilChamber, onSettings, onCredits }: Props) {
+export function MainMenuScreen({ saveData, onNewGame, onContinue, onVeilChamber, onCodex, onSettings, onCredits }: Props) {
   const { t, language } = useLanguage();
   const [meta, setMeta] = useState(loadMetaProgression);
   const hasSaveData = saveData !== null;
-  const gifts = saveData
-    ? Object.entries(saveData.runSkills ?? {}).reduce((sum, [key, value]) => key === 'heal' ? sum : sum + (value ?? 0), 0)
-    : 0;
-  const continueMeta = saveData
-    ? language === 'de'
-      ? `Kapitel ${saveData.chapter ?? 1} · Raum ${saveData.floor} · ${gifts} Gaben`
-      : `Chapter ${saveData.chapter ?? 1} · Room ${saveData.floor} · ${gifts} gifts`
-    : t.noSave;
+  const gifts = saveData ? Object.entries(saveData.runSkills ?? {}).reduce((sum, [key, value]) => key === 'heal' ? sum : sum + (value ?? 0), 0) : 0;
+  const continueMeta = saveData ? language === 'de' ? `Kapitel ${saveData.chapter ?? 1} · Raum ${saveData.floor} · ${gifts} Gaben` : `Chapter ${saveData.chapter ?? 1} · Room ${saveData.floor} · ${gifts} gifts` : t.noSave;
   const veilLabel = language === 'de' ? 'BETRITT DEN SCHLEIER' : 'ENTER THE VEIL';
   const chamberLabel = language === 'de' ? 'Schleierkammer' : 'Veil Chamber';
-  const chamberMeta = language === 'de'
-    ? `Rang ${meta.rank} · ${meta.dust} Schleierstaub`
-    : `Rank ${meta.rank} · ${meta.dust} Veil Dust`;
+  const chamberMeta = language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Schleierstaub` : `Rank ${meta.rank} · ${meta.dust} Veil Dust`;
 
   useEffect(() => {
     const refresh = () => setMeta(loadMetaProgression());
@@ -40,23 +34,18 @@ export function MainMenuScreen({ saveData, onNewGame, onContinue, onVeilChamber,
     return () => window.removeEventListener('dungeon-veil-meta-changed', refresh);
   }, []);
 
-  const menuButton = (
-    label: string,
-    action: () => void,
-    options?: { disabled?: boolean; meta?: string; primary?: boolean; chamber?: boolean },
-  ) => (
+  const menuButton = (label: string, action: () => void, options?: { disabled?: boolean; meta?: string; primary?: boolean; chamber?: boolean }) => (
     <button key={label} type="button" onPointerDown={event => { event.preventDefault(); if (!options?.disabled) action(); }} disabled={options?.disabled}
-      className={`group relative w-full overflow-hidden rounded-2xl border px-5 py-3.5 text-left backdrop-blur-xl transition-transform active:scale-[.975] ${
-        options?.primary
-          ? 'border-amber-300/50 bg-[linear-gradient(115deg,rgba(132,88,18,.64),rgba(34,25,13,.86))] shadow-[0_14px_42px_rgba(0,0,0,.42),0_0_34px_rgba(207,143,35,.12)]'
-          : options?.chamber
-            ? 'border-violet-300/25 bg-[linear-gradient(115deg,rgba(69,43,112,.58),rgba(15,12,22,.84))] shadow-[0_12px_34px_rgba(0,0,0,.35),0_0_28px_rgba(126,88,211,.08)]'
-            : 'border-white/10 bg-black/55 shadow-[0_12px_34px_rgba(0,0,0,.35)]'
-      } ${options?.disabled ? 'opacity-35' : ''}`}>
+      className={`group relative w-full overflow-hidden rounded-2xl border px-5 py-3.5 text-left backdrop-blur-xl transition-transform active:scale-[.975] ${options?.primary ? 'border-amber-300/50 bg-[linear-gradient(115deg,rgba(132,88,18,.64),rgba(34,25,13,.86))] shadow-[0_14px_42px_rgba(0,0,0,.42),0_0_34px_rgba(207,143,35,.12)]' : options?.chamber ? 'border-violet-300/25 bg-[linear-gradient(115deg,rgba(69,43,112,.58),rgba(15,12,22,.84))] shadow-[0_12px_34px_rgba(0,0,0,.35),0_0_28px_rgba(126,88,211,.08)]' : 'border-white/10 bg-black/55 shadow-[0_12px_34px_rgba(0,0,0,.35)]'} ${options?.disabled ? 'opacity-35' : ''}`}>
       <div className={`absolute inset-y-0 left-0 w-[3px] ${options?.primary ? 'bg-amber-300/90' : options?.chamber ? 'bg-violet-300/70' : 'bg-white/10'}`} />
       <div className="flex items-center gap-4"><div className="min-w-0 flex-1"><div className={`text-[15px] font-black tracking-[.14em] ${options?.primary ? 'text-amber-100' : options?.chamber ? 'text-violet-100' : 'text-white/82'}`}>{label}</div>{options?.meta ? <div className="mt-1 truncate text-[9px] uppercase tracking-[.14em] text-white/38">{options.meta}</div> : null}</div>{!options?.disabled && <span className={`text-xl ${options?.primary ? 'text-amber-200' : options?.chamber ? 'text-violet-200' : 'text-white/25'}`}>›</span>}</div>
     </button>
   );
+
+  const startNormalRun = () => {
+    clearWeeklyRiftRun();
+    onNewGame();
+  };
 
   return (
     <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#070706] text-white">
@@ -69,9 +58,10 @@ export function MainMenuScreen({ saveData, onNewGame, onContinue, onVeilChamber,
         <div className="mx-auto max-h-[62dvh] w-full max-w-sm space-y-2.5 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ touchAction: 'pan-y' }}>
           <DailyQuestPanel />
           <WeeklyRiftPanel language={language} onEnter={onNewGame} />
-          {menuButton(t.newGame, onNewGame, { primary: true })}
+          {menuButton(t.newGame, startNormalRun, { primary: true })}
           {menuButton(t.continueGame, onContinue, { disabled: !hasSaveData, meta: continueMeta })}
           {menuButton(chamberLabel, onVeilChamber, { chamber: true, meta: chamberMeta })}
+          {menuButton(language === 'de' ? 'Kodex' : 'Codex', onCodex, { meta: language === 'de' ? 'Bestien · Jagd · Wächter · Relikte' : 'Beasts · Hunts · Wardens · Relics' })}
           <div className="grid grid-cols-2 gap-2.5">{menuButton(t.settings, onSettings)}{menuButton(t.credits, onCredits)}</div>
         </div>
       </div>
