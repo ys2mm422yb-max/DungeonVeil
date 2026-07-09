@@ -1,7 +1,9 @@
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
-import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
+import { EQUIPMENT, loadMetaProgression, type EquipmentId } from '../game/metaProgression';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+const KAYKIT_ROOT = '/assets/kaykit';
+const FANTASY_WEAPONS_GLTF = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 
 export type KayKitRangerWeapons = {
   bow: any;
@@ -31,27 +33,34 @@ function equippedBowPath() {
   return definition?.slot === 'bow' ? { bowId, path: definition.assetPath } : null;
 }
 
-async function loadRangerWeaponPrototype(cacheKey: string, preferredBowPath: string | null): Promise<KayKitRangerWeapons | null> {
+function equippedArrowPath(bowId: EquipmentId | undefined) {
+  if (bowId === 'ember-bow') return `${FANTASY_WEAPONS_GLTF}/arrow_A.gltf`;
+  if (bowId === 'hunter-bow') return `${FANTASY_WEAPONS_GLTF}/arrow_B.gltf`;
+  return null;
+}
+
+async function loadRangerWeaponPrototype(cacheKey: string, bowId: EquipmentId | undefined, preferredBowPath: string | null): Promise<KayKitRangerWeapons | null> {
   if (!rangerWeaponCache.has(cacheKey)) {
     rangerWeaponCache.set(cacheKey, (async () => {
       const manifest = await loadKayKitManifest();
       const weaponModels = findKayKitModels(manifest, 'weapons', /\.(?:gltf|glb)$/i);
       const adventurerModels = findKayKitModels(manifest, 'adventurers', /\/assets\/gltf\/.*\.(?:gltf|glb)$/i);
-      const allModels = [...adventurerModels, ...weaponModels];
-      const exactPreferred = preferredBowPath && allModels.includes(preferredBowPath) ? preferredBowPath : null;
 
-      const bowPath = exactPreferred
+      const bowPath = preferredBowPath
         ?? best(adventurerModels, ['bow_withstring', 'bow'], /crossbow/i)
         ?? best(weaponModels, ['bow', 'wood'], /crossbow/i);
-      const arrowPath = best(adventurerModels, ['arrow_bow', 'arrow'], /crossbow/i)
+      const arrowPath = equippedArrowPath(bowId)
+        ?? best(adventurerModels, ['arrow_bow', 'arrow'], /crossbow/i)
         ?? best(weaponModels, ['arrow'], /crossbow/i);
       if (!bowPath || !arrowPath) return null;
 
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       const loader = new GLTFLoader();
+      const bowUrl = preferredBowPath ? `${KAYKIT_ROOT}/${bowPath}` : modelUrl(manifest, bowPath);
+      const arrowUrl = equippedArrowPath(bowId) ? `${KAYKIT_ROOT}/${arrowPath}` : modelUrl(manifest, arrowPath);
       const [bowGltf, arrowGltf] = await Promise.all([
-        loader.loadAsync(modelUrl(manifest, bowPath)),
-        loader.loadAsync(modelUrl(manifest, arrowPath)),
+        loader.loadAsync(bowUrl),
+        loader.loadAsync(arrowUrl),
       ]);
       return { bow: bowGltf.scene, arrow: arrowGltf.scene };
     })());
@@ -62,7 +71,7 @@ async function loadRangerWeaponPrototype(cacheKey: string, preferredBowPath: str
 export async function loadKayKitRangerWeapons(): Promise<KayKitRangerWeapons | null> {
   const equipped = equippedBowPath();
   const cacheKey = equipped?.bowId ?? 'default-ranger-bow';
-  const prototype = await loadRangerWeaponPrototype(cacheKey, equipped?.path ?? null);
+  const prototype = await loadRangerWeaponPrototype(cacheKey, equipped?.bowId, equipped?.path ?? null);
   if (!prototype) return null;
   return {
     bow: prototype.bow.clone(true),
