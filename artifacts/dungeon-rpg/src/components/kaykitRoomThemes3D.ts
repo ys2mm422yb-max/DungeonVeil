@@ -58,26 +58,42 @@ function loadHalloween() {
   return halloweenPromise;
 }
 
+function addArchitectureLights(THREE: any, root: any, room: number) {
+  const warm = room >= 9 ? 0xd98a58 : 0xffb86d;
+  const sideStrength = IS_MOBILE ? 2.45 : 3.15;
+  const gateStrength = IS_MOBILE ? 2.8 : 3.6;
+
+  const left = new THREE.PointLight(warm, sideStrength, 10.5, 2);
+  left.position.set(-5.8, 3.8, -11.4);
+  root.add(left);
+
+  const right = new THREE.PointLight(warm, sideStrength, 10.5, 2);
+  right.position.set(5.8, 3.8, -11.4);
+  root.add(right);
+
+  const gate = new THREE.PointLight(room === 7 ? 0x8a7de8 : room >= 9 ? 0xb06c58 : 0xe6b27a, gateStrength, 9.5, 2);
+  gate.position.set(0, 3.0, -14.1);
+  root.add(gate);
+
+  root.userData.architectureLights = [left, right, gate];
+}
+
 const ROOM_THEME_POSITIONS: Partial<Record<number, ThemePosition[]>> = {
-  // Ritual hall: organic growth is kept to the outer ring and corners.
   7: [
     [-9.3, -9.5, 0.25, 0.9], [9.3, -9.5, 2.8, 0.9],
     [-9.4, -2.8, 1.2, 0.82], [9.4, -2.8, 1.9, 0.82],
     [-9.2, 5.6, 2.2, 0.88], [9.2, 5.6, 0.8, 0.88],
   ],
-  // Storage vault: first signs of the crypt appear at the far walls only.
   8: [
     [-10.0, -11.0, 0.4, 0.72], [10.0, -11.0, 2.7, 0.72],
     [-10.1, 1.8, 1.3, 0.68], [10.1, 1.8, 1.9, 0.68],
     [-9.8, 9.0, 2.2, 0.7], [9.8, 9.0, 0.8, 0.7],
   ],
-  // Guardian antechamber: crypt debris is symmetrical and subordinate to the candle route.
   9: [
     [-9.5, -10.2, 0.3, 0.86], [9.5, -10.2, 2.8, 0.86],
     [-9.8, -3.8, 1.2, 0.78], [9.8, -3.8, 1.9, 0.78],
     [-9.5, 4.5, 2.25, 0.8], [9.5, 4.5, 0.85, 0.8],
   ],
-  // Boss chamber: heavier Halloween silhouettes sit behind the side pillar axes.
   10: [
     [-9.4, -10.2, 0.35, 1.02], [9.4, -10.2, 2.75, 1.02],
     [-9.6, -3.0, 1.15, 0.9], [9.6, -3.0, 1.95, 0.9],
@@ -92,6 +108,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
 
   const outer = buildKayKitOuterWorld(THREE, 24, 32);
   root.add(outer);
+  addArchitectureLights(THREE, root, room);
 
   const positions = ROOM_THEME_POSITIONS[room];
   if (!positions?.length) {
