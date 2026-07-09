@@ -1,6 +1,7 @@
 import type { GameEngine } from './runEngine';
 import { isBossRoom } from './chapterRun';
 import { dailyTaskIdsForDate, taskById, tasksForDate, type DailyMetric, type DailyTaskId } from './dailyQuests';
+import { activeWeeklyRiftId } from './weeklyRiftRun';
 import {
   HUNT_RELIC_POOL,
   ROOM_TWENTY_RELIC_POOL,
@@ -12,23 +13,13 @@ import {
 
 const STORAGE_KEY = 'dungeon-veil-retention-v2';
 const LEGACY_STORAGE_KEY = 'dungeon-veil-retention-v1';
-
 type DailyProgress = Record<DailyMetric, number>;
+type PendingRelicDrop = { relicId: VeilRelicId; roomKey: string; source: 'hunt' | 'room20' };
 
 export type RetentionProfile = {
   sigils: number;
-  daily: {
-    date: string;
-    selected: DailyTaskId[];
-    progress: DailyProgress;
-    claimed: DailyTaskId[];
-  };
-  codex: {
-    enemies: string[];
-    bosses: string[];
-    hunts: string[];
-    relics: string[];
-  };
+  daily: { date: string; selected: DailyTaskId[]; progress: DailyProgress; claimed: DailyTaskId[] };
+  codex: { enemies: string[]; bosses: string[]; hunts: string[]; relics: string[] };
 };
 
 export type RunRetentionState = {
@@ -38,6 +29,7 @@ export type RunRetentionState = {
   huntTargetId: string;
   roomsSinceHunt: number;
   lastAuraAt: number;
+  pendingRelics: Map<string, PendingRelicDrop>;
 };
 
 const HUNT_NAMES = ['Aschenjäger', 'Der Runenlose', 'Nachtklaue', 'Knochenrufer', 'Veyra die Verlorene', 'Schleierhetzer'];
@@ -56,11 +48,7 @@ function emptyProgress(): DailyProgress {
 
 function emptyProfile(): RetentionProfile {
   const date = localDateKey();
-  return {
-    sigils: 0,
-    daily: { date, selected: dailyTaskIdsForDate(date), progress: emptyProgress(), claimed: [] },
-    codex: { enemies: [], bosses: [], hunts: [], relics: [] },
-  };
+  return { sigils: 0, daily: { date, selected: dailyTaskIdsForDate(date), progress: emptyProgress(), claimed: [] }, codex: { enemies: [], bosses: [], hunts: [], relics: [] } };
 }
 
 function unique(values: string[]): string[] { return [...new Set(values)]; }
@@ -72,12 +60,7 @@ export function loadRetentionProfile(): RetentionProfile {
     const parsed = raw ? JSON.parse(raw) as any : {};
     const fallback = emptyProfile();
     const date = typeof parsed.daily?.date === 'string' ? parsed.daily.date : fallback.daily.date;
-    const legacyProgress = {
-      ...emptyProgress(),
-      rooms: safeNumber(parsed.daily?.rooms),
-      kills: safeNumber(parsed.daily?.kills),
-      hunts: safeNumber(parsed.daily?.hunts),
-    };
+    const legacyProgress = { ...emptyProgress(), rooms: safeNumber(parsed.daily?.rooms), kills: safeNumber(parsed.daily?.kills), hunts: safeNumber(parsed.daily?.hunts) };
     const sourceProgress = parsed.daily?.progress ?? legacyProgress;
     const progress = emptyProgress();
     (Object.keys(progress) as DailyMetric[]).forEach(metric => { progress[metric] = safeNumber(sourceProgress?.[metric]); });
@@ -87,7 +70,6 @@ export function loadRetentionProfile(): RetentionProfile {
     const claimed = Array.isArray(parsed.daily?.claimed)
       ? parsed.daily.claimed.filter((id: unknown): id is DailyTaskId => typeof id === 'string' && selected.includes(id as DailyTaskId))
       : [];
-
     const profile: RetentionProfile = {
       sigils: safeNumber(parsed.sigils),
       daily: { date, selected: selected.length === 3 ? selected : dailyTaskIdsForDate(date), progress, claimed },
@@ -100,32 +82,18 @@ export function loadRetentionProfile(): RetentionProfile {
     };
     if (profile.daily.date !== localDateKey()) return { ...profile, daily: emptyProfile().daily };
     return profile;
-  } catch {
-    return emptyProfile();
-  }
+  } catch { return emptyProfile(); }
 }
 
-export function currentDailyTasks(profile = loadRetentionProfile()) {
-  return profile.daily.selected.map(taskById);
-}
-
+export function currentDailyTasks(profile = loadRetentionProfile()) { return profile.daily.selected.map(taskById); }
 export function dailyProgressForTask(profile: RetentionProfile, taskId: DailyTaskId): number {
   const task = taskById(taskId);
   return Math.min(task.target, profile.daily.progress[task.metric] ?? 0);
 }
 
-function notifyProfile(profile: RetentionProfile): void {
-  window.dispatchEvent(new CustomEvent('dungeon-veil-retention-update', { detail: profile }));
-}
-
-function saveProfile(profile: RetentionProfile): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(profile)); } catch {}
-  notifyProfile(profile);
-}
-
-function toast(title: string, text: string, tone: 'hunt' | 'daily' | 'relic' = 'daily'): void {
-  window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title, text, tone } }));
-}
+function notifyProfile(profile: RetentionProfile): void { window.dispatchEvent(new CustomEvent('dungeon-veil-retention-update', { detail: profile })); }
+function saveProfile(profile: RetentionProfile): void { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(profile)); } catch {} notifyProfile(profile); }
+function toast(title: string, text: string, tone: 'hunt' | 'daily' | 'relic' = 'daily'): void { window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title, text, tone } })); }
 
 function claimCompletedDailies(profile: RetentionProfile): void {
   for (const task of currentDailyTasks(profile)) {
@@ -149,13 +117,12 @@ function mutateProfile(mutator: (profile: RetentionProfile) => void): RetentionP
 }
 
 export function createRunRetentionState(): RunRetentionState {
-  return { roomKey: '', roomClearKey: '', processedDeaths: new Set<string>(), huntTargetId: '', roomsSinceHunt: 0, lastAuraAt: 0 };
+  return { roomKey: '', roomClearKey: '', processedDeaths: new Set<string>(), huntTargetId: '', roomsSinceHunt: 0, lastAuraAt: 0, pendingRelics: new Map() };
 }
 
 function markDiscoveries(engine: GameEngine): void {
   const enemyTypes = engine.state.enemies.map(enemy => enemy.enemyType);
-  if (!enemyTypes.length) return;
-  mutateProfile(profile => { profile.codex.enemies.push(...enemyTypes); });
+  if (enemyTypes.length) mutateProfile(profile => { profile.codex.enemies.push(...enemyTypes); });
 }
 
 function updateRunDailyMetrics(engine: GameEngine): void {
@@ -172,8 +139,9 @@ function spawnHuntTarget(engine: GameEngine, state: RunRetentionState): void {
   if (engine.state.floor < minimumFloor || isBossRoom(engine.state.floor)) return;
   const living = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead);
   if (!living.length) return;
+  const riftBonus = activeWeeklyRiftId() === 'empty-veil' ? 0.4 : 0;
   const relicBonus = relic === 'ash-eye' ? 0.16 : 0;
-  const chance = Math.min(0.18 + relicBonus + state.roomsSinceHunt * 0.09, relic === 'ash-eye' ? 0.88 : 0.72);
+  const chance = Math.min(0.18 + riftBonus + relicBonus + state.roomsSinceHunt * 0.09, activeWeeklyRiftId() === 'empty-veil' ? 0.96 : relic === 'ash-eye' ? 0.88 : 0.72);
   if (Math.random() > chance) { state.roomsSinceHunt++; return; }
 
   const target = [...living].sort((a, b) => b.maxHp - a.maxHp)[0];
@@ -193,7 +161,6 @@ function spawnHuntTarget(engine: GameEngine, state: RunRetentionState): void {
   target.color = visualVariant === 1 ? '#c984ef' : visualVariant === 2 ? '#ed7656' : '#d9a94b';
   state.huntTargetId = target.id;
   state.roomsSinceHunt = 0;
-
   const x = target.x + target.width / 2;
   const y = target.y + target.height / 2;
   engine.state.effects.push({ id: `hunt-spawn-outer-${Date.now()}`, x, y, radius: 0, maxRadius: 170, color: target.color, lifeTime: 0, maxLifeTime: 1150, type: 'circle', element: 'arcane' });
@@ -221,19 +188,33 @@ function pulseHuntAura(engine: GameEngine, state: RunRetentionState, time: numbe
   engine.state.effects.push({ id: `hunt-aura-${time}`, x: target.x + target.width / 2, y: target.y + target.height / 2, radius: 12, maxRadius: 58, color: target.huntVisualVariant === 1 ? '#d692ff' : target.huntVisualVariant === 2 ? '#ff7558' : '#f1b94f', lifeTime: 0, maxLifeTime: 620, type: 'circle', element: 'arcane' });
 }
 
-function maybeRareRelic(source: 'hunt' | 'room20'): void {
-  const chance = source === 'hunt' ? 0.18 : 0.02;
+function spawnRareRelicDrop(engine: GameEngine, state: RunRetentionState, source: 'hunt' | 'room20', x: number, y: number): void {
+  const riftBonus = activeWeeklyRiftId() === 'empty-veil' ? (source === 'hunt' ? 0.12 : 0.04) : 0;
+  const chance = (source === 'hunt' ? 0.18 : 0.02) + riftBonus;
   if (Math.random() > chance) return;
   const pool = source === 'hunt' ? HUNT_RELIC_POOL : ROOM_TWENTY_RELIC_POOL;
   const relicId = pool[Math.floor(Math.random() * pool.length)] as VeilRelicId;
-  const relic = VEIL_RELICS[relicId];
-  const result = unlockVeilRelic(relicId);
-  mutateProfile(profile => {
-    profile.codex.relics.push(relic.nameDe);
-    profile.daily.progress.relicFinds++;
-    profile.sigils += source === 'hunt' ? 18 : 60;
-  });
-  toast(result.newUnlock ? 'SELTENES RELIKT' : 'RELIKT-DUPLIKAT', result.newUnlock ? `${relic.nameDe} freigeschaltet` : `${relic.nameDe} erneut gefunden · Bonus-Siegel erhalten`, 'relic');
+  const itemId = `relic-drop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  engine.state.items.push({ id: itemId, type: 'item', itemType: 'relic', relicId, value: 0, x: x - 10, y: y - 10, width: 20, height: 20, vx: 0, vy: 0, color: VEIL_RELICS[relicId].accent, spawnTime: performance.now() });
+  state.pendingRelics.set(itemId, { relicId, roomKey: `${engine.state.chapter}:${engine.state.floor}`, source });
+  toast('SELTENE BEUTE', 'Ein Schleier-Relikt liegt im Raum. Berühre es, um es zu bergen.', 'relic');
+}
+
+function processPendingRelicPickups(engine: GameEngine, state: RunRetentionState): void {
+  const roomKey = `${engine.state.chapter}:${engine.state.floor}`;
+  for (const [itemId, pending] of state.pendingRelics) {
+    if (engine.state.items.some(item => item.id === itemId)) continue;
+    state.pendingRelics.delete(itemId);
+    if (pending.roomKey !== roomKey) continue;
+    const relic = VEIL_RELICS[pending.relicId];
+    const result = unlockVeilRelic(pending.relicId);
+    mutateProfile(profile => {
+      profile.codex.relics.push(relic.nameDe);
+      profile.daily.progress.relicFinds++;
+      profile.sigils += pending.source === 'hunt' ? 18 : 60;
+    });
+    toast(result.newUnlock ? 'RELIKT GEBORGEN' : 'RELIKT-DUPLIKAT', result.newUnlock ? `${relic.nameDe} freigeschaltet` : `${relic.nameDe} erneut gefunden · Bonus-Siegel erhalten`, 'relic');
+  }
 }
 
 function processDeaths(engine: GameEngine, state: RunRetentionState, time: number): void {
@@ -250,15 +231,8 @@ function processDeaths(engine: GameEngine, state: RunRetentionState, time: numbe
       if ((enemy.burnUntil ?? 0) > enemy.deathTime) profile.daily.progress.fireKills++;
       if ((enemy.frostUntil ?? 0) > enemy.deathTime) profile.daily.progress.frostKills++;
       profile.codex.enemies.push(enemy.enemyType);
-      if (enemy.enemyType === 'boss') {
-        profile.daily.progress.bossKills++;
-        profile.codex.bosses.push(`${engine.state.chapter}:${engine.state.floor}`);
-      }
-      if (isHunt) {
-        profile.daily.progress.hunts++;
-        profile.sigils += huntReward;
-        profile.codex.hunts.push(huntName);
-      }
+      if (enemy.enemyType === 'boss') { profile.daily.progress.bossKills++; profile.codex.bosses.push(`${engine.state.chapter}:${engine.state.floor}`); }
+      if (isHunt) { profile.daily.progress.hunts++; profile.sigils += huntReward; profile.codex.hunts.push(huntName); }
     });
 
     if (activeRelic === 'marked-claw') {
@@ -271,7 +245,7 @@ function processDeaths(engine: GameEngine, state: RunRetentionState, time: numbe
     }
     if (isHunt) {
       toast('JAGD ABGESCHLOSSEN', `${huntName} besiegt · +${huntReward} Schleier-Siegel`, 'hunt');
-      maybeRareRelic('hunt');
+      spawnRareRelicDrop(engine, state, 'hunt', enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
       state.huntTargetId = '';
     }
   }
@@ -287,10 +261,11 @@ function processRoomClear(engine: GameEngine, state: RunRetentionState): void {
     if (engine.state.player.hp / Math.max(1, engine.state.player.maxHp) >= 0.8) profile.daily.progress.highHpRooms++;
     profile.daily.progress.deepestRoom = Math.max(profile.daily.progress.deepestRoom, engine.state.floor);
   });
-  if (engine.state.floor === 20) maybeRareRelic('room20');
+  if (engine.state.floor === 20) spawnRareRelicDrop(engine, state, 'room20', engine.state.map.width * 20, engine.state.map.height * 20);
 }
 
 export function updateRunRetentionSystems(engine: GameEngine, state: RunRetentionState, time: number): void {
+  processPendingRelicPickups(engine, state);
   handleRoomEntry(engine, state);
   processDeaths(engine, state, time);
   processRoomClear(engine, state);
