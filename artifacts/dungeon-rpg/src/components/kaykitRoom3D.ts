@@ -1,3 +1,5 @@
+import { isBossRoom } from '../game/chapterRun';
+import { getChapterTwoRoomProps } from '../game/kaykitRoomChapter2';
 import { KAYKIT_ROOM_PROPS, type KayKitRoomAsset, type KayKitRoomPlacement } from '../game/kaykitRoomLayout';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -36,8 +38,8 @@ async function loadDepthAsset(name: keyof typeof DEPTH_ASSETS) {
 }
 
 function requiredAssets(room: number) {
-  const roomKey = Math.max(1, Math.min(10, room));
-  const placements = KAYKIT_ROOM_PROPS[roomKey] ?? KAYKIT_ROOM_PROPS[1];
+  const roomKey = Math.max(1, Math.min(20, room));
+  const placements = getChapterTwoRoomProps(roomKey) ?? KAYKIT_ROOM_PROPS[roomKey] ?? KAYKIT_ROOM_PROPS[1];
   const required = new Set<KayKitRoomAsset>(['floor', 'wall', 'corner', 'wallColumn', 'torchMounted']);
   for (const placement of placements) required.add(placement.asset);
   return { placements, required };
@@ -83,9 +85,10 @@ function addClone(group: any, prototype: any, placement: KayKitRoomPlacement) {
 }
 
 function buildSideGalleries(root: any, room: number, left: number, right: number, top: number, depth: Record<keyof typeof DEPTH_ASSETS, any>) {
-  const galleryY = room >= 7 ? 0.72 : 0.56;
-  const sideScale = room === 10 ? 1.15 : room >= 7 ? 1.05 : 0.94;
-  const zSets = room <= 2 ? [-8.5, 5.5] : room <= 5 ? [-10.2, -1.2, 7.4] : room <= 8 ? [-9.2, 1.0, 8.0] : [-10.0, -3.0, 4.5];
+  const chapterTwo = room >= 11;
+  const galleryY = chapterTwo ? 0.82 : room >= 7 ? 0.72 : 0.56;
+  const sideScale = isBossRoom(room) ? 1.18 : chapterTwo ? 1.08 : room >= 7 ? 1.05 : 0.94;
+  const zSets = room <= 2 ? [-8.5, 5.5] : room <= 5 ? [-10.2, -1.2, 7.4] : room <= 8 ? [-9.2, 1.0, 8.0] : room <= 10 ? [-10.0, -3.0, 4.5] : [-10.6, -4.2, 2.2, 8.4];
 
   for (const side of [-1, 1]) {
     const edge = side < 0 ? left - 2.6 : right + 2.6;
@@ -101,8 +104,8 @@ function buildSideGalleries(root: any, room: number, left: number, right: number
   }
 
   if (room >= 6) {
-    addObject(root, depth.pillarDecorated, left - 2.45, galleryY, top + 5.2, Math.PI / 2, 1.12);
-    addObject(root, depth.pillarDecorated, right + 2.45, galleryY, top + 5.2, -Math.PI / 2, 1.12);
+    addObject(root, depth.pillarDecorated, left - 2.45, galleryY, top + 5.2, Math.PI / 2, chapterTwo ? 1.22 : 1.12);
+    addObject(root, depth.pillarDecorated, right + 2.45, galleryY, top + 5.2, -Math.PI / 2, chapterTwo ? 1.22 : 1.12);
   }
 }
 
@@ -111,34 +114,36 @@ function buildDepthZones(root: any, room: number, mapWidth: number, mapHeight: n
   const right = mapWidth / 2 - 0.45;
   const top = -mapHeight / 2 + 0.45;
   const bottom = mapHeight / 2 - 0.45;
-  const platformY = room === 10 ? 1.05 : 0.78;
+  const bossRoom = isBossRoom(room);
+  const chapterTwo = room >= 11;
+  const platformY = bossRoom ? 1.1 : chapterTwo ? 0.9 : 0.78;
   const platformZ = top - 3.4;
-  const platformScale = room >= 7 ? 1.08 : 1;
+  const platformScale = bossRoom ? 1.18 : chapterTwo ? 1.12 : room >= 7 ? 1.08 : 1;
 
   for (let x = left + 2; x <= right - 2; x += 4) addObject(root, depth.platformFloor, x, platformY, platformZ, ((Math.round(x) + room) & 1) ? Math.PI / 2 : 0, platformScale);
   for (let x = left + 1.2; x < right - 1.2; x += 2.35) {
     if (Math.abs(x) < 2.15) continue;
-    addObject(root, depth.wallPillar, x, platformY * 0.46, top - 1.25, 0, room === 10 ? 1.12 : 1);
+    addObject(root, depth.wallPillar, x, platformY * 0.46, top - 1.25, 0, bossRoom ? 1.18 : chapterTwo ? 1.08 : 1);
   }
-  addObject(root, depth.stairs, 0, 0, top - 1.2, Math.PI, room === 10 ? 1.2 : 1.05);
-  addObject(root, depth.arch, 0, platformY, platformZ - 0.55, 0, room === 10 ? 1.28 : 1.08);
+  addObject(root, depth.stairs, 0, 0, top - 1.2, Math.PI, bossRoom ? 1.24 : chapterTwo ? 1.12 : 1.05);
+  addObject(root, depth.arch, 0, platformY, platformZ - 0.55, 0, bossRoom ? 1.35 : chapterTwo ? 1.2 : 1.08);
 
-  const pillarXs = room === 10 ? [-8.2, -5.1, 5.1, 8.2] : [-7.2, 7.2];
+  const pillarXs = bossRoom ? [-8.2, -5.1, 5.1, 8.2] : chapterTwo ? [-7.8, -5.5, 5.5, 7.8] : [-7.2, 7.2];
   for (const x of pillarXs) {
     if (x <= left || x >= right) continue;
-    addObject(root, depth.pillarDecorated, x, platformY, platformZ + 0.15, 0, room === 10 ? 1.28 : 1.08);
+    addObject(root, depth.pillarDecorated, x, platformY, platformZ + 0.15, 0, bossRoom ? 1.32 : chapterTwo ? 1.18 : 1.08);
   }
 
   buildSideGalleries(root, room, left, right, top, depth);
 
   if (room >= 6) {
-    addObject(root, depth.rubble, left - 0.45, 0, top + 4.2, Math.PI / 2, 1.1);
-    addObject(root, depth.rubble, right + 0.45, 0, top + 4.2, -Math.PI / 2, 1.1);
+    addObject(root, depth.rubble, left - 0.45, 0, top + 4.2, Math.PI / 2, chapterTwo ? 1.22 : 1.1);
+    addObject(root, depth.rubble, right + 0.45, 0, top + 4.2, -Math.PI / 2, chapterTwo ? 1.22 : 1.1);
   }
 
-  if (room === 3 || room === 7 || room === 9 || room === 10) {
-    addObject(root, depth.pillarDecorated, left + 1.15, -0.05, bottom + 1.15, Math.PI, 1.2);
-    addObject(root, depth.pillarDecorated, right - 1.15, -0.05, bottom + 1.15, Math.PI, 1.2);
+  if ([3, 7, 9, 10, 13, 15, 17, 19, 20].includes(room)) {
+    addObject(root, depth.pillarDecorated, left + 1.15, -0.05, bottom + 1.15, Math.PI, bossRoom ? 1.35 : chapterTwo ? 1.28 : 1.2);
+    addObject(root, depth.pillarDecorated, right - 1.15, -0.05, bottom + 1.15, Math.PI, bossRoom ? 1.35 : chapterTwo ? 1.28 : 1.2);
   }
 }
 
@@ -198,11 +203,12 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     }
 
     buildDepthZones(root, room, mapWidth, mapHeight, depth);
-    addObject(root, wallColumn, -1.65, 0, top, 0, room === 10 ? 1.2 : 1.05);
-    addObject(root, wallColumn, 1.65, 0, top, 0, room === 10 ? 1.2 : 1.05);
+    const bossRoom = isBossRoom(room);
+    addObject(root, wallColumn, -1.65, 0, top, 0, bossRoom ? 1.24 : 1.05);
+    addObject(root, wallColumn, 1.65, 0, top, 0, bossRoom ? 1.24 : 1.05);
     const torch = roomAsset('torchMounted');
-    addObject(root, torch, -1.7, 0, top + 0.18, Math.PI, room === 10 ? 1.15 : 1);
-    addObject(root, torch, 1.7, 0, top + 0.18, Math.PI, room === 10 ? 1.15 : 1);
+    addObject(root, torch, -1.7, 0, top + 0.18, Math.PI, bossRoom ? 1.2 : 1);
+    addObject(root, torch, 1.7, 0, top + 0.18, Math.PI, bossRoom ? 1.2 : 1);
 
     for (const placement of placements) {
       const prototype = loaded.get(`room:${placement.asset}`)?.scene;
