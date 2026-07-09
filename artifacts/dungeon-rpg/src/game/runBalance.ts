@@ -21,24 +21,25 @@ export function createRunBalanceState(): RunBalanceState {
 }
 
 function hpFactorForRoom(room: number): number {
-  if (room <= 2) return 0.88 + room * 0.02;
-  if (room <= 5) return 0.92 + (room - 3) * 0.025;
-  if (room <= 9) return 1 + (room - 6) * 0.04;
-  if (room === 10) return 0.78;
-  if (room <= 14) return 1.12 + (room - 11) * 0.055;
-  if (room <= 18) return 1.34 + (room - 15) * 0.06;
-  if (room === 19) return 1.62;
+  if (room <= 2) return 0.9 + room * 0.03;
+  if (room <= 5) return 1.02 + (room - 3) * 0.04;
+  if (room <= 9) return 1.14 + (room - 6) * 0.05;
+  if (room === 10) return 0.82;
+  if (room <= 14) return 1.18 + (room - 11) * 0.06;
+  if (room <= 18) return 1.42 + (room - 15) * 0.065;
+  if (room === 19) return 1.7;
   return 1;
 }
 
 function attackCapForRoom(room: number): number {
-  if (room <= 3) return 6 + room;
-  if (room <= 9) return 9 + Math.floor((room - 3) * 1.15);
-  if (room === 10) return 18;
-  if (room <= 14) return 16 + (room - 11) * 2;
-  if (room <= 18) return 24 + (room - 15) * 2;
-  if (room === 19) return 32;
-  return 36;
+  if (room <= 2) return 7 + room;
+  if (room <= 5) return 10 + (room - 3) * 2;
+  if (room <= 9) return 15 + Math.floor((room - 6) * 1.5);
+  if (room === 10) return 20;
+  if (room <= 14) return 18 + (room - 11) * 2;
+  if (room <= 18) return 26 + (room - 15) * 2;
+  if (room === 19) return 34;
+  return 38;
 }
 
 export function updateRunBalance(engine: GameEngine, state: RunBalanceState): void {
@@ -60,14 +61,15 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
 
     if (enemy.enemyType === 'boss') {
       if (room === 20) {
-        enemy.maxHp = Math.max(1450, enemy.maxHp);
-        enemy.attack = Math.min(34, Math.max(26, enemy.attack));
-        enemy.speed *= 1.08;
-        enemy.nextAttackTime = performance.now() + 620;
+        enemy.maxHp = Math.max(1520, enemy.maxHp);
+        enemy.attack = Math.min(36, Math.max(28, enemy.attack));
+        enemy.speed *= 1.12;
+        enemy.nextAttackTime = performance.now() + 560;
       } else {
-        enemy.maxHp = Math.max(720, enemy.maxHp);
-        enemy.attack = 20;
-        enemy.nextAttackTime = performance.now() + 720;
+        enemy.maxHp = Math.max(760, enemy.maxHp);
+        enemy.attack = 21;
+        enemy.speed *= 1.04;
+        enemy.nextAttackTime = performance.now() + 660;
       }
       enemy.hp = enemy.maxHp;
     }
