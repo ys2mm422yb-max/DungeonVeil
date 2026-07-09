@@ -9,12 +9,7 @@ export function enemyArchetype(type: EnemyType): EnemyArchetype {
   return 'skeleton';
 }
 
-export type EnemyMovePlan = {
-  dx: number;
-  dy: number;
-  attackRange: number;
-  attackDelay: number;
-};
+export type EnemyMovePlan = { dx: number; dy: number; attackRange: number; attackDelay: number };
 
 function normalizedDirection(enemy: Enemy, player: Player) {
   const dx = player.x - enemy.x;
@@ -36,7 +31,7 @@ function roomFromEnemyId(enemy: Enemy) {
 
 function laneBias(enemy: Enemy, time: number) {
   const variant = enemy.huntVisualVariant ?? Number(enemy.id.slice(-1).replace(/\D/g, '') || 0);
-  return (variant + Math.floor((time - enemy.spawnTime) / 2600)) % 2 === 0 ? 1 : -1;
+  return (variant + Math.floor((time - enemy.spawnTime) / 1900)) % 2 === 0 ? 1 : -1;
 }
 
 function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number, attackRange: number, attackDelay: number): EnemyMovePlan | null {
@@ -49,7 +44,8 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
   const progress = Math.hypot(enemy.x - (enemy.lastProgressX ?? enemy.x), enemy.y - (enemy.lastProgressY ?? enemy.y));
   const stalledFor = time - (enemy.lastProgressTime ?? time);
 
-  if (!enemy.stuckSince && stalledFor >= 520 && progress < 3.5) {
+  // Props are now real colliders. React quickly instead of visibly jogging into one for half a second.
+  if (!enemy.stuckSince && stalledFor >= 240 && progress < 2.2) {
     enemy.stuckSince = time;
     const side = laneBias(enemy, time);
     enemy.targetX = -ny * side;
@@ -57,8 +53,8 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
   }
 
   if (!enemy.stuckSince) return null;
-  const recoveryAge = time - enemy.stuckSince;
-  if (progress >= 7 || recoveryAge >= 1250) {
+  const age = time - enemy.stuckSince;
+  if (progress >= 6.5 || age >= 1550) {
     enemy.stuckSince = undefined;
     enemy.lastProgressX = enemy.x;
     enemy.lastProgressY = enemy.y;
@@ -66,14 +62,29 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
     return null;
   }
 
-  // Keep the old emergency teleporter from firing while we actively route around the obstacle.
+  // Suppress the old long emergency relocation while actively routing around the prop.
   enemy.lastProgressTime = time;
-  const sideStrength = recoveryAge < 620 ? 1.35 : -1.2;
-  const sideX = (enemy.targetX || -ny) * sideStrength;
-  const sideY = (enemy.targetY || nx) * sideStrength;
-  const toward = recoveryAge < 620 ? 0.28 : 0.55;
-  const move = normalizedMove(nx * toward + sideX, ny * toward + sideY);
-  return { dx: move.x * speed * 1.12, dy: move.y * speed * 1.12, attackRange, attackDelay };
+  const storedSideX = enemy.targetX || -ny;
+  const storedSideY = enemy.targetY || nx;
+  let moveX: number;
+  let moveY: number;
+
+  if (age < 650) {
+    // First attempt: a nearly pure 90-degree sidestep to clear the collider edge.
+    moveX = storedSideX * 1.55 + nx * 0.08;
+    moveY = storedSideY * 1.55 + ny * 0.08;
+  } else if (age < 1100) {
+    // Second attempt: switch sides rather than repeating the blocked direction.
+    moveX = -storedSideX * 1.45 + nx * 0.18;
+    moveY = -storedSideY * 1.45 + ny * 0.18;
+  } else {
+    // Final local attempt: back off diagonally, then normal chase can re-acquire a new line.
+    moveX = -nx * 0.45 - storedSideX * 0.95;
+    moveY = -ny * 0.45 - storedSideY * 0.95;
+  }
+
+  const move = normalizedMove(moveX, moveY);
+  return { dx: move.x * speed * 1.2, dy: move.y * speed * 1.2, attackRange, attackDelay };
 }
 
 export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: number): EnemyMovePlan {
@@ -84,12 +95,7 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
   const attackPressure = 1 - Math.min(0.24, (room - 1) * 0.013);
   const huntPressure = enemy.isHuntTarget ? 1.1 : 1;
   const speed = enemy.speed * movePressure * huntPressure * dt / 1000;
-  const plan = (dx: number, dy: number, attackRange: number, attackDelay: number): EnemyMovePlan => ({
-    dx,
-    dy,
-    attackRange,
-    attackDelay: Math.max(520, Math.round(attackDelay * attackPressure)),
-  });
+  const plan = (dx: number, dy: number, attackRange: number, attackDelay: number): EnemyMovePlan => ({ dx, dy, attackRange, attackDelay: Math.max(520, Math.round(attackDelay * attackPressure)) });
 
   const baseAttackRange = archetype === 'dragon' ? 150 : archetype === 'guardian' ? 58 + enemy.width / 2 : archetype === 'skirmisher' ? 48 + enemy.width / 2 : 42 + enemy.width / 2;
   const baseAttackDelay = Math.max(520, Math.round((archetype === 'dragon' ? 850 : archetype === 'guardian' ? 900 : archetype === 'skirmisher' ? 840 : 920) * attackPressure));
@@ -101,7 +107,6 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
     const sideDirection = laneBias(enemy, time);
     const sideX = -ny * sideDirection;
     const sideY = nx * sideDirection;
-
     if (cycle < 1450) {
       const toward = dist > 145 ? 0.95 : dist < 82 ? -0.1 : 0.42;
       const move = normalizedMove(nx * toward + sideX * 0.42, ny * toward + sideY * 0.42);
@@ -125,11 +130,8 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
       return plan(nx * advance * speed, ny * advance * speed, archetype === 'dragon' ? 150 : 58 + enemy.width / 2, archetype === 'dragon' ? 850 : 900);
     }
     if (phase < phaseLength * 0.7) {
-      const strafeDirection = laneBias(enemy, time);
-      const sideX = -ny * strafeDirection;
-      const sideY = nx * strafeDirection;
-      const toward = dist > (archetype === 'dragon' ? 132 : 78) ? 0.72 : dist < 58 ? -0.08 : 0.34;
-      const move = normalizedMove(nx * toward + sideX * 0.34, ny * toward + sideY * 0.34);
+      const side = laneBias(enemy, time);
+      const move = normalizedMove(nx * (dist > 78 ? 0.72 : 0.34) + -ny * side * 0.34, ny * (dist > 78 ? 0.72 : 0.34) + nx * side * 0.34);
       return plan(move.x * speed * 0.92, move.y * speed * 0.92, archetype === 'dragon' ? 162 : 60 + enemy.width / 2, archetype === 'dragon' ? 930 : 960);
     }
     const pressure = dist > (archetype === 'dragon' ? 82 : 54) ? 1.52 : 0.24;
