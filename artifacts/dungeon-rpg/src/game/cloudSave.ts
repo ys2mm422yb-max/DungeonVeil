@@ -1,4 +1,4 @@
-import { exportSaveBundle, importSaveBundle, persistentPlayerId, type DungeonVeilSaveBundle } from './persistentSaveBundle';
+import { cloudRevision, exportSaveBundle, importSaveBundle, markCloudRevision, persistentPlayerId, type DungeonVeilSaveBundle } from './persistentSaveBundle';
 
 const CLOUD_URL = String(import.meta.env.VITE_DUNGEON_CLOUD_URL ?? '').replace(/\/$/, '');
 const CLOUD_KEY = String(import.meta.env.VITE_DUNGEON_CLOUD_KEY ?? '');
@@ -21,8 +21,11 @@ function endpoint(): string {
 export async function pushCloudSave(): Promise<boolean> {
   if (!cloudSaveConfigured()) return false;
   try {
-    const response = await fetch(endpoint(), { method: 'PUT', headers: headers(), body: JSON.stringify(exportSaveBundle()) });
-    return response.ok;
+    const bundle = exportSaveBundle();
+    const response = await fetch(endpoint(), { method: 'PUT', headers: headers(), body: JSON.stringify(bundle) });
+    if (!response.ok) return false;
+    markCloudRevision(bundle.updatedAt);
+    return true;
   } catch {
     return false;
   }
@@ -32,11 +35,10 @@ export async function pullCloudSave(): Promise<boolean> {
   if (!cloudSaveConfigured()) return false;
   try {
     const response = await fetch(endpoint(), { method: 'GET', headers: headers(), cache: 'no-store' });
-    if (response.status === 404) return false;
-    if (!response.ok) return false;
+    if (response.status === 404 || !response.ok) return false;
     const remote = await response.json() as DungeonVeilSaveBundle;
-    const local = exportSaveBundle();
-    if (Date.parse(remote.updatedAt) <= Date.parse(local.updatedAt) && Object.keys(local.data).length > 0) return false;
+    const revision = cloudRevision();
+    if (revision && Date.parse(remote.updatedAt) <= Date.parse(revision)) return false;
     return importSaveBundle(remote);
   } catch {
     return false;
