@@ -48,7 +48,8 @@ async function loadRoomPool(room: number) {
       .filter(entry => entry.score > 0)
       .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
 
-    const uniquePaths = [...new Set(candidates.map(entry => entry.path))].slice(0, 30);
+    const poolLimit = IS_MOBILE ? Math.max(8, identity.density * 2) : Math.max(12, identity.density * 3);
+    const uniquePaths = [...new Set(candidates.map(entry => entry.path))].slice(0, poolLimit);
     return Promise.all(uniquePaths.map(path => loader.loadAsync(modelUrl(manifest, path)).then((gltf: LoadedGltf) => gltf.scene)));
   })();
 
