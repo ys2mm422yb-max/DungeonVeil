@@ -1,9 +1,9 @@
 import type { Enemy, EnemyType, Player } from './entities';
 
-export type EnemyArchetype = 'skeleton' | 'guardian';
+export type EnemyArchetype = 'skeleton' | 'guardian' | 'dragon';
 
 export function enemyArchetype(type: EnemyType): EnemyArchetype {
-  return type === 'boss' ? 'guardian' : 'skeleton';
+  return type === 'boss' ? 'dragon' : 'skeleton';
 }
 
 export type EnemyMovePlan = {
@@ -29,7 +29,7 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
   const archetype = enemyArchetype(enemy.enemyType);
   const { dist, nx, ny } = normalizedDirection(enemy, player);
 
-  if (archetype === 'guardian') {
+  if (archetype === 'guardian' || archetype === 'dragon') {
     const phase = ((time - enemy.spawnTime) % 6200 + 6200) % 6200;
     const speed = enemy.speed * dt / 1000;
 
