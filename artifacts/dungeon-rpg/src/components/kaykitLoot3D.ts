@@ -7,6 +7,7 @@ const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android
 
 type LoadedGltf = { scene: any };
 let potionPromise: Promise<any | null> | null = null;
+let relicPromise: Promise<any | null> | null = null;
 
 function scorePotion(path: string) {
   const name = path.toLowerCase();
@@ -19,42 +20,55 @@ function scorePotion(path: string) {
   return score;
 }
 
-async function loadPotion() {
-  if (!potionPromise) {
-    potionPromise = (async () => {
-      const manifest = await loadKayKitManifest();
-      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
-      const loader = new GLTFLoader();
-      const path = [...findKayKitModels(manifest, 'resources', /\.(?:gltf|glb)$/i), ...findKayKitModels(manifest, 'dungeon', /\.(?:gltf|glb)$/i)]
-        .map(candidate => ({ path: candidate, score: scorePotion(candidate) }))
-        .filter(entry => entry.score > 0)
-        .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))[0]?.path;
-      if (!path) return null;
-      const gltf: LoadedGltf = await loader.loadAsync(modelUrl(manifest, path));
-      return gltf.scene;
-    })();
-  }
+function scoreRelic(path: string) {
+  const name = path.toLowerCase();
+  let score = 0;
+  if (/(crystal|gem)/.test(name)) score += 180;
+  if (/(purple|violet|blue)/.test(name)) score += 25;
+  if (/(ore|rock|stone)/.test(name)) score += 20;
+  if (/(bundle|pile|stack|texture|sample|preview)/.test(name)) score -= 250;
+  return score;
+}
+
+async function loadBest(score: (path: string) => number) {
+  const manifest = await loadKayKitManifest();
+  const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
+  const loader = new GLTFLoader();
+  const path = [...findKayKitModels(manifest, 'resources', /\.(?:gltf|glb)$/i), ...findKayKitModels(manifest, 'dungeon', /\.(?:gltf|glb)$/i)]
+    .map(candidate => ({ path: candidate, score: score(candidate) }))
+    .filter(entry => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))[0]?.path;
+  if (!path) return null;
+  const gltf: LoadedGltf = await loader.loadAsync(modelUrl(manifest, path));
+  return gltf.scene;
+}
+
+function loadPotion() {
+  if (!potionPromise) potionPromise = loadBest(scorePotion);
   return potionPromise;
 }
 
+function loadRelic() {
+  if (!relicPromise) relicPromise = loadBest(scoreRelic);
+  return relicPromise;
+}
+
 export function preloadKayKitHealingPotion() {
-  return loadPotion().then(() => undefined);
+  return Promise.all([loadPotion(), loadRelic()]).then(() => undefined);
 }
 
 export async function createKayKitLootVisual(item: Item) {
-  if (item.itemType !== 'potion') return null;
-  const [prototype, THREE] = await Promise.all([
-    loadPotion(),
-    import(/* @vite-ignore */ THREE_URL) as any,
-  ]);
+  if (item.itemType !== 'potion' && item.itemType !== 'relic') return null;
+  const relic = item.itemType === 'relic';
+  const [prototype, THREE] = await Promise.all([relic ? loadRelic() : loadPotion(), import(/* @vite-ignore */ THREE_URL) as any]);
   if (!prototype) return null;
 
   const root = new THREE.Group();
-  root.name = `KayKitHealingPotion_${item.id}`;
+  root.name = relic ? `KayKitVeilRelic_${item.id}` : `KayKitHealingPotion_${item.id}`;
 
   const object = prototype.clone(true);
-  object.scale.setScalar(0.9);
-  object.position.y = 0.04;
+  object.scale.setScalar(relic ? 1.15 : 0.9);
+  object.position.y = relic ? 0.16 : 0.04;
   object.traverse((node: any) => {
     if (!node.isMesh) return;
     node.castShadow = !IS_MOBILE;
@@ -63,28 +77,24 @@ export async function createKayKitLootVisual(item: Item) {
   });
   root.add(object);
 
-  const halo = new THREE.Mesh(
-    new THREE.RingGeometry(0.3, 0.54, 32),
-    new THREE.MeshBasicMaterial({ color: 0xff6b4a, transparent: true, opacity: 0.46, depthWrite: false, side: THREE.DoubleSide }),
-  );
+  const color = relic ? 0xa978ff : 0xff6b4a;
+  const halo = new THREE.Mesh(new THREE.RingGeometry(relic ? 0.38 : 0.3, relic ? 0.7 : 0.54, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: relic ? 0.65 : 0.46, depthWrite: false, side: THREE.DoubleSide }));
   halo.rotation.x = -Math.PI / 2;
   halo.position.y = -0.14;
   root.add(halo);
 
-  const innerHalo = new THREE.Mesh(
-    new THREE.CircleGeometry(0.28, 28),
-    new THREE.MeshBasicMaterial({ color: 0xff4f35, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }),
-  );
+  const innerHalo = new THREE.Mesh(new THREE.CircleGeometry(relic ? 0.36 : 0.28, 28), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: relic ? 0.22 : 0.16, depthWrite: false, side: THREE.DoubleSide }));
   innerHalo.rotation.x = -Math.PI / 2;
   innerHalo.position.y = -0.145;
   root.add(innerHalo);
 
-  const glow = new THREE.PointLight(0xff5a38, IS_MOBILE ? 2.1 : 2.8, 3.4, 2);
-  glow.position.y = 0.32;
+  const glow = new THREE.PointLight(color, IS_MOBILE ? (relic ? 3.1 : 2.1) : (relic ? 4.2 : 2.8), relic ? 4.8 : 3.4, 2);
+  glow.position.y = relic ? 0.55 : 0.32;
   root.add(glow);
 
   root.userData.halo = halo;
   root.userData.innerHalo = innerHalo;
   root.userData.glow = glow;
+  root.userData.relic = relic;
   return root;
 }
