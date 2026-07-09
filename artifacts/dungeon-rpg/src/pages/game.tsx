@@ -19,6 +19,7 @@ import { CharacterCreationScreen } from '../components/screens/CharacterCreation
 import { SettingsScreen } from '../components/screens/SettingsScreen';
 import { CreditsScreen } from '../components/screens/CreditsScreen';
 import { VeilChamberScreen } from '../components/screens/VeilChamberScreen';
+import { CodexScreen } from '../components/screens/CodexScreen';
 import { preloadKayKitDungeonRoom } from '../components/kaykitRoom3D';
 import { preloadKayKitRoomTheme } from '../components/kaykitRoomThemes3D';
 import { preloadKayKitEnemyVisuals } from '../components/kaykitEnemy3D';
@@ -28,7 +29,7 @@ import { applyMetaLoadoutToNewRun, beginMetaRun } from '../game/metaProgression'
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 
-type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'veil_chamber' | 'game';
+type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
 type MoveVector = { x: number; y: number };
 type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
 
@@ -268,11 +269,12 @@ export default function Game() {
     <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none overscroll-none">
       <GameSessionBridge getEngine={() => engineRef.current} active={uiState === 'game'} />
       {uiState === 'lang_select' && <LanguageSelectScreen />}
-      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={handleNewGame} onContinue={handleContinue} onVeilChamber={() => setUiState('veil_chamber')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
+      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={handleNewGame} onContinue={handleContinue} onVeilChamber={() => setUiState('veil_chamber')} onCodex={() => setUiState('codex')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
       {uiState === 'char_create' && <CharacterCreationScreen onConfirm={handleCharConfirm} onBack={handleMainMenu} />}
       {uiState === 'settings' && <SettingsScreen onBack={handleSettingsBack} onSaveDeleted={handleSaveDeleted} />}
       {uiState === 'credits' && <CreditsScreen onBack={handleMainMenu} />}
       {uiState === 'veil_chamber' && <VeilChamberScreen onBack={() => setUiState('main_menu')} />}
+      {uiState === 'codex' && <CodexScreen onBack={() => setUiState('main_menu')} />}
       {uiState === 'game' && gameState && <>
         <CombatStage gameState={gameState} />
         {roomPreparing && <div className="pointer-events-none absolute left-1/2 top-[31%] z-40 -translate-x-1/2 rounded-full border border-violet-300/25 bg-black/72 px-4 py-2 text-[9px] font-black tracking-[.28em] text-violet-100/80 backdrop-blur-md">RAUM WIRD AUFGEBAUT…</div>}
