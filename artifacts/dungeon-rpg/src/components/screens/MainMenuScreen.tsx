@@ -3,6 +3,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 import { SaveData } from '../../game/saveManager';
 import { loadMetaProgression } from '../../game/metaProgression';
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
+import { DailyQuestPanel } from '../DailyQuestPanel';
 
 interface Props {
   saveData: SaveData | null;
@@ -89,6 +90,7 @@ export function MainMenuScreen({ saveData, onNewGame, onContinue, onVeilChamber,
         <div className="flex-1" />
 
         <div className="mx-auto w-full max-w-sm space-y-2.5">
+          <DailyQuestPanel />
           {menuButton(t.newGame, onNewGame, { primary: true })}
           {menuButton(t.continueGame, onContinue, { disabled: !hasSaveData, meta: continueMeta })}
           {menuButton(chamberLabel, onVeilChamber, { chamber: true, meta: chamberMeta })}
