@@ -15,15 +15,21 @@ const ENCOUNTERS: Record<number, EnemyType[]> = {
   8: ['golem', 'spider', 'vampire', 'demon', 'spider', 'skeleton', 'vampire'],
   9: ['golem', 'demon', 'vampire', 'spider', 'vampire', 'skeleton', 'spider', 'demon'],
   10: [],
-  11: ['skeleton', 'spider', 'vampire', 'orc', 'spider', 'skeleton'],
-  12: ['vampire', 'demon', 'spider', 'skeleton', 'vampire', 'orc', 'spider'],
-  13: ['golem', 'spider', 'vampire', 'demon', 'spider', 'skeleton', 'vampire'],
-  14: ['orc', 'demon', 'vampire', 'spider', 'golem', 'skeleton', 'spider'],
-  15: ['demon', 'vampire', 'spider', 'golem', 'vampire', 'skeleton', 'spider'],
-  16: ['golem', 'demon', 'spider', 'vampire', 'orc', 'spider', 'vampire'],
-  17: ['demon', 'vampire', 'golem', 'spider', 'vampire', 'demon', 'skeleton'],
-  18: ['golem', 'demon', 'vampire', 'spider', 'orc', 'vampire', 'spider', 'demon'],
-  19: ['golem', 'demon', 'vampire', 'spider', 'demon', 'vampire', 'golem', 'spider'],
+
+  // Chapter two deliberately stops leaning on skeleton filler. Rooms 11-15
+  // mix mobile flankers with one or two bodies that hold the firing lanes.
+  11: ['orc', 'spider', 'vampire', 'demon', 'skeleton', 'spider'],
+  12: ['vampire', 'demon', 'spider', 'orc', 'vampire', 'golem', 'spider'],
+  13: ['golem', 'spider', 'demon', 'vampire', 'orc', 'spider', 'vampire'],
+  14: ['orc', 'demon', 'vampire', 'golem', 'spider', 'orc', 'demon'],
+  15: ['demon', 'vampire', 'golem', 'spider', 'demon', 'vampire', 'orc'],
+
+  // Rooms 16-19 are the late-run pressure test. Eight enemies is the hard
+  // visual cap here so Android does not pay for a crowd the player cannot read.
+  16: ['golem', 'demon', 'spider', 'vampire', 'orc', 'golem', 'vampire'],
+  17: ['demon', 'vampire', 'golem', 'spider', 'demon', 'orc', 'vampire'],
+  18: ['golem', 'demon', 'vampire', 'spider', 'orc', 'vampire', 'golem', 'demon'],
+  19: ['golem', 'demon', 'vampire', 'orc', 'demon', 'vampire', 'golem', 'spider'],
   20: [],
 };
 
