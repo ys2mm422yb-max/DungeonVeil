@@ -4,8 +4,8 @@ import { TileType } from '../game/dungeon';
 import { skillRank } from '../game/runSkills';
 import { RUN_CAMERA, updateRunCamera } from './RunCameraRig';
 import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
-import { buildKayKitDungeonRoom } from './kaykitRoom3D';
-import { buildKayKitRoomTheme } from './kaykitRoomThemes3D';
+import { buildKayKitDungeonRoom, preloadKayKitDungeonRoom } from './kaykitRoom3D';
+import { buildKayKitRoomTheme, preloadKayKitRoomTheme } from './kaykitRoomThemes3D';
 import { createKayKitEnemyVisual, updateKayKitEnemyVisual, type KayKitEnemyVisual } from './kaykitEnemy3D';
 import { createKayKitLootVisual } from './kaykitLoot3D';
 import { loadKayKitManifest } from './kaykitManifest3D';
@@ -43,6 +43,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let particlePositions: Float32Array | null = null;
     let particleColors: Float32Array | null = null;
     let lastRoomKey = '';
+    let pendingRoomKey = '';
+    let preloadRoomKey = '';
+    let roomGeneration = 0;
     let lastAttack = 0;
     let lastDodge = 0;
     let lastGift = 0;
@@ -68,14 +71,11 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
     const buildRoom = (state: GameState) => {
       const key = `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
-      if (key === lastRoomKey) return;
-      lastRoomKey = key;
-      if (roomRoot) {
-        scene.remove(roomRoot);
-        roomRoot.userData?.room?.userData?.dispose?.();
-        roomRoot.userData?.theme?.userData?.dispose?.();
-        disposeObject(roomRoot);
-      }
+      if (key === lastRoomKey || key === pendingRoomKey) return;
+      pendingRoomKey = key;
+      const generation = ++roomGeneration;
+      window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { key, floor: state.floor } }));
+
       const root = new THREE.Group();
       root.name = `KayKitRunRoom_${state.floor}`;
       const room = buildKayKitDungeonRoom(THREE, state.floor, state.map.width, state.map.height);
@@ -84,8 +84,48 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       root.add(theme);
       root.userData.room = room;
       root.userData.theme = theme;
-      roomRoot = root;
-      scene.add(root);
+
+      Promise.all([room.userData?.ready ?? Promise.resolve(), theme.userData?.ready ?? Promise.resolve()]).then(() => {
+        const live = stateRef.current;
+        const liveKey = `${live.chapter}:${live.floor}:${live.map.width}x${live.map.height}`;
+        if (disposed || generation !== roomGeneration || liveKey !== key) {
+          room.userData?.dispose?.();
+          theme.userData?.dispose?.();
+          disposeObject(root);
+          return;
+        }
+
+        const previous = roomRoot;
+        roomRoot = root;
+        scene.add(root);
+        lastRoomKey = key;
+        pendingRoomKey = '';
+
+        if (previous) {
+          scene.remove(previous);
+          previous.userData?.room?.userData?.dispose?.();
+          previous.userData?.theme?.userData?.dispose?.();
+          disposeObject(previous);
+        }
+
+        window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key, floor: live.floor } }));
+      }).catch(error => {
+        if (generation === roomGeneration) pendingRoomKey = '';
+        console.error('KayKit atomic room build failed', error);
+        window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key, floor: state.floor, failed: true } }));
+      });
+    };
+
+    const preloadNextRoom = (state: GameState) => {
+      if (!state.roomClearReady) return;
+      const nextFloor = state.floor >= 10 ? 1 : state.floor + 1;
+      const key = `${state.chapter}:${nextFloor}`;
+      if (key === preloadRoomKey) return;
+      preloadRoomKey = key;
+      void Promise.all([preloadKayKitDungeonRoom(nextFloor), preloadKayKitRoomTheme(nextFloor)]).catch(error => {
+        preloadRoomKey = '';
+        console.error('KayKit next room preload failed', error);
+      });
     };
 
     const syncEnemies = (state: GameState, delta: number, gameNow: number) => {
@@ -537,6 +577,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const playerZ = mapZ(state, state.player.y);
 
       buildRoom(state);
+      preloadNextRoom(state);
       if (playerRig) {
         playerRig.root.position.set(playerX, 0, playerZ);
         if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) playerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
@@ -610,6 +651,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     boot().catch(error => console.error('KayKit run renderer failed', error));
     return () => {
       disposed = true;
+      roomGeneration += 1;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       playerRig?.stop();

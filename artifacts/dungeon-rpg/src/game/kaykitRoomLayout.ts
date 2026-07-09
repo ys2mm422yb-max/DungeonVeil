@@ -44,6 +44,11 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'barrelStack', x: 5.6, z: -5.8, rotation: Math.PI / 2 },
     { asset: 'chest', x: 7.0, z: -3.5, rotation: Math.PI / 2 },
     { asset: 'boxLarge', x: 5.4, z: -2.9 },
+    { asset: 'tableMedium', x: -4.9, z: 5.3, rotation: Math.PI / 2 },
+    { asset: 'chair', x: -3.5, z: 5.3, rotation: -Math.PI / 2 },
+    { asset: 'candle', x: -4.8, z: 5.1 },
+    { asset: 'crates', x: 5.1, z: 6.0 },
+    { asset: 'barrel', x: 6.7, z: 6.2 },
   ],
 
   // 2 · Waffenkammer — twin workshops split by a real central gate.
@@ -72,6 +77,10 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'chest', x: 5.8, z: 9.0, rotation: Math.PI },
     { asset: 'torchMounted', x: LEFT_WALL, z: 7.9, rotation: Math.PI / 2 },
     { asset: 'torchMounted', x: RIGHT_WALL, z: 7.9, rotation: -Math.PI / 2 },
+    { asset: 'crates', x: -7.0, z: -0.3 },
+    { asset: 'barrel', x: -5.5, z: 0.2 },
+    { asset: 'boxLarge', x: 6.8, z: -0.5 },
+    { asset: 'barrelStack', x: 5.5, z: -0.1, rotation: Math.PI / 2 },
   ],
 
   // 3 · Säulenhalle — three readable combat lanes.
@@ -88,6 +97,9 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'torchMounted', x: LEFT_WALL, z: 4.2, rotation: Math.PI / 2 },
     { asset: 'torchMounted', x: RIGHT_WALL, z: 4.2, rotation: -Math.PI / 2 },
     { asset: 'chestGold', x: 7.0, z: 9.4, rotation: Math.PI },
+    { asset: 'tableMedium', x: 0, z: 7.5 },
+    { asset: 'chair', x: 1.4, z: 7.5, rotation: Math.PI / 2 },
+    { asset: 'candle', x: -0.2, z: 7.3 },
   ],
 
   // 4 · Barrikadenraum — offset diagonal cover breaks direct fire lines.
@@ -152,6 +164,12 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'barrelStack', x: 7.0, z: 9.4 },
     { asset: 'torchMounted', x: -4.8, z: TOP_WALL, rotation: Math.PI },
     { asset: 'torchMounted', x: 4.8, z: TOP_WALL, rotation: Math.PI },
+    { asset: 'tableMedium', x: -7.3, z: -1.4, rotation: Math.PI / 2 },
+    { asset: 'chair', x: -5.9, z: -1.4, rotation: -Math.PI / 2 },
+    { asset: 'candle', x: -7.2, z: -1.6 },
+    { asset: 'tableMedium', x: 7.3, z: -1.4, rotation: -Math.PI / 2 },
+    { asset: 'chair', x: 5.9, z: -1.4, rotation: Math.PI / 2 },
+    { asset: 'candle', x: 7.2, z: -1.6 },
   ],
 
   // 7 · Ritualhalle — closed ritual ring around an intentionally open center.
@@ -168,6 +186,10 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'bannerBlue', x: RIGHT_WALL, z: 4.0, rotation: -Math.PI / 2 },
     { asset: 'torchMounted', x: -5.0, z: TOP_WALL, rotation: Math.PI },
     { asset: 'torchMounted', x: 5.0, z: TOP_WALL, rotation: Math.PI },
+    { asset: 'chest', x: -8.1, z: 8.2, rotation: Math.PI / 2 },
+    { asset: 'candle', x: -6.9, z: 8.0 },
+    { asset: 'chestGold', x: 8.1, z: 8.2, rotation: -Math.PI / 2 },
+    { asset: 'candle', x: 6.9, z: 8.0 },
   ],
 
   // 8 · Lagergewölbe — staggered storage creates one offset central corridor.
@@ -218,6 +240,12 @@ export const KAYKIT_ROOM_PROPS: Record<number, KayKitRoomPlacement[]> = {
     { asset: 'swordShield', x: RIGHT_WALL, z: 7.5, rotation: -Math.PI / 2 },
     { asset: 'torchMounted', x: LEFT_WALL, z: -4.8, rotation: Math.PI / 2 },
     { asset: 'torchMounted', x: RIGHT_WALL, z: -4.8, rotation: -Math.PI / 2 },
+    { asset: 'tableMedium', x: -8.0, z: 2.7, rotation: Math.PI / 2 },
+    { asset: 'chair', x: -6.6, z: 2.7, rotation: -Math.PI / 2 },
+    { asset: 'candle', x: -7.9, z: 2.5 },
+    { asset: 'tableMedium', x: 8.0, z: 2.7, rotation: -Math.PI / 2 },
+    { asset: 'chair', x: 6.6, z: 2.7, rotation: Math.PI / 2 },
+    { asset: 'candle', x: 7.9, z: 2.5 },
   ],
 
   // 10 · Bosskammer — free boss kill zone inside a monumental outer frame.
