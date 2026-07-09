@@ -1,9 +1,12 @@
 import type { Enemy, EnemyType, Player } from './entities';
 
-export type EnemyArchetype = 'skeleton' | 'guardian' | 'dragon';
+export type EnemyArchetype = 'skeleton' | 'skirmisher' | 'guardian' | 'dragon';
 
 export function enemyArchetype(type: EnemyType): EnemyArchetype {
-  return type === 'boss' ? 'dragon' : 'skeleton';
+  if (type === 'boss') return 'dragon';
+  if (type === 'spider' || type === 'vampire') return 'skirmisher';
+  if (type === 'demon' || type === 'golem' || type === 'orc') return 'guardian';
+  return 'skeleton';
 }
 
 export type EnemyMovePlan = {
@@ -28,49 +31,74 @@ function normalizedMove(x: number, y: number) {
 export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: number): EnemyMovePlan {
   const archetype = enemyArchetype(enemy.enemyType);
   const { dist, nx, ny } = normalizedDirection(enemy, player);
+  const speed = enemy.speed * dt / 1000;
+
+  if (archetype === 'skirmisher') {
+    const cycle = ((time - enemy.spawnTime) % 3600 + 3600) % 3600;
+    const sideDirection = Math.floor((time - enemy.spawnTime) / 1800 + Number(enemy.id.slice(-1) || 0)) % 2 === 0 ? 1 : -1;
+    const sideX = -ny * sideDirection;
+    const sideY = nx * sideDirection;
+
+    if (cycle < 1500) {
+      const toward = dist > 155 ? 0.72 : dist < 95 ? -0.2 : 0.12;
+      const move = normalizedMove(nx * toward + sideX * 0.8, ny * toward + sideY * 0.8);
+      return { dx: move.x * speed * 0.92, dy: move.y * speed * 0.92, attackRange: 48 + enemy.width / 2, attackDelay: 930 };
+    }
+
+    if (cycle < 2350) {
+      const pressure = dist > 52 ? 1.62 : 0.32;
+      return { dx: nx * pressure * speed, dy: ny * pressure * speed, attackRange: 50 + enemy.width / 2, attackDelay: 760 };
+    }
+
+    const retreat = dist < 118 ? -0.55 : 0.08;
+    const move = normalizedMove(nx * retreat + sideX * 0.64, ny * retreat + sideY * 0.64);
+    return { dx: move.x * speed * 0.78, dy: move.y * speed * 0.78, attackRange: 48 + enemy.width / 2, attackDelay: 900 };
+  }
 
   if (archetype === 'guardian' || archetype === 'dragon') {
-    const phase = ((time - enemy.spawnTime) % 6200 + 6200) % 6200;
-    const speed = enemy.speed * dt / 1000;
+    const phaseLength = archetype === 'dragon' ? 5000 : 4400;
+    const phase = ((time - enemy.spawnTime) % phaseLength + phaseLength) % phaseLength;
 
-    if (phase < 2300) {
-      const advance = dist > 145 ? 1 : dist < 108 ? -0.18 : 0.18;
+    if (phase < phaseLength * 0.36) {
+      const ideal = archetype === 'dragon' ? 132 : 72;
+      const advance = dist > ideal ? 1.16 : dist < ideal * 0.66 ? -0.12 : 0.28;
       return {
         dx: nx * advance * speed,
         dy: ny * advance * speed,
-        attackRange: 150,
-        attackDelay: 1050,
+        attackRange: archetype === 'dragon' ? 150 : 58 + enemy.width / 2,
+        attackDelay: archetype === 'dragon' ? 900 : 980,
       };
     }
 
-    if (phase < 3800) {
-      const strafeDirection = Math.floor((time - enemy.spawnTime) / 1500) % 2 === 0 ? 1 : -1;
+    if (phase < phaseLength * 0.67) {
+      const strafeDirection = Math.floor((time - enemy.spawnTime) / 1250) % 2 === 0 ? 1 : -1;
       const sideX = -ny * strafeDirection;
       const sideY = nx * strafeDirection;
-      const toward = dist > 145 ? 0.38 : dist < 105 ? -0.14 : 0;
-      const move = normalizedMove(nx * toward + sideX * 0.54, ny * toward + sideY * 0.54);
+      const toward = dist > (archetype === 'dragon' ? 138 : 84) ? 0.46 : dist < 62 ? -0.16 : 0.05;
+      const move = normalizedMove(nx * toward + sideX * 0.72, ny * toward + sideY * 0.72);
       return {
-        dx: move.x * speed * 0.72,
-        dy: move.y * speed * 0.72,
-        attackRange: 160,
-        attackDelay: 1160,
+        dx: move.x * speed * 0.82,
+        dy: move.y * speed * 0.82,
+        attackRange: archetype === 'dragon' ? 162 : 60 + enemy.width / 2,
+        attackDelay: archetype === 'dragon' ? 980 : 1040,
       };
     }
 
-    const pressure = dist > 94 ? 1.08 : dist < 68 ? -0.08 : 0.22;
+    const pressure = dist > (archetype === 'dragon' ? 86 : 56) ? 1.42 : 0.28;
     return {
       dx: nx * pressure * speed,
       dy: ny * pressure * speed,
-      attackRange: 108,
-      attackDelay: 820,
+      attackRange: archetype === 'dragon' ? 112 : 60 + enemy.width / 2,
+      attackDelay: archetype === 'dragon' ? 690 : 790,
     };
   }
 
-  const speed = enemy.speed * dt / 1000;
+  const weave = Math.sin((time - enemy.spawnTime) * 0.0021 + enemy.x * 0.01) * 0.22;
+  const move = normalizedMove(nx - ny * weave, ny + nx * weave);
   return {
-    dx: nx * speed,
-    dy: ny * speed,
+    dx: move.x * speed,
+    dy: move.y * speed,
     attackRange: 42 + enemy.width / 2,
-    attackDelay: 1180,
+    attackDelay: 1020,
   };
 }
