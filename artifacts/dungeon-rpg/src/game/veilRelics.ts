@@ -16,7 +16,7 @@ export const VEIL_RELICS: Record<VeilRelicId, VeilRelicDefinition> = {
   'night-hunt-sigil': { id: 'night-hunt-sigil', nameDe: 'Siegel der Nachtjagd', nameEn: 'Night Hunt Sigil', descriptionDe: 'Jagd-Gegner gewähren 50 % mehr Schleier-Siegel.', descriptionEn: 'Hunt enemies grant 50% more Veil Sigils.', source: 'hunt', accent: '#9c74e8' },
   'veil-heart': { id: 'veil-heart', nameDe: 'Herz des Schleiers', nameEn: 'Heart of the Veil', descriptionDe: 'Verhindert einmal pro Run tödlichen Schaden und stellt 30 % Leben wieder her.', descriptionEn: 'Prevents lethal damage once per run and restores 30% health.', source: 'room20', accent: '#c786ff' },
   'broken-guardian-crown': { id: 'broken-guardian-crown', nameDe: 'Krone des gebrochenen Wächters', nameEn: 'Crown of the Broken Guardian', descriptionDe: 'Nach einem Boss-Kill erhältst du für den restlichen Run 10 % mehr Angriff.', descriptionEn: 'After a boss kill, gain 10% attack for the rest of the run.', source: 'room20', accent: '#e6c16f' },
-  'depth-rune-shard': { id: 'depth-rune-shard', nameDe: 'Runensplitter der Tiefe', nameEn: 'Depth Rune Shard', descriptionDe: 'Runensturm-Markierungen erscheinen 0,25 Sekunden früher.', descriptionEn: 'Rune storm warnings appear 0.25 seconds earlier.', source: 'room20', accent: '#7dbfff' },
+  'depth-rune-shard': { id: 'depth-rune-shard', nameDe: 'Runensplitter der Tiefe', nameEn: 'Depth Rune Shard', descriptionDe: 'Runensturm-Schaden wird um 25 % reduziert.', descriptionEn: 'Rune storm damage is reduced by 25%.', source: 'room20', accent: '#7dbfff' },
 };
 
 const RELIC_KEY = 'dungeon-veil-relics-v1';
