@@ -183,21 +183,25 @@ function spawnHuntTarget(engine: GameEngine, state: RunRetentionState): void {
 
   const target = [...living].sort((a, b) => b.maxHp - a.maxHp)[0];
   const name = HUNT_NAMES[Math.floor(Math.random() * HUNT_NAMES.length)];
+  const visualVariant = Math.floor(Math.random() * 3);
+  target.id = `${target.id}-hunt-${visualVariant}`;
   target.isHuntTarget = true;
   target.huntName = name;
   target.huntReward = 25;
-  target.huntVisualVariant = Math.floor(Math.random() * 3);
+  target.huntVisualVariant = visualVariant;
+  target.width = Math.round(target.width * 1.16);
+  target.height = Math.round(target.height * 1.16);
   target.maxHp = Math.max(target.maxHp + 80, Math.round(target.maxHp * 3.1));
   target.hp = target.maxHp;
   target.attack = Math.max(target.attack + 5, Math.round(target.attack * 1.5));
   target.speed *= 1.12;
-  target.color = '#d9a94b';
+  target.color = visualVariant === 1 ? '#c984ef' : visualVariant === 2 ? '#ed7656' : '#d9a94b';
   state.huntTargetId = target.id;
   state.roomsSinceHunt = 0;
 
   const x = target.x + target.width / 2;
   const y = target.y + target.height / 2;
-  engine.state.effects.push({ id: `hunt-spawn-outer-${Date.now()}`, x, y, radius: 0, maxRadius: 170, color: '#f4c45f', lifeTime: 0, maxLifeTime: 1150, type: 'circle', element: 'arcane' });
+  engine.state.effects.push({ id: `hunt-spawn-outer-${Date.now()}`, x, y, radius: 0, maxRadius: 170, color: target.color, lifeTime: 0, maxLifeTime: 1150, type: 'circle', element: 'arcane' });
   engine.state.effects.push({ id: `hunt-spawn-inner-${Date.now()}`, x, y, radius: 0, maxRadius: 92, color: '#fff0a6', lifeTime: 0, maxLifeTime: 680, type: 'circle', element: 'arcane' });
   engine.state.damageNumbers.push({ id: `hunt-name-${Date.now()}`, x, y: target.y - 28, value: `JAGD: ${name.toUpperCase()}`, color: '#ffd775', lifeTime: 0, maxLifeTime: 2500, scale: 1.38 });
   toast(relic === 'ash-eye' ? 'DAS ASCHEAUGE REAGIERT' : 'JAGDZEICHEN ERKANNT', `${name} lauert in Raum ${engine.state.floor}`, 'hunt');
