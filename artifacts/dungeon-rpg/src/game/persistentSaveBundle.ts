@@ -2,6 +2,7 @@ const PLAYER_ID_KEY = 'dungeon-veil-player-id';
 const CLOUD_REVISION_KEY = 'dungeon-veil-cloud-revision';
 const BUNDLE_KEYS = [
   'dungeon-veil-save',
+  'dungeon-veil-save-backup',
   'dungeon-veil-meta',
   'dungeon-veil-relics-v1',
   'dungeon-veil-retention-v2',
