@@ -5,11 +5,40 @@ function entityCenterToScene(value: number, size: number, mapTiles: number) {
   return (value + size / 2) / 40 - mapTiles / 2 + 0.5;
 }
 
+function inferredColliderForModel(model: string): readonly [number, number] | undefined {
+  const name = model.toLowerCase();
+  if (name.includes('floor_') || name.includes('/path_') || name.includes('rug_') || name.includes('stairs_') || name.includes('wall_arched')) return undefined;
+  if (name.includes('table_medium_long')) return [3, 1.6];
+  if (name.includes('table_medium')) return [2.2, 1.6];
+  if (name.includes('table_low')) return [2.1, 1.5];
+  if (name.includes('table_small')) return [1.5, 1.5];
+  if (name.includes('shelf_')) return name.includes('small') ? [1.35, 1.8] : [1.4, 3];
+  if (name.includes('cabinet_')) return name.includes('small') ? [1.25, 1.35] : [1.4, 1.75];
+  if (name.includes('bed_')) return [1.8, 3.15];
+  if (name.includes('bench')) return [1.45, 2.7];
+  if (name.includes('crypt')) return [2.5, 2];
+  if (name.includes('coffin')) return [1.9, 3.2];
+  if (name.includes('grave_') || name.includes('gravestone')) return [1.5, 2];
+  if (name.includes('shrine')) return [2.1, 2.1];
+  if (name.includes('anvil')) return [1.6, 1.25];
+  if (name.includes('grindstone')) return [1.9, 1.45];
+  if (name.includes('pallet_wood')) return [2.25, 1.65];
+  if (name.includes('bars_stack_large')) return [2.2, 1.6];
+  if (name.includes('bars_stack_medium')) return [1.9, 1.3];
+  if (name.includes('bars_stack_small')) return [1.45, 1.15];
+  if (name.includes('tree_dead')) return [1.75, 1.75];
+  if (name.includes('/bush_')) return [1.25, 1.25];
+  if (name.includes('rubble_large')) return [2, 1.7];
+  if (name.includes('pillar')) return [1.45, 1.45];
+  if (name.includes('barrier_') || name.includes('fence_')) return [2.6, 1];
+  return undefined;
+}
+
 function collidersForRoom(room: number) {
   return [...roomArchitecturePieces(room), ...roomSetpieces(room)]
-    .filter(piece => piece.collider)
-    .map(piece => {
-      const base = piece.collider!;
+    .map(piece => ({ piece, base: piece.collider ?? inferredColliderForModel(piece.model) }))
+    .filter((entry): entry is { piece: (ReturnType<typeof roomArchitecturePieces>[number] | ReturnType<typeof roomSetpieces>[number]); base: readonly [number, number] } => Boolean(entry.base))
+    .map(({ piece, base }) => {
       const scale = piece.scale ?? 1;
       const rotated = Math.abs(Math.sin(piece.rotation ?? 0)) > 0.7;
       const width = (rotated ? base[1] : base[0]) * scale;
@@ -34,7 +63,7 @@ export function collidesWithRoomProp(
   y: number,
   width: number,
   height: number,
-  padding = 0.08,
+  padding = 0.14,
 ) {
   const centerX = entityCenterToScene(x, width, mapWidth);
   const centerZ = entityCenterToScene(y, height, mapHeight);
