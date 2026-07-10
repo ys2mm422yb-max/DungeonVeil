@@ -12,6 +12,7 @@ import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRel
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
 import { createRunSynergyState, updateRunSynergies } from '../game/runSynergies';
 import { createFirstWardenFinaleState, updateFirstWardenFinale } from '../game/firstWardenFinale';
+import { createEquipmentWorldLootState, spawnRoomEquipmentReward, updateEquipmentWorldLoot } from '../game/equipmentWorldLoot';
 import { pushCloudSave } from '../game/cloudSave';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
@@ -69,6 +70,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const roomMechanics = createRoomMechanicState();
     const synergies = createRunSynergyState();
     const firstWarden = createFirstWardenFinaleState();
+    const worldLoot = createEquipmentWorldLootState();
     let frame = 0;
     let checkedClearKey = '';
     let lastFrame = performance.now();
@@ -92,12 +94,18 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           if (checkedClearKey !== clearKey) {
             checkedClearKey = clearKey;
             const reward = rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
-            if (reward) window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
+            if (reward) {
+              if (reward.item && reward.source && reward.rarity) {
+                spawnRoomEquipmentReward(engine, { item: reward.item, duplicate: Boolean(reward.duplicate), source: reward.source, rarity: reward.rarity });
+              }
+              window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
+            }
             void pushCloudSave();
           }
         } else {
           checkedClearKey = '';
         }
+        updateEquipmentWorldLoot(engine, worldLoot, time);
       }
       frame = requestAnimationFrame(update);
     };
