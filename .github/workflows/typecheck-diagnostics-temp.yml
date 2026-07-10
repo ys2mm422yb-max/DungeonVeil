@@ -6,8 +6,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: read
 
 jobs:
   report-typecheck:
@@ -31,18 +29,14 @@ jobs:
           code=$?
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Comment diagnostics
+      - name: Upload diagnostics
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            const fs = require('fs');
-            const raw = fs.existsSync('typecheck.log') ? fs.readFileSync('typecheck.log', 'utf8') : 'No typecheck log produced.';
-            const lines = raw.split(/\r?\n/).filter(Boolean).slice(-100);
-            const body = `### Temporary Typecheck diagnostics\n\nExit code: ${process.env.EXIT_CODE}\n\n\`\`\`text\n${lines.join('\n').slice(0, 50000)}\n\`\`\``;
-            await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
-        env:
-          EXIT_CODE: ${{ steps.typecheck.outputs.exit_code }}
+          name: dungeon-rpg-typecheck-log
+          path: typecheck.log
+          if-no-files-found: error
+          retention-days: 1
       - name: Preserve failure state
         if: steps.typecheck.outputs.exit_code != '0'
         run: exit 1
