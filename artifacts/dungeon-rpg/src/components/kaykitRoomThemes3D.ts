@@ -1,5 +1,6 @@
 import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
+import { buildKayKitRoomAtmosphere } from './kaykitRoomAtmosphere3D';
 import { roomSetpieces } from '../game/roomSetpieceLayout';
 import { roomIdentity } from '../game/roomIdentity';
 
@@ -39,7 +40,7 @@ async function prototypeFor(path: string) {
 
 function addLights(THREE: any, root: any, room: number) {
   const color = room >= 16 ? 0x9b5368 : room >= 11 ? 0x8a6ec9 : 0xe6b27a;
-  const light = new THREE.PointLight(color, IS_MOBILE ? 2.2 : 3.2, room >= 11 ? 14 : 15.5, 2);
+  const light = new THREE.PointLight(color, IS_MOBILE ? 1.55 : 2.25, room >= 11 ? 13 : 14.5, 2);
   light.position.set(0, 4.2, -11.8);
   root.add(light);
   root.userData.architectureLights = [light];
@@ -58,7 +59,9 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   let active = true;
 
   const outer = buildKayKitOuterWorld(THREE, 24, 32);
+  const atmosphere = buildKayKitRoomAtmosphere(THREE, room);
   root.add(outer);
+  root.add(atmosphere);
   addLights(THREE, root, room);
 
   const ready = Promise.all(roomSetpieces(room).map(async piece => {
@@ -72,6 +75,10 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   })).then(() => outer.userData?.ready ?? Promise.resolve()).then(() => undefined);
 
   root.userData.ready = ready;
-  root.userData.dispose = () => { active = false; outer.userData?.dispose?.(); };
+  root.userData.dispose = () => {
+    active = false;
+    outer.userData?.dispose?.();
+    atmosphere.userData?.dispose?.();
+  };
   return root;
 }
