@@ -6,9 +6,9 @@ export type EquipmentSlot = 'bow' | 'quiver' | 'talisman';
 export type EquipmentRarity = 'common' | 'rare' | 'epic';
 export type EquipmentDropSource = 'forge' | 'hunt' | 'warden' | 'ritual' | 'depth';
 export type EquipmentId =
-  | 'ash-bow' | 'ember-bow' | 'hunter-bow'
-  | 'ranger-quiver' | 'black-quiver' | 'rune-quiver'
-  | 'veil-key' | 'guardian-sigil' | 'frost-grimoire';
+  | 'ash-bow' | 'ember-bow' | 'hunter-bow' | 'frost-bow' | 'splinter-bow' | 'veil-bow' | 'warden-bow'
+  | 'ranger-quiver' | 'black-quiver' | 'rune-quiver' | 'frost-quiver' | 'splinter-quiver' | 'warden-quiver'
+  | 'veil-key' | 'guardian-sigil' | 'frost-grimoire' | 'ritual-shard' | 'ash-amulet' | 'depth-seal' | 'veil-eye';
 
 export type EquipmentDefinition = {
   id: EquipmentId;
@@ -34,13 +34,34 @@ export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   'ember-bow': {
     id: 'ember-bow', slot: 'bow', nameDe: 'Glutbogen', nameEn: 'Ember Bow',
     descriptionDe: 'Startet jeden Run mit Feuerpfeil I', descriptionEn: 'Start each run with Fire Arrow I', pack: 'weapons',
-    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_A_withString.gltf', unlockRank: 3, accent: '#ff673d', rarity: 'common', dropSource: 'forge',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_A_withString.gltf', unlockRank: 2, accent: '#ff673d', rarity: 'common', dropSource: 'forge',
   },
   'hunter-bow': {
     id: 'hunter-bow', slot: 'bow', nameDe: 'Bogen des Jägers', nameEn: "Hunter's Bow",
     descriptionDe: '+2 Angriff und +2 % Bewegung pro Stufe', descriptionEn: '+2 attack and +2% movement per level', pack: 'weapons',
-    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_B_withString.gltf', unlockRank: 6, accent: '#a8d381', rarity: 'rare', dropSource: 'hunt',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_B_withString.gltf', unlockRank: 4, accent: '#a8d381', rarity: 'rare', dropSource: 'hunt',
   },
+  'frost-bow': {
+    id: 'frost-bow', slot: 'bow', nameDe: 'Frostbogen', nameEn: 'Frost Bow',
+    descriptionDe: 'Frostpfeil I und +3 Reichweite pro Stufe', descriptionEn: 'Ice Arrow I and +3 range per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/crossbow_1handed.gltf', unlockRank: 5, accent: '#79ddff', rarity: 'rare', dropSource: 'depth',
+  },
+  'splinter-bow': {
+    id: 'splinter-bow', slot: 'bow', nameDe: 'Splitterbogen', nameEn: 'Splinter Bow',
+    descriptionDe: 'Durchschlag I und +2 Angriff pro Stufe', descriptionEn: 'Piercing I and +2 attack per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/crossbow_2handed.gltf', unlockRank: 6, accent: '#e0c089', rarity: 'rare', dropSource: 'forge',
+  },
+  'veil-bow': {
+    id: 'veil-bow', slot: 'bow', nameDe: 'Schleierbogen', nameEn: 'Veil Bow',
+    descriptionDe: 'Abpraller I und +4 % Bewegung pro Stufe', descriptionEn: 'Ricochet I and +4% movement per level', pack: 'weapons',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_A.gltf', unlockRank: 8, accent: '#a88cff', rarity: 'epic', dropSource: 'ritual',
+  },
+  'warden-bow': {
+    id: 'warden-bow', slot: 'bow', nameDe: 'Wächterbogen', nameEn: 'Warden Bow',
+    descriptionDe: '+4 Angriff und +1 Verteidigung pro Stufe', descriptionEn: '+4 attack and +1 defense per level', pack: 'weapons',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/bow_B.gltf', unlockRank: 10, accent: '#f1c66c', rarity: 'epic', dropSource: 'warden',
+  },
+
   'ranger-quiver': {
     id: 'ranger-quiver', slot: 'quiver', nameDe: 'Waldläuferköcher', nameEn: 'Ranger Quiver',
     descriptionDe: '+3 % Bewegung pro Stufe', descriptionEn: '+3% movement per level', pack: 'adventurers',
@@ -49,13 +70,29 @@ export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   'black-quiver': {
     id: 'black-quiver', slot: 'quiver', nameDe: 'Schwarzer Köcher', nameEn: 'Black Quiver',
     descriptionDe: 'Startet jeden Run mit Mehrfachpfeil I', descriptionEn: 'Start each run with Multishot I', pack: 'adventurers',
-    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_bow_bundle.gltf', unlockRank: 4, accent: '#8b78ba', rarity: 'common', dropSource: 'hunt',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_bow_bundle.gltf', unlockRank: 3, accent: '#8b78ba', rarity: 'common', dropSource: 'hunt',
   },
   'rune-quiver': {
     id: 'rune-quiver', slot: 'quiver', nameDe: 'Runenköcher', nameEn: 'Rune Quiver',
     descriptionDe: 'Startet jeden Run mit Abpraller I', descriptionEn: 'Start each run with Ricochet I', pack: 'weapons',
-    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/arrow_B.gltf', unlockRank: 7, accent: '#b184ff', rarity: 'epic', dropSource: 'ritual',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/arrow_B.gltf', unlockRank: 6, accent: '#b184ff', rarity: 'epic', dropSource: 'ritual',
   },
+  'frost-quiver': {
+    id: 'frost-quiver', slot: 'quiver', nameDe: 'Frostköcher', nameEn: 'Frost Quiver',
+    descriptionDe: 'Frostpfeil I und +3 Skill-Reichweite pro Stufe', descriptionEn: 'Ice Arrow I and +3 skill range per level', pack: 'weapons',
+    assetPath: 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/arrow_A.gltf', unlockRank: 4, accent: '#6fd8ff', rarity: 'rare', dropSource: 'depth',
+  },
+  'splinter-quiver': {
+    id: 'splinter-quiver', slot: 'quiver', nameDe: 'Splitterköcher', nameEn: 'Splinter Quiver',
+    descriptionDe: 'Durchschlag I und +3 Angriffsreichweite pro Stufe', descriptionEn: 'Piercing I and +3 attack range per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_crossbow_bundle.gltf', unlockRank: 6, accent: '#d8bd82', rarity: 'rare', dropSource: 'forge',
+  },
+  'warden-quiver': {
+    id: 'warden-quiver', slot: 'quiver', nameDe: 'Wächterköcher', nameEn: 'Warden Quiver',
+    descriptionDe: '-4 % Angriffsabklingzeit und +1 Verteidigung pro Stufe', descriptionEn: '-4% attack cooldown and +1 defense per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_crossbow.gltf', unlockRank: 8, accent: '#e6c46d', rarity: 'epic', dropSource: 'warden',
+  },
+
   'veil-key': {
     id: 'veil-key', slot: 'talisman', nameDe: 'Schleierschlüssel', nameEn: 'Veil Key',
     descriptionDe: '+4 % Bewegung und +2 Leben pro Stufe', descriptionEn: '+4% movement and +2 health per level', pack: 'dungeon',
@@ -68,8 +105,28 @@ export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   },
   'frost-grimoire': {
     id: 'frost-grimoire', slot: 'talisman', nameDe: 'Frostgrimoire', nameEn: 'Frost Grimoire',
-    descriptionDe: 'Startet jeden Run mit Frostpfeil I', descriptionEn: 'Start each run with Frost Arrow I', pack: 'adventurers',
+    descriptionDe: 'Frostpfeil I und -4 % Skill-Abklingzeit pro Stufe', descriptionEn: 'Ice Arrow I and -4% skill cooldown per level', pack: 'adventurers',
     assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/spellbook_closed.gltf', unlockRank: 8, accent: '#78ddff', rarity: 'epic', dropSource: 'depth',
+  },
+  'ritual-shard': {
+    id: 'ritual-shard', slot: 'talisman', nameDe: 'Ritualsplitter', nameEn: 'Ritual Shard',
+    descriptionDe: 'Abpraller I und +4 Skill-Reichweite pro Stufe', descriptionEn: 'Ricochet I and +4 skill range per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/spellbook_open.gltf', unlockRank: 5, accent: '#d684ff', rarity: 'epic', dropSource: 'ritual',
+  },
+  'ash-amulet': {
+    id: 'ash-amulet', slot: 'talisman', nameDe: 'Aschenamulett', nameEn: 'Ash Amulet',
+    descriptionDe: '+3 Angriff und +2 Leben pro Stufe', descriptionEn: '+3 attack and +2 health per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/smokebomb.gltf', unlockRank: 4, accent: '#e7804f', rarity: 'rare', dropSource: 'forge',
+  },
+  'depth-seal': {
+    id: 'depth-seal', slot: 'talisman', nameDe: 'Tiefensiegel', nameEn: 'Depth Seal',
+    descriptionDe: '+5 Leben und +2 Angriffsreichweite pro Stufe', descriptionEn: '+5 health and +2 attack range per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/shield_badge.gltf', unlockRank: 7, accent: '#5db2b8', rarity: 'rare', dropSource: 'depth',
+  },
+  'veil-eye': {
+    id: 'veil-eye', slot: 'talisman', nameDe: 'Auge des Schleiers', nameEn: 'Veil Eye',
+    descriptionDe: '+5 % Angriff und -3 % Dash-Abklingzeit pro Stufe', descriptionEn: '+5% attack and -3% dash cooldown per level', pack: 'adventurers',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/wand.gltf', unlockRank: 10, accent: '#c375ff', rarity: 'epic', dropSource: 'ritual',
   },
 };
 
@@ -160,6 +217,11 @@ function normalizeOwned(value: unknown): MetaProgression['owned'] {
   return owned;
 }
 
+function ownedShapeNeedsMigration(value: unknown) {
+  if (!value || typeof value !== 'object') return false;
+  return Object.values(value as Record<string, unknown>).some(item => typeof item === 'number');
+}
+
 export function loadMetaProgression(): MetaProgression {
   try {
     const raw = localStorage.getItem(META_KEY);
@@ -180,7 +242,7 @@ export function loadMetaProgression(): MetaProgression {
       const id = migrated.equipped[slot];
       if (!migrated.owned[id] || EQUIPMENT[id]?.slot !== slot) migrated.equipped[slot] = DEFAULT_META.equipped[slot];
     }
-    if (parsed.version !== 2) saveMetaProgression(migrated);
+    if (parsed.version !== 2 || ownedShapeNeedsMigration(parsed.owned)) saveMetaProgression(migrated);
     return migrated;
   } catch {
     return structuredClone(DEFAULT_META);
@@ -246,10 +308,10 @@ export function rewardMetaRoomClear(chapter: number, floor: number): MetaReward 
   live.rewardLedger.push(rewardKey);
 
   const boss = isBossRoom(floor);
-  const finalBoss = floor === 20;
-  const xp = finalBoss ? 260 + chapter * 30 : boss ? 130 + chapter * 20 : 14 + floor * 4 + Math.max(0, chapter - 1) * 8;
-  const dust = finalBoss ? 105 + chapter * 15 : boss ? 55 + chapter * 10 : 4 + Math.ceil(floor * 0.8);
-  const gold = finalBoss ? 900 + chapter * 140 : boss ? 350 + chapter * 70 : 40 + floor * 18 + Math.max(0, chapter - 1) * 20;
+  const chapterBoss = floor === 20;
+  const xp = chapterBoss ? 260 + chapter * 30 : boss ? 130 + chapter * 20 : 14 + floor * 4 + Math.max(0, chapter - 1) * 8;
+  const dust = chapterBoss ? 105 + chapter * 15 : boss ? 55 + chapter * 10 : 4 + Math.ceil(floor * 0.8);
+  const gold = chapterBoss ? 900 + chapter * 140 : boss ? 350 + chapter * 70 : 40 + floor * 18 + Math.max(0, chapter - 1) * 20;
   const rankBefore = live.rank;
   addRankXp(live, xp);
   live.dust += dust;
@@ -331,8 +393,13 @@ export function upgradeMetaItem(id: EquipmentId) {
   return saveMetaProgression(meta);
 }
 
-function ensureSkill(engine: GameEngine, key: 'fireArrow' | 'iceArrow' | 'multishot' | 'ricochet', rank = 1) {
+function ensureSkill(engine: GameEngine, key: 'fireArrow' | 'iceArrow' | 'multishot' | 'ricochet' | 'piercing', rank = 1) {
   engine.state.runSkills[key] = Math.max(skillRank(engine.state.runSkills, key), rank);
+}
+
+function addHealth(engine: GameEngine, amount: number) {
+  engine.state.player.maxHp += amount;
+  engine.state.player.hp += amount;
 }
 
 export function applyMetaLoadoutToNewRun(engine: GameEngine) {
@@ -345,12 +412,23 @@ export function applyMetaLoadoutToNewRun(engine: GameEngine) {
     if (id === 'ash-bow') p.attack = Math.round(p.attack * (1 + 0.06 * level));
     else if (id === 'ember-bow') ensureSkill(engine, 'fireArrow');
     else if (id === 'hunter-bow') { p.attack += 2 * level; p.speed *= 1 + 0.02 * level; }
+    else if (id === 'frost-bow') { ensureSkill(engine, 'iceArrow'); p.attackRange += 3 * level; }
+    else if (id === 'splinter-bow') { ensureSkill(engine, 'piercing'); p.attack += 2 * level; }
+    else if (id === 'veil-bow') { ensureSkill(engine, 'ricochet'); p.speed *= 1 + 0.04 * level; }
+    else if (id === 'warden-bow') { p.attack += 4 * level; p.defense += level; }
     else if (id === 'ranger-quiver') p.speed *= 1 + 0.03 * level;
     else if (id === 'black-quiver') ensureSkill(engine, 'multishot');
     else if (id === 'rune-quiver') ensureSkill(engine, 'ricochet');
-    else if (id === 'veil-key') { p.speed *= 1 + 0.04 * level; p.maxHp += 2 * level; p.hp += 2 * level; }
-    else if (id === 'guardian-sigil') { p.maxHp += 8 * level; p.hp += 8 * level; p.defense += level; }
-    else if (id === 'frost-grimoire') ensureSkill(engine, 'iceArrow');
+    else if (id === 'frost-quiver') { ensureSkill(engine, 'iceArrow'); p.skillRange += 3 * level; }
+    else if (id === 'splinter-quiver') { ensureSkill(engine, 'piercing'); p.attackRange += 3 * level; }
+    else if (id === 'warden-quiver') { p.attackCooldown = Math.max(90, Math.round(p.attackCooldown * (1 - 0.04 * level))); p.defense += level; }
+    else if (id === 'veil-key') { p.speed *= 1 + 0.04 * level; addHealth(engine, 2 * level); }
+    else if (id === 'guardian-sigil') { addHealth(engine, 8 * level); p.defense += level; }
+    else if (id === 'frost-grimoire') { ensureSkill(engine, 'iceArrow'); p.skillCooldown = Math.max(700, Math.round(p.skillCooldown * (1 - 0.04 * level))); }
+    else if (id === 'ritual-shard') { ensureSkill(engine, 'ricochet'); p.skillRange += 4 * level; }
+    else if (id === 'ash-amulet') { p.attack += 3 * level; addHealth(engine, 2 * level); }
+    else if (id === 'depth-seal') { addHealth(engine, 5 * level); p.attackRange += 2 * level; }
+    else if (id === 'veil-eye') { p.attack = Math.round(p.attack * (1 + 0.05 * level)); p.dodgeCooldown = Math.max(250, Math.round(p.dodgeCooldown * (1 - 0.03 * level))); }
   }
 
   p.speed = Math.round(p.speed);
