@@ -22,14 +22,14 @@ const DETAILS: Record<number, RoomDecorDetail[]> = {
     d(`${F}/chair_stool_wood.gltf`, 4.4, 4.8, .25, .9),
   ],
   2: [
-    d(`${F}/rug_rectangle_pattern_A.gltf`, 0, 2.1, 0, 1.05),
+    d(`${F}/rug_rectangle_A.gltf`, 0, 2.1, 0, 1.05),
     d(`${T}/compass_base.gltf`, -2.8, -1.2, .2, 1.05),
     d(`${T}/journal_closed.gltf`, 3.2, -.6, -.25, 1.05),
     d(`${T}/lantern.gltf`, -4.5, 4.5, 0, 1.05),
     d(`${F}/chair_stool_wood.gltf`, 4.7, 4.2, .4, .9),
   ],
   3: [
-    d(`${F}/rug_round_pattern_A.gltf`, 0, 0, 0, 1.25),
+    d(`${F}/rug_oval_A.gltf`, 0, 0, 0, 1.25),
     d(`${H}/candle_triple.gltf`, -3.2, -3.7, 0, 1.05),
     d(`${H}/candle_triple.gltf`, 3.2, -3.7, 0, 1.05),
     d(`${H}/candle_melted.gltf`, -3.6, 4.1, 0, 1.05),
@@ -43,7 +43,7 @@ const DETAILS: Record<number, RoomDecorDetail[]> = {
     d(`${T}/lantern.gltf`, 0, -1.5, 0, 1.05),
   ],
   5: [
-    d(`${F}/rug_rectangle_pattern_B.gltf`, 0, 2.4, 0, 1.05),
+    d(`${F}/rug_rectangle_B.gltf`, 0, 2.4, 0, 1.05),
     d(`${T}/blueprint.gltf`, -3.6, .8, .3, 1.1),
     d(`${T}/wrench_A.gltf`, 3.5, .6, -.4, 1.05),
     d(`${T}/hammer.gltf`, -4.4, 4.4, .2, 1),
@@ -68,21 +68,21 @@ const DETAILS: Record<number, RoomDecorDetail[]> = {
     d(`${R}/Copper_Bars_Stack_Small.gltf`, 3.8, 1.5, -.1, .95),
     d(`${T}/rope_bundle_A.gltf`, -4.4, 4.7, .2, 1.05),
     d(`${T}/bucket_metal.gltf`, 4.4, 4.7, 0, 1),
-    d(`${F}/rug_rectangle_pattern_A.gltf`, 0, 4.3, 0, 1.05),
+    d(`${F}/rug_rectangle_A.gltf`, 0, 4.3, 0, 1.05),
   ],
   9: [
     d(`${H}/candle_triple.gltf`, -4.2, .3, 0, 1.1),
     d(`${H}/candle_triple.gltf`, 4.2, .3, 0, 1.1),
     d(`${H}/skull.gltf`, -3.6, 4.2, .2, 1.05),
     d(`${H}/bone_A.gltf`, 3.8, 4.1, -.3, 1.05),
-    d(`${F}/rug_round_pattern_A.gltf`, 0, 1.9, 0, 1.15),
+    d(`${F}/rug_oval_A.gltf`, 0, 1.9, 0, 1.15),
   ],
   10: [
     d(`${H}/candle_triple.gltf`, -3.7, -1.2, 0, 1.1),
     d(`${H}/candle_triple.gltf`, 3.7, -1.2, 0, 1.1),
     d(`${H}/skull.gltf`, -3.8, 4.3, .2, 1.05),
     d(`${H}/bone_A.gltf`, 3.8, 4.3, -.2, 1.05),
-    d(`${F}/rug_round_pattern_B.gltf`, 0, 2.1, 0, 1.1),
+    d(`${F}/rug_oval_B.gltf`, 0, 2.1, 0, 1.1),
   ],
 };
 
