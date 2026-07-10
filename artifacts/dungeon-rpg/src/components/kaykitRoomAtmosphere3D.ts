@@ -2,14 +2,14 @@ import { roomSetpieces } from '../game/roomSetpieceLayout';
 
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
-type LightSource = { x: number; z: number; color: number; intensity: number; range: number; phase: number };
+type LightSource = { x: number; y: number; z: number; color: number; intensity: number; range: number; phase: number };
 
 function sourceForModel(model: string): Omit<LightSource, 'x' | 'z' | 'phase'> | null {
   const name = model.toLowerCase();
-  if (name.includes('shrine_candles')) return { color: 0x8d67ff, intensity: 3.2, range: 6.2 };
-  if (name.includes('torch')) return { color: 0xff8a3d, intensity: 2.8, range: 5.2 };
-  if (name.includes('lantern')) return { color: 0xffb75e, intensity: 2.2, range: 4.2 };
-  if (name.includes('candle')) return { color: 0xffc979, intensity: 1.35, range: 3.1 };
+  if (name.includes('shrine_candles')) return { y: 1.35, color: 0x8d67ff, intensity: 3.2, range: 6.2 };
+  if (name.includes('torch')) return { y: 1.3, color: 0xff8a3d, intensity: 2.8, range: 5.2 };
+  if (name.includes('lantern')) return { y: 0.75, color: 0xffb75e, intensity: 2.2, range: 4.2 };
+  if (name.includes('candle')) return { y: 0.45, color: 0xffc979, intensity: 1.35, range: 3.1 };
   return null;
 }
 
@@ -29,7 +29,7 @@ export function buildKayKitRoomAtmosphere(THREE: any, room: number) {
 
   const lights = lightSources(room).map(source => {
     const light = new THREE.PointLight(source.color, source.intensity, source.range, 2);
-    light.position.set(source.x, source.model?.includes?.('shrine') ? 1.35 : 1.05, source.z);
+    light.position.set(source.x, source.y, source.z);
     light.userData.baseIntensity = source.intensity;
     light.userData.phase = source.phase;
     root.add(light);
