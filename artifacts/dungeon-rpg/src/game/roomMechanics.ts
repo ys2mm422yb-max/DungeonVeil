@@ -5,6 +5,7 @@ import { roomSetpieces } from './roomSetpieceLayout';
 export type RoomMechanicKind = 'forge-burst' | 'arc-line' | 'ritual-core' | 'grave-call' | null;
 export type RoomMechanicState = {
   roomKey: string;
+  roomMap: object | null;
   kind: RoomMechanicKind;
   nextTriggerAt: number;
   warningAt: number;
@@ -17,7 +18,7 @@ export type RoomMechanicState = {
 };
 
 export function createRoomMechanicState(): RoomMechanicState {
-  return { roomKey: '', kind: null, nextTriggerAt: 0, warningAt: 0, targetX: 0, targetY: 0, ritualChargeMs: 0, ritualBroken: false, ritualBuffedIds: new Set(), graveTriggered: false };
+  return { roomKey: '', roomMap: null, kind: null, nextTriggerAt: 0, warningAt: 0, targetX: 0, targetY: 0, ritualChargeMs: 0, ritualBroken: false, ritualBuffedIds: new Set(), graveTriggered: false };
 }
 
 export function roomMechanicFor(room: number): RoomMechanicKind {
@@ -51,8 +52,9 @@ function damage(engine: GameEngine, time: number, amount: number, color: string,
 
 function enterRoom(engine: GameEngine, state: RoomMechanicState, time: number) {
   const key = `${engine.state.chapter}:${engine.state.floor}`;
-  if (state.roomKey === key) return;
+  if (state.roomKey === key && state.roomMap === engine.state.map) return;
   state.roomKey = key;
+  state.roomMap = engine.state.map;
   state.kind = roomMechanicFor(engine.state.floor);
   state.nextTriggerAt = time + 3400;
   state.warningAt = 0;
