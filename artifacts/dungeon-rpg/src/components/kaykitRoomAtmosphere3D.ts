@@ -38,13 +38,19 @@ export function buildKayKitRoomAtmosphere(THREE: any, room: number) {
 
   const particleCount = IS_MOBILE ? 22 : 42;
   const positions = new Float32Array(particleCount * 3);
+  const basePositions = new Float32Array(particleCount * 3);
   const seeds = new Float32Array(particleCount);
+  const riseSpeeds = new Float32Array(particleCount);
   for (let index = 0; index < particleCount; index++) {
     const i = index * 3;
-    positions[i] = (Math.random() - 0.5) * 18;
-    positions[i + 1] = 0.15 + Math.random() * 2.8;
-    positions[i + 2] = -8 + Math.random() * 16;
+    basePositions[i] = (Math.random() - 0.5) * 18;
+    basePositions[i + 1] = 0.15 + Math.random() * 2.8;
+    basePositions[i + 2] = -8 + Math.random() * 16;
+    positions[i] = basePositions[i];
+    positions[i + 1] = basePositions[i + 1];
+    positions[i + 2] = basePositions[i + 2];
     seeds[index] = Math.random() * Math.PI * 2;
+    riseSpeeds[index] = 0.09 + (index % 4) * 0.018;
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -60,9 +66,11 @@ export function buildKayKitRoomAtmosphere(THREE: any, room: number) {
   const dust = new THREE.Points(geometry, material);
   dust.frustumCulled = false;
   root.add(dust);
+  const startedAt = performance.now() * 0.001;
 
   dust.onBeforeRender = () => {
     const now = performance.now() * 0.001;
+    const elapsed = now - startedAt;
     lights.forEach(light => {
       const base = light.userData.baseIntensity ?? 1;
       const phase = light.userData.phase ?? 0;
@@ -73,10 +81,9 @@ export function buildKayKitRoomAtmosphere(THREE: any, room: number) {
     for (let index = 0; index < particleCount; index++) {
       const i = index * 3;
       const seed = seeds[index];
-      positions[i] += Math.sin(now * 0.55 + seed) * 0.0007;
-      positions[i + 1] += 0.0018 + (index % 3) * 0.00035;
-      positions[i + 2] += Math.cos(now * 0.42 + seed) * 0.00055;
-      if (positions[i + 1] > 3.15) positions[i + 1] = 0.12;
+      positions[i] = basePositions[i] + Math.sin(elapsed * 0.55 + seed) * 0.08;
+      positions[i + 1] = 0.12 + ((basePositions[i + 1] - 0.12 + elapsed * riseSpeeds[index]) % 3.03);
+      positions[i + 2] = basePositions[i + 2] + Math.cos(elapsed * 0.42 + seed) * 0.07;
     }
     attribute.needsUpdate = true;
   };
