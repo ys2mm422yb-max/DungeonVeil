@@ -4,6 +4,7 @@ import { buildKayKitRoomAtmosphere } from './kaykitRoomAtmosphere3D';
 import { roomSetpieces } from '../game/roomSetpieceLayout';
 import { roomArchitecturePieces } from '../game/roomArchitectureLayout';
 import { roomFurnishingPieces } from '../game/roomFurnishingLayout';
+import { roomSurfacePieces } from '../game/roomSurfaceLayout';
 import { roomIdentity } from '../game/roomIdentity';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -11,6 +12,7 @@ const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android
 const modelPromises = new Map<string, Promise<any>>();
 
 type LoadedGltf = { scene: any };
+type VisualPiece = { model: string; x: number; y?: number; z: number; rotation?: number; scale?: number };
 
 function keep(resource: any) {
   if (!resource || resource.userData?.kayKitPersistent) return;
@@ -48,8 +50,8 @@ function addLights(THREE: any, root: any, room: number) {
   root.userData.architectureLights = [light];
 }
 
-function roomPieces(room: number) {
-  return [...roomArchitecturePieces(room), ...roomSetpieces(room), ...roomFurnishingPieces(room)];
+function roomPieces(room: number): VisualPiece[] {
+  return [...roomSurfacePieces(room), ...roomArchitecturePieces(room), ...roomSetpieces(room), ...roomFurnishingPieces(room)];
 }
 
 export async function preloadKayKitRoomTheme(room: number) {
@@ -74,7 +76,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     const prototype = await prototypeFor(piece.model);
     if (!active) return;
     const object = prototype.clone(true);
-    object.position.set(piece.x, 0, piece.z);
+    object.position.set(piece.x, piece.y ?? 0, piece.z);
     object.rotation.y = piece.rotation ?? 0;
     object.scale.setScalar(piece.scale ?? 1);
     root.add(object);
