@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import type { EquipmentId } from '../game/metaProgression';
+import { EQUIPMENT, type EquipmentId, type EquipmentSlot } from '../game/metaProgression';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -7,6 +7,7 @@ const KAYKIT_ROOT = '/assets/kaykit/';
 const OPEN_BOOK = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/spellbook_open.gltf';
 const RANGER_QUIVER = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf';
 const HIGH_TIER = new Set<EquipmentId>(['hunter-bow', 'rune-quiver', 'frost-grimoire']);
+const ADVENTURER_BOWS = new Set<EquipmentId>(['ash-bow', 'bone-string']);
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
 function fitObject(THREE: any, object: any, targetSize: number) {
@@ -35,6 +36,34 @@ function prepareObject(object: any) {
   });
 }
 
+function compactTarget(slot: EquipmentSlot, itemId: EquipmentId) {
+  if (slot === 'bow') return itemId === 'hunter-bow' || itemId === 'warden-bow' ? 2.7 : 2.55;
+  if (slot === 'quiver') return itemId === 'rune-quiver' ? 2.25 : 2.08;
+  return itemId === 'frost-grimoire' ? 2.0 : 1.82;
+}
+
+function frameItem(relic: any, slot: EquipmentSlot, itemId: EquipmentId, compact: boolean) {
+  relic.rotation.set(0, 0, 0);
+  if (slot === 'bow') {
+    if (ADVENTURER_BOWS.has(itemId)) {
+      relic.rotation.x = Math.PI / 2;
+      relic.rotation.z = -0.22;
+    } else {
+      relic.rotation.y = -0.08;
+      relic.rotation.z = -0.28;
+    }
+  } else if (slot === 'quiver') {
+    relic.rotation.x = -0.08;
+    relic.rotation.y = 0.18;
+    relic.rotation.z = -0.12;
+  } else {
+    relic.rotation.x = itemId === 'frost-grimoire' ? -0.28 : -0.12;
+    relic.rotation.y = 0.12;
+    relic.rotation.z = itemId === 'blood-stone' ? -0.16 : 0;
+  }
+  if (!compact) relic.rotation.y += 0.06;
+}
+
 type Props = {
   assetPath: string;
   accent: string;
@@ -52,7 +81,7 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId, compact = fa
     let raf = 0;
     let renderer: any = null;
     let camera: any = null;
-    let lastCompactRender = 0;
+    let renderScene: (() => void) | null = null;
 
     const boot = async () => {
       const THREE = await import(/* @vite-ignore */ THREE_URL);
@@ -60,26 +89,28 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId, compact = fa
       if (disposed) return;
 
       const scene = new THREE.Scene();
+      const item = EQUIPMENT[itemId];
+      const slot = item.slot;
       const relicTier = !compact && HIGH_TIER.has(itemId);
       const width = Math.max(1, host.clientWidth || 120);
       const height = Math.max(1, host.clientHeight || 120);
-      camera = new THREE.PerspectiveCamera(compact ? 42 : relicTier ? 34 : 38, width / height, 0.1, 40);
-      camera.position.set(0, compact ? 0.04 : 0.1, compact ? 4.6 : relicTier ? 5.4 : 5.0);
+      camera = new THREE.PerspectiveCamera(compact ? 31 : relicTier ? 34 : 38, width / height, 0.1, 40);
+      camera.position.set(0, compact ? 0 : 0.1, compact ? 3.45 : relicTier ? 5.4 : 5.0);
       camera.lookAt(0, 0, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, compact ? 0.9 : IS_ANDROID ? 1 : 1.15));
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, compact ? 1 : IS_ANDROID ? 1 : 1.15));
       renderer.setSize(width, height, false);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = compact ? 1.18 : relicTier ? 1.22 : 1.1;
+      renderer.toneMappingExposure = compact ? 1.3 : relicTier ? 1.22 : 1.1;
       renderer.domElement.style.display = 'block';
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
       host.appendChild(renderer.domElement);
 
-      scene.add(new THREE.HemisphereLight(0xf5e6c8, 0x09080b, compact ? 1.55 : relicTier ? 1.55 : 1.35));
-      const keyLight = new THREE.PointLight(accent, compact ? 3.7 : relicTier ? (IS_ANDROID ? 4.2 : 5.4) : 4.6, 9, 2);
+      scene.add(new THREE.HemisphereLight(0xf5e6c8, 0x09080b, compact ? 1.9 : relicTier ? 1.55 : 1.35));
+      const keyLight = new THREE.PointLight(accent, compact ? 4.2 : relicTier ? (IS_ANDROID ? 4.2 : 5.4) : 4.6, 9, 2);
       keyLight.position.set(1.5, 1.25, 2.2);
       scene.add(keyLight);
       const rimLight = relicTier ? new THREE.PointLight(accent, IS_ANDROID ? 2.4 : 3.2, 7, 2) : null;
@@ -103,23 +134,18 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId, compact = fa
       const animated: any[] = [];
       const sparks: any[] = [];
 
-      if (itemId === 'hunter-bow') {
-        fitObject(THREE, object, compact ? 1.82 : 2.05);
-        object.rotation.z = Math.PI / 2;
-        object.rotation.y = -0.12;
-        relic.add(object);
-      } else if (itemId === 'rune-quiver') {
+      if (itemId === 'rune-quiver') {
         const quiverGltf = await loader.loadAsync(`${KAYKIT_ROOT}${RANGER_QUIVER}`);
         if (disposed) return;
         const quiver = quiverGltf.scene;
         prepareObject(quiver);
-        fitObject(THREE, quiver, compact ? 1.35 : 1.6);
-        quiver.position.set(-0.12, -0.05, 0);
+        fitObject(THREE, quiver, 1.5);
+        quiver.position.set(-0.18, -0.04, 0);
         quiver.rotation.z = -0.14;
         relic.add(quiver);
 
-        fitObject(THREE, object, compact ? 0.78 : 0.95);
-        object.position.set(0.2, 0.16, 0.1);
+        fitObject(THREE, object, 0.92);
+        object.position.set(0.26, 0.16, 0.08);
         object.rotation.z = 0.16;
         relic.add(object);
       } else if (itemId === 'frost-grimoire') {
@@ -127,14 +153,13 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId, compact = fa
         if (disposed) return;
         const openBook = open.scene;
         prepareObject(openBook);
-        fitObject(THREE, openBook, compact ? 1.3 : 1.55);
-        openBook.rotation.x = -0.5;
-        openBook.rotation.y = 0.08;
         relic.add(openBook);
       } else {
-        fitObject(THREE, object, compact ? 1.15 : 1.35);
         relic.add(object);
       }
+
+      fitObject(THREE, relic, compact ? compactTarget(slot, itemId) : itemId === 'hunter-bow' ? 2.05 : itemId === 'frost-grimoire' ? 1.55 : 1.35);
+      frameItem(relic, slot, itemId, compact);
 
       if (relicTier) {
         const halo = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.018, IS_ANDROID ? 6 : 8, IS_ANDROID ? 28 : 48), softMaterial.clone());
@@ -153,6 +178,7 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId, compact = fa
         }
       }
 
+      renderScene = () => renderer?.render(scene, camera);
       const resize = () => {
         if (!renderer || !camera) return;
         const nextWidth = Math.max(1, host.clientWidth || 120);
@@ -160,38 +186,36 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId, compact = fa
         camera.aspect = nextWidth / nextHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(nextWidth, nextHeight, false);
+        renderScene?.();
       };
 
       const loop = () => {
-        if (disposed) return;
+        if (disposed || compact) return;
         const now = performance.now();
-        if (!compact || now - lastCompactRender >= 66) {
-          lastCompactRender = now;
-          relic.rotation.y += compact ? 0.012 : relicTier ? 0.0024 : 0.006;
-          relic.rotation.x = Math.sin(now * 0.0007) * (compact ? 0.025 : relicTier ? 0.018 : 0.05);
-          relic.position.y = relicTier ? Math.sin(now * 0.0017) * 0.035 : 0;
-          animated.forEach((node, index) => {
-            node.rotation.y += 0.004 + index * 0.0006;
-            node.rotation.z += index % 2 ? -0.0018 : 0.0018;
-            if (node.material?.opacity !== undefined && node.material.transparent) node.material.opacity = 0.26 + Math.sin(now * 0.0032 + index) * 0.08;
-          });
-          sparks.forEach((spark, index) => {
-            const phase = spark.userData.phase + now * 0.001;
-            const radius = spark.userData.radius;
-            spark.position.set(Math.cos(phase) * radius, -0.55 + ((phase * 0.25 + index * 0.14) % 1.1), Math.sin(phase) * radius * 0.4);
-            spark.material.opacity = 0.26 + Math.sin(phase * 2.2) * 0.14;
-          });
-          keyLight.intensity = (compact ? 3.5 : relicTier ? (IS_ANDROID ? 3.8 : 5) : 4.2) + Math.sin(now * 0.0037) * (compact ? 0.25 : 0.6);
-          if (rimLight) rimLight.intensity = (IS_ANDROID ? 2.1 : 2.8) + Math.cos(now * 0.003) * 0.45;
-          renderer.render(scene, camera);
-        }
+        relic.rotation.y += relicTier ? 0.0024 : 0.004;
+        relic.position.y = relicTier ? Math.sin(now * 0.0017) * 0.035 : Math.sin(now * 0.0012) * 0.015;
+        animated.forEach((node, index) => {
+          node.rotation.y += 0.004 + index * 0.0006;
+          node.rotation.z += index % 2 ? -0.0018 : 0.0018;
+          if (node.material?.opacity !== undefined && node.material.transparent) node.material.opacity = 0.26 + Math.sin(now * 0.0032 + index) * 0.08;
+        });
+        sparks.forEach((spark, index) => {
+          const phase = spark.userData.phase + now * 0.001;
+          const radius = spark.userData.radius;
+          spark.position.set(Math.cos(phase) * radius, -0.55 + ((phase * 0.25 + index * 0.14) % 1.1), Math.sin(phase) * radius * 0.4);
+          spark.material.opacity = 0.26 + Math.sin(phase * 2.2) * 0.14;
+        });
+        keyLight.intensity = (relicTier ? (IS_ANDROID ? 3.8 : 5) : 4.2) + Math.sin(now * 0.0037) * 0.6;
+        if (rimLight) rimLight.intensity = (IS_ANDROID ? 2.1 : 2.8) + Math.cos(now * 0.003) * 0.45;
+        renderScene?.();
         raf = requestAnimationFrame(loop);
       };
 
       window.addEventListener('resize', resize);
       (host as any).__equipmentCleanup = () => window.removeEventListener('resize', resize);
       resize();
-      loop();
+      if (compact) renderScene();
+      else loop();
     };
 
     boot().catch(error => console.error('KayKit equipment preview failed', error));
