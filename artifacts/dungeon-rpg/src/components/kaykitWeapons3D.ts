@@ -8,9 +8,15 @@ const FANTASY_WEAPONS_GLTF = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/
 export type KayKitRangerWeapons = {
   bow: any;
   arrow: any;
+  bowId: EquipmentId;
 };
 
-const rangerWeaponCache = new Map<string, Promise<KayKitRangerWeapons | null>>();
+type CachedRangerWeapons = {
+  bow: any;
+  arrow: any;
+};
+
+const rangerWeaponCache = new Map<string, Promise<CachedRangerWeapons | null>>();
 let bossWeaponPromise: Promise<any | null> | null = null;
 let finalBossFocusPromise: Promise<any | null> | null = null;
 
@@ -35,12 +41,12 @@ function equippedBowPath() {
 }
 
 function equippedArrowPath(bowId: EquipmentId | undefined) {
-  if (bowId === 'ember-bow') return `${FANTASY_WEAPONS_GLTF}/arrow_A.gltf`;
-  if (bowId === 'hunter-bow') return `${FANTASY_WEAPONS_GLTF}/arrow_B.gltf`;
+  if (bowId === 'ember-bow' || bowId === 'frost-string') return `${FANTASY_WEAPONS_GLTF}/arrow_A.gltf`;
+  if (bowId === 'hunter-bow' || bowId === 'warden-bow') return `${FANTASY_WEAPONS_GLTF}/arrow_B.gltf`;
   return null;
 }
 
-async function loadRangerWeaponPrototype(cacheKey: string, bowId: EquipmentId | undefined, preferredBowPath: string | null): Promise<KayKitRangerWeapons | null> {
+async function loadRangerWeaponPrototype(cacheKey: string, bowId: EquipmentId | undefined, preferredBowPath: string | null): Promise<CachedRangerWeapons | null> {
   if (!rangerWeaponCache.has(cacheKey)) {
     rangerWeaponCache.set(cacheKey, (async () => {
       const manifest = await loadKayKitManifest();
@@ -71,12 +77,14 @@ async function loadRangerWeaponPrototype(cacheKey: string, bowId: EquipmentId | 
 
 export async function loadKayKitRangerWeapons(): Promise<KayKitRangerWeapons | null> {
   const equipped = equippedBowPath();
-  const cacheKey = equipped?.bowId ?? 'default-ranger-bow';
-  const prototype = await loadRangerWeaponPrototype(cacheKey, equipped?.bowId, equipped?.path ?? null);
+  const bowId = equipped?.bowId ?? 'ash-bow';
+  const cacheKey = bowId;
+  const prototype = await loadRangerWeaponPrototype(cacheKey, bowId, equipped?.path ?? null);
   if (!prototype) return null;
   return {
     bow: prototype.bow.clone(true),
     arrow: prototype.arrow.clone(true),
+    bowId,
   };
 }
 
