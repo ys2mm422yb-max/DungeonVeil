@@ -86,8 +86,8 @@ export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any, bowId: E
   const profile = profileForBow(bowId);
 
   if (bestScore >= 130) {
-    bow.position.set(...profile.position);
-    bow.rotation.set(...profile.rotation);
+    bow.position.set(profile.position[0], profile.position[1], profile.position[2]);
+    bow.rotation.set(profile.rotation[0], profile.rotation[1], profile.rotation[2]);
   } else if (bestScore > 0) {
     bow.position.set(0.02, -0.015, 0.04);
     bow.rotation.set(Math.PI / 2, 0, 0);
