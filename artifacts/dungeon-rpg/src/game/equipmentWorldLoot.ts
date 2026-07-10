@@ -1,3 +1,4 @@
+// CI verification branch only: exercise Dungeon RPG path-filtered checks.
 import { TILE_SIZE, TileType } from './dungeon';
 import type { GameEngine } from './runEngine';
 import {
