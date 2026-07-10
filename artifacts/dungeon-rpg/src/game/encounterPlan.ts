@@ -5,31 +5,29 @@ import type { EnemyType } from './entities';
  * authored room spawn points. Boss rooms are handled separately by runEngine.
  */
 const ENCOUNTERS: Record<number, EnemyType[]> = {
-  1: ['skeleton', 'spider'],
-  2: ['skeleton', 'skeleton', 'spider'],
-  3: ['skeleton', 'spider', 'vampire', 'skeleton'],
-  4: ['spider', 'vampire', 'skeleton', 'spider', 'skeleton'],
-  5: ['vampire', 'skeleton', 'spider', 'vampire', 'skeleton', 'spider'],
-  6: ['orc', 'spider', 'skeleton', 'vampire', 'spider', 'skeleton'],
-  7: ['demon', 'vampire', 'spider', 'skeleton', 'vampire', 'spider', 'skeleton'],
-  8: ['golem', 'spider', 'vampire', 'demon', 'spider', 'skeleton', 'vampire'],
-  9: ['golem', 'demon', 'vampire', 'spider', 'vampire', 'skeleton', 'spider', 'demon'],
+  1: ['slime', 'goblin'],
+  2: ['goblin', 'skeleton', 'slime'],
+  3: ['skeleton', 'goblin', 'spider', 'vampire'],
+  4: ['goblin', 'spider', 'skeleton', 'slime', 'vampire'],
+  5: ['vampire', 'goblin', 'spider', 'skeleton', 'slime', 'vampire'],
+  6: ['orc', 'goblin', 'spider', 'skeleton', 'vampire', 'slime'],
+  7: ['demon', 'vampire', 'goblin', 'spider', 'skeleton', 'orc', 'slime'],
+  8: ['golem', 'spider', 'vampire', 'demon', 'goblin', 'orc', 'skeleton'],
+  9: ['golem', 'demon', 'vampire', 'spider', 'orc', 'goblin', 'skeleton', 'demon'],
   10: [],
 
-  // Chapter two deliberately stops leaning on skeleton filler. Rooms 11-15
-  // mix mobile flankers with one or two bodies that hold the firing lanes.
-  11: ['orc', 'spider', 'vampire', 'demon', 'skeleton', 'spider'],
-  12: ['vampire', 'demon', 'spider', 'orc', 'vampire', 'golem', 'spider'],
-  13: ['golem', 'spider', 'demon', 'vampire', 'orc', 'spider', 'vampire'],
-  14: ['orc', 'demon', 'vampire', 'golem', 'spider', 'orc', 'demon'],
-  15: ['demon', 'vampire', 'golem', 'spider', 'demon', 'vampire', 'orc'],
+  // The overgrown/archive stretch mixes flankers, casters and bodies that hold firing lanes.
+  11: ['orc', 'spider', 'vampire', 'goblin', 'demon', 'slime'],
+  12: ['vampire', 'demon', 'goblin', 'orc', 'vampire', 'golem', 'spider'],
+  13: ['golem', 'spider', 'demon', 'vampire', 'orc', 'goblin', 'vampire'],
+  14: ['orc', 'demon', 'vampire', 'golem', 'spider', 'goblin', 'demon'],
+  15: ['demon', 'vampire', 'golem', 'spider', 'orc', 'vampire', 'goblin'],
 
-  // Rooms 16-19 are the late-run pressure test. Eight enemies is the hard
-  // visual cap here so Android does not pay for a crowd the player cannot read.
-  16: ['golem', 'demon', 'spider', 'vampire', 'orc', 'golem', 'vampire'],
-  17: ['demon', 'vampire', 'golem', 'spider', 'demon', 'orc', 'vampire'],
-  18: ['golem', 'demon', 'vampire', 'spider', 'orc', 'vampire', 'golem', 'demon'],
-  19: ['golem', 'demon', 'vampire', 'orc', 'demon', 'vampire', 'golem', 'spider'],
+  // Late rooms keep eight-enemy readability cap for mobile while rotating all pressure roles.
+  16: ['golem', 'demon', 'spider', 'vampire', 'orc', 'goblin', 'vampire'],
+  17: ['demon', 'vampire', 'golem', 'spider', 'demon', 'orc', 'goblin'],
+  18: ['golem', 'demon', 'vampire', 'spider', 'orc', 'goblin', 'golem', 'demon'],
+  19: ['golem', 'demon', 'vampire', 'orc', 'demon', 'goblin', 'golem', 'spider'],
   20: [],
 };
 
