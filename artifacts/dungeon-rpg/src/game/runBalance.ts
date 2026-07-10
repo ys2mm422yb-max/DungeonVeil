@@ -78,7 +78,6 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
   const room = Math.max(1, Math.min(20, engine.state.floor));
   const chapter = Math.max(1, Math.round(engine.state.chapter));
   const danger = chapterDangerFactor(chapter);
-  const movePressure = chapterMovePressure(chapter);
 
   for (const enemy of engine.state.enemies) {
     (enemy as typeof enemy & { runChapter?: number }).runChapter = chapter;
@@ -91,7 +90,7 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
     enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * hpFactorForRoom(room)));
     enemy.hp = Math.max(1, Math.round(enemy.maxHp * hpRatio));
     enemy.attack = Math.min(enemy.attack, attackCapForChapter(room, chapter));
-    enemy.speed *= (ENEMY_SPEED_FACTOR[enemy.enemyType] ?? 1.17) * movePressure;
+    enemy.speed *= ENEMY_SPEED_FACTOR[enemy.enemyType] ?? 1.17;
 
     if (enemy.enemyType === 'boss') {
       if (room === 20) {
