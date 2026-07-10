@@ -7,13 +7,13 @@ import { loadRetentionProfile, type RetentionProfile } from '../../game/runReten
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { DailyQuestPanel } from '../DailyQuestPanel';
 import { WeeklyRiftPanel } from '../WeeklyRiftPanel';
-import { CodexScreen } from './CodexScreen';
 
 interface Props {
   saveData: SaveData | null;
   onNewGame: () => void;
   onContinue: () => void;
   onVeilChamber: () => void;
+  onCodex: () => void;
   onSettings: () => void;
   onCredits: () => void;
 }
@@ -24,7 +24,6 @@ export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
   const [meta, setMeta] = useState(loadMetaProgression);
   const [retention, setRetention] = useState<RetentionProfile>(loadRetentionProfile);
-  const [codexOpen, setCodexOpen] = useState(false);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const gifts = props.saveData ? Object.entries(props.saveData.runSkills ?? {}).reduce((sum, [key, value]) => key === 'heal' ? sum : sum + (value ?? 0), 0) : 0;
 
@@ -38,8 +37,6 @@ export function MainMenuScreen(props: Props) {
       window.removeEventListener('dungeon-veil-retention-update', refreshRetention as EventListener);
     };
   }, []);
-
-  if (codexOpen) return <CodexScreen onBack={() => setCodexOpen(false)} />;
 
   const button = (label: string, action: () => void, subtitle?: string, kind: 'normal' | 'primary' | 'chamber' = 'normal', disabled = false) => {
     const kindClass = kind === 'primary'
@@ -69,7 +66,7 @@ export function MainMenuScreen(props: Props) {
         <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay('rift'); }} className="grid h-11 w-11 place-items-center rounded-full border border-violet-300/22 bg-black/58 text-lg text-violet-200 backdrop-blur-xl active:scale-95">◈</button>
       </div>
       <div className="flex-1" />
-      <div className="mx-auto w-full max-w-sm space-y-2.5">{button(t.newGame, startNormalRun, undefined, 'primary')}{button(t.continueGame, props.onContinue, continueText, 'normal', !props.saveData)}{button(language === 'de' ? 'Schleierkammer' : 'Veil Chamber', props.onVeilChamber, language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Schleierstaub` : `Rank ${meta.rank} · ${meta.dust} Veil Dust`, 'chamber')}{button(language === 'de' ? 'Kodex' : 'Codex', () => setCodexOpen(true), language === 'de' ? 'Bestien · Jagd · Wächter · Relikte' : 'Beasts · Hunts · Wardens · Relics')}</div>
+      <div className="mx-auto w-full max-w-sm space-y-2.5">{button(t.newGame, startNormalRun, undefined, 'primary')}{button(t.continueGame, props.onContinue, continueText, 'normal', !props.saveData)}{button(language === 'de' ? 'Schleierkammer' : 'Veil Chamber', props.onVeilChamber, language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Schleierstaub` : `Rank ${meta.rank} · ${meta.dust} Veil Dust`, 'chamber')}{button(language === 'de' ? 'Kodex' : 'Codex', props.onCodex, language === 'de' ? 'Bestien · Jagd · Wächter · Relikte' : 'Beasts · Hunts · Wardens · Relics')}</div>
     </div>
 
     {overlay && <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/74 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
