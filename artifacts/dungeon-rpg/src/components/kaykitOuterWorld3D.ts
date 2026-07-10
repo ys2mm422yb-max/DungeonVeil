@@ -47,7 +47,7 @@ function prepare(root: any) {
   });
 }
 
-function cloneAt(group: any, source: any, x: number, z: number, rotation = 0, y = -0.12, scale = 1) {
+function cloneAt(group: any, source: any, x: number, z: number, rotation = 0, y = -0.18, scale = 1) {
   const object = source.clone(true);
   object.position.set(x, y, z);
   object.rotation.y = rotation;
@@ -64,42 +64,28 @@ export function buildKayKitOuterWorld(THREE: any, mapWidth: number, mapHeight: n
     if (!active) return;
     Object.values(library).forEach(prepare);
 
-    const margin = MOBILE ? 10 : 14;
+    const margin = MOBILE ? 16 : 20;
     const step = 4;
     const roomLeft = -mapWidth / 2;
     const roomRight = mapWidth / 2;
     const roomTop = -mapHeight / 2;
     const roomBottom = mapHeight / 2;
-    const left = roomLeft - margin;
-    const right = roomRight + margin;
-    const top = roomTop - margin;
-    const bottom = roomBottom + margin;
+    const left = Math.floor((roomLeft - margin) / step) * step;
+    const right = Math.ceil((roomRight + margin) / step) * step;
+    const top = Math.floor((roomTop - margin) / step) * step;
+    const bottom = Math.ceil((roomBottom + margin) / step) * step;
 
-    // Close the old empty moat first. This near ring touches the authored room edge so the camera never exposes raw black void.
-    const nearOffset = 2;
-    for (let x = roomLeft - nearOffset; x <= roomRight + nearOffset; x += step) {
-      const topIndex = Math.abs(Math.round(x) * 17 + 11);
-      const bottomIndex = Math.abs(Math.round(x) * 17 + 23);
-      cloneAt(root, topIndex % 6 === 0 ? library.floorBroken : library.floor, x, roomTop - nearOffset, topIndex % 2 ? Math.PI / 2 : 0);
-      cloneAt(root, bottomIndex % 7 === 0 ? library.floorBroken : library.floor, x, roomBottom + nearOffset, bottomIndex % 2 ? Math.PI / 2 : 0);
-    }
-    for (let z = roomTop + nearOffset; z <= roomBottom - nearOffset; z += step) {
-      const leftIndex = Math.abs(Math.round(z) * 31 + 7);
-      const rightIndex = Math.abs(Math.round(z) * 31 + 19);
-      cloneAt(root, leftIndex % 6 === 0 ? library.floorBroken : library.floor, roomLeft - nearOffset, z, leftIndex % 2 ? Math.PI / 2 : 0);
-      cloneAt(root, rightIndex % 7 === 0 ? library.floorBroken : library.floor, roomRight + nearOffset, z, rightIndex % 2 ? Math.PI / 2 : 0);
-    }
-
-    for (let z = top + step / 2; z < bottom; z += step) {
-      for (let x = left + step / 2; x < right; x += step) {
-        const inside = x > roomLeft - 3.5 && x < roomRight + 3.5 && z > roomTop - 3.5 && z < roomBottom + 3.5;
-        if (inside) continue;
+    // The authored room sits above this continuous KayKit floor bed. There is intentionally no empty moat or skipped inner ring.
+    for (let z = top; z <= bottom; z += step) {
+      for (let x = left; x <= right; x += step) {
         const index = Math.abs(Math.round(x / step) * 17 + Math.round(z / step) * 31);
-        cloneAt(root, index % 7 === 0 ? library.floorBroken : library.floor, x, z, index % 2 ? Math.PI / 2 : 0);
+        const insideRoom = x >= roomLeft - 2 && x <= roomRight + 2 && z >= roomTop - 2 && z <= roomBottom + 2;
+        const source = !insideRoom && index % 7 === 0 ? library.floorBroken : library.floor;
+        cloneAt(root, source, x, z, index % 2 ? Math.PI / 2 : 0);
       }
     }
 
-    // Outer boundary remains distant scenery; the near floor ring removes the visible black trench around the playable room.
+    // Distant walls frame the outer dungeon only after the uninterrupted floor field.
     const wallStep = 2;
     for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
       cloneAt(root, Math.abs(Math.round(x)) % 8 === 0 ? library.wallBroken : library.wall, x, top, 0, -0.08);
