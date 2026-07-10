@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { saveEngineSession } from '../game/sessionStore';
+import { saveEngineSession, SESSION_AUTOSAVE_MS } from '../game/sessionStore';
 import { loadGame } from '../game/saveManager';
 import type { GameEngine } from '../game/runEngine';
 import type { Enemy } from '../game/entities';
@@ -17,6 +17,7 @@ import { pushCloudSave } from '../game/cloudSave';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 import { FirstWardenOverlay } from './FirstWardenOverlay';
+import { SaveStatusToast } from './SaveStatusToast';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 
@@ -81,20 +82,18 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
 
   useEffect(() => {
     if (!active) return;
-    const save = () => {
+    const save = (reason: string) => {
       const engine = getEngineRef.current();
-      if (engine && engine.state.player.playerName !== 'Hero') {
-        saveEngineSession(engine);
-        void pushCloudSave();
-      }
+      if (engine && engine.state.player.playerName !== 'Hero' && saveEngineSession(engine, reason)) void pushCloudSave();
     };
-    const hide = () => { if (document.hidden) save(); };
-    const interval = window.setInterval(save, 30_000);
-    window.addEventListener('pagehide', save);
+    const pagehide = () => save('pagehide');
+    const hide = () => { if (document.hidden) save('background'); };
+    const interval = window.setInterval(() => save('autosave'), SESSION_AUTOSAVE_MS);
+    window.addEventListener('pagehide', pagehide);
     document.addEventListener('visibilitychange', hide);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('pagehide', save);
+      window.removeEventListener('pagehide', pagehide);
       document.removeEventListener('visibilitychange', hide);
     };
   }, [active]);
@@ -193,7 +192,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
             checkedClearKey = clearKey;
             const reward = rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
             if (reward) window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
-            void pushCloudSave();
+            if (saveEngineSession(engine, 'room-cleared')) void pushCloudSave();
           }
         } else {
           checkedClearKey = '';
@@ -206,5 +205,5 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     return () => cancelAnimationFrame(frame);
   }, [active]);
 
-  return active ? <><MetaRewardBanner /><RunRetentionOverlay /><FirstWardenOverlay /></> : null;
+  return active ? <><SaveStatusToast /><MetaRewardBanner /><RunRetentionOverlay /><FirstWardenOverlay /></> : null;
 }
