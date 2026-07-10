@@ -12,7 +12,7 @@ import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRel
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
 import { createRunSynergyState, updateRunSynergies } from '../game/runSynergies';
 import { createFirstWardenFinaleState, updateFirstWardenFinale } from '../game/firstWardenFinale';
-import { createEquipmentWorldLootState, spawnRoomEquipmentReward, updateEquipmentWorldLoot } from '../game/equipmentWorldLoot';
+import { createEquipmentWorldLootState, disposeEquipmentWorldLoot, spawnRoomEquipmentReward, updateEquipmentWorldLoot } from '../game/equipmentWorldLoot';
 import { pushCloudSave } from '../game/cloudSave';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
@@ -111,7 +111,11 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     };
 
     frame = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      const engine = getEngineRef.current();
+      if (engine) disposeEquipmentWorldLoot(engine, worldLoot);
+    };
   }, [active]);
 
   return active ? <><MetaRewardBanner /><RunRetentionOverlay /><FirstWardenOverlay /></> : null;
