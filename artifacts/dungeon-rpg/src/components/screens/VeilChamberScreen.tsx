@@ -20,11 +20,11 @@ const SLOT_LABELS: Record<EquipmentSlot, { de: string; en: string; icon: string 
   talisman: { de: 'TALISMAN', en: 'TALISMAN', icon: '◇' },
 };
 
-const RARITY_LABELS: Record<EquipmentRarity, { de: string; en: string; className: string }> = {
-  common: { de: 'GEWÖHNLICH', en: 'COMMON', className: 'text-stone-300' },
-  uncommon: { de: 'UNGEWÖHNLICH', en: 'UNCOMMON', className: 'text-emerald-300' },
-  rare: { de: 'SELTEN', en: 'RARE', className: 'text-sky-300' },
-  epic: { de: 'EPISCH', en: 'EPIC', className: 'text-violet-300' },
+const RARITY_LABELS: Record<EquipmentRarity, { de: string; en: string; className: string; cardClass: string; dotClass: string }> = {
+  common: { de: 'GEWÖHNLICH', en: 'COMMON', className: 'text-stone-300', cardClass: 'border-stone-200/10 bg-stone-100/[.025]', dotClass: 'bg-stone-300' },
+  uncommon: { de: 'UNGEWÖHNLICH', en: 'UNCOMMON', className: 'text-emerald-300', cardClass: 'border-emerald-300/18 bg-emerald-400/[.035]', dotClass: 'bg-emerald-300' },
+  rare: { de: 'SELTEN', en: 'RARE', className: 'text-sky-300', cardClass: 'border-sky-300/20 bg-sky-400/[.04]', dotClass: 'bg-sky-300' },
+  epic: { de: 'EPISCH', en: 'EPIC', className: 'text-violet-300', cardClass: 'border-violet-300/24 bg-violet-400/[.055] shadow-[inset_0_0_28px_rgba(139,92,246,.045)]', dotClass: 'bg-violet-300' },
 };
 
 const SOURCE_LABELS = {
@@ -51,6 +51,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const gear = useMemo(() => Object.values(EQUIPMENT), []);
   const filteredGear = filter === 'all' ? gear : gear.filter(item => item.slot === filter);
   const discoveredCount = gear.filter(item => (meta.owned[item.id] ?? 0) > 0).length;
+  const freshCount = gear.filter(item => (meta.owned[item.id] ?? 0) > 0 && !meta.seenItems.includes(item.id)).length;
   const selectedItem = selected ? EQUIPMENT[selected] : null;
   const selectedLevel = selected ? (meta.owned[selected] ?? 0) : 0;
   const isOwned = selectedLevel > 0;
@@ -85,7 +86,12 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
         <div className="min-w-0 flex-1">
           <div className="text-[8px] font-black uppercase tracking-[.42em] text-amber-200/42">DUNGEON VEIL</div>
           <h1 className="mt-1 font-serif text-[2.15rem] leading-none tracking-[.08em] text-[#e7c37a]">{de ? 'INVENTAR' : 'INVENTORY'}</h1>
-          <div className="mt-2 flex gap-3 text-[8px] font-black uppercase tracking-[.14em] text-white/35"><span>{de ? 'ENTDECKT' : 'DISCOVERED'} {discoveredCount}/{gear.length}</span><span>{de ? 'RANG' : 'RANK'} {meta.rank}</span><span className="text-amber-200/60">✦ {meta.dust}</span></div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[8px] font-black uppercase tracking-[.14em] text-white/35">
+            <span>{de ? 'ENTDECKT' : 'DISCOVERED'} {discoveredCount}/{gear.length}</span>
+            {freshCount > 0 && <span className="text-amber-300">◆ {de ? 'NEU' : 'NEW'} {freshCount}</span>}
+            <span>{de ? 'RANG' : 'RANK'} {meta.rank}</span>
+            <span className="text-amber-200/60">✦ {meta.dust}</span>
+          </div>
         </div>
       </header>
 
@@ -123,10 +129,17 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
               const owned = level > 0;
               const active = owned && meta.equipped[item.slot] === item.id;
               const fresh = owned && !meta.seenItems.includes(item.id);
-              return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); selectItem(item.id); }} className={`relative min-h-[104px] rounded-2xl border p-3 text-left active:scale-[.98] ${active ? 'border-emerald-300/35 bg-emerald-400/[.07]' : 'border-white/8 bg-black/42'} ${owned ? '' : 'bg-[linear-gradient(145deg,rgba(255,255,255,.018),rgba(0,0,0,.62))]'}`}>
-                {owned ? <><div className="text-lg" style={{ color: item.accent }}>{SLOT_LABELS[item.slot].icon}</div><div className="mt-2 line-clamp-2 text-[10px] font-black leading-tight text-white/82">{de ? item.nameDe : item.nameEn}</div><div className={`mt-1 text-[7px] font-black uppercase tracking-[.12em] ${RARITY_LABELS[item.rarity].className}`}>{de ? 'STUFE' : 'LV'} {level}</div></> : <><div className="text-2xl font-serif text-white/18">?</div><div className="mt-2 text-[11px] font-black tracking-[.12em] text-white/28">???</div><div className="mt-1 text-[7px] font-black uppercase tracking-[.12em] text-white/15">{de ? 'UNENTDECKT' : 'UNDISCOVERED'}</div></>}
+              const rarity = RARITY_LABELS[item.rarity];
+              const cardClass = !owned ? 'border-white/8 bg-[linear-gradient(145deg,rgba(255,255,255,.018),rgba(0,0,0,.62))]' : active ? 'border-emerald-300/35 bg-emerald-400/[.07]' : rarity.cardClass;
+              return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); selectItem(item.id); }} className={`relative min-h-[118px] overflow-hidden rounded-2xl border p-3 text-left transition-transform active:scale-[.98] ${cardClass} ${fresh ? 'ring-1 ring-amber-300/45 shadow-[0_0_22px_rgba(251,191,36,.12)]' : ''}`}>
+                {owned ? <>
+                  <div className="flex items-center gap-2"><span className={`h-1.5 w-1.5 rounded-full shadow-[0_0_10px_currentColor] ${rarity.dotClass}`} /><div className="text-lg" style={{ color: item.accent }}>{SLOT_LABELS[item.slot].icon}</div></div>
+                  <div className="mt-2 line-clamp-2 text-[10px] font-black leading-tight text-white/88">{de ? item.nameDe : item.nameEn}</div>
+                  <div className={`mt-1 text-[7px] font-black uppercase tracking-[.12em] ${rarity.className}`}>{de ? 'STUFE' : 'LV'} {level} · {rarity[de ? 'de' : 'en']}</div>
+                  <div className="mt-2 text-[6px] font-black uppercase tracking-[.15em] text-white/28">{SOURCE_LABELS[item.source][de ? 'de' : 'en']}</div>
+                </> : <><div className="text-2xl font-serif text-white/18">?</div><div className="mt-2 text-[11px] font-black tracking-[.12em] text-white/28">???</div><div className="mt-1 text-[7px] font-black uppercase tracking-[.12em] text-white/15">{de ? 'UNENTDECKT' : 'UNDISCOVERED'}</div></>}
                 {active && <span className="absolute right-2 top-2 rounded-full border border-emerald-200/20 bg-emerald-400/15 px-1.5 py-0.5 text-[6px] font-black text-emerald-200">{de ? 'AKTIV' : 'ACTIVE'}</span>}
-                {fresh && <span className="absolute right-2 top-2 rounded-full border border-amber-200/25 bg-amber-400 px-1.5 py-0.5 text-[6px] font-black text-black">{de ? 'NEU' : 'NEW'}</span>}
+                {fresh && <span className="absolute right-2 top-2 rounded-full border border-amber-100/35 bg-amber-300 px-2 py-0.5 text-[6px] font-black text-black shadow-[0_0_14px_rgba(252,211,77,.35)]">{de ? 'NEU' : 'NEW'}</span>}
               </button>;
             })}
           </div>
@@ -138,7 +151,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
             {Object.values(VEIL_RELICS).map(relic => {
               const owned = relicProfile.owned.includes(relic.id);
               const active = relicProfile.equipped === relic.id;
-              return <button key={relic.id} type="button" disabled={!owned} onPointerDown={event => { event.preventDefault(); if (owned) setSelectedRelic(relic.id); }} className={`relative min-h-[110px] rounded-2xl border p-3 text-left active:scale-[.98] ${active ? 'border-emerald-300/30 bg-emerald-400/[.06]' : 'border-white/8 bg-black/42'} ${owned ? '' : 'opacity-35'}`}>
+              return <button key={relic.id} type="button" disabled={!owned} onPointerDown={event => { event.preventDefault(); if (owned) setSelectedRelic(relic.id); }} className={`relative min-h-[110px] rounded-2xl border p-3 text-left active:scale-[.98] ${active ? 'border-emerald-300/30 bg-emerald-400/[.06]' : 'border-violet-300/12 bg-violet-400/[.025]'} ${owned ? '' : 'opacity-35'}`}>
                 <div className="h-3 w-3 rounded-full shadow-[0_0_14px_currentColor]" style={{ color: owned ? relic.accent : '#777', background: owned ? relic.accent : '#333' }} />
                 <div className="mt-3 text-[11px] font-black leading-tight text-white/82">{owned ? (de ? relic.nameDe : relic.nameEn) : '???'}</div>
                 <div className="mt-2 text-[7px] font-black uppercase tracking-[.12em] text-white/28">{owned ? (de ? 'GEFUNDEN' : 'FOUND') : (de ? 'UNENTDECKT' : 'UNDISCOVERED')}</div>
@@ -151,20 +164,21 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
     </div>
 
     {selectedItem && <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/72 px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-16 backdrop-blur-sm" onPointerDown={() => setSelected(null)}>
-      <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-white/12 bg-[#0d0a08] shadow-[0_30px_100px_rgba(0,0,0,.75)]" onPointerDown={event => event.stopPropagation()}>
+      <div className="w-full max-w-md overflow-hidden rounded-[28px] border bg-[#0d0a08] shadow-[0_30px_100px_rgba(0,0,0,.75)]" style={{ borderColor: isOwned ? `${selectedItem.accent}55` : 'rgba(255,255,255,.12)', boxShadow: isOwned ? `0 30px 100px rgba(0,0,0,.75), inset 0 0 42px ${selectedItem.accent}0d` : '0 30px 100px rgba(0,0,0,.75)' }} onPointerDown={event => event.stopPropagation()}>
         {isOwned ? <>
           <div className="grid min-h-[250px] grid-cols-[43%_57%]">
             <div className="relative overflow-hidden border-r border-white/8 bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,.07),transparent_62%)]">
               <KayKitEquipmentPreview assetPath={selectedItem.assetPath} accent={selectedItem.accent} itemId={selectedItem.id} />
-              <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[7px] font-black uppercase tracking-[.2em] text-white/24">{selectedItem.pack}</div>
+              <div className="pointer-events-none absolute inset-x-4 bottom-3 flex items-center justify-between text-[6px] font-black uppercase tracking-[.18em] text-white/28"><span>{selectedItem.pack}</span><span>{SOURCE_LABELS[selectedItem.source][de ? 'de' : 'en']}</span></div>
             </div>
             <div className="flex flex-col p-4">
               <button type="button" onPointerDown={event => { event.preventDefault(); setSelected(null); }} className="self-end text-2xl text-white/35">×</button>
-              <div className="text-[8px] font-black uppercase tracking-[.2em]" style={{ color: selectedItem.accent }}>{SLOT_LABELS[selectedItem.slot][de ? 'de' : 'en']}</div>
+              <div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${RARITY_LABELS[selectedItem.rarity].dotClass}`} /><div className="text-[8px] font-black uppercase tracking-[.2em]" style={{ color: selectedItem.accent }}>{SLOT_LABELS[selectedItem.slot][de ? 'de' : 'en']}</div></div>
               <h2 className="mt-2 text-xl font-black leading-tight text-white">{de ? selectedItem.nameDe : selectedItem.nameEn}</h2>
               <div className={`mt-2 text-[7px] font-black uppercase tracking-[.16em] ${RARITY_LABELS[selectedItem.rarity].className}`}>{RARITY_LABELS[selectedItem.rarity][de ? 'de' : 'en']} · {SOURCE_LABELS[selectedItem.source][de ? 'de' : 'en']}</div>
               <div className="mt-2 text-[8px] font-black uppercase tracking-[.15em] text-white/38">{de ? 'STUFE' : 'LEVEL'} {selectedLevel}/5</div>
-              <p className="mt-4 text-[12px] leading-relaxed text-white/62">{de ? selectedItem.descriptionDe : selectedItem.descriptionEn}</p>
+              <div className="mt-3 h-px w-full" style={{ background: `linear-gradient(90deg, ${selectedItem.accent}88, transparent)` }} />
+              <p className="mt-3 text-[12px] leading-relaxed text-white/62">{de ? selectedItem.descriptionDe : selectedItem.descriptionEn}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 border-t border-white/8 p-4">
