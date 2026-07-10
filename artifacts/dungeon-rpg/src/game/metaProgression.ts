@@ -50,10 +50,10 @@ export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   'guardian-sigil': { id: 'guardian-sigil', slot: 'talisman', nameDe: 'Wächtersiegel', nameEn: 'Guardian Sigil', descriptionDe: '+8 Leben und +1 Verteidigung pro Stufe', descriptionEn: '+8 health and +1 defense per level', pack: 'adventurers', assetPath: `${ADV}/shield_badge_color.gltf`, unlockRank: 5, accent: '#79d69d', rarity: 'rare', source: 'warden' },
   'frost-grimoire': { id: 'frost-grimoire', slot: 'talisman', nameDe: 'Frostgrimoire', nameEn: 'Frost Grimoire', descriptionDe: 'Startet jeden Run mit Frostpfeil I', descriptionEn: 'Start each run with Frost Arrow I', pack: 'adventurers', assetPath: `${ADV}/spellbook_closed.gltf`, unlockRank: 8, accent: '#78ddff', rarity: 'epic', source: 'ritual' },
   'ash-mark': { id: 'ash-mark', slot: 'talisman', nameDe: 'Aschenmarke', nameEn: 'Ash Mark', descriptionDe: '+5 % Angriff pro Stufe', descriptionEn: '+5% attack per level', pack: 'halloween', assetPath: `${HAL}/plaque.gltf`, unlockRank: 3, accent: '#d98c57', rarity: 'uncommon', source: 'depths' },
-  'blood-stone': { id: 'blood-stone', slot: 'talisman', nameDe: 'Blutstein', nameEn: 'Blood Stone', descriptionDe: '+6 Leben und +2 Angriff pro Stufe', descriptionEn: '+6 health and +2 attack per level', pack: 'dungeon', assetPath: `${DUN}/gem_red.gltf`, unlockRank: 6, accent: '#d84b4b', rarity: 'rare', source: 'ritual' },
+  'blood-stone': { id: 'blood-stone', slot: 'talisman', nameDe: 'Blutstein', nameEn: 'Blood Stone', descriptionDe: '+6 Leben und +2 Angriff pro Stufe', descriptionEn: '+6 health and +2 attack per level', pack: 'dungeon', assetPath: `${DUN}/keyring.gltf`, unlockRank: 6, accent: '#d84b4b', rarity: 'rare', source: 'ritual' },
   'rune-compass': { id: 'rune-compass', slot: 'talisman', nameDe: 'Runenkompass', nameEn: 'Rune Compass', descriptionDe: '+3 % Bewegung und Abpraller I', descriptionEn: '+3% movement and Ricochet I', pack: 'tools', assetPath: `${TLS}/compass_base.gltf`, unlockRank: 7, accent: '#a979ff', rarity: 'rare', source: 'ritual' },
   'broken-oath': { id: 'broken-oath', slot: 'talisman', nameDe: 'Gebrochener Eid', nameEn: 'Broken Oath', descriptionDe: '+2 Verteidigung und +3 Angriff pro Stufe', descriptionEn: '+2 defense and +3 attack per level', pack: 'adventurers', assetPath: `${ADV}/shield_badge.gltf`, unlockRank: 9, accent: '#c2b6a0', rarity: 'epic', source: 'warden' },
-  'depth-heart': { id: 'depth-heart', slot: 'talisman', nameDe: 'Herz des Tiefengangs', nameEn: 'Heart of the Depths', descriptionDe: '+10 Leben und +2 % Bewegung pro Stufe', descriptionEn: '+10 health and +2% movement per level', pack: 'dungeon', assetPath: `${DUN}/gem_purple.gltf`, unlockRank: 10, accent: '#8f67e8', rarity: 'epic', source: 'depths' },
+  'depth-heart': { id: 'depth-heart', slot: 'talisman', nameDe: 'Herz des Tiefengangs', nameEn: 'Heart of the Depths', descriptionDe: '+10 Leben und +2 % Bewegung pro Stufe', descriptionEn: '+10 health and +2% movement per level', pack: 'dungeon', assetPath: `${DUN}/coin_stack_small.gltf`, unlockRank: 10, accent: '#8f67e8', rarity: 'epic', source: 'depths' },
 };
 
 export type MetaProgression = {
@@ -130,7 +130,7 @@ function addRankXp(meta: MetaProgression, xp: number) {
   while (meta.xp >= xpForNextRank(meta.rank)) { meta.xp -= xpForNextRank(meta.rank); meta.rank++; }
 }
 
-function availableDrops(meta: MetaProgression) {
+function availableDrops(meta: MetaProgression): EquipmentDefinition[] {
   return Object.values(EQUIPMENT).filter(item => item.unlockRank <= meta.rank && !['ash-bow', 'ranger-quiver', 'veil-key'].includes(item.id));
 }
 
@@ -154,15 +154,19 @@ export function rewardMetaRoomClear(chapter: number, floor: number): MetaReward 
   const shouldDrop = boss || (floor >= 3 && Math.random() < 0.2);
   if (shouldDrop) {
     const pool = availableDrops(live);
-    if (pool.length) {
-      const weighted = pool.flatMap(candidate => {
-        const copies = candidate.rarity === 'common' ? 5 : candidate.rarity === 'uncommon' ? 4 : candidate.rarity === 'rare' ? 2 : 1;
-        const sourceBoost = (candidate.source === 'warden' && boss) || (candidate.source === 'forge' && [6, 18].includes(floor)) || (candidate.source === 'ritual' && [9, 15, 19].includes(floor)) ? 3 : 1;
-        return Array(copies * sourceBoost).fill(candidate);
-      });
-      const unowned = weighted.filter(candidate => !live.owned[candidate.id]);
-      const dropPool = unowned.length ? unowned : weighted;
-      item = dropPool[Math.floor(Math.random() * dropPool.length)].id;
+    const weighted: EquipmentDefinition[] = [];
+    for (const candidate of pool) {
+      const copies = candidate.rarity === 'common' ? 5 : candidate.rarity === 'uncommon' ? 4 : candidate.rarity === 'rare' ? 2 : 1;
+      const sourceBoost = (candidate.source === 'warden' && boss)
+        || (candidate.source === 'forge' && [6, 18].includes(floor))
+        || (candidate.source === 'ritual' && [9, 15, 19].includes(floor)) ? 3 : 1;
+      for (let index = 0; index < copies * sourceBoost; index++) weighted.push(candidate);
+    }
+    const unowned = weighted.filter(candidate => !live.owned[candidate.id]);
+    const dropPool: EquipmentDefinition[] = unowned.length ? unowned : weighted;
+    const chosen = dropPool[Math.floor(Math.random() * dropPool.length)];
+    if (chosen) {
+      item = chosen.id;
       duplicate = Boolean(live.owned[item]);
       if (duplicate) dust += 22 + (live.owned[item] ?? 1) * 6;
       else live.owned[item] = 1;
