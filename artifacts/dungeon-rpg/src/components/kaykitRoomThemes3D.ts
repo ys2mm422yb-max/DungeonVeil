@@ -3,7 +3,6 @@ import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWor
 import { buildKayKitRoomAtmosphere } from './kaykitRoomAtmosphere3D';
 import { roomSetpieces } from '../game/roomSetpieceLayout';
 import { roomArchitecturePieces } from '../game/roomArchitectureLayout';
-import { roomFurnishingPieces } from '../game/roomFurnishingLayout';
 import { roomSurfacePieces } from '../game/roomSurfaceLayout';
 import { roomIdentity } from '../game/roomIdentity';
 
@@ -51,7 +50,7 @@ function addLights(THREE: any, root: any, room: number) {
 }
 
 function roomPieces(room: number): VisualPiece[] {
-  return [...roomSurfacePieces(room), ...roomArchitecturePieces(room), ...roomSetpieces(room), ...roomFurnishingPieces(room)];
+  return [...roomSurfacePieces(room), ...roomArchitecturePieces(room), ...roomSetpieces(room)];
 }
 
 export async function preloadKayKitRoomTheme(room: number) {
