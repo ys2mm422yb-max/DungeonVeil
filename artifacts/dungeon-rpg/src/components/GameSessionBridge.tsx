@@ -176,11 +176,6 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
         }
 
         if (engine.state.status === 'playing') {
-          const moving = Math.hypot(engine.input.joyX, engine.input.joyY) > 0.08;
-          if (moving && !engine.input.dodge && engine.state.player.attackCooldown <= 0 && engine.state.enemies.some(enemy => enemy.hp > 0 && !enemy.isDead)) {
-            engine.input.attack = true;
-          }
-
           updateRunBalance(engine, balance);
           updateRunEffectSystems(engine, effects, time);
           updateRunRetentionSystems(engine, retention, time);
