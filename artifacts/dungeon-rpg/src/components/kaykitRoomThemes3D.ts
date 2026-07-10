@@ -3,6 +3,7 @@ import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWor
 import { buildKayKitRoomAtmosphere } from './kaykitRoomAtmosphere3D';
 import { roomSetpieces } from '../game/roomSetpieceLayout';
 import { roomArchitecturePieces } from '../game/roomArchitectureLayout';
+import { roomFurnishingPieces } from '../game/roomFurnishingLayout';
 import { roomIdentity } from '../game/roomIdentity';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -48,7 +49,7 @@ function addLights(THREE: any, root: any, room: number) {
 }
 
 function roomPieces(room: number) {
-  return [...roomArchitecturePieces(room), ...roomSetpieces(room)];
+  return [...roomArchitecturePieces(room), ...roomSetpieces(room), ...roomFurnishingPieces(room)];
 }
 
 export async function preloadKayKitRoomTheme(room: number) {
