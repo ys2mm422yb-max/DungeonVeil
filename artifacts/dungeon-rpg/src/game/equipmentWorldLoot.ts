@@ -12,21 +12,40 @@ import {
 export type EquipmentWorldLootState = {
   tracked: Map<string, { roomKey: string; item: EquipmentId }>;
   processedHuntDeaths: Set<string>;
-  blockedRoomKey: string;
+  exitBlocked: boolean;
+  warningRoomKey: string;
   lastWarningAt: number;
+  originalCanExitRoom: GameEngine['canExitRoom'] | null;
 };
 
 export function createEquipmentWorldLootState(): EquipmentWorldLootState {
   return {
     tracked: new Map(),
     processedHuntDeaths: new Set(),
-    blockedRoomKey: '',
+    exitBlocked: false,
+    warningRoomKey: '',
     lastWarningAt: 0,
+    originalCanExitRoom: null,
   };
 }
 
 function roomKey(engine: GameEngine) {
   return `${engine.state.chapter}:${engine.state.floor}`;
+}
+
+function installExitGuard(engine: GameEngine, state: EquipmentWorldLootState) {
+  if (state.originalCanExitRoom) return;
+  const original = engine.canExitRoom;
+  state.originalCanExitRoom = original;
+  engine.canExitRoom = () => original.call(engine) && !state.exitBlocked;
+}
+
+export function disposeEquipmentWorldLoot(engine: GameEngine, state: EquipmentWorldLootState) {
+  state.exitBlocked = false;
+  state.warningRoomKey = '';
+  if (!state.originalCanExitRoom) return;
+  engine.canExitRoom = state.originalCanExitRoom;
+  state.originalCanExitRoom = null;
 }
 
 function trackLiveEquipment(engine: GameEngine, state: EquipmentWorldLootState) {
@@ -108,18 +127,14 @@ function playerNearExit(engine: GameEngine) {
 function applyPortalLootGuard(engine: GameEngine, state: EquipmentWorldLootState, time: number) {
   const key = roomKey(engine);
   const importantLoot = warningLoot(engine);
-  if (engine.state.roomClearReady && importantLoot.length > 0) {
-    state.blockedRoomKey = key;
-    engine.state.roomClearReady = false;
-  }
+  state.exitBlocked = engine.state.roomClearReady && importantLoot.length > 0;
 
-  if (state.blockedRoomKey !== key) return;
-  if (importantLoot.length === 0) {
-    state.blockedRoomKey = '';
-    if (engine.state.enemies.length === 0) engine.state.roomClearReady = true;
+  if (!state.exitBlocked) {
+    state.warningRoomKey = '';
     return;
   }
 
+  state.warningRoomKey = key;
   if (!playerNearExit(engine) || time - state.lastWarningAt < 1100) return;
   state.lastWarningAt = time;
   engine.state.damageNumbers.push({
@@ -141,6 +156,7 @@ export function spawnRoomEquipmentReward(engine: GameEngine, drop: PendingEquipm
 }
 
 export function updateEquipmentWorldLoot(engine: GameEngine, state: EquipmentWorldLootState, time: number) {
+  installExitGuard(engine, state);
   spawnHuntEquipment(engine, state);
   trackLiveEquipment(engine, state);
   processCollectedEquipment(engine, state, time);
