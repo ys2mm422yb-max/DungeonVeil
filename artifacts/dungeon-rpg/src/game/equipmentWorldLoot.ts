@@ -13,6 +13,7 @@ export type EquipmentWorldLootState = {
   tracked: Map<string, { roomKey: string; item: EquipmentId }>;
   processedHuntDeaths: Set<string>;
   exitBlocked: boolean;
+  auditedClearKey: string;
   warningRoomKey: string;
   lastWarningAt: number;
   originalCanExitRoom: GameEngine['canExitRoom'] | null;
@@ -23,6 +24,7 @@ export function createEquipmentWorldLootState(): EquipmentWorldLootState {
     tracked: new Map(),
     processedHuntDeaths: new Set(),
     exitBlocked: false,
+    auditedClearKey: '',
     warningRoomKey: '',
     lastWarningAt: 0,
     originalCanExitRoom: null,
@@ -33,15 +35,24 @@ function roomKey(engine: GameEngine) {
   return `${engine.state.chapter}:${engine.state.floor}`;
 }
 
+function roomClearKey(engine: GameEngine) {
+  return `${roomKey(engine)}:${engine.state.roomClearAt}`;
+}
+
 function installExitGuard(engine: GameEngine, state: EquipmentWorldLootState) {
   if (state.originalCanExitRoom) return;
   const original = engine.canExitRoom;
   state.originalCanExitRoom = original;
-  engine.canExitRoom = () => original.call(engine) && !state.exitBlocked;
+  engine.canExitRoom = () => {
+    if (!original.call(engine)) return false;
+    if (engine.state.roomClearReady && state.auditedClearKey !== roomClearKey(engine)) return false;
+    return !state.exitBlocked;
+  };
 }
 
 export function disposeEquipmentWorldLoot(engine: GameEngine, state: EquipmentWorldLootState) {
   state.exitBlocked = false;
+  state.auditedClearKey = '';
   state.warningRoomKey = '';
   if (!state.originalCanExitRoom) return;
   engine.canExitRoom = state.originalCanExitRoom;
@@ -128,6 +139,7 @@ function applyPortalLootGuard(engine: GameEngine, state: EquipmentWorldLootState
   const key = roomKey(engine);
   const importantLoot = warningLoot(engine);
   state.exitBlocked = engine.state.roomClearReady && importantLoot.length > 0;
+  state.auditedClearKey = engine.state.roomClearReady ? roomClearKey(engine) : '';
 
   if (!state.exitBlocked) {
     state.warningRoomKey = '';
