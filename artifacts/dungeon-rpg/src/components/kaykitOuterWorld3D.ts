@@ -66,20 +66,40 @@ export function buildKayKitOuterWorld(THREE: any, mapWidth: number, mapHeight: n
 
     const margin = MOBILE ? 10 : 14;
     const step = 4;
-    const left = -mapWidth / 2 - margin;
-    const right = mapWidth / 2 + margin;
-    const top = -mapHeight / 2 - margin;
-    const bottom = mapHeight / 2 + margin;
+    const roomLeft = -mapWidth / 2;
+    const roomRight = mapWidth / 2;
+    const roomTop = -mapHeight / 2;
+    const roomBottom = mapHeight / 2;
+    const left = roomLeft - margin;
+    const right = roomRight + margin;
+    const top = roomTop - margin;
+    const bottom = roomBottom + margin;
+
+    // Close the old empty moat first. This near ring touches the authored room edge so the camera never exposes raw black void.
+    const nearOffset = 2;
+    for (let x = roomLeft - nearOffset; x <= roomRight + nearOffset; x += step) {
+      const topIndex = Math.abs(Math.round(x) * 17 + 11);
+      const bottomIndex = Math.abs(Math.round(x) * 17 + 23);
+      cloneAt(root, topIndex % 6 === 0 ? library.floorBroken : library.floor, x, roomTop - nearOffset, topIndex % 2 ? Math.PI / 2 : 0);
+      cloneAt(root, bottomIndex % 7 === 0 ? library.floorBroken : library.floor, x, roomBottom + nearOffset, bottomIndex % 2 ? Math.PI / 2 : 0);
+    }
+    for (let z = roomTop + nearOffset; z <= roomBottom - nearOffset; z += step) {
+      const leftIndex = Math.abs(Math.round(z) * 31 + 7);
+      const rightIndex = Math.abs(Math.round(z) * 31 + 19);
+      cloneAt(root, leftIndex % 6 === 0 ? library.floorBroken : library.floor, roomLeft - nearOffset, z, leftIndex % 2 ? Math.PI / 2 : 0);
+      cloneAt(root, rightIndex % 7 === 0 ? library.floorBroken : library.floor, roomRight + nearOffset, z, rightIndex % 2 ? Math.PI / 2 : 0);
+    }
 
     for (let z = top + step / 2; z < bottom; z += step) {
       for (let x = left + step / 2; x < right; x += step) {
-        const inside = x > -mapWidth / 2 - 1 && x < mapWidth / 2 + 1 && z > -mapHeight / 2 - 1 && z < mapHeight / 2 + 1;
+        const inside = x > roomLeft - 3.5 && x < roomRight + 3.5 && z > roomTop - 3.5 && z < roomBottom + 3.5;
         if (inside) continue;
         const index = Math.abs(Math.round(x / step) * 17 + Math.round(z / step) * 31);
         cloneAt(root, index % 7 === 0 ? library.floorBroken : library.floor, x, z, index % 2 ? Math.PI / 2 : 0);
       }
     }
 
+    // Outer boundary remains distant scenery; the near floor ring removes the visible black trench around the playable room.
     const wallStep = 2;
     for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
       cloneAt(root, Math.abs(Math.round(x)) % 8 === 0 ? library.wallBroken : library.wall, x, top, 0, -0.08);
