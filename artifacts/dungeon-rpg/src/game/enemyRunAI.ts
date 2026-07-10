@@ -1,4 +1,5 @@
 import type { Enemy, EnemyType, Player } from './entities';
+import { collidesWithRoomProp, shotBlockedByRoomProp } from './roomCollision3D';
 import { chapterAttackDelayFactor, chapterMovePressure } from './runBalance';
 
 export type EnemyArchetype = 'skeleton' | 'skirmisher' | 'guardian' | 'dragon';
@@ -12,7 +13,12 @@ export function enemyArchetype(type: EnemyType): EnemyArchetype {
 
 export type EnemyMovePlan = { dx: number; dy: number; attackRange: number; attackDelay: number };
 
-type ChapterEnemy = Enemy & { runChapter?: number };
+type EnemyRunContext = Enemy & {
+  runChapter?: number;
+  runRoom?: number;
+  runMapWidth?: number;
+  runMapHeight?: number;
+};
 
 function normalizedDirection(enemy: Enemy, player: Player) {
   const dx = player.x - enemy.x;
@@ -33,7 +39,7 @@ function roomFromEnemyId(enemy: Enemy) {
 }
 
 function chapterFromEnemy(enemy: Enemy) {
-  return Math.max(1, Math.round((enemy as ChapterEnemy).runChapter ?? 1));
+  return Math.max(1, Math.round((enemy as EnemyRunContext).runChapter ?? 1));
 }
 
 function laneBias(enemy: Enemy, time: number) {
@@ -41,9 +47,63 @@ function laneBias(enemy: Enemy, time: number) {
   return (variant + Math.floor((time - enemy.spawnTime) / 1900)) % 2 === 0 ? 1 : -1;
 }
 
-function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number, attackRange: number, attackDelay: number): EnemyMovePlan | null {
+function hasCollisionContext(enemy: EnemyRunContext): enemy is EnemyRunContext & Required<Pick<EnemyRunContext, 'runRoom' | 'runMapWidth' | 'runMapHeight'>> {
+  return Number.isFinite(enemy.runRoom) && Number.isFinite(enemy.runMapWidth) && Number.isFinite(enemy.runMapHeight);
+}
+
+function candidateBlocked(enemy: EnemyRunContext, dx: number, dy: number) {
+  if (!hasCollisionContext(enemy)) return false;
+  return collidesWithRoomProp(
+    enemy.runRoom,
+    enemy.runMapWidth,
+    enemy.runMapHeight,
+    enemy.x + dx,
+    enemy.y + dy,
+    enemy.width,
+    enemy.height,
+    0.18,
+  );
+}
+
+function lineToPlayerBlocked(enemy: EnemyRunContext, player: Player) {
+  if (!hasCollisionContext(enemy)) return false;
+  return shotBlockedByRoomProp(
+    enemy.runRoom,
+    enemy.runMapWidth,
+    enemy.runMapHeight,
+    enemy.x + enemy.width / 2,
+    enemy.y + enemy.height / 2,
+    player.x + player.width / 2,
+    player.y + player.height / 2,
+    0.1,
+  );
+}
+
+function steerAroundProps(enemy: EnemyRunContext, dx: number, dy: number, time: number) {
+  if (!candidateBlocked(enemy, dx, dy)) return { dx, dy };
+
+  const length = Math.max(0.001, Math.hypot(dx, dy));
+  const ux = dx / length;
+  const uy = dy / length;
+  const side = laneBias(enemy, time);
+  const candidates = [
+    normalizedMove(-uy * side + ux * 0.18, ux * side + uy * 0.18),
+    normalizedMove(uy * side + ux * 0.18, -ux * side + uy * 0.18),
+    normalizedMove(-uy * side - ux * 0.12, ux * side - uy * 0.12),
+    normalizedMove(uy * side - ux * 0.12, -ux * side - uy * 0.12),
+  ];
+
+  for (const candidate of candidates) {
+    const nextDx = candidate.x * length * 1.08;
+    const nextDy = candidate.y * length * 1.08;
+    if (!candidateBlocked(enemy, nextDx, nextDy)) return { dx: nextDx, dy: nextDy };
+  }
+  return { dx: 0, dy: 0 };
+}
+
+function recoveryMove(enemy: EnemyRunContext, player: Player, speed: number, time: number, attackRange: number, attackDelay: number): EnemyMovePlan | null {
   const { dist, nx, ny } = normalizedDirection(enemy, player);
-  if (dist <= attackRange + 18) {
+  if (dist <= attackRange + 18 && !lineToPlayerBlocked(enemy, player)) {
     enemy.stuckSince = undefined;
     return null;
   }
@@ -51,7 +111,7 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
   const progress = Math.hypot(enemy.x - (enemy.lastProgressX ?? enemy.x), enemy.y - (enemy.lastProgressY ?? enemy.y));
   const stalledFor = time - (enemy.lastProgressTime ?? time);
 
-  if (!enemy.stuckSince && stalledFor >= 240 && progress < 2.2) {
+  if (!enemy.stuckSince && stalledFor >= 180 && progress < 2.2) {
     enemy.stuckSince = time;
     const side = laneBias(enemy, time);
     enemy.targetX = -ny * side;
@@ -60,7 +120,7 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
 
   if (!enemy.stuckSince) return null;
   const age = time - enemy.stuckSince;
-  if (progress >= 6.5 || age >= 1550) {
+  if (progress >= 6.5 || age >= 1350) {
     enemy.stuckSince = undefined;
     enemy.lastProgressX = enemy.x;
     enemy.lastProgressY = enemy.y;
@@ -74,36 +134,47 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
   let moveX: number;
   let moveY: number;
 
-  if (age < 650) {
-    moveX = storedSideX * 1.55 + nx * 0.08;
-    moveY = storedSideY * 1.55 + ny * 0.08;
-  } else if (age < 1100) {
-    moveX = -storedSideX * 1.45 + nx * 0.18;
-    moveY = -storedSideY * 1.45 + ny * 0.18;
+  if (age < 520) {
+    moveX = storedSideX * 1.65 + nx * 0.04;
+    moveY = storedSideY * 1.65 + ny * 0.04;
+  } else if (age < 940) {
+    moveX = -storedSideX * 1.55 + nx * 0.16;
+    moveY = -storedSideY * 1.55 + ny * 0.16;
   } else {
-    moveX = -nx * 0.45 - storedSideX * 0.95;
-    moveY = -ny * 0.45 - storedSideY * 0.95;
+    moveX = -nx * 0.52 - storedSideX * 1.05;
+    moveY = -ny * 0.52 - storedSideY * 1.05;
   }
 
   const move = normalizedMove(moveX, moveY);
-  return { dx: move.x * speed * 1.2, dy: move.y * speed * 1.2, attackRange, attackDelay };
+  const steered = steerAroundProps(enemy, move.x * speed * 1.24, move.y * speed * 1.24, time);
+  return { dx: steered.dx, dy: steered.dy, attackRange, attackDelay };
 }
 
 export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: number): EnemyMovePlan {
+  const runEnemy = enemy as EnemyRunContext;
   const archetype = enemyArchetype(enemy.enemyType);
   const { dist, nx, ny } = normalizedDirection(enemy, player);
-  const room = roomFromEnemyId(enemy);
+  const room = runEnemy.runRoom ?? roomFromEnemyId(enemy);
   const chapter = chapterFromEnemy(enemy);
   const movePressure = (1 + Math.min(0.34, (room - 1) * 0.019)) * chapterMovePressure(chapter);
   const attackPressure = (1 - Math.min(0.24, (room - 1) * 0.013)) * chapterAttackDelayFactor(chapter);
   const huntPressure = enemy.isHuntTarget ? 1.1 : 1;
   const speed = enemy.speed * movePressure * huntPressure * dt / 1000;
   const minimumAttackDelay = Math.max(340, 520 - (chapter - 1) * 35);
-  const plan = (dx: number, dy: number, attackRange: number, attackDelay: number): EnemyMovePlan => ({ dx, dy, attackRange, attackDelay: Math.max(minimumAttackDelay, Math.round(attackDelay * attackPressure)) });
+  const blockedLine = lineToPlayerBlocked(runEnemy, player);
+  const plan = (dx: number, dy: number, attackRange: number, attackDelay: number): EnemyMovePlan => {
+    const steered = steerAroundProps(runEnemy, dx, dy, time);
+    return {
+      dx: steered.dx,
+      dy: steered.dy,
+      attackRange: blockedLine ? 0 : attackRange,
+      attackDelay: Math.max(minimumAttackDelay, Math.round(attackDelay * attackPressure)),
+    };
+  };
 
   const baseAttackRange = archetype === 'dragon' ? 150 : archetype === 'guardian' ? 58 + enemy.width / 2 : archetype === 'skirmisher' ? 48 + enemy.width / 2 : 42 + enemy.width / 2;
   const baseAttackDelay = Math.max(minimumAttackDelay, Math.round((archetype === 'dragon' ? 850 : archetype === 'guardian' ? 900 : archetype === 'skirmisher' ? 840 : 920) * attackPressure));
-  const recovery = recoveryMove(enemy, player, speed, time, baseAttackRange, baseAttackDelay);
+  const recovery = recoveryMove(runEnemy, player, speed, time, blockedLine ? 0 : baseAttackRange, baseAttackDelay);
   if (recovery) return recovery;
 
   if (archetype === 'skirmisher') {
