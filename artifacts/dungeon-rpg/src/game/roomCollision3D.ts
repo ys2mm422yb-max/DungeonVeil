@@ -1,3 +1,4 @@
+import { roomArchitecturePieces } from './roomArchitectureLayout';
 import { roomSetpieces } from './roomSetpieceLayout';
 
 function entityCenterToScene(value: number, size: number, mapTiles: number) {
@@ -5,7 +6,7 @@ function entityCenterToScene(value: number, size: number, mapTiles: number) {
 }
 
 function collidersForRoom(room: number) {
-  return roomSetpieces(room)
+  return [...roomArchitecturePieces(room), ...roomSetpieces(room)]
     .filter(piece => piece.collider)
     .map(piece => {
       const base = piece.collider!;
