@@ -208,12 +208,8 @@ function addRankXp(meta: MetaProgression, xp: number) {
   }
 }
 
-function isStarterItem(id: EquipmentId) {
-  return id === 'ash-bow' || id === 'ranger-quiver' || id === 'veil-key';
-}
-
 function availableDrops(meta: MetaProgression, source: EquipmentDropSource) {
-  return Object.values(EQUIPMENT).filter(item => item.unlockRank <= meta.rank && item.dropSource === source && !isStarterItem(item.id));
+  return Object.values(EQUIPMENT).filter(item => item.unlockRank <= meta.rank && item.dropSource === source);
 }
 
 function chooseDrop(meta: MetaProgression, source: EquipmentDropSource): PendingEquipmentDrop | null {
