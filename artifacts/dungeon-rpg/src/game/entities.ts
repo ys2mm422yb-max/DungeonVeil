@@ -76,6 +76,9 @@ export interface Enemy extends Entity {
   lastProgressX?: number;
   lastProgressY?: number;
   lastProgressTime?: number;
+  steerX?: number;
+  steerY?: number;
+  steerUntil?: number;
   isHuntTarget?: boolean;
   huntName?: string;
   huntReward?: number;
