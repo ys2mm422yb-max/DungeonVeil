@@ -6,6 +6,7 @@ import { roomArchitecturePieces } from '../game/roomArchitectureLayout';
 import { elevationForSetpiece, roomElevationPieces } from '../game/roomElevationLayout';
 import { roomSurfacePieces } from '../game/roomSurfaceLayout';
 import { roomIdentity } from '../game/roomIdentity';
+import { roomComposition } from '../game/roomComposition';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
@@ -42,12 +43,22 @@ async function prototypeFor(path: string) {
   return promise;
 }
 
-function addLights(THREE: any, root: any, room: number) {
-  const color = room >= 16 ? 0x9b5368 : room >= 11 ? 0x8a6ec9 : 0xe6b27a;
-  const light = new THREE.PointLight(color, IS_MOBILE ? 1.55 : 2.25, room >= 11 ? 13 : 14.5, 2);
-  light.position.set(0, 4.2, -11.8);
-  root.add(light);
-  root.userData.architectureLights = [light];
+function addCompositionLights(THREE: any, root: any, room: number) {
+  const composition = roomComposition(room);
+  const focus = composition.focus;
+  const main = new THREE.PointLight(focus.color, IS_MOBILE ? focus.intensity * 0.78 : focus.intensity, focus.range, 2);
+  main.position.set(focus.x, 2.15, focus.z);
+  root.add(main);
+
+  const lights = [main];
+  if (composition.secondary) {
+    const secondary = composition.secondary;
+    const fill = new THREE.PointLight(secondary.color, IS_MOBILE ? secondary.intensity * 0.72 : secondary.intensity, secondary.range, 2);
+    fill.position.set(secondary.x, 1.55, secondary.z);
+    root.add(fill);
+    lights.push(fill);
+  }
+  root.userData.architectureLights = lights;
 }
 
 // A room is composed only from authored surface flow, supporting architecture, low elevation zones and its functional scene.
@@ -72,7 +83,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   const atmosphere = buildKayKitRoomAtmosphere(THREE, room);
   root.add(outer);
   root.add(atmosphere);
-  addLights(THREE, root, room);
+  addCompositionLights(THREE, root, room);
 
   const ready = Promise.all(roomPieces(room).map(async piece => {
     const prototype = await prototypeFor(piece.model);
