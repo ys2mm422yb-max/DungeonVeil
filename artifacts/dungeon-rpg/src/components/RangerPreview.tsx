@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 import { KAYKIT_PLAYER_ASSETS } from './kaykitPlayer3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
@@ -19,34 +18,6 @@ function chooseIdle(clips: any[]) {
     ?? clips.find(clip => /idle/i.test(String(clip?.name ?? '')))
     ?? clips[0]
     ?? null;
-}
-
-function findTorsoAnchor(root: any) {
-  const priorities = ['spine2', 'upperchest', 'chest', 'spine1', 'spine'];
-  let best: any = root;
-  let bestScore = -1;
-  root.traverse((node: any) => {
-    const key = String(node?.name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const index = priorities.findIndex(name => key.includes(name));
-    if (index < 0) return;
-    const score = priorities.length - index;
-    if (score > bestScore) {
-      bestScore = score;
-      best = node;
-    }
-  });
-  return best;
-}
-
-function attachShowcaseBow(ranger: any, bow: any) {
-  const anchor = findTorsoAnchor(ranger);
-  anchor.add(bow);
-  bow.rotation.order = 'YXZ';
-  bow.scale.setScalar(.92);
-  bow.position.set(.08, .08, -.22);
-  // Adventurer bow is authored long on Z. Rotate that long axis up into Y and
-  // cant it across the ranger's back so the silhouette reads clearly in idle.
-  bow.rotation.set(Math.PI / 2, 0, -.58);
 }
 
 export function RangerPreview() {
@@ -111,13 +82,12 @@ export function RangerPreview() {
       scene.add(floor);
 
       const loader = new GLTFLoader();
-      const [rangerGltf, generalGltf, movementGltf, weapons] = await Promise.all([
+      const [rangerGltf, generalGltf, movementGltf] = await Promise.all([
         loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
         loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
         loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
-        loadKayKitRangerWeapons(),
       ]);
-      if (disposed || !weapons) return;
+      if (disposed) return;
 
       showcaseRoot = new THREE.Group();
       showcaseRoot.rotation.y = -0.28;
@@ -127,10 +97,6 @@ export function RangerPreview() {
       ranger.scale.setScalar(1.18);
       prepareModel(ranger);
       showcaseRoot.add(ranger);
-
-      const bow = weapons.bow.clone(true);
-      prepareModel(bow);
-      attachShowcaseBow(ranger, bow);
 
       mixer = new THREE.AnimationMixer(ranger);
       const clips = [...(rangerGltf.animations ?? []), ...(generalGltf.animations ?? []), ...(movementGltf.animations ?? [])];
