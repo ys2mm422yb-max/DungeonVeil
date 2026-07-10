@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 import { KAYKIT_PLAYER_ASSETS } from './kaykitPlayer3D';
+import { attachBowToRanger } from './bowRig';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -12,18 +13,6 @@ function prepareModel(root: any) {
     node.receiveShadow = true;
     node.frustumCulled = true;
   });
-}
-
-function fitObject(THREE: any, object: any, targetSize: number) {
-  object.scale.setScalar(1);
-  object.position.set(0, 0, 0);
-  object.updateMatrixWorld(true);
-  const bounds = new THREE.Box3().setFromObject(object);
-  const size = bounds.getSize(new THREE.Vector3());
-  const center = bounds.getCenter(new THREE.Vector3());
-  const scale = targetSize / Math.max(size.x, size.y, size.z, 0.001);
-  object.scale.setScalar(scale);
-  object.position.sub(center.multiplyScalar(scale));
 }
 
 function chooseIdle(clips: any[]) {
@@ -104,7 +93,7 @@ export function RangerPreview() {
       if (disposed || !weapons) return;
 
       showcaseRoot = new THREE.Group();
-      showcaseRoot.rotation.y = -0.3;
+      showcaseRoot.rotation.y = -0.28;
       scene.add(showcaseRoot);
 
       const ranger = rangerGltf.scene;
@@ -114,10 +103,7 @@ export function RangerPreview() {
 
       const bow = weapons.bow.clone(true);
       prepareModel(bow);
-      fitObject(THREE, bow, 1.34);
-      bow.position.set(-0.42, 1.08, -0.02);
-      bow.rotation.set(0.12, 0.42, 0.68);
-      showcaseRoot.add(bow);
+      attachBowToRanger(THREE, ranger, bow);
 
       mixer = new THREE.AnimationMixer(ranger);
       const clips = [...(rangerGltf.animations ?? []), ...(generalGltf.animations ?? []), ...(movementGltf.animations ?? [])];
@@ -133,7 +119,7 @@ export function RangerPreview() {
         const dt = Math.min(clock.getDelta(), 0.05);
         showcaseTime += dt;
         mixer?.update(dt);
-        if (showcaseRoot) showcaseRoot.rotation.y = -0.3 + Math.sin(showcaseTime * 0.25) * 0.05;
+        if (showcaseRoot) showcaseRoot.rotation.y = -0.28 + Math.sin(showcaseTime * 0.25) * 0.045;
         renderer.render(scene, camera);
         frame = requestAnimationFrame(render);
       };
