@@ -44,7 +44,7 @@ function chapterFromEnemy(enemy: Enemy) {
 
 function laneBias(enemy: Enemy, time: number) {
   const variant = enemy.huntVisualVariant ?? Number(enemy.id.slice(-1).replace(/\D/g, '') || 0);
-  return (variant + Math.floor((time - enemy.spawnTime) / 1900)) % 2 === 0 ? 1 : -1;
+  return (variant + Math.floor((time - enemy.spawnTime) / 2800)) % 2 === 0 ? 1 : -1;
 }
 
 function hasCollisionContext(enemy: EnemyRunContext): enemy is EnemyRunContext & Required<Pick<EnemyRunContext, 'runRoom' | 'runMapWidth' | 'runMapHeight'>> {
@@ -79,25 +79,55 @@ function lineToPlayerBlocked(enemy: EnemyRunContext, player: Player) {
   );
 }
 
-function steerAroundProps(enemy: EnemyRunContext, dx: number, dy: number, time: number) {
-  if (!candidateBlocked(enemy, dx, dy)) return { dx, dy };
+function steeringHoldMs(enemy: Enemy) {
+  const archetype = enemyArchetype(enemy.enemyType);
+  if (archetype === 'skirmisher') return 300;
+  if (archetype === 'guardian' || archetype === 'dragon') return 520;
+  return 420;
+}
 
+function clearSteering(enemy: Enemy) {
+  enemy.steerX = undefined;
+  enemy.steerY = undefined;
+  enemy.steerUntil = undefined;
+}
+
+function steerAroundProps(enemy: EnemyRunContext, dx: number, dy: number, time: number) {
   const length = Math.max(0.001, Math.hypot(dx, dy));
+
+  if ((enemy.steerUntil ?? 0) > time && Number.isFinite(enemy.steerX) && Number.isFinite(enemy.steerY)) {
+    const held = normalizedMove(enemy.steerX ?? 0, enemy.steerY ?? 0);
+    const heldDx = held.x * length;
+    const heldDy = held.y * length;
+    if (!candidateBlocked(enemy, heldDx, heldDy)) return { dx: heldDx, dy: heldDy };
+    clearSteering(enemy);
+  }
+
+  if (!candidateBlocked(enemy, dx, dy)) {
+    clearSteering(enemy);
+    return { dx, dy };
+  }
+
   const ux = dx / length;
   const uy = dy / length;
   const side = laneBias(enemy, time);
   const candidates = [
-    normalizedMove(-uy * side + ux * 0.18, ux * side + uy * 0.18),
+    normalizedMove(-uy * side + ux * 0.22, ux * side + uy * 0.22),
+    normalizedMove(-uy * side + ux * 0.48, ux * side + uy * 0.48),
     normalizedMove(uy * side + ux * 0.18, -ux * side + uy * 0.18),
-    normalizedMove(-uy * side - ux * 0.12, ux * side - uy * 0.12),
-    normalizedMove(uy * side - ux * 0.12, -ux * side - uy * 0.12),
+    normalizedMove(-ux * 0.22 - uy * side, -uy * 0.22 + ux * side),
   ];
 
   for (const candidate of candidates) {
-    const nextDx = candidate.x * length * 1.08;
-    const nextDy = candidate.y * length * 1.08;
-    if (!candidateBlocked(enemy, nextDx, nextDy)) return { dx: nextDx, dy: nextDy };
+    const nextDx = candidate.x * length;
+    const nextDy = candidate.y * length;
+    if (candidateBlocked(enemy, nextDx, nextDy)) continue;
+    enemy.steerX = candidate.x;
+    enemy.steerY = candidate.y;
+    enemy.steerUntil = time + steeringHoldMs(enemy);
+    return { dx: nextDx, dy: nextDy };
   }
+
   return { dx: 0, dy: 0 };
 }
 
@@ -111,20 +141,22 @@ function recoveryMove(enemy: EnemyRunContext, player: Player, speed: number, tim
   const progress = Math.hypot(enemy.x - (enemy.lastProgressX ?? enemy.x), enemy.y - (enemy.lastProgressY ?? enemy.y));
   const stalledFor = time - (enemy.lastProgressTime ?? time);
 
-  if (!enemy.stuckSince && stalledFor >= 180 && progress < 2.2) {
+  if (!enemy.stuckSince && stalledFor >= 240 && progress < 2.2) {
     enemy.stuckSince = time;
     const side = laneBias(enemy, time);
     enemy.targetX = -ny * side;
     enemy.targetY = nx * side;
+    clearSteering(enemy);
   }
 
   if (!enemy.stuckSince) return null;
   const age = time - enemy.stuckSince;
-  if (progress >= 6.5 || age >= 1350) {
+  if (progress >= 6.5 || age >= 1500) {
     enemy.stuckSince = undefined;
     enemy.lastProgressX = enemy.x;
     enemy.lastProgressY = enemy.y;
     enemy.lastProgressTime = time;
+    clearSteering(enemy);
     return null;
   }
 
@@ -134,19 +166,19 @@ function recoveryMove(enemy: EnemyRunContext, player: Player, speed: number, tim
   let moveX: number;
   let moveY: number;
 
-  if (age < 520) {
-    moveX = storedSideX * 1.65 + nx * 0.04;
-    moveY = storedSideY * 1.65 + ny * 0.04;
-  } else if (age < 940) {
-    moveX = -storedSideX * 1.55 + nx * 0.16;
-    moveY = -storedSideY * 1.55 + ny * 0.16;
+  if (age < 620) {
+    moveX = storedSideX * 1.4 + nx * 0.12;
+    moveY = storedSideY * 1.4 + ny * 0.12;
+  } else if (age < 1120) {
+    moveX = -storedSideX * 1.18 + nx * 0.22;
+    moveY = -storedSideY * 1.18 + ny * 0.22;
   } else {
-    moveX = -nx * 0.52 - storedSideX * 1.05;
-    moveY = -ny * 0.52 - storedSideY * 1.05;
+    moveX = -nx * 0.4 - storedSideX * 0.9;
+    moveY = -ny * 0.4 - storedSideY * 0.9;
   }
 
   const move = normalizedMove(moveX, moveY);
-  const steered = steerAroundProps(enemy, move.x * speed * 1.24, move.y * speed * 1.24, time);
+  const steered = steerAroundProps(enemy, move.x * speed * 1.12, move.y * speed * 1.12, time);
   return { dx: steered.dx, dy: steered.dy, attackRange, attackDelay };
 }
 
@@ -178,43 +210,43 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
   if (recovery) return recovery;
 
   if (archetype === 'skirmisher') {
-    const cycle = ((time - enemy.spawnTime) % 3300 + 3300) % 3300;
+    const cycle = ((time - enemy.spawnTime) % 3600 + 3600) % 3600;
     const sideDirection = laneBias(enemy, time);
     const sideX = -ny * sideDirection;
     const sideY = nx * sideDirection;
-    if (cycle < 1450) {
+    if (cycle < 1600) {
       const toward = dist > 145 ? 0.95 : dist < 82 ? -0.1 : 0.42;
-      const move = normalizedMove(nx * toward + sideX * 0.42, ny * toward + sideY * 0.42);
+      const move = normalizedMove(nx * toward + sideX * 0.36, ny * toward + sideY * 0.36);
       return plan(move.x * speed, move.y * speed, 48 + enemy.width / 2, 880);
     }
-    if (cycle < 2350) {
-      const pressure = dist > 50 ? 1.55 : 0.28;
+    if (cycle < 2500) {
+      const pressure = dist > 50 ? 1.48 : 0.28;
       return plan(nx * pressure * speed, ny * pressure * speed, 50 + enemy.width / 2, 720);
     }
     const retreat = dist < 102 ? -0.25 : 0.48;
-    const move = normalizedMove(nx * retreat + sideX * 0.34, ny * retreat + sideY * 0.34);
+    const move = normalizedMove(nx * retreat + sideX * 0.3, ny * retreat + sideY * 0.3);
     return plan(move.x * speed * 0.9, move.y * speed * 0.9, 48 + enemy.width / 2, 840);
   }
 
   if (archetype === 'guardian' || archetype === 'dragon') {
-    const basePhaseLength = archetype === 'dragon' ? 4600 : 4000;
-    const phaseLength = Math.max(2700, Math.round(basePhaseLength * Math.max(0.68, chapterAttackDelayFactor(chapter) + 0.12)));
+    const basePhaseLength = archetype === 'dragon' ? 4600 : 4200;
+    const phaseLength = Math.max(2800, Math.round(basePhaseLength * Math.max(0.68, chapterAttackDelayFactor(chapter) + 0.12)));
     const phase = ((time - enemy.spawnTime) % phaseLength + phaseLength) % phaseLength;
-    if (phase < phaseLength * 0.48) {
+    if (phase < phaseLength * 0.5) {
       const ideal = archetype === 'dragon' ? 126 : 66;
-      const advance = dist > ideal ? 1.28 : dist < ideal * 0.62 ? -0.08 : 0.48;
+      const advance = dist > ideal ? 1.18 : dist < ideal * 0.62 ? -0.06 : 0.44;
       return plan(nx * advance * speed, ny * advance * speed, archetype === 'dragon' ? 150 : 58 + enemy.width / 2, archetype === 'dragon' ? 850 : 900);
     }
-    if (phase < phaseLength * 0.7) {
+    if (phase < phaseLength * 0.72) {
       const side = laneBias(enemy, time);
-      const move = normalizedMove(nx * (dist > 78 ? 0.72 : 0.34) + -ny * side * 0.34, ny * (dist > 78 ? 0.72 : 0.34) + nx * side * 0.34);
-      return plan(move.x * speed * 0.92, move.y * speed * 0.92, archetype === 'dragon' ? 162 : 60 + enemy.width / 2, archetype === 'dragon' ? 930 : 960);
+      const move = normalizedMove(nx * (dist > 78 ? 0.72 : 0.34) + -ny * side * 0.26, ny * (dist > 78 ? 0.72 : 0.34) + nx * side * 0.26);
+      return plan(move.x * speed * 0.9, move.y * speed * 0.9, archetype === 'dragon' ? 162 : 60 + enemy.width / 2, archetype === 'dragon' ? 930 : 960);
     }
-    const pressure = dist > (archetype === 'dragon' ? 82 : 54) ? 1.52 : 0.24;
+    const pressure = dist > (archetype === 'dragon' ? 82 : 54) ? 1.42 : 0.24;
     return plan(nx * pressure * speed, ny * pressure * speed, archetype === 'dragon' ? 112 : 60 + enemy.width / 2, archetype === 'dragon' ? 650 : 720);
   }
 
-  const weave = Math.sin((time - enemy.spawnTime) * 0.0017 + enemy.x * 0.008) * 0.1;
+  const weave = Math.sin((time - enemy.spawnTime) * 0.00135 + enemy.x * 0.008) * 0.075;
   const move = normalizedMove(nx - ny * weave, ny + nx * weave);
-  return plan(move.x * speed * 1.08, move.y * speed * 1.08, 42 + enemy.width / 2, 920);
+  return plan(move.x * speed * 1.04, move.y * speed * 1.04, 42 + enemy.width / 2, 920);
 }
