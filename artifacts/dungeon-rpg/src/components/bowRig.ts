@@ -18,6 +18,16 @@ function scoreLeftHand(name: string) {
   return 0;
 }
 
+function bowAssetKey(bow: any) {
+  let key = normalizeName(bow?.name);
+  bow?.traverse?.((node: any) => {
+    if (key.includes('withstring')) return;
+    const candidate = normalizeName(node?.name);
+    if (candidate.includes('bow') && candidate.includes('withstring')) key = candidate;
+  });
+  return key;
+}
+
 export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
@@ -35,10 +45,12 @@ export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig 
   bow.rotation.order = 'YXZ';
 
   if (bestScore >= 130) {
-    // KayKit Adventurer bow + HandSlotL share the same authored equipment space.
-    // Preserve the package's native transform instead of guessing from bounds.
     bow.position.set(0, 0, 0);
-    bow.rotation.set(0, 0, 0);
+    const assetKey = bowAssetKey(bow);
+    const fantasyWeaponsBow = assetKey.includes('bowawithstring') || assetKey.includes('bowbwithstring');
+    // Fantasy Weapons bows are authored long on X; +90° around Y maps them to the
+    // same long-Z equipment space as the Adventurer bow used by HandSlotL.
+    bow.rotation.set(0, fantasyWeaponsBow ? Math.PI / 2 : 0, 0);
   } else if (bestScore > 0) {
     bow.position.set(0.02, -0.015, 0.04);
     bow.rotation.set(Math.PI / 2, 0, 0);
@@ -60,8 +72,6 @@ export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig 
       previousPulse = pulse;
       bow.position.copy(basePosition);
       bow.rotation.copy(baseRotation);
-
-      // Keep the grip fixed. The character animation sells the shot; only add a tiny recoil.
       bow.position.z -= pulse * 0.012;
       bow.rotation.x -= pulse * 0.018;
 
