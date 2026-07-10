@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 import { KAYKIT_PLAYER_ASSETS } from './kaykitPlayer3D';
-import { attachBowToRanger } from './bowRig';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -13,6 +12,18 @@ function prepareModel(root: any) {
     node.receiveShadow = true;
     node.frustumCulled = true;
   });
+}
+
+function fitObject(THREE: any, object: any, targetSize: number) {
+  object.scale.setScalar(1);
+  object.position.set(0, 0, 0);
+  object.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(object);
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  const scale = targetSize / Math.max(size.x, size.y, size.z, 0.001);
+  object.scale.setScalar(scale);
+  object.position.sub(center.multiplyScalar(scale));
 }
 
 function chooseIdle(clips: any[]) {
@@ -101,9 +112,14 @@ export function RangerPreview() {
       prepareModel(ranger);
       showcaseRoot.add(ranger);
 
+      // Character selection is a calm hero showcase, not an attack pose.
+      // Keep the live combat hand rig out of this preview and carry the bow across the back.
       const bow = weapons.bow.clone(true);
       prepareModel(bow);
-      attachBowToRanger(THREE, ranger, bow);
+      fitObject(THREE, bow, 1.14);
+      bow.position.set(0.12, 1.12, -0.24);
+      bow.rotation.set(0.08, -0.18, -0.82);
+      showcaseRoot.add(bow);
 
       mixer = new THREE.AnimationMixer(ranger);
       const clips = [...(rangerGltf.animations ?? []), ...(generalGltf.animations ?? []), ...(movementGltf.animations ?? [])];
