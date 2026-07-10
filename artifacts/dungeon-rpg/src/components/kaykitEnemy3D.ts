@@ -19,6 +19,7 @@ export type KayKitEnemyVisual = {
   root: any; scene: any; mixer: any; idle: any; move: any; attack: any; death: any;
   lastState: string; lastAttackTime: number; lastHitTime: number; attackRemaining: number; deathPlayed: boolean; deathElapsed: number;
   baseScale: number; hitElapsed: number; statusRoot: any; burnGlows: any[]; frostGlows: any[]; frostHalo: any; bossAura: any; bossCore: any;
+  lastEnemyX: number; lastEnemyY: number; motionSpeed: number;
 };
 
 let libraryPromise: Promise<EnemyLibrary> | null = null;
@@ -230,6 +231,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     lastState: 'idle', lastAttackTime: enemy.lastAttackTime, lastHitTime: enemy.lastHitTime ?? 0,
     attackRemaining: 0, deathPlayed: false, deathElapsed: 0, baseScale, hitElapsed: 0,
     statusRoot, burnGlows, frostGlows, frostHalo, bossAura, bossCore,
+    lastEnemyX: enemy.x, lastEnemyY: enemy.y, motionSpeed: 0,
   };
 }
 
@@ -267,6 +269,12 @@ function setMeshTint(root: any, color: number | null, intensity: number) {
 export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy, delta: number, now = Date.now()) {
   const burning = !!enemy.burnUntil && now < enemy.burnUntil;
   const frozen = !!enemy.frostUntil && now < enemy.frostUntil;
+  const frameDistance = Math.hypot(enemy.x - visual.lastEnemyX, enemy.y - visual.lastEnemyY);
+  const measuredSpeed = frameDistance / Math.max(delta, 1 / 120);
+  visual.motionSpeed = visual.motionSpeed * 0.68 + measuredSpeed * 0.32;
+  visual.lastEnemyX = enemy.x;
+  visual.lastEnemyY = enemy.y;
+  const physicallyMoving = enemy.state === 'chase' && visual.motionSpeed > (enemy.enemyType === 'boss' ? 3 : 4.5);
 
   visual.burnGlows.forEach((glow, index) => {
     glow.material.opacity = burning ? 0.45 + Math.sin(now * 0.012 + index) * 0.28 : 0;
@@ -296,8 +304,6 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
     visual.bossCore.intensity = (IS_MOBILE ? 1.9 : 2.9) + Math.sin(now * 0.007) * 0.55;
   }
 
-  // Boss-Materialien bleiben lesbar. Feuer/Frost werden über Partikel und Halos gezeigt,
-  // nicht mehr über eine permanente Ganzkörper-Tönung.
   if (enemy.enemyType === 'boss') setMeshTint(visual.scene, null, 0);
   else if (burning) setMeshTint(visual.scene, 0xff2d00, 0.2);
   else if (frozen) setMeshTint(visual.scene, 0x46bfff, 0.07);
@@ -373,12 +379,12 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   if (visual.attackRemaining > 0) {
     visual.attackRemaining = Math.max(0, visual.attackRemaining - delta);
     if (visual.attackRemaining === 0) {
-      const next = enemy.state === 'chase' ? visual.move : visual.idle;
+      const next = physicallyMoving ? visual.move : visual.idle;
       transition(visual, next, 0.08);
-      visual.lastState = enemy.state === 'chase' ? 'chase' : 'idle';
+      visual.lastState = physicallyMoving ? 'chase' : 'idle';
     }
   } else {
-    const desiredState = enemy.state === 'chase' ? 'chase' : 'idle';
+    const desiredState = physicallyMoving ? 'chase' : 'idle';
     if (desiredState !== visual.lastState) {
       transition(visual, desiredState === 'chase' ? visual.move : visual.idle, 0.1);
       visual.lastState = desiredState;
@@ -387,9 +393,10 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
 
   if (visual.move) {
     const baseMoveSpeed = enemy.enemyType === 'boss' ? 0.92 : 1.06;
-    visual.move.timeScale = frozen
+    const speedFactor = Math.max(0.72, Math.min(1.22, visual.motionSpeed / Math.max(1, enemy.speed)));
+    visual.move.timeScale = (frozen
       ? Math.max(enemy.enemyType === 'boss' ? 0.48 : 0.5, baseMoveSpeed * (1 - (enemy.frostSlow ?? 0)))
-      : baseMoveSpeed;
+      : baseMoveSpeed) * speedFactor;
   }
   visual.mixer.update(delta);
 }
