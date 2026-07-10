@@ -1,6 +1,6 @@
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 import { attachBowToRanger, type BowRig } from './bowRig';
-import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
+import { EQUIPMENT, loadMetaProgression, type EquipmentId } from '../game/metaProgression';
 
 const KAYKIT_ROOT = '/assets/kaykit';
 
@@ -65,18 +65,26 @@ function attachQuiver(parent: any, object: any) {
   object.scale.setScalar(1);
   parent.add(object);
 }
-function attachQuiverVariant(THREE: any, parent: any, object: any, variant: 'black-quiver' | 'rune-quiver') {
+function attachQuiverVariant(THREE: any, parent: any, object: any, variant: EquipmentId) {
   if (!parent || !object) return;
   prepareModel(object);
-  fitAttachment(THREE, object, variant === 'rune-quiver' ? 0.58 : 0.72);
-  object.position.set(variant === 'rune-quiver' ? -0.05 : -0.12, 0.08, -0.24);
-  object.rotation.set(0.12, variant === 'rune-quiver' ? -0.18 : 0.16, variant === 'rune-quiver' ? 0.2 : -0.08);
+  const config: Partial<Record<EquipmentId, { size: number; x: number; y: number; z: number; rx: number; ry: number; rz: number }>> = {
+    'black-quiver': { size: .72, x: -.12, y: .08, z: -.24, rx: .12, ry: .16, rz: -.08 },
+    'rune-quiver': { size: .58, x: -.05, y: .08, z: -.24, rx: .12, ry: -.18, rz: .2 },
+    'ember-quiver': { size: .64, x: -.1, y: .08, z: -.24, rx: .14, ry: .12, rz: -.12 },
+    'splinter-quiver': { size: .7, x: -.12, y: .07, z: -.25, rx: .12, ry: .22, rz: -.1 },
+    'hunt-quiver': { size: .76, x: -.14, y: .08, z: -.24, rx: .1, ry: .16, rz: -.14 },
+  };
+  const placement = config[variant] ?? config['black-quiver']!;
+  fitAttachment(THREE, object, placement.size);
+  object.position.set(placement.x, placement.y, placement.z);
+  object.rotation.set(placement.rx, placement.ry, placement.rz);
   parent.add(object);
 }
 function attachTalisman(THREE: any, parent: any, object: any, id: string) {
   if (!parent || !object) return;
   prepareModel(object);
-  const targetSize = id === 'frost-grimoire' ? 0.34 : id === 'guardian-sigil' ? 0.28 : 0.22;
+  const targetSize = id === 'frost-grimoire' ? 0.34 : id === 'guardian-sigil' || id === 'broken-oath' ? 0.28 : 0.22;
   fitAttachment(THREE, object, targetSize);
   object.position.set(id === 'frost-grimoire' ? 0.22 : 0.03, id === 'frost-grimoire' ? 0.02 : 0.13, id === 'frost-grimoire' ? -0.15 : 0.16);
   object.rotation.set(id === 'frost-grimoire' ? 0.15 : Math.PI / 2, 0, id === 'frost-grimoire' ? -0.28 : 0);
@@ -139,8 +147,8 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   const chest = findBone(visual, ['spine2', 'chest', 'spine1']);
-  attachQuiver(spine, quiverGltf.scene);
-  if (quiverVariantGltf && (quiverId === 'black-quiver' || quiverId === 'rune-quiver')) attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
+  if (quiverId === 'ranger-quiver') attachQuiver(spine, quiverGltf.scene);
+  else if (quiverVariantGltf) attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
   if (talismanGltf) attachTalisman(THREE, chest, talismanGltf.scene, talismanId);
   const arrowPrototype = buildArrowPrototype(THREE, weapons.arrow);
   const upperArmL = findBone(visual, ['upperarml']);
