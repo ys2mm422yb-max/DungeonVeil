@@ -68,7 +68,7 @@ function setDrawMorph(bow: any, pulse: number) {
   });
 }
 
-export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any, bowId: EquipmentId): BowRig {
+export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any, bowId: EquipmentId = 'ash-bow'): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
   let previousPulse = 0;
