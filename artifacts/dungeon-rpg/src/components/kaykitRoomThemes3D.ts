@@ -3,6 +3,7 @@ import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWor
 import { buildKayKitRoomAtmosphere } from './kaykitRoomAtmosphere3D';
 import { roomSetpieces } from '../game/roomSetpieceLayout';
 import { roomArchitecturePieces } from '../game/roomArchitectureLayout';
+import { elevationForSetpiece, roomElevationPieces } from '../game/roomElevationLayout';
 import { roomSurfacePieces } from '../game/roomSurfaceLayout';
 import { roomIdentity } from '../game/roomIdentity';
 
@@ -49,9 +50,10 @@ function addLights(THREE: any, root: any, room: number) {
   root.userData.architectureLights = [light];
 }
 
-// A room is composed only from authored surface flow, supporting architecture and its functional scene.
+// A room is composed only from authored surface flow, supporting architecture, low elevation zones and its functional scene.
 function roomPieces(room: number): VisualPiece[] {
-  return [...roomSurfacePieces(room), ...roomArchitecturePieces(room), ...roomSetpieces(room)];
+  const setpieces = roomSetpieces(room).map(piece => ({ ...piece, y: elevationForSetpiece(room, piece) }));
+  return [...roomSurfacePieces(room), ...roomArchitecturePieces(room), ...roomElevationPieces(room), ...setpieces];
 }
 
 export async function preloadKayKitRoomTheme(room: number) {
