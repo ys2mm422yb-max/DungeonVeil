@@ -1,9 +1,11 @@
 import { ClassKey } from './classes';
 import { EnemyTypeName } from './sprites';
 import type { VeilRelicId } from './veilRelics';
+import type { EquipmentDropSource, EquipmentId, EquipmentRarity } from './metaProgression';
 
 export interface Entity {
   id: string;
+  type: string;
   x: number;
   y: number;
   width: number;
@@ -11,6 +13,8 @@ export interface Entity {
   vx: number;
   vy: number;
 }
+
+export type PlayerState = 'idle' | 'moving' | 'attacking' | 'dodging' | 'hurt' | 'dead';
 
 export interface Player extends Entity {
   type: 'player';
@@ -26,7 +30,7 @@ export interface Player extends Entity {
   level: number;
   xp: number;
   color: string;
-  state: 'idle' | 'moving' | 'attacking' | 'dodging' | 'dead';
+  state: PlayerState;
   facing: { x: number; y: number };
   invincibleUntil: number;
   skillCooldown: number;
@@ -35,14 +39,15 @@ export interface Player extends Entity {
   attackCooldown: number;
   spawnTime: number;
   lastAttackTime: number;
-  lastHitTime?: number;
-  lastGuardTime?: number;
-  lastGiftTime?: number;
-  lastGiftKey?: string;
+  lastHitTime: number;
+  lastGuardTime: number;
+  lastGiftTime: number;
+  lastGiftKey: string;
   relicAttackSpeedUntil?: number;
 }
 
 export type EnemyType = EnemyTypeName;
+export type EnemyState = 'idle' | 'chase' | 'attack' | 'hurt' | 'dead';
 
 export interface Enemy extends Entity {
   type: 'enemy';
@@ -50,11 +55,10 @@ export interface Enemy extends Entity {
   hp: number;
   maxHp: number;
   attack: number;
-  defense?: number;
+  defense: number;
   speed: number;
   color: string;
-  state: 'patrol' | 'chase' | 'attack' | 'dead';
-  isDead: boolean;
+  state: EnemyState;
   targetX: number;
   targetY: number;
   nextAttackTime: number;
@@ -62,17 +66,17 @@ export interface Enemy extends Entity {
   spawnTime: number;
   lastAttackTime: number;
   deathTime: number;
-  deathDuration?: number;
-  lastHitTime?: number;
+  deathDuration: number;
+  isDead: boolean;
+  lastHitTime: number;
   hitFromX?: number;
   hitFromY?: number;
+  burnRanks?: number;
+  burnDamage?: number;
   burnUntil?: number;
   nextBurnTick?: number;
-  burnDamage?: number;
-  burnRanks?: number;
   frostUntil?: number;
   frostSlow?: number;
-  stuckSince?: number;
   lastProgressX?: number;
   lastProgressY?: number;
   lastProgressTime?: number;
@@ -94,11 +98,15 @@ export interface Chest extends Entity {
 
 export interface Item extends Entity {
   type: 'item';
-  itemType: 'potion' | 'xp_orb' | 'relic';
+  itemType: 'potion' | 'xp_orb' | 'relic' | 'equipment';
   value: number;
   color: string;
   spawnTime: number;
   relicId?: VeilRelicId;
+  equipmentId?: EquipmentId;
+  equipmentRarity?: EquipmentRarity;
+  equipmentSource?: EquipmentDropSource;
+  isNewEquipment?: boolean;
 }
 
 export interface DamageNumber {
@@ -124,7 +132,6 @@ export interface Particle {
   size: number;
   drag?: number;
   gravity?: number;
-  fade?: boolean;
 }
 
 export interface VisualEffect {
@@ -136,10 +143,10 @@ export interface VisualEffect {
   color: string;
   lifeTime: number;
   maxLifeTime: number;
-  type: 'sweep' | 'flash' | 'circle' | 'slash' | 'beam' | 'dash' | 'pickup';
+  type: 'circle' | 'beam' | 'pickup' | 'dash';
   angle?: number;
   width?: number;
-  element?: 'fire' | 'ice' | 'arcane' | 'piercing' | 'normal';
+  element?: 'normal' | 'fire' | 'ice' | 'arcane' | 'piercing';
   fromEnemyId?: string;
   toEnemyId?: string;
 }
