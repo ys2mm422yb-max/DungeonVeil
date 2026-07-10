@@ -129,7 +129,7 @@ function ritual(engine: GameEngine, state: RoomMechanicState, time: number, dt: 
   state.ritualBroken = true;
   for (const enemy of engine.state.enemies) {
     if (!state.ritualBuffedIds.has(enemy.id) || enemy.isDead) continue;
-    enemy.attack = Math.max(1, Math.round(enemy.attack / 1.18) - 2);
+    enemy.attack = Math.max(1, Math.min(enemy.attack - 2, Math.round(enemy.attack / 1.18)));
     enemy.speed /= 1.08;
   }
   engine.state.effects.push({ id: `core-break-${time}`, x: core.x, y: core.y, radius: 0, maxRadius: 180, color: '#eee3ff', lifeTime: 0, maxLifeTime: 1100, type: 'circle', element: 'arcane' });
@@ -139,7 +139,7 @@ function ritual(engine: GameEngine, state: RoomMechanicState, time: number, dt: 
 function graveCall(engine: GameEngine, state: RoomMechanicState, time: number) {
   if (state.graveTriggered) return;
   const living = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead);
-  if (living.length > 3 || engine.state.killCount < 2) return;
+  if (living.length > 3) return;
   state.graveTriggered = true;
   for (const enemy of living) {
     enemy.speed *= 1.18;
