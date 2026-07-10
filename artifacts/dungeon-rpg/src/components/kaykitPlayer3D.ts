@@ -144,7 +144,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   prepareModel(weapons.bow);
   prepareModel(quiverGltf.scene);
-  const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow);
+  const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow, weapons.bowId);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   const chest = findBone(visual, ['spine2', 'chest', 'spine1']);
   if (quiverId === 'ranger-quiver') attachQuiver(spine, quiverGltf.scene);
@@ -185,9 +185,9 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     if (upperArmR) { upperArmR.rotation.y -= pulse * 0.34; upperArmR.rotation.z += pulse * 0.9; }
     if (lowerArmR) { lowerArmR.rotation.y -= pulse * 0.2; lowerArmR.rotation.z += pulse * 1.05; }
     if (chest) chest.rotation.y += pulse * 0.1;
-    visual.rotation.z = -pulse * 0.045;
-    visual.position.z = pulse * 0.035;
-    visual.position.y = pulse * 0.02;
+    visual.rotation.z = -pulse * 0.035;
+    visual.position.z = pulse * 0.026;
+    visual.position.y = pulse * 0.014;
   };
 
   return {
@@ -242,8 +242,12 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       if (shotTime > 0) {
         shotTime = Math.max(0, shotTime - delta);
         const progress = 1 - shotTime / shotDuration;
-        const draw = progress < 0.58 ? progress / 0.58 : Math.max(0, 1 - (progress - 0.58) / 0.42);
-        applyShotPose(Math.sin(draw * Math.PI * 0.5));
+        const pulse = progress < 0.52
+          ? Math.sin((progress / 0.52) * Math.PI * 0.5)
+          : progress < 0.68
+            ? 1
+            : Math.max(0, 1 - (progress - 0.68) / 0.32);
+        applyShotPose(pulse);
       } else {
         bowRig.updateShotPose(0);
         visual.rotation.x *= 0.68;
