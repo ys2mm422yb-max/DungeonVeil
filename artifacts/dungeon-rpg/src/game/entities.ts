@@ -1,6 +1,7 @@
 import { ClassKey } from './classes';
 import { EnemyTypeName } from './sprites';
 import type { VeilRelicId } from './veilRelics';
+import type { EquipmentDropSource, EquipmentId, EquipmentRarity } from './metaProgression';
 
 export interface Entity {
   id: string;
@@ -94,11 +95,15 @@ export interface Chest extends Entity {
 
 export interface Item extends Entity {
   type: 'item';
-  itemType: 'potion' | 'xp_orb' | 'relic';
+  itemType: 'potion' | 'xp_orb' | 'relic' | 'equipment';
   value: number;
   color: string;
   spawnTime: number;
   relicId?: VeilRelicId;
+  equipmentId?: EquipmentId;
+  equipmentRarity?: EquipmentRarity;
+  equipmentSource?: EquipmentDropSource;
+  isNewEquipment?: boolean;
 }
 
 export interface DamageNumber {
