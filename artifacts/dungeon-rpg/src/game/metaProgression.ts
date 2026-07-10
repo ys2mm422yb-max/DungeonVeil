@@ -293,8 +293,8 @@ export function rollMetaEquipmentDrop(source: EquipmentDropSource, chance = 1): 
 }
 
 export function equipmentSourceForRoom(floor: number): EquipmentDropSource {
-  if (isBossRoom(floor)) return 'warden';
-  if ([5, 6, 12, 16].includes(floor)) return 'forge';
+  if (isBossRoom(floor) || [16, 19].includes(floor)) return 'warden';
+  if ([4, 5, 6].includes(floor)) return 'forge';
   if ([9, 15, 18].includes(floor)) return 'ritual';
   return 'depth';
 }
