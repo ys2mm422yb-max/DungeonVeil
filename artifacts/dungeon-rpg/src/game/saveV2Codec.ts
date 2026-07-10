@@ -51,7 +51,8 @@ export function normalizeSaveV2(parsed: SaveData): SaveData | null {
   const chapter = Math.max(1, Math.round(finite(parsed.chapter, 1)));
   const fallbackMap = generateRunRoom(floor);
   const overworldMap = validMap(parsed.overworldMap) ? parsed.overworldMap : fallbackMap;
-  const inDungeon = parsed.inDungeon !== false;
+  const activeRunSave = typeof parsed.saveReason === 'string' && parsed.saveReason !== 'leave-run';
+  const inDungeon = activeRunSave ? true : parsed.inDungeon !== false;
   const maxHp = Math.max(1, finite(parsed.maxHp, 100));
   const hp = Math.max(0, Math.min(maxHp, finite(parsed.hp, maxHp)));
 
