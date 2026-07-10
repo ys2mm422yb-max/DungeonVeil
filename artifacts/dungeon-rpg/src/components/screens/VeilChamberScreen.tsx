@@ -117,8 +117,12 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
               const owned = level > 0;
               const active = owned && meta.equipped[item.slot] === item.id;
               const fresh = owned && !meta.seenItems.includes(item.id);
-              return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); selectItem(item.id); }} className={`relative min-h-[88px] rounded-2xl border p-3 text-left active:scale-[.98] ${active ? 'border-emerald-300/35 bg-emerald-400/[.07]' : 'border-white/8 bg-black/42'}`}>
-                {owned ? <><div className="text-xl" style={{ color: item.accent }}>{SLOT_LABELS[item.slot].icon}</div><div className="mt-3 line-clamp-2 text-[9px] font-black leading-tight text-white/80">{de ? item.nameDe : item.nameEn}</div><div className="mt-1 text-[7px] font-black uppercase tracking-[.12em] text-white/25">{de ? 'STUFE' : 'LV'} {level}</div></> : <><div className="text-2xl font-serif text-white/16">?</div><div className="mt-3 text-[10px] font-black tracking-[.12em] text-white/25">???</div></>}
+              return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); selectItem(item.id); }} className={`relative min-h-[108px] overflow-hidden rounded-2xl border p-2 text-left active:scale-[.98] ${active ? 'border-emerald-300/35 bg-emerald-400/[.07]' : 'border-white/8 bg-black/42'}`}>
+                {owned ? <>
+                  <div className="h-12 w-full overflow-hidden rounded-xl bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,.06),transparent_68%)]"><KayKitEquipmentPreview assetPath={item.assetPath} accent={item.accent} itemId={item.id} compact /></div>
+                  <div className="mt-2 line-clamp-2 text-[9px] font-black leading-tight text-white/80">{de ? item.nameDe : item.nameEn}</div>
+                  <div className="mt-1 text-[7px] font-black uppercase tracking-[.12em] text-white/25">{de ? 'STUFE' : 'LV'} {level}</div>
+                </> : <><div className="grid h-12 place-items-center text-3xl font-serif text-white/16">?</div><div className="mt-2 text-[10px] font-black tracking-[.12em] text-white/25">???</div></>}
                 {active && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.8)]" />}
                 {fresh && <span className="absolute right-2 top-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[6px] font-black text-black">{de ? 'NEU' : 'NEW'}</span>}
               </button>;
