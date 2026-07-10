@@ -1,5 +1,7 @@
 import { roomSetpieces } from './roomSetpieceLayout';
 
+const COLLIDER_INSET = 0.9;
+
 function entityCenterToScene(value: number, size: number, mapTiles: number) {
   return (value + size / 2) / 40 - mapTiles / 2 + 0.5;
 }
@@ -9,7 +11,7 @@ function collidersForRoom(room: number) {
     .filter(piece => piece.collider)
     .map(piece => {
       const base = piece.collider!;
-      const scale = piece.scale ?? 1;
+      const scale = (piece.scale ?? 1) * COLLIDER_INSET;
       const rotated = Math.abs(Math.sin(piece.rotation ?? 0)) > 0.7;
       const width = (rotated ? base[1] : base[0]) * scale;
       const height = (rotated ? base[0] : base[1]) * scale;
@@ -33,7 +35,7 @@ export function collidesWithRoomProp(
   y: number,
   width: number,
   height: number,
-  padding = 0.08,
+  padding = 0.025,
 ) {
   const centerX = entityCenterToScene(x, width, mapWidth);
   const centerZ = entityCenterToScene(y, height, mapHeight);
@@ -45,7 +47,16 @@ export function collidesWithRoomProp(
   );
 }
 
-function segmentHitsAabb(x1: number, z1: number, x2: number, z2: number, cx: number, cz: number, halfW: number, halfH: number) {
+function segmentHitsAabb(
+  x1: number,
+  z1: number,
+  x2: number,
+  z2: number,
+  cx: number,
+  cz: number,
+  halfW: number,
+  halfH: number,
+) {
   const dx = x2 - x1;
   const dz = z2 - z1;
   let tMin = 0;
@@ -70,15 +81,19 @@ export function shotBlockedByRoomProp(
   fromY: number,
   toX: number,
   toY: number,
-  padding = 0.05,
+  padding = 0.02,
 ) {
   const x1 = fromX / 40 - mapWidth / 2 + 0.5;
   const z1 = fromY / 40 - mapHeight / 2 + 0.5;
   const x2 = toX / 40 - mapWidth / 2 + 0.5;
   const z2 = toY / 40 - mapHeight / 2 + 0.5;
   return roomColliders(room).some(collider => segmentHitsAabb(
-    x1, z1, x2, z2,
-    collider.x, collider.z,
+    x1,
+    z1,
+    x2,
+    z2,
+    collider.x,
+    collider.z,
     collider.halfW + padding,
     collider.halfH + padding,
   ));
