@@ -49,6 +49,7 @@ function addLights(THREE: any, root: any, room: number) {
   root.userData.architectureLights = [light];
 }
 
+// A room is composed only from authored surface flow, supporting architecture and its functional scene.
 function roomPieces(room: number): VisualPiece[] {
   return [...roomSurfacePieces(room), ...roomArchitecturePieces(room), ...roomSetpieces(room)];
 }
