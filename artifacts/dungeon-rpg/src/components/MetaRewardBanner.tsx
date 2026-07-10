@@ -64,9 +64,9 @@ export function MetaRewardBanner() {
           {rankUp && <div className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1.5 text-[8px] font-black tracking-[.14em] text-amber-100">{de ? 'RANG' : 'RANK'} {reward.rankAfter}</div>}
         </div>
         {item && <div className="mt-3 border-t border-white/8 pt-3">
-          <div className="text-[8px] font-black uppercase tracking-[.18em]" style={{ color: item.accent }}>{de ? 'BEUTE IM RAUM' : 'LOOT IN ROOM'} · {item.rarity.toUpperCase()}</div>
+          <div className="text-[8px] font-black uppercase tracking-[.18em]" style={{ color: item.accent }}>{de ? 'BEUTE LIEGT IM RAUM' : 'LOOT IS ON THE GROUND'} · {item.rarity.toUpperCase()}</div>
           <div className="mt-1 text-[12px] font-black text-white/85">{de ? item.nameDe : item.nameEn}</div>
-          <div className="mt-1 text-[8px] font-bold uppercase tracking-[.14em] text-white/35">{item.dropSource}</div>
+          <div className="mt-1 text-[8px] font-bold uppercase tracking-[.14em] text-white/35">{de ? 'AUFHEBEN, SONST VERLOREN' : 'PICK IT UP OR LOSE IT'} · {item.dropSource}</div>
         </div>}
       </div>
     </div>
