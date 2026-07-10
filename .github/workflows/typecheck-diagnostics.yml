@@ -1,0 +1,31 @@
+name: Temporary Typecheck Diagnostics
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture Dungeon Veil typecheck
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg typecheck > typecheck.log 2>&1
+          echo $? > typecheck.exit
+          cat typecheck.log
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-veil-typecheck-log
+          path: |
+            typecheck.log
+            typecheck.exit
