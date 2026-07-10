@@ -35,7 +35,14 @@ function prepareObject(object: any) {
   });
 }
 
-export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPath: string; accent: string; itemId: EquipmentId }) {
+type Props = {
+  assetPath: string;
+  accent: string;
+  itemId: EquipmentId;
+  compact?: boolean;
+};
+
+export function KayKitEquipmentPreview({ assetPath, accent, itemId, compact = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,6 +52,7 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
     let raf = 0;
     let renderer: any = null;
     let camera: any = null;
+    let lastCompactRender = 0;
 
     const boot = async () => {
       const THREE = await import(/* @vite-ignore */ THREE_URL);
@@ -52,26 +60,26 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       if (disposed) return;
 
       const scene = new THREE.Scene();
-      const relicTier = HIGH_TIER.has(itemId);
+      const relicTier = !compact && HIGH_TIER.has(itemId);
       const width = Math.max(1, host.clientWidth || 120);
       const height = Math.max(1, host.clientHeight || 120);
-      camera = new THREE.PerspectiveCamera(relicTier ? 34 : 38, width / height, 0.1, 40);
-      camera.position.set(0, 0.1, relicTier ? 5.4 : 5.0);
+      camera = new THREE.PerspectiveCamera(compact ? 42 : relicTier ? 34 : 38, width / height, 0.1, 40);
+      camera.position.set(0, compact ? 0.04 : 0.1, compact ? 4.6 : relicTier ? 5.4 : 5.0);
       camera.lookAt(0, 0, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 1 : 1.15));
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, compact ? 0.9 : IS_ANDROID ? 1 : 1.15));
       renderer.setSize(width, height, false);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = relicTier ? 1.22 : 1.1;
+      renderer.toneMappingExposure = compact ? 1.18 : relicTier ? 1.22 : 1.1;
       renderer.domElement.style.display = 'block';
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
       host.appendChild(renderer.domElement);
 
-      scene.add(new THREE.HemisphereLight(0xf5e6c8, 0x09080b, relicTier ? 1.55 : 1.35));
-      const keyLight = new THREE.PointLight(accent, relicTier ? (IS_ANDROID ? 4.2 : 5.4) : 4.6, 9, 2);
+      scene.add(new THREE.HemisphereLight(0xf5e6c8, 0x09080b, compact ? 1.55 : relicTier ? 1.55 : 1.35));
+      const keyLight = new THREE.PointLight(accent, compact ? 3.7 : relicTier ? (IS_ANDROID ? 4.2 : 5.4) : 4.6, 9, 2);
       keyLight.position.set(1.5, 1.25, 2.2);
       scene.add(keyLight);
       const rimLight = relicTier ? new THREE.PointLight(accent, IS_ANDROID ? 2.4 : 3.2, 7, 2) : null;
@@ -96,7 +104,7 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       const sparks: any[] = [];
 
       if (itemId === 'hunter-bow') {
-        fitObject(THREE, object, 2.05);
+        fitObject(THREE, object, compact ? 1.82 : 2.05);
         object.rotation.z = Math.PI / 2;
         object.rotation.y = -0.12;
         relic.add(object);
@@ -105,12 +113,12 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
         if (disposed) return;
         const quiver = quiverGltf.scene;
         prepareObject(quiver);
-        fitObject(THREE, quiver, 1.6);
+        fitObject(THREE, quiver, compact ? 1.35 : 1.6);
         quiver.position.set(-0.12, -0.05, 0);
         quiver.rotation.z = -0.14;
         relic.add(quiver);
 
-        fitObject(THREE, object, 0.95);
+        fitObject(THREE, object, compact ? 0.78 : 0.95);
         object.position.set(0.2, 0.16, 0.1);
         object.rotation.z = 0.16;
         relic.add(object);
@@ -119,12 +127,12 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
         if (disposed) return;
         const openBook = open.scene;
         prepareObject(openBook);
-        fitObject(THREE, openBook, 1.55);
+        fitObject(THREE, openBook, compact ? 1.3 : 1.55);
         openBook.rotation.x = -0.5;
         openBook.rotation.y = 0.08;
         relic.add(openBook);
       } else {
-        fitObject(THREE, object, 1.35);
+        fitObject(THREE, object, compact ? 1.15 : 1.35);
         relic.add(object);
       }
 
@@ -157,23 +165,26 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       const loop = () => {
         if (disposed) return;
         const now = performance.now();
-        relic.rotation.y += relicTier ? 0.0024 : 0.006;
-        relic.rotation.x = Math.sin(now * 0.0007) * (relicTier ? 0.018 : 0.05);
-        relic.position.y = relicTier ? Math.sin(now * 0.0017) * 0.035 : 0;
-        animated.forEach((node, index) => {
-          node.rotation.y += 0.004 + index * 0.0006;
-          node.rotation.z += index % 2 ? -0.0018 : 0.0018;
-          if (node.material?.opacity !== undefined && node.material.transparent) node.material.opacity = 0.26 + Math.sin(now * 0.0032 + index) * 0.08;
-        });
-        sparks.forEach((spark, index) => {
-          const phase = spark.userData.phase + now * 0.001;
-          const radius = spark.userData.radius;
-          spark.position.set(Math.cos(phase) * radius, -0.55 + ((phase * 0.25 + index * 0.14) % 1.1), Math.sin(phase) * radius * 0.4);
-          spark.material.opacity = 0.26 + Math.sin(phase * 2.2) * 0.14;
-        });
-        keyLight.intensity = (relicTier ? (IS_ANDROID ? 3.8 : 5) : 4.2) + Math.sin(now * 0.0037) * 0.6;
-        if (rimLight) rimLight.intensity = (IS_ANDROID ? 2.1 : 2.8) + Math.cos(now * 0.003) * 0.45;
-        renderer.render(scene, camera);
+        if (!compact || now - lastCompactRender >= 66) {
+          lastCompactRender = now;
+          relic.rotation.y += compact ? 0.012 : relicTier ? 0.0024 : 0.006;
+          relic.rotation.x = Math.sin(now * 0.0007) * (compact ? 0.025 : relicTier ? 0.018 : 0.05);
+          relic.position.y = relicTier ? Math.sin(now * 0.0017) * 0.035 : 0;
+          animated.forEach((node, index) => {
+            node.rotation.y += 0.004 + index * 0.0006;
+            node.rotation.z += index % 2 ? -0.0018 : 0.0018;
+            if (node.material?.opacity !== undefined && node.material.transparent) node.material.opacity = 0.26 + Math.sin(now * 0.0032 + index) * 0.08;
+          });
+          sparks.forEach((spark, index) => {
+            const phase = spark.userData.phase + now * 0.001;
+            const radius = spark.userData.radius;
+            spark.position.set(Math.cos(phase) * radius, -0.55 + ((phase * 0.25 + index * 0.14) % 1.1), Math.sin(phase) * radius * 0.4);
+            spark.material.opacity = 0.26 + Math.sin(phase * 2.2) * 0.14;
+          });
+          keyLight.intensity = (compact ? 3.5 : relicTier ? (IS_ANDROID ? 3.8 : 5) : 4.2) + Math.sin(now * 0.0037) * (compact ? 0.25 : 0.6);
+          if (rimLight) rimLight.intensity = (IS_ANDROID ? 2.1 : 2.8) + Math.cos(now * 0.003) * 0.45;
+          renderer.render(scene, camera);
+        }
         raf = requestAnimationFrame(loop);
       };
 
@@ -191,7 +202,7 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
     };
-  }, [assetPath, accent, itemId]);
+  }, [assetPath, accent, itemId, compact]);
 
   return <div ref={hostRef} className="h-full w-full overflow-hidden" />;
 }
