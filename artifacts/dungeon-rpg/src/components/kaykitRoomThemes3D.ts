@@ -2,6 +2,7 @@ import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
 import { buildKayKitRoomAtmosphere } from './kaykitRoomAtmosphere3D';
 import { roomSetpieces } from '../game/roomSetpieceLayout';
+import { roomArchitecturePieces } from '../game/roomArchitectureLayout';
 import { roomIdentity } from '../game/roomIdentity';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -46,9 +47,13 @@ function addLights(THREE: any, root: any, room: number) {
   root.userData.architectureLights = [light];
 }
 
+function roomPieces(room: number) {
+  return [...roomArchitecturePieces(room), ...roomSetpieces(room)];
+}
+
 export async function preloadKayKitRoomTheme(room: number) {
   await preloadKayKitOuterWorld();
-  await Promise.all([...new Set(roomSetpieces(room).map(piece => piece.model))].map(prototypeFor));
+  await Promise.all([...new Set(roomPieces(room).map(piece => piece.model))].map(prototypeFor));
 }
 
 export function buildKayKitRoomTheme(THREE: any, room: number) {
@@ -64,7 +69,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   root.add(atmosphere);
   addLights(THREE, root, room);
 
-  const ready = Promise.all(roomSetpieces(room).map(async piece => {
+  const ready = Promise.all(roomPieces(room).map(async piece => {
     const prototype = await prototypeFor(piece.model);
     if (!active) return;
     const object = prototype.clone(true);
