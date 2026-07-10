@@ -14,10 +14,10 @@ import {
 import { equipVeilRelic, loadVeilRelicProfile, VEIL_RELICS, type VeilRelicId } from '../../game/veilRelics';
 import { KayKitEquipmentPreview } from '../KayKitEquipmentPreview';
 
-const SLOT_LABELS: Record<EquipmentSlot, { de: string; en: string; icon: string }> = {
-  bow: { de: 'BOGEN', en: 'BOW', icon: '⌁' },
-  quiver: { de: 'KÖCHER', en: 'QUIVER', icon: '⇈' },
-  talisman: { de: 'TALISMAN', en: 'TALISMAN', icon: '◇' },
+const SLOT_LABELS: Record<EquipmentSlot, { de: string; en: string }> = {
+  bow: { de: 'BOGEN', en: 'BOW' },
+  quiver: { de: 'KÖCHER', en: 'QUIVER' },
+  talisman: { de: 'TALISMAN', en: 'TALISMAN' },
 };
 
 const RARITY_LABELS: Record<EquipmentRarity, { de: string; en: string; className: string }> = {
@@ -66,63 +66,63 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
 
   return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#080706] text-white">
     <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(112,72,170,.18),transparent_36%),linear-gradient(180deg,#100c09_0%,#080706_68%)]" />
-    <div className="relative mx-auto min-h-full max-w-md px-4 pb-[max(30px,calc(env(safe-area-inset-bottom)+18px))] pt-[max(22px,calc(env(safe-area-inset-top)+8px))]">
+    <div className="relative mx-auto min-h-full max-w-md px-4 pb-[max(30px,calc(env(safe-area-inset-bottom)+18px))] pt-[max(18px,calc(env(safe-area-inset-top)+6px))]">
       <header className="flex items-start gap-3">
-        <button type="button" onPointerDown={event => { event.preventDefault(); onBack(); }} className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-white/12 bg-black/45 text-2xl text-white/70 active:scale-95">‹</button>
+        <button type="button" onPointerDown={event => { event.preventDefault(); onBack(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/12 bg-black/45 text-2xl text-white/70 active:scale-95">‹</button>
         <div className="min-w-0 flex-1">
-          <div className="text-[8px] font-black uppercase tracking-[.42em] text-amber-200/42">DUNGEON VEIL</div>
-          <h1 className="mt-1 font-serif text-[2.15rem] leading-none tracking-[.08em] text-[#e7c37a]">{de ? 'INVENTAR' : 'INVENTORY'}</h1>
-          <div className="mt-2 flex gap-3 text-[8px] font-black uppercase tracking-[.14em] text-white/35"><span>{discoveredCount}/{gear.length} {de ? 'ENTDECKT' : 'DISCOVERED'}</span><span>{de ? 'RANG' : 'RANK'} {meta.rank}</span><span className="text-amber-200/60">✦ {meta.dust}</span></div>
+          <div className="text-[7px] font-black uppercase tracking-[.4em] text-amber-200/42">DUNGEON VEIL</div>
+          <h1 className="mt-1 font-serif text-[1.9rem] leading-none tracking-[.08em] text-[#e7c37a]">{de ? 'INVENTAR' : 'INVENTORY'}</h1>
+          <div className="mt-1.5 flex gap-3 text-[7px] font-black uppercase tracking-[.13em] text-white/35"><span>{discoveredCount}/{gear.length} {de ? 'ENTDECKT' : 'DISCOVERED'}</span><span>{de ? 'RANG' : 'RANK'} {meta.rank}</span><span className="text-amber-200/60">✦ {meta.dust}</span></div>
         </div>
       </header>
 
-      <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-white/8 bg-black/35 p-1">
-        <button type="button" onPointerDown={event => { event.preventDefault(); setTab('gear'); }} className={`rounded-xl py-3 text-[9px] font-black uppercase tracking-[.18em] active:scale-[.98] ${tab === 'gear' ? 'bg-amber-400/14 text-amber-100' : 'text-white/30'}`}>{de ? 'AUSRÜSTUNG' : 'EQUIPMENT'}</button>
-        <button type="button" onPointerDown={event => { event.preventDefault(); setTab('relics'); }} className={`rounded-xl py-3 text-[9px] font-black uppercase tracking-[.18em] active:scale-[.98] ${tab === 'relics' ? 'bg-violet-400/14 text-violet-100' : 'text-white/30'}`}>{de ? 'RELIKTE' : 'RELICS'}</button>
+      <div className="mt-4 grid grid-cols-2 gap-1 rounded-2xl border border-white/8 bg-black/35 p-1">
+        <button type="button" onPointerDown={event => { event.preventDefault(); setTab('gear'); }} className={`rounded-xl py-2.5 text-[8px] font-black uppercase tracking-[.18em] active:scale-[.98] ${tab === 'gear' ? 'bg-amber-400/14 text-amber-100' : 'text-white/30'}`}>{de ? 'AUSRÜSTUNG' : 'EQUIPMENT'}</button>
+        <button type="button" onPointerDown={event => { event.preventDefault(); setTab('relics'); }} className={`rounded-xl py-2.5 text-[8px] font-black uppercase tracking-[.18em] active:scale-[.98] ${tab === 'relics' ? 'bg-violet-400/14 text-violet-100' : 'text-white/30'}`}>{de ? 'RELIKTE' : 'RELICS'}</button>
       </div>
 
       {tab === 'gear' ? <>
-        <section className="mt-4 rounded-3xl border border-white/9 bg-black/45 p-4 shadow-[0_20px_60px_rgba(0,0,0,.35)]">
-          <div className="mb-3 text-[8px] font-black uppercase tracking-[.25em] text-white/30">{de ? 'AUSGERÜSTET' : 'EQUIPPED'}</div>
+        <section className="mt-3 rounded-3xl border border-white/9 bg-black/45 p-3 shadow-[0_20px_60px_rgba(0,0,0,.35)]">
+          <div className="mb-2 text-[7px] font-black uppercase tracking-[.25em] text-white/30">{de ? 'AUSGERÜSTET' : 'EQUIPPED'}</div>
           <div className="grid grid-cols-3 gap-2">
             {(['bow', 'quiver', 'talisman'] as EquipmentSlot[]).map(nextSlot => {
               const item = EQUIPMENT[meta.equipped[nextSlot]];
               const active = slot === nextSlot;
-              return <button key={nextSlot} type="button" onPointerDown={event => { event.preventDefault(); setSlot(nextSlot); }} className={`min-h-[88px] rounded-2xl border p-3 text-left active:scale-[.98] ${active ? 'border-amber-300/35 bg-amber-400/10' : 'border-white/8 bg-white/[.025]'}`}>
-                <div className="flex items-center justify-between"><span className="text-xl" style={{ color: item.accent }}>{SLOT_LABELS[nextSlot].icon}</span><span className="text-[6px] font-black uppercase tracking-[.14em] text-white/25">{SLOT_LABELS[nextSlot][de ? 'de' : 'en']}</span></div>
-                <div className="mt-3 truncate text-[9px] font-black text-white/78">{de ? item.nameDe : item.nameEn}</div>
+              return <button key={nextSlot} type="button" onPointerDown={event => { event.preventDefault(); setSlot(nextSlot); }} className={`min-h-[76px] overflow-hidden rounded-2xl border p-2 text-left active:scale-[.98] ${active ? 'border-amber-300/35 bg-amber-400/10' : 'border-white/8 bg-white/[.025]'}`}>
+                <div className="flex items-center justify-between gap-1"><div className="h-10 min-w-0 flex-1 overflow-hidden rounded-lg bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,.07),transparent_70%)]"><KayKitEquipmentPreview assetPath={item.assetPath} accent={item.accent} itemId={item.id} compact /></div><span className="shrink-0 text-[5px] font-black uppercase tracking-[.12em] text-white/25">{SLOT_LABELS[nextSlot][de ? 'de' : 'en']}</span></div>
+                <div className="mt-1.5 truncate text-[8px] font-black text-white/78">{de ? item.nameDe : item.nameEn}</div>
               </button>;
             })}
           </div>
         </section>
 
-        <section className="mt-4">
+        <section className="mt-3">
           <div className="grid grid-cols-3 gap-2">
             {(['bow', 'quiver', 'talisman'] as EquipmentSlot[]).map(nextSlot => {
               const items = gear.filter(item => item.slot === nextSlot);
               const found = items.filter(item => (meta.owned[item.id] ?? 0) > 0).length;
-              return <button key={nextSlot} type="button" onPointerDown={event => { event.preventDefault(); setSlot(nextSlot); }} className={`rounded-xl border px-2 py-3 active:scale-[.98] ${slot === nextSlot ? 'border-amber-300/35 bg-amber-400/12 text-amber-100' : 'border-white/8 bg-black/35 text-white/32'}`}>
-                <div className="text-[8px] font-black uppercase tracking-[.12em]">{SLOT_LABELS[nextSlot][de ? 'de' : 'en']}</div>
-                <div className="mt-1 text-[7px] font-black text-white/25">{found}/{items.length}</div>
+              return <button key={nextSlot} type="button" onPointerDown={event => { event.preventDefault(); setSlot(nextSlot); }} className={`rounded-xl border px-2 py-2.5 active:scale-[.98] ${slot === nextSlot ? 'border-amber-300/35 bg-amber-400/12 text-amber-100' : 'border-white/8 bg-black/35 text-white/32'}`}>
+                <div className="text-[7px] font-black uppercase tracking-[.12em]">{SLOT_LABELS[nextSlot][de ? 'de' : 'en']}</div>
+                <div className="mt-0.5 text-[6px] font-black text-white/25">{found}/{items.length}</div>
               </button>;
             })}
           </div>
         </section>
 
-        <section className="mt-4 rounded-3xl border border-white/8 bg-black/32 p-3">
-          <div className="mb-3 flex items-center justify-between"><div className="text-[8px] font-black uppercase tracking-[.24em] text-white/34">{SLOT_LABELS[slot][de ? 'de' : 'en']}</div><div className="text-[7px] font-black uppercase tracking-[.12em] text-white/20">{de ? 'ANTIPPEN FÜR DETAILS' : 'TAP FOR DETAILS'}</div></div>
+        <section className="mt-3 rounded-3xl border border-white/8 bg-black/32 p-2.5">
+          <div className="mb-2.5 flex items-center justify-between"><div className="text-[7px] font-black uppercase tracking-[.24em] text-white/34">{SLOT_LABELS[slot][de ? 'de' : 'en']}</div><div className="text-[6px] font-black uppercase tracking-[.12em] text-white/20">{de ? 'ANTIPPEN FÜR DETAILS' : 'TAP FOR DETAILS'}</div></div>
           <div className="grid grid-cols-3 gap-2">
             {slotGear.map(item => {
               const level = meta.owned[item.id] ?? 0;
               const owned = level > 0;
               const active = owned && meta.equipped[item.slot] === item.id;
               const fresh = owned && !meta.seenItems.includes(item.id);
-              return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); selectItem(item.id); }} className={`relative min-h-[108px] overflow-hidden rounded-2xl border p-2 text-left active:scale-[.98] ${active ? 'border-emerald-300/35 bg-emerald-400/[.07]' : 'border-white/8 bg-black/42'}`}>
+              return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); selectItem(item.id); }} className={`relative min-h-[124px] overflow-hidden rounded-2xl border p-2 text-left active:scale-[.98] ${active ? 'border-emerald-300/35 bg-emerald-400/[.07]' : 'border-white/8 bg-black/42'}`}>
                 {owned ? <>
-                  <div className="h-12 w-full overflow-hidden rounded-xl bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,.06),transparent_68%)]"><KayKitEquipmentPreview assetPath={item.assetPath} accent={item.accent} itemId={item.id} compact /></div>
-                  <div className="mt-2 line-clamp-2 text-[9px] font-black leading-tight text-white/80">{de ? item.nameDe : item.nameEn}</div>
-                  <div className="mt-1 text-[7px] font-black uppercase tracking-[.12em] text-white/25">{de ? 'STUFE' : 'LV'} {level}</div>
-                </> : <><div className="grid h-12 place-items-center text-3xl font-serif text-white/16">?</div><div className="mt-2 text-[10px] font-black tracking-[.12em] text-white/25">???</div></>}
+                  <div className="h-[68px] w-full overflow-hidden rounded-xl bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,.09),transparent_72%)]"><KayKitEquipmentPreview assetPath={item.assetPath} accent={item.accent} itemId={item.id} compact /></div>
+                  <div className="mt-1.5 line-clamp-2 text-[8px] font-black leading-tight text-white/82">{de ? item.nameDe : item.nameEn}</div>
+                  <div className="mt-1 text-[6px] font-black uppercase tracking-[.12em] text-white/25">{de ? 'STUFE' : 'LV'} {level}</div>
+                </> : <><div className="grid h-[68px] place-items-center text-3xl font-serif text-white/16">?</div><div className="mt-1.5 text-[9px] font-black tracking-[.12em] text-white/25">???</div></>}
                 {active && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.8)]" />}
                 {fresh && <span className="absolute right-2 top-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[6px] font-black text-black">{de ? 'NEU' : 'NEW'}</span>}
               </button>;
