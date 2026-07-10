@@ -23,7 +23,9 @@ type EnemyVisualProfile = {
   move: 'run' | 'walk';
 };
 
-const VISUAL_PROFILES: Record<EnemyType, EnemyVisualProfile> = {
+const VISUAL_PROFILES: Partial<Record<EnemyType, EnemyVisualProfile>> = {
+  slime: { role: 'minion', scale: 0.7, tint: 0x65ad67, tintMix: 0.42, move: 'run' },
+  goblin: { role: 'rogue', scale: 0.82, tint: 0x91a854, tintMix: 0.3, move: 'run' },
   skeleton: { role: 'minion', scale: 0.9, tint: 0xd8d3c8, tintMix: 0.04, move: 'run' },
   spider: { role: 'rogue', scale: 0.82, tint: 0x73946d, tintMix: 0.24, move: 'run' },
   vampire: { role: 'mage', scale: 0.98, tint: 0x725090, tintMix: 0.22, move: 'walk' },
@@ -32,6 +34,8 @@ const VISUAL_PROFILES: Record<EnemyType, EnemyVisualProfile> = {
   orc: { role: 'warrior', scale: 1.08, tint: 0x718650, tintMix: 0.22, move: 'walk' },
   boss: { role: 'warrior', scale: 1.62, tint: 0xffffff, tintMix: 0, move: 'walk' },
 };
+
+const FALLBACK_PROFILE: EnemyVisualProfile = { role: 'minion', scale: 0.9, tint: 0xd8d3c8, tintMix: 0.04, move: 'run' };
 
 export type KayKitEnemyVisual = {
   root: any; scene: any; mixer: any; idle: any; move: any; attack: any; death: any;
@@ -146,7 +150,7 @@ function buildStatusGlows(THREE: any, color: number, count: number, yBase: numbe
 
 function profileForEnemy(enemy: Enemy, finalBoss: boolean): EnemyVisualProfile {
   if (finalBoss) return { role: 'mage', scale: 1.78, tint: 0x7668bc, tintMix: 0.16, move: 'walk' };
-  return VISUAL_PROFILES[enemy.enemyType] ?? VISUAL_PROFILES.skeleton;
+  return VISUAL_PROFILES[enemy.enemyType] ?? FALLBACK_PROFILE;
 }
 
 function tintModel(THREE: any, root: any, tint: number, mix: number) {
@@ -181,12 +185,16 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     return source ? source.clone(true) : null;
   };
 
-  if (finalBoss || enemy.enemyType === 'vampire') {
+  if (enemy.enemyType === 'slime') {
+    // The tiny green minion intentionally stays unarmed so it reads differently at a glance.
+  } else if (finalBoss || enemy.enemyType === 'vampire') {
     const focus = finalBoss && library.finalBossFocus ? library.finalBossFocus.clone(true) : cloneWeapon('staff');
     attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.94);
   } else if (enemy.enemyType === 'spider') {
     attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.82);
     attachEquipment(leftHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, -Math.PI / 2], 0.74);
+  } else if (enemy.enemyType === 'goblin') {
+    attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.76);
   } else if (enemy.enemyType === 'golem') {
     attachEquipment(rightHand, cloneWeapon('axe'), [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], 1.02);
     attachEquipment(leftHand, cloneWeapon('shieldLarge'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], 1.06);
@@ -321,7 +329,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
     visual.renderRotation = targetRotation;
     visual.renderInitialized = true;
   } else if (!enemy.isDead && enemy.state !== 'dead') {
-    const positionBlend = 1 - Math.exp(-delta * (enemy.enemyType === 'spider' ? 15 : enemy.enemyType === 'golem' ? 8 : 11));
+    const positionBlend = 1 - Math.exp(-delta * (enemy.enemyType === 'spider' || enemy.enemyType === 'goblin' ? 15 : enemy.enemyType === 'golem' ? 8 : 11));
     const rotationBlend = 1 - Math.exp(-delta * (enemy.enemyType === 'golem' ? 7 : 10));
     visual.renderX += (targetX - visual.renderX) * positionBlend;
     visual.renderZ += (targetZ - visual.renderZ) * positionBlend;
@@ -457,7 +465,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   }
 
   if (visual.move) {
-    const profile = VISUAL_PROFILES[enemy.enemyType] ?? VISUAL_PROFILES.skeleton;
+    const profile = VISUAL_PROFILES[enemy.enemyType] ?? FALLBACK_PROFILE;
     const baseMoveSpeed = profile.move === 'walk' ? (enemy.enemyType === 'golem' ? 0.72 : 0.88) : 1.02;
     const speedFactor = Math.max(0.72, Math.min(1.18, visual.motionSpeed / Math.max(1, enemy.speed)));
     visual.move.timeScale = (frozen
