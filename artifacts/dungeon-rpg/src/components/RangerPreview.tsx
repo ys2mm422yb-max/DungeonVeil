@@ -26,9 +26,10 @@ function fitObject(THREE: any, object: any, targetSize: number) {
   object.position.sub(center.multiplyScalar(scale));
 }
 
-function idleClip(clips: any[]) {
+function chooseIdle(clips: any[]) {
   return clips.find(clip => /idle/i.test(String(clip?.name ?? '')) && !/aim|bow|crouch|sit|sleep/i.test(String(clip?.name ?? '')))
     ?? clips.find(clip => /idle/i.test(String(clip?.name ?? '')))
+    ?? clips[0]
     ?? null;
 }
 
@@ -94,14 +95,16 @@ export function RangerPreview() {
       scene.add(floor);
 
       const loader = new GLTFLoader();
-      const [rangerGltf, weapons] = await Promise.all([
+      const [rangerGltf, generalGltf, movementGltf, weapons] = await Promise.all([
         loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
+        loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
+        loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
         loadKayKitRangerWeapons(),
       ]);
       if (disposed || !weapons) return;
 
       showcaseRoot = new THREE.Group();
-      showcaseRoot.rotation.y = -0.34;
+      showcaseRoot.rotation.y = -0.3;
       scene.add(showcaseRoot);
 
       const ranger = rangerGltf.scene;
@@ -109,16 +112,17 @@ export function RangerPreview() {
       prepareModel(ranger);
       showcaseRoot.add(ranger);
 
-      const bow = weapons.bow;
+      const bow = weapons.bow.clone(true);
       prepareModel(bow);
-      fitObject(THREE, bow, 1.42);
-      bow.position.set(0.15, 1.02, -0.23);
-      bow.rotation.set(0.18, -0.12, -0.72);
+      fitObject(THREE, bow, 1.34);
+      bow.position.set(-0.42, 1.08, -0.02);
+      bow.rotation.set(0.12, 0.42, 0.68);
       showcaseRoot.add(bow);
 
       mixer = new THREE.AnimationMixer(ranger);
-      const idle = idleClip(rangerGltf.animations ?? []);
-      idle && mixer.clipAction(idle).reset().play();
+      const clips = [...(rangerGltf.animations ?? []), ...(generalGltf.animations ?? []), ...(movementGltf.animations ?? [])];
+      const idle = chooseIdle(clips);
+      if (idle) mixer.clipAction(idle).reset().fadeIn(0.05).play();
 
       clock = new THREE.Clock();
       resize();
@@ -129,7 +133,7 @@ export function RangerPreview() {
         const dt = Math.min(clock.getDelta(), 0.05);
         showcaseTime += dt;
         mixer?.update(dt);
-        if (showcaseRoot) showcaseRoot.rotation.y = -0.34 + Math.sin(showcaseTime * 0.25) * 0.055;
+        if (showcaseRoot) showcaseRoot.rotation.y = -0.3 + Math.sin(showcaseTime * 0.25) * 0.05;
         renderer.render(scene, camera);
         frame = requestAnimationFrame(render);
       };
@@ -152,10 +156,8 @@ export function RangerPreview() {
     };
   }, []);
 
-  return (
-    <div ref={hostRef} className="relative h-full w-full">
-      {state === 'loading' && <div className="flex h-full w-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d7a441]/30 border-t-[#d7a441]" /></div>}
-      {state === 'fallback' && <div className="flex h-full w-full items-center justify-center text-xs font-bold tracking-[.25em] text-amber-100/40">KAYKIT RANGER</div>}
-    </div>
-  );
+  return <div ref={hostRef} className="relative h-full w-full">
+    {state === 'loading' && <div className="flex h-full w-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d7a441]/30 border-t-[#d7a441]" /></div>}
+    {state === 'fallback' && <div className="flex h-full w-full items-center justify-center text-xs font-bold tracking-[.25em] text-amber-100/40">KAYKIT RANGER</div>}
+  </div>;
 }
