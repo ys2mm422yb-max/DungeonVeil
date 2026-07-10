@@ -69,6 +69,13 @@ function attackCapForChapter(room: number, chapter: number): number {
   return Math.max(1, Math.round(baseAttackCapForRoom(room) * chapterDangerFactor(chapter)));
 }
 
+type EnemyRunContext = {
+  runChapter?: number;
+  runRoom?: number;
+  runMapWidth?: number;
+  runMapHeight?: number;
+};
+
 export function updateRunBalance(engine: GameEngine, state: RunBalanceState): void {
   const active = new Set(engine.state.enemies.map(enemy => balanceKey(enemy.id)));
   for (const id of state.balancedEnemyIds) {
@@ -80,7 +87,11 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
   const danger = chapterDangerFactor(chapter);
 
   for (const enemy of engine.state.enemies) {
-    (enemy as typeof enemy & { runChapter?: number }).runChapter = chapter;
+    const context = enemy as typeof enemy & EnemyRunContext;
+    context.runChapter = chapter;
+    context.runRoom = room;
+    context.runMapWidth = engine.state.map.width;
+    context.runMapHeight = engine.state.map.height;
 
     const key = balanceKey(enemy.id);
     if (state.balancedEnemyIds.has(key)) continue;
