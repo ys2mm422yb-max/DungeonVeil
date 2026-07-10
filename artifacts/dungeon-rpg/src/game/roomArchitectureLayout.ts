@@ -15,8 +15,9 @@ const a = (model: string, x: number, z: number, rotation = 0, scale = 1, collide
 const half = (x: number, z: number, rotation = 0, scale = 1) => a(`${D}/barrier_half.gltf`, x, z, rotation, scale, [2.5, .8]);
 const wallP = (x: number, z: number, rotation = 0, scale = 1) => a(`${D}/wall_pillar.gltf`, x, z, rotation, scale, [1.05, 1.05]);
 const pillar = (x: number, z: number, scale = 1) => a(`${D}/pillar_decorated.gltf`, x, z, 0, scale, [1.35, 1.35]);
-const arch = (x: number, z: number, rotation = 0, scale = 1) => a(`${D}/wall_arched.gltf`, x, z, rotation, scale, [3.3, .8]);
-const stairs = (x: number, z: number, rotation = Math.PI, scale = 1) => a(`${D}/stairs_wide.gltf`, x, z, rotation, scale, [3.4, 1.7]);
+// Arches and stairs are visual route architecture. They must remain traversable so a room's exit lane cannot be sealed.
+const arch = (x: number, z: number, rotation = 0, scale = 1) => a(`${D}/wall_arched.gltf`, x, z, rotation, scale);
+const stairs = (x: number, z: number, rotation = Math.PI, scale = 1) => a(`${D}/stairs_wide.gltf`, x, z, rotation, scale);
 const rubble = (x: number, z: number, rotation = 0, scale = 1) => a(`${D}/rubble_large.gltf`, x, z, rotation, scale, [1.8, 1.5]);
 const stage = (x: number, z: number, rotation = 0, scale = 1, y = .11) => a(`${D}/floor_foundation_front_and_sides.gltf`, x, z, rotation, scale, undefined, y);
 
