@@ -1,8 +1,36 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
+import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
+import { KAYKIT_PLAYER_ASSETS } from './kaykitPlayer3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+
+function prepareModel(root: any) {
+  root.traverse((node: any) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    node.castShadow = true;
+    node.receiveShadow = true;
+    node.frustumCulled = true;
+  });
+}
+
+function fitObject(THREE: any, object: any, targetSize: number) {
+  object.scale.setScalar(1);
+  object.position.set(0, 0, 0);
+  object.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(object);
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  const scale = targetSize / Math.max(size.x, size.y, size.z, 0.001);
+  object.scale.setScalar(scale);
+  object.position.sub(center.multiplyScalar(scale));
+}
+
+function idleClip(clips: any[]) {
+  return clips.find(clip => /idle/i.test(String(clip?.name ?? '')) && !/aim|bow|crouch|sit|sleep/i.test(String(clip?.name ?? '')))
+    ?? clips.find(clip => /idle/i.test(String(clip?.name ?? '')))
+    ?? null;
+}
 
 export function RangerPreview() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -18,7 +46,8 @@ export function RangerPreview() {
     let scene: any;
     let camera: any;
     let clock: any;
-    let rangerRig: KayKitPlayerRig | null = null;
+    let mixer: any;
+    let showcaseRoot: any;
     let showcaseTime = 0;
 
     const resize = () => {
@@ -37,7 +66,6 @@ export function RangerPreview() {
 
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x090807);
-
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -47,33 +75,50 @@ export function RangerPreview() {
       renderer.toneMappingExposure = 1.08;
       host.appendChild(renderer.domElement);
 
-      camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
-      camera.position.set(2.15, 1.75, 6.6);
-      camera.lookAt(0, 0.88, 0);
+      camera = new THREE.PerspectiveCamera(36, 1, 0.1, 50);
+      camera.position.set(2.05, 1.72, 6.45);
+      camera.lookAt(0, 0.9, 0);
 
       scene.add(new THREE.HemisphereLight(0xfff0d8, 0x17110d, 2.1));
       const key = new THREE.DirectionalLight(0xffd79a, 3.2);
       key.position.set(4, 6, 5);
       key.castShadow = true;
       scene.add(key);
-      const rim = new THREE.DirectionalLight(0x8875d8, 1.1);
+      const rim = new THREE.DirectionalLight(0x8875d8, 1.05);
       rim.position.set(-4, 3, -4);
       scene.add(rim);
 
-      const floor = new THREE.Mesh(
-        new THREE.CircleGeometry(1.35, 40),
-        new THREE.MeshStandardMaterial({ color: 0x21160f, roughness: 1 }),
-      );
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(1.35, 40), new THREE.MeshStandardMaterial({ color: 0x21160f, roughness: 1 }));
       floor.rotation.x = -Math.PI / 2;
       floor.receiveShadow = true;
       scene.add(floor);
 
-      rangerRig = await loadKayKitRanger(THREE, GLTFLoader);
-      if (disposed) return;
-      rangerRig.root.scale.setScalar(0.98);
-      rangerRig.root.rotation.y = -0.42;
-      rangerRig.setMoving(false);
-      scene.add(rangerRig.root);
+      const loader = new GLTFLoader();
+      const [rangerGltf, weapons] = await Promise.all([
+        loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
+        loadKayKitRangerWeapons(),
+      ]);
+      if (disposed || !weapons) return;
+
+      showcaseRoot = new THREE.Group();
+      showcaseRoot.rotation.y = -0.34;
+      scene.add(showcaseRoot);
+
+      const ranger = rangerGltf.scene;
+      ranger.scale.setScalar(1.18);
+      prepareModel(ranger);
+      showcaseRoot.add(ranger);
+
+      const bow = weapons.bow;
+      prepareModel(bow);
+      fitObject(THREE, bow, 1.42);
+      bow.position.set(0.15, 1.02, -0.23);
+      bow.rotation.set(0.18, -0.12, -0.72);
+      showcaseRoot.add(bow);
+
+      mixer = new THREE.AnimationMixer(ranger);
+      const idle = idleClip(rangerGltf.animations ?? []);
+      idle && mixer.clipAction(idle).reset().play();
 
       clock = new THREE.Clock();
       resize();
@@ -83,9 +128,8 @@ export function RangerPreview() {
         if (disposed || !renderer || !scene || !camera || !clock) return;
         const dt = Math.min(clock.getDelta(), 0.05);
         showcaseTime += dt;
-        rangerRig?.setMoving(false);
-        rangerRig?.update(dt);
-        if (rangerRig?.root) rangerRig.root.rotation.y = -0.42 + Math.sin(showcaseTime * 0.28) * 0.08;
+        mixer?.update(dt);
+        if (showcaseRoot) showcaseRoot.rotation.y = -0.34 + Math.sin(showcaseTime * 0.25) * 0.055;
         renderer.render(scene, camera);
         frame = requestAnimationFrame(render);
       };
@@ -102,7 +146,7 @@ export function RangerPreview() {
       disposed = true;
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', resize);
-      rangerRig?.stop();
+      mixer?.stopAllAction?.();
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
     };
