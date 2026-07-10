@@ -1,49 +1,98 @@
 import { roomArchitecturePieces } from './roomArchitectureLayout';
 import { roomSetpieces } from './roomSetpieceLayout';
 
+type ColliderProfile = {
+  width: number;
+  depth: number;
+  offsetX?: number;
+  offsetZ?: number;
+};
+
+type RoomPiece = ReturnType<typeof roomArchitecturePieces>[number] | ReturnType<typeof roomSetpieces>[number];
+
 function entityCenterToScene(value: number, size: number, mapTiles: number) {
   return (value + size / 2) / 40 - mapTiles / 2 + 0.5;
 }
 
-function inferredColliderForModel(model: string): readonly [number, number] | undefined {
-  const name = model.toLowerCase();
-  if (name.includes('floor_') || name.includes('/path_') || name.includes('rug_') || name.includes('stairs_') || name.includes('wall_arched')) return undefined;
-  if (name.includes('table_medium_long')) return [3, 1.6];
-  if (name.includes('table_medium')) return [2.2, 1.6];
-  if (name.includes('table_low')) return [2.1, 1.5];
-  if (name.includes('table_small')) return [1.5, 1.5];
-  if (name.includes('shelf_')) return name.includes('small') ? [1.35, 1.8] : [1.4, 3];
-  if (name.includes('cabinet_')) return name.includes('small') ? [1.25, 1.35] : [1.4, 1.75];
-  if (name.includes('bed_')) return [1.8, 3.15];
-  if (name.includes('bench')) return [1.45, 2.7];
-  if (name.includes('crypt')) return [2.5, 2];
-  if (name.includes('coffin')) return [1.9, 3.2];
-  if (name.includes('grave_') || name.includes('gravestone')) return [1.5, 2];
-  if (name.includes('shrine')) return [2.1, 2.1];
-  if (name.includes('anvil')) return [1.6, 1.25];
-  if (name.includes('grindstone')) return [1.9, 1.45];
-  if (name.includes('pallet_wood')) return [2.25, 1.65];
-  if (name.includes('bars_stack_large')) return [2.2, 1.6];
-  if (name.includes('bars_stack_medium')) return [1.9, 1.3];
-  if (name.includes('bars_stack_small')) return [1.45, 1.15];
-  if (name.includes('tree_dead')) return [1.75, 1.75];
-  if (name.includes('/bush_')) return [1.25, 1.25];
-  if (name.includes('rubble_large')) return [2, 1.7];
-  if (name.includes('pillar')) return [1.45, 1.45];
-  if (name.includes('barrier_') || name.includes('fence_')) return [2.6, 1];
-  return undefined;
+function modelKey(model: string) {
+  return model.split('/').at(-1)?.toLowerCase().replace(/\.(?:gltf|glb)$/i, '') ?? model.toLowerCase();
+}
+
+const COLLIDER_PROFILES: Array<[RegExp, ColliderProfile]> = [
+  [/rubble_large/, { width: 4.9, depth: 3.7 }],
+  [/rock_.*large|rock_large/, { width: 4.4, depth: 3.5 }],
+  [/rock_.*medium|rock_medium/, { width: 3, depth: 2.6 }],
+  [/rock_/, { width: 2, depth: 1.8 }],
+  [/wall_pillar/, { width: 1.65, depth: 1.65 }],
+  [/pillar/, { width: 1.85, depth: 1.85 }],
+  [/barrier_half/, { width: 3.2, depth: 1.2 }],
+  [/fence_/, { width: 3, depth: 1.15 }],
+  [/table_medium_long/, { width: 4.2, depth: 2.05 }],
+  [/table_medium/, { width: 3.05, depth: 2 }],
+  [/table_low/, { width: 2.8, depth: 1.95 }],
+  [/table_small/, { width: 2.05, depth: 1.9 }],
+  [/shelf_.*(?:large|big)/, { width: 1.75, depth: 3.45 }],
+  [/shelf_.*small/, { width: 1.65, depth: 2 }],
+  [/cabinet_medium/, { width: 1.8, depth: 2.15 }],
+  [/cabinet_small/, { width: 1.55, depth: 1.65 }],
+  [/bed_single/, { width: 2.05, depth: 3.55 }],
+  [/bench/, { width: 1.65, depth: 3 }],
+  [/chair_/, { width: 1.15, depth: 1.15 }],
+  [/crypt/, { width: 3, depth: 2.45 }],
+  [/coffin/, { width: 2.2, depth: 3.55 }],
+  [/grave_|gravestone/, { width: 1.75, depth: 2.2 }],
+  [/shrine_candles/, { width: 2.7, depth: 2.55 }],
+  [/shrine/, { width: 2.3, depth: 2.25 }],
+  [/anvil/, { width: 1.9, depth: 1.55 }],
+  [/grindstone/, { width: 2.25, depth: 1.85 }],
+  [/pallet_wood/, { width: 2.7, depth: 2 }],
+  [/bars_stack_large/, { width: 2.75, depth: 2 }],
+  [/bars_stack_medium/, { width: 2.25, depth: 1.65 }],
+  [/bars_stack_small/, { width: 1.7, depth: 1.4 }],
+  [/tree_dead/, { width: 2.1, depth: 2.1 }],
+  [/bush_/, { width: 1.55, depth: 1.55 }],
+];
+
+function colliderProfileForModel(model: string): ColliderProfile | undefined {
+  const key = modelKey(model);
+  if (key.startsWith('floor_') || key.startsWith('path_') || key.startsWith('rug_') || key.startsWith('stairs_') || key === 'wall_arched') return undefined;
+  return COLLIDER_PROFILES.find(([pattern]) => pattern.test(key))?.[1];
+}
+
+function combinedProfile(piece: RoomPiece): ColliderProfile | undefined {
+  const inferred = colliderProfileForModel(piece.model);
+  if (!piece.collider) return inferred;
+  if (!inferred) return { width: piece.collider[0], depth: piece.collider[1] };
+  return {
+    width: Math.max(piece.collider[0], inferred.width),
+    depth: Math.max(piece.collider[1], inferred.depth),
+    offsetX: inferred.offsetX,
+    offsetZ: inferred.offsetZ,
+  };
 }
 
 function collidersForRoom(room: number) {
   return [...roomArchitecturePieces(room), ...roomSetpieces(room)]
-    .map(piece => ({ piece, base: piece.collider ?? inferredColliderForModel(piece.model) }))
-    .filter((entry): entry is { piece: (ReturnType<typeof roomArchitecturePieces>[number] | ReturnType<typeof roomSetpieces>[number]); base: readonly [number, number] } => Boolean(entry.base))
-    .map(({ piece, base }) => {
+    .map(piece => ({ piece, profile: combinedProfile(piece) }))
+    .filter((entry): entry is { piece: RoomPiece; profile: ColliderProfile } => Boolean(entry.profile))
+    .map(({ piece, profile }) => {
       const scale = piece.scale ?? 1;
-      const rotated = Math.abs(Math.sin(piece.rotation ?? 0)) > 0.7;
-      const width = (rotated ? base[1] : base[0]) * scale;
-      const height = (rotated ? base[0] : base[1]) * scale;
-      return { x: piece.x, z: piece.z, halfW: width / 2, halfH: height / 2 };
+      const rotation = piece.rotation ?? 0;
+      const quarterTurn = Math.abs(Math.sin(rotation)) > 0.7;
+      const width = (quarterTurn ? profile.depth : profile.width) * scale;
+      const depth = (quarterTurn ? profile.width : profile.depth) * scale;
+      const localOffsetX = (profile.offsetX ?? 0) * scale;
+      const localOffsetZ = (profile.offsetZ ?? 0) * scale;
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      const offsetX = localOffsetX * cos - localOffsetZ * sin;
+      const offsetZ = localOffsetX * sin + localOffsetZ * cos;
+      return {
+        x: piece.x + offsetX,
+        z: piece.z + offsetZ,
+        halfW: width / 2,
+        halfH: depth / 2,
+      };
     });
 }
 
