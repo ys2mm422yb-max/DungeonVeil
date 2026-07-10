@@ -1,4 +1,5 @@
 import type { Enemy, EnemyType, Player } from './entities';
+import { chapterAttackDelayFactor, chapterMovePressure } from './runBalance';
 
 export type EnemyArchetype = 'skeleton' | 'skirmisher' | 'guardian' | 'dragon';
 
@@ -10,6 +11,8 @@ export function enemyArchetype(type: EnemyType): EnemyArchetype {
 }
 
 export type EnemyMovePlan = { dx: number; dy: number; attackRange: number; attackDelay: number };
+
+type ChapterEnemy = Enemy & { runChapter?: number };
 
 function normalizedDirection(enemy: Enemy, player: Player) {
   const dx = player.x - enemy.x;
@@ -29,6 +32,10 @@ function roomFromEnemyId(enemy: Enemy) {
   return Number.isFinite(parsed) ? Math.max(1, Math.min(20, parsed)) : 1;
 }
 
+function chapterFromEnemy(enemy: Enemy) {
+  return Math.max(1, Math.round((enemy as ChapterEnemy).runChapter ?? 1));
+}
+
 function laneBias(enemy: Enemy, time: number) {
   const variant = enemy.huntVisualVariant ?? Number(enemy.id.slice(-1).replace(/\D/g, '') || 0);
   return (variant + Math.floor((time - enemy.spawnTime) / 1900)) % 2 === 0 ? 1 : -1;
@@ -44,7 +51,6 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
   const progress = Math.hypot(enemy.x - (enemy.lastProgressX ?? enemy.x), enemy.y - (enemy.lastProgressY ?? enemy.y));
   const stalledFor = time - (enemy.lastProgressTime ?? time);
 
-  // Props are now real colliders. React quickly instead of visibly jogging into one for half a second.
   if (!enemy.stuckSince && stalledFor >= 240 && progress < 2.2) {
     enemy.stuckSince = time;
     const side = laneBias(enemy, time);
@@ -62,7 +68,6 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
     return null;
   }
 
-  // Suppress the old long emergency relocation while actively routing around the prop.
   enemy.lastProgressTime = time;
   const storedSideX = enemy.targetX || -ny;
   const storedSideY = enemy.targetY || nx;
@@ -70,15 +75,12 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
   let moveY: number;
 
   if (age < 650) {
-    // First attempt: a nearly pure 90-degree sidestep to clear the collider edge.
     moveX = storedSideX * 1.55 + nx * 0.08;
     moveY = storedSideY * 1.55 + ny * 0.08;
   } else if (age < 1100) {
-    // Second attempt: switch sides rather than repeating the blocked direction.
     moveX = -storedSideX * 1.45 + nx * 0.18;
     moveY = -storedSideY * 1.45 + ny * 0.18;
   } else {
-    // Final local attempt: back off diagonally, then normal chase can re-acquire a new line.
     moveX = -nx * 0.45 - storedSideX * 0.95;
     moveY = -ny * 0.45 - storedSideY * 0.95;
   }
@@ -91,14 +93,16 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
   const archetype = enemyArchetype(enemy.enemyType);
   const { dist, nx, ny } = normalizedDirection(enemy, player);
   const room = roomFromEnemyId(enemy);
-  const movePressure = 1 + Math.min(0.34, (room - 1) * 0.019);
-  const attackPressure = 1 - Math.min(0.24, (room - 1) * 0.013);
+  const chapter = chapterFromEnemy(enemy);
+  const movePressure = (1 + Math.min(0.34, (room - 1) * 0.019)) * chapterMovePressure(chapter);
+  const attackPressure = (1 - Math.min(0.24, (room - 1) * 0.013)) * chapterAttackDelayFactor(chapter);
   const huntPressure = enemy.isHuntTarget ? 1.1 : 1;
   const speed = enemy.speed * movePressure * huntPressure * dt / 1000;
-  const plan = (dx: number, dy: number, attackRange: number, attackDelay: number): EnemyMovePlan => ({ dx, dy, attackRange, attackDelay: Math.max(520, Math.round(attackDelay * attackPressure)) });
+  const minimumAttackDelay = Math.max(340, 520 - (chapter - 1) * 35);
+  const plan = (dx: number, dy: number, attackRange: number, attackDelay: number): EnemyMovePlan => ({ dx, dy, attackRange, attackDelay: Math.max(minimumAttackDelay, Math.round(attackDelay * attackPressure)) });
 
   const baseAttackRange = archetype === 'dragon' ? 150 : archetype === 'guardian' ? 58 + enemy.width / 2 : archetype === 'skirmisher' ? 48 + enemy.width / 2 : 42 + enemy.width / 2;
-  const baseAttackDelay = Math.max(520, Math.round((archetype === 'dragon' ? 850 : archetype === 'guardian' ? 900 : archetype === 'skirmisher' ? 840 : 920) * attackPressure));
+  const baseAttackDelay = Math.max(minimumAttackDelay, Math.round((archetype === 'dragon' ? 850 : archetype === 'guardian' ? 900 : archetype === 'skirmisher' ? 840 : 920) * attackPressure));
   const recovery = recoveryMove(enemy, player, speed, time, baseAttackRange, baseAttackDelay);
   if (recovery) return recovery;
 
@@ -122,7 +126,8 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
   }
 
   if (archetype === 'guardian' || archetype === 'dragon') {
-    const phaseLength = archetype === 'dragon' ? 4600 : 4000;
+    const basePhaseLength = archetype === 'dragon' ? 4600 : 4000;
+    const phaseLength = Math.max(2700, Math.round(basePhaseLength * Math.max(0.68, chapterAttackDelayFactor(chapter) + 0.12)));
     const phase = ((time - enemy.spawnTime) % phaseLength + phaseLength) % phaseLength;
     if (phase < phaseLength * 0.48) {
       const ideal = archetype === 'dragon' ? 126 : 66;
