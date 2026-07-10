@@ -1,4 +1,4 @@
-import type { Enemy } from '../game/entities';
+import type { Enemy, EnemyType } from '../game/entities';
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { loadKayKitBossWeapon, loadKayKitFinalBossFocus } from './kaykitWeapons3D';
 
@@ -15,11 +15,30 @@ type EnemyLibrary = {
   finalBossFocus: any | null;
 };
 
+type EnemyVisualProfile = {
+  role: EnemyRole;
+  scale: number;
+  tint: number;
+  tintMix: number;
+  move: 'run' | 'walk';
+};
+
+const VISUAL_PROFILES: Record<EnemyType, EnemyVisualProfile> = {
+  skeleton: { role: 'minion', scale: 0.9, tint: 0xd8d3c8, tintMix: 0.04, move: 'run' },
+  spider: { role: 'rogue', scale: 0.82, tint: 0x73946d, tintMix: 0.24, move: 'run' },
+  vampire: { role: 'mage', scale: 0.98, tint: 0x725090, tintMix: 0.22, move: 'walk' },
+  demon: { role: 'warrior', scale: 1.16, tint: 0x9b4b3f, tintMix: 0.24, move: 'walk' },
+  golem: { role: 'warrior', scale: 1.28, tint: 0x6e7880, tintMix: 0.3, move: 'walk' },
+  orc: { role: 'warrior', scale: 1.08, tint: 0x718650, tintMix: 0.22, move: 'walk' },
+  boss: { role: 'warrior', scale: 1.62, tint: 0xffffff, tintMix: 0, move: 'walk' },
+};
+
 export type KayKitEnemyVisual = {
   root: any; scene: any; mixer: any; idle: any; move: any; attack: any; death: any;
   lastState: string; lastAttackTime: number; lastHitTime: number; attackRemaining: number; deathPlayed: boolean; deathElapsed: number;
   baseScale: number; hitElapsed: number; statusRoot: any; burnGlows: any[]; frostGlows: any[]; frostHalo: any; bossAura: any; bossCore: any;
   lastEnemyX: number; lastEnemyY: number; motionSpeed: number;
+  renderX: number; renderZ: number; renderRotation: number; renderInitialized: boolean;
 };
 
 let libraryPromise: Promise<EnemyLibrary> | null = null;
@@ -125,18 +144,35 @@ function buildStatusGlows(THREE: any, color: number, count: number, yBase: numbe
   return glows;
 }
 
+function profileForEnemy(enemy: Enemy, finalBoss: boolean): EnemyVisualProfile {
+  if (finalBoss) return { role: 'mage', scale: 1.78, tint: 0x7668bc, tintMix: 0.16, move: 'walk' };
+  return VISUAL_PROFILES[enemy.enemyType] ?? VISUAL_PROFILES.skeleton;
+}
+
+function tintModel(THREE: any, root: any, tint: number, mix: number) {
+  if (mix <= 0) return;
+  const target = new THREE.Color(tint);
+  root.traverse((node: any) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    materials.forEach((material: any) => material?.color?.lerp?.(target, mix));
+  });
+}
+
 export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
   const [library, skeletonUtils] = await Promise.all([loadLibrary(), import(/* @vite-ignore */ SKELETON_UTILS_URL) as any]);
   if (!library.prototypes.length) return null;
   const finalBoss = enemy.enemyType === 'boss' && roomFromEnemyId(enemy) === 20;
-  const prototype = enemy.enemyType === 'boss'
-    ? library.prototypes.find(entry => entry.role === (finalBoss ? 'mage' : 'warrior')) ?? library.prototypes[0]
-    : library.prototypes[hashId(enemy.id) % library.prototypes.length];
+  const profile = profileForEnemy(enemy, finalBoss);
+  const roleCandidates = library.prototypes.filter(entry => entry.role === profile.role);
+  const candidates = roleCandidates.length ? roleCandidates : library.prototypes;
+  const prototype = candidates[hashId(enemy.id) % candidates.length];
   const scene = skeletonUtils.clone(prototype.scene);
   const root = new THREE.Group();
   root.name = `KayKitEnemy_${enemy.id}`;
   root.add(scene);
   prepareModel(scene);
+  tintModel(THREE, scene, profile.tint, profile.tintMix);
 
   const rightHand = findBone(scene, ['righthand', 'handr', 'handright']);
   const leftHand = findBone(scene, ['lefthand', 'handl', 'handleft']);
@@ -145,23 +181,27 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     return source ? source.clone(true) : null;
   };
 
-  if (prototype.role === 'mage') {
+  if (finalBoss || enemy.enemyType === 'vampire') {
     const focus = finalBoss && library.finalBossFocus ? library.finalBossFocus.clone(true) : cloneWeapon('staff');
-    attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.92);
-  } else if (prototype.role === 'rogue') {
-    attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.86);
-  } else if (prototype.role === 'warrior') {
+    attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.94);
+  } else if (enemy.enemyType === 'spider') {
+    attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.82);
+    attachEquipment(leftHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, -Math.PI / 2], 0.74);
+  } else if (enemy.enemyType === 'golem') {
+    attachEquipment(rightHand, cloneWeapon('axe'), [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], 1.02);
+    attachEquipment(leftHand, cloneWeapon('shieldLarge'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], 1.06);
+  } else if (enemy.enemyType === 'demon' || enemy.enemyType === 'orc' || enemy.enemyType === 'boss') {
     const weapon = enemy.enemyType === 'boss' && library.bossWeapon ? library.bossWeapon.clone(true) : cloneWeapon('axe');
     attachEquipment(rightHand, weapon, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], enemy.enemyType === 'boss' ? 1.18 : 0.92);
-    attachEquipment(leftHand, cloneWeapon(enemy.enemyType === 'boss' ? 'shieldLarge' : 'shieldSmall'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], enemy.enemyType === 'boss' ? 1.12 : 0.9);
+    if (enemy.enemyType === 'boss' || enemy.enemyType === 'demon') attachEquipment(leftHand, cloneWeapon(enemy.enemyType === 'boss' ? 'shieldLarge' : 'shieldSmall'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], enemy.enemyType === 'boss' ? 1.12 : 0.9);
   } else {
     attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.82);
   }
 
   const idleClip = chooseClip(prototype.clips, [['idle', 'a'], ['idle']], ['crouch', 'sit']);
-  const normalMoveClip = chooseClip(prototype.clips, [['run'], ['walk']], ['back', 'left', 'right', 'crouch']);
-  const bossMoveClip = chooseClip(prototype.clips, [['walk', 'forward'], ['walk']], ['back', 'left', 'right', 'crouch']) ?? normalMoveClip;
-  const moveClip = enemy.enemyType === 'boss' ? bossMoveClip : normalMoveClip;
+  const runClip = chooseClip(prototype.clips, [['run', 'forward'], ['run']], ['back', 'left', 'right', 'crouch']);
+  const walkClip = chooseClip(prototype.clips, [['walk', 'forward'], ['walk']], ['back', 'left', 'right', 'crouch']);
+  const moveClip = profile.move === 'walk' ? walkClip ?? runClip : runClip ?? walkClip;
   const attackClip = finalBoss
     ? chooseClip(prototype.clips, [['cast'], ['spell'], ['magic'], ['ranged', 'attack'], ['attack']], ['bow', 'crossbow'])
     : chooseClip(prototype.clips, [['attack', 'a'], ['melee', 'attack'], ['attack']], ['bow', 'crossbow', 'ranged']);
@@ -172,11 +212,11 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const attack = attackClip ? mixer.clipAction(attackClip) : null;
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   idle?.reset().play();
-  if (move) move.timeScale = finalBoss ? 1.08 : enemy.enemyType === 'boss' ? 0.98 : 1.06;
+  if (move) move.timeScale = profile.move === 'walk' ? 0.92 : 1.04;
   if (attack) {
     attack.setLoop(THREE.LoopOnce, 1);
     attack.clampWhenFinished = false;
-    attack.timeScale = finalBoss ? 1.14 : enemy.enemyType === 'boss' ? 0.98 : 1.12;
+    attack.timeScale = finalBoss ? 1.14 : enemy.enemyType === 'golem' ? 0.88 : enemy.enemyType === 'boss' ? 0.98 : 1.08;
   }
   if (death && deathClip) {
     death.setLoop(THREE.LoopOnce, 1);
@@ -186,8 +226,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     death.timeScale = Math.max(0.35, deathClip.duration / (phaseSeconds * clipWindow));
   }
 
-  const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
-  const baseScale = (enemy.enemyType === 'boss' ? (finalBoss ? 1.78 : 1.62) : prototype.role === 'warrior' ? 1.08 : 0.92) * roleScale;
+  const baseScale = profile.scale * (enemy.isHuntTarget ? 1.08 : 1);
   root.scale.setScalar(baseScale);
 
   const statusRoot = new THREE.Group();
@@ -232,6 +271,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     attackRemaining: 0, deathPlayed: false, deathElapsed: 0, baseScale, hitElapsed: 0,
     statusRoot, burnGlows, frostGlows, frostHalo, bossAura, bossCore,
     lastEnemyX: enemy.x, lastEnemyY: enemy.y, motionSpeed: 0,
+    renderX: 0, renderZ: 0, renderRotation: 0, renderInitialized: false,
   };
 }
 
@@ -266,15 +306,40 @@ function setMeshTint(root: any, color: number | null, intensity: number) {
   });
 }
 
+function smoothAngle(current: number, target: number, amount: number) {
+  const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + delta * amount;
+}
+
 export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy, delta: number, now = Date.now()) {
+  const targetX = visual.root.position.x;
+  const targetZ = visual.root.position.z;
+  const targetRotation = visual.root.rotation.y;
+  if (!visual.renderInitialized) {
+    visual.renderX = targetX;
+    visual.renderZ = targetZ;
+    visual.renderRotation = targetRotation;
+    visual.renderInitialized = true;
+  } else if (!enemy.isDead && enemy.state !== 'dead') {
+    const positionBlend = 1 - Math.exp(-delta * (enemy.enemyType === 'spider' ? 15 : enemy.enemyType === 'golem' ? 8 : 11));
+    const rotationBlend = 1 - Math.exp(-delta * (enemy.enemyType === 'golem' ? 7 : 10));
+    visual.renderX += (targetX - visual.renderX) * positionBlend;
+    visual.renderZ += (targetZ - visual.renderZ) * positionBlend;
+    visual.renderRotation = smoothAngle(visual.renderRotation, targetRotation, rotationBlend);
+  }
+  visual.root.position.x = visual.renderX;
+  visual.root.position.z = visual.renderZ;
+  visual.root.rotation.y = visual.renderRotation;
+  if (!enemy.isDead && enemy.state !== 'dead') visual.root.position.y = 0;
+
   const burning = !!enemy.burnUntil && now < enemy.burnUntil;
   const frozen = !!enemy.frostUntil && now < enemy.frostUntil;
   const frameDistance = Math.hypot(enemy.x - visual.lastEnemyX, enemy.y - visual.lastEnemyY);
   const measuredSpeed = frameDistance / Math.max(delta, 1 / 120);
-  visual.motionSpeed = visual.motionSpeed * 0.68 + measuredSpeed * 0.32;
+  visual.motionSpeed = visual.motionSpeed * 0.78 + measuredSpeed * 0.22;
   visual.lastEnemyX = enemy.x;
   visual.lastEnemyY = enemy.y;
-  const physicallyMoving = enemy.state === 'chase' && visual.motionSpeed > (enemy.enemyType === 'boss' ? 3 : 4.5);
+  const physicallyMoving = enemy.state === 'chase' && visual.motionSpeed > (enemy.enemyType === 'boss' || enemy.enemyType === 'golem' ? 2.5 : 4);
 
   visual.burnGlows.forEach((glow, index) => {
     glow.material.opacity = burning ? 0.45 + Math.sin(now * 0.012 + index) * 0.28 : 0;
@@ -372,7 +437,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   if (enemy.lastAttackTime > visual.lastAttackTime) {
     visual.lastAttackTime = enemy.lastAttackTime;
     const duration = visual.attack?.getClip?.()?.duration ?? 0.5;
-    visual.attackRemaining = Math.max(0.22, duration / (enemy.enemyType === 'boss' ? 0.98 : 1.12));
+    visual.attackRemaining = Math.max(0.22, duration / (enemy.enemyType === 'boss' ? 0.98 : enemy.enemyType === 'golem' ? 0.88 : 1.08));
     transition(visual, visual.attack, 0.045);
     visual.lastState = 'attack';
   }
@@ -386,14 +451,15 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   } else {
     const desiredState = physicallyMoving ? 'chase' : 'idle';
     if (desiredState !== visual.lastState) {
-      transition(visual, desiredState === 'chase' ? visual.move : visual.idle, 0.1);
+      transition(visual, desiredState === 'chase' ? visual.move : visual.idle, 0.12);
       visual.lastState = desiredState;
     }
   }
 
   if (visual.move) {
-    const baseMoveSpeed = enemy.enemyType === 'boss' ? 0.92 : 1.06;
-    const speedFactor = Math.max(0.72, Math.min(1.22, visual.motionSpeed / Math.max(1, enemy.speed)));
+    const profile = VISUAL_PROFILES[enemy.enemyType] ?? VISUAL_PROFILES.skeleton;
+    const baseMoveSpeed = profile.move === 'walk' ? (enemy.enemyType === 'golem' ? 0.72 : 0.88) : 1.02;
+    const speedFactor = Math.max(0.72, Math.min(1.18, visual.motionSpeed / Math.max(1, enemy.speed)));
     visual.move.timeScale = (frozen
       ? Math.max(enemy.enemyType === 'boss' ? 0.48 : 0.5, baseMoveSpeed * (1 - (enemy.frostSlow ?? 0)))
       : baseMoveSpeed) * speedFactor;
