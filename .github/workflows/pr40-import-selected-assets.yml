@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: pr40-import-selected-assets
+  cancel-in-progress: true
+
 jobs:
   import-assets:
     runs-on: ubuntu-latest
@@ -21,15 +25,28 @@ jobs:
           ref: work/blocks-1-7-production-pass
           fetch-depth: 0
 
+      - name: Initialize diagnostics
+        shell: bash
+        run: |
+          mkdir -p docs/ci
+          {
+            echo 'PR40 selected asset import'
+            echo "started=$(date -u +%FT%TZ)"
+            echo "commit=${GITHUB_SHA}"
+          } > docs/ci/pr40-asset-import.log
+
       - name: Install browser downloader
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/asset-fetch
-          cd /tmp/asset-fetch
-          npm init -y >/dev/null 2>&1
-          npm install playwright@1.55.0 >/dev/null
-          npx playwright install --with-deps chromium
+          {
+            echo '--- install browser downloader ---'
+            mkdir -p /tmp/asset-fetch
+            cd /tmp/asset-fetch
+            npm init -y >/dev/null 2>&1
+            npm install playwright@1.55.0
+            npx playwright install --with-deps chromium
+          } 2>&1 | tee -a "$GITHUB_WORKSPACE/docs/ci/pr40-asset-import.log"
 
       - name: Download official CC0 packs
         shell: bash
@@ -37,28 +54,18 @@ jobs:
           NODE_PATH: /tmp/asset-fetch/node_modules
         run: |
           set -euo pipefail
-          mkdir -p /tmp/packs
-          cat > /tmp/asset-fetch/download-packs.cjs <<'JS'
+          {
+            echo '--- download packs ---'
+            mkdir -p /tmp/packs
+            cat > /tmp/asset-fetch/download-packs.cjs <<'JS'
           const { chromium } = require('playwright');
           const path = require('path');
 
           const packs = [
-            {
-              url: 'https://quaternius.itch.io/animated-easy-enemies/purchase',
-              file: 'Easy Animated Enemy Pack - Jan 2019.zip',
-            },
-            {
-              url: 'https://quaternius.itch.io/lowpoly-animated-monsters/purchase',
-              file: 'Monster Pack Animated by Quaternius.zip',
-            },
-            {
-              url: 'https://quaternius.itch.io/lowpoly-medieval-weapons/purchase',
-              file: 'Medieval Weapons Pack by Quaternius.zip',
-            },
-            {
-              url: 'https://quaternius.itch.io/fantasy-props-megakit/purchase',
-              file: 'Fantasy Props MegaKit[Standard].zip',
-            },
+            { url: 'https://quaternius.itch.io/animated-easy-enemies/purchase', file: 'Easy Animated Enemy Pack - Jan 2019.zip' },
+            { url: 'https://quaternius.itch.io/lowpoly-animated-monsters/purchase', file: 'Monster Pack Animated by Quaternius.zip' },
+            { url: 'https://quaternius.itch.io/lowpoly-medieval-weapons/purchase', file: 'Medieval Weapons Pack by Quaternius.zip' },
+            { url: 'https://quaternius.itch.io/fantasy-props-megakit/purchase', file: 'Fantasy Props MegaKit[Standard].zip' },
           ];
 
           async function downloadPack(browser, pack) {
@@ -69,16 +76,17 @@ jobs:
             await page.goto(pack.url, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
             const freeLink = page.getByText(/No thanks, just take me to the downloads/i).first();
-            if (await freeLink.count()) {
-              await Promise.all([
-                page.waitForLoadState('domcontentloaded').catch(() => {}),
-                freeLink.click(),
-              ]);
-            }
+            if (!(await freeLink.count())) throw new Error(`Free-download link missing at ${pack.url}`);
+            await Promise.all([
+              page.waitForLoadState('domcontentloaded').catch(() => {}),
+              freeLink.click(),
+            ]);
 
+            console.log(`Download page ${page.url()}`);
             const target = page.locator('a').filter({ hasText: pack.file }).first();
             if (!(await target.count())) {
-              throw new Error(`Download link not found for ${pack.file} at ${page.url()}`);
+              const texts = await page.locator('a').allTextContents();
+              throw new Error(`File link missing for ${pack.file}; links=${JSON.stringify(texts.slice(0, 30))}`);
             }
 
             const [download] = await Promise.all([
@@ -103,63 +111,65 @@ jobs:
             process.exit(1);
           });
           JS
-          node /tmp/asset-fetch/download-packs.cjs
-          ls -lh /tmp/packs
+            node /tmp/asset-fetch/download-packs.cjs
+            ls -lh /tmp/packs
+          } 2>&1 | tee -a "$GITHUB_WORKSPACE/docs/ci/pr40-asset-import.log"
 
       - name: Extract and select production assets
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/unpacked
-          mkdir -p /tmp/unpacked/{easy,monsters,weapons,props}
-          unzip -q '/tmp/packs/Easy Animated Enemy Pack - Jan 2019.zip' -d /tmp/unpacked/easy
-          unzip -q '/tmp/packs/Monster Pack Animated by Quaternius.zip' -d /tmp/unpacked/monsters
-          unzip -q '/tmp/packs/Medieval Weapons Pack by Quaternius.zip' -d /tmp/unpacked/weapons
-          unzip -q '/tmp/packs/Fantasy Props MegaKit[Standard].zip' -d /tmp/unpacked/props
+          {
+            echo '--- extract and convert ---'
+            rm -rf /tmp/unpacked
+            mkdir -p /tmp/unpacked/{easy,monsters,weapons,props}
+            unzip -q '/tmp/packs/Easy Animated Enemy Pack - Jan 2019.zip' -d /tmp/unpacked/easy
+            unzip -q '/tmp/packs/Monster Pack Animated by Quaternius.zip' -d /tmp/unpacked/monsters
+            unzip -q '/tmp/packs/Medieval Weapons Pack by Quaternius.zip' -d /tmp/unpacked/weapons
+            unzip -q '/tmp/packs/Fantasy Props MegaKit[Standard].zip' -d /tmp/unpacked/props
 
-          DEST='artifacts/dungeon-rpg/public/assets/imported'
-          rm -rf "$DEST"
-          mkdir -p "$DEST/enemies" "$DEST/fantasy-props" "$DEST/medieval-weapons"
+            DEST='artifacts/dungeon-rpg/public/assets/imported'
+            rm -rf "$DEST"
+            mkdir -p "$DEST/enemies" "$DEST/fantasy-props" "$DEST/medieval-weapons"
 
-          copy_named() {
-            local root="$1"
-            local filename="$2"
-            local out="$3"
-            local source
-            source="$(find "$root" -type f -iname "$filename" -print -quit)"
-            test -n "$source"
-            cp "$source" "$out"
-          }
+            copy_named() {
+              local root="$1"
+              local filename="$2"
+              local out="$3"
+              local source
+              source="$(find "$root" -type f -iname "$filename" -print -quit)"
+              test -n "$source"
+              cp "$source" "$out"
+            }
 
-          copy_named /tmp/unpacked/easy Rat.fbx "$DEST/enemies/Rat.fbx"
-          copy_named /tmp/unpacked/easy Spider.fbx "$DEST/enemies/Spider.fbx"
-          copy_named /tmp/unpacked/easy Snake_angry.fbx "$DEST/enemies/Snake_angry.fbx"
-          copy_named /tmp/unpacked/monsters Bat.fbx "$DEST/enemies/Bat.fbx"
-          copy_named /tmp/unpacked/monsters Slime.fbx "$DEST/enemies/Slime.fbx"
+            copy_named /tmp/unpacked/easy Rat.fbx "$DEST/enemies/Rat.fbx"
+            copy_named /tmp/unpacked/easy Spider.fbx "$DEST/enemies/Spider.fbx"
+            copy_named /tmp/unpacked/easy Snake_angry.fbx "$DEST/enemies/Snake_angry.fbx"
+            copy_named /tmp/unpacked/monsters Bat.fbx "$DEST/enemies/Bat.fbx"
+            copy_named /tmp/unpacked/monsters Slime.fbx "$DEST/enemies/Slime.fbx"
 
-          PROPS=(
-            Book_5 Book_7 Key_Metal
-            Shelf_Simple Crate_Wooden Barrel_Holder FarmCrate_Apple
-            Shelf_Small_Bottles Crate_Metal Barrel_Apples FarmCrate_Carrot
-            Table_Large Chair_1 Table_Plate Table_Fork
-            Banner_1_Cloth Banner_2_Cloth Torch_Metal CandleStick_Triple
-            Barrel Anvil_Log Anvil
-          )
+            PROPS=(
+              Book_5 Book_7 Key_Metal
+              Shelf_Simple Crate_Wooden Barrel_Holder FarmCrate_Apple
+              Shelf_Small_Bottles Crate_Metal Barrel_Apples FarmCrate_Carrot
+              Table_Large Chair_1 Table_Plate Table_Fork
+              Banner_1_Cloth Banner_2_Cloth Torch_Metal CandleStick_Triple
+              Barrel Anvil_Log Anvil
+            )
+            for name in "${PROPS[@]}"; do
+              source="$(find /tmp/unpacked/props -type f -iname "$name.gltf" -print -quit)"
+              test -n "$source"
+              npx --yes @gltf-transform/cli@4.2.1 copy "$source" "$DEST/fantasy-props/$name.glb"
+            done
 
-          for name in "${PROPS[@]}"; do
-            source="$(find /tmp/unpacked/props -type f -iname "$name.gltf" -print -quit)"
-            test -n "$source"
-            npx --yes @gltf-transform/cli@4.2.1 copy "$source" "$DEST/fantasy-props/$name.glb"
-          done
+            WEAPONS=(Bow_Wooden Bow_Wooden2 Bow_Evil Bow_Golden)
+            for name in "${WEAPONS[@]}"; do
+              source="$(find /tmp/unpacked/weapons -type f -iname "$name.obj" -print -quit)"
+              test -n "$source"
+              npx --yes obj2gltf@3.1.6 -i "$source" -o "$DEST/medieval-weapons/$name.glb" --binary
+            done
 
-          WEAPONS=(Bow_Wooden Bow_Wooden2 Bow_Evil Bow_Golden)
-          for name in "${WEAPONS[@]}"; do
-            source="$(find /tmp/unpacked/weapons -type f -iname "$name.obj" -print -quit)"
-            test -n "$source"
-            npx --yes obj2gltf@3.1.6 -i "$source" -o "$DEST/medieval-weapons/$name.glb" --binary
-          done
-
-          cat > "$DEST/LICENSES.md" <<'EOF'
+            cat > "$DEST/LICENSES.md" <<'EOF'
           # Imported asset licenses
 
           The selected assets in this directory are from Quaternius and are provided under the Creative Commons Zero 1.0 Universal license (CC0 1.0).
@@ -173,34 +183,47 @@ jobs:
           Only the files used by Dungeon Veil are included in the repository.
           EOF
 
-          echo 'Selected asset sizes:'
-          find "$DEST" -type f -printf '%P %k KB\n' | sort
+            echo 'Selected asset sizes:'
+            find "$DEST" -type f -printf '%P %k KB\n' | sort
+          } 2>&1 | tee -a "$GITHUB_WORKSPACE/docs/ci/pr40-asset-import.log"
 
       - name: Validate selected paths
         shell: bash
         run: |
           set -euo pipefail
-          DEST='artifacts/dungeon-rpg/public/assets/imported'
-          test -f "$DEST/enemies/Rat.fbx"
-          test -f "$DEST/enemies/Spider.fbx"
-          test -f "$DEST/enemies/Snake_angry.fbx"
-          test -f "$DEST/enemies/Bat.fbx"
-          test -f "$DEST/enemies/Slime.fbx"
-          test -f "$DEST/medieval-weapons/Bow_Wooden.glb"
-          test -f "$DEST/medieval-weapons/Bow_Wooden2.glb"
-          test -f "$DEST/medieval-weapons/Bow_Evil.glb"
-          test -f "$DEST/medieval-weapons/Bow_Golden.glb"
-          test -f "$DEST/fantasy-props/Book_5.glb"
-          test -f "$DEST/fantasy-props/Book_7.glb"
-          test -f "$DEST/fantasy-props/Key_Metal.glb"
+          {
+            echo '--- validate paths ---'
+            DEST='artifacts/dungeon-rpg/public/assets/imported'
+            for path in \
+              enemies/Rat.fbx enemies/Spider.fbx enemies/Snake_angry.fbx enemies/Bat.fbx enemies/Slime.fbx \
+              medieval-weapons/Bow_Wooden.glb medieval-weapons/Bow_Wooden2.glb medieval-weapons/Bow_Evil.glb medieval-weapons/Bow_Golden.glb \
+              fantasy-props/Book_5.glb fantasy-props/Book_7.glb fantasy-props/Key_Metal.glb; do
+              test -f "$DEST/$path"
+              echo "ok $path"
+            done
+          } 2>&1 | tee -a "$GITHUB_WORKSPACE/docs/ci/pr40-asset-import.log"
 
-      - name: Commit imported assets and remove one-time workflow
+      - name: Commit result and diagnostics
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          echo "finished=$(date -u +%FT%TZ)" >> docs/ci/pr40-asset-import.log
+          echo "job_status=${{ job.status }}" >> docs/ci/pr40-asset-import.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/workflows/pr40-import-selected-assets.yml
-          git add artifacts/dungeon-rpg/public/assets/imported
-          git commit -m 'Add selected Quaternius production assets'
-          git push origin HEAD:work/blocks-1-7-production-pass
+          git add docs/ci/pr40-asset-import.log
+          if [ '${{ job.status }}' = 'success' ]; then
+            git rm .github/workflows/pr40-import-selected-assets.yml
+            git add artifacts/dungeon-rpg/public/assets/imported
+            message='Add selected Quaternius production assets'
+          else
+            message='Capture selected asset import failure'
+          fi
+          if git diff --cached --quiet; then
+            echo 'Nothing to commit'
+          else
+            git commit -m "$message"
+            git push origin HEAD:work/blocks-1-7-production-pass
+          fi
