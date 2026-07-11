@@ -17,6 +17,22 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 
+printf '=== Migrationsdatei validieren ===\n'
+MIGRATION="$MIGRATION" node --input-type=commonjs <<'NODE'
+const fs = require('fs');
+const file = process.env.MIGRATION;
+let source = fs.readFileSync(file, 'utf8');
+const start = source.indexOf('const roomBlock = String.raw`');
+const end = source.indexOf('\n\nlet rooms = read(files.rooms);', start);
+if (start < 0 || end < 0) throw new Error('Raum-Template der Migration wurde nicht gefunden');
+let segment = source.slice(start, end)
+  .replace('const roomBlock = String.raw`', 'const roomBlock = `')
+  .replace(/\$\{([FDRTHA])\}/g, (_match, name) => `\\\${${name}}`);
+source = source.slice(0, start) + segment + source.slice(end);
+fs.writeFileSync(file, source);
+NODE
+node --check "$MIGRATION"
+
 printf '=== Kernfehler und Räume 1–20 überarbeiten ===\n'
 node "$MIGRATION"
 
