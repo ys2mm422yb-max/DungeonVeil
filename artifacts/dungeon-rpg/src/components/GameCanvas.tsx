@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import { CHAPTER_ROOMS } from '../game/chapterRun';
+import { reportProductionAudit } from '../game/productionAudit';
 import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
 import { CombatFeedbackOverlay } from './CombatFeedbackOverlay';
 import { preloadKayKitDungeonRoom } from './kaykitRoom3D';
@@ -114,6 +115,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('pagehide', onPageHide);
     updateDiagnostics('game-canvas-mounted');
+    if (import.meta.env.DEV) reportProductionAudit();
     return () => {
       window.removeEventListener('pageshow', onPageShow);
       window.removeEventListener('pagehide', onPageHide);
