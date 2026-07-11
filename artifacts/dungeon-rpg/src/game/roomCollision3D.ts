@@ -12,9 +12,13 @@ function collidersForRoom(room: number) {
     .map(piece => {
       const base = piece.collider!;
       const scale = (piece.scale ?? 1) * COLLIDER_INSET;
-      const rotated = Math.abs(Math.sin(piece.rotation ?? 0)) > 0.7;
-      const width = (rotated ? base[1] : base[0]) * scale;
-      const height = (rotated ? base[0] : base[1]) * scale;
+      const localWidth = base[0] * scale;
+      const localHeight = base[1] * scale;
+      const angle = piece.rotation ?? 0;
+      const cos = Math.abs(Math.cos(angle));
+      const sin = Math.abs(Math.sin(angle));
+      const width = localWidth * cos + localHeight * sin;
+      const height = localWidth * sin + localHeight * cos;
       return { x: piece.x, z: piece.z, halfW: width / 2, halfH: height / 2 };
     });
 }
