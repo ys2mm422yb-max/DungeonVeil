@@ -1,15 +1,21 @@
 import type { Item } from '../game/entities';
 import { EQUIPMENT, type EquipmentId } from '../game/metaProgression';
+import { equipmentVisualProfile } from '../game/equipmentVisuals';
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+const KAYKIT_ROOT = '/assets/kaykit/';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 type LoadedGltf = { scene: any };
 let potionPromise: Promise<any | null> | null = null;
 let relicPromise: Promise<any | null> | null = null;
 const equipmentPromises = new Map<EquipmentId, Promise<any | null>>();
+
+function assetUrl(path: string) {
+  return path.startsWith('/') ? path : `${KAYKIT_ROOT}${path}`;
+}
 
 function scorePotion(path: string) {
   const name = path.toLowerCase();
@@ -58,11 +64,17 @@ function loadRelic() {
 function loadEquipment(id: EquipmentId) {
   if (!equipmentPromises.has(id)) {
     equipmentPromises.set(id, (async () => {
-      const manifest = await loadKayKitManifest();
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       const loader = new GLTFLoader();
-      const gltf: LoadedGltf = await loader.loadAsync(modelUrl(manifest, EQUIPMENT[id].assetPath));
-      return gltf.scene;
+      const visual = equipmentVisualProfile(id);
+      try {
+        const primary: LoadedGltf = await loader.loadAsync(assetUrl(visual.primaryPath));
+        return primary.scene;
+      } catch (primaryError) {
+        if (visual.primaryPath === visual.fallbackPath) throw primaryError;
+        const fallback: LoadedGltf = await loader.loadAsync(assetUrl(visual.fallbackPath));
+        return fallback.scene;
+      }
     })().catch(() => null));
   }
   return equipmentPromises.get(id)!;
@@ -87,6 +99,9 @@ export async function createKayKitLootVisual(item: Item) {
 
   const object = prototype.clone(true);
   if (equipment) {
+    const visual = equipmentVisualProfile(equipment.id);
+    object.rotation.set(...visual.rotation);
+    object.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(object);
     const size = box.getSize(new THREE.Vector3());
     const maxDimension = Math.max(size.x, size.y, size.z, 0.001);
