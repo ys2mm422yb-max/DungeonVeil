@@ -1,0 +1,79 @@
+name: Apply Blocks 5-8
+
+on:
+  push:
+    branches:
+      - work/blocks-1-7-production-pass
+    paths:
+      - .github/workflows/apply-blocks-5-8.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout production branch
+        uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare and apply Blocks 5-8
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs')
+          source = path.read_text()
+          anchor = "const EXPANDED = 'artifacts/dungeon-rpg/src/game/expandedWorldRooms.ts';\n"
+          source = source.replace(anchor, anchor + "const H = '${H}';\nconst F = '${F}';\n", 1)
+          path.write_text(source)
+          PY
+          node artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts')
+          source = path.read_text()
+          source = source.replace(
+              "  if (key.includes('warrior')) return 'warrior';\n  return 'minion';",
+              "  if (key.includes('ranger')) return 'ranger';\n  if (key.includes('barbarian')) return 'barbarian';\n  if (key.includes('knight')) return 'knight';\n  if (key.includes('warrior')) return 'warrior';\n  return 'minion';",
+              1,
+          )
+          source = source.replace("prototype.role === 'mage'", "role === 'mage'")
+          source = source.replace("prototype.role === 'rogue' || prototype.role === 'ranger'", "role === 'rogue' || role === 'ranger'")
+          source = source.replace("prototype.role === 'warrior' || prototype.role === 'barbarian' || prototype.role === 'knight'", "role === 'warrior' || role === 'barbarian' || role === 'knight'")
+          path.write_text(source)
+          PY
+
+      - name: Verify generated source
+        run: |
+          git diff --check
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm --filter @workspace/dungeon-rpg typecheck
+          pnpm --filter @workspace/dungeon-rpg build
+
+      - name: Commit verified Blocks 5-8
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs .github/workflows/apply-blocks-5-8.yml
+          git add -A
+          git commit -m "Complete regional enemies, boss roles, animation and status feedback"
+          git push origin HEAD:work/blocks-1-7-production-pass
