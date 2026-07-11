@@ -7,6 +7,7 @@ import { loadRetentionProfile, type RetentionProfile } from '../../game/runReten
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { DailyQuestPanel } from '../DailyQuestPanel';
 import { WeeklyRiftPanel } from '../WeeklyRiftPanel';
+import { OnlinePanel } from '../OnlinePanel';
 
 interface Props {
   saveData: SaveData | null;
@@ -18,7 +19,7 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'daily' | 'rift' | 'more' | null;
+type Overlay = 'daily' | 'rift' | 'more' | 'online' | null;
 
 export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
@@ -72,7 +73,8 @@ export function MainMenuScreen(props: Props) {
     {overlay && <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/74 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
       {overlay === 'rift' && <WeeklyRiftPanel language={language} />}
-      {overlay === 'more' && <div className="rounded-3xl border border-white/10 bg-[#0c0b0a]/95 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-white/32">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{button(t.settings, () => { setOverlay(null); props.onSettings(); })}{button(t.credits, () => { setOverlay(null); props.onCredits(); })}</div></div>}
+      {overlay === 'online' && <OnlinePanel language={language} />}
+      {overlay === 'more' && <div className="rounded-3xl border border-white/10 bg-[#0c0b0a]/95 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-white/32">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{button(language === 'de' ? 'Online & Cloud' : 'Online & Cloud', () => setOverlay('online'), language === 'de' ? 'Konto · Spielstand · Gilde · Weltboss' : 'Account · Save · Guild · World Boss', 'chamber')}{button(t.settings, () => { setOverlay(null); props.onSettings(); })}{button(t.credits, () => { setOverlay(null); props.onCredits(); })}</div></div>}
       <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-white/10 bg-black/72 py-3 text-[9px] font-black uppercase tracking-[.2em] text-white/50">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>
     </div></div>}
   </div>;
