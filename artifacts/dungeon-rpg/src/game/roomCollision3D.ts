@@ -1,6 +1,7 @@
 import { logicalRoomSetpieces } from './logicalRoomSetpieces';
 import { roomBibleSpec } from './roomBible';
 import { CHAPTER_ROOMS } from './chapterRun';
+import { roomPropColliderScale } from './propPresentation3D';
 
 const COLLIDER_INSET = 0.9;
 const PORTAL_CLEARANCE = 3.1;
@@ -75,7 +76,7 @@ function collidersForRoom(room: number): RoomPropCollider[] {
     .filter(piece => Math.hypot(piece.x - portal.x, piece.z - portal.z) > PORTAL_CLEARANCE)
     .map(piece => {
       const base = piece.collider!;
-      const scale = (piece.scale ?? 1) * COLLIDER_INSET;
+      const scale = roomPropColliderScale(piece) * COLLIDER_INSET;
       const localWidth = base[0] * scale;
       const localHeight = base[1] * scale;
       const angle = piece.rotation ?? 0;
