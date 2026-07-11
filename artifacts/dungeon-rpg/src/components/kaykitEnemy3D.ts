@@ -7,11 +7,11 @@ const SKELETON_UTILS_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 const IMPORTED_CREATURES: Partial<Record<EnemyType, { path: string; targetHeight: number; rotationY?: number }>> = {
-  slime: { path: '/assets/imported/enemies/Slime.glb', targetHeight: 1.02 },
-  goblin: { path: '/assets/imported/enemies/Rat.glb', targetHeight: 0.86 },
-  spider: { path: '/assets/imported/enemies/Spider.glb', targetHeight: 0.82 },
-  vampire: { path: '/assets/imported/enemies/Bat.glb', targetHeight: 0.98 },
-  demon: { path: '/assets/imported/enemies/Snake_angry.glb', targetHeight: 1.04 },
+  slime: { path: '/assets/imported/enemies/Slime.glb', targetHeight: 1.42 },
+  goblin: { path: '/assets/imported/enemies/Rat.glb', targetHeight: 1.28 },
+  spider: { path: '/assets/imported/enemies/Spider.glb', targetHeight: 1.34 },
+  vampire: { path: '/assets/imported/enemies/Bat.glb', targetHeight: 1.48 },
+  demon: { path: '/assets/imported/enemies/Snake_angry.glb', targetHeight: 1.38 },
 };
 
 type EnemyRole = 'mage' | 'rogue' | 'warrior' | 'minion';
@@ -241,7 +241,8 @@ function buildStatusGlows(THREE: any, color: number, count: number, yBase: numbe
 function importedScale(THREE: any, scene: any, targetHeight: number) {
   scene.updateMatrixWorld(true);
   const size = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3());
-  return targetHeight / Math.max(size.y, size.x * 0.6, size.z * 0.6, 0.001);
+  const visualReference = Math.max(size.y, size.x * 0.38, size.z * 0.38, 0.001);
+  return targetHeight / visualReference;
 }
 
 export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
@@ -321,7 +322,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const baseScale = (prototype.imported
     ? importedBase
     : (enemy.enemyType === 'boss' ? (finalBoss ? 1.78 : 1.62) : prototype.role === 'warrior' ? 1.08 : 0.92) * roleScale)
-    * (enemy.isElite ? 1.12 : 1);
+    * (enemy.isElite ? 1.22 : 1);
   root.scale.setScalar(baseScale);
 
   const statusRoot = new THREE.Group();
@@ -332,10 +333,10 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
 
   const frostHalo = new THREE.Mesh(
     new THREE.TorusGeometry(0.42, 0.035, 6, IS_MOBILE ? 20 : 28),
-    new THREE.MeshBasicMaterial({ color: 0x8deaff, transparent: true, opacity: 0, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0x8deaff, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }),
   );
   frostHalo.rotation.x = Math.PI / 2;
-  frostHalo.position.y = 0.035;
+  frostHalo.position.y = 0.08;
   statusRoot.add(frostHalo);
 
   const bossAura = new THREE.Group();
@@ -344,16 +345,18 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const auraInner = finalBoss ? 0x62d9ff : enemy.isElite ? 0xffdd7d : 0x765bd3;
   const bossRingOuter = new THREE.Mesh(
     new THREE.TorusGeometry(enemy.isElite ? 0.58 : 0.7, 0.055, 7, IS_MOBILE ? 24 : 36),
-    new THREE.MeshBasicMaterial({ color: auraOuter, transparent: true, opacity: enemy.isElite ? 0.32 : 0.42, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: auraOuter, transparent: true, opacity: enemy.isElite ? 0.32 : 0.42, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }),
   );
   bossRingOuter.rotation.x = Math.PI / 2;
+  bossRingOuter.position.y = 0.07;
   bossRingOuter.userData.bossRing = 'outer';
   bossAura.add(bossRingOuter);
   const bossRingInner = new THREE.Mesh(
     new THREE.TorusGeometry(enemy.isElite ? 0.4 : 0.48, 0.035, 7, IS_MOBILE ? 22 : 32),
-    new THREE.MeshBasicMaterial({ color: auraInner, transparent: true, opacity: enemy.isElite ? 0.26 : 0.36, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: auraInner, transparent: true, opacity: enemy.isElite ? 0.26 : 0.36, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }),
   );
   bossRingInner.rotation.x = Math.PI / 2;
+  bossRingInner.position.y = 0.09;
   bossRingInner.userData.bossRing = 'inner';
   bossAura.add(bossRingInner);
   const bossCore = IS_MOBILE ? new THREE.Object3D() : new THREE.PointLight(auraOuter, enemy.isElite ? 1.8 : 3.2, 5.5, 2);
@@ -423,7 +426,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   const frozen = Boolean(enemy.frostUntil && now < enemy.frostUntil);
 
   visual.burnGlows.forEach((glow, index) => {
-    glow.material.opacity = burning ? 0.45 + Math.sin(now * 0.012 + index) * 0.28 : 0;
+    glow.material.opacity = burning ? 0.26 + Math.sin(now * 0.012 + index) * 0.14 : 0;
     glow.position.y += burning ? delta * (0.16 + index * 0.018) : 0;
     if (glow.position.y > 1.7) glow.position.y = 0.2;
   });
@@ -451,7 +454,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   }
 
   if (enemy.enemyType === 'boss') setMeshTint(visual.scene, null, 0);
-  else if (burning) setMeshTint(visual.scene, 0xff2d00, 0.2);
+  else if (burning) setMeshTint(visual.scene, 0xff3b16, 0.08);
   else if (frozen) setMeshTint(visual.scene, 0x46bfff, 0.07);
   else setMeshTint(visual.scene, null, 0);
 

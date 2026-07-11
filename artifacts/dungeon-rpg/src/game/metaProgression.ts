@@ -101,7 +101,7 @@ export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
   'guardian-sigil': {
     id: 'guardian-sigil', slot: 'talisman', nameDe: 'Wächtersiegel', nameEn: 'Guardian Sigil',
     descriptionDe: '+8 Leben und +1 Verteidigung pro Stufe', descriptionEn: '+8 health and +1 defense per level', pack: 'adventurers',
-    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/shield_badge_color.gltf', unlockRank: 5, accent: '#79d69d', rarity: 'rare', dropSource: 'warden',
+    assetPath: 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/shield_spikes_color.gltf', unlockRank: 5, accent: '#79d69d', rarity: 'rare', dropSource: 'warden',
   },
   'frost-grimoire': {
     id: 'frost-grimoire', slot: 'talisman', nameDe: 'Frostgrimoire', nameEn: 'Frost Grimoire',

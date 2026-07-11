@@ -78,7 +78,12 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'frost-grimoire': profile(`${A}/spellbook_closed.gltf`, `${A}/spellbook_closed.gltf`, [-0.46, -0.45, 0.15], 0.72, 0.65, 0, true, 0.22, 'book'),
   'ritual-shard': profile(`${A}/spellbook_open.gltf`, `${A}/spellbook_open.gltf`, [-0.5, -0.42, 0.12], 0.74, 0.67, 0, true, 0.32, 'book'),
   'veil-key': profile(`${D}/key.gltf`, `${D}/key.gltf`, [0.05, -0.45, Math.PI / 2], 0.74, 0.68, 0, true, 0.32, 'talisman'),
-  'guardian-sigil': profile(`${A}/shield_badge_color.gltf`, `${A}/shield_badge_color.gltf`, [-0.08, -0.28, 0.04], 0.68, 0.72, 0, true, 0.2, 'talisman'),
+  'guardian-sigil': profile(`${A}/shield_spikes_color.gltf`, `${A}/shield_round_color.gltf`, [-0.12, -0.34, 0.04], 0.72, 0.74, 0, true, 0.08, 'talisman', {
+    accessoryPath: `${A}/sword_1handed.gltf`,
+    accessoryPosition: [0, -0.02, -0.14] as const,
+    accessoryRotation: [0.18, 0.12, -0.74] as const,
+    accessoryScale: 0.86,
+  }),
   'ash-amulet': profile(`${D}/bottle_C_brown.gltf`, `${A}/smokebomb.gltf`, [-0.08, -0.4, 0.08], 0.65, 0.7, 0, true, 0.28, 'talisman'),
   'depth-seal': profile(`${D}/coin.gltf`, `${A}/shield_badge.gltf`, [-0.18, -0.38, 0.08], 0.68, 0.7, 0, true, 0.38, 'talisman'),
   'veil-eye': profile(`${A}/staff.gltf`, `${A}/wand.gltf`, [-0.02, -0.36, 0.18], 0.7, 0.72, 0, true, 0.34, 'talisman'),
