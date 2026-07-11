@@ -53,6 +53,10 @@ export type KayKitEnemyVisual = {
   frostHalo: any;
   bossAura: any;
   bossCore: any;
+  imported: boolean;
+  role: EnemyRole;
+  movePlaybackBase: number;
+  attackDuration: number;
 };
 
 let libraryPromise: Promise<EnemyLibrary> | null = null;
@@ -325,12 +329,41 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const move = moveClip ? mixer.clipAction(moveClip) : null;
   const attack = attackClip ? mixer.clipAction(attackClip) : null;
   const death = deathClip ? mixer.clipAction(deathClip) : null;
+  const importedVisual = Boolean(prototype.imported);
+  const movePlaybackBase = finalBoss
+    ? 1.08
+    : enemy.enemyType === 'boss'
+      ? 1.02
+      : importedVisual
+        ? 1.18
+        : prototype.role === 'rogue'
+          ? 1.42
+          : prototype.role === 'mage'
+            ? 1.34
+            : prototype.role === 'warrior'
+              ? 1.28
+              : 1.36;
+  const attackDuration = finalBoss
+    ? 0.68
+    : enemy.enemyType === 'boss'
+      ? 0.72
+      : importedVisual
+        ? 0.34
+        : prototype.role === 'rogue'
+          ? 0.36
+          : prototype.role === 'mage'
+            ? 0.44
+            : prototype.role === 'warrior'
+              ? 0.48
+              : 0.4;
+
   idle?.reset().play();
-  if (move) move.timeScale = finalBoss ? 1.08 : enemy.enemyType === 'boss' ? 0.98 : prototype.imported ? 1.15 : 1.06;
+  if (move) move.timeScale = movePlaybackBase;
   if (attack) {
     attack.setLoop(THREE.LoopOnce, 1);
     attack.clampWhenFinished = false;
-    attack.timeScale = finalBoss ? 1.14 : enemy.enemyType === 'boss' ? 0.98 : prototype.imported ? 1.18 : 1.12;
+    const clipDuration = Math.max(0.12, attackClip?.duration ?? 0.5);
+    attack.timeScale = Math.min(3.1, Math.max(0.85, clipDuration / attackDuration));
   }
   if (death && deathClip) {
     death.setLoop(THREE.LoopOnce, 1);
@@ -410,6 +443,10 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     frostHalo,
     bossAura,
     bossCore,
+    imported: importedVisual,
+    role: prototype.role,
+    movePlaybackBase,
+    attackDuration,
   };
 }
 
@@ -545,9 +582,8 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
 
   if (enemy.lastAttackTime > visual.lastAttackTime) {
     visual.lastAttackTime = enemy.lastAttackTime;
-    const duration = visual.attack?.getClip?.()?.duration ?? 0.5;
-    visual.attackRemaining = Math.max(0.22, duration / (enemy.enemyType === 'boss' ? 0.98 : 1.12));
-    transition(visual, visual.attack, 0.045);
+    visual.attackRemaining = visual.attackDuration;
+    transition(visual, visual.attack, 0.03);
     visual.lastState = 'attack';
   }
   if (visual.attackRemaining > 0) {
@@ -566,9 +602,11 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   }
 
   if (visual.move) {
-    const baseMoveSpeed = enemy.enemyType === 'boss' ? 0.92 : 1.06;
+    const referenceSpeed = visual.imported ? 72 : visual.role === 'warrior' ? 56 : 68;
+    const speedFactor = enemy.enemyType === 'boss' ? 1 : Math.max(0.82, Math.min(1.22, enemy.speed / referenceSpeed));
+    const baseMoveSpeed = visual.movePlaybackBase * speedFactor;
     visual.move.timeScale = frozen
-      ? Math.max(enemy.enemyType === 'boss' ? 0.48 : 0.5, baseMoveSpeed * (1 - (enemy.frostSlow ?? 0)))
+      ? Math.max(enemy.enemyType === 'boss' ? 0.5 : 0.56, baseMoveSpeed * (1 - (enemy.frostSlow ?? 0)))
       : baseMoveSpeed;
   }
   visual.mixer.update(delta);

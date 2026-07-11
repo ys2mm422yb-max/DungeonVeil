@@ -283,7 +283,7 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
   const finish = (value: EnemyMovePlan) => obstacleAwareMove(enemy, player, room, time, value);
 
   const baseAttackRange = archetype === 'dragon' ? 150 : archetype === 'guardian' ? 58 + enemy.width / 2 : archetype === 'skirmisher' ? 48 + enemy.width / 2 : 42 + enemy.width / 2;
-  const baseAttackDelay = Math.max(520, Math.round((archetype === 'dragon' ? 850 : archetype === 'guardian' ? 900 : archetype === 'skirmisher' ? 840 : 920) * attackPressure));
+  const baseAttackDelay = Math.max(520, Math.round((archetype === 'dragon' ? 850 : archetype === 'guardian' ? 840 : archetype === 'skirmisher' ? 840 : 820) * attackPressure));
   const recovery = recoveryMove(enemy, player, speed, time, baseAttackRange, baseAttackDelay);
   if (recovery) return finish(recovery);
 
@@ -312,18 +312,18 @@ export function planEnemyMove(enemy: Enemy, player: Player, dt: number, time: nu
     if (phase < phaseLength * 0.48) {
       const ideal = archetype === 'dragon' ? 126 : 66;
       const advance = dist > ideal ? 1.28 : dist < ideal * 0.62 ? -0.08 : 0.48;
-      return finish(plan(nx * advance * speed, ny * advance * speed, archetype === 'dragon' ? 150 : 58 + enemy.width / 2, archetype === 'dragon' ? 850 : 900));
+      return finish(plan(nx * advance * speed, ny * advance * speed, archetype === 'dragon' ? 150 : 58 + enemy.width / 2, archetype === 'dragon' ? 850 : 840));
     }
     if (phase < phaseLength * 0.7) {
       const side = laneBias(enemy, time);
       const move = normalizedMove(nx * (dist > 78 ? 0.72 : 0.34) + -ny * side * 0.34, ny * (dist > 78 ? 0.72 : 0.34) + nx * side * 0.34);
-      return finish(plan(move.x * speed * 0.92, move.y * speed * 0.92, archetype === 'dragon' ? 162 : 60 + enemy.width / 2, archetype === 'dragon' ? 930 : 960));
+      return finish(plan(move.x * speed * 0.92, move.y * speed * 0.92, archetype === 'dragon' ? 162 : 60 + enemy.width / 2, archetype === 'dragon' ? 930 : 900));
     }
     const pressure = dist > (archetype === 'dragon' ? 82 : 54) ? 1.52 : 0.24;
-    return finish(plan(nx * pressure * speed, ny * pressure * speed, archetype === 'dragon' ? 112 : 60 + enemy.width / 2, archetype === 'dragon' ? 650 : 720));
+    return finish(plan(nx * pressure * speed, ny * pressure * speed, archetype === 'dragon' ? 112 : 60 + enemy.width / 2, archetype === 'dragon' ? 650 : 680));
   }
 
   const weave = Math.sin((time - enemy.spawnTime) * 0.0017 + enemy.x * 0.008) * 0.1;
   const move = normalizedMove(nx - ny * weave, ny + nx * weave);
-  return finish(plan(move.x * speed * 1.08, move.y * speed * 1.08, 42 + enemy.width / 2, 920));
+  return finish(plan(move.x * speed * 1.08, move.y * speed * 1.08, 42 + enemy.width / 2, 820));
 }

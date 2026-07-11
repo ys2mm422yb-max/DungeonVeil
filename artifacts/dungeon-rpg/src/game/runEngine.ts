@@ -57,12 +57,12 @@ type EnemyWindup = {
 const ENEMY_STATS: Record<EnemyType, { hp: number; attack: number; defense: number; speed: number; size: number; xp: number; color: string }> = {
   slime: { hp: 24, attack: 4, defense: 0, speed: 42, size: 32, xp: 18, color: '#43c968' },
   goblin: { hp: 34, attack: 6, defense: 1, speed: 68, size: 30, xp: 24, color: '#89a94b' },
-  skeleton: { hp: 52, attack: 8, defense: 2, speed: 62, size: 26, xp: 30, color: '#d1ccb0' },
-  orc: { hp: 92, attack: 12, defense: 4, speed: 48, size: 30, xp: 42, color: '#627c38' },
+  skeleton: { hp: 52, attack: 8, defense: 2, speed: 72, size: 26, xp: 30, color: '#d1ccb0' },
+  orc: { hp: 92, attack: 12, defense: 4, speed: 56, size: 30, xp: 42, color: '#627c38' },
   spider: { hp: 38, attack: 7, defense: 1, speed: 88, size: 38, xp: 28, color: '#342d42' },
   vampire: { hp: 82, attack: 14, defense: 3, speed: 82, size: 34, xp: 48, color: '#9e304b' },
   demon: { hp: 128, attack: 18, defense: 4, speed: 76, size: 36, xp: 58, color: '#c53827' },
-  golem: { hp: 190, attack: 20, defense: 9, speed: 35, size: 34, xp: 70, color: '#696985' },
+  golem: { hp: 190, attack: 20, defense: 9, speed: 40, size: 34, xp: 70, color: '#696985' },
   boss: { hp: 520, attack: 24, defense: 7, speed: 54, size: 74, xp: 180, color: '#ff493a' },
 };
 
@@ -503,9 +503,9 @@ export class GameEngine {
 
   private attackWindupMs(archetype: ReturnType<typeof enemyArchetype>) {
     if (archetype === 'skirmisher') return 165;
-    if (archetype === 'guardian') return 340;
+    if (archetype === 'guardian') return 270;
     if (archetype === 'dragon') return this.state.floor === 20 ? 480 : 410;
-    return 225;
+    return 185;
   }
 
   private resolveEnemyAttack(enemy: Enemy, windup: EnemyWindup, time: number): void {
