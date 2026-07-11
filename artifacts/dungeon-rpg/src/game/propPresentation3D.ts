@@ -2,10 +2,17 @@ export type RoomPropPresentationInput = {
   model: string;
   scale?: number;
   y?: number;
+  rotation?: number;
   collider?: readonly [number, number];
 };
 
 export type RoomPropScaleClass = 'lighting' | 'small-prop' | 'tool-weapon' | 'furniture' | 'architecture' | 'default';
+
+export type RoomPropColliderFootprint = {
+  width: number;
+  height: number;
+  inset: number;
+};
 
 function modelKey(model: string) {
   return model.toLowerCase().replace(/\\/g, '/');
@@ -111,8 +118,35 @@ export function roomPropDisplayScale(piece: RoomPropPresentationInput) {
   return base;
 }
 
+export function roomPropBlocksGameplay(piece: RoomPropPresentationInput) {
+  if (!piece.collider) return false;
+  const classification = roomPropScaleClass(piece);
+  return classification !== 'lighting' && classification !== 'small-prop' && classification !== 'tool-weapon';
+}
+
+export function roomPropColliderInset(piece: RoomPropPresentationInput) {
+  const classification = roomPropScaleClass(piece);
+  if (classification === 'architecture') return 0.92;
+  if (classification === 'furniture') return 0.87;
+  return 0.9;
+}
+
 export function roomPropColliderScale(piece: RoomPropPresentationInput) {
-  // Collider and rendering deliberately share one resolved scale. The small inset
-  // is applied by roomCollision3D so visible edges do not feel sticky on mobile.
   return roomPropDisplayScale(piece);
+}
+
+export function roomPropColliderFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
+  if (!roomPropBlocksGameplay(piece) || !piece.collider) return null;
+  const inset = roomPropColliderInset(piece);
+  const scale = roomPropColliderScale(piece) * inset;
+  const localWidth = piece.collider[0] * scale;
+  const localHeight = piece.collider[1] * scale;
+  const angle = piece.rotation ?? 0;
+  const cos = Math.abs(Math.cos(angle));
+  const sin = Math.abs(Math.sin(angle));
+  return {
+    width: localWidth * cos + localHeight * sin,
+    height: localWidth * sin + localHeight * cos,
+    inset,
+  };
 }
