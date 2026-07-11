@@ -56,6 +56,7 @@ export interface Enemy extends Entity {
   color: string;
   state: 'patrol' | 'chase' | 'attack' | 'dead';
   isDead: boolean;
+  isElite?: boolean;
   targetX: number;
   targetY: number;
   nextAttackTime: number;
