@@ -1,6 +1,6 @@
 import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
-import { logicalRoomSetpieces } from '../game/logicalRoomSetpieces';
+import { logicalRoomSetpieces, type LogicalRoomSetpiece } from '../game/logicalRoomSetpieces';
 import { roomIdentity } from '../game/roomIdentity';
 import { roomBibleSpec, type RoomBibleSpec } from '../game/roomBible';
 
@@ -23,13 +23,17 @@ function keep(resource: any) {
   resource.dispose = () => undefined;
 }
 
+function modelSource(manifest: Awaited<ReturnType<typeof loadKayKitManifest>>, path: string) {
+  return path.startsWith('/') ? path : modelUrl(manifest, path);
+}
+
 async function prototypeFor(path: string) {
   const cached = modelPromises.get(path);
   if (cached) return cached;
   const promise = (async () => {
     const manifest = await loadKayKitManifest();
     const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
-    const gltf: LoadedGltf = await new GLTFLoader().loadAsync(modelUrl(manifest, path));
+    const gltf: LoadedGltf = await new GLTFLoader().loadAsync(modelSource(manifest, path));
     gltf.scene.traverse((node: any) => {
       if (!node.isMesh && !node.isSkinnedMesh) return;
       keep(node.geometry);
@@ -43,6 +47,15 @@ async function prototypeFor(path: string) {
   })();
   modelPromises.set(path, promise);
   return promise;
+}
+
+async function prototypeForPiece(piece: LogicalRoomSetpiece) {
+  try {
+    return await prototypeFor(piece.model);
+  } catch (primaryError) {
+    if (!piece.fallbackModel || piece.fallbackModel === piece.model) throw primaryError;
+    return prototypeFor(piece.fallbackModel);
+  }
 }
 
 function additiveMaterial(THREE: any, color: number, opacity: number) {
@@ -96,7 +109,7 @@ function addRoomHeroEffects(THREE: any, root: any, room: number) {
       ember.material.opacity = 0.26 + Math.sin(performance.now() * 0.004) * 0.08;
     };
     root.add(ember);
-    const glow = new THREE.PointLight(0xff6a2f, IS_MOBILE ? 2.4 : 3.5, 8, 2);
+    const glow = new THREE.PointLight(0xff6a2f, IS_MOBILE ? 1.8 : 3.5, 8, 2);
     glow.position.set(0, 2.1, -1.0);
     root.add(glow);
     return;
@@ -144,7 +157,7 @@ function addRoomHeroEffects(THREE: any, root: any, room: number) {
     };
     root.add(rift);
 
-    const riftLight = new THREE.PointLight(0x8c62ff, IS_MOBILE ? 3.2 : 4.8, 12, 2);
+    const riftLight = new THREE.PointLight(0x8c62ff, IS_MOBILE ? 2.2 : 4.8, 12, 2);
     riftLight.position.set(0, 2.6, 0.5);
     root.add(riftLight);
     return;
@@ -160,24 +173,30 @@ function addRoomHeroEffects(THREE: any, root: any, room: number) {
 
 function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
   const accent = ROOM_ACCENTS[room] ?? spec.light.fill;
-  const ambient = new THREE.AmbientLight(spec.light.ambient, IS_MOBILE ? 0.42 : 0.34);
+  const ambient = new THREE.AmbientLight(spec.light.ambient, IS_MOBILE ? 0.32 : 0.34);
   const hemisphere = new THREE.HemisphereLight(
     spec.light.hemisphereSky,
     spec.light.hemisphereGround,
-    IS_MOBILE ? 0.72 : 0.62,
+    IS_MOBILE ? 0.55 : 0.62,
   );
   root.add(ambient);
   root.add(hemisphere);
 
-  const heroLight = new THREE.PointLight(accent, IS_MOBILE ? 2.45 : 3.4, spec.silhouette === 'arena' ? 18 : 15, 2);
+  const heroLight = new THREE.PointLight(accent, IS_MOBILE ? 1.75 : 3.4, spec.silhouette === 'arena' ? 18 : 15, 2);
   const heroZ = spec.silhouette === 'ring' || spec.silhouette === 'orbit' || spec.silhouette === 'arena' ? 0 : -4.6;
   heroLight.position.set(0, 4.2, heroZ);
   root.add(heroLight);
 
-  const portalLight = new THREE.PointLight(spec.light.fill, IS_MOBILE ? 1.25 : 1.8, 9.5, 2);
-  portalLight.position.set(spec.portal.x, 3.2, spec.portal.z < -8 ? -8.5 : spec.portal.z);
-  root.add(portalLight);
-  root.userData.architectureLights = [ambient, hemisphere, heroLight, portalLight];
+  const lights = [ambient, hemisphere, heroLight];
+  // The animated portal already owns a point light. A second mobile portal light was
+  // redundant and expensive, so architecture uses it only on larger screens.
+  if (!IS_MOBILE) {
+    const portalLight = new THREE.PointLight(spec.light.fill, 1.8, 9.5, 2);
+    portalLight.position.set(spec.portal.x, 3.2, spec.portal.z < -8 ? -8.5 : spec.portal.z);
+    root.add(portalLight);
+    lights.push(portalLight);
+  }
+  root.userData.architectureLights = lights;
 }
 
 function bindEnvironmentDriver(THREE: any, root: any, spec: RoomBibleSpec) {
@@ -209,7 +228,7 @@ function bindEnvironmentDriver(THREE: any, root: any, spec: RoomBibleSpec) {
 
 export async function preloadKayKitRoomTheme(room: number) {
   await preloadKayKitOuterWorld();
-  await Promise.all([...new Set(logicalRoomSetpieces(room).map(piece => piece.model))].map(prototypeFor));
+  await Promise.all(logicalRoomSetpieces(room).map(prototypeForPiece));
 }
 
 export function buildKayKitRoomTheme(THREE: any, room: number) {
@@ -232,7 +251,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   bindEnvironmentDriver(THREE, root, spec);
 
   const ready = Promise.all(logicalRoomSetpieces(room).map(async piece => {
-    const prototype = await prototypeFor(piece.model);
+    const prototype = await prototypeForPiece(piece);
     if (!active) return;
     const object = prototype.clone(true);
     object.position.set(piece.x, piece.y ?? 0, piece.z);
