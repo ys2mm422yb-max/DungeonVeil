@@ -1,19 +1,27 @@
-import { calibratedRoomSetpieces } from './roomSetpieceCalibrated';
+import { logicalRoomSetpieces } from './logicalRoomSetpieces';
 import { roomBibleSpec } from './roomBible';
 
 const COLLIDER_INSET = 0.9;
-const PORTAL_CLEARANCE = 2.25;
+const PORTAL_CLEARANCE = 2.75;
 
 function entityCenterToScene(value: number, size: number, mapTiles: number) {
   return (value + size / 2) / 40 - mapTiles / 2 + 0.5;
 }
 
+function portalStagePoint(room: number) {
+  const authored = roomBibleSpec(room).portal;
+  return {
+    x: authored.x,
+    z: authored.z < -8 ? -10.5 : authored.z,
+  };
+}
+
 function collidersForRoom(room: number) {
-  const portal = roomBibleSpec(room).portal;
-  return calibratedRoomSetpieces(room)
+  const portal = portalStagePoint(room);
+  return logicalRoomSetpieces(room)
     .filter(piece => piece.collider)
-    // A hero object may frame a ritual/central exit, but it must never make the
-    // exit unreachable. The same bible position clears physics and rendering.
+    // The visible and physical portal staging share the same safe inner-room point.
+    // Nothing massive may create a hidden blocker around the exit circle.
     .filter(piece => Math.hypot(piece.x - portal.x, piece.z - portal.z) > PORTAL_CLEARANCE)
     .map(piece => {
       const base = piece.collider!;
