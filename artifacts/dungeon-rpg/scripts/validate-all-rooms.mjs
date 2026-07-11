@@ -8,6 +8,7 @@ const MAP_WIDTH = 24;
 const MAP_HEIGHT = 32;
 const PLAYER_RADIUS = 0.42;
 const PORTAL_CLEARANCE = 3.1;
+const NON_BLOCKING_CLASSES = new Set(['lighting', 'small-prop', 'tool-weapon', 'wall-decoration', 'foliage']);
 const errors = [];
 const warnings = [];
 
@@ -112,6 +113,7 @@ try {
 
   const names = new Set();
   const fingerprints = new Set();
+  const classCounts = new Map();
   for (let room = 1; room <= 50; room++) {
     const spec = bible.roomBibleSpec(room);
     const pieces = layouts.logicalRoomSetpieces(room);
@@ -146,6 +148,7 @@ try {
 
       const displayScale = presentation.roomPropDisplayScale(piece);
       const scaleClass = presentation.roomPropScaleClass(piece);
+      classCounts.set(scaleClass, (classCounts.get(scaleClass) || 0) + 1);
       if (!Number.isFinite(displayScale) || displayScale <= 0.35 || displayScale > 3.2) {
         error(room, 'invalid display scale for ' + piece.model + ': ' + displayScale);
       }
@@ -156,8 +159,11 @@ try {
       if (footprint && (footprint.width > 6.5 || footprint.height > 6.5)) {
         warning(room, 'very large gameplay collider for ' + piece.model + ': ' + footprint.width.toFixed(2) + 'x' + footprint.height.toFixed(2));
       }
-      if (['lighting', 'small-prop', 'tool-weapon'].includes(scaleClass) && footprint) {
+      if (NON_BLOCKING_CLASSES.has(scaleClass) && footprint) {
         error(room, 'decorative prop unexpectedly blocks gameplay: ' + piece.model);
+      }
+      if (!NON_BLOCKING_CLASSES.has(scaleClass) && piece.collider && !footprint) {
+        error(room, 'solid prop lost gameplay collision: ' + piece.model);
       }
     }
 
@@ -207,6 +213,10 @@ try {
     }
   }
 
+  for (const requiredClass of ['architecture', 'furniture', 'nature-solid', 'heavy-prop', 'lighting', 'small-prop', 'tool-weapon']) {
+    if (!classCounts.get(requiredClass)) error(null, 'scale class is unused or misclassified: ' + requiredClass);
+  }
+
   if (warnings.length) {
     console.log('Room validation warnings:');
     warnings.forEach(message => console.log('  - ' + message));
@@ -216,7 +226,7 @@ try {
     errors.forEach(message => console.error('  - ' + message));
     process.exitCode = 1;
   } else {
-    console.log('Room validation passed: 50/50 rooms, scale policy, collider footprints, spawns, portal routes and projectile collision.');
+    console.log('Room validation passed: 50/50 rooms, prop classes, readable scale, exact collider footprints, portal routes and projectile collision.');
   }
 } finally {
   await server.close();
