@@ -1,3 +1,4 @@
+import { expandedWorldSetpieces } from './expandedWorldRooms';
 import type { RoomSetpiece } from './roomSetpieceLayout';
 import { calibratedRoomSetpieces } from './roomSetpieceCalibrated';
 
@@ -355,7 +356,10 @@ function anchorWallDecoration(room: number, piece: RoomSetpiece, index: number):
 }
 
 export function logicalRoomSetpieces(room: number): LogicalRoomSetpiece[] {
-  const key = Math.max(1, Math.min(20, room));
+  const safeRoom = Math.max(1, Math.min(50, room));
+  const expanded = expandedWorldSetpieces(safeRoom);
+  if (expanded.length) return expanded.map(piece => ({ ...piece }));
+  const key = Math.min(20, safeRoom);
   const override = ROOM_OVERRIDES[key];
   if (override) return override.map(piece => ({ ...piece }));
 

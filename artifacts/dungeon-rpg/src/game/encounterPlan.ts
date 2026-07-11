@@ -34,6 +34,20 @@ const ENCOUNTERS: Record<number, EnemyType[]> = {
   20: [],
 };
 
+const REGION_POOLS: Record<number, EnemyType[]> = {
+  2: ['goblin', 'spider', 'vampire', 'skeleton', 'orc', 'slime'],
+  3: ['vampire', 'spider', 'demon', 'skeleton', 'golem', 'orc'],
+  4: ['orc', 'golem', 'demon', 'skeleton', 'vampire', 'spider'],
+  5: ['golem', 'demon', 'orc', 'vampire', 'skeleton', 'spider'],
+};
+
 export function getEncounterPlan(room: number): EnemyType[] {
-  return ENCOUNTERS[Math.max(1, Math.min(20, room))] ?? ENCOUNTERS[1];
+  const safeRoom = Math.max(1, Math.min(50, room));
+  if (ENCOUNTERS[safeRoom]) return [...ENCOUNTERS[safeRoom]];
+  if (safeRoom % 10 === 0) return [];
+  const region = Math.ceil(safeRoom / 10);
+  const pool = REGION_POOLS[region] ?? REGION_POOLS[2];
+  const local = (safeRoom - 1) % 10;
+  const count = Math.min(8, 5 + Math.floor(local / 2));
+  return Array.from({ length: count }, (_, index) => pool[(index + local * 2) % pool.length]);
 }

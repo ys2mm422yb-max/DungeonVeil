@@ -2,7 +2,7 @@
 import { equipmentVisualAudit } from './equipmentVisuals';
 import { getEncounterPlan } from './encounterPlan';
 import { logicalRoomSetpieces } from './logicalRoomSetpieces';
-import { isBossRoom } from './chapterRun';
+import { CHAPTER_ROOMS, isBossRoom } from './chapterRun';
 import { roomBibleSpec } from './roomBible';
 
 export type ProductionAuditIssue = {
@@ -82,7 +82,7 @@ export function runProductionAudit(): ProductionAuditIssue[] {
   }));
   return [
     ...equipmentIssues,
-    ...Array.from({ length: 20 }, (_, index) => roomAudit(index + 1)).flat(),
+    ...Array.from({ length: CHAPTER_ROOMS }, (_, index) => roomAudit(index + 1)).flat(),
   ];
 }
 

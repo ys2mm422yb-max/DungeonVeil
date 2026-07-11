@@ -269,7 +269,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   ]);
   if (!library.prototypes.length) return null;
 
-  const finalBoss = enemy.enemyType === 'boss' && roomFromEnemyId(enemy) === 20;
+  const finalBoss = enemy.enemyType === 'boss' && roomFromEnemyId(enemy) === 50;
   const importedPrototype = enemy.enemyType === 'boss' ? null : await importedWithinBudget(enemy.enemyType);
   const role = preferredRole(enemy.enemyType);
   const fallback = library.prototypes.find(entry => entry.role === role)

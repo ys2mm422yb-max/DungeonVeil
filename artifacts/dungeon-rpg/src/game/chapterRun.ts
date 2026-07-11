@@ -4,12 +4,13 @@ import { roomPortalTile } from './roomBible';
 const fill = <T,>(height: number, width: number, value: T): T[][] =>
   Array.from({ length: height }, () => Array<T>(width).fill(value));
 
-export const CHAPTER_ROOMS = 20;
+export const CHAPTER_ROOMS = 50;
 export const MID_CHAPTER_BOSS_ROOM = 10;
-export const FINAL_BOSS_ROOM = 20;
+export const FINAL_BOSS_ROOM = 50;
+export const BOSS_ROOMS = [10, 20, 30, 40, 50] as const;
 
 export function isBossRoom(room: number): boolean {
-  return room === MID_CHAPTER_BOSS_ROOM || room === FINAL_BOSS_ROOM;
+  return BOSS_ROOMS.includes(room as (typeof BOSS_ROOMS)[number]);
 }
 
 export function generateRunRoom(room: number): DungeonMap {

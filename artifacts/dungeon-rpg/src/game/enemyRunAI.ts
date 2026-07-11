@@ -34,7 +34,7 @@ function normalizedMove(x: number, y: number) {
 function roomFromEnemyId(enemy: Enemy) {
   const match = enemy.id.match(/^\d+-(\d+)-\d+/);
   const parsed = Number(match?.[1]);
-  return Number.isFinite(parsed) ? Math.max(1, Math.min(20, parsed)) : 1;
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(50, parsed)) : 1;
 }
 
 function laneBias(enemy: Enemy, time: number) {

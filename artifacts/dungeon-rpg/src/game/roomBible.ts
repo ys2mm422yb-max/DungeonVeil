@@ -1,4 +1,5 @@
-export type RoomPhaseId = 'inhabited-mine' | 'abandoned-quarters' | 'ancient-ruins' | 'warden-veil';
+import { EXPANDED_ROOM_BLUEPRINTS } from './expandedWorldRooms';
+export type RoomPhaseId = 'inhabited-mine' | 'abandoned-quarters' | 'ancient-ruins' | 'warden-veil' | 'meadow-forest' | 'darkwood-village' | 'fortress-ember';
 export type RoomSilhouette = 'tri-island' | 'axial' | 'three-lane' | 'diagonal' | 's-curve' | 'ring' | 'zigzag' | 's-lane' | 'cross' | 'arena' | 'orbit';
 export type RoomPack = 'furniture' | 'tools' | 'resources' | 'forest' | 'halloween';
 export type RoomShell = 'intact' | 'abandoned' | 'monumental' | 'veil';
@@ -53,6 +54,21 @@ const PHASE_LIGHTS: Record<RoomPhaseId, RoomBibleSpec['light']> = {
     background: 0x100c13, fog: 0x100c13, ambient: 0xb9a9bf,
     hemisphereSky: 0xc8b1d6, hemisphereGround: 0x160d18,
     key: 0xb86a68, fill: 0x7643ba, exposure: 1.14,
+  },
+  'meadow-forest': {
+    background: 0x789c99, fog: 0x8eb0a7, ambient: 0xdce7c8,
+    hemisphereSky: 0xcfe8e4, hemisphereGround: 0x31452d,
+    key: 0xffdfa2, fill: 0x84b9c2, exposure: 1.18,
+  },
+  'darkwood-village': {
+    background: 0x0d171f, fog: 0x101a23, ambient: 0x8f9da4,
+    hemisphereSky: 0x7891a8, hemisphereGround: 0x10151a,
+    key: 0x91a8c9, fill: 0x59447a, exposure: 1.04,
+  },
+  'fortress-ember': {
+    background: 0x1d0d08, fog: 0x1b0b07, ambient: 0xc5a08f,
+    hemisphereSky: 0xd09a7d, hemisphereGround: 0x24100b,
+    key: 0xff7042, fill: 0x6d3458, exposure: 1.12,
   },
 };
 
@@ -113,8 +129,16 @@ export const ROOM_BIBLE: Record<number, RoomBibleSpec> = {
   20: room(20, 'Kapitelboss-Arena', 'Chapter Boss Arena', 'warden-veil', 'arena', 'Bosskern und vier Phasenanker', ['halloween', 'resources'], ['boss', 'anchor', 'rune', 'statue', 'crystal'], ['crate', 'barrel', 'table', 'bed'], 1, 'veil', P(0, -0.5), [P(0, -3.2)]),
 };
 
+for (const blueprint of EXPANDED_ROOM_BLUEPRINTS) {
+  ROOM_BIBLE[blueprint.room] = room(
+    blueprint.room, blueprint.nameDe, blueprint.nameEn, blueprint.phase, blueprint.silhouette, blueprint.heroObject,
+    [...blueprint.packs], [...blueprint.keywords], [...blueprint.forbiddenKeywords], blueprint.density, blueprint.shell,
+    { ...blueprint.portal }, blueprint.enemySpawns.map(point => ({ ...point })),
+  );
+}
+
 export function roomBibleSpec(roomNumber: number): RoomBibleSpec {
-  return ROOM_BIBLE[Math.max(1, Math.min(20, roomNumber))] ?? ROOM_BIBLE[1];
+  return ROOM_BIBLE[Math.max(1, Math.min(50, roomNumber))] ?? ROOM_BIBLE[1];
 }
 
 export function roomPortalTile(roomNumber: number, mapWidth = 24, mapHeight = 32) {

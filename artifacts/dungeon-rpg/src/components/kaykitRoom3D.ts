@@ -9,6 +9,7 @@ const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android
 const ASSETS = {
   floor: 'floor_tile_large.gltf',
   floorBroken: 'floor_tile_large_rocks.gltf',
+  floorDirt: 'floor_dirt_large.gltf',
   wall: 'wall.gltf',
   wallBroken: 'wall_broken.gltf',
   wallCracked: 'wall_cracked.gltf',
@@ -37,8 +38,13 @@ async function loadAsset(name: AssetName) {
   return cache.get(name)!;
 }
 
+function isOutdoorSpec(spec: RoomBibleSpec) {
+  return spec.phase === 'meadow-forest' || spec.phase === 'darkwood-village';
+}
+
 function requiredAssets(spec: RoomBibleSpec): AssetName[] {
   const required = new Set<AssetName>(['floor', 'wall', 'corner', 'wallColumn', 'torch']);
+  if (isOutdoorSpec(spec)) required.add('floorDirt');
   if (spec.shell !== 'intact') required.add('floorBroken');
   if (spec.shell === 'abandoned' || spec.shell === 'veil') required.add('wallBroken');
   if (spec.shell !== 'intact') required.add('wallCracked');
@@ -171,6 +177,7 @@ function portalStagePoint(spec: RoomBibleSpec) {
 function addPortalStage(root: any, spec: RoomBibleSpec, loaded: Record<AssetName, any>) {
   const { x, z } = portalStagePoint(spec);
   root.userData.portalStage = { x, z };
+  if (isOutdoorSpec(spec)) return;
 
   if (spec.portal.z < -8) {
     const spread = spec.shell === 'veil' ? 2.65 : 2.35;
@@ -189,6 +196,7 @@ function addPortalStage(root: any, spec: RoomBibleSpec, loaded: Record<AssetName
 }
 
 function addSilhouetteArchitecture(root: any, spec: RoomBibleSpec, loaded: Record<AssetName, any>) {
+  if (isOutdoorSpec(spec)) return;
   const pillar = loaded.pillar ?? loaded.wallColumn;
   const column = loaded.column ?? pillar;
 
@@ -245,11 +253,14 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
 
     const floorStep = 4;
     let tileIndex = 0;
+    const outdoor = isOutdoorSpec(spec);
+    root.userData.outdoor = outdoor;
     const cleanFloorRoom = [7, 8, 9, 10].includes(spec.room);
     for (let z = -mapHeight / 2 + floorStep / 2; z < mapHeight / 2; z += floorStep) {
       for (let x = -mapWidth / 2 + floorStep / 2; x < mapWidth / 2; x += floorStep) {
-        const broken = !cleanFloorRoom && spec.shell !== 'intact' && loaded.floorBroken && (tileIndex + room * 3) % (spec.shell === 'veil' ? 3 : 6) === 0;
-        addObject(root, broken ? loaded.floorBroken : loaded.floor, x, 0, z, (tileIndex + room) % 2 ? Math.PI / 2 : 0);
+        const broken = !outdoor && !cleanFloorRoom && spec.shell !== 'intact' && loaded.floorBroken && (tileIndex + room * 3) % (spec.shell === 'veil' ? 3 : 6) === 0;
+        const floorModel = outdoor ? (loaded.floorDirt ?? loaded.floor) : broken ? loaded.floorBroken : loaded.floor;
+        addObject(root, floorModel, x, 0, z, (tileIndex + room) % 2 ? Math.PI / 2 : 0);
         tileIndex += 1;
       }
     }
@@ -261,29 +272,31 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     const wallStep = 2;
     let wallIndex = 0;
 
-    for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
-      addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, top, 0, 1, 'back-wall');
-      addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, bottom, Math.PI, 1, 'front-wall');
-    }
-    for (let z = top + wallStep; z < bottom - wallStep; z += wallStep) {
-      addObject(root, wallFor(spec, wallIndex++, loaded), left, 0, z, Math.PI / 2, 1, 'side-wall');
-      addObject(root, wallFor(spec, wallIndex++, loaded), right, 0, z, -Math.PI / 2, 1, 'side-wall');
-    }
+    if (!outdoor) {
+      for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
+        addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, top, 0, 1, 'back-wall');
+        addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, bottom, Math.PI, 1, 'front-wall');
+      }
+      for (let z = top + wallStep; z < bottom - wallStep; z += wallStep) {
+        addObject(root, wallFor(spec, wallIndex++, loaded), left, 0, z, Math.PI / 2, 1, 'side-wall');
+        addObject(root, wallFor(spec, wallIndex++, loaded), right, 0, z, -Math.PI / 2, 1, 'side-wall');
+      }
 
-    addObject(root, loaded.corner, left, 0, top, Math.PI / 2, 1, 'back-wall');
-    addObject(root, loaded.corner, right, 0, top, Math.PI, 1, 'back-wall');
-    addObject(root, loaded.corner, right, 0, bottom, -Math.PI / 2, 1, 'front-wall');
-    addObject(root, loaded.corner, left, 0, bottom, 0, 1, 'front-wall');
+      addObject(root, loaded.corner, left, 0, top, Math.PI / 2, 1, 'back-wall');
+      addObject(root, loaded.corner, right, 0, top, Math.PI, 1, 'back-wall');
+      addObject(root, loaded.corner, right, 0, bottom, -Math.PI / 2, 1, 'front-wall');
+      addObject(root, loaded.corner, left, 0, bottom, 0, 1, 'front-wall');
 
-    const columnXs = spec.shell === 'monumental' || spec.shell === 'veil' ? [-8, -4, 4, 8] : [-6, 6];
-    for (const x of columnXs) {
-      addObject(root, loaded.wallColumn, x, 0, top, 0, spec.shell === 'veil' ? 1.18 : 1, 'back-wall');
-      addObject(root, loaded.wallColumn, x, 0, bottom, Math.PI, spec.shell === 'veil' ? 1.18 : 1, 'front-wall');
+      const columnXs = spec.shell === 'monumental' || spec.shell === 'veil' ? [-8, -4, 4, 8] : [-6, 6];
+      for (const x of columnXs) {
+        addObject(root, loaded.wallColumn, x, 0, top, 0, spec.shell === 'veil' ? 1.18 : 1, 'back-wall');
+        addObject(root, loaded.wallColumn, x, 0, bottom, Math.PI, spec.shell === 'veil' ? 1.18 : 1, 'front-wall');
+      }
+
+      const torchCount = spec.phase === 'inhabited-mine' ? 4 : spec.phase === 'abandoned-quarters' ? 2 : spec.phase === 'ancient-ruins' ? 3 : 1;
+      const torchXs = [-7.5, -2.5, 2.5, 7.5];
+      for (let index = 0; index < torchCount; index++) addObject(root, loaded.torch, torchXs[index], 0, top + 0.18, Math.PI, spec.phase === 'warden-veil' ? 0.86 : 1);
     }
-
-    const torchCount = spec.phase === 'inhabited-mine' ? 4 : spec.phase === 'abandoned-quarters' ? 2 : spec.phase === 'ancient-ruins' ? 3 : 1;
-    const torchXs = [-7.5, -2.5, 2.5, 7.5];
-    for (let index = 0; index < torchCount; index++) addObject(root, loaded.torch, torchXs[index], 0, top + 0.18, Math.PI, spec.phase === 'warden-veil' ? 0.86 : 1);
 
     addPortalStage(root, spec, loaded);
     addSilhouetteArchitecture(root, spec, loaded);

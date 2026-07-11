@@ -504,7 +504,7 @@ export class GameEngine {
   private attackWindupMs(archetype: ReturnType<typeof enemyArchetype>) {
     if (archetype === 'skirmisher') return 165;
     if (archetype === 'guardian') return 270;
-    if (archetype === 'dragon') return this.state.floor === 20 ? 480 : 410;
+    if (archetype === 'dragon') return this.state.floor === 50 ? 480 : 410;
     return 185;
   }
 
@@ -519,8 +519,8 @@ export class GameEngine {
       const targetX = p.x + 16;
       const targetY = p.y + 16;
       const angle = Math.atan2(targetY - ey, targetX - ex);
-      const color = this.state.floor === 20 ? '#765cff' : '#ff633d';
-      const element = this.state.floor === 20 ? 'arcane' as const : 'fire' as const;
+      const color = this.state.floor === 50 ? '#765cff' : '#ff633d';
+      const element = this.state.floor === 50 ? 'arcane' as const : 'fire' as const;
       if (this.shotPathBlocked(ex, ey, targetX, targetY, 0.08)) return;
       this.addShotEffect(`boss-shot-${time}-${windup.index}`, ex, ey, targetX, targetY, angle, color, element, 7);
       this.state.particles.push(...makeHitSpark(targetX, targetY, color, 10));
@@ -593,7 +593,7 @@ export class GameEngine {
         this.enemyWindups.set(enemy.id, { hitAt: time + windupMs, range: plan.attackRange, archetype, index: i });
         const ex = enemy.x + enemy.width / 2;
         const ey = enemy.y + enemy.height / 2;
-        const warningColor = archetype === 'dragon' ? (this.state.floor === 20 ? '#765cff' : '#ff633d') : archetype === 'guardian' ? '#e8a45d' : '#e6c987';
+        const warningColor = archetype === 'dragon' ? (this.state.floor === 50 ? '#765cff' : '#ff633d') : archetype === 'guardian' ? '#e8a45d' : '#e6c987';
         this.state.effects.push({
           id: `telegraph-${time}-${enemy.id}`,
           x: ex,
@@ -604,7 +604,7 @@ export class GameEngine {
           lifeTime: 0,
           maxLifeTime: windupMs,
           type: 'circle',
-          element: archetype === 'dragon' ? (this.state.floor === 20 ? 'arcane' : 'fire') : 'normal',
+          element: archetype === 'dragon' ? (this.state.floor === 50 ? 'arcane' : 'fire') : 'normal',
         });
       }
     }
@@ -773,7 +773,7 @@ export class GameEngine {
       const bossPoint = getRoomSpawnPoints(room)[0];
       const bossSize = ENEMY_STATS.boss.size;
       const spawn = sceneSpawnToGame(bossPoint, map.width, map.height, bossSize);
-      const bossScale = chapterScale * roomScale * (room === 20 ? 1.18 : 1);
+      const bossScale = chapterScale * roomScale * (room === 50 ? 1.18 : 1);
       this.state.enemies.push(this.makeEnemy('boss', spawn.x, spawn.y, bossScale, now, spawnId, 0));
       return;
     }

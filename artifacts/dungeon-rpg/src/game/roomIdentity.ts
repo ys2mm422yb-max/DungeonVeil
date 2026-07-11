@@ -20,7 +20,8 @@ export type RoomIdentityId =
   | 'grave-gallery'
   | 'crystal-foundry'
   | 'broken-ritual'
-  | 'first-warden';
+  | 'first-warden'
+  | `world-room-${number}`;
 
 export type RoomIdentity = {
   id: RoomIdentityId;
@@ -63,7 +64,7 @@ const STABLE_IDS: Record<number, RoomIdentityId> = {
 
 export const ROOM_IDENTITIES: Record<number, RoomIdentity> = Object.fromEntries(
   Object.values(ROOM_BIBLE).map(spec => [spec.room, {
-    id: STABLE_IDS[spec.room],
+    id: STABLE_IDS[spec.room] ?? `world-room-${spec.room}`,
     nameDe: spec.nameDe,
     nameEn: spec.nameEn,
     packs: [...spec.packs],
@@ -78,5 +79,5 @@ export const ROOM_IDENTITIES: Record<number, RoomIdentity> = Object.fromEntries(
 ) as Record<number, RoomIdentity>;
 
 export function roomIdentity(room: number): RoomIdentity {
-  return ROOM_IDENTITIES[Math.max(1, Math.min(20, room))] ?? ROOM_IDENTITIES[1];
+  return ROOM_IDENTITIES[Math.max(1, Math.min(50, room))] ?? ROOM_IDENTITIES[1];
 }
