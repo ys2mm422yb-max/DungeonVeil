@@ -1,6 +1,6 @@
 import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
-import { calibratedRoomSetpieces } from '../game/roomSetpieceCalibrated';
+import { logicalRoomSetpieces } from '../game/logicalRoomSetpieces';
 import { roomIdentity } from '../game/roomIdentity';
 import { roomBibleSpec, type RoomBibleSpec } from '../game/roomBible';
 
@@ -178,7 +178,7 @@ function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
   root.add(heroLight);
 
   const portalLight = new THREE.PointLight(spec.light.fill, IS_MOBILE ? 1.25 : 1.8, 9.5, 2);
-  portalLight.position.set(spec.portal.x, 3.2, spec.portal.z);
+  portalLight.position.set(spec.portal.x, 3.2, spec.portal.z < -8 ? -10.5 : spec.portal.z);
   root.add(portalLight);
   root.userData.architectureLights = [ambient, hemisphere, heroLight, portalLight];
 }
@@ -218,7 +218,7 @@ function bindEnvironmentDriver(THREE: any, root: any, spec: RoomBibleSpec) {
 
 export async function preloadKayKitRoomTheme(room: number) {
   await preloadKayKitOuterWorld();
-  await Promise.all([...new Set(calibratedRoomSetpieces(room).map(piece => piece.model))].map(prototypeFor));
+  await Promise.all([...new Set(logicalRoomSetpieces(room).map(piece => piece.model))].map(prototypeFor));
 }
 
 export function buildKayKitRoomTheme(THREE: any, room: number) {
@@ -240,7 +240,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   addRoomHeroEffects(THREE, root, room);
   bindEnvironmentDriver(THREE, root, spec);
 
-  const ready = Promise.all(calibratedRoomSetpieces(room).map(async piece => {
+  const ready = Promise.all(logicalRoomSetpieces(room).map(async piece => {
     const prototype = await prototypeFor(piece.model);
     if (!active) return;
     const object = prototype.clone(true);

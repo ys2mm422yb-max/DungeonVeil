@@ -32,11 +32,17 @@ export function generateRunRoom(room: number): DungeonMap {
 
   const startX = Math.floor(width / 2);
   const startY = height - 4;
-  const exit = roomPortalTile(room, width, height);
+  const authoredExit = roomPortalTile(room, width, height);
+  // Doorway portals used to be authored directly on the perimeter row. On mobile
+  // the purple portal then rendered behind the wall shell. Keep authored horizontal
+  // staging, but pull every perimeter exit two tiles into the playable room.
+  const exit = {
+    x: authoredExit.x,
+    y: authoredExit.y <= 3 ? 5 : authoredExit.y,
+  };
 
   // Player start and the room-specific portal stage always stay clear. Portals can
-  // now sit in a ritual center, side gate or boss core instead of every room ending
-  // at the same top-center doorway.
+  // sit in a ritual center, side alcove or boss core, but never inside the wall shell.
   for (let y = startY - 3; y <= startY + 1; y++) {
     for (let x = startX - 3; x <= startX + 3; x++) {
       if (tiles[y]?.[x] !== undefined) tiles[y][x] = TileType.FLOOR;
