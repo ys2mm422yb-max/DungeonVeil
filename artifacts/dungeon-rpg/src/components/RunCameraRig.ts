@@ -14,25 +14,26 @@ export const RUN_CAMERA = {
   safeHalfX: 4.7,
   safeForwardZ: 4.65,
   safeRearZ: 6.3,
+  playerCenterOffset: 0.4,
 } as const;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /**
- * Follows the player's world-space centre and then enforces a portrait-safe world
- * window. The second clamp is important near the lower corners: a plain room-bound
- * clamp left the player seven or more world units ahead of the camera and allowed
- * the character to disappear below the mobile viewport.
+ * GameCanvas passes the player's entity origin. Convert it to the 32 px collision
+ * centre first, then keep that centre inside a portrait-safe world window.
  */
 export function updateRunCamera(camera: any, cameraGoal: any, playerX: number, playerZ: number) {
-  let focusX = clamp(playerX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX);
-  let focusZ = clamp(playerZ - 0.55, RUN_CAMERA.minFollowZ, RUN_CAMERA.maxFollowZ);
+  const centeredPlayerX = playerX + RUN_CAMERA.playerCenterOffset;
+  const centeredPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
+  let focusX = clamp(centeredPlayerX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX);
+  let focusZ = clamp(centeredPlayerZ - 0.55, RUN_CAMERA.minFollowZ, RUN_CAMERA.maxFollowZ);
 
-  const offsetX = playerX - focusX;
+  const offsetX = centeredPlayerX - focusX;
   if (offsetX > RUN_CAMERA.safeHalfX) focusX += offsetX - RUN_CAMERA.safeHalfX;
   else if (offsetX < -RUN_CAMERA.safeHalfX) focusX += offsetX + RUN_CAMERA.safeHalfX;
 
-  const offsetZ = playerZ - focusZ;
+  const offsetZ = centeredPlayerZ - focusZ;
   if (offsetZ > RUN_CAMERA.safeForwardZ) focusZ += offsetZ - RUN_CAMERA.safeForwardZ;
   else if (offsetZ < -RUN_CAMERA.safeRearZ) focusZ += offsetZ + RUN_CAMERA.safeRearZ;
 
