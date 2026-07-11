@@ -1,5 +1,9 @@
 import type { Enemy, EnemyType, Player } from './entities';
-import { collidesWithRoomProp } from './roomCollision3D';
+import {
+  collidesWithRoomProp,
+  movementPathBlockedByRoomProp,
+  roomPropDetourWaypoints,
+} from './roomCollision3D';
 
 export type EnemyArchetype = 'skeleton' | 'skirmisher' | 'guardian' | 'dragon';
 
@@ -44,6 +48,14 @@ function rotate(x: number, y: number, angle: number) {
   return { x: x * cos - y * sin, y: x * sin + y * cos };
 }
 
+function clearAvoidance(enemy: Enemy) {
+  enemy.avoidUntil = undefined;
+  enemy.avoidDirX = undefined;
+  enemy.avoidDirY = undefined;
+  enemy.avoidWaypointX = undefined;
+  enemy.avoidWaypointY = undefined;
+}
+
 function blockedAhead(room: number, enemy: Enemy, dirX: number, dirY: number, distance: number) {
   return collidesWithRoomProp(
     room,
@@ -57,38 +69,93 @@ function blockedAhead(room: number, enemy: Enemy, dirX: number, dirY: number, di
   );
 }
 
-function obstacleAwareMove(enemy: Enemy, player: Player, room: number, time: number, movePlan: EnemyMovePlan): EnemyMovePlan {
-  const magnitude = Math.hypot(movePlan.dx, movePlan.dy);
-  if (magnitude < 0.001) return movePlan;
+function moveTowardWaypoint(enemy: Enemy, room: number, time: number, magnitude: number, movePlan: EnemyMovePlan): EnemyMovePlan | null {
+  if (enemy.avoidWaypointX === undefined || enemy.avoidWaypointY === undefined || !enemy.avoidUntil || time >= enemy.avoidUntil) {
+    clearAvoidance(enemy);
+    return null;
+  }
 
+  const dx = enemy.avoidWaypointX - enemy.x;
+  const dy = enemy.avoidWaypointY - enemy.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance <= Math.max(14, enemy.width * 0.55)) {
+    clearAvoidance(enemy);
+    return null;
+  }
+
+  const direction = normalizedMove(dx, dy);
+  const nextDistance = Math.max(10, Math.min(24, magnitude * 3));
+  if (blockedAhead(room, enemy, direction.x, direction.y, nextDistance)) {
+    clearAvoidance(enemy);
+    return null;
+  }
+
+  return { ...movePlan, dx: direction.x * magnitude, dy: direction.y * magnitude };
+}
+
+function chooseCornerWaypoint(enemy: Enemy, player: Player, room: number, time: number) {
+  const candidates = roomPropDetourWaypoints(
+    room,
+    MAP_WIDTH,
+    MAP_HEIGHT,
+    enemy.x,
+    enemy.y,
+    player.x,
+    player.y,
+    enemy.width,
+    enemy.height,
+  );
+  if (!candidates.length) return null;
+
+  const preferredSide = laneBias(enemy, time);
+  const directX = player.x - enemy.x;
+  const directY = player.y - enemy.y;
+  let best: { x: number; y: number; score: number } | null = null;
+
+  for (const candidate of candidates) {
+    if (collidesWithRoomProp(room, MAP_WIDTH, MAP_HEIGHT, candidate.x, candidate.y, enemy.width, enemy.height, 0.08)) continue;
+    if (movementPathBlockedByRoomProp(
+      room,
+      MAP_WIDTH,
+      MAP_HEIGHT,
+      enemy.x,
+      enemy.y,
+      candidate.x,
+      candidate.y,
+      enemy.width,
+      enemy.height,
+      0.04,
+    )) continue;
+
+    const firstLeg = Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y);
+    const secondLeg = Math.hypot(player.x - candidate.x, player.y - candidate.y);
+    const secondLegBlocked = movementPathBlockedByRoomProp(
+      room,
+      MAP_WIDTH,
+      MAP_HEIGHT,
+      candidate.x,
+      candidate.y,
+      player.x,
+      player.y,
+      enemy.width,
+      enemy.height,
+      0.06,
+    );
+    const cross = directX * (candidate.y - enemy.y) - directY * (candidate.x - enemy.x);
+    const sidePenalty = Math.sign(cross || preferredSide) === preferredSide ? 0 : 32;
+    const score = firstLeg + secondLeg + (secondLegBlocked ? 140 : 0) + sidePenalty;
+    if (!best || score < best.score) best = { ...candidate, score };
+  }
+
+  if (!best) return null;
+  enemy.avoidWaypointX = best.x;
+  enemy.avoidWaypointY = best.y;
+  enemy.avoidUntil = time + 2600;
+  return best;
+}
+
+function angularFallback(enemy: Enemy, player: Player, room: number, time: number, magnitude: number, movePlan: EnemyMovePlan) {
   const desired = normalizedMove(movePlan.dx, movePlan.dy);
-  const lookAhead = Math.max(30, Math.min(58, enemy.width * 1.35 + magnitude * 7));
-  const immediate = Math.max(8, Math.min(18, magnitude * 2.2));
-  const directBlocked = blockedAhead(room, enemy, desired.x, desired.y, lookAhead)
-    || blockedAhead(room, enemy, desired.x, desired.y, immediate);
-
-  if (!directBlocked && (!enemy.avoidUntil || time >= enemy.avoidUntil)) {
-    enemy.avoidDirX = undefined;
-    enemy.avoidDirY = undefined;
-    enemy.avoidUntil = undefined;
-    return movePlan;
-  }
-
-  if (enemy.avoidUntil && time < enemy.avoidUntil && enemy.avoidDirX !== undefined && enemy.avoidDirY !== undefined) {
-    const persistent = normalizedMove(enemy.avoidDirX, enemy.avoidDirY);
-    if (!blockedAhead(room, enemy, persistent.x, persistent.y, lookAhead)
-      && !blockedAhead(room, enemy, persistent.x, persistent.y, immediate)) {
-      return { ...movePlan, dx: persistent.x * magnitude, dy: persistent.y * magnitude };
-    }
-  }
-
-  if (!directBlocked) {
-    enemy.avoidUntil = undefined;
-    enemy.avoidDirX = undefined;
-    enemy.avoidDirY = undefined;
-    return movePlan;
-  }
-
   const preferredSide = laneBias(enemy, time);
   const angles = [45, -45, 72, -72, 105, -105].map(degrees => degrees * preferredSide * Math.PI / 180);
   const px = player.x + player.width / 2;
@@ -97,23 +164,63 @@ function obstacleAwareMove(enemy: Enemy, player: Player, room: number, time: num
 
   for (const angle of angles) {
     const candidate = rotate(desired.x, desired.y, angle);
-    if (blockedAhead(room, enemy, candidate.x, candidate.y, immediate)) continue;
-    if (blockedAhead(room, enemy, candidate.x, candidate.y, lookAhead)) continue;
-
-    const nextX = enemy.x + enemy.width / 2 + candidate.x * lookAhead;
-    const nextY = enemy.y + enemy.height / 2 + candidate.y * lookAhead;
-    const progressScore = Math.hypot(px - nextX, py - nextY);
-    const turnPenalty = Math.abs(angle) * 8;
-    const score = progressScore + turnPenalty;
+    if (blockedAhead(room, enemy, candidate.x, candidate.y, 16)) continue;
+    if (blockedAhead(room, enemy, candidate.x, candidate.y, 52)) continue;
+    const nextX = enemy.x + enemy.width / 2 + candidate.x * 52;
+    const nextY = enemy.y + enemy.height / 2 + candidate.y * 52;
+    const score = Math.hypot(px - nextX, py - nextY) + Math.abs(angle) * 8;
     if (!best || score < best.score) best = { x: candidate.x, y: candidate.y, score };
   }
 
   if (!best) return movePlan;
-
   enemy.avoidDirX = best.x;
   enemy.avoidDirY = best.y;
-  enemy.avoidUntil = time + 720;
+  enemy.avoidUntil = time + 620;
   return { ...movePlan, dx: best.x * magnitude, dy: best.y * magnitude };
+}
+
+function obstacleAwareMove(enemy: Enemy, player: Player, room: number, time: number, movePlan: EnemyMovePlan): EnemyMovePlan {
+  const magnitude = Math.hypot(movePlan.dx, movePlan.dy);
+  if (magnitude < 0.001) return movePlan;
+
+  const waypointMove = moveTowardWaypoint(enemy, room, time, magnitude, movePlan);
+  if (waypointMove) return waypointMove;
+
+  if (enemy.avoidUntil && time < enemy.avoidUntil && enemy.avoidDirX !== undefined && enemy.avoidDirY !== undefined) {
+    const persistent = normalizedMove(enemy.avoidDirX, enemy.avoidDirY);
+    if (!blockedAhead(room, enemy, persistent.x, persistent.y, 48) && !blockedAhead(room, enemy, persistent.x, persistent.y, 14)) {
+      return { ...movePlan, dx: persistent.x * magnitude, dy: persistent.y * magnitude };
+    }
+    clearAvoidance(enemy);
+  }
+
+  const desired = normalizedMove(movePlan.dx, movePlan.dy);
+  const immediateBlocked = blockedAhead(room, enemy, desired.x, desired.y, Math.max(10, Math.min(22, magnitude * 3)));
+  const routeBlocked = movementPathBlockedByRoomProp(
+    room,
+    MAP_WIDTH,
+    MAP_HEIGHT,
+    enemy.x,
+    enemy.y,
+    player.x,
+    player.y,
+    enemy.width,
+    enemy.height,
+    0.08,
+  );
+
+  if (!immediateBlocked && !routeBlocked) {
+    clearAvoidance(enemy);
+    return movePlan;
+  }
+
+  const waypoint = chooseCornerWaypoint(enemy, player, room, time);
+  if (waypoint) {
+    const direction = normalizedMove(waypoint.x - enemy.x, waypoint.y - enemy.y);
+    return { ...movePlan, dx: direction.x * magnitude, dy: direction.y * magnitude };
+  }
+
+  return angularFallback(enemy, player, room, time, magnitude, movePlan);
 }
 
 function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number, attackRange: number, attackDelay: number): EnemyMovePlan | null {
@@ -126,9 +233,6 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
 
   const progress = Math.hypot(enemy.x - (enemy.lastProgressX ?? enemy.x), enemy.y - (enemy.lastProgressY ?? enemy.y));
   const stalledFor = time - (enemy.lastProgressTime ?? time);
-
-  // Local look-ahead handles normal props. This remains only as a slower fallback
-  // for rare corner cases where every short detour is temporarily occupied.
   if (!enemy.stuckSince && stalledFor >= 700 && progress < 2.2) {
     enemy.stuckSince = time;
     const side = laneBias(enemy, time);

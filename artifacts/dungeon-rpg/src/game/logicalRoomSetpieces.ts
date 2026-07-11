@@ -5,8 +5,12 @@ const F = 'furniture/Assets/gltf';
 const D = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 const R = 'resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf';
 
-const SIDE_WALL_X = 11.05;
-const TOP_WALL_Z = -14.95;
+const SIDE_WALL_X = 11.1;
+const TOP_WALL_Z = -15.05;
+const BANNER_Y = 2.25;
+const SHIELD_Y = 1.9;
+
+type LogicalRoomSetpiece = RoomSetpiece & { y?: number };
 
 const p = (
   model: string,
@@ -15,15 +19,20 @@ const p = (
   rotation = 0,
   scale = 1,
   collider?: readonly [number, number],
-): RoomSetpiece => ({ model, x, z, rotation, scale, collider });
+  y = 0,
+): LogicalRoomSetpiece => ({ model, x, y, z, rotation, scale, collider });
 
-const wallTop = (model: string, x: number, scale = 1): RoomSetpiece =>
-  p(model, x, TOP_WALL_Z, Math.PI, scale);
+function mountHeight(model: string) {
+  return model.includes('/banner_') ? BANNER_Y : SHIELD_Y;
+}
 
-const wallSide = (model: string, side: -1 | 1, z: number, scale = 1): RoomSetpiece =>
-  p(model, side * SIDE_WALL_X, z, side < 0 ? Math.PI / 2 : -Math.PI / 2, scale);
+const wallTop = (model: string, x: number, scale = 1): LogicalRoomSetpiece =>
+  p(model, x, TOP_WALL_Z, Math.PI, scale, undefined, mountHeight(model));
 
-const ROOM_OVERRIDES: Partial<Record<number, RoomSetpiece[]>> = {
+const wallSide = (model: string, side: -1 | 1, z: number, scale = 1): LogicalRoomSetpiece =>
+  p(model, side * SIDE_WALL_X, z, side < 0 ? Math.PI / 2 : -Math.PI / 2, scale, undefined, mountHeight(model));
+
+const ROOM_OVERRIDES: Partial<Record<number, LogicalRoomSetpiece[]>> = {
   // Supply is stored in two believable wall-side bays. Nothing sits alone in the
   // combat centre and every large collider belongs to a visible storage cluster.
   1: [
@@ -51,7 +60,7 @@ const ROOM_OVERRIDES: Partial<Record<number, RoomSetpiece[]>> = {
     p(`${D}/chest_gold.gltf`, 7.3, 2.8, -Math.PI / 2, 1.05, [1.3, 0.85]),
   ],
 
-  // The renderer already builds the two column rows. Keep the hall ceremonial and
+  // The room shell already builds the two column rows. Keep the hall ceremonial and
   // readable instead of adding a random centre barrier and loose rubble piles.
   3: [
     wallTop(`${D}/sword_shield_gold.gltf`, 0, 1.22),
@@ -64,7 +73,14 @@ const ROOM_OVERRIDES: Partial<Record<number, RoomSetpiece[]>> = {
   ],
 };
 
-function anchorWallDecoration(room: number, piece: RoomSetpiece, index: number): RoomSetpiece {
+function genericWallAnchor(piece: RoomSetpiece, index: number): LogicalRoomSetpiece {
+  const side: -1 | 1 = piece.x < -0.5 ? -1 : piece.x > 0.5 ? 1 : index % 2 === 0 ? -1 : 1;
+  const clampedZ = Math.max(-8, Math.min(5.5, piece.z));
+  if (Math.abs(piece.x) > 3.5) return wallSide(piece.model, side, clampedZ, piece.scale ?? 1);
+  return wallTop(piece.model, Math.max(-7.5, Math.min(7.5, piece.x)), piece.scale ?? 1);
+}
+
+function anchorWallDecoration(room: number, piece: RoomSetpiece, index: number): LogicalRoomSetpiece {
   if (piece.model.includes('/banner_')) {
     if (room === 12) {
       const anchors: Array<[-1 | 1, number]> = [[-1, -5.0], [1, -5.0], [-1, 1.0], [1, 1.0]];
@@ -80,25 +96,27 @@ function anchorWallDecoration(room: number, piece: RoomSetpiece, index: number):
       const side: -1 | 1 = index % 2 === 0 ? -1 : 1;
       return wallSide(piece.model, side, room === 19 ? -1.0 : 0, piece.scale ?? 1);
     }
+    return genericWallAnchor(piece, index);
   }
 
-  if (piece.model.includes('/sword_shield_gold.gltf')) {
+  if (piece.model.includes('/sword_shield')) {
     if (room === 12) return wallTop(piece.model, 0, piece.scale ?? 1);
     if (room === 16) return wallSide(piece.model, piece.x < 0 ? -1 : 1, -3.6, piece.scale ?? 1);
     if (room === 19) return wallTop(piece.model, piece.x < 0 ? -4.6 : 4.6, piece.scale ?? 1);
+    return genericWallAnchor(piece, index);
   }
 
-  return piece;
+  return { ...piece };
 }
 
-export function logicalRoomSetpieces(room: number): RoomSetpiece[] {
+export function logicalRoomSetpieces(room: number): LogicalRoomSetpiece[] {
   const key = Math.max(1, Math.min(20, room));
   const override = ROOM_OVERRIDES[key];
   if (override) return override.map(piece => ({ ...piece }));
 
-  let bannerIndex = 0;
+  let wallDecorIndex = 0;
   return calibratedRoomSetpieces(key).map(piece => {
-    const index = piece.model.includes('/banner_') ? bannerIndex++ : 0;
-    return { ...anchorWallDecoration(key, piece, index) };
+    const wallDecor = piece.model.includes('/banner_') || piece.model.includes('/sword_shield');
+    return anchorWallDecoration(key, piece, wallDecor ? wallDecorIndex++ : 0);
   });
 }

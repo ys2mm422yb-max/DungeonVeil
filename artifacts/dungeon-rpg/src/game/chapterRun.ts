@@ -33,12 +33,11 @@ export function generateRunRoom(room: number): DungeonMap {
   const startX = Math.floor(width / 2);
   const startY = height - 4;
   const authoredExit = roomPortalTile(room, width, height);
-  // Doorway portals used to be authored directly on the perimeter row. On mobile
-  // the purple portal then rendered behind the wall shell. Keep authored horizontal
-  // staging, but pull every perimeter exit two tiles into the playable room.
+  // A tall top wall still occluded the previous y=5 position in the portrait camera.
+  // Every perimeter exit now sits at y=7 (scene z=-8.5), visibly in front of the wall.
   const exit = {
     x: authoredExit.x,
-    y: authoredExit.y <= 3 ? 5 : authoredExit.y,
+    y: authoredExit.y <= 5 ? 7 : authoredExit.y,
   };
 
   // Player start and the room-specific portal stage always stay clear. Portals can

@@ -80,6 +80,8 @@ export interface Enemy extends Entity {
   avoidUntil?: number;
   avoidDirX?: number;
   avoidDirY?: number;
+  avoidWaypointX?: number;
+  avoidWaypointY?: number;
   isHuntTarget?: boolean;
   huntName?: string;
   huntReward?: number;
