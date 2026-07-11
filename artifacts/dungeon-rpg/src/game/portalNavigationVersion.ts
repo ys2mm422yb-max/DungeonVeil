@@ -1,1 +1,0 @@
-export const PORTAL_NAVIGATION_VERSION = 2;
