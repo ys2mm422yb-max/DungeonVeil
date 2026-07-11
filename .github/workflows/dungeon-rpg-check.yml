@@ -21,161 +21,30 @@ on:
       - '.github/workflows/dungeon-rpg-check.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: read
-
+# Verification branch uses this PR trigger to expose check results to the connector.
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - name: Install workspace
         run: pnpm install --frozen-lockfile
-
-      - name: Apply staged Blocks 5-8
-        if: github.event_name == 'pull_request' && github.head_ref == 'work/blocks-1-7-production-pass'
-        run: |
-          if [[ ! -f artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs ]]; then
-            echo "No staged production patch present."
-            exit 0
-          fi
-
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs')
-          source = path.read_text()
-          anchor = "const EXPANDED = 'artifacts/dungeon-rpg/src/game/expandedWorldRooms.ts';\n"
-          if "const H = '${H}';" not in source:
-              source = source.replace(anchor, anchor + "const H = '${H}';\nconst F = '${F}';\n", 1)
-          path.write_text(source)
-          PY
-
-          node artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs
-
-          python - <<'PY'
-          from pathlib import Path
-
-          enemy = Path('artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts')
-          source = enemy.read_text()
-          source = source.replace(
-              "  if (key.includes('warrior')) return 'warrior';\n  return 'minion';",
-              "  if (key.includes('ranger')) return 'ranger';\n  if (key.includes('barbarian')) return 'barbarian';\n  if (key.includes('knight')) return 'knight';\n  if (key.includes('warrior')) return 'warrior';\n  return 'minion';",
-              1,
-          )
-          source = source.replace("prototype.role === 'mage'", "role === 'mage'")
-          source = source.replace("prototype.role === 'rogue' || prototype.role === 'ranger'", "role === 'rogue' || role === 'ranger'")
-          source = source.replace("prototype.role === 'warrior' || prototype.role === 'barbarian' || prototype.role === 'knight'", "role === 'warrior' || role === 'barbarian' || role === 'knight'")
-          enemy.write_text(source)
-
-          for relative in [
-              'artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs',
-              'artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs',
-          ]:
-              path = Path(relative)
-              source = path.read_text()
-              anchor = "  appType: 'custom',\n  logLevel: 'error',"
-              replacement = "  appType: 'custom',\n  optimizeDeps: { noDiscovery: true, include: [] },\n  logLevel: 'error',"
-              if replacement not in source:
-                  if anchor not in source:
-                      raise RuntimeError(f'Missing Vite audit anchor in {relative}')
-                  source = source.replace(anchor, replacement, 1)
-              path.write_text(source)
-
-          expanded = Path('artifacts/dungeon-rpg/src/game/expandedWorldRooms.ts')
-          source = expanded.read_text()
-          room24_before = "    s(`${R}/Pallet_Wood.gltf`, 5.8, -3.2, 0.1, 1.08, [1.5, 0.9]), s(`${D}/box_small.gltf`, -5.8, 2.9, -0.1, 1.0, [0.8, 0.8]),"
-          room24_after = room24_before + " s(`${F}/Bush_2_B_Color1.gltf`, -7.0, 4.1, 0, 1.08),"
-          room29_before = "    s(`${F}/Tree_1_B_Color1.gltf`, -8.4, -5.0, 0.12, 1.12, [1.8, 1.8]), s(`${F}/Grass_2_Mesh.gltf`, 0, 2.0, 0, 1.52),"
-          room29_after = room29_before + " s(`${F}/Bush_3_B_Color1.gltf`, 7.2, -4.2, 0, 1.08),"
-          if room24_before not in source or room29_before not in source:
-              raise RuntimeError('Missing meadow production-fix anchor')
-          source = source.replace(room24_before, room24_after, 1)
-          source = source.replace(room29_before, room29_after, 1)
-          expanded.write_text(source)
-
-          validator = Path('artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs')
-          source = validator.read_text()
-          module_anchor = "  const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');\n  const chapter = await server.ssrLoadModule('/src/game/chapterRun.ts');"
-          module_replacement = "  const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');\n  const presentation = await server.ssrLoadModule('/src/game/propPresentation3D.ts');\n  const chapter = await server.ssrLoadModule('/src/game/chapterRun.ts');"
-          if module_replacement not in source:
-              if module_anchor not in source:
-                  raise RuntimeError('Missing production validator module anchor')
-              source = source.replace(module_anchor, module_replacement, 1)
-          blocker_anchor = "      if (colliders.length > 8) fail(room, 'boss arena contains too many blocking props');"
-          blocker_replacement = "      const authoredBlockers = pieces.filter(piece => presentation.roomPropColliderFootprint(piece)).length;\n      if (authoredBlockers > 8) fail(room, 'boss arena contains too many visible blocking props');"
-          if blocker_replacement not in source:
-              if blocker_anchor not in source:
-                  raise RuntimeError('Missing boss blocker audit anchor')
-              source = source.replace(blocker_anchor, blocker_replacement, 1)
-          validator.write_text(source)
-          PY
-
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
-
       - name: Room and collision audit
-        id: room_audit
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee /tmp/dungeon-veil-room-audit.log
-
-      - name: Publish room audit failure
-        if: steps.room_audit.outcome == 'failure' && github.event_name == 'pull_request' && github.head_ref == 'work/blocks-1-7-production-pass'
-        run: |
-          cp /tmp/dungeon-veil-room-audit.log artifacts/dungeon-rpg/room-audit-failure.log
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add artifacts/dungeon-rpg/room-audit-failure.log
-          if git diff --cached --quiet; then
-            echo "Audit failure log already current."
-            exit 1
-          fi
-          git commit -m "Capture room audit failure"
-          git push origin HEAD:work/blocks-1-7-production-pass
-          exit 1
-
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck Dungeon Veil
-        if: steps.room_audit.outcome == 'success'
         run: pnpm --filter @workspace/dungeon-rpg typecheck
-
       - name: Build Dungeon Veil
-        if: steps.room_audit.outcome == 'success'
         run: pnpm --filter @workspace/dungeon-rpg build
-
-      - name: Commit verified Blocks 5-8
-        if: steps.room_audit.outcome == 'success' && github.event_name == 'pull_request' && github.head_ref == 'work/blocks-1-7-production-pass'
-        run: |
-          if [[ ! -f artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs ]]; then
-            echo "Nothing staged for commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs
-          git rm -f artifacts/dungeon-rpg/room-audit-failure.log || true
-          git rm -f .github/workflows/apply-blocks-5-8.yml || true
-          git rm -f .github/workflows/pr40-live-master-pass.yml || true
-          git add -A
-          git diff --cached --check
-          git commit -m "Complete regional enemies, boss roles, animation and status feedback"
-          git push origin HEAD:work/blocks-1-7-production-pass
