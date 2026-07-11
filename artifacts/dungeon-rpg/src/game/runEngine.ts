@@ -55,19 +55,19 @@ type EnemyWindup = {
 };
 
 const ENEMY_STATS: Record<EnemyType, { hp: number; attack: number; defense: number; speed: number; size: number; xp: number; color: string }> = {
-  slime: { hp: 24, attack: 4, defense: 0, speed: 42, size: 24, xp: 18, color: '#43c968' },
-  goblin: { hp: 34, attack: 6, defense: 1, speed: 68, size: 23, xp: 24, color: '#89a94b' },
+  slime: { hp: 24, attack: 4, defense: 0, speed: 42, size: 32, xp: 18, color: '#43c968' },
+  goblin: { hp: 34, attack: 6, defense: 1, speed: 68, size: 30, xp: 24, color: '#89a94b' },
   skeleton: { hp: 52, attack: 8, defense: 2, speed: 62, size: 26, xp: 30, color: '#d1ccb0' },
   orc: { hp: 92, attack: 12, defense: 4, speed: 48, size: 30, xp: 42, color: '#627c38' },
-  spider: { hp: 38, attack: 7, defense: 1, speed: 88, size: 22, xp: 28, color: '#342d42' },
-  vampire: { hp: 82, attack: 14, defense: 3, speed: 82, size: 28, xp: 48, color: '#9e304b' },
-  demon: { hp: 128, attack: 18, defense: 4, speed: 76, size: 32, xp: 58, color: '#c53827' },
+  spider: { hp: 38, attack: 7, defense: 1, speed: 88, size: 38, xp: 28, color: '#342d42' },
+  vampire: { hp: 82, attack: 14, defense: 3, speed: 82, size: 34, xp: 48, color: '#9e304b' },
+  demon: { hp: 128, attack: 18, defense: 4, speed: 76, size: 36, xp: 58, color: '#c53827' },
   golem: { hp: 190, attack: 20, defense: 9, speed: 35, size: 34, xp: 70, color: '#696985' },
-  boss: { hp: 520, attack: 24, defense: 7, speed: 54, size: 44, xp: 180, color: '#ff493a' },
+  boss: { hp: 520, attack: 24, defense: 7, speed: 54, size: 74, xp: 180, color: '#ff493a' },
 };
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
-const NORMAL_DEATH_MS = 920;
+const NORMAL_DEATH_MS = 680;
 const BOSS_DEATH_MS = 1650;
 const UNSTUCK_MS = 7000;
 const UI_EMIT_MS = 100;
@@ -361,13 +361,26 @@ export class GameEngine {
     });
   }
 
+  private shotPathBlocked(fromX: number, fromY: number, toX: number, toY: number, padding = 0.035) {
+    if (shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, fromX, fromY, toX, toY, padding)) return true;
+    const length = Math.hypot(toX - fromX, toY - fromY);
+    const steps = Math.max(2, Math.ceil(length / 7));
+    for (let step = 1; step < steps; step++) {
+      const progress = step / steps;
+      const x = fromX + (toX - fromX) * progress;
+      const y = fromY + (toY - fromY) * progress;
+      if (!isWalkable(this.state.map, x, y)) return true;
+    }
+    return false;
+  }
+
   private visibleEnemiesFrom(x: number, y: number, excluded = new Set<string>()) {
     return this.livingEnemies()
       .filter(enemy => !excluded.has(enemy.id))
       .filter(enemy => {
         const ex = enemy.x + enemy.width / 2;
         const ey = enemy.y + enemy.height / 2;
-        return !shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, x, y, ex, ey);
+        return !this.shotPathBlocked(x, y, ex, ey);
       })
       .sort((a, b) => distance(x, y, a.x + a.width / 2, a.y + a.height / 2) - distance(x, y, b.x + b.width / 2, b.y + b.height / 2));
   }
@@ -387,7 +400,7 @@ export class GameEngine {
         return { enemy, forward, perpendicular };
       })
       .filter(hit => hit.forward > 0 && hit.forward <= range && hit.perpendicular <= hit.enemy.width * 0.72 + 12)
-      .filter(hit => !shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, x, y, hit.enemy.x + hit.enemy.width / 2, hit.enemy.y + hit.enemy.height / 2))
+      .filter(hit => !this.shotPathBlocked(x, y, hit.enemy.x + hit.enemy.width / 2, hit.enemy.y + hit.enemy.height / 2))
       .sort((a, b) => a.forward - b.forward)[0]?.enemy ?? null;
   }
 
@@ -415,7 +428,7 @@ export class GameEngine {
 
   private damageEnemy(enemy: Enemy, damage: number, time: number, fromX: number, fromY: number, element: VisualEffect['element'], scale = 1) {
     enemy.hp -= damage;
-    enemy.flashUntil = time + 140;
+    enemy.flashUntil = time + 80;
     enemy.lastHitTime = time;
     enemy.hitFromX = fromX;
     enemy.hitFromY = fromY;
@@ -508,6 +521,7 @@ export class GameEngine {
       const angle = Math.atan2(targetY - ey, targetX - ex);
       const color = this.state.floor === 20 ? '#765cff' : '#ff633d';
       const element = this.state.floor === 20 ? 'arcane' as const : 'fire' as const;
+      if (this.shotPathBlocked(ex, ey, targetX, targetY, 0.08)) return;
       this.addShotEffect(`boss-shot-${time}-${windup.index}`, ex, ey, targetX, targetY, angle, color, element, 7);
       this.state.particles.push(...makeHitSpark(targetX, targetY, color, 10));
     }
@@ -746,7 +760,7 @@ export class GameEngine {
   private spawnRoom(): void {
     const room = this.state.floor;
     const chapterScale = 1 + (this.state.chapter - 1) * 0.36;
-    const roomScale = 1 + (room - 1) * 0.07;
+    const roomScale = 1 + (room - 1) * 0.055;
     const map = this.state.map;
     const now = performance.now();
     const spawnId = Date.now();
@@ -781,9 +795,10 @@ export class GameEngine {
 
   private makeEnemy(type: EnemyType, x: number, y: number, scale: number, now: number, spawnId: number, index: number): Enemy {
     const base = ENEMY_STATS[type];
+    const attackScale = 1 + Math.max(0, scale - 1) * 0.62;
     return {
       id: `${spawnId}-${this.state.floor}-${index}`, type: 'enemy', enemyType: type, x, y, width: base.size, height: base.size, vx: 0, vy: 0,
-      hp: Math.round(base.hp * scale), maxHp: Math.round(base.hp * scale), attack: Math.round(base.attack * scale), defense: base.defense,
+      hp: Math.round(base.hp * scale), maxHp: Math.round(base.hp * scale), attack: Math.round(base.attack * attackScale), defense: base.defense,
       speed: base.speed, color: base.color, state: 'chase', targetX: x, targetY: y, nextAttackTime: now + 500, flashUntil: 0,
       spawnTime: now + index * 40, lastAttackTime: 0, deathTime: 0, deathDuration: type === 'boss' ? BOSS_DEATH_MS : NORMAL_DEATH_MS, isDead: false,
       lastHitTime: 0, burnUntil: 0, nextBurnTick: 0, frostUntil: 0, frostSlow: 0,

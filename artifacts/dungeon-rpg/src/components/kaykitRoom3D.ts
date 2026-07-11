@@ -80,20 +80,20 @@ function materialList(node: any) {
 
 function occlusionPressure(role: RoomOccluderRole, camera: any, worldX: number, worldZ: number) {
   if (role === 'back-wall') return 0;
-  const focusX = camera.position.x;
-  const focusZ = camera.position.z - RUN_CAMERA.distance;
-  const nearCameraLane = clamp01(1 - Math.abs(worldZ - focusZ) / 5.2);
+  const playerX = Number(camera.userData?.dungeonPlayerX ?? camera.position.x);
+  const playerZ = Number(camera.userData?.dungeonPlayerZ ?? camera.position.z - RUN_CAMERA.distance);
 
   if (role === 'front-wall') {
-    const lowerEdge = clamp01((focusZ - 5.0) / 3.1);
-    const horizontal = clamp01(1 - Math.abs(worldX - focusX) / 4.6);
-    return lowerEdge * horizontal;
+    const nearFront = clamp01((playerZ - 3.8) / 5.2);
+    const localSegment = clamp01(1 - Math.abs(worldX - playerX) / 2.15);
+    return nearFront * localSegment;
   }
 
-  const sameSide = Math.sign(worldX || 1) === Math.sign(focusX || 1);
+  const sameSide = Math.sign(worldX || 1) === Math.sign(playerX || 1);
   if (!sameSide) return 0;
-  const sideEdge = clamp01((Math.abs(focusX) - 4.35) / 2.2);
-  return sideEdge * nearCameraLane;
+  const nearSide = clamp01((Math.abs(playerX) - 4.7) / 3.0);
+  const localSegment = clamp01(1 - Math.abs(worldZ - playerZ) / 2.3);
+  return nearSide * localSegment;
 }
 
 function tagOccluder(object: any, role?: RoomOccluderRole) {
@@ -117,7 +117,7 @@ function tagOccluder(object: any, role?: RoomOccluderRole) {
     node.onBeforeRender = (_renderer: any, _scene: any, camera: any) => {
       const elements = node.matrixWorld.elements;
       const pressure = occlusionPressure(role, camera, elements[12], elements[14]);
-      const target = 1 - pressure * (role === 'front-wall' ? 0.84 : 0.78);
+      const target = 1 - pressure * (role === 'front-wall' ? 0.98 : 0.94);
       const current = Number(node.userData.roomOcclusionOpacity ?? 1);
       const next = current + (target - current) * 0.22;
       node.userData.roomOcclusionOpacity = next;
@@ -125,7 +125,7 @@ function tagOccluder(object: any, role?: RoomOccluderRole) {
         const baseOpacity = Number(material.userData?.roomBaseOpacity ?? 1);
         material.opacity = baseOpacity * next;
         material.transparent = Boolean(material.userData?.roomBaseTransparent) || next < 0.995;
-        material.depthWrite = Boolean(material.userData?.roomBaseDepthWrite) && next > 0.56;
+        material.depthWrite = Boolean(material.userData?.roomBaseDepthWrite) && next > 0.42;
         material.needsUpdate = true;
       });
       node.renderOrder = next < 0.995 ? 6 : 0;
@@ -213,16 +213,11 @@ function addSilhouetteArchitecture(root: any, spec: RoomBibleSpec, loaded: Recor
       for (const [x, z] of [[-7, -6], [7, -6], [-7, 5.6], [7, 5.6]] as const) addObject(root, pillar, x, 0, z, 0, isBossRoom(spec.room) ? 1.34 : 1.18);
       break;
     case 'diagonal':
-      addObject(root, loaded.rubble, -7.2, 0, -4.9, 0.28, 0.82);
-      addObject(root, loaded.rubbleHalf, 6.9, 0, 4.7, -0.32, 0.78);
-      break;
     case 'zigzag':
     case 's-curve':
     case 's-lane':
-      if (loaded.rubbleHalf) {
-        addObject(root, loaded.rubbleHalf, -7.2, 0, 5.4, 0.18, 0.68);
-        addObject(root, loaded.rubbleHalf, 7.1, 0, -5.2, -0.18, 0.68);
-      }
+      // Keine automatisch wiederholten Felsen. Die sichtbare Raumidentität
+      // wird ausschließlich durch die kuratierten Setpieces aufgebaut.
       break;
     case 'tri-island':
       break;

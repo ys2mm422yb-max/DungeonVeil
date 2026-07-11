@@ -50,11 +50,14 @@ async function prototypeFor(path: string) {
 }
 
 async function prototypeForPiece(piece: LogicalRoomSetpiece) {
+  const prefersNativeFallback = piece.model.startsWith('/assets/imported/fantasy-props/') && Boolean(piece.fallbackModel);
+  const primary = prefersNativeFallback ? piece.fallbackModel! : piece.model;
+  const secondary = prefersNativeFallback ? piece.model : piece.fallbackModel;
   try {
-    return await prototypeFor(piece.model);
+    return await prototypeFor(primary);
   } catch (primaryError) {
-    if (!piece.fallbackModel || piece.fallbackModel === piece.model) throw primaryError;
-    return prototypeFor(piece.fallbackModel);
+    if (!secondary || secondary === primary) throw primaryError;
+    return prototypeFor(secondary);
   }
 }
 
@@ -65,6 +68,7 @@ function additiveMaterial(THREE: any, color: number, opacity: number) {
     opacity,
     side: THREE.DoubleSide,
     depthWrite: false,
+    depthTest: false,
     blending: THREE.AdditiveBlending,
   });
 }

@@ -645,7 +645,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       syncLoot(state, wallNow);
       syncPortal(state, gameNow, wallNow);
       syncPlayerFeedback(state, wallNow, gameNow);
-      updateRunCamera(camera, cameraGoal, playerX, playerZ);
+      camera.userData.dungeonPlayerX = playerX + RUN_CAMERA.playerCenterOffset;
+      camera.userData.dungeonPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
+      updateRunCamera(camera, cameraGoal, playerX, playerZ, state.roomClearReady);
       renderer.render(scene, camera);
       updatePerformanceDiagnostics(gameNow);
       raf = requestAnimationFrame(renderLoop);

@@ -1,33 +1,42 @@
 export const RUN_CAMERA = {
   fov: 50,
-  height: 18.8,
-  distance: 23.8,
-  lookHeight: 0.64,
-  followLerp: 0.12,
-  // Portrait play needs more follow travel at the lower edge than the old static
-  // clamp allowed. The outer room shell already covers this area, so the camera can
-  // keep the player readable without exposing black staging gaps.
-  minFollowX: -6.25,
-  maxFollowX: 6.25,
-  minFollowZ: -6.1,
-  maxFollowZ: 9.15,
-  safeHalfX: 4.7,
-  safeForwardZ: 4.65,
-  safeRearZ: 6.3,
+  height: 19.2,
+  distance: 24.4,
+  lookHeight: 0.66,
+  followLerp: 0.1,
+  minFollowX: -4.65,
+  maxFollowX: 4.65,
+  minFollowZ: -3.1,
+  maxFollowZ: 5.65,
+  clearMinFollowZ: -3.4,
+  clearMaxFollowZ: 3.8,
+  safeHalfX: 4.25,
+  safeForwardZ: 4.4,
+  safeRearZ: 5.8,
   playerCenterOffset: 0.4,
 } as const;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /**
- * GameCanvas passes the player's entity origin. Convert it to the 32 px collision
- * centre first, then keep that centre inside a portrait-safe world window.
+ * Die Kamera folgt der Mitte der Spieler-Hitbox, bleibt aber innerhalb einer
+ * festen Hochformat-Komposition. Nach Raumabschluss wird die Z-Bewegung enger,
+ * damit der Gang zum Portal weder wie ein Zoom wirkt noch die Außenkulisse zeigt.
  */
-export function updateRunCamera(camera: any, cameraGoal: any, playerX: number, playerZ: number) {
+export function updateRunCamera(
+  camera: any,
+  cameraGoal: any,
+  playerX: number,
+  playerZ: number,
+  roomClearReady = false,
+) {
   const centeredPlayerX = playerX + RUN_CAMERA.playerCenterOffset;
   const centeredPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
+  const minZ = roomClearReady ? RUN_CAMERA.clearMinFollowZ : RUN_CAMERA.minFollowZ;
+  const maxZ = roomClearReady ? RUN_CAMERA.clearMaxFollowZ : RUN_CAMERA.maxFollowZ;
+
   let focusX = clamp(centeredPlayerX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX);
-  let focusZ = clamp(centeredPlayerZ - 0.55, RUN_CAMERA.minFollowZ, RUN_CAMERA.maxFollowZ);
+  let focusZ = clamp(centeredPlayerZ - 0.7, minZ, maxZ);
 
   const offsetX = centeredPlayerX - focusX;
   if (offsetX > RUN_CAMERA.safeHalfX) focusX += offsetX - RUN_CAMERA.safeHalfX;
@@ -38,9 +47,9 @@ export function updateRunCamera(camera: any, cameraGoal: any, playerX: number, p
   else if (offsetZ < -RUN_CAMERA.safeRearZ) focusZ += offsetZ + RUN_CAMERA.safeRearZ;
 
   focusX = clamp(focusX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX);
-  focusZ = clamp(focusZ, RUN_CAMERA.minFollowZ, RUN_CAMERA.maxFollowZ);
+  focusZ = clamp(focusZ, minZ, maxZ);
 
   cameraGoal.set(focusX, RUN_CAMERA.height, focusZ + RUN_CAMERA.distance);
   camera.position.lerp(cameraGoal, RUN_CAMERA.followLerp);
-  camera.lookAt(focusX, RUN_CAMERA.lookHeight, focusZ - 2.65);
+  camera.lookAt(focusX, RUN_CAMERA.lookHeight, focusZ - 2.85);
 }

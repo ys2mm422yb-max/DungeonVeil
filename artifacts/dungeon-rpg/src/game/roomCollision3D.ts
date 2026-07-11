@@ -54,12 +54,12 @@ function architectureCollidersForRoom(room: number): RoomPropCollider[] {
       for (const [x, z] of [[-7, -6], [7, -6], [-7, 5.6], [7, 5.6]] as const) add(x, z, 0.86);
       break;
     case 'diagonal':
-      add(-7.2, -4.9, 1.3, 0.95); add(6.9, 4.7, 1.0, 0.75);
-      break;
     case 'zigzag':
     case 's-curve':
     case 's-lane':
-      add(-7.2, 5.4, 0.95, 0.72); add(7.1, -5.2, 0.95, 0.72);
+      // Diese Silhouetten werden ausschließlich durch die tatsächlich sichtbaren
+      // Setpiece-Collider definiert. Unsichtbare Standard-Felsen würden Schüsse
+      // und Bewegung blockieren, obwohl im Raum nichts zu sehen ist.
       break;
   }
 

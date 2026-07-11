@@ -6,12 +6,12 @@ const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loader
 const SKELETON_UTILS_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/SkeletonUtils.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
-const IMPORTED_CREATURES: Partial<Record<EnemyType, { path: string; targetHeight: number; rotationY?: number }>> = {
-  slime: { path: '/assets/imported/enemies/Slime.glb', targetHeight: 1.42 },
-  goblin: { path: '/assets/imported/enemies/Rat.glb', targetHeight: 1.28 },
-  spider: { path: '/assets/imported/enemies/Spider.glb', targetHeight: 1.34 },
-  vampire: { path: '/assets/imported/enemies/Bat.glb', targetHeight: 1.48 },
-  demon: { path: '/assets/imported/enemies/Snake_angry.glb', targetHeight: 1.38 },
+const IMPORTED_CREATURES: Partial<Record<EnemyType, { path: string; targetHeight: number; widthWeight: number; rotationY?: number }>> = {
+  slime: { path: '/assets/imported/enemies/Slime.glb', targetHeight: 1.22, widthWeight: 0.55 },
+  goblin: { path: '/assets/imported/enemies/Rat.glb', targetHeight: 1.08, widthWeight: 0.52 },
+  spider: { path: '/assets/imported/enemies/Spider.glb', targetHeight: 1.16, widthWeight: 0.74 },
+  vampire: { path: '/assets/imported/enemies/Bat.glb', targetHeight: 1.22, widthWeight: 0.48 },
+  demon: { path: '/assets/imported/enemies/Snake_angry.glb', targetHeight: 1.12, widthWeight: 0.62 },
 };
 
 type EnemyRole = 'mage' | 'rogue' | 'warrior' | 'minion';
@@ -21,6 +21,7 @@ type EnemyPrototype = {
   role: EnemyRole;
   imported?: boolean;
   targetHeight?: number;
+  widthWeight?: number;
   rotationY?: number;
 };
 type EnemyLibrary = {
@@ -154,6 +155,7 @@ async function loadImportedPrototype(type: EnemyType): Promise<EnemyPrototype | 
         role: 'minion' as const,
         imported: true,
         targetHeight: config.targetHeight,
+        widthWeight: config.widthWeight,
         rotationY: config.rotationY ?? 0,
       };
     } catch (error) {
@@ -238,10 +240,21 @@ function buildStatusGlows(THREE: any, color: number, count: number, yBase: numbe
   return glows;
 }
 
-function importedScale(THREE: any, scene: any, targetHeight: number) {
+function centerSceneOnRoot(THREE: any, scene: any) {
+  scene.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(scene);
+  if (!Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) return;
+  const center = box.getCenter(new THREE.Vector3());
+  scene.position.x -= center.x;
+  scene.position.z -= center.z;
+  scene.position.y -= box.min.y;
+  scene.updateMatrixWorld(true);
+}
+
+function importedScale(THREE: any, scene: any, targetHeight: number, widthWeight: number) {
   scene.updateMatrixWorld(true);
   const size = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3());
-  const visualReference = Math.max(size.y, size.x * 0.38, size.z * 0.38, 0.001);
+  const visualReference = Math.max(size.y, size.x * widthWeight, size.z * widthWeight, 0.001);
   return targetHeight / visualReference;
 }
 
@@ -263,8 +276,18 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const root = new THREE.Group();
   root.name = `KayKitEnemy_${enemy.id}_${prototype.imported ? enemy.enemyType : prototype.role}`;
   scene.rotation.y = prototype.rotationY ?? 0;
-  root.add(scene);
   prepareModel(scene);
+  centerSceneOnRoot(THREE, scene);
+  root.add(scene);
+
+  const shadowRadius = enemy.enemyType === 'boss' ? 0.92 : enemy.enemyType === 'spider' ? 0.68 : enemy.enemyType === 'vampire' ? 0.52 : 0.48;
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(shadowRadius, IS_MOBILE ? 18 : 28),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: enemy.enemyType === 'boss' ? 0.32 : 0.24, depthWrite: false }),
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.012;
+  root.add(shadow);
 
   const rightHand = prototype.imported ? null : findBone(scene, ['righthand', 'handr', 'handright']);
   const leftHand = prototype.imported ? null : findBone(scene, ['lefthand', 'handl', 'handleft']);
@@ -312,17 +335,17 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   if (death && deathClip) {
     death.setLoop(THREE.LoopOnce, 1);
     death.clampWhenFinished = true;
-    const phaseSeconds = enemy.enemyType === 'boss' ? 1.65 : 0.92;
+    const phaseSeconds = enemy.enemyType === 'boss' ? 1.65 : 0.68;
     const clipWindow = enemy.enemyType === 'boss' ? 0.76 : 0.68;
     death.timeScale = Math.max(0.35, deathClip.duration / (phaseSeconds * clipWindow));
   }
 
   const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
-  const importedBase = prototype.imported ? importedScale(THREE, scene, prototype.targetHeight ?? 0.7) : 1;
+  const importedBase = prototype.imported ? importedScale(THREE, scene, prototype.targetHeight ?? 0.7, prototype.widthWeight ?? 0.55) : 1;
   const baseScale = (prototype.imported
     ? importedBase
     : (enemy.enemyType === 'boss' ? (finalBoss ? 1.78 : 1.62) : prototype.role === 'warrior' ? 1.08 : 0.92) * roleScale)
-    * (enemy.isElite ? 1.22 : 1);
+    * (enemy.isElite ? 1.16 : 1);
   root.scale.setScalar(baseScale);
 
   const statusRoot = new THREE.Group();
@@ -415,7 +438,7 @@ function setMeshTint(root: any, color: number | null, intensity: number) {
         material.emissiveIntensity = base.intensity;
       } else {
         material.emissive.setHex(color);
-        material.emissiveIntensity = Math.max(base.intensity, intensity);
+        material.emissiveIntensity = intensity;
       }
     });
   });
@@ -453,9 +476,9 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
     if (!IS_MOBILE) visual.bossCore.intensity = (enemy.isElite ? 1.6 : 2.9) + Math.sin(now * 0.007) * 0.4;
   }
 
-  if (enemy.enemyType === 'boss') setMeshTint(visual.scene, null, 0);
-  else if (burning) setMeshTint(visual.scene, 0xff3b16, 0.08);
-  else if (frozen) setMeshTint(visual.scene, 0x46bfff, 0.07);
+  const hitFlash = Boolean(enemy.flashUntil && now < enemy.flashUntil);
+  if (hitFlash) setMeshTint(visual.scene, 0xffd6bd, enemy.enemyType === 'boss' ? 0.035 : 0.065);
+  else if (frozen) setMeshTint(visual.scene, 0x46bfff, 0.045);
   else setMeshTint(visual.scene, null, 0);
 
   if ((enemy.lastHitTime ?? 0) > visual.lastHitTime) {

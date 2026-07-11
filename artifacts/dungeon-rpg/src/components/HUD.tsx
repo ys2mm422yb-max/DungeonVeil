@@ -17,7 +17,8 @@ export function HUD({gameState:g,onPause}:Props){
  const boss=g.enemies.find(enemy=>enemy.enemyType==='boss'&&enemy.hp>0&&!enemy.isDead);
  const hunt=g.enemies.find(enemy=>enemy.isHuntTarget&&enemy.hp>0&&!enemy.isDead);
  const modifier=veilModifierLabel(g.floor);
- const enemyText=g.roomClearReady?'RAUM FREI':boss?'BOSSRAUM':hunt?`JAGD · ${hunt.huntName??'GEZEICHNETE BEUTE'}`:living>0?`${living} GEGNER`:'RAUM WIRD FREIGEGEBEN';
+ const visibleEnemyCount=living+pending;
+ const enemyText=g.roomClearReady?'RAUM FREI':boss?'BOSSRAUM':hunt?`JAGD · ${hunt.huntName??'GEZEICHNETE BEUTE'}`:visibleEnemyCount>0?`${visibleEnemyCount} GEGNER`:'RAUM WIRD FREIGEGEBEN';
  const hintVisible=performance.now()<g.exitHintUntil;
  const exitHint=pending>0&&living===0?'AUSGANG WIRD FREIGEGEBEN':`NOCH ${living} GEGNER`;
  return <div className="fixed inset-0 z-40 pointer-events-none select-none">

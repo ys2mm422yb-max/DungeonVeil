@@ -3,16 +3,10 @@ import type { GameState } from '../game/runEngine';
 import { GameCanvas } from './GameCanvas';
 
 const ROOM_NAMES = [
-  'WAFFENKAMMER',
-  'ARKANES ARCHIV',
-  'SCHREINHALLE',
-  'FALLENKAMMER',
-  'KERKER',
-  'KRIEGSSAAL',
-  'RITUALKAMMER',
-  'VORRATSGEWÖLBE',
-  'VERLASSENE KAPELLE',
-  'HALLE DES WÄCHTERS',
+  'VERSORGUNGSPOSTEN', 'WACHSTUBE', 'SÄULENHALLE', 'BERGARBEITERLAGER', 'WERKSTATT',
+  'SCHMIEDE', 'SCHLAFQUARTIER', 'MATERIALLAGER', 'RITUALKAMMER', 'GRABWÄCHTERHALLE',
+  'KREUZGANG', 'GALERIE', 'GEFÄNGNISRING', 'KNOCHENHOF', 'RITUALARENA',
+  'WÄCHTERPASSAGE', 'EINGESTÜRZTES GEWÖLBE', 'SCHLEIER-RISS', 'WÄCHTERVORHALLE', 'BOSSHEILIGTUM',
 ] as const;
 
 export function CombatStage({ gameState }: { gameState: GameState }) {
@@ -23,7 +17,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   const [shakeClass, setShakeClass] = useState('');
   const [hurtFlash, setHurtFlash] = useState(false);
   const [hitFlash, setHitFlash] = useState(false);
-  const [roomTitle, setRoomTitle] = useState(() => ROOM_NAMES[Math.max(0, Math.min(9, gameState.floor - 1))]);
+  const [roomTitle, setRoomTitle] = useState(() => ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
   const [showRoomTitle, setShowRoomTitle] = useState(true);
 
   const triggerShake = (heavy: boolean) => {
@@ -38,7 +32,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   useEffect(() => {
     if (previousFloorRef.current === gameState.floor) return undefined;
     previousFloorRef.current = gameState.floor;
-    setRoomTitle(ROOM_NAMES[Math.max(0, Math.min(9, gameState.floor - 1))]);
+    setRoomTitle(ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
     setShowRoomTitle(true);
     try { navigator.vibrate?.([12, 35, 18]); } catch {}
     const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
@@ -82,6 +76,45 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
 
   useEffect(() => () => {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    const compactSynergyBanner = () => {
+      const labels = Array.from(document.querySelectorAll<HTMLElement>('div,span'))
+        .filter(node => node.childElementCount === 0 && node.textContent?.trim().includes('SYNERGIE ERWACHT'));
+      labels.forEach(label => {
+        let panel: HTMLElement | null = label.parentElement;
+        for (let depth = 0; panel && depth < 4; depth++) {
+          const rect = panel.getBoundingClientRect();
+          if (rect.width >= 240 && rect.height <= 210) break;
+          panel = panel.parentElement;
+        }
+        if (!panel || panel.dataset.dvCompactSynergy === '1') return;
+        panel.dataset.dvCompactSynergy = '1';
+        panel.style.setProperty('left', '50%', 'important');
+        panel.style.setProperty('right', 'auto', 'important');
+        panel.style.setProperty('top', 'max(5.4rem, calc(env(safe-area-inset-top) + 4.4rem))', 'important');
+        panel.style.setProperty('bottom', 'auto', 'important');
+        panel.style.setProperty('width', 'min(86vw, 390px)', 'important');
+        panel.style.setProperty('max-width', '390px', 'important');
+        panel.style.setProperty('min-height', '0', 'important');
+        panel.style.setProperty('padding', '10px 14px', 'important');
+        panel.style.setProperty('transform', 'translateX(-50%)', 'important');
+        panel.style.setProperty('border-radius', '16px', 'important');
+        panel.style.setProperty('z-index', '46', 'important');
+        panel.querySelectorAll<HTMLElement>('div,p,span').forEach(child => {
+          child.style.setProperty('line-height', '1.25', 'important');
+          if (child !== label && child.textContent && child.textContent.length > 24) {
+            child.style.setProperty('font-size', '12px', 'important');
+          }
+        });
+        label.style.setProperty('font-size', '7px', 'important');
+      });
+    };
+    compactSynergyBanner();
+    const observer = new MutationObserver(compactSynergyBanner);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, []);
 
   return (
