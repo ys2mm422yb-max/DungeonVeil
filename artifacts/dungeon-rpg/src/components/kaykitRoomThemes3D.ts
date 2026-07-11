@@ -184,28 +184,35 @@ function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
 }
 
 /**
- * The run scene stays alive while rooms are swapped. Bind the room environment to
- * one rendered mesh, so Three applies the authored background, fog and exposure
- * immediately before this room is drawn without rebuilding the canvas.
+ * The run scene stays alive while rooms are swapped. A tiny non-writing mesh sits
+ * inside the camera and deterministically applies the current room environment
+ * immediately before rendering. One empty draw call is cheaper and safer than
+ * relying on whichever authored prop happens to be inside the frustum.
  */
 function bindEnvironmentDriver(THREE: any, root: any, spec: RoomBibleSpec) {
-  let driver: any = null;
-  root.traverse((node: any) => {
-    if (!driver && (node.isMesh || node.isSkinnedMesh)) driver = node;
-  });
-  if (!driver) return;
-
   const background = new THREE.Color(spec.light.background);
   const fog = new THREE.Fog(
     spec.light.fog,
     spec.shell === 'veil' ? 24 : spec.shell === 'abandoned' ? 27 : 30,
     spec.shell === 'veil' ? 48 : spec.shell === 'abandoned' ? 53 : 58,
   );
+  const material = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false,
+    colorWrite: false,
+  });
+  const driver = new THREE.Mesh(new THREE.PlaneGeometry(0.001, 0.001), material);
+  driver.position.set(0, 0.1, 0);
+  driver.frustumCulled = false;
+  driver.renderOrder = -10000;
   driver.onBeforeRender = (renderer: any, scene: any) => {
     scene.background = background;
     scene.fog = fog;
     renderer.toneMappingExposure = spec.light.exposure;
   };
+  root.add(driver);
   root.userData.environmentDriver = driver;
 }
 
@@ -231,6 +238,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   root.add(outer);
   addLights(THREE, root, room, spec);
   addRoomHeroEffects(THREE, root, room);
+  bindEnvironmentDriver(THREE, root, spec);
 
   const ready = Promise.all(calibratedRoomSetpieces(room).map(async piece => {
     const prototype = await prototypeFor(piece.model);
@@ -240,11 +248,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     object.rotation.y = piece.rotation ?? 0;
     object.scale.setScalar(piece.scale ?? 1);
     root.add(object);
-  }))
-    .then(() => outer.userData?.ready ?? Promise.resolve())
-    .then(() => {
-      if (active) bindEnvironmentDriver(THREE, root, spec);
-    });
+  })).then(() => outer.userData?.ready ?? Promise.resolve()).then(() => undefined);
 
   root.userData.ready = ready;
   root.userData.dispose = () => {
