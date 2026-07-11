@@ -89,16 +89,38 @@ jobs:
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
 
       - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+        id: room_audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee /tmp/dungeon-veil-room-audit.log
+
+      - name: Publish room audit failure
+        if: steps.room_audit.outcome == 'failure' && github.event_name == 'pull_request' && github.head_ref == 'work/blocks-1-7-production-pass'
+        run: |
+          cp /tmp/dungeon-veil-room-audit.log artifacts/dungeon-rpg/room-audit-failure.log
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/room-audit-failure.log
+          if git diff --cached --quiet; then
+            echo "Audit failure log already current."
+            exit 1
+          fi
+          git commit -m "Capture room audit failure"
+          git push origin HEAD:work/blocks-1-7-production-pass
+          exit 1
 
       - name: Typecheck Dungeon Veil
+        if: steps.room_audit.outcome == 'success'
         run: pnpm --filter @workspace/dungeon-rpg typecheck
 
       - name: Build Dungeon Veil
+        if: steps.room_audit.outcome == 'success'
         run: pnpm --filter @workspace/dungeon-rpg build
 
       - name: Commit verified Blocks 5-8
-        if: github.event_name == 'pull_request' && github.head_ref == 'work/blocks-1-7-production-pass'
+        if: steps.room_audit.outcome == 'success' && github.event_name == 'pull_request' && github.head_ref == 'work/blocks-1-7-production-pass'
         run: |
           if [[ ! -f artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs ]]; then
             echo "Nothing staged for commit."
@@ -107,6 +129,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -f artifacts/dungeon-rpg/scripts/apply-blocks-5-8.mjs
+          git rm -f artifacts/dungeon-rpg/room-audit-failure.log || true
           git rm -f .github/workflows/apply-blocks-5-8.yml || true
           git rm -f .github/workflows/pr40-live-master-pass.yml || true
           git add -A
