@@ -160,9 +160,6 @@ function addRoomHeroEffects(THREE: any, root: any, room: number) {
 
 function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
   const accent = ROOM_ACCENTS[room] ?? spec.light.fill;
-
-  // Phase lights live inside the room root and disappear atomically during room
-  // transitions. They tint the whole composition without adding mobile shadows.
   const ambient = new THREE.AmbientLight(spec.light.ambient, IS_MOBILE ? 0.42 : 0.34);
   const hemisphere = new THREE.HemisphereLight(
     spec.light.hemisphereSky,
@@ -178,17 +175,11 @@ function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
   root.add(heroLight);
 
   const portalLight = new THREE.PointLight(spec.light.fill, IS_MOBILE ? 1.25 : 1.8, 9.5, 2);
-  portalLight.position.set(spec.portal.x, 3.2, spec.portal.z < -8 ? -10.5 : spec.portal.z);
+  portalLight.position.set(spec.portal.x, 3.2, spec.portal.z < -8 ? -8.5 : spec.portal.z);
   root.add(portalLight);
   root.userData.architectureLights = [ambient, hemisphere, heroLight, portalLight];
 }
 
-/**
- * The run scene stays alive while rooms are swapped. A tiny non-writing mesh sits
- * inside the camera and deterministically applies the current room environment
- * immediately before rendering. One empty draw call is cheaper and safer than
- * relying on whichever authored prop happens to be inside the frustum.
- */
 function bindEnvironmentDriver(THREE: any, root: any, spec: RoomBibleSpec) {
   const background = new THREE.Color(spec.light.background);
   const fog = new THREE.Fog(
@@ -244,7 +235,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     const prototype = await prototypeFor(piece.model);
     if (!active) return;
     const object = prototype.clone(true);
-    object.position.set(piece.x, 0, piece.z);
+    object.position.set(piece.x, piece.y ?? 0, piece.z);
     object.rotation.y = piece.rotation ?? 0;
     object.scale.setScalar(piece.scale ?? 1);
     root.add(object);
