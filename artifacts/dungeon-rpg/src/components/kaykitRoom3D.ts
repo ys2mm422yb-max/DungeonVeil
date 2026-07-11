@@ -16,10 +16,8 @@ const ASSETS = {
   torch: 'torch_mounted.gltf',
   pillar: 'pillar_decorated.gltf',
   column: 'column.gltf',
-  arch: 'wall_arched.gltf',
   rubble: 'rubble_large.gltf',
   rubbleHalf: 'rubble_half.gltf',
-  stairs: 'stairs_wide.gltf',
 } as const;
 
 type AssetName = keyof typeof ASSETS;
@@ -46,10 +44,6 @@ function requiredAssets(spec: RoomBibleSpec): AssetName[] {
   if (spec.silhouette === 'diagonal' || spec.shell === 'abandoned' || spec.shell === 'veil') {
     required.add('rubble');
     required.add('rubbleHalf');
-  }
-  if (spec.portal.z < -8) {
-    required.add('arch');
-    required.add('stairs');
   }
   return [...required];
 }
@@ -94,16 +88,33 @@ function wallFor(spec: RoomBibleSpec, index: number, loaded: Record<AssetName, a
   return index % 2 === 0 ? loaded.wallBroken : loaded.wallCracked;
 }
 
+function portalStagePoint(spec: RoomBibleSpec) {
+  return {
+    x: spec.portal.x,
+    z: spec.portal.z < -8 ? -10.5 : spec.portal.z,
+  };
+}
+
 function addPortalStage(root: any, spec: RoomBibleSpec, loaded: Record<AssetName, any>) {
-  const { x, z } = spec.portal;
-  if (z < -8 && loaded.arch && loaded.stairs) {
-    addObject(root, loaded.stairs, x, 0, z + 1.15, Math.PI, spec.shell === 'veil' ? 1.18 : 1.06);
-    addObject(root, loaded.arch, x, spec.shell === 'monumental' || spec.shell === 'veil' ? 0.55 : 0.25, z - 0.15, 0, spec.shell === 'veil' ? 1.28 : 1.1);
+  const { x, z } = portalStagePoint(spec);
+  root.userData.portalStage = { x, z };
+
+  if (spec.portal.z < -8) {
+    // The previous full wall-arch sat in front of the actual portal and looked like
+    // a giant grey board. Build an open alcove instead: solid wall behind it, two
+    // slim supports and two wall lights, with the whole portal centre left clear.
+    const spread = spec.shell === 'veil' ? 2.65 : 2.35;
+    const supportScale = spec.shell === 'veil' ? 1.16 : 1.02;
+    addObject(root, loaded.wallColumn, x - spread, 0, z - 1.75, 0, supportScale);
+    addObject(root, loaded.wallColumn, x + spread, 0, z - 1.75, 0, supportScale);
+    addObject(root, loaded.torch, x - spread, 0.05, z - 1.45, Math.PI, spec.shell === 'veil' ? 0.84 : 0.94);
+    addObject(root, loaded.torch, x + spread, 0.05, z - 1.45, Math.PI, spec.shell === 'veil' ? 0.84 : 0.94);
     return;
   }
+
   if (Math.abs(x) > 4 && loaded.pillar) {
-    addObject(root, loaded.pillar, x, 0, z - 1.5, 0, 1.05);
-    addObject(root, loaded.pillar, x, 0, z + 1.5, Math.PI, 1.05);
+    addObject(root, loaded.pillar, x, 0, z - 1.6, 0, 1.02);
+    addObject(root, loaded.pillar, x, 0, z + 1.6, Math.PI, 1.02);
   }
 }
 
@@ -182,8 +193,9 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     let wallIndex = 0;
 
     for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
-      const topGap = Math.abs(x - spec.portal.x) < (spec.portal.z < -8 ? 1.7 : 0);
-      if (!topGap) addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, top);
+      // Perimeter walls stay continuous. Magical portals are staged inside the room
+      // instead of pretending to be a doorway cut into this wall row.
+      addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, top);
       addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, bottom, Math.PI);
     }
     for (let z = top + wallStep; z < bottom - wallStep; z += wallStep) {
