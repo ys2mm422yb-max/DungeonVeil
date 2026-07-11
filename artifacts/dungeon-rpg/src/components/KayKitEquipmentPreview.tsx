@@ -1,13 +1,17 @@
 import React, { useEffect, useRef } from 'react';
-import type { EquipmentId } from '../game/metaProgression';
+import { EQUIPMENT, type EquipmentId } from '../game/metaProgression';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const KAYKIT_ROOT = '/assets/kaykit/';
 const OPEN_BOOK = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/spellbook_open.gltf';
 const RANGER_QUIVER = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf';
-const HIGH_TIER = new Set<EquipmentId>(['hunter-bow', 'rune-quiver', 'frost-grimoire']);
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
+const BOWS = new Set<EquipmentId>(['ash-bow', 'ember-bow', 'hunter-bow', 'veil-bow', 'warden-bow']);
+const CROSSBOWS = new Set<EquipmentId>(['frost-bow', 'splinter-bow']);
+const QUIVERS = new Set<EquipmentId>(['ranger-quiver', 'black-quiver', 'rune-quiver', 'frost-quiver', 'splinter-quiver', 'warden-quiver']);
+const BOOKS = new Set<EquipmentId>(['frost-grimoire', 'ritual-shard']);
 
 function fitObject(THREE: any, object: any, targetSize: number) {
   object.scale.setScalar(1);
@@ -35,6 +39,44 @@ function prepareObject(object: any) {
   });
 }
 
+function disposeObject(object: any) {
+  object?.traverse?.((node: any) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    node.geometry?.dispose?.();
+    if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
+    else node.material?.dispose?.();
+  });
+}
+
+function poseObject(THREE: any, object: any, itemId: EquipmentId) {
+  if (BOWS.has(itemId)) {
+    fitObject(THREE, object, itemId === 'hunter-bow' ? 2.05 : 1.9);
+    object.rotation.set(-0.06, -0.24, Math.PI / 2);
+    object.position.y = 0.03;
+    return;
+  }
+  if (CROSSBOWS.has(itemId)) {
+    fitObject(THREE, object, itemId === 'splinter-bow' ? 1.82 : 1.72);
+    object.rotation.set(-0.18, -0.72, 0.12);
+    object.position.set(0, -0.02, 0.08);
+    return;
+  }
+  if (QUIVERS.has(itemId)) {
+    fitObject(THREE, object, 1.55);
+    object.rotation.set(-0.08, -0.48, -0.14);
+    object.position.y = -0.03;
+    return;
+  }
+  if (BOOKS.has(itemId)) {
+    fitObject(THREE, object, 1.48);
+    object.rotation.set(-0.68, -0.38, 0.06);
+    object.position.set(0, -0.02, 0.08);
+    return;
+  }
+  fitObject(THREE, object, itemId === 'veil-key' ? 1.62 : 1.48);
+  object.rotation.set(-0.08, -0.42, 0.12);
+}
+
 export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPath: string; accent: string; itemId: EquipmentId }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -45,22 +87,24 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
     let raf = 0;
     let renderer: any = null;
     let camera: any = null;
+    let scene: any = null;
+    const loadedObjects: any[] = [];
 
     const boot = async () => {
       const THREE = await import(/* @vite-ignore */ THREE_URL);
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       if (disposed) return;
 
-      const scene = new THREE.Scene();
-      const relicTier = HIGH_TIER.has(itemId);
+      scene = new THREE.Scene();
+      const relicTier = EQUIPMENT[itemId]?.rarity === 'epic';
       const width = Math.max(1, host.clientWidth || 120);
       const height = Math.max(1, host.clientHeight || 120);
-      camera = new THREE.PerspectiveCamera(relicTier ? 34 : 38, width / height, 0.1, 40);
-      camera.position.set(0, 0.1, relicTier ? 5.4 : 5.0);
+      camera = new THREE.PerspectiveCamera(relicTier ? 35 : 37, width / height, 0.1, 40);
+      camera.position.set(0, 0.08, relicTier ? 5.25 : 4.85);
       camera.lookAt(0, 0, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 1 : 1.15));
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 1 : 1.1));
       renderer.setSize(width, height, false);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -82,11 +126,15 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
 
       const loader = new GLTFLoader();
       const gltf = await loader.loadAsync(`${KAYKIT_ROOT}${assetPath}`);
-      if (disposed) return;
+      if (disposed) {
+        disposeObject(gltf.scene);
+        return;
+      }
 
       const relic = new THREE.Group();
       scene.add(relic);
-      const object = gltf.scene;
+      let object = gltf.scene;
+      loadedObjects.push(object);
       prepareObject(object);
 
       const accentMaterial = new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.48, depthWrite: false, blending: THREE.AdditiveBlending });
@@ -95,36 +143,39 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       const animated: any[] = [];
       const sparks: any[] = [];
 
-      if (itemId === 'hunter-bow') {
-        fitObject(THREE, object, 2.05);
-        object.rotation.z = Math.PI / 2;
-        object.rotation.y = -0.12;
-        relic.add(object);
-      } else if (itemId === 'rune-quiver') {
+      if (itemId === 'rune-quiver') {
         const quiverGltf = await loader.loadAsync(`${KAYKIT_ROOT}${RANGER_QUIVER}`);
-        if (disposed) return;
+        if (disposed) {
+          disposeObject(quiverGltf.scene);
+          return;
+        }
         const quiver = quiverGltf.scene;
+        loadedObjects.push(quiver);
         prepareObject(quiver);
-        fitObject(THREE, quiver, 1.6);
-        quiver.position.set(-0.12, -0.05, 0);
-        quiver.rotation.z = -0.14;
+        fitObject(THREE, quiver, 1.55);
+        quiver.position.set(-0.14, -0.05, 0);
+        quiver.rotation.set(-0.08, -0.48, -0.14);
         relic.add(quiver);
 
-        fitObject(THREE, object, 0.95);
-        object.position.set(0.2, 0.16, 0.1);
-        object.rotation.z = 0.16;
+        fitObject(THREE, object, 0.88);
+        object.position.set(0.22, 0.16, 0.14);
+        object.rotation.set(-0.08, -0.42, 0.18);
         relic.add(object);
       } else if (itemId === 'frost-grimoire') {
         const open = await loader.loadAsync(`${KAYKIT_ROOT}${OPEN_BOOK}`);
-        if (disposed) return;
-        const openBook = open.scene;
-        prepareObject(openBook);
-        fitObject(THREE, openBook, 1.55);
-        openBook.rotation.x = -0.5;
-        openBook.rotation.y = 0.08;
-        relic.add(openBook);
+        if (disposed) {
+          disposeObject(open.scene);
+          return;
+        }
+        disposeObject(object);
+        loadedObjects.splice(loadedObjects.indexOf(object), 1);
+        object = open.scene;
+        loadedObjects.push(object);
+        prepareObject(object);
+        poseObject(THREE, object, itemId);
+        relic.add(object);
       } else {
-        fitObject(THREE, object, 1.35);
+        poseObject(THREE, object, itemId);
         relic.add(object);
       }
 
@@ -157,9 +208,9 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       const loop = () => {
         if (disposed) return;
         const now = performance.now();
-        relic.rotation.y += relicTier ? 0.0024 : 0.006;
-        relic.rotation.x = Math.sin(now * 0.0007) * (relicTier ? 0.018 : 0.05);
-        relic.position.y = relicTier ? Math.sin(now * 0.0017) * 0.035 : 0;
+        relic.rotation.y += relicTier ? 0.0018 : 0.0026;
+        relic.rotation.x = Math.sin(now * 0.0007) * (relicTier ? 0.014 : 0.025);
+        relic.position.y = Math.sin(now * 0.0017) * 0.025;
         animated.forEach((node, index) => {
           node.rotation.y += 0.004 + index * 0.0006;
           node.rotation.z += index % 2 ? -0.0018 : 0.0018;
@@ -188,7 +239,16 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       disposed = true;
       cancelAnimationFrame(raf);
       (host as any).__equipmentCleanup?.();
+      loadedObjects.forEach(disposeObject);
+      scene?.traverse?.((node: any) => {
+        if (node.geometry && !loadedObjects.includes(node)) node.geometry.dispose?.();
+        if (node.material && !loadedObjects.includes(node)) {
+          if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
+          else node.material?.dispose?.();
+        }
+      });
       renderer?.dispose?.();
+      renderer?.forceContextLoss?.();
       renderer?.domElement?.remove?.();
     };
   }, [assetPath, accent, itemId]);

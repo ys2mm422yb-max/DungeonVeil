@@ -1,4 +1,4 @@
-import { runtimeRoomSetpieces } from './roomSetpieceRuntime';
+import { calibratedRoomSetpieces } from './roomSetpieceCalibrated';
 
 const COLLIDER_INSET = 0.9;
 
@@ -7,7 +7,7 @@ function entityCenterToScene(value: number, size: number, mapTiles: number) {
 }
 
 function collidersForRoom(room: number) {
-  return runtimeRoomSetpieces(room)
+  return calibratedRoomSetpieces(room)
     .filter(piece => piece.collider)
     .map(piece => {
       const base = piece.collider!;

@@ -1,6 +1,6 @@
 import type { GameEngine } from './runEngine';
 import { roomIdentity } from './roomIdentity';
-import { runtimeRoomSetpieces } from './roomSetpieceRuntime';
+import { calibratedRoomSetpieces } from './roomSetpieceCalibrated';
 
 export type RoomMechanicKind = 'forge-burst' | 'arc-line' | 'ritual-core' | 'grave-call' | null;
 export type RoomMechanicState = {
@@ -33,7 +33,7 @@ function toast(title: string, text: string, tone: 'hunt' | 'daily' | 'relic' = '
 }
 
 function scenePoint(engine: GameEngine, terms: string[]) {
-  const piece = runtimeRoomSetpieces(engine.state.floor).find(entry => terms.some(term => entry.model.toLowerCase().includes(term)));
+  const piece = calibratedRoomSetpieces(engine.state.floor).find(entry => terms.some(term => entry.model.toLowerCase().includes(term)));
   if (!piece) return { x: engine.state.map.width * 20, y: engine.state.map.height * 20 };
   return {
     x: (piece.x + engine.state.map.width / 2 - 0.5) * 40,
