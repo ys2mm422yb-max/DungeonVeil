@@ -7,6 +7,7 @@ DEST='artifacts/dungeon-rpg/public/assets/imported/enemies'
 CANVAS='artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx'
 SCRIPT='scripts/pr40-convert-enemies-to-glb.sh'
 TMP="$(mktemp -d)"
+TOOL_DIR="$TMP/fbx2gltf-tool"
 trap 'rm -rf "$TMP"' EXIT
 
 cd "$(git rev-parse --show-toplevel)"
@@ -22,6 +23,7 @@ if ! git check-ignore -q "$ROOT/"; then
 fi
 
 command -v node >/dev/null 2>&1 || { echo 'FEHLER: Node.js fehlt.'; exit 1; }
+command -v npm >/dev/null 2>&1 || { echo 'FEHLER: npm fehlt.'; exit 1; }
 command -v npx >/dev/null 2>&1 || { echo 'FEHLER: npx fehlt.'; exit 1; }
 
 NAMES=(Rat Spider Snake_angry Bat Slime)
@@ -32,37 +34,46 @@ find_source() {
   find "$ROOT" -type f -iname "${name}.${extension}" -print -quit
 }
 
+ensure_fbx_wrapper() {
+  if [ -d "$TOOL_DIR/node_modules/fbx2gltf" ]; then
+    return
+  fi
+  echo '=== Temporäres offizielles fbx2gltf-Modul installieren ==='
+  mkdir -p "$TOOL_DIR"
+  npm install --prefix "$TOOL_DIR" --no-save --no-audit --no-fund fbx2gltf@0.9.7-p1
+}
+
 convert_fbx() {
   local source="$1"
   local name="$2"
-  local outbase="$TMP/$name"
-  local produced=''
+  local output="$TMP/$name.glb"
 
   if command -v FBX2glTF >/dev/null 2>&1; then
-    FBX2glTF -i "$source" -o "$outbase" --binary
+    FBX2glTF --input "$source" --output "$output" --binary
   elif command -v fbx2gltf >/dev/null 2>&1; then
-    fbx2gltf -i "$source" -o "$outbase" --binary
+    fbx2gltf --input "$source" --output "$output" --binary
   else
-    echo "=== Temporärer FBX2glTF-Aufruf für $name ==="
-    if ! npx --yes fbx2gltf -i "$source" -o "$outbase" --binary; then
-      npx --yes fbx2gltf --input "$source" --output "$outbase" --binary
-    fi
+    ensure_fbx_wrapper
+    node - "$TOOL_DIR/node_modules/fbx2gltf" "$source" "$output" <<'NODE'
+const modulePath = process.argv[2];
+const source = process.argv[3];
+const output = process.argv[4];
+const convert = require(modulePath);
+convert(source, output, [])
+  .then(result => {
+    console.log(`Konvertiert: ${result}`);
+  })
+  .catch(error => {
+    console.error(error);
+    process.exit(1);
+  });
+NODE
   fi
 
-  for candidate in "$outbase.glb" "$outbase/${name}.glb" "$outbase.glb.glb"; do
-    if [ -s "$candidate" ]; then
-      produced="$candidate"
-      break
-    fi
-  done
-  if [ -z "$produced" ]; then
-    produced="$(find "$TMP" -type f -iname "${name}*.glb" -print -quit)"
-  fi
-  if [ -z "$produced" ] || [ ! -s "$produced" ]; then
+  if [ ! -s "$output" ]; then
     echo "FEHLER: Für $name wurde keine GLB-Datei erzeugt."
     exit 1
   fi
-  cp -- "$produced" "$TMP/$name.glb"
 }
 
 validate_glb() {
@@ -137,19 +148,19 @@ if (mobileLightCount < 3) throw new Error(`FEHLER: Mobile-Lichtstellen unvollst�
 text = text.replaceAll('if (!IS_ANDROID) {', 'if (!IS_MOBILE) {');
 
 const oldBlock = `      if (IS_ANDROID) {
-        lowFpsWindows = fps < 42 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
-        if (lowFpsWindows >= 2 && particleBudget > 26) {
-          particleBudget = 26;
-          try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
-        }
-      }`;
+         lowFpsWindows = fps < 42 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
+         if (lowFpsWindows >= 2 && particleBudget > 26) {
+           particleBudget = 26;
+           try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
+         }
+       }`;
 const newBlock = `      if (IS_MOBILE) {
-        lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
-        if (lowFpsWindows >= 2 && particleBudget > 24) {
-          particleBudget = 24;
-          try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
-        }
-      }`;
+         lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
+         if (lowFpsWindows >= 2 && particleBudget > 24) {
+           particleBudget = 24;
+           try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
+         }
+       }`;
 
 const blockCount = text.split(oldBlock).length - 1;
 if (blockCount !== 1) throw new Error(`FEHLER: FPS-Anpassungsblock nicht gefunden (${blockCount})`);
