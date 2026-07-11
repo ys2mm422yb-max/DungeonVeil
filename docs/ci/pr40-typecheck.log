@@ -1,4 +1,0 @@
-
-> @workspace/dungeon-rpg@0.0.0 typecheck /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg
-> tsc -p tsconfig.json --noEmit
-
