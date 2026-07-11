@@ -12,6 +12,10 @@ const BOWS = new Set<EquipmentId>(['ash-bow', 'ember-bow', 'hunter-bow', 'veil-b
 const CROSSBOWS = new Set<EquipmentId>(['frost-bow', 'splinter-bow']);
 const QUIVERS = new Set<EquipmentId>(['ranger-quiver', 'black-quiver', 'rune-quiver', 'frost-quiver', 'splinter-quiver', 'warden-quiver']);
 const BOOKS = new Set<EquipmentId>(['frost-grimoire', 'ritual-shard']);
+const CROSSBOW_PREVIEW_ASSET: Partial<Record<EquipmentId, string>> = {
+  'frost-bow': 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/crossbow_2handed.gltf',
+  'splinter-bow': 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/crossbow_1handed.gltf',
+};
 
 function prepareObject(object: any) {
   object.traverse((node: any) => {
@@ -38,9 +42,10 @@ function applyFinalPose(display: any, itemId: EquipmentId) {
     return;
   }
   if (CROSSBOWS.has(itemId)) {
-    // The stock runs along local Z. Turn it into the screen plane first so the
-    // complete stock and both limbs are readable before any fitting happens.
-    display.rotation.set(-0.26, -Math.PI / 2 + 0.16, -0.05);
+    // Both crossbows are posed into the screen plane before fitting. The frost item
+    // uses the long two-handed silhouette; the splinter item uses the compact hand
+    // crossbow. Neither preview rotates away from this readable angle afterwards.
+    display.rotation.set(itemId === 'frost-bow' ? -0.18 : -0.28, -Math.PI / 2 + 0.12, -0.04);
     return;
   }
   if (QUIVERS.has(itemId)) {
@@ -67,8 +72,8 @@ function fitPosedDisplay(THREE: any, display: any, itemId: EquipmentId, frameWid
 
   const bounds = new THREE.Box3().setFromObject(display);
   const size = bounds.getSize(new THREE.Vector3());
-  const targetWidth = frameWidth * (CROSSBOWS.has(itemId) ? 0.74 : 0.68);
-  const targetHeight = frameHeight * (CROSSBOWS.has(itemId) ? 0.45 : BOOKS.has(itemId) ? 0.52 : 0.6);
+  const targetWidth = frameWidth * (CROSSBOWS.has(itemId) ? 0.72 : 0.68);
+  const targetHeight = frameHeight * (CROSSBOWS.has(itemId) ? 0.44 : BOOKS.has(itemId) ? 0.52 : 0.6);
   const scale = Math.min(
     targetWidth / Math.max(size.x, 0.001),
     targetHeight / Math.max(size.y, 0.001),
@@ -135,7 +140,8 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       }
 
       const loader = new GLTFLoader();
-      const primary = await loader.loadAsync(`${KAYKIT_ROOT}${assetPath}`);
+      const resolvedAssetPath = CROSSBOW_PREVIEW_ASSET[itemId] ?? assetPath;
+      const primary = await loader.loadAsync(`${KAYKIT_ROOT}${resolvedAssetPath}`);
       if (disposed) {
         disposeObject(primary.scene);
         return;
