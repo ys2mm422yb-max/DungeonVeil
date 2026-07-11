@@ -72,6 +72,7 @@ jobs:
 
           python - <<'PY'
           from pathlib import Path
+
           enemy = Path('artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts')
           source = enemy.read_text()
           source = source.replace(
@@ -97,6 +98,34 @@ jobs:
                       raise RuntimeError(f'Missing Vite audit anchor in {relative}')
                   source = source.replace(anchor, replacement, 1)
               path.write_text(source)
+
+          expanded = Path('artifacts/dungeon-rpg/src/game/expandedWorldRooms.ts')
+          source = expanded.read_text()
+          room24_before = "    s(`${R}/Pallet_Wood.gltf`, 5.8, -3.2, 0.1, 1.08, [1.5, 0.9]), s(`${D}/box_small.gltf`, -5.8, 2.9, -0.1, 1.0, [0.8, 0.8]),"
+          room24_after = room24_before + " s(`${F}/Bush_2_B_Color1.gltf`, -7.0, 4.1, 0, 1.08),"
+          room29_before = "    s(`${F}/Tree_1_B_Color1.gltf`, -8.4, -5.0, 0.12, 1.12, [1.8, 1.8]), s(`${F}/Grass_2_Mesh.gltf`, 0, 2.0, 0, 1.52),"
+          room29_after = room29_before + " s(`${F}/Bush_3_B_Color1.gltf`, 7.2, -4.2, 0, 1.08),"
+          if room24_before not in source or room29_before not in source:
+              raise RuntimeError('Missing meadow production-fix anchor')
+          source = source.replace(room24_before, room24_after, 1)
+          source = source.replace(room29_before, room29_after, 1)
+          expanded.write_text(source)
+
+          validator = Path('artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs')
+          source = validator.read_text()
+          module_anchor = "  const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');\n  const chapter = await server.ssrLoadModule('/src/game/chapterRun.ts');"
+          module_replacement = "  const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');\n  const presentation = await server.ssrLoadModule('/src/game/propPresentation3D.ts');\n  const chapter = await server.ssrLoadModule('/src/game/chapterRun.ts');"
+          if module_replacement not in source:
+              if module_anchor not in source:
+                  raise RuntimeError('Missing production validator module anchor')
+              source = source.replace(module_anchor, module_replacement, 1)
+          blocker_anchor = "      if (colliders.length > 8) fail(room, 'boss arena contains too many blocking props');"
+          blocker_replacement = "      const authoredBlockers = pieces.filter(piece => presentation.roomPropColliderFootprint(piece)).length;\n      if (authoredBlockers > 8) fail(room, 'boss arena contains too many visible blocking props');"
+          if blocker_replacement not in source:
+              if blocker_anchor not in source:
+                  raise RuntimeError('Missing boss blocker audit anchor')
+              source = source.replace(blocker_anchor, blocker_replacement, 1)
+          validator.write_text(source)
           PY
 
       - name: Asset audit
