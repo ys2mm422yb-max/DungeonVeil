@@ -1,3 +1,4 @@
+// Development-only runtime audit for the production pass; it is tree-shaken from release behavior.
 import { equipmentVisualAudit } from './equipmentVisuals';
 import { getEncounterPlan } from './encounterPlan';
 import { logicalRoomSetpieces } from './logicalRoomSetpieces';
