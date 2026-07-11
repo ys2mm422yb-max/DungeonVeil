@@ -45,6 +45,119 @@ async function prototypeFor(path: string) {
   return promise;
 }
 
+function additiveMaterial(THREE: any, color: number, opacity: number) {
+  return new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
+
+function addGroundSigil(THREE: any, root: any, x: number, z: number, radius: number, color: number, opacity = 0.5) {
+  const group = new THREE.Group();
+  group.position.set(x, 0.035, z);
+
+  const outer = new THREE.Mesh(
+    new THREE.RingGeometry(radius * 0.78, radius, IS_MOBILE ? 28 : 48),
+    additiveMaterial(THREE, color, opacity),
+  );
+  outer.rotation.x = -Math.PI / 2;
+  group.add(outer);
+
+  const inner = new THREE.Mesh(
+    new THREE.RingGeometry(radius * 0.38, radius * 0.48, IS_MOBILE ? 24 : 40),
+    additiveMaterial(THREE, color, opacity * 0.72),
+  );
+  inner.rotation.x = -Math.PI / 2;
+  group.add(inner);
+
+  outer.onBeforeRender = () => {
+    const now = performance.now();
+    outer.rotation.z = now * 0.00022;
+    inner.rotation.z = -now * 0.00034;
+    outer.material.opacity = opacity * (0.82 + Math.sin(now * 0.0024) * 0.18);
+  };
+  root.add(group);
+  return group;
+}
+
+function addRoomHeroEffects(THREE: any, root: any, room: number) {
+  if (room === 6) {
+    const ember = new THREE.Mesh(
+      new THREE.CircleGeometry(1.15, IS_MOBILE ? 28 : 48),
+      additiveMaterial(THREE, 0xff6428, 0.34),
+    );
+    ember.rotation.x = -Math.PI / 2;
+    ember.position.set(0, 0.045, -1.0);
+    ember.onBeforeRender = () => {
+      ember.material.opacity = 0.26 + Math.sin(performance.now() * 0.004) * 0.08;
+    };
+    root.add(ember);
+    const glow = new THREE.PointLight(0xff6a2f, IS_MOBILE ? 2.4 : 3.5, 8, 2);
+    glow.position.set(0, 2.1, -1.0);
+    root.add(glow);
+    return;
+  }
+
+  if (room === 9) {
+    addGroundSigil(THREE, root, 0, 0, 2.25, 0x9b63ff, 0.55);
+    return;
+  }
+
+  if (room === 10) {
+    addGroundSigil(THREE, root, 0, -3.2, 2.45, 0x6e8bb7, 0.42);
+    return;
+  }
+
+  if (room === 15) {
+    addGroundSigil(THREE, root, 0, 0, 3.25, 0xb869ff, 0.6);
+    return;
+  }
+
+  if (room === 18) {
+    addGroundSigil(THREE, root, 0, 0, 2.5, 0x8a5cff, 0.48);
+    const rift = new THREE.Group();
+    rift.position.set(0, 0, 0);
+
+    const veil = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.25, 4.8),
+      additiveMaterial(THREE, 0x7246dd, 0.5),
+    );
+    veil.position.y = 2.45;
+    rift.add(veil);
+
+    const core = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.28, 4.35),
+      additiveMaterial(THREE, 0xd5c2ff, 0.72),
+    );
+    core.position.set(0.05, 2.45, 0.02);
+    rift.add(core);
+
+    veil.onBeforeRender = () => {
+      const pulse = 0.5 + Math.sin(performance.now() * 0.0032) * 0.5;
+      veil.scale.x = 0.86 + pulse * 0.22;
+      veil.material.opacity = 0.38 + pulse * 0.16;
+      core.material.opacity = 0.58 + pulse * 0.22;
+    };
+    root.add(rift);
+
+    const riftLight = new THREE.PointLight(0x8c62ff, IS_MOBILE ? 3.2 : 4.8, 12, 2);
+    riftLight.position.set(0, 2.6, 0.5);
+    root.add(riftLight);
+    return;
+  }
+
+  if (room === 20) {
+    addGroundSigil(THREE, root, 0, 0, 3.55, 0xc04f70, 0.52);
+    for (const [x, z] of [[-5.8, -4.8], [5.8, -4.8], [-5.8, 4.8], [5.8, 4.8]] as const) {
+      addGroundSigil(THREE, root, x, z, 0.85, 0xa96cff, 0.46);
+    }
+  }
+}
+
 function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
   const accent = ROOM_ACCENTS[room] ?? spec.light.fill;
 
@@ -117,6 +230,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   const outer = buildKayKitOuterWorld(THREE, 24, 32, room);
   root.add(outer);
   addLights(THREE, root, room, spec);
+  addRoomHeroEffects(THREE, root, room);
 
   const ready = Promise.all(calibratedRoomSetpieces(room).map(async piece => {
     const prototype = await prototypeFor(piece.model);
