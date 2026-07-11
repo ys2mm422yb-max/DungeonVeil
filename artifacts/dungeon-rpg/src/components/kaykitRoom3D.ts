@@ -44,7 +44,7 @@ function requiredAssets(spec: RoomBibleSpec): AssetName[] {
   if (spec.shell !== 'intact') required.add('wallCracked');
   if (spec.shell === 'monumental' || spec.shell === 'veil' || spec.silhouette === 'three-lane' || spec.silhouette === 'arena') required.add('pillar');
   if (spec.silhouette === 'three-lane') required.add('column');
-  if (spec.silhouette === 'diagonal' || spec.shell === 'abandoned' || spec.shell === 'veil') {
+  if (spec.silhouette === 'diagonal' || spec.shell === 'veil') {
     required.add('rubble');
     required.add('rubbleHalf');
   }
@@ -142,12 +142,13 @@ function addObject(
   rotation = 0,
   scale = 1,
   occluderRole?: RoomOccluderRole,
+  verticalScale = scale,
 ) {
   if (!prototype) return null;
   const object = prototype.clone(true);
   object.position.set(x, y, z);
   object.rotation.y = rotation;
-  object.scale.setScalar(scale);
+  object.scale.set(scale, verticalScale, scale);
   tagOccluder(object, occluderRole);
   group.add(object);
   return object;
@@ -192,12 +193,15 @@ function addSilhouetteArchitecture(root: any, spec: RoomBibleSpec, loaded: Recor
   const column = loaded.column ?? pillar;
 
   switch (spec.silhouette) {
-    case 'three-lane':
+    case 'three-lane': {
+      const horizontalScale = spec.room === 3 ? 1.22 : 1.16;
+      const verticalScale = spec.room === 3 ? 2.75 : 1.16;
       for (const z of [-5.5, -0.8, 4.1]) {
-        addObject(root, column, -6.6, 0, z, 0, 1.16);
-        addObject(root, column, 6.6, 0, z, 0, 1.16);
+        addObject(root, column, -6.6, 0, z, 0, horizontalScale, undefined, verticalScale);
+        addObject(root, column, 6.6, 0, z, 0, horizontalScale, undefined, verticalScale);
       }
       break;
+    }
     case 'axial':
       addObject(root, pillar, -6.4, 0, -5.4, 0, spec.shell === 'veil' ? 1.25 : 1.08);
       addObject(root, pillar, 6.4, 0, -5.4, 0, spec.shell === 'veil' ? 1.25 : 1.08);
@@ -241,9 +245,10 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
 
     const floorStep = 4;
     let tileIndex = 0;
+    const cleanFloorRoom = [7, 8, 9, 10].includes(spec.room);
     for (let z = -mapHeight / 2 + floorStep / 2; z < mapHeight / 2; z += floorStep) {
       for (let x = -mapWidth / 2 + floorStep / 2; x < mapWidth / 2; x += floorStep) {
-        const broken = spec.shell !== 'intact' && loaded.floorBroken && (tileIndex + room * 3) % (spec.shell === 'veil' ? 3 : 6) === 0;
+        const broken = !cleanFloorRoom && spec.shell !== 'intact' && loaded.floorBroken && (tileIndex + room * 3) % (spec.shell === 'veil' ? 3 : 6) === 0;
         addObject(root, broken ? loaded.floorBroken : loaded.floor, x, 0, z, (tileIndex + room) % 2 ? Math.PI / 2 : 0);
         tileIndex += 1;
       }

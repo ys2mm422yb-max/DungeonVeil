@@ -714,7 +714,7 @@ export class GameEngine {
       this.state.roomClearReady = true;
       this.state.roomClearAt = time;
       this.state.damageNumbers.push({ id: `clear-${time}`, x: this.state.player.x + 16, y: this.state.player.y - 24, value: isBossRoom(this.state.floor) ? 'BOSS BESIEGT · AUSGANG OFFEN' : 'RAUM FREI · AUSGANG OFFEN', color: '#d9b8ff', lifeTime: 0, maxLifeTime: 1800, scale: 0.9 });
-      this.state.effects.push({ id: `clear-wave-${time}`, x: this.state.player.x + 16, y: this.state.player.y + 16, radius: 0, maxRadius: 100, color: '#b693ff', lifeTime: 0, maxLifeTime: 520, type: 'circle', element: 'arcane' });
+      this.state.effects.push({ id: `clear-wave-${time}`, x: this.state.player.x + 16, y: this.state.player.y + 16, radius: 0, maxRadius: 64, color: '#b693ff', lifeTime: 0, maxLifeTime: 360, type: 'circle', element: 'arcane' });
     }
 
     const p = this.state.player;
