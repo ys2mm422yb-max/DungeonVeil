@@ -48,6 +48,18 @@ async function prototypeFor(path: string) {
 function addLights(THREE: any, root: any, room: number) {
   const spec = roomBibleSpec(room);
   const accent = ROOM_ACCENTS[room] ?? spec.light.fill;
+
+  // Phase lights live inside the room root and disappear atomically during room
+  // transitions. This changes the whole mood instead of tinting one prop cluster.
+  const ambient = new THREE.AmbientLight(spec.light.ambient, IS_MOBILE ? 0.42 : 0.34);
+  const hemisphere = new THREE.HemisphereLight(
+    spec.light.hemisphereSky,
+    spec.light.hemisphereGround,
+    IS_MOBILE ? 0.72 : 0.62,
+  );
+  root.add(ambient);
+  root.add(hemisphere);
+
   const heroLight = new THREE.PointLight(accent, IS_MOBILE ? 2.45 : 3.4, spec.silhouette === 'arena' ? 18 : 15, 2);
   const heroZ = spec.silhouette === 'ring' || spec.silhouette === 'orbit' || spec.silhouette === 'arena' ? 0 : -4.6;
   heroLight.position.set(0, 4.2, heroZ);
@@ -56,7 +68,7 @@ function addLights(THREE: any, root: any, room: number) {
   const portalLight = new THREE.PointLight(spec.light.fill, IS_MOBILE ? 1.25 : 1.8, 9.5, 2);
   portalLight.position.set(spec.portal.x, 3.2, spec.portal.z);
   root.add(portalLight);
-  root.userData.architectureLights = [heroLight, portalLight];
+  root.userData.architectureLights = [ambient, hemisphere, heroLight, portalLight];
 }
 
 export async function preloadKayKitRoomTheme(room: number) {
