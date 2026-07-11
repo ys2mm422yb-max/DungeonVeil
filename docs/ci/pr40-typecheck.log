@@ -2,11 +2,3 @@
 > @workspace/dungeon-rpg@0.0.0 typecheck /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg
 > tsc -p tsconfig.json --noEmit
 
-src/components/kaykitEnemy3D.ts(108,62): error TS2677: A type predicate's type must be assignable to its parameter's type.
-  Type 'readonly [EnemyTypeName, EnemyPrototype]' is not assignable to type 'readonly [EnemyTypeName, null] | readonly [EnemyTypeName, { readonly scene: any; readonly clips: any; readonly role: "minion"; readonly imported: true; readonly targetHeight: number; readonly rotationY: number; }]'.
-    Type 'readonly [EnemyTypeName, EnemyPrototype]' is not assignable to type 'readonly [EnemyTypeName, null]'.
-      Type at position 1 in source is not compatible with type at position 1 in target.
-        Type 'EnemyPrototype' is not assignable to type 'null'.
-/home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg:
- ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/dungeon-rpg@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
-Exit status 2

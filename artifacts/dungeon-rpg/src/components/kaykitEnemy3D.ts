@@ -105,7 +105,11 @@ async function loadImportedCreatures() {
       return [type, null] as const;
     }
   }));
-  return Object.fromEntries(entries.filter((entry): entry is readonly [EnemyType, EnemyPrototype] => Boolean(entry[1]))) as Partial<Record<EnemyType, EnemyPrototype>>;
+  const imported: Partial<Record<EnemyType, EnemyPrototype>> = {};
+  for (const [type, prototype] of entries) {
+    if (prototype) imported[type] = prototype;
+  }
+  return imported;
 }
 
 async function loadLibrary() {
