@@ -1,0 +1,206 @@
+name: PR40 Import Selected Assets
+
+on:
+  push:
+    branches:
+      - work/blocks-1-7-production-pass
+    paths:
+      - '.github/workflows/pr40-import-selected-assets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  import-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout production branch
+        uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+          fetch-depth: 0
+
+      - name: Install browser downloader
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/asset-fetch
+          cd /tmp/asset-fetch
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 >/dev/null
+          npx playwright install --with-deps chromium
+
+      - name: Download official CC0 packs
+        shell: bash
+        env:
+          NODE_PATH: /tmp/asset-fetch/node_modules
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/packs
+          cat > /tmp/asset-fetch/download-packs.cjs <<'JS'
+          const { chromium } = require('playwright');
+          const path = require('path');
+
+          const packs = [
+            {
+              url: 'https://quaternius.itch.io/animated-easy-enemies/purchase',
+              file: 'Easy Animated Enemy Pack - Jan 2019.zip',
+            },
+            {
+              url: 'https://quaternius.itch.io/lowpoly-animated-monsters/purchase',
+              file: 'Monster Pack Animated by Quaternius.zip',
+            },
+            {
+              url: 'https://quaternius.itch.io/lowpoly-medieval-weapons/purchase',
+              file: 'Medieval Weapons Pack by Quaternius.zip',
+            },
+            {
+              url: 'https://quaternius.itch.io/fantasy-props-megakit/purchase',
+              file: 'Fantasy Props MegaKit[Standard].zip',
+            },
+          ];
+
+          async function downloadPack(browser, pack) {
+            const context = await browser.newContext({ acceptDownloads: true });
+            const page = await context.newPage();
+            page.setDefaultTimeout(120000);
+            console.log(`Opening ${pack.url}`);
+            await page.goto(pack.url, { waitUntil: 'domcontentloaded', timeout: 120000 });
+
+            const freeLink = page.getByText(/No thanks, just take me to the downloads/i).first();
+            if (await freeLink.count()) {
+              await Promise.all([
+                page.waitForLoadState('domcontentloaded').catch(() => {}),
+                freeLink.click(),
+              ]);
+            }
+
+            const target = page.locator('a').filter({ hasText: pack.file }).first();
+            if (!(await target.count())) {
+              throw new Error(`Download link not found for ${pack.file} at ${page.url()}`);
+            }
+
+            const [download] = await Promise.all([
+              page.waitForEvent('download', { timeout: 120000 }),
+              target.click(),
+            ]);
+            const output = path.join('/tmp/packs', pack.file);
+            await download.saveAs(output);
+            console.log(`Saved ${output}`);
+            await context.close();
+          }
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            try {
+              for (const pack of packs) await downloadPack(browser, pack);
+            } finally {
+              await browser.close();
+            }
+          })().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          JS
+          node /tmp/asset-fetch/download-packs.cjs
+          ls -lh /tmp/packs
+
+      - name: Extract and select production assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/unpacked
+          mkdir -p /tmp/unpacked/{easy,monsters,weapons,props}
+          unzip -q '/tmp/packs/Easy Animated Enemy Pack - Jan 2019.zip' -d /tmp/unpacked/easy
+          unzip -q '/tmp/packs/Monster Pack Animated by Quaternius.zip' -d /tmp/unpacked/monsters
+          unzip -q '/tmp/packs/Medieval Weapons Pack by Quaternius.zip' -d /tmp/unpacked/weapons
+          unzip -q '/tmp/packs/Fantasy Props MegaKit[Standard].zip' -d /tmp/unpacked/props
+
+          DEST='artifacts/dungeon-rpg/public/assets/imported'
+          rm -rf "$DEST"
+          mkdir -p "$DEST/enemies" "$DEST/fantasy-props" "$DEST/medieval-weapons"
+
+          copy_named() {
+            local root="$1"
+            local filename="$2"
+            local out="$3"
+            local source
+            source="$(find "$root" -type f -iname "$filename" -print -quit)"
+            test -n "$source"
+            cp "$source" "$out"
+          }
+
+          copy_named /tmp/unpacked/easy Rat.fbx "$DEST/enemies/Rat.fbx"
+          copy_named /tmp/unpacked/easy Spider.fbx "$DEST/enemies/Spider.fbx"
+          copy_named /tmp/unpacked/easy Snake_angry.fbx "$DEST/enemies/Snake_angry.fbx"
+          copy_named /tmp/unpacked/monsters Bat.fbx "$DEST/enemies/Bat.fbx"
+          copy_named /tmp/unpacked/monsters Slime.fbx "$DEST/enemies/Slime.fbx"
+
+          PROPS=(
+            Book_5 Book_7 Key_Metal
+            Shelf_Simple Crate_Wooden Barrel_Holder FarmCrate_Apple
+            Shelf_Small_Bottles Crate_Metal Barrel_Apples FarmCrate_Carrot
+            Table_Large Chair_1 Table_Plate Table_Fork
+            Banner_1_Cloth Banner_2_Cloth Torch_Metal CandleStick_Triple
+            Barrel Anvil_Log Anvil
+          )
+
+          for name in "${PROPS[@]}"; do
+            source="$(find /tmp/unpacked/props -type f -iname "$name.gltf" -print -quit)"
+            test -n "$source"
+            npx --yes @gltf-transform/cli@4.2.1 copy "$source" "$DEST/fantasy-props/$name.glb"
+          done
+
+          WEAPONS=(Bow_Wooden Bow_Wooden2 Bow_Evil Bow_Golden)
+          for name in "${WEAPONS[@]}"; do
+            source="$(find /tmp/unpacked/weapons -type f -iname "$name.obj" -print -quit)"
+            test -n "$source"
+            npx --yes obj2gltf@3.1.6 -i "$source" -o "$DEST/medieval-weapons/$name.glb" --binary
+          done
+
+          cat > "$DEST/LICENSES.md" <<'EOF'
+          # Imported asset licenses
+
+          The selected assets in this directory are from Quaternius and are provided under the Creative Commons Zero 1.0 Universal license (CC0 1.0).
+
+          Source packs:
+          - Fantasy Props MegaKit — https://quaternius.itch.io/fantasy-props-megakit
+          - LowPoly Animated Easy Enemies — https://quaternius.itch.io/animated-easy-enemies
+          - LowPoly Animated Monsters — https://quaternius.itch.io/lowpoly-animated-monsters
+          - LowPoly Medieval Weapons — https://quaternius.itch.io/lowpoly-medieval-weapons
+
+          Only the files used by Dungeon Veil are included in the repository.
+          EOF
+
+          echo 'Selected asset sizes:'
+          find "$DEST" -type f -printf '%P %k KB\n' | sort
+
+      - name: Validate selected paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST='artifacts/dungeon-rpg/public/assets/imported'
+          test -f "$DEST/enemies/Rat.fbx"
+          test -f "$DEST/enemies/Spider.fbx"
+          test -f "$DEST/enemies/Snake_angry.fbx"
+          test -f "$DEST/enemies/Bat.fbx"
+          test -f "$DEST/enemies/Slime.fbx"
+          test -f "$DEST/medieval-weapons/Bow_Wooden.glb"
+          test -f "$DEST/medieval-weapons/Bow_Wooden2.glb"
+          test -f "$DEST/medieval-weapons/Bow_Evil.glb"
+          test -f "$DEST/medieval-weapons/Bow_Golden.glb"
+          test -f "$DEST/fantasy-props/Book_5.glb"
+          test -f "$DEST/fantasy-props/Book_7.glb"
+          test -f "$DEST/fantasy-props/Key_Metal.glb"
+
+      - name: Commit imported assets and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/pr40-import-selected-assets.yml
+          git add artifacts/dungeon-rpg/public/assets/imported
+          git commit -m 'Add selected Quaternius production assets'
+          git push origin HEAD:work/blocks-1-7-production-pass
