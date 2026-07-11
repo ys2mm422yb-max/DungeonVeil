@@ -1,137 +1,126 @@
 # Dungeon Veil – Production Pass Blocks 1–10
 
-This document tracks the final production pass on PR #40. It separates code-audited findings from real-device visual confirmation.
+This document tracks the production pass on PR #40 and separates automated technical validation from real-device visual approval.
 
 ## Status
 
 - [x] Block 1 – room, enemy and asset audit
-- [ ] Block 2 – scale, hitboxes and collider calibration
-- [ ] Block 3 – rooms 1–20 rebuild and polish
-- [ ] Block 4 – rooms 21–50 biome differentiation
-- [ ] Block 5 – regional enemy library and five distinct bosses
-- [ ] Block 6 – enemy movement, animation and bug fixes
-- [ ] Block 7 – combat status effects and hit feedback
-- [ ] Block 8 – general bug and regression pass
-- [ ] Block 9 – Supabase profile, cloud save, guild and world-boss foundation
-- [ ] Block 10 – full technical validation and real-device acceptance
+- [x] Block 2 – scale, hitboxes and collider calibration
+- [x] Block 3 – rooms 1–20 rebuild and polish
+- [x] Block 4 – rooms 21–50 biome differentiation
+- [x] Block 5 – regional enemy library and five distinct bosses
+- [x] Block 6 – enemy movement, animation and bug fixes
+- [x] Block 7 – combat status effects and hit feedback
+- [x] Block 8 – general bug and regression pass
+- [x] Block 9 – Supabase profile, cloud save, guild and world-boss foundation
+- [ ] Block 10 – technical validation complete; iPhone and Android acceptance still required
 
-## Audit method
+## Implemented room production pass
 
-- Rooms 1–9: code audit plus current iPhone screenshots supplied by the user.
-- Rooms 10–50: current authored code, asset palette, collider definitions and encounter configuration.
-- Asset inventory: 693 GLB/GLTF models, with only 197 directly referenced in the current production pass.
-- Visual approval is not inferred from static code. Rooms 10–50 remain pending real-device review after their rebuild.
+### Rooms 1–20
 
-## Room classification
+- Rooms retain individual authored identities instead of generic filler layouts.
+- Room 6 has no four-wall block in the combat center.
+- Room 7 keeps beds and storage at the perimeter with a validated chase lane.
+- Room 8 uses readable storage/resource groups instead of random central clutter.
+- Room 9 preserves the strong ritual composition.
+- Boss rooms 10 and 20 keep open combat centers and bounded visible blockers.
 
-### Rooms 1–10 – inhabited mine and abandoned quarters
+### Rooms 21–50
 
-| Room | Current verdict | Required work |
-|---|---|---|
-| 1 Supply Post | targeted rebuild | strengthen the marked delivery zone, enlarge small props, reduce scattered filler |
-| 2 Guardroom | targeted rebuild | clearer command table and weapon wall, improve scale hierarchy |
-| 3 Column Hall | retain and polish | keep the strong readable lanes; align columns and collider footprints |
-| 4 Miners Camp | targeted rebuild | larger mining tools/resources and a stronger rail/ore axis |
-| 5 Workshop | targeted rebuild | enlarge workbench/tools, improve focal platform and combat lane |
-| 6 Forge | partial rebuild | remove the four inner wall blocks, keep an open forge ring, recalibrate forge props |
-| 7 Sleeping Quarters | full relayout | move beds and storage to the perimeter, widen chase routes and camera sightline |
-| 8 Material Vault | full relayout | remove random clutter, build one readable storage system and clear movement lanes |
-| 9 Ritual Chamber | retain and polish | preserve the central ritual composition, verify scale/collider alignment |
-| 10 Tomb Guardian Hall | boss rebuild | open arena, unique tomb-guardian boss, edge-only graves/coffins |
+- Thirty separate compositions replace the shared meadow, darkwood and fortress boundary templates.
+- Rooms 21–30 use varied forest trees, bushes, grass, rocks, tools, furniture and ruin fragments.
+- Rooms 31–40 combine dark forest anchors with Halloween/graveyard and ruined-village assets.
+- Rooms 41–50 use distinct fortress gates, weapons, barriers, forge equipment, resources and lighting arrangements.
+- Rooms 24 and 29 include sufficient forest-pack coverage without restoring repeated four-corner framing.
 
-### Rooms 11–20 – ancient ruins and warden veil
+## Scale, hitboxes and collision
 
-The room concepts are distinct on paper, but current implementation must use the Halloween, dungeon and resource packs more deeply instead of repeating generic ruins.
+- Props use explicit presentation classes: architecture, furniture, heavy props, nature solids, lighting, small props, tools/weapons, wall decoration and foliage.
+- Visible scale and gameplay footprint come from the same presentation policy.
+- Small decoration, lights, foliage and loose tools do not create invisible movement blockers.
+- Furniture, pillars, gates, shrines, trees, rocks and resource stacks keep calibrated collision.
+- Rotated rectangular props use rotation-aware footprints.
+- Player movement, enemy movement and projectiles read the same visible prop collision source.
+- Portal access, spawn overlap and projectile sweeps are validated for all 50 rooms.
 
-| Rooms | Classification | Production direction |
-|---|---|---|
-| 11–14 | targeted/full mixed rebuild | shrine cloister, monumental gallery, prison ring and bone yard must receive unique architecture and traversal |
-| 15 | retain concept, rebuild arena | ritual arena with a clean central altar and unobstructed attack lanes |
-| 16–19 | full visual pass | stronger veil language through gates, crystals, runes, statues and restrained floating effects |
-| 20 | boss rebuild | unique chapter boss arena with four readable phase anchors and no generic boss reuse |
+## Regional enemies and bosses
 
-### Rooms 21–30 – meadow and light forest
+Available packages are used as regional identities instead of leaving most models unused:
 
-**Classification: full regional relayout.**
+- imported creatures: slime, rat, spider, bat and angry snake
+- skeletons: minion, rogue, mage and warrior roles
+- adventurers: ranger, rogue, hooded rogue, mage, barbarian and knight roles
 
-Current implementation reuses `meadowBoundary()` for every room and changes only a small focal cluster. That produces repeated four-tree framing and underuses the 105-model forest pack.
+Regional presentation:
 
-Required room identities:
+- 1–10: mine creatures, rats, spiders, skeletons and guards
+- 11–20: undead, grave guards, bats, snakes, veil slimes and mages
+- 21–30: forest creatures and adventurer models used as bandits/rangers
+- 31–40: dark creatures, hooded cultists, mages and skeleton roles
+- 41–50: knights, barbarians, warriors, fire-aligned creatures and heavy guards
 
-21 forest gate; 22 sunlit clearing; 23 stone path; 24 woodcutters camp; 25 brook crossing; 26 mushroom garden; 27 hunters camp; 28 ancient grove; 29 ruined meadow; 30 forest-warden arena.
+Boss rooms now have fixed identities and distinct behavior profiles:
 
-Use varied tree families, bare/green mixes, rock families, grass/bush groups, furniture, tools and ruin fragments. Do not repeat one four-corner boundary.
+- room 10 – tomb guardian
+- room 20 – veil necromancer
+- room 30 – forest warden captain
+- room 40 – hooded cult leader
+- room 50 – ember warden
 
-### Rooms 31–40 – darkwood and ruined village
+Each boss profile changes visual role, equipment/model selection, aura, movement pattern, attack range and attack timing.
 
-**Classification: full regional relayout.**
+## Movement, animation and combat feedback
 
-Current implementation calls the same meadow boundary used by rooms 21–30, then adds only a few graves, benches, lanterns or shrines. The region therefore lacks its own silhouette.
+- Enemy facing follows actual movement velocity while chasing and the player while attacking.
+- Movement playback is calibrated by creature/role speed to reduce visible moonwalking.
+- Obstacle-aware waypoints, angular detours, separation, early recovery and final relocation protect against furniture/pathing stalls.
+- Enemy attacks require valid timing/range and boss projectiles respect visible line of sight.
+- Burn uses stronger flame particles and a ground halo.
+- Frost uses visible ice particles and a frost halo while preserving original model materials.
+- Hit flashes, knockback presentation, damage numbers and death presentation remain synchronized with combat state.
 
-Required room identities:
+## Supabase online foundation
 
-31 mist path; 32 abandoned yard; 33 blackroot grove; 34 grave road; 35 ruined chapel; 36 rotten crossing; 37 night market; 38 witch square; 39 village square; 40 shadow-warden arena.
+Connected project: `hfndwqfghyomwapqsked` in `eu-west-1`.
 
-Use bare trees, broken fences, graves, crypts, lantern paths, abandoned furniture and ruined village structures. Bright forest framing is forbidden.
+Implemented:
 
-### Rooms 41–50 – ember fortress
+- account registration, sign-in, token refresh and sign-out
+- player profiles
+- authenticated cloud-save upload/download with offline fallback
+- guilds, unique membership, roles and expiring invitations
+- world-boss events, contributions, deduplicated hits and reward records
+- JWT-protected `world-boss-hit` Edge Function
+- atomic server-side HP updates, duplicate-token rejection, damage cap and per-user hit-rate limit
+- RLS on every public table and no anonymous table access
+- private guild policy helpers and optimized RLS/indexes
 
-**Classification: full regional relayout.**
+The frontend contains only the publishable project key. Service-role credentials remain server-side. Supabase security advisors report no findings.
 
-Current implementation gives all ten rooms the same four barrier columns and two floor torches, then changes only a central focal set. This is the strongest repetition problem in the current 50-room run.
+## Automated validation
 
-Required room identities:
+The production branch runs:
 
-41 fortress gate; 42 weapon gallery; 43 chain yard; 44 ember forge; 45 ember archive; 46 barricade court; 47 command hall; 48 ash chamber; 49 throne approach; 50 ember-warden arena.
+- KayKit/imported asset audit
+- all 50 room identities and unique composition fingerprints
+- regional asset coverage
+- exact prop class, readable scale and collider footprint checks
+- spawn safety and encounter capacity
+- walkable player-to-portal routes
+- boss spawn and visible-blocker limits
+- projectile collision sweeps
+- TypeScript validation
+- production build
 
-Use gates, wall variants, grates, open grates, spike floors, weapon displays, shields, tools, metal resources, forge equipment and distinct lighting layouts. Remove the shared perimeter template.
+## Remaining real-device acceptance
 
-## Scale and collider findings for Block 2
+Automated checks do not prove final aesthetics, touch feel, FPS or heat on real phones. PR #40 must remain open and unmerged until the user approves current builds on both iPhone and Android, including:
 
-- Floor torches, standing lanterns, candles and several hand tools are too small from the mobile camera.
-- Visual scale and collider scale are authored separately and must be calibrated together.
-- Tiny decorative props should normally be non-blocking.
-- Tables, beds, shelves, pillars, gates, shrines, anvils and large resource stacks need visible-footprint colliders.
-- Rotated rectangular props require rotation-aware collider bounds for both movement and projectile checks.
-- Outdoor tree and rock colliders must match trunk/solid mass rather than the full foliage silhouette.
-- Spawn safety alone is insufficient; chase routes around every blocking prop must be validated.
-
-## Enemy audit for Blocks 5–7
-
-Available bodies and creatures:
-
-- imported: slime, rat, spider, bat, angry snake
-- skeleton pack: mage, minion, rogue, warrior
-- adventurers pack: barbarian, knight, mage, ranger, rogue, hooded rogue
-
-Current shortcomings:
-
-- rooms 21–50 mostly remix the same enemy types;
-- all boss rooms use one internal boss type;
-- skeleton visual roles are not yet consistently tied to regional identity;
-- adventurer bodies are not yet used as bandits, cultists or fortress guards;
-- some skeletons visibly moonwalk because movement direction, root rotation and animation playback do not always agree;
-- obstacle avoidance exists but is not reliable enough around dense furniture;
-- burn and frost status visuals are too weak on mobile.
-
-Target regional pools:
-
-- 1–10: rats, spiders, skeleton minions/rogues/warriors, mine guards
-- 11–20: skeleton mages, grave guards, bats, snakes and veil slimes
-- 21–30: rats, spiders, slimes, snakes, rangers, rogues and barbarians as bandits
-- 31–40: bats, spiders, hooded rogues, mages, skeleton rogues/mages and cult guards
-- 41–50: knights, barbarians, skeleton warriors, fire mages, ember snakes/slimes and heavy guards
-
-Boss targets:
-
-- room 10: tomb guardian warrior
-- room 20: veil necromancer
-- room 30: forest bandit/warden captain
-- room 40: hooded cult leader
-- room 50: ember knight or barbarian warden
-
-Each boss requires a distinct model, equipment set, scale, arena behavior and attack pattern.
-
-## Validation gates
-
-Every implementation block must pass the relevant automated checks before the next block is marked complete. Final approval additionally requires current iPhone and Android testing. PR #40 stays open and unmerged until explicit user approval.
+- rooms 1–50 and all five boss arenas
+- visible prop sizes and matching hitboxes
+- enemy proportions, movement direction and animation quality
+- fire/frost visibility
+- projectile and wall collision
+- portal access and camera behavior
+- FPS, memory behavior and device heat
