@@ -15,8 +15,9 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const TILE = 40;
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
-const MAX_PARTICLES = IS_ANDROID ? 38 : IS_MOBILE ? 64 : 110;
+const IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const IS_MOBILE = typeof navigator !== 'undefined' && (IS_IOS || IS_ANDROID || navigator.maxTouchPoints > 1);
+const MAX_PARTICLES = IS_ANDROID ? 36 : IS_IOS ? 40 : IS_MOBILE ? 44 : 96;
 const PERFORMANCE_KEY = 'dungeon-veil-performance';
 const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 
@@ -194,7 +195,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       arrow.userData.elementGlows = glows;
       arrow.userData.elementKind = element;
 
-      if (!IS_ANDROID) {
+      if (!IS_MOBILE) {
         const lightStrength = isFire ? 4.2 : isIce ? 3.6 : isArcane ? 3.2 : 2.5;
         const light = new THREE.PointLight(color, lightStrength, 3.6, 2);
         light.position.set(0, -0.08, 0);
@@ -489,7 +490,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           motes.push(mote);
         }
 
-        const core = new THREE.PointLight(0x9d76ff, IS_ANDROID ? 4.8 : IS_MOBILE ? 7.2 : 9.5, 8.5, 2);
+        const core: any = IS_MOBILE ? new THREE.Object3D() : new THREE.PointLight(0x9d76ff, 8.8, 8.5, 2);
+        core.intensity = IS_MOBILE ? 0 : core.intensity;
         core.position.y = 1.05;
         portal.add(core);
 
@@ -522,7 +524,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       portal.userData.innerVeil.material.opacity = (0.38 + pulse * 0.18) * activateProgress;
       portal.userData.veil.scale.x = 0.94 + pulse * 0.08;
       portal.userData.innerVeil.scale.x = 0.9 + pulse * 0.12;
-      portal.userData.core.intensity = ((IS_ANDROID ? 4.4 : IS_MOBILE ? 6.5 : 8.8) + pulse * 2.2) * activateProgress;
+      if (!IS_MOBILE) portal.userData.core.intensity = (8.8 + pulse * 2.2) * activateProgress;
       (portal.userData.motes as any[]).forEach((mote, index) => {
         const phase = mote.userData.phase + wallNow * (0.0011 + index * 0.000025);
         const radius = 0.65 + (index % 3) * 0.13;
@@ -578,7 +580,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (elapsed < 2000 || !renderer) return;
       const fps = Math.round(perfFrames * 1000 / elapsed);
       const snapshot = {
-        platform: IS_ANDROID ? 'android-balanced' : IS_MOBILE ? 'mobile' : 'desktop',
+        platform: IS_ANDROID ? 'android-balanced' : IS_IOS ? 'ios-balanced' : IS_MOBILE ? 'mobile-balanced' : 'desktop',
         fps,
         frameMs: Number((elapsed / Math.max(1, perfFrames)).toFixed(2)),
         calls: renderer.info?.render?.calls ?? 0,
@@ -590,13 +592,13 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         at: Date.now(),
       };
       try { localStorage.setItem(PERFORMANCE_KEY, JSON.stringify(snapshot)); } catch {}
-      if (IS_ANDROID) {
-        lowFpsWindows = fps < 42 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
-        if (lowFpsWindows >= 2 && particleBudget > 26) {
-          particleBudget = 26;
-          try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
-        }
-      }
+      if (IS_MOBILE) {
+         lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
+         if (lowFpsWindows >= 2 && particleBudget > 24) {
+           particleBudget = 24;
+           try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
+         }
+       }
       perfFrames = 0;
       perfWindowStarted = now;
     };
@@ -664,8 +666,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       scene.background = new THREE.Color(0x171512);
       scene.fog = new THREE.Fog(0x171512, 30, 58);
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 1 : 1.25));
-      renderer.shadowMap.enabled = !IS_ANDROID;
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_MOBILE ? 1 : 1.2));
+      renderer.shadowMap.enabled = !IS_MOBILE;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -678,13 +680,13 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       scene.add(new THREE.HemisphereLight(0xd9c7aa, 0x171512, IS_ANDROID ? 1.18 : 1.05));
       const keyLight = new THREE.DirectionalLight(0xffc98b, IS_ANDROID ? 1.65 : 1.85);
       keyLight.position.set(-7, 14, 7);
-      keyLight.castShadow = !IS_ANDROID;
-      keyLight.shadow.mapSize.set(IS_ANDROID ? 512 : 1024, IS_ANDROID ? 512 : 1024);
+      keyLight.castShadow = !IS_MOBILE;
+      keyLight.shadow.mapSize.set(IS_MOBILE ? 512 : 1024, IS_MOBILE ? 512 : 1024);
       scene.add(keyLight);
       const fillLight = new THREE.PointLight(0x6f61c8, IS_ANDROID ? 1.55 : 2.2, 22, 1.8);
       fillLight.position.set(0, 6.5, -8);
       scene.add(fillLight);
-      if (!IS_ANDROID) {
+      if (!IS_MOBILE) {
         playerLight = new THREE.PointLight(0xffd29b, 2.5, 13, 1.7);
         scene.add(playerLight);
       }
