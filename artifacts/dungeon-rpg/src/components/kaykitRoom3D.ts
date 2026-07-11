@@ -1,5 +1,6 @@
 import { isBossRoom } from '../game/chapterRun';
 import { roomBibleSpec, type RoomBibleSpec } from '../game/roomBible';
+import { RUN_CAMERA } from './RunCameraRig';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const DUNGEON_ROOT = '/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/';
@@ -24,6 +25,7 @@ type AssetName = keyof typeof ASSETS;
 type LoadedAsset = { scene: any };
 type RoomOccluderRole = 'front-wall' | 'side-wall' | 'back-wall';
 const cache = new Map<AssetName, Promise<LoadedAsset>>();
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 async function gltfLoader() {
   const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
@@ -72,12 +74,62 @@ function prepare(root: any) {
   });
 }
 
+function materialList(node: any) {
+  return Array.isArray(node.material) ? node.material : [node.material];
+}
+
+function occlusionPressure(role: RoomOccluderRole, camera: any, worldX: number, worldZ: number) {
+  if (role === 'back-wall') return 0;
+  const focusX = camera.position.x;
+  const focusZ = camera.position.z - RUN_CAMERA.distance;
+  const nearCameraLane = clamp01(1 - Math.abs(worldZ - focusZ) / 5.2);
+
+  if (role === 'front-wall') {
+    const lowerEdge = clamp01((focusZ - 5.0) / 3.1);
+    const horizontal = clamp01(1 - Math.abs(worldX - focusX) / 4.6);
+    return lowerEdge * horizontal;
+  }
+
+  const sameSide = Math.sign(worldX || 1) === Math.sign(focusX || 1);
+  if (!sameSide) return 0;
+  const sideEdge = clamp01((Math.abs(focusX) - 4.35) / 2.2);
+  return sideEdge * nearCameraLane;
+}
+
 function tagOccluder(object: any, role?: RoomOccluderRole) {
   if (!role) return;
   object.userData = { ...(object.userData ?? {}), roomOccluder: role };
   object.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
     node.userData = { ...(node.userData ?? {}), roomOccluder: role };
+    if (Array.isArray(node.material)) node.material = node.material.map((material: any) => material.clone());
+    else if (node.material) node.material = node.material.clone();
+    const materials = materialList(node).filter(Boolean);
+    materials.forEach((material: any) => {
+      material.userData = {
+        ...(material.userData ?? {}),
+        roomBaseOpacity: material.opacity ?? 1,
+        roomBaseTransparent: Boolean(material.transparent),
+        roomBaseDepthWrite: material.depthWrite !== false,
+      };
+    });
+    node.userData.roomOcclusionOpacity = 1;
+    node.onBeforeRender = (_renderer: any, _scene: any, camera: any) => {
+      const elements = node.matrixWorld.elements;
+      const pressure = occlusionPressure(role, camera, elements[12], elements[14]);
+      const target = 1 - pressure * (role === 'front-wall' ? 0.84 : 0.78);
+      const current = Number(node.userData.roomOcclusionOpacity ?? 1);
+      const next = current + (target - current) * 0.22;
+      node.userData.roomOcclusionOpacity = next;
+      materials.forEach((material: any) => {
+        const baseOpacity = Number(material.userData?.roomBaseOpacity ?? 1);
+        material.opacity = baseOpacity * next;
+        material.transparent = Boolean(material.userData?.roomBaseTransparent) || next < 0.995;
+        material.depthWrite = Boolean(material.userData?.roomBaseDepthWrite) && next > 0.56;
+        material.needsUpdate = true;
+      });
+      node.renderOrder = next < 0.995 ? 6 : 0;
+    };
   });
 }
 
@@ -111,8 +163,6 @@ function wallFor(spec: RoomBibleSpec, index: number, loaded: Record<AssetName, a
 function portalStagePoint(spec: RoomBibleSpec) {
   return {
     x: spec.portal.x,
-    // The gameplay tile and portal light already use -8.5. Keeping the architecture
-    // at -10.5 left the supports visibly detached behind the active portal.
     z: spec.portal.z < -8 ? -8.5 : spec.portal.z,
   };
 }
