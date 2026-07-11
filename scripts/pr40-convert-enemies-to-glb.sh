@@ -148,12 +148,12 @@ text = text.replaceAll('if (!IS_ANDROID) {', 'if (!IS_MOBILE) {');
 const fpsPattern = /      if \(IS_ANDROID\) \{\s*lowFpsWindows = fps < 42 \? lowFpsWindows \+ 1 : Math\.max\(0, lowFpsWindows - 1\);\s*if \(lowFpsWindows >= 2 && particleBudget > 26\) \{\s*particleBudget = 26;\s*try \{ sessionStorage\.setItem\(LOW_GPU_KEY, '1'\); \} catch \{\}\s*\}\s*\}/m;
 if (!fpsPattern.test(text)) throw new Error('FEHLER: FPS-Anpassungsblock nicht gefunden');
 text = text.replace(fpsPattern, `      if (IS_MOBILE) {
-        lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
-        if (lowFpsWindows >= 2 && particleBudget > 24) {
-          particleBudget = 24;
-          try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
-        }
-      }`);
+         lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
+         if (lowFpsWindows >= 2 && particleBudget > 24) {
+           particleBudget = 24;
+           try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
+         }
+       }`);
 
 fs.writeFileSync(path, text);
 NODE
@@ -180,7 +180,7 @@ fi
 rm -- "$SCRIPT"
 git add -A -- "$DEST" "$CANVAS" "$SCRIPT"
 
-if git diff --cached --name-only | grep -v -E "^(${DEST}/|${CANVAS}|${SCRIPT})$" | grep -q .; then
+if git diff --cached --name-only | grep -v -E "^(${DEST}/.*|${CANVAS}|${SCRIPT})$" | grep -q .; then
   echo 'FEHLER: Unerwartete Dateien wurden vorgemerkt.'
   git diff --cached --name-only
   git reset
