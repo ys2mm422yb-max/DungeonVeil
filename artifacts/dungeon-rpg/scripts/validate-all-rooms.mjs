@@ -1,76 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-
-const ROOT = process.cwd();
-const APP = path.join(ROOT, 'artifacts/dungeon-rpg');
-
-function read(relativePath) {
-  return fs.readFileSync(path.join(APP, relativePath), 'utf8');
-}
-
-function write(relativePath, content) {
-  const target = path.join(APP, relativePath);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, content);
-}
-
-function replaceOne(content, before, after, label) {
-  const count = content.split(before).length - 1;
-  if (count !== 1) throw new Error(label + ': expected one match, found ' + count);
-  return content.replace(before, after);
-}
-
-let collision = read('src/game/roomCollision3D.ts');
-collision = replaceOne(
-  collision,
-  "import { roomBibleSpec } from './roomBible';",
-  "import { roomBibleSpec } from './roomBible';\nimport { CHAPTER_ROOMS } from './chapterRun';",
-  'collision chapter import',
-);
-collision = replaceOne(
-  collision,
-  "function architectureCollidersForRoom(room: number): RoomPropCollider[] {\n  const spec = roomBibleSpec(room);",
-  "function architectureCollidersForRoom(room: number): RoomPropCollider[] {\n  const spec = roomBibleSpec(room);\n  if (spec.phase === 'meadow-forest' || spec.phase === 'darkwood-village') return [];",
-  'outdoor invisible architecture colliders',
-);
-collision = replaceOne(
-  collision,
-  '  const key = Math.max(1, Math.min(20, room));',
-  '  const key = Math.max(1, Math.min(CHAPTER_ROOMS, room));',
-  'collision room clamp',
-);
-write('src/game/roomCollision3D.ts', collision);
-
-let hud = read('src/components/HUD.tsx');
-hud = replaceOne(
-  hud,
-  "import type { GameState } from '../game/runEngine';",
-  "import type { GameState } from '../game/runEngine';\nimport { CHAPTER_ROOMS } from '../game/chapterRun';",
-  'hud chapter import',
-);
-hud = replaceOne(hud, '<span>RAUM {g.floor}/20</span>', '<span>RAUM {g.floor}/{CHAPTER_ROOMS}</span>', 'hud room total');
-write('src/components/HUD.tsx', hud);
-
-let room3d = read('src/components/kaykitRoom3D.ts');
-room3d = replaceOne(
-  room3d,
-  "function requiredAssets(spec: RoomBibleSpec): AssetName[] {\n  const required = new Set<AssetName>(['floor', 'wall', 'corner', 'wallColumn', 'torch']);\n  if (isOutdoorSpec(spec)) required.add('floorDirt');\n  if (spec.shell !== 'intact') required.add('floorBroken');\n  if (spec.shell === 'abandoned' || spec.shell === 'veil') required.add('wallBroken');\n  if (spec.shell !== 'intact') required.add('wallCracked');\n  if (spec.shell === 'monumental' || spec.shell === 'veil' || spec.silhouette === 'three-lane' || spec.silhouette === 'arena') required.add('pillar');\n  if (spec.silhouette === 'three-lane') required.add('column');\n  if (spec.silhouette === 'diagonal' || spec.shell === 'veil') {\n    required.add('rubble');\n    required.add('rubbleHalf');\n  }\n  return [...required];\n}",
-  "function requiredAssets(spec: RoomBibleSpec): AssetName[] {\n  const outdoor = isOutdoorSpec(spec);\n  const required = new Set<AssetName>(outdoor ? ['floor', 'floorDirt'] : ['floor', 'wall', 'corner', 'wallColumn', 'torch']);\n  if (!outdoor && spec.shell !== 'intact') required.add('floorBroken');\n  if (!outdoor && (spec.shell === 'abandoned' || spec.shell === 'veil')) required.add('wallBroken');\n  if (!outdoor && spec.shell !== 'intact') required.add('wallCracked');\n  if (!outdoor && (spec.shell === 'monumental' || spec.shell === 'veil' || spec.silhouette === 'three-lane' || spec.silhouette === 'arena')) required.add('pillar');\n  if (!outdoor && spec.silhouette === 'three-lane') required.add('column');\n  if (!outdoor && (spec.silhouette === 'diagonal' || spec.shell === 'veil')) {\n    required.add('rubble');\n    required.add('rubbleHalf');\n  }\n  return [...required];\n}",
-  'outdoor asset preload budget',
-);
-write('src/components/kaykitRoom3D.ts', room3d);
-
-let expanded = read('src/game/expandedWorldRooms.ts');
-expanded = replaceOne(
-  expanded,
-  "  [P(-4.8, -5.2), P(0, -6.2), P(4.8, -5.2), P(-5.4, 0.2), P(5.4, 0.2), P(-3.6, 4.7), P(3.6, 4.7)],\n  [P(-5.2, -6.0), P(3.8, -5.2), P(-2.0, -2.0), P(4.6, 0.4), P(-4.6, 2.6), P(1.8, 5.1)],\n  [P(-4.0, -6.3), P(4.0, -6.3), P(-5.4, -1.2), P(5.4, -1.2), P(-3.8, 4.6), P(0, 5.6), P(3.8, 4.6)],",
-  "  [P(-4.8, -5.2), P(0, -6.2), P(4.8, -5.2), P(-5.4, 0.2), P(5.4, 0.2), P(-3.6, 4.7), P(0, 5.7), P(3.6, 4.7)],\n  [P(-5.2, -6.0), P(3.8, -5.2), P(-2.0, -2.0), P(4.6, 0.4), P(-4.6, 2.6), P(5.0, 4.8), P(-1.5, 5.7), P(1.8, 5.1)],\n  [P(-4.0, -6.3), P(4.0, -6.3), P(-5.4, -1.2), P(5.4, -1.2), P(0, -3.5), P(-3.8, 4.6), P(0, 5.6), P(3.8, 4.6)],",
-  'expanded spawn capacity',
-);
-write('src/game/expandedWorldRooms.ts', expanded);
-
-const validator = String.raw`import fs from 'node:fs';
-import path from 'node:path';
 import { createServer } from 'vite';
 
 const ROOT = process.cwd();
@@ -206,9 +135,9 @@ try {
     if (fingerprints.has(fingerprint)) error(room, 'duplicates another room layout exactly');
     fingerprints.add(fingerprint);
 
-    const hasForest = pieces.some(piece => piece.model.includes('/forest/'));
-    const hasDungeon = pieces.some(piece => piece.model.includes('/dungeon/'));
-    const hasHalloween = pieces.some(piece => piece.model.includes('/halloween/'));
+    const hasForest = pieces.some(piece => piece.model.includes('forest/'));
+    const hasDungeon = pieces.some(piece => piece.model.includes('dungeon/'));
+    const hasHalloween = pieces.some(piece => piece.model.includes('halloween/'));
     if (room >= 21 && room <= 30 && !hasForest) error(room, 'meadow room has no forest assets');
     if (room >= 31 && room <= 40 && (!hasForest || !hasHalloween)) error(room, 'darkwood room needs forest and dark-set assets');
     if (room >= 41 && room <= 50 && !hasDungeon) error(room, 'fortress room has no fortress/dungeon assets');
@@ -276,12 +205,3 @@ try {
 } finally {
   await server.close();
 }
-`;
-write('scripts/validate-all-rooms.mjs', validator);
-
-const packagePath = path.join(APP, 'package.json');
-const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-packageJson.scripts = { ...packageJson.scripts, 'audit:rooms': 'node scripts/validate-all-rooms.mjs' };
-fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
-
-console.log('Block 5 total room audit written.');

@@ -1,5 +1,6 @@
 import React from 'react';
 import type { GameState } from '../game/runEngine';
+import { CHAPTER_ROOMS } from '../game/chapterRun';
 import { veilModifierLabel } from '../game/runEffectSystems';
 
 interface Props{gameState:GameState;onPause:()=>void;onExitDungeon?:()=>void}
@@ -24,7 +25,7 @@ export function HUD({gameState:g,onPause}:Props){
  return <div className="fixed inset-0 z-40 pointer-events-none select-none">
   <div className="absolute left-3 right-3 top-3 flex items-start justify-between" style={{paddingTop:'env(safe-area-inset-top)',paddingLeft:'env(safe-area-inset-left)',paddingRight:'env(safe-area-inset-right)'}}>
    <div className="w-[190px] rounded-2xl border border-white/10 bg-black/55 p-3 shadow-xl backdrop-blur-sm">
-    <div className="mb-2 flex items-center justify-between text-[10px] font-black tracking-[.18em] text-white/75"><span>KAPITEL {g.chapter}</span><span>RAUM {g.floor}/20</span></div>
+    <div className="mb-2 flex items-center justify-between text-[10px] font-black tracking-[.18em] text-white/75"><span>KAPITEL {g.chapter}</span><span>RAUM {g.floor}/{CHAPTER_ROOMS}</span></div>
     <Bar v={p.hp} m={p.maxHp} c="#cb463d"/>
     <div className="mt-2 flex items-center justify-between border-t border-white/8 pt-2 text-[8px] font-bold tracking-[.16em] text-white/45"><span>WALDLÄUFER</span><span>{gifts} GABEN</span></div>
     {modifier&&<div className="mt-2 truncate rounded-full border border-violet-300/15 bg-violet-500/[.07] px-2 py-1 text-center text-[6px] font-black tracking-[.18em] text-violet-100/65">{modifier}</div>}

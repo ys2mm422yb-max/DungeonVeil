@@ -8,7 +8,8 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "audit:assets": "node scripts/audit-kaykit-assets.mjs"
+    "audit:assets": "node scripts/audit-kaykit-assets.mjs",
+    "audit:rooms": "node scripts/validate-all-rooms.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

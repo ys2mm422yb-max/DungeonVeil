@@ -1,5 +1,6 @@
 import { logicalRoomSetpieces } from './logicalRoomSetpieces';
 import { roomBibleSpec } from './roomBible';
+import { CHAPTER_ROOMS } from './chapterRun';
 
 const COLLIDER_INSET = 0.9;
 const PORTAL_CLEARANCE = 3.1;
@@ -25,6 +26,7 @@ function portalStagePoint(room: number) {
 
 function architectureCollidersForRoom(room: number): RoomPropCollider[] {
   const spec = roomBibleSpec(room);
+  if (spec.phase === 'meadow-forest' || spec.phase === 'darkwood-village') return [];
   const portal = portalStagePoint(room);
   const colliders: RoomPropCollider[] = [];
   const add = (x: number, z: number, halfW: number, halfH = halfW) => colliders.push({ x, z, halfW, halfH });
@@ -89,7 +91,7 @@ function collidersForRoom(room: number): RoomPropCollider[] {
 const ROOM_COLLIDERS = new Map<number, RoomPropCollider[]>();
 
 export function roomPropColliders(room: number): readonly RoomPropCollider[] {
-  const key = Math.max(1, Math.min(20, room));
+  const key = Math.max(1, Math.min(CHAPTER_ROOMS, room));
   if (!ROOM_COLLIDERS.has(key)) ROOM_COLLIDERS.set(key, collidersForRoom(key));
   return ROOM_COLLIDERS.get(key)!;
 }

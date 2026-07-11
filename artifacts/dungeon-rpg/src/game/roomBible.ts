@@ -1,4 +1,5 @@
 import { EXPANDED_ROOM_BLUEPRINTS } from './expandedWorldRooms';
+import { logicalRoomSetpieces } from './logicalRoomSetpieces';
 export type RoomPhaseId = 'inhabited-mine' | 'abandoned-quarters' | 'ancient-ruins' | 'warden-veil' | 'meadow-forest' | 'darkwood-village' | 'fortress-ember';
 export type RoomSilhouette = 'tri-island' | 'axial' | 'three-lane' | 'diagonal' | 's-curve' | 'ring' | 'zigzag' | 's-lane' | 'cross' | 'arena' | 'orbit';
 export type RoomPack = 'furniture' | 'tools' | 'resources' | 'forest' | 'halloween';
@@ -137,8 +138,95 @@ for (const blueprint of EXPANDED_ROOM_BLUEPRINTS) {
   );
 }
 
+const RESOLVED_ROOM_SPECS = new Map<number, RoomBibleSpec>();
+
+const SPAWN_GRID_X = [-4.2, -2.1, 0, 2.1, 4.2] as const;
+const SPAWN_GRID_Z = [-6.4, -4.1, -1.8, 0.7, 3.1, 5.3] as const;
+
+function resolvedEnemySpawns(roomNumber: number, spec: RoomBibleSpec): RoomBiblePoint[] {
+  if (roomNumber % 10 === 0) {
+    return spec.enemySpawns.slice(0, 1).map(point => ({ ...point }));
+  }
+
+  const blockers = logicalRoomSetpieces(roomNumber)
+    .filter(piece => piece.collider)
+    .map(piece => {
+      const collider = piece.collider!;
+      const scale = (piece.scale ?? 1) * 0.9;
+      const width = collider[0] * scale;
+      const height = collider[1] * scale;
+      const angle = piece.rotation ?? 0;
+      const cos = Math.abs(Math.cos(angle));
+      const sin = Math.abs(Math.sin(angle));
+
+      return {
+        x: piece.x,
+        z: piece.z,
+        halfW: (width * cos + height * sin) / 2,
+        halfH: (width * sin + height * cos) / 2,
+      };
+    });
+
+  const portal = {
+    x: spec.portal.x,
+    z: spec.portal.z < -8 ? -8.5 : spec.portal.z,
+  };
+
+  const selected: RoomBiblePoint[] = [];
+
+  const valid = (point: RoomBiblePoint) => {
+    if (Math.abs(point.x) > 4.25 || point.z < -6.6 || point.z > 5.5) return false;
+    if (Math.hypot(point.x - portal.x, point.z - portal.z) <= 3.1) return false;
+
+    const blocked = blockers.some(blocker =>
+      Math.abs(point.x - blocker.x) < blocker.halfW + 0.42 &&
+      Math.abs(point.z - blocker.z) < blocker.halfH + 0.42
+    );
+    if (blocked) return false;
+
+    return selected.every(existing =>
+      Math.hypot(point.x - existing.x, point.z - existing.z) >= 1.55
+    );
+  };
+
+  const add = (point: RoomBiblePoint) => {
+    if (valid(point)) selected.push({ ...point });
+  };
+
+  spec.enemySpawns.forEach(add);
+
+  for (const z of SPAWN_GRID_Z) {
+    for (const x of SPAWN_GRID_X) {
+      if (selected.length >= 8) break;
+      add({ x, z });
+    }
+    if (selected.length >= 8) break;
+  }
+
+  if (selected.length < 8) {
+    throw new Error(
+      'Raum ' + roomNumber + ' besitzt nur ' + selected.length +
+      ' sichere Gegner-Spawnpunkte.'
+    );
+  }
+
+  return selected.slice(0, 8);
+}
+
 export function roomBibleSpec(roomNumber: number): RoomBibleSpec {
-  return ROOM_BIBLE[Math.max(1, Math.min(50, roomNumber))] ?? ROOM_BIBLE[1];
+  const safeRoom = Math.max(1, Math.min(50, roomNumber));
+  const cached = RESOLVED_ROOM_SPECS.get(safeRoom);
+  if (cached) return cached;
+
+  const base = ROOM_BIBLE[safeRoom] ?? ROOM_BIBLE[1];
+  const resolved: RoomBibleSpec = {
+    ...base,
+    portal: { ...base.portal },
+    enemySpawns: resolvedEnemySpawns(safeRoom, base),
+  };
+
+  RESOLVED_ROOM_SPECS.set(safeRoom, resolved);
+  return resolved;
 }
 
 export function roomPortalTile(roomNumber: number, mapWidth = 24, mapHeight = 32) {

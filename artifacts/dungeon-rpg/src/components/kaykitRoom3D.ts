@@ -43,14 +43,14 @@ function isOutdoorSpec(spec: RoomBibleSpec) {
 }
 
 function requiredAssets(spec: RoomBibleSpec): AssetName[] {
-  const required = new Set<AssetName>(['floor', 'wall', 'corner', 'wallColumn', 'torch']);
-  if (isOutdoorSpec(spec)) required.add('floorDirt');
-  if (spec.shell !== 'intact') required.add('floorBroken');
-  if (spec.shell === 'abandoned' || spec.shell === 'veil') required.add('wallBroken');
-  if (spec.shell !== 'intact') required.add('wallCracked');
-  if (spec.shell === 'monumental' || spec.shell === 'veil' || spec.silhouette === 'three-lane' || spec.silhouette === 'arena') required.add('pillar');
-  if (spec.silhouette === 'three-lane') required.add('column');
-  if (spec.silhouette === 'diagonal' || spec.shell === 'veil') {
+  const outdoor = isOutdoorSpec(spec);
+  const required = new Set<AssetName>(outdoor ? ['floor', 'floorDirt'] : ['floor', 'wall', 'corner', 'wallColumn', 'torch']);
+  if (!outdoor && spec.shell !== 'intact') required.add('floorBroken');
+  if (!outdoor && (spec.shell === 'abandoned' || spec.shell === 'veil')) required.add('wallBroken');
+  if (!outdoor && spec.shell !== 'intact') required.add('wallCracked');
+  if (!outdoor && (spec.shell === 'monumental' || spec.shell === 'veil' || spec.silhouette === 'three-lane' || spec.silhouette === 'arena')) required.add('pillar');
+  if (!outdoor && spec.silhouette === 'three-lane') required.add('column');
+  if (!outdoor && (spec.silhouette === 'diagonal' || spec.shell === 'veil')) {
     required.add('rubble');
     required.add('rubbleHalf');
   }
