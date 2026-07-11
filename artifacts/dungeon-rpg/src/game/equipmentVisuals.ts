@@ -45,6 +45,8 @@ const profile = (
 });
 
 const bowPose = [0.08, -0.48, Math.PI / 2] as const;
+const importedBowPose = [0.02, -0.18, 0] as const;
+const importedBowRoot = '/assets/imported/medieval-weapons';
 const quiverAccessory = (path: string) => ({
   accessoryPath: path,
   accessoryPosition: [0, 0.18, 0.08] as const,
@@ -57,11 +59,11 @@ const quiverAccessory = (path: string) => ({
  * intentionally limited to the visually consistent KayKit family on mobile.
  */
 export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
-  'ash-bow': profile(`${A}/bow_withString.gltf`, `${A}/bow_withString.gltf`, bowPose, 0.83, 0.67, -0.01, true, 0.12, 'bow'),
-  'ember-bow': profile(`${W}/bow_A_withString.gltf`, `${A}/bow_withString.gltf`, bowPose, 0.83, 0.67, -0.01, true, 0.28, 'bow'),
-  'hunter-bow': profile(`${W}/bow_B_withString.gltf`, `${A}/bow_withString.gltf`, bowPose, 0.83, 0.67, -0.01, true, 0.16, 'bow'),
-  'veil-bow': profile(`${W}/bow_A_withString.gltf`, `${A}/bow_withString.gltf`, bowPose, 0.83, 0.67, -0.01, true, 0.38, 'bow'),
-  'warden-bow': profile(`${W}/bow_B_withString.gltf`, `${A}/bow_withString.gltf`, bowPose, 0.83, 0.67, -0.01, true, 0.34, 'bow'),
+  'ash-bow': profile(`${importedBowRoot}/Bow_Wooden2.glb`, `${A}/bow_withString.gltf`, importedBowPose, 0.86, 0.7, 0, true, 0.04, 'bow'),
+  'ember-bow': profile(`${importedBowRoot}/Bow_Golden.glb`, `${W}/bow_A_withString.gltf`, importedBowPose, 0.86, 0.7, 0, true, 0.06, 'bow'),
+  'hunter-bow': profile(`${importedBowRoot}/Bow_Wooden.glb`, `${W}/bow_B_withString.gltf`, importedBowPose, 0.86, 0.7, 0, true, 0.03, 'bow'),
+  'veil-bow': profile(`${importedBowRoot}/Bow_Evil.glb`, `${W}/bow_A_withString.gltf`, importedBowPose, 0.86, 0.7, 0, true, 0.05, 'bow'),
+  'warden-bow': profile(`${W}/bow_B_withString.gltf`, `${A}/bow_withString.gltf`, bowPose, 0.84, 0.68, 0, true, 0.1, 'bow'),
 
   'frost-bow': profile(`${A}/crossbow_2handed.gltf`, `${A}/crossbow_2handed.gltf`, [-0.08, -Math.PI / 2 + 0.1, 0.02], 0.9, 0.55, 0.02, true, 0.3, 'crossbow'),
   'splinter-bow': profile(`${A}/crossbow_1handed.gltf`, `${A}/crossbow_1handed.gltf`, [-0.15, -Math.PI / 2 + 0.1, 0.02], 0.88, 0.58, 0.02, true, 0.18, 'crossbow'),

@@ -267,11 +267,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           visual = new THREE.Group();
           const ring = new THREE.Mesh(
             new THREE.RingGeometry(0.72, 1, IS_ANDROID ? 20 : 32),
-            new THREE.MeshBasicMaterial({ color: effect.color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
+            new THREE.MeshBasicMaterial({ color: effect.color, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }),
           );
           ring.rotation.x = -Math.PI / 2;
+          ring.renderOrder = 12;
           visual.add(ring);
-          if (!IS_ANDROID && (effect.element === 'fire' || effect.element === 'arcane')) {
+          if (!IS_MOBILE && (effect.element === 'fire' || effect.element === 'arcane')) {
             const light = new THREE.PointLight(effect.color, effect.element === 'fire' ? 5 : 3.6, 5, 2);
             light.position.y = 0.5;
             visual.add(light);
@@ -283,7 +284,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         }
         const progress = Math.max(0, Math.min(1, effect.lifeTime / effect.maxLifeTime));
         const scale = Math.max(0.05, effect.maxRadius / TILE * progress);
-        visual.position.set(mapX(state, effect.x), 0.045, mapZ(state, effect.y));
+        visual.position.set(mapX(state, effect.x), 0.095, mapZ(state, effect.y));
         visual.scale.setScalar(scale);
         visual.userData.ring.material.opacity = Math.max(0, 0.9 * (1 - progress));
         if (visual.userData.light) visual.userData.light.intensity = (effect.element === 'fire' ? 5 : 3.6) * (1 - progress);

@@ -7,11 +7,11 @@ const SKELETON_UTILS_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 const IMPORTED_CREATURES: Partial<Record<EnemyType, { path: string; targetHeight: number; rotationY?: number }>> = {
-  slime: { path: '/assets/imported/enemies/Slime.glb', targetHeight: 0.72 },
-  goblin: { path: '/assets/imported/enemies/Rat.glb', targetHeight: 0.58 },
-  spider: { path: '/assets/imported/enemies/Spider.glb', targetHeight: 0.5 },
-  vampire: { path: '/assets/imported/enemies/Bat.glb', targetHeight: 0.68 },
-  demon: { path: '/assets/imported/enemies/Snake_angry.glb', targetHeight: 0.76 },
+  slime: { path: '/assets/imported/enemies/Slime.glb', targetHeight: 1.02 },
+  goblin: { path: '/assets/imported/enemies/Rat.glb', targetHeight: 0.86 },
+  spider: { path: '/assets/imported/enemies/Spider.glb', targetHeight: 0.82 },
+  vampire: { path: '/assets/imported/enemies/Bat.glb', targetHeight: 0.98 },
+  demon: { path: '/assets/imported/enemies/Snake_angry.glb', targetHeight: 1.04 },
 };
 
 type EnemyRole = 'mage' | 'rogue' | 'warrior' | 'minion';

@@ -826,21 +826,28 @@ export class GameEngine {
   }
 
   private moveEntity(entity: { x: number; y: number; width: number; height: number }, dx: number, dy: number): void {
-    if (dx !== 0) {
-      entity.x += dx;
-      const ex = entity.x + (dx > 0 ? entity.width : 0);
-      const blockedByTiles = !isWalkable(this.state.map, ex, entity.y + entity.height / 2)
-        || !isWalkable(this.state.map, ex, entity.y + 2)
-        || !isWalkable(this.state.map, ex, entity.y + entity.height - 2);
-      if (blockedByTiles || this.blockedByRoomProp(entity)) entity.x -= dx;
-    }
-    if (dy !== 0) {
-      entity.y += dy;
-      const ey = entity.y + (dy > 0 ? entity.height : 0);
-      const blockedByTiles = !isWalkable(this.state.map, entity.x + entity.width / 2, ey)
-        || !isWalkable(this.state.map, entity.x + 2, ey)
-        || !isWalkable(this.state.map, entity.x + entity.width - 2, ey);
-      if (blockedByTiles || this.blockedByRoomProp(entity)) entity.y -= dy;
+    const distance = Math.max(Math.abs(dx), Math.abs(dy));
+    const steps = Math.max(1, Math.ceil(distance / 6));
+    const stepX = dx / steps;
+    const stepY = dy / steps;
+
+    for (let step = 0; step < steps; step++) {
+      if (stepX !== 0) {
+        entity.x += stepX;
+        const ex = entity.x + (stepX > 0 ? entity.width : 0);
+        const blockedByTiles = !isWalkable(this.state.map, ex, entity.y + entity.height / 2)
+          || !isWalkable(this.state.map, ex, entity.y + 2)
+          || !isWalkable(this.state.map, ex, entity.y + entity.height - 2);
+        if (blockedByTiles || this.blockedByRoomProp(entity)) entity.x -= stepX;
+      }
+      if (stepY !== 0) {
+        entity.y += stepY;
+        const ey = entity.y + (stepY > 0 ? entity.height : 0);
+        const blockedByTiles = !isWalkable(this.state.map, entity.x + entity.width / 2, ey)
+          || !isWalkable(this.state.map, entity.x + 2, ey)
+          || !isWalkable(this.state.map, entity.x + entity.width - 2, ey);
+        if (blockedByTiles || this.blockedByRoomProp(entity)) entity.y -= stepY;
+      }
     }
   }
 

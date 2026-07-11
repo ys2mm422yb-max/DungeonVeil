@@ -23,9 +23,52 @@ function portalStagePoint(room: number) {
   };
 }
 
+function architectureCollidersForRoom(room: number): RoomPropCollider[] {
+  const spec = roomBibleSpec(room);
+  const portal = portalStagePoint(room);
+  const colliders: RoomPropCollider[] = [];
+  const add = (x: number, z: number, halfW: number, halfH = halfW) => colliders.push({ x, z, halfW, halfH });
+
+  if (spec.portal.z < -8) {
+    const spread = spec.shell === 'veil' ? 2.65 : 2.35;
+    const size = spec.shell === 'veil' ? 0.78 : 0.68;
+    add(portal.x - spread, portal.z - 1.75, size);
+    add(portal.x + spread, portal.z - 1.75, size);
+  }
+
+  switch (spec.silhouette) {
+    case 'three-lane':
+      for (const z of [-5.5, -0.8, 4.1]) { add(-6.6, z, 0.68); add(6.6, z, 0.68); }
+      break;
+    case 'axial':
+      add(-6.4, -5.4, 0.72); add(6.4, -5.4, 0.72);
+      break;
+    case 'ring':
+    case 'orbit':
+      for (const [x, z] of [[-5.6, -4.3], [5.6, -4.3], [-5.6, 4.3], [5.6, 4.3]] as const) add(x, z, 0.72);
+      break;
+    case 'cross':
+      for (const [x, z] of [[-5.4, -4.4], [5.4, -4.4], [-5.4, 4.4], [5.4, 4.4]] as const) add(x, z, 0.76);
+      break;
+    case 'arena':
+      for (const [x, z] of [[-7, -6], [7, -6], [-7, 5.6], [7, 5.6]] as const) add(x, z, 0.86);
+      break;
+    case 'diagonal':
+      add(-7.2, -4.9, 1.3, 0.95); add(6.9, 4.7, 1.0, 0.75);
+      break;
+    case 'zigzag':
+    case 's-curve':
+    case 's-lane':
+      add(-7.2, 5.4, 0.95, 0.72); add(7.1, -5.2, 0.95, 0.72);
+      break;
+  }
+
+  return colliders;
+}
+
 function collidersForRoom(room: number): RoomPropCollider[] {
   const portal = portalStagePoint(room);
-  return logicalRoomSetpieces(room)
+  const props = logicalRoomSetpieces(room)
     .filter(piece => piece.collider)
     .filter(piece => Math.hypot(piece.x - portal.x, piece.z - portal.z) > PORTAL_CLEARANCE)
     .map(piece => {
@@ -40,6 +83,7 @@ function collidersForRoom(room: number): RoomPropCollider[] {
       const height = localWidth * sin + localHeight * cos;
       return { x: piece.x, z: piece.z, halfW: width / 2, halfH: height / 2 };
     });
+  return [...props, ...architectureCollidersForRoom(room)];
 }
 
 const ROOM_COLLIDERS = new Map<number, RoomPropCollider[]>();

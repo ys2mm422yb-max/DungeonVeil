@@ -1,9 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
-const DUNGEON_ROOT = '/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 function buildMenuVeil(THREE: any) {
@@ -60,15 +57,6 @@ function buildMenuVeil(THREE: any) {
   return root;
 }
 
-function prepareStaticModel(object: any) {
-  object.traverse((node: any) => {
-    if (!node.isMesh && !node.isSkinnedMesh) return;
-    node.castShadow = false;
-    node.receiveShadow = false;
-    node.frustumCulled = true;
-  });
-}
-
 export function MainMenuDungeonScene() {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -80,12 +68,10 @@ export function MainMenuDungeonScene() {
     let raf = 0;
     let renderer: any = null;
     let scene: any = null;
-    let ranger: KayKitPlayerRig | null = null;
     let lastFrame = 0;
 
     const boot = async () => {
       const THREE = await import(/* @vite-ignore */ THREE_URL);
-      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       if (disposed) return;
 
       scene = new THREE.Scene();
@@ -101,8 +87,8 @@ export function MainMenuDungeonScene() {
       host.appendChild(renderer.domElement);
 
       const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 70);
-      camera.position.set(0, 4.65, 10.8);
-      camera.lookAt(0, 2.25, -7.8);
+      camera.position.set(0, 4.15, 11.8);
+      camera.lookAt(0, 2.35, -7.4);
 
       const floor = new THREE.Mesh(
         new THREE.PlaneGeometry(14, 28),
@@ -120,54 +106,19 @@ export function MainMenuDungeonScene() {
       path.position.set(0, 0, -5.5);
       scene.add(path);
 
-      const loader = new GLTFLoader();
-      const [pillarAsset, torchAsset] = await Promise.all([
-        loader.loadAsync(`${DUNGEON_ROOT}/wall_pillar.gltf`).catch(() => null),
-        loader.loadAsync(`${DUNGEON_ROOT}/torch_mounted.gltf`).catch(() => null),
-      ]);
-      if (disposed) return;
-
-      if (pillarAsset?.scene) {
-        for (const side of [-1, 1]) {
-          const pillar = pillarAsset.scene.clone(true);
-          prepareStaticModel(pillar);
-          pillar.scale.setScalar(2.25);
-          pillar.position.set(side * 3.35, 0, -8.2);
-          pillar.rotation.y = side < 0 ? 0.08 : -0.08;
-          scene.add(pillar);
-        }
-      }
-
-      if (torchAsset?.scene) {
-        for (const side of [-1, 1]) {
-          const torch = torchAsset.scene.clone(true);
-          prepareStaticModel(torch);
-          torch.scale.setScalar(1.25);
-          torch.position.set(side * 3.0, 2.65, -7.55);
-          torch.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
-          scene.add(torch);
-        }
-      }
-
       scene.add(new THREE.HemisphereLight(0xc8b897, 0x050505, 0.82));
       const keyLight = new THREE.DirectionalLight(0xffc987, 1.08);
       keyLight.position.set(-4, 9, 6);
       scene.add(keyLight);
-      const portalLight = new THREE.PointLight(0x8868ef, IS_MOBILE ? 4.2 : 6.2, 10, 2);
-      portalLight.position.set(0, 2.3, -7.1);
+      const portalLight = new THREE.PointLight(0x9a72ff, IS_MOBILE ? 3.6 : 5.4, 11, 2);
+      portalLight.position.set(0, 2.55, -7.0);
       scene.add(portalLight);
 
       const portal = buildMenuVeil(THREE);
-      portal.position.set(0, 2.55, -8.25);
-      portal.scale.setScalar(1.18);
+      portal.position.set(0, 2.7, -7.8);
+      portal.scale.setScalar(1.08);
       scene.add(portal);
 
-      ranger = await loadKayKitRanger(THREE, GLTFLoader);
-      if (disposed) return;
-      ranger.root.scale.setScalar(0.78);
-      ranger.root.position.set(-0.9, 0, -1.6);
-      ranger.root.rotation.y = Math.PI - 0.08;
-      scene.add(ranger.root);
 
       const clock = new THREE.Clock();
       const resize = () => {
@@ -189,7 +140,6 @@ export function MainMenuDungeonScene() {
 
         const delta = Math.min(clock.getDelta(), 0.05);
         const pulse = 0.5 + Math.sin(now * 0.0021) * 0.5;
-        ranger?.update(delta);
 
         portal.userData.outer.rotation.z = now * 0.00016;
         portal.userData.inner.rotation.z = -now * 0.00028;
@@ -219,7 +169,6 @@ export function MainMenuDungeonScene() {
       disposed = true;
       cancelAnimationFrame(raf);
       (host as any).__menuCleanup?.();
-      ranger?.stop();
       scene?.traverse?.((node: any) => {
         node.geometry?.dispose?.();
         if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
