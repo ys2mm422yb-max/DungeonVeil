@@ -2,10 +2,18 @@ import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
 import { calibratedRoomSetpieces } from '../game/roomSetpieceCalibrated';
 import { roomIdentity } from '../game/roomIdentity';
+import { roomBibleSpec } from '../game/roomBible';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const modelPromises = new Map<string, Promise<any>>();
+
+const ROOM_ACCENTS: Record<number, number> = {
+  1: 0xd99a55, 2: 0xd5b06d, 3: 0x8da7bd, 4: 0xb98245, 5: 0x72a9a0, 6: 0xff7a32,
+  7: 0x718da0, 8: 0x6b91a1, 9: 0xa260d6, 10: 0x74889c,
+  11: 0x78966b, 12: 0xb79a76, 13: 0x7e6bb5, 14: 0x8b8174, 15: 0xa76adc,
+  16: 0xb45f60, 17: 0x8f6475, 18: 0x8b5de0, 19: 0xbd6b68, 20: 0xc04f70,
+};
 
 type LoadedGltf = { scene: any };
 
@@ -38,11 +46,17 @@ async function prototypeFor(path: string) {
 }
 
 function addLights(THREE: any, root: any, room: number) {
-  const color = room >= 16 ? 0x9b5368 : room >= 11 ? 0x8a6ec9 : 0xe6b27a;
-  const light = new THREE.PointLight(color, IS_MOBILE ? 2.2 : 3.2, room >= 11 ? 14 : 15.5, 2);
-  light.position.set(0, 4.2, -11.8);
-  root.add(light);
-  root.userData.architectureLights = [light];
+  const spec = roomBibleSpec(room);
+  const accent = ROOM_ACCENTS[room] ?? spec.light.fill;
+  const heroLight = new THREE.PointLight(accent, IS_MOBILE ? 2.45 : 3.4, spec.silhouette === 'arena' ? 18 : 15, 2);
+  const heroZ = spec.silhouette === 'ring' || spec.silhouette === 'orbit' || spec.silhouette === 'arena' ? 0 : -4.6;
+  heroLight.position.set(0, 4.2, heroZ);
+  root.add(heroLight);
+
+  const portalLight = new THREE.PointLight(spec.light.fill, IS_MOBILE ? 1.25 : 1.8, 9.5, 2);
+  portalLight.position.set(spec.portal.x, 3.2, spec.portal.z);
+  root.add(portalLight);
+  root.userData.architectureLights = [heroLight, portalLight];
 }
 
 export async function preloadKayKitRoomTheme(room: number) {
@@ -53,11 +67,17 @@ export async function preloadKayKitRoomTheme(room: number) {
 export function buildKayKitRoomTheme(THREE: any, room: number) {
   const root = new THREE.Group();
   const identity = roomIdentity(room);
-  root.name = `KayKitSetpieceRoom${room}_${identity.id}`;
+  const spec = roomBibleSpec(room);
+  root.name = `KayKitSetpieceRoom${room}_${identity.id}_${spec.silhouette}`;
   root.userData.roomIdentity = identity;
+  root.userData.environment = {
+    background: spec.light.background,
+    fog: spec.light.fog,
+    exposure: spec.light.exposure,
+  };
   let active = true;
 
-  const outer = buildKayKitOuterWorld(THREE, 24, 32);
+  const outer = buildKayKitOuterWorld(THREE, 24, 32, room);
   root.add(outer);
   addLights(THREE, root, room);
 
