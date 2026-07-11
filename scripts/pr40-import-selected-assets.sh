@@ -72,7 +72,9 @@ command -v npx >/dev/null 2>&1 || {
 }
 
 GLTF_TRANSFORM=(npx --yes @gltf-transform/cli@4.2.1)
-OBJ2GLTF=(npx --yes obj2gltf@3.1.6)
+# obj2gltf allows Cesium ^1.86.1, but newer Cesium releases removed the
+# defaultValue export it still calls. Pin the compatible dependency explicitly.
+OBJ2GLTF=(npx --yes -p obj2gltf@3.1.6 -p cesium@1.86.1 obj2gltf)
 
 echo '=== Zielordner erstellen ==='
 rm -rf "$DEST"
