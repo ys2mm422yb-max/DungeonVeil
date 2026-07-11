@@ -56,9 +56,12 @@ function poseObject(THREE: any, object: any, itemId: EquipmentId) {
     return;
   }
   if (CROSSBOWS.has(itemId)) {
-    fitObject(THREE, object, itemId === 'splinter-bow' ? 1.82 : 1.72);
-    object.rotation.set(-0.18, -0.72, 0.12);
-    object.position.set(0, -0.02, 0.08);
+    // The crossbow's long stock runs along local Z. A front-facing camera collapses
+    // that length and makes the weapon look like a curved blade, so keep a stable
+    // three-quarter pose that shows both stock and limbs.
+    fitObject(THREE, object, itemId === 'splinter-bow' ? 1.9 : 1.8);
+    object.rotation.set(-0.34, -0.96, -0.14);
+    object.position.set(0, 0.01, 0.06);
     return;
   }
   if (QUIVERS.has(itemId)) {
@@ -208,8 +211,9 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       const loop = () => {
         if (disposed) return;
         const now = performance.now();
-        relic.rotation.y += relicTier ? 0.0018 : 0.0026;
-        relic.rotation.x = Math.sin(now * 0.0007) * (relicTier ? 0.014 : 0.025);
+        const sway = CROSSBOWS.has(itemId) ? 0.07 : relicTier ? 0.1 : 0.14;
+        relic.rotation.y = Math.sin(now * 0.00075) * sway;
+        relic.rotation.x = Math.sin(now * 0.0007) * (relicTier ? 0.014 : 0.022);
         relic.position.y = Math.sin(now * 0.0017) * 0.025;
         animated.forEach((node, index) => {
           node.rotation.y += 0.004 + index * 0.0006;
