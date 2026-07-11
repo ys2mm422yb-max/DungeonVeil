@@ -35,6 +35,7 @@ const server = await createServer({
   root: ROOT,
   configFile: false,
   appType: 'custom',
+  optimizeDeps: { noDiscovery: true, include: [] },
   logLevel: 'error',
   server: { middlewareMode: true },
 });
@@ -43,6 +44,7 @@ try {
   const layouts = await server.ssrLoadModule('/src/game/logicalRoomSetpieces.ts');
   const bible = await server.ssrLoadModule('/src/game/roomBible.ts');
   const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');
+  const presentation = await server.ssrLoadModule('/src/game/propPresentation3D.ts');
   const chapter = await server.ssrLoadModule('/src/game/chapterRun.ts');
 
   const fingerprints = new Map();
@@ -142,7 +144,8 @@ try {
         const nearest = colliders.reduce((best, collider) => Math.min(best, distanceToRect(spawn, collider)), Number.POSITIVE_INFINITY);
         if (nearest < 0.35) fail(room, `boss spawn is too close to a solid prop (${nearest.toFixed(2)})`);
       }
-      if (colliders.length > 8) fail(room, 'boss arena contains too many blocking props');
+      const authoredBlockers = pieces.filter(piece => presentation.roomPropColliderFootprint(piece)).length;
+      if (authoredBlockers > 8) fail(room, 'boss arena contains too many visible blocking props');
     }
   }
 

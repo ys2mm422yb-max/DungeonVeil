@@ -1,6 +1,7 @@
 import type { Enemy, EnemyType } from '../game/entities';
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { loadKayKitBossWeapon, loadKayKitFinalBossFocus } from './kaykitWeapons3D';
+import { enemyVisualProfile } from '../game/enemyRegionalIdentity';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const SKELETON_UTILS_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/SkeletonUtils.js';
@@ -14,11 +15,13 @@ const IMPORTED_CREATURES: Partial<Record<EnemyType, { path: string; targetHeight
   demon: { path: '/assets/imported/enemies/Snake_angry.glb', targetHeight: 1.12, widthWeight: 0.62 },
 };
 
-type EnemyRole = 'mage' | 'rogue' | 'warrior' | 'minion';
+type EnemyRole = 'mage' | 'rogue' | 'warrior' | 'minion' | 'ranger' | 'barbarian' | 'knight';
 type EnemyPrototype = {
   scene: any;
   clips: any[];
   role: EnemyRole;
+  family: 'creature' | 'skeleton' | 'adventurer';
+  modelKey: string;
   imported?: boolean;
   targetHeight?: number;
   widthWeight?: number;
@@ -49,6 +52,7 @@ export type KayKitEnemyVisual = {
   hitElapsed: number;
   statusRoot: any;
   burnGlows: any[];
+  burnHalo: any;
   frostGlows: any[];
   frostHalo: any;
   bossAura: any;
@@ -96,6 +100,9 @@ function roleFromPath(path: string): EnemyRole {
   const key = path.toLowerCase();
   if (key.includes('mage')) return 'mage';
   if (key.includes('rogue')) return 'rogue';
+  if (key.includes('ranger')) return 'ranger';
+  if (key.includes('barbarian')) return 'barbarian';
+  if (key.includes('knight')) return 'knight';
   if (key.includes('warrior')) return 'warrior';
   return 'minion';
 }
@@ -157,6 +164,8 @@ async function loadImportedPrototype(type: EnemyType): Promise<EnemyPrototype | 
         scene: gltf.scene,
         clips: gltf.animations ?? [],
         role: 'minion' as const,
+        family: 'creature' as const,
+        modelKey: type,
         imported: true,
         targetHeight: config.targetHeight,
         widthWeight: config.widthWeight,
@@ -185,6 +194,7 @@ async function loadLibrary() {
     const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
     const loader = new GLTFLoader();
     const skeletonModels = findKayKitModels(manifest, 'skeletons', /\/characters\/gltf\/.*\.glb$/i);
+    const adventurerModels = findKayKitModels(manifest, 'adventurers', /\/characters\/gltf\/.*\.glb$/i);
     const animationModels = [
       ...findKayKitModels(manifest, 'animations', /rig_medium_general\.glb$/i),
       ...findKayKitModels(manifest, 'animations', /rig_medium_movementbasic\.glb$/i),
@@ -202,9 +212,10 @@ async function loadLibrary() {
       shieldLarge: findAsset(/skeleton_shield_large_a\.(?:gltf|glb)$/i),
     } as const;
 
-    const [animationGlb, characters, weaponEntries, bossWeapon, finalBossFocus] = await Promise.all([
+    const [animationGlb, skeletonCharacters, adventurerCharacters, weaponEntries, bossWeapon, finalBossFocus] = await Promise.all([
       Promise.all(animationModels.map(path => loader.loadAsync(modelUrl(manifest, path)))),
       Promise.all(skeletonModels.map(path => loader.loadAsync(modelUrl(manifest, path)))),
+      Promise.all(adventurerModels.map(path => loader.loadAsync(modelUrl(manifest, path)))),
       Promise.all(Object.entries(weaponPaths).map(async ([key, path]) => {
         if (!path) return [key, null] as const;
         const gltf = await loader.loadAsync(modelUrl(manifest, path));
@@ -216,11 +227,22 @@ async function loadLibrary() {
 
     const sharedClips = animationGlb.flatMap(gltf => gltf.animations ?? []);
     return {
-      prototypes: characters.map((gltf, index) => ({
-        scene: gltf.scene,
-        clips: [...(gltf.animations ?? []), ...sharedClips],
-        role: roleFromPath(skeletonModels[index]),
-      })),
+      prototypes: [
+        ...skeletonCharacters.map((gltf, index) => ({
+          scene: gltf.scene,
+          clips: [...(gltf.animations ?? []), ...sharedClips],
+          role: roleFromPath(skeletonModels[index]),
+          family: 'skeleton' as const,
+          modelKey: skeletonModels[index].toLowerCase(),
+        })),
+        ...adventurerCharacters.map((gltf, index) => ({
+          scene: gltf.scene,
+          clips: [...(gltf.animations ?? []), ...sharedClips],
+          role: roleFromPath(adventurerModels[index]),
+          family: 'adventurer' as const,
+          modelKey: adventurerModels[index].toLowerCase(),
+        })),
+      ],
       weapons: Object.fromEntries(weaponEntries.filter(([, scene]) => Boolean(scene))) as EnemyLibrary['weapons'],
       bossWeapon,
       finalBossFocus,
@@ -269,10 +291,17 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   ]);
   if (!library.prototypes.length) return null;
 
-  const finalBoss = enemy.enemyType === 'boss' && roomFromEnemyId(enemy) === 50;
-  const importedPrototype = enemy.enemyType === 'boss' ? null : await importedWithinBudget(enemy.enemyType);
-  const role = preferredRole(enemy.enemyType);
-  const fallback = library.prototypes.find(entry => entry.role === role)
+  const roomNumber = roomFromEnemyId(enemy);
+  const spawnIndex = Number(enemy.id.split('-').at(-1) ?? 0) || 0;
+  const profile = enemyVisualProfile(roomNumber, enemy.enemyType, spawnIndex);
+  const finalBoss = enemy.enemyType === 'boss' && roomNumber === 50;
+  const importedPrototype = profile.useImported ? await importedWithinBudget(enemy.enemyType) : null;
+  const role = profile.role;
+  const token = profile.modelToken?.toLowerCase();
+  const fallback = library.prototypes.find(entry =>
+    entry.family === profile.family && (!token || entry.modelKey.includes(token))
+  ) ?? library.prototypes.find(entry => entry.family === profile.family && entry.role === role)
+    ?? library.prototypes.find(entry => entry.role === role)
     ?? library.prototypes[hashId(enemy.id) % library.prototypes.length];
   const prototype = importedPrototype ?? fallback;
 
@@ -301,12 +330,12 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   };
 
   if (!prototype.imported) {
-    if (prototype.role === 'mage') {
+    if (role === 'mage') {
       const focus = finalBoss && library.finalBossFocus ? library.finalBossFocus.clone(true) : cloneWeapon('staff');
       attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.92);
-    } else if (prototype.role === 'rogue') {
+    } else if (role === 'rogue' || role === 'ranger') {
       attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.86);
-    } else if (prototype.role === 'warrior') {
+    } else if (role === 'warrior' || role === 'barbarian' || role === 'knight') {
       const weapon = enemy.enemyType === 'boss' && library.bossWeapon ? library.bossWeapon.clone(true) : cloneWeapon('axe');
       attachEquipment(rightHand, weapon, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], enemy.enemyType === 'boss' ? 1.18 : 0.92);
       attachEquipment(leftHand, cloneWeapon(enemy.enemyType === 'boss' ? 'shieldLarge' : 'shieldSmall'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], enemy.enemyType === 'boss' ? 1.12 : 0.9);
@@ -319,9 +348,13 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const normalMoveClip = chooseClip(prototype.clips, [['run'], ['walk'], ['fly'], ['crawl'], ['move']], ['back', 'left', 'right', 'crouch']);
   const bossMoveClip = chooseClip(prototype.clips, [['walk', 'forward'], ['walk']], ['back', 'left', 'right', 'crouch']) ?? normalMoveClip;
   const moveClip = enemy.enemyType === 'boss' ? bossMoveClip : normalMoveClip;
-  const attackClip = finalBoss
+  const casterBoss = enemy.enemyType === 'boss' && (roomNumber === 20 || roomNumber === 50);
+  const rangerBoss = enemy.enemyType === 'boss' && roomNumber === 30;
+  const attackClip = casterBoss
     ? chooseClip(prototype.clips, [['cast'], ['spell'], ['magic'], ['ranged', 'attack'], ['attack']], ['bow', 'crossbow'])
-    : chooseClip(prototype.clips, [['attack', 'a'], ['attack'], ['bite'], ['sting']], ['bow', 'crossbow', 'ranged']);
+    : rangerBoss
+      ? chooseClip(prototype.clips, [['bow', 'attack'], ['ranged', 'attack'], ['attack']], ['crossbow'])
+      : chooseClip(prototype.clips, [['attack', 'a'], ['attack'], ['bite'], ['sting']], ['bow', 'crossbow', 'ranged']);
   const deathClip = chooseClip(prototype.clips, [['death', 'a'], ['death', 'b'], ['death'], ['die']], []);
 
   const mixer = new THREE.AnimationMixer(scene);
@@ -330,32 +363,14 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const attack = attackClip ? mixer.clipAction(attackClip) : null;
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   const importedVisual = Boolean(prototype.imported);
-  const movePlaybackBase = finalBoss
-    ? 1.08
-    : enemy.enemyType === 'boss'
-      ? 1.02
-      : importedVisual
-        ? 1.18
-        : prototype.role === 'rogue'
-          ? 1.42
-          : prototype.role === 'mage'
-            ? 1.34
-            : prototype.role === 'warrior'
-              ? 1.28
-              : 1.36;
-  const attackDuration = finalBoss
-    ? 0.68
-    : enemy.enemyType === 'boss'
-      ? 0.72
-      : importedVisual
-        ? 0.34
-        : prototype.role === 'rogue'
-          ? 0.36
-          : prototype.role === 'mage'
-            ? 0.44
-            : prototype.role === 'warrior'
-              ? 0.48
-              : 0.4;
+  const roleMoveBase: Record<EnemyRole, number> = {
+    minion: 1.36, rogue: 1.42, ranger: 1.38, mage: 1.34, warrior: 1.28, barbarian: 1.25, knight: 1.22,
+  };
+  const movePlaybackBase = finalBoss ? 1.08 : enemy.enemyType === 'boss' ? 1.02 : importedVisual ? 1.18 : roleMoveBase[role];
+  const roleAttackDuration: Record<EnemyRole, number> = {
+    minion: 0.4, rogue: 0.36, ranger: 0.4, mage: 0.44, warrior: 0.48, barbarian: 0.5, knight: 0.52,
+  };
+  const attackDuration = finalBoss ? 0.68 : enemy.enemyType === 'boss' ? 0.72 : importedVisual ? 0.34 : roleAttackDuration[role];
 
   idle?.reset().play();
   if (move) move.timeScale = movePlaybackBase;
@@ -373,7 +388,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     death.timeScale = Math.max(0.35, deathClip.duration / (phaseSeconds * clipWindow));
   }
 
-  const roleScale = prototype.role === 'warrior' ? 1.06 : prototype.role === 'mage' ? 1.02 : prototype.role === 'rogue' ? 0.98 : 0.94;
+  const roleScale = role === 'knight' ? 1.1 : role === 'barbarian' || role === 'warrior' ? 1.06 : role === 'mage' ? 1.02 : role === 'rogue' || role === 'ranger' ? 0.98 : 0.94;
   const importedBase = prototype.imported ? importedScale(THREE, scene, prototype.targetHeight ?? 0.7, prototype.widthWeight ?? 0.55) : 1;
   const baseScale = (prototype.imported
     ? importedBase
@@ -383,9 +398,17 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
 
   const statusRoot = new THREE.Group();
   root.add(statusRoot);
-  const burnGlows = buildStatusGlows(THREE, 0xff642c, IS_MOBILE ? 3 : 6, 0.22);
-  const frostGlows = buildStatusGlows(THREE, 0x8deaff, IS_MOBILE ? 3 : 7, 0.14);
+  const burnGlows = buildStatusGlows(THREE, 0xff642c, IS_MOBILE ? 5 : 8, 0.22);
+  const frostGlows = buildStatusGlows(THREE, 0x8deaff, IS_MOBILE ? 5 : 8, 0.14);
   [...burnGlows, ...frostGlows].forEach(mesh => statusRoot.add(mesh));
+
+  const burnHalo = new THREE.Mesh(
+    new THREE.TorusGeometry(0.38, 0.045, 6, IS_MOBILE ? 20 : 30),
+    new THREE.MeshBasicMaterial({ color: 0xff642c, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }),
+  );
+  burnHalo.rotation.x = Math.PI / 2;
+  burnHalo.position.y = 0.1;
+  statusRoot.add(burnHalo);
 
   const frostHalo = new THREE.Mesh(
     new THREE.TorusGeometry(0.42, 0.035, 6, IS_MOBILE ? 20 : 28),
@@ -397,8 +420,12 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
 
   const bossAura = new THREE.Group();
   bossAura.visible = enemy.enemyType === 'boss' || Boolean(enemy.isElite);
-  const auraOuter = finalBoss ? 0x6f5cff : enemy.isElite ? 0xe7b84f : 0x8f4864;
-  const auraInner = finalBoss ? 0x62d9ff : enemy.isElite ? 0xffdd7d : 0x765bd3;
+  const bossColors: Record<number, [number, number]> = {
+    10: [0xb49b76, 0xe8d8b4], 20: [0x8b5de0, 0xd5c2ff], 30: [0x6fa44e, 0xc9e78a], 40: [0x5f407f, 0xc578e8], 50: [0xff6a32, 0xffd071],
+  };
+  const [roomAuraOuter, roomAuraInner] = bossColors[roomNumber] ?? [0x8f4864, 0x765bd3];
+  const auraOuter = enemy.isElite ? 0xe7b84f : roomAuraOuter;
+  const auraInner = enemy.isElite ? 0xffdd7d : roomAuraInner;
   const bossRingOuter = new THREE.Mesh(
     new THREE.TorusGeometry(enemy.isElite ? 0.58 : 0.7, 0.055, 7, IS_MOBILE ? 24 : 36),
     new THREE.MeshBasicMaterial({ color: auraOuter, transparent: true, opacity: enemy.isElite ? 0.32 : 0.42, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }),
@@ -439,12 +466,13 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     hitElapsed: 0,
     statusRoot,
     burnGlows,
+    burnHalo,
     frostGlows,
     frostHalo,
     bossAura,
     bossCore,
     imported: importedVisual,
-    role: prototype.role,
+    role,
     movePlaybackBase,
     attackDuration,
   };
@@ -486,10 +514,12 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   const frozen = Boolean(enemy.frostUntil && now < enemy.frostUntil);
 
   visual.burnGlows.forEach((glow, index) => {
-    glow.material.opacity = burning ? 0.26 + Math.sin(now * 0.012 + index) * 0.14 : 0;
+    glow.material.opacity = burning ? 0.62 + Math.sin(now * 0.012 + index) * 0.22 : 0;
     glow.position.y += burning ? delta * (0.16 + index * 0.018) : 0;
     if (glow.position.y > 1.7) glow.position.y = 0.2;
   });
+  visual.burnHalo.material.opacity = burning ? 0.42 + Math.sin(now * 0.009) * 0.16 : 0;
+  visual.burnHalo.scale.setScalar(burning ? 0.94 + Math.sin(now * 0.006) * 0.1 : 1);
   visual.frostGlows.forEach((glow, index) => {
     glow.material.opacity = frozen ? 0.58 + Math.sin(now * 0.01 + index * 1.6) * 0.24 : 0;
     glow.position.y = 0.12 + (index % 4) * 0.32 + Math.sin(now * 0.004 + index) * 0.05;
@@ -515,7 +545,6 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
 
   const hitFlash = Boolean(enemy.flashUntil && now < enemy.flashUntil);
   if (hitFlash) setMeshTint(visual.scene, 0xffd6bd, enemy.enemyType === 'boss' ? 0.035 : 0.065);
-  else if (frozen) setMeshTint(visual.scene, 0x46bfff, 0.045);
   else setMeshTint(visual.scene, null, 0);
 
   if ((enemy.lastHitTime ?? 0) > visual.lastHitTime) {

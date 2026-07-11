@@ -126,7 +126,7 @@ const MEADOW_LAYOUTS: Record<number, ExpandedWorldSetpiece[]> = {
   4: [
     s(`${F}/Tree_1_C_Color1.gltf`, -8.2, -3.7, 0.1, 1.2, [1.8, 1.8]), s(`${F}/Tree_2_B_Color1.gltf`, 8.2, 3.8, -0.1, 1.18, [1.8, 1.8]),
     s(`${U}/table_low.gltf`, 0, -1.8, 0, 1.05, [1.7, 0.9]), s(`${T}/saw.gltf`, -0.5, -1.6, 0.3, 1.22, undefined, 0.72),
-    s(`${R}/Pallet_Wood.gltf`, 5.8, -3.2, 0.1, 1.08, [1.5, 0.9]), s(`${D}/box_small.gltf`, -5.8, 2.9, -0.1, 1.0, [0.8, 0.8]),
+    s(`${R}/Pallet_Wood.gltf`, 5.8, -3.2, 0.1, 1.08, [1.5, 0.9]), s(`${D}/box_small.gltf`, -5.8, 2.9, -0.1, 1.0, [0.8, 0.8]), s(`${F}/Bush_2_B_Color1.gltf`, -7.0, 4.1, 0, 1.08),
   ],
   5: [
     s(`${F}/Rock_2_D_Color1.gltf`, -4.6, -2.6, 0.18, 1.2, [1.2, 0.9]), s(`${F}/Rock_2_F_Color1.gltf`, 4.6, -2.6, -0.18, 1.2, [1.2, 0.9]),
@@ -151,7 +151,7 @@ const MEADOW_LAYOUTS: Record<number, ExpandedWorldSetpiece[]> = {
   9: [
     s(`${D}/pillar.gltf`, -4.2, -3.0, 0, 0.98, [0.8, 0.8]), s(`${D}/pillar.gltf`, 4.2, -3.0, 0, 0.98, [0.8, 0.8]),
     s(`${D}/rubble_half.gltf`, -6.8, 2.8, 0.18, 0.72, [1.2, 0.8]), s(`${D}/rubble_large.gltf`, 6.8, 3.4, -0.18, 0.84, [1.7, 1.2]),
-    s(`${F}/Tree_1_B_Color1.gltf`, -8.4, -5.0, 0.12, 1.12, [1.8, 1.8]), s(`${F}/Grass_2_Mesh.gltf`, 0, 2.0, 0, 1.52),
+    s(`${F}/Tree_1_B_Color1.gltf`, -8.4, -5.0, 0.12, 1.12, [1.8, 1.8]), s(`${F}/Grass_2_Mesh.gltf`, 0, 2.0, 0, 1.52), s(`${F}/Bush_3_B_Color1.gltf`, 7.2, -4.2, 0, 1.08),
   ],
   10: [
     s(`${F}/Rock_3_R_Color1.gltf`, 0, -4.8, 0, 1.62, [1.8, 1.4]), s(`${F}/Tree_1_C_Color1.gltf`, -7.0, -1.0, 0.1, 1.28, [1.8, 1.8]),
@@ -178,12 +178,12 @@ const DARKWOOD_LAYOUTS: Record<number, ExpandedWorldSetpiece[]> = {
   4: [
     s(`${H}/grave_A.gltf`, -5.2, -3.2, 0.1, 1.08, [1.2, 1.5]), s(`${H}/grave_B.gltf`, 5.2, -3.2, -0.1, 1.08, [1.2, 1.5]),
     s(`${H}/gravestone.gltf`, -3.2, 2.0, 0.08, 1.02, [1.1, 1.3]), s(`${H}/gravestone.gltf`, 3.2, 2.0, -0.08, 1.02, [1.1, 1.3]),
-    s(`${H}/post_lantern.gltf`, 0, 4.8, 0, 1.18),
+    s(`${H}/post_lantern.gltf`, 0, 4.8, 0, 1.18), s(`${F}/Tree_1_B_Color1.gltf`, -8.0, 4.0, 0.1, 1.1, [1.8, 1.8]),
   ],
   5: [
     s(`${H}/arch_gate.gltf`, 0, -4.8, 0, 1.18, [2.0, 1.0]), s(`${H}/shrine.gltf`, 0, 2.2, Math.PI, 1.35, [1.2, 1.2]),
     s(`${H}/grave_A_destroyed.gltf`, -6.2, 2.8, 0.14, 0.96, [1.2, 1.4]), s(`${H}/grave_A_destroyed.gltf`, 6.2, 2.8, -0.14, 0.96, [1.2, 1.4]),
-    s(`${H}/candle_triple.gltf`, -3.0, -1.0, 0, 1.2), s(`${H}/candle_triple.gltf`, 3.0, -1.0, 0, 1.2),
+    s(`${H}/candle_triple.gltf`, -3.0, -1.0, 0, 1.2), s(`${H}/candle_triple.gltf`, 3.0, -1.0, 0, 1.2), s(`${F}/Tree_2_C_Color1.gltf`, -8.0, 3.8, 0.1, 1.1, [1.8, 1.8]),
   ],
   6: [
     s(`${F}/Rock_3_D_Color1.gltf`, -4.4, -2.2, 0.22, 1.25, [1.2, 0.9]), s(`${F}/Rock_3_G_Color1.gltf`, 4.4, 1.8, -0.22, 1.25, [1.2, 0.9]),
@@ -193,11 +193,11 @@ const DARKWOOD_LAYOUTS: Record<number, ExpandedWorldSetpiece[]> = {
   7: [
     s(`${H}/bench.gltf`, -5.4, -1.2, Math.PI / 2, 1.08, [1.4, 0.8]), s(`${H}/bench_decorated.gltf`, 5.4, -1.2, -Math.PI / 2, 1.08, [1.4, 0.8]),
     s(`${D}/barrel_small_stack.gltf`, -2.2, 3.4, 0, 1.0, [1.1, 0.9]), s(`${D}/box_stacked.gltf`, 2.2, 3.4, 0, 1.0, [1.1, 0.9]),
-    s(`${H}/lantern_standing.gltf`, 0, -4.2, 0, 1.28),
+    s(`${H}/lantern_standing.gltf`, 0, -4.2, 0, 1.28), s(`${F}/Tree_1_C_Color1.gltf`, 8.0, 4.0, -0.1, 1.08, [1.8, 1.8]),
   ],
   8: [
     s(`${H}/shrine_candles.gltf`, 0, -1.8, 0, 1.62, [1.4, 1.4]), s(`${H}/candle_triple.gltf`, -3.4, 1.8, 0, 1.22), s(`${H}/candle_triple.gltf`, 3.4, 1.8, 0, 1.22),
-    s(`${H}/gravemarker_A.gltf`, -6.8, -3.4, 0.1, 1.0, [1.0, 1.2]), s(`${H}/gravemarker_A.gltf`, 6.8, -3.4, -0.1, 1.0, [1.0, 1.2]),
+    s(`${H}/gravemarker_A.gltf`, -6.8, -3.4, 0.1, 1.0, [1.0, 1.2]), s(`${H}/gravemarker_A.gltf`, 6.8, -3.4, -0.1, 1.0, [1.0, 1.2]), s(`${F}/Tree_2_A_Color1.gltf`, 8.0, 3.8, -0.1, 1.08, [1.8, 1.8]),
   ],
   9: [
     s(`${H}/post_lantern.gltf`, -5.2, -2.2, 0, 1.24), s(`${H}/post_lantern.gltf`, 5.2, -2.2, 0, 1.24),
@@ -207,7 +207,7 @@ const DARKWOOD_LAYOUTS: Record<number, ExpandedWorldSetpiece[]> = {
   10: [
     s(`${H}/shrine_candles.gltf`, 0, -4.8, 0, 1.78, [1.5, 1.5]), s(`${H}/grave_A_destroyed.gltf`, -6.4, -0.8, 0.1, 1.08, [1.2, 1.4]),
     s(`${H}/grave_A_destroyed.gltf`, 6.4, -0.8, -0.1, 1.08, [1.2, 1.4]), s(`${H}/post_lantern.gltf`, -5.6, 4.6, 0, 1.22),
-    s(`${H}/post_lantern.gltf`, 5.6, 4.6, 0, 1.22),
+    s(`${H}/post_lantern.gltf`, 5.6, 4.6, 0, 1.22), s(`${F}/Tree_1_A_Color1.gltf`, -8.0, 3.8, 0.1, 1.1, [1.8, 1.8]),
   ],
 };
 

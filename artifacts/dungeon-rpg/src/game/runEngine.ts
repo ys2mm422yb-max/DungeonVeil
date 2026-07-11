@@ -10,6 +10,7 @@ import { collidesWithRoomProp, shotBlockedByRoomProp } from './roomCollision3D';
 import { getRoomSpawnPoints, sceneSpawnToGame } from './roomSpawn3D';
 import { availableRunSkills, nextSkillRank, skillRank } from './runSkills';
 import { getEncounterPlan } from './encounterPlan';
+import { bossCombatProfile } from './enemyRegionalIdentity';
 
 export interface RunGameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';
@@ -504,7 +505,10 @@ export class GameEngine {
   private attackWindupMs(archetype: ReturnType<typeof enemyArchetype>) {
     if (archetype === 'skirmisher') return 165;
     if (archetype === 'guardian') return 270;
-    if (archetype === 'dragon') return this.state.floor === 50 ? 480 : 410;
+    if (archetype === 'dragon') {
+      const pattern = bossCombatProfile(this.state.floor).pattern;
+      return pattern === 'assassin' ? 230 : pattern === 'ranger' ? 320 : pattern === 'caster' ? 460 : pattern === 'warden' ? 420 : 340;
+    }
     return 185;
   }
 
@@ -514,16 +518,19 @@ export class GameEngine {
     if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;
 
     if (windup.archetype === 'dragon') {
+      const profile = bossCombatProfile(this.state.floor);
       const ex = enemy.x + enemy.width / 2;
       const ey = enemy.y + enemy.height / 2;
       const targetX = p.x + 16;
       const targetY = p.y + 16;
       const angle = Math.atan2(targetY - ey, targetX - ex);
-      const color = this.state.floor === 50 ? '#765cff' : '#ff633d';
-      const element = this.state.floor === 50 ? 'arcane' as const : 'fire' as const;
-      if (this.shotPathBlocked(ex, ey, targetX, targetY, 0.08)) return;
-      this.addShotEffect(`boss-shot-${time}-${windup.index}`, ex, ey, targetX, targetY, angle, color, element, 7);
-      this.state.particles.push(...makeHitSpark(targetX, targetY, color, 10));
+      const color = profile.element === 'fire' ? '#ff633d' : profile.element === 'arcane' ? '#9f72ff' : '#e8c77a';
+      const ranged = profile.pattern === 'caster' || profile.pattern === 'ranger' || profile.pattern === 'warden';
+      if (ranged) {
+        if (this.shotPathBlocked(ex, ey, targetX, targetY, 0.08)) return;
+        this.addShotEffect(`boss-shot-${this.state.floor}-${time}-${windup.index}`, ex, ey, targetX, targetY, angle, color, profile.element, profile.pattern === 'ranger' ? 5 : 8);
+        this.state.particles.push(...makeHitSpark(targetX, targetY, color, profile.pattern === 'warden' ? 14 : 10));
+      } else if (dist > windup.range * 1.18) return;
     }
 
     if (time <= p.invincibleUntil) return;
@@ -581,7 +588,11 @@ export class GameEngine {
       const plan = planEnemyMove(enemy, p, dt, time);
       enemy.state = dist <= plan.attackRange ? 'attack' : 'chase';
       const frostFactor = enemy.frostUntil && time < enemy.frostUntil ? 1 - (enemy.frostSlow ?? 0) : 1;
+      const beforeX = enemy.x;
+      const beforeY = enemy.y;
       if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx * frostFactor, plan.dy * frostFactor);
+      enemy.vx = enemy.x - beforeX;
+      enemy.vy = enemy.y - beforeY;
       this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
 
       if (dist < plan.attackRange && time > enemy.nextAttackTime) {

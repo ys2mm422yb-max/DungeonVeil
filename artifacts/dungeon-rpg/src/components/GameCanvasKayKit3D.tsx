@@ -165,8 +165,21 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         }
         visual = enemyVisuals.get(enemy.id);
         if (!visual) continue;
-        visual.root.position.set(mapX(state, enemy.x + enemy.width / 2), 0, mapZ(state, enemy.y + enemy.height / 2));
-        if (!enemy.isDead) visual.root.rotation.y = Math.atan2(state.player.x - enemy.x, state.player.y - enemy.y);
+        const nextX = mapX(state, enemy.x + enemy.width / 2);
+        const nextZ = mapZ(state, enemy.y + enemy.height / 2);
+        const moveX = nextX - visual.root.position.x;
+        const moveZ = nextZ - visual.root.position.z;
+        visual.root.position.set(nextX, 0, nextZ);
+        if (!enemy.isDead) {
+          const moving = Math.hypot(moveX, moveZ) > 0.0004;
+          const attackFacingX = mapX(state, state.player.x + state.player.width / 2) - nextX;
+          const attackFacingZ = mapZ(state, state.player.y + state.player.height / 2) - nextZ;
+          const targetAngle = enemy.state === 'attack' || !moving
+            ? Math.atan2(attackFacingX, attackFacingZ)
+            : Math.atan2(moveX, moveZ);
+          const angleDelta = Math.atan2(Math.sin(targetAngle - visual.root.rotation.y), Math.cos(targetAngle - visual.root.rotation.y));
+          visual.root.rotation.y += angleDelta * Math.min(1, delta * 12);
+        }
         updateKayKitEnemyVisual(visual, enemy, delta, gameNow);
       }
     };
