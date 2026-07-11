@@ -1,0 +1,13 @@
+=== EASY ENEMIES ===
+extracted/easy-enemies/Easy Animated Enemy Pack - Jan 2019/FBX/Frog.fbx
+extracted/easy-enemies/Easy Animated Enemy Pack - Jan 2019/FBX/Rat.fbx
+extracted/easy-enemies/Easy Animated Enemy Pack - Jan 2019/FBX/Snake_angry.fbx
+extracted/easy-enemies/Easy Animated Enemy Pack - Jan 2019/FBX/Snake.fbx
+extracted/easy-enemies/Easy Animated Enemy Pack - Jan 2019/FBX/Spider.fbx
+extracted/easy-enemies/Easy Animated Enemy Pack - Jan 2019/FBX/Wasp.fbx
+
+=== MONSTERS ===
+extracted/monsters/FBX/Bat.fbx
+extracted/monsters/FBX/Dragon.fbx
+extracted/monsters/FBX/Skeleton.fbx
+extracted/monsters/FBX/Slime.fbx
