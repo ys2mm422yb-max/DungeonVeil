@@ -19,7 +19,6 @@ const SLOT_LABELS: Record<EquipmentSlot, { de: string; en: string }> = {
   talisman: { de: 'TALISMAN', en: 'TALISMAN' },
 };
 
-const RELIC_ITEMS = new Set<EquipmentId>(['hunter-bow', 'rune-quiver', 'frost-grimoire']);
 type ChamberTab = EquipmentSlot | 'relic';
 
 export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
@@ -41,7 +40,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const canUpgrade = Boolean(cost && meta.gold >= cost.gold && selectedCopies >= cost.copies);
   const xpTarget = xpForNextRank(meta.rank);
   const xpPercent = Math.max(0, Math.min(100, meta.xp / xpTarget * 100));
-  const relicTier = selectedItem ? RELIC_ITEMS.has(selected) : false;
+  const relicTier = selectedItem?.rarity === 'epic';
   const activeRelic = selectedRelic ? VEIL_RELICS[selectedRelic] : null;
 
   const refresh = (next = loadMetaProgression()) => setMeta({ ...next });
