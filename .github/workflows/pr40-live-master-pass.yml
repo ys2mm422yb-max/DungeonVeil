@@ -1,0 +1,80 @@
+name: PR40 Live Master Pass
+
+on:
+  push:
+    branches:
+      - work/blocks-1-7-production-pass
+    paths:
+      - .github/workflows/pr40-live-master-pass.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply live master pass
+        run: |
+          sed -i "s/\[files.rooms, 'GRABWÄCHTERHALLE'\]/[files.rooms, 'Grabwächterhalle']/" scripts/pr40-live-master-pass.mjs
+          node scripts/pr40-live-master-pass.mjs
+
+      - name: Static audit
+        run: |
+          git diff --check
+          grep -q "private shotPathBlocked" artifacts/dungeon-rpg/src/game/runEngine.ts
+          grep -q "size: 74" artifacts/dungeon-rpg/src/game/runEngine.ts
+          grep -q "centerSceneOnRoot" artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts
+          grep -q "BOSSHEILIGTUM" artifacts/dungeon-rpg/src/components/CombatStage.tsx
+          unexpected="$(git diff --name-only | grep -Ev '^(artifacts/dungeon-rpg/src/(game/(runEngine|roomCollision3D|logicalRoomSetpieces)\.ts|components/(RunCameraRig\.ts|GameCanvasKayKit3D\.tsx|kaykitRoom3D\.ts|kaykitRoomThemes3D\.ts|kaykitEnemy3D\.ts|HUD\.tsx|CombatStage\.tsx))|scripts/pr40-(live-master-pass\.mjs|run-live-master-pass\.sh)|\.github/workflows/pr40-live-master-pass\.yml)$' || true)"
+          if [[ -n "$unexpected" ]]; then
+            echo "Unerwartete Dateien wurden verändert:"
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+
+      - name: Typecheck Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
+
+      - name: Build Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg build
+
+      - name: Commit verified pass
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            artifacts/dungeon-rpg/src/game/runEngine.ts \
+            artifacts/dungeon-rpg/src/game/roomCollision3D.ts \
+            artifacts/dungeon-rpg/src/game/logicalRoomSetpieces.ts \
+            artifacts/dungeon-rpg/src/components/RunCameraRig.ts \
+            artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx \
+            artifacts/dungeon-rpg/src/components/kaykitRoom3D.ts \
+            artifacts/dungeon-rpg/src/components/kaykitRoomThemes3D.ts \
+            artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts \
+            artifacts/dungeon-rpg/src/components/HUD.tsx \
+            artifacts/dungeon-rpg/src/components/CombatStage.tsx
+          git rm scripts/pr40-live-master-pass.mjs scripts/pr40-run-live-master-pass.sh .github/workflows/pr40-live-master-pass.yml
+          git commit -m "Finish room quality, projectile collision and boss targeting"
+          git push origin HEAD:work/blocks-1-7-production-pass
