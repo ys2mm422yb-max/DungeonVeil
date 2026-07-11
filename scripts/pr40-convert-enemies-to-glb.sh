@@ -60,9 +60,7 @@ const source = process.argv[3];
 const output = process.argv[4];
 const convert = require(modulePath);
 convert(source, output, [])
-  .then(result => {
-    console.log(`Konvertiert: ${result}`);
-  })
+  .then(result => console.log(`Konvertiert: ${result}`))
   .catch(error => {
     console.error(error);
     process.exit(1);
@@ -144,27 +142,19 @@ for (const [oldText, newText] of replacements) {
 }
 
 const mobileLightCount = text.split('if (!IS_ANDROID) {').length - 1;
-if (mobileLightCount < 2) throw new Error(`FEHLER: Mobile-Lichtstellen unvollständig gefunden (${mobileLightCount})`);
+if (mobileLightCount !== 2) throw new Error(`FEHLER: Erwartet wurden 2 Mobile-Lichtstellen, gefunden ${mobileLightCount}`);
 text = text.replaceAll('if (!IS_ANDROID) {', 'if (!IS_MOBILE) {');
 
-const oldBlock = `      if (IS_ANDROID) {
-         lowFpsWindows = fps < 42 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
-         if (lowFpsWindows >= 2 && particleBudget > 26) {
-           particleBudget = 26;
-           try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
-         }
-       }`;
-const newBlock = `      if (IS_MOBILE) {
-         lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
-         if (lowFpsWindows >= 2 && particleBudget > 24) {
-           particleBudget = 24;
-           try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
-         }
-       }`;
+const fpsPattern = /      if \(IS_ANDROID\) \{\s*lowFpsWindows = fps < 42 \? lowFpsWindows \+ 1 : Math\.max\(0, lowFpsWindows - 1\);\s*if \(lowFpsWindows >= 2 && particleBudget > 26\) \{\s*particleBudget = 26;\s*try \{ sessionStorage\.setItem\(LOW_GPU_KEY, '1'\); \} catch \{\}\s*\}\s*\}/m;
+if (!fpsPattern.test(text)) throw new Error('FEHLER: FPS-Anpassungsblock nicht gefunden');
+text = text.replace(fpsPattern, `      if (IS_MOBILE) {
+        lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
+        if (lowFpsWindows >= 2 && particleBudget > 24) {
+          particleBudget = 24;
+          try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
+        }
+      }`);
 
-const blockCount = text.split(oldBlock).length - 1;
-if (blockCount !== 1) throw new Error(`FEHLER: FPS-Anpassungsblock nicht gefunden (${blockCount})`);
-text = text.replace(oldBlock, newBlock);
 fs.writeFileSync(path, text);
 NODE
 
