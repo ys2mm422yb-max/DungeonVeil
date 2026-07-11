@@ -22,6 +22,7 @@ const ASSETS = {
 
 type AssetName = keyof typeof ASSETS;
 type LoadedAsset = { scene: any };
+type RoomOccluderRole = 'front-wall' | 'side-wall' | 'back-wall';
 const cache = new Map<AssetName, Promise<LoadedAsset>>();
 
 async function gltfLoader() {
@@ -71,12 +72,31 @@ function prepare(root: any) {
   });
 }
 
-function addObject(group: any, prototype: any, x: number, y: number, z: number, rotation = 0, scale = 1) {
+function tagOccluder(object: any, role?: RoomOccluderRole) {
+  if (!role) return;
+  object.userData = { ...(object.userData ?? {}), roomOccluder: role };
+  object.traverse((node: any) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    node.userData = { ...(node.userData ?? {}), roomOccluder: role };
+  });
+}
+
+function addObject(
+  group: any,
+  prototype: any,
+  x: number,
+  y: number,
+  z: number,
+  rotation = 0,
+  scale = 1,
+  occluderRole?: RoomOccluderRole,
+) {
   if (!prototype) return null;
   const object = prototype.clone(true);
   object.position.set(x, y, z);
   object.rotation.y = rotation;
   object.scale.setScalar(scale);
+  tagOccluder(object, occluderRole);
   group.add(object);
   return object;
 }
@@ -91,7 +111,9 @@ function wallFor(spec: RoomBibleSpec, index: number, loaded: Record<AssetName, a
 function portalStagePoint(spec: RoomBibleSpec) {
   return {
     x: spec.portal.x,
-    z: spec.portal.z < -8 ? -10.5 : spec.portal.z,
+    // The gameplay tile and portal light already use -8.5. Keeping the architecture
+    // at -10.5 left the supports visibly detached behind the active portal.
+    z: spec.portal.z < -8 ? -8.5 : spec.portal.z,
   };
 }
 
@@ -100,9 +122,6 @@ function addPortalStage(root: any, spec: RoomBibleSpec, loaded: Record<AssetName
   root.userData.portalStage = { x, z };
 
   if (spec.portal.z < -8) {
-    // The previous full wall-arch sat in front of the actual portal and looked like
-    // a giant grey board. Build an open alcove instead: solid wall behind it, two
-    // slim supports and two wall lights, with the whole portal centre left clear.
     const spread = spec.shell === 'veil' ? 2.65 : 2.35;
     const supportScale = spec.shell === 'veil' ? 1.16 : 1.02;
     addObject(root, loaded.wallColumn, x - spread, 0, z - 1.75, 0, supportScale);
@@ -193,25 +212,23 @@ export function buildKayKitDungeonRoom(THREE: any, room: number, mapWidth: numbe
     let wallIndex = 0;
 
     for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
-      // Perimeter walls stay continuous. Magical portals are staged inside the room
-      // instead of pretending to be a doorway cut into this wall row.
-      addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, top);
-      addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, bottom, Math.PI);
+      addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, top, 0, 1, 'back-wall');
+      addObject(root, wallFor(spec, wallIndex++, loaded), x, 0, bottom, Math.PI, 1, 'front-wall');
     }
     for (let z = top + wallStep; z < bottom - wallStep; z += wallStep) {
-      addObject(root, wallFor(spec, wallIndex++, loaded), left, 0, z, Math.PI / 2);
-      addObject(root, wallFor(spec, wallIndex++, loaded), right, 0, z, -Math.PI / 2);
+      addObject(root, wallFor(spec, wallIndex++, loaded), left, 0, z, Math.PI / 2, 1, 'side-wall');
+      addObject(root, wallFor(spec, wallIndex++, loaded), right, 0, z, -Math.PI / 2, 1, 'side-wall');
     }
 
-    addObject(root, loaded.corner, left, 0, top, Math.PI / 2);
-    addObject(root, loaded.corner, right, 0, top, Math.PI);
-    addObject(root, loaded.corner, right, 0, bottom, -Math.PI / 2);
-    addObject(root, loaded.corner, left, 0, bottom);
+    addObject(root, loaded.corner, left, 0, top, Math.PI / 2, 1, 'back-wall');
+    addObject(root, loaded.corner, right, 0, top, Math.PI, 1, 'back-wall');
+    addObject(root, loaded.corner, right, 0, bottom, -Math.PI / 2, 1, 'front-wall');
+    addObject(root, loaded.corner, left, 0, bottom, 0, 1, 'front-wall');
 
     const columnXs = spec.shell === 'monumental' || spec.shell === 'veil' ? [-8, -4, 4, 8] : [-6, 6];
     for (const x of columnXs) {
-      addObject(root, loaded.wallColumn, x, 0, top, 0, spec.shell === 'veil' ? 1.18 : 1);
-      addObject(root, loaded.wallColumn, x, 0, bottom, Math.PI, spec.shell === 'veil' ? 1.18 : 1);
+      addObject(root, loaded.wallColumn, x, 0, top, 0, spec.shell === 'veil' ? 1.18 : 1, 'back-wall');
+      addObject(root, loaded.wallColumn, x, 0, bottom, Math.PI, spec.shell === 'veil' ? 1.18 : 1, 'front-wall');
     }
 
     const torchCount = spec.phase === 'inhabited-mine' ? 4 : spec.phase === 'abandoned-quarters' ? 2 : spec.phase === 'ancient-ruins' ? 3 : 1;
