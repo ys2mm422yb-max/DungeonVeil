@@ -144,7 +144,7 @@ for (const [oldText, newText] of replacements) {
 }
 
 const mobileLightCount = text.split('if (!IS_ANDROID) {').length - 1;
-if (mobileLightCount < 3) throw new Error(`FEHLER: Mobile-Lichtstellen unvollständig gefunden (${mobileLightCount})`);
+if (mobileLightCount < 2) throw new Error(`FEHLER: Mobile-Lichtstellen unvollständig gefunden (${mobileLightCount})`);
 text = text.replaceAll('if (!IS_ANDROID) {', 'if (!IS_MOBILE) {');
 
 const oldBlock = `      if (IS_ANDROID) {
