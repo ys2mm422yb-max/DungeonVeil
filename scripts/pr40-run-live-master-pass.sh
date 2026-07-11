@@ -29,6 +29,7 @@ let segment = source.slice(start, end)
   .replace('const roomBlock = String.raw`', 'const roomBlock = `')
   .replace(/\$\{([FDRTHA])\}/g, (_match, name) => `\\\${${name}}`);
 source = source.slice(0, start) + segment + source.slice(end);
+source = source.replace("[files.rooms, 'GRABWÄCHTERHALLE']", "[files.rooms, 'Grabwächterhalle']");
 fs.writeFileSync(file, source);
 NODE
 node --check "$MIGRATION"
