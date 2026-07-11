@@ -3,6 +3,7 @@ import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWor
 import { logicalRoomSetpieces, type LogicalRoomSetpiece } from '../game/logicalRoomSetpieces';
 import { roomIdentity } from '../game/roomIdentity';
 import { roomBibleSpec, type RoomBibleSpec } from '../game/roomBible';
+import { roomPropDisplayScale, roomPropScaleClass } from '../game/propPresentation3D';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
@@ -258,9 +259,18 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     const prototype = await prototypeForPiece(piece);
     if (!active) return;
     const object = prototype.clone(true);
+    const displayScale = roomPropDisplayScale(piece);
     object.position.set(piece.x, piece.y ?? 0, piece.z);
     object.rotation.y = piece.rotation ?? 0;
-    object.scale.setScalar(piece.scale ?? 1);
+    object.scale.setScalar(displayScale);
+    object.userData = {
+      ...(object.userData ?? {}),
+      roomPropPresentation: {
+        authoredScale: piece.scale ?? 1,
+        displayScale,
+        scaleClass: roomPropScaleClass(piece),
+      },
+    };
     root.add(object);
   })).then(() => outer.userData?.ready ?? Promise.resolve()).then(() => undefined);
 
