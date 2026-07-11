@@ -23,7 +23,6 @@ fi
 
 command -v node >/dev/null 2>&1 || { echo 'FEHLER: Node.js fehlt.'; exit 1; }
 command -v npx >/dev/null 2>&1 || { echo 'FEHLER: npx fehlt.'; exit 1; }
-command -v python3 >/dev/null 2>&1 || { echo 'FEHLER: python3 fehlt.'; exit 1; }
 
 NAMES=(Rat Spider Snake_angry Bat Slime)
 
@@ -108,58 +107,55 @@ done
 
 echo '=== iPhone-Leistungsprofil einbauen ==='
 cp -- "$CANVAS" "$TMP/GameCanvasKayKit3D.before.tsx"
-python3 - "$CANVAS" <<'PY'
-from pathlib import Path
-import sys
+node - "$CANVAS" <<'NODE'
+const fs = require('node:fs');
+const path = process.argv[2];
+let text = fs.readFileSync(path, 'utf8');
 
-path = Path(sys.argv[1])
-text = path.read_text()
+const replacements = [
+  [
+    "const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);\nconst IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);\nconst MAX_PARTICLES = IS_ANDROID ? 38 : IS_MOBILE ? 64 : 110;",
+    "const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);\nconst IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);\nconst IS_MOBILE = typeof navigator !== 'undefined' && (IS_IOS || IS_ANDROID || navigator.maxTouchPoints > 1);\nconst MAX_PARTICLES = IS_ANDROID ? 36 : IS_IOS ? 40 : IS_MOBILE ? 44 : 96;",
+  ],
+  ["platform: IS_ANDROID ? 'android-balanced' : IS_MOBILE ? 'mobile' : 'desktop',", "platform: IS_ANDROID ? 'android-balanced' : IS_IOS ? 'ios-balanced' : IS_MOBILE ? 'mobile-balanced' : 'desktop',"],
+  ["renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 1 : 1.25));", "renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_MOBILE ? 1 : 1.2));"],
+  ["renderer.shadowMap.enabled = !IS_ANDROID;", "renderer.shadowMap.enabled = !IS_MOBILE;"],
+  ["keyLight.castShadow = !IS_ANDROID;", "keyLight.castShadow = !IS_MOBILE;"],
+  ["keyLight.shadow.mapSize.set(IS_ANDROID ? 512 : 1024, IS_ANDROID ? 512 : 1024);", "keyLight.shadow.mapSize.set(IS_MOBILE ? 512 : 1024, IS_MOBILE ? 512 : 1024);"],
+  ["const core = new THREE.PointLight(0x9d76ff, IS_ANDROID ? 4.8 : IS_MOBILE ? 7.2 : 9.5, 8.5, 2);", "const core: any = IS_MOBILE ? new THREE.Object3D() : new THREE.PointLight(0x9d76ff, 8.8, 8.5, 2);\n        core.intensity = IS_MOBILE ? 0 : core.intensity;"],
+  ["portal.userData.core.intensity = ((IS_ANDROID ? 4.4 : IS_MOBILE ? 6.5 : 8.8) + pulse * 2.2) * activateProgress;", "if (!IS_MOBILE) portal.userData.core.intensity = (8.8 + pulse * 2.2) * activateProgress;"],
+];
 
-replacements = [
-    (
-        "const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);\nconst IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);\nconst MAX_PARTICLES = IS_ANDROID ? 38 : IS_MOBILE ? 64 : 110;",
-        "const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);\nconst IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);\nconst IS_MOBILE = typeof navigator !== 'undefined' && (IS_IOS || IS_ANDROID || navigator.maxTouchPoints > 1);\nconst MAX_PARTICLES = IS_ANDROID ? 36 : IS_IOS ? 40 : IS_MOBILE ? 44 : 96;",
-    ),
-    ("platform: IS_ANDROID ? 'android-balanced' : IS_MOBILE ? 'mobile' : 'desktop',", "platform: IS_ANDROID ? 'android-balanced' : IS_IOS ? 'ios-balanced' : IS_MOBILE ? 'mobile-balanced' : 'desktop',"),
-    ("renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 1 : 1.25));", "renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_MOBILE ? 1 : 1.2));"),
-    ("renderer.shadowMap.enabled = !IS_ANDROID;", "renderer.shadowMap.enabled = !IS_MOBILE;"),
-    ("keyLight.castShadow = !IS_ANDROID;", "keyLight.castShadow = !IS_MOBILE;"),
-    ("keyLight.shadow.mapSize.set(IS_ANDROID ? 512 : 1024, IS_ANDROID ? 512 : 1024);", "keyLight.shadow.mapSize.set(IS_MOBILE ? 512 : 1024, IS_MOBILE ? 512 : 1024);"),
-    ("const core = new THREE.PointLight(0x9d76ff, IS_ANDROID ? 4.8 : IS_MOBILE ? 7.2 : 9.5, 8.5, 2);", "const core: any = IS_MOBILE ? new THREE.Object3D() : new THREE.PointLight(0x9d76ff, 8.8, 8.5, 2);\n        core.intensity = IS_MOBILE ? 0 : core.intensity;"),
-    ("portal.userData.core.intensity = ((IS_ANDROID ? 4.4 : IS_MOBILE ? 6.5 : 8.8) + pulse * 2.2) * activateProgress;", "if (!IS_MOBILE) portal.userData.core.intensity = (8.8 + pulse * 2.2) * activateProgress;"),
-]
+for (const [oldText, newText] of replacements) {
+  const count = text.split(oldText).length - 1;
+  if (count !== 1) throw new Error(`FEHLER: Erwartete Stelle nicht eindeutig gefunden (${count} Treffer): ${oldText.slice(0, 80)}`);
+  text = text.replace(oldText, newText);
+}
 
-for old, new in replacements:
-    count = text.count(old)
-    if count != 1:
-        raise SystemExit(f'FEHLER: Erwartete Stelle nicht eindeutig gefunden ({count} Treffer): {old[:80]}')
-    text = text.replace(old, new)
+const mobileLightCount = text.split('if (!IS_ANDROID) {').length - 1;
+if (mobileLightCount < 3) throw new Error(`FEHLER: Mobile-Lichtstellen unvollständig gefunden (${mobileLightCount})`);
+text = text.replaceAll('if (!IS_ANDROID) {', 'if (!IS_MOBILE) {');
 
-count = text.count("if (!IS_ANDROID) {")
-if count < 3:
-    raise SystemExit(f'FEHLER: Mobile-Lichtstellen unvollständig gefunden ({count})')
-text = text.replace("if (!IS_ANDROID) {", "if (!IS_MOBILE) {")
-
-old_block = """      if (IS_ANDROID) {
+const oldBlock = `      if (IS_ANDROID) {
         lowFpsWindows = fps < 42 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
         if (lowFpsWindows >= 2 && particleBudget > 26) {
           particleBudget = 26;
           try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
         }
-      }"""
-new_block = """      if (IS_MOBILE) {
+      }`;
+const newBlock = `      if (IS_MOBILE) {
         lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
         if (lowFpsWindows >= 2 && particleBudget > 24) {
           particleBudget = 24;
           try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
         }
-      }"""
-if text.count(old_block) != 1:
-    raise SystemExit('FEHLER: FPS-Anpassungsblock nicht gefunden')
-text = text.replace(old_block, new_block)
+      }`;
 
-path.write_text(text)
-PY
+const blockCount = text.split(oldBlock).length - 1;
+if (blockCount !== 1) throw new Error(`FEHLER: FPS-Anpassungsblock nicht gefunden (${blockCount})`);
+text = text.replace(oldBlock, newBlock);
+fs.writeFileSync(path, text);
+NODE
 
 echo '=== Zielordner ersetzen ==='
 mkdir -p "$DEST"
