@@ -61,20 +61,58 @@ function loadRelic() {
   return relicPromise;
 }
 
+function tintObject(THREE: any, object: any, accent: string, strength: number) {
+  const tint = new THREE.Color(accent);
+  object.traverse((node: any) => {
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    const source = Array.isArray(node.material) ? node.material : [node.material];
+    const materials = source.map((material: any) => {
+      const clone = material?.clone?.() ?? material;
+      if (clone?.color?.lerp) clone.color.lerp(tint, strength);
+      if (clone?.emissive?.set) {
+        clone.emissive.set(accent);
+        clone.emissiveIntensity = Math.min(0.12, strength * 0.25);
+      }
+      return clone;
+    });
+    node.material = Array.isArray(node.material) ? materials : materials[0];
+  });
+}
+
 function loadEquipment(id: EquipmentId) {
   if (!equipmentPromises.has(id)) {
     equipmentPromises.set(id, (async () => {
-      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
+      const [{ GLTFLoader }, THREE] = await Promise.all([
+        import(/* @vite-ignore */ GLTF_URL) as any,
+        import(/* @vite-ignore */ THREE_URL) as any,
+      ]);
       const loader = new GLTFLoader();
       const visual = equipmentVisualProfile(id);
+      let primary: LoadedGltf;
       try {
-        const primary: LoadedGltf = await loader.loadAsync(assetUrl(visual.primaryPath));
-        return primary.scene;
+        primary = await loader.loadAsync(assetUrl(visual.primaryPath));
       } catch (primaryError) {
         if (visual.primaryPath === visual.fallbackPath) throw primaryError;
-        const fallback: LoadedGltf = await loader.loadAsync(assetUrl(visual.fallbackPath));
-        return fallback.scene;
+        primary = await loader.loadAsync(assetUrl(visual.fallbackPath));
       }
+
+      const group = new THREE.Group();
+      tintObject(THREE, primary.scene, EQUIPMENT[id].accent, visual.tintStrength);
+      group.add(primary.scene);
+
+      if (visual.accessoryPath) {
+        try {
+          const accessory: LoadedGltf = await loader.loadAsync(assetUrl(visual.accessoryPath));
+          tintObject(THREE, accessory.scene, EQUIPMENT[id].accent, Math.min(0.65, visual.tintStrength + 0.18));
+          accessory.scene.position.set(...(visual.accessoryPosition ?? [0, 0, 0]));
+          accessory.scene.rotation.set(...(visual.accessoryRotation ?? [0, 0, 0]));
+          accessory.scene.scale.setScalar(visual.accessoryScale ?? 1);
+          group.add(accessory.scene);
+        } catch (error) {
+          console.warn(`Equipment drop accessory failed for ${id}`, error);
+        }
+      }
+      return group;
     })().catch(() => null));
   }
   return equipmentPromises.get(id)!;
@@ -122,10 +160,11 @@ export async function createKayKitLootVisual(item: Item) {
   const rarity = item.equipmentRarity ?? (relic ? 'epic' : 'common');
   const color = Number.parseInt((item.color || (relic ? '#a978ff' : '#ff6b4a')).replace('#', ''), 16) || 0xffffff;
   const auraScale = rarity === 'epic' ? 1.28 : rarity === 'rare' ? 1.1 : 0.88;
-  const auraOpacity = rarity === 'epic' ? 0.78 : rarity === 'rare' ? 0.62 : 0.4;
+  const auraOpacity = rarity === 'epic' ? 0.68 : rarity === 'rare' ? 0.52 : 0.34;
+  const segments = IS_MOBILE ? 22 : 32;
 
   const halo = new THREE.Mesh(
-    new THREE.RingGeometry(0.34 * auraScale, 0.62 * auraScale, 32),
+    new THREE.RingGeometry(0.34 * auraScale, 0.62 * auraScale, segments),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: auraOpacity, depthWrite: false, side: THREE.DoubleSide }),
   );
   halo.rotation.x = -Math.PI / 2;
@@ -133,21 +172,23 @@ export async function createKayKitLootVisual(item: Item) {
   root.add(halo);
 
   const innerHalo = new THREE.Mesh(
-    new THREE.CircleGeometry(0.34 * auraScale, 28),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: auraOpacity * 0.34, depthWrite: false, side: THREE.DoubleSide }),
+    new THREE.CircleGeometry(0.34 * auraScale, segments),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: auraOpacity * 0.28, depthWrite: false, side: THREE.DoubleSide }),
   );
   innerHalo.rotation.x = -Math.PI / 2;
   innerHalo.position.y = -0.145;
   root.add(innerHalo);
 
-  const glow = new THREE.PointLight(
+  const glow = IS_MOBILE ? null : new THREE.PointLight(
     color,
-    IS_MOBILE ? (rarity === 'epic' ? 3.1 : rarity === 'rare' ? 2.2 : 1.2) : (rarity === 'epic' ? 4.2 : rarity === 'rare' ? 3 : 1.6),
+    rarity === 'epic' ? 3.6 : rarity === 'rare' ? 2.5 : 1.3,
     rarity === 'epic' ? 4.8 : rarity === 'rare' ? 3.8 : 2.6,
     2,
   );
-  glow.position.y = equipment || relic ? 0.55 : 0.32;
-  root.add(glow);
+  if (glow) {
+    glow.position.y = equipment || relic ? 0.55 : 0.32;
+    root.add(glow);
+  }
 
   root.userData.halo = halo;
   root.userData.innerHalo = innerHalo;
