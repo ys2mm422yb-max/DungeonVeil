@@ -1,4 +1,4 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# See https://docs.github.com/en/get-started/using-git/ignoring-files for more about ignoring files.
 
 # compiled output
 dist
@@ -47,3 +47,4 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+/asset-imports/
