@@ -23,19 +23,14 @@ function portalStage(spec) {
   return { x: spec.portal.x, z: spec.portal.z < -8 ? -8.5 : spec.portal.z };
 }
 
-function rotatedCollider(piece) {
-  if (!piece.collider) return null;
-  const scale = (piece.scale || 1) * 0.9;
-  const localW = piece.collider[0] * scale;
-  const localH = piece.collider[1] * scale;
-  const angle = piece.rotation || 0;
-  const cos = Math.abs(Math.cos(angle));
-  const sin = Math.abs(Math.sin(angle));
+function colliderFromPiece(piece, presentation) {
+  const footprint = presentation.roomPropColliderFootprint(piece);
+  if (!footprint) return null;
   return {
     x: piece.x,
     z: piece.z,
-    halfW: (localW * cos + localH * sin) / 2,
-    halfH: (localW * sin + localH * cos) / 2,
+    halfW: footprint.width / 2,
+    halfH: footprint.height / 2,
   };
 }
 
@@ -106,6 +101,7 @@ try {
   const layouts = await server.ssrLoadModule('/src/game/logicalRoomSetpieces.ts');
   const encounters = await server.ssrLoadModule('/src/game/encounterPlan.ts');
   const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');
+  const presentation = await server.ssrLoadModule('/src/game/propPresentation3D.ts');
 
   if (chapter.CHAPTER_ROOMS !== 50) error(null, 'CHAPTER_ROOMS must be 50');
   const expectedBosses = [10, 20, 30, 40, 50];
@@ -147,17 +143,37 @@ try {
       const fallbackExists = piece.fallbackModel ? fs.existsSync(modelPath(piece.fallbackModel)) : false;
       if (!primaryExists && !fallbackExists) error(room, 'missing model and fallback: ' + piece.model);
       if (Math.abs(piece.x) > 11.2 || piece.z < -15.6 || piece.z > 7.0) error(room, 'setpiece outside authored bounds: ' + piece.model);
+
+      const displayScale = presentation.roomPropDisplayScale(piece);
+      const scaleClass = presentation.roomPropScaleClass(piece);
+      if (!Number.isFinite(displayScale) || displayScale <= 0.35 || displayScale > 3.2) {
+        error(room, 'invalid display scale for ' + piece.model + ': ' + displayScale);
+      }
+      if (piece.collider && (piece.collider[0] <= 0 || piece.collider[1] <= 0)) {
+        error(room, 'non-positive authored collider for ' + piece.model);
+      }
+      const footprint = presentation.roomPropColliderFootprint(piece);
+      if (footprint && (footprint.width > 6.5 || footprint.height > 6.5)) {
+        warning(room, 'very large gameplay collider for ' + piece.model + ': ' + footprint.width.toFixed(2) + 'x' + footprint.height.toFixed(2));
+      }
+      if (['lighting', 'small-prop', 'tool-weapon'].includes(scaleClass) && footprint) {
+        error(room, 'decorative prop unexpectedly blocks gameplay: ' + piece.model);
+      }
     }
 
     const expectedProps = pieces
-      .filter(piece => piece.collider)
       .filter(piece => Math.hypot(piece.x - portal.x, piece.z - portal.z) > PORTAL_CLEARANCE)
-      .map(rotatedCollider)
+      .map(piece => colliderFromPiece(piece, presentation))
       .filter(Boolean);
 
     for (const expected of expectedProps) {
-      const found = colliders.some(actual => Math.abs(actual.x - expected.x) < 0.01 && Math.abs(actual.z - expected.z) < 0.01);
-      if (!found) error(room, 'a visible prop collider is missing from gameplay collision');
+      const found = colliders.some(actual =>
+        Math.abs(actual.x - expected.x) < 0.01 &&
+        Math.abs(actual.z - expected.z) < 0.01 &&
+        Math.abs(actual.halfW - expected.halfW) < 0.01 &&
+        Math.abs(actual.halfH - expected.halfH) < 0.01
+      );
+      if (!found) error(room, 'a visible prop collider is missing or has the wrong footprint');
     }
     if (outdoor && colliders.length !== expectedProps.length) {
       error(room, 'outdoor room contains invisible architecture colliders: expected ' + expectedProps.length + ', got ' + colliders.length);
@@ -200,7 +216,7 @@ try {
     errors.forEach(message => console.error('  - ' + message));
     process.exitCode = 1;
   } else {
-    console.log('Room validation passed: 50/50 rooms, 5 boss rooms, assets, spawns, portal routes and projectile colliders.');
+    console.log('Room validation passed: 50/50 rooms, scale policy, collider footprints, spawns, portal routes and projectile collision.');
   }
 } finally {
   await server.close();
