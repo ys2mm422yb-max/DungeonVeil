@@ -4,8 +4,8 @@ import { loadRetentionProfile } from '../../game/runRetention';
 import { loadVeilRelicProfile, VEIL_RELICS } from '../../game/veilRelics';
 
 const BEASTS = [
-  ['slime', 'Schleim'], ['goblin', 'Goblin'], ['skeleton', 'Skelett'], ['orc', 'Ork'],
-  ['spider', 'Schleierspinne'], ['vampire', 'Vampir'], ['demon', 'Dämon'], ['golem', 'Golem'],
+  ['slime', 'Schleim'], ['goblin', 'Ratte'], ['skeleton', 'Skelett'], ['orc', 'Ork'],
+  ['spider', 'Schleierspinne'], ['vampire', 'Fledermaus'], ['demon', 'Schleierschlange'], ['golem', 'Golem'],
 ] as const;
 const HUNTS = ['Aschenjäger', 'Der Runenlose', 'Nachtklaue', 'Knochenrufer', 'Veyra die Verlorene', 'Schleierhetzer'];
 const WARDENS = Array.from({ length: 5 }, (_, index) => ({ key: `1:${(index + 1) * 20}`, name: index === 0 ? 'Der erste Wächter' : `Wächter ${index + 1}` }));
