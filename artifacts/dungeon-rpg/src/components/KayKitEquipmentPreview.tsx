@@ -1,21 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { EQUIPMENT, type EquipmentId } from '../game/metaProgression';
+import { equipmentVisualProfile } from '../game/equipmentVisuals';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const KAYKIT_ROOT = '/assets/kaykit/';
-const OPEN_BOOK = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/spellbook_open.gltf';
-const RANGER_QUIVER = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf';
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
-const BOWS = new Set<EquipmentId>(['ash-bow', 'ember-bow', 'hunter-bow', 'veil-bow', 'warden-bow']);
-const CROSSBOWS = new Set<EquipmentId>(['frost-bow', 'splinter-bow']);
-const QUIVERS = new Set<EquipmentId>(['ranger-quiver', 'black-quiver', 'rune-quiver', 'frost-quiver', 'splinter-quiver', 'warden-quiver']);
-const BOOKS = new Set<EquipmentId>(['frost-grimoire', 'ritual-shard']);
-const CROSSBOW_PREVIEW_ASSET: Partial<Record<EquipmentId, string>> = {
-  'frost-bow': 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/crossbow_2handed.gltf',
-  'splinter-bow': 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/crossbow_1handed.gltf',
-};
+function assetUrl(path: string) {
+  return path.startsWith('/') ? path : `${KAYKIT_ROOT}${path}`;
+}
 
 function prepareObject(object: any) {
   object.traverse((node: any) => {
@@ -35,36 +29,23 @@ function disposeObject(object: any) {
   });
 }
 
-function applyFinalPose(display: any, itemId: EquipmentId) {
-  display.rotation.set(0, 0, 0);
-  if (BOWS.has(itemId)) {
-    display.rotation.set(-0.08, -0.28, Math.PI / 2);
-    return;
+async function loadVisual(loader: any, itemId: EquipmentId) {
+  const visual = equipmentVisualProfile(itemId);
+  try {
+    return await loader.loadAsync(assetUrl(visual.primaryPath));
+  } catch (primaryError) {
+    if (visual.primaryPath === visual.fallbackPath) throw primaryError;
+    return loader.loadAsync(assetUrl(visual.fallbackPath));
   }
-  if (CROSSBOWS.has(itemId)) {
-    // Both crossbows are posed into the screen plane before fitting. The frost item
-    // uses the long two-handed silhouette; the splinter item uses the compact hand
-    // crossbow. Neither preview rotates away from this readable angle afterwards.
-    display.rotation.set(itemId === 'frost-bow' ? -0.18 : -0.28, -Math.PI / 2 + 0.12, -0.04);
-    return;
-  }
-  if (QUIVERS.has(itemId)) {
-    display.rotation.set(-0.08, -0.48, -0.14);
-    return;
-  }
-  if (BOOKS.has(itemId)) {
-    display.rotation.set(-0.68, -0.38, 0.06);
-    return;
-  }
-  display.rotation.set(-0.08, -0.42, 0.12);
 }
 
-/**
- * Pose first, then compute the final screen-facing bounds. The previous preview
- * fitted the raw model and rotated afterwards, which shifted long crossbows out
- * of frame. This keeps a real 12-15% safety margin on every side.
- */
+function applyFinalPose(display: any, itemId: EquipmentId) {
+  const visual = equipmentVisualProfile(itemId);
+  display.rotation.set(...visual.rotation);
+}
+
 function fitPosedDisplay(THREE: any, display: any, itemId: EquipmentId, frameWidth: number, frameHeight: number) {
+  const visual = equipmentVisualProfile(itemId);
   display.scale.setScalar(1);
   display.position.set(0, 0, 0);
   applyFinalPose(display, itemId);
@@ -72,8 +53,8 @@ function fitPosedDisplay(THREE: any, display: any, itemId: EquipmentId, frameWid
 
   const bounds = new THREE.Box3().setFromObject(display);
   const size = bounds.getSize(new THREE.Vector3());
-  const targetWidth = frameWidth * (CROSSBOWS.has(itemId) ? 0.72 : 0.68);
-  const targetHeight = frameHeight * (CROSSBOWS.has(itemId) ? 0.44 : BOOKS.has(itemId) ? 0.52 : 0.6);
+  const targetWidth = frameWidth * visual.fillWidth;
+  const targetHeight = frameHeight * visual.fillHeight;
   const scale = Math.min(
     targetWidth / Math.max(size.x, 0.001),
     targetHeight / Math.max(size.y, 0.001),
@@ -84,11 +65,43 @@ function fitPosedDisplay(THREE: any, display: any, itemId: EquipmentId, frameWid
   const fittedBounds = new THREE.Box3().setFromObject(display);
   const center = fittedBounds.getCenter(new THREE.Vector3());
   display.position.sub(center);
-  display.position.y += CROSSBOWS.has(itemId) ? 0.03 : -0.02;
+  display.position.y += visual.yOffset;
   display.updateMatrixWorld(true);
 }
 
-export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPath: string; accent: string; itemId: EquipmentId }) {
+function addQuiverIdentity(THREE: any, display: any, itemId: EquipmentId, accent: string) {
+  const material = new THREE.MeshStandardMaterial({ color: accent, roughness: 0.55, metalness: itemId === 'warden-quiver' ? 0.65 : 0.18 });
+  const darkMaterial = new THREE.MeshStandardMaterial({ color: itemId === 'black-quiver' ? 0x17131e : 0x4a3424, roughness: 0.8 });
+  const arrowCount = itemId === 'splinter-quiver' ? 4 : itemId === 'rune-quiver' ? 3 : 5;
+
+  for (let index = 0; index < arrowCount; index++) {
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.95, 6), darkMaterial.clone());
+    shaft.position.set((index - (arrowCount - 1) / 2) * 0.075, 0.32 + (index % 2) * 0.04, 0.07 + index * 0.006);
+    shaft.rotation.z = (index - (arrowCount - 1) / 2) * 0.025;
+    display.add(shaft);
+
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.16, 6), material.clone());
+    tip.position.set(shaft.position.x, 0.86 + (index % 2) * 0.04, shaft.position.z);
+    display.add(tip);
+  }
+
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.028, 6, 24), material.clone());
+  band.rotation.x = Math.PI / 2;
+  band.position.set(0, -0.08, 0.04);
+  band.scale.x = 0.72;
+  display.add(band);
+
+  if (itemId === 'rune-quiver' || itemId === 'frost-quiver') {
+    const rune = new THREE.Mesh(
+      new THREE.RingGeometry(0.13, 0.19, 18),
+      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    rune.position.set(0, -0.02, 0.28);
+    display.add(rune);
+  }
+}
+
+export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }: { assetPath: string; accent: string; itemId: EquipmentId }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,6 +122,7 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       if (disposed) return;
 
       scene = new THREE.Scene();
+      const visual = equipmentVisualProfile(itemId);
       const epic = EQUIPMENT[itemId]?.rarity === 'epic';
       const width = Math.max(1, host.clientWidth || 120);
       const height = Math.max(1, host.clientHeight || 120);
@@ -140,10 +154,9 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       }
 
       const loader = new GLTFLoader();
-      const resolvedAssetPath = CROSSBOW_PREVIEW_ASSET[itemId] ?? assetPath;
-      const primary = await loader.loadAsync(`${KAYKIT_ROOT}${resolvedAssetPath}`);
+      const loaded = await loadVisual(loader, itemId);
       if (disposed) {
-        disposeObject(primary.scene);
+        disposeObject(loaded.scene);
         return;
       }
 
@@ -152,36 +165,10 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       relic.add(display);
       scene.add(relic);
 
-      let object = primary.scene;
+      const object = loaded.scene;
       prepareObject(object);
-      if (itemId === 'frost-grimoire') {
-        const open = await loader.loadAsync(`${KAYKIT_ROOT}${OPEN_BOOK}`);
-        if (disposed) {
-          disposeObject(primary.scene);
-          disposeObject(open.scene);
-          return;
-        }
-        disposeObject(primary.scene);
-        object = open.scene;
-        prepareObject(object);
-      }
-
-      if (itemId === 'rune-quiver') {
-        const quiverGltf = await loader.loadAsync(`${KAYKIT_ROOT}${RANGER_QUIVER}`);
-        if (disposed) {
-          disposeObject(object);
-          disposeObject(quiverGltf.scene);
-          return;
-        }
-        const quiver = quiverGltf.scene;
-        prepareObject(quiver);
-        quiver.position.set(-0.12, -0.06, 0);
-        object.position.set(0.24, 0.16, 0.12);
-        object.scale.setScalar(0.58);
-        display.add(quiver);
-        display.add(object);
-      } else display.add(object);
-
+      display.add(object);
+      if (visual.kind === 'quiver') addQuiverIdentity(THREE, display, itemId, accent);
       fitPosedDisplay(THREE, display, itemId, viewWidth, viewHeight);
 
       const generated: any[] = [];
@@ -212,11 +199,9 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       const loop = () => {
         if (disposed) return;
         const now = performance.now();
-        // Crossbows never yaw: the readable final silhouette stays visible in every
-        // frame. Other items get only a restrained display sway.
-        relic.rotation.y = CROSSBOWS.has(itemId) ? 0 : Math.sin(now * 0.00075) * (epic ? 0.09 : 0.12);
-        relic.rotation.x = CROSSBOWS.has(itemId) ? 0 : Math.sin(now * 0.0007) * 0.016;
-        relic.position.y = Math.sin(now * 0.0015) * (CROSSBOWS.has(itemId) ? 0.012 : 0.022);
+        relic.rotation.y = visual.lockYaw ? 0 : Math.sin(now * 0.00075) * (epic ? 0.07 : 0.09);
+        relic.rotation.x = visual.lockYaw ? 0 : Math.sin(now * 0.0007) * 0.012;
+        relic.position.y = Math.sin(now * 0.0015) * (visual.kind === 'crossbow' ? 0.01 : 0.018);
         generated.forEach((node, index) => {
           node.rotation.z += index % 2 ? -0.0018 : 0.0018;
           if (node.material?.opacity !== undefined) node.material.opacity = 0.22 + Math.sin(now * 0.0032 + index) * 0.07;
@@ -247,7 +232,7 @@ export function KayKitEquipmentPreview({ assetPath, accent, itemId }: { assetPat
       renderer?.forceContextLoss?.();
       renderer?.domElement?.remove?.();
     };
-  }, [assetPath, accent, itemId]);
+  }, [accent, itemId]);
 
   return <div ref={hostRef} className="h-full w-full overflow-hidden" />;
 }
