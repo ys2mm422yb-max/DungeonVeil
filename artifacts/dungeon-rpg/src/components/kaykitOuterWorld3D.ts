@@ -1,8 +1,20 @@
+import { roomBibleSpec } from '../game/roomBible';
+
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const ROOT = '/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/';
 const MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
-type Library = { floor: any; floorBroken: any; wall: any; wallBroken: any; corner: any; pillar: any; torch: any };
+type Library = {
+  floor: any;
+  floorBroken: any;
+  wall: any;
+  wallBroken: any;
+  wallCracked: any;
+  corner: any;
+  pillar: any;
+  decoratedPillar: any;
+  torch: any;
+};
 let libraryPromise: Promise<Library> | null = null;
 
 async function loadLibrary(): Promise<Library> {
@@ -10,16 +22,28 @@ async function loadLibrary(): Promise<Library> {
     libraryPromise = (async () => {
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       const loader = new GLTFLoader();
-      const [floor, floorBroken, wall, wallBroken, corner, pillar, torch] = await Promise.all([
+      const [floor, floorBroken, wall, wallBroken, wallCracked, corner, pillar, decoratedPillar, torch] = await Promise.all([
         loader.loadAsync(`${ROOT}floor_tile_large.gltf`),
         loader.loadAsync(`${ROOT}floor_tile_large_rocks.gltf`),
         loader.loadAsync(`${ROOT}wall.gltf`),
         loader.loadAsync(`${ROOT}wall_broken.gltf`),
+        loader.loadAsync(`${ROOT}wall_cracked.gltf`),
         loader.loadAsync(`${ROOT}wall_corner.gltf`),
         loader.loadAsync(`${ROOT}wall_pillar.gltf`),
+        loader.loadAsync(`${ROOT}pillar_decorated.gltf`),
         loader.loadAsync(`${ROOT}torch_mounted.gltf`),
       ]);
-      return { floor: floor.scene, floorBroken: floorBroken.scene, wall: wall.scene, wallBroken: wallBroken.scene, corner: corner.scene, pillar: pillar.scene, torch: torch.scene };
+      return {
+        floor: floor.scene,
+        floorBroken: floorBroken.scene,
+        wall: wall.scene,
+        wallBroken: wallBroken.scene,
+        wallCracked: wallCracked.scene,
+        corner: corner.scene,
+        pillar: pillar.scene,
+        decoratedPillar: decoratedPillar.scene,
+        torch: torch.scene,
+      };
     })();
   }
   return libraryPromise;
@@ -55,39 +79,51 @@ function cloneAt(group: any, source: any, x: number, z: number, rotation = 0, y 
   group.add(object);
 }
 
-export function buildKayKitOuterWorld(THREE: any, mapWidth: number, mapHeight: number) {
+export function buildKayKitOuterWorld(THREE: any, mapWidth: number, mapHeight: number, room = 1) {
   const root = new THREE.Group();
-  root.name = 'KayKitOuterDungeon';
+  const spec = roomBibleSpec(room);
+  root.name = `KayKitOuterDungeon_${spec.shell}`;
   let active = true;
 
   const ready = loadLibrary().then(library => {
     if (!active) return;
     Object.values(library).forEach(prepare);
 
-    const margin = MOBILE ? 10 : 14;
+    // Keep the safety shell close to the playable room. The camera clamp should
+    // normally hide it, but if it becomes visible it still matches the room phase.
+    const margin = MOBILE ? 6 : 9;
     const step = 4;
     const left = -mapWidth / 2 - margin;
     const right = mapWidth / 2 + margin;
     const top = -mapHeight / 2 - margin;
     const bottom = mapHeight / 2 + margin;
 
+    let tileIndex = 0;
     for (let z = top + step / 2; z < bottom; z += step) {
       for (let x = left + step / 2; x < right; x += step) {
         const inside = x > -mapWidth / 2 - 1 && x < mapWidth / 2 + 1 && z > -mapHeight / 2 - 1 && z < mapHeight / 2 + 1;
         if (inside) continue;
-        const index = Math.abs(Math.round(x / step) * 17 + Math.round(z / step) * 31);
-        cloneAt(root, index % 7 === 0 ? library.floorBroken : library.floor, x, z, index % 2 ? Math.PI / 2 : 0);
+        const brokenEvery = spec.shell === 'veil' ? 2 : spec.shell === 'abandoned' ? 4 : spec.shell === 'monumental' ? 6 : 9;
+        cloneAt(root, tileIndex++ % brokenEvery === 0 ? library.floorBroken : library.floor, x, z, tileIndex % 2 ? Math.PI / 2 : 0);
       }
     }
 
+    const wallFor = (index: number) => {
+      if (spec.shell === 'intact') return index % 10 === 0 ? library.wallCracked : library.wall;
+      if (spec.shell === 'abandoned') return index % 3 === 0 ? library.wallBroken : library.wallCracked;
+      if (spec.shell === 'monumental') return index % 8 === 0 ? library.wallCracked : library.wall;
+      return index % 2 === 0 ? library.wallBroken : library.wallCracked;
+    };
+
+    let wallIndex = 0;
     const wallStep = 2;
     for (let x = left + wallStep; x < right - wallStep; x += wallStep) {
-      cloneAt(root, Math.abs(Math.round(x)) % 8 === 0 ? library.wallBroken : library.wall, x, top, 0, -0.08);
-      cloneAt(root, Math.abs(Math.round(x + 3)) % 9 === 0 ? library.wallBroken : library.wall, x, bottom, Math.PI, -0.08);
+      cloneAt(root, wallFor(wallIndex++), x, top, 0, -0.08);
+      cloneAt(root, wallFor(wallIndex++), x, bottom, Math.PI, -0.08);
     }
     for (let z = top + wallStep; z < bottom - wallStep; z += wallStep) {
-      cloneAt(root, Math.abs(Math.round(z)) % 8 === 0 ? library.wallBroken : library.wall, left, z, Math.PI / 2, -0.08);
-      cloneAt(root, Math.abs(Math.round(z + 3)) % 9 === 0 ? library.wallBroken : library.wall, right, z, -Math.PI / 2, -0.08);
+      cloneAt(root, wallFor(wallIndex++), left, z, Math.PI / 2, -0.08);
+      cloneAt(root, wallFor(wallIndex++), right, z, -Math.PI / 2, -0.08);
     }
 
     cloneAt(root, library.corner, left, top, Math.PI / 2, -0.08);
@@ -95,16 +131,18 @@ export function buildKayKitOuterWorld(THREE: any, mapWidth: number, mapHeight: n
     cloneAt(root, library.corner, right, bottom, -Math.PI / 2, -0.08);
     cloneAt(root, library.corner, left, bottom, 0, -0.08);
 
-    for (const x of [-8, 0, 8]) {
-      cloneAt(root, library.pillar, x, top + 0.15, 0, -0.08);
-      cloneAt(root, library.pillar, x, bottom - 0.15, Math.PI, -0.08);
+    const pillarXs = spec.shell === 'monumental' ? [-8, -4, 4, 8] : spec.shell === 'veil' ? [-6, 6] : spec.shell === 'abandoned' ? [-7, 7] : [-8, 0, 8];
+    const pillar = spec.shell === 'monumental' || spec.shell === 'veil' ? library.decoratedPillar : library.pillar;
+    for (const x of pillarXs) {
+      cloneAt(root, pillar, x, top + 0.15, 0, -0.08, spec.shell === 'veil' ? 1.18 : 1);
+      cloneAt(root, pillar, x, bottom - 0.15, Math.PI, -0.08, spec.shell === 'veil' ? 1.18 : 1);
     }
 
-    const torchPositions: Array<[number, number, number]> = [
+    const torchCount = spec.phase === 'inhabited-mine' ? 4 : spec.phase === 'abandoned-quarters' ? 2 : spec.phase === 'ancient-ruins' ? 3 : 1;
+    const positions: Array<[number, number, number]> = [
       [-8, top + 0.25, 0], [8, top + 0.25, 0], [-8, bottom - 0.25, Math.PI], [8, bottom - 0.25, Math.PI],
-      [left + 0.25, -5, Math.PI / 2], [left + 0.25, 5, Math.PI / 2], [right - 0.25, -5, -Math.PI / 2], [right - 0.25, 5, -Math.PI / 2],
     ];
-    torchPositions.forEach(([x, z, rotation]) => cloneAt(root, library.torch, x, z, rotation, -0.02, 0.95));
+    positions.slice(0, torchCount).forEach(([x, z, rotation]) => cloneAt(root, library.torch, x, z, rotation, -0.02, spec.phase === 'warden-veil' ? 0.82 : 0.95));
   }).catch(error => {
     console.error('KayKit outer dungeon failed', error);
     throw error;

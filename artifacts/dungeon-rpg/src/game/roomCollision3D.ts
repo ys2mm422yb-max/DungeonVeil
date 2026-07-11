@@ -1,14 +1,20 @@
 import { calibratedRoomSetpieces } from './roomSetpieceCalibrated';
+import { roomBibleSpec } from './roomBible';
 
 const COLLIDER_INSET = 0.9;
+const PORTAL_CLEARANCE = 2.25;
 
 function entityCenterToScene(value: number, size: number, mapTiles: number) {
   return (value + size / 2) / 40 - mapTiles / 2 + 0.5;
 }
 
 function collidersForRoom(room: number) {
+  const portal = roomBibleSpec(room).portal;
   return calibratedRoomSetpieces(room)
     .filter(piece => piece.collider)
+    // A hero object may frame a ritual/central exit, but it must never make the
+    // exit unreachable. The same bible position clears physics and rendering.
+    .filter(piece => Math.hypot(piece.x - portal.x, piece.z - portal.z) > PORTAL_CLEARANCE)
     .map(piece => {
       const base = piece.collider!;
       const scale = (piece.scale ?? 1) * COLLIDER_INSET;

@@ -1,4 +1,5 @@
 import { DungeonMap, TileType } from './dungeon';
+import { roomPortalTile } from './roomBible';
 
 const fill = <T,>(height: number, width: number, value: T): T[][] =>
   Array.from({ length: height }, () => Array<T>(width).fill(value));
@@ -20,8 +21,8 @@ export function generateRunRoom(room: number): DungeonMap {
   const floorVariant = fill<number>(height, width, 0);
   const wallTint = fill<string>(height, width, 'default');
 
-  // Der komplette Innenraum ist begehbar. Sichtbare 3D-Architektur darf nicht
-  // mehr von unabhängigen, unsichtbaren Tile-Kollisionen abweichen.
+  // Visible 3D props are the collision source. The authored room interior therefore
+  // stays walkable and can change silhouette without hidden tile walls disagreeing.
   for (let y = 2; y < height - 2; y++) {
     for (let x = 2; x < width - 2; x++) {
       tiles[y][x] = TileType.FLOOR;
@@ -29,21 +30,24 @@ export function generateRunRoom(room: number): DungeonMap {
     }
   }
 
-  const exitX = Math.floor(width / 2);
+  const startX = Math.floor(width / 2);
+  const startY = height - 4;
+  const exit = roomPortalTile(room, width, height);
 
-  // Der Ausgang sitzt bewusst in einer kleinen Tormulde direkt an der oberen
-  // Architektur. So steht das Veil nicht mehr zwei Felder vor dem Dungeon-Tor.
-  for (let x = exitX - 2; x <= exitX + 2; x++) tiles[1][x] = TileType.FLOOR;
-  tiles[1][exitX] = TileType.STAIRS_DOWN;
-
-  // Spawn- und Ausgangsbereiche bleiben garantiert frei.
-  for (let y = height - 7; y < height - 2; y++) {
-    for (let x = exitX - 3; x <= exitX + 3; x++) tiles[y][x] = TileType.FLOOR;
+  // Player start and the room-specific portal stage always stay clear. Portals can
+  // now sit in a ritual center, side gate or boss core instead of every room ending
+  // at the same top-center doorway.
+  for (let y = startY - 3; y <= startY + 1; y++) {
+    for (let x = startX - 3; x <= startX + 3; x++) {
+      if (tiles[y]?.[x] !== undefined) tiles[y][x] = TileType.FLOOR;
+    }
   }
-  for (let y = 1; y <= 6; y++) {
-    for (let x = exitX - 2; x <= exitX + 2; x++) tiles[y][x] = TileType.FLOOR;
+  for (let y = exit.y - 2; y <= exit.y + 2; y++) {
+    for (let x = exit.x - 2; x <= exit.x + 2; x++) {
+      if (tiles[y]?.[x] !== undefined) tiles[y][x] = TileType.FLOOR;
+    }
   }
-  tiles[1][exitX] = TileType.STAIRS_DOWN;
+  tiles[exit.y][exit.x] = TileType.STAIRS_DOWN;
 
   return {
     width,
@@ -61,8 +65,8 @@ export function generateRunRoom(room: number): DungeonMap {
       h: height - 4,
       roomType: isBossRoom(room) ? 'boss_arena' : 'barracks',
     }],
-    startX: exitX,
-    startY: height - 4,
+    startX,
+    startY,
     chests: [],
     decorations: [],
     torches: [],
