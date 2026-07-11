@@ -14,6 +14,11 @@ awk -v runner="$RUNNER" '
     print ""
     aliasesAdded = 1
   }
+  $0 == "const metaFile = '\''artifacts/dungeon-rpg/src/game/metaProgression.ts'\'';" {
+    print
+    print "const A = '\''${A}'\'';"
+    next
+  }
   $0 == "git rm \"$SCRIPT_PATH\"" {
     print "git rm \"$SCRIPT_PATH\" \"" runner "\""
     next
