@@ -2,7 +2,7 @@ import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { buildKayKitOuterWorld, preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
 import { calibratedRoomSetpieces } from '../game/roomSetpieceCalibrated';
 import { roomIdentity } from '../game/roomIdentity';
-import { roomBibleSpec } from '../game/roomBible';
+import { roomBibleSpec, type RoomBibleSpec } from '../game/roomBible';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
@@ -45,12 +45,11 @@ async function prototypeFor(path: string) {
   return promise;
 }
 
-function addLights(THREE: any, root: any, room: number) {
-  const spec = roomBibleSpec(room);
+function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
   const accent = ROOM_ACCENTS[room] ?? spec.light.fill;
 
   // Phase lights live inside the room root and disappear atomically during room
-  // transitions. This changes the whole mood instead of tinting one prop cluster.
+  // transitions. They tint the whole composition without adding mobile shadows.
   const ambient = new THREE.AmbientLight(spec.light.ambient, IS_MOBILE ? 0.42 : 0.34);
   const hemisphere = new THREE.HemisphereLight(
     spec.light.hemisphereSky,
@@ -69,6 +68,32 @@ function addLights(THREE: any, root: any, room: number) {
   portalLight.position.set(spec.portal.x, 3.2, spec.portal.z);
   root.add(portalLight);
   root.userData.architectureLights = [ambient, hemisphere, heroLight, portalLight];
+}
+
+/**
+ * The run scene stays alive while rooms are swapped. Bind the room environment to
+ * one rendered mesh, so Three applies the authored background, fog and exposure
+ * immediately before this room is drawn without rebuilding the canvas.
+ */
+function bindEnvironmentDriver(THREE: any, root: any, spec: RoomBibleSpec) {
+  let driver: any = null;
+  root.traverse((node: any) => {
+    if (!driver && (node.isMesh || node.isSkinnedMesh)) driver = node;
+  });
+  if (!driver) return;
+
+  const background = new THREE.Color(spec.light.background);
+  const fog = new THREE.Fog(
+    spec.light.fog,
+    spec.shell === 'veil' ? 24 : spec.shell === 'abandoned' ? 27 : 30,
+    spec.shell === 'veil' ? 48 : spec.shell === 'abandoned' ? 53 : 58,
+  );
+  driver.onBeforeRender = (renderer: any, scene: any) => {
+    scene.background = background;
+    scene.fog = fog;
+    renderer.toneMappingExposure = spec.light.exposure;
+  };
+  root.userData.environmentDriver = driver;
 }
 
 export async function preloadKayKitRoomTheme(room: number) {
@@ -91,7 +116,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
 
   const outer = buildKayKitOuterWorld(THREE, 24, 32, room);
   root.add(outer);
-  addLights(THREE, root, room);
+  addLights(THREE, root, room, spec);
 
   const ready = Promise.all(calibratedRoomSetpieces(room).map(async piece => {
     const prototype = await prototypeFor(piece.model);
@@ -101,9 +126,17 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     object.rotation.y = piece.rotation ?? 0;
     object.scale.setScalar(piece.scale ?? 1);
     root.add(object);
-  })).then(() => outer.userData?.ready ?? Promise.resolve()).then(() => undefined);
+  }))
+    .then(() => outer.userData?.ready ?? Promise.resolve())
+    .then(() => {
+      if (active) bindEnvironmentDriver(THREE, root, spec);
+    });
 
   root.userData.ready = ready;
-  root.userData.dispose = () => { active = false; outer.userData?.dispose?.(); };
+  root.userData.dispose = () => {
+    active = false;
+    if (root.userData.environmentDriver) root.userData.environmentDriver.onBeforeRender = () => undefined;
+    outer.userData?.dispose?.();
+  };
   return root;
 }
