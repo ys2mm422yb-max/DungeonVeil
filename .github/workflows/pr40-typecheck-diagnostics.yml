@@ -4,7 +4,12 @@ on:
   push:
     branches:
       - work/blocks-1-7-production-pass
+    paths-ignore:
+      - 'docs/ci/pr40-typecheck.log'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   capture-typecheck:
@@ -13,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -29,16 +36,23 @@ jobs:
         shell: bash
         run: |
           set +e
-          pnpm --filter @workspace/dungeon-rpg typecheck 2>&1 | tee typecheck.log
+          mkdir -p docs/ci
+          pnpm --filter @workspace/dungeon-rpg typecheck 2>&1 | tee docs/ci/pr40-typecheck.log
           status=${PIPESTATUS[0]}
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Upload typecheck log
-        uses: actions/upload-artifact@v4
-        with:
-          name: pr40-typecheck-log
-          path: typecheck.log
-          if-no-files-found: error
+      - name: Commit diagnostic log
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/ci/pr40-typecheck.log
+          if git diff --cached --quiet; then
+            echo "No diagnostic changes"
+          else
+            git commit -m "Capture PR40 typecheck errors"
+            git push origin HEAD:work/blocks-1-7-production-pass
+          fi
       - name: Fail when typecheck failed
         if: steps.typecheck.outputs.exit_code != '0'
         run: exit 1
