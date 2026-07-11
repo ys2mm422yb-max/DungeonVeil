@@ -15,8 +15,8 @@ const OVERRIDES: Partial<Record<EquipmentId, PresentationOverride>> = {
     descriptionEn: 'Ice Arrow I and +3 range per level',
   },
   'splinter-bow': {
-    nameDe: 'Splitterarmbrust',
-    nameEn: 'Splinter Crossbow',
+    nameDe: 'Splitter-Handarmbrust',
+    nameEn: 'Splinter Hand Crossbow',
     descriptionDe: 'Durchschlag I und +2 Angriff pro Stufe',
     descriptionEn: 'Piercing I and +2 attack per level',
   },
