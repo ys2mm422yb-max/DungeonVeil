@@ -1,8 +1,8 @@
 import type { RoomSetpiece } from './roomSetpieceLayout';
-import { runtimeRoomSetpieces as canvaRoomSetpieces } from './roomSetpieceRuntime';
 
 const F = 'furniture/Assets/gltf';
 const T = 'tools/Assets/gltf';
+const H = 'halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf';
 const D = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 const R = 'resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf';
 
@@ -16,136 +16,215 @@ const p = (
 ): RoomSetpiece => ({ model, x, z, rotation, scale, collider });
 
 /**
- * Mobile-camera layouts based on the real iPhone screenshots.
- * The outer room renderer already provides the architectural boundary, so these
- * layouts deliberately avoid internal wall mazes. Each room is built from
- * readable themed clusters with at most a few honest collision islands.
+ * Binding Room-Bible compositions. The base room renderer owns floors and the
+ * perimeter shell; this file only supplies the hero object and themed gameplay
+ * islands. No room is allowed to fall back to generic wall mazes or barrel spam.
  */
-const CALIBRATED_MOBILE_ROOMS: Partial<Record<number, RoomSetpiece[]>> = {
-  // ROOM 01 · Versorgungsposten — offene Mittelachse, drei echte Vorratsgruppen
+const ROOM_BIBLE_SETPIECES: Record<number, RoomSetpiece[]> = {
   1: [
-    p(`${F}/shelf_B_large_decorated.gltf`, -6.35, -5.55, Math.PI / 2, 1.15, [1.05, 2.15]),
-    p(`${D}/shelf_large.gltf`, -4.55, -5.35, 0, 1.1, [2, 1]),
-    p(`${D}/box_stacked.gltf`, -6.2, -3.65, 0, 1.1, [1.15, .95]),
-    p(`${D}/barrel_small_stack.gltf`, -4.9, -3.55, .15, 1.08),
-    p(`${R}/Pallet_Wood_Covered_A.gltf`, -5.45, -2.35, 0, 1.08),
-
-    p(`${F}/shelf_A_big.gltf`, 6.25, -5.5, -Math.PI / 2, 1.15, [1.05, 2.15]),
-    p(`${D}/trunk_medium_A.gltf`, 4.55, -4.7, -.1, 1.12, [1.35, .8]),
-    p(`${D}/barrel_large_decorated.gltf`, 6.2, -3.35, 0, 1.1, [1, 1]),
-    p(`${D}/box_stacked.gltf`, 4.75, -2.65, Math.PI / 2, 1.08),
-
-    p(`${R}/Pallet_Wood.gltf`, -5.8, .7, .08, 1.1),
-    p(`${D}/box_stacked.gltf`, -4.5, 1.05, 0, 1.08, [1.15, .95]),
-    p(`${D}/barrel_small_stack.gltf`, -6.25, 2.2, -.1, 1.06),
-    p(`${D}/box_stacked.gltf`, 5.5, 1.2, Math.PI / 2, 1.08, [1.15, .95]),
-    p(`${D}/barrel_small_stack.gltf`, 6.45, 2.45, .12, 1.06),
+    p(`${F}/shelf_B_large_decorated.gltf`, -6.3, -5.4, Math.PI / 2, 1.12, [1, 2.1]),
+    p(`${D}/shelf_large.gltf`, -4.5, -5.1, 0, 1.08, [2, 1]),
+    p(`${R}/Pallet_Wood_Covered_A.gltf`, -5.4, -3.35, 0, 1.08, [1.45, .9]),
+    p(`${D}/trunk_medium_A.gltf`, 5.2, -5.0, -.1, 1.12, [1.35, .8]),
+    p(`${R}/Pallet_Wood_Covered_B.gltf`, 6.25, -3.6, .12, 1.08, [1.45, .9]),
+    p(`${D}/box_stacked.gltf`, 4.65, -3.1, 0, 1.06, [1.15, .9]),
+    p(`${R}/Pallet_Wood.gltf`, -5.2, 2.2, .08, 1.08, [1.4, .9]),
+    p(`${D}/barrel_small_stack.gltf`, -6.35, 2.95, -.1, 1.04, [1, .85]),
+    p(`${D}/chest.gltf`, 5.65, 2.7, -.12, 1.08, [1.3, .85]),
   ],
-
-  // ROOM 02 · Wachstube — Kommandotisch, Waffenplatz und freie Portalachse
   2: [
-    p(`${D}/table_long_decorated_A.gltf`, -4.85, -4.5, .05, 1.14, [2.4, 1]),
-    p(`${D}/chair.gltf`, -6.05, -3.15, .15, 1.05),
-    p(`${D}/chair.gltf`, -3.65, -3.2, -.15, 1.05),
-    p(`${F}/shelf_B_large_decorated.gltf`, -6.6, -5.65, Math.PI / 2, 1.08, [1, 2.1]),
-
-    p(`${D}/pillar.gltf`, 4.65, -4.75, 0, 1.18, [.85, .85]),
-    p(`${D}/sword_shield_gold.gltf`, 4.65, -5.25, 0, 1.24),
-    p(`${F}/shelf_A_big.gltf`, 6.4, -4.45, -Math.PI / 2, 1.1, [1, 2.1]),
-    p(`${D}/box_stacked.gltf`, 5.3, -2.65, 0, 1.08, [1.15, .95]),
-    p(`${D}/barrel_large.gltf`, 6.55, -2.25, 0, 1.08),
-
-    p(`${D}/pillar.gltf`, -5.5, .55, 0, 1.12, [.82, .82]),
-    p(`${D}/pillar.gltf`, 5.5, .55, 0, 1.12, [.82, .82]),
-    p(`${D}/trunk_medium_A.gltf`, -4.55, 2.25, .12, 1.08, [1.3, .78]),
-    p(`${D}/box_stacked.gltf`, 4.65, 2.35, -.12, 1.08, [1.15, .95]),
-    p(`${D}/barrel_small_stack.gltf`, 6.05, 3.15, .12, 1.04),
+    p(`${D}/table_long_decorated_A.gltf`, 0, -5.2, 0, 1.14, [2.45, 1]),
+    p(`${D}/chair.gltf`, -1.35, -3.8, .15, 1.04),
+    p(`${D}/chair.gltf`, 1.35, -3.8, -.15, 1.04),
+    p(`${D}/pillar.gltf`, -5.4, -4.8, 0, 1.18, [.85, .85]),
+    p(`${D}/sword_shield_gold.gltf`, -5.4, -5.35, 0, 1.22),
+    p(`${D}/pillar.gltf`, 5.4, -4.8, 0, 1.18, [.85, .85]),
+    p(`${D}/sword_shield_gold.gltf`, 5.4, -5.35, 0, 1.22),
+    p(`${D}/banner_shield_red.gltf`, -6.6, -.4, Math.PI / 2, 1.08),
+    p(`${D}/banner_patternC_red.gltf`, 6.6, -.4, -Math.PI / 2, 1.08),
+    p(`${D}/chest_gold.gltf`, 0, 2.8, Math.PI, 1.05, [1.3, .85]),
   ],
-
-  // ROOM 03 · Säulenhalle — echte Kolonnade statt T-Mauer
   3: [
-    p(`${D}/column.gltf`, -5.75, -5.55, 0, 1.3, [.86, .86]),
-    p(`${D}/column.gltf`, 5.75, -5.55, 0, 1.3, [.86, .86]),
-    p(`${D}/column.gltf`, -5.75, -1.55, 0, 1.3, [.86, .86]),
-    p(`${D}/column.gltf`, 5.75, -1.55, 0, 1.3, [.86, .86]),
-    p(`${D}/column.gltf`, -5.75, 2.55, 0, 1.3, [.86, .86]),
-    p(`${D}/column.gltf`, 5.75, 2.55, 0, 1.3, [.86, .86]),
-
-    p(`${D}/barrier_column.gltf`, 0, -4.25, 0, 1.18, [.95, .95]),
-    p(`${D}/sword_shield_gold.gltf`, 0, -4.8, 0, 1.22),
-    p(`${D}/torch_lit.gltf`, -1.2, -4.1, 0, 1.22),
-    p(`${D}/torch_lit.gltf`, 1.2, -4.1, 0, 1.22),
-
-    p(`${D}/rubble_half.gltf`, 6.15, 4.9, -.2, .82, [1.25, .85]),
-    p(`${D}/rubble_half.gltf`, -6.1, 4.65, .2, .78, [1.25, .85]),
-    p(`${D}/barrel_small_stack.gltf`, -4.35, 4.55, .1, 1.02),
-    p(`${D}/box_stacked.gltf`, 4.25, 4.4, -.1, 1.04),
+    p(`${D}/barrier_column.gltf`, 0, -4.4, 0, 1.24, [.95, .95]),
+    p(`${D}/sword_shield_gold.gltf`, 0, -5.05, 0, 1.24),
+    p(`${D}/torch_lit.gltf`, -1.45, -4.25, 0, 1.25),
+    p(`${D}/torch_lit.gltf`, 1.45, -4.25, 0, 1.25),
+    p(`${D}/rubble_half.gltf`, -6.2, 5.1, .2, .72, [1.25, .8]),
+    p(`${D}/rubble_half.gltf`, 6.2, 4.6, -.18, .68, [1.25, .8]),
   ],
-
-  // ROOM 04 · Bergarbeiterlager — Materialinseln statt eingemauerter Boxen
   4: [
-    p(`${D}/table_medium_decorated_A.gltf`, -5.25, -4.55, .06, 1.12, [1.75, .95]),
-    p(`${D}/box_stacked.gltf`, -6.55, -3.2, 0, 1.1, [1.15, .95]),
-    p(`${D}/barrel_small_stack.gltf`, -4.7, -2.95, .1, 1.06),
-    p(`${R}/Pallet_Wood_Covered_A.gltf`, -5.55, -1.7, -.08, 1.08),
-
-    p(`${R}/Iron_Bars_Stack_Medium.gltf`, 4.45, -4.55, .08, 1.12, [1.2, .75]),
-    p(`${D}/barrel_large.gltf`, 6.1, -4.05, 0, 1.1, [1, 1]),
-    p(`${D}/box_stacked.gltf`, 5.1, -2.65, Math.PI / 2, 1.08, [1.15, .95]),
-    p(`${R}/Pallet_Wood.gltf`, 6.25, -1.55, .1, 1.08),
-
-    p(`${R}/Iron_Bars_Stack_Medium.gltf`, -5.35, 1.75, -.08, 1.08, [1.2, .75]),
-    p(`${D}/barrel_large_decorated.gltf`, -6.45, 2.65, 0, 1.06),
-    p(`${D}/box_stacked.gltf`, 4.55, 1.95, .1, 1.08, [1.15, .95]),
-    p(`${D}/barrel_small_stack.gltf`, 6.05, 2.85, -.08, 1.04),
-    p(`${R}/Pallet_Wood_Covered_A.gltf`, 5.25, 4.05, 0, 1.06),
+    p(`${D}/table_medium_decorated_A.gltf`, -6.0, -5.4, .18, 1.08, [1.75, .95]),
+    p(`${R}/Iron_Bars_Stack_Medium.gltf`, -4.4, -3.5, .28, 1.08, [1.2, .75]),
+    p(`${R}/Stone_Chunks_Large.gltf`, -2.6, -1.8, .22, 1.06, [1.3, .95]),
+    p(`${R}/Pallet_Wood_Covered_A.gltf`, -.4, -.1, .18, 1.05, [1.45, .9]),
+    p(`${R}/Iron_Bars_Stack_Large.gltf`, 2.1, 1.7, .2, 1.08, [1.3, .8]),
+    p(`${R}/Stone_Bricks_Stack_Medium.gltf`, 4.4, 3.5, .16, 1.06, [1.25, .85]),
+    p(`${D}/rubble_half.gltf`, 6.2, 5.0, -.2, .76, [1.25, .8]),
+    p(`${D}/torch_lit.gltf`, -6.8, -2.4, 0, 1.18),
   ],
-
-  // ROOM 05 · Werkstatt — drei Arbeitsstationen, kein riesiger Fels
   5: [
-    p(`${D}/table_long_decorated_A.gltf`, -5.2, -4.65, .04, 1.13, [2.35, .95]),
-    p(`${F}/shelf_B_large_decorated.gltf`, -6.55, -2.75, Math.PI / 2, 1.08, [1, 2.05]),
-    p(`${D}/box_stacked.gltf`, -4.55, -2.35, 0, 1.06),
-
-    p(`${D}/table_long_decorated_A.gltf`, 4.95, -4.7, -.04, 1.13, [2.35, .95]),
-    p(`${F}/shelf_A_big.gltf`, 6.45, -2.75, -Math.PI / 2, 1.08, [1, 2.05]),
-    p(`${D}/barrel_small_stack.gltf`, 4.75, -2.15, .1, 1.04),
-
-    p(`${T}/grindstone.gltf`, -4.7, .65, -.1, 1.42, [1, 1.15]),
-    p(`${R}/Iron_Bars_Stack_Medium.gltf`, -6.05, 1.2, .08, 1.08),
-    p(`${D}/trunk_medium_A.gltf`, 4.55, .95, .1, 1.08, [1.3, .78]),
-    p(`${D}/box_stacked.gltf`, 6.05, 1.55, 0, 1.06),
-
-    p(`${R}/Pallet_Wood.gltf`, -5.4, 4.05, .1, 1.06),
-    p(`${D}/barrel_large.gltf`, -3.95, 4.15, 0, 1.04),
-    p(`${D}/box_stacked.gltf`, 4.85, 4.1, -.08, 1.06),
-    p(`${D}/barrel_small_stack.gltf`, 6.2, 4.25, .08, 1.04),
+    p(`${D}/table_long_decorated_A.gltf`, -5.4, -5.0, .06, 1.1, [2.35, .95]),
+    p(`${F}/shelf_B_large_decorated.gltf`, -6.4, -2.8, Math.PI / 2, 1.06, [1, 2]),
+    p(`${T}/grindstone.gltf`, 3.8, -2.0, -.15, 1.46, [1, 1.1]),
+    p(`${R}/Parts_Pile_Medium.gltf`, 5.2, -.8, .1, 1.1, [1.1, .9]),
+    p(`${D}/table_medium_decorated_A.gltf`, -2.2, 2.0, -.08, 1.08, [1.75, .95]),
+    p(`${R}/Parts_Cog.gltf`, -.5, 2.6, .2, 1.18),
+    p(`${F}/shelf_A_big.gltf`, 5.9, 4.3, -Math.PI / 2, 1.08, [1, 2]),
+    p(`${D}/chair.gltf`, -3.4, 3.15, .2, 1.02),
   ],
-
-  // ROOM 06 · Schmiede — Anvil, Schleifplatz und Materiallager ohne Sperrwände
   6: [
-    p(`${T}/anvil.gltf`, -5.15, -4.45, -.08, 1.58, [1, .8]),
-    p(`${R}/Iron_Bars_Stack_Medium.gltf`, -6.45, -3.75, .08, 1.12),
-    p(`${D}/barrel_large.gltf`, -3.85, -3.75, 0, 1.08),
-    p(`${D}/torch_lit.gltf`, -5.1, -5.75, 0, 1.28),
-
-    p(`${T}/grindstone.gltf`, 5.15, -4.45, .08, 1.52, [1, 1.15]),
-    p(`${R}/Copper_Bars_Stack_Small.gltf`, 6.45, -3.8, -.08, 1.12),
-    p(`${D}/box_stacked.gltf`, 3.95, -3.55, 0, 1.08),
-    p(`${D}/torch_lit.gltf`, 5.1, -5.75, 0, 1.28),
-
-    p(`${D}/table_medium_decorated_A.gltf`, 0, -1.05, 0, 1.08, [1.7, .9]),
-    p(`${D}/barrel_small_stack.gltf`, -4.85, 1.45, .08, 1.04),
-    p(`${D}/box_stacked.gltf`, -6.1, 2.15, 0, 1.06),
-    p(`${R}/Iron_Bars_Stack_Medium.gltf`, 4.8, 1.55, -.08, 1.08),
-    p(`${D}/barrel_large_decorated.gltf`, 6.15, 2.2, 0, 1.05),
-
-    p(`${R}/Pallet_Wood.gltf`, -5.1, 4.15, .1, 1.06),
-    p(`${D}/box_stacked.gltf`, 5.05, 4.05, -.08, 1.06),
+    p(`${T}/anvil.gltf`, 0, -1.0, 0, 1.7, [1.1, .85]),
+    p(`${T}/grindstone.gltf`, 4.8, -4.2, .08, 1.5, [1, 1.15]),
+    p(`${R}/Iron_Bars_Stack_Large.gltf`, -5.2, -4.0, -.08, 1.12, [1.3, .8]),
+    p(`${R}/Copper_Bars_Stack_Medium.gltf`, 5.4, 2.7, .1, 1.1, [1.2, .75]),
+    p(`${R}/Iron_Nuggets.gltf`, -5.2, 2.9, -.1, 1.08, [1, .85]),
+    p(`${D}/torch_lit.gltf`, -2.6, -2.6, 0, 1.35),
+    p(`${D}/torch_lit.gltf`, 2.6, -2.6, 0, 1.35),
+    p(`${D}/torch_lit.gltf`, -2.6, 1.0, 0, 1.35),
+    p(`${D}/torch_lit.gltf`, 2.6, 1.0, 0, 1.35),
+  ],
+  7: [
+    p(`${F}/bed_single_A.gltf`, -6.1, -5.3, Math.PI / 2, 1.08, [1.1, 2.15]),
+    p(`${F}/bed_single_B.gltf`, 5.8, -3.5, Math.PI / 2, 1.08, [1.1, 2.15]),
+    p(`${F}/bed_single_B.gltf`, -5.8, -1.0, Math.PI / 2, 1.08, [1.1, 2.15]),
+    p(`${F}/bed_single_A.gltf`, 5.9, 1.2, Math.PI / 2, 1.08, [1.1, 2.15]),
+    p(`${F}/bed_single_A.gltf`, -5.7, 3.8, Math.PI / 2, 1.08, [1.1, 2.15]),
+    p(`${D}/trunk_medium_A.gltf`, 4.6, 4.6, -.12, 1.06, [1.3, .8]),
+    p(`${D}/candle_lit.gltf`, 0, -2.0, 0, 1.18),
+  ],
+  8: [
+    p(`${F}/shelf_B_large_decorated.gltf`, -5.8, -5.5, 0, 1.1, [2, 1]),
+    p(`${D}/shelf_large.gltf`, 1.7, -4.2, 0, 1.08, [2, 1]),
+    p(`${F}/shelf_A_big.gltf`, 5.7, -1.6, Math.PI, 1.1, [2, 1]),
+    p(`${D}/shelf_large.gltf`, -1.7, .2, Math.PI, 1.08, [2, 1]),
+    p(`${F}/shelf_B_large_decorated.gltf`, -5.7, 2.8, 0, 1.1, [2, 1]),
+    p(`${D}/shelf_large.gltf`, 1.8, 4.6, 0, 1.08, [2, 1]),
+    p(`${R}/Pallet_Wood_Covered_B.gltf`, 6.0, 4.7, .1, 1.05, [1.45, .9]),
+  ],
+  9: [
+    p(`${H}/shrine_candles.gltf`, 0, 0, 0, 2.0, [1.65, 1.65]),
+    p(`${H}/candle_triple.gltf`, -2.5, -2.5, 0, 1.35),
+    p(`${H}/candle_triple.gltf`, 2.5, -2.5, 0, 1.35),
+    p(`${H}/candle_triple.gltf`, -2.5, 2.5, 0, 1.35),
+    p(`${H}/candle_triple.gltf`, 2.5, 2.5, 0, 1.35),
+    p(`${D}/barrier_column.gltf`, -5.4, -4.3, 0, 1.2, [.95, .95]),
+    p(`${D}/barrier_column.gltf`, 5.4, -4.3, 0, 1.2, [.95, .95]),
+    p(`${D}/barrier_column.gltf`, -5.4, 4.3, 0, 1.2, [.95, .95]),
+    p(`${D}/barrier_column.gltf`, 5.4, 4.3, 0, 1.2, [.95, .95]),
+  ],
+  10: [
+    p(`${H}/crypt.gltf`, -6.4, -5.7, Math.PI / 2, 1.18, [1.6, 1.25]),
+    p(`${H}/crypt.gltf`, -6.4, -2.5, Math.PI / 2, 1.18, [1.6, 1.25]),
+    p(`${H}/crypt.gltf`, 6.4, -5.7, Math.PI / 2, 1.18, [1.6, 1.25]),
+    p(`${H}/crypt.gltf`, 6.4, -2.5, Math.PI / 2, 1.18, [1.6, 1.25]),
+    p(`${H}/grave_A.gltf`, -4.0, 2.1, 0, 1.15, [1.3, 1.7]),
+    p(`${H}/grave_B.gltf`, 4.0, 2.1, 0, 1.15, [1.3, 1.7]),
+    p(`${H}/grave_A.gltf`, -4.0, 5.1, 0, 1.15, [1.3, 1.7]),
+    p(`${H}/grave_B.gltf`, 4.0, 5.1, 0, 1.15, [1.3, 1.7]),
+  ],
+  11: [
+    p(`${H}/shrine_candles.gltf`, 0, 0, 0, 1.55, [1.4, 1.4]),
+    p(`${D}/column.gltf`, -5.2, -4.3, 0, 1.2, [.85, .85]),
+    p(`${D}/column.gltf`, 5.2, -4.3, 0, 1.2, [.85, .85]),
+    p(`${D}/column.gltf`, -5.2, 4.3, 0, 1.2, [.85, .85]),
+    p(`${D}/column.gltf`, 5.2, 4.3, 0, 1.2, [.85, .85]),
+    p(`${H}/candle_triple.gltf`, -5.2, -2.9, 0, 1.15),
+    p(`${H}/candle_triple.gltf`, 5.2, -2.9, 0, 1.15),
+    p(`${H}/candle_triple.gltf`, -5.2, 2.9, 0, 1.15),
+    p(`${H}/candle_triple.gltf`, 5.2, 2.9, 0, 1.15),
+  ],
+  12: [
+    p(`${D}/pillar.gltf`, 0, -5.0, 0, 1.28, [.9, .9]),
+    p(`${D}/sword_shield_gold.gltf`, 0, -5.7, 0, 1.28),
+    p(`${D}/banner_patternB_blue.gltf`, -6.4, -4.4, Math.PI / 2, 1.12),
+    p(`${D}/banner_patternA_green.gltf`, 6.4, -4.4, -Math.PI / 2, 1.12),
+    p(`${D}/banner_shield_red.gltf`, -6.4, .5, Math.PI / 2, 1.12),
+    p(`${D}/banner_patternC_red.gltf`, 6.4, .5, -Math.PI / 2, 1.12),
+    p(`${D}/column.gltf`, -4.4, 3.9, 0, 1.18, [.85, .85]),
+    p(`${D}/column.gltf`, 4.4, 3.9, 0, 1.18, [.85, .85]),
+    p(`${D}/candle_lit.gltf`, 0, 3.8, 0, 1.2),
+  ],
+  13: [
+    p(`${D}/wall_corner_gated.gltf`, -7.0, -5.0, Math.PI / 2, .9, [1.8, 1.8]),
+    p(`${D}/wall_corner_gated.gltf`, -7.0, 1.5, Math.PI / 2, .9, [1.8, 1.8]),
+    p(`${D}/wall_corner_gated.gltf`, 7.0, -5.0, -Math.PI / 2, .9, [1.8, 1.8]),
+    p(`${D}/wall_corner_gated.gltf`, 7.0, 1.5, -Math.PI / 2, .9, [1.8, 1.8]),
+    p(`${H}/coffin.gltf`, -6.2, -4.1, Math.PI / 2, 1.06, [1.15, 2]),
+    p(`${H}/coffin.gltf`, 6.2, -4.1, Math.PI / 2, 1.06, [1.15, 2]),
+    p(`${D}/chest_gold.gltf`, 0, 0, 0, 1.08, [1.3, .85]),
+    p(`${D}/torch_lit.gltf`, -2.0, 0, 0, 1.2),
+    p(`${D}/torch_lit.gltf`, 2.0, 0, 0, 1.2),
+  ],
+  14: [
+    p(`${H}/grave_A_destroyed.gltf`, -6.0, -5.1, .18, 1.12, [1.25, 1.65]),
+    p(`${H}/skull.gltf`, -4.6, -3.7, 0, 1.25),
+    p(`${H}/bone_A.gltf`, -3.0, -2.3, .4, 1.25),
+    p(`${H}/grave_A_destroyed.gltf`, -1.0, -.7, -.15, 1.1, [1.25, 1.65]),
+    p(`${H}/skull.gltf`, 1.0, .8, 0, 1.25),
+    p(`${H}/bone_A.gltf`, 2.9, 2.2, -.4, 1.25),
+    p(`${H}/grave_A_destroyed.gltf`, 5.2, 4.2, .18, 1.12, [1.25, 1.65]),
+    p(`${D}/rubble_half.gltf`, 6.4, 5.2, -.2, .72, [1.2, .8]),
+  ],
+  15: [
+    p(`${H}/shrine_candles.gltf`, 0, 0, 0, 2.15, [1.7, 1.7]),
+    p(`${D}/barrier_column.gltf`, -5.8, -4.5, 0, 1.25, [.95, .95]),
+    p(`${D}/barrier_column.gltf`, 5.8, -4.5, 0, 1.25, [.95, .95]),
+    p(`${D}/barrier_column.gltf`, -5.8, 4.5, 0, 1.25, [.95, .95]),
+    p(`${D}/barrier_column.gltf`, 5.8, 4.5, 0, 1.25, [.95, .95]),
+    p(`${H}/candle_triple.gltf`, 0, -3.0, 0, 1.3),
+    p(`${H}/candle_triple.gltf`, -3.0, 2.2, 0, 1.3),
+    p(`${H}/candle_triple.gltf`, 3.0, 2.2, 0, 1.3),
+  ],
+  16: [
+    p(`${D}/banner_shield_red.gltf`, -6.5, -6.0, Math.PI / 2, 1.2),
+    p(`${D}/banner_shield_red.gltf`, 6.5, -6.0, -Math.PI / 2, 1.2),
+    p(`${D}/pillar.gltf`, -5.2, -3.0, 0, 1.28, [.9, .9]),
+    p(`${D}/sword_shield_gold.gltf`, -5.2, -3.7, 0, 1.28),
+    p(`${D}/pillar.gltf`, 5.2, -3.0, 0, 1.28, [.9, .9]),
+    p(`${D}/sword_shield_gold.gltf`, 5.2, -3.7, 0, 1.28),
+    p(`${D}/banner_patternC_red.gltf`, -6.5, 2.2, Math.PI / 2, 1.18),
+    p(`${D}/banner_patternC_red.gltf`, 6.5, 2.2, -Math.PI / 2, 1.18),
+    p(`${D}/chest_gold.gltf`, 0, 4.3, Math.PI, 1.06, [1.3, .85]),
+  ],
+  17: [
+    p(`${D}/rubble_large.gltf`, -6.3, -5.0, .24, 1.08, [1.8, 1.25]),
+    p(`${D}/rubble_half.gltf`, -4.5, -3.4, .18, .85, [1.25, .8]),
+    p(`${H}/candle_melted.gltf`, -2.6, -1.8, .4, 1.18),
+    p(`${H}/bone_A.gltf`, -.6, -.2, .6, 1.18),
+    p(`${H}/candle_melted.gltf`, 1.5, 1.3, -.4, 1.18),
+    p(`${D}/rubble_half.gltf`, 3.5, 3.0, -.18, .85, [1.25, .8]),
+    p(`${D}/rubble_large.gltf`, 5.7, 4.8, -.24, 1.08, [1.8, 1.25]),
+  ],
+  18: [
+    p(`${R}/Stone_Chunks_Large.gltf`, -5.4, -4.0, .2, 1.1, [1.3, .95]),
+    p(`${R}/Stone_Bricks_Stack_Medium.gltf`, 5.4, -4.0, -.2, 1.08, [1.25, .85]),
+    p(`${R}/Stone_Chunks_Large.gltf`, -5.4, 4.0, -.2, 1.1, [1.3, .95]),
+    p(`${R}/Stone_Bricks_Stack_Medium.gltf`, 5.4, 4.0, .2, 1.08, [1.25, .85]),
+    p(`${H}/candle_triple.gltf`, -2.7, 0, 0, 1.25),
+    p(`${H}/candle_triple.gltf`, 2.7, 0, 0, 1.25),
+    p(`${H}/shrine_candles.gltf`, 0, 0, 0, 1.35),
+  ],
+  19: [
+    p(`${D}/pillar.gltf`, -5.6, -5.0, 0, 1.38, [.95, .95]),
+    p(`${D}/sword_shield_gold.gltf`, -5.6, -5.8, 0, 1.35),
+    p(`${D}/pillar.gltf`, 5.6, -5.0, 0, 1.38, [.95, .95]),
+    p(`${D}/sword_shield_gold.gltf`, 5.6, -5.8, 0, 1.35),
+    p(`${D}/banner_shield_red.gltf`, -7.0, -1.0, Math.PI / 2, 1.25),
+    p(`${D}/banner_shield_red.gltf`, 7.0, -1.0, -Math.PI / 2, 1.25),
+    p(`${D}/column.gltf`, -4.0, 4.4, 0, 1.28, [.9, .9]),
+    p(`${D}/column.gltf`, 4.0, 4.4, 0, 1.28, [.9, .9]),
+  ],
+  20: [
+    p(`${D}/barrier_column.gltf`, -6.0, -5.0, 0, 1.42, [1, 1]),
+    p(`${D}/barrier_column.gltf`, 6.0, -5.0, 0, 1.42, [1, 1]),
+    p(`${D}/barrier_column.gltf`, -6.0, 5.0, 0, 1.42, [1, 1]),
+    p(`${D}/barrier_column.gltf`, 6.0, 5.0, 0, 1.42, [1, 1]),
+    p(`${H}/shrine_candles.gltf`, 0, 0, 0, 1.55),
+    p(`${D}/banner_shield_red.gltf`, -7.2, 0, Math.PI / 2, 1.25),
+    p(`${D}/banner_shield_red.gltf`, 7.2, 0, -Math.PI / 2, 1.25),
   ],
 };
 
 export function calibratedRoomSetpieces(room: number): RoomSetpiece[] {
-  const key = Math.max(1, Math.min(20, room));
-  return CALIBRATED_MOBILE_ROOMS[key] ?? canvaRoomSetpieces(key);
+  return ROOM_BIBLE_SETPIECES[Math.max(1, Math.min(20, room))] ?? ROOM_BIBLE_SETPIECES[1];
 }
