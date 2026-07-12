@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -94,3 +94,21 @@ jobs:
       - name: Deploy current Dungeon Veil test build
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Checkout main for deployment receipt
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Record verified live deployment
+        env:
+          DEPLOYED_COMMIT: ${{ needs.build.outputs.product_sha }}
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          mkdir -p .ci
+          printf '{"status":"success","deployedCommit":"%s","pageUrl":"%s","completedAt":"%s"}\n' "$DEPLOYED_COMMIT" "$PAGE_URL" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .ci/dungeon-veil-live.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/dungeon-veil-live.json
+          git commit -m "Record live Dungeon Veil deployment ${DEPLOYED_COMMIT:0:7}"
+          git push origin HEAD:main
