@@ -82,8 +82,31 @@ function projectEnemy(state: GameState, enemy: GameState['enemies'][number]): Om
   return {
     left: (ndcX * 0.5 + 0.5) * 100,
     top: (-ndcY * 0.5 + 0.5) * 100,
-    size: clamp(56 * (28 / cameraDepth), 38, enemy.enemyType === 'boss' ? 82 : 66),
+    size: clamp(48 * (28 / cameraDepth), 34, enemy.enemyType === 'boss' ? 78 : 60),
   };
+}
+
+function FireStatus({ marker }: { marker: StatusMarker }) {
+  return <div className="dv-natural-status dv-natural-fire" style={{ left: `${marker.left}%`, top: `${marker.top}%`, width: marker.size, height: marker.size }}>
+    <span className="dv-flame dv-flame-a" />
+    <span className="dv-flame dv-flame-b" />
+    <span className="dv-flame dv-flame-c" />
+    <span className="dv-ember dv-ember-a" />
+    <span className="dv-ember dv-ember-b" />
+    <span className="dv-ember dv-ember-c" />
+  </div>;
+}
+
+function IceStatus({ marker }: { marker: StatusMarker }) {
+  return <div className="dv-natural-status dv-natural-ice" style={{ left: `${marker.left}%`, top: `${marker.top}%`, width: marker.size, height: marker.size }}>
+    <span className="dv-cold-haze" />
+    <span className="dv-ice-shard dv-ice-a" />
+    <span className="dv-ice-shard dv-ice-b" />
+    <span className="dv-ice-shard dv-ice-c" />
+    <span className="dv-ice-shard dv-ice-d" />
+    <span className="dv-snow dv-snow-a">✦</span>
+    <span className="dv-snow dv-snow-b">✦</span>
+  </div>;
 }
 
 export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
@@ -107,113 +130,67 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
       if (!burning && !frozen) return [];
       const projected = projectEnemy(gameState, enemy);
       if (!projected) return [];
-      return [{
-        id: enemy.id,
-        kind: burning ? 'fire' : 'ice',
-        ...projected,
-      }];
+      const markers: StatusMarker[] = [];
+      if (burning) markers.push({ id: `${enemy.id}-fire`, kind: 'fire', ...projected });
+      if (frozen) markers.push({ id: `${enemy.id}-ice`, kind: 'ice', ...projected });
+      return markers;
     });
   }, [gameState]);
 
-  return (
-    <div className="pointer-events-none fixed inset-0 z-[25] overflow-hidden">
-      {playerHit > 0 && (
-        <div
-          key={`player-hit-${playerHit}`}
-          className="absolute inset-0"
-          style={{ animation: 'dvPlayerHit .34s ease-out both' }}
-        />
-      )}
-
-      {statusMarkers.map(marker => <div
-        key={`${marker.id}-${marker.kind}`}
-        className={`dv-enemy-status dv-enemy-status-${marker.kind}`}
-        style={{
-          left: `${marker.left}%`,
-          top: `${marker.top}%`,
-          width: `${marker.size}px`,
-          height: `${marker.size}px`,
-        }}
-      >
-        <span className="dv-enemy-status-icon">{marker.kind === 'fire' ? '♨' : '❄'}</span>
-      </div>)}
-
-      <style>{`
-        @keyframes dvPlayerHit {
-          0% { opacity: 0; box-shadow: inset 0 0 0 rgba(255,45,45,0); transform: translateX(0); }
-          20% { opacity: 1; box-shadow: inset 0 0 95px rgba(255,45,45,.5); transform: translateX(-5px); }
-          38% { transform: translateX(5px); }
-          55% { transform: translateX(-3px); }
-          100% { opacity: 0; box-shadow: inset 0 0 20px rgba(255,45,45,0); transform: translateX(0); }
-        }
-        @keyframes dvStatusPulse {
-          0%,100% { transform: translate(-50%,-50%) scale(.92); filter: brightness(.95); }
-          50% { transform: translate(-50%,-50%) scale(1.1); filter: brightness(1.35); }
-        }
-        @keyframes dvStatusSpin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes dvStatusRise {
-          0% { transform: translateY(6px) scale(.75); opacity: .35; }
-          55% { opacity: 1; }
-          100% { transform: translateY(-10px) scale(1.12); opacity: 0; }
-        }
-        .dv-enemy-status {
-          position: absolute;
-          transform: translate(-50%,-50%);
-          border-radius: 999px;
-          transition: left 55ms linear, top 55ms linear;
-          animation: dvStatusPulse .72s ease-in-out infinite;
-          mix-blend-mode: screen;
-        }
-        .dv-enemy-status::before {
-          content: '';
-          position: absolute;
-          inset: 4%;
-          border-radius: inherit;
-          border: 3px solid currentColor;
-          box-shadow: 0 0 10px currentColor, inset 0 0 12px currentColor;
-          opacity: .9;
-        }
-        .dv-enemy-status::after {
-          content: '';
-          position: absolute;
-          inset: -10%;
-          border-radius: inherit;
-          border: 2px dashed currentColor;
-          opacity: .58;
-          animation: dvStatusSpin 1.5s linear infinite;
-        }
-        .dv-enemy-status-fire {
-          color: #ff5b24;
-          background: radial-gradient(circle, rgba(255,194,66,.34) 0%, rgba(255,78,25,.2) 42%, transparent 72%);
-          box-shadow: 0 0 24px rgba(255,74,24,.72);
-        }
-        .dv-enemy-status-fire .dv-enemy-status-icon {
-          animation: dvStatusRise .62s ease-out infinite;
-          text-shadow: 0 0 8px #ffd56a, 0 0 16px #ff4e1d;
-        }
-        .dv-enemy-status-ice {
-          color: #69e9ff;
-          border-radius: 18%;
-          background: radial-gradient(circle, rgba(206,251,255,.34) 0%, rgba(67,205,255,.18) 46%, transparent 72%);
-          box-shadow: 0 0 24px rgba(72,215,255,.72);
-        }
-        .dv-enemy-status-ice::before,
-        .dv-enemy-status-ice::after {
-          border-radius: 18%;
-        }
-        .dv-enemy-status-icon {
-          position: absolute;
-          left: 50%;
-          top: -28%;
-          transform: translateX(-50%);
-          font-size: clamp(15px, 4vw, 22px);
-          font-weight: 900;
-          color: currentColor;
-          text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
-        }
-      `}</style>
-    </div>
-  );
+  return <div className="pointer-events-none fixed inset-0 z-[25] overflow-hidden">
+    {playerHit > 0 && <div key={`player-hit-${playerHit}`} className="absolute inset-0" style={{ animation: 'dvPlayerHit .34s ease-out both' }} />}
+    {statusMarkers.map(marker => marker.kind === 'fire' ? <FireStatus key={marker.id} marker={marker} /> : <IceStatus key={marker.id} marker={marker} />)}
+    <style>{`
+      @keyframes dvPlayerHit {
+        0% { opacity: 0; box-shadow: inset 0 0 0 rgba(255,45,45,0); transform: translateX(0); }
+        20% { opacity: 1; box-shadow: inset 0 0 95px rgba(255,45,45,.5); transform: translateX(-5px); }
+        38% { transform: translateX(5px); }
+        55% { transform: translateX(-3px); }
+        100% { opacity: 0; box-shadow: inset 0 0 20px rgba(255,45,45,0); transform: translateX(0); }
+      }
+      @keyframes dvFlameRise {
+        0%,100% { transform: translate(-50%, 8%) scale(.72,.84) rotate(-3deg); opacity: .66; }
+        45% { transform: translate(-50%, -13%) scale(1.02,1.18) rotate(4deg); opacity: 1; }
+      }
+      @keyframes dvEmberRise {
+        0% { transform: translateY(9px) scale(.55); opacity: 0; }
+        24% { opacity: .95; }
+        100% { transform: translateY(-27px) translateX(5px) scale(.18); opacity: 0; }
+      }
+      @keyframes dvColdPulse {
+        0%,100% { transform: translate(-50%,-50%) scale(.88); opacity: .24; }
+        50% { transform: translate(-50%,-50%) scale(1.05); opacity: .48; }
+      }
+      @keyframes dvIceGlint {
+        0%,100% { opacity: .42; filter: brightness(.9); }
+        50% { opacity: .92; filter: brightness(1.45); }
+      }
+      @keyframes dvSnowDrift {
+        0% { transform: translateY(4px) rotate(0deg) scale(.65); opacity: 0; }
+        25% { opacity: .85; }
+        100% { transform: translateY(-22px) translateX(7px) rotate(90deg) scale(.25); opacity: 0; }
+      }
+      .dv-natural-status { position:absolute; transform:translate(-50%,-50%); transition:left 55ms linear,top 55ms linear; }
+      .dv-natural-fire { filter:drop-shadow(0 0 7px rgba(255,82,22,.92)); }
+      .dv-natural-fire::after { content:''; position:absolute; left:18%; right:18%; bottom:8%; height:28%; border-radius:50%; background:radial-gradient(ellipse,rgba(255,122,30,.5),rgba(255,43,10,.16) 48%,transparent 72%); }
+      .dv-flame { position:absolute; bottom:10%; left:50%; width:28%; height:58%; border-radius:62% 38% 60% 42%/72% 54% 46% 28%; transform-origin:50% 100%; background:linear-gradient(to top,#ff3b0c 0%,#ff8b1e 42%,#ffe077 76%,rgba(255,246,184,.2) 100%); clip-path:polygon(50% 0,82% 34%,100% 72%,72% 100%,28% 100%,0 72%,18% 36%); animation:dvFlameRise .58s ease-in-out infinite; }
+      .dv-flame-a { left:37%; height:48%; animation-delay:-.16s; }
+      .dv-flame-b { left:53%; height:65%; width:31%; animation-delay:-.34s; }
+      .dv-flame-c { left:64%; height:43%; width:22%; animation-delay:-.05s; }
+      .dv-ember { position:absolute; bottom:28%; width:5px; height:5px; border-radius:50%; background:#ffd36a; box-shadow:0 0 7px #ff5317; animation:dvEmberRise .9s linear infinite; }
+      .dv-ember-a { left:29%; animation-delay:-.3s; }
+      .dv-ember-b { left:54%; animation-delay:-.68s; }
+      .dv-ember-c { left:72%; animation-delay:-.12s; }
+      .dv-natural-ice { filter:drop-shadow(0 0 6px rgba(91,222,255,.72)); }
+      .dv-cold-haze { position:absolute; left:50%; top:55%; width:72%; height:76%; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(ellipse,rgba(210,250,255,.19),rgba(80,207,255,.11) 45%,transparent 72%); animation:dvColdPulse 1.2s ease-in-out infinite; }
+      .dv-ice-shard { position:absolute; width:15%; height:35%; background:linear-gradient(135deg,rgba(238,255,255,.95),rgba(87,219,255,.82) 48%,rgba(31,128,225,.35)); clip-path:polygon(50% 0,100% 70%,58% 100%,0 72%); animation:dvIceGlint 1.1s ease-in-out infinite; }
+      .dv-ice-a { left:14%; bottom:12%; transform:rotate(-20deg); }
+      .dv-ice-b { right:13%; bottom:14%; transform:rotate(24deg); animation-delay:-.45s; }
+      .dv-ice-c { left:29%; top:16%; height:25%; transform:rotate(-8deg); animation-delay:-.72s; }
+      .dv-ice-d { right:28%; top:20%; height:23%; transform:rotate(12deg); animation-delay:-.2s; }
+      .dv-snow { position:absolute; color:#dffcff; font-size:12px; text-shadow:0 0 6px #71dcff; animation:dvSnowDrift 1.15s linear infinite; }
+      .dv-snow-a { left:25%; top:48%; }
+      .dv-snow-b { right:20%; top:57%; animation-delay:-.62s; }
+    `}</style>
+  </div>;
 }
