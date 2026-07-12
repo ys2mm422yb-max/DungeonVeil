@@ -4,11 +4,6 @@ on:
   push:
     branches: [main]
     paths:
-      - 'artifacts/dungeon-rpg/**'
-      - 'lib/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.github/workflows/dungeon-rpg-ci.yml'
       - '.github/workflows/dungeon-veil-pages.yml'
@@ -16,11 +11,19 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dungeon-veil-unified-validation
+  cancel-in-progress: true
 
 jobs:
-  typecheck-and-build:
+  game-check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      validated_sha: ${{ steps.validated.outputs.sha }}
     steps:
       - name: Checkout current Dungeon Veil test branch
         uses: actions/checkout@v4
@@ -58,31 +61,146 @@ jobs:
       - name: Build Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg build
 
-      - name: Record successful check
+  pages-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      validated_sha: ${{ steps.validated.outputs.sha }}
+    steps:
+      - name: Checkout current Dungeon Veil test branch
+        uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+
+      - name: Resolve deployed commit
+        id: validated
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck workspace
+        run: pnpm run typecheck
+
+      - name: Build Dungeon Veil for GitHub Pages
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+        run: pnpm --dir artifacts/dungeon-rpg run build
+
+      - name: Verify runtime asset base
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const root = 'artifacts/dungeon-rpg/dist/public';
+          const extensions = new Set(['.js', '.mjs', '.html']);
+          const files = [];
+          const walk = directory => {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const full = path.join(directory, entry.name);
+              if (entry.isDirectory()) walk(full);
+              else if (extensions.has(path.extname(entry.name))) files.push(full);
+            }
+          };
+          walk(root);
+          if (!files.length) throw new Error('No built runtime files found.');
+          const prefixes = ['"/assets/', "'/assets/", '`/assets/'];
+          const bad = [];
+          for (const file of files) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const prefix of prefixes) {
+              if (text.includes(prefix)) bad.push(`${file}: ${prefix}`);
+            }
+          }
+          if (bad.length) throw new Error(`Root-relative runtime asset paths found:\n${bad.join('\n')}`);
+          const js = files.filter(file => /\.(?:m?js)$/.test(file)).map(file => fs.readFileSync(file, 'utf8')).join('\n');
+          if (!js.includes('/DungeonVeil/assets/')) throw new Error('Pages-prefixed asset paths are missing from the built JavaScript.');
+          if (!fs.existsSync(path.join(root, 'index.html'))) throw new Error('Built index.html is missing.');
+          NODE
+
+      - name: Write deployment marker
+        shell: bash
+        run: |
+          printf '{"commit":"%s","deployedAt":"%s"}\n' "${{ steps.validated.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+
+      - name: Disable Jekyll processing
+        run: touch artifacts/dungeon-rpg/dist/public/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: pages-ci
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  record:
+    runs-on: ubuntu-latest
+    needs: [game-check, pages-ci, deploy]
+    steps:
+      - name: Record successful unified validation
         uses: actions/github-script@v7
         env:
-          VALIDATED_SHA: ${{ steps.validated.outputs.sha }}
+          GAME_SHA: ${{ needs.game-check.outputs.validated_sha }}
+          PAGES_SHA: ${{ needs.pages-ci.outputs.validated_sha }}
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const path = '.ci/dungeon-rpg-check.json';
             const ref = 'main';
-            let sha;
-            try {
-              const response = await github.rest.repos.getContent({ owner, repo, path, ref });
-              if (!Array.isArray(response.data)) sha = response.data.sha;
-            } catch (error) {
-              if (error.status !== 404) throw error;
+            if (!process.env.GAME_SHA || process.env.GAME_SHA !== process.env.PAGES_SHA) {
+              throw new Error(`Validation SHA mismatch: ${process.env.GAME_SHA} vs ${process.env.PAGES_SHA}`);
             }
-            const content = Buffer.from(JSON.stringify({
-              workflow: 'Dungeon RPG Check',
-              status: 'success',
-              validatedCommit: process.env.VALIDATED_SHA,
-              completedAt: new Date().toISOString(),
-            }, null, 2) + '\n').toString('base64');
-            await github.rest.repos.createOrUpdateFileContents({
-              owner, repo, path, branch: ref, sha, content,
-              message: `Record Dungeon RPG Check success for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
-            });
+            const completedAt = new Date().toISOString();
+            async function write(path, data, message) {
+              let sha;
+              try {
+                const response = await github.rest.repos.getContent({ owner, repo, path, ref });
+                if (!Array.isArray(response.data)) sha = response.data.sha;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              const content = Buffer.from(JSON.stringify(data, null, 2) + '\n').toString('base64');
+              await github.rest.repos.createOrUpdateFileContents({ owner, repo, path, branch: ref, sha, content, message });
+            }
+            const commit = process.env.GAME_SHA;
+            await write('.ci/dungeon-rpg-check.json', {
+              workflow: 'Dungeon RPG Check', status: 'success', validatedCommit: commit, completedAt,
+            }, `Record Dungeon RPG Check success for ${commit.slice(0, 7)}`);
+            await write('.ci/dungeon-rpg-ci.json', {
+              workflow: 'Dungeon RPG CI', status: 'success', validatedCommit: commit,
+              checks: ['workspace typecheck', 'Pages production build', 'runtime asset base'], completedAt,
+            }, `Record Dungeon RPG CI success for ${commit.slice(0, 7)}`);
+            await write('.ci/dungeon-veil-pages.json', {
+              workflow: 'Deploy Dungeon Veil Test Site', status: 'success', deployedCommit: commit,
+              pageUrl: process.env.PAGE_URL, completedAt,
+            }, `Record Dungeon Veil Pages success for ${commit.slice(0, 7)}`);
