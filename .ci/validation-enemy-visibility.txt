@@ -1,0 +1,1 @@
+Validate enemy visibility and hidden-damage protection for rooms 14-50.
