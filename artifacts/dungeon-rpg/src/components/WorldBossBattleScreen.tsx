@@ -169,8 +169,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
         onBossUpdated(nextHp, result.defeated);
       } catch (reasonCaught) {
         if (disposed) return;
-        const message = reasonCaught instanceof Error ? reasonCaught.message : String(reasonCaught);
-        setSubmitError(message);
+        setSubmitError(reasonCaught instanceof Error ? reasonCaught.message : String(reasonCaught));
         setPhase('result');
       }
     };
@@ -282,7 +281,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
             </div>
           </div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-black/80"><div className="h-full bg-gradient-to-r from-red-700 via-orange-500 to-amber-300 transition-[width] duration-100" style={{ width: `${localBossPercent}%` }} /></div>
-          <div className="mt-1 flex justify-between text-[8px] text-white/42"><span>{de ? 'VERSUCHS-HP' : 'ATTEMPT HP'}</span><span>{Math.max(0, Math.ceil(localBoss?.hp ?? 0))}/{Math.ceil(localBoss?.maxHp ?? 0)}</span></div>
+          <div className="mt-1 flex justify-between text-[8px] text-white/42"><span>{de ? 'BOSS-HP' : 'BOSS HP'}</span><span>{Math.max(0, Math.ceil(localBoss?.hp ?? 0))}/{Math.ceil(localBoss?.maxHp ?? 0)}</span></div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/80"><div className="h-full bg-emerald-400 transition-[width] duration-100" style={{ width: `${playerPercent}%` }} /></div>
           <div className="mt-1 flex justify-between text-[7px] text-white/32"><span>{de ? 'DEINE LEBEN' : 'YOUR HEALTH'}</span><span>{Math.max(0, Math.ceil(gameState.player.hp))}/{Math.ceil(gameState.player.maxHp)}</span></div>
         </div>
@@ -297,9 +296,8 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       </div>}
 
       {arenaReady && phase === 'fighting' && <>
-        <VirtualJoystick onMove={handleMove} />
-        <ActionButtons gameState={gameState} onDodge={handleDodge} />
-        <div className="pointer-events-none absolute bottom-[max(18px,calc(env(safe-area-inset-bottom)+8px))] left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/78 px-4 py-2 text-[7px] font-black uppercase tracking-[.18em] text-white/45">{de ? 'AUTO-SCHUSS · BEWEGEN & AUSWEICHEN' : 'AUTO FIRE · MOVE & DODGE'}</div>
+        <VirtualJoystick onMove={handleMove} variant="worldBoss" />
+        <ActionButtons gameState={gameState} onDodge={handleDodge} variant="worldBoss" />
       </>}
     </>}
 
