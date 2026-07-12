@@ -46,10 +46,10 @@ const profile = (
 
 const bowPose = [0.08, -0.48, Math.PI / 2] as const;
 const importedBowPose = [0.02, -0.18, 0] as const;
-// Crossbows need a three-quarter view on portrait screens. The old near-side profile
-// hid the bow limbs and made both models read like short pistols.
-const frostCrossbowPose = [-0.18, -0.78, -0.08] as const;
-const splinterCrossbowPose = [-0.22, -0.7, -0.1] as const;
+// Crossbows are presented upright in the portrait preview so the stock, bow limbs
+// and trigger silhouette remain readable instead of collapsing into a flat side view.
+const frostCrossbowPose = [-0.18, -0.78, Math.PI / 2 - 0.08] as const;
+const splinterCrossbowPose = [-0.22, -0.7, Math.PI / 2 - 0.1] as const;
 const importedBowRoot = '/assets/imported/medieval-weapons';
 const quiverAccessory = (path: string) => ({
   accessoryPath: path,
@@ -69,8 +69,8 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'veil-bow': profile(`${importedBowRoot}/Bow_Evil.glb`, `${W}/bow_A_withString.gltf`, importedBowPose, 0.86, 0.7, 0, true, 0.05, 'bow'),
   'warden-bow': profile(`${W}/bow_B_withString.gltf`, `${A}/bow_withString.gltf`, bowPose, 0.84, 0.68, 0, true, 0.1, 'bow'),
 
-  'frost-bow': profile(`${A}/crossbow_2handed.gltf`, `${A}/crossbow_2handed.gltf`, frostCrossbowPose, 0.95, 0.72, 0.03, true, 0.3, 'crossbow'),
-  'splinter-bow': profile(`${A}/crossbow_1handed.gltf`, `${A}/crossbow_1handed.gltf`, splinterCrossbowPose, 0.95, 0.74, 0.03, true, 0.18, 'crossbow'),
+  'frost-bow': profile(`${A}/crossbow_2handed.gltf`, `${A}/crossbow_2handed.gltf`, frostCrossbowPose, 0.7, 0.82, 0, true, 0.3, 'crossbow'),
+  'splinter-bow': profile(`${A}/crossbow_1handed.gltf`, `${A}/crossbow_1handed.gltf`, splinterCrossbowPose, 0.72, 0.82, 0, true, 0.18, 'crossbow'),
 
   'ranger-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.12, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
   'black-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.5, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
