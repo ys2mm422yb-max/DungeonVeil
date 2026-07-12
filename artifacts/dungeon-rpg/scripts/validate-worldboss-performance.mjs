@@ -12,6 +12,10 @@ const checks = [
   [!files.battle.includes('CombatStage') && !files.battle.includes('GameCanvas') && !files.battle.includes('CombatFeedbackOverlay'), 'world boss still references the normal dungeon renderer'],
   [files.proxyStage.includes("WorldBossDedicatedStage as WorldBossLiteStage"), 'WorldBossLiteStage does not route to the dedicated renderer'],
   [files.dedicatedStage.includes("root.name = 'WorldBossDedicatedArena'") && !files.dedicatedStage.includes('buildKayKitDungeonRoom'), 'dedicated arena is missing or full dungeon staging is still used'],
+  [files.dedicatedStage.includes('new THREE.OrthographicCamera') && !files.dedicatedStage.includes('PerspectiveCamera'), 'world-boss camera is not the fixed orthographic arena camera'],
+  [files.dedicatedStage.includes('window.visualViewport') && files.dedicatedStage.includes("renderer.domElement.style.width = '100%'") && files.dedicatedStage.includes("renderer.domElement.style.height = '100%'"), 'world-boss canvas is not bound to the full visual viewport'],
+  [files.battle.includes('function findRaidSpawn') && files.battle.includes('desiredYRatio: 0.76') && files.battle.includes('desiredYRatio: 0.24'), 'player and boss do not have separated fixed raid starts'],
+  [files.battle.includes('const BOSS_START_DELAY_MS = 700;') && files.battle.includes('bossReleaseAtRef.current = now + BOSS_START_DELAY_MS'), 'boss start delay is missing'],
   [files.dedicatedStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 4 : 7;'), 'world-boss projectile budget is not bounded'],
   [files.dedicatedStage.includes('return 33;') && files.dedicatedStage.includes('return 42;') && files.dedicatedStage.includes('return 50;'), '30/24/20 FPS limits are missing'],
   [files.dedicatedStage.includes('fps < 19 ? 2 : fps < 27') && files.dedicatedStage.includes('qualityLevel = nextLevel'), 'adaptive FPS reduction is missing'],
@@ -36,4 +40,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: dedicated renderer, one active WebGL scene, mobile 30/24/20 FPS limits, bounded projectiles, ready-gated timer and full cleanup are active.');
+console.log('World-boss performance audit passed: full visual viewport canvas, fixed orthographic arena, separated starts, delayed boss advance, adaptive mobile budgets and full cleanup are active.');
