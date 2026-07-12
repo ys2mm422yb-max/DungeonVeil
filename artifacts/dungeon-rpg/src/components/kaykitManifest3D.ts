@@ -54,7 +54,6 @@ const NINTH_PACK_MODELS = NINTH_PACK_MODEL_NAMES.map(name => `${NINTH_PACK_GLTF_
 const PACK_NAMES: KayKitPackName[] = ['adventurers', 'animations', 'dungeon', 'weapons', 'forest', 'halloween', 'resources', 'skeletons', 'furniture', 'tools'];
 const APP_BASE_URL = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_APP_BASE_URL = APP_BASE_URL.endsWith('/') ? APP_BASE_URL : `${APP_BASE_URL}/`;
-const ROOT_ASSET_PREFIX = String.fromCharCode(47) + 'assets/';
 
 let manifestPromise: Promise<KayKitManifest> | null = null;
 
@@ -62,10 +61,14 @@ function appAssetUrl(path: string): string {
   return `${NORMALIZED_APP_BASE_URL}${path.replace(/^\/+/, '')}`;
 }
 
+function isRootRelativeAssetPath(value: string): boolean {
+  return value.charCodeAt(0) === 47 && value.slice(1).startsWith('assets/');
+}
+
 function normalizeManifestRoot(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return appAssetUrl('assets/kaykit').replace(/\/$/, '');
   const root = value.trim().replace(/\/$/, '');
-  if (root.startsWith(ROOT_ASSET_PREFIX) || root.startsWith('assets/')) return appAssetUrl(root).replace(/\/$/, '');
+  if (isRootRelativeAssetPath(root) || root.startsWith('assets/')) return appAssetUrl(root).replace(/\/$/, '');
   return root;
 }
 
