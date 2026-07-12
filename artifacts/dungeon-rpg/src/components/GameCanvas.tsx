@@ -6,6 +6,7 @@ import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
 import { CombatFeedbackOverlay } from './CombatFeedbackOverlay';
 import { preloadKayKitDungeonRoom } from './kaykitRoom3D';
 import { preloadKayKitRoomTheme } from './kaykitRoomThemes3D';
+import { preloadKayKitEnemyVisuals } from './kaykitEnemy3D';
 
 type RuntimeDiagnostics = {
   navigationType: string;
@@ -47,7 +48,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const latestStateRef = useRef(gameState);
   latestStateRef.current = gameState;
-  const renderedRoomKeyRef = useRef(roomKey(gameState));
+  const renderedRoomKeyRef = useRef('');
   const transitionTokenRef = useRef(0);
   const preloadKeyRef = useRef('');
   const recoveringRef = useRef(false);
@@ -68,6 +69,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     void Promise.all([
       preloadKayKitDungeonRoom(gameState.floor),
       preloadKayKitRoomTheme(gameState.floor),
+      preloadKayKitEnemyVisuals(),
     ]).then(() => {
       if (token !== transitionTokenRef.current) return;
       const latest = latestStateRef.current;
@@ -95,7 +97,11 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     const key = `${nextChapter}:${nextFloor}`;
     if (preloadKeyRef.current === key) return;
     preloadKeyRef.current = key;
-    void Promise.all([preloadKayKitDungeonRoom(nextFloor), preloadKayKitRoomTheme(nextFloor)]).catch(error => {
+    void Promise.all([
+      preloadKayKitDungeonRoom(nextFloor),
+      preloadKayKitRoomTheme(nextFloor),
+      preloadKayKitEnemyVisuals(),
+    ]).catch(error => {
       preloadKeyRef.current = '';
       console.error('Dungeon Veil next room preload failed', error);
     });
