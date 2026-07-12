@@ -170,15 +170,11 @@ export function OnlinePanel({ language }: Props) {
     setMessage(de ? 'Online-Konto verbunden.' : 'Online account connected.');
   });
 
-  const googleLogin = () => {
-    setError('');
-    setMessage('');
-    try {
-      signInWithGoogle();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    }
-  };
+  const googleLogin = () => run(async () => {
+    await signInWithGoogle();
+    await refreshOnlineData();
+    setMessage(de ? 'Google-Konto verbunden.' : 'Google account connected.');
+  });
 
   const saveProfile = () => run(async () => {
     if (displayName.trim().length < 2) throw new Error(de ? 'Der Spielername ist zu kurz.' : 'Player name is too short.');
