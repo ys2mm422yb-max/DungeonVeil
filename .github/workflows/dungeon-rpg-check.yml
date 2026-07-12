@@ -19,9 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  game-check:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     outputs:
       validated_sha: ${{ steps.validated.outputs.sha }}
     steps:
@@ -46,7 +46,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install workspace
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Asset audit
@@ -54,42 +54,6 @@ jobs:
 
       - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
-
-      - name: Typecheck Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg typecheck
-
-      - name: Build Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg build
-
-  pages-ci:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      validated_sha: ${{ steps.validated.outputs.sha }}
-    steps:
-      - name: Checkout current Dungeon Veil test branch
-        uses: actions/checkout@v4
-        with:
-          ref: work/blocks-1-7-production-pass
-
-      - name: Resolve deployed commit
-        id: validated
-        shell: bash
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Typecheck workspace
         run: pnpm run typecheck
@@ -127,9 +91,17 @@ jobs:
             }
           }
           if (bad.length) throw new Error(`Root-relative runtime asset paths found:\n${bad.join('\n')}`);
-          const js = files.filter(file => /\.(?:m?js)$/.test(file)).map(file => fs.readFileSync(file, 'utf8')).join('\n');
-          if (!js.includes('/DungeonVeil/assets/')) throw new Error('Pages-prefixed asset paths are missing from the built JavaScript.');
-          if (!fs.existsSync(path.join(root, 'index.html'))) throw new Error('Built index.html is missing.');
+          const js = files
+            .filter(file => /\.(?:m?js)$/.test(file))
+            .map(file => fs.readFileSync(file, 'utf8'))
+            .join('\n');
+          if (!js.includes('/DungeonVeil/assets/')) {
+            throw new Error('Pages-prefixed asset paths are missing from the built JavaScript.');
+          }
+          if (!fs.existsSync(path.join(root, 'index.html'))) {
+            throw new Error('Built index.html is missing.');
+          }
+          console.log(`Verified ${files.length} runtime files and the /DungeonVeil/ asset base.`);
           NODE
 
       - name: Write deployment marker
@@ -150,7 +122,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: pages-ci
+    needs: validate
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -162,14 +134,16 @@ jobs:
         uses: actions/deploy-pages@v4
 
   record:
+    if: always()
     runs-on: ubuntu-latest
-    needs: [game-check, pages-ci, deploy]
+    needs: [validate, deploy]
     steps:
-      - name: Record successful unified validation
+      - name: Record unified validation and deployment result
         uses: actions/github-script@v7
         env:
-          GAME_SHA: ${{ needs.game-check.outputs.validated_sha }}
-          PAGES_SHA: ${{ needs.pages-ci.outputs.validated_sha }}
+          VALIDATED_SHA: ${{ needs.validate.outputs.validated_sha }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -177,10 +151,11 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const ref = 'main';
-            if (!process.env.GAME_SHA || process.env.GAME_SHA !== process.env.PAGES_SHA) {
-              throw new Error(`Validation SHA mismatch: ${process.env.GAME_SHA} vs ${process.env.PAGES_SHA}`);
-            }
+            const commit = process.env.VALIDATED_SHA || null;
+            const validationSuccess = process.env.VALIDATE_RESULT === 'success';
+            const deploymentSuccess = process.env.DEPLOY_RESULT === 'success';
             const completedAt = new Date().toISOString();
+
             async function write(path, data, message) {
               let sha;
               try {
@@ -190,17 +165,31 @@ jobs:
                 if (error.status !== 404) throw error;
               }
               const content = Buffer.from(JSON.stringify(data, null, 2) + '\n').toString('base64');
-              await github.rest.repos.createOrUpdateFileContents({ owner, repo, path, branch: ref, sha, content, message });
+              await github.rest.repos.createOrUpdateFileContents({
+                owner, repo, path, branch: ref, sha, content, message,
+              });
             }
-            const commit = process.env.GAME_SHA;
+
             await write('.ci/dungeon-rpg-check.json', {
-              workflow: 'Dungeon RPG Check', status: 'success', validatedCommit: commit, completedAt,
-            }, `Record Dungeon RPG Check success for ${commit.slice(0, 7)}`);
+              workflow: 'Dungeon RPG Check',
+              status: validationSuccess ? 'success' : 'failure',
+              validatedCommit: commit,
+              completedAt,
+            }, `Record Dungeon RPG Check ${validationSuccess ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
+
             await write('.ci/dungeon-rpg-ci.json', {
-              workflow: 'Dungeon RPG CI', status: 'success', validatedCommit: commit,
-              checks: ['workspace typecheck', 'Pages production build', 'runtime asset base'], completedAt,
-            }, `Record Dungeon RPG CI success for ${commit.slice(0, 7)}`);
+              workflow: 'Dungeon RPG CI',
+              status: validationSuccess ? 'success' : 'failure',
+              validatedCommit: commit,
+              checks: ['asset audit', '50-room collision audit', 'workspace typecheck', 'Pages production build', 'runtime asset base'],
+              completedAt,
+            }, `Record Dungeon RPG CI ${validationSuccess ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
+
             await write('.ci/dungeon-veil-pages.json', {
-              workflow: 'Deploy Dungeon Veil Test Site', status: 'success', deployedCommit: commit,
-              pageUrl: process.env.PAGE_URL, completedAt,
-            }, `Record Dungeon Veil Pages success for ${commit.slice(0, 7)}`);
+              workflow: 'Deploy Dungeon Veil Test Site',
+              status: deploymentSuccess ? 'success' : 'failure',
+              attemptedCommit: commit,
+              deployedCommit: deploymentSuccess ? commit : null,
+              pageUrl: process.env.PAGE_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/',
+              completedAt,
+            }, `Record Dungeon Veil Pages ${deploymentSuccess ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
