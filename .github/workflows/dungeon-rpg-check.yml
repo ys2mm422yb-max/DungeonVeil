@@ -12,7 +12,7 @@ on:
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.github/workflows/dungeon-rpg-ci.yml'
   pull_request:
-    branches: [main]
+    branches: [main, work/blocks-1-7-production-pass]
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
@@ -21,6 +21,7 @@ on:
       - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
 # Verification also runs directly on the production-pass branch when the PR has conflicts.
