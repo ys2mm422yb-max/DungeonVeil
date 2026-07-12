@@ -1,5 +1,6 @@
 name: Dungeon RPG CI
 
+# Validation trigger for world boss mobile cleanup fcad755.
 on:
   workflow_dispatch:
 
