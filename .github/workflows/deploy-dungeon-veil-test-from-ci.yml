@@ -1,7 +1,7 @@
 name: Deploy Dungeon Veil Test Site From Main
 
 # Always publishes the current production-pass head to the single fixed test URL.
-# Deployment trigger for mobile combat polish build f77dab55806b.
+# Deployment trigger for final mobile combat polish build 10f518da8b18.
 on:
   push:
     branches:
