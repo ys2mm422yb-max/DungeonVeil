@@ -10,7 +10,7 @@ type StatusMarker = {
   left: number;
   top: number;
   size: number;
-  kind: 'fire' | 'ice';
+  kind: 'fire' | 'ice' | 'attack';
 };
 
 function normalize(vector: [number, number, number]): [number, number, number] {
@@ -109,6 +109,16 @@ function IceStatus({ marker }: { marker: StatusMarker }) {
   </div>;
 }
 
+function AttackStatus({ marker }: { marker: StatusMarker }) {
+  const size = marker.size * 0.72;
+  return <div className="dv-attack-warning" style={{ left: `${marker.left}%`, top: `${marker.top}%`, width: size, height: size }}>
+    <span className="dv-danger-core" />
+    <span className="dv-danger-spark dv-danger-a" />
+    <span className="dv-danger-spark dv-danger-b" />
+    <span className="dv-danger-spark dv-danger-c" />
+  </div>;
+}
+
 export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
   const lastHp = useRef(gameState.player.hp);
   const [playerHit, setPlayerHit] = useState(0);
@@ -127,10 +137,12 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
       if (enemy.isDead) return [];
       const burning = Boolean(enemy.burnUntil && enemy.burnUntil > now);
       const frozen = Boolean(enemy.frostUntil && enemy.frostUntil > now);
-      if (!burning && !frozen) return [];
+      const attacking = enemy.state === 'attack' && enemy.lastAttackTime > 0 && now - enemy.lastAttackTime <= 950;
+      if (!burning && !frozen && !attacking) return [];
       const projected = projectEnemy(gameState, enemy);
       if (!projected) return [];
       const markers: StatusMarker[] = [];
+      if (attacking) markers.push({ id: `${enemy.id}-attack`, kind: 'attack', ...projected });
       if (burning) markers.push({ id: `${enemy.id}-fire`, kind: 'fire', ...projected });
       if (frozen) markers.push({ id: `${enemy.id}-ice`, kind: 'ice', ...projected });
       return markers;
@@ -139,7 +151,11 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
 
   return <div className="pointer-events-none fixed inset-0 z-[25] overflow-hidden">
     {playerHit > 0 && <div key={`player-hit-${playerHit}`} className="absolute inset-0" style={{ animation: 'dvPlayerHit .34s ease-out both' }} />}
-    {statusMarkers.map(marker => marker.kind === 'fire' ? <FireStatus key={marker.id} marker={marker} /> : <IceStatus key={marker.id} marker={marker} />)}
+    {statusMarkers.map(marker => marker.kind === 'fire'
+      ? <FireStatus key={marker.id} marker={marker} />
+      : marker.kind === 'ice'
+        ? <IceStatus key={marker.id} marker={marker} />
+        : <AttackStatus key={marker.id} marker={marker} />)}
     <style>{`
       @keyframes dvPlayerHit {
         0% { opacity: 0; box-shadow: inset 0 0 0 rgba(255,45,45,0); transform: translateX(0); }
@@ -170,6 +186,15 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
         25% { opacity: .85; }
         100% { transform: translateY(-22px) translateX(7px) rotate(90deg) scale(.25); opacity: 0; }
       }
+      @keyframes dvDangerPulse {
+        0% { transform: translate(-50%,-50%) scale(.58); opacity: 0; }
+        28% { opacity: .95; }
+        100% { transform: translate(-50%,-50%) scale(1.2); opacity: 0; }
+      }
+      @keyframes dvDangerSpark {
+        0%,100% { transform: translate(-50%,-50%) scale(.72) rotate(0deg); opacity: .55; }
+        50% { transform: translate(-50%,-50%) scale(1.08) rotate(16deg); opacity: 1; }
+      }
       .dv-natural-status { position:absolute; transform:translate(-50%,-50%); transition:left 55ms linear,top 55ms linear; }
       .dv-natural-fire { filter:drop-shadow(0 0 7px rgba(255,82,22,.92)); }
       .dv-natural-fire::after { content:''; position:absolute; left:18%; right:18%; bottom:8%; height:28%; border-radius:50%; background:radial-gradient(ellipse,rgba(255,122,30,.5),rgba(255,43,10,.16) 48%,transparent 72%); }
@@ -191,6 +216,13 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
       .dv-snow { position:absolute; color:#dffcff; font-size:12px; text-shadow:0 0 6px #71dcff; animation:dvSnowDrift 1.15s linear infinite; }
       .dv-snow-a { left:25%; top:48%; }
       .dv-snow-b { right:20%; top:57%; animation-delay:-.62s; }
+      .dv-attack-warning { position:absolute; transform:translate(-50%,-50%); transition:left 45ms linear,top 45ms linear; filter:drop-shadow(0 0 5px rgba(255,70,34,.9)); }
+      .dv-attack-warning::before { content:''; position:absolute; left:50%; top:62%; width:82%; height:36%; border-radius:50%; border:2px solid rgba(255,108,54,.82); animation:dvDangerPulse .55s ease-out infinite; }
+      .dv-danger-core { position:absolute; left:50%; top:42%; width:18%; height:32%; transform:translate(-50%,-50%); background:linear-gradient(to top,#ff3d22,#ffd06a); clip-path:polygon(50% 0,100% 64%,64% 100%,36% 100%,0 64%); animation:dvDangerSpark .42s ease-in-out infinite; }
+      .dv-danger-spark { position:absolute; width:7%; height:19%; border-radius:999px; background:#ffd56f; box-shadow:0 0 5px #ff4729; animation:dvDangerSpark .46s ease-in-out infinite; }
+      .dv-danger-a { left:29%; top:47%; animation-delay:-.12s; }
+      .dv-danger-b { left:69%; top:45%; animation-delay:-.28s; }
+      .dv-danger-c { left:50%; top:18%; animation-delay:-.36s; }
     `}</style>
   </div>;
 }
