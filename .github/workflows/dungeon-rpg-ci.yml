@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, work/blocks-1-7-production-pass]
   pull_request:
-    branches: [main]
+    branches: [main, work/blocks-1-7-production-pass]
 
 permissions:
   contents: read
