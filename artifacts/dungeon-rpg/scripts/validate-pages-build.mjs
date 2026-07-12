@@ -34,12 +34,15 @@ for (const file of runtimeFiles) {
   for (const match of source.matchAll(rootRelativeAssetPattern)) {
     const before = source.slice(Math.max(0, match.index - 70), match.index);
     if (before.endsWith(expectedBase.replace(/\/$/, ''))) continue;
-    invalidReferences.push(`${path.relative(buildRoot, file)}: ${match[0]}`);
+    const context = source
+      .slice(Math.max(0, match.index - 180), Math.min(source.length, match.index + 260))
+      .replace(/\s+/g, ' ');
+    invalidReferences.push(`${path.relative(buildRoot, file)}\n${context}`);
   }
 }
 
 if (invalidReferences.length) {
-  throw new Error(`Root-relative asset references would break on GitHub Pages:\n${invalidReferences.join('\n')}`);
+  throw new Error(`Root-relative asset references would break on GitHub Pages:\n${invalidReferences.join('\n---\n')}`);
 }
 
 if (!combinedJavaScript.includes(expectedAssetPrefix)) {
