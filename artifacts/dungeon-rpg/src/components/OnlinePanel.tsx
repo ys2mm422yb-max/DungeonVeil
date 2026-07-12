@@ -3,7 +3,6 @@ import { pullCloudSave, pushCloudSave } from '../game/cloudSave';
 import { consumeGoogleOAuthResult, signInWithGoogle } from '../game/googleOAuth';
 import {
   acceptGuildInvite,
-  createGuild,
   currentOnlineSession,
   declineGuildInvite,
   getCurrentWorldBoss,
@@ -90,8 +89,6 @@ export function OnlinePanel({ language }: Props) {
   const [membership, setMembership] = useState<OnlineGuildMembership | null>(null);
   const [invites, setInvites] = useState<OnlineGuildInvite[]>([]);
   const [boss, setBoss] = useState<WorldBossEvent | null>(null);
-  const [guildName, setGuildName] = useState('');
-  const [guildTag, setGuildTag] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -195,16 +192,6 @@ export function OnlinePanel({ language }: Props) {
       : de ? 'Kein neuerer Cloud-Spielstand vorhanden.' : 'No newer cloud save is available.');
   });
 
-  const makeGuild = () => run(async () => {
-    if (guildName.trim().length < 3) throw new Error(de ? 'Der Gildenname ist zu kurz.' : 'Guild name is too short.');
-    if (guildTag.trim().length < 2) throw new Error(de ? 'Das Kürzel ist zu kurz.' : 'Guild tag is too short.');
-    await createGuild(guildName, guildTag);
-    setGuildName('');
-    setGuildTag('');
-    await refreshOnlineData();
-    setMessage(de ? 'Gilde gegründet.' : 'Guild created.');
-  });
-
   const answerInvite = (inviteId: string, accept: boolean) => run(async () => {
     if (accept) await acceptGuildInvite(inviteId);
     else await declineGuildInvite(inviteId);
@@ -224,7 +211,7 @@ export function OnlinePanel({ language }: Props) {
 
   return <div className="max-h-[78vh] overflow-y-auto rounded-3xl border border-violet-300/18 bg-[#0b0910]/96 p-4 text-white shadow-2xl">
     <div className="mb-4">
-      <div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-200/45">{de ? 'ONLINE & CLOUD' : 'ONLINE & CLOUD'}</div>
+      <div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-200/45">ONLINE & CLOUD</div>
       <div className="mt-1 text-lg font-black">{session ? (profile?.display_name || session.user.email || 'Dungeon Veil') : (de ? 'Konto verbinden' : 'Connect account')}</div>
       <div className="mt-1 text-[9px] leading-relaxed text-white/38">{de ? 'Offline bleibt immer verfügbar. Online-Funktionen werden nur nach Anmeldung genutzt.' : 'Offline play always remains available. Online features are only used after sign-in.'}</div>
     </div>
@@ -262,9 +249,9 @@ export function OnlinePanel({ language }: Props) {
         {membership ? <div className="rounded-xl border border-amber-300/15 bg-amber-400/[.06] p-3">
           <div className="text-sm font-black text-amber-100">[{membership.guild.tag}] {membership.guild.name}</div>
           <div className="mt-1 text-[9px] uppercase tracking-[.14em] text-white/35">{membership.role}</div>
-        </div> : <div className="space-y-2">
-          <div className="grid grid-cols-[1fr_90px] gap-2"><Field value={guildName} onChange={setGuildName} placeholder={de ? 'Gildenname' : 'Guild name'} maxLength={32} /><Field value={guildTag} onChange={setGuildTag} placeholder="TAG" maxLength={6} /></div>
-          <ActionButton label={de ? 'Gilde gründen' : 'Create guild'} onClick={makeGuild} disabled={busy} />
+        </div> : <div className="rounded-xl border border-amber-300/12 bg-amber-400/[.04] p-3">
+          <div className="text-[10px] font-black uppercase tracking-[.14em] text-amber-100/70">{de ? 'Noch gesperrt' : 'Locked'}</div>
+          <div className="mt-1 text-[10px] leading-relaxed text-white/38">{de ? 'Gilden werden später im Spiel gegen Gold freigeschaltet. Hier kann keine kostenlose Gilde gegründet werden.' : 'Guilds unlock later in the game for gold. A free guild cannot be created here.'}</div>
         </div>}
         {invites.length > 0 && <div className="space-y-2 pt-1">{invites.map(invite => <div key={invite.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/30 p-2.5"><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">[{invite.guild.tag}] {invite.guild.name}</div><div className="text-[8px] text-white/30">{de ? 'Gildeneinladung' : 'Guild invitation'}</div></div><ActionButton label="✓" onClick={() => answerInvite(invite.id, true)} disabled={busy} primary /><ActionButton label="×" onClick={() => answerInvite(invite.id, false)} disabled={busy} /></div>)}</div>}
       </section>
