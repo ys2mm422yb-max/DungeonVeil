@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { pullCloudSave, pushCloudSave } from '../game/cloudSave';
+import { consumeGoogleOAuthResult, signInWithGoogle } from '../game/googleOAuth';
 import {
   acceptGuildInvite,
   createGuild,
@@ -62,6 +63,22 @@ function ActionButton({ label, onClick, disabled = false, primary = false }: {
   >{label}</button>;
 }
 
+function GoogleButton({ label, onClick, disabled = false }: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return <button
+    type="button"
+    disabled={disabled}
+    onClick={onClick}
+    className={`flex w-full items-center justify-center gap-2 rounded-xl border border-white/14 bg-white px-3 py-2.5 text-[10px] font-black text-[#202124] active:scale-[.98] ${disabled ? 'pointer-events-none opacity-40' : ''}`}
+  >
+    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-black/10 bg-white text-[12px] font-black text-[#4285f4]">G</span>
+    {label}
+  </button>;
+}
+
 export function OnlinePanel({ language }: Props) {
   const de = language === 'de';
   const [session, setSession] = useState<OnlineSession | null>(() => currentOnlineSession());
@@ -112,11 +129,27 @@ export function OnlinePanel({ language }: Props) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const refresh = () => { void run(refreshOnlineData); };
     window.addEventListener(onlineSessionEventName(), refresh);
-    if (session) void run(refreshOnlineData);
-    return () => window.removeEventListener(onlineSessionEventName(), refresh);
-  }, [refreshOnlineData, run]);
+
+    void run(async () => {
+      const oauth = await consumeGoogleOAuthResult();
+      if (cancelled) return;
+      if (oauth.error) throw new Error(oauth.error);
+      if (oauth.handled) {
+        await refreshOnlineData();
+        setMessage(de ? 'Google-Konto verbunden.' : 'Google account connected.');
+        return;
+      }
+      if (currentOnlineSession()) await refreshOnlineData();
+    });
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(onlineSessionEventName(), refresh);
+    };
+  }, [de, refreshOnlineData, run]);
 
   const authenticate = () => run(async () => {
     if (!email.includes('@')) throw new Error(de ? 'Bitte eine gültige E-Mail eingeben.' : 'Enter a valid email address.');
@@ -136,6 +169,16 @@ export function OnlinePanel({ language }: Props) {
     await refreshOnlineData();
     setMessage(de ? 'Online-Konto verbunden.' : 'Online account connected.');
   });
+
+  const googleLogin = () => {
+    setError('');
+    setMessage('');
+    try {
+      signInWithGoogle();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    }
+  };
 
   const saveProfile = () => run(async () => {
     if (displayName.trim().length < 2) throw new Error(de ? 'Der Spielername ist zu kurz.' : 'Player name is too short.');
@@ -193,6 +236,12 @@ export function OnlinePanel({ language }: Props) {
     {(message || error) && <div className={`mb-3 rounded-xl border px-3 py-2 text-[10px] ${error ? 'border-red-400/25 bg-red-500/10 text-red-200' : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}
 
     {!session ? <div className="space-y-3">
+      <GoogleButton label={busy ? (de ? 'Bitte warten …' : 'Please wait …') : de ? 'Mit Google anmelden' : 'Continue with Google'} onClick={googleLogin} disabled={busy} />
+      <div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-[.18em] text-white/25">
+        <span className="h-px flex-1 bg-white/10" />
+        {de ? 'oder mit E-Mail' : 'or use email'}
+        <span className="h-px flex-1 bg-white/10" />
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <ActionButton label={de ? 'Anmelden' : 'Sign in'} onClick={() => setMode('login')} primary={mode === 'login'} />
         <ActionButton label={de ? 'Registrieren' : 'Register'} onClick={() => setMode('register')} primary={mode === 'register'} />
