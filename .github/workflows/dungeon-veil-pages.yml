@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - work/blocks-1-7-production-pass
+    paths-ignore:
+      - '.ci/**'
   workflow_dispatch:
 
 permissions:
@@ -50,6 +52,7 @@ jobs:
         env:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
+          VITE_BUILD_SHA: ${{ github.sha }}
         run: pnpm --dir artifacts/dungeon-rpg run build
 
       - name: Verify GitHub Pages artifact
