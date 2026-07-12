@@ -54,7 +54,7 @@ const NINTH_PACK_MODELS = NINTH_PACK_MODEL_NAMES.map(name => `${NINTH_PACK_GLTF_
 const PACK_NAMES: KayKitPackName[] = ['adventurers', 'animations', 'dungeon', 'weapons', 'forest', 'halloween', 'resources', 'skeletons', 'furniture', 'tools'];
 const APP_BASE_URL = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_APP_BASE_URL = APP_BASE_URL.endsWith('/') ? APP_BASE_URL : `${APP_BASE_URL}/`;
-const ROOT_ASSET_PREFIX = `/${'assets/'}`;
+const ROOT_ASSET_PREFIX = String.fromCharCode(47) + 'assets/';
 
 let manifestPromise: Promise<KayKitManifest> | null = null;
 
