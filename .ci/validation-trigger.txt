@@ -1,0 +1,1 @@
+Validate natural fire and frost effects, selected-skill HUD, aligned lightweight arrows, Android multishot performance safeguards, guild follow-up and active world-boss integration.
