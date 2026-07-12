@@ -5,6 +5,17 @@ import { veilModifierLabel } from '../game/runEffectSystems';
 
 interface Props{gameState:GameState;onPause:()=>void;onExitDungeon?:()=>void}
 
+type CombatSkillKey = 'fireArrow' | 'iceArrow' | 'multishot' | 'ricochet' | 'piercing' | 'attackSpeed';
+
+const COMBAT_SKILLS: Array<{ key: CombatSkillKey; icon: string; label: string; tone: string }> = [
+ {key:'fireArrow',icon:'🔥',label:'FEUER',tone:'border-orange-300/25 bg-orange-500/12 text-orange-100'},
+ {key:'iceArrow',icon:'❄',label:'FROST',tone:'border-cyan-200/25 bg-cyan-400/10 text-cyan-100'},
+ {key:'multishot',icon:'⇶',label:'MEHRFACH',tone:'border-amber-200/22 bg-amber-400/9 text-amber-100'},
+ {key:'piercing',icon:'➶',label:'DURCHSCHLAG',tone:'border-slate-200/20 bg-slate-300/8 text-slate-100'},
+ {key:'ricochet',icon:'↗',label:'ABPRALLER',tone:'border-violet-200/22 bg-violet-400/10 text-violet-100'},
+ {key:'attackSpeed',icon:'⚡',label:'TEMPO',tone:'border-yellow-200/20 bg-yellow-300/8 text-yellow-100'},
+];
+
 function Bar({v,m,c}:{v:number;m:number;c:string}){
  const p=Math.max(0,Math.min(100,m?v/m*100:0));
  return <div className="relative h-[14px] overflow-hidden rounded-full border border-white/10 bg-black/70"><div className="absolute inset-[2px] rounded-full" style={{width:`calc(${p}% - 4px)`,background:c}}/><span className="absolute inset-0 grid place-items-center text-[8px] font-black text-white drop-shadow-[0_1px_2px_#000]">{Math.ceil(v)}/{m}</span></div>
@@ -13,6 +24,10 @@ function Bar({v,m,c}:{v:number;m:number;c:string}){
 export function HUD({gameState:g,onPause}:Props){
  const p=g.player;
  const gifts=Object.entries(g.runSkills).reduce((sum,[key,value])=>key==='heal'?sum:sum+(value??0),0);
+ const activeCombatSkills=COMBAT_SKILLS.flatMap(skill=>{
+  const rank=g.runSkills[skill.key]??0;
+  return rank>0?[{...skill,rank}]:[];
+ });
  const living=g.enemies.filter(enemy=>enemy.hp>0&&!enemy.isDead).length;
  const pending=g.enemies.filter(enemy=>enemy.isDead).length;
  const boss=g.enemies.find(enemy=>enemy.enemyType==='boss'&&enemy.hp>0&&!enemy.isDead);
@@ -24,10 +39,13 @@ export function HUD({gameState:g,onPause}:Props){
  const exitHint=pending>0&&living===0?'AUSGANG WIRD FREIGEGEBEN':`NOCH ${living} GEGNER`;
  return <div className="fixed inset-0 z-40 pointer-events-none select-none">
   <div className="absolute left-3 right-3 top-3 flex items-start justify-between" style={{paddingTop:'env(safe-area-inset-top)',paddingLeft:'env(safe-area-inset-left)',paddingRight:'env(safe-area-inset-right)'}}>
-   <div className="w-[190px] rounded-2xl border border-white/10 bg-black/55 p-3 shadow-xl backdrop-blur-sm">
+   <div className="w-[205px] rounded-2xl border border-white/10 bg-black/55 p-3 shadow-xl backdrop-blur-sm">
     <div className="mb-2 flex items-center justify-between text-[10px] font-black tracking-[.18em] text-white/75"><span>KAPITEL {g.chapter}</span><span>RAUM {g.floor}/{CHAPTER_ROOMS}</span></div>
     <Bar v={p.hp} m={p.maxHp} c="#cb463d"/>
     <div className="mt-2 flex items-center justify-between border-t border-white/8 pt-2 text-[8px] font-bold tracking-[.16em] text-white/45"><span>WALDLÄUFER</span><span>{gifts} GABEN</span></div>
+    {activeCombatSkills.length>0&&<div className="mt-2 flex flex-wrap gap-1">
+     {activeCombatSkills.map(skill=><div key={skill.key} className={`rounded-full border px-2 py-1 text-[6px] font-black tracking-[.08em] ${skill.tone}`}><span className="mr-1 text-[8px]">{skill.icon}</span>{skill.label} {skill.rank}</div>)}
+    </div>}
     {modifier&&<div className="mt-2 truncate rounded-full border border-violet-300/15 bg-violet-500/[.07] px-2 py-1 text-center text-[6px] font-black tracking-[.18em] text-violet-100/65">{modifier}</div>}
    </div>
    <button type="button" onPointerDown={e=>{e.preventDefault();e.stopPropagation();onPause()}} className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 text-sm font-black text-white/85 backdrop-blur-sm active:scale-90" data-ui-control>Ⅱ</button>
