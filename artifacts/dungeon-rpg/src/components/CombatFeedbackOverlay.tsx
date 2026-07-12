@@ -82,7 +82,7 @@ function projectEnemy(state: GameState, enemy: GameState['enemies'][number]): Om
   return {
     left: (ndcX * 0.5 + 0.5) * 100,
     top: (-ndcY * 0.5 + 0.5) * 100,
-    size: clamp(38, 56 * (28 / cameraDepth), enemy.enemyType === 'boss' ? 82 : 66),
+    size: clamp(56 * (28 / cameraDepth), 38, enemy.enemyType === 'boss' ? 82 : 66),
   };
 }
 
