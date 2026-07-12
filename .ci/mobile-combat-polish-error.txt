@@ -1,0 +1,1 @@
+replacement target not found in artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx: '         if (lowFpsWindows >= 2 && particleBudget > 24) {\n            particleBudget = 24;\n'
