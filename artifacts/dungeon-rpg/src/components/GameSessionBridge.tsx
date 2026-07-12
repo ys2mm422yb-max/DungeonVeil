@@ -74,21 +74,29 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     let frame = 0;
     let checkedClearKey = '';
     let lastFrame = performance.now();
+    let lastSystemTick = 0;
+    const mobileTick = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
     const update = (time: number) => {
       const engine = getEngineRef.current();
       const dt = Math.min(100, Math.max(0, time - lastFrame));
       lastFrame = time;
       if (engine) {
-        if (engine.state.status === 'playing') {
-          updateRunBalance(engine, balance);
-          updateRunEffectSystems(engine, effects, time);
-          updateRunRetentionSystems(engine, retention, time);
-          updateRoomMechanics(engine, roomMechanics, time, dt);
-          updateRunSynergies(engine, synergies, time);
-          updateFirstWardenFinale(engine, firstWarden, time);
+        const interval = mobileTick ? 50 : 33;
+        if (time - lastSystemTick >= interval) {
+          const systemDt = Math.min(100, Math.max(dt, time - lastSystemTick));
+          lastSystemTick = time;
+          if (engine.state.status === 'playing') {
+            updateRunBalance(engine, balance);
+            updateRunEffectSystems(engine, effects, time);
+            updateRunRetentionSystems(engine, retention, time);
+            updateRoomMechanics(engine, roomMechanics, time, systemDt);
+            updateRunSynergies(engine, synergies, time);
+            updateFirstWardenFinale(engine, firstWarden, time);
+          }
+          updateRunRelicEffects(engine, relicEffects, time);
+          updateEquipmentWorldLoot(engine, worldLoot, time);
         }
-        updateRunRelicEffects(engine, relicEffects, time);
         if (engine.state.roomClearReady) {
           const clearKey = `${engine.state.chapter}:${engine.state.floor}:${engine.state.roomClearAt}`;
           if (checkedClearKey !== clearKey) {
@@ -105,7 +113,6 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
         } else {
           checkedClearKey = '';
         }
-        updateEquipmentWorldLoot(engine, worldLoot, time);
       }
       frame = requestAnimationFrame(update);
     };

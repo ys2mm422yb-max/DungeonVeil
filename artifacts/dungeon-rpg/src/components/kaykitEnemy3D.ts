@@ -61,6 +61,7 @@ export type KayKitEnemyVisual = {
   role: EnemyRole;
   movePlaybackBase: number;
   attackDuration: number;
+  tintMode: 'normal' | 'hit';
 };
 
 let libraryPromise: Promise<EnemyLibrary> | null = null;
@@ -398,9 +399,9 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
 
   const statusRoot = new THREE.Group();
   root.add(statusRoot);
-  const burnGlows = buildStatusGlows(THREE, 0xff642c, IS_MOBILE ? 5 : 8, 0.22);
-  const frostGlows = buildStatusGlows(THREE, 0x8deaff, IS_MOBILE ? 5 : 8, 0.14);
-  [...burnGlows, ...frostGlows].forEach(mesh => statusRoot.add(mesh));
+  const burnGlows = buildStatusGlows(THREE, 0xff642c, IS_MOBILE ? 2 : 8, 0.22);
+  const frostGlows = buildStatusGlows(THREE, 0x8deaff, IS_MOBILE ? 2 : 8, 0.14);
+  [...burnGlows, ...frostGlows].forEach(mesh => { mesh.visible = false; statusRoot.add(mesh); });
 
   const burnHalo = new THREE.Mesh(
     new THREE.TorusGeometry(0.38, 0.045, 6, IS_MOBILE ? 20 : 30),
@@ -408,6 +409,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   );
   burnHalo.rotation.x = Math.PI / 2;
   burnHalo.position.y = 0.1;
+  burnHalo.visible = false;
   statusRoot.add(burnHalo);
 
   const frostHalo = new THREE.Mesh(
@@ -416,6 +418,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   );
   frostHalo.rotation.x = Math.PI / 2;
   frostHalo.position.y = 0.08;
+  frostHalo.visible = false;
   statusRoot.add(frostHalo);
 
   const bossAura = new THREE.Group();
@@ -441,6 +444,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   bossRingInner.rotation.x = Math.PI / 2;
   bossRingInner.position.y = 0.09;
   bossRingInner.userData.bossRing = 'inner';
+  bossRingInner.visible = !IS_MOBILE;
   bossAura.add(bossRingInner);
   const bossCore = IS_MOBILE ? new THREE.Object3D() : new THREE.PointLight(auraOuter, enemy.isElite ? 1.8 : 3.2, 5.5, 2);
   bossCore.intensity = IS_MOBILE ? 0 : bossCore.intensity;
@@ -475,6 +479,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     role,
     movePlaybackBase,
     attackDuration,
+    tintMode: 'normal',
   };
 }
 
@@ -514,20 +519,30 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   const frozen = Boolean(enemy.frostUntil && now < enemy.frostUntil);
 
   visual.burnGlows.forEach((glow, index) => {
-    glow.material.opacity = burning ? 0.62 + Math.sin(now * 0.012 + index) * 0.22 : 0;
-    glow.position.y += burning ? delta * (0.16 + index * 0.018) : 0;
+    glow.visible = burning;
+    if (!burning) return;
+    glow.material.opacity = 0.62 + Math.sin(now * 0.012 + index) * 0.22;
+    glow.position.y += delta * (0.16 + index * 0.018);
     if (glow.position.y > 1.7) glow.position.y = 0.2;
   });
-  visual.burnHalo.material.opacity = burning ? 0.42 + Math.sin(now * 0.009) * 0.16 : 0;
-  visual.burnHalo.scale.setScalar(burning ? 0.94 + Math.sin(now * 0.006) * 0.1 : 1);
+  visual.burnHalo.visible = burning;
+  if (burning) {
+    visual.burnHalo.material.opacity = 0.42 + Math.sin(now * 0.009) * 0.16;
+    visual.burnHalo.scale.setScalar(0.94 + Math.sin(now * 0.006) * 0.1);
+  }
   visual.frostGlows.forEach((glow, index) => {
-    glow.material.opacity = frozen ? 0.58 + Math.sin(now * 0.01 + index * 1.6) * 0.24 : 0;
+    glow.visible = frozen;
+    if (!frozen) return;
+    glow.material.opacity = 0.58 + Math.sin(now * 0.01 + index * 1.6) * 0.24;
     glow.position.y = 0.12 + (index % 4) * 0.32 + Math.sin(now * 0.004 + index) * 0.05;
     glow.position.x = Math.sin(now * 0.002 + index * 2.2) * 0.36;
     glow.position.z = Math.cos(now * 0.0024 + index * 1.7) * 0.3;
   });
-  visual.frostHalo.material.opacity = frozen ? 0.36 + Math.sin(now * 0.008) * 0.12 : 0;
-  visual.frostHalo.scale.setScalar(frozen ? 0.96 + Math.sin(now * 0.005) * 0.07 : 1);
+  visual.frostHalo.visible = frozen;
+  if (frozen) {
+    visual.frostHalo.material.opacity = 0.36 + Math.sin(now * 0.008) * 0.12;
+    visual.frostHalo.scale.setScalar(0.96 + Math.sin(now * 0.005) * 0.07);
+  }
 
   if (enemy.enemyType === 'boss' || enemy.isElite) {
     visual.bossAura.rotation.y += delta * (enemy.isElite ? 0.7 : 0.5);
@@ -544,8 +559,12 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   }
 
   const hitFlash = Boolean(enemy.flashUntil && now < enemy.flashUntil);
-  if (hitFlash) setMeshTint(visual.scene, 0xffd6bd, enemy.enemyType === 'boss' ? 0.035 : 0.065);
-  else setMeshTint(visual.scene, null, 0);
+  const tintMode = hitFlash ? 'hit' : 'normal';
+  if (tintMode !== visual.tintMode) {
+    visual.tintMode = tintMode;
+    if (hitFlash) setMeshTint(visual.scene, 0xffd6bd, enemy.enemyType === 'boss' ? 0.035 : 0.065);
+    else setMeshTint(visual.scene, null, 0);
+  }
 
   if ((enemy.lastHitTime ?? 0) > visual.lastHitTime) {
     visual.lastHitTime = enemy.lastHitTime ?? 0;

@@ -182,18 +182,39 @@ export function roomPropDisplayScale(piece: RoomPropPresentationInput) {
   return base;
 }
 
-export function roomPropBlocksGameplay(piece: RoomPropPresentationInput) {
-  if (!piece.collider) return false;
+function inferredCollider(piece: RoomPropPresentationInput): readonly [number, number] | null {
+  const key = modelKey(piece.model);
   const classification = roomPropScaleClass(piece);
-  return !['lighting', 'small-prop', 'tool-weapon', 'wall-decoration', 'foliage'].includes(classification);
+  if (classification === 'architecture') {
+    if (key.includes('/pillar') || key.includes('/column')) return [0.9, 0.9];
+    if (key.includes('/shrine') || key.includes('/coffin') || key.includes('/grave')) return [1.25, 1.35];
+    return [1.2, 1.2];
+  }
+  if (classification === 'furniture') {
+    if (key.includes('/chair')) return [0.72, 0.72];
+    if (key.includes('/bench')) return [1.3, 0.72];
+    if (key.includes('/table_')) return [1.8, 1.0];
+    if (key.includes('/bed_')) return [1.0, 1.8];
+    if (key.includes('/shelf') || key.includes('/cabinet')) return [1.0, 1.2];
+    return [0.95, 0.85];
+  }
+  if (classification === 'heavy-prop') return [1.05, 0.95];
+  if (classification === 'nature-solid') return key.includes('/tree') ? [1.08, 1.08] : [1.2, 1.0];
+  return null;
+}
+
+export function roomPropBlocksGameplay(piece: RoomPropPresentationInput) {
+  const classification = roomPropScaleClass(piece);
+  if (['lighting', 'small-prop', 'tool-weapon', 'wall-decoration', 'foliage'].includes(classification)) return false;
+  return Boolean(piece.collider ?? inferredCollider(piece));
 }
 
 export function roomPropColliderInset(piece: RoomPropPresentationInput) {
   const classification = roomPropScaleClass(piece);
-  if (classification === 'architecture') return 0.9;
-  if (classification === 'furniture') return 0.84;
-  if (classification === 'nature-solid') return 0.8;
-  if (classification === 'heavy-prop') return 0.86;
+  if (classification === 'architecture') return 0.96;
+  if (classification === 'furniture') return 0.94;
+  if (classification === 'nature-solid') return 0.9;
+  if (classification === 'heavy-prop') return 0.94;
   return 0.88;
 }
 
@@ -202,11 +223,12 @@ export function roomPropColliderScale(piece: RoomPropPresentationInput) {
 }
 
 export function roomPropColliderFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
-  if (!roomPropBlocksGameplay(piece) || !piece.collider) return null;
+  const collider = piece.collider ?? inferredCollider(piece);
+  if (!roomPropBlocksGameplay(piece) || !collider) return null;
   const inset = roomPropColliderInset(piece);
   const scale = roomPropColliderScale(piece) * inset;
-  const localWidth = piece.collider[0] * scale;
-  const localHeight = piece.collider[1] * scale;
+  const localWidth = collider[0] * scale;
+  const localHeight = collider[1] * scale;
   const angle = piece.rotation ?? 0;
   const cos = Math.abs(Math.cos(angle));
   const sin = Math.abs(Math.sin(angle));

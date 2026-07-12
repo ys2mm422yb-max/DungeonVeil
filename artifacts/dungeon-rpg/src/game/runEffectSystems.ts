@@ -5,6 +5,7 @@ import { skillRank } from './runSkills';
 const FIRE_DEATH_RADIUS = 72;
 const FIRE_DEATH_DAMAGE = 12;
 const ARCHER_BASE_COOLDOWN_MS = 270;
+const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 export type VeilRoomModifier = 'pressure' | 'blood' | 'storm' | null;
 
@@ -229,6 +230,7 @@ function showGiftPulse(engine: GameEngine, system: RunEffectSystemState): void {
 }
 
 function reinforceEnemyTelegraphs(engine: GameEngine, system: RunEffectSystemState): void {
+  if (IS_MOBILE) return;
   const telegraphs = engine.state.effects.filter(effect => effect.id.startsWith('telegraph-') && !effect.id.startsWith('telegraph-inner-'));
   const activeIds = new Set(telegraphs.map(effect => effect.id));
   for (const id of system.processedTelegraphs) {

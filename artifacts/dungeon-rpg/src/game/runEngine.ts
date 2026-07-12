@@ -71,7 +71,7 @@ const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceAr
 const NORMAL_DEATH_MS = 680;
 const BOSS_DEATH_MS = 1650;
 const UNSTUCK_MS = 7000;
-const UI_EMIT_MS = 100;
+const UI_EMIT_MS = 125;
 
 export class GameEngine {
   state: RunGameState;
@@ -248,6 +248,9 @@ export class GameEngine {
     this.updateEnemies(dt, timestamp);
     this.updateEffects(dt);
     this.updateParticles(dt);
+    if (this.state.damageNumbers.length > 32) this.state.damageNumbers.splice(0, this.state.damageNumbers.length - 32);
+    if (this.state.particles.length > 120) this.state.particles.splice(0, this.state.particles.length - 120);
+    if (this.state.effects.length > 64) this.state.effects.splice(0, this.state.effects.length - 64);
     this.updateRoomFlow(timestamp);
     this.state.camera.x = this.state.player.x + 16;
     this.state.camera.y = this.state.player.y + 16;
@@ -323,7 +326,7 @@ export class GameEngine {
     const p = this.state.player;
     const px = p.x + 16;
     const py = p.y + 16;
-    const visible = this.visibleEnemiesFrom(px, py);
+    const visible = this.visibleEnemiesFrom(px, py).filter(enemy => distance(px, py, enemy.x + enemy.width / 2, enemy.y + enemy.height / 2) <= p.attackRange);
     if (!visible.length) return;
 
     const speedRank = skillRank(this.state.runSkills, 'attackSpeed');
@@ -331,24 +334,19 @@ export class GameEngine {
     p.attackCooldown = Math.max(120, CLASS_DEFS.archer.attackCooldownMs * cooldownFactors[speedRank]);
     p.lastAttackTime = time;
 
-    const primary = visible[0];
-    const tx = primary.x + primary.width / 2;
-    const ty = primary.y + primary.height / 2;
-    const baseAngle = Math.atan2(ty - py, tx - px);
-    p.facing = { x: Math.cos(baseAngle), y: Math.sin(baseAngle) };
-
     const multiRank = skillRank(this.state.runSkills, 'multishot');
-    const arrowCount = 1 + multiRank;
-    const spread = multiRank === 0 ? 0 : multiRank === 1 ? 0.12 : multiRank === 2 ? 0.13 : 0.15;
-    const offsets = Array.from({ length: arrowCount }, (_, index) => (index - (arrowCount - 1) / 2) * spread);
+    const targets = visible.slice(0, Math.min(1 + multiRank, visible.length));
+    const primary = targets[0];
+    const primaryX = primary.x + primary.width / 2;
+    const primaryY = primary.y + primary.height / 2;
+    const baseAngle = Math.atan2(primaryY - py, primaryX - px);
+    p.facing = { x: Math.cos(baseAngle), y: Math.sin(baseAngle) };
     const hitIds = new Set<string>();
 
-    offsets.forEach((offset, index) => {
-      const angle = baseAngle + offset;
-      const target = this.findEnemyAlongRay(px, py, angle, p.attackRange, hitIds) ?? (index === 0 ? primary : null);
-      if (!target) return;
+    targets.forEach((target, index) => {
       const endX = target.x + target.width / 2;
       const endY = target.y + target.height / 2;
+      const angle = Math.atan2(endY - py, endX - px);
       const element = this.chooseShotElement(time, index);
       this.addShotEffect(`shot-${time}-${index}`, px, py, endX, endY, angle, element.color, element.kind, index === 0 ? 4 : 3);
       hitIds.add(target.id);
@@ -417,8 +415,10 @@ export class GameEngine {
   }
 
   private addShotEffect(id: string, x: number, y: number, toX: number, toY: number, angle: number, color: string, element: VisualEffect['element'], width: number, fromEnemyId?: string, toEnemyId?: string) {
+    const travel = distance(x, y, toX, toY);
+    const maxLifeTime = Math.max(150, Math.min(260, 110 + travel * 0.22 + (element === 'arcane' ? 24 : 0)));
     this.state.effects.push({
-      id, x, y, radius: 0, maxRadius: distance(x, y, toX, toY), color, lifeTime: 0, maxLifeTime: element === 'arcane' ? 190 : 165,
+      id, x, y, radius: 0, maxRadius: travel, color, lifeTime: 0, maxLifeTime,
       type: 'beam', angle, width, element, fromEnemyId, toEnemyId,
     });
   }
@@ -472,7 +472,7 @@ export class GameEngine {
       const ty = target.y + target.height / 2;
       const multiplier = rank === 1 ? 0.7 : rank === 2 ? 0.75 : 0.8;
       const damage = Math.max(1, Math.round(baseDamage * multiplier));
-      this.addShotEffect(`pierce-${time}-${i}`, fromX, fromY, tx, ty, angle, '#f3fbff', 'piercing', 5, primary.id, target.id);
+      this.addShotEffect(`pierce-${time}-${i}`, fromX, fromY, tx, ty, Math.atan2(ty - fromY, tx - fromX), '#f3fbff', 'piercing', 5, primary.id, target.id);
       this.damageEnemy(target, damage, time, fromX, fromY, 'piercing', 1.05);
       this.applyElementStatus(target, element, time);
       fromX = tx;

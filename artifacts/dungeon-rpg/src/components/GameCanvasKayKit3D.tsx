@@ -17,7 +17,10 @@ const TILE = 40;
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 const IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const IS_MOBILE = typeof navigator !== 'undefined' && (IS_IOS || IS_ANDROID || navigator.maxTouchPoints > 1);
-const MAX_PARTICLES = IS_ANDROID ? 36 : IS_IOS ? 40 : IS_MOBILE ? 44 : 96;
+const MAX_PARTICLES = IS_ANDROID ? 24 : IS_IOS ? 30 : IS_MOBILE ? 32 : 96;
+const MAX_ARROW_VISUALS = IS_ANDROID ? 6 : IS_IOS ? 9 : IS_MOBILE ? 10 : 24;
+const MAX_CIRCLE_VISUALS = IS_ANDROID ? 8 : IS_IOS ? 10 : IS_MOBILE ? 12 : 28;
+const MAX_DAMAGE_VISUALS = IS_ANDROID ? 7 : IS_IOS ? 10 : IS_MOBILE ? 12 : 28;
 const PERFORMANCE_KEY = 'dungeon-veil-performance';
 const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 
@@ -192,7 +195,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (!isFire && !isIce && !isArcane && !isPiercing) return;
 
       const fullPositions = isArcane ? [0, -0.18, -0.36] : [0, -0.22, -0.44, -0.68];
-      const positions = IS_ANDROID ? fullPositions.slice(0, 2) : fullPositions;
+      const positions = IS_MOBILE ? fullPositions.slice(0, 1) : fullPositions;
       const scales = isPiercing ? [0.09, 0.06, 0.04, 0.025] : [0.11, 0.085, 0.06, 0.04];
       const glows: any[] = [];
       positions.forEach((y, index) => {
@@ -218,7 +221,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
 
     const syncArrows = (state: GameState, wallNow: number) => {
-      const shots = state.effects.filter(effect => effect.type === 'beam' && (effect.id.startsWith('shot-') || effect.id.startsWith('pierce-') || effect.id.startsWith('rico-')));
+      const shots = state.effects.filter(effect => effect.type === 'beam' && (effect.id.startsWith('shot-') || effect.id.startsWith('pierce-') || effect.id.startsWith('rico-'))).slice(-MAX_ARROW_VISUALS);
       const active = new Set(shots.map(effect => effect.id));
       for (const [id, mesh] of arrowVisuals) {
         if (active.has(id)) continue;
@@ -232,12 +235,17 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         if (!arrow && arrowPrototype) {
           arrow = arrowPrototype.clone(true);
           arrow.scale.setScalar(shot.element === 'piercing' ? 1.32 : 1.2);
+          const lineMaterials: any[] = [];
           arrow.traverse((node: any) => {
-            if (node.isLine && node.material) node.material = node.material.clone();
+            if (node.isLine && node.material) {
+              node.material = node.material.clone();
+              lineMaterials.push(node.material);
+            }
             if (!node.isMesh && !node.isLine) return;
             node.castShadow = false;
             node.frustumCulled = true;
           });
+          arrow.userData.lineMaterials = lineMaterials;
           addElementVisual(arrow, shot.element, shot.color);
           scene.add(arrow);
           arrowVisuals.set(shot.id, arrow);
@@ -249,10 +257,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         const travel = shot.maxRadius / TILE;
         arrow.position.set(mapX(state, shot.x) + Math.cos(angle) * travel * progress, 0.88, mapZ(state, shot.y) + Math.sin(angle) * travel * progress);
         arrow.rotation.set(Math.PI / 2, -angle - Math.PI / 2, 0);
-        arrow.traverse((node: any) => {
-          if (!node.isLine || !node.material?.color) return;
-          node.material.color.set(shot.color);
-          node.material.opacity = Math.max(0.3, 0.96 * (1 - progress * 0.32));
+        (arrow.userData.lineMaterials as any[] | undefined)?.forEach(material => {
+          material.color?.set?.(shot.color);
+          material.opacity = Math.max(0.3, 0.96 * (1 - progress * 0.32));
         });
         const pulse = 0.82 + Math.sin(wallNow * 0.025 + progress * 8) * 0.18;
         const glows = arrow.userData.elementGlows as any[] | undefined;
@@ -265,7 +272,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
 
     const syncCircleEffects = (state: GameState) => {
-      const effects = state.effects.filter(effect => effect.type === 'circle');
+      const effects = state.effects.filter(effect => effect.type === 'circle').slice(-MAX_CIRCLE_VISUALS);
       const active = new Set(effects.map(effect => effect.id));
       for (const [id, visual] of circleVisuals) {
         if (active.has(id)) continue;
@@ -377,7 +384,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
 
     const syncDamageNumbers = (state: GameState) => {
-      const numbers = state.damageNumbers.filter(number => !number.id.startsWith('clear-'));
+      const numbers = state.damageNumbers.filter(number => !number.id.startsWith('clear-')).slice(-MAX_DAMAGE_VISUALS);
       const active = new Set(numbers.map(number => number.id));
       for (const [id, sprite] of damageVisuals) {
         if (active.has(id)) continue;
@@ -608,8 +615,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       try { localStorage.setItem(PERFORMANCE_KEY, JSON.stringify(snapshot)); } catch {}
       if (IS_MOBILE) {
          lowFpsWindows = fps < 44 ? lowFpsWindows + 1 : Math.max(0, lowFpsWindows - 1);
-         if (lowFpsWindows >= 2 && particleBudget > 24) {
-           particleBudget = 24;
+         if (lowFpsWindows >= 2 && particleBudget > 16) {
+            particleBudget = 16;
            try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
          }
        }
@@ -682,7 +689,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       scene.background = new THREE.Color(0x171512);
       scene.fog = new THREE.Fog(0x171512, 30, 58);
       renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_MOBILE ? 1 : 1.2));
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_ANDROID ? 0.8 : IS_IOS ? 0.9 : IS_MOBILE ? 0.88 : 1.2));
       renderer.shadowMap.enabled = !IS_MOBILE;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -699,9 +706,11 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       keyLight.castShadow = !IS_MOBILE;
       keyLight.shadow.mapSize.set(IS_MOBILE ? 512 : 1024, IS_MOBILE ? 512 : 1024);
       scene.add(keyLight);
-      const fillLight = new THREE.PointLight(0x6f61c8, IS_ANDROID ? 1.55 : 2.2, 22, 1.8);
-      fillLight.position.set(0, 6.5, -8);
-      scene.add(fillLight);
+      if (!IS_MOBILE) {
+        const fillLight = new THREE.PointLight(0x6f61c8, 2.2, 22, 1.8);
+        fillLight.position.set(0, 6.5, -8);
+        scene.add(fillLight);
+      }
       if (!IS_MOBILE) {
         playerLight = new THREE.PointLight(0xffd29b, 2.5, 13, 1.7);
         scene.add(playerLight);

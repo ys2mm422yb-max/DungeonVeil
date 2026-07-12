@@ -7,7 +7,7 @@ import { VirtualJoystick } from './VirtualJoystick';
 import { ActionButtons } from './ActionButtons';
 
 const ATTEMPT_DURATION_MS = 30_000;
-const TIMER_PAINT_MS = 100;
+const TIMER_PAINT_MS = 250;
 
 type BattlePhase = 'fighting' | 'submitting' | 'result';
 type FinishReason = 'victory' | 'defeat' | 'time';
@@ -141,6 +141,9 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       if (disposed || finishedRef.current) return;
       if (!startTimeRef.current) startTimeRef.current = time;
       engine.update(time);
+      if (engine.state.particles.length > 48) engine.state.particles.splice(0, engine.state.particles.length - 48);
+      if (engine.state.effects.length > 24) engine.state.effects.splice(0, engine.state.effects.length - 24);
+      if (engine.state.damageNumbers.length > 12) engine.state.damageNumbers.splice(0, engine.state.damageNumbers.length - 12);
       const elapsed = time - startTimeRef.current;
       const nextRemaining = Math.max(0, ATTEMPT_DURATION_MS - elapsed);
       if (time - lastTimerPaint >= TIMER_PAINT_MS) {

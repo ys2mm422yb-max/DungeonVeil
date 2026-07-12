@@ -3,6 +3,7 @@ import type { GameState } from '../game/runEngine';
 import { RUN_CAMERA } from './RunCameraRig';
 
 const TILE = 40;
+const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
 
 type StatusMarker = {
@@ -82,18 +83,18 @@ function projectEnemy(state: GameState, enemy: GameState['enemies'][number]): Om
   return {
     left: (ndcX * 0.5 + 0.5) * 100,
     top: (-ndcY * 0.5 + 0.5) * 100,
-    size: clamp(48 * (28 / cameraDepth), 34, enemy.enemyType === 'boss' ? 78 : 60),
+    size: clamp(32 * (28 / cameraDepth), 24, enemy.enemyType === 'boss' ? 58 : 46),
   };
 }
 
 function FireStatus({ marker }: { marker: StatusMarker }) {
   return <div className="dv-natural-status dv-natural-fire" style={{ left: `${marker.left}%`, top: `${marker.top}%`, width: marker.size, height: marker.size }}>
     <span className="dv-flame dv-flame-a" />
-    <span className="dv-flame dv-flame-b" />
-    <span className="dv-flame dv-flame-c" />
+    {!IS_MOBILE && <span className="dv-flame dv-flame-b" />}
+    {!IS_MOBILE && <span className="dv-flame dv-flame-c" />}
     <span className="dv-ember dv-ember-a" />
-    <span className="dv-ember dv-ember-b" />
-    <span className="dv-ember dv-ember-c" />
+    {!IS_MOBILE && <span className="dv-ember dv-ember-b" />}
+    {!IS_MOBILE && <span className="dv-ember dv-ember-c" />}
   </div>;
 }
 
@@ -102,10 +103,10 @@ function IceStatus({ marker }: { marker: StatusMarker }) {
     <span className="dv-cold-haze" />
     <span className="dv-ice-shard dv-ice-a" />
     <span className="dv-ice-shard dv-ice-b" />
-    <span className="dv-ice-shard dv-ice-c" />
-    <span className="dv-ice-shard dv-ice-d" />
-    <span className="dv-snow dv-snow-a">✦</span>
-    <span className="dv-snow dv-snow-b">✦</span>
+    {!IS_MOBILE && <span className="dv-ice-shard dv-ice-c" />}
+    {!IS_MOBILE && <span className="dv-ice-shard dv-ice-d" />}
+    {!IS_MOBILE && <span className="dv-snow dv-snow-a">✦</span>}
+    {!IS_MOBILE && <span className="dv-snow dv-snow-b">✦</span>}
   </div>;
 }
 
