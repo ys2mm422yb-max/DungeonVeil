@@ -514,8 +514,13 @@ export class GameEngine {
 
   private resolveEnemyAttack(enemy: Enemy, windup: EnemyWindup, time: number): void {
     const p = this.state.player;
-    const dist = Math.hypot((p.x + 16) - (enemy.x + enemy.width / 2), (p.y + 16) - (enemy.y + enemy.height / 2));
+    const attackFromX = enemy.x + enemy.width / 2;
+    const attackFromY = enemy.y + enemy.height / 2;
+    const attackTargetX = p.x + 16;
+    const attackTargetY = p.y + 16;
+    const dist = Math.hypot(attackTargetX - attackFromX, attackTargetY - attackFromY);
     if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;
+    if (this.shotPathBlocked(attackFromX, attackFromY, attackTargetX, attackTargetY, 0.08)) return;
 
     if (windup.archetype === 'dragon') {
       const profile = bossCombatProfile(this.state.floor);
@@ -584,9 +589,16 @@ export class GameEngine {
         continue;
       }
 
-      const dist = Math.max(1, Math.hypot(p.x - enemy.x, p.y - enemy.y));
+      const enemyCenterX = enemy.x + enemy.width / 2;
+      const enemyCenterY = enemy.y + enemy.height / 2;
+      const playerCenterX = p.x + 16;
+      const playerCenterY = p.y + 16;
+      const dist = Math.max(1, Math.hypot(playerCenterX - enemyCenterX, playerCenterY - enemyCenterY));
       const plan = planEnemyMove(enemy, p, dt, time);
-      enemy.state = dist <= plan.attackRange ? 'attack' : 'chase';
+      const hasLineOfSight = !this.shotPathBlocked(enemyCenterX, enemyCenterY, playerCenterX, playerCenterY, 0.08);
+      const visualSpawnGracePassed = time - enemy.spawnTime >= 900;
+      const canAttackFromHere = dist <= plan.attackRange && hasLineOfSight && visualSpawnGracePassed;
+      enemy.state = canAttackFromHere ? 'attack' : 'chase';
       const frostFactor = enemy.frostUntil && time < enemy.frostUntil ? 1 - (enemy.frostSlow ?? 0) : 1;
       const beforeX = enemy.x;
       const beforeY = enemy.y;
@@ -595,7 +607,7 @@ export class GameEngine {
       enemy.vy = enemy.y - beforeY;
       this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
 
-      if (dist < plan.attackRange && time > enemy.nextAttackTime) {
+      if (canAttackFromHere && time > enemy.nextAttackTime) {
         const archetype = enemyArchetype(enemy.enemyType);
         const windupMs = this.attackWindupMs(archetype);
         enemy.nextAttackTime = time + plan.attackDelay + windupMs;
