@@ -1,14 +1,15 @@
-name: Deploy Dungeon Veil Test Site From CI
+name: Deploy Dungeon Veil Test Site From Main
 
 on:
-  workflow_run:
-    workflows:
-      - Dungeon RPG Check
-    types:
-      - completed
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-dungeon-veil-test-from-ci.yml'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -17,134 +18,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  prepare:
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      (github.event.workflow_run.head_branch == 'work/blocks-1-7-production-pass' ||
-       startsWith(github.event.workflow_run.head_branch, 'validation/room13'))
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     outputs:
-      changed: ${{ steps.patch.outputs.changed }}
-      product_sha: ${{ steps.branch.outputs.sha }}
+      product_sha: ${{ steps.product.outputs.sha }}
     steps:
-      - name: Checkout current production branch
+      - name: Checkout current Dungeon Veil product branch
         uses: actions/checkout@v4
         with:
           ref: work/blocks-1-7-production-pass
-          fetch-depth: 0
-
-      - name: Apply hidden-enemy damage guard once
-        id: patch
-        shell: python
-        run: |
-          from pathlib import Path
-
-          path = Path('artifacts/dungeon-rpg/src/game/runEngine.ts')
-          text = path.read_text()
-
-          guard = "const canAttackFromHere = dist <= plan.attackRange && hasLineOfSight && visualSpawnGracePassed;"
-          if guard not in text:
-              old_resolve = """  private resolveEnemyAttack(enemy: Enemy, windup: EnemyWindup, time: number): void {
-              const p = this.state.player;
-              const dist = Math.hypot((p.x + 16) - (enemy.x + enemy.width / 2), (p.y + 16) - (enemy.y + enemy.height / 2));
-              if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;
-
-              if (windup.archetype === 'dragon') {
-          """
-              new_resolve = """  private resolveEnemyAttack(enemy: Enemy, windup: EnemyWindup, time: number): void {
-              const p = this.state.player;
-              const attackFromX = enemy.x + enemy.width / 2;
-              const attackFromY = enemy.y + enemy.height / 2;
-              const attackTargetX = p.x + 16;
-              const attackTargetY = p.y + 16;
-              const dist = Math.hypot(attackTargetX - attackFromX, attackTargetY - attackFromY);
-              if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;
-              if (this.shotPathBlocked(attackFromX, attackFromY, attackTargetX, attackTargetY, 0.08)) return;
-
-              if (windup.archetype === 'dragon') {
-          """
-
-              old_update = """      const dist = Math.max(1, Math.hypot(p.x - enemy.x, p.y - enemy.y));
-              const plan = planEnemyMove(enemy, p, dt, time);
-              enemy.state = dist <= plan.attackRange ? 'attack' : 'chase';
-              const frostFactor = enemy.frostUntil && time < enemy.frostUntil ? 1 - (enemy.frostSlow ?? 0) : 1;
-              const beforeX = enemy.x;
-              const beforeY = enemy.y;
-              if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx * frostFactor, plan.dy * frostFactor);
-              enemy.vx = enemy.x - beforeX;
-              enemy.vy = enemy.y - beforeY;
-              this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
-
-              if (dist < plan.attackRange && time > enemy.nextAttackTime) {
-          """
-              new_update = """      const enemyCenterX = enemy.x + enemy.width / 2;
-              const enemyCenterY = enemy.y + enemy.height / 2;
-              const playerCenterX = p.x + 16;
-              const playerCenterY = p.y + 16;
-              const dist = Math.max(1, Math.hypot(playerCenterX - enemyCenterX, playerCenterY - enemyCenterY));
-              const plan = planEnemyMove(enemy, p, dt, time);
-              const hasLineOfSight = !this.shotPathBlocked(enemyCenterX, enemyCenterY, playerCenterX, playerCenterY, 0.08);
-              const visualSpawnGracePassed = time - enemy.spawnTime >= 900;
-              const canAttackFromHere = dist <= plan.attackRange && hasLineOfSight && visualSpawnGracePassed;
-              enemy.state = canAttackFromHere ? 'attack' : 'chase';
-              const frostFactor = enemy.frostUntil && time < enemy.frostUntil ? 1 - (enemy.frostSlow ?? 0) : 1;
-              const beforeX = enemy.x;
-              const beforeY = enemy.y;
-              if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx * frostFactor, plan.dy * frostFactor);
-              enemy.vx = enemy.x - beforeX;
-              enemy.vy = enemy.y - beforeY;
-              this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
-
-              if (canAttackFromHere && time > enemy.nextAttackTime) {
-          """
-
-              if old_resolve not in text:
-                  raise SystemExit('resolveEnemyAttack target not found')
-              if old_update not in text:
-                  raise SystemExit('updateEnemies target not found')
-
-              text = text.replace(old_resolve, new_resolve, 1)
-              text = text.replace(old_update, new_update, 1)
-              path.write_text(text)
-
-          temporary = Path('.github/workflows/apply-room13-visibility-hotfix.yml')
-          if temporary.exists():
-              temporary.unlink()
-
-          import os
-          import subprocess
-          changed = bool(subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True).stdout.strip())
-          with open(Path(os.environ['GITHUB_OUTPUT']), 'a') as output:
-              output.write(f'changed={str(changed).lower()}\n')
-
-      - name: Commit repaired combat branch
-        if: steps.patch.outputs.changed == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Block hidden enemy attacks through room geometry"
-          git pull --rebase origin work/blocks-1-7-production-pass
-          git push origin HEAD:work/blocks-1-7-production-pass
 
       - name: Resolve product commit
-        id: branch
+        id: product
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-  build:
-    needs: prepare
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      (github.event.workflow_run.head_branch == 'work/blocks-1-7-production-pass' ||
-       startsWith(github.event.workflow_run.head_branch, 'validation/room13')) &&
-      needs.prepare.outputs.changed == 'false'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout validated product commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.prepare.outputs.product_sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -173,7 +60,7 @@ jobs:
         env:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
-          VITE_BUILD_SHA: ${{ needs.prepare.outputs.product_sha }}
+          VITE_BUILD_SHA: ${{ steps.product.outputs.sha }}
         run: pnpm --dir artifacts/dungeon-rpg run build
 
       - name: Verify GitHub Pages artifact
@@ -184,7 +71,7 @@ jobs:
       - name: Write deployment marker
         shell: bash
         env:
-          DEPLOYED_COMMIT: ${{ needs.prepare.outputs.product_sha }}
+          DEPLOYED_COMMIT: ${{ steps.product.outputs.sha }}
         run: |
           printf '{"commit":"%s","deployedAt":"%s"}\n' "$DEPLOYED_COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
           touch artifacts/dungeon-rpg/dist/public/.nojekyll
@@ -204,6 +91,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Deploy to GitHub Pages
+      - name: Deploy current Dungeon Veil test build
         id: deployment
         uses: actions/deploy-pages@v4
