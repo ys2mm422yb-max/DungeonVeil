@@ -1,7 +1,7 @@
 {
   "workflow": "Dungeon RPG CI",
   "status": "failure",
-  "validatedCommit": null,
+  "validatedCommit": "b58595562336ed721097cf2be3604646ebe0ca93",
   "checks": [
     "asset audit",
     "50-room collision audit",
@@ -9,5 +9,5 @@
     "Pages production build",
     "runtime asset base"
   ],
-  "completedAt": "2026-07-12T11:18:31.132Z"
+  "completedAt": "2026-07-12T11:20:16.257Z"
 }
