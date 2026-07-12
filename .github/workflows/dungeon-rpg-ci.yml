@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Validation trigger for world boss arena readiness build 7f0f697.
+# Validation trigger for lightweight world boss renderer ac45415.
 on:
   workflow_dispatch:
 
