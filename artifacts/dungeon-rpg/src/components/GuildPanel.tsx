@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   acceptGuildInvite,
+  createGuild,
   currentOnlineSession,
   declineGuildInvite,
   getMyGuildMembership,
@@ -17,12 +18,16 @@ import {
   type OnlineGuildRole,
   type OnlineSession,
 } from '../game/supabaseOnline';
+import { leaveGuildOnline, transferGuildOwnershipOnline } from '../game/guildOnlineActions';
+import { loadMetaProgression, saveMetaProgression } from '../game/metaProgression';
 
 type Props = {
   language: 'de' | 'en';
 };
 
 type GuildTab = 'overview' | 'members' | 'invite';
+
+const GUILD_CREATION_COST = 2500;
 
 function ActionButton({ label, onClick, disabled = false, primary = false, danger = false }: {
   label: string;
@@ -60,6 +65,10 @@ function formatJoined(value: string, language: 'de' | 'en'): string {
   }).format(date);
 }
 
+function formatGold(value: number, language: 'de' | 'en'): string {
+  return new Intl.NumberFormat(language === 'de' ? 'de-DE' : 'en-US').format(Math.floor(value));
+}
+
 export function GuildPanel({ language }: Props) {
   const de = language === 'de';
   const [session, setSession] = useState<OnlineSession | null>(() => currentOnlineSession());
@@ -69,6 +78,10 @@ export function GuildPanel({ language }: Props) {
   const [tab, setTab] = useState<GuildTab>('overview');
   const [description, setDescription] = useState('');
   const [inviteName, setInviteName] = useState('');
+  const [guildName, setGuildName] = useState('');
+  const [guildTag, setGuildTag] = useState('');
+  const [guildDescription, setGuildDescription] = useState('');
+  const [gold, setGold] = useState(() => loadMetaProgression().gold);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -85,6 +98,7 @@ export function GuildPanel({ language }: Props) {
   const refreshGuildData = useCallback(async () => {
     const active = currentOnlineSession();
     setSession(active);
+    setGold(loadMetaProgression().gold);
     if (!active) {
       setMembership(null);
       setMembers([]);
@@ -105,10 +119,15 @@ export function GuildPanel({ language }: Props) {
   }, []);
 
   useEffect(() => {
-    const refresh = () => { void run(refreshGuildData); };
-    window.addEventListener(onlineSessionEventName(), refresh);
+    const refreshOnline = () => { void run(refreshGuildData); };
+    const refreshGold = () => setGold(loadMetaProgression().gold);
+    window.addEventListener(onlineSessionEventName(), refreshOnline);
+    window.addEventListener('dungeon-veil-meta-changed', refreshGold);
     void run(refreshGuildData);
-    return () => window.removeEventListener(onlineSessionEventName(), refresh);
+    return () => {
+      window.removeEventListener(onlineSessionEventName(), refreshOnline);
+      window.removeEventListener('dungeon-veil-meta-changed', refreshGold);
+    };
   }, [refreshGuildData, run]);
 
   const stats = useMemo(() => ({
@@ -118,6 +137,8 @@ export function GuildPanel({ language }: Props) {
 
   const canInvite = membership?.role === 'owner' || membership?.role === 'officer';
   const isOwner = membership?.role === 'owner';
+  const ownerMustTransfer = Boolean(isOwner && members.length > 1);
+  const canAffordGuild = gold >= GUILD_CREATION_COST;
 
   const answerInvite = (inviteId: string, accept: boolean) => run(async () => {
     if (accept) await acceptGuildInvite(inviteId);
@@ -156,6 +177,76 @@ export function GuildPanel({ language }: Props) {
     setMessage(de ? 'Mitglied entfernt.' : 'Member removed.');
   });
 
+  const transferLeadership = (member: OnlineGuildMember) => run(async () => {
+    if (!membership || !isOwner) return;
+    const playerName = member.profile?.display_name ?? (de ? 'dieses Mitglied' : 'this member');
+    const confirmed = window.confirm(de
+      ? `Gildenführung wirklich an ${playerName} übertragen?`
+      : `Really transfer guild leadership to ${playerName}?`);
+    if (!confirmed) return;
+    await transferGuildOwnershipOnline(membership.guild.id, member.user_id);
+    await refreshGuildData();
+    setTab('overview');
+    setMessage(de ? `${playerName} ist jetzt Gildenanführer.` : `${playerName} is now the guild leader.`);
+  });
+
+  const leaveCurrentGuild = () => run(async () => {
+    if (!membership) return;
+    if (ownerMustTransfer) {
+      setTab('members');
+      throw new Error(de ? 'Übertrage zuerst die Führung an ein anderes Mitglied.' : 'Transfer leadership to another member first.');
+    }
+
+    const disband = isOwner;
+    const confirmed = window.confirm(disband
+      ? (de ? 'Gilde endgültig auflösen? Dieser Schritt kann nicht rückgängig gemacht werden.' : 'Disband the guild permanently? This cannot be undone.')
+      : (de ? 'Gilde wirklich verlassen?' : 'Really leave the guild?'));
+    if (!confirmed) return;
+
+    const result = await leaveGuildOnline();
+    await refreshGuildData();
+    setTab('overview');
+    setMessage(result.disbanded
+      ? (de ? 'Gilde aufgelöst.' : 'Guild disbanded.')
+      : (de ? 'Gilde verlassen.' : 'Guild left.'));
+  });
+
+  const createNewGuild = () => run(async () => {
+    const name = guildName.trim();
+    const tag = guildTag.trim().toUpperCase();
+    const nextDescription = guildDescription.trim();
+
+    if (name.length < 3 || name.length > 32) throw new Error(de ? 'Der Gildenname muss 3 bis 32 Zeichen lang sein.' : 'Guild name must be 3 to 32 characters long.');
+    if (!/^[A-Z0-9]{2,6}$/.test(tag)) throw new Error(de ? 'Das Kürzel muss 2 bis 6 Buchstaben oder Zahlen enthalten.' : 'The tag must contain 2 to 6 letters or numbers.');
+
+    const meta = loadMetaProgression();
+    if (meta.gold < GUILD_CREATION_COST) {
+      throw new Error(de
+        ? `Dir fehlen ${formatGold(GUILD_CREATION_COST - meta.gold, language)} Gold.`
+        : `You need ${formatGold(GUILD_CREATION_COST - meta.gold, language)} more gold.`);
+    }
+
+    meta.gold -= GUILD_CREATION_COST;
+    saveMetaProgression(meta);
+    setGold(meta.gold);
+
+    try {
+      await createGuild(name, tag, nextDescription);
+    } catch (reason) {
+      const refund = loadMetaProgression();
+      refund.gold += GUILD_CREATION_COST;
+      saveMetaProgression(refund);
+      setGold(refund.gold);
+      throw reason;
+    }
+
+    setGuildName('');
+    setGuildTag('');
+    setGuildDescription('');
+    await refreshGuildData();
+    setMessage(de ? `Gilde gegründet. ${formatGold(GUILD_CREATION_COST, language)} Gold wurden bezahlt.` : `Guild created. ${formatGold(GUILD_CREATION_COST, language)} gold was paid.`);
+  });
+
   const tabButton = (key: GuildTab, label: string) => <button
     type="button"
     onClick={() => setTab(key)}
@@ -165,10 +256,10 @@ export function GuildPanel({ language }: Props) {
   return <div className="max-h-[76vh] overflow-y-auto rounded-3xl border border-amber-300/18 bg-[#0d0b08]/96 p-4 text-white shadow-2xl">
     <div className="mb-4">
       <div className="text-[8px] font-black uppercase tracking-[.3em] text-amber-200/48">{de ? 'GILDE' : 'GUILD'}</div>
-      <div className="mt-1 text-lg font-black text-amber-100">{membership ? `[${membership.guild.tag}] ${membership.guild.name}` : (de ? 'Noch gesperrt' : 'Locked')}</div>
+      <div className="mt-1 text-lg font-black text-amber-100">{membership ? `[${membership.guild.tag}] ${membership.guild.name}` : (de ? 'Gilde gründen' : 'Create a guild')}</div>
       <div className="mt-1 text-[9px] leading-relaxed text-white/38">{membership
         ? (de ? 'Verwalte Mitglieder, Rollen, Einladungen und die Gildenbeschreibung.' : 'Manage members, roles, invitations and the guild description.')
-        : (de ? 'Gilden werden später im Spiel gegen Gold freigeschaltet.' : 'Guilds unlock later in the game for gold.')}</div>
+        : (de ? `Gründe deine eigene Gilde für ${formatGold(GUILD_CREATION_COST, language)} Gold oder nimm eine Einladung an.` : `Create your own guild for ${formatGold(GUILD_CREATION_COST, language)} gold or accept an invitation.`)}</div>
     </div>
 
     {(message || error) && <div className={`mb-3 rounded-xl border px-3 py-2 text-[10px] ${error ? 'border-red-400/25 bg-red-500/10 text-red-200' : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}
@@ -216,9 +307,18 @@ export function GuildPanel({ language }: Props) {
           </> : <div className="text-[10px] leading-relaxed text-white/45">{membership.guild.description || (de ? 'Noch keine Beschreibung vorhanden.' : 'No description yet.')}</div>}
         </section>
 
-        <div className="rounded-2xl border border-amber-300/12 bg-amber-400/[.035] p-3 text-[9px] leading-relaxed text-white/38">{de
-          ? 'Die Gründung neuer Gilden bleibt gesperrt und wird später ausschließlich gegen Gold freigeschaltet.'
-          : 'Creating new guilds remains locked and will later unlock only for gold.'}</div>
+        <section className="space-y-2 rounded-2xl border border-red-400/14 bg-red-500/[.035] p-3">
+          <div className="text-[8px] font-black uppercase tracking-[.2em] text-red-200/55">{de ? 'MITGLIEDSCHAFT' : 'MEMBERSHIP'}</div>
+          {ownerMustTransfer ? <>
+            <div className="text-[9px] leading-relaxed text-white/38">{de ? 'Als Anführer musst du die Führung übertragen, bevor du die Gilde verlassen kannst.' : 'As leader, transfer leadership before leaving the guild.'}</div>
+            <ActionButton label={de ? 'Mitglied auswählen' : 'Choose member'} onClick={() => setTab('members')} disabled={busy} danger />
+          </> : <>
+            <div className="text-[9px] leading-relaxed text-white/38">{isOwner
+              ? (de ? 'Du bist das einzige Mitglied. Beim Verlassen wird die Gilde vollständig aufgelöst.' : 'You are the only member. Leaving will disband the guild.')
+              : (de ? 'Du kannst die Gilde jederzeit verlassen.' : 'You can leave the guild at any time.')}</div>
+            <ActionButton label={isOwner ? (de ? 'Gilde auflösen' : 'Disband guild') : (de ? 'Gilde verlassen' : 'Leave guild')} onClick={leaveCurrentGuild} disabled={busy} danger />
+          </>}
+        </section>
       </div>}
 
       {tab === 'members' && <section className="space-y-2">
@@ -232,12 +332,13 @@ export function GuildPanel({ language }: Props) {
               </div>
               <div className="rounded-full border border-amber-300/14 bg-amber-400/[.06] px-2 py-1 text-[7px] font-black uppercase tracking-[.12em] text-amber-100/65">{member.role}</div>
             </div>
-            {isOwner && !ownerEntry && <div className="mt-3 grid grid-cols-2 gap-2">
+            {isOwner && !ownerEntry && <div className="mt-3 grid grid-cols-3 gap-2">
               <ActionButton
-                label={member.role === 'officer' ? (de ? 'Zum Mitglied' : 'Make member') : (de ? 'Zum Offizier' : 'Make officer')}
+                label={member.role === 'officer' ? (de ? 'Mitglied' : 'Member') : (de ? 'Offizier' : 'Officer')}
                 onClick={() => changeRole(member, member.role === 'officer' ? 'member' : 'officer')}
                 disabled={busy}
               />
+              <ActionButton label={de ? 'Führung' : 'Leader'} onClick={() => transferLeadership(member)} disabled={busy} primary />
               <ActionButton label={de ? 'Entfernen' : 'Remove'} onClick={() => kickMember(member)} disabled={busy} danger />
             </div>}
           </div>;
@@ -266,14 +367,44 @@ export function GuildPanel({ language }: Props) {
     </div>}
 
     {session && !membership && <div className="space-y-3">
-      <section className="rounded-2xl border border-amber-300/14 bg-amber-400/[.04] p-3">
-        <div className="text-[10px] font-black uppercase tracking-[.14em] text-amber-100/75">{de ? 'Noch gesperrt' : 'Locked'}</div>
-        <div className="mt-1 text-[10px] leading-relaxed text-white/40">{de ? 'Hier kann keine kostenlose Gilde gegründet werden. Die Freischaltung erfolgt später gegen Gold.' : 'A free guild cannot be created here. Guild access will unlock later for gold.'}</div>
+      <section className="space-y-3 rounded-2xl border border-amber-300/14 bg-amber-400/[.04] p-3">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/25 px-3 py-2.5">
+          <span className="text-[8px] font-black uppercase tracking-[.16em] text-white/34">{de ? 'DEIN GOLD' : 'YOUR GOLD'}</span>
+          <span className={`text-[12px] font-black ${canAffordGuild ? 'text-amber-100' : 'text-red-200'}`}>{formatGold(gold, language)} / {formatGold(GUILD_CREATION_COST, language)}</span>
+        </div>
+        <input
+          value={guildName}
+          maxLength={32}
+          onChange={event => setGuildName(event.target.value)}
+          placeholder={de ? 'Gildenname' : 'Guild name'}
+          className="w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[12px] text-white outline-none placeholder:text-white/24 focus:border-amber-300/35"
+        />
+        <input
+          value={guildTag}
+          maxLength={6}
+          onChange={event => setGuildTag(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())}
+          placeholder={de ? 'Kürzel, z. B. VEIL' : 'Tag, e.g. VEIL'}
+          className="w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[12px] uppercase text-white outline-none placeholder:text-white/24 focus:border-amber-300/35"
+        />
+        <textarea
+          value={guildDescription}
+          maxLength={500}
+          rows={3}
+          onChange={event => setGuildDescription(event.target.value)}
+          placeholder={de ? 'Beschreibung (optional)' : 'Description (optional)'}
+          className="w-full resize-none rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[11px] leading-relaxed text-white outline-none placeholder:text-white/24 focus:border-amber-300/35"
+        />
+        <ActionButton
+          label={de ? `Für ${formatGold(GUILD_CREATION_COST, language)} Gold gründen` : `Create for ${formatGold(GUILD_CREATION_COST, language)} gold`}
+          onClick={createNewGuild}
+          disabled={busy || !canAffordGuild}
+          primary
+        />
       </section>
       <ActionButton label={busy ? (de ? 'Lädt …' : 'Loading …') : (de ? 'Aktualisieren' : 'Refresh')} onClick={() => run(refreshGuildData)} disabled={busy} />
     </div>}
 
-    {session && invites.length > 0 && <section className="mt-3 space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3">
+    {session && !membership && invites.length > 0 && <section className="mt-3 space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3">
       <div className="text-[8px] font-black uppercase tracking-[.2em] text-white/35">{de ? 'EINGEHENDE EINLADUNGEN' : 'INCOMING INVITATIONS'}</div>
       {invites.map(invite => <div key={invite.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/30 p-2.5">
         <div className="min-w-0 flex-1">
