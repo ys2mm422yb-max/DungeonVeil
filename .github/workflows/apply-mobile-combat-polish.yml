@@ -38,7 +38,22 @@ jobs:
           git checkout -B work/blocks-1-7-production-pass origin/work/blocks-1-7-production-pass
 
       - name: Apply mobile combat polish
-        run: python /tmp/apply_mobile_combat_polish.py
+        run: |
+          set +e
+          python /tmp/apply_mobile_combat_polish.py > /tmp/mobile-combat-polish.log 2>&1
+          status=$?
+          cat /tmp/mobile-combat-polish.log
+          if [[ $status -ne 0 ]]; then
+            git reset --hard origin/work/blocks-1-7-production-pass
+            mkdir -p .ci
+            cp /tmp/mobile-combat-polish.log .ci/mobile-combat-polish-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .ci/mobile-combat-polish-error.txt
+            git commit -m "Record mobile combat polish patch failure"
+            git push origin HEAD:work/blocks-1-7-production-pass
+            exit $status
+          fi
 
       - name: Commit repaired product branch
         run: |
