@@ -3,6 +3,7 @@ import { attachBowToRanger, type BowRig } from './bowRig';
 import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
 
 const KAYKIT_ROOT = '/assets/kaykit';
+const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 export const KAYKIT_PLAYER_ASSETS = {
   ranger: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb`,
@@ -23,14 +24,21 @@ export type KayKitPlayerRig = {
   stop: () => void;
 };
 
-function clipKey(clip: any) { return String(clip?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_'); }
+function clipKey(clip: any) {
+  return String(clip?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+}
+
 function chooseClip(clips: any[], groups: string[][], rejects: string[] = []) {
   for (const terms of groups) {
-    const match = clips.find(clip => { const key = clipKey(clip); return terms.every(term => key.includes(term)) && rejects.every(term => !key.includes(term)); });
+    const match = clips.find(clip => {
+      const key = clipKey(clip);
+      return terms.every(term => key.includes(term)) && rejects.every(term => !key.includes(term));
+    });
     if (match) return match;
   }
   return null;
 }
+
 function findBone(root: any, names: string[]) {
   let result: any = null;
   root.traverse((node: any) => {
@@ -40,14 +48,16 @@ function findBone(root: any, names: string[]) {
   });
   return result;
 }
+
 function prepareModel(root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
-    node.castShadow = true;
-    node.receiveShadow = true;
+    node.castShadow = !IS_MOBILE;
+    node.receiveShadow = !IS_MOBILE;
     node.frustumCulled = true;
   });
 }
+
 function fitAttachment(THREE: any, object: any, targetSize: number) {
   object.scale.setScalar(1);
   object.position.set(0, 0, 0);
@@ -58,6 +68,7 @@ function fitAttachment(THREE: any, object: any, targetSize: number) {
   object.scale.setScalar(targetSize / Math.max(size.x, size.y, size.z, 0.001));
   object.position.sub(center.multiplyScalar(object.scale.x));
 }
+
 function attachQuiver(parent: any, object: any) {
   if (!parent || !object) return;
   object.position.set(-0.17, 0.05, -0.16);
@@ -65,6 +76,7 @@ function attachQuiver(parent: any, object: any) {
   object.scale.setScalar(1);
   parent.add(object);
 }
+
 function attachQuiverVariant(THREE: any, parent: any, object: any, variant: 'black-quiver' | 'rune-quiver') {
   if (!parent || !object) return;
   prepareModel(object);
@@ -73,6 +85,7 @@ function attachQuiverVariant(THREE: any, parent: any, object: any, variant: 'bla
   object.rotation.set(0.12, variant === 'rune-quiver' ? -0.18 : 0.16, variant === 'rune-quiver' ? 0.2 : -0.08);
   parent.add(object);
 }
+
 function attachTalisman(THREE: any, parent: any, object: any, id: string) {
   if (!parent || !object) return;
   prepareModel(object);
@@ -82,20 +95,54 @@ function attachTalisman(THREE: any, parent: any, object: any, id: string) {
   object.rotation.set(id === 'frost-grimoire' ? 0.15 : Math.PI / 2, 0, id === 'frost-grimoire' ? -0.28 : 0);
   parent.add(object);
 }
-function buildArrowPrototype(THREE: any, arrow: any) {
+
+function keepSharedResource(resource: any) {
+  if (!resource) return resource;
+  resource.userData = { ...(resource.userData ?? {}), dungeonVeilSharedProjectile: true };
+  resource.dispose = () => undefined;
+  return resource;
+}
+
+/**
+ * The supplied arrow asset has different local axes across browser/GPU combinations.
+ * This small procedural arrow always points along local -Y, which matches the run
+ * renderer rotation exactly and avoids arrows flying sideways or backwards.
+ */
+function buildArrowPrototype(THREE: any) {
   const root = new THREE.Group();
-  root.name = 'KayKitArrowWithWindTrail';
-  const model = arrow.clone(true);
-  model.scale.setScalar(1.18);
-  prepareModel(model);
-  root.add(model);
-  const makeTrail = (x: number, z: number, length: number, opacity: number) => {
-    const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, -0.08, z), new THREE.Vector3(x, -length, z)]);
-    const material = new THREE.LineBasicMaterial({ color: 0xdaf4ff, transparent: true, opacity, depthWrite: false });
-    root.add(new THREE.Line(geometry, material));
-  };
-  makeTrail(0, 0, 0.82, 0.72);
-  makeTrail(0.045, 0.02, 0.56, 0.38);
+  root.name = 'DungeonVeilAlignedArrow';
+
+  const shaftGeometry = keepSharedResource(new THREE.CylinderGeometry(0.018, 0.018, 0.48, 6));
+  const headGeometry = keepSharedResource(new THREE.ConeGeometry(0.065, 0.16, 6));
+  const featherGeometry = keepSharedResource(new THREE.BoxGeometry(0.105, 0.12, 0.012));
+  const shaftMaterial = keepSharedResource(new THREE.MeshBasicMaterial({ color: 0x8d6334 }));
+  const headMaterial = keepSharedResource(new THREE.MeshBasicMaterial({ color: 0xf1d69a }));
+  const featherMaterial = keepSharedResource(new THREE.MeshBasicMaterial({ color: 0xe5f0ef, transparent: true, opacity: 0.9 }));
+
+  const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+  shaft.position.y = -0.02;
+  root.add(shaft);
+
+  const head = new THREE.Mesh(headGeometry, headMaterial);
+  head.rotation.z = Math.PI;
+  head.position.y = -0.34;
+  root.add(head);
+
+  const featherA = new THREE.Mesh(featherGeometry, featherMaterial);
+  featherA.position.y = 0.24;
+  root.add(featherA);
+  const featherB = new THREE.Mesh(featherGeometry, featherMaterial);
+  featherB.position.y = 0.24;
+  featherB.rotation.y = Math.PI / 2;
+  root.add(featherB);
+
+  const trailGeometry = keepSharedResource(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0.28, 0),
+    new THREE.Vector3(0, 0.72, 0),
+  ]));
+  const trailMaterial = keepSharedResource(new THREE.LineBasicMaterial({ color: 0xdaf4ff, transparent: true, opacity: IS_MOBILE ? 0.38 : 0.58, depthWrite: false }));
+  root.add(new THREE.Line(trailGeometry, trailMaterial));
+  root.scale.setScalar(1.18);
   return root;
 }
 
@@ -107,8 +154,12 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const quiverVariant = quiverId === 'ranger-quiver' ? null : EQUIPMENT[quiverId];
   const talismanDefinition = EQUIPMENT[talismanId];
   const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, weapons, quiverVariantGltf, talismanGltf] = await Promise.all([
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger), loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver), loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement), loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced), loadKayKitRangerWeapons(),
+    loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
+    loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver),
+    loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
+    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
+    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),
+    loadKayKitRangerWeapons(),
     quiverVariant ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverVariant.assetPath}`) : Promise.resolve(null),
     talismanDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${talismanDefinition.assetPath}`) : Promise.resolve(null),
   ]);
@@ -122,7 +173,12 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   prepareModel(visual);
   root.add(visual);
 
-  const clips = [...(rangerGltf.animations ?? []), ...(generalGltf.animations ?? []), ...(movementGltf.animations ?? []), ...(advancedGltf.animations ?? [])];
+  const clips = [
+    ...(rangerGltf.animations ?? []),
+    ...(generalGltf.animations ?? []),
+    ...(movementGltf.animations ?? []),
+    ...(advancedGltf.animations ?? []),
+  ];
   const idleClip = chooseClip(clips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep', 'aim', 'bow']);
   const runClip = chooseClip(clips, [['run'], ['jog'], ['walk']], ['back', 'left', 'right', 'crouch', 'aim']);
   const dashClip = chooseClip(clips, [['dodge', 'forward'], ['roll', 'forward'], ['dodge'], ['roll']], ['back', 'left', 'right']);
@@ -132,7 +188,10 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const dash = dashClip ? mixer.clipAction(dashClip) : null;
   const base = idle ?? run;
   base?.reset().play();
-  if (dash) { dash.setLoop(THREE.LoopOnce, 1); dash.clampWhenFinished = true; }
+  if (dash) {
+    dash.setLoop(THREE.LoopOnce, 1);
+    dash.clampWhenFinished = true;
+  }
 
   prepareModel(weapons.bow);
   prepareModel(quiverGltf.scene);
@@ -140,9 +199,11 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   const chest = findBone(visual, ['spine2', 'chest', 'spine1']);
   attachQuiver(spine, quiverGltf.scene);
-  if (quiverVariantGltf && (quiverId === 'black-quiver' || quiverId === 'rune-quiver')) attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
+  if (quiverVariantGltf && (quiverId === 'black-quiver' || quiverId === 'rune-quiver')) {
+    attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
+  }
   if (talismanGltf) attachTalisman(THREE, chest, talismanGltf.scene, talismanId);
-  const arrowPrototype = buildArrowPrototype(THREE, weapons.arrow);
+  const arrowPrototype = buildArrowPrototype(THREE);
   const upperArmL = findBone(visual, ['upperarml']);
   const lowerArmL = findBone(visual, ['lowerarml']);
   const upperArmR = findBone(visual, ['upperarmr']);
@@ -170,12 +231,22 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     current?.fadeOut(0.08);
     current = next;
   };
+
   const applyShotPose = (pulse: number) => {
     bowRig.updateShotPose(pulse);
-    if (upperArmL) { upperArmL.rotation.y += pulse * 0.28; upperArmL.rotation.z -= pulse * 0.72; }
+    if (upperArmL) {
+      upperArmL.rotation.y += pulse * 0.28;
+      upperArmL.rotation.z -= pulse * 0.72;
+    }
     if (lowerArmL) lowerArmL.rotation.z -= pulse * 0.18;
-    if (upperArmR) { upperArmR.rotation.y -= pulse * 0.34; upperArmR.rotation.z += pulse * 0.9; }
-    if (lowerArmR) { lowerArmR.rotation.y -= pulse * 0.2; lowerArmR.rotation.z += pulse * 1.05; }
+    if (upperArmR) {
+      upperArmR.rotation.y -= pulse * 0.34;
+      upperArmR.rotation.z += pulse * 0.9;
+    }
+    if (lowerArmR) {
+      lowerArmR.rotation.y -= pulse * 0.2;
+      lowerArmR.rotation.z += pulse * 1.05;
+    }
     if (chest) chest.rotation.y += pulse * 0.1;
     visual.rotation.z = -pulse * 0.045;
     visual.position.z = pulse * 0.035;
@@ -185,14 +256,19 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   return {
     root,
     arrowPrototype,
-    setMoving(value: boolean) { moving = value; if (dashRemaining <= 0) playBase(); },
+    setMoving(value: boolean) {
+      moving = value;
+      if (dashRemaining <= 0) playBase();
+    },
     setMotionSpeed(moveMultiplier: number, attackSpeedMultiplier: number) {
       movementMultiplier = Math.max(0.8, Math.min(1.8, moveMultiplier));
       attackMultiplier = Math.max(1, Math.min(1.9, attackSpeedMultiplier));
       shotDuration = 0.24 / attackMultiplier;
       applySpeeds();
     },
-    triggerAttack() { if (dashRemaining <= 0) shotTime = shotDuration; },
+    triggerAttack() {
+      if (dashRemaining <= 0) shotTime = shotDuration;
+    },
     triggerDash() {
       shotTime = 0;
       bowRig.updateShotPose(0);
@@ -245,6 +321,8 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
         visual.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, delta * 18));
       }
     },
-    stop() { mixer.stopAllAction(); },
+    stop() {
+      mixer.stopAllAction();
+    },
   };
 }
