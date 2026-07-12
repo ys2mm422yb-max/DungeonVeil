@@ -1,141 +1,14 @@
 name: Deploy Dungeon Veil Test Site
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/dungeon-rpg-check.yml'
-      - '.github/workflows/dungeon-rpg-ci.yml'
-      - '.github/workflows/dungeon-veil-pages.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: dungeon-veil-pages
-  cancel-in-progress: true
+  contents: read
 
 jobs:
-  build:
+  delegated-deployment:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      validated_sha: ${{ steps.validated.outputs.sha }}
     steps:
-      - name: Checkout current Dungeon Veil test branch
-        uses: actions/checkout@v4
-        with:
-          ref: work/blocks-1-7-production-pass
-
-      - name: Resolve deployed commit
-        id: validated
-        shell: bash
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Asset audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:assets
-
-      - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
-
-      - name: Typecheck
-        run: pnpm run typecheck
-
-      - name: Build Dungeon Veil for GitHub Pages
-        env:
-          BASE_PATH: /DungeonVeil/
-          NODE_ENV: production
-        run: pnpm --dir artifacts/dungeon-rpg run build
-
-      - name: Verify GitHub Pages asset paths
-        shell: bash
-        run: |
-          mapfile -t built_files < <(find artifacts/dungeon-rpg/dist/public -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.html' \))
-          test ${#built_files[@]} -gt 0
-          if grep -nHE '["'"']/assets/' "${built_files[@]}"; then
-            echo 'Found root-relative runtime asset paths that would break under /DungeonVeil/.'
-            exit 1
-          fi
-          test -f artifacts/dungeon-rpg/dist/public/index.html
-
-      - name: Write deployment marker
-        shell: bash
-        run: |
-          printf '{"commit":"%s","deployedAt":"%s"}\n' "${{ steps.validated.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
-
-      - name: Disable Jekyll processing
-        run: touch artifacts/dungeon-rpg/dist/public/.nojekyll
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: artifacts/dungeon-rpg/dist/public
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-  record:
-    runs-on: ubuntu-latest
-    needs: [build, deploy]
-    steps:
-      - name: Record successful Pages deployment
-        uses: actions/github-script@v7
-        env:
-          VALIDATED_SHA: ${{ needs.build.outputs.validated_sha }}
-          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const path = '.ci/dungeon-veil-pages.json';
-            const ref = 'main';
-            let sha;
-            try {
-              const response = await github.rest.repos.getContent({ owner, repo, path, ref });
-              if (!Array.isArray(response.data)) sha = response.data.sha;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-            const content = Buffer.from(JSON.stringify({
-              workflow: 'Deploy Dungeon Veil Test Site',
-              status: 'success',
-              deployedCommit: process.env.VALIDATED_SHA,
-              pageUrl: process.env.PAGE_URL,
-              completedAt: new Date().toISOString(),
-            }, null, 2) + '\n').toString('base64');
-            await github.rest.repos.createOrUpdateFileContents({
-              owner, repo, path, branch: ref, sha, content,
-              message: `Record Dungeon Veil Pages success for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
-            });
+      - name: Deployment ownership
+        run: echo "Automatic Pages deployment runs inside the unified Dungeon RPG Check workflow."
