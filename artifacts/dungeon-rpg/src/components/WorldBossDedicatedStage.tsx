@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import type { GameEngine } from '../game/runEngine';
 import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
 import { createKayKitEnemyVisual, updateKayKitEnemyVisual, type KayKitEnemyVisual } from './kaykitEnemy3D';
+import { loadWorldBossMobileRig, type WorldBossMobileRig } from './worldBossMobileVisual3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -54,7 +55,8 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
     let clock: any = null;
     let playerRig: KayKitPlayerRig | null = null;
     let desktopBoss: KayKitEnemyVisual | null = null;
-    let mobileBoss: any = null;
+    let mobileBossRig: WorldBossMobileRig | null = null;
+    let mobileBossFallback: any = null;
     let telegraph: any = null;
     let lastAttack = 0;
     let lastDodge = 0;
@@ -108,10 +110,11 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
     });
 
     const pixelRatioForQuality = () => {
-      if (!IS_MOBILE) return Math.min(window.devicePixelRatio || 1, 1.1);
-      if (qualityLevel >= 2) return 0.4;
-      if (qualityLevel >= 1) return 0.47;
-      return IS_ANDROID ? 0.5 : 0.55;
+      const deviceRatio = window.devicePixelRatio || 1;
+      if (!IS_MOBILE) return Math.min(deviceRatio, 1.5);
+      if (qualityLevel >= 2) return IS_ANDROID ? 0.62 : 0.68;
+      if (qualityLevel >= 1) return IS_ANDROID ? 0.72 : 0.8;
+      return Math.min(deviceRatio, IS_ANDROID ? 0.85 : 1);
     };
 
     const frameIntervalForQuality = () => {
@@ -125,14 +128,14 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       if (!camera) return;
       const aspect = width / height;
       const portrait = aspect < 0.72;
-      const viewWidth = portrait ? 11.55 : 15.4;
+      const viewWidth = portrait ? 11.7 : 15.2;
       const viewHeight = viewWidth / Math.max(0.25, aspect);
       camera.left = -viewWidth / 2;
       camera.right = viewWidth / 2;
       camera.top = viewHeight / 2;
       camera.bottom = -viewHeight / 2;
-      camera.position.set(0, portrait ? 15.8 : 14.8, portrait ? 11.8 : 12.6);
-      camera.lookAt(0, 0.62, portrait ? 1.75 : 0.8);
+      camera.position.set(0, portrait ? 12.8 : 12.4, portrait ? 14.9 : 14.1);
+      camera.lookAt(0, 0.68, portrait ? 0.65 : 0.35);
       camera.updateProjectionMatrix();
     };
 
@@ -161,53 +164,53 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       const root = new THREE.Group();
       root.name = 'WorldBossDedicatedArena';
 
-      const ashGeometry = rememberGeometry(new THREE.PlaneGeometry(ARENA_WIDTH + 0.9, ARENA_DEPTH + 0.9));
-      const ashMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0x1a0e0b }));
+      const ashGeometry = rememberGeometry(new THREE.PlaneGeometry(ARENA_WIDTH + 1, ARENA_DEPTH + 1));
+      const ashMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x090a0d, roughness: 1, metalness: 0 }));
       const ashBed = new THREE.Mesh(ashGeometry, ashMaterial);
       ashBed.rotation.x = -Math.PI / 2;
       ashBed.position.y = -0.08;
       root.add(ashBed);
 
       const floorGeometry = rememberGeometry(new THREE.PlaneGeometry(ARENA_WIDTH, ARENA_DEPTH));
-      const floorMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0x513326 }));
+      const floorMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x211c20, roughness: 0.95, metalness: 0.02 }));
       const floor = new THREE.Mesh(floorGeometry, floorMaterial);
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = -0.025;
       root.add(floor);
 
       const innerFloorGeometry = rememberGeometry(new THREE.PlaneGeometry(ARENA_WIDTH - 0.68, ARENA_DEPTH - 0.68));
-      const innerFloorMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0x68412f, transparent: true, opacity: 0.78 }));
+      const innerFloorMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x30282d, roughness: 0.92, metalness: 0.03 }));
       const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
       innerFloor.rotation.x = -Math.PI / 2;
       innerFloor.position.y = -0.012;
       root.add(innerFloor);
 
-      const grid = new THREE.GridHelper(ARENA_DEPTH - 0.9, 6, 0x7f4933, 0x7f4933);
+      const grid = new THREE.GridHelper(ARENA_DEPTH - 0.9, 8, 0x725044, 0x4e3b3b);
       grid.scale.x = (ARENA_WIDTH - 0.9) / (ARENA_DEPTH - 0.9);
       grid.position.y = 0.006;
       grid.material.transparent = true;
-      grid.material.opacity = 0.22;
+      grid.material.opacity = 0.16;
       grid.material.depthWrite = false;
       rememberGeometry(grid.geometry);
       if (Array.isArray(grid.material)) grid.material.forEach((material: any) => rememberMaterial(material));
       else rememberMaterial(grid.material);
       root.add(grid);
 
-      const runeGeometry = rememberGeometry(new THREE.RingGeometry(1.7, 1.88, 32));
-      const runeMaterial = rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xff6a2d, transparent: true, opacity: 0.68, side: THREE.DoubleSide, depthWrite: false }));
+      const runeGeometry = rememberGeometry(new THREE.RingGeometry(1.7, 1.88, 44));
+      const runeMaterial = rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xe4572d, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false }));
       const rune = new THREE.Mesh(runeGeometry, runeMaterial);
       rune.rotation.x = -Math.PI / 2;
       rune.position.set(0, 0.025, -0.35);
       root.add(rune);
 
-      const innerRuneGeometry = rememberGeometry(new THREE.RingGeometry(0.72, 0.82, 24));
+      const innerRuneGeometry = rememberGeometry(new THREE.RingGeometry(0.72, 0.82, 36));
       const innerRune = new THREE.Mesh(innerRuneGeometry, runeMaterial);
       innerRune.rotation.x = -Math.PI / 2;
       innerRune.position.set(0, 0.027, -0.35);
       root.add(innerRune);
 
-      const sigilGeometry = rememberGeometry(new THREE.BoxGeometry(0.12, 0.02, 3.8));
-      const sigilMaterial = rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xe24f24, transparent: true, opacity: 0.58, depthWrite: false }));
+      const sigilGeometry = rememberGeometry(new THREE.BoxGeometry(0.1, 0.02, 3.75));
+      const sigilMaterial = rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xb63c27, transparent: true, opacity: 0.42, depthWrite: false }));
       const sigilA = new THREE.Mesh(sigilGeometry, sigilMaterial);
       sigilA.position.set(0, 0.026, -0.35);
       root.add(sigilA);
@@ -217,7 +220,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       root.add(sigilB);
 
       const wallGeometry = rememberGeometry(new THREE.BoxGeometry(1, 1, 1));
-      const wallMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0x2b1b16 }));
+      const wallMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x171419, roughness: 0.9, metalness: 0.04 }));
       const sideWallHeight = 0.78;
       const wallTransforms: Array<[number, number, number, number, number]> = [
         [0, -ARENA_DEPTH / 2, ARENA_WIDTH + 0.38, sideWallHeight, 0.38],
@@ -232,8 +235,17 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
         root.add(wall);
       }
 
-      const pillarGeometry = rememberGeometry(new THREE.CylinderGeometry(0.42, 0.58, 1.9, 6));
-      const pillarMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0x694938 }));
+      const trimMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x5a3a32, roughness: 0.72, metalness: 0.16 }));
+      const trimGeometry = rememberGeometry(new THREE.BoxGeometry(1, 0.08, 0.12));
+      for (const z of [-ARENA_DEPTH / 2 + 0.22, ARENA_DEPTH / 2 - 0.22]) {
+        const trim = new THREE.Mesh(trimGeometry, trimMaterial);
+        trim.position.set(0, 0.11, z);
+        trim.scale.x = ARENA_WIDTH - 0.45;
+        root.add(trim);
+      }
+
+      const pillarGeometry = rememberGeometry(new THREE.CylinderGeometry(0.42, 0.58, 1.9, 10));
+      const pillarMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x3b3035, roughness: 0.84, metalness: 0.08 }));
       const pillarPositions: Array<[number, number]> = [
         [-4.35, -4.95],
         [4.35, -4.95],
@@ -249,88 +261,88 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       scene.add(root);
     };
 
-    const buildMobileBoss = () => {
+    const buildFallbackMobileBoss = () => {
       if (!scene || !THREE) return null;
       const root = new THREE.Group();
-      root.name = 'AshKingMobileBoss';
+      root.name = 'AshKingMobileFallback';
 
-      const darkMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0x321c17 }));
-      const armorMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0xa54422 }));
-      const emberMaterial = rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xff8a3d }));
-      const goldMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0xe0b25a }));
-      const capeMaterial = rememberMaterial(new THREE.MeshLambertMaterial({ color: 0x551d16 }));
+      const darkMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x2d2224, roughness: 0.76, metalness: 0.08 }));
+      const armorMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x7f2f25, roughness: 0.58, metalness: 0.24 }));
+      const emberMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xff7a3d, emissive: 0x7a1a08, emissiveIntensity: 0.9, roughness: 0.38 }));
+      const goldMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xd1a14d, roughness: 0.46, metalness: 0.55 }));
+      const capeMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x421b20, roughness: 0.88, metalness: 0 }));
 
       const shadow = new THREE.Mesh(
-        rememberGeometry(new THREE.CircleGeometry(1.08, 18)),
-        rememberMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4, depthWrite: false })),
+        rememberGeometry(new THREE.CircleGeometry(0.86, 28)),
+        rememberMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false })),
       );
       shadow.rotation.x = -Math.PI / 2;
       shadow.position.y = 0.012;
       root.add(shadow);
 
-      const cape = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(0.72, 1.02, 1.9, 7)), capeMaterial);
-      cape.position.set(0, 0.96, -0.26);
+      const cape = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(0.64, 0.9, 1.72, 14)), capeMaterial);
+      cape.position.set(0, 0.88, -0.22);
       root.add(cape);
 
-      const body = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(0.64, 0.9, 1.72, 7)), darkMaterial);
-      body.position.y = 0.94;
+      const body = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(0.56, 0.78, 1.55, 14)), darkMaterial);
+      body.position.y = 0.86;
       root.add(body);
 
-      const armor = new THREE.Mesh(rememberGeometry(new THREE.ConeGeometry(0.86, 1.22, 7, 1, true)), armorMaterial);
-      armor.position.y = 1.18;
+      const armor = new THREE.Mesh(rememberGeometry(new THREE.ConeGeometry(0.76, 1.08, 14, 1, true)), armorMaterial);
+      armor.position.y = 1.08;
       armor.rotation.x = Math.PI;
       root.add(armor);
 
-      const shoulderGeometry = rememberGeometry(new THREE.SphereGeometry(0.34, 8, 6));
-      const armGeometry = rememberGeometry(new THREE.CylinderGeometry(0.19, 0.25, 1.15, 6));
-      const gauntletGeometry = rememberGeometry(new THREE.SphereGeometry(0.23, 7, 5));
+      const shoulderGeometry = rememberGeometry(new THREE.SphereGeometry(0.28, 14, 10));
+      const armGeometry = rememberGeometry(new THREE.CylinderGeometry(0.16, 0.21, 0.96, 10));
+      const gauntletGeometry = rememberGeometry(new THREE.SphereGeometry(0.18, 12, 8));
       for (const side of [-1, 1]) {
         const shoulder = new THREE.Mesh(shoulderGeometry, armorMaterial);
-        shoulder.position.set(side * 0.78, 1.5, 0);
-        shoulder.scale.set(1.2, 0.78, 1.05);
+        shoulder.position.set(side * 0.67, 1.34, 0);
+        shoulder.scale.set(1.18, 0.78, 1.05);
         root.add(shoulder);
 
         const arm = new THREE.Mesh(armGeometry, darkMaterial);
-        arm.position.set(side * 0.93, 1.03, 0.02);
-        arm.rotation.z = side * -0.42;
+        arm.position.set(side * 0.8, 0.96, 0.02);
+        arm.rotation.z = side * -0.36;
         root.add(arm);
 
         const gauntlet = new THREE.Mesh(gauntletGeometry, goldMaterial);
-        gauntlet.position.set(side * 1.1, 0.55, 0.04);
+        gauntlet.position.set(side * 0.93, 0.55, 0.04);
         root.add(gauntlet);
       }
 
-      const head = new THREE.Mesh(rememberGeometry(new THREE.SphereGeometry(0.42, 10, 8)), armorMaterial);
-      head.position.y = 2.02;
+      const head = new THREE.Mesh(rememberGeometry(new THREE.SphereGeometry(0.36, 16, 12)), armorMaterial);
+      head.position.y = 1.78;
       root.add(head);
 
-      const crownBand = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(0.46, 0.5, 0.22, 7)), goldMaterial);
-      crownBand.position.y = 2.35;
+      const crownBand = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(0.38, 0.42, 0.18, 12)), goldMaterial);
+      crownBand.position.y = 2.06;
       root.add(crownBand);
 
-      const crownSpikeGeometry = rememberGeometry(new THREE.ConeGeometry(0.15, 0.58, 5));
-      for (const x of [-0.3, 0, 0.3]) {
+      const crownSpikeGeometry = rememberGeometry(new THREE.ConeGeometry(0.1, 0.42, 8));
+      for (const x of [-0.25, 0, 0.25]) {
         const spike = new THREE.Mesh(crownSpikeGeometry, goldMaterial);
-        spike.position.set(x, x === 0 ? 2.72 : 2.63, 0);
+        spike.position.set(x, x === 0 ? 2.38 : 2.3, 0);
         root.add(spike);
       }
 
-      const core = new THREE.Mesh(rememberGeometry(new THREE.SphereGeometry(0.2, 8, 6)), emberMaterial);
-      core.position.set(0, 1.3, 0.72);
+      const core = new THREE.Mesh(rememberGeometry(new THREE.SphereGeometry(0.15, 14, 10)), emberMaterial);
+      core.position.set(0, 1.17, 0.61);
       root.add(core);
 
-      const collar = new THREE.Mesh(rememberGeometry(new THREE.TorusGeometry(0.53, 0.08, 6, 14)), emberMaterial);
-      collar.position.set(0, 1.73, 0.08);
+      const collar = new THREE.Mesh(rememberGeometry(new THREE.TorusGeometry(0.46, 0.06, 8, 24)), emberMaterial);
+      collar.position.set(0, 1.54, 0.08);
       collar.rotation.x = Math.PI / 2;
       root.add(collar);
 
-      const weaponShaft = new THREE.Mesh(rememberGeometry(new THREE.BoxGeometry(0.12, 1.85, 0.12)), goldMaterial);
-      weaponShaft.position.set(1.28, 1.14, 0.02);
+      const weaponShaft = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(0.045, 0.045, 1.55, 8)), goldMaterial);
+      weaponShaft.position.set(1.04, 1.03, 0.02);
       weaponShaft.rotation.z = -0.12;
       root.add(weaponShaft);
 
-      const weaponHead = new THREE.Mesh(rememberGeometry(new THREE.ConeGeometry(0.34, 0.78, 5)), emberMaterial);
-      weaponHead.position.set(1.39, 2.1, 0.02);
+      const weaponHead = new THREE.Mesh(rememberGeometry(new THREE.ConeGeometry(0.25, 0.6, 10)), emberMaterial);
+      weaponHead.position.set(1.13, 1.84, 0.02);
       weaponHead.rotation.z = -0.12;
       root.add(weaponHead);
 
@@ -340,7 +352,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
 
     const buildProjectilePool = () => {
       if (!scene || !THREE) return;
-      const geometry = rememberGeometry(new THREE.BoxGeometry(0.08, 0.08, 0.72));
+      const geometry = rememberGeometry(new THREE.BoxGeometry(0.09, 0.09, 0.76));
       for (let index = 0; index < MAX_PROJECTILES; index++) {
         const material = rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xf3d7a0, transparent: true, opacity: 0.94, depthWrite: false }));
         const mesh = new THREE.Mesh(geometry, material);
@@ -420,6 +432,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
           calls: renderer.info?.render?.calls ?? 0,
           triangles: renderer.info?.render?.triangles ?? 0,
           mobileBoss: IS_MOBILE,
+          mobileBossSource: mobileBossRig ? 'kaykit-knight' : mobileBossFallback ? 'fallback' : 'desktop-library',
           at: Date.now(),
         }));
       } catch {}
@@ -469,12 +482,24 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
           desktopBoss.root.rotation.y = Math.atan2(playerPoint.x - bossPoint.x, playerPoint.z - bossPoint.z);
           if (qualityLevel < 2 || animationFrameCounter % 2 === 0) updateKayKitEnemyVisual(desktopBoss, boss, delta, now);
         }
-        if (mobileBoss) {
-          mobileBoss.position.set(bossPoint.x, Math.sin(now * 0.003) * 0.04, bossPoint.z);
-          mobileBoss.rotation.y = Math.atan2(playerPoint.x - bossPoint.x, playerPoint.z - bossPoint.z);
+        if (mobileBossRig) {
+          mobileBossRig.root.position.set(bossPoint.x, 0, bossPoint.z);
+          mobileBossRig.root.rotation.y = Math.atan2(playerPoint.x - bossPoint.x, playerPoint.z - bossPoint.z);
+          mobileBossRig.setMoving(boss.state === 'chase' && Math.hypot(boss.vx, boss.vy) > 0.05);
+          if (boss.lastAttackTime > lastBossAttack) {
+            lastBossAttack = boss.lastAttackTime;
+            mobileBossRig.triggerAttack();
+          }
+          if (qualityLevel < 2 || animationFrameCounter % 2 === 0) mobileBossRig.update(delta, now);
+          const attackPulse = Math.max(0, 1 - (now - lastBossAttack) / 360);
+          mobileBossRig.root.scale.setScalar(1.72 + attackPulse * 0.04);
+        }
+        if (mobileBossFallback) {
+          mobileBossFallback.position.set(bossPoint.x, Math.sin(now * 0.003) * 0.025, bossPoint.z);
+          mobileBossFallback.rotation.y = Math.atan2(playerPoint.x - bossPoint.x, playerPoint.z - bossPoint.z);
           if (boss.lastAttackTime > lastBossAttack) lastBossAttack = boss.lastAttackTime;
           const attackPulse = Math.max(0, 1 - (now - lastBossAttack) / 360);
-          mobileBoss.scale.setScalar(1.48 + attackPulse * 0.1);
+          mobileBossFallback.scale.setScalar(1.28 + attackPulse * 0.06);
         }
       }
 
@@ -490,13 +515,13 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       if (disposed || !state()) return;
 
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x100806);
-      scene.fog = new THREE.Fog(0x100806, 26, 45);
-      renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance', precision: IS_MOBILE ? 'mediump' : 'highp' });
+      scene.background = new THREE.Color(0x07090d);
+      scene.fog = new THREE.Fog(0x07090d, 25, 46);
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance', precision: IS_MOBILE ? 'mediump' : 'highp' });
       renderer.shadowMap.enabled = false;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.22;
+      renderer.toneMappingExposure = 0.92;
       renderer.domElement.style.position = 'absolute';
       renderer.domElement.style.inset = '0';
       renderer.domElement.style.display = 'block';
@@ -504,18 +529,22 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       renderer.domElement.style.height = '100%';
       host.appendChild(renderer.domElement);
 
-      camera = new THREE.OrthographicCamera(-5.75, 5.75, 12, -12, 0.1, 70);
-      scene.add(new THREE.AmbientLight(0xf0d6bd, 1.72));
-      scene.add(new THREE.HemisphereLight(0xffc58f, 0x3b2018, 1.05));
-      const keyLight = new THREE.DirectionalLight(0xffb06d, 2.15);
-      keyLight.position.set(-5, 12, 7);
+      camera = new THREE.OrthographicCamera(-5.85, 5.85, 12, -12, 0.1, 70);
+      scene.add(new THREE.AmbientLight(0xd9d4d2, 1.05));
+      scene.add(new THREE.HemisphereLight(0xffd2ad, 0x121722, 0.78));
+      const keyLight = new THREE.DirectionalLight(0xffb274, 1.28);
+      keyLight.position.set(-5, 11, 8);
       keyLight.castShadow = false;
       scene.add(keyLight);
+      const fillLight = new THREE.DirectionalLight(0x7d9fd8, 0.46);
+      fillLight.position.set(6, 8, -5);
+      fillLight.castShadow = false;
+      scene.add(fillLight);
 
       buildArena();
       buildProjectilePool();
       telegraph = new THREE.Mesh(
-        rememberGeometry(new THREE.RingGeometry(0.72, 1, 20)),
+        rememberGeometry(new THREE.RingGeometry(0.72, 1, 28)),
         rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xff7247, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),
       );
       telegraph.rotation.x = -Math.PI / 2;
@@ -524,13 +553,20 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
 
       playerRig = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
-      playerRig.root.scale.setScalar(IS_MOBILE ? 1.28 : 1.1);
+      playerRig.root.scale.setScalar(IS_MOBILE ? 1.14 : 1.1);
       scene.add(playerRig.root);
 
       const boss = state()?.enemies.find(enemy => enemy.enemyType === 'boss');
       if (!boss) throw new Error('World boss entity missing');
       if (IS_MOBILE) {
-        mobileBoss = buildMobileBoss();
+        try {
+          mobileBossRig = await loadWorldBossMobileRig(THREE, GLTFLoader);
+          if (disposed) return;
+          scene.add(mobileBossRig.root);
+        } catch (error) {
+          console.warn('Lightweight KayKit Ash King unavailable; using procedural fallback', error);
+          mobileBossFallback = buildFallbackMobileBoss();
+        }
       } else {
         const loadedBoss = await createKayKitEnemyVisual(THREE, boss);
         if (disposed) return;
@@ -550,15 +586,19 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       clock = new THREE.Clock();
       resize();
       const current = state();
-      if (!current || !playerRig || (!mobileBoss && !desktopBoss)) throw new Error('World boss stage incomplete');
+      if (!current || !playerRig || (!mobileBossRig && !mobileBossFallback && !desktopBoss)) throw new Error('World boss stage incomplete');
       const bossEntity = current.enemies.find(enemy => enemy.enemyType === 'boss');
       if (!bossEntity) throw new Error('World boss entity disappeared during load');
       const playerPoint = mapPoint(current.player.x + current.player.width / 2, current.player.y + current.player.height / 2);
       const bossPoint = mapPoint(bossEntity.x + bossEntity.width / 2, bossEntity.y + bossEntity.height / 2);
       playerRig.root.position.set(playerPoint.x, 0, playerPoint.z);
-      if (mobileBoss) {
-        mobileBoss.position.set(bossPoint.x, 0, bossPoint.z);
-        mobileBoss.scale.setScalar(1.48);
+      if (mobileBossRig) {
+        mobileBossRig.root.position.set(bossPoint.x, 0, bossPoint.z);
+        mobileBossRig.root.scale.setScalar(1.72);
+      }
+      if (mobileBossFallback) {
+        mobileBossFallback.position.set(bossPoint.x, 0, bossPoint.z);
+        mobileBossFallback.scale.setScalar(1.28);
       }
       if (desktopBoss) desktopBoss.root.position.set(bossPoint.x, 0, bossPoint.z);
       renderer.render(scene, camera);
@@ -584,9 +624,11 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       visualViewport?.removeEventListener('resize', resize);
       visualViewport?.removeEventListener('scroll', resize);
       playerRig?.stop();
+      mobileBossRig?.stop();
       desktopBoss?.mixer?.stopAllAction?.();
       if (playerRig?.root) disposeModel(playerRig.root);
       if (desktopBoss?.root) disposeModel(desktopBoss.root);
+      if (mobileBossRig?.root) disposeModel(mobileBossRig.root);
       ownedGeometries.forEach(geometry => geometry?.dispose?.());
       ownedMaterials.forEach(material => material?.dispose?.());
       renderer?.renderLists?.dispose?.();
@@ -596,7 +638,8 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       projectileSlots.length = 0;
       playerRig = null;
       desktopBoss = null;
-      mobileBoss = null;
+      mobileBossRig = null;
+      mobileBossFallback = null;
       telegraph = null;
       scene = null;
       camera = null;
