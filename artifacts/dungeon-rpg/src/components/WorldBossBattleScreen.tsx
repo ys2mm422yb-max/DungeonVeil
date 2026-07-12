@@ -221,9 +221,12 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engine.input.joyX = 0;
       engine.input.joyY = 0;
       engine.state.status = 'paused';
+      engine.onStateChange = () => {};
+      engine.state.effects.length = 0;
+      engine.state.particles.length = 0;
+      engine.state.damageNumbers.length = 0;
     }
     onClose();
-    if (IS_MOBILE) window.setTimeout(() => window.location.reload(), 120);
   };
 
   return <div className="fixed inset-0 z-[120] overflow-hidden bg-black text-white">
