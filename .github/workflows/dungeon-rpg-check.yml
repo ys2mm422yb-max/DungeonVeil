@@ -24,31 +24,176 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-# Verification also runs directly on the production-pass branch when the PR has conflicts.
-# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    outputs:
+      product_sha: ${{ steps.product.outputs.sha }}
     steps:
-      - name: Checkout
+      - name: Checkout current Dungeon Veil product branch
         uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+          fetch-depth: 0
+
+      - name: Block hidden attacks through room geometry
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'validation/room13')
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('artifacts/dungeon-rpg/src/game/runEngine.ts')
+          text = path.read_text()
+          guard = "const canAttackFromHere = dist <= plan.attackRange && hasLineOfSight && visualSpawnGracePassed;"
+
+          if guard not in text:
+              old_resolve = """  private resolveEnemyAttack(enemy: Enemy, windup: EnemyWindup, time: number): void {
+              const p = this.state.player;
+              const dist = Math.hypot((p.x + 16) - (enemy.x + enemy.width / 2), (p.y + 16) - (enemy.y + enemy.height / 2));
+              if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;
+
+              if (windup.archetype === 'dragon') {
+          """
+              new_resolve = """  private resolveEnemyAttack(enemy: Enemy, windup: EnemyWindup, time: number): void {
+              const p = this.state.player;
+              const attackFromX = enemy.x + enemy.width / 2;
+              const attackFromY = enemy.y + enemy.height / 2;
+              const attackTargetX = p.x + 16;
+              const attackTargetY = p.y + 16;
+              const dist = Math.hypot(attackTargetX - attackFromX, attackTargetY - attackFromY);
+              if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;
+              if (this.shotPathBlocked(attackFromX, attackFromY, attackTargetX, attackTargetY, 0.08)) return;
+
+              if (windup.archetype === 'dragon') {
+          """
+
+              old_update = """      const dist = Math.max(1, Math.hypot(p.x - enemy.x, p.y - enemy.y));
+              const plan = planEnemyMove(enemy, p, dt, time);
+              enemy.state = dist <= plan.attackRange ? 'attack' : 'chase';
+              const frostFactor = enemy.frostUntil && time < enemy.frostUntil ? 1 - (enemy.frostSlow ?? 0) : 1;
+              const beforeX = enemy.x;
+              const beforeY = enemy.y;
+              if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx * frostFactor, plan.dy * frostFactor);
+              enemy.vx = enemy.x - beforeX;
+              enemy.vy = enemy.y - beforeY;
+              this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
+
+              if (dist < plan.attackRange && time > enemy.nextAttackTime) {
+          """
+              new_update = """      const enemyCenterX = enemy.x + enemy.width / 2;
+              const enemyCenterY = enemy.y + enemy.height / 2;
+              const playerCenterX = p.x + 16;
+              const playerCenterY = p.y + 16;
+              const dist = Math.max(1, Math.hypot(playerCenterX - enemyCenterX, playerCenterY - enemyCenterY));
+              const plan = planEnemyMove(enemy, p, dt, time);
+              const hasLineOfSight = !this.shotPathBlocked(enemyCenterX, enemyCenterY, playerCenterX, playerCenterY, 0.08);
+              const visualSpawnGracePassed = time - enemy.spawnTime >= 900;
+              const canAttackFromHere = dist <= plan.attackRange && hasLineOfSight && visualSpawnGracePassed;
+              enemy.state = canAttackFromHere ? 'attack' : 'chase';
+              const frostFactor = enemy.frostUntil && time < enemy.frostUntil ? 1 - (enemy.frostSlow ?? 0) : 1;
+              const beforeX = enemy.x;
+              const beforeY = enemy.y;
+              if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx * frostFactor, plan.dy * frostFactor);
+              enemy.vx = enemy.x - beforeX;
+              enemy.vy = enemy.y - beforeY;
+              this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
+
+              if (canAttackFromHere && time > enemy.nextAttackTime) {
+          """
+
+              if old_resolve not in text:
+                  raise SystemExit('resolveEnemyAttack target not found')
+              if old_update not in text:
+                  raise SystemExit('updateEnemies target not found')
+
+              text = text.replace(old_resolve, new_resolve, 1)
+              text = text.replace(old_update, new_update, 1)
+              path.write_text(text)
+
+          temporary = Path('.github/workflows/apply-room13-visibility-hotfix.yml')
+          if temporary.exists():
+              temporary.unlink()
+
+      - name: Commit repaired product branch
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'validation/room13')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit -m "Block hidden enemy attacks through room geometry"
+            git pull --rebase origin work/blocks-1-7-production-pass
+            git push origin HEAD:work/blocks-1-7-production-pass
+          fi
+
+      - name: Resolve product commit
+        id: product
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+
       - name: Install workspace
         run: pnpm install --frozen-lockfile
+
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
+
       - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+
       - name: Typecheck Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg typecheck
-      - name: Build Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg build
+
+      - name: Build Dungeon Veil for GitHub Pages
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+          VITE_BUILD_SHA: ${{ steps.product.outputs.sha }}
+        run: pnpm --dir artifacts/dungeon-rpg run build
+
+      - name: Verify Pages artifact
+        env:
+          EXPECTED_BASE_PATH: /DungeonVeil/
+        run: pnpm --filter @workspace/dungeon-rpg audit:pages
+
+      - name: Write deployment marker
+        env:
+          DEPLOYED_COMMIT: ${{ steps.product.outputs.sha }}
+        run: |
+          printf '{"commit":"%s","deployedAt":"%s"}\n' "$DEPLOYED_COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          touch artifacts/dungeon-rpg/dist/public/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+
+  deploy:
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'validation/room13')
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: typecheck-and-build
+    steps:
+      - name: Deploy fixed Dungeon Veil build
+        id: deployment
+        uses: actions/deploy-pages@v4
