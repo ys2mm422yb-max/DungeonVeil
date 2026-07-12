@@ -50,78 +50,135 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        id: install
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee /tmp/install.log
 
       - name: Asset audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+        id: assets
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/dungeon-rpg audit:assets 2>&1 | tee /tmp/assets.log
 
       - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+        id: rooms
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee /tmp/rooms.log
 
       - name: Typecheck workspace
-        run: pnpm run typecheck
+        id: typecheck
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm run typecheck 2>&1 | tee /tmp/typecheck.log
 
       - name: Build Dungeon Veil for GitHub Pages
+        id: build
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
         env:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
-        run: pnpm --dir artifacts/dungeon-rpg run build
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --dir artifacts/dungeon-rpg run build 2>&1 | tee /tmp/build.log
 
       - name: Verify GitHub Pages artifact
+        id: pages_audit
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
         env:
           EXPECTED_BASE_PATH: /DungeonVeil/
-        run: pnpm --filter @workspace/dungeon-rpg audit:pages
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/dungeon-rpg audit:pages 2>&1 | tee /tmp/pages-audit.log
 
       - name: Write deployment marker
+        id: marker
+        if: steps.pages_audit.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           printf '{"commit":"%s","deployedAt":"%s"}\n' "${{ steps.validated.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
 
       - name: Disable Jekyll processing
+        if: steps.marker.outcome == 'success'
         run: touch artifacts/dungeon-rpg/dist/public/.nojekyll
 
       - name: Configure GitHub Pages
+        id: configure_pages
+        if: steps.marker.outcome == 'success'
+        continue-on-error: true
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
+        id: upload_pages
+        if: steps.configure_pages.outcome == 'success'
+        continue-on-error: true
         uses: actions/upload-pages-artifact@v4
         with:
           path: artifacts/dungeon-rpg/dist/public
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: validate
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-  record:
-    if: always()
-    runs-on: ubuntu-latest
-    needs: [validate, deploy]
-    steps:
-      - name: Record unified validation and deployment result
+      - name: Record detailed validation result
+        if: always()
         uses: actions/github-script@v7
         env:
-          VALIDATED_SHA: ${{ needs.validate.outputs.validated_sha }}
-          VALIDATE_RESULT: ${{ needs.validate.result }}
-          DEPLOY_RESULT: ${{ needs.deploy.result }}
-          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          VALIDATED_SHA: ${{ steps.validated.outputs.sha }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          ASSET_OUTCOME: ${{ steps.assets.outcome }}
+          ROOM_OUTCOME: ${{ steps.rooms.outcome }}
+          TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          PAGES_AUDIT_OUTCOME: ${{ steps.pages_audit.outcome }}
+          MARKER_OUTCOME: ${{ steps.marker.outcome }}
+          CONFIGURE_OUTCOME: ${{ steps.configure_pages.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload_pages.outcome }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const ref = 'main';
             const commit = process.env.VALIDATED_SHA || null;
-            const validationSuccess = process.env.VALIDATE_RESULT === 'success';
-            const deploymentSuccess = process.env.DEPLOY_RESULT === 'success';
+            const outcomes = {
+              install: process.env.INSTALL_OUTCOME,
+              assetAudit: process.env.ASSET_OUTCOME,
+              roomAudit: process.env.ROOM_OUTCOME,
+              typecheck: process.env.TYPECHECK_OUTCOME,
+              build: process.env.BUILD_OUTCOME,
+              pagesArtifact: process.env.PAGES_AUDIT_OUTCOME,
+              deploymentMarker: process.env.MARKER_OUTCOME,
+              configurePages: process.env.CONFIGURE_OUTCOME,
+              uploadArtifact: process.env.UPLOAD_OUTCOME,
+            };
+            const success = Object.values(outcomes).every(value => value === 'success');
+            const logFiles = {
+              install: '/tmp/install.log',
+              assetAudit: '/tmp/assets.log',
+              roomAudit: '/tmp/rooms.log',
+              typecheck: '/tmp/typecheck.log',
+              build: '/tmp/build.log',
+              pagesArtifact: '/tmp/pages-audit.log',
+            };
+            const logs = {};
+            for (const [key, file] of Object.entries(logFiles)) {
+              if (fs.existsSync(file)) logs[key] = fs.readFileSync(file, 'utf8').slice(-12000);
+            }
             const completedAt = new Date().toISOString();
 
             async function write(path, data, message) {
@@ -140,24 +197,96 @@ jobs:
 
             await write('.ci/dungeon-rpg-check.json', {
               workflow: 'Dungeon RPG Check',
-              status: validationSuccess ? 'success' : 'failure',
+              status: success ? 'success' : 'failure',
               validatedCommit: commit,
+              outcomes,
               completedAt,
-            }, `Record Dungeon RPG Check ${validationSuccess ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
+            }, `Record Dungeon RPG Check ${success ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
 
             await write('.ci/dungeon-rpg-ci.json', {
               workflow: 'Dungeon RPG CI',
-              status: validationSuccess ? 'success' : 'failure',
+              status: success ? 'success' : 'failure',
               validatedCommit: commit,
-              checks: ['asset audit', '50-room collision audit', 'workspace typecheck', 'Pages production build', 'runtime asset base'],
+              outcomes,
+              logs,
               completedAt,
-            }, `Record Dungeon RPG CI ${validationSuccess ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
+            }, `Record Dungeon RPG CI ${success ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
 
-            await write('.ci/dungeon-veil-pages.json', {
+      - name: Enforce validation result
+        if: always()
+        env:
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          ASSET_OUTCOME: ${{ steps.assets.outcome }}
+          ROOM_OUTCOME: ${{ steps.rooms.outcome }}
+          TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          PAGES_AUDIT_OUTCOME: ${{ steps.pages_audit.outcome }}
+          MARKER_OUTCOME: ${{ steps.marker.outcome }}
+          CONFIGURE_OUTCOME: ${{ steps.configure_pages.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload_pages.outcome }}
+        shell: bash
+        run: |
+          test "$INSTALL_OUTCOME" = success
+          test "$ASSET_OUTCOME" = success
+          test "$ROOM_OUTCOME" = success
+          test "$TYPECHECK_OUTCOME" = success
+          test "$BUILD_OUTCOME" = success
+          test "$PAGES_AUDIT_OUTCOME" = success
+          test "$MARKER_OUTCOME" = success
+          test "$CONFIGURE_OUTCOME" = success
+          test "$UPLOAD_OUTCOME" = success
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: validate
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  record-pages:
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [validate, deploy]
+    steps:
+      - name: Record Pages deployment result
+        uses: actions/github-script@v7
+        env:
+          VALIDATED_SHA: ${{ needs.validate.outputs.validated_sha }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const ref = 'main';
+            const commit = process.env.VALIDATED_SHA || null;
+            const success = process.env.VALIDATE_RESULT === 'success' && process.env.DEPLOY_RESULT === 'success';
+            let sha;
+            try {
+              const response = await github.rest.repos.getContent({ owner, repo, path: '.ci/dungeon-veil-pages.json', ref });
+              if (!Array.isArray(response.data)) sha = response.data.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            const content = Buffer.from(JSON.stringify({
               workflow: 'Deploy Dungeon Veil Test Site',
-              status: deploymentSuccess ? 'success' : 'failure',
+              status: success ? 'success' : 'failure',
               attemptedCommit: commit,
-              deployedCommit: deploymentSuccess ? commit : null,
+              deployedCommit: success ? commit : null,
+              validationResult: process.env.VALIDATE_RESULT,
+              deploymentResult: process.env.DEPLOY_RESULT,
               pageUrl: process.env.PAGE_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/',
-              completedAt,
-            }, `Record Dungeon Veil Pages ${deploymentSuccess ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
+              completedAt: new Date().toISOString(),
+            }, null, 2) + '\n').toString('base64');
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path: '.ci/dungeon-veil-pages.json', branch: ref, sha, content,
+              message: `Record Dungeon Veil Pages ${success ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`,
+            });
