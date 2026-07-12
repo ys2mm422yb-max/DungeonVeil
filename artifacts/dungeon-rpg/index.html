@@ -24,15 +24,12 @@
       (() => {
         try {
           const url = new URL(window.location.href);
-          const refreshKey = 'dv_refresh';
-          if (!url.searchParams.has(refreshKey)) {
-            url.searchParams.set(refreshKey, Date.now().toString(36));
+          const requestedBuild = url.searchParams.get('dv_build');
+          if (requestedBuild && !url.searchParams.has('dv_loaded')) {
+            url.searchParams.set('dv_loaded', '1');
+            url.searchParams.set('dv_nonce', Date.now().toString(36));
             window.location.replace(url.toString());
-            return;
           }
-          url.searchParams.delete(refreshKey);
-          const query = url.searchParams.toString();
-          window.history.replaceState(window.history.state, '', `${url.pathname}${query ? `?${query}` : ''}${url.hash}`);
         } catch {}
       })();
     </script>
