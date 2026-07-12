@@ -55,11 +55,18 @@ jobs:
       - name: Verify GitHub Pages asset paths
         shell: bash
         run: |
-          if grep -R -nE "[\"']/assets/" artifacts/dungeon-rpg/dist/public; then
-            echo "Found root-relative asset paths that would break under /DungeonVeil/."
+          mapfile -t built_files < <(find artifacts/dungeon-rpg/dist/public -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.html' \))
+          test ${#built_files[@]} -gt 0
+          if grep -nHE '["'"']/assets/' "${built_files[@]}"; then
+            echo 'Found root-relative runtime asset paths that would break under /DungeonVeil/.'
             exit 1
           fi
           test -f artifacts/dungeon-rpg/dist/public/index.html
+
+      - name: Write deployment marker
+        shell: bash
+        run: |
+          printf '{"commit":"%s","deployedAt":"%s"}\n' "$(git rev-parse HEAD)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
 
       - name: Disable Jekyll processing
         run: touch artifacts/dungeon-rpg/dist/public/.nojekyll
