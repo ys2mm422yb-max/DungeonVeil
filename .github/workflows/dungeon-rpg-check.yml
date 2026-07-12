@@ -10,37 +10,48 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'artifacts/dungeon-rpg/**'
-      - 'lib/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.github/workflows/dungeon-veil-pages.yml'
   workflow_dispatch:
 
-# Verification branch uses this PR trigger to expose check results to the connector.
+permissions:
+  contents: read
+
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - name: Checkout
+      - name: Checkout current Dungeon Veil test branch
         uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+
+      - name: Show validated commit
+        run: git rev-parse HEAD
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+
       - name: Install workspace
         run: pnpm install --frozen-lockfile
+
+      - name: Asset audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+
+      - name: Room and collision audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+
       - name: Typecheck Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg typecheck
+
       - name: Build Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg build
