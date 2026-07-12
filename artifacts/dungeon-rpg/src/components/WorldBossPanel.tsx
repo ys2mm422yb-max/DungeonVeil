@@ -49,6 +49,21 @@ function statusLabel(status: WorldBossEvent['status'], de: boolean): string {
   return labels[status];
 }
 
+function friendlyError(reason: unknown, de: boolean): string {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (/jwt.+future|issued at future|not before|nbf/i.test(message)) {
+    return de
+      ? 'Die Online-Sitzung war kurz nicht synchron. Sie wird automatisch erneuert – bitte erneut aktualisieren.'
+      : 'The online session was briefly out of sync. It is being renewed automatically — refresh once more.';
+  }
+  if (/sitzung abgelaufen|not authenticated|nicht angemeldet/i.test(message)) {
+    return de
+      ? 'Die Online-Sitzung ist abgelaufen. Melde dich unter Online & Cloud erneut an.'
+      : 'The online session expired. Sign in again through Online & Cloud.';
+  }
+  return message;
+}
+
 function ActionButton({ label, onClick, disabled = false }: {
   label: string;
   onClick: () => void;
@@ -87,12 +102,12 @@ export function WorldBossPanel({ language }: Props) {
     setBusy(true);
     try { await refreshWorldBoss(); }
     catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError(friendlyError(reason, de));
       setLoaded(true);
     } finally {
       setBusy(false);
     }
-  }, [refreshWorldBoss]);
+  }, [de, refreshWorldBoss]);
 
   useEffect(() => {
     const refresh = () => { void runRefresh(); };
@@ -135,7 +150,7 @@ export function WorldBossPanel({ language }: Props) {
         <div className="text-[8px] font-black uppercase tracking-[.2em] text-amber-100/55">{de ? 'BELOHNUNGEN & EVENTDATEN' : 'REWARDS & EVENT DATA'}</div>
         <div className="mt-2 space-y-1.5">{rewards.map(([key, value]) => <div key={key} className="flex items-start justify-between gap-3 text-[9px]"><span className="text-white/32">{formatRewardLabel(key)}</span><span className="max-w-[62%] text-right text-amber-50/68">{formatRewardValue(value, de)}</span></div>)}</div>
       </section>}
-    </div> : loaded && <div className="rounded-2xl border border-white/8 bg-white/[.025] p-3 text-[10px] text-white/42">{de ? 'Aktuell ist kein Weltboss geplant.' : 'No world boss is currently scheduled.'}</div>}
+    </div> : loaded && !error && <div className="rounded-2xl border border-white/8 bg-white/[.025] p-3 text-[10px] text-white/42">{de ? 'Aktuell ist kein Weltboss geplant.' : 'No world boss is currently scheduled.'}</div>}
 
     <div className="mt-3"><ActionButton label={busy ? (de ? 'Lädt …' : 'Loading …') : (de ? 'Aktualisieren' : 'Refresh')} onClick={() => { void runRefresh(); }} disabled={busy || !session} /></div>
   </div>;
