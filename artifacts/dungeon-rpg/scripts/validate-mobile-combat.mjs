@@ -9,6 +9,7 @@ const files = {
   props: await readFile(new URL('../src/game/propPresentation3D.ts', import.meta.url), 'utf8'),
   effects: await readFile(new URL('../src/game/runEffectSystems.ts', import.meta.url), 'utf8'),
   boss: await readFile(new URL('../src/components/WorldBossBattleScreen.tsx', import.meta.url), 'utf8'),
+  bossStage: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
 };
 
 const checks = [
@@ -20,6 +21,10 @@ const checks = [
   [files.props.includes('function inferredCollider') && files.props.includes("key.includes('/chair')"), 'automatic solid-prop colliders are missing'],
   [files.effects.includes('if (IS_MOBILE) return;'), 'mobile duplicate telegraphs are still enabled'],
   [files.boss.includes('const TIMER_PAINT_MS = 250;'), 'world-boss timer is repainting too often'],
+  [files.boss.includes("import { WorldBossLiteStage }") && !files.boss.includes("import { CombatStage }"), 'world boss still uses the full run renderer'],
+  [files.boss.includes('engine.onStateChange = () => {}') && files.boss.includes('setGameState(snapshotRaidState(engine.state))'), 'world boss React updates are not throttled'],
+  [files.bossStage.includes('pixelRatioForQuality') && files.bossStage.includes('frameIntervalForQuality'), 'adaptive world-boss quality is missing'],
+  [files.bossStage.includes("root.name = 'WorldBossLiteArena'") && !files.bossStage.includes('buildKayKitDungeonRoom'), 'world boss still builds the full room and theme'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -28,4 +33,4 @@ if (failed.length) {
   failed.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows and solid-prop collision guards are active.');
+console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the adaptive lightweight world-boss renderer are active.');
