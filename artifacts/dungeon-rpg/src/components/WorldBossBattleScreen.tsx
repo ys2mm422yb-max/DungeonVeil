@@ -8,6 +8,11 @@ import { ActionButtons } from './ActionButtons';
 
 const ATTEMPT_DURATION_MS = 30_000;
 const TIMER_PAINT_MS = 250;
+const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const SIMULATION_STEP_MS = IS_MOBILE ? 33 : 0;
+const RAID_PARTICLE_LIMIT = IS_MOBILE ? 24 : 48;
+const RAID_EFFECT_LIMIT = IS_MOBILE ? 12 : 24;
+const RAID_DAMAGE_LIMIT = IS_MOBILE ? 8 : 12;
 
 type BattlePhase = 'fighting' | 'submitting' | 'result';
 type FinishReason = 'victory' | 'defeat' | 'time';
@@ -83,6 +88,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     let disposed = false;
     let animationFrame = 0;
     let lastTimerPaint = 0;
+    let lastSimulationStep = 0;
     const engine = new GameEngine();
     engineRef.current = engine;
     engine.onStateChange = next => {
@@ -140,10 +146,13 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     const tick = (time: number) => {
       if (disposed || finishedRef.current) return;
       if (!startTimeRef.current) startTimeRef.current = time;
-      engine.update(time);
-      if (engine.state.particles.length > 48) engine.state.particles.splice(0, engine.state.particles.length - 48);
-      if (engine.state.effects.length > 24) engine.state.effects.splice(0, engine.state.effects.length - 24);
-      if (engine.state.damageNumbers.length > 12) engine.state.damageNumbers.splice(0, engine.state.damageNumbers.length - 12);
+      if (SIMULATION_STEP_MS === 0 || !lastSimulationStep || time - lastSimulationStep >= SIMULATION_STEP_MS) {
+        lastSimulationStep = time;
+        engine.update(time);
+        if (engine.state.particles.length > RAID_PARTICLE_LIMIT) engine.state.particles.splice(0, engine.state.particles.length - RAID_PARTICLE_LIMIT);
+        if (engine.state.effects.length > RAID_EFFECT_LIMIT) engine.state.effects.splice(0, engine.state.effects.length - RAID_EFFECT_LIMIT);
+        if (engine.state.damageNumbers.length > RAID_DAMAGE_LIMIT) engine.state.damageNumbers.splice(0, engine.state.damageNumbers.length - RAID_DAMAGE_LIMIT);
+      }
       const elapsed = time - startTimeRef.current;
       const nextRemaining = Math.max(0, ATTEMPT_DURATION_MS - elapsed);
       if (time - lastTimerPaint >= TIMER_PAINT_MS) {
@@ -174,6 +183,10 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engine.input.joyX = 0;
       engine.input.joyY = 0;
       engine.state.status = 'paused';
+      engine.onStateChange = () => {};
+      engine.state.effects.length = 0;
+      engine.state.particles.length = 0;
+      engine.state.damageNumbers.length = 0;
       engineRef.current = null;
     };
   }, [event.current_hp, event.id, onBossUpdated, saveData]);
@@ -202,6 +215,17 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     engine.input.dodge = true;
   };
 
+  const closeAndReset = () => {
+    const engine = engineRef.current;
+    if (engine) {
+      engine.input.joyX = 0;
+      engine.input.joyY = 0;
+      engine.state.status = 'paused';
+    }
+    onClose();
+    if (IS_MOBILE) window.setTimeout(() => window.location.reload(), 120);
+  };
+
   return <div className="fixed inset-0 z-[120] overflow-hidden bg-black text-white">
     {gameState && <>
       <CombatStage gameState={gameState} />
@@ -211,7 +235,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
             <div><div className="text-[7px] font-black uppercase tracking-[.28em] text-orange-200/55">{de ? 'WELTBOSS-ANGRIFF' : 'WORLD BOSS ATTACK'}</div><div className="mt-1 text-sm font-black text-orange-50">{event.name}</div></div>
             <div className="flex items-center gap-2">
               <div className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-[11px] font-black text-amber-100">{seconds}s</div>
-              <button type="button" onPointerDown={pointerEvent => { pointerEvent.preventDefault(); onClose(); }} className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full border border-white/12 bg-black/65 text-[12px] font-black text-white/55 active:scale-90">×</button>
+              <button type="button" onPointerDown={pointerEvent => { pointerEvent.preventDefault(); closeAndReset(); }} className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full border border-white/12 bg-black/65 text-[12px] font-black text-white/55 active:scale-90">×</button>
             </div>
           </div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-black/80"><div className="h-full bg-gradient-to-r from-red-700 via-orange-500 to-amber-300 transition-[width] duration-100" style={{ width: `${localBossPercent}%` }} /></div>
@@ -239,7 +263,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
             {!submitError && <div className="mt-3 text-[9px] text-white/45">{de ? 'Verbleibende Weltboss-HP' : 'Remaining world boss HP'}: {formatNumber(remainingGlobalHp)}</div>}
             {submitError && <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-[9px] text-red-200">{submitError}</div>}
           </div>
-          <button type="button" onPointerDown={eventPointer => { eventPointer.preventDefault(); onClose(); }} className="mt-4 w-full rounded-2xl border border-orange-300/28 bg-orange-500/12 py-3 text-[10px] font-black uppercase tracking-[.18em] text-orange-100 active:scale-[.98]">{de ? 'ZURÜCK ZUM WELTBOSS' : 'BACK TO WORLD BOSS'}</button>
+          <button type="button" onPointerDown={eventPointer => { eventPointer.preventDefault(); closeAndReset(); }} className="mt-4 w-full rounded-2xl border border-orange-300/28 bg-orange-500/12 py-3 text-[10px] font-black uppercase tracking-[.18em] text-orange-100 active:scale-[.98]">{de ? 'ZURÜCK ZUM WELTBOSS' : 'BACK TO WORLD BOSS'}</button>
         </>}
       </div>
     </div>}
