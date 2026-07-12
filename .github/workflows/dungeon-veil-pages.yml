@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.github/workflows/dungeon-veil-pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -25,6 +29,9 @@ jobs:
         with:
           ref: work/blocks-1-7-production-pass
 
+      - name: Show deployed commit
+        run: git rev-parse HEAD
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -39,6 +46,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Asset audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+
+      - name: Room and collision audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+
       - name: Typecheck
         run: pnpm run typecheck
 
@@ -47,6 +60,22 @@ jobs:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
         run: pnpm --dir artifacts/dungeon-rpg run build
+
+      - name: Verify GitHub Pages asset paths
+        shell: bash
+        run: |
+          mapfile -t built_files < <(find artifacts/dungeon-rpg/dist/public -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.html' \))
+          test ${#built_files[@]} -gt 0
+          if grep -nHE '["'"']/assets/' "${built_files[@]}"; then
+            echo 'Found root-relative runtime asset paths that would break under /DungeonVeil/.'
+            exit 1
+          fi
+          test -f artifacts/dungeon-rpg/dist/public/index.html
+
+      - name: Write deployment marker
+        shell: bash
+        run: |
+          printf '{"commit":"%s","deployedAt":"%s"}\n' "$(git rev-parse HEAD)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
 
       - name: Disable Jekyll processing
         run: touch artifacts/dungeon-rpg/dist/public/.nojekyll
@@ -69,5 +98,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-# Trigger deployment after Pages was enabled and this workflow existed on main.
