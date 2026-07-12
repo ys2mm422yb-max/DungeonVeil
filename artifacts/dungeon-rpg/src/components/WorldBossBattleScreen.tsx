@@ -7,6 +7,7 @@ import { VirtualJoystick } from './VirtualJoystick';
 import { ActionButtons } from './ActionButtons';
 
 const ATTEMPT_DURATION_MS = 30_000;
+const TIMER_PAINT_MS = 100;
 
 type BattlePhase = 'fighting' | 'submitting' | 'result';
 type FinishReason = 'victory' | 'defeat' | 'time';
@@ -81,6 +82,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
   useEffect(() => {
     let disposed = false;
     let animationFrame = 0;
+    let lastTimerPaint = 0;
     const engine = new GameEngine();
     engineRef.current = engine;
     engine.onStateChange = next => {
@@ -111,6 +113,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engine.input.joyX = 0;
       engine.input.joyY = 0;
       setFinishReason(reason);
+      if (reason === 'time') setRemainingMs(0);
 
       const liveBoss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
       const localDamage = Math.max(0, initialBossHpRef.current - Math.max(0, liveBoss?.hp ?? 0));
@@ -140,7 +143,10 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engine.update(time);
       const elapsed = time - startTimeRef.current;
       const nextRemaining = Math.max(0, ATTEMPT_DURATION_MS - elapsed);
-      setRemainingMs(nextRemaining);
+      if (time - lastTimerPaint >= TIMER_PAINT_MS) {
+        lastTimerPaint = time;
+        setRemainingMs(nextRemaining);
+      }
 
       const liveBoss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
       if (engine.state.player.hp <= 0) {
@@ -198,9 +204,12 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       <CombatStage gameState={gameState} />
       <div className="pointer-events-none absolute inset-x-3 top-[max(12px,calc(env(safe-area-inset-top)+6px))] z-50">
         <div className="mx-auto max-w-md rounded-2xl border border-orange-300/25 bg-black/72 p-3 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div><div className="text-[7px] font-black uppercase tracking-[.28em] text-orange-200/55">{de ? 'WELTBOSS-ANGRIFF' : 'WORLD BOSS ATTACK'}</div><div className="mt-1 text-sm font-black text-orange-50">{event.name}</div></div>
-            <div className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-[11px] font-black text-amber-100">{seconds}s</div>
+            <div className="flex items-center gap-2">
+              <div className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-[11px] font-black text-amber-100">{seconds}s</div>
+              <button type="button" onPointerDown={pointerEvent => { pointerEvent.preventDefault(); onClose(); }} className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full border border-white/12 bg-black/65 text-[12px] font-black text-white/55 active:scale-90">×</button>
+            </div>
           </div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-black/80"><div className="h-full bg-gradient-to-r from-red-700 via-orange-500 to-amber-300 transition-[width] duration-100" style={{ width: `${localBossPercent}%` }} /></div>
           <div className="mt-1 flex justify-between text-[8px] text-white/42"><span>{de ? 'VERSUCHS-HP' : 'ATTEMPT HP'}</span><span>{Math.max(0, Math.ceil(localBoss?.hp ?? 0))}/{Math.ceil(localBoss?.maxHp ?? 0)}</span></div>
