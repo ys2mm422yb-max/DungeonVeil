@@ -13,4 +13,4 @@ jobs:
       - name: Deployment ownership
         run: echo "Automatic Pages deployment runs inside the unified Dungeon RPG Check workflow."
 
-# Final unified validation for Dungeon Veil room collision commit 8da1bce.
+# Final unified validation for Dungeon Veil guild flow commit 2af6258.
