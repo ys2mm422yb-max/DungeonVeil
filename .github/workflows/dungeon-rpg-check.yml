@@ -2,7 +2,7 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [main]
+    branches: [main, work/blocks-1-7-production-pass]
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
@@ -10,6 +10,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
   pull_request:
     branches: [main]
     paths:
@@ -19,9 +20,10 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
   workflow_dispatch:
 
-# Verification branch uses this PR trigger to expose check results to the connector.
+# Verification also runs directly on the production-pass branch when the PR has conflicts.
 # Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
   typecheck-and-build:
