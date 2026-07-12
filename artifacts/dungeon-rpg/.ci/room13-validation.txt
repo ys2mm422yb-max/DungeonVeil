@@ -1,1 +1,2 @@
 Run trusted validation for the room 13 hidden-damage repair and fixed test-site deployment.
+Trigger the trusted pull-request-target repair and Pages deployment workflow.
