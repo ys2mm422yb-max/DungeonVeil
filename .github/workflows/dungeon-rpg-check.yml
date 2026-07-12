@@ -22,6 +22,7 @@ on:
   workflow_dispatch:
 
 # Verification branch uses this PR trigger to expose check results to the connector.
+# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
