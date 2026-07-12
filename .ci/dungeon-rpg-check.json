@@ -1,7 +1,7 @@
 {
   "workflow": "Dungeon RPG Check",
   "status": "success",
-  "validatedCommit": "8da1bcef9dc5dd7139afab793b5c8518913d33ec",
+  "validatedCommit": "2af6258e6816b6a165eeea705a79cf5fc77d6602",
   "outcomes": {
     "install": "success",
     "assetAudit": "success",
@@ -13,5 +13,5 @@
     "configurePages": "success",
     "uploadArtifact": "success"
   },
-  "completedAt": "2026-07-12T15:41:31.835Z"
+  "completedAt": "2026-07-12T16:07:09.615Z"
 }
