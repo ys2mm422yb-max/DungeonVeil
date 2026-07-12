@@ -8,6 +8,8 @@ import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { DailyQuestPanel } from '../DailyQuestPanel';
 import { WeeklyRiftPanel } from '../WeeklyRiftPanel';
 import { OnlinePanel } from '../OnlinePanel';
+import { GuildPanel } from '../GuildPanel';
+import { WorldBossPanel } from '../WorldBossPanel';
 
 interface Props {
   saveData: SaveData | null;
@@ -19,7 +21,7 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'daily' | 'rift' | 'more' | 'online' | null;
+type Overlay = 'daily' | 'rift' | 'more' | 'online' | 'guild' | 'worldBoss' | null;
 
 export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
@@ -50,6 +52,15 @@ export function MainMenuScreen(props: Props) {
     </button>;
   };
 
+  const sideButton = (label: string, icon: string, action: () => void) => <button
+    type="button"
+    onPointerDown={event => { event.preventDefault(); action(); }}
+    className="flex h-11 min-w-[78px] items-center justify-center gap-1.5 rounded-xl border border-amber-300/24 bg-[linear-gradient(145deg,rgba(49,34,15,.88),rgba(18,14,8,.9))] px-3 text-[8px] font-black uppercase tracking-[.14em] text-amber-100/82 shadow-lg backdrop-blur-xl active:scale-95"
+  >
+    <span className="text-[12px] text-amber-300/70">{icon}</span>
+    {label}
+  </button>;
+
   const startNormalRun = () => { clearWeeklyRiftRun(); props.onNewGame(); };
   const continueText = props.saveData
     ? language === 'de' ? `Kapitel ${props.saveData.chapter ?? 1} · Raum ${props.saveData.floor} · ${gifts} Gaben` : `Chapter ${props.saveData.chapter ?? 1} · Room ${props.saveData.floor} · ${gifts} gifts`
@@ -67,6 +78,10 @@ export function MainMenuScreen(props: Props) {
         <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay('rift'); }} className="grid h-11 w-11 place-items-center rounded-full border border-violet-300/22 bg-black/58 text-lg text-violet-200 backdrop-blur-xl active:scale-95">◈</button>
       </div>
       <div className="flex-1" />
+      <div className="mx-auto mb-2 flex w-full max-w-sm justify-end gap-2">
+        {sideButton(language === 'de' ? 'GILDE' : 'GUILD', '♜', () => setOverlay('guild'))}
+        {sideButton(language === 'de' ? 'WELTBOSS' : 'WORLD BOSS', '♛', () => setOverlay('worldBoss'))}
+      </div>
       <div className="mx-auto w-full max-w-sm space-y-2.5">{button(t.newGame, startNormalRun, undefined, 'primary')}{button(t.continueGame, props.onContinue, continueText, 'normal', !props.saveData)}{button(language === 'de' ? 'Schleierkammer' : 'Veil Chamber', props.onVeilChamber, language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Schleierstaub` : `Rank ${meta.rank} · ${meta.dust} Veil Dust`, 'chamber')}{button(language === 'de' ? 'Kodex' : 'Codex', props.onCodex, language === 'de' ? 'Bestien · Jagd · Wächter · Relikte' : 'Beasts · Hunts · Wardens · Relics')}</div>
     </div>
 
@@ -74,7 +89,9 @@ export function MainMenuScreen(props: Props) {
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
       {overlay === 'rift' && <WeeklyRiftPanel language={language} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
-      {overlay === 'more' && <div className="rounded-3xl border border-white/10 bg-[#0c0b0a]/95 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-white/32">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{button(language === 'de' ? 'Online & Cloud' : 'Online & Cloud', () => setOverlay('online'), language === 'de' ? 'Konto · Spielstand · Gilde · Weltboss' : 'Account · Save · Guild · World Boss', 'chamber')}{button(t.settings, () => { setOverlay(null); props.onSettings(); })}{button(t.credits, () => { setOverlay(null); props.onCredits(); })}</div></div>}
+      {overlay === 'guild' && <GuildPanel language={language} />}
+      {overlay === 'worldBoss' && <WorldBossPanel language={language} />}
+      {overlay === 'more' && <div className="rounded-3xl border border-white/10 bg-[#0c0b0a]/95 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-white/32">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{button(language === 'de' ? 'Online & Cloud' : 'Online & Cloud', () => setOverlay('online'), language === 'de' ? 'Konto · Profil · Cloud-Spielstand' : 'Account · Profile · Cloud save', 'chamber')}{button(t.settings, () => { setOverlay(null); props.onSettings(); })}{button(t.credits, () => { setOverlay(null); props.onCredits(); })}</div></div>}
       <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-white/10 bg-black/72 py-3 text-[9px] font-black uppercase tracking-[.2em] text-white/50">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>
     </div></div>}
   </div>;
