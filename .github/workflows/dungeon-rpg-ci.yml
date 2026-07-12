@@ -1,5 +1,6 @@
 name: Dungeon RPG CI
 
+# Validation trigger for fullscreen world boss renderer 35e79e2.
 on:
   push:
     branches: [main, work/blocks-1-7-production-pass]
