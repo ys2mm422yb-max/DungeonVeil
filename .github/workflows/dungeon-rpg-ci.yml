@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Validation trigger for world boss mobile cleanup fcad755.
+# Validation trigger for world boss arena readiness build 7f0f697.
 on:
   workflow_dispatch:
 
