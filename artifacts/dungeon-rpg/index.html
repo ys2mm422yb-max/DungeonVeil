@@ -20,6 +20,35 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      html, body, #root { width: 100%; height: 100%; margin: 0; background: #070706; }
+      body { overflow: hidden; }
+      #dv-boot {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #ead8b7;
+        background:
+          radial-gradient(circle at 50% 32%, rgba(102, 66, 154, .22), transparent 34%),
+          linear-gradient(180deg, #100d0b 0%, #070706 72%);
+        font-family: Inter, system-ui, sans-serif;
+      }
+      #dv-boot > div { text-align: center; }
+      #dv-boot strong { display: block; font-size: 28px; letter-spacing: .18em; }
+      #dv-boot span { display: block; margin-top: 12px; font-size: 9px; font-weight: 700; letter-spacing: .28em; opacity: .48; }
+      #dv-boot i {
+        display: block;
+        width: 34px;
+        height: 34px;
+        margin: 22px auto 0;
+        border: 2px solid rgba(234, 216, 183, .16);
+        border-top-color: rgba(234, 216, 183, .78);
+        border-radius: 50%;
+        animation: dv-boot-spin .8s linear infinite;
+      }
+      @keyframes dv-boot-spin { to { transform: rotate(360deg); } }
+    </style>
     <script>
       (() => {
         try {
@@ -43,7 +72,7 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="dv-boot"><div><strong>DUNGEON VEIL</strong><span>SCHLEIER WIRD GEÖFFNET</span><i></i></div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
