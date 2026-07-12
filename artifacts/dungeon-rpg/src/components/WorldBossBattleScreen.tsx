@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SaveData } from '../game/saveManager';
 import { GameEngine, type GameState } from '../game/runEngine';
+import { TILE_SIZE, isWalkable } from '../game/dungeon';
+import { collidesWithRoomProp } from '../game/roomCollision3D';
 import { submitWorldBossHit, type WorldBossEvent } from '../game/supabaseOnline';
 import { VirtualJoystick } from './VirtualJoystick';
 import { ActionButtons } from './ActionButtons';
@@ -13,6 +15,7 @@ const SIMULATION_STEP_MS = IS_MOBILE ? 33 : 0;
 const RAID_PARTICLE_LIMIT = IS_MOBILE ? 12 : 36;
 const RAID_EFFECT_LIMIT = IS_MOBILE ? 8 : 20;
 const RAID_DAMAGE_LIMIT = IS_MOBILE ? 5 : 10;
+const BOSS_START_DELAY_MS = 700;
 
 type BattlePhase = 'fighting' | 'submitting' | 'result';
 type FinishReason = 'victory' | 'defeat' | 'time';
@@ -23,6 +26,13 @@ type Props = {
   language: 'de' | 'en';
   onClose: () => void;
   onBossUpdated: (remainingHp: number, defeated: boolean) => void;
+};
+
+type RaidSpawn = {
+  x: number;
+  y: number;
+  centerX: number;
+  centerY: number;
 };
 
 function formatNumber(value: number): string {
@@ -84,6 +94,70 @@ function snapshotRaidState(state: GameState): GameState {
   };
 }
 
+function findRaidSpawn(options: {
+  map: GameState['map'];
+  floor: number;
+  width: number;
+  height: number;
+  desiredXRatio: number;
+  desiredYRatio: number;
+  fallbackX: number;
+  fallbackY: number;
+  avoid?: { x: number; y: number };
+  minimumDistance?: number;
+}): RaidSpawn {
+  const { map, floor, width, height, desiredXRatio, desiredYRatio, fallbackX, fallbackY, avoid, minimumDistance = 0 } = options;
+  const desiredTileX = Math.max(1, Math.min(map.width - 2, Math.round((map.width - 1) * desiredXRatio)));
+  const desiredTileY = Math.max(1, Math.min(map.height - 2, Math.round((map.height - 1) * desiredYRatio)));
+  const candidates: Array<{ tileX: number; tileY: number; score: number }> = [];
+
+  for (let tileY = 1; tileY < map.height - 1; tileY++) {
+    for (let tileX = 1; tileX < map.width - 1; tileX++) {
+      candidates.push({
+        tileX,
+        tileY,
+        score: (tileX - desiredTileX) ** 2 + (tileY - desiredTileY) ** 2,
+      });
+    }
+  }
+  candidates.sort((a, b) => a.score - b.score);
+
+  let farthestValid: RaidSpawn | null = null;
+  let farthestDistance = -1;
+  for (const candidate of candidates) {
+    const centerX = candidate.tileX * TILE_SIZE + TILE_SIZE / 2;
+    const centerY = candidate.tileY * TILE_SIZE + TILE_SIZE / 2;
+    const x = centerX - width / 2;
+    const y = centerY - height / 2;
+    const corners = [
+      [x + 2, y + 2],
+      [x + width - 2, y + 2],
+      [x + 2, y + height - 2],
+      [x + width - 2, y + height - 2],
+      [centerX, centerY],
+    ];
+    if (!corners.every(([checkX, checkY]) => isWalkable(map, checkX, checkY))) continue;
+    if (collidesWithRoomProp(floor, map.width, map.height, x, y, width, height, 0.18)) continue;
+
+    const spawn = { x, y, centerX, centerY };
+    if (!avoid) return spawn;
+    const distance = Math.hypot(centerX - avoid.x, centerY - avoid.y);
+    if (distance > farthestDistance) {
+      farthestDistance = distance;
+      farthestValid = spawn;
+    }
+    if (distance >= minimumDistance) return spawn;
+  }
+
+  if (farthestValid) return farthestValid;
+  return {
+    x: fallbackX,
+    y: fallbackY,
+    centerX: fallbackX + width / 2,
+    centerY: fallbackY + height / 2,
+  };
+}
+
 export function WorldBossBattleScreen({ event, saveData, language, onClose, onBossUpdated }: Props) {
   const de = language === 'de';
   const engineRef = useRef<GameEngine | null>(null);
@@ -91,6 +165,8 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
   const initialBossHpRef = useRef(1);
   const startTimeRef = useRef(0);
   const arenaReadyRef = useRef(false);
+  const bossReleaseAtRef = useRef(0);
+  const bossSpeedRef = useRef(44);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [arenaReady, setArenaReady] = useState(false);
   const [remainingMs, setRemainingMs] = useState(ATTEMPT_DURATION_MS);
@@ -106,7 +182,14 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     startTimeRef.current = 0;
     const engine = engineRef.current;
     if (engine) {
-      engine.lastTime = performance.now();
+      const now = performance.now();
+      const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
+      if (boss) {
+        bossReleaseAtRef.current = now + BOSS_START_DELAY_MS;
+        boss.nextAttackTime = Math.max(boss.nextAttackTime, now + 1_200);
+        boss.spawnTime = now;
+      }
+      engine.lastTime = now;
       engine.state.status = 'playing';
       setGameState(snapshotRaidState(engine.state));
     }
@@ -122,6 +205,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     engineRef.current = engine;
     finishedRef.current = false;
     arenaReadyRef.current = false;
+    bossReleaseAtRef.current = 0;
     startTimeRef.current = 0;
     engine.onStateChange = () => {};
 
@@ -131,14 +215,56 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     engine.state.player.attackRange = 520;
     engine.state.status = 'paused';
 
+    const map = engine.state.map;
+    const player = engine.state.player;
+    const playerSpawn = findRaidSpawn({
+      map,
+      floor: engine.state.floor,
+      width: player.width,
+      height: player.height,
+      desiredXRatio: 0.5,
+      desiredYRatio: 0.76,
+      fallbackX: player.x,
+      fallbackY: player.y,
+    });
+    player.x = playerSpawn.x;
+    player.y = playerSpawn.y;
+    player.vx = 0;
+    player.vy = 0;
+    player.state = 'idle';
+    player.facing = { x: 0, y: -1 };
+
     const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
     if (boss) {
+      const minimumStartDistance = Math.max(220, Math.min(map.width, map.height) * TILE_SIZE * 0.34);
+      const bossSpawn = findRaidSpawn({
+        map,
+        floor: engine.state.floor,
+        width: boss.width,
+        height: boss.height,
+        desiredXRatio: 0.5,
+        desiredYRatio: 0.24,
+        fallbackX: boss.x,
+        fallbackY: boss.y,
+        avoid: { x: playerSpawn.centerX, y: playerSpawn.centerY },
+        minimumDistance: minimumStartDistance,
+      });
+      boss.x = bossSpawn.x;
+      boss.y = bossSpawn.y;
+      boss.targetX = bossSpawn.x;
+      boss.targetY = bossSpawn.y;
+      boss.lastProgressX = bossSpawn.x;
+      boss.lastProgressY = bossSpawn.y;
+      boss.vx = 0;
+      boss.vy = 0;
       const targetHp = Math.max(1_900, Math.round(1_650 + engine.state.player.attack * 42 + raidSave.level * 24));
       boss.maxHp = targetHp;
       boss.hp = targetHp;
       boss.attack = Math.max(8, Math.min(18, Math.round(engine.state.player.maxHp * 0.11)));
       boss.defense = Math.max(2, Math.min(6, Math.round(engine.state.player.attack * 0.16)));
-      boss.speed = 44;
+      bossSpeedRef.current = 44;
+      boss.speed = 0;
+      boss.nextAttackTime = performance.now() + 1_200;
       initialBossHpRef.current = targetHp;
     }
     setGameState(snapshotRaidState(engine.state));
@@ -182,6 +308,11 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
         return;
       }
       if (!startTimeRef.current) startTimeRef.current = time;
+      const stagedBoss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
+      if (stagedBoss && bossReleaseAtRef.current > 0 && time >= bossReleaseAtRef.current) {
+        stagedBoss.speed = bossSpeedRef.current;
+        bossReleaseAtRef.current = 0;
+      }
       if (SIMULATION_STEP_MS === 0 || !lastSimulationStep || time - lastSimulationStep >= SIMULATION_STEP_MS) {
         lastSimulationStep = time;
         engine.update(time);
@@ -225,6 +356,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engine.state.effects.length = 0;
       engine.state.particles.length = 0;
       engine.state.damageNumbers.length = 0;
+      bossReleaseAtRef.current = 0;
       engineRef.current = null;
     };
   }, [event.current_hp, event.id, onBossUpdated, saveData]);
