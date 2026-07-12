@@ -52,8 +52,21 @@ const NINTH_PACK_MODEL_NAMES = [
 
 const NINTH_PACK_MODELS = NINTH_PACK_MODEL_NAMES.map(name => `${NINTH_PACK_GLTF_ROOT}/${name}.gltf`);
 const PACK_NAMES: KayKitPackName[] = ['adventurers', 'animations', 'dungeon', 'weapons', 'forest', 'halloween', 'resources', 'skeletons', 'furniture', 'tools'];
+const APP_BASE_URL = String(import.meta.env.BASE_URL || '/');
+const NORMALIZED_APP_BASE_URL = APP_BASE_URL.endsWith('/') ? APP_BASE_URL : `${APP_BASE_URL}/`;
 
 let manifestPromise: Promise<KayKitManifest> | null = null;
+
+function appAssetUrl(path: string): string {
+  return `${NORMALIZED_APP_BASE_URL}${path.replace(/^\/+/, '')}`;
+}
+
+function normalizeManifestRoot(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return appAssetUrl('assets/kaykit').replace(/\/$/, '');
+  const root = value.trim().replace(/\/$/, '');
+  if (root.startsWith('/assets/') || root.startsWith('assets/')) return appAssetUrl(root).replace(/\/$/, '');
+  return root;
+}
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
@@ -86,7 +99,7 @@ function normalizeManifest(raw: RawManifest): KayKitManifest {
   for (const pack of PACK_NAMES) packs[pack] = normalizePack(raw.packs?.[pack]);
   return {
     generatedAt: typeof raw.generatedAt === 'string' ? raw.generatedAt : new Date(0).toISOString(),
-    root: typeof raw.root === 'string' ? raw.root : '/assets/kaykit',
+    root: normalizeManifestRoot(raw.root),
     packs,
   };
 }
@@ -105,7 +118,7 @@ function includeNinthPack(manifest: KayKitManifest): KayKitManifest {
 
 export function loadKayKitManifest(): Promise<KayKitManifest> {
   if (!manifestPromise) {
-    manifestPromise = fetch('/assets/kaykit/manifest.json', { cache: 'no-cache' })
+    manifestPromise = fetch(appAssetUrl('assets/kaykit/manifest.json'), { cache: 'no-cache' })
       .then(response => {
         if (!response.ok) throw new Error(`KayKit manifest ${response.status}`);
         return response.json();
@@ -116,7 +129,7 @@ export function loadKayKitManifest(): Promise<KayKitManifest> {
 }
 
 export function modelUrl(manifest: KayKitManifest, relativePath: string) {
-  return `${manifest.root}/${relativePath}`;
+  return `${manifest.root.replace(/\/$/, '')}/${relativePath.replace(/^\/+/, '')}`;
 }
 
 export function findKayKitModels(
