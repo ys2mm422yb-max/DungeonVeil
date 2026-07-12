@@ -6,7 +6,7 @@ type BannerState =
  | { kind: 'reward'; reward: MetaReward }
  | { kind: 'pickup'; item: EquipmentId; duplicate: boolean; copies: number; level: number };
 
-const TOAST_POSITION = 'pointer-events-none fixed right-[max(12px,env(safe-area-inset-right))] top-[max(8.25rem,calc(env(safe-area-inset-top)+7.05rem))] z-[65] w-[min(42vw,185px)] transition-all duration-300';
+const TOAST_POSITION = 'pointer-events-none fixed right-[max(12px,env(safe-area-inset-right))] bottom-[max(10.5rem,calc(env(safe-area-inset-bottom)+9.5rem))] z-[65] w-[min(42vw,185px)] transition-all duration-300';
 
 export function MetaRewardBanner() {
  const { language } = useLanguage();
@@ -40,7 +40,7 @@ export function MetaRewardBanner() {
 
  if (!banner) return null;
  const de = language === 'de';
- const motion = visible ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0';
+ const motion = visible ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0';
 
  if (banner.kind === 'pickup') {
   const item = EQUIPMENT[banner.item];
