@@ -1,20 +1,18 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SaveData } from '../game/saveManager';
 import { GameEngine, type GameState } from '../game/runEngine';
 import { submitWorldBossHit, type WorldBossEvent } from '../game/supabaseOnline';
-import { CombatStage } from './CombatStage';
 import { VirtualJoystick } from './VirtualJoystick';
 import { ActionButtons } from './ActionButtons';
+import { WorldBossLiteStage } from './WorldBossLiteStage';
 
 const ATTEMPT_DURATION_MS = 30_000;
 const TIMER_PAINT_MS = 250;
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const SIMULATION_STEP_MS = IS_MOBILE ? 33 : 0;
-const RAID_PARTICLE_LIMIT = IS_MOBILE ? 24 : 48;
-const RAID_EFFECT_LIMIT = IS_MOBILE ? 12 : 24;
-const RAID_DAMAGE_LIMIT = IS_MOBILE ? 8 : 12;
-const ARENA_READY_EVENT_COUNT = 2;
-const ARENA_READY_FALLBACK_MS = 10_000;
+const RAID_PARTICLE_LIMIT = IS_MOBILE ? 12 : 36;
+const RAID_EFFECT_LIMIT = IS_MOBILE ? 8 : 20;
+const RAID_DAMAGE_LIMIT = IS_MOBILE ? 5 : 10;
 
 type BattlePhase = 'fighting' | 'submitting' | 'result';
 type FinishReason = 'victory' | 'defeat' | 'time';
@@ -72,6 +70,20 @@ function makeRaidSave(engine: GameEngine, saveData: SaveData | null): SaveData {
   };
 }
 
+function snapshotRaidState(state: GameState): GameState {
+  return {
+    ...state,
+    player: { ...state.player, facing: { ...state.player.facing } },
+    enemies: state.enemies.map(enemy => ({ ...enemy })),
+    effects: [...state.effects],
+    particles: [],
+    damageNumbers: [...state.damageNumbers],
+    items: [...state.items],
+    chests: [...state.chests],
+    runSkills: { ...state.runSkills },
+  };
+}
+
 export function WorldBossBattleScreen({ event, saveData, language, onClose, onBossUpdated }: Props) {
   const de = language === 'de';
   const engineRef = useRef<GameEngine | null>(null);
@@ -79,7 +91,6 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
   const initialBossHpRef = useRef(1);
   const startTimeRef = useRef(0);
   const arenaReadyRef = useRef(false);
-  const readyEventCountRef = useRef(0);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [arenaReady, setArenaReady] = useState(false);
   const [remainingMs, setRemainingMs] = useState(ATTEMPT_DURATION_MS);
@@ -89,54 +100,17 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
   const [remainingGlobalHp, setRemainingGlobalHp] = useState(event.current_hp);
   const [submitError, setSubmitError] = useState('');
 
-  useEffect(() => {
-    let disposed = false;
-    let settleTimer = 0;
-
-    const markReady = () => {
-      if (disposed || arenaReadyRef.current) return;
-      arenaReadyRef.current = true;
-      setArenaReady(true);
-      startTimeRef.current = 0;
-      const engine = engineRef.current;
-      if (engine) {
-        engine.state.status = 'playing';
-        engine.lastTime = performance.now();
-      }
-    };
-
-    const handlePreparing = (event: Event) => {
-      const floor = (event as CustomEvent<{ floor?: number }>).detail?.floor;
-      if (floor !== undefined && floor !== 50) return;
-      readyEventCountRef.current = 0;
-      arenaReadyRef.current = false;
-      setArenaReady(false);
-      const engine = engineRef.current;
-      if (engine) engine.state.status = 'paused';
-    };
-
-    const handleReady = (event: Event) => {
-      const floor = (event as CustomEvent<{ floor?: number }>).detail?.floor;
-      if (floor !== undefined && floor !== 50) return;
-      readyEventCountRef.current += 1;
-      if (readyEventCountRef.current < ARENA_READY_EVENT_COUNT) return;
-      window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => {
-        requestAnimationFrame(() => requestAnimationFrame(markReady));
-      }, 120);
-    };
-
-    window.addEventListener('dungeon-veil-room-preparing', handlePreparing);
-    window.addEventListener('dungeon-veil-room-ready', handleReady);
-    const fallbackTimer = window.setTimeout(markReady, ARENA_READY_FALLBACK_MS);
-
-    return () => {
-      disposed = true;
-      window.clearTimeout(settleTimer);
-      window.clearTimeout(fallbackTimer);
-      window.removeEventListener('dungeon-veil-room-preparing', handlePreparing);
-      window.removeEventListener('dungeon-veil-room-ready', handleReady);
-    };
+  const handleArenaReady = useCallback(() => {
+    if (arenaReadyRef.current) return;
+    arenaReadyRef.current = true;
+    startTimeRef.current = 0;
+    const engine = engineRef.current;
+    if (engine) {
+      engine.lastTime = performance.now();
+      engine.state.status = 'playing';
+      setGameState(snapshotRaidState(engine.state));
+    }
+    setArenaReady(true);
   }, []);
 
   useEffect(() => {
@@ -146,15 +120,16 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     let lastSimulationStep = 0;
     const engine = new GameEngine();
     engineRef.current = engine;
-    engine.onStateChange = next => {
-      if (!disposed) setGameState(next);
-    };
+    finishedRef.current = false;
+    arenaReadyRef.current = false;
+    startTimeRef.current = 0;
+    engine.onStateChange = () => {};
 
     const raidSave = makeRaidSave(engine, saveData);
     engine.continueGame(raidSave);
     engine.state.player.hp = engine.state.player.maxHp;
     engine.state.player.attackRange = 520;
-    engine.state.status = arenaReadyRef.current ? 'playing' : 'paused';
+    engine.state.status = 'paused';
 
     const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
     if (boss) {
@@ -166,7 +141,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       boss.speed = 44;
       initialBossHpRef.current = targetHp;
     }
-    setGameState({ ...engine.state });
+    setGameState(snapshotRaidState(engine.state));
 
     const finish = async (reason: FinishReason) => {
       if (finishedRef.current || disposed) return;
@@ -174,6 +149,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engine.state.status = 'paused';
       engine.input.joyX = 0;
       engine.input.joyY = 0;
+      setGameState(snapshotRaidState(engine.state));
       setFinishReason(reason);
       if (reason === 'time') setRemainingMs(0);
 
@@ -214,11 +190,13 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
         if (engine.state.effects.length > RAID_EFFECT_LIMIT) engine.state.effects.splice(0, engine.state.effects.length - RAID_EFFECT_LIMIT);
         if (engine.state.damageNumbers.length > RAID_DAMAGE_LIMIT) engine.state.damageNumbers.splice(0, engine.state.damageNumbers.length - RAID_DAMAGE_LIMIT);
       }
+
       const elapsed = time - startTimeRef.current;
       const nextRemaining = Math.max(0, ATTEMPT_DURATION_MS - elapsed);
       if (time - lastTimerPaint >= TIMER_PAINT_MS) {
         lastTimerPaint = time;
         setRemainingMs(nextRemaining);
+        setGameState(snapshotRaidState(engine.state));
       }
 
       const liveBoss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
@@ -293,14 +271,14 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
 
   return <div className="fixed inset-0 z-[120] overflow-hidden bg-[#080401] text-white">
     {gameState && <>
-      <CombatStage gameState={gameState} />
+      <WorldBossLiteStage engineRef={engineRef} onReady={handleArenaReady} />
       <div className="pointer-events-none absolute inset-x-3 top-[max(12px,calc(env(safe-area-inset-top)+6px))] z-50">
-        <div className="mx-auto max-w-md rounded-2xl border border-orange-300/25 bg-black/72 p-3 shadow-2xl backdrop-blur-md">
+        <div className="mx-auto max-w-md rounded-2xl border border-orange-300/25 bg-black/90 p-3 shadow-2xl">
           <div className="flex items-start justify-between gap-3">
             <div><div className="text-[7px] font-black uppercase tracking-[.28em] text-orange-200/55">{de ? 'WELTBOSS-ANGRIFF' : 'WORLD BOSS ATTACK'}</div><div className="mt-1 text-sm font-black text-orange-50">{event.name}</div></div>
             <div className="flex items-center gap-2">
               <div className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-[11px] font-black text-amber-100">{arenaReady ? `${seconds}s` : (de ? 'LÄDT' : 'LOAD')}</div>
-              <button type="button" onPointerDown={pointerEvent => { pointerEvent.preventDefault(); closeAndReset(); }} className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full border border-white/12 bg-black/65 text-[12px] font-black text-white/55 active:scale-90">×</button>
+              <button type="button" onPointerDown={pointerEvent => { pointerEvent.preventDefault(); closeAndReset(); }} className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full border border-white/12 bg-black/80 text-[12px] font-black text-white/55 active:scale-90">×</button>
             </div>
           </div>
           <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-black/80"><div className="h-full bg-gradient-to-r from-red-700 via-orange-500 to-amber-300 transition-[width] duration-100" style={{ width: `${localBossPercent}%` }} /></div>
@@ -311,21 +289,21 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       </div>
 
       {!arenaReady && phase === 'fighting' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[radial-gradient(circle_at_50%_54%,rgba(163,61,16,.28),rgba(8,4,1,.97)_34%,#080401_72%)] px-6 pt-28">
-        <div className="w-full max-w-xs rounded-3xl border border-orange-300/20 bg-black/55 p-6 text-center shadow-[0_0_70px_rgba(180,66,12,.18)] backdrop-blur-md">
+        <div className="w-full max-w-xs rounded-3xl border border-orange-300/20 bg-black/78 p-6 text-center shadow-[0_0_70px_rgba(180,66,12,.18)]">
           <div className="mx-auto h-12 w-12 animate-pulse rounded-full border border-orange-200/30 bg-orange-500/12 shadow-[0_0_34px_rgba(255,107,31,.45)]" />
           <div className="mt-5 text-[9px] font-black uppercase tracking-[.28em] text-orange-100/72">{de ? 'BOSSARENA WIRD GELADEN' : 'LOADING BOSS ARENA'}</div>
-          <div className="mt-2 text-[10px] leading-relaxed text-white/38">{de ? 'Der 30-Sekunden-Angriff startet erst, sobald Arena, Waldläufer und Aschenkönig sichtbar sind.' : 'The 30-second attack starts only after the arena, ranger and Ash King are visible.'}</div>
+          <div className="mt-2 text-[10px] leading-relaxed text-white/38">{de ? 'Der Angriff startet erst, wenn die leichte Bossarena vollständig sichtbar ist.' : 'The attack starts only after the lightweight boss arena is fully visible.'}</div>
         </div>
       </div>}
 
       {arenaReady && phase === 'fighting' && <>
         <VirtualJoystick onMove={handleMove} />
         <ActionButtons gameState={gameState} onDodge={handleDodge} />
-        <div className="pointer-events-none absolute bottom-[max(18px,calc(env(safe-area-inset-bottom)+8px))] left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/58 px-4 py-2 text-[7px] font-black uppercase tracking-[.18em] text-white/45 backdrop-blur-md">{de ? 'AUTO-SCHUSS · BEWEGEN & AUSWEICHEN' : 'AUTO FIRE · MOVE & DODGE'}</div>
+        <div className="pointer-events-none absolute bottom-[max(18px,calc(env(safe-area-inset-bottom)+8px))] left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/10 bg-black/78 px-4 py-2 text-[7px] font-black uppercase tracking-[.18em] text-white/45">{de ? 'AUTO-SCHUSS · BEWEGEN & AUSWEICHEN' : 'AUTO FIRE · MOVE & DODGE'}</div>
       </>}
     </>}
 
-    {phase !== 'fighting' && <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/78 px-5 backdrop-blur-md">
+    {phase !== 'fighting' && <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/88 px-5">
       <div className="w-full max-w-sm rounded-3xl border border-orange-300/22 bg-[#100a07]/96 p-5 text-center shadow-2xl">
         <div className="text-[8px] font-black uppercase tracking-[.28em] text-orange-200/48">{phase === 'submitting' ? (de ? 'SCHADEN WIRD ÜBERTRAGEN' : 'SUBMITTING DAMAGE') : (de ? 'ERGEBNIS' : 'RESULT')}</div>
         <div className="mt-2 text-xl font-black text-orange-50">{phase === 'submitting' ? (de ? 'Bitte kurz warten …' : 'Please wait …') : resultTitle}</div>
