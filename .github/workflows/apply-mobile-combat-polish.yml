@@ -39,6 +39,19 @@ jobs:
 
       - name: Apply mobile combat polish
         run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx')
+          text = path.read_text()
+          text = re.sub(
+              r'(\n\s*if \(lowFpsWindows >= 2 && particleBudget > 24\) \{\n)\s*particleBudget = 24;',
+              r'\1            particleBudget = 24;',
+              text,
+              count=1,
+          )
+          path.write_text(text)
+          PY
           set +e
           python /tmp/apply_mobile_combat_polish.py > /tmp/mobile-combat-polish.log 2>&1
           status=$?
