@@ -79,6 +79,7 @@ try {
 
   for (let room = 14; room <= chapter.CHAPTER_ROOMS; room++) {
     checkedRooms++;
+    const map = chapter.generateRunRoom(room);
     const boss = chapter.isBossRoom(room);
     const plan = boss ? ['boss'] : encounters.getEncounterPlan(room);
     const points = spawns.getRoomSpawnPoints(room);
@@ -95,16 +96,16 @@ try {
         fail(`room ${room} enemy ${index + 1} has no validated hitbox or spawn`);
         return;
       }
-      const game = spawns.sceneSpawnToGame(point, MAP_WIDTH, MAP_HEIGHT, size);
-      if (collision.collidesWithRoomProp(room, MAP_WIDTH, MAP_HEIGHT, game.x, game.y, size, size, 0.22)) {
+      const game = spawns.sceneSpawnToGame(point, map.width, map.height, size);
+      if (collision.collidesWithRoomProp(room, map.width, map.height, game.x, game.y, size, size, 0.22)) {
         fail(`room ${room} enemy ${index + 1} starts inside visible collision geometry`);
       }
 
-      const playerX = 12 * 40 + 20;
-      const playerY = 28 * 40 + 20;
+      const playerX = map.startX * 40 + 20;
+      const playerY = map.startY * 40 + 20;
       const enemyX = game.x + size / 2;
       const enemyY = game.y + size / 2;
-      if (collision.shotBlockedByRoomProp(room, MAP_WIDTH, MAP_HEIGHT, enemyX, enemyY, playerX, playerY, 0.08)) {
+      if (collision.shotBlockedByRoomProp(room, map.width, map.height, enemyX, enemyY, playerX, playerY, 0.08)) {
         initiallyOccluded++;
       }
     });
