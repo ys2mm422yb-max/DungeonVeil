@@ -3,6 +3,8 @@
   "status": "failure",
   "attemptedCommit": "8c82fd3184050874d3f6e896c7d4df336f589054",
   "deployedCommit": null,
+  "validationResult": "failure",
+  "deploymentResult": "skipped",
   "pageUrl": "https://ys2mm422yb-max.github.io/DungeonVeil/",
-  "completedAt": "2026-07-12T11:21:25.527Z"
+  "completedAt": "2026-07-12T11:25:28.598Z"
 }
