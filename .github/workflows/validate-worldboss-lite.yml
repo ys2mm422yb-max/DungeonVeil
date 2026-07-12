@@ -1,0 +1,237 @@
+name: Validate Lightweight World Boss
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dungeon-veil-worldboss-lite
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: github.event.pull_request.head.ref == 'validation/worldboss-lite-ac45415'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      validated_sha: ${{ steps.validated.outputs.sha }}
+    steps:
+      - name: Checkout current Dungeon Veil product branch
+        uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+
+      - name: Resolve validated commit
+        id: validated
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        id: install
+        continue-on-error: true
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: Asset audit
+        id: assets
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+
+      - name: Room, collision and mobile audit
+        id: rooms
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+
+      - name: Typecheck workspace
+        id: typecheck
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: pnpm run typecheck
+
+      - name: Build Dungeon Veil for GitHub Pages
+        id: build
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+          VITE_BUILD_SHA: ${{ steps.validated.outputs.sha }}
+        shell: bash
+        run: pnpm --dir artifacts/dungeon-rpg run build
+
+      - name: Verify Pages artifact
+        id: pages_audit
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        env:
+          EXPECTED_BASE_PATH: /DungeonVeil/
+        shell: bash
+        run: pnpm --filter @workspace/dungeon-rpg audit:pages
+
+      - name: Write deployment marker
+        id: marker
+        if: steps.pages_audit.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          printf '{"commit":"%s","deployedAt":"%s"}\n' "${{ steps.validated.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          touch artifacts/dungeon-rpg/dist/public/.nojekyll
+
+      - name: Configure GitHub Pages
+        id: configure_pages
+        if: steps.marker.outcome == 'success'
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        id: upload_pages
+        if: steps.configure_pages.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+
+      - name: Record validation result
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          VALIDATED_SHA: ${{ steps.validated.outputs.sha }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          ASSET_OUTCOME: ${{ steps.assets.outcome }}
+          ROOM_OUTCOME: ${{ steps.rooms.outcome }}
+          TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          PAGES_AUDIT_OUTCOME: ${{ steps.pages_audit.outcome }}
+          MARKER_OUTCOME: ${{ steps.marker.outcome }}
+          CONFIGURE_OUTCOME: ${{ steps.configure_pages.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload_pages.outcome }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const ref = 'main';
+            const commit = process.env.VALIDATED_SHA || null;
+            const outcomes = {
+              install: process.env.INSTALL_OUTCOME,
+              assetAudit: process.env.ASSET_OUTCOME,
+              roomAudit: process.env.ROOM_OUTCOME,
+              typecheck: process.env.TYPECHECK_OUTCOME,
+              build: process.env.BUILD_OUTCOME,
+              pagesArtifact: process.env.PAGES_AUDIT_OUTCOME,
+              deploymentMarker: process.env.MARKER_OUTCOME,
+              configurePages: process.env.CONFIGURE_OUTCOME,
+              uploadArtifact: process.env.UPLOAD_OUTCOME,
+            };
+            const success = Object.values(outcomes).every(value => value === 'success');
+            async function write(path, data, message) {
+              let sha;
+              try {
+                const response = await github.rest.repos.getContent({ owner, repo, path, ref });
+                if (!Array.isArray(response.data)) sha = response.data.sha;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              await github.rest.repos.createOrUpdateFileContents({
+                owner, repo, path, branch: ref, sha,
+                content: Buffer.from(JSON.stringify(data, null, 2) + '\n').toString('base64'),
+                message,
+              });
+            }
+            await write('.ci/dungeon-rpg-check.json', {
+              workflow: 'Dungeon RPG Check', status: success ? 'success' : 'failure', validatedCommit: commit, outcomes, completedAt: new Date().toISOString(),
+            }, `Record Dungeon RPG Check ${success ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
+            await write('.ci/dungeon-rpg-ci.json', {
+              workflow: 'Dungeon RPG CI', status: success ? 'success' : 'failure', validatedCommit: commit, outcomes, completedAt: new Date().toISOString(),
+            }, `Record Dungeon RPG CI ${success ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`);
+
+      - name: Enforce validation result
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.install.outcome }}" = success
+          test "${{ steps.assets.outcome }}" = success
+          test "${{ steps.rooms.outcome }}" = success
+          test "${{ steps.typecheck.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.pages_audit.outcome }}" = success
+          test "${{ steps.marker.outcome }}" = success
+          test "${{ steps.configure_pages.outcome }}" = success
+          test "${{ steps.upload_pages.outcome }}" = success
+
+  deploy:
+    if: github.event.pull_request.head.ref == 'validation/worldboss-lite-ac45415'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Dungeon Veil test site
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  record-pages:
+    if: always() && github.event.pull_request.head.ref == 'validation/worldboss-lite-ac45415'
+    needs: [validate, deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record Pages deployment result
+        uses: actions/github-script@v7
+        env:
+          VALIDATED_SHA: ${{ needs.validate.outputs.validated_sha }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const ref = 'main';
+            const commit = process.env.VALIDATED_SHA || null;
+            const success = process.env.VALIDATE_RESULT === 'success' && process.env.DEPLOY_RESULT === 'success';
+            let sha;
+            try {
+              const response = await github.rest.repos.getContent({ owner, repo, path: '.ci/dungeon-veil-pages.json', ref });
+              if (!Array.isArray(response.data)) sha = response.data.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path: '.ci/dungeon-veil-pages.json', branch: ref, sha,
+              content: Buffer.from(JSON.stringify({
+                workflow: 'Deploy Dungeon Veil Test Site',
+                status: success ? 'success' : 'failure',
+                attemptedCommit: commit,
+                deployedCommit: success ? commit : null,
+                validationResult: process.env.VALIDATE_RESULT,
+                deploymentResult: process.env.DEPLOY_RESULT,
+                pageUrl: process.env.PAGE_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/',
+                completedAt: new Date().toISOString(),
+              }, null, 2) + '\n').toString('base64'),
+              message: `Record Dungeon Veil Pages ${success ? 'success' : 'failure'} for ${(commit || 'unknown').slice(0, 7)}`,
+            });
