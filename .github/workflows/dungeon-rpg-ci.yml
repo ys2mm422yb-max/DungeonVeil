@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Validation trigger for world boss arena framing 6e7c430.
+# Validation trigger for fullscreen world boss renderer 35e79e2.
 on:
   workflow_dispatch:
 
