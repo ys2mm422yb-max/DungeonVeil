@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Validation trigger for lightweight world boss renderer ac45415.
+# Validation trigger for world boss arena framing 6e7c430.
 on:
   workflow_dispatch:
 
