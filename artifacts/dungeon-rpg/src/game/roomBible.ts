@@ -1,5 +1,7 @@
 import { EXPANDED_ROOM_BLUEPRINTS } from './expandedWorldRooms';
 import { logicalRoomSetpieces } from './logicalRoomSetpieces';
+import { roomPropColliderFootprint } from './propPresentation3D';
+
 export type RoomPhaseId = 'inhabited-mine' | 'abandoned-quarters' | 'ancient-ruins' | 'warden-veil' | 'meadow-forest' | 'darkwood-village' | 'fortress-ember';
 export type RoomSilhouette = 'tri-island' | 'axial' | 'three-lane' | 'diagonal' | 's-curve' | 'ring' | 'zigzag' | 's-lane' | 'cross' | 'arena' | 'orbit';
 export type RoomPack = 'furniture' | 'tools' | 'resources' | 'forest' | 'halloween';
@@ -119,15 +121,15 @@ export const ROOM_BIBLE: Record<number, RoomBibleSpec> = {
 
   11: room(11, 'Kreuzgang', 'Crossing Cloister', 'ancient-ruins', 'cross', 'kleiner Zentralschrein', ['halloween', 'forest'], ['shrine', 'statue', 'root', 'mushroom', 'stone'], ['barrel', 'workbench', 'anvil'], 4, 'monumental', P(0, -13.7), [P(0, -6.0), P(-4.8, -1.5), P(4.8, -1.5), P(0, 2.0), P(-4.5, 5.0), P(4.5, 5.0)]),
   12: room(12, 'Galerie', 'Gallery', 'ancient-ruins', 'axial', 'monumentale Hauptstatue', ['halloween', 'furniture'], ['statue', 'banner', 'pedestal', 'candle'], ['crate', 'barrel', 'forge', 'pallet'], 3, 'monumental', P(0, -13.7), [P(-3.4, -6.4), P(3.4, -6.4), P(0, -3.0), P(-3.8, 1.6), P(3.8, 1.6), P(0, 5.2)]),
-  13: room(13, 'Gefängnisring', 'Prison Ring', 'ancient-ruins', 'ring', 'zentraler Schlüsselmechanismus', ['halloween', 'tools'], ['fence', 'chain', 'lock', 'cage', 'key'], ['barrel', 'bed', 'workbench', 'forge'], 4, 'monumental', P(0, -1.0), [P(-4.8, -4.2), P(0, -5.8), P(4.8, -4.2), P(-5.4, 1.0), P(5.4, 1.0), P(-3.8, 5.0), P(3.8, 5.0)]),
+  13: room(13, 'Gefängnisring', 'Prison Ring', 'ancient-ruins', 'ring', 'zentraler Schlüsselmechanismus', ['halloween', 'tools'], ['fence', 'chain', 'lock', 'cage', 'key'], ['barrel', 'bed', 'workbench', 'forge'], 4, 'monumental', P(0, -13.7), [P(-4.8, -4.2), P(0, -5.8), P(4.8, -4.2), P(-5.4, 1.0), P(5.4, 1.0), P(-3.8, 5.0), P(3.8, 5.0)]),
   14: room(14, 'Knochenhof', 'Bone Yard', 'ancient-ruins', 'diagonal', 'Knochensteg', ['halloween'], ['bone', 'skull', 'grave', 'mist', 'rubble'], ['shelf', 'weapon_rack', 'forge', 'bed'], 4, 'monumental', P(5.2, -12.2), [P(-5.0, -6.0), P(-2.4, -3.0), P(0.5, -0.4), P(3.0, 2.1), P(5.0, 4.8), P(-4.2, 4.8)]),
-  15: room(15, 'Ritualarena', 'Ritual Arena', 'ancient-ruins', 'arena', 'großer Altar', ['halloween', 'resources'], ['altar', 'rune', 'crystal', 'candle', 'shrine'], ['table', 'barrel', 'shelf', 'bed'], 3, 'monumental', P(0, -1.0), [P(-4.5, -4.3), P(0, -6.0), P(4.5, -4.3), P(-5.0, 1.5), P(5.0, 1.5), P(-3.5, 5.2), P(3.5, 5.2)]),
+  15: room(15, 'Ritualarena', 'Ritual Arena', 'ancient-ruins', 'arena', 'großer Altar', ['halloween', 'resources'], ['altar', 'rune', 'crystal', 'candle', 'shrine'], ['table', 'barrel', 'shelf', 'bed'], 3, 'monumental', P(0, -13.7), [P(-4.5, -4.3), P(0, -6.0), P(4.5, -4.3), P(-5.0, 1.5), P(5.0, 1.5), P(-3.5, 5.2), P(3.5, 5.2)]),
 
   16: room(16, 'Warden-Passage', 'Warden Passage', 'warden-veil', 'axial', 'monumentale Wächterstatue', ['halloween', 'resources'], ['statue', 'banner', 'spear', 'gate', 'sigil'], ['barrel', 'bed', 'workbench', 'pallet'], 3, 'veil', P(0, -13.7), [P(-3.4, -7.0), P(0, -6.2), P(3.4, -7.0), P(-3.4, -1.5), P(0, -0.5), P(3.4, -1.5), P(0, 4.2)]),
   17: room(17, 'Eingestürztes Gewölbe', 'Collapsed Vault', 'warden-veil', 'diagonal', 'gebrochener Bodenriss', ['halloween', 'resources'], ['rubble', 'crack', 'pillar', 'stone', 'crystal'], ['barrel', 'bed', 'workbench', 'shelf'], 4, 'veil', P(-5.0, -12.0), [P(4.7, -6.2), P(1.8, -3.2), P(-1.0, -0.6), P(-3.6, 2.3), P(3.5, 4.6), P(-4.7, 5.4)]),
   18: room(18, 'Veil-Riss', 'Veil Rift', 'warden-veil', 'orbit', 'großer Schleier-Riss', ['resources', 'halloween'], ['crystal', 'gem', 'rift', 'floating', 'rune'], ['barrel', 'workbench', 'bed', 'table'], 2, 'veil', P(0, -0.8), [P(-4.5, -4.0), P(0, -5.6), P(4.5, -4.0), P(-5.3, 0.8), P(5.3, 0.8), P(-3.7, 4.8), P(0, 5.8), P(3.7, 4.8)]),
   19: room(19, 'Vorhalle des Wächters', 'Warden Antechamber', 'warden-veil', 'axial', 'großes Wardentor und zwei Statuen', ['halloween', 'resources'], ['gate', 'statue', 'banner', 'sigil', 'stone'], ['barrel', 'bed', 'workbench', 'crate'], 2, 'veil', P(0, -13.7), [P(-4.2, -7.0), P(0, -6.3), P(4.2, -7.0), P(-3.8, -1.6), P(0, -0.8), P(3.8, -1.6), P(0, 4.0)]),
-  20: room(20, 'Kapitelboss-Arena', 'Chapter Boss Arena', 'warden-veil', 'arena', 'Bosskern und vier Phasenanker', ['halloween', 'resources'], ['boss', 'anchor', 'rune', 'statue', 'crystal'], ['crate', 'barrel', 'table', 'bed'], 1, 'veil', P(0, -0.5), [P(0, -3.2)]),
+  20: room(20, 'Kapitelboss-Arena', 'Chapter Boss Arena', 'warden-veil', 'arena', 'Bosskern und vier Phasenanker', ['halloween', 'resources'], ['boss', 'anchor', 'rune', 'statue', 'crystal'], ['crate', 'barrel', 'table', 'bed'], 1, 'veil', P(0, -0.5), [P(0, 1.8)]),
 };
 
 for (const blueprint of EXPANDED_ROOM_BLUEPRINTS) {
@@ -142,45 +144,49 @@ const RESOLVED_ROOM_SPECS = new Map<number, RoomBibleSpec>();
 
 const SPAWN_GRID_X = [-4.2, -2.1, 0, 2.1, 4.2] as const;
 const SPAWN_GRID_Z = [-6.4, -4.1, -1.8, 0.7, 3.1, 5.3] as const;
+const BOSS_SPAWN_CANDIDATES = [
+  P(0, 1.8),
+  P(-3.2, 1.8),
+  P(3.2, 1.8),
+  P(0, 4.2),
+  P(-4.5, -1.0),
+  P(4.5, -1.0),
+  P(-4.5, 4.2),
+  P(4.5, 4.2),
+] as const;
+const NORMAL_SPAWN_CLEARANCE = 0.72;
+const BOSS_SPAWN_CLEARANCE = 1.18;
 
 function resolvedEnemySpawns(roomNumber: number, spec: RoomBibleSpec): RoomBiblePoint[] {
-  if (roomNumber % 10 === 0) {
-    return spec.enemySpawns.slice(0, 1).map(point => ({ ...point }));
-  }
-
-  const blockers = logicalRoomSetpieces(roomNumber)
-    .filter(piece => piece.collider)
-    .map(piece => {
-      const collider = piece.collider!;
-      const scale = (piece.scale ?? 1) * 0.9;
-      const width = collider[0] * scale;
-      const height = collider[1] * scale;
-      const angle = piece.rotation ?? 0;
-      const cos = Math.abs(Math.cos(angle));
-      const sin = Math.abs(Math.sin(angle));
-
-      return {
-        x: piece.x,
-        z: piece.z,
-        halfW: (width * cos + height * sin) / 2,
-        halfH: (width * sin + height * cos) / 2,
-      };
-    });
+  const blockers = logicalRoomSetpieces(roomNumber).flatMap(piece => {
+    const footprint = roomPropColliderFootprint(piece);
+    if (!footprint) return [];
+    return [{
+      x: piece.x,
+      z: piece.z,
+      halfW: footprint.width / 2,
+      halfH: footprint.height / 2,
+    }];
+  });
 
   const portal = {
     x: spec.portal.x,
     z: spec.portal.z < -8 ? -8.5 : spec.portal.z,
   };
 
-  const selected: RoomBiblePoint[] = [];
-
-  const valid = (point: RoomBiblePoint) => {
-    if (Math.abs(point.x) > 4.25 || point.z < -6.6 || point.z > 5.5) return false;
-    if (Math.hypot(point.x - portal.x, point.z - portal.z) <= 3.1) return false;
+  const valid = (
+    point: RoomBiblePoint,
+    clearance: number,
+    portalClearance: number,
+    selected: RoomBiblePoint[] = [],
+  ) => {
+    const maxX = roomNumber % 10 === 0 ? 7.2 : 4.25;
+    if (Math.abs(point.x) > maxX || point.z < -6.6 || point.z > 5.5) return false;
+    if (Math.hypot(point.x - portal.x, point.z - portal.z) <= portalClearance) return false;
 
     const blocked = blockers.some(blocker =>
-      Math.abs(point.x - blocker.x) < blocker.halfW + 0.42 &&
-      Math.abs(point.z - blocker.z) < blocker.halfH + 0.42
+      Math.abs(point.x - blocker.x) < blocker.halfW + clearance &&
+      Math.abs(point.z - blocker.z) < blocker.halfH + clearance
     );
     if (blocked) return false;
 
@@ -189,8 +195,20 @@ function resolvedEnemySpawns(roomNumber: number, spec: RoomBibleSpec): RoomBible
     );
   };
 
+  if (roomNumber % 10 === 0) {
+    const bossSpawn = [...spec.enemySpawns, ...BOSS_SPAWN_CANDIDATES]
+      .find(point => valid(point, BOSS_SPAWN_CLEARANCE, 1.8));
+
+    if (!bossSpawn) {
+      throw new Error('Raum ' + roomNumber + ' besitzt keinen sicheren Boss-Spawnpunkt.');
+    }
+
+    return [{ ...bossSpawn }];
+  }
+
+  const selected: RoomBiblePoint[] = [];
   const add = (point: RoomBiblePoint) => {
-    if (valid(point)) selected.push({ ...point });
+    if (valid(point, NORMAL_SPAWN_CLEARANCE, 3.1, selected)) selected.push({ ...point });
   };
 
   spec.enemySpawns.forEach(add);
