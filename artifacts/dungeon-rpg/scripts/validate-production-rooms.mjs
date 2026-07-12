@@ -97,6 +97,9 @@ try {
     if (room === 6) {
       const innerWalls = pieces.filter(piece => /wall|barrier/i.test(piece.model) && Math.abs(piece.x) < 4.8 && piece.z > -5 && piece.z < 4);
       if (innerWalls.length) fail(room, 'forge contains the forbidden four-wall inner block again');
+      if (spec.silhouette === 'ring' || spec.silhouette === 'orbit' || spec.silhouette === 'cross') {
+        fail(room, 'forge silhouette would regenerate four automatic architecture blocks');
+      }
     }
 
     if (room === 7) {
