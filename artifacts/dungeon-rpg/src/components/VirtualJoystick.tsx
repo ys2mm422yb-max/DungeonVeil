@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 
 interface Props {
   onMove: (x: number, y: number) => void;
+  variant?: 'default' | 'worldBoss';
 }
 
 const DEAD_ZONE = 0.08;
@@ -12,12 +13,13 @@ function clampStick(x: number, y: number, radius: number) {
   return { x: x / distance * radius, y: y / distance * radius };
 }
 
-export function VirtualJoystick({ onMove }: Props) {
+export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
   const baseRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
   const pointerIdRef = useRef<number | null>(null);
   const latestMoveRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
+  const worldBoss = variant === 'worldBoss';
 
   const emitMove = useCallback((x: number, y: number) => {
     latestMoveRef.current = { x, y };
@@ -87,6 +89,10 @@ export function VirtualJoystick({ onMove }: Props) {
     };
   }, [onMove, reset, updateFromPointer]);
 
+  const placementClass = worldBoss
+    ? 'bottom-[max(6.4rem,calc(env(safe-area-inset-bottom)+5.2rem))] left-[max(.9rem,env(safe-area-inset-left))] h-[116px] w-[116px]'
+    : 'bottom-[max(1.15rem,env(safe-area-inset-bottom))] left-[max(1.15rem,env(safe-area-inset-left))] h-[132px] w-[132px]';
+
   return (
     <div
       ref={baseRef}
@@ -99,14 +105,14 @@ export function VirtualJoystick({ onMove }: Props) {
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
         updateFromPointer(event.clientX, event.clientY);
       }}
-      className="pointer-events-auto fixed bottom-[max(1.15rem,env(safe-area-inset-bottom))] left-[max(1.15rem,env(safe-area-inset-left))] z-50 h-[132px] w-[132px] touch-none rounded-full border border-[#d7bc78]/35 bg-[radial-gradient(circle,rgba(224,198,132,.12),rgba(8,7,10,.58)_68%)] shadow-[0_14px_38px_rgba(0,0,0,.5),inset_0_0_30px_rgba(255,225,157,.05)] backdrop-blur-sm select-none"
+      className={`pointer-events-auto fixed z-50 touch-none rounded-full border border-[#d7bc78]/35 bg-[radial-gradient(circle,rgba(224,198,132,.12),rgba(8,7,10,.58)_68%)] shadow-[0_14px_38px_rgba(0,0,0,.5),inset_0_0_30px_rgba(255,225,157,.05)] backdrop-blur-sm select-none ${placementClass}`}
       style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       <div className="pointer-events-none absolute inset-[18%] rounded-full border border-white/8" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f3dca4]/30" />
       <div
         ref={knobRef}
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[44px] w-[44px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f4dfaa]/55 bg-[radial-gradient(circle_at_35%_30%,rgba(255,239,195,.45),rgba(154,121,61,.38))] shadow-[0_8px_22px_rgba(0,0,0,.55),inset_0_0_14px_rgba(255,241,201,.18)] will-change-transform"
+        className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f4dfaa]/55 bg-[radial-gradient(circle_at_35%_30%,rgba(255,239,195,.45),rgba(154,121,61,.38))] shadow-[0_8px_22px_rgba(0,0,0,.55),inset_0_0_14px_rgba(255,241,201,.18)] will-change-transform ${worldBoss ? 'h-[40px] w-[40px]' : 'h-[44px] w-[44px]'}`}
       />
     </div>
   );
