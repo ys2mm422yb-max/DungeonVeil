@@ -67,7 +67,7 @@ export function MainMenuScreen(props: Props) {
     : t.noSave;
 
   return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#070706] text-white">
-    <MainMenuDungeonScene />
+    {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
     <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,.18),rgba(0,0,0,.1)_35%,rgba(0,0,0,.84)_76%,#050505)]" />
     <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="absolute right-4 top-[max(18px,calc(env(safe-area-inset-top)+8px))] z-20 grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-black/58 text-lg text-white/60 backdrop-blur-xl active:scale-95">•••</button>
 
