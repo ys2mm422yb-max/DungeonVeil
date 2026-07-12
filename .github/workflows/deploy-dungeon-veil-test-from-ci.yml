@@ -1,5 +1,6 @@
 name: Deploy Dungeon Veil Test Site From Main
 
+# Always publishes the current production-pass head to the single fixed test URL.
 on:
   push:
     branches:
