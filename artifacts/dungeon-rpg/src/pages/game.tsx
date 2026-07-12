@@ -174,8 +174,14 @@ export default function Game() {
     markActiveRun(true);
     setUiState('game');
   }, []);
-  const handleCharConfirm = useCallback(async (name: string, _cls: ClassKey) => {
-    await Promise.all([preloadKayKitDungeonRoom(1), preloadKayKitRoomTheme(1), preloadKayKitEnemyVisuals(), preloadKayKitHealingPotion(), preloadKayKitOuterWorld()]);
+  const handleCharConfirm = useCallback((name: string, _cls: ClassKey) => {
+    void Promise.allSettled([
+      preloadKayKitDungeonRoom(1),
+      preloadKayKitRoomTheme(1),
+      preloadKayKitEnemyVisuals(),
+      preloadKayKitHealingPotion(),
+      preloadKayKitOuterWorld(),
+    ]);
     const engine = engineRef.current;
     if (!engine) return;
     beginMetaRun();
