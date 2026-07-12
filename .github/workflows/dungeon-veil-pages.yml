@@ -13,4 +13,4 @@ jobs:
       - name: Deployment ownership
         run: echo "Automatic Pages deployment runs inside the unified Dungeon RPG Check workflow."
 
-# Trigger unified validation for the current unmerged Dungeon Veil branch.
+# Trigger unified validation for Dungeon Veil branch commit bb63613.
