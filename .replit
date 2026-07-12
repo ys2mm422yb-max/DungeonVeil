@@ -1,3 +1,4 @@
+run = "pnpm --filter @workspace/dungeon-rpg dev"
 modules = ["nodejs-24"]
 
 [deployment]
@@ -7,9 +8,6 @@ deploymentTarget = "autoscale"
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
-
-[workflows]
-runButton = "Project"
 
 [agent]
 stack = "PNPM_WORKSPACE"
