@@ -1,7 +1,7 @@
 import path from 'path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
@@ -9,7 +9,20 @@ export default defineConfig(async () => {
   const rawPort = process.env.PORT ?? '3000';
   const port = Number(rawPort);
   const basePath = process.env.BASE_PATH ?? '/';
+  const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
   const replitPlugins = [];
+
+  const internalAssetBasePlugin: Plugin = {
+    name: 'dungeon-veil-internal-asset-base',
+    enforce: 'pre',
+    transform(code, id) {
+      if (normalizedBasePath === '/' || !id.includes('/src/') || !code.includes('/assets/')) return null;
+      return {
+        code: code.replaceAll('/assets/', `${normalizedBasePath}assets/`),
+        map: null,
+      };
+    },
+  };
 
   if (process.env.NODE_ENV !== 'production' && process.env.REPL_ID !== undefined) {
     const [{ cartographer }, { devBanner }] = await Promise.all([
@@ -26,8 +39,8 @@ export default defineConfig(async () => {
   }
 
   return {
-    base: basePath,
-    plugins: [react(), tailwindcss(), runtimeErrorOverlay(), ...replitPlugins],
+    base: normalizedBasePath,
+    plugins: [internalAssetBasePlugin, react(), tailwindcss(), runtimeErrorOverlay(), ...replitPlugins],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, 'src'),
