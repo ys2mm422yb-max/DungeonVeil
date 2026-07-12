@@ -67,45 +67,10 @@ jobs:
           NODE_ENV: production
         run: pnpm --dir artifacts/dungeon-rpg run build
 
-      - name: Verify runtime asset base
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-          const root = 'artifacts/dungeon-rpg/dist/public';
-          const extensions = new Set(['.js', '.mjs', '.html']);
-          const files = [];
-          const walk = directory => {
-            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-              const full = path.join(directory, entry.name);
-              if (entry.isDirectory()) walk(full);
-              else if (extensions.has(path.extname(entry.name))) files.push(full);
-            }
-          };
-          walk(root);
-          if (!files.length) throw new Error('No built runtime files found.');
-          const prefixes = ['"/assets/', "'/assets/", '`/assets/'];
-          const bad = [];
-          for (const file of files) {
-            const text = fs.readFileSync(file, 'utf8');
-            for (const prefix of prefixes) {
-              if (text.includes(prefix)) bad.push(`${file}: ${prefix}`);
-            }
-          }
-          if (bad.length) throw new Error(`Root-relative runtime asset paths found:\n${bad.join('\n')}`);
-          const js = files
-            .filter(file => /\.(?:m?js)$/.test(file))
-            .map(file => fs.readFileSync(file, 'utf8'))
-            .join('\n');
-          if (!js.includes('/DungeonVeil/assets/')) {
-            throw new Error('Pages-prefixed asset paths are missing from the built JavaScript.');
-          }
-          if (!fs.existsSync(path.join(root, 'index.html'))) {
-            throw new Error('Built index.html is missing.');
-          }
-          console.log(`Verified ${files.length} runtime files and the /DungeonVeil/ asset base.`);
-          NODE
+      - name: Verify GitHub Pages artifact
+        env:
+          EXPECTED_BASE_PATH: /DungeonVeil/
+        run: pnpm --filter @workspace/dungeon-rpg audit:pages
 
       - name: Write deployment marker
         shell: bash
