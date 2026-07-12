@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Dungeon Veil</title>
     <meta name="description" content="Dungeon Veil — a stylized 3D room-run action roguelite." />
     <meta name="robots" content="index, follow" />
@@ -17,6 +20,22 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      (() => {
+        try {
+          const url = new URL(window.location.href);
+          const refreshKey = 'dv_refresh';
+          if (!url.searchParams.has(refreshKey)) {
+            url.searchParams.set(refreshKey, Date.now().toString(36));
+            window.location.replace(url.toString());
+            return;
+          }
+          url.searchParams.delete(refreshKey);
+          const query = url.searchParams.toString();
+          window.history.replaceState(window.history.state, '', `${url.pathname}${query ? `?${query}` : ''}${url.hash}`);
+        } catch {}
+      })();
+    </script>
     <script type="importmap">
       {
         "imports": {
