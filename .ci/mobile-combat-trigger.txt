@@ -1,1 +1,1 @@
-Trigger trusted screenshot-driven mobile combat polish workflow.
+Retry trusted screenshot-driven mobile combat polish workflow after whitespace-tolerant patch fix.
