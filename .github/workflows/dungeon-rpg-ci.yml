@@ -44,34 +44,52 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        id: install
+        continue-on-error: true
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck workspace
+        id: typecheck
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
         run: pnpm run typecheck
 
       - name: Build Dungeon Veil
+        id: build
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
         env:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
         run: pnpm --dir artifacts/dungeon-rpg run build
 
       - name: Verify runtime asset base
+        id: assets
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           mapfile -t built_files < <(find artifacts/dungeon-rpg/dist/public -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.html' \))
           test ${#built_files[@]} -gt 0
-          if grep -nHE '["'"']/assets/' "${built_files[@]}"; then
-            echo 'Found root-relative runtime asset paths that would break under /DungeonVeil/.'
+          grep -nHE '["'"']/assets/' "${built_files[@]}" > /tmp/root-assets.txt || true
+          if test -s /tmp/root-assets.txt; then
+            cat /tmp/root-assets.txt
             exit 1
           fi
 
-      - name: Record successful CI
+      - name: Record CI result
+        if: always()
         uses: actions/github-script@v7
         env:
           VALIDATED_SHA: ${{ steps.validated.outputs.sha }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          ASSET_OUTCOME: ${{ steps.assets.outcome }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const path = '.ci/dungeon-rpg-ci.json';
@@ -83,13 +101,34 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
+            const rootAssets = fs.existsSync('/tmp/root-assets.txt')
+              ? fs.readFileSync('/tmp/root-assets.txt', 'utf8').slice(0, 12000)
+              : '';
+            const outcomes = {
+              install: process.env.INSTALL_OUTCOME,
+              typecheck: process.env.TYPECHECK_OUTCOME,
+              build: process.env.BUILD_OUTCOME,
+              assetPaths: process.env.ASSET_OUTCOME,
+            };
+            const success = Object.values(outcomes).every(value => value === 'success');
             const content = Buffer.from(JSON.stringify({
               workflow: 'Dungeon RPG CI',
-              status: 'success',
+              status: success ? 'success' : 'failure',
               validatedCommit: process.env.VALIDATED_SHA,
+              outcomes,
+              rootAssets,
               completedAt: new Date().toISOString(),
             }, null, 2) + '\n').toString('base64');
             await github.rest.repos.createOrUpdateFileContents({
               owner, repo, path, branch: ref, sha, content,
-              message: `Record Dungeon RPG CI success for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
+              message: `Record Dungeon RPG CI ${success ? 'success' : 'failure'} for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
             });
+
+      - name: Enforce CI result
+        if: always()
+        shell: bash
+        run: |
+          test '${{ steps.install.outcome }}' = success
+          test '${{ steps.typecheck.outcome }}' = success
+          test '${{ steps.build.outcome }}' = success
+          test '${{ steps.assets.outcome }}' = success
