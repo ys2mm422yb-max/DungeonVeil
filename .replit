@@ -1,5 +1,17 @@
-run = "pnpm --filter @workspace/dungeon-rpg dev"
+run = "pnpm dev"
 modules = ["nodejs-24"]
+
+[workflows]
+runButton = "Start Dungeon Veil"
+
+[[workflows.workflow]]
+name = "Start Dungeon Veil"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm dev"
+waitForPort = 3000
 
 [deployment]
 router = "application"
@@ -20,21 +32,3 @@ timeoutMs = 20000
 [[ports]]
 localPort = 3000
 externalPort = 80
-
-[[ports]]
-localPort = 3001
-
-[[ports]]
-localPort = 3002
-externalPort = 3002
-
-[[ports]]
-localPort = 3003
-externalPort = 3003
-
-[[ports]]
-localPort = 3004
-externalPort = 3000
-
-[[ports]]
-localPort = 3005
