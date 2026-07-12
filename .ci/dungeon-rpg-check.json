@@ -6,12 +6,12 @@
     "install": "success",
     "assetAudit": "success",
     "roomAudit": "success",
-    "typecheck": "cancelled",
-    "build": "skipped",
-    "pagesArtifact": "skipped",
-    "deploymentMarker": "skipped",
-    "configurePages": "skipped",
-    "uploadArtifact": "skipped"
+    "typecheck": "failure",
+    "build": "success",
+    "pagesArtifact": "success",
+    "deploymentMarker": "success",
+    "configurePages": "success",
+    "uploadArtifact": "success"
   },
-  "completedAt": "2026-07-12T20:47:34.061Z"
+  "completedAt": "2026-07-12T20:49:19.188Z"
 }
