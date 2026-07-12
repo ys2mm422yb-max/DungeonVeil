@@ -27,6 +27,8 @@ export type OnlineProfile = {
   updated_at: string;
 };
 
+export type OnlineGuildRole = 'owner' | 'officer' | 'member';
+
 export type OnlineGuild = {
   id: string;
   name: string;
@@ -36,8 +38,15 @@ export type OnlineGuild = {
 };
 
 export type OnlineGuildMembership = {
-  role: 'owner' | 'officer' | 'member';
+  role: OnlineGuildRole;
   guild: OnlineGuild;
+};
+
+export type OnlineGuildMember = {
+  user_id: string;
+  role: OnlineGuildRole;
+  joined_at: string;
+  profile: Pick<OnlineProfile, 'id' | 'display_name' | 'avatar_key'> | null;
 };
 
 export type OnlineGuildInvite = {
@@ -78,6 +87,11 @@ type AuthPayload = Partial<OnlineSession> & {
   error?: string;
   error_description?: string;
   msg?: string;
+};
+
+type RestResult = {
+  response: Response;
+  payload: unknown;
 };
 
 function emitSession(): void {
@@ -133,6 +147,18 @@ function errorMessage(payload: unknown, fallback: string): string {
   return fallback;
 }
 
+function wait(milliseconds: number): Promise<void> {
+  return new Promise(resolve => window.setTimeout(resolve, milliseconds));
+}
+
+function isJwtTimingError(message: string): boolean {
+  return /jwt.+future|issued at future|not before|nbf/i.test(message);
+}
+
+function shouldRefreshJwt(status: number, message: string): boolean {
+  return status === 401 && /jwt|token|expired|claim|signature/i.test(message);
+}
+
 async function authRequest(path: string, body: Record<string, unknown>): Promise<AuthPayload> {
   const response = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
     method: 'POST',
@@ -165,8 +191,7 @@ async function requireSession(): Promise<OnlineSession> {
   return refreshed;
 }
 
-async function restRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const session = await requireSession();
+async function performRestRequest(path: string, init: RequestInit, session: OnlineSession): Promise<RestResult> {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
     headers: {
@@ -176,9 +201,37 @@ async function restRequest<T>(path: string, init: RequestInit = {}): Promise<T> 
       ...(init.headers ?? {}),
     },
   });
-  const payload = await parseJson(response);
-  if (!response.ok) throw new Error(errorMessage(payload, `Online-Anfrage fehlgeschlagen (${response.status})`));
-  return payload as T;
+  return { response, payload: await parseJson(response) };
+}
+
+async function restRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let session = await requireSession();
+  let result = await performRestRequest(path, init, session);
+
+  if (!result.response.ok) {
+    let message = errorMessage(result.payload, `Online-Anfrage fehlgeschlagen (${result.response.status})`);
+
+    if (isJwtTimingError(message)) {
+      await wait(1800);
+      result = await performRestRequest(path, init, session);
+      if (result.response.ok) return result.payload as T;
+      message = errorMessage(result.payload, `Online-Anfrage fehlgeschlagen (${result.response.status})`);
+    }
+
+    if (shouldRefreshJwt(result.response.status, message)) {
+      const refreshed = await refreshSession(loadStoredSession() ?? session);
+      if (refreshed) {
+        session = refreshed;
+        if (isJwtTimingError(message)) await wait(1400);
+        result = await performRestRequest(path, init, session);
+      }
+    }
+  }
+
+  if (!result.response.ok) {
+    throw new Error(errorMessage(result.payload, `Online-Anfrage fehlgeschlagen (${result.response.status})`));
+  }
+  return result.payload as T;
 }
 
 export function supabaseOnlineConfigured(): boolean {
@@ -267,11 +320,38 @@ export async function listGuilds(): Promise<OnlineGuild[]> {
 
 export async function getMyGuildMembership(): Promise<OnlineGuildMembership | null> {
   const session = await requireSession();
-  const rows = await restRequest<Array<{ role: OnlineGuildMembership['role']; guilds: OnlineGuild }>>(
+  const rows = await restRequest<Array<{ role: OnlineGuildRole; guilds: OnlineGuild }>>(
     `guild_members?user_id=eq.${encodeURIComponent(session.user.id)}&select=role,guilds(id,name,tag,description,owner_id)`,
   );
   const row = rows[0];
   return row?.guilds ? { role: row.role, guild: row.guilds } : null;
+}
+
+export async function listGuildMembers(guildId: string): Promise<OnlineGuildMember[]> {
+  const rows = await restRequest<Array<{ user_id: string; role: OnlineGuildRole; joined_at: string }>>(
+    `guild_members?guild_id=eq.${encodeURIComponent(guildId)}&select=user_id,role,joined_at&order=joined_at.asc`,
+  );
+  if (!rows.length) return [];
+
+  const ids = [...new Set(rows.map(row => row.user_id))];
+  const profiles = await restRequest<OnlineProfile[]>(
+    `profiles?id=in.(${ids.map(id => encodeURIComponent(id)).join(',')})&select=id,display_name,avatar_key,created_at,updated_at`,
+  );
+  const byId = new Map(profiles.map(profile => [profile.id, profile]));
+
+  return rows.map(row => ({
+    ...row,
+    profile: byId.get(row.user_id) ?? null,
+  }));
+}
+
+export async function findOnlineProfileByDisplayName(displayName: string): Promise<OnlineProfile | null> {
+  const name = displayName.trim();
+  if (!name) return null;
+  const rows = await restRequest<OnlineProfile[]>(
+    `profiles?display_name=ilike.${encodeURIComponent(name)}&select=id,display_name,avatar_key,created_at,updated_at&limit=2`,
+  );
+  return rows.find(profile => profile.display_name.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0) ?? rows[0] ?? null;
 }
 
 export async function createGuild(name: string, tag: string, description = ''): Promise<OnlineGuild> {
@@ -285,12 +365,46 @@ export async function createGuild(name: string, tag: string, description = ''): 
   return rows[0];
 }
 
+export async function updateGuildDescription(guildId: string, description: string): Promise<OnlineGuild> {
+  const rows = await restRequest<OnlineGuild[]>(`guilds?id=eq.${encodeURIComponent(guildId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ description: description.trim() }),
+  });
+  if (!rows[0]) throw new Error('Gildenbeschreibung konnte nicht gespeichert werden');
+  return rows[0];
+}
+
 export async function inviteGuildMember(guildId: string, invitedUserId: string): Promise<void> {
   const session = await requireSession();
   await restRequest('guild_invites', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ guild_id: guildId, invited_user_id: invitedUserId, invited_by: session.user.id }),
+  });
+}
+
+export async function inviteGuildMemberByDisplayName(guildId: string, displayName: string): Promise<OnlineProfile> {
+  const session = await requireSession();
+  const profile = await findOnlineProfileByDisplayName(displayName);
+  if (!profile) throw new Error('Spieler nicht gefunden');
+  if (profile.id === session.user.id) throw new Error('Du bist bereits in dieser Gilde');
+  await inviteGuildMember(guildId, profile.id);
+  return profile;
+}
+
+export async function updateGuildMemberRole(guildId: string, userId: string, role: Exclude<OnlineGuildRole, 'owner'>): Promise<void> {
+  await restRequest(`guild_members?guild_id=eq.${encodeURIComponent(guildId)}&user_id=eq.${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function removeGuildMember(guildId: string, userId: string): Promise<void> {
+  await restRequest(`guild_members?guild_id=eq.${encodeURIComponent(guildId)}&user_id=eq.${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    headers: { Prefer: 'return=minimal' },
   });
 }
 
