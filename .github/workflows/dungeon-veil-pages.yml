@@ -13,4 +13,4 @@ jobs:
       - name: Deployment ownership
         run: echo "Automatic Pages deployment runs inside the unified Dungeon RPG Check workflow."
 
-# Retry unified validation for Dungeon Veil guild flow commit 2af6258 after previous recorder conflict.
+# Retry unified validation and Pages deployment for fullscreen world boss commit 35e79e2.
