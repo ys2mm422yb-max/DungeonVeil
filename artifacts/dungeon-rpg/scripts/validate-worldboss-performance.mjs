@@ -37,7 +37,7 @@ const checks = [
   [files.battle.includes('function prepareRaidArenaMap') && files.battle.includes('boundary ? TileType.WALL : TileType.FLOOR') && files.battle.includes('engine.ignoreRoomPropCollisions = true;') && files.battle.includes('ignoreRoomProps: true'), 'world-boss arena still uses invisible room-50 collision props'],
   [files.battle.includes('const handleMove = useCallback') && files.battle.includes('}, [arenaReady, phase]);'), 'world-boss joystick callback is unstable across HUD rerenders'],
   [files.engine.includes('ignoreRoomPropCollisions = false;') && files.engine.includes('!this.ignoreRoomPropCollisions && shotBlockedByRoomProp') && files.engine.includes('return !this.ignoreRoomPropCollisions && collidesWithRoomProp'), 'engine collision bypass is missing or affects normal rooms'],
-  [files.stage.includes("bossShot ? effect.color : '#d8b77a'"), 'normal player arrows still inherit red or blue elemental colors'],
+  [files.stage.includes("slot.material.color.set('#d8b77a')") && files.stage.includes('const fireCoreGeometry') && files.stage.includes('slot.fireCore.visible = true'), 'dedicated boss fireball or neutral player arrows are missing'],
   [files.stage.includes('ownedTextures.forEach') && files.stage.includes('renderer?.forceContextLoss?.()'), 'renderer or texture cleanup is incomplete'],
 ];
 
@@ -48,4 +48,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: imported FBX dragon, aggressive pursuit controller, low-call hall and stable mobile rendering are active.');
+console.log('World-boss performance audit passed: imported FBX dragon, aggressive pursuit controller, dedicated heavy fireball, low-call hall and stable mobile rendering are active.');
