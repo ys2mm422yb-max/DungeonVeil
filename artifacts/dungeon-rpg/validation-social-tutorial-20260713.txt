@@ -1,0 +1,1 @@
+Validate friend codes, profiles, world-boss rankings, weekly mailbox rewards, Veil village and seven-part tutorial after TypeScript fixes.
