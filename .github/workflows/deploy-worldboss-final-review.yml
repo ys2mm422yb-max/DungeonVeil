@@ -1,8 +1,8 @@
 name: Deploy World Boss Final Review
 
 on:
-  push:
-    branches: [rework/worldboss-full-3d-arena]
+  pull_request:
+    branches: [main]
     paths:
       - 'artifacts/dungeon-rpg/**'
       - '.github/workflows/deploy-worldboss-final-review.yml'
@@ -19,11 +19,14 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    if: github.event.pull_request.head.ref == 'rework/worldboss-full-3d-arena'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout branch head
+      - name: Checkout working branch
         uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
