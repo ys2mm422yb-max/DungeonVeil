@@ -3,13 +3,17 @@ name: Apply World Boss Framing Patch
 on:
   push:
     branches: [rework/worldboss-full-3d-arena]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx'
+      - '.github/workflows/apply-worldboss-framing.yml'
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: ${{ !contains(github.event.head_commit.message, '[worldboss-framing]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -25,6 +29,9 @@ jobs:
 
           path = Path('artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx')
           text = path.read_text()
+          if 'WorldBossCleanFloor_' in text and '(portrait ? 13.7 : 11.9)' in text:
+              print('World boss framing patch already applied.')
+              raise SystemExit(0)
 
           def replace_once(old: str, new: str, label: str) -> None:
               global text
@@ -139,6 +146,10 @@ jobs:
           PY
       - name: Commit framing pass
         run: |
+          if git diff --quiet; then
+            echo "No framing changes to commit."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx
