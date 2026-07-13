@@ -3,6 +3,11 @@ name: World Boss Visual Review
 on:
   push:
     branches: [rework/worldboss-full-3d-arena]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/worldboss-visual-review.yml'
   workflow_dispatch:
 
 permissions:
