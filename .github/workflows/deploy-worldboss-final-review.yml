@@ -53,13 +53,18 @@ jobs:
           path: artifacts/dungeon-rpg/dist/public
       - name: Deploy Pages
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v4
-      - name: Record successful deployment
+      - name: Record deployment result
+        if: always()
         run: |
           mkdir -p .ci
-          printf '%s\n%s\n' "$GITHUB_SHA" "${{ steps.deployment.outputs.page_url }}" > .ci/worldboss-pages-deployed.txt
+          printf 'commit=%s\noutcome=%s\nurl=%s\n' "$GITHUB_SHA" "${{ steps.deployment.outcome }}" "${{ steps.deployment.outputs.page_url }}" > .ci/worldboss-pages-deploy-result.txt
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .ci/worldboss-pages-deployed.txt
-          git commit -m "Record successful world boss Pages deployment"
+          git add .ci/worldboss-pages-deploy-result.txt
+          git commit -m "Record world boss Pages deployment result"
           git push
+      - name: Fail when Pages deployment failed
+        if: steps.deployment.outcome != 'success'
+        run: exit 1
