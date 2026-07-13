@@ -1,0 +1,84 @@
+name: World Boss Performance Review
+
+on:
+  push:
+    branches: [rework/worldboss-full-3d-arena]
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Build review
+        run: pnpm --filter @workspace/dungeon-rpg build
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+      - name: Start preview
+        run: |
+          python3 -m http.server 4173 -d artifacts/dungeon-rpg/dist/public > /tmp/worldboss-preview.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/worldboss-preview.log
+          exit 1
+      - name: Capture moving iPhone and Android review
+        run: |
+          mkdir -p review
+          cat > /tmp/capture-worldboss.cjs <<'NODE'
+          const fs = require('fs');
+          const { chromium, devices } = require('playwright');
+
+          async function capture(deviceName, slug) {
+            const browser = await chromium.launch({ headless: true });
+            const context = await browser.newContext({ ...devices[deviceName] });
+            const page = await context.newPage();
+            await page.goto('http://127.0.0.1:4173/?qa=worldboss', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.waitForSelector('[data-testid="ash-king-perspective-stage"]', { timeout: 45000 });
+            await page.waitForTimeout(3500);
+            await page.keyboard.down('d');
+            await page.waitForTimeout(1600);
+            await page.keyboard.up('d');
+            await page.keyboard.down('w');
+            await page.waitForTimeout(1600);
+            await page.keyboard.up('w');
+            await page.waitForTimeout(3600);
+            const metrics = await page.evaluate(() => localStorage.getItem('dungeon-veil-worldboss-performance'));
+            fs.writeFileSync(`review/worldboss-${slug}-metrics.json`, metrics || '{}');
+            await page.screenshot({ path: `review/worldboss-${slug}.png`, fullPage: true });
+            await browser.close();
+          }
+
+          (async () => {
+            await capture('iPhone 13', 'iphone13');
+            await capture('Pixel 5', 'pixel5');
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
+          node /tmp/capture-worldboss.cjs
+      - name: Print metrics
+        run: cat review/*-metrics.json
+      - name: Upload review
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldboss-performance-review
+          path: review/*
+          if-no-files-found: error
+          retention-days: 3
