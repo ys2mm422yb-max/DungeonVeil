@@ -18,6 +18,7 @@ import { FriendsPanel } from '../FriendsPanel';
 import { VillageNpcHub } from '../VillageNpcHub';
 import { WorldBossPanel } from '../WorldBossPanel';
 
+// The hub layout deliberately keeps the world orb as the visual anchor across mobile sizes.
 interface Props {
   saveData: SaveData | null;
   onNewGame: () => void;
