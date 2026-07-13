@@ -24,8 +24,6 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-# Verification also runs directly on the production-pass branch when the PR has conflicts.
-# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
@@ -46,8 +44,22 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
-      - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: All rooms audit
+        run: node artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs
+      - name: Production rooms audit
+        run: node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
+      - name: Spawn hitboxes audit
+        run: node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
+      - name: Enemy visibility audit
+        run: node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
+      - name: Mobile combat audit
+        run: node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+      - name: World boss audit
+        run: node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
+      - name: Social navigation audit
+        run: node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
+      - name: Social progression audit
+        run: node artifacts/dungeon-rpg/scripts/validate-social-progression.mjs
       - name: Typecheck Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
