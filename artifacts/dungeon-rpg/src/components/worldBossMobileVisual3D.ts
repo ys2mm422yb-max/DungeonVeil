@@ -60,10 +60,10 @@ function cloneAndAshenModel(THREE: any, root: any) {
         const target = index % 3 === 0 ? bone : ash;
         clone.color.lerp(target, 0.56);
       }
-      if ('roughness' in clone) clone.roughness = 0.78;
-      if ('metalness' in clone) clone.metalness = Math.max(0.1, Math.min(0.34, clone.metalness ?? 0.12));
+      if ('roughness' in clone) clone.roughness = 0.8;
+      if ('metalness' in clone) clone.metalness = Math.max(0.08, Math.min(0.28, clone.metalness ?? 0.1));
       if ('emissive' in clone) clone.emissive.set(0x080302);
-      if ('emissiveIntensity' in clone) clone.emissiveIntensity = 0.08;
+      if ('emissiveIntensity' in clone) clone.emissiveIntensity = 0.06;
       return clone;
     });
     node.material = Array.isArray(node.material) ? next : next[0];
@@ -96,7 +96,7 @@ function fitAttachment(THREE: any, object: any, targetSize: number) {
 function attachAxe(THREE: any, bone: any, object: any) {
   if (!bone || !object) return;
   cloneAndAshenModel(THREE, object);
-  fitAttachment(THREE, object, 1.28);
+  fitAttachment(THREE, object, 1.24);
   object.position.add(new THREE.Vector3(0.02, 0.02, 0));
   object.rotation.set(Math.PI / 2, 0, Math.PI / 2);
   bone.add(object);
@@ -106,67 +106,55 @@ function addAshKingRegalia(THREE: any, root: any) {
   const mantleMaterial = new THREE.MeshStandardMaterial({
     color: 0x24191f,
     emissive: 0x130407,
-    emissiveIntensity: 0.26,
-    roughness: 0.92,
+    emissiveIntensity: 0.22,
+    roughness: 0.94,
     metalness: 0.02,
     side: THREE.DoubleSide,
   });
   const armorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x46383b,
-    roughness: 0.68,
-    metalness: 0.34,
+    color: 0x4b3c3e,
+    roughness: 0.72,
+    metalness: 0.28,
   });
   const emberMaterial = new THREE.MeshStandardMaterial({
     color: 0xff8a47,
     emissive: 0x8d210b,
-    emissiveIntensity: 1.08,
-    roughness: 0.36,
-    metalness: 0.06,
+    emissiveIntensity: 1.0,
+    roughness: 0.38,
+    metalness: 0.04,
   });
   const crownMaterial = new THREE.MeshStandardMaterial({
     color: 0x8b775a,
     emissive: 0x2c1306,
-    emissiveIntensity: 0.24,
-    roughness: 0.58,
-    metalness: 0.48,
+    emissiveIntensity: 0.2,
+    roughness: 0.62,
+    metalness: 0.4,
   });
 
-  const mantle = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.45, 12, 1, true), mantleMaterial);
+  const mantle = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.42, 9, 1, true), mantleMaterial);
   mantle.name = 'AshVeilMantle';
   mantle.position.set(0, 0.82, -0.24);
   mantle.rotation.x = -0.09;
   root.add(mantle);
 
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.075, 8, 24), armorMaterial);
-  collar.position.set(0, 1.48, -0.01);
-  collar.rotation.x = Math.PI / 2;
-  root.add(collar);
-
-  for (const side of [-1, 1]) {
-    const pauldron = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), armorMaterial);
-    pauldron.position.set(side * 0.56, 1.35, -0.02);
-    pauldron.scale.set(1.35, 0.72, 1);
-    pauldron.rotation.z = side * 0.18;
-    root.add(pauldron);
-  }
+  const shoulderBar = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.26, 0.48), armorMaterial);
+  shoulderBar.name = 'AshShoulderBar';
+  shoulderBar.position.set(0, 1.36, -0.03);
+  root.add(shoulderBar);
 
   const crown = new THREE.Group();
-  crown.name = 'BrokenAshCrown';
-  const crownBand = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.055, 7, 22), crownMaterial);
-  crownBand.rotation.x = Math.PI / 2;
+  crown.name = 'SimplifiedAshCrown';
+  const crownBand = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.13, 8, 1, true), crownMaterial);
+  crownBand.position.y = 0.05;
   crown.add(crownBand);
-  const spikeHeights = [0.28, 0.42, 0.34, 0.46, 0.3];
-  spikeHeights.forEach((height, index) => {
-    const angle = index / spikeHeights.length * Math.PI * 2;
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.075, height, 6), crownMaterial);
-    spike.position.set(Math.cos(angle) * 0.28, height * 0.55, Math.sin(angle) * 0.28);
-    spike.rotation.z = Math.cos(angle) * 0.12;
-    crown.add(spike);
-  });
+  const crownCrest = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.52, 5), crownMaterial);
+  crownCrest.position.y = 0.34;
+  crownCrest.rotation.y = Math.PI / 5;
+  crown.add(crownCrest);
   crown.position.set(0, 1.91, 0);
   root.add(crown);
 
-  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 1), emberMaterial);
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), emberMaterial);
   core.name = 'AshHeart';
   core.position.set(0, 1.07, 0.39);
   root.add(core);
@@ -176,31 +164,7 @@ function addAshKingRegalia(THREE: any, root: any) {
   eyeBar.position.set(0, 1.68, 0.34);
   root.add(eyeBar);
 
-  const auraMaterial = new THREE.MeshBasicMaterial({
-    color: 0xe45e31,
-    transparent: true,
-    opacity: 0.28,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const auraArcs: any[] = [];
-  for (const [start, length, radius] of [[0.15, 1.35, 0.9], [2.45, 1.15, 1.02], [4.55, 1.1, 0.82]] as Array<[number, number, number]>) {
-    const arc = new THREE.Mesh(new THREE.RingGeometry(radius - 0.055, radius, 26, 1, start, length), auraMaterial);
-    arc.rotation.x = -Math.PI / 2;
-    arc.position.y = 0.022;
-    root.add(arc);
-    auraArcs.push(arc);
-  }
-
-  const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.78, 28),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.34, depthWrite: false }),
-  );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.012;
-  root.add(shadow);
-
-  return { mantle, crown, core, eyeBar, auraArcs, emberMaterial };
+  return { mantle, crown, core, eyeBar, emberMaterial };
 }
 
 export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promise<WorldBossMobileRig> {
@@ -286,15 +250,11 @@ export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promi
       if (attackRemaining === 0) playBase();
       mixer.update(delta);
       const pulse = 0.78 + Math.sin(now * 0.0042) * 0.22;
-      regalia.emberMaterial.emissiveIntensity = 0.92 + pulse * 0.42;
-      regalia.core.scale.setScalar(0.92 + pulse * 0.18);
-      regalia.eyeBar.scale.x = 0.9 + pulse * 0.16;
-      regalia.crown.rotation.y += delta * 0.12;
-      regalia.mantle.rotation.z = Math.sin(now * 0.0018) * 0.025;
-      regalia.auraArcs.forEach((arc: any, index: number) => {
-        arc.rotation.z += delta * (index % 2 === 0 ? 0.18 : -0.14);
-        arc.material.opacity = 0.2 + pulse * 0.12;
-      });
+      regalia.emberMaterial.emissiveIntensity = 0.88 + pulse * 0.36;
+      regalia.core.scale.setScalar(0.94 + pulse * 0.14);
+      regalia.eyeBar.scale.x = 0.92 + pulse * 0.12;
+      regalia.crown.rotation.y += delta * 0.09;
+      regalia.mantle.rotation.z = Math.sin(now * 0.0018) * 0.02;
     },
     stop() {
       mixer.stopAllAction();
