@@ -1,1 +1,0 @@
-Inspect the packaged Dragon.fbx files for meshes, bones, embedded animations and world-boss suitability.
