@@ -1,7 +1,7 @@
 {
   "workflow": "Dungeon Veil Mobile Visual QA",
   "status": "success",
-  "validatedCommit": "21840bbd5f4d4508993ed95ec16ab2cceec6082c",
+  "validatedCommit": "cf2261080a995f1b790e56c07fb32edb77ccb9a1",
   "outcomes": {
     "install": "success",
     "build": "success",
@@ -20,10 +20,10 @@
     ".ci/visual-qa/worldboss-android-thumb.jpg"
   ],
   "sizes": {
-    "iphone": 251691,
-    "android": 319444,
-    "iphoneThumb": 7711,
-    "androidThumb": 8110
+    "iphone": 449137,
+    "android": 557144,
+    "iphoneThumb": 7780,
+    "androidThumb": 8167
   },
-  "completedAt": "2026-07-13T03:07:31.302Z"
+  "completedAt": "2026-07-13T06:08:44.641Z"
 }
