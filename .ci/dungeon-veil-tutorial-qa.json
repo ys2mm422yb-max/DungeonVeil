@@ -1,15 +1,15 @@
 {
   "workflow": "Dungeon Veil Social Tutorial Mobile QA",
   "status": "failure",
-  "validatedCommit": "7d9fb2800acba53cb9258f931719418d06a4586c",
+  "validatedCommit": "5dcc13ac4da19d84f1b78a3ec53d4ca5ddb30305",
   "outcomes": {
     "install": "success",
     "audit": "success",
     "typecheck": "success",
     "build": "success",
-    "browsers": "cancelled",
-    "serve": "skipped",
-    "tutorialIphone": "skipped",
+    "browsers": "success",
+    "serve": "success",
+    "tutorialIphone": "cancelled",
     "tutorialAndroid": "skipped",
     "menuIphone": "skipped",
     "menuAndroid": "skipped",
@@ -18,9 +18,11 @@
   },
   "auditLog": "\n> @workspace/dungeon-rpg@0.0.0 audit:social /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs\n\nSocial/navigation audit passed: weekly rift removed, NPC-routed mailbox and friends navigation active, secure guild links available, friend codes and full friend workflows wired, and the semantic Ash King ritual arena is QA-addressable.\nSocial progression audit passed: friend codes, presence and favorites, extended profile cards, direct guild invites, social mailbox notices and bulk actions, friend/guild world-boss rankings, participation-gated rewards, the seven-part tutorial and interactive Veil village NPC hub are wired.\n",
   "typecheckLog": "\n> @workspace/dungeon-rpg@0.0.0 typecheck /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> tsc -p tsconfig.json --noEmit\n\n",
-  "screenshots": [],
+  "screenshots": [
+    ".ci/visual-qa/tutorial-iphone.png"
+  ],
   "sizes": {
-    "tutorialIphone": 0,
+    "tutorialIphone": 298407,
     "tutorialAndroid": 0,
     "tutorialIphoneThumb": 0,
     "tutorialAndroidThumb": 0,
@@ -29,5 +31,5 @@
     "menuIphoneThumb": 0,
     "menuAndroidThumb": 0
   },
-  "completedAt": "2026-07-13T05:07:32.760Z"
+  "completedAt": "2026-07-13T05:09:02.196Z"
 }
