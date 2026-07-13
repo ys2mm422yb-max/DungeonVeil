@@ -5,6 +5,7 @@ const files = {
   proxyStage: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
   combatBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
   cohesiveStage: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
+  aggressiveStage: await readFile(new URL('../src/components/WorldBossAggressiveStage.tsx', import.meta.url), 'utf8'),
   stage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
   bossRig: await readFile(new URL('../src/components/worldBossMobileVisual3D.ts', import.meta.url), 'utf8'),
   engine: await readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
@@ -13,7 +14,8 @@ const files = {
 const checks = [
   [files.battle.includes("import { WorldBossLiteStage }") && files.battle.includes('<WorldBossLiteStage'), 'battle screen is not using the dedicated world-boss stage'],
   [files.proxyStage.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.combatBand.includes('<WorldBossCohesiveStage'), 'world-boss stage routing is broken'],
-  [files.cohesiveStage.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'cohesive stage does not route directly to the performance renderer'],
+  [files.cohesiveStage.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && files.aggressiveStage.includes('<WorldBossPerspectiveStage'), 'cohesive stage does not route through the aggressive controller'],
+  [files.aggressiveStage.includes('const RELEASE_DELAY_MS = 320;') && files.aggressiveStage.includes('const PURSUIT_SPEED = 82;') && files.aggressiveStage.includes('const ATTACK_READY_WINDOW_MS = 720;'), 'world-boss pressure controller is not tuned'],
   [!files.stage.includes('buildKayKitDungeonRoom') && !files.stage.includes('buildKayKitRoomTheme') && !files.stage.includes('floor_tile_large.gltf'), 'generic high-call dungeon shell or repeated floor models remain'],
   [files.stage.includes("root.name = 'AshKingLowCostKayKitHall'") && files.stage.includes("lower.name = 'AshKingRaisedDais'") && files.stage.includes("'VeilGateArch'"), 'curated KayKit hall is missing'],
   [files.stage.includes('new THREE.CanvasTexture(canvas)') && files.stage.includes('new THREE.PlaneGeometry(24, 32, 1, 1)') && files.stage.includes("floor.name = 'AshKingDetailedSingleFloor'"), 'single detailed stone floor is missing'],
@@ -22,7 +24,7 @@ const checks = [
   [files.stage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.stage.includes('const EMBER_COUNT = IS_MOBILE ? 6 : 20;'), 'mobile effect budgets are too high'],
   [files.stage.includes('qualityLevel === 0) return 0') && files.stage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)"), 'mobile frame pacing or resolution is not performance safe'],
   [files.stage.includes('fps < 24 ? 2 : fps < 44') && files.stage.includes('IS_MOBILE ? 60 : 0'), 'adaptive 60-fps-first ladder is missing'],
-  [files.stage.includes('playerX * 0.12') && files.stage.includes("data-camera=\"calm-perspective-camera\""), 'calm mobile camera is missing'],
+  [files.stage.includes('playerX * 0.12') && files.stage.includes('data-camera="calm-perspective-camera"'), 'calm mobile camera is missing'],
   [files.stage.includes('new THREE.CircleGeometry(1, 24)') && !files.stage.includes('new THREE.RingGeometry'), 'neon ring telegraphs remain'],
   [files.bossRig.includes("const DRAGON_URL = `${NORMALIZED_BASE}assets/3d/Dragon.fbx`") && files.bossRig.includes("root.name = 'VeilDragonWorldBoss'") && files.bossRig.includes("visual.name = 'DungeonVeilDragon'"), 'imported dragon world-boss model is missing'],
   [files.bossRig.includes('FBXLoader') && files.bossRig.includes('loadDragon(FBXLoader') && files.bossRig.includes('attempt <= attempts'), 'dragon model is not protected by retry loading'],
@@ -46,4 +48,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: imported FBX dragon, low-call hall, open raid collision, stable held-stick input and neutral player-arrow palette are active.');
+console.log('World-boss performance audit passed: imported FBX dragon, aggressive pursuit controller, low-call hall and stable mobile rendering are active.');
