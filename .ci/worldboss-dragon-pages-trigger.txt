@@ -1,2 +1,0 @@
-Deploy the validated dragon world-boss preview to the fixed Dungeon Veil Pages URL.
-Final dragon preview trigger: 2026-07-13T14:10:00Z
