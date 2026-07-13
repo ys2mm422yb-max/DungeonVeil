@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, socialClient, friendClient, friendsPanel, guildSocial, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, main] = await Promise.all([
+const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, socialClient, friendClient, friendsPanel, guildSocial, guildPanelMobile, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, main] = await Promise.all([
   read('../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql'),
   read('../../../supabase/migrations/20260713034500_social_acceptance_mailbox_notices.sql'),
   read('../../../supabase/migrations/20260713035500_prepare_recent_world_boss_rewards.sql'),
@@ -10,6 +10,7 @@ const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigrat
   read('../src/game/friendOnline.ts'),
   read('../src/components/FriendsPanel.tsx'),
   read('../src/components/GuildSocialPanel.tsx'),
+  read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/PlayerProfileCard.tsx'),
   read('../src/components/OnlinePanel.tsx'),
   read('../src/components/WorldBossPanel.tsx'),
@@ -37,7 +38,10 @@ const checks = [
   [friendClient.includes("'list_friends_v2'") && friendClient.includes("'send_friend_request_by_query'") && friendClient.includes('friend_code'), 'friend client is not using codes and extended profiles'],
   [friendsPanel.includes('DEIN PROFIL & FREUNDESCODE') && friendsPanel.includes('PlayerProfileCard') && friendsPanel.includes('inviteGuildMember'), 'friends UI lacks self profile, profile cards or direct guild invitations'],
   [friendsPanel.includes('FAVORITES_KEY') && friendsPanel.includes('ONLINE_WINDOW_MS') && friendsPanel.includes('formatLastSeen') && friendsPanel.includes('toggleFavorite'), 'friend presence or favorites are missing'],
-  [guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && menu.includes('<GuildSocialPanel'), 'guild member profile cards are missing'],
+  [guildSocial.includes('GuildPanelMobile') && guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && menu.includes('<GuildSocialPanel'), 'guild social panel is not routed through the structured mobile guild UI'],
+  [guildPanelMobile.includes('data-testid="guild-panel-shell"') && guildPanelMobile.includes('data-testid="guild-tabs"') && guildPanelMobile.includes('data-testid="guild-overview-tab"') && guildPanelMobile.includes('data-testid="guild-members-tab"') && guildPanelMobile.includes('data-testid="guild-invite-tab"'), 'guild mobile shell or isolated tab content is missing'],
+  [guildPanelMobile.includes('data-testid="guild-danger-zone"') && guildPanelMobile.includes('<details') && guildPanelMobile.includes('overflow-y-auto') && !guildPanelMobile.includes('max-h-[76vh]'), 'guild danger zone or single-scroll mobile layout regressed'],
+  [guildPanelMobile.includes('createGuild') && guildPanelMobile.includes('updateGuildMemberRole') && guildPanelMobile.includes('inviteGuildMemberByDisplayName') && guildPanelMobile.includes('transferGuildOwnershipOnline') && guildPanelMobile.includes('leaveGuildOnline'), 'guild creation, roles, invitations or membership actions are missing'],
   [profileCard.includes('data-testid="player-profile-card"') && profileCard.includes('lifetime_world_boss_damage') && profileCard.includes('achievement_keys') && profileCard.includes('account_level'), 'social profile card is incomplete'],
   [onlinePanel.includes('social-profile-summary') && onlinePanel.includes('friend_code') && onlinePanel.includes('current_rank'), 'online profile does not expose friend code and progress'],
   [bossPanel.includes('worldboss-social-panel') && bossPanel.includes('getWorldBossSocialDashboard') && (bossPanel.includes('dashboard.friends') || bossPanel.includes('dashboard?.friends')) && bossPanel.includes('dashboard.guilds') && bossPanel.includes('dashboard.myGuild'), 'world-boss friend and guild rankings are missing'],
@@ -60,4 +64,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: friend codes, presence and favorites, extended profile cards, direct guild invites, social mailbox notices and bulk actions, friend/guild world-boss rankings, participation-gated rewards, the seven-part tutorial and interactive Veil village NPC hub are wired.');
+console.log('Social progression audit passed: structured mobile guild tabs, social systems, rewards and tutorial flow are wired.');
