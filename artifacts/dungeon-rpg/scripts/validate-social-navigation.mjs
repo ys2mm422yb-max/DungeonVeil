@@ -38,7 +38,7 @@ const checks = [
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
   [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall'), 'main menu lacks the central world orb or visible village staging'],
   [villageHub.includes('accent="world"') && villageHub.includes('top="47.5%"') && menu.includes('h-[41vh]'), 'NPC hub is not balanced around the world orb or remains overlapped by action cards'],
-  [stageWrapper.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage') && perspectiveStage.includes("root.name = 'AshKingLowCostKayKitHall'") && perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && !perspectiveStage.includes('buildKayKitDungeonRoom'), 'curated low-call Ash King hall is missing'],
+  [stageWrapper.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage') && perspectiveStage.includes("root.name = 'AshKingLowCostKayKitHall'") && perspectiveStage.includes("floor.name = 'AshKingDetailedSingleFloor'") && !perspectiveStage.includes('buildKayKitDungeonRoom'), 'single-floor low-call Ash King hall is missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or stage route are missing'],
 ];
 
@@ -49,4 +49,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: village, mailbox, friends and guild routes remain intact, and the curated low-call Ash King hall is QA-addressable.');
+console.log('Social/navigation audit passed: village, mailbox, friends and guild routes remain intact, and the single-floor Ash King hall is QA-addressable.');
