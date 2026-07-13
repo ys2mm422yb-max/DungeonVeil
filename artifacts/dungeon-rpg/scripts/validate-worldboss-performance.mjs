@@ -19,7 +19,7 @@ const checks = [
   [files.perspectiveStage.includes('new THREE.PerspectiveCamera') && !files.perspectiveStage.includes('new THREE.OrthographicCamera'), 'world-boss camera is not perspective'],
   [files.perspectiveStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;') && files.perspectiveStage.includes('return 33;') && files.perspectiveStage.includes('return 42;') && files.perspectiveStage.includes('return 50;'), 'mobile projectile or frame budgets are missing'],
   [files.perspectiveStage.includes('fps < 19 ? 2 : fps < 27') && files.perspectiveStage.includes('IS_ANDROID ? 0.62 : 0.7'), 'adaptive mobile quality ladder is missing'],
-  [files.perspectiveStage.includes('loadWorldBossMobileRig') && files.perspectiveStage.includes('bossRig.root.scale.setScalar(1.72') && files.perspectiveStage.includes("root.name = 'AshKingDominanceAura'"), 'dominant Ash King presentation is missing'],
+  [files.perspectiveStage.includes('loadWorldBossMobileRig') && files.perspectiveStage.includes('bossRig.root.scale.setScalar(2.05') && files.perspectiveStage.includes("root.name = 'AshKingDominanceAura'"), 'dominant Ash King presentation is missing'],
   [files.perspectiveStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.perspectiveStage.includes('key.castShadow = !IS_MOBILE'), 'mobile-safe shadow policy is missing'],
   [files.battle.includes('const TIMER_PAINT_MS = 250;') && files.battle.includes('if (!arenaReadyRef.current)'), 'timer throttling or ready gate is missing'],
   [files.perspectiveStage.includes('readyRaf = requestAnimationFrame') && files.perspectiveStage.includes('readyRef.current()'), 'ready callback is not deferred until a rendered frame'],
