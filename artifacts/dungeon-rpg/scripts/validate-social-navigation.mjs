@@ -37,7 +37,7 @@ const checks = [
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
   [menuSceneProxy.includes('ModernVillageSquareScene as MainMenuDungeonScene'), 'main menu scene proxy is not routed to the modern village renderer'],
-  [villageScene.includes("root.name = 'ModernKayKitVillageSquare'") && villageScene.includes("'VillageGate'") && villageScene.includes("'VillageSquareShrine'") && villageScene.includes('loadVillageAssets') && villageScene.includes('VILLAGE_ASSETS'), 'modern KayKit village-square staging is missing'],
+  [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes("'VillageGate'") && villageScene.includes("'VillageSquareShrine'") && villageScene.includes('loadVillageAssets') && villageScene.includes('VILLAGE_ASSETS'), 'modern KayKit village-square staging is missing'],
   [villageHub.includes('grid grid-cols-5') && villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock is missing or floating labels remain'],
   [menu.includes('grid-cols-2') && menu.includes('min-h-[250px] flex-1') && !menu.includes('h-[41vh]'), 'main-menu action layout is not separated from the village scene'],
   [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
