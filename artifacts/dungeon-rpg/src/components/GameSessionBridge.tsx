@@ -3,6 +3,7 @@ import { saveEngineSession } from '../game/sessionStore';
 import { loadGame } from '../game/saveManager';
 import type { GameEngine } from '../game/runEngine';
 import type { UpgradeKey } from '../i18n/translations';
+import { useLanguage } from '../i18n/LanguageContext';
 import { availableRunSkills } from '../game/runSkills';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
@@ -17,6 +18,7 @@ import { pushCloudSave } from '../game/cloudSave';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 import { FirstWardenOverlay } from './FirstWardenOverlay';
+import { TutorialOverlay } from './TutorialOverlay';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 
@@ -32,6 +34,7 @@ function restorePendingRoomGift(engine: GameEngine): void {
 }
 
 export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {
+  const { language } = useLanguage();
   const getEngineRef = useRef(getEngine);
   getEngineRef.current = getEngine;
 
@@ -125,5 +128,10 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     };
   }, [active]);
 
-  return active ? <><MetaRewardBanner /><RunRetentionOverlay /><FirstWardenOverlay /></> : null;
+  return active ? <>
+    <MetaRewardBanner />
+    <RunRetentionOverlay />
+    <FirstWardenOverlay />
+    <TutorialOverlay getEngine={() => getEngineRef.current()} language={language} />
+  </> : null;
 }
