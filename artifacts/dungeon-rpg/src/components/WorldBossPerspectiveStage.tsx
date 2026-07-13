@@ -89,6 +89,29 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       return current ? value / TILE - current.map.height / 2 + 0.5 : 0;
     };
 
+    const cleanBossFloorLane = async (shell: any, current: NonNullable<ReturnType<typeof state>>) => {
+    await shell.userData?.ready;
+    if (disposed) return;
+    const floorStep = 4;
+    const columns = Math.max(1, Math.floor(current.map.width / floorStep));
+    const rows = Math.max(1, Math.floor(current.map.height / floorStep));
+    const floorChildren = shell.children.slice(0, columns * rows);
+    const cleanPrototype = floorChildren.find((_tile: any, index: number) => (index + VISUAL_ROOM * 3) % 3 !== 0);
+    if (!cleanPrototype) return;
+    floorChildren.forEach((tile: any, index: number) => {
+      const broken = (index + VISUAL_ROOM * 3) % 3 === 0;
+      const centralLane = Math.abs(tile.position.x) < 4.2 && tile.position.z > -8.5 && tile.position.z < 10.5;
+      if (!broken || !centralLane) return;
+      const replacement = cleanPrototype.clone(true);
+      replacement.position.copy(tile.position);
+      replacement.rotation.copy(tile.rotation);
+      replacement.scale.copy(tile.scale);
+      replacement.name = `WorldBossCleanFloor_${index}`;
+      shell.remove(tile);
+      shell.add(replacement);
+    });
+  };
+
     const disposeObject = (root: any) => root?.traverse?.((node: any) => {
       node.geometry?.dispose?.();
       if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
@@ -122,7 +145,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
       camera.aspect = width / height;
-      camera.fov = camera.aspect < 0.7 ? 48 : 44;
+      camera.fov = camera.aspect < 0.7 ? 50 : 44;
       camera.updateProjectionMatrix();
     };
 
@@ -346,20 +369,32 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     };
 
     const updateCamera = (delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number) => {
-      const focusX = clamp(playerX * 0.38 + bossX * 0.62, -3.6, 3.6);
-      const focusZ = clamp(playerZ * 0.36 + bossZ * 0.64, -3.3, 2.8);
-      const spread = Math.hypot(playerX - bossX, playerZ - bossZ);
-      const extra = clamp((spread - 10) * 0.24, 0, 2.8);
-      const portrait = camera.aspect < 0.72;
-      cameraGoal.set(focusX, (portrait ? 12.8 : 11.5) + extra * 0.35, focusZ + (portrait ? 17.6 : 16.1) + extra);
-      camera.position.x = damp(camera.position.x, cameraGoal.x, 5.8, delta);
-      camera.position.y = damp(camera.position.y, cameraGoal.y, 5.2, delta);
-      camera.position.z = damp(camera.position.z, cameraGoal.z, 5.8, delta);
-      cameraLook.set(focusX, 1.12, focusZ - (portrait ? 3.15 : 3.55));
-      camera.lookAt(cameraLook);
-      camera.userData.dungeonPlayerX = playerX;
-      camera.userData.dungeonPlayerZ = playerZ;
-    };
+    const portrait = camera.aspect < 0.72;
+    const focusX = clamp(
+      playerX * (portrait ? 0.56 : 0.44) + bossX * (portrait ? 0.44 : 0.56),
+      -3.6,
+      3.6,
+    );
+    const focusZ = clamp(
+      playerZ * (portrait ? 0.62 : 0.46) + bossZ * (portrait ? 0.38 : 0.54) + (portrait ? 0.65 : 0.2),
+      -2.2,
+      4.6,
+    );
+    const spread = Math.hypot(playerX - bossX, playerZ - bossZ);
+    const extra = clamp((spread - 10) * 0.22, 0, 2.6);
+    cameraGoal.set(
+      focusX,
+      (portrait ? 13.7 : 11.9) + extra * 0.34,
+      focusZ + (portrait ? 19.6 : 16.7) + extra,
+    );
+    camera.position.x = damp(camera.position.x, cameraGoal.x, 5.8, delta);
+    camera.position.y = damp(camera.position.y, cameraGoal.y, 5.2, delta);
+    camera.position.z = damp(camera.position.z, cameraGoal.z, 5.8, delta);
+    cameraLook.set(focusX, portrait ? 0.92 : 1.08, focusZ - (portrait ? 1.65 : 3.15));
+    camera.lookAt(cameraLook);
+    camera.userData.dungeonPlayerX = playerX;
+    camera.userData.dungeonPlayerZ = playerZ;
+  };
 
     const updatePerformance = (now: number) => {
       perfFrames += 1;
@@ -501,6 +536,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       roomRoot.userData.shell = shell;
       roomRoot.userData.theme = theme;
       scene.add(roomRoot);
+      void cleanBossFloorLane(shell, current);
       const architecturePromise = loadArchitecture(GLTFLoader);
 
       playerRig = await loadKayKitRanger(THREE, GLTFLoader);
