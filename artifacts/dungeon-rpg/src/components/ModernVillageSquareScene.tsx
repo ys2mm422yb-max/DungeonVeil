@@ -18,6 +18,11 @@ const VILLAGE_ASSETS: AssetRule[] = [
   { key: 'crate', pack: 'resources', include: /crate/i },
   { key: 'barrel', pack: 'resources', include: /barrel/i },
   { key: 'rock', pack: 'forest', include: /rock|stone/i },
+  { key: 'mira', pack: 'adventurers', include: /Characters\/gltf\/Ranger\.glb$/i },
+  { key: 'orin', pack: 'adventurers', include: /Characters\/gltf\/Mage\.glb$/i },
+  { key: 'tala', pack: 'adventurers', include: /Characters\/gltf\/Rogue_Hooded\.glb$/i },
+  { key: 'brom', pack: 'adventurers', include: /Characters\/gltf\/Knight\.glb$/i },
+  { key: 'aelric', pack: 'adventurers', include: /Characters\/gltf\/Barbarian\.glb$/i },
 ];
 
 function buildMarketStall(THREE: any, roofColor: number) {
@@ -49,8 +54,8 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any) {
     return [rule.key, gltf.scene] as const;
   }));
   const models = Object.fromEntries(loaded) as Record<string, any>;
-  const root = new THREE.Group();
-  root.name = 'ModernKayKitVillageSquare';
+  const villageRoot = new THREE.Group();
+  villageRoot.name = 'ModernKayKitVillageSquare';
 
   const add = (prototype: any, x: number, y: number, z: number, scale: number, rotation = 0, name = '') => {
     const object = prototype.clone(true);
@@ -64,7 +69,8 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any) {
       node.receiveShadow = false;
       node.frustumCulled = false;
     });
-    root.add(object);
+    villageRoot.add(object);
+    return object;
   };
 
   add(models.gate, 0, -0.35, -10.4, 1.75, Math.PI, 'VillageGate');
@@ -80,8 +86,18 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any) {
   }
   add(models.table, -3.15, 0, -1.25, 0.9, 0.14, 'QuestTable');
   add(models.table, 3.15, 0, -1.25, 0.9, -0.14, 'PostTable');
-  scene.add(root);
-  return root;
+
+  const keepers = [
+    add(models.mira, -2.75, 0, -1.65, 0.86, 0.18, 'MiraQuestKeeper'),
+    add(models.orin, 2.75, 0, -1.65, 0.86, -0.18, 'OrinPostKeeper'),
+    add(models.tala, -2.85, 0, -4.25, 0.86, 0.1, 'TalaScoutKeeper'),
+    add(models.brom, 2.85, 0, -4.25, 0.86, -0.1, 'BromGuildKeeper'),
+    add(models.aelric, 0, 0.08, -5.15, 0.92, 0, 'AelricWorldKeeper'),
+  ];
+  keepers.forEach((keeper, index) => { keeper.userData.villagePhase = index * 1.17; });
+
+  scene.add(villageRoot);
+  return { villageRoot, keepers };
 }
 
 export function ModernVillageSquareScene() {
@@ -94,6 +110,7 @@ export function ModernVillageSquareScene() {
     let raf = 0;
     let renderer: any = null;
     let scene: any = null;
+    let keepers: any[] = [];
     let lastFrame = 0;
 
     const boot = async () => {
@@ -104,7 +121,6 @@ export function ModernVillageSquareScene() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x111318);
       scene.fog = new THREE.Fog(0x111318, 15, 35);
-
       renderer = new THREE.WebGLRenderer({ antialias: !IS_MOBILE, alpha: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_MOBILE ? 1 : 1.3));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -120,14 +136,10 @@ export function ModernVillageSquareScene() {
       camera.position.set(0, 5.3, 13.2);
       camera.lookAt(0, 1.3, -5.2);
 
-      const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(17, 31),
-        new THREE.MeshStandardMaterial({ color: 0x282622, roughness: 0.98 }),
-      );
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(17, 31), new THREE.MeshStandardMaterial({ color: 0x282622, roughness: 0.98 }));
       floor.rotation.x = -Math.PI / 2;
       floor.position.set(0, -0.03, -6.0);
       scene.add(floor);
-
       const pathMaterial = new THREE.MeshStandardMaterial({ color: 0x5b4b3d, roughness: 0.92 });
       for (let index = 0; index < 10; index++) {
         const slab = new THREE.Mesh(new THREE.BoxGeometry(3.5 + (index % 2) * 0.22, 0.055, 1.42), pathMaterial);
@@ -135,31 +147,22 @@ export function ModernVillageSquareScene() {
         slab.rotation.y = (index % 3 - 1) * 0.026;
         scene.add(slab);
       }
-
-      const plaza = new THREE.Mesh(
-        new THREE.CylinderGeometry(4.75, 5.0, 0.16, IS_MOBILE ? 36 : 56),
-        new THREE.MeshStandardMaterial({ color: 0x413831, roughness: 0.94 }),
-      );
+      const plaza = new THREE.Mesh(new THREE.CylinderGeometry(4.75, 5.0, 0.16, IS_MOBILE ? 36 : 56), new THREE.MeshStandardMaterial({ color: 0x413831, roughness: 0.94 }));
       plaza.position.set(0, 0.035, -4.4);
       plaza.scale.z = 0.78;
       scene.add(plaza);
-
-      const centralMark = new THREE.Mesh(
-        new THREE.RingGeometry(2.55, 2.68, IS_MOBILE ? 40 : 64),
-        new THREE.MeshBasicMaterial({ color: 0xc59b54, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }),
-      );
+      const centralMark = new THREE.Mesh(new THREE.RingGeometry(2.55, 2.68, IS_MOBILE ? 40 : 64), new THREE.MeshBasicMaterial({ color: 0xc59b54, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
       centralMark.rotation.x = -Math.PI / 2;
       centralMark.position.set(0, 0.13, -4.4);
       centralMark.scale.z = 0.78;
       scene.add(centralMark);
 
-      const stalls = [
+      [
         { x: -3.85, z: -2.0, rot: 0.18, color: 0x7b4d2e },
         { x: 3.85, z: -2.0, rot: -0.18, color: 0x315e6b },
         { x: -3.85, z: -4.8, rot: 0.1, color: 0x3f6547 },
         { x: 3.85, z: -4.8, rot: -0.1, color: 0x694158 },
-      ];
-      stalls.forEach(entry => {
+      ].forEach(entry => {
         const stall = buildMarketStall(THREE, entry.color);
         stall.position.set(entry.x, 0, entry.z);
         stall.rotation.y = entry.rot;
@@ -178,7 +181,7 @@ export function ModernVillageSquareScene() {
       shrineLight.position.set(0, 2.0, -5.7);
       scene.add(shrineLight);
 
-      await loadVillageAssets(THREE, GLTFLoader, scene);
+      ({ keepers } = await loadVillageAssets(THREE, GLTFLoader, scene));
       if (disposed) return;
 
       const resize = () => {
@@ -200,6 +203,7 @@ export function ModernVillageSquareScene() {
         lastFrame = now;
         shrineLight.intensity = (IS_MOBILE ? 1.35 : 1.95) + Math.sin(now * 0.0022) * 0.18;
         centralMark.material.opacity = 0.25 + Math.sin(now * 0.0018) * 0.07;
+        keepers.forEach(keeper => { keeper.position.y = Math.sin(now * 0.0014 + keeper.userData.villagePhase) * 0.022; });
         renderer.render(scene, camera);
       };
       raf = requestAnimationFrame(loop);
