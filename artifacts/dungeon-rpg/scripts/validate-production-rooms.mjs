@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { createServer } from 'vite';
 
 const ROOT = process.cwd();
@@ -159,9 +160,9 @@ try {
   note('Boss arenas keep bounded collider counts and clear authored spawn points.');
 
   if (!guardHallSource.includes("root.name = 'RoomTwoGuardCommandHall'") || !guardHallSource.includes("'RoomTwoGuardGate'") || !guardHallSource.includes("'RoomTwoShieldDisplayLeft'")) errors.push('Room 2 guard command hall staging is missing');
-if (!themeSource.includes('room === 2 ? buildRoomTwoGuardCommandHall(THREE) : null')) errors.push('Room 2 guard hall is not wired into the theme builder');
+  if (!themeSource.includes('room === 2 ? buildRoomTwoGuardCommandHall(THREE) : null')) errors.push('Room 2 guard hall is not wired into the theme builder');
 
-if (errors.length) {
+  if (errors.length) {
     console.error(`Production room validation failed with ${errors.length} error(s):`);
     errors.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;
