@@ -26,6 +26,7 @@ const checks = [
   [files.stage.includes('new THREE.CircleGeometry(1, 24)') && !files.stage.includes('new THREE.RingGeometry'), 'neon ring telegraphs remain'],
   [files.bossRig.includes("shoulderBar.name = 'AshShoulderBar'") && files.bossRig.includes("crown.name = 'SimplifiedAshCrown'"), 'simplified boss silhouette is missing'],
   [!files.bossRig.includes('auraArcs') && !files.bossRig.includes('new THREE.RingGeometry') && !files.bossRig.includes('new THREE.CircleGeometry'), 'duplicate boss aura or shadow geometry remains'],
+  [files.bossRig.includes('loadRequiredBossModel') && files.bossRig.includes('attempt <= attempts') && files.bossRig.includes('loadOptionalBossAsset') && files.bossRig.includes('void (async () => {') && !files.bossRig.includes('const [skeletonGltf, generalGltf, movementGltf, combatGltf'), 'Ash King visual is not protected from optional animation-load failures'],
   [files.stage.includes("shadow.name = 'AshKingGroundShadow'") && files.stage.includes('bossRig.root.scale.setScalar(2.0'), 'dominant boss presentation is missing'],
   [files.stage.includes('antialias: !IS_MOBILE') && files.stage.includes('renderer.shadowMap.enabled = !IS_MOBILE'), 'mobile-safe renderer policy is missing'],
   [files.stage.includes("arena: 'single-floor-low-call-kaykit-hall'") && files.stage.includes("camera: 'calm-perspective-camera'"), 'performance telemetry identity is missing'],
@@ -44,4 +45,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: low-call hall, open raid collision, stable held-stick input and neutral player-arrow palette are active.');
+console.log('World-boss performance audit passed: resilient Ash King visual loading, low-call hall, open raid collision, stable held-stick input and neutral player-arrow palette are active.');
