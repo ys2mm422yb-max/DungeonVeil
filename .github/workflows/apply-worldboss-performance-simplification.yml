@@ -1,0 +1,196 @@
+name: Apply World Boss Performance Simplification
+
+on:
+  push:
+    branches: [rework/worldboss-full-3d-arena]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, 'Simplify world boss arena and mobile performance') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+          fetch-depth: 0
+      - name: Apply simplified arena and performance patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('artifacts/dungeon-rpg')
+          stage_path = root / 'src/components/WorldBossPerspectiveStage.tsx'
+          wrapper_path = root / 'src/components/WorldBossCohesiveStage.tsx'
+          runtime_path = root / 'src/components/worldBossVisualRuntimePatch.ts'
+          stage = stage_path.read_text()
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              return text.replace(old, new, 1)
+
+          stage = replace_once(stage,
+              "import { buildKayKitRoomTheme, preloadKayKitRoomTheme } from './kaykitRoomThemes3D';\n",
+              '', 'remove room theme import')
+          stage = replace_once(stage,
+              'const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;',
+              'const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;', 'projectile budget')
+          stage = replace_once(stage,
+              "const HALLOWEEN = 'halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf';\n",
+              '', 'remove halloween path')
+          stage = replace_once(stage,
+              "const ARENA_MODELS = {\n  arch: `${DUNGEON}/wall_arched.gltf`,\n  pillar: `${DUNGEON}/pillar_decorated.gltf`,\n  barrier: `${DUNGEON}/barrier_column.gltf`,\n  torch: `${DUNGEON}/torch_lit.gltf`,\n  banner: `${DUNGEON}/banner_shield_red.gltf`,\n  shrine: `${HALLOWEEN}/shrine_candles.gltf`,\n} as const;",
+              "const ARENA_MODELS = {\n  arch: `${DUNGEON}/wall_arched.gltf`,\n  pillar: `${DUNGEON}/pillar_decorated.gltf`,\n  torch: `${DUNGEON}/torch_lit.gltf`,\n} as const;", 'arena model budget')
+          stage = replace_once(stage,
+              "      if (!IS_MOBILE) return Math.min(ratio, qualityLevel ? 1.2 : 1.5);\n      if (qualityLevel >= 2) return IS_ANDROID ? 0.62 : 0.7;\n      if (qualityLevel >= 1) return IS_ANDROID ? 0.74 : 0.82;\n      return Math.min(ratio, IS_ANDROID ? 0.9 : 1);",
+              "      if (!IS_MOBILE) return Math.min(ratio, qualityLevel ? 1.1 : 1.35);\n      if (qualityLevel >= 2) return IS_ANDROID ? 0.58 : 0.64;\n      if (qualityLevel >= 1) return IS_ANDROID ? 0.68 : 0.74;\n      return Math.min(ratio, IS_ANDROID ? 0.76 : 0.82);", 'mobile pixel ratio')
+          stage = replace_once(stage,
+              "      if (!IS_MOBILE) return 0;\n      if (qualityLevel >= 2) return 50;\n      if (qualityLevel >= 1) return 42;\n      return 33;",
+              "      if (!IS_MOBILE || qualityLevel === 0) return 0;\n      if (qualityLevel >= 2) return 42;\n      return 33;", 'default uncapped frame loop')
+          stage = replace_once(stage,
+              "      addModel(models.arch, 0, 0, backZ, 1.85, Math.PI, 'VeilGateArch');\n      addModel(models.shrine, 0, 0.72, backZ + 0.5, 1.6, 0, 'AshKingCandleShrine');\n      for (const side of [-1, 1]) {\n        addModel(models.pillar, side * sideX, 0, daisZ - 0.8, 1.65);\n        addModel(models.barrier, side * (sideX - 1.15), 0.46, daisZ + 1.85, 1.35);\n        addModel(models.torch, side * (sideX - 0.25), 1.05, daisZ - 0.1, 1.4, Math.PI);\n        addModel(models.banner, side * (sideX + 0.1), 3.1, backZ + 0.25, 1.35, Math.PI);\n      }",
+              "      addModel(models.arch, 0, 0, backZ, 1.85, Math.PI, 'VeilGateArch');\n      for (const side of [-1, 1]) {\n        addModel(models.pillar, side * (sideX * 0.82), 0, daisZ - 0.9, 1.55);\n        addModel(models.torch, side * (sideX * 0.58), 1.02, daisZ - 0.15, 1.32, Math.PI);\n      }", 'simplify architecture')
+          stage = replace_once(stage,
+              "      seal.name = 'AshKingPerspectiveSeal';\n      seal.rotation.x = -Math.PI / 2;",
+              "      seal.name = 'AshKingPerspectiveSeal';\n      seal.visible = false;\n      seal.rotation.x = -Math.PI / 2;", 'hide ritual seal')
+
+          aura_pattern = re.compile(r"      const ring = new THREE\.Mesh\(\n.*?      root\.userData\.ring = ring;\n", re.S)
+          stage, count = aura_pattern.subn('', stage, count=1)
+          if count != 1:
+              raise SystemExit(f'remove boss aura ring: expected one match, found {count}')
+
+          stage = replace_once(stage,
+              '      const count = IS_MOBILE ? 30 : 64;',
+              '      const count = IS_MOBILE ? 12 : 36;', 'ember budget')
+
+          camera_pattern = re.compile(r"    const updateCamera = \(delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number\) => \{.*?    camera\.userData\.dungeonPlayerZ = playerZ;\n  \};", re.S)
+          camera_replacement = """    const updateCamera = (delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number) => {
+      const portrait = camera.aspect < 0.72;
+      const focusX = clamp(playerX * 0.18 + bossX * 0.08, -1.25, 1.25);
+      const focusZ = clamp(playerZ * 0.12 + bossZ * 0.04, -0.9, 0.9);
+      cameraGoal.set(
+        focusX,
+        portrait ? 13.9 : 12.1,
+        focusZ + (portrait ? 19.7 : 16.9),
+      );
+      camera.position.x = damp(camera.position.x, cameraGoal.x, 2.4, delta);
+      camera.position.y = damp(camera.position.y, cameraGoal.y, 2.2, delta);
+      camera.position.z = damp(camera.position.z, cameraGoal.z, 2.4, delta);
+      cameraLook.set(focusX * 0.45, portrait ? 0.95 : 1.05, -1.6 + focusZ * 0.3);
+      camera.lookAt(cameraLook);
+      camera.userData.dungeonPlayerX = playerX;
+      camera.userData.dungeonPlayerZ = playerZ;
+    };"""
+          stage, count = camera_pattern.subn(camera_replacement, stage, count=1)
+          if count != 1:
+              raise SystemExit(f'calm camera: expected one match, found {count}')
+
+          stage = replace_once(stage,
+              '      const nextLevel = fps < 19 ? 2 : fps < 27 ? Math.max(qualityLevel, 1) : qualityLevel;',
+              '      const nextLevel = fps < 24 ? 2 : fps < 42 ? Math.max(qualityLevel, 1) : qualityLevel;', 'quality thresholds')
+          stage = replace_once(stage,
+              '          targetFps: qualityLevel >= 2 ? 20 : qualityLevel >= 1 ? 24 : IS_MOBILE ? 30 : 0,',
+              '          targetFps: qualityLevel >= 2 ? 24 : qualityLevel >= 1 ? 30 : IS_MOBILE ? 60 : 0,', 'target fps reporting')
+          stage = replace_once(stage,
+              "        if (bossAura) {\n          bossAura.position.set(bossX, 0, bossZ);\n          bossAura.userData.ring.rotation.z = now * 0.00045;\n          bossAura.userData.ring.material.opacity = 0.29 + Math.sin(now * 0.003) * 0.1;\n        }",
+              "        if (bossAura) bossAura.position.set(bossX, 0, bossZ);", 'remove aura animation')
+          stage = replace_once(stage,
+              '      syncEmbers(now, bossX, bossZ);',
+              "      if (embers) embers.visible = qualityLevel < 2;\n      if (qualityLevel < 2) syncEmbers(now, bossX, bossZ);", 'adaptive embers')
+          stage = replace_once(stage,
+              '      await Promise.all([loadKayKitManifest(), preloadKayKitDungeonRoom(VISUAL_ROOM), preloadKayKitRoomTheme(VISUAL_ROOM)]);',
+              '      await Promise.all([loadKayKitManifest(), preloadKayKitDungeonRoom(VISUAL_ROOM)]);', 'remove theme preload')
+          stage = replace_once(stage,
+              "      const shell = buildKayKitDungeonRoom(THREE, VISUAL_ROOM, current.map.width, current.map.height);\n      const theme = buildKayKitRoomTheme(THREE, VISUAL_ROOM);\n      roomRoot.add(shell, theme);\n      roomRoot.userData.shell = shell;\n      roomRoot.userData.theme = theme;",
+              "      const shell = buildKayKitDungeonRoom(THREE, VISUAL_ROOM, current.map.width, current.map.height);\n      roomRoot.add(shell);\n      roomRoot.userData.shell = shell;", 'remove theme layer')
+          stage = replace_once(stage,
+              '        keepGeometry(new THREE.RingGeometry(0.82, 1, 40)),\n        keepMaterial(new THREE.MeshBasicMaterial({ color: 0xff7247, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),',
+              '        keepGeometry(new THREE.CircleGeometry(1, 32)),\n        keepMaterial(new THREE.MeshBasicMaterial({ color: 0xb75a35, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),', 'soft telegraph geometry')
+          stage = replace_once(stage,
+              "      telegraph.material.color.set(effect.color);\n      telegraph.material.opacity = Math.max(0.1, 0.48 * (1 - progress));",
+              "      telegraph.material.color.setHex(0xb75a35);\n      telegraph.material.opacity = Math.max(0.04, 0.16 * (1 - progress));", 'soft telegraph material')
+          stage = replace_once(stage,
+              '      await Promise.all([shell.userData?.ready ?? Promise.resolve(), theme.userData?.ready ?? Promise.resolve(), architecturePromise]);',
+              '      await Promise.all([shell.userData?.ready ?? Promise.resolve(), architecturePromise]);', 'remove theme ready')
+          stage = replace_once(stage,
+              '      roomRoot?.userData?.theme?.userData?.dispose?.();\n',
+              '', 'remove theme cleanup')
+
+          stage_path.write_text(stage)
+          wrapper_path.write_text("export { WorldBossPerspectiveStage as WorldBossCohesiveStage } from './WorldBossPerspectiveStage';\n")
+          if runtime_path.exists():
+              runtime_path.unlink()
+
+          (root / 'scripts/validate-worldboss-performance.mjs').write_text("""import { readFile } from 'node:fs/promises';
+
+const files = {
+  battle: await readFile(new URL('../src/components/WorldBossBattleScreen.tsx', import.meta.url), 'utf8'),
+  proxyStage: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
+  combatBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
+  cohesiveStage: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
+  perspectiveStage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
+};
+
+const checks = [
+  [files.battle.includes("import { WorldBossLiteStage }") && files.battle.includes('<WorldBossLiteStage'), 'battle screen is not using the dedicated world-boss stage'],
+  [files.proxyStage.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.combatBand.includes('<WorldBossCohesiveStage'), 'world-boss stage routing is broken'],
+  [files.cohesiveStage.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'cohesive stage does not route directly to the perspective renderer'],
+  [files.perspectiveStage.includes('buildKayKitDungeonRoom') && !files.perspectiveStage.includes('buildKayKitRoomTheme') && !files.perspectiveStage.includes('preloadKayKitRoomTheme'), 'heavy room-20 theme layer is still mounted'],
+  [files.perspectiveStage.includes("root.name = 'AshKingPerspectiveSanctum'") && files.perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && files.perspectiveStage.includes("'VeilGateArch'"), 'simplified sanctum architecture is missing'],
+  [!files.perspectiveStage.includes('models.barrier') && !files.perspectiveStage.includes('models.banner') && !files.perspectiveStage.includes('models.shrine'), 'excess arena models remain'],
+  [files.perspectiveStage.includes("seal.visible = false") && !files.perspectiveStage.includes('root.userData.ring = ring'), 'static ritual rings remain'],
+  [files.perspectiveStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.perspectiveStage.includes('const count = IS_MOBILE ? 12 : 36;'), 'mobile effect budgets are too high'],
+  [files.perspectiveStage.includes('qualityLevel === 0) return 0') && files.perspectiveStage.includes('return Math.min(ratio, IS_ANDROID ? 0.76 : 0.82)'), 'default mobile frame pacing or resolution is not performance safe'],
+  [files.perspectiveStage.includes('fps < 24 ? 2 : fps < 42') && files.perspectiveStage.includes('IS_MOBILE ? 60 : 0'), 'adaptive 60-fps-first quality ladder is missing'],
+  [files.perspectiveStage.includes('playerX * 0.18 + bossX * 0.08') && files.perspectiveStage.includes('damp(camera.position.x, cameraGoal.x, 2.4'), 'calm low-follow camera is missing'],
+  [files.perspectiveStage.includes('new THREE.CircleGeometry(1, 32)') && files.perspectiveStage.includes('material.opacity = Math.max(0.04, 0.16'), 'soft ash telegraph is missing'],
+  [files.perspectiveStage.includes('new THREE.PerspectiveCamera') && !files.perspectiveStage.includes('new THREE.OrthographicCamera'), 'world-boss camera is not perspective'],
+  [files.perspectiveStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.perspectiveStage.includes('key.castShadow = !IS_MOBILE'), 'mobile-safe shadow policy is missing'],
+  [files.perspectiveStage.includes('readyRaf = requestAnimationFrame') && files.perspectiveStage.includes('renderer?.forceContextLoss?.()'), 'renderer lifecycle cleanup is incomplete'],
+];
+
+const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
+if (failed.length) {
+  console.error(`World-boss performance audit failed with ${failed.length} error(s):`);
+  failed.forEach(message => console.error(`  - ${message}`));
+  process.exit(1);
+}
+
+console.log('World-boss performance audit passed: simplified KayKit sanctum, uncapped default mobile rendering, calm camera and reduced effects are active.');
+""")
+
+          mobile_path = root / 'scripts/validate-mobile-combat.mjs'
+          mobile = mobile_path.read_text()
+          mobile = mobile.replace("  bossVisualPatch: await readFile(new URL('../src/components/worldBossVisualRuntimePatch.ts', import.meta.url), 'utf8'),\n", '')
+          mobile = mobile.replace("  [files.bossCohesive.includes('installWorldBossVisualRuntimePatch') && files.bossCohesive.includes('<WorldBossPerspectiveStage'), 'world-boss visual patch is not installed before rendering'],", "  [files.bossCohesive.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'world-boss cohesive stage is not routed directly'],")
+          mobile = mobile.replace("  [files.bossStage.includes('buildKayKitDungeonRoom') && files.bossStage.includes('buildKayKitRoomTheme') && files.bossStage.includes('const VISUAL_ROOM = 20;'), 'world boss is not reusing the production KayKit room pipeline'],", "  [files.bossStage.includes('buildKayKitDungeonRoom') && !files.bossStage.includes('buildKayKitRoomTheme') && files.bossStage.includes('const VISUAL_ROOM = 20;'), 'world boss still mounts the heavy room theme layer'],")
+          mobile = mobile.replace("  [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;'), 'world-boss projectiles are not bounded'],", "  [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.bossStage.includes('const count = IS_MOBILE ? 12 : 36;'), 'world-boss mobile effects are not sufficiently bounded'],")
+          mobile = re.sub(r"  \[files\.bossVisualPatch\.includes\([^\n]+\n", '', mobile)
+          mobile = mobile.replace("console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the sharpened ring-free perspective world-boss renderer are active.');", "console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the simplified low-lag perspective world-boss renderer are active.');")
+          mobile_path.write_text(mobile)
+
+          social_path = root / 'scripts/validate-social-navigation.mjs'
+          social = social_path.read_text()
+          social = social.replace("stageWrapper.includes('installWorldBossVisualRuntimePatch') && stageWrapper.includes('<WorldBossPerspectiveStage')", "stageWrapper.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage')")
+          social = social.replace('perspective semantic Ash King sanctum or runtime visual patch is missing', 'simplified perspective Ash King sanctum is missing')
+          social = social.replace('patched perspective Ash King sanctum', 'simplified perspective Ash King sanctum')
+          social_path.write_text(social)
+          PY
+      - name: Commit simplification
+        run: |
+          if git diff --quiet; then
+            echo "No simplification changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Simplify world boss arena and mobile performance"
+          git push origin HEAD:rework/worldboss-full-3d-arena
