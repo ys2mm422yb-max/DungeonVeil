@@ -1,23 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import type { GameEngine } from '../game/runEngine';
 import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
-import { buildKayKitDungeonRoom, preloadKayKitDungeonRoom } from './kaykitRoom3D';
 import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { loadWorldBossMobileRig, type WorldBossMobileRig } from './worldBossMobileVisual3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const TILE = 40;
-const VISUAL_ROOM = 20;
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 const IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const IS_MOBILE = typeof navigator !== 'undefined' && (IS_ANDROID || IS_IOS || navigator.maxTouchPoints > 1);
 const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;
-const EMBER_COUNT = IS_MOBILE ? 10 : 28;
+const EMBER_COUNT = IS_MOBILE ? 6 : 20;
 const PERF_KEY = 'dungeon-veil-worldboss-performance';
 const DUNGEON = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 
 const ARENA_MODELS = {
+  floor: `${DUNGEON}/floor_tile_large.gltf`,
+  wall: `${DUNGEON}/wall.gltf`,
   arch: `${DUNGEON}/wall_arched.gltf`,
   pillar: `${DUNGEON}/pillar_decorated.gltf`,
   torch: `${DUNGEON}/torch_lit.gltf`,
@@ -52,8 +52,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     let cameraGoal: any;
     let cameraLook: any;
     let clock: any;
-    let roomRoot: any;
-    let architecture: any;
+    let arena: any;
     let playerRig: KayKitPlayerRig | null = null;
     let bossRig: WorldBossMobileRig | null = null;
     let fallbackBoss: any;
@@ -91,17 +90,6 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       else node.material?.dispose?.();
     });
 
-    const simplifyShell = async (shell: any) => {
-      await shell.userData?.ready;
-      if (disposed) return;
-      shell.traverse((object: any) => {
-        if (object.userData?.roomOccluder === 'front-wall') {
-          object.visible = false;
-          object.name = `WorldBossFrontWallHidden_${object.name || 'segment'}`;
-        }
-      });
-    };
-
     const pixelRatio = () => {
       const ratio = window.devicePixelRatio || 1;
       if (!IS_MOBILE) return Math.min(ratio, qualityLevel ? 1.1 : 1.35);
@@ -131,9 +119,8 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       camera.updateProjectionMatrix();
     };
 
-    const loadArchitecture = async (GLTFLoader: any) => {
-      const current = state();
-      if (!current || !scene) return;
+    const loadArena = async (GLTFLoader: any) => {
+      if (!scene) return;
       const manifest = await loadKayKitManifest();
       const loader = new GLTFLoader();
       const entries = await Promise.all(Object.entries(ARENA_MODELS).map(async ([key, path]) => {
@@ -144,27 +131,11 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
 
       const models = Object.fromEntries(entries) as Record<keyof typeof ARENA_MODELS, any>;
       const root = new THREE.Group();
-      root.name = 'AshKingPerformanceSanctum';
-      const backZ = -current.map.height / 2 + 2.25;
-      const daisZ = backZ + 3.4;
-      const sideX = Math.min(5.2, current.map.width / 2 - 2.8);
+      root.name = 'AshKingLowCostKayKitHall';
+      const backZ = -12;
+      const daisZ = -8.35;
       const stone = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x493f43, roughness: 0.88, metalness: 0.03 }));
       const trim = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x70594c, roughness: 0.76, metalness: 0.08 }));
-
-      const lower = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(10.2, 0.36, 4.2)), stone);
-      lower.name = 'AshKingRaisedDais';
-      lower.position.set(0, 0.16, daisZ);
-      root.add(lower);
-
-      const upper = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(7.2, 0.34, 2.35)), trim);
-      upper.position.set(0, 0.47, daisZ - 0.72);
-      root.add(upper);
-
-      for (let index = 0; index < 2; index++) {
-        const step = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(6.3 + index * 0.75, 0.16, 0.68)), index ? stone : trim);
-        step.position.set(0, 0.08 + index * 0.13, daisZ + 1.45 - index * 0.45);
-        root.add(step);
-      }
 
       const addModel = (prototype: any, x: number, y: number, z: number, scale: number, rotation = 0, name = '') => {
         if (!prototype) return;
@@ -177,18 +148,44 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
           if (!node.isMesh && !node.isSkinnedMesh) return;
           node.castShadow = false;
           node.receiveShadow = !IS_MOBILE;
+          node.frustumCulled = true;
         });
         root.add(object);
       };
 
-      addModel(models.arch, 0, 0, backZ, 1.8, Math.PI, 'VeilGateArch');
+      let floorIndex = 0;
+      for (const z of [-12, -4, 4, 12]) {
+        for (const x of [-8, 0, 8]) {
+          addModel(models.floor, x, 0, z, 2.02, floorIndex++ % 2 ? Math.PI / 2 : 0, `BossFloor_${floorIndex}`);
+        }
+      }
+
+      for (const x of [-8, -4, 0, 4, 8]) addModel(models.wall, x, 0, backZ, 2, 0, `BossBackWall_${x}`);
       for (const side of [-1, 1]) {
-        addModel(models.pillar, side * sideX, 0, daisZ - 0.85, 1.5, 0, `BossPillar_${side}`);
-        addModel(models.torch, side * 3.25, 1.0, daisZ - 0.1, 1.25, Math.PI, `BossTorch_${side}`);
+        for (const z of [-10, -6]) addModel(models.wall, side * 10, 0, z, 2, side > 0 ? -Math.PI / 2 : Math.PI / 2, `BossSideWall_${side}_${z}`);
+      }
+
+      const lower = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(10.2, 0.36, 4.2)), stone);
+      lower.name = 'AshKingRaisedDais';
+      lower.position.set(0, 0.16, daisZ);
+      root.add(lower);
+      const upper = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(7.2, 0.34, 2.35)), trim);
+      upper.position.set(0, 0.47, daisZ - 0.72);
+      root.add(upper);
+      for (let index = 0; index < 2; index++) {
+        const step = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(6.3 + index * 0.75, 0.16, 0.68)), index ? stone : trim);
+        step.position.set(0, 0.08 + index * 0.13, daisZ + 1.45 - index * 0.45);
+        root.add(step);
+      }
+
+      addModel(models.arch, 0, 0, backZ + 0.15, 1.8, Math.PI, 'VeilGateArch');
+      for (const side of [-1, 1]) {
+        addModel(models.pillar, side * 5.0, 0, daisZ - 0.85, 1.48, 0, `BossPillar_${side}`);
+        addModel(models.torch, side * 3.15, 1.0, daisZ - 0.1, 1.22, Math.PI, `BossTorch_${side}`);
       }
 
       scene.add(root);
-      architecture = root;
+      arena = root;
     };
 
     const buildFallbackBoss = () => {
@@ -205,19 +202,13 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       const head = new THREE.Mesh(keepGeometry(new THREE.SphereGeometry(0.42, 12, 8)), bone);
       head.position.y = 2.65;
       root.add(head);
-      for (const side of [-1, 1]) {
-        const horn = new THREE.Mesh(keepGeometry(new THREE.ConeGeometry(0.13, 0.82, 6)), bone);
-        horn.position.set(side * 0.28, 3.18, 0);
-        horn.rotation.z = side * -0.28;
-        root.add(horn);
-      }
       scene.add(root);
       return root;
     };
 
     const buildBossShadow = () => {
       const shadow = new THREE.Mesh(
-        keepGeometry(new THREE.CircleGeometry(2.0, 28)),
+        keepGeometry(new THREE.CircleGeometry(2.0, 24)),
         keepMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false })),
       );
       shadow.name = 'AshKingGroundShadow';
@@ -242,16 +233,16 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       const positions = new Float32Array(EMBER_COUNT * 3);
       const seeds = new Float32Array(EMBER_COUNT * 4);
       for (let index = 0; index < EMBER_COUNT; index++) {
-        seeds[index * 4] = (Math.random() - 0.5) * 6.5;
-        seeds[index * 4 + 1] = Math.random() * 3.6;
-        seeds[index * 4 + 2] = (Math.random() - 0.5) * 4.8;
+        seeds[index * 4] = (Math.random() - 0.5) * 6;
+        seeds[index * 4 + 1] = Math.random() * 3.2;
+        seeds[index * 4 + 2] = (Math.random() - 0.5) * 4.4;
         seeds[index * 4 + 3] = Math.random() * Math.PI * 2;
       }
       const geometry = keepGeometry(new THREE.BufferGeometry());
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       const points = new THREE.Points(
         geometry,
-        keepMaterial(new THREE.PointsMaterial({ color: 0xff9a55, size: 0.075, transparent: true, opacity: 0.58, depthWrite: false, sizeAttenuation: true })),
+        keepMaterial(new THREE.PointsMaterial({ color: 0xff9a55, size: 0.07, transparent: true, opacity: 0.52, depthWrite: false, sizeAttenuation: true })),
       );
       points.userData.seeds = seeds;
       scene.add(points);
@@ -299,23 +290,23 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       for (let index = 0; index < EMBER_COUNT; index++) {
         const offset = index * 3;
         const seed = index * 4;
-        const rise = (seeds[seed + 1] + now * (0.00018 + (index % 4) * 0.000012)) % 3.6;
-        positions[offset] = bossX + seeds[seed] + Math.sin(now * 0.0008 + seeds[seed + 3]) * 0.14;
+        const rise = (seeds[seed + 1] + now * (0.00018 + (index % 4) * 0.000012)) % 3.2;
+        positions[offset] = bossX + seeds[seed] + Math.sin(now * 0.0008 + seeds[seed + 3]) * 0.12;
         positions[offset + 1] = 0.18 + rise;
-        positions[offset + 2] = bossZ + seeds[seed + 2] + Math.cos(now * 0.0009 + seeds[seed + 3]) * 0.12;
+        positions[offset + 2] = bossZ + seeds[seed + 2] + Math.cos(now * 0.0009 + seeds[seed + 3]) * 0.1;
       }
       embers.geometry.attributes.position.needsUpdate = true;
     };
 
     const updateCamera = (delta: number, playerX: number, playerZ: number) => {
       const portrait = camera.aspect < 0.72;
-      const focusX = clamp(playerX * 0.14, -0.9, 0.9);
-      const focusZ = clamp(playerZ * 0.08, -0.55, 0.55);
+      const focusX = clamp(playerX * 0.12, -0.75, 0.75);
+      const focusZ = clamp(playerZ * 0.06, -0.42, 0.42);
       cameraGoal.set(focusX, portrait ? 14.0 : 12.1, focusZ + (portrait ? 19.8 : 16.9));
-      camera.position.x = damp(camera.position.x, cameraGoal.x, 1.7, delta);
-      camera.position.y = damp(camera.position.y, cameraGoal.y, 1.5, delta);
-      camera.position.z = damp(camera.position.z, cameraGoal.z, 1.7, delta);
-      cameraLook.set(focusX * 0.3, portrait ? 0.95 : 1.05, -1.65 + focusZ * 0.2);
+      camera.position.x = damp(camera.position.x, cameraGoal.x, 1.5, delta);
+      camera.position.y = damp(camera.position.y, cameraGoal.y, 1.4, delta);
+      camera.position.z = damp(camera.position.z, cameraGoal.z, 1.5, delta);
+      cameraLook.set(focusX * 0.25, portrait ? 0.95 : 1.05, -1.65 + focusZ * 0.15);
       camera.lookAt(cameraLook);
       camera.userData.dungeonPlayerX = playerX;
       camera.userData.dungeonPlayerZ = playerZ;
@@ -342,7 +333,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
           triangles: renderer.info?.render?.triangles ?? 0,
           mobileBoss: IS_MOBILE,
           mobileBossSource: bossRig ? 'ash-warden-skeleton' : fallbackBoss ? 'veil-fallback' : 'loading',
-          arena: 'kaykit-simplified-boss-sanctum',
+          arena: 'curated-low-call-kaykit-hall',
           camera: 'calm-perspective-camera',
           at: Date.now(),
         }));
@@ -411,7 +402,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
 
     const boot = async () => {
       if (!state()) return;
-      await Promise.all([loadKayKitManifest(), preloadKayKitDungeonRoom(VISUAL_ROOM)]);
+      await loadKayKitManifest();
       if (disposed || !state()) return;
       THREE = await import(/* @vite-ignore */ THREE_URL);
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
@@ -419,8 +410,8 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
 
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x151116);
-      scene.fog = new THREE.Fog(0x151116, 24, 52);
-      renderer = new THREE.WebGLRenderer({ antialias: !IS_ANDROID, alpha: false, powerPreference: 'high-performance', precision: IS_MOBILE ? 'mediump' : 'highp' });
+      scene.fog = new THREE.Fog(0x151116, 24, 50);
+      renderer = new THREE.WebGLRenderer({ antialias: !IS_MOBILE, alpha: false, powerPreference: 'high-performance', precision: IS_MOBILE ? 'mediump' : 'highp' });
       renderer.shadowMap.enabled = !IS_MOBILE;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -436,29 +427,19 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       cameraGoal = new THREE.Vector3();
       cameraLook = new THREE.Vector3();
 
-      scene.add(new THREE.AmbientLight(0xd6c9bd, IS_ANDROID ? 0.46 : 0.4));
-      scene.add(new THREE.HemisphereLight(0xd8bd9e, 0x17131c, IS_ANDROID ? 0.72 : 0.66));
-      const key = new THREE.DirectionalLight(0xffbf83, IS_ANDROID ? 1.25 : 1.4);
+      scene.add(new THREE.AmbientLight(0xd6c9bd, IS_ANDROID ? 0.44 : 0.38));
+      scene.add(new THREE.HemisphereLight(0xd8bd9e, 0x17131c, IS_ANDROID ? 0.68 : 0.62));
+      const key = new THREE.DirectionalLight(0xffbf83, IS_ANDROID ? 1.2 : 1.34);
       key.position.set(-7, 13, 8);
       key.castShadow = !IS_MOBILE;
       scene.add(key);
-      const fill = new THREE.DirectionalLight(0x777eb8, 0.34);
+      const fill = new THREE.DirectionalLight(0x777eb8, 0.3);
       fill.position.set(6, 8, -7);
       scene.add(fill);
-      bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.15 : 3.1, 23, Math.PI / 5, 0.75, 1.8);
+      bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.0 : 2.9, 23, Math.PI / 5, 0.75, 1.8);
       scene.add(bossLight, bossLight.target);
 
-      const current = state();
-      if (!current) return;
-      roomRoot = new THREE.Group();
-      roomRoot.name = 'KayKitWorldBossPerformanceRoom';
-      const shell = buildKayKitDungeonRoom(THREE, VISUAL_ROOM, current.map.width, current.map.height);
-      roomRoot.add(shell);
-      roomRoot.userData.shell = shell;
-      scene.add(roomRoot);
-      void simplifyShell(shell);
-      const architecturePromise = loadArchitecture(GLTFLoader);
-
+      const arenaPromise = loadArena(GLTFLoader);
       playerRig = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
       playerRig.root.scale.setScalar(0.98);
@@ -476,7 +457,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       bossShadow = buildBossShadow();
       buildProjectilePool();
       telegraph = new THREE.Mesh(
-        keepGeometry(new THREE.CircleGeometry(1, 28)),
+        keepGeometry(new THREE.CircleGeometry(1, 24)),
         keepMaterial(new THREE.MeshBasicMaterial({ color: 0xb75a35, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),
       );
       telegraph.name = 'AshKingSoftTelegraph';
@@ -485,8 +466,8 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       scene.add(telegraph);
       embers = buildEmbers();
 
-      await Promise.all([shell.userData?.ready ?? Promise.resolve(), architecturePromise]);
-      if (disposed || !playerRig || (!bossRig && !fallbackBoss)) return;
+      await arenaPromise;
+      if (disposed || !arena || !playerRig || (!bossRig && !fallbackBoss)) return;
       clock = new THREE.Clock();
       resize();
       renderer.render(scene, camera);
@@ -498,7 +479,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     window.addEventListener('orientationchange', resize);
     viewport?.addEventListener('resize', resize);
     viewport?.addEventListener('scroll', resize);
-    void boot().catch(error => console.error('World boss performance renderer failed', error));
+    void boot().catch(error => console.error('World boss low-cost renderer failed', error));
 
     return () => {
       disposed = true;
@@ -510,9 +491,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       viewport?.removeEventListener('scroll', resize);
       playerRig?.stop();
       bossRig?.stop();
-      roomRoot?.userData?.shell?.userData?.dispose?.();
-      if (roomRoot) disposeObject(roomRoot);
-      if (architecture) disposeObject(architecture);
+      if (arena) disposeObject(arena);
       if (playerRig?.root) disposeObject(playerRig.root);
       if (bossRig?.root) disposeObject(bossRig.root);
       if (fallbackBoss) disposeObject(fallbackBoss);
