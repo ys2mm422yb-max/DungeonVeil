@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import type { GameEngine } from '../game/runEngine';
 import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
 import { buildKayKitDungeonRoom, preloadKayKitDungeonRoom } from './kaykitRoom3D';
-import { buildKayKitRoomTheme, preloadKayKitRoomTheme } from './kaykitRoomThemes3D';
 import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { loadWorldBossMobileRig, type WorldBossMobileRig } from './worldBossMobileVisual3D';
 
@@ -13,18 +12,15 @@ const VISUAL_ROOM = 20;
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 const IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const IS_MOBILE = typeof navigator !== 'undefined' && (IS_ANDROID || IS_IOS || navigator.maxTouchPoints > 1);
-const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;
+const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;
+const EMBER_COUNT = IS_MOBILE ? 10 : 28;
 const PERF_KEY = 'dungeon-veil-worldboss-performance';
 const DUNGEON = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
-const HALLOWEEN = 'halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf';
 
 const ARENA_MODELS = {
   arch: `${DUNGEON}/wall_arched.gltf`,
   pillar: `${DUNGEON}/pillar_decorated.gltf`,
-  barrier: `${DUNGEON}/barrier_column.gltf`,
   torch: `${DUNGEON}/torch_lit.gltf`,
-  banner: `${DUNGEON}/banner_shield_red.gltf`,
-  shrine: `${HALLOWEEN}/shrine_candles.gltf`,
 } as const;
 
 type Props = {
@@ -61,7 +57,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     let playerRig: KayKitPlayerRig | null = null;
     let bossRig: WorldBossMobileRig | null = null;
     let fallbackBoss: any;
-    let bossAura: any;
+    let bossShadow: any;
     let telegraph: any;
     let embers: any;
     let bossLight: any;
@@ -89,54 +85,34 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       return current ? value / TILE - current.map.height / 2 + 0.5 : 0;
     };
 
-    const cleanBossFloorLane = async (shell: any, current: NonNullable<ReturnType<typeof state>>) => {
-    await shell.userData?.ready;
-    if (disposed) return;
-    const floorStep = 4;
-    const columns = Math.max(1, Math.floor(current.map.width / floorStep));
-    const rows = Math.max(1, Math.floor(current.map.height / floorStep));
-    const floorChildren = shell.children.slice(0, columns * rows);
-    const cleanPrototype = floorChildren.find((_tile: any, index: number) => (index + VISUAL_ROOM * 3) % 3 !== 0);
-    if (!cleanPrototype) return;
-    floorChildren.forEach((tile: any, index: number) => {
-      const broken = (index + VISUAL_ROOM * 3) % 3 === 0;
-      const centralLane = Math.abs(tile.position.x) < 4.2 && tile.position.z > -8.5 && tile.position.z < 10.5;
-      if (!broken || !centralLane) return;
-      const replacement = cleanPrototype.clone(true);
-      replacement.position.copy(tile.position);
-      replacement.rotation.copy(tile.rotation);
-      replacement.scale.copy(tile.scale);
-      replacement.name = `WorldBossCleanFloor_${index}`;
-      shell.remove(tile);
-      shell.add(replacement);
-    });
-    shell.children.forEach((object: any) => {
-      const frontWall = object.userData?.roomOccluder === 'front-wall';
-      if (!frontWall || Math.abs(object.position.x) >= 5.2) return;
-      object.visible = false;
-      object.name = `WorldBossFrontWallClearance_${object.name || 'segment'}`;
-    });
-  };
-
     const disposeObject = (root: any) => root?.traverse?.((node: any) => {
       node.geometry?.dispose?.();
       if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
       else node.material?.dispose?.();
     });
 
+    const simplifyShell = async (shell: any) => {
+      await shell.userData?.ready;
+      if (disposed) return;
+      shell.traverse((object: any) => {
+        if (object.userData?.roomOccluder === 'front-wall') {
+          object.visible = false;
+          object.name = `WorldBossFrontWallHidden_${object.name || 'segment'}`;
+        }
+      });
+    };
+
     const pixelRatio = () => {
       const ratio = window.devicePixelRatio || 1;
-      if (!IS_MOBILE) return Math.min(ratio, qualityLevel ? 1.2 : 1.5);
-      if (qualityLevel >= 2) return IS_ANDROID ? 0.62 : 0.7;
-      if (qualityLevel >= 1) return IS_ANDROID ? 0.74 : 0.82;
-      return Math.min(ratio, IS_ANDROID ? 0.9 : 1);
+      if (!IS_MOBILE) return Math.min(ratio, qualityLevel ? 1.1 : 1.35);
+      if (qualityLevel >= 2) return IS_ANDROID ? 0.56 : 0.64;
+      if (qualityLevel >= 1) return IS_ANDROID ? 0.66 : 0.76;
+      return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9);
     };
 
     const frameInterval = () => {
-      if (!IS_MOBILE) return 0;
-      if (qualityLevel >= 2) return 50;
-      if (qualityLevel >= 1) return 42;
-      return 33;
+      if (!IS_MOBILE || qualityLevel === 0) return 0;
+      return qualityLevel >= 2 ? 42 : 33;
     };
 
     const resize = () => {
@@ -151,7 +127,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
       camera.aspect = width / height;
-      camera.fov = camera.aspect < 0.7 ? 50 : 44;
+      camera.fov = camera.aspect < 0.7 ? 49 : 44;
       camera.updateProjectionMatrix();
     };
 
@@ -165,37 +141,30 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
         catch (error) { console.warn(`World boss asset unavailable: ${path}`, error); return [key, null] as const; }
       }));
       if (disposed) return;
+
       const models = Object.fromEntries(entries) as Record<keyof typeof ARENA_MODELS, any>;
       const root = new THREE.Group();
-      root.name = 'AshKingPerspectiveSanctum';
+      root.name = 'AshKingPerformanceSanctum';
       const backZ = -current.map.height / 2 + 2.25;
       const daisZ = backZ + 3.4;
-      const sideX = Math.min(7.2, current.map.width / 2 - 2.1);
-      const stone = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x453a3d, roughness: 0.86, metalness: 0.05 }));
-      const trim = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x685147, roughness: 0.72, metalness: 0.12 }));
-      const glow = keepMaterial(new THREE.MeshStandardMaterial({ color: 0xff8b4a, emissive: 0x9b260d, emissiveIntensity: 1.2, roughness: 0.3 }));
+      const sideX = Math.min(5.2, current.map.width / 2 - 2.8);
+      const stone = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x493f43, roughness: 0.88, metalness: 0.03 }));
+      const trim = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x70594c, roughness: 0.76, metalness: 0.08 }));
 
-      const lower = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(10.8, 0.42, 4.7)), stone);
+      const lower = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(10.2, 0.36, 4.2)), stone);
       lower.name = 'AshKingRaisedDais';
-      lower.position.set(0, 0.17, daisZ);
+      lower.position.set(0, 0.16, daisZ);
       root.add(lower);
-      const upper = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(7.8, 0.42, 2.6)), trim);
-      upper.position.set(0, 0.5, daisZ - 0.85);
+
+      const upper = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(7.2, 0.34, 2.35)), trim);
+      upper.position.set(0, 0.47, daisZ - 0.72);
       root.add(upper);
-      for (let index = 0; index < 3; index++) {
-        const step = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(5.8 + index * 0.9, 0.18, 0.74)), index % 2 ? stone : trim);
-        step.position.set(0, 0.09 + index * 0.13, daisZ + 1.75 - index * 0.48);
+
+      for (let index = 0; index < 2; index++) {
+        const step = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(6.3 + index * 0.75, 0.16, 0.68)), index ? stone : trim);
+        step.position.set(0, 0.08 + index * 0.13, daisZ + 1.45 - index * 0.45);
         root.add(step);
       }
-
-      const seal = new THREE.Mesh(
-        keepGeometry(new THREE.RingGeometry(1.35, 2.15, IS_MOBILE ? 36 : 64, 1, 0.25, Math.PI * 1.75)),
-        keepMaterial(new THREE.MeshBasicMaterial({ color: 0xff7442, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })),
-      );
-      seal.name = 'AshKingPerspectiveSeal';
-      seal.rotation.x = -Math.PI / 2;
-      seal.position.set(0, 0.74, daisZ - 0.45);
-      root.add(seal);
 
       const addModel = (prototype: any, x: number, y: number, z: number, scale: number, rotation = 0, name = '') => {
         if (!prototype) return;
@@ -206,38 +175,18 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
         if (name) object.name = name;
         object.traverse((node: any) => {
           if (!node.isMesh && !node.isSkinnedMesh) return;
-          node.castShadow = !IS_MOBILE;
-          node.receiveShadow = true;
+          node.castShadow = false;
+          node.receiveShadow = !IS_MOBILE;
         });
         root.add(object);
       };
 
-      addModel(models.arch, 0, 0, backZ, 1.85, Math.PI, 'VeilGateArch');
-      addModel(models.shrine, 0, 0.72, backZ + 0.5, 1.6, 0, 'AshKingCandleShrine');
+      addModel(models.arch, 0, 0, backZ, 1.8, Math.PI, 'VeilGateArch');
       for (const side of [-1, 1]) {
-        addModel(models.pillar, side * sideX, 0, daisZ - 0.8, 1.65);
-        addModel(models.barrier, side * (sideX - 1.15), 0.46, daisZ + 1.85, 1.35);
-        addModel(models.torch, side * (sideX - 0.25), 1.05, daisZ - 0.1, 1.4, Math.PI);
-        addModel(models.banner, side * (sideX + 0.1), 3.1, backZ + 0.25, 1.35, Math.PI);
+        addModel(models.pillar, side * sideX, 0, daisZ - 0.85, 1.5, 0, `BossPillar_${side}`);
+        addModel(models.torch, side * 3.25, 1.0, daisZ - 0.1, 1.25, Math.PI, `BossTorch_${side}`);
       }
 
-      const throne = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(3.25, 3.55, 0.72)), stone);
-      throne.name = 'BrokenAshThronePerspective';
-      throne.position.set(0, 2.42, backZ + 0.55);
-      root.add(throne);
-      for (const side of [-1, 1]) {
-        const horn = new THREE.Mesh(keepGeometry(new THREE.ConeGeometry(0.32, 2.15, 7)), trim);
-        horn.position.set(side * 1.42, 4.02, backZ + 0.58);
-        horn.rotation.z = side * -0.22;
-        root.add(horn);
-      }
-      for (const [x, z, length, rotation] of [[-1.25, daisZ + 1.4, 1.6, -0.55], [1.15, daisZ + 1.0, 1.45, 0.46], [-2.1, daisZ - 0.15, 1.1, -0.18], [2.05, daisZ - 0.35, 1.2, 0.28]] as Array<[number, number, number, number]>) {
-        const crack = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(0.075, 0.035, length)), glow);
-        crack.position.set(x, 0.73, z);
-        crack.rotation.y = rotation;
-        root.add(crack);
-      }
-      root.userData.seal = seal;
       scene.add(root);
       architecture = root;
     };
@@ -245,57 +194,43 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     const buildFallbackBoss = () => {
       const root = new THREE.Group();
       root.name = 'AshKingVeilFallback';
-      const dark = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x23191f, roughness: 0.78, metalness: 0.18 }));
-      const bone = keepMaterial(new THREE.MeshStandardMaterial({ color: 0xa99b83, roughness: 0.68, metalness: 0.1 }));
-      const glow = keepMaterial(new THREE.MeshStandardMaterial({ color: 0xff8246, emissive: 0xa3290c, emissiveIntensity: 1.35, roughness: 0.28 }));
-      const body = new THREE.Mesh(keepGeometry(new THREE.ConeGeometry(0.95, 2.6, 12)), dark);
+      const dark = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x23191f, roughness: 0.8, metalness: 0.12 }));
+      const bone = keepMaterial(new THREE.MeshStandardMaterial({ color: 0xa99b83, roughness: 0.7, metalness: 0.08 }));
+      const body = new THREE.Mesh(keepGeometry(new THREE.ConeGeometry(0.95, 2.6, 10)), dark);
       body.position.y = 1.3;
       root.add(body);
-      const shoulders = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(2.35, 0.52, 0.86)), dark);
+      const shoulders = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(2.3, 0.5, 0.84)), dark);
       shoulders.position.y = 2.1;
       root.add(shoulders);
-      const head = new THREE.Mesh(keepGeometry(new THREE.SphereGeometry(0.42, 14, 10)), bone);
+      const head = new THREE.Mesh(keepGeometry(new THREE.SphereGeometry(0.42, 12, 8)), bone);
       head.position.y = 2.65;
       root.add(head);
       for (const side of [-1, 1]) {
-        const horn = new THREE.Mesh(keepGeometry(new THREE.ConeGeometry(0.13, 0.86, 7)), bone);
-        horn.position.set(side * 0.28, 3.22, 0);
+        const horn = new THREE.Mesh(keepGeometry(new THREE.ConeGeometry(0.13, 0.82, 6)), bone);
+        horn.position.set(side * 0.28, 3.18, 0);
         horn.rotation.z = side * -0.28;
         root.add(horn);
       }
-      const core = new THREE.Mesh(keepGeometry(new THREE.OctahedronGeometry(0.25, 1)), glow);
-      core.position.set(0, 1.72, 0.58);
-      root.add(core);
       scene.add(root);
       return root;
     };
 
-    const buildBossAura = () => {
-      const root = new THREE.Group();
-      root.name = 'AshKingDominanceAura';
+    const buildBossShadow = () => {
       const shadow = new THREE.Mesh(
-        keepGeometry(new THREE.CircleGeometry(2.15, 44)),
-        keepMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.52, depthWrite: false })),
+        keepGeometry(new THREE.CircleGeometry(2.0, 28)),
+        keepMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false })),
       );
+      shadow.name = 'AshKingGroundShadow';
       shadow.rotation.x = -Math.PI / 2;
       shadow.position.y = 0.018;
-      root.add(shadow);
-      const ring = new THREE.Mesh(
-        keepGeometry(new THREE.RingGeometry(1.35, 2.25, 52, 1, 0.2, Math.PI * 1.78)),
-        keepMaterial(new THREE.MeshBasicMaterial({ color: 0xf06133, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })),
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.035;
-      root.add(ring);
-      root.userData.ring = ring;
-      scene.add(root);
-      return root;
+      scene.add(shadow);
+      return shadow;
     };
 
     const buildProjectilePool = () => {
-      const geometry = keepGeometry(new THREE.CapsuleGeometry(0.055, 0.58, 4, 7));
+      const geometry = keepGeometry(new THREE.CapsuleGeometry(0.05, 0.5, 3, 6));
       for (let index = 0; index < MAX_PROJECTILES; index++) {
-        const material = keepMaterial(new THREE.MeshBasicMaterial({ color: 0xf4d7a3, transparent: true, opacity: 0.94, depthWrite: false }));
+        const material = keepMaterial(new THREE.MeshBasicMaterial({ color: 0xf4d7a3, transparent: true, opacity: 0.9, depthWrite: false }));
         const mesh = new THREE.Mesh(geometry, material);
         mesh.visible = false;
         scene.add(mesh);
@@ -304,20 +239,19 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     };
 
     const buildEmbers = () => {
-      const count = IS_MOBILE ? 30 : 64;
-      const positions = new Float32Array(count * 3);
-      const seeds = new Float32Array(count * 4);
-      for (let index = 0; index < count; index++) {
-        seeds[index * 4] = (Math.random() - 0.5) * 8;
-        seeds[index * 4 + 1] = Math.random() * 4.5;
-        seeds[index * 4 + 2] = (Math.random() - 0.5) * 6;
+      const positions = new Float32Array(EMBER_COUNT * 3);
+      const seeds = new Float32Array(EMBER_COUNT * 4);
+      for (let index = 0; index < EMBER_COUNT; index++) {
+        seeds[index * 4] = (Math.random() - 0.5) * 6.5;
+        seeds[index * 4 + 1] = Math.random() * 3.6;
+        seeds[index * 4 + 2] = (Math.random() - 0.5) * 4.8;
         seeds[index * 4 + 3] = Math.random() * Math.PI * 2;
       }
       const geometry = keepGeometry(new THREE.BufferGeometry());
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       const points = new THREE.Points(
         geometry,
-        keepMaterial(new THREE.PointsMaterial({ color: 0xff9a55, size: IS_MOBILE ? 0.085 : 0.105, transparent: true, opacity: 0.72, depthWrite: false, sizeAttenuation: true })),
+        keepMaterial(new THREE.PointsMaterial({ color: 0xff9a55, size: 0.075, transparent: true, opacity: 0.58, depthWrite: false, sizeAttenuation: true })),
       );
       points.userData.seeds = seeds;
       scene.add(points);
@@ -338,11 +272,11 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
         const travel = effect.maxRadius / TILE;
         const bossShot = effect.id.startsWith('boss-shot-');
         slot.mesh.visible = true;
-        slot.mesh.position.set(mapX(effect.x) + Math.cos(angle) * travel * progress, bossShot ? 1.6 : 1.05, mapZ(effect.y) + Math.sin(angle) * travel * progress);
+        slot.mesh.position.set(mapX(effect.x) + Math.cos(angle) * travel * progress, bossShot ? 1.55 : 1.0, mapZ(effect.y) + Math.sin(angle) * travel * progress);
         slot.mesh.rotation.set(Math.PI / 2, -angle, 0);
         slot.material.color.set(effect.color);
-        slot.material.opacity = Math.max(0.3, 0.96 - progress * 0.44);
-        slot.mesh.scale.setScalar(bossShot ? 1.5 : 0.92 + Math.sin(now * 0.02 + slotIndex) * 0.12);
+        slot.material.opacity = Math.max(0.25, 0.9 - progress * 0.48);
+        slot.mesh.scale.setScalar(bossShot ? 1.35 : 0.88 + Math.sin(now * 0.018 + slotIndex) * 0.08);
       }
     };
 
@@ -353,74 +287,63 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       if (!effect) { telegraph.visible = false; return; }
       const progress = clamp(effect.lifeTime / Math.max(1, effect.maxLifeTime), 0, 1);
       telegraph.visible = true;
-      telegraph.position.set(mapX(effect.x), 0.07, mapZ(effect.y));
+      telegraph.position.set(mapX(effect.x), 0.055, mapZ(effect.y));
       telegraph.scale.setScalar(Math.max(0.18, effect.maxRadius / TILE * Math.max(0.22, progress)));
-      telegraph.material.color.set(effect.color);
-      telegraph.material.opacity = Math.max(0.1, 0.48 * (1 - progress));
+      telegraph.material.opacity = Math.max(0.035, 0.14 * (1 - progress));
     };
 
     const syncEmbers = (now: number, bossX: number, bossZ: number) => {
-      if (!embers) return;
+      if (!embers || qualityLevel >= 2) return;
       const positions = embers.geometry.attributes.position.array as Float32Array;
       const seeds = embers.userData.seeds as Float32Array;
-      for (let index = 0; index < positions.length / 3; index++) {
+      for (let index = 0; index < EMBER_COUNT; index++) {
         const offset = index * 3;
         const seed = index * 4;
-        const rise = (seeds[seed + 1] + now * (0.00022 + (index % 5) * 0.000018)) % 4.5;
-        positions[offset] = bossX + seeds[seed] + Math.sin(now * 0.001 + seeds[seed + 3]) * 0.22;
+        const rise = (seeds[seed + 1] + now * (0.00018 + (index % 4) * 0.000012)) % 3.6;
+        positions[offset] = bossX + seeds[seed] + Math.sin(now * 0.0008 + seeds[seed + 3]) * 0.14;
         positions[offset + 1] = 0.18 + rise;
-        positions[offset + 2] = bossZ + seeds[seed + 2] + Math.cos(now * 0.0012 + seeds[seed + 3]) * 0.18;
+        positions[offset + 2] = bossZ + seeds[seed + 2] + Math.cos(now * 0.0009 + seeds[seed + 3]) * 0.12;
       }
       embers.geometry.attributes.position.needsUpdate = true;
     };
 
-    const updateCamera = (delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number) => {
-    const portrait = camera.aspect < 0.72;
-    const focusX = clamp(
-      playerX * (portrait ? 0.56 : 0.44) + bossX * (portrait ? 0.44 : 0.56),
-      -3.6,
-      3.6,
-    );
-    const focusZ = clamp(
-      playerZ * (portrait ? 0.62 : 0.46) + bossZ * (portrait ? 0.38 : 0.54) + (portrait ? 0.65 : 0.2),
-      -2.2,
-      4.6,
-    );
-    const spread = Math.hypot(playerX - bossX, playerZ - bossZ);
-    const extra = clamp((spread - 10) * 0.22, 0, 2.6);
-    cameraGoal.set(
-      focusX,
-      (portrait ? 13.7 : 11.9) + extra * 0.34,
-      focusZ + (portrait ? 19.6 : 16.7) + extra,
-    );
-    camera.position.x = damp(camera.position.x, cameraGoal.x, 5.8, delta);
-    camera.position.y = damp(camera.position.y, cameraGoal.y, 5.2, delta);
-    camera.position.z = damp(camera.position.z, cameraGoal.z, 5.8, delta);
-    cameraLook.set(focusX, portrait ? 0.92 : 1.08, focusZ - (portrait ? 1.65 : 3.15));
-    camera.lookAt(cameraLook);
-    camera.userData.dungeonPlayerX = playerX;
-    camera.userData.dungeonPlayerZ = playerZ;
-  };
+    const updateCamera = (delta: number, playerX: number, playerZ: number) => {
+      const portrait = camera.aspect < 0.72;
+      const focusX = clamp(playerX * 0.14, -0.9, 0.9);
+      const focusZ = clamp(playerZ * 0.08, -0.55, 0.55);
+      cameraGoal.set(focusX, portrait ? 14.0 : 12.1, focusZ + (portrait ? 19.8 : 16.9));
+      camera.position.x = damp(camera.position.x, cameraGoal.x, 1.7, delta);
+      camera.position.y = damp(camera.position.y, cameraGoal.y, 1.5, delta);
+      camera.position.z = damp(camera.position.z, cameraGoal.z, 1.7, delta);
+      cameraLook.set(focusX * 0.3, portrait ? 0.95 : 1.05, -1.65 + focusZ * 0.2);
+      camera.lookAt(cameraLook);
+      camera.userData.dungeonPlayerX = playerX;
+      camera.userData.dungeonPlayerZ = playerZ;
+    };
 
     const updatePerformance = (now: number) => {
       perfFrames += 1;
       const elapsed = now - perfStarted;
-      if (elapsed < 2200) return;
+      if (elapsed < 2800) return;
       const fps = Math.round(perfFrames * 1000 / elapsed);
-      const nextLevel = fps < 19 ? 2 : fps < 27 ? Math.max(qualityLevel, 1) : qualityLevel;
-      if (nextLevel !== qualityLevel) { qualityLevel = nextLevel; resize(); }
+      const nextLevel = fps < 24 ? 2 : fps < 44 ? Math.max(qualityLevel, 1) : qualityLevel;
+      if (nextLevel !== qualityLevel) {
+        qualityLevel = nextLevel;
+        resize();
+        if (embers) embers.visible = qualityLevel < 2;
+      }
       try {
         localStorage.setItem(PERF_KEY, JSON.stringify({
           fps,
           qualityLevel,
-          targetFps: qualityLevel >= 2 ? 20 : qualityLevel >= 1 ? 24 : IS_MOBILE ? 30 : 0,
+          targetFps: qualityLevel >= 2 ? 24 : qualityLevel >= 1 ? 30 : IS_MOBILE ? 60 : 0,
           pixelRatio: pixelRatio(),
           calls: renderer.info?.render?.calls ?? 0,
           triangles: renderer.info?.render?.triangles ?? 0,
           mobileBoss: IS_MOBILE,
           mobileBossSource: bossRig ? 'ash-warden-skeleton' : fallbackBoss ? 'veil-fallback' : 'loading',
-          arena: 'kaykit-perspective-boss-sanctum',
-          camera: 'perspective-run-camera',
+          arena: 'kaykit-simplified-boss-sanctum',
+          camera: 'calm-perspective-camera',
           at: Date.now(),
         }));
       } catch {}
@@ -460,32 +383,24 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
           if (boss.lastAttackTime > lastBossAttack) { lastBossAttack = boss.lastAttackTime; bossRig.triggerAttack(); }
           bossRig.update(delta, now);
           const attackPulse = Math.max(0, 1 - (now - lastBossAttack) / 430);
-          bossRig.root.scale.setScalar(2.05 + attackPulse * 0.09);
+          bossRig.root.scale.setScalar(2.0 + attackPulse * 0.07);
         }
         if (fallbackBoss) {
-          fallbackBoss.position.set(bossX, Math.sin(now * 0.003) * 0.035, bossZ);
+          fallbackBoss.position.set(bossX, 0, bossZ);
           fallbackBoss.rotation.y = Math.atan2(playerX - bossX, playerZ - bossZ);
-          fallbackBoss.scale.setScalar(1.46);
+          fallbackBoss.scale.setScalar(1.44);
         }
-        if (bossAura) {
-          bossAura.position.set(bossX, 0, bossZ);
-          bossAura.userData.ring.rotation.z = now * 0.00045;
-          bossAura.userData.ring.material.opacity = 0.29 + Math.sin(now * 0.003) * 0.1;
-        }
+        if (bossShadow) bossShadow.position.set(bossX, 0.018, bossZ);
         if (bossLight) {
-          bossLight.position.set(bossX - 3.5, 9.5, bossZ + 4.2);
-          bossLight.target.position.set(bossX, 1.1, bossZ);
+          bossLight.position.set(bossX - 3.2, 8.8, bossZ + 3.8);
+          bossLight.target.position.set(bossX, 1.15, bossZ);
         }
       }
 
-      if (architecture?.userData?.seal) {
-        architecture.userData.seal.rotation.z = now * 0.00022;
-        architecture.userData.seal.material.opacity = 0.42 + Math.sin(now * 0.0024) * 0.12;
-      }
       syncProjectiles(now);
       syncTelegraph();
       syncEmbers(now, bossX, bossZ);
-      updateCamera(delta, playerX, playerZ, bossX, bossZ);
+      updateCamera(delta, playerX, playerZ);
       renderer.render(scene, camera);
       updatePerformance(now);
       if (!renderedOnce) {
@@ -496,7 +411,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
 
     const boot = async () => {
       if (!state()) return;
-      await Promise.all([loadKayKitManifest(), preloadKayKitDungeonRoom(VISUAL_ROOM), preloadKayKitRoomTheme(VISUAL_ROOM)]);
+      await Promise.all([loadKayKitManifest(), preloadKayKitDungeonRoom(VISUAL_ROOM)]);
       if (disposed || !state()) return;
       THREE = await import(/* @vite-ignore */ THREE_URL);
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
@@ -504,72 +419,73 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
 
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x151116);
-      scene.fog = new THREE.Fog(0x151116, 22, 54);
+      scene.fog = new THREE.Fog(0x151116, 24, 52);
       renderer = new THREE.WebGLRenderer({ antialias: !IS_ANDROID, alpha: false, powerPreference: 'high-performance', precision: IS_MOBILE ? 'mediump' : 'highp' });
       renderer.shadowMap.enabled = !IS_MOBILE;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = IS_ANDROID ? 1.14 : 1.08;
+      renderer.toneMappingExposure = IS_ANDROID ? 1.08 : 1.04;
       renderer.domElement.style.position = 'absolute';
       renderer.domElement.style.inset = '0';
       renderer.domElement.style.display = 'block';
       host.appendChild(renderer.domElement);
+
       camera = new THREE.PerspectiveCamera(48, 1, 0.1, 120);
-      camera.position.set(0, 12.8, 17.6);
+      camera.position.set(0, 14.0, 19.8);
       cameraGoal = new THREE.Vector3();
       cameraLook = new THREE.Vector3();
 
-      scene.add(new THREE.AmbientLight(0xd6c9bd, IS_ANDROID ? 0.72 : 0.62));
-      scene.add(new THREE.HemisphereLight(0xd8bd9e, 0x17131c, IS_ANDROID ? 1.08 : 0.92));
-      const key = new THREE.DirectionalLight(0xffbf83, IS_ANDROID ? 1.5 : 1.72);
+      scene.add(new THREE.AmbientLight(0xd6c9bd, IS_ANDROID ? 0.46 : 0.4));
+      scene.add(new THREE.HemisphereLight(0xd8bd9e, 0x17131c, IS_ANDROID ? 0.72 : 0.66));
+      const key = new THREE.DirectionalLight(0xffbf83, IS_ANDROID ? 1.25 : 1.4);
       key.position.set(-7, 13, 8);
       key.castShadow = !IS_MOBILE;
       scene.add(key);
-      const fill = new THREE.DirectionalLight(0x7f82c8, 0.54);
+      const fill = new THREE.DirectionalLight(0x777eb8, 0.34);
       fill.position.set(6, 8, -7);
       scene.add(fill);
-      bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.8 : 4, 25, Math.PI / 5, 0.7, 1.8);
+      bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.15 : 3.1, 23, Math.PI / 5, 0.75, 1.8);
       scene.add(bossLight, bossLight.target);
 
       const current = state();
       if (!current) return;
       roomRoot = new THREE.Group();
-      roomRoot.name = 'KayKitWorldBossPerspectiveRoom';
+      roomRoot.name = 'KayKitWorldBossPerformanceRoom';
       const shell = buildKayKitDungeonRoom(THREE, VISUAL_ROOM, current.map.width, current.map.height);
-      const theme = buildKayKitRoomTheme(THREE, VISUAL_ROOM);
-      roomRoot.add(shell, theme);
+      roomRoot.add(shell);
       roomRoot.userData.shell = shell;
-      roomRoot.userData.theme = theme;
       scene.add(roomRoot);
-      void cleanBossFloorLane(shell, current);
+      void simplifyShell(shell);
       const architecturePromise = loadArchitecture(GLTFLoader);
 
       playerRig = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
       playerRig.root.scale.setScalar(0.98);
       scene.add(playerRig.root);
+
       try {
         bossRig = await loadWorldBossMobileRig(THREE, GLTFLoader);
         if (disposed) return;
         scene.add(bossRig.root);
       } catch (error) {
-        console.warn('Ash King rig unavailable; using perspective fallback', error);
+        console.warn('Ash King rig unavailable; using simplified fallback', error);
         fallbackBoss = buildFallbackBoss();
       }
 
-      bossAura = buildBossAura();
+      bossShadow = buildBossShadow();
       buildProjectilePool();
       telegraph = new THREE.Mesh(
-        keepGeometry(new THREE.RingGeometry(0.82, 1, 40)),
-        keepMaterial(new THREE.MeshBasicMaterial({ color: 0xff7247, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),
+        keepGeometry(new THREE.CircleGeometry(1, 28)),
+        keepMaterial(new THREE.MeshBasicMaterial({ color: 0xb75a35, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),
       );
+      telegraph.name = 'AshKingSoftTelegraph';
       telegraph.rotation.x = -Math.PI / 2;
       telegraph.visible = false;
       scene.add(telegraph);
       embers = buildEmbers();
 
-      await Promise.all([shell.userData?.ready ?? Promise.resolve(), theme.userData?.ready ?? Promise.resolve(), architecturePromise]);
+      await Promise.all([shell.userData?.ready ?? Promise.resolve(), architecturePromise]);
       if (disposed || !playerRig || (!bossRig && !fallbackBoss)) return;
       clock = new THREE.Clock();
       resize();
@@ -582,7 +498,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     window.addEventListener('orientationchange', resize);
     viewport?.addEventListener('resize', resize);
     viewport?.addEventListener('scroll', resize);
-    void boot().catch(error => console.error('World boss perspective renderer failed', error));
+    void boot().catch(error => console.error('World boss performance renderer failed', error));
 
     return () => {
       disposed = true;
@@ -595,7 +511,6 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       playerRig?.stop();
       bossRig?.stop();
       roomRoot?.userData?.shell?.userData?.dispose?.();
-      roomRoot?.userData?.theme?.userData?.dispose?.();
       if (roomRoot) disposeObject(roomRoot);
       if (architecture) disposeObject(architecture);
       if (playerRig?.root) disposeObject(playerRig.root);
@@ -610,5 +525,5 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     };
   }, [engineRef]);
 
-  return <div ref={hostRef} data-testid="ash-king-perspective-stage" data-camera="perspective-run-camera" className="pointer-events-none fixed inset-0 overflow-hidden" style={{ width: '100vw', height: '100dvh' }} />;
+  return <div ref={hostRef} data-testid="ash-king-perspective-stage" data-camera="calm-perspective-camera" className="pointer-events-none fixed inset-0 overflow-hidden" style={{ width: '100vw', height: '100dvh' }} />;
 }
