@@ -1,0 +1,38 @@
+name: Menu Village Diagnostic
+
+on:
+  push:
+    branches: [rework/main-menu-modern-village-square]
+  workflow_dispatch:
+
+jobs:
+  audits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: All rooms
+        run: node artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs
+      - name: Production rooms
+        run: node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
+      - name: Spawn hitboxes
+        run: node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
+      - name: Enemy visibility
+        run: node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
+      - name: Mobile combat
+        run: node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+      - name: World boss
+        run: node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
+      - name: Social navigation
+        run: node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
+      - name: Social progression
+        run: node artifacts/dungeon-rpg/scripts/validate-social-progression.mjs
