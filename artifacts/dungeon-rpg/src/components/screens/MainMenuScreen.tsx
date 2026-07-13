@@ -4,11 +4,14 @@ import { SaveData } from '../../game/saveManager';
 import { loadMetaProgression } from '../../game/metaProgression';
 import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
 import { loadRetentionProfile, type RetentionProfile } from '../../game/runRetention';
+import { captureGuildInviteTokenFromUrl, mailboxUnreadCount, MAILBOX_EVENT } from '../../game/guildMailboxOnline';
+import { onlineSessionEventName } from '../../game/supabaseOnline';
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { DailyQuestPanel } from '../DailyQuestPanel';
-import { WeeklyRiftPanel } from '../WeeklyRiftPanel';
 import { OnlinePanel } from '../OnlinePanel';
 import { GuildPanel } from '../GuildPanel';
+import { GuildInviteLinkCard } from '../GuildInviteLinkCard';
+import { MailboxPanel } from '../MailboxPanel';
 import { WorldBossPanel } from '../WorldBossPanel';
 
 interface Props {
@@ -21,13 +24,14 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'daily' | 'rift' | 'more' | 'online' | 'guild' | 'worldBoss' | null;
+type Overlay = 'daily' | 'mailbox' | 'more' | 'online' | 'guild' | 'worldBoss' | null;
 
 export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
   const [meta, setMeta] = useState(loadMetaProgression);
   const [retention, setRetention] = useState<RetentionProfile>(loadRetentionProfile);
   const [overlay, setOverlay] = useState<Overlay>(null);
+  const [mailUnread, setMailUnread] = useState(0);
   const gifts = props.saveData ? Object.entries(props.saveData.runSkills ?? {}).reduce((sum, [key, value]) => key === 'heal' ? sum : sum + (value ?? 0), 0) : 0;
 
   useEffect(() => {
@@ -38,6 +42,19 @@ export function MainMenuScreen(props: Props) {
     return () => {
       window.removeEventListener('dungeon-veil-meta-changed', refreshMeta);
       window.removeEventListener('dungeon-veil-retention-update', refreshRetention as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const captured = captureGuildInviteTokenFromUrl();
+    if (captured) setOverlay('mailbox');
+    const refreshUnread = () => { void mailboxUnreadCount().then(setMailUnread).catch(() => setMailUnread(0)); };
+    window.addEventListener(MAILBOX_EVENT, refreshUnread);
+    window.addEventListener(onlineSessionEventName(), refreshUnread);
+    refreshUnread();
+    return () => {
+      window.removeEventListener(MAILBOX_EVENT, refreshUnread);
+      window.removeEventListener(onlineSessionEventName(), refreshUnread);
     };
   }, []);
 
@@ -74,8 +91,8 @@ export function MainMenuScreen(props: Props) {
     <div className="relative flex h-full flex-col px-5 pb-[max(22px,calc(env(safe-area-inset-bottom)+8px))] pt-[max(34px,calc(env(safe-area-inset-top)+14px))]">
       <header className="text-center"><div className="text-[7px] font-black uppercase tracking-[.5em] text-amber-200/42">{language === 'de' ? 'BETRITT DEN SCHLEIER' : 'ENTER THE VEIL'}</div><h1 className="mt-1.5 font-serif text-[clamp(2.45rem,10.5vw,3.7rem)] font-black leading-[.86] tracking-[.07em] text-[#d7a347]">DUNGEON<br />VEIL</h1><p className="mt-2.5 text-[7px] uppercase tracking-[.28em] text-white/28">{t.subtitle}</p></header>
       <div className="mt-5 flex justify-center gap-3">
-        <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay('daily'); }} className="relative grid h-11 w-11 place-items-center rounded-full border border-amber-300/22 bg-black/58 text-base text-amber-200 backdrop-blur-xl active:scale-95">✦<span className="absolute -right-1 -top-1 rounded-full border border-amber-100/25 bg-amber-500 px-1.5 py-0.5 text-[7px] font-black text-black">{retention.daily.claimed.length}/3</span></button>
-        <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay('rift'); }} className="grid h-11 w-11 place-items-center rounded-full border border-violet-300/22 bg-black/58 text-lg text-violet-200 backdrop-blur-xl active:scale-95">◈</button>
+        <button aria-label={language === 'de' ? 'Aufgaben' : 'Quests'} type="button" onPointerDown={event => { event.preventDefault(); setOverlay('daily'); }} className="relative grid h-11 w-11 place-items-center rounded-full border border-amber-300/22 bg-black/58 text-base text-amber-200 backdrop-blur-xl active:scale-95">✦<span className="absolute -right-1 -top-1 rounded-full border border-amber-100/25 bg-amber-500 px-1.5 py-0.5 text-[7px] font-black text-black">{retention.daily.claimed.length}/3</span></button>
+        <button data-testid="mailbox-button" aria-label={language === 'de' ? 'Postfach' : 'Mailbox'} type="button" onPointerDown={event => { event.preventDefault(); setOverlay('mailbox'); }} className="relative grid h-11 w-11 place-items-center rounded-full border border-sky-300/22 bg-black/58 text-base text-sky-100 backdrop-blur-xl active:scale-95">✉{mailUnread > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full border border-sky-100/25 bg-sky-400 px-1 py-0.5 text-[7px] font-black text-black">{Math.min(99, mailUnread)}</span>}</button>
       </div>
       <div className="flex-1" />
       <div className="mx-auto mb-2 flex w-full max-w-sm justify-end gap-2">
@@ -87,9 +104,9 @@ export function MainMenuScreen(props: Props) {
 
     {overlay && <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/74 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
-      {overlay === 'rift' && <WeeklyRiftPanel language={language} />}
+      {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
-      {overlay === 'guild' && <GuildPanel language={language} />}
+      {overlay === 'guild' && <div className="space-y-3"><GuildInviteLinkCard language={language} /><GuildPanel language={language} /></div>}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} />}
       {overlay === 'more' && <div className="rounded-3xl border border-white/10 bg-[#0c0b0a]/95 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-white/32">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{button(language === 'de' ? 'Online & Cloud' : 'Online & Cloud', () => setOverlay('online'), language === 'de' ? 'Konto · Profil · Cloud-Spielstand' : 'Account · Profile · Cloud save', 'chamber')}{button(t.settings, () => { setOverlay(null); props.onSettings(); })}{button(t.credits, () => { setOverlay(null); props.onCredits(); })}</div></div>}
       <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-white/10 bg-black/72 py-3 text-[9px] font-black uppercase tracking-[.2em] text-white/50">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>
