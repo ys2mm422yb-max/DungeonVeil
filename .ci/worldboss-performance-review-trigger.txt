@@ -1,1 +1,0 @@
-Run moving iPhone 13 and Pixel 5 visual and performance validation.
