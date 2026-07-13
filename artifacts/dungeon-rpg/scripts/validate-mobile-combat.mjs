@@ -13,6 +13,7 @@ const files = {
   bossBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
   bossCohesive: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
   bossStage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
+  bossRig: await readFile(new URL('../src/components/worldBossMobileVisual3D.ts', import.meta.url), 'utf8'),
 };
 
 const checks = [
@@ -28,13 +29,14 @@ const checks = [
   [files.boss.includes('engine.onStateChange = () => {}') && files.boss.includes('setGameState(snapshotRaidState(engine.state))'), 'world boss React updates are not throttled'],
   [files.bossStageProxy.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.bossBand.includes('<WorldBossCohesiveStage'), 'world-boss stage proxy routing is broken'],
   [files.bossCohesive.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'world-boss stage is not routed directly'],
-  [!files.bossStage.includes('buildKayKitDungeonRoom') && files.bossStage.includes('floor_tile_large.gltf') && files.bossStage.includes('wall.gltf'), 'high-call generic room shell remains'],
+  [!files.bossStage.includes('buildKayKitDungeonRoom') && files.bossStage.includes('new THREE.CanvasTexture(canvas)') && files.bossStage.includes('new THREE.PlaneGeometry(24, 32, 1, 1)'), 'high-call room shell or repeated floor geometry remains'],
   [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.bossStage.includes('const EMBER_COUNT = IS_MOBILE ? 6 : 20;'), 'world-boss effects are not bounded tightly enough'],
   [files.bossStage.includes('qualityLevel === 0) return 0') && files.bossStage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)"), 'mobile renderer is capped or oversampled at default quality'],
   [files.bossStage.includes('playerX * 0.12') && files.bossStage.includes('damp(camera.position.x, cameraGoal.x, 1.5'), 'world-boss camera is still following too aggressively'],
   [files.bossStage.includes('new THREE.CircleGeometry(1, 24)') && !files.bossStage.includes('new THREE.RingGeometry'), 'world-boss neon rings remain'],
+  [files.bossRig.includes("shoulderBar.name = 'AshShoulderBar'") && files.bossRig.includes("crown.name = 'SimplifiedAshCrown'") && !files.bossRig.includes('auraArcs'), 'boss regalia is still too expensive'],
   [files.bossStage.includes('antialias: !IS_MOBILE') && files.bossStage.includes('renderer.shadowMap.enabled = !IS_MOBILE'), 'mobile renderer policy is too expensive'],
-  [files.bossStage.includes("arena: 'curated-low-call-kaykit-hall'"), 'low-call arena telemetry is missing'],
+  [files.bossStage.includes("arena: 'single-floor-low-call-kaykit-hall'"), 'single-floor arena telemetry is missing'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -44,4 +46,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: compact HUD, bounded effects and the curated low-call KayKit world-boss hall are active.');
+console.log('Mobile combat audit passed: compact HUD, single-floor hall, simplified boss and bounded mobile effects are active.');
