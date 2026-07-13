@@ -30,7 +30,7 @@ const checks = [
   [files.stage.includes('antialias: !IS_MOBILE') && files.stage.includes('renderer.shadowMap.enabled = !IS_MOBILE'), 'mobile-safe renderer policy is missing'],
   [files.stage.includes("arena: 'single-floor-low-call-kaykit-hall'") && files.stage.includes("camera: 'calm-perspective-camera'"), 'performance telemetry identity is missing'],
   [files.battle.includes('const TIMER_PAINT_MS = 250;') && files.battle.includes('if (!arenaReadyRef.current)'), 'timer throttling or ready gate is missing'],
-  [files.battle.includes('function prepareRaidArenaMap') && files.battle.includes('engine.ignoreRoomPropCollisions = true;') && files.battle.includes('ignoreRoomProps: true'), 'world-boss arena still uses invisible room-50 collision props'],
+  [files.battle.includes('function prepareRaidArenaMap') && files.battle.includes('boundary ? TileType.WALL : TileType.FLOOR') && files.battle.includes('engine.ignoreRoomPropCollisions = true;') && files.battle.includes('ignoreRoomProps: true'), 'world-boss arena still uses invisible room-50 collision props'],
   [files.battle.includes('const handleMove = useCallback') && files.battle.includes('}, [arenaReady, phase]);'), 'world-boss joystick callback is unstable across HUD rerenders'],
   [files.engine.includes('ignoreRoomPropCollisions = false;') && files.engine.includes('!this.ignoreRoomPropCollisions && shotBlockedByRoomProp') && files.engine.includes('return !this.ignoreRoomPropCollisions && collidesWithRoomProp'), 'engine collision bypass is missing or affects normal rooms'],
   [files.stage.includes("bossShot ? effect.color : '#d8b77a'"), 'normal player arrows still inherit red or blue elemental colors'],
