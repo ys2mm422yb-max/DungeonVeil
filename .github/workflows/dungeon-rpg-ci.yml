@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Validation trigger for final ritual arena, mailbox, guild links and friends 5eb2769.
+# Validation trigger for final audited ritual arena and social systems 07b1f74.
 on:
   workflow_dispatch:
 
