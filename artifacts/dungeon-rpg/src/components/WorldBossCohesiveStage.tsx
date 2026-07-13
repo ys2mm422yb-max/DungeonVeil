@@ -1,1 +1,1 @@
-export { WorldBossPerspectiveStage as WorldBossCohesiveStage } from './WorldBossPerspectiveStage';
+export { WorldBossAggressiveStage as WorldBossCohesiveStage } from './WorldBossAggressiveStage';
