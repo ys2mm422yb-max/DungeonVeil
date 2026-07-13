@@ -1,8 +1,9 @@
 name: Final Device Review Deploy
 
 on:
-  push:
-    branches: [verify/blocks-1-6-final-device-review]
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
   workflow_dispatch:
 
 permissions:
@@ -17,11 +18,14 @@ concurrency:
 
 jobs:
   validate-and-build:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'verify/blocks-1-6-final-device-review'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Checkout exact test head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Resolve deployment commit
         id: commit
@@ -78,6 +82,7 @@ jobs:
           path: artifacts/dungeon-rpg/dist/public
 
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'verify/blocks-1-6-final-device-review'
     needs: validate-and-build
     runs-on: ubuntu-latest
     steps:
@@ -88,7 +93,7 @@ jobs:
       - name: Record successful deploy on PR 104
         uses: actions/github-script@v7
         env:
-          DEPLOYED_SHA: ${{ github.sha }}
+          DEPLOYED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         with:
           script: |
