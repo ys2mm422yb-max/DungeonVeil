@@ -1,0 +1,58 @@
+name: Apply World Boss Presence Polish
+
+on:
+  push:
+    branches: [rework/worldboss-full-3d-arena]
+    paths:
+      - '.github/workflows/worldboss-apply-presence-polish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+          fetch-depth: 0
+      - name: Apply focused renderer polish
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx')
+          text = path.read_text()
+          replacements = [
+              ('new THREE.CircleGeometry(1.7, 40)', 'new THREE.CircleGeometry(2.15, 44)'),
+              ('new THREE.RingGeometry(1.05, 1.75, 44, 1, 0.25, Math.PI * 1.72)', 'new THREE.RingGeometry(1.35, 2.25, 52, 1, 0.2, Math.PI * 1.78)'),
+              ('telegraph.material.opacity = Math.max(0.16, 0.76 * (1 - progress));', 'telegraph.material.opacity = Math.max(0.1, 0.48 * (1 - progress));'),
+              ('const focusX = clamp(playerX * 0.44 + bossX * 0.56, -3.6, 3.6);', 'const focusX = clamp(playerX * 0.38 + bossX * 0.62, -3.6, 3.6);'),
+              ('const focusZ = clamp(playerZ * 0.42 + bossZ * 0.58, -3.3, 2.8);', 'const focusZ = clamp(playerZ * 0.36 + bossZ * 0.64, -3.3, 2.8);'),
+              ('cameraGoal.set(focusX, (portrait ? 13.2 : 11.7) + extra * 0.35, focusZ + (portrait ? 18.3 : 16.4) + extra);', 'cameraGoal.set(focusX, (portrait ? 12.8 : 11.5) + extra * 0.35, focusZ + (portrait ? 17.6 : 16.1) + extra);'),
+              ('cameraLook.set(focusX, 1.05, focusZ - (portrait ? 3.35 : 3.7));', 'cameraLook.set(focusX, 1.12, focusZ - (portrait ? 3.15 : 3.55));'),
+              ('bossRig.root.scale.setScalar(1.72 + attackPulse * 0.07);', 'bossRig.root.scale.setScalar(2.05 + attackPulse * 0.09);'),
+              ('fallbackBoss.scale.setScalar(1.25);', 'fallbackBoss.scale.setScalar(1.46);'),
+              ('camera.position.set(0, 13.2, 18.3);', 'camera.position.set(0, 12.8, 17.6);'),
+              ('bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.2 : 3.6, 24, Math.PI / 5, 0.72, 1.8);', 'bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.8 : 4, 25, Math.PI / 5, 0.7, 1.8);'),
+              ('keepGeometry(new THREE.RingGeometry(0.72, 1, 36)),', 'keepGeometry(new THREE.RingGeometry(0.82, 1, 40)),')
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one match for {old!r}, found {count}')
+              text = text.replace(old, new)
+
+          path.write_text(text)
+          PY
+      - name: Commit renderer polish
+        run: |
+          git config user.name 'Dungeon Veil CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx
+          git diff --cached --check
+          git commit -m 'Polish world boss presence and mobile framing'
+          git push origin HEAD:rework/worldboss-full-3d-arena
