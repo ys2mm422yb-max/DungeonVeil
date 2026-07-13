@@ -110,6 +110,12 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       shell.remove(tile);
       shell.add(replacement);
     });
+    shell.children.forEach((object: any) => {
+      const frontWall = object.userData?.roomOccluder === 'front-wall';
+      if (!frontWall || Math.abs(object.position.x) >= 5.2) return;
+      object.visible = false;
+      object.name = `WorldBossFrontWallClearance_${object.name || 'segment'}`;
+    });
   };
 
     const disposeObject = (root: any) => root?.traverse?.((node: any) => {
