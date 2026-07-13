@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuSceneProxy, villageScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stageWrapper, aggressiveStage, perspectiveStage, band] = await Promise.all([
+const [menu, villageHub, menuSceneProxy, villageScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
@@ -15,6 +15,7 @@ const [menu, villageHub, menuSceneProxy, villageScene, mailbox, inviteCard, guil
   read('../../../supabase/migrations/20260713023000_add_friends_system.sql'),
   read('../../../supabase/migrations/20260713023500_harden_friend_pair_uniqueness.sql'),
   read('../src/main.tsx'),
+  read('../src/game/emailConfirmationRedirect.ts'),
   read('../src/components/WorldBossCohesiveStage.tsx'),
   read('../src/components/WorldBossAggressiveStage.tsx'),
   read('../src/components/WorldBossPerspectiveStage.tsx'),
@@ -38,6 +39,10 @@ const checks = [
   [friendMigration.includes('create table if not exists public.friend_requests') && friendMigration.includes('create table if not exists public.friendships'), 'friends database tables are missing'],
   [friendMigration.includes('friend_requests_read_related') && friendMigration.includes('friendships_read_own') && friendMigration.includes('revoke execute') && friendMigration.includes('grant execute'), 'friends RLS or RPC permissions are incomplete'],
   [friendHardening.includes('friend_requests_pair_uidx') && friendHardening.includes('least(sender_id, receiver_id)') && friendHardening.includes('on conflict do nothing'), 'unordered friend-pair race protection is missing'],
+  [main.includes("from './game/emailConfirmationRedirect'") && main.includes('installEmailConfirmationRedirect();'), 'email confirmation redirect guard is not installed before app startup'],
+  [emailRedirect.includes("url.pathname === '/auth/v1/signup'") && emailRedirect.includes("url.searchParams.set('redirect_to', appReturnUrl())"), 'signup request does not receive an explicit confirmation redirect'],
+  [emailRedirect.includes('import.meta.env.BASE_URL') && emailRedirect.includes('window.location.origin') && !emailRedirect.includes("new URL('/', window.location.origin)"), 'email confirmation redirect can fall back to the GitHub Pages domain root'],
+  [emailRedirect.includes('url.origin === supabaseOrigin()') && emailRedirect.includes('PATCH_MARKER'), 'email redirect guard is not narrowly scoped or idempotent'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
   [menuSceneProxy.includes('ModernVillageSquareScene as MainMenuDungeonScene'), 'main menu scene proxy is not routed to the modern village renderer'],
@@ -59,4 +64,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: resilient modern village rendering, compact social routes and the current aggressive single-floor world-boss pipeline remain active.');
+console.log('Social/navigation audit passed: exact email confirmation return path, resilient modern village rendering, compact social routes and the current aggressive single-floor world-boss pipeline remain active.');
