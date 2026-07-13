@@ -35,6 +35,7 @@ const checks = [
   [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;'), 'world-boss projectiles are not bounded'],
   [files.bossStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.bossStage.includes('key.castShadow = !IS_MOBILE'), 'world-boss mobile shadows are not disabled'],
   [files.bossStage.includes('bossRig.root.scale.setScalar(2.05') && files.bossStage.includes("root.name = 'AshKingDominanceAura'"), 'world-boss mobile silhouette is not dominant enough'],
+  [files.bossVisualPatch.includes("parent?.name?.startsWith?.('KayKitSetpieceRoom20_')") && files.bossVisualPatch.includes("object.name = 'WorldBossCentralRoom20Sigil'") && files.bossVisualPatch.includes('isWorldBossMounted()'), 'central room-20 sigil is not scoped to the world-boss stage'],
   [files.bossVisualPatch.includes("node.name === 'AshKingPerspectiveSeal'") && files.bossVisualPatch.includes("node.parent?.name === 'AshKingDominanceAura'") && files.bossVisualPatch.includes('Math.min(deviceRatio, 1.3)') && files.bossVisualPatch.includes('texture.anisotropy = maxAnisotropy'), 'world-boss center rings or low-resolution iPhone rendering remain'],
 ];
 
@@ -45,4 +46,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the ring-free sharpened perspective world-boss renderer are active.');
+console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the sharpened ring-free perspective world-boss renderer are active.');
