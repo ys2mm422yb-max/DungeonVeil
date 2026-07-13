@@ -16,7 +16,6 @@ const PERF_KEY = 'dungeon-veil-worldboss-performance';
 const DUNGEON = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 
 const ARENA_MODELS = {
-  floor: `${DUNGEON}/floor_tile_large.gltf`,
   wall: `${DUNGEON}/wall.gltf`,
   arch: `${DUNGEON}/wall_arched.gltf`,
   pillar: `${DUNGEON}/pillar_decorated.gltf`,
@@ -71,6 +70,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     const projectileSlots: ProjectileSlot[] = [];
     const ownedGeometries: any[] = [];
     const ownedMaterials: any[] = [];
+    const ownedTextures: any[] = [];
 
     const state = () => engineRef.current?.state ?? null;
     const keepGeometry = (geometry: any) => { ownedGeometries.push(geometry); return geometry; };
@@ -119,6 +119,64 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       camera.updateProjectionMatrix();
     };
 
+    const buildStoneFloorTexture = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const context = canvas.getContext('2d');
+      if (!context) return null;
+
+      context.fillStyle = '#5d493f';
+      context.fillRect(0, 0, 1024, 1024);
+      const columns = 6;
+      const rows = 8;
+      const cellWidth = 1024 / columns;
+      const cellHeight = 1024 / rows;
+
+      for (let row = 0; row < rows; row++) {
+        for (let column = -1; column <= columns; column++) {
+          const offset = row % 2 ? cellWidth * 0.5 : 0;
+          const x = column * cellWidth - offset;
+          const y = row * cellHeight;
+          const seed = row * 17 + column * 29;
+          const insetA = 7 + Math.abs(seed % 6);
+          const insetB = 6 + Math.abs((seed * 3) % 7);
+          context.beginPath();
+          context.moveTo(x + insetA, y + 7);
+          context.lineTo(x + cellWidth - insetB, y + 4 + Math.abs(seed % 5));
+          context.lineTo(x + cellWidth - 6, y + cellHeight - 8);
+          context.lineTo(x + 8 + Math.abs((seed * 5) % 5), y + cellHeight - 4);
+          context.closePath();
+          context.fillStyle = (row + column) % 3 === 0 ? '#765c4c' : (row + column) % 3 === 1 ? '#6b5347' : '#806451';
+          context.fill();
+          context.strokeStyle = '#352923';
+          context.lineWidth = 7;
+          context.stroke();
+
+          context.strokeStyle = 'rgba(37, 26, 22, 0.45)';
+          context.lineWidth = 3;
+          context.beginPath();
+          const crackX = x + cellWidth * (0.32 + (Math.abs(seed % 19) / 100));
+          const crackY = y + cellHeight * 0.28;
+          context.moveTo(crackX, crackY);
+          context.lineTo(crackX + 18, crackY + 20);
+          context.lineTo(crackX + 7, crackY + 42);
+          context.stroke();
+        }
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() ?? 1, 2);
+      texture.needsUpdate = true;
+      ownedTextures.push(texture);
+      return texture;
+    };
+
     const loadArena = async (GLTFLoader: any) => {
       if (!scene) return;
       const manifest = await loadKayKitManifest();
@@ -137,6 +195,16 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       const stone = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x493f43, roughness: 0.88, metalness: 0.03 }));
       const trim = keepMaterial(new THREE.MeshStandardMaterial({ color: 0x70594c, roughness: 0.76, metalness: 0.08 }));
 
+      const floor = new THREE.Mesh(
+        keepGeometry(new THREE.PlaneGeometry(24, 32, 1, 1)),
+        keepMaterial(new THREE.MeshStandardMaterial({ map: buildStoneFloorTexture(), color: 0xffffff, roughness: 0.96, metalness: 0.01 })),
+      );
+      floor.name = 'AshKingDetailedSingleFloor';
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(0, -0.015, 0);
+      floor.receiveShadow = !IS_MOBILE;
+      root.add(floor);
+
       const addModel = (prototype: any, x: number, y: number, z: number, scale: number, rotation = 0, name = '') => {
         if (!prototype) return;
         const object = prototype.clone(true);
@@ -153,16 +221,13 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
         root.add(object);
       };
 
-      let floorIndex = 0;
-      for (const z of [-12, -4, 4, 12]) {
-        for (const x of [-8, 0, 8]) {
-          addModel(models.floor, x, 0, z, 2.02, floorIndex++ % 2 ? Math.PI / 2 : 0, `BossFloor_${floorIndex}`);
-        }
-      }
-
       for (const x of [-8, -4, 0, 4, 8]) addModel(models.wall, x, 0, backZ, 2, 0, `BossBackWall_${x}`);
+
       for (const side of [-1, 1]) {
-        for (const z of [-10, -6]) addModel(models.wall, side * 10, 0, z, 2, side > 0 ? -Math.PI / 2 : Math.PI / 2, `BossSideWall_${side}_${z}`);
+        const rail = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(0.52, 0.54, 20)), stone);
+        rail.name = `BossSideBoundary_${side}`;
+        rail.position.set(side * 10.25, 0.25, -1.5);
+        root.add(rail);
       }
 
       const lower = new THREE.Mesh(keepGeometry(new THREE.BoxGeometry(10.2, 0.36, 4.2)), stone);
@@ -333,7 +398,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
           triangles: renderer.info?.render?.triangles ?? 0,
           mobileBoss: IS_MOBILE,
           mobileBossSource: bossRig ? 'ash-warden-skeleton' : fallbackBoss ? 'veil-fallback' : 'loading',
-          arena: 'curated-low-call-kaykit-hall',
+          arena: 'single-floor-low-call-kaykit-hall',
           camera: 'calm-perspective-camera',
           at: Date.now(),
         }));
@@ -495,6 +560,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       if (playerRig?.root) disposeObject(playerRig.root);
       if (bossRig?.root) disposeObject(bossRig.root);
       if (fallbackBoss) disposeObject(fallbackBoss);
+      ownedTextures.forEach(texture => texture?.dispose?.());
       ownedGeometries.forEach(geometry => geometry?.dispose?.());
       ownedMaterials.forEach(material => material?.dispose?.());
       renderer?.renderLists?.dispose?.();
