@@ -1,0 +1,48 @@
+@media (max-width: 760px) {
+  [data-testid='guild-social-panel'] {
+    box-sizing: border-box;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  [data-testid='guild-social-panel'] > div:first-child {
+    box-sizing: border-box;
+    width: min(100%, 680px);
+    max-height: calc(100dvh - max(10px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom)));
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px !important;
+    border-radius: 22px !important;
+    scroll-padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+
+  [data-testid='guild-social-panel'] > div:first-child > div:first-child {
+    margin-bottom: 12px !important;
+  }
+
+  [data-testid='guild-social-panel'] section {
+    border-radius: 16px !important;
+    padding: 11px !important;
+  }
+
+  [data-testid='guild-social-panel'] textarea {
+    min-height: 94px;
+    max-height: 132px;
+  }
+
+  [data-testid='guild-social-panel'] button {
+    min-height: 42px;
+  }
+
+  [data-testid='guild-social-panel'] .grid.grid-cols-3 {
+    gap: 7px !important;
+  }
+
+  [data-testid='guild-social-panel'] .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 10px !important;
+  }
+}
