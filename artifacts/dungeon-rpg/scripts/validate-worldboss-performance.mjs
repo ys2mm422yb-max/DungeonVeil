@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
+// Final gate after screenshot validation at 390x844 and 393x851 mobile viewports.
 const files = {
   battle: await readFile(new URL('../src/components/WorldBossBattleScreen.tsx', import.meta.url), 'utf8'),
   proxyStage: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
