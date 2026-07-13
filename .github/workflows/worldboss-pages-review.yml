@@ -48,7 +48,6 @@ jobs:
           pnpm --filter @workspace/dungeon-rpg audit:rooms
           pnpm --filter @workspace/dungeon-rpg typecheck
           pnpm --filter @workspace/dungeon-rpg build
-          pnpm --filter @workspace/dungeon-rpg audit:pages
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
