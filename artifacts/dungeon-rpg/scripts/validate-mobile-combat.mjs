@@ -34,7 +34,7 @@ const checks = [
   [files.bossStage.includes('qualityLevel === 0) return 0') && files.bossStage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)"), 'mobile renderer is capped or oversampled at default quality'],
   [files.bossStage.includes('playerX * 0.12') && files.bossStage.includes('damp(camera.position.x, cameraGoal.x, 1.5'), 'world-boss camera is still following too aggressively'],
   [files.bossStage.includes('new THREE.CircleGeometry(1, 24)') && !files.bossStage.includes('new THREE.RingGeometry'), 'world-boss neon rings remain'],
-  [files.bossRig.includes("shoulderBar.name = 'AshShoulderBar'") && files.bossRig.includes("crown.name = 'SimplifiedAshCrown'") && !files.bossRig.includes('auraArcs'), 'boss regalia is still too expensive'],
+  [files.bossRig.includes('Dragon.fbx') && files.bossRig.includes("root.name = 'VeilDragonWorldBoss'") && files.bossRig.includes('leftWing') && files.bossRig.includes('tailNodes'), 'dragon boss rig or procedural motion is missing'],
   [files.bossStage.includes('antialias: !IS_MOBILE') && files.bossStage.includes('renderer.shadowMap.enabled = !IS_MOBILE'), 'mobile renderer policy is too expensive'],
   [files.bossStage.includes("arena: 'single-floor-low-call-kaykit-hall'"), 'single-floor arena telemetry is missing'],
 ];
@@ -46,4 +46,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: compact HUD, single-floor hall, simplified boss and bounded mobile effects are active.');
+console.log('Mobile combat audit passed: compact HUD, single-floor hall, imported dragon boss and bounded mobile effects are active.');
