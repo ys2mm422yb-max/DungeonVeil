@@ -3,6 +3,11 @@ name: Menu Village Diagnostic
 on:
   push:
     branches: [rework/main-menu-modern-village-square]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/menu-village-diagnostic.yml'
   workflow_dispatch:
 
 jobs:
