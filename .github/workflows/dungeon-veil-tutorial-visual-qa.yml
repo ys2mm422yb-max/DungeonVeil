@@ -17,7 +17,7 @@ concurrency:
 jobs:
   screenshots:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout exact product commit
         uses: actions/checkout@v4
@@ -91,17 +91,25 @@ jobs:
 
       - name: Capture iPhone Veil village
         id: menu_iphone
-        run: pnpm dlx playwright@1.55.0 screenshot --browser=webkit --device="iPhone 13" --color-scheme=dark --wait-for-timeout=6500 "http://127.0.0.1:4174/DungeonVeil/?qa=menu" artifacts/dungeon-rpg/visual-qa/menu-iphone.png
+        run: pnpm dlx playwright@1.55.0 screenshot --browser=webkit --device="iPhone 13" --color-scheme=dark --wait-for-timeout=7000 "http://127.0.0.1:4174/DungeonVeil/?qa=menu" artifacts/dungeon-rpg/visual-qa/menu-iphone.png
 
       - name: Capture Android Veil village
         id: menu_android
-        run: pnpm dlx playwright@1.55.0 screenshot --browser=chromium --device="Pixel 7" --color-scheme=dark --wait-for-timeout=6500 "http://127.0.0.1:4174/DungeonVeil/?qa=menu" artifacts/dungeon-rpg/visual-qa/menu-android.png
+        run: pnpm dlx playwright@1.55.0 screenshot --browser=chromium --device="Pixel 7" --color-scheme=dark --wait-for-timeout=7000 "http://127.0.0.1:4174/DungeonVeil/?qa=menu" artifacts/dungeon-rpg/visual-qa/menu-android.png
+
+      - name: Capture iPhone Ash King hall
+        id: worldboss_iphone
+        run: pnpm dlx playwright@1.55.0 screenshot --browser=webkit --device="iPhone 13" --color-scheme=dark --wait-for-timeout=10000 "http://127.0.0.1:4174/DungeonVeil/?qa=worldboss" artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png
+
+      - name: Capture Android Ash King hall
+        id: worldboss_android
+        run: pnpm dlx playwright@1.55.0 screenshot --browser=chromium --device="Pixel 7" --color-scheme=dark --wait-for-timeout=10000 "http://127.0.0.1:4174/DungeonVeil/?qa=worldboss" artifacts/dungeon-rpg/visual-qa/worldboss-android.png
 
       - name: Validate mobile screenshots
         id: validate
         shell: bash
         run: |
-          for file in tutorial-iphone tutorial-android menu-iphone menu-android; do
+          for file in tutorial-iphone tutorial-android menu-iphone menu-android worldboss-iphone worldboss-android; do
             test -s "artifacts/dungeon-rpg/visual-qa/${file}.png"
             test "$(stat -c%s "artifacts/dungeon-rpg/visual-qa/${file}.png")" -gt 25000
           done
@@ -115,6 +123,8 @@ jobs:
               'tutorial-android.png': (412, 915),
               'menu-iphone.png': (390, 844),
               'menu-android.png': (412, 915),
+              'worldboss-iphone.png': (390, 844),
+              'worldboss-android.png': (412, 915),
           }
           for name, minimum in expected.items():
               image = Image.open(root / name).convert('RGB')
@@ -136,6 +146,7 @@ jobs:
           path: |
             artifacts/dungeon-rpg/visual-qa/tutorial-*
             artifacts/dungeon-rpg/visual-qa/menu-*
+            artifacts/dungeon-rpg/visual-qa/worldboss-*
           retention-days: 14
 
       - name: Publish QA evidence and marker
@@ -153,6 +164,8 @@ jobs:
           TUTORIAL_ANDROID: ${{ steps.tutorial_android.outcome }}
           MENU_IPHONE: ${{ steps.menu_iphone.outcome }}
           MENU_ANDROID: ${{ steps.menu_android.outcome }}
+          WORLDBOSS_IPHONE: ${{ steps.worldboss_iphone.outcome }}
+          WORLDBOSS_ANDROID: ${{ steps.worldboss_android.outcome }}
           VALIDATE: ${{ steps.validate.outcome }}
           UPLOAD: ${{ steps.upload.outcome }}
         with:
@@ -184,6 +197,10 @@ jobs:
               menuAndroid: 'artifacts/dungeon-rpg/visual-qa/menu-android.png',
               menuIphoneThumb: 'artifacts/dungeon-rpg/visual-qa/menu-iphone-thumb.jpg',
               menuAndroidThumb: 'artifacts/dungeon-rpg/visual-qa/menu-android-thumb.jpg',
+              worldbossIphone: 'artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png',
+              worldbossAndroid: 'artifacts/dungeon-rpg/visual-qa/worldboss-android.png',
+              worldbossIphoneThumb: 'artifacts/dungeon-rpg/visual-qa/worldboss-iphone-thumb.jpg',
+              worldbossAndroidThumb: 'artifacts/dungeon-rpg/visual-qa/worldboss-android-thumb.jpg',
             };
             const remote = {
               tutorialIphone: '.ci/visual-qa/tutorial-iphone.png',
@@ -194,6 +211,10 @@ jobs:
               menuAndroid: '.ci/visual-qa/menu-android.png',
               menuIphoneThumb: '.ci/visual-qa/menu-iphone-thumb.jpg',
               menuAndroidThumb: '.ci/visual-qa/menu-android-thumb.jpg',
+              worldbossIphone: '.ci/visual-qa/worldboss-iphone.png',
+              worldbossAndroid: '.ci/visual-qa/worldboss-android.png',
+              worldbossIphoneThumb: '.ci/visual-qa/worldboss-iphone-thumb.jpg',
+              worldbossAndroidThumb: '.ci/visual-qa/worldboss-android-thumb.jpg',
             };
             for (const key of Object.keys(local)) {
               if (fs.existsSync(local[key])) await write(remote[key], fs.readFileSync(local[key]), `Record social ${key} QA for ${process.env.PRODUCT_SHA.slice(0, 7)}`);
@@ -209,6 +230,8 @@ jobs:
               tutorialAndroid: process.env.TUTORIAL_ANDROID,
               menuIphone: process.env.MENU_IPHONE,
               menuAndroid: process.env.MENU_ANDROID,
+              worldbossIphone: process.env.WORLDBOSS_IPHONE,
+              worldbossAndroid: process.env.WORLDBOSS_ANDROID,
               validate: process.env.VALIDATE,
               upload: process.env.UPLOAD,
             };
