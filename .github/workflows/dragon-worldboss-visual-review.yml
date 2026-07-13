@@ -1,0 +1,85 @@
+name: Dragon World Boss Visual Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/dragon-worldboss-visual-review.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    if: github.event.pull_request.head.ref == 'rework/worldboss-full-3d-arena'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build review
+        env:
+          BASE_PATH: /
+        run: pnpm --filter @workspace/dungeon-rpg build
+      - name: Install isolated Playwright
+        run: |
+          mkdir -p /tmp/pw
+          cd /tmp/pw
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.54.2 >/dev/null 2>&1
+          npx playwright install --with-deps chromium
+      - name: Start preview
+        run: |
+          python3 -m http.server 4173 --directory artifacts/dungeon-rpg/dist/public >/tmp/dragon-preview.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/dragon-preview.log
+          exit 1
+      - name: Capture iPhone and Pixel
+        run: |
+          mkdir -p dragon-review
+          cat >/tmp/pw/review.cjs <<'NODE'
+          const { chromium, devices } = require('/tmp/pw/node_modules/playwright');
+          const fs = require('fs');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const results = {};
+            for (const [name, deviceName] of [['iphone13', 'iPhone 13'], ['pixel5', 'Pixel 5']]) {
+              const context = await browser.newContext({ ...devices[deviceName] });
+              const page = await context.newPage();
+              const errors = [];
+              page.on('pageerror', error => errors.push(String(error)));
+              await page.goto('http://127.0.0.1:4173/?qa=worldboss', { waitUntil: 'domcontentloaded', timeout: 60000 });
+              await page.waitForSelector('[data-testid="ash-king-perspective-stage"]', { timeout: 30000 });
+              await page.waitForTimeout(10000);
+              const telemetry = await page.evaluate(() => {
+                const raw = localStorage.getItem('dungeon-veil-worldboss-performance');
+                return raw ? JSON.parse(raw) : null;
+              });
+              await page.screenshot({ path: `dragon-review/worldboss-dragon-${name}.png`, fullPage: true });
+              results[name] = { telemetry, errors };
+              await context.close();
+            }
+            await browser.close();
+            fs.writeFileSync('dragon-review/results.json', JSON.stringify(results, null, 2));
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
+          node /tmp/pw/review.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dragon-worldboss-mobile-review
+          path: dragon-review/*
+          if-no-files-found: error
+          retention-days: 3
