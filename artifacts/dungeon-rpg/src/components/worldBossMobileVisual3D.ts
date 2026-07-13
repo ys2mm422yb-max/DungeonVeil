@@ -70,7 +70,7 @@ function prepareDragonMaterials(THREE: any, root: any) {
 function normalizeDragon(THREE: any, visual: any) {
   visual.scale.setScalar(1);
   visual.position.set(0, 0, 0);
-  visual.rotation.set(0, Math.PI, 0);
+  visual.rotation.set(0, 0, 0);
   visual.updateMatrixWorld(true);
 
   const initialBounds = new THREE.Box3().setFromObject(visual);
@@ -130,6 +130,7 @@ export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Prom
 
   let moving = false;
   let attackRemaining = 0;
+  let attackSerial = 0;
   let stopped = false;
 
   return {
@@ -139,32 +140,50 @@ export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Prom
       moving = nextMoving;
     },
     triggerAttack() {
-      attackRemaining = 0.72;
+      attackRemaining = 0.58;
+      attackSerial += 1;
     },
     update(delta: number, now: number) {
       if (stopped) return;
       attackRemaining = Math.max(0, attackRemaining - delta);
 
       const seconds = now * 0.001;
-      const attackPulse = Math.max(0, attackRemaining / 0.72);
-      const targetY = visualBasePosition.y + 0.08 + Math.sin(seconds * 1.9) * 0.045;
-      visual.position.set(visualBasePosition.x, visual.position.y + (targetY - visual.position.y) * Math.min(1, delta * 5.5), visualBasePosition.z);
-      visual.rotation.x = Math.sin(seconds * 1.15) * 0.025 - attackPulse * 0.1;
-      visual.rotation.y = visualBaseRotationY;
-      visual.rotation.z = Math.sin(seconds * 0.72) * 0.018;
+      const attackProgress = attackRemaining > 0 ? 1 - attackRemaining / 0.58 : 1;
+      const attackWave = attackRemaining > 0 ? Math.sin(Math.min(1, attackProgress) * Math.PI) : 0;
+      const gait = moving ? 1 : 0;
+      const wingSpeed = moving ? 8.4 : 3.6;
+      const wingAmplitude = moving ? 0.34 : 0.16;
+      const flap = Math.sin(seconds * wingSpeed + attackSerial * 0.4) * wingAmplitude;
+      const hover = Math.sin(seconds * (moving ? 4.1 : 2.35)) * (moving ? 0.075 : 0.045);
+      const targetY = visualBasePosition.y + 0.12 + hover + attackWave * 0.16;
+      const targetZ = visualBasePosition.z - attackWave * 0.52;
 
-      const flap = Math.sin(seconds * (moving ? 4.8 : 2.25)) * (moving ? 0.22 : 0.11) + attackPulse * 0.18;
-      if (leftWing && leftWingBase) leftWing.rotation.z = leftWingBase.z + flap;
-      if (rightWing && rightWingBase) rightWing.rotation.z = rightWingBase.z - flap;
-      if (head && headBase) {
-        head.rotation.x = headBase.x + Math.sin(seconds * 1.35) * 0.055 - attackPulse * 0.18;
-        head.rotation.y = headBase.y + Math.sin(seconds * 0.8) * 0.045;
+      visual.position.x = visualBasePosition.x + Math.sin(seconds * 2.1) * 0.025 * gait;
+      visual.position.y += (targetY - visual.position.y) * Math.min(1, delta * 10);
+      visual.position.z += (targetZ - visual.position.z) * Math.min(1, delta * 13);
+      visual.rotation.x = -0.07 - gait * 0.05 + Math.sin(seconds * 2.8) * 0.025 - attackWave * 0.16;
+      visual.rotation.y = visualBaseRotationY;
+      visual.rotation.z = Math.sin(seconds * (moving ? 2.8 : 1.15)) * (moving ? 0.055 : 0.022);
+
+      if (leftWing && leftWingBase) {
+        leftWing.rotation.z = leftWingBase.z + flap + attackWave * 0.2;
+        leftWing.rotation.x = leftWingBase.x - gait * 0.08;
       }
-      if (jaw && jawBase) jaw.rotation.x = jawBase.x + attackPulse * 0.28;
+      if (rightWing && rightWingBase) {
+        rightWing.rotation.z = rightWingBase.z - flap - attackWave * 0.2;
+        rightWing.rotation.x = rightWingBase.x - gait * 0.08;
+      }
+      if (head && headBase) {
+        head.rotation.x = headBase.x - 0.05 + Math.sin(seconds * 2.15) * 0.045 - attackWave * 0.28;
+        head.rotation.y = headBase.y + Math.sin(seconds * 1.35) * 0.055;
+      }
+      if (jaw && jawBase) jaw.rotation.x = jawBase.x + attackWave * 0.42;
       tailNodes.forEach((node, index) => {
         const initial = tailBases[index];
         if (!node || !initial) return;
-        node.rotation.y = initial.y + Math.sin(seconds * 1.45 - index * 0.42) * (0.06 + index * 0.012);
+        const phase = seconds * (moving ? 3.3 : 1.75) - index * 0.5;
+        node.rotation.y = initial.y + Math.sin(phase) * (0.075 + index * 0.015 + gait * 0.025);
+        node.rotation.x = initial.x + Math.cos(phase * 0.75) * (0.02 + index * 0.004);
       });
     },
     stop() {
