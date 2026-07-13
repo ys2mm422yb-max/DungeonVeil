@@ -7,9 +7,9 @@ import { loadWorldBossMobileRig, type WorldBossMobileRig } from './worldBossMobi
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const TILE = 40;
-const ARENA_WIDTH = 10.4;
+const ARENA_WIDTH = 11.8;
 const ARENA_DEPTH = 20.4;
-const ARENA_INNER_X = 4.25;
+const ARENA_INNER_X = 4.95;
 const ARENA_INNER_Z = 8.25;
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 const IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -128,14 +128,14 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       if (!camera) return;
       const aspect = width / height;
       const portrait = aspect < 0.92;
-      const viewHeight = portrait ? ARENA_DEPTH + 0.55 : 16.8;
-      const viewWidth = viewHeight * Math.max(0.42, aspect);
+      const viewHeight = portrait ? 19.7 : 16.8;
+      const viewWidth = portrait ? Math.max(11.65, viewHeight * aspect) : viewHeight * Math.max(0.42, aspect);
       camera.left = -viewWidth / 2;
       camera.right = viewWidth / 2;
       camera.top = viewHeight / 2;
       camera.bottom = -viewHeight / 2;
-      camera.position.set(0, portrait ? 20.2 : 15.8, portrait ? 12.1 : 14.2);
-      camera.lookAt(0, 0.38, portrait ? 0.15 : 0.35);
+      camera.position.set(0, portrait ? 23.8 : 15.8, portrait ? 8.6 : 14.2);
+      camera.lookAt(0, 0.22, portrait ? 0.2 : 0.35);
       camera.updateProjectionMatrix();
     };
 
@@ -172,14 +172,14 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       root.add(ashBed);
 
       const floorGeometry = rememberGeometry(new THREE.PlaneGeometry(ARENA_WIDTH, ARENA_DEPTH));
-      const floorMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x211c20, roughness: 0.95, metalness: 0.02 }));
+      const floorMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x2b252a, roughness: 0.94, metalness: 0.02 }));
       const floor = new THREE.Mesh(floorGeometry, floorMaterial);
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = -0.025;
       root.add(floor);
 
       const innerFloorGeometry = rememberGeometry(new THREE.PlaneGeometry(ARENA_WIDTH - 0.68, ARENA_DEPTH - 0.68));
-      const innerFloorMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x30282d, roughness: 0.92, metalness: 0.03 }));
+      const innerFloorMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x3b3035, roughness: 0.9, metalness: 0.035 }));
       const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
       innerFloor.rotation.x = -Math.PI / 2;
       innerFloor.position.y = -0.012;
@@ -189,7 +189,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       grid.scale.x = (ARENA_WIDTH - 0.9) / (ARENA_DEPTH - 0.9);
       grid.position.y = 0.006;
       grid.material.transparent = true;
-      grid.material.opacity = 0.16;
+      grid.material.opacity = 0.24;
       grid.material.depthWrite = false;
       rememberGeometry(grid.geometry);
       if (Array.isArray(grid.material)) grid.material.forEach((material: any) => rememberMaterial(material));
@@ -220,12 +220,12 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       root.add(sigilB);
 
       const daisMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x3b2322, roughness: 0.82, metalness: 0.08 }));
-      const dais = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(2.12, 2.42, 0.24, 28)), daisMaterial);
+      const dais = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(2.45, 2.82, 0.24, 28)), daisMaterial);
       dais.name = 'AshKingDais';
       dais.position.set(0, 0.08, -7.25);
       root.add(dais);
       const daisRing = new THREE.Mesh(
-        rememberGeometry(new THREE.RingGeometry(2.08, 2.34, 40)),
+        rememberGeometry(new THREE.RingGeometry(2.42, 2.72, 40)),
         rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xc34a2a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })),
       );
       daisRing.rotation.x = -Math.PI / 2;
@@ -233,22 +233,32 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       root.add(daisRing);
 
       const pathMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x4a3532, roughness: 0.9, metalness: 0.02 }));
-      const oathPath = new THREE.Mesh(rememberGeometry(new THREE.PlaneGeometry(3.2, 7.6)), pathMaterial);
+      const oathPath = new THREE.Mesh(rememberGeometry(new THREE.PlaneGeometry(4.25, 8.4)), pathMaterial);
       oathPath.name = 'OathPathFromVeilGate';
       oathPath.rotation.x = -Math.PI / 2;
       oathPath.position.set(0, 0.012, 5.45);
       root.add(oathPath);
 
-      const channelMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xff6433, emissive: 0x761b0a, emissiveIntensity: 0.72, roughness: 0.48 }));
+      const sideAisleMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x241d22, roughness: 0.96, metalness: 0.01 }));
+const sideAisleGeometry = rememberGeometry(new THREE.PlaneGeometry(1.95, 16.4));
+for (const x of [-4.35, 4.35]) {
+  const aisle = new THREE.Mesh(sideAisleGeometry, sideAisleMaterial);
+  aisle.name = 'RitualSideAisle';
+  aisle.rotation.x = -Math.PI / 2;
+  aisle.position.set(x, 0.014, 0.2);
+  root.add(aisle);
+}
+
+const channelMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xff6433, emissive: 0x761b0a, emissiveIntensity: 0.72, roughness: 0.48 }));
       const channelGeometry = rememberGeometry(new THREE.BoxGeometry(0.1, 0.025, 7.45));
-      for (const x of [-1.12, 1.12]) {
+      for (const x of [-1.48, 1.48]) {
         const channel = new THREE.Mesh(channelGeometry, channelMaterial);
         channel.name = 'EmberChannel';
         channel.position.set(x, 0.035, -3.28);
         root.add(channel);
       }
 
-      const threshold = new THREE.Mesh(rememberGeometry(new THREE.BoxGeometry(4.5, 0.16, 0.72)), daisMaterial);
+      const threshold = new THREE.Mesh(rememberGeometry(new THREE.BoxGeometry(6.6, 0.16, 0.72)), daisMaterial);
       threshold.name = 'VeilGateThreshold';
       threshold.position.set(0, 0.08, 9.62);
       root.add(threshold);
@@ -256,9 +266,9 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       const archGeometry = rememberGeometry(new THREE.BoxGeometry(1, 1, 1));
       const archMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x24191c, roughness: 0.9, metalness: 0.04 }));
       const archParts: Array<[number, number, number, number, number]> = [
-        [-3.35, 1.45, -9.52, 0.7, 2.9],
-        [3.35, 1.45, -9.52, 0.7, 2.9],
-        [0, 2.62, -9.52, 7.4, 0.5],
+        [-4.25, 1.45, -9.52, 0.7, 2.9],
+        [4.25, 1.45, -9.52, 0.7, 2.9],
+        [0, 2.62, -9.52, 9.2, 0.5],
       ];
       for (const [x, y, z, sx, sy] of archParts) {
         const part = new THREE.Mesh(archGeometry, archMaterial);
@@ -272,7 +282,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       const brazierMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x32272a, roughness: 0.78, metalness: 0.18 }));
       const flameGeometry = rememberGeometry(new THREE.ConeGeometry(0.2, 0.58, 9));
       const flameMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xffa14a, emissive: 0xa92f0c, emissiveIntensity: 1.12, roughness: 0.38 }));
-      for (const [x, z] of [[-4.2, -5.25], [4.2, -5.25], [-4.2, 5.9], [4.2, 5.9]] as Array<[number, number]>) {
+      for (const [x, z] of [[-4.75, -5.55], [4.75, -5.55], [-4.75, 6.45], [4.75, 6.45]] as Array<[number, number]>) {
         const base = new THREE.Mesh(brazierBaseGeometry, brazierMaterial);
         base.name = 'RitualBrazier';
         base.position.set(x, 0.36, z);
@@ -283,7 +293,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       }
 
       const wallGeometry = rememberGeometry(new THREE.BoxGeometry(1, 1, 1));
-      const wallMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x171419, roughness: 0.9, metalness: 0.04 }));
+      const wallMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x2a2025, roughness: 0.88, metalness: 0.05 }));
       const sideWallHeight = 0.78;
       const wallTransforms: Array<[number, number, number, number, number]> = [
         [0, -ARENA_DEPTH / 2, ARENA_WIDTH + 0.38, sideWallHeight, 0.38],
@@ -310,10 +320,10 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       const pillarGeometry = rememberGeometry(new THREE.CylinderGeometry(0.42, 0.58, 1.9, 10));
       const pillarMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x3b3035, roughness: 0.84, metalness: 0.08 }));
       const pillarPositions: Array<[number, number]> = [
-        [-4.35, -4.95],
-        [4.35, -4.95],
-        [-4.35, 4.92],
-        [4.35, 4.92],
+        [-5.0, -8.35],
+        [5.0, -8.35],
+        [-5.0, 8.15],
+        [5.0, 8.15],
       ];
       for (const [x, z] of pillarPositions) {
         const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);

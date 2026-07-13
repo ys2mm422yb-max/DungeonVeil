@@ -32,7 +32,7 @@ const checks = [
   [friendMigration.includes('friend_requests_read_related') && friendMigration.includes('friendships_read_own') && friendMigration.includes('revoke execute') && friendMigration.includes('grant execute'), 'friends RLS or RPC permissions are incomplete'],
   [friendHardening.includes('friend_requests_pair_uidx') && friendHardening.includes('least(sender_id, receiver_id)') && friendHardening.includes('on conflict do nothing'), 'unordered friend-pair race protection is missing'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
-  [stage.includes('const ARENA_DEPTH = 20.4;') && stage.includes("dais.name = 'AshKingDais'") && stage.includes("threshold.name = 'VeilGateThreshold'") && stage.includes("channel.name = 'EmberChannel'"), 'semantic ritual arena set pieces are missing'],
+  [stage.includes('const ARENA_WIDTH = 11.8;') && stage.includes('const ARENA_DEPTH = 20.4;') && stage.includes("aisle.name = 'RitualSideAisle'") && stage.includes("dais.name = 'AshKingDais'") && stage.includes("threshold.name = 'VeilGateThreshold'") && stage.includes("channel.name = 'EmberChannel'"), 'semantic ritual arena set pieces are missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning'), 'world-boss combat band QA markers are missing'],
 ];
 
