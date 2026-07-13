@@ -1,174 +1,145 @@
-import React, { useEffect, useRef, useState } from 'react';
-import type { GameState } from '../game/runEngine';
-import { GameCanvas } from './GameCanvas';
+import React, { useEffect, useState } from 'react';
+import { useLanguage } from '../../i18n/LanguageContext';
+import { SaveData } from '../../game/saveManager';
+import { loadMetaProgression } from '../../game/metaProgression';
+import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
+import { loadRetentionProfile, type RetentionProfile } from '../../game/runRetention';
+import { captureGuildInviteTokenFromUrl, mailboxUnreadCount, MAILBOX_EVENT } from '../../game/guildMailboxOnline';
+import { currentOnlineSession, onlineSessionEventName } from '../../game/supabaseOnline';
+import { syncSocialProfileProgress } from '../../game/socialProgressOnline';
+import { requestTutorialReplay } from '../../game/tutorialState';
+import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
+import { DailyQuestPanel } from '../DailyQuestPanel';
+import { OnlinePanel } from '../OnlinePanel';
+import { GuildSocialPanel } from '../GuildSocialPanel';
+import { GuildInviteLinkCard } from '../GuildInviteLinkCard';
+import { MailboxPanel } from '../MailboxPanel';
+import { FriendsPanel } from '../FriendsPanel';
+import { VillageNpcHub } from '../VillageNpcHub';
+import { WorldBossPanel } from '../WorldBossPanel';
 
-const ROOM_NAMES = [
-  'VERSORGUNGSPOSTEN', 'WACHSTUBE', 'SÄULENHALLE', 'BERGARBEITERLAGER', 'WERKSTATT',
-  'SCHMIEDE', 'SCHLAFQUARTIER', 'MATERIALLAGER', 'RITUALKAMMER', 'GRABWÄCHTERHALLE',
-  'KREUZGANG', 'GALERIE', 'GEFÄNGNISRING', 'KNOCHENHOF', 'RITUALARENA',
-  'WÄCHTERPASSAGE', 'EINGESTÜRZTES GEWÖLBE', 'SCHLEIER-RISS', 'WÄCHTERVORHALLE', 'BOSSHEILIGTUM',
-] as const;
+interface Props {
+  saveData: SaveData | null;
+  onNewGame: () => void;
+  onContinue: () => void;
+  onVeilChamber: () => void;
+  onCodex: () => void;
+  onSettings: () => void;
+  onCredits: () => void;
+}
 
-export function CombatStage({ gameState }: { gameState: GameState }) {
-  const previousHpRef = useRef(gameState.player.hp);
-  const previousFloorRef = useRef(gameState.floor);
-  const lastDamageIdRef = useRef('');
-  const shakeTimerRef = useRef<number | null>(null);
-  const [shakeClass, setShakeClass] = useState('');
-  const [hurtFlash, setHurtFlash] = useState(false);
-  const [hitFlash, setHitFlash] = useState(false);
-  const [roomTitle, setRoomTitle] = useState(() => ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
-  const [showRoomTitle, setShowRoomTitle] = useState(true);
-  const [visualHeight, setVisualHeight] = useState(() => Math.max(1, Math.round(window.visualViewport?.height ?? window.innerHeight)));
+type Overlay = 'daily' | 'mailbox' | 'friends' | 'more' | 'online' | 'guild' | 'worldBoss' | null;
 
-  const triggerShake = (heavy: boolean) => {
-    if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
-    setShakeClass('');
-    requestAnimationFrame(() => {
-      setShakeClass(heavy ? 'dv-heavy-impact' : 'dv-light-impact');
-      shakeTimerRef.current = window.setTimeout(() => setShakeClass(''), heavy ? 200 : 110);
-    });
+export function MainMenuScreen(props: Props) {
+  const { t, language } = useLanguage();
+  const [meta, setMeta] = useState(loadMetaProgression);
+  const [retention, setRetention] = useState<RetentionProfile>(loadRetentionProfile);
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  const [mailUnread, setMailUnread] = useState(0);
+  const gifts = props.saveData ? Object.entries(props.saveData.runSkills ?? {}).reduce((sum, [key, value]) => key === 'heal' ? sum : sum + (value ?? 0), 0) : 0;
+
+  useEffect(() => {
+    const refreshMeta = () => setMeta(loadMetaProgression());
+    const refreshRetention = (event?: Event) => setRetention((event as CustomEvent<RetentionProfile> | undefined)?.detail ?? loadRetentionProfile());
+    window.addEventListener('dungeon-veil-meta-changed', refreshMeta);
+    window.addEventListener('dungeon-veil-retention-update', refreshRetention as EventListener);
+    return () => {
+      window.removeEventListener('dungeon-veil-meta-changed', refreshMeta);
+      window.removeEventListener('dungeon-veil-retention-update', refreshRetention as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const captured = captureGuildInviteTokenFromUrl();
+    if (captured) setOverlay('mailbox');
+    const refreshUnread = () => { void mailboxUnreadCount().then(setMailUnread).catch(() => setMailUnread(0)); };
+    window.addEventListener(MAILBOX_EVENT, refreshUnread);
+    window.addEventListener(onlineSessionEventName(), refreshUnread);
+    refreshUnread();
+    return () => {
+      window.removeEventListener(MAILBOX_EVENT, refreshUnread);
+      window.removeEventListener(onlineSessionEventName(), refreshUnread);
+    };
+  }, []);
+
+  useEffect(() => {
+    const sync = () => {
+      if (!currentOnlineSession()) return;
+      void syncSocialProfileProgress(props.saveData?.chapter ?? 1, meta.rank, 'archer').catch(() => {});
+    };
+    window.addEventListener(onlineSessionEventName(), sync);
+    sync();
+    return () => window.removeEventListener(onlineSessionEventName(), sync);
+  }, [meta.rank, props.saveData?.chapter]);
+
+  const startNormalRun = () => { clearWeeklyRiftRun(); props.onNewGame(); };
+  const replayTutorial = () => {
+    requestTutorialReplay();
+    setOverlay(null);
+    if (props.saveData) props.onContinue();
+    else props.onNewGame();
+  };
+  const continueText = props.saveData
+    ? language === 'de' ? `Kapitel ${props.saveData.chapter ?? 1} · Raum ${props.saveData.floor} · ${gifts} Gaben` : `Chapter ${props.saveData.chapter ?? 1} · Room ${props.saveData.floor} · ${gifts} gifts`
+    : t.noSave;
+
+  const action = (label: string, detail: string, onClick: () => void, tone: 'gold' | 'dark' | 'violet' | 'blue', disabled = false) => {
+    const toneClass = tone === 'gold'
+      ? 'border-amber-100/38 bg-[linear-gradient(135deg,#9b5a22,#5d2d16)] text-amber-50'
+      : tone === 'violet'
+        ? 'border-violet-100/20 bg-[linear-gradient(135deg,#3d315e,#211d38)] text-violet-50'
+        : tone === 'blue'
+          ? 'border-sky-100/14 bg-[linear-gradient(135deg,#17252c,#10161a)] text-sky-50/82'
+          : 'border-white/10 bg-[#151210]/92 text-[#f2e7da]';
+    return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`min-h-[62px] rounded-2xl border px-4 py-3 text-left shadow-[0_12px_26px_rgba(0,0,0,.25)] active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
+      <div className="flex items-center gap-2"><div className="min-w-0 flex-1"><div className="text-[12px] font-black tracking-[.08em]">{label}</div><div className="mt-1 truncate text-[6px] uppercase tracking-[.11em] text-white/42">{detail}</div></div>{!disabled && <span className="text-base text-white/32">›</span>}</div>
+    </button>;
   };
 
-  useEffect(() => {
-    const updateVisualHeight = () => setVisualHeight(Math.max(1, Math.round(window.visualViewport?.height ?? window.innerHeight)));
-    updateVisualHeight();
-    window.addEventListener('resize', updateVisualHeight);
-    window.visualViewport?.addEventListener('resize', updateVisualHeight);
-    window.visualViewport?.addEventListener('scroll', updateVisualHeight);
-    return () => {
-      window.removeEventListener('resize', updateVisualHeight);
-      window.visualViewport?.removeEventListener('resize', updateVisualHeight);
-      window.visualViewport?.removeEventListener('scroll', updateVisualHeight);
-    };
-  }, []);
+  return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#0b0b0e] text-white">
+    {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
+    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(8,8,11,.18),rgba(8,8,11,.04)_36%,rgba(7,7,9,.46)_58%,#08080a_72%)]" />
+    <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/48 to-transparent" />
 
-  useEffect(() => {
-    if (previousFloorRef.current === gameState.floor) return undefined;
-    previousFloorRef.current = gameState.floor;
-    setRoomTitle(ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
-    setShowRoomTitle(true);
-    try { navigator.vibrate?.([12, 35, 18]); } catch {}
-    const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
-    return () => window.clearTimeout(timer);
-  }, [gameState.floor]);
+    <button type="button" aria-label="Mehr" onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="absolute right-4 top-[max(14px,calc(env(safe-area-inset-top)+6px))] z-30 grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-black/42 text-base text-white/72 backdrop-blur-lg active:scale-95">•••</button>
 
-  useEffect(() => {
-    const previousHp = previousHpRef.current;
-    if (gameState.player.hp < previousHp) {
-      setHurtFlash(true);
-      triggerShake(true);
-      try { navigator.vibrate?.([24, 18, 40]); } catch {}
-      const timer = window.setTimeout(() => setHurtFlash(false), 220);
-      previousHpRef.current = gameState.player.hp;
-      return () => window.clearTimeout(timer);
-    }
-    previousHpRef.current = gameState.player.hp;
+    <div className="relative z-10 flex h-full flex-col pb-[max(12px,calc(env(safe-area-inset-bottom)+4px))] pt-[max(22px,calc(env(safe-area-inset-top)+10px))]">
+      <header className="px-5 text-center">
+        <div className="text-[6px] font-black uppercase tracking-[.46em] text-amber-100/52">{language === 'de' ? 'BETRITT DEN SCHLEIER' : 'ENTER THE VEIL'}</div>
+        <h1 className="mt-1 bg-gradient-to-b from-[#f5dfae] via-[#d8a252] to-[#9e622d] bg-clip-text font-serif text-[clamp(2rem,8.5vw,3rem)] font-black leading-[.88] tracking-[.06em] text-transparent drop-shadow-[0_5px_18px_rgba(104,61,16,.24)]">DUNGEON VEIL</h1>
+        <p className="mt-2 text-[6px] uppercase tracking-[.24em] text-amber-50/34">{t.subtitle}</p>
+      </header>
 
-    const latest = gameState.damageNumbers[gameState.damageNumbers.length - 1];
-    if (!latest || latest.id === lastDamageIdRef.current || latest.id.startsWith('clear-')) return undefined;
-    lastDamageIdRef.current = latest.id;
-    const isPlayerHit = latest.id.startsWith('hit-');
-    const isHeavy = (latest.scale ?? 1) >= 1.3;
-    if (!isPlayerHit) {
-      triggerShake(isHeavy);
-      setHitFlash(true);
-      const flashTimer = window.setTimeout(() => setHitFlash(false), isHeavy ? 100 : 55);
-      if (isHeavy) {
-        try { navigator.vibrate?.(28); } catch {}
-      }
-      return () => window.clearTimeout(flashTimer);
-    }
+      <div className="min-h-[250px] flex-1" />
 
-    return undefined;
-  }, [gameState.damageNumbers, gameState.player.hp]);
+      <VillageNpcHub
+        language={language}
+        dailyProgress={`${retention.daily.claimed.length}/3`}
+        mailUnread={mailUnread}
+        onQuests={() => setOverlay('daily')}
+        onMailbox={() => setOverlay('mailbox')}
+        onFriends={() => setOverlay('friends')}
+        onGuild={() => setOverlay('guild')}
+        onWorldBoss={() => setOverlay('worldBoss')}
+      />
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => () => {
-    if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
-  }, []);
-
-  useEffect(() => {
-    const compactSynergyBanner = () => {
-      const labels = Array.from(document.querySelectorAll<HTMLElement>('div,span'))
-        .filter(node => node.childElementCount === 0 && node.textContent?.trim().includes('SYNERGIE ERWACHT'));
-      labels.forEach(label => {
-        let panel: HTMLElement | null = label.parentElement;
-        for (let depth = 0; panel && depth < 4; depth++) {
-          const rect = panel.getBoundingClientRect();
-          if (rect.width >= 240 && rect.height <= 210) break;
-          panel = panel.parentElement;
-        }
-        if (!panel || panel.dataset.dvCompactSynergy === '1') return;
-        panel.dataset.dvCompactSynergy = '1';
-        panel.style.setProperty('left', '50%', 'important');
-        panel.style.setProperty('right', 'auto', 'important');
-        panel.style.setProperty('top', 'max(5.4rem, calc(env(safe-area-inset-top) + 4.4rem))', 'important');
-        panel.style.setProperty('bottom', 'auto', 'important');
-        panel.style.setProperty('width', 'min(86vw, 390px)', 'important');
-        panel.style.setProperty('max-width', '390px', 'important');
-        panel.style.setProperty('min-height', '0', 'important');
-        panel.style.setProperty('padding', '10px 14px', 'important');
-        panel.style.setProperty('transform', 'translateX(-50%)', 'important');
-        panel.style.setProperty('border-radius', '16px', 'important');
-        panel.style.setProperty('z-index', '46', 'important');
-        panel.querySelectorAll<HTMLElement>('div,p,span').forEach(child => {
-          child.style.setProperty('line-height', '1.25', 'important');
-          if (child !== label && child.textContent && child.textContent.length > 24) {
-            child.style.setProperty('font-size', '12px', 'important');
-          }
-        });
-        label.style.setProperty('font-size', '7px', 'important');
-      });
-    };
-    compactSynergyBanner();
-    const observer = new MutationObserver(compactSynergyBanner);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div className="absolute left-0 top-0 w-full overflow-hidden" style={{ height: `${visualHeight}px` }} data-testid="run-visual-viewport">
-      <div className={`absolute inset-0 ${shakeClass}`}>
-        <GameCanvas gameState={gameState} />
+      <div className="mx-auto mt-2 grid w-full max-w-md grid-cols-2 gap-2 px-4">
+        {action(t.newGame, language === 'de' ? 'NEUES ABENTEUER' : 'NEW ADVENTURE', startNormalRun, 'gold')}
+        {action(t.continueGame, continueText, props.onContinue, 'dark', !props.saveData)}
+        {action(language === 'de' ? 'Schleierkammer' : 'Veil Chamber', language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Staub` : `Rank ${meta.rank} · ${meta.dust} dust`, props.onVeilChamber, 'violet')}
+        {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · JAGD · RELIKTE' : 'BEASTS · HUNTS · RELICS', props.onCodex, 'blue')}
       </div>
-
-      <div className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-200 ${hurtFlash ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_38%,rgba(185,22,27,.48)_100%)]" />
-      </div>
-
-      <div className={`pointer-events-none absolute inset-0 z-20 bg-white transition-opacity duration-75 ${hitFlash ? 'opacity-[.06]' : 'opacity-0'}`} />
-
-      <div className={`pointer-events-none absolute inset-x-0 top-[22%] z-30 flex justify-center transition-all duration-400 ${showRoomTitle ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}>
-        <div className="relative min-w-[220px] max-w-[78vw] overflow-hidden rounded-xl border border-amber-200/18 bg-black/62 px-5 py-3 text-center shadow-[0_14px_38px_rgba(0,0,0,.38)] backdrop-blur-md">
-          <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/65 to-transparent" />
-          <div className="text-[7px] font-black uppercase tracking-[.34em] text-amber-200/45">KAPITEL {gameState.chapter} · RAUM {gameState.floor}</div>
-          <div className="mt-1 font-serif text-[16px] tracking-[.08em] text-[#f4ead5]">{roomTitle}</div>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes dvLightImpact {
-          0% { transform: translate3d(0,0,0) scale(1); }
-          22% { transform: translate3d(-2px,1px,0) scale(1.002); }
-          48% { transform: translate3d(2px,-1px,0) scale(1.002); }
-          100% { transform: translate3d(0,0,0) scale(1); }
-        }
-        @keyframes dvHeavyImpact {
-          0% { transform: translate3d(0,0,0) scale(1); }
-          14% { transform: translate3d(-7px,3px,0) scale(1.008); }
-          32% { transform: translate3d(6px,-3px,0) scale(1.008); }
-          52% { transform: translate3d(-4px,2px,0) scale(1.004); }
-          72% { transform: translate3d(2px,-1px,0) scale(1.002); }
-          100% { transform: translate3d(0,0,0) scale(1); }
-        }
-        .dv-light-impact { animation: dvLightImpact 105ms linear both; }
-        .dv-heavy-impact { animation: dvHeavyImpact 195ms cubic-bezier(.22,.61,.36,1) both; }
-      `}</style>
     </div>
-  );
+
+    {overlay && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
+      {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
+      {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
+      {overlay === 'friends' && <FriendsPanel language={language} />}
+      {overlay === 'online' && <OnlinePanel language={language} />}
+      {overlay === 'guild' && <div className="space-y-3"><GuildInviteLinkCard language={language} /><GuildSocialPanel language={language} /></div>}
+      {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} />}
+      {overlay === 'more' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', replayTutorial, 'dark')}{action(t.settings, '', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div></div>}
+      <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-amber-50/14 bg-[#11100f]/88 py-3 text-[9px] font-black uppercase tracking-[.2em] text-amber-50/58">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>
+    </div></div>}
+  </div>;
 }
