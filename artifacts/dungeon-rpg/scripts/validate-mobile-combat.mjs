@@ -28,12 +28,13 @@ const checks = [
   [files.boss.includes('engine.onStateChange = () => {}') && files.boss.includes('setGameState(snapshotRaidState(engine.state))'), 'world boss React updates are not throttled'],
   [files.bossStageProxy.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.bossBand.includes('<WorldBossCohesiveStage'), 'world-boss stage proxy routing is broken'],
   [files.bossCohesive.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'world-boss stage is not routed directly'],
-  [files.bossStage.includes('buildKayKitDungeonRoom') && !files.bossStage.includes('buildKayKitRoomTheme'), 'heavy room theme is still mounted'],
-  [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.bossStage.includes('const EMBER_COUNT = IS_MOBILE ? 10 : 28;'), 'world-boss effects are not bounded tightly enough'],
+  [!files.bossStage.includes('buildKayKitDungeonRoom') && files.bossStage.includes('floor_tile_large.gltf') && files.bossStage.includes('wall.gltf'), 'high-call generic room shell remains'],
+  [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.bossStage.includes('const EMBER_COUNT = IS_MOBILE ? 6 : 20;'), 'world-boss effects are not bounded tightly enough'],
   [files.bossStage.includes('qualityLevel === 0) return 0') && files.bossStage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)"), 'mobile renderer is capped or oversampled at default quality'],
-  [files.bossStage.includes('playerX * 0.14') && files.bossStage.includes('damp(camera.position.x, cameraGoal.x, 1.7'), 'world-boss camera is still following too aggressively'],
-  [files.bossStage.includes('new THREE.CircleGeometry(1, 28)') && !files.bossStage.includes('new THREE.RingGeometry'), 'world-boss neon rings remain'],
-  [files.bossStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.bossStage.includes('key.castShadow = !IS_MOBILE'), 'world-boss mobile shadows are not disabled'],
+  [files.bossStage.includes('playerX * 0.12') && files.bossStage.includes('damp(camera.position.x, cameraGoal.x, 1.5'), 'world-boss camera is still following too aggressively'],
+  [files.bossStage.includes('new THREE.CircleGeometry(1, 24)') && !files.bossStage.includes('new THREE.RingGeometry'), 'world-boss neon rings remain'],
+  [files.bossStage.includes('antialias: !IS_MOBILE') && files.bossStage.includes('renderer.shadowMap.enabled = !IS_MOBILE'), 'mobile renderer policy is too expensive'],
+  [files.bossStage.includes("arena: 'curated-low-call-kaykit-hall'"), 'low-call arena telemetry is missing'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -43,4 +44,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows and the simplified uncapped world-boss renderer are active.');
+console.log('Mobile combat audit passed: compact HUD, bounded effects and the curated low-call KayKit world-boss hall are active.');
