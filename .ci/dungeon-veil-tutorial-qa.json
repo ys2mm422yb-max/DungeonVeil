@@ -1,7 +1,7 @@
 {
-  "workflow": "Dungeon Veil Tutorial Mobile QA",
+  "workflow": "Dungeon Veil Social Tutorial Mobile QA",
   "status": "failure",
-  "validatedCommit": "99bce8b5d8307c6529ab88bf177543a9e0542314",
+  "validatedCommit": "4b6ada9116974632cef7084e66b00b333e02706e",
   "outcomes": {
     "install": "failure",
     "audit": "skipped",
@@ -9,17 +9,23 @@
     "build": "skipped",
     "browsers": "skipped",
     "serve": "skipped",
-    "iphone": "skipped",
-    "android": "skipped",
+    "tutorialIphone": "skipped",
+    "tutorialAndroid": "skipped",
+    "menuIphone": "skipped",
+    "menuAndroid": "skipped",
     "validate": "skipped",
     "upload": "skipped"
   },
   "screenshots": [],
   "sizes": {
-    "iphone": 0,
-    "android": 0,
-    "iphoneThumb": 0,
-    "androidThumb": 0
+    "tutorialIphone": 0,
+    "tutorialAndroid": 0,
+    "tutorialIphoneThumb": 0,
+    "tutorialAndroidThumb": 0,
+    "menuIphone": 0,
+    "menuAndroid": 0,
+    "menuIphoneThumb": 0,
+    "menuAndroidThumb": 0
   },
-  "completedAt": "2026-07-13T04:14:05.716Z"
+  "completedAt": "2026-07-13T04:14:52.964Z"
 }
