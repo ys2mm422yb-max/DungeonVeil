@@ -107,11 +107,10 @@ function buildVeilHeart(THREE: any) {
     landShards.push(land);
   });
 
-  const arcMaterial = new THREE.MeshBasicMaterial({ color: 0xb8a0ff, transparent: true, opacity: 0.48, depthWrite: false, blending: THREE.AdditiveBlending });
+  const arcMaterial = new THREE.MeshBasicMaterial({ color: 0xb8a0ff, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending });
   const veilArcs: any[] = [];
   for (const [rotationX, rotationY, rotationZ, arc] of [
-    [Math.PI / 2.55, 0.18, -0.44, Math.PI * 1.28],
-    [Math.PI / 1.8, -0.25, 1.08, Math.PI * 0.82],
+    [Math.PI / 2.35, 0.46, -0.82, Math.PI * 0.78],
   ] as Array<[number, number, number, number]>) {
     const band = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.035, 7, IS_MOBILE ? 34 : 54, arc), arcMaterial.clone());
     band.rotation.set(rotationX, rotationY, rotationZ);
@@ -275,11 +274,11 @@ async function loadCourtAssets(THREE: any, GLTFLoader: any, scene: any) {
     root.add(object);
   };
 
-  add(models.arch, 0, 0, -8.4, 2.1, Math.PI, 'VeilCourtGate');
-  add(models.shrine, 0, 0.12, -7.25, 1.25, 0, 'VeilHeartShrine');
+  add(models.arch, 0, -0.35, -9.25, 1.58, Math.PI, 'VeilCourtGate');
+  add(models.shrine, 0, 0.06, -7.55, 1.05, 0, 'VeilHeartShrine');
   for (const side of [-1, 1]) {
-    add(models.pillar, side * 3.45, 0, -6.75, 1.45, 0, `VeilCourtPillar${side}`);
-    add(models.banner, side * 3.7, 2.65, -8.05, 1.2, Math.PI, `VeilCourtBanner${side}`);
+    add(models.pillar, side * 3.45, -0.08, -7.05, 1.28, 0, `VeilCourtPillar${side}`);
+    add(models.banner, side * 3.7, 2.35, -8.55, 1.02, Math.PI, `VeilCourtBanner${side}`);
     add(models.torch, side * 2.75, 0.95, -6.45, 1.25, Math.PI, `VeilCourtTorch${side}`);
     add(models.bench, side * 3.55, 0, -3.4, 1.0, side > 0 ? -Math.PI / 2.3 : Math.PI / 2.3);
     add(models.crate, side * 4.0, 0, -1.4, 0.9, side * 0.2);
@@ -375,7 +374,7 @@ export function MainMenuDungeonScene() {
 
       const orb = buildVeilHeart(THREE);
       orb.position.set(0, 2.18, -6.15);
-      orb.scale.setScalar(1.02);
+      orb.scale.setScalar(0.96);
       scene.add(orb);
 
       const stalls = [
@@ -446,7 +445,7 @@ export function MainMenuDungeonScene() {
         orb.userData.halo.material.opacity = 0.09 + pulse * 0.08;
         orb.userData.veilArcs.forEach((arc: any, index: number) => {
           arc.rotation.z += delta * (index ? -0.08 : 0.1);
-          arc.material.opacity = 0.34 + pulse * 0.18;
+          arc.material.opacity = 0.2 + pulse * 0.11;
         });
         orb.userData.cracks.forEach((crack: any, index: number) => {
           crack.material.opacity = 0.48 + Math.sin(now * 0.0025 + index) * 0.22;
