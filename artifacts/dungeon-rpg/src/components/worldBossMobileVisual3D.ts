@@ -1,14 +1,13 @@
+import { firstKayKitModel, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
+
 const APP_BASE = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_BASE = APP_BASE.endsWith('/') ? APP_BASE : `${APP_BASE}/`;
 const KAYKIT_ROOT = `${NORMALIZED_BASE}assets/kaykit`;
 
-const ASSETS = {
-  knight: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Knight.glb`,
+const ANIMATION_ASSETS = {
   general: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb`,
   movement: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb`,
   combat: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatMelee.glb`,
-  sword: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/sword_2handed_color.gltf`,
-  shield: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/shield_badge_color.gltf`,
 } as const;
 
 export type WorldBossMobileRig = {
@@ -45,20 +44,42 @@ function findBone(root: any, names: string[]) {
   return result;
 }
 
-function prepareModel(root: any) {
+function cloneAndAshenModel(THREE: any, root: any) {
+  const ash = new THREE.Color(0x5b5452);
+  const bone = new THREE.Color(0xa79b86);
   root.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
     node.castShadow = false;
     node.receiveShadow = false;
     node.frustumCulled = true;
-    if (node.material) {
-      const materials = Array.isArray(node.material) ? node.material : [node.material];
-      for (const material of materials) {
-        if ('roughness' in material) material.roughness = 0.72;
-        if ('metalness' in material) material.metalness = Math.max(0.08, material.metalness ?? 0);
+    if (!node.material) return;
+    const source = Array.isArray(node.material) ? node.material : [node.material];
+    const next = source.map((material: any, index: number) => {
+      const clone = material.clone();
+      if (clone.color) {
+        const target = index % 3 === 0 ? bone : ash;
+        clone.color.lerp(target, 0.56);
       }
-    }
+      if ('roughness' in clone) clone.roughness = 0.78;
+      if ('metalness' in clone) clone.metalness = Math.max(0.1, Math.min(0.34, clone.metalness ?? 0.12));
+      if ('emissive' in clone) clone.emissive.set(0x080302);
+      if ('emissiveIntensity' in clone) clone.emissiveIntensity = 0.08;
+      return clone;
+    });
+    node.material = Array.isArray(node.material) ? next : next[0];
   });
+}
+
+function normalizeCharacter(THREE: any, object: any, targetHeight = 2.02) {
+  object.scale.setScalar(1);
+  object.position.set(0, 0, 0);
+  object.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(object);
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  const scale = targetHeight / Math.max(size.y, 0.001);
+  object.scale.setScalar(scale);
+  object.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
 }
 
 function fitAttachment(THREE: any, object: any, targetSize: number) {
@@ -72,96 +93,149 @@ function fitAttachment(THREE: any, object: any, targetSize: number) {
   object.position.sub(center.multiplyScalar(object.scale.x));
 }
 
-function attachEquipment(THREE: any, bone: any, object: any, kind: 'sword' | 'shield') {
+function attachAxe(THREE: any, bone: any, object: any) {
   if (!bone || !object) return;
-  prepareModel(object);
-  fitAttachment(THREE, object, kind === 'sword' ? 1.15 : 0.72);
-  if (kind === 'sword') {
-    object.position.add(new THREE.Vector3(0.02, 0.01, 0));
-    object.rotation.set(Math.PI / 2, 0, Math.PI / 2);
-  } else {
-    object.position.add(new THREE.Vector3(0, 0.02, 0));
-    object.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
-  }
+  cloneAndAshenModel(THREE, object);
+  fitAttachment(THREE, object, 1.28);
+  object.position.add(new THREE.Vector3(0.02, 0.02, 0));
+  object.rotation.set(Math.PI / 2, 0, Math.PI / 2);
   bone.add(object);
 }
 
-export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promise<WorldBossMobileRig> {
-  const loader = new GLTFLoader();
-  const [knightGltf, generalGltf, movementGltf, combatGltf, swordGltf, shieldGltf] = await Promise.all([
-    loader.loadAsync(ASSETS.knight),
-    loader.loadAsync(ASSETS.general),
-    loader.loadAsync(ASSETS.movement),
-    loader.loadAsync(ASSETS.combat),
-    loader.loadAsync(ASSETS.sword),
-    loader.loadAsync(ASSETS.shield),
-  ]);
-
-  const root = new THREE.Group();
-  root.name = 'AshKingMobileKayKit';
-
-  const visual = knightGltf.scene;
-  visual.name = 'AshKingKnight';
-  visual.scale.setScalar(1.22);
-  prepareModel(visual);
-  root.add(visual);
-
-  const rightHand = findBone(visual, ['righthand', 'handr', 'handright']);
-  const leftHand = findBone(visual, ['lefthand', 'handl', 'handleft']);
-  attachEquipment(THREE, rightHand, swordGltf.scene, 'sword');
-  attachEquipment(THREE, leftHand, shieldGltf.scene, 'shield');
-
+function addAshKingRegalia(THREE: any, root: any) {
+  const mantleMaterial = new THREE.MeshStandardMaterial({
+    color: 0x24191f,
+    emissive: 0x130407,
+    emissiveIntensity: 0.26,
+    roughness: 0.92,
+    metalness: 0.02,
+    side: THREE.DoubleSide,
+  });
+  const armorMaterial = new THREE.MeshStandardMaterial({
+    color: 0x46383b,
+    roughness: 0.68,
+    metalness: 0.34,
+  });
   const emberMaterial = new THREE.MeshStandardMaterial({
-    color: 0xff6a2f,
-    emissive: 0x7a1c08,
-    emissiveIntensity: 0.9,
-    roughness: 0.45,
-    metalness: 0.08,
+    color: 0xff8a47,
+    emissive: 0x8d210b,
+    emissiveIntensity: 1.08,
+    roughness: 0.36,
+    metalness: 0.06,
   });
-  const goldMaterial = new THREE.MeshStandardMaterial({
-    color: 0xd9ad55,
-    emissive: 0x2b1303,
-    emissiveIntensity: 0.2,
-    roughness: 0.48,
-    metalness: 0.5,
+  const crownMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8b775a,
+    emissive: 0x2c1306,
+    emissiveIntensity: 0.24,
+    roughness: 0.58,
+    metalness: 0.48,
   });
+
+  const mantle = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.45, 12, 1, true), mantleMaterial);
+  mantle.name = 'AshVeilMantle';
+  mantle.position.set(0, 0.82, -0.24);
+  mantle.rotation.x = -0.09;
+  root.add(mantle);
+
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.075, 8, 24), armorMaterial);
+  collar.position.set(0, 1.48, -0.01);
+  collar.rotation.x = Math.PI / 2;
+  root.add(collar);
+
+  for (const side of [-1, 1]) {
+    const pauldron = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), armorMaterial);
+    pauldron.position.set(side * 0.56, 1.35, -0.02);
+    pauldron.scale.set(1.35, 0.72, 1);
+    pauldron.rotation.z = side * 0.18;
+    root.add(pauldron);
+  }
 
   const crown = new THREE.Group();
-  crown.name = 'AshKingCrown';
-  const crownBand = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.055, 8, 24), goldMaterial);
+  crown.name = 'BrokenAshCrown';
+  const crownBand = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.055, 7, 22), crownMaterial);
   crownBand.rotation.x = Math.PI / 2;
   crown.add(crownBand);
-  for (let index = 0; index < 5; index++) {
-    const angle = index / 5 * Math.PI * 2;
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 7), goldMaterial);
-    spike.position.set(Math.cos(angle) * 0.28, 0.18, Math.sin(angle) * 0.28);
+  const spikeHeights = [0.28, 0.42, 0.34, 0.46, 0.3];
+  spikeHeights.forEach((height, index) => {
+    const angle = index / spikeHeights.length * Math.PI * 2;
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.075, height, 6), crownMaterial);
+    spike.position.set(Math.cos(angle) * 0.28, height * 0.55, Math.sin(angle) * 0.28);
+    spike.rotation.z = Math.cos(angle) * 0.12;
     crown.add(spike);
-  }
-  crown.position.set(0, 1.92, 0);
+  });
+  crown.position.set(0, 1.91, 0);
   root.add(crown);
 
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 10), emberMaterial);
-  core.position.set(0, 1.03, 0.36);
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 1), emberMaterial);
+  core.name = 'AshHeart';
+  core.position.set(0, 1.07, 0.39);
   root.add(core);
 
-  const aura = new THREE.Mesh(
-    new THREE.RingGeometry(0.72, 0.84, 36),
-    new THREE.MeshBasicMaterial({ color: 0xff5b2d, transparent: true, opacity: 0.34, depthWrite: false, side: THREE.DoubleSide }),
-  );
-  aura.rotation.x = -Math.PI / 2;
-  aura.position.y = 0.018;
-  root.add(aura);
+  const eyeBar = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.045, 0.035), emberMaterial);
+  eyeBar.name = 'AshEyes';
+  eyeBar.position.set(0, 1.68, 0.34);
+  root.add(eyeBar);
+
+  const auraMaterial = new THREE.MeshBasicMaterial({
+    color: 0xe45e31,
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const auraArcs: any[] = [];
+  for (const [start, length, radius] of [[0.15, 1.35, 0.9], [2.45, 1.15, 1.02], [4.55, 1.1, 0.82]] as Array<[number, number, number]>) {
+    const arc = new THREE.Mesh(new THREE.RingGeometry(radius - 0.055, radius, 26, 1, start, length), auraMaterial);
+    arc.rotation.x = -Math.PI / 2;
+    arc.position.y = 0.022;
+    root.add(arc);
+    auraArcs.push(arc);
+  }
 
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.68, 28),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }),
+    new THREE.CircleGeometry(0.78, 28),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.34, depthWrite: false }),
   );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.012;
   root.add(shadow);
 
+  return { mantle, crown, core, eyeBar, auraArcs, emberMaterial };
+}
+
+export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promise<WorldBossMobileRig> {
+  const manifest = await loadKayKitManifest();
+  const skeletonPath = firstKayKitModel(manifest, 'skeletons', /\/characters\/gltf\/.*(?:warrior|knight|barbarian).*\.glb$/i)
+    ?? firstKayKitModel(manifest, 'skeletons', /\/characters\/gltf\/.*\.glb$/i);
+  if (!skeletonPath) throw new Error('No KayKit skeleton character is available for the Ash King');
+
+  const axePath = firstKayKitModel(manifest, 'skeletons', /skeleton_axe\.(?:gltf|glb)$/i)
+    ?? firstKayKitModel(manifest, 'skeletons', /\/assets\/gltf\/.*axe.*\.(?:gltf|glb)$/i);
+
+  const loader = new GLTFLoader();
+  const [skeletonGltf, generalGltf, movementGltf, combatGltf, axeGltf] = await Promise.all([
+    loader.loadAsync(modelUrl(manifest, skeletonPath)),
+    loader.loadAsync(ANIMATION_ASSETS.general),
+    loader.loadAsync(ANIMATION_ASSETS.movement),
+    loader.loadAsync(ANIMATION_ASSETS.combat),
+    axePath ? loader.loadAsync(modelUrl(manifest, axePath)).catch(() => null) : Promise.resolve(null),
+  ]);
+
+  const root = new THREE.Group();
+  root.name = 'AshKingVeilWarden';
+
+  const visual = skeletonGltf.scene;
+  visual.name = 'AshWardenSkeleton';
+  cloneAndAshenModel(THREE, visual);
+  normalizeCharacter(THREE, visual, 2.02);
+  root.add(visual);
+
+  const rightHand = findBone(visual, ['righthand', 'handr', 'handright']);
+  attachAxe(THREE, rightHand, axeGltf?.scene ?? null);
+
+  const regalia = addAshKingRegalia(THREE, root);
   const clips = [
-    ...(knightGltf.animations ?? []),
+    ...(skeletonGltf.animations ?? []),
     ...(generalGltf.animations ?? []),
     ...(movementGltf.animations ?? []),
     ...(combatGltf.animations ?? []),
@@ -178,7 +252,7 @@ export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promi
   let attackRemaining = 0;
 
   current?.reset().play();
-  if (move) move.timeScale = 0.86;
+  if (move) move.timeScale = 0.82;
   if (attack) {
     attack.setLoop(THREE.LoopOnce, 1);
     attack.clampWhenFinished = false;
@@ -211,11 +285,16 @@ export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promi
       attackRemaining = Math.max(0, attackRemaining - delta);
       if (attackRemaining === 0) playBase();
       mixer.update(delta);
-      const pulse = 0.82 + Math.sin(now * 0.004) * 0.18;
-      emberMaterial.emissiveIntensity = pulse;
-      aura.material.opacity = 0.24 + pulse * 0.12;
-      aura.rotation.z += delta * 0.38;
-      crown.rotation.y += delta * 0.16;
+      const pulse = 0.78 + Math.sin(now * 0.0042) * 0.22;
+      regalia.emberMaterial.emissiveIntensity = 0.92 + pulse * 0.42;
+      regalia.core.scale.setScalar(0.92 + pulse * 0.18);
+      regalia.eyeBar.scale.x = 0.9 + pulse * 0.16;
+      regalia.crown.rotation.y += delta * 0.12;
+      regalia.mantle.rotation.z = Math.sin(now * 0.0018) * 0.025;
+      regalia.auraArcs.forEach((arc: any, index: number) => {
+        arc.rotation.z += delta * (index % 2 === 0 ? 0.18 : -0.14);
+        arc.material.opacity = 0.2 + pulse * 0.12;
+      });
     },
     stop() {
       mixer.stopAllAction();
