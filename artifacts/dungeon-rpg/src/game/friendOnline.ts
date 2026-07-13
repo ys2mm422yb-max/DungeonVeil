@@ -6,7 +6,12 @@ export type OnlineFriend = {
   user_id: string;
   display_name: string;
   avatar_key: string | null;
+  friend_code: string;
+  current_chapter: number;
+  current_rank: number;
+  character_key: string;
   friends_since: string;
+  last_active_at: string;
 };
 
 export type OnlineFriendRequest = {
@@ -23,6 +28,10 @@ export type SentFriendRequest = {
   user_id: string;
   display_name: string;
   avatar_key: string | null;
+  friend_code: string;
+  current_chapter: number;
+  current_rank: number;
+  character_key: string;
 };
 
 function emitFriendsChanged(): void {
@@ -41,7 +50,7 @@ async function rpc<T>(name: string, body: Record<string, unknown> = {}): Promise
 
 export async function listFriendsOnline(): Promise<OnlineFriend[]> {
   if (!currentOnlineSession()) return [];
-  return rpc<OnlineFriend[]>('list_friends');
+  return rpc<OnlineFriend[]>('list_friends_v2');
 }
 
 export async function listFriendRequestsOnline(): Promise<OnlineFriendRequest[]> {
@@ -49,8 +58,8 @@ export async function listFriendRequestsOnline(): Promise<OnlineFriendRequest[]>
   return rpc<OnlineFriendRequest[]>('list_friend_requests');
 }
 
-export async function sendFriendRequestOnline(displayName: string): Promise<SentFriendRequest> {
-  const rows = await rpc<SentFriendRequest[]>('send_friend_request', { p_display_name: displayName.trim() });
+export async function sendFriendRequestOnline(query: string): Promise<SentFriendRequest> {
+  const rows = await rpc<SentFriendRequest[]>('send_friend_request_by_query', { p_query: query.trim() });
   if (!rows[0]) throw new Error('Freundschaftsanfrage konnte nicht gesendet werden');
   emitFriendsChanged();
   return rows[0];
