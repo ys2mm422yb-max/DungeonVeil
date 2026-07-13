@@ -35,8 +35,8 @@ const checks = [
   [friendHardening.includes('friend_requests_pair_uidx') && friendHardening.includes('least(sender_id, receiver_id)') && friendHardening.includes('on conflict do nothing'), 'unordered friend-pair race protection is missing'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall'), 'main menu lacks the central world orb or visible village staging'],
-  [villageHub.includes('accent="world"') && villageHub.includes('top="47.5%"') && menu.includes('h-[41vh]'), 'NPC hub is not balanced around the world orb or remains overlapped by action cards'],
+  [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes("root.name = 'VeilCourtKayKitArchitecture'") && menuScene.includes('loadKayKitManifest') && menuScene.includes('COURT_ASSETS'), 'main menu lacks the package-backed Veil Court or central world heart'],
+  [villageHub.includes('data-menu-node="location-plaque"') && villageHub.includes('top="49.1%"') && menu.includes('data-testid="main-menu-action-ledger"') && menu.includes('data-menu-scene-space="veil-court"'), 'NPC locations or the unified adventure ledger are missing'],
   [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or cohesive stage route are missing'],
 ];
@@ -48,4 +48,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: weekly rift removed, world-orb village hub active, mailbox and friends routes secure, and the cohesive Ash King ritual hall is QA-addressable.');
+console.log('Social/navigation audit passed: package-backed Veil Court, location plaques, adventure ledger, mailbox, friends and guild routes are intact.');
