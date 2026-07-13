@@ -245,14 +245,14 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       const root = new THREE.Group();
       root.name = 'AshKingDominanceAura';
       const shadow = new THREE.Mesh(
-        keepGeometry(new THREE.CircleGeometry(1.7, 40)),
+        keepGeometry(new THREE.CircleGeometry(2.15, 44)),
         keepMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.52, depthWrite: false })),
       );
       shadow.rotation.x = -Math.PI / 2;
       shadow.position.y = 0.018;
       root.add(shadow);
       const ring = new THREE.Mesh(
-        keepGeometry(new THREE.RingGeometry(1.05, 1.75, 44, 1, 0.25, Math.PI * 1.72)),
+        keepGeometry(new THREE.RingGeometry(1.35, 2.25, 52, 1, 0.2, Math.PI * 1.78)),
         keepMaterial(new THREE.MeshBasicMaterial({ color: 0xf06133, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })),
       );
       ring.rotation.x = -Math.PI / 2;
@@ -327,7 +327,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       telegraph.position.set(mapX(effect.x), 0.07, mapZ(effect.y));
       telegraph.scale.setScalar(Math.max(0.18, effect.maxRadius / TILE * Math.max(0.22, progress)));
       telegraph.material.color.set(effect.color);
-      telegraph.material.opacity = Math.max(0.16, 0.76 * (1 - progress));
+      telegraph.material.opacity = Math.max(0.1, 0.48 * (1 - progress));
     };
 
     const syncEmbers = (now: number, bossX: number, bossZ: number) => {
@@ -346,16 +346,16 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     };
 
     const updateCamera = (delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number) => {
-      const focusX = clamp(playerX * 0.44 + bossX * 0.56, -3.6, 3.6);
-      const focusZ = clamp(playerZ * 0.42 + bossZ * 0.58, -3.3, 2.8);
+      const focusX = clamp(playerX * 0.38 + bossX * 0.62, -3.6, 3.6);
+      const focusZ = clamp(playerZ * 0.36 + bossZ * 0.64, -3.3, 2.8);
       const spread = Math.hypot(playerX - bossX, playerZ - bossZ);
       const extra = clamp((spread - 10) * 0.24, 0, 2.8);
       const portrait = camera.aspect < 0.72;
-      cameraGoal.set(focusX, (portrait ? 13.2 : 11.7) + extra * 0.35, focusZ + (portrait ? 18.3 : 16.4) + extra);
+      cameraGoal.set(focusX, (portrait ? 12.8 : 11.5) + extra * 0.35, focusZ + (portrait ? 17.6 : 16.1) + extra);
       camera.position.x = damp(camera.position.x, cameraGoal.x, 5.8, delta);
       camera.position.y = damp(camera.position.y, cameraGoal.y, 5.2, delta);
       camera.position.z = damp(camera.position.z, cameraGoal.z, 5.8, delta);
-      cameraLook.set(focusX, 1.05, focusZ - (portrait ? 3.35 : 3.7));
+      cameraLook.set(focusX, 1.12, focusZ - (portrait ? 3.15 : 3.55));
       camera.lookAt(cameraLook);
       camera.userData.dungeonPlayerX = playerX;
       camera.userData.dungeonPlayerZ = playerZ;
@@ -419,12 +419,12 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
           if (boss.lastAttackTime > lastBossAttack) { lastBossAttack = boss.lastAttackTime; bossRig.triggerAttack(); }
           bossRig.update(delta, now);
           const attackPulse = Math.max(0, 1 - (now - lastBossAttack) / 430);
-          bossRig.root.scale.setScalar(1.72 + attackPulse * 0.07);
+          bossRig.root.scale.setScalar(2.05 + attackPulse * 0.09);
         }
         if (fallbackBoss) {
           fallbackBoss.position.set(bossX, Math.sin(now * 0.003) * 0.035, bossZ);
           fallbackBoss.rotation.y = Math.atan2(playerX - bossX, playerZ - bossZ);
-          fallbackBoss.scale.setScalar(1.25);
+          fallbackBoss.scale.setScalar(1.46);
         }
         if (bossAura) {
           bossAura.position.set(bossX, 0, bossZ);
@@ -475,7 +475,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       renderer.domElement.style.display = 'block';
       host.appendChild(renderer.domElement);
       camera = new THREE.PerspectiveCamera(48, 1, 0.1, 120);
-      camera.position.set(0, 13.2, 18.3);
+      camera.position.set(0, 12.8, 17.6);
       cameraGoal = new THREE.Vector3();
       cameraLook = new THREE.Vector3();
 
@@ -488,7 +488,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       const fill = new THREE.DirectionalLight(0x7f82c8, 0.54);
       fill.position.set(6, 8, -7);
       scene.add(fill);
-      bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.2 : 3.6, 24, Math.PI / 5, 0.72, 1.8);
+      bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.8 : 4, 25, Math.PI / 5, 0.7, 1.8);
       scene.add(bossLight, bossLight.target);
 
       const current = state();
@@ -519,7 +519,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       bossAura = buildBossAura();
       buildProjectilePool();
       telegraph = new THREE.Mesh(
-        keepGeometry(new THREE.RingGeometry(0.72, 1, 36)),
+        keepGeometry(new THREE.RingGeometry(0.82, 1, 40)),
         keepMaterial(new THREE.MeshBasicMaterial({ color: 0xff7247, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),
       );
       telegraph.rotation.x = -Math.PI / 2;
