@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stage, band] = await Promise.all([
+const [menu, villageHub, menuScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stage, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
+  read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/MailboxPanel.tsx'),
   read('../src/components/GuildInviteLinkCard.tsx'),
   read('../src/game/guildMailboxOnline.ts'),
@@ -13,7 +14,7 @@ const [menu, villageHub, mailbox, inviteCard, guildClient, guildMigration, frien
   read('../../../supabase/migrations/20260713023000_add_friends_system.sql'),
   read('../../../supabase/migrations/20260713023500_harden_friend_pair_uniqueness.sql'),
   read('../src/main.tsx'),
-  read('../src/components/WorldBossDedicatedStage.tsx'),
+  read('../src/components/WorldBossCohesiveStage.tsx'),
   read('../src/components/WorldBossCombatBandStage.tsx'),
 ]);
 
@@ -34,8 +35,10 @@ const checks = [
   [friendHardening.includes('friend_requests_pair_uidx') && friendHardening.includes('least(sender_id, receiver_id)') && friendHardening.includes('on conflict do nothing'), 'unordered friend-pair race protection is missing'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [stage.includes('const ARENA_WIDTH = 11.8;') && stage.includes('const ARENA_DEPTH = 20.4;') && stage.includes("aisle.name = 'RitualSideAisle'") && stage.includes("dais.name = 'AshKingDais'") && stage.includes("threshold.name = 'VeilGateThreshold'") && stage.includes("channel.name = 'EmberChannel'"), 'semantic ritual arena set pieces are missing'],
-  [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning'), 'world-boss combat band QA markers are missing'],
+  [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall'), 'main menu lacks the central world orb or visible village staging'],
+  [villageHub.includes('accent="world"') && villageHub.includes('top="47.5%"') && menu.includes('h-[41vh]'), 'NPC hub is not balanced around the world orb or remains overlapped by action cards'],
+  [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
+  [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or cohesive stage route are missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -45,4 +48,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: weekly rift removed, NPC-routed mailbox and friends navigation active, secure guild links available, friend codes and full friend workflows wired, and the semantic Ash King ritual arena is QA-addressable.');
+console.log('Social/navigation audit passed: weekly rift removed, world-orb village hub active, mailbox and friends routes secure, and the cohesive Ash King ritual hall is QA-addressable.');
