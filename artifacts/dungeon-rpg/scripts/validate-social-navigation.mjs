@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stage, band] = await Promise.all([
+const [menu, villageHub, menuScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stageWrapper, perspectiveStage, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
@@ -15,6 +15,7 @@ const [menu, villageHub, menuScene, mailbox, inviteCard, guildClient, guildMigra
   read('../../../supabase/migrations/20260713023500_harden_friend_pair_uniqueness.sql'),
   read('../src/main.tsx'),
   read('../src/components/WorldBossCohesiveStage.tsx'),
+  read('../src/components/WorldBossPerspectiveStage.tsx'),
   read('../src/components/WorldBossCombatBandStage.tsx'),
 ]);
 
@@ -37,7 +38,7 @@ const checks = [
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
   [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall'), 'main menu lacks the central world orb or visible village staging'],
   [villageHub.includes('accent="world"') && villageHub.includes('top="47.5%"') && menu.includes('h-[41vh]'), 'NPC hub is not balanced around the world orb or remains overlapped by action cards'],
-  [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
+  [stageWrapper.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage') && perspectiveStage.includes("root.name = 'AshKingPerspectiveSanctum'") && perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && perspectiveStage.includes("throne.name = 'BrokenAshThronePerspective'"), 'perspective semantic Ash King sanctum is missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or cohesive stage route are missing'],
 ];
 
@@ -48,4 +49,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: weekly rift removed, world-orb village hub active, mailbox and friends routes secure, and the cohesive Ash King ritual hall is QA-addressable.');
+console.log('Social/navigation audit passed: village, mailbox, friends and guild routes remain intact, and the perspective Ash King sanctum is QA-addressable.');
