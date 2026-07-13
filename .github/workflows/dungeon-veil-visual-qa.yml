@@ -1,6 +1,5 @@
 name: Dungeon Veil Mobile Visual QA
 
-# Final iPhone and Android QA trigger for product head 07b1f74.
 on:
   push:
     branches: [main]
@@ -18,98 +17,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  worldboss-mobile-screenshots:
+  screenshots:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout current product branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: work/blocks-1-7-production-pass
-
-      - name: Resolve tested commit
-        id: product
-        shell: bash
+      - id: product
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
-      - name: Install dependencies
-        id: install
+      - id: install
         run: pnpm install --frozen-lockfile
-
-      - name: Build QA site
-        id: build
-        if: steps.install.outcome == 'success'
+      - id: build
         env:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
         run: pnpm --dir artifacts/dungeon-rpg run build
-
-      - name: Install mobile browsers
-        id: browsers
-        if: steps.build.outcome == 'success'
+      - id: browsers
         run: pnpm dlx playwright@1.55.0 install --with-deps chromium webkit
-
-      - name: Serve QA site
-        id: serve
-        if: steps.build.outcome == 'success'
+      - id: serve
         shell: bash
         run: |
-          mkdir -p /tmp/dungeon-veil-qa/DungeonVeil artifacts/dungeon-rpg/visual-qa
-          cp -a artifacts/dungeon-rpg/dist/public/. /tmp/dungeon-veil-qa/DungeonVeil/
-          python3 -m http.server 4173 --directory /tmp/dungeon-veil-qa >/tmp/dungeon-veil-qa-server.log 2>&1 &
-          echo $! >/tmp/dungeon-veil-qa-server.pid
+          mkdir -p /tmp/dv/DungeonVeil artifacts/dungeon-rpg/visual-qa
+          cp -a artifacts/dungeon-rpg/dist/public/. /tmp/dv/DungeonVeil/
+          python3 -m http.server 4173 --directory /tmp/dv >/tmp/dv-server.log 2>&1 &
           for attempt in {1..30}; do
             curl -fsS http://127.0.0.1:4173/DungeonVeil/ >/dev/null && exit 0
             sleep 1
           done
-          cat /tmp/dungeon-veil-qa-server.log
           exit 1
-
-      - name: Capture iPhone world boss
-        id: iphone
+      - id: iphone
         continue-on-error: true
-        if: steps.browsers.outcome == 'success' && steps.serve.outcome == 'success'
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm dlx playwright@1.55.0 screenshot --device="iPhone 13" --color-scheme=dark --wait-for-timeout=12000 "http://127.0.0.1:4173/DungeonVeil/?qa=worldboss" artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png 2>&1 | tee /tmp/worldboss-iphone.log
-
-      - name: Capture Android world boss
-        id: android
+        run: pnpm dlx playwright@1.55.0 screenshot --device="iPhone 13" --color-scheme=dark --wait-for-timeout=12000 "http://127.0.0.1:4173/DungeonVeil/?qa=worldboss" artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png
+      - id: android
+        if: always()
         continue-on-error: true
-        if: always() && steps.browsers.outcome == 'success' && steps.serve.outcome == 'success'
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm dlx playwright@1.55.0 screenshot --device="Pixel 7" --color-scheme=dark --wait-for-timeout=12000 "http://127.0.0.1:4173/DungeonVeil/?qa=worldboss" artifacts/dungeon-rpg/visual-qa/worldboss-android.png 2>&1 | tee /tmp/worldboss-android.log
-
-      - name: Validate screenshots
-        id: validate
+        run: pnpm dlx playwright@1.55.0 screenshot --device="Pixel 7" --color-scheme=dark --wait-for-timeout=12000 "http://127.0.0.1:4173/DungeonVeil/?qa=worldboss" artifacts/dungeon-rpg/visual-qa/worldboss-android.png
+      - id: validate
+        if: always()
         continue-on-error: true
-        if: always() && steps.iphone.outcome == 'success' && steps.android.outcome == 'success'
         shell: bash
         run: |
           test -s artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png
           test -s artifacts/dungeon-rpg/visual-qa/worldboss-android.png
           test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png)" -gt 20000
           test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/worldboss-android.png)" -gt 20000
-          file artifacts/dungeon-rpg/visual-qa/*.png
-
-      - name: Create review thumbnails
-        id: thumbnails
-        continue-on-error: true
+      - id: thumbnails
         if: always() && steps.validate.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           python3 -m pip install --quiet pillow
@@ -122,30 +84,26 @@ jobs:
               image.thumbnail((260, 560), Image.Resampling.LANCZOS)
               image.save(root / f'{name}-thumb.jpg', quality=48, optimize=True, progressive=True)
           PY
-
-      - name: Upload visual QA evidence
-        id: upload
+      - id: upload
         if: always() && steps.validate.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: dungeon-veil-mobile-visual-qa-${{ steps.product.outputs.sha }}
           path: artifacts/dungeon-rpg/visual-qa/*
           retention-days: 14
-
-      - name: Publish visual QA evidence and result
-        if: always()
+      - if: always()
         uses: actions/github-script@v7
         env:
-          VALIDATED_SHA: ${{ steps.product.outputs.sha }}
-          INSTALL_OUTCOME: ${{ steps.install.outcome }}
-          BUILD_OUTCOME: ${{ steps.build.outcome }}
-          BROWSERS_OUTCOME: ${{ steps.browsers.outcome }}
-          SERVE_OUTCOME: ${{ steps.serve.outcome }}
-          IPHONE_OUTCOME: ${{ steps.iphone.outcome }}
-          ANDROID_OUTCOME: ${{ steps.android.outcome }}
-          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
-          THUMBNAILS_OUTCOME: ${{ steps.thumbnails.outcome }}
-          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+          PRODUCT_SHA: ${{ steps.product.outputs.sha }}
+          INSTALL: ${{ steps.install.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          BROWSERS: ${{ steps.browsers.outcome }}
+          SERVE: ${{ steps.serve.outcome }}
+          IPHONE: ${{ steps.iphone.outcome }}
+          ANDROID: ${{ steps.android.outcome }}
+          VALIDATE: ${{ steps.validate.outcome }}
+          THUMBNAILS: ${{ steps.thumbnails.outcome }}
+          UPLOAD: ${{ steps.upload.outcome }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -153,65 +111,53 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const branch = 'main';
-
-            async function write(path, buffer, message) {
+            async function write(path, data, message) {
               let sha;
               try {
-                const existing = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
-                if (!Array.isArray(existing.data)) sha = existing.data.sha;
+                const result = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
+                if (!Array.isArray(result.data)) sha = result.data.sha;
               } catch (error) {
                 if (error.status !== 404) throw error;
               }
               await github.rest.repos.createOrUpdateFileContents({
                 owner, repo, path, branch, sha, message,
-                content: buffer.toString('base64'),
+                content: Buffer.from(data).toString('base64'),
               });
             }
-
-            const files = {
+            const local = {
               iphone: 'artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png',
               android: 'artifacts/dungeon-rpg/visual-qa/worldboss-android.png',
               iphoneThumb: 'artifacts/dungeon-rpg/visual-qa/worldboss-iphone-thumb.jpg',
               androidThumb: 'artifacts/dungeon-rpg/visual-qa/worldboss-android-thumb.jpg',
             };
-            const repoPaths = {
+            const remote = {
               iphone: '.ci/visual-qa/worldboss-iphone.png',
               android: '.ci/visual-qa/worldboss-android.png',
               iphoneThumb: '.ci/visual-qa/worldboss-iphone-thumb.jpg',
               androidThumb: '.ci/visual-qa/worldboss-android-thumb.jpg',
             };
-            const outcomes = {
-              install: process.env.INSTALL_OUTCOME,
-              build: process.env.BUILD_OUTCOME,
-              browsers: process.env.BROWSERS_OUTCOME,
-              serve: process.env.SERVE_OUTCOME,
-              iphone: process.env.IPHONE_OUTCOME,
-              android: process.env.ANDROID_OUTCOME,
-              validate: process.env.VALIDATE_OUTCOME,
-              thumbnails: process.env.THUMBNAILS_OUTCOME,
-              upload: process.env.UPLOAD_OUTCOME,
-            };
-            const success = ['install', 'build', 'browsers', 'serve', 'iphone', 'android', 'validate', 'upload']
-              .every(key => outcomes[key] === 'success');
-
-            for (const [key, file] of Object.entries(files)) {
-              if (!fs.existsSync(file)) continue;
-              await write(repoPaths[key], fs.readFileSync(file), `Record ${key} world boss visual QA for ${process.env.VALIDATED_SHA.slice(0, 7)}`);
+            for (const key of Object.keys(local)) {
+              if (fs.existsSync(local[key])) await write(remote[key], fs.readFileSync(local[key]), `Record ${key} visual QA for ${process.env.PRODUCT_SHA.slice(0, 7)}`);
             }
-
-            const readLog = path => fs.existsSync(path) ? fs.readFileSync(path, 'utf8').slice(-8000) : '';
-            const payload = {
+            const outcomes = {
+              install: process.env.INSTALL,
+              build: process.env.BUILD,
+              browsers: process.env.BROWSERS,
+              serve: process.env.SERVE,
+              iphone: process.env.IPHONE,
+              android: process.env.ANDROID,
+              validate: process.env.VALIDATE,
+              thumbnails: process.env.THUMBNAILS,
+              upload: process.env.UPLOAD,
+            };
+            const success = ['install','build','browsers','serve','iphone','android','validate','thumbnails','upload'].every(key => outcomes[key] === 'success');
+            const marker = {
               workflow: 'Dungeon Veil Mobile Visual QA',
               status: success ? 'success' : 'failure',
-              validatedCommit: process.env.VALIDATED_SHA || null,
+              validatedCommit: process.env.PRODUCT_SHA || null,
               outcomes,
-              logs: {
-                iphone: readLog('/tmp/worldboss-iphone.log'),
-                android: readLog('/tmp/worldboss-android.log'),
-                server: readLog('/tmp/dungeon-veil-qa-server.log'),
-              },
-              screenshots: Object.entries(files).filter(([, file]) => fs.existsSync(file)).map(([key]) => repoPaths[key]),
-              sizes: Object.fromEntries(Object.entries(files).map(([key, file]) => [key, fs.existsSync(file) ? fs.statSync(file).size : 0])),
+              screenshots: Object.keys(local).filter(key => fs.existsSync(local[key])).map(key => remote[key]),
+              sizes: Object.fromEntries(Object.keys(local).map(key => [key, fs.existsSync(local[key]) ? fs.statSync(local[key]).size : 0])),
               completedAt: new Date().toISOString(),
             };
-            await write('.ci/dungeon-veil-visual-qa.json', Buffer.from(JSON.stringify(payload, null, 2) + '\n'), `Record Dungeon Veil visual QA ${success ? 'success' : 'failure'} for ${(process.env.VALIDATED_SHA || 'unknown').slice(0, 7)}`);
+            await write('.ci/dungeon-veil-visual-qa.json', JSON.stringify(marker, null, 2) + '\n', `Record visual QA ${success ? 'success' : 'failure'} for ${(process.env.PRODUCT_SHA || 'unknown').slice(0, 7)}`);
