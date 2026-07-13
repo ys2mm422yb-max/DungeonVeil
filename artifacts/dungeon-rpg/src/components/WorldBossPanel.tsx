@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SaveData } from '../game/saveManager';
 import {
   currentOnlineSession,
@@ -6,6 +6,11 @@ import {
   type OnlineSession,
   type WorldBossEvent,
 } from '../game/supabaseOnline';
+import {
+  getWorldBossAttemptStatus,
+  startWorldBossAttempt,
+  type WorldBossAttemptStatus,
+} from '../game/worldBossAttemptOnline';
 import {
   getCurrentOrRecentWorldBoss,
   getWorldBossSocialDashboard,
@@ -20,6 +25,7 @@ import { WorldBossBattleScreen } from './WorldBossBattleScreen';
 
 type Props = { language: 'de' | 'en'; saveData: SaveData | null };
 type RankingTab = 'friends' | 'guild' | 'global';
+type ServerClock = { serverMs: number; performanceMs: number };
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(value || 0);
@@ -31,6 +37,14 @@ function formatDate(value: string, language: 'de' | 'en'): string {
   return new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-US', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   }).format(date);
+}
+
+function formatRemaining(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':');
 }
 
 function formatRewardLabel(key: string): string {
@@ -55,6 +69,7 @@ function statusLabel(status: WorldBossEvent['status'], de: boolean): string {
 
 function friendlyError(reason: unknown, de: boolean): string {
   const message = reason instanceof Error ? reason.message : String(reason);
+  if (/world boss cooldown active/i.test(message)) return de ? 'Der nächste Weltboss-Angriff ist noch nicht verfügbar.' : 'The next world boss attack is not available yet.';
   if (/jwt.+future|issued at future|not before|nbf/i.test(message)) return de ? 'Die Online-Sitzung wird gerade synchronisiert. Bitte erneut aktualisieren.' : 'The online session is synchronizing. Refresh once more.';
   if (/sitzung abgelaufen|not authenticated|nicht angemeldet/i.test(message)) return de ? 'Die Online-Sitzung ist abgelaufen. Melde dich unter Online & Cloud erneut an.' : 'The online session expired. Sign in again through Online & Cloud.';
   return message;
@@ -80,15 +95,29 @@ function GuildRanking({ rows, de }: { rows: WorldBossGuildRow[]; de: boolean }) 
 
 export function WorldBossPanel({ language, saveData }: Props) {
   const de = language === 'de';
+  const serverClockRef = useRef<ServerClock | null>(null);
   const [session, setSession] = useState<OnlineSession | null>(() => currentOnlineSession());
   const [boss, setBoss] = useState<WorldBossEvent | null>(null);
   const [battleBoss, setBattleBoss] = useState<WorldBossEvent | null>(null);
   const [dashboard, setDashboard] = useState<WorldBossSocialDashboard | null>(null);
   const [reward, setReward] = useState<WorldBossRewardPayload | null>(null);
+  const [attemptStatus, setAttemptStatus] = useState<WorldBossAttemptStatus | null>(null);
   const [rankingTab, setRankingTab] = useState<RankingTab>('friends');
   const [busy, setBusy] = useState(false);
+  const [attemptBusy, setAttemptBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [clockTick, setClockTick] = useState(0);
   const [error, setError] = useState('');
+
+  const applyAttemptStatus = useCallback((status: WorldBossAttemptStatus) => {
+    setAttemptStatus(status);
+    const parsedServerMs = new Date(status.serverNow).getTime();
+    serverClockRef.current = {
+      serverMs: Number.isFinite(parsedServerMs) ? parsedServerMs : Date.now(),
+      performanceMs: performance.now(),
+    };
+    setClockTick(value => value + 1);
+  }, []);
 
   const refreshWorldBoss = useCallback(async () => {
     const active = currentOnlineSession();
@@ -98,6 +127,7 @@ export function WorldBossPanel({ language, saveData }: Props) {
       setBoss(null);
       setDashboard(null);
       setReward(null);
+      setAttemptStatus(null);
       setLoaded(true);
       return;
     }
@@ -107,20 +137,23 @@ export function WorldBossPanel({ language, saveData }: Props) {
     if (!nextBoss) {
       setDashboard(null);
       setReward(null);
+      setAttemptStatus(null);
       setLoaded(true);
       return;
     }
 
-    const [nextDashboard] = await Promise.all([
+    const [nextDashboard, nextAttemptStatus] = await Promise.all([
       getWorldBossSocialDashboard(nextBoss.id),
+      getWorldBossAttemptStatus(nextBoss.id),
       nextBoss.status === 'active' ? prepareWorldBossNotice(nextBoss.id).catch(() => false) : Promise.resolve(false),
     ]);
     setDashboard(nextDashboard);
+    applyAttemptStatus(nextAttemptStatus);
 
     const ended = nextBoss.status === 'defeated' || nextBoss.status === 'expired' || new Date(nextBoss.ends_at).getTime() <= Date.now();
     setReward(ended ? await prepareWorldBossReward(nextBoss.id).catch(() => null) : null);
     setLoaded(true);
-  }, []);
+  }, [applyAttemptStatus]);
 
   const runRefresh = useCallback(async () => {
     setBusy(true);
@@ -136,16 +169,59 @@ export function WorldBossPanel({ language, saveData }: Props) {
     return () => window.removeEventListener(onlineSessionEventName(), refresh);
   }, [runRefresh]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick(value => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const handleBossUpdated = useCallback((remainingHp: number, defeated: boolean) => {
     setBoss(current => current ? { ...current, current_hp: remainingHp, status: defeated ? 'defeated' : current.status } : current);
     if (defeated && boss) void prepareWorldBossReward(boss.id).then(setReward).catch(() => {});
   }, [boss]);
 
+  const handleStartBattle = useCallback(async () => {
+    if (!boss || attemptBusy) return;
+    setAttemptBusy(true);
+    setError('');
+    try {
+      const attempt = await startWorldBossAttempt(boss.id);
+      applyAttemptStatus({
+        canAttack: false,
+        canResume: true,
+        activeAttemptId: attempt.attemptId,
+        fightExpiresAt: attempt.fightExpiresAt,
+        nextAvailableAt: attempt.nextAvailableAt,
+        serverNow: attempt.serverNow,
+      });
+      setBattleBoss(boss);
+    } catch (reason) {
+      setError(friendlyError(reason, de));
+      try { applyAttemptStatus(await getWorldBossAttemptStatus(boss.id)); } catch {}
+    } finally {
+      setAttemptBusy(false);
+    }
+  }, [applyAttemptStatus, attemptBusy, boss, de]);
+
   const hpPercent = boss && boss.max_hp > 0 ? Math.max(0, Math.min(100, boss.current_hp / boss.max_hp * 100)) : 0;
   const rewards = boss ? Object.entries(boss.reward_config ?? {}) : [];
   const now = Date.now();
-  const canFight = Boolean(session && boss && boss.status === 'active' && boss.current_hp > 0 && new Date(boss.starts_at).getTime() <= now && new Date(boss.ends_at).getTime() > now);
+  const baseCanFight = Boolean(session && boss && boss.status === 'active' && boss.current_hp > 0 && new Date(boss.starts_at).getTime() <= now && new Date(boss.ends_at).getTime() > now);
+  const serverNowMs = useMemo(() => {
+    const clock = serverClockRef.current;
+    return clock ? clock.serverMs + (performance.now() - clock.performanceMs) : Date.now();
+  }, [clockTick]);
+  const cooldownRemainingMs = attemptStatus?.nextAvailableAt ? Math.max(0, new Date(attemptStatus.nextAvailableAt).getTime() - serverNowMs) : 0;
+  const attemptAvailable = Boolean(attemptStatus && (attemptStatus.canAttack || attemptStatus.canResume));
   const rankingRows = useMemo(() => rankingTab === 'friends' ? dashboard?.friends ?? [] : rankingTab === 'global' ? dashboard?.global ?? [] : [], [dashboard, rankingTab]);
+  const attemptLabel = attemptBusy
+    ? (de ? 'WIRD RESERVIERT …' : 'RESERVING …')
+    : attemptStatus?.canResume
+      ? (de ? 'ANGRIFF FORTSETZEN' : 'RESUME ATTACK')
+      : attemptStatus?.canAttack
+        ? (de ? 'KAMPF STARTEN' : 'START FIGHT')
+        : attemptStatus
+          ? `${de ? 'WIEDER IN' : 'READY IN'} ${formatRemaining(cooldownRemainingMs)}`
+          : (de ? 'VERFÜGBARKEIT WIRD GEPRÜFT' : 'CHECKING AVAILABILITY');
 
   return <>
     <div data-testid="worldboss-social-panel" className="max-h-[74vh] overflow-y-auto rounded-3xl border border-orange-300/18 bg-[#0e0a08]/96 p-4 text-white shadow-2xl">
@@ -166,7 +242,7 @@ export function WorldBossPanel({ language, saveData }: Props) {
 
         {rewards.length > 0 && <section className="rounded-2xl border border-amber-300/12 bg-amber-400/[.025] p-3"><div className="text-[8px] font-black uppercase tracking-[.2em] text-amber-100/45">{de ? 'EVENTDATEN' : 'EVENT DATA'}</div><div className="mt-2 space-y-1.5">{rewards.map(([key, value]) => <div key={key} className="flex items-start justify-between gap-3 text-[9px]"><span className="text-white/28">{formatRewardLabel(key)}</span><span className="max-w-[62%] text-right text-amber-50/58">{formatRewardValue(value, de)}</span></div>)}</div></section>}
 
-        {canFight && <section className="rounded-2xl border border-red-300/16 bg-red-500/[.045] p-3"><div className="text-[8px] font-black uppercase tracking-[.18em] text-red-100/58">{de ? '30-SEKUNDEN-ANGRIFF' : '30-SECOND ATTACK'}</div><div className="mt-1 text-[9px] leading-relaxed text-white/42">{de ? 'Kämpfe, weiche aus und steigere deinen persönlichen sowie den Gildenrang.' : 'Fight, dodge, and improve your personal and guild ranking.'}</div><div className="mt-3"><ActionButton label={de ? 'KAMPF STARTEN' : 'START FIGHT'} onClick={() => setBattleBoss(boss)} primary /></div></section>}
+        {baseCanFight && <section data-testid="worldboss-attempt-gate" className="rounded-2xl border border-red-300/16 bg-red-500/[.045] p-3"><div className="flex items-start justify-between gap-3"><div><div className="text-[8px] font-black uppercase tracking-[.18em] text-red-100/58">{de ? '30-SEKUNDEN-ANGRIFF' : '30-SECOND ATTACK'}</div><div className="mt-1 text-[9px] leading-relaxed text-white/42">{de ? 'Ein Angriff pro Konto alle 24 Stunden. Die Sperre wird vom Server geprüft.' : 'One attack per account every 24 hours. Availability is checked by the server.'}</div></div><div className={`shrink-0 rounded-full border px-2 py-1 text-[7px] font-black uppercase tracking-[.12em] ${attemptAvailable ? 'border-emerald-300/25 bg-emerald-400/10 text-emerald-100' : 'border-amber-300/20 bg-amber-400/8 text-amber-100/70'}`}>{attemptStatus?.canResume ? (de ? 'LÄUFT' : 'ACTIVE') : attemptStatus?.canAttack ? (de ? 'BEREIT' : 'READY') : (de ? 'GESPERRT' : 'LOCKED')}</div></div><div className="mt-3"><ActionButton label={attemptLabel} onClick={() => { void handleStartBattle(); }} disabled={!attemptAvailable || attemptBusy} primary /></div></section>}
       </div> : loaded && !error && <div className="rounded-2xl border border-white/8 bg-white/[.025] p-3 text-[10px] text-white/42">{de ? 'Aktuell ist kein Weltboss geplant.' : 'No world boss is currently scheduled.'}</div>}
 
       <div className="mt-3"><ActionButton label={busy ? (de ? 'Lädt …' : 'Loading …') : (de ? 'Aktualisieren' : 'Refresh')} onClick={() => { void runRefresh(); }} disabled={busy || !session} /></div>
