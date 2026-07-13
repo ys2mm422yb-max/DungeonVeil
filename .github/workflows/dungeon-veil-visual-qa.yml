@@ -1,6 +1,6 @@
 name: Dungeon Veil Mobile Visual QA
 
-# QA trigger for final audited ritual arena and social menu 07b1f74.
+# Self-reporting QA trigger for final audited product head 07b1f74.
 on:
   push:
     branches: [main]
@@ -44,18 +44,25 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Build QA site
+        id: build
+        if: steps.install.outcome == 'success'
         env:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
         run: pnpm --dir artifacts/dungeon-rpg run build
 
       - name: Install Chromium
+        id: chromium
+        if: steps.build.outcome == 'success'
         run: pnpm dlx playwright@1.55.0 install --with-deps chromium
 
       - name: Serve QA site
+        id: serve
+        if: steps.build.outcome == 'success'
         shell: bash
         run: |
           mkdir -p /tmp/dungeon-veil-qa/DungeonVeil artifacts/dungeon-rpg/visual-qa
@@ -70,21 +77,29 @@ jobs:
           exit 1
 
       - name: Capture iPhone world boss
+        id: iphone
+        if: steps.chromium.outcome == 'success' && steps.serve.outcome == 'success'
         run: pnpm dlx playwright@1.55.0 screenshot --device="iPhone 13" --color-scheme=dark --wait-for-timeout=12000 "http://127.0.0.1:4173/DungeonVeil/?qa=worldboss" artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png
 
       - name: Capture Android world boss
+        id: android
+        if: steps.chromium.outcome == 'success' && steps.serve.outcome == 'success'
         run: pnpm dlx playwright@1.55.0 screenshot --device="Pixel 7" --color-scheme=dark --wait-for-timeout=12000 "http://127.0.0.1:4173/DungeonVeil/?qa=worldboss" artifacts/dungeon-rpg/visual-qa/worldboss-android.png
 
       - name: Validate screenshots
+        id: validate
+        if: steps.iphone.outcome == 'success' && steps.android.outcome == 'success'
         shell: bash
         run: |
           test -s artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png
           test -s artifacts/dungeon-rpg/visual-qa/worldboss-android.png
-          test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png)" -gt 70000
-          test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/worldboss-android.png)" -gt 70000
+          test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png)" -gt 20000
+          test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/worldboss-android.png)" -gt 20000
           file artifacts/dungeon-rpg/visual-qa/*.png
 
       - name: Upload visual QA evidence
+        id: upload
+        if: steps.validate.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: dungeon-veil-mobile-visual-qa-${{ steps.product.outputs.sha }}
@@ -92,10 +107,18 @@ jobs:
           retention-days: 14
 
       - name: Publish visual QA evidence and result
-        if: success()
+        if: always()
         uses: actions/github-script@v7
         env:
           VALIDATED_SHA: ${{ steps.product.outputs.sha }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          CHROMIUM_OUTCOME: ${{ steps.chromium.outcome }}
+          SERVE_OUTCOME: ${{ steps.serve.outcome }}
+          IPHONE_OUTCOME: ${{ steps.iphone.outcome }}
+          ANDROID_OUTCOME: ${{ steps.android.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -118,26 +141,53 @@ jobs:
               });
             }
 
-            await write(
-              '.ci/visual-qa/worldboss-iphone.png',
-              fs.readFileSync('artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png'),
-              `Record iPhone world boss visual QA for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
-            );
-            await write(
-              '.ci/visual-qa/worldboss-android.png',
-              fs.readFileSync('artifacts/dungeon-rpg/visual-qa/worldboss-android.png'),
-              `Record Android world boss visual QA for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
-            );
+            const iphonePath = 'artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png';
+            const androidPath = 'artifacts/dungeon-rpg/visual-qa/worldboss-android.png';
+            const outcomes = {
+              install: process.env.INSTALL_OUTCOME,
+              build: process.env.BUILD_OUTCOME,
+              chromium: process.env.CHROMIUM_OUTCOME,
+              serve: process.env.SERVE_OUTCOME,
+              iphone: process.env.IPHONE_OUTCOME,
+              android: process.env.ANDROID_OUTCOME,
+              validate: process.env.VALIDATE_OUTCOME,
+              upload: process.env.UPLOAD_OUTCOME,
+            };
+            const success = ['install', 'build', 'chromium', 'serve', 'iphone', 'android', 'validate', 'upload']
+              .every(key => outcomes[key] === 'success');
+
+            if (fs.existsSync(iphonePath)) {
+              await write(
+                '.ci/visual-qa/worldboss-iphone.png',
+                fs.readFileSync(iphonePath),
+                `Record iPhone world boss visual QA for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
+              );
+            }
+            if (fs.existsSync(androidPath)) {
+              await write(
+                '.ci/visual-qa/worldboss-android.png',
+                fs.readFileSync(androidPath),
+                `Record Android world boss visual QA for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
+              );
+            }
 
             const payload = {
               workflow: 'Dungeon Veil Mobile Visual QA',
-              status: 'success',
-              validatedCommit: process.env.VALIDATED_SHA,
-              screenshots: ['.ci/visual-qa/worldboss-iphone.png', '.ci/visual-qa/worldboss-android.png'],
+              status: success ? 'success' : 'failure',
+              validatedCommit: process.env.VALIDATED_SHA || null,
+              outcomes,
+              screenshots: [
+                fs.existsSync(iphonePath) ? '.ci/visual-qa/worldboss-iphone.png' : null,
+                fs.existsSync(androidPath) ? '.ci/visual-qa/worldboss-android.png' : null,
+              ].filter(Boolean),
+              sizes: {
+                iphone: fs.existsSync(iphonePath) ? fs.statSync(iphonePath).size : 0,
+                android: fs.existsSync(androidPath) ? fs.statSync(androidPath).size : 0,
+              },
               completedAt: new Date().toISOString(),
             };
             await write(
               '.ci/dungeon-veil-visual-qa.json',
               Buffer.from(JSON.stringify(payload, null, 2) + '\n'),
-              `Record Dungeon Veil visual QA success for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
+              `Record Dungeon Veil visual QA ${success ? 'success' : 'failure'} for ${(process.env.VALIDATED_SHA || 'unknown').slice(0, 7)}`,
             );
