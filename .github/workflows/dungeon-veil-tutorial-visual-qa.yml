@@ -42,12 +42,16 @@ jobs:
         id: install
         run: pnpm install --frozen-lockfile
 
-      - name: Run social and tutorial audits
+      - name: Run full Dungeon Veil audits
         id: audit
         shell: bash
         run: |
           set -o pipefail
-          pnpm --filter @workspace/dungeon-rpg audit:social 2>&1 | tee /tmp/social-audit.log
+          {
+            pnpm --filter @workspace/dungeon-rpg audit:assets
+            pnpm --filter @workspace/dungeon-rpg audit:rooms
+            pnpm --filter @workspace/dungeon-rpg audit:social
+          } 2>&1 | tee /tmp/social-audit.log
 
       - name: Typecheck Dungeon Veil
         id: typecheck
