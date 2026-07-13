@@ -1,15 +1,18 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, socialClient, friendClient, friendsPanel, guildSocial, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuSceneProxy, villageScene, main] = await Promise.all([
+const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, guildPanelMobile, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuSceneProxy, villageScene, main] = await Promise.all([
   read('../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql'),
   read('../../../supabase/migrations/20260713034500_social_acceptance_mailbox_notices.sql'),
   read('../../../supabase/migrations/20260713035500_prepare_recent_world_boss_rewards.sql'),
   read('../../../supabase/migrations/20260713041500_extend_social_profile_cards.sql'),
+  read('../../../supabase/migrations/20260713203500_world_boss_24h_attempt_lock.sql'),
   read('../src/game/socialProgressOnline.ts'),
   read('../src/game/friendOnline.ts'),
+  read('../src/game/worldBossAttemptOnline.ts'),
   read('../src/components/FriendsPanel.tsx'),
   read('../src/components/GuildSocialPanel.tsx'),
+  read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/PlayerProfileCard.tsx'),
   read('../src/components/OnlinePanel.tsx'),
   read('../src/components/WorldBossPanel.tsx'),
@@ -33,15 +36,22 @@ const checks = [
   [rewardSweepMigration.includes('prepare_recent_world_boss_rewards') && rewardSweepMigration.includes('limit 8') && rewardSweepMigration.includes('grant execute'), 'missed weekly reward recovery is missing'],
   [noticesMigration.includes('queue_friend_acceptance_notice') && noticesMigration.includes('queue_guild_acceptance_notice') && noticesMigration.includes('player_mailbox'), 'social acceptance mailbox notices are missing'],
   [profileExtensionMigration.includes('lifetime_world_boss_damage') && profileExtensionMigration.includes('achievement_keys') && profileExtensionMigration.includes('friend_count') && profileExtensionMigration.includes('revoke all on function public.get_social_profile_card'), 'extended profile statistics or permissions are missing'],
+  [attemptMigration.includes('create table if not exists public.world_boss_attempts') && attemptMigration.includes("interval '24 hours'") && attemptMigration.includes('pg_advisory_xact_lock'), 'server-side 24-hour world-boss attempt storage or race protection is missing'],
+  [attemptMigration.includes('get_world_boss_attempt_status') && attemptMigration.includes('start_world_boss_attempt') && attemptMigration.includes("interval '10 minutes'"), 'world-boss attempt status or atomic start RPC is missing'],
+  [attemptMigration.includes('world boss attempt required') && attemptMigration.includes('world boss attempt already submitted') && attemptMigration.includes('submitted_at = v_now'), 'world-boss hit recording is not bound to one valid attempt'],
+  [attemptClient.includes('getWorldBossAttemptStatus') && attemptClient.includes('startWorldBossAttempt') && attemptClient.includes('authenticatedSupabaseRest'), 'world-boss attempt client is incomplete'],
   [socialClient.includes('syncSocialProfileProgress') && socialClient.includes('getCurrentOrRecentWorldBoss') && socialClient.includes('getWorldBossSocialDashboard') && socialClient.includes('prepareRecentWorldBossRewards') && socialClient.includes('claimWorldBossReward'), 'social progression client is incomplete'],
   [socialClient.includes('lifetime_world_boss_damage') && socialClient.includes('account_level') && socialClient.includes('achievement_keys'), 'extended profile client types are missing'],
   [friendClient.includes("'list_friends_v2'") && friendClient.includes("'send_friend_request_by_query'") && friendClient.includes('friend_code'), 'friend client is not using codes and extended profiles'],
   [friendsPanel.includes('DEIN PROFIL & FREUNDESCODE') && friendsPanel.includes('PlayerProfileCard') && friendsPanel.includes('inviteGuildMember'), 'friends UI lacks self profile, profile cards or direct guild invitations'],
   [friendsPanel.includes('FAVORITES_KEY') && friendsPanel.includes('ONLINE_WINDOW_MS') && friendsPanel.includes('formatLastSeen') && friendsPanel.includes('toggleFavorite'), 'friend presence or favorites are missing'],
-  [guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && menu.includes('<GuildSocialPanel'), 'guild member profile cards are missing'],
+  [guildSocial.includes('GuildPanelMobile') && guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && menu.includes('<GuildSocialPanel'), 'guild social panel is not routed through the structured mobile guild UI'],
+  [guildPanelMobile.includes('data-testid="guild-panel-shell"') && guildPanelMobile.includes('data-testid="guild-tabs"') && guildPanelMobile.includes('data-testid="guild-overview-tab"') && guildPanelMobile.includes('data-testid="guild-members-tab"') && guildPanelMobile.includes('data-testid="guild-invite-tab"'), 'guild mobile shell or isolated tab content is missing'],
+  [guildPanelMobile.includes('data-testid="guild-danger-zone"') && guildPanelMobile.includes('<details') && !guildPanelMobile.includes('max-h-[76vh]'), 'guild danger zone or mobile layout regressed'],
   [profileCard.includes('data-testid="player-profile-card"') && profileCard.includes('lifetime_world_boss_damage') && profileCard.includes('achievement_keys') && profileCard.includes('account_level'), 'social profile card is incomplete'],
   [onlinePanel.includes('social-profile-summary') && onlinePanel.includes('friend_code') && onlinePanel.includes('current_rank'), 'online profile does not expose friend code and progress'],
   [bossPanel.includes('worldboss-social-panel') && bossPanel.includes('getWorldBossSocialDashboard') && (bossPanel.includes('dashboard.friends') || bossPanel.includes('dashboard?.friends')) && bossPanel.includes('dashboard.guilds') && bossPanel.includes('dashboard.myGuild'), 'world-boss friend and guild rankings are missing'],
+  [bossPanel.includes('data-testid="worldboss-attempt-gate"') && bossPanel.includes('getWorldBossAttemptStatus') && bossPanel.includes('startWorldBossAttempt') && bossPanel.includes('WIEDER IN') && bossPanel.includes('24 Stunden'), 'world-boss 24-hour availability display or guarded start is missing'],
   [mailbox.includes('prepareRecentWorldBossRewards') && mailbox.includes('claimWorldBossReward') && mailbox.includes('applyWorldBossRewardLocally') && mailbox.includes('BELOHNUNG ABHOLEN'), 'mailbox weekly reward recovery and claim flow is incomplete'],
   [mailbox.includes('type MailFilter') && mailbox.includes('claimAllRewards') && mailbox.includes('markAllRead') && mailbox.includes('matchesFilter'), 'mailbox filters or bulk actions are missing'],
   [rewardLocal.includes('worldboss:') && rewardLocal.includes('rewardLedger') && rewardLocal.includes('xpForNextRank'), 'local weekly reward application is not idempotent'],
@@ -61,4 +71,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: social systems, rewards, tutorial flow and the modern visible KayKit village-square navigation are wired.');
+console.log('Social progression audit passed: social systems, structured guild tabs, the server-enforced boss gate, rewards, tutorial flow and the modern village are wired.');
