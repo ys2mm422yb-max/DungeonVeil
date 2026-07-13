@@ -18,10 +18,7 @@ function sceneCenterToEntityOrigin(value: number, size: number, mapTiles: number
 
 function portalStagePoint(room: number) {
   const authored = roomBibleSpec(room).portal;
-  return {
-    x: authored.x,
-    z: authored.z < -8 ? -8.5 : authored.z,
-  };
+  return { x: authored.x, z: authored.z < -8 ? -8.5 : authored.z };
 }
 
 function architectureCollidersForRoom(room: number): RoomPropCollider[] {
@@ -36,6 +33,15 @@ function architectureCollidersForRoom(room: number): RoomPropCollider[] {
     const size = spec.shell === 'veil' ? 0.78 : 0.68;
     add(portal.x - spread, portal.z - 1.75, size);
     add(portal.x + spread, portal.z - 1.75, size);
+  }
+
+  if (room === 1) {
+    // Matches the visible RoomOneGrandEntrance models while preserving the central route.
+    add(-2.35, -13.25, 0.72, 0.62);
+    add(2.35, -13.25, 0.72, 0.62);
+    add(-4.25, -8.2, 0.82, 0.82);
+    add(4.25, -8.2, 0.82, 0.82);
+    add(0, -5.65, 0.92, 0.72);
   }
 
   switch (spec.silhouette) {
@@ -59,12 +65,8 @@ function architectureCollidersForRoom(room: number): RoomPropCollider[] {
     case 'zigzag':
     case 's-curve':
     case 's-lane':
-      // Diese Silhouetten werden ausschließlich durch die tatsächlich sichtbaren
-      // Setpiece-Collider definiert. Unsichtbare Standard-Felsen würden Schüsse
-      // und Bewegung blockieren, obwohl im Raum nichts zu sehen ist.
       break;
   }
-
   return colliders;
 }
 
@@ -89,16 +91,7 @@ export function roomPropColliders(room: number): readonly RoomPropCollider[] {
   return ROOM_COLLIDERS.get(key)!;
 }
 
-export function collidesWithRoomProp(
-  room: number,
-  mapWidth: number,
-  mapHeight: number,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  padding = 0.025,
-) {
+export function collidesWithRoomProp(room: number, mapWidth: number, mapHeight: number, x: number, y: number, width: number, height: number, padding = 0.025) {
   const centerX = entityCenterToScene(x, width, mapWidth);
   const centerZ = entityCenterToScene(y, height, mapHeight);
   const halfW = width / 80 + padding;
@@ -109,16 +102,7 @@ export function collidesWithRoomProp(
   );
 }
 
-function segmentHitsAabb(
-  x1: number,
-  z1: number,
-  x2: number,
-  z2: number,
-  cx: number,
-  cz: number,
-  halfW: number,
-  halfH: number,
-) {
+function segmentHitsAabb(x1: number, z1: number, x2: number, z2: number, cx: number, cz: number, halfW: number, halfH: number) {
   const dx = x2 - x1;
   const dz = z2 - z1;
   let tMin = 0;
@@ -135,16 +119,7 @@ function segmentHitsAabb(
   return clip(x1, dx, cx - halfW, cx + halfW) && clip(z1, dz, cz - halfH, cz + halfH);
 }
 
-function entitySegment(
-  mapWidth: number,
-  mapHeight: number,
-  fromX: number,
-  fromY: number,
-  toX: number,
-  toY: number,
-  width: number,
-  height: number,
-) {
+function entitySegment(mapWidth: number, mapHeight: number, fromX: number, fromY: number, toX: number, toY: number, width: number, height: number) {
   return {
     x1: entityCenterToScene(fromX, width, mapWidth),
     z1: entityCenterToScene(fromY, height, mapHeight),
@@ -153,63 +128,22 @@ function entitySegment(
   };
 }
 
-export function movementPathBlockedByRoomProp(
-  room: number,
-  mapWidth: number,
-  mapHeight: number,
-  fromX: number,
-  fromY: number,
-  toX: number,
-  toY: number,
-  width: number,
-  height: number,
-  padding = 0.12,
-) {
+export function movementPathBlockedByRoomProp(room: number, mapWidth: number, mapHeight: number, fromX: number, fromY: number, toX: number, toY: number, width: number, height: number, padding = 0.12) {
   const { x1, z1, x2, z2 } = entitySegment(mapWidth, mapHeight, fromX, fromY, toX, toY, width, height);
   const entityHalfW = width / 80 + padding;
   const entityHalfH = height / 80 + padding;
-  return roomPropColliders(room).some(collider => segmentHitsAabb(
-    x1,
-    z1,
-    x2,
-    z2,
-    collider.x,
-    collider.z,
-    collider.halfW + entityHalfW,
-    collider.halfH + entityHalfH,
-  ));
+  return roomPropColliders(room).some(collider => segmentHitsAabb(x1, z1, x2, z2, collider.x, collider.z, collider.halfW + entityHalfW, collider.halfH + entityHalfH));
 }
 
-export function roomPropDetourWaypoints(
-  room: number,
-  mapWidth: number,
-  mapHeight: number,
-  fromX: number,
-  fromY: number,
-  toX: number,
-  toY: number,
-  width: number,
-  height: number,
-): RoomDetourWaypoint[] {
+export function roomPropDetourWaypoints(room: number, mapWidth: number, mapHeight: number, fromX: number, fromY: number, toX: number, toY: number, width: number, height: number): RoomDetourWaypoint[] {
   const { x1, z1, x2, z2 } = entitySegment(mapWidth, mapHeight, fromX, fromY, toX, toY, width, height);
   const entityHalfW = width / 80;
   const entityHalfH = height / 80;
   const blockers = roomPropColliders(room)
-    .filter(collider => segmentHitsAabb(
-      x1,
-      z1,
-      x2,
-      z2,
-      collider.x,
-      collider.z,
-      collider.halfW + entityHalfW + 0.1,
-      collider.halfH + entityHalfH + 0.1,
-    ))
+    .filter(collider => segmentHitsAabb(x1, z1, x2, z2, collider.x, collider.z, collider.halfW + entityHalfW + 0.1, collider.halfH + entityHalfH + 0.1))
     .sort((a, b) => Math.hypot(a.x - x1, a.z - z1) - Math.hypot(b.x - x1, b.z - z1));
-
   const blocker = blockers[0];
   if (!blocker) return [];
-
   const marginX = blocker.halfW + entityHalfW + 0.5;
   const marginZ = blocker.halfH + entityHalfH + 0.5;
   const minSceneX = -mapWidth / 2 + 1.15;
@@ -222,35 +156,16 @@ export function roomPropDetourWaypoints(
     [blocker.x - marginX, blocker.z + marginZ],
     [blocker.x + marginX, blocker.z + marginZ],
   ] as const;
-
   return sceneCorners.map(([sceneX, sceneZ]) => ({
     x: sceneCenterToEntityOrigin(Math.max(minSceneX, Math.min(maxSceneX, sceneX)), width, mapWidth),
     y: sceneCenterToEntityOrigin(Math.max(minSceneZ, Math.min(maxSceneZ, sceneZ)), height, mapHeight),
   }));
 }
 
-export function shotBlockedByRoomProp(
-  room: number,
-  mapWidth: number,
-  mapHeight: number,
-  fromX: number,
-  fromY: number,
-  toX: number,
-  toY: number,
-  padding = 0.02,
-) {
+export function shotBlockedByRoomProp(room: number, mapWidth: number, mapHeight: number, fromX: number, fromY: number, toX: number, toY: number, padding = 0.02) {
   const x1 = fromX / 40 - mapWidth / 2 + 0.5;
   const z1 = fromY / 40 - mapHeight / 2 + 0.5;
   const x2 = toX / 40 - mapWidth / 2 + 0.5;
   const z2 = toY / 40 - mapHeight / 2 + 0.5;
-  return roomPropColliders(room).some(collider => segmentHitsAabb(
-    x1,
-    z1,
-    x2,
-    z2,
-    collider.x,
-    collider.z,
-    collider.halfW + padding,
-    collider.halfH + padding,
-  ));
+  return roomPropColliders(room).some(collider => segmentHitsAabb(x1, z1, x2, z2, collider.x, collider.z, collider.halfW + padding, collider.halfH + padding));
 }
