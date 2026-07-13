@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Validation trigger for larger world boss combat band 1034a0f.
+# Validation trigger for ritual arena, mailbox and guild links c3f1baf.
 on:
   workflow_dispatch:
 
