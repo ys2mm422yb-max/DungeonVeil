@@ -460,3 +460,8 @@ export async function submitWorldBossHit(eventId: string, damage: number, hitTok
   if (!response.ok) throw new Error(errorMessage(payload, `Weltboss-Treffer abgelehnt (${response.status})`));
   return payload as WorldBossHitResult;
 }
+
+export async function authenticatedSupabaseRest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return restRequest<T>(path, init);
+}
+

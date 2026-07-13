@@ -8,9 +8,9 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const TILE = 40;
 const ARENA_WIDTH = 10.4;
-const ARENA_DEPTH = 14.4;
+const ARENA_DEPTH = 20.4;
 const ARENA_INNER_X = 4.25;
-const ARENA_INNER_Z = 5.7;
+const ARENA_INNER_Z = 8.25;
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 const IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const IS_MOBILE = typeof navigator !== 'undefined' && (IS_ANDROID || IS_IOS || navigator.maxTouchPoints > 1);
@@ -127,15 +127,15 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
     const frameCamera = (width: number, height: number) => {
       if (!camera) return;
       const aspect = width / height;
-      const portrait = aspect < 0.72;
-      const viewWidth = portrait ? 11.7 : 15.2;
-      const viewHeight = viewWidth / Math.max(0.25, aspect);
+      const portrait = aspect < 0.92;
+      const viewHeight = portrait ? ARENA_DEPTH + 0.55 : 16.8;
+      const viewWidth = viewHeight * Math.max(0.42, aspect);
       camera.left = -viewWidth / 2;
       camera.right = viewWidth / 2;
       camera.top = viewHeight / 2;
       camera.bottom = -viewHeight / 2;
-      camera.position.set(0, portrait ? 12.8 : 12.4, portrait ? 14.9 : 14.1);
-      camera.lookAt(0, 0.68, portrait ? 0.65 : 0.35);
+      camera.position.set(0, portrait ? 20.2 : 15.8, portrait ? 12.1 : 14.2);
+      camera.lookAt(0, 0.38, portrait ? 0.15 : 0.35);
       camera.updateProjectionMatrix();
     };
 
@@ -200,24 +200,87 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       const runeMaterial = rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xe4572d, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false }));
       const rune = new THREE.Mesh(runeGeometry, runeMaterial);
       rune.rotation.x = -Math.PI / 2;
-      rune.position.set(0, 0.025, -0.35);
+      rune.position.set(0, 0.025, 0.55);
       root.add(rune);
 
       const innerRuneGeometry = rememberGeometry(new THREE.RingGeometry(0.72, 0.82, 36));
       const innerRune = new THREE.Mesh(innerRuneGeometry, runeMaterial);
       innerRune.rotation.x = -Math.PI / 2;
-      innerRune.position.set(0, 0.027, -0.35);
+      innerRune.position.set(0, 0.027, 0.55);
       root.add(innerRune);
 
       const sigilGeometry = rememberGeometry(new THREE.BoxGeometry(0.1, 0.02, 3.75));
       const sigilMaterial = rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xb63c27, transparent: true, opacity: 0.42, depthWrite: false }));
       const sigilA = new THREE.Mesh(sigilGeometry, sigilMaterial);
-      sigilA.position.set(0, 0.026, -0.35);
+      sigilA.position.set(0, 0.026, 0.55);
       root.add(sigilA);
       const sigilB = new THREE.Mesh(sigilGeometry, sigilMaterial);
-      sigilB.position.set(0, 0.028, -0.35);
+      sigilB.position.set(0, 0.028, 0.55);
       sigilB.rotation.y = Math.PI / 2;
       root.add(sigilB);
+
+      const daisMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x3b2322, roughness: 0.82, metalness: 0.08 }));
+      const dais = new THREE.Mesh(rememberGeometry(new THREE.CylinderGeometry(2.12, 2.42, 0.24, 28)), daisMaterial);
+      dais.name = 'AshKingDais';
+      dais.position.set(0, 0.08, -7.25);
+      root.add(dais);
+      const daisRing = new THREE.Mesh(
+        rememberGeometry(new THREE.RingGeometry(2.08, 2.34, 40)),
+        rememberMaterial(new THREE.MeshBasicMaterial({ color: 0xc34a2a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })),
+      );
+      daisRing.rotation.x = -Math.PI / 2;
+      daisRing.position.set(0, 0.215, -7.25);
+      root.add(daisRing);
+
+      const pathMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x4a3532, roughness: 0.9, metalness: 0.02 }));
+      const oathPath = new THREE.Mesh(rememberGeometry(new THREE.PlaneGeometry(3.2, 7.6)), pathMaterial);
+      oathPath.name = 'OathPathFromVeilGate';
+      oathPath.rotation.x = -Math.PI / 2;
+      oathPath.position.set(0, 0.012, 5.45);
+      root.add(oathPath);
+
+      const channelMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xff6433, emissive: 0x761b0a, emissiveIntensity: 0.72, roughness: 0.48 }));
+      const channelGeometry = rememberGeometry(new THREE.BoxGeometry(0.1, 0.025, 7.45));
+      for (const x of [-1.12, 1.12]) {
+        const channel = new THREE.Mesh(channelGeometry, channelMaterial);
+        channel.name = 'EmberChannel';
+        channel.position.set(x, 0.035, -3.28);
+        root.add(channel);
+      }
+
+      const threshold = new THREE.Mesh(rememberGeometry(new THREE.BoxGeometry(4.5, 0.16, 0.72)), daisMaterial);
+      threshold.name = 'VeilGateThreshold';
+      threshold.position.set(0, 0.08, 9.62);
+      root.add(threshold);
+
+      const archGeometry = rememberGeometry(new THREE.BoxGeometry(1, 1, 1));
+      const archMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x24191c, roughness: 0.9, metalness: 0.04 }));
+      const archParts: Array<[number, number, number, number, number]> = [
+        [-3.35, 1.45, -9.52, 0.7, 2.9],
+        [3.35, 1.45, -9.52, 0.7, 2.9],
+        [0, 2.62, -9.52, 7.4, 0.5],
+      ];
+      for (const [x, y, z, sx, sy] of archParts) {
+        const part = new THREE.Mesh(archGeometry, archMaterial);
+        part.name = 'BrokenThroneArch';
+        part.position.set(x, y, z);
+        part.scale.set(sx, sy, 0.52);
+        root.add(part);
+      }
+
+      const brazierBaseGeometry = rememberGeometry(new THREE.CylinderGeometry(0.22, 0.34, 0.72, 10));
+      const brazierMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x32272a, roughness: 0.78, metalness: 0.18 }));
+      const flameGeometry = rememberGeometry(new THREE.ConeGeometry(0.2, 0.58, 9));
+      const flameMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xffa14a, emissive: 0xa92f0c, emissiveIntensity: 1.12, roughness: 0.38 }));
+      for (const [x, z] of [[-4.2, -5.25], [4.2, -5.25], [-4.2, 5.9], [4.2, 5.9]] as Array<[number, number]>) {
+        const base = new THREE.Mesh(brazierBaseGeometry, brazierMaterial);
+        base.name = 'RitualBrazier';
+        base.position.set(x, 0.36, z);
+        root.add(base);
+        const flame = new THREE.Mesh(flameGeometry, flameMaterial);
+        flame.position.set(x, 0.96, z);
+        root.add(flame);
+      }
 
       const wallGeometry = rememberGeometry(new THREE.BoxGeometry(1, 1, 1));
       const wallMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x171419, roughness: 0.9, metalness: 0.04 }));
@@ -492,7 +555,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
           }
           if (qualityLevel < 2 || animationFrameCounter % 2 === 0) mobileBossRig.update(delta, now);
           const attackPulse = Math.max(0, 1 - (now - lastBossAttack) / 360);
-          mobileBossRig.root.scale.setScalar(1.72 + attackPulse * 0.04);
+          mobileBossRig.root.scale.setScalar(1.54 + attackPulse * 0.035);
         }
         if (mobileBossFallback) {
           mobileBossFallback.position.set(bossPoint.x, Math.sin(now * 0.003) * 0.025, bossPoint.z);
@@ -553,7 +616,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
 
       playerRig = await loadKayKitRanger(THREE, GLTFLoader);
       if (disposed) return;
-      playerRig.root.scale.setScalar(IS_MOBILE ? 1.14 : 1.1);
+      playerRig.root.scale.setScalar(IS_MOBILE ? 1.04 : 1.1);
       scene.add(playerRig.root);
 
       const boss = state()?.enemies.find(enemy => enemy.enemyType === 'boss');
@@ -594,7 +657,7 @@ export function WorldBossDedicatedStage({ engineRef, onReady }: Props) {
       playerRig.root.position.set(playerPoint.x, 0, playerPoint.z);
       if (mobileBossRig) {
         mobileBossRig.root.position.set(bossPoint.x, 0, bossPoint.z);
-        mobileBossRig.root.scale.setScalar(1.72);
+        mobileBossRig.root.scale.setScalar(1.54);
       }
       if (mobileBossFallback) {
         mobileBossFallback.position.set(bossPoint.x, 0, bossPoint.z);
