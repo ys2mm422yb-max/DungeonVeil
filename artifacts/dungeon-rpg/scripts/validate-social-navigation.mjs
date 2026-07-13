@@ -19,14 +19,14 @@ const [menu, villageHub, menuScene, mailbox, inviteCard, guildClient, guildMigra
 ]);
 
 const checks = [
-  [menu.includes('<VillageNpcHub') && villageHub.includes('testId="npc-postmaster"') && villageHub.includes('onClick={onMailbox}') && menu.includes('<MailboxPanel'), 'NPC-routed main-menu mailbox entry is missing'],
+  [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
   [!menu.includes('WeeklyRiftPanel') && !menu.includes("overlay === 'rift'") && !menu.includes("setOverlay('rift')"), 'weekly-rift shortcut or panel is still mounted in the main menu'],
   [menu.includes('<GuildInviteLinkCard') && inviteCard.includes('createGuildInviteLinkOnline') && inviteCard.includes('navigator.share'), 'shareable guild invite link UI is missing'],
   [guildClient.includes('captureGuildInviteTokenFromUrl') && guildClient.includes('claimPendingGuildInviteLink') && guildClient.includes('rpc/claim_guild_invite_link'), 'guild invitation link claim flow is incomplete'],
   [mailbox.includes('acceptGuildInvite') && mailbox.includes('declineGuildInvite') && mailbox.includes('markMailboxActioned'), 'mailbox guild invitation actions are incomplete'],
   [guildMigration.includes('create table if not exists public.guild_invite_links') && guildMigration.includes('create table if not exists public.player_mailbox'), 'guild invite link or mailbox table migration is missing'],
   [guildMigration.includes('enable row level security') && guildMigration.includes('security definer') && guildMigration.includes('extensions.digest'), 'mailbox and guild link security controls are incomplete'],
-  [menu.includes('<VillageNpcHub') && villageHub.includes('testId="npc-scout"') && villageHub.includes('onClick={onFriends}') && menu.includes('<FriendsPanel'), 'NPC-routed main-menu friends entry is missing'],
+  [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-scout'") && villageHub.includes('action: onFriends') && menu.includes('<FriendsPanel'), 'village-routed main-menu friends entry is missing'],
   [friendsPanel.includes('sendFriendRequestOnline') && friendsPanel.includes('acceptFriendRequestOnline') && friendsPanel.includes('cancelFriendRequestOnline') && friendsPanel.includes('removeFriendOnline'), 'friends panel actions are incomplete'],
   [friendClient.includes("rpc<OnlineFriend[]>('list_friends_v2')") && friendClient.includes("rpc<OnlineFriendRequest[]>('list_friend_requests')") && friendClient.includes("rpc<SentFriendRequest[]>('send_friend_request_by_query'"), 'authenticated friend-code client is incomplete'],
   [mailbox.includes("message.kind === 'friend_request'") && mailbox.includes('answerFriendRequest') && mailbox.includes('acceptFriendRequestOnline'), 'friend requests are not actionable from the mailbox'],
@@ -35,8 +35,9 @@ const checks = [
   [friendHardening.includes('friend_requests_pair_uidx') && friendHardening.includes('least(sender_id, receiver_id)') && friendHardening.includes('on conflict do nothing'), 'unordered friend-pair race protection is missing'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall'), 'main menu lacks the central world orb or visible village staging'],
-  [villageHub.includes('accent="world"') && villageHub.includes('top="47.5%"') && menu.includes('h-[41vh]'), 'NPC hub is not balanced around the world orb or remains overlapped by action cards'],
+  [menuScene.includes("villageRoot.name = 'ModernVeilVillageSquare'") && menuScene.includes("'VillageNorthGate'") && menuScene.includes("'VillageHearthShrine'") && menuScene.includes('loadVillageAssets'), 'modern KayKit village-square staging is missing'],
+  [villageHub.includes('grid grid-cols-5') && villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock is missing or floating labels remain'],
+  [menu.includes('grid-cols-2') && menu.includes('min-h-[250px] flex-1') && !menu.includes('h-[41vh]'), 'main-menu action layout is not separated from the village scene'],
   [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or cohesive stage route are missing'],
 ];
@@ -48,4 +49,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: weekly rift removed, world-orb village hub active, mailbox and friends routes secure, and the cohesive Ash King ritual hall is QA-addressable.');
+console.log('Social/navigation audit passed: modern KayKit village square, compact place dock, stable social routes and world-boss navigation remain active.');
