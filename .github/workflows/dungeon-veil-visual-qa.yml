@@ -1,6 +1,6 @@
 name: Dungeon Veil Mobile Visual QA
 
-# QA trigger for ritual arena, mailbox and guild links bc342df.
+# QA trigger for stable ritual arena and social menu 8cd0c88.
 on:
   push:
     branches: [main]
@@ -91,7 +91,7 @@ jobs:
           path: artifacts/dungeon-rpg/visual-qa/*.png
           retention-days: 14
 
-      - name: Record visual QA result
+      - name: Publish visual QA evidence and result
         if: success()
         uses: actions/github-script@v7
         env:
@@ -99,26 +99,45 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const path = '.ci/dungeon-veil-visual-qa.json';
             const branch = 'main';
-            let sha;
-            try {
-              const existing = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
-              if (!Array.isArray(existing.data)) sha = existing.data.sha;
-            } catch (error) {
-              if (error.status !== 404) throw error;
+
+            async function write(path, buffer, message) {
+              let sha;
+              try {
+                const existing = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
+                if (!Array.isArray(existing.data)) sha = existing.data.sha;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              await github.rest.repos.createOrUpdateFileContents({
+                owner, repo, path, branch, sha, message,
+                content: buffer.toString('base64'),
+              });
             }
+
+            await write(
+              '.ci/visual-qa/worldboss-iphone.png',
+              fs.readFileSync('artifacts/dungeon-rpg/visual-qa/worldboss-iphone.png'),
+              `Record iPhone world boss visual QA for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
+            );
+            await write(
+              '.ci/visual-qa/worldboss-android.png',
+              fs.readFileSync('artifacts/dungeon-rpg/visual-qa/worldboss-android.png'),
+              `Record Android world boss visual QA for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
+            );
+
             const payload = {
               workflow: 'Dungeon Veil Mobile Visual QA',
               status: 'success',
               validatedCommit: process.env.VALIDATED_SHA,
-              screenshots: ['worldboss-iphone.png', 'worldboss-android.png'],
+              screenshots: ['.ci/visual-qa/worldboss-iphone.png', '.ci/visual-qa/worldboss-android.png'],
               completedAt: new Date().toISOString(),
             };
-            await github.rest.repos.createOrUpdateFileContents({
-              owner, repo, path, branch, sha,
-              message: `Record Dungeon Veil visual QA success for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
-              content: Buffer.from(JSON.stringify(payload, null, 2) + '\n').toString('base64'),
-            });
+            await write(
+              '.ci/dungeon-veil-visual-qa.json',
+              Buffer.from(JSON.stringify(payload, null, 2) + '\n'),
+              `Record Dungeon Veil visual QA success for ${process.env.VALIDATED_SHA.slice(0, 7)}`,
+            );
