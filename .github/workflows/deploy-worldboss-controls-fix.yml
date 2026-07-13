@@ -1,0 +1,58 @@
+name: Deploy World Boss Controls Fix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-worldboss-controls-fix.yml'
+      - '.ci/worldboss-controls-deploy-trigger.txt'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.pull_request.head.ref == 'rework/worldboss-full-3d-arena'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_PATH: /DungeonVeil/
+      EXPECTED_BASE_PATH: /DungeonVeil/
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Validate exact deployment
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm --filter @workspace/dungeon-rpg typecheck
+          pnpm --filter @workspace/dungeon-rpg build
+          pnpm --filter @workspace/dungeon-rpg audit:pages
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
