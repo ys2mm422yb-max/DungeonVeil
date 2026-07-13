@@ -13,7 +13,6 @@ const files = {
   bossBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
   bossCohesive: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
   bossStage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
-  bossVisualPatch: await readFile(new URL('../src/components/worldBossVisualRuntimePatch.ts', import.meta.url), 'utf8'),
 };
 
 const checks = [
@@ -28,15 +27,13 @@ const checks = [
   [files.boss.includes("import { WorldBossLiteStage }") && !files.boss.includes("import { CombatStage }"), 'world boss still uses the full run renderer'],
   [files.boss.includes('engine.onStateChange = () => {}') && files.boss.includes('setGameState(snapshotRaidState(engine.state))'), 'world boss React updates are not throttled'],
   [files.bossStageProxy.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.bossBand.includes('<WorldBossCohesiveStage'), 'world-boss stage proxy routing is broken'],
-  [files.bossCohesive.includes('installWorldBossVisualRuntimePatch') && files.bossCohesive.includes('<WorldBossPerspectiveStage'), 'world-boss visual patch is not installed before rendering'],
-  [files.bossStage.includes('const pixelRatio = () =>') && files.bossStage.includes('const frameInterval = () =>'), 'adaptive world-boss quality is missing'],
-  [files.bossStage.includes('buildKayKitDungeonRoom') && files.bossStage.includes('buildKayKitRoomTheme') && files.bossStage.includes('const VISUAL_ROOM = 20;'), 'world boss is not reusing the production KayKit room pipeline'],
-  [files.bossStage.includes('new THREE.PerspectiveCamera') && !files.bossStage.includes('new THREE.OrthographicCamera'), 'world boss is still using the flat orthographic camera'],
-  [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;'), 'world-boss projectiles are not bounded'],
+  [files.bossCohesive.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'world-boss stage is not routed directly'],
+  [files.bossStage.includes('buildKayKitDungeonRoom') && !files.bossStage.includes('buildKayKitRoomTheme'), 'heavy room theme is still mounted'],
+  [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.bossStage.includes('const EMBER_COUNT = IS_MOBILE ? 10 : 28;'), 'world-boss effects are not bounded tightly enough'],
+  [files.bossStage.includes('qualityLevel === 0) return 0') && files.bossStage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)"), 'mobile renderer is capped or oversampled at default quality'],
+  [files.bossStage.includes('playerX * 0.14') && files.bossStage.includes('damp(camera.position.x, cameraGoal.x, 1.7'), 'world-boss camera is still following too aggressively'],
+  [files.bossStage.includes('new THREE.CircleGeometry(1, 28)') && !files.bossStage.includes('new THREE.RingGeometry'), 'world-boss neon rings remain'],
   [files.bossStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.bossStage.includes('key.castShadow = !IS_MOBILE'), 'world-boss mobile shadows are not disabled'],
-  [files.bossStage.includes('bossRig.root.scale.setScalar(2.05') && files.bossStage.includes("root.name = 'AshKingDominanceAura'"), 'world-boss mobile silhouette is not dominant enough'],
-  [files.bossVisualPatch.includes("parent?.name?.startsWith?.('KayKitSetpieceRoom20_')") && files.bossVisualPatch.includes("object.name = 'WorldBossCentralRoom20Sigil'") && files.bossVisualPatch.includes('isWorldBossMounted()'), 'central room-20 sigil is not scoped to the world-boss stage'],
-  [files.bossVisualPatch.includes("node.name === 'AshKingPerspectiveSeal'") && files.bossVisualPatch.includes("node.parent?.name === 'AshKingDominanceAura'") && files.bossVisualPatch.includes('Math.min(deviceRatio, 1.3)') && files.bossVisualPatch.includes('texture.anisotropy = maxAnisotropy'), 'world-boss center rings or low-resolution iPhone rendering remain'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -46,4 +43,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the sharpened ring-free perspective world-boss renderer are active.');
+console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows and the simplified uncapped world-boss renderer are active.');
