@@ -10,7 +10,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  issues: write
 
 concurrency:
   group: dungeon-veil-final-device-review
@@ -89,17 +88,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Record successful deploy on PR 104
-        uses: actions/github-script@v7
-        env:
-          DEPLOYED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: 104,
-              body: `✅ Final Device Review Deploy successful\n\nDeployed commit: \`${process.env.DEPLOYED_SHA}\`\nPage: ${process.env.PAGE_URL}`,
-            });
