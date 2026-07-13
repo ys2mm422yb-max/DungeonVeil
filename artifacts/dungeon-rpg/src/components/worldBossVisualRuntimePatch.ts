@@ -20,11 +20,28 @@ function isWorldBossScene(scene: any) {
   );
 }
 
-function improveTextureClarity(renderer: any, scene: any) {
+function improveTextureClarity(THREE: any, renderer: any, scene: any) {
   const maxAnisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() ?? 1, 4);
+  let softTelegraph: any = null;
+
   scene?.traverse?.((node: any) => {
+    const ringGeometry = node.geometry?.type === 'RingGeometry';
     if (node.name === 'AshKingPerspectiveSeal') node.visible = false;
-    if (node.parent?.name === 'AshKingDominanceAura' && node.geometry?.type === 'RingGeometry') node.visible = false;
+    if (node.parent?.name === 'AshKingDominanceAura' && ringGeometry) node.visible = false;
+
+    if (ringGeometry && node.parent === scene && node.name !== 'AshKingPerspectiveSeal') {
+      const oldGeometry = node.geometry;
+      node.geometry = new THREE.CircleGeometry(1, 48);
+      node.name = 'WorldBossSoftTelegraphRuntime';
+      oldGeometry?.dispose?.();
+      for (const material of materialList(node)) {
+        material.blending = THREE.NormalBlending;
+        material.depthWrite = false;
+        material.transparent = true;
+        material.needsUpdate = true;
+      }
+      softTelegraph = node;
+    }
 
     for (const material of materialList(node)) {
       for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap']) {
@@ -35,6 +52,11 @@ function improveTextureClarity(renderer: any, scene: any) {
       }
     }
   });
+
+  scene.userData = {
+    ...(scene.userData ?? {}),
+    worldBossSoftTelegraph: softTelegraph,
+  };
 }
 
 export function installWorldBossVisualRuntimePatch(): Promise<void> {
@@ -61,9 +83,20 @@ export function installWorldBossVisualRuntimePatch(): Promise<void> {
     rendererPrototype.render = function patchedWorldBossRender(scene: any, camera: any) {
       const worldBossScene = isWorldBossRenderer(this) && isWorldBossScene(scene);
       if (worldBossScene && !scene.userData?.worldBossVisualRuntimePatched) {
-        improveTextureClarity(this, scene);
+        improveTextureClarity(THREE, this, scene);
         scene.userData = { ...(scene.userData ?? {}), worldBossVisualRuntimePatched: true };
       }
+
+      const telegraph = worldBossScene ? scene.userData?.worldBossSoftTelegraph : null;
+      if (telegraph?.visible) {
+        for (const material of materialList(telegraph)) {
+          material.color?.setHex?.(0xb55d32);
+          material.opacity = Math.min(Number(material.opacity ?? 0), 0.14);
+          material.blending = THREE.NormalBlending;
+          material.needsUpdate = true;
+        }
+      }
+
       if (worldBossScene && this?.domElement?.style) {
         this.domElement.style.filter = 'contrast(1.055) saturate(1.035)';
         this.domElement.style.imageRendering = 'auto';
