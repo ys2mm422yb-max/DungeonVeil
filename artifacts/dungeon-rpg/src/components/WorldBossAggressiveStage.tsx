@@ -36,7 +36,7 @@ export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
           player.y + player.height / 2 - (boss.y + boss.height / 2),
         );
 
-        if (distance > 112 && boss.state !== 'attacking') boss.state = 'chase';
+        if (distance > 112 && boss.state !== 'attack') boss.state = 'chase';
         if (boss.nextAttackTime > now + ATTACK_READY_WINDOW_MS) {
           boss.nextAttackTime = now + ATTACK_READY_WINDOW_MS;
         }
