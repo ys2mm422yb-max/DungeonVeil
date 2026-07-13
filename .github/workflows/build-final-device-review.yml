@@ -1,0 +1,100 @@
+name: Build Final Device Review
+
+on:
+  push:
+    branches: [verify/blocks-1-6-final-device-review]
+    paths:
+      - '.github/workflows/build-final-device-review.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: verify/blocks-1-6-final-device-review
+          fetch-depth: 0
+      - name: Fetch validated source branches
+        run: |
+          git fetch origin \
+            feat/worldboss-24h-attempt-lock \
+            fix/restore-modern-village-menu \
+            fix/run-canvas-real-viewport \
+            fix/guild-mobile-structure
+      - name: Adopt validated runtime files
+        run: |
+          git checkout origin/feat/worldboss-24h-attempt-lock -- \
+            artifacts/dungeon-rpg/src/components/WorldBossPanel.tsx \
+            artifacts/dungeon-rpg/src/game/worldBossAttemptOnline.ts \
+            supabase/migrations/20260713203500_world_boss_24h_attempt_lock.sql
+          git checkout origin/fix/restore-modern-village-menu -- \
+            artifacts/dungeon-rpg/src/components/MainMenuDungeonScene.tsx \
+            artifacts/dungeon-rpg/src/components/ModernVillageSquareScene.tsx \
+            artifacts/dungeon-rpg/src/components/VillageNpcHub.tsx \
+            artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx
+          git checkout origin/fix/run-canvas-real-viewport -- \
+            artifacts/dungeon-rpg/src/components/CombatStage.tsx \
+            artifacts/dungeon-rpg/src/components/GameCanvas.tsx \
+            artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx \
+            artifacts/dungeon-rpg/src/components/RunCameraRig.ts
+          git checkout origin/fix/guild-mobile-structure -- \
+            artifacts/dungeon-rpg/src/components/GuildPanelMobile.tsx \
+            artifacts/dungeon-rpg/src/components/GuildSocialPanel.tsx
+      - name: Combine regression audits
+        shell: python
+        run: |
+          from pathlib import Path
+
+          mobile_path = Path('artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs')
+          mobile = mobile_path.read_text()
+          mobile = mobile.replace(
+            "  canvas: await readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),",
+            "  canvas: await readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),\n  canvasHost: await readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),\n  combatStage: await readFile(new URL('../src/components/CombatStage.tsx', import.meta.url), 'utf8'),\n  camera: await readFile(new URL('../src/components/RunCameraRig.ts', import.meta.url), 'utf8'),",
+            1,
+          )
+          marker = "  [files.canvas.includes('MAX_ARROW_VISUALS') && files.canvas.includes('MAX_DAMAGE_VISUALS'), 'mobile visual budgets are missing'],"
+          addition = marker + "\n  [files.canvas.includes(\"canvas.style.width = '100%'\") && files.canvas.includes(\"canvas.style.height = '100%'\") && files.canvas.includes('renderer.setSize(width, height, false)'), 'run canvas CSS size is still coupled to reduced render pixel ratio'],\n  [files.canvas.includes('new ResizeObserver(resize)') && files.canvas.includes(\"window.visualViewport?.addEventListener('resize', resize)\") && files.canvas.includes(\"window.visualViewport?.addEventListener('scroll', resize)\"), 'run renderer does not track the real visual viewport and host size'],\n  [files.canvasHost.includes('data-testid=\"run-canvas-host\"') && files.canvasHost.includes('overflow-hidden'), 'run canvas host is not a clipped full-size render surface'],\n  [files.combatStage.includes('data-testid=\"run-visual-viewport\"') && files.combatStage.includes('visualViewport'), 'combat stage is not bound to the visible mobile viewport'],\n  [files.camera.includes('responsiveFrame') && files.camera.includes('camera.aspect'), 'run camera does not use renderer aspect for portrait framing'],"
+          if marker not in mobile:
+            raise SystemExit('mobile audit marker missing')
+          mobile = mobile.replace(marker, addition, 1)
+          mobile = mobile.replace(
+            "console.log('Mobile combat audit passed: compact HUD, three-attack dragon controller, single-floor hall and bounded mobile effects are active.');",
+            "console.log('Mobile combat audit passed: full-size run canvas, responsive camera, three-attack dragon controller and bounded mobile effects are active.');",
+          )
+          mobile_path.write_text(mobile)
+
+          social_path = Path('artifacts/dungeon-rpg/scripts/validate-social-progression.mjs')
+          social = social_path.read_text()
+          social = social.replace('profileExtensionMigration, socialClient, friendClient, friendsPanel, guildSocial, profileCard', 'profileExtensionMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, guildPanelMobile, profileCard', 1)
+          social = social.replace("  read('../../../supabase/migrations/20260713041500_extend_social_profile_cards.sql'),", "  read('../../../supabase/migrations/20260713041500_extend_social_profile_cards.sql'),\n  read('../../../supabase/migrations/20260713203500_world_boss_24h_attempt_lock.sql'),", 1)
+          social = social.replace("  read('../src/game/friendOnline.ts'),", "  read('../src/game/friendOnline.ts'),\n  read('../src/game/worldBossAttemptOnline.ts'),", 1)
+          social = social.replace("  read('../src/components/GuildSocialPanel.tsx'),", "  read('../src/components/GuildSocialPanel.tsx'),\n  read('../src/components/GuildPanelMobile.tsx'),", 1)
+          profile_marker = "  [profileExtensionMigration.includes('lifetime_world_boss_damage') && profileExtensionMigration.includes('achievement_keys') && profileExtensionMigration.includes('friend_count') && profileExtensionMigration.includes('revoke all on function public.get_social_profile_card'), 'extended profile statistics or permissions are missing'],"
+          profile_add = profile_marker + "\n  [attemptMigration.includes('create table if not exists public.world_boss_attempts') && attemptMigration.includes(\"interval '24 hours'\") && attemptMigration.includes('pg_advisory_xact_lock'), 'server-side 24-hour world-boss attempt storage or race protection is missing'],\n  [attemptMigration.includes('get_world_boss_attempt_status') && attemptMigration.includes('start_world_boss_attempt') && attemptMigration.includes(\"interval '10 minutes'\"), 'world-boss attempt status or atomic start RPC is missing'],\n  [attemptMigration.includes('world boss attempt required') && attemptMigration.includes('world boss attempt already submitted') && attemptMigration.includes('submitted_at = v_now'), 'world-boss hit recording is not bound to one valid attempt'],\n  [attemptClient.includes('getWorldBossAttemptStatus') && attemptClient.includes('startWorldBossAttempt') && attemptClient.includes('authenticatedSupabaseRest'), 'world-boss attempt client is incomplete'],"
+          if profile_marker not in social:
+            raise SystemExit('social attempt marker missing')
+          social = social.replace(profile_marker, profile_add, 1)
+          guild_marker = "  [guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && menu.includes('<GuildSocialPanel'), 'guild member profile cards are missing'],"
+          guild_add = "  [guildSocial.includes('GuildPanelMobile') && guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && menu.includes('<GuildSocialPanel'), 'guild social panel is not routed through the structured mobile guild UI'],\n  [guildPanelMobile.includes('data-testid=\"guild-panel-shell\"') && guildPanelMobile.includes('data-testid=\"guild-tabs\"') && guildPanelMobile.includes('data-testid=\"guild-overview-tab\"') && guildPanelMobile.includes('data-testid=\"guild-members-tab\"') && guildPanelMobile.includes('data-testid=\"guild-invite-tab\"'), 'guild mobile shell or isolated tab content is missing'],\n  [guildPanelMobile.includes('data-testid=\"guild-danger-zone\"') && guildPanelMobile.includes('<details') && !guildPanelMobile.includes('max-h-[76vh]'), 'guild danger zone or mobile layout regressed'],"
+          if guild_marker not in social:
+            raise SystemExit('social guild marker missing')
+          social = social.replace(guild_marker, guild_add, 1)
+          boss_marker = "  [bossPanel.includes('worldboss-social-panel') && bossPanel.includes('getWorldBossSocialDashboard') && (bossPanel.includes('dashboard.friends') || bossPanel.includes('dashboard?.friends')) && bossPanel.includes('dashboard.guilds') && bossPanel.includes('dashboard.myGuild'), 'world-boss friend and guild rankings are missing'],"
+          boss_add = boss_marker + "\n  [bossPanel.includes('data-testid=\"worldboss-attempt-gate\"') && bossPanel.includes('getWorldBossAttemptStatus') && bossPanel.includes('startWorldBossAttempt') && bossPanel.includes('WIEDER IN') && bossPanel.includes('24 Stunden'), 'world-boss 24-hour availability display or guarded start is missing'],"
+          if boss_marker not in social:
+            raise SystemExit('social boss marker missing')
+          social = social.replace(boss_marker, boss_add, 1)
+          social = social.replace('social systems, rewards, tutorial flow and the modern visible KayKit village-square navigation are wired.', 'social systems, structured guild tabs, the server-enforced boss gate, rewards, tutorial flow and the modern village are wired.')
+          social_path.write_text(social)
+
+          Path('.github/workflows/build-final-device-review.yml').unlink()
+      - name: Commit integrated device review
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Integrate blocks 1 through 6 for final device review"
+          git push origin HEAD:verify/blocks-1-6-final-device-review
