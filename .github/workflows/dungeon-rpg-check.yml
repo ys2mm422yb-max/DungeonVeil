@@ -45,21 +45,29 @@ jobs:
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: All rooms audit
-        run: node artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-all-rooms.mjs
       - name: Production rooms audit
-        run: node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-production-rooms.mjs
       - name: Spawn hitboxes audit
-        run: node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-spawn-hitboxes.mjs
       - name: Enemy visibility audit
-        run: node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-enemy-visibility.mjs
       - name: Mobile combat audit
-        run: node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-mobile-combat.mjs
       - name: World boss audit
-        run: node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-worldboss-performance.mjs
       - name: Social navigation audit
-        run: node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-social-navigation.mjs
       - name: Social progression audit
-        run: node artifacts/dungeon-rpg/scripts/validate-social-progression.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-social-progression.mjs
       - name: Typecheck Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
