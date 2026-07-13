@@ -12,11 +12,9 @@ import {
   type OnlineProfile,
   type OnlineSession,
 } from '../game/supabaseOnline';
+import { getMySocialProfile, type SocialProfile } from '../game/socialProgressOnline';
 
-type Props = {
-  language: 'de' | 'en';
-};
-
+type Props = { language: 'de' | 'en' };
 type AuthMode = 'login' | 'register';
 
 function Field({ value, onChange, placeholder, type = 'text', maxLength }: {
@@ -26,14 +24,7 @@ function Field({ value, onChange, placeholder, type = 'text', maxLength }: {
   type?: string;
   maxLength?: number;
 }) {
-  return <input
-    value={value}
-    type={type}
-    maxLength={maxLength}
-    placeholder={placeholder}
-    onChange={event => onChange(event.target.value)}
-    className="w-full rounded-xl border border-white/10 bg-black/55 px-3 py-2.5 text-[12px] text-white outline-none placeholder:text-white/25 focus:border-violet-300/45"
-  />;
+  return <input value={value} type={type} maxLength={maxLength} placeholder={placeholder} onChange={event => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/55 px-3 py-2.5 text-[12px] text-white outline-none placeholder:text-white/25 focus:border-violet-300/45" />;
 }
 
 function ActionButton({ label, onClick, disabled = false, primary = false }: {
@@ -42,28 +33,11 @@ function ActionButton({ label, onClick, disabled = false, primary = false }: {
   disabled?: boolean;
   primary?: boolean;
 }) {
-  return <button
-    type="button"
-    disabled={disabled}
-    onClick={onClick}
-    className={`rounded-xl border px-3 py-2.5 text-[9px] font-black uppercase tracking-[.14em] active:scale-[.98] ${primary ? 'border-violet-300/35 bg-violet-500/20 text-violet-100' : 'border-white/10 bg-white/[.04] text-white/65'} ${disabled ? 'pointer-events-none opacity-35' : ''}`}
-  >{label}</button>;
+  return <button type="button" disabled={disabled} onClick={onClick} className={`rounded-xl border px-3 py-2.5 text-[9px] font-black uppercase tracking-[.14em] active:scale-[.98] ${primary ? 'border-violet-300/35 bg-violet-500/20 text-violet-100' : 'border-white/10 bg-white/[.04] text-white/65'} ${disabled ? 'pointer-events-none opacity-35' : ''}`}>{label}</button>;
 }
 
-function GoogleButton({ label, onClick, disabled = false }: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return <button
-    type="button"
-    disabled={disabled}
-    onClick={onClick}
-    className={`flex w-full items-center justify-center gap-2 rounded-xl border border-white/14 bg-white px-3 py-2.5 text-[10px] font-black text-[#202124] active:scale-[.98] ${disabled ? 'pointer-events-none opacity-40' : ''}`}
-  >
-    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-black/10 bg-white text-[12px] font-black text-[#4285f4]">G</span>
-    {label}
-  </button>;
+function GoogleButton({ label, onClick, disabled = false }: { label: string; onClick: () => void; disabled?: boolean }) {
+  return <button type="button" disabled={disabled} onClick={onClick} className={`flex w-full items-center justify-center gap-2 rounded-xl border border-white/14 bg-white px-3 py-2.5 text-[10px] font-black text-[#202124] active:scale-[.98] ${disabled ? 'pointer-events-none opacity-40' : ''}`}><span className="flex h-5 w-5 items-center justify-center rounded-full border border-black/10 bg-white text-[12px] font-black text-[#4285f4]">G</span>{label}</button>;
 }
 
 export function OnlinePanel({ language }: Props) {
@@ -74,7 +48,9 @@ export function OnlinePanel({ language }: Props) {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [profile, setProfile] = useState<OnlineProfile | null>(null);
+  const [socialProfile, setSocialProfile] = useState<SocialProfile | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -92,19 +68,20 @@ export function OnlinePanel({ language }: Props) {
     setSession(active);
     if (!active) {
       setProfile(null);
+      setSocialProfile(null);
       setDisplayName('');
       return;
     }
-    const nextProfile = await getOnlineProfile();
+    const [nextProfile, nextSocialProfile] = await Promise.all([getOnlineProfile(), getMySocialProfile()]);
     setProfile(nextProfile);
-    setDisplayName(nextProfile?.display_name ?? '');
+    setSocialProfile(nextSocialProfile);
+    setDisplayName(nextProfile?.display_name ?? nextSocialProfile?.display_name ?? '');
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     const refresh = () => { void run(refreshOnlineData); };
     window.addEventListener(onlineSessionEventName(), refresh);
-
     void run(async () => {
       const oauth = await consumeGoogleOAuthResult();
       if (cancelled) return;
@@ -116,7 +93,6 @@ export function OnlinePanel({ language }: Props) {
       }
       if (currentOnlineSession()) await refreshOnlineData();
     });
-
     return () => {
       cancelled = true;
       window.removeEventListener(onlineSessionEventName(), refresh);
@@ -152,8 +128,16 @@ export function OnlinePanel({ language }: Props) {
     if (displayName.trim().length < 2) throw new Error(de ? 'Der Spielername ist zu kurz.' : 'Player name is too short.');
     const next = await updateOnlineProfile(displayName);
     setProfile(next);
+    setSocialProfile(await getMySocialProfile());
     setMessage(de ? 'Profil gespeichert.' : 'Profile saved.');
   });
+
+  const copyFriendCode = async () => {
+    if (!socialProfile?.friend_code) return;
+    await navigator.clipboard?.writeText(socialProfile.friend_code);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  };
 
   const uploadSave = () => run(async () => {
     if (!await pushCloudSave()) throw new Error(de ? 'Cloud-Speicherung fehlgeschlagen.' : 'Cloud save failed.');
@@ -171,6 +155,7 @@ export function OnlinePanel({ language }: Props) {
     await signOutOnline();
     setSession(null);
     setProfile(null);
+    setSocialProfile(null);
     setDisplayName('');
     setMessage(de ? 'Abgemeldet. Lokales Spielen bleibt verfügbar.' : 'Signed out. Offline play remains available.');
   });
@@ -179,22 +164,15 @@ export function OnlinePanel({ language }: Props) {
     <div className="mb-4">
       <div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-200/45">ONLINE & CLOUD</div>
       <div className="mt-1 text-lg font-black">{session ? (profile?.display_name || session.user.email || 'Dungeon Veil') : (de ? 'Konto verbinden' : 'Connect account')}</div>
-      <div className="mt-1 text-[9px] leading-relaxed text-white/38">{de ? 'Profil und Cloud-Spielstand. Offline bleibt immer verfügbar.' : 'Profile and cloud save. Offline play always remains available.'}</div>
+      <div className="mt-1 text-[9px] leading-relaxed text-white/38">{de ? 'Profil, Freundescode und Cloud-Spielstand. Offline bleibt immer verfügbar.' : 'Profile, friend code and cloud save. Offline play always remains available.'}</div>
     </div>
 
     {(message || error) && <div className={`mb-3 rounded-xl border px-3 py-2 text-[10px] ${error ? 'border-red-400/25 bg-red-500/10 text-red-200' : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}
 
     {!session ? <div className="space-y-3">
       <GoogleButton label={busy ? (de ? 'Bitte warten …' : 'Please wait …') : de ? 'Mit Google anmelden' : 'Continue with Google'} onClick={googleLogin} disabled={busy} />
-      <div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-[.18em] text-white/25">
-        <span className="h-px flex-1 bg-white/10" />
-        {de ? 'oder mit E-Mail' : 'or use email'}
-        <span className="h-px flex-1 bg-white/10" />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <ActionButton label={de ? 'Anmelden' : 'Sign in'} onClick={() => setMode('login')} primary={mode === 'login'} />
-        <ActionButton label={de ? 'Registrieren' : 'Register'} onClick={() => setMode('register')} primary={mode === 'register'} />
-      </div>
+      <div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-[.18em] text-white/25"><span className="h-px flex-1 bg-white/10" />{de ? 'oder mit E-Mail' : 'or use email'}<span className="h-px flex-1 bg-white/10" /></div>
+      <div className="grid grid-cols-2 gap-2"><ActionButton label={de ? 'Anmelden' : 'Sign in'} onClick={() => setMode('login')} primary={mode === 'login'} /><ActionButton label={de ? 'Registrieren' : 'Register'} onClick={() => setMode('register')} primary={mode === 'register'} /></div>
       {mode === 'register' && <Field value={displayName} onChange={setDisplayName} placeholder={de ? 'Spielername' : 'Player name'} maxLength={24} />}
       <Field value={email} onChange={setEmail} placeholder="E-Mail" type="email" />
       <Field value={password} onChange={setPassword} placeholder={de ? 'Passwort · mindestens 8 Zeichen' : 'Password · at least 8 characters'} type="password" />
@@ -205,14 +183,16 @@ export function OnlinePanel({ language }: Props) {
         <div className="truncate text-[11px] text-white/62">{session.user.email || profile?.display_name || 'Dungeon Veil'}</div>
       </section>
 
+      {socialProfile && <section data-testid="social-profile-summary" className="rounded-2xl border border-cyan-300/12 bg-cyan-400/[.035] p-3">
+        <div className="flex items-center justify-between gap-3"><div><div className="text-[7px] font-black uppercase tracking-[.18em] text-cyan-100/42">{de ? 'FREUNDESCODE' : 'FRIEND CODE'}</div><div className="mt-1 text-[14px] font-black tracking-[.16em] text-cyan-50">{socialProfile.friend_code}</div></div><button type="button" onClick={() => void copyFriendCode()} className="rounded-xl border border-cyan-300/18 bg-cyan-400/[.06] px-3 py-2 text-[8px] font-black uppercase tracking-[.12em] text-cyan-100 active:scale-[.98]">{copied ? (de ? 'Kopiert' : 'Copied') : (de ? 'Kopieren' : 'Copy')}</button></div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-center"><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] uppercase tracking-[.12em] text-white/28">{de ? 'Rang' : 'Rank'}</div><div className="mt-1 font-black text-amber-100">{socialProfile.current_rank}</div></div><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] uppercase tracking-[.12em] text-white/28">{de ? 'Kapitel' : 'Chapter'}</div><div className="mt-1 font-black text-violet-100">{socialProfile.current_chapter}</div></div></div>
+      </section>}
+
       <section className="space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3">
         <div className="text-[8px] font-black uppercase tracking-[.2em] text-white/35">{de ? 'PROFIL & CLOUD' : 'PROFILE & CLOUD'}</div>
         <Field value={displayName} onChange={setDisplayName} placeholder={de ? 'Spielername' : 'Player name'} maxLength={24} />
         <ActionButton label={de ? 'Profil speichern' : 'Save profile'} onClick={saveProfile} disabled={busy} primary />
-        <div className="grid grid-cols-2 gap-2">
-          <ActionButton label={de ? 'Spielstand hochladen' : 'Upload save'} onClick={uploadSave} disabled={busy} />
-          <ActionButton label={de ? 'Spielstand herunterladen' : 'Download save'} onClick={downloadSave} disabled={busy} />
-        </div>
+        <div className="grid grid-cols-2 gap-2"><ActionButton label={de ? 'Spielstand hochladen' : 'Upload save'} onClick={uploadSave} disabled={busy} /><ActionButton label={de ? 'Spielstand herunterladen' : 'Download save'} onClick={downloadSave} disabled={busy} /></div>
       </section>
 
       <ActionButton label={de ? 'Abmelden' : 'Sign out'} onClick={logout} disabled={busy} />
