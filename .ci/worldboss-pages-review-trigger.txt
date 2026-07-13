@@ -1,2 +1,3 @@
 Deploy the validated single-floor low-call world-boss build to the fixed test link.
 Direct branch deployment requested after final CI and moving-device review.
+Environment gate removed using the repository's previously validated Pages pattern.
