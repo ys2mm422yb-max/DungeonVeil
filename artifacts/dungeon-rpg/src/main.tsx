@@ -7,6 +7,7 @@ import { WorldBossVisualQa } from './components/WorldBossVisualQa';
 import { startVersionGuard } from './game/versionGuard';
 
 import './index.css';
+import './guild-mobile.css';
 
 const qaMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('qa') : null;
 if (!qaMode) startVersionGuard();
