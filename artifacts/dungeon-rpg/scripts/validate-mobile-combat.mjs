@@ -33,7 +33,7 @@ const checks = [
   [files.bossStage.includes('new THREE.PerspectiveCamera') && !files.bossStage.includes('new THREE.OrthographicCamera'), 'world boss is still using the flat orthographic camera'],
   [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;'), 'world-boss projectiles are not bounded'],
   [files.bossStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.bossStage.includes('key.castShadow = !IS_MOBILE'), 'world-boss mobile shadows are not disabled'],
-  [files.bossStage.includes('bossRig.root.scale.setScalar(1.72') && files.bossStage.includes("root.name = 'AshKingDominanceAura'"), 'world-boss mobile silhouette is not dominant enough'],
+  [files.bossStage.includes('bossRig.root.scale.setScalar(2.05') && files.bossStage.includes("root.name = 'AshKingDominanceAura'"), 'world-boss mobile silhouette is not dominant enough'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
