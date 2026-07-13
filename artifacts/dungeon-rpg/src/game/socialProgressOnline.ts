@@ -14,6 +14,12 @@ export type SocialProfile = {
 export type SocialProfileCardData = SocialProfile & {
   guild_name: string | null;
   guild_tag: string | null;
+  joined_at: string;
+  account_level: number;
+  lifetime_world_boss_damage: number;
+  world_boss_events: number;
+  friend_count: number;
+  achievement_keys: string[];
 };
 
 export type WorldBossPlayerRow = {
