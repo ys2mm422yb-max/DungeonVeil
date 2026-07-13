@@ -5,7 +5,9 @@ import { loadMetaProgression } from '../../game/metaProgression';
 import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
 import { loadRetentionProfile, type RetentionProfile } from '../../game/runRetention';
 import { captureGuildInviteTokenFromUrl, mailboxUnreadCount, MAILBOX_EVENT } from '../../game/guildMailboxOnline';
-import { onlineSessionEventName } from '../../game/supabaseOnline';
+import { currentOnlineSession, onlineSessionEventName } from '../../game/supabaseOnline';
+import { syncSocialProfileProgress } from '../../game/socialProgressOnline';
+import { requestTutorialReplay } from '../../game/tutorialState';
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { DailyQuestPanel } from '../DailyQuestPanel';
 import { OnlinePanel } from '../OnlinePanel';
@@ -59,6 +61,11 @@ export function MainMenuScreen(props: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!currentOnlineSession()) return;
+    void syncSocialProfileProgress(props.saveData?.chapter ?? 1, meta.rank, 'archer').catch(() => {});
+  }, [meta.rank, props.saveData?.chapter]);
+
   const button = (label: string, action: () => void, subtitle?: string, kind: 'normal' | 'primary' | 'chamber' = 'normal', disabled = false) => {
     const kindClass = kind === 'primary'
       ? 'border-amber-300/45 bg-[linear-gradient(110deg,rgba(112,48,12,.88),rgba(67,25,8,.86))] text-amber-100 shadow-[0_14px_34px_rgba(0,0,0,.34)]'
@@ -81,6 +88,12 @@ export function MainMenuScreen(props: Props) {
   </button>;
 
   const startNormalRun = () => { clearWeeklyRiftRun(); props.onNewGame(); };
+  const replayTutorial = () => {
+    requestTutorialReplay();
+    setOverlay(null);
+    if (props.saveData) props.onContinue();
+    else props.onNewGame();
+  };
   const continueText = props.saveData
     ? language === 'de' ? `Kapitel ${props.saveData.chapter ?? 1} · Raum ${props.saveData.floor} · ${gifts} Gaben` : `Chapter ${props.saveData.chapter ?? 1} · Room ${props.saveData.floor} · ${gifts} gifts`
     : t.noSave;
@@ -112,7 +125,7 @@ export function MainMenuScreen(props: Props) {
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <div className="space-y-3"><GuildInviteLinkCard language={language} /><GuildPanel language={language} /></div>}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} />}
-      {overlay === 'more' && <div className="rounded-3xl border border-white/10 bg-[#0c0b0a]/95 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-white/32">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{button(language === 'de' ? 'Online & Cloud' : 'Online & Cloud', () => setOverlay('online'), language === 'de' ? 'Konto · Profil · Cloud-Spielstand' : 'Account · Profile · Cloud save', 'chamber')}{button(t.settings, () => { setOverlay(null); props.onSettings(); })}{button(t.credits, () => { setOverlay(null); props.onCredits(); })}</div></div>}
+      {overlay === 'more' && <div className="rounded-3xl border border-white/10 bg-[#0c0b0a]/95 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-white/32">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{button(language === 'de' ? 'Online & Cloud' : 'Online & Cloud', () => setOverlay('online'), language === 'de' ? 'Konto · Profil · Cloud-Spielstand' : 'Account · Profile · Cloud save', 'chamber')}{button(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', replayTutorial, language === 'de' ? 'Bewegung · Dash · Kampf · Hauptmenü' : 'Movement · Dash · Combat · Main menu')}{button(t.settings, () => { setOverlay(null); props.onSettings(); })}{button(t.credits, () => { setOverlay(null); props.onCredits(); })}</div></div>}
       <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-white/10 bg-black/72 py-3 text-[9px] font-black uppercase tracking-[.2em] text-white/50">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>
     </div></div>}
   </div>;
