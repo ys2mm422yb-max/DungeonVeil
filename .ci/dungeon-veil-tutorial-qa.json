@@ -1,28 +1,26 @@
 {
   "workflow": "Dungeon Veil Social Tutorial Mobile QA",
   "status": "failure",
-  "validatedCommit": "5dcc13ac4da19d84f1b78a3ec53d4ca5ddb30305",
+  "validatedCommit": "eace8b797e57a5c7f02e1acef60f97777281802f",
   "outcomes": {
-    "install": "success",
-    "audit": "success",
-    "typecheck": "success",
-    "build": "success",
-    "browsers": "success",
-    "serve": "success",
-    "tutorialIphone": "cancelled",
+    "install": "skipped",
+    "audit": "skipped",
+    "typecheck": "skipped",
+    "build": "skipped",
+    "browsers": "skipped",
+    "serve": "skipped",
+    "tutorialIphone": "skipped",
     "tutorialAndroid": "skipped",
     "menuIphone": "skipped",
     "menuAndroid": "skipped",
     "validate": "skipped",
     "upload": "skipped"
   },
-  "auditLog": "\n> @workspace/dungeon-rpg@0.0.0 audit:social /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs\n\nSocial/navigation audit passed: weekly rift removed, NPC-routed mailbox and friends navigation active, secure guild links available, friend codes and full friend workflows wired, and the semantic Ash King ritual arena is QA-addressable.\nSocial progression audit passed: friend codes, presence and favorites, extended profile cards, direct guild invites, social mailbox notices and bulk actions, friend/guild world-boss rankings, participation-gated rewards, the seven-part tutorial and interactive Veil village NPC hub are wired.\n",
-  "typecheckLog": "\n> @workspace/dungeon-rpg@0.0.0 typecheck /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> tsc -p tsconfig.json --noEmit\n\n",
-  "screenshots": [
-    ".ci/visual-qa/tutorial-iphone.png"
-  ],
+  "auditLog": "",
+  "typecheckLog": "",
+  "screenshots": [],
   "sizes": {
-    "tutorialIphone": 298407,
+    "tutorialIphone": 0,
     "tutorialAndroid": 0,
     "tutorialIphoneThumb": 0,
     "tutorialAndroidThumb": 0,
@@ -31,5 +29,5 @@
     "menuIphoneThumb": 0,
     "menuAndroidThumb": 0
   },
-  "completedAt": "2026-07-13T05:09:02.196Z"
+  "completedAt": "2026-07-13T05:09:18.168Z"
 }
