@@ -41,7 +41,7 @@ export function GuildSocialPanel({ language }: Props) {
     return () => window.removeEventListener(onlineSessionEventName(), handleChange);
   }, [refresh]);
 
-  return <div className="relative">
+  return <div data-testid="guild-social-panel" className="relative">
     <GuildPanel language={language} />
     {membership && members.length > 0 && <button
       data-testid="guild-profile-list-button"
