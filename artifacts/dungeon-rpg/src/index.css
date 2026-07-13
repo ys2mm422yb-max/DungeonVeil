@@ -190,3 +190,28 @@
 .clip-path-pie {
   clip-path: polygon(50% 50%, 50% 0, 100% 0, 100% 100%, 0 100%, 0 0, 50% 0);
 }
+
+/* The village globe and world-boss hall are smooth 3D presentation scenes, not pixel-art canvases. */
+[data-testid='veil-world-orb-scene'] canvas,
+[data-testid='ash-king-cohesive-stage'] canvas {
+  image-rendering: auto;
+  filter: saturate(1.08) contrast(1.025) brightness(1.07) drop-shadow(0 16px 28px rgba(0, 0, 0, 0.28));
+}
+
+/* Keep social screens mystical while lifting them away from pure black. */
+[data-testid='friends-panel'],
+[data-testid='mailbox-panel'],
+[data-testid='worldboss-social-panel'],
+[data-testid='daily-quest-panel'],
+[data-testid='guild-social-panel'] > div:first-child {
+  background: linear-gradient(145deg, rgba(28, 34, 38, 0.985), rgba(24, 22, 29, 0.98) 54%, rgba(37, 29, 23, 0.985)) !important;
+  border-color: rgba(219, 205, 170, 0.22) !important;
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 244, 214, 0.045) !important;
+}
+
+[data-testid='friends-panel'] input,
+[data-testid='mailbox-panel'] input,
+[data-testid='worldboss-social-panel'] input,
+[data-testid='guild-social-panel'] input {
+  background-color: rgba(12, 15, 18, 0.66) !important;
+}
