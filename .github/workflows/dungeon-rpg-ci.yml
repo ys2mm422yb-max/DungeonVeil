@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Validation trigger for restored world boss quality 3618082.
+# Validation trigger for larger world boss combat band 1034a0f.
 on:
   workflow_dispatch:
 
