@@ -1,5 +1,6 @@
 name: Integrate Dungeon Veil Product
 
+# Triggered after explicit approval to merge PR #40.
 on:
   push:
     branches: [main]
