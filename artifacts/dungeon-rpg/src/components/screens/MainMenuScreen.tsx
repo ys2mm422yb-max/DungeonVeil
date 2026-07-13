@@ -12,6 +12,7 @@ import { OnlinePanel } from '../OnlinePanel';
 import { GuildPanel } from '../GuildPanel';
 import { GuildInviteLinkCard } from '../GuildInviteLinkCard';
 import { MailboxPanel } from '../MailboxPanel';
+import { FriendsPanel } from '../FriendsPanel';
 import { WorldBossPanel } from '../WorldBossPanel';
 
 interface Props {
@@ -24,7 +25,7 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'daily' | 'mailbox' | 'more' | 'online' | 'guild' | 'worldBoss' | null;
+type Overlay = 'daily' | 'mailbox' | 'friends' | 'more' | 'online' | 'guild' | 'worldBoss' | null;
 
 export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
@@ -69,10 +70,11 @@ export function MainMenuScreen(props: Props) {
     </button>;
   };
 
-  const sideButton = (label: string, icon: string, action: () => void) => <button
+  const sideButton = (label: string, icon: string, action: () => void, testId?: string) => <button
+    data-testid={testId}
     type="button"
     onPointerDown={event => { event.preventDefault(); action(); }}
-    className="flex h-11 min-w-[78px] items-center justify-center gap-1.5 rounded-xl border border-amber-300/24 bg-[linear-gradient(145deg,rgba(49,34,15,.88),rgba(18,14,8,.9))] px-3 text-[8px] font-black uppercase tracking-[.14em] text-amber-100/82 shadow-lg backdrop-blur-xl active:scale-95"
+    className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-300/24 bg-[linear-gradient(145deg,rgba(49,34,15,.88),rgba(18,14,8,.9))] px-2 text-[7px] font-black uppercase tracking-[.12em] text-amber-100/82 shadow-lg backdrop-blur-xl active:scale-95"
   >
     <span className="text-[12px] text-amber-300/70">{icon}</span>
     {label}
@@ -95,8 +97,9 @@ export function MainMenuScreen(props: Props) {
         <button data-testid="mailbox-button" aria-label={language === 'de' ? 'Postfach' : 'Mailbox'} type="button" onPointerDown={event => { event.preventDefault(); setOverlay('mailbox'); }} className="relative grid h-11 w-11 place-items-center rounded-full border border-sky-300/22 bg-black/58 text-base text-sky-100 backdrop-blur-xl active:scale-95">✉{mailUnread > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full border border-sky-100/25 bg-sky-400 px-1 py-0.5 text-[7px] font-black text-black">{Math.min(99, mailUnread)}</span>}</button>
       </div>
       <div className="flex-1" />
-      <div className="mx-auto mb-2 flex w-full max-w-sm justify-end gap-2">
+      <div className="mx-auto mb-2 flex w-full max-w-sm gap-2">
         {sideButton(language === 'de' ? 'GILDE' : 'GUILD', '♜', () => setOverlay('guild'))}
+        {sideButton(language === 'de' ? 'FREUNDE' : 'FRIENDS', '♡', () => setOverlay('friends'), 'friends-button')}
         {sideButton(language === 'de' ? 'WELTBOSS' : 'WORLD BOSS', '♛', () => setOverlay('worldBoss'))}
       </div>
       <div className="mx-auto w-full max-w-sm space-y-2.5">{button(t.newGame, startNormalRun, undefined, 'primary')}{button(t.continueGame, props.onContinue, continueText, 'normal', !props.saveData)}{button(language === 'de' ? 'Schleierkammer' : 'Veil Chamber', props.onVeilChamber, language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Schleierstaub` : `Rank ${meta.rank} · ${meta.dust} Veil Dust`, 'chamber')}{button(language === 'de' ? 'Kodex' : 'Codex', props.onCodex, language === 'de' ? 'Bestien · Jagd · Wächter · Relikte' : 'Beasts · Hunts · Wardens · Relics')}</div>
@@ -105,6 +108,7 @@ export function MainMenuScreen(props: Props) {
     {overlay && <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/74 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
       {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
+      {overlay === 'friends' && <FriendsPanel language={language} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <div className="space-y-3"><GuildInviteLinkCard language={language} /><GuildPanel language={language} /></div>}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} />}
