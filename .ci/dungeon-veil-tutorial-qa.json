@@ -1,9 +1,9 @@
 {
   "workflow": "Dungeon Veil Tutorial Mobile QA",
   "status": "failure",
-  "validatedCommit": "cc236387e860dd3b8a309fc74096a6d946a8b6fb",
+  "validatedCommit": "ab814083de19608cb290572e9371fc4354e339e5",
   "outcomes": {
-    "install": "skipped",
+    "install": "failure",
     "audit": "skipped",
     "typecheck": "skipped",
     "build": "skipped",
@@ -21,5 +21,5 @@
     "iphoneThumb": 0,
     "androidThumb": 0
   },
-  "completedAt": "2026-07-13T04:13:20.132Z"
+  "completedAt": "2026-07-13T04:13:42.786Z"
 }
