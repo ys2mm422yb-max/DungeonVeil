@@ -76,6 +76,7 @@ const UI_EMIT_MS = 125;
 export class GameEngine {
   state: RunGameState;
   lastTime = 0;
+  ignoreRoomPropCollisions = false;
   private lastStepTime = 0;
   private lastUiEmitTime = 0;
   private roomAnnouncedClear = false;
@@ -361,7 +362,7 @@ export class GameEngine {
   }
 
   private shotPathBlocked(fromX: number, fromY: number, toX: number, toY: number, padding = 0.035) {
-    if (shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, fromX, fromY, toX, toY, padding)) return true;
+    if (!this.ignoreRoomPropCollisions && shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, fromX, fromY, toX, toY, padding)) return true;
     const length = Math.hypot(toX - fromX, toY - fromY);
     const steps = Math.max(2, Math.ceil(length / 7));
     for (let step = 1; step < steps; step++) {
@@ -709,7 +710,7 @@ export class GameEngine {
       const spawn = sceneSpawnToGame(point, this.state.map.width, this.state.map.height, enemy.width);
       const farEnough = Math.hypot(spawn.x - p.x, spawn.y - p.y) > 120;
       if (!farEnough || !isWalkable(this.state.map, spawn.x + enemy.width / 2, spawn.y + enemy.height / 2)) continue;
-      if (collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, spawn.x, spawn.y, enemy.width, enemy.height, 0.22)) continue;
+      if (!this.ignoreRoomPropCollisions && collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, spawn.x, spawn.y, enemy.width, enemy.height, 0.22)) continue;
       enemy.x = spawn.x;
       enemy.y = spawn.y;
       enemy.targetX = spawn.x;
@@ -860,7 +861,7 @@ export class GameEngine {
   }
 
   private blockedByRoomProp(entity: { x: number; y: number; width: number; height: number }) {
-    return collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, entity.x, entity.y, entity.width, entity.height);
+    return !this.ignoreRoomPropCollisions && collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, entity.x, entity.y, entity.width, entity.height);
   }
 
   private moveEntity(entity: { x: number; y: number; width: number; height: number }, dx: number, dy: number): void {
