@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-// Final gate after screenshot validation at 390x844 and 393x851 mobile viewports.
+// Final gate after screenshot validation on real iPhone 13 and Pixel 5 emulation.
 const files = {
   battle: await readFile(new URL('../src/components/WorldBossBattleScreen.tsx', import.meta.url), 'utf8'),
   proxyStage: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
@@ -18,7 +18,8 @@ const checks = [
   [files.perspectiveStage.includes('buildKayKitDungeonRoom') && files.perspectiveStage.includes('buildKayKitRoomTheme') && files.perspectiveStage.includes('const VISUAL_ROOM = 20;'), 'production KayKit room pipeline is missing'],
   [files.perspectiveStage.includes("root.name = 'AshKingPerspectiveSanctum'") && files.perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && files.perspectiveStage.includes("'VeilGateArch'"), 'perspective sanctum architecture is missing'],
   [files.perspectiveStage.includes("throne.name = 'BrokenAshThronePerspective'") && files.perspectiveStage.includes("seal.name = 'AshKingPerspectiveSeal'"), 'throne or ritual marker is missing'],
-  [files.runtimePatch.includes("node.name === 'AshKingPerspectiveSeal'") && files.runtimePatch.includes("node.parent?.name === 'AshKingDominanceAura'") && files.runtimePatch.includes("node.geometry?.type === 'RingGeometry'"), 'static red center rings are not removed at runtime'],
+  [files.runtimePatch.includes("parent?.name?.startsWith?.('KayKitSetpieceRoom20_')") && files.runtimePatch.includes("object.name = 'WorldBossCentralRoom20Sigil'") && files.runtimePatch.includes("ringChildren.length === 2"), 'central room-20 double sigil is not removed only for the world-boss stage'],
+  [files.runtimePatch.includes("node.name === 'AshKingPerspectiveSeal'") && files.runtimePatch.includes("node.parent?.name === 'AshKingDominanceAura'") && files.runtimePatch.includes("node.geometry?.type === 'RingGeometry'"), 'static world-boss ring cleanup is missing'],
   [files.runtimePatch.includes('Math.min(deviceRatio, 1.3)') && files.runtimePatch.includes('texture.anisotropy = maxAnisotropy') && files.runtimePatch.includes("contrast(1.055) saturate(1.035)"), 'iPhone render-resolution or texture-clarity pass is missing'],
   [files.perspectiveStage.includes('new THREE.PerspectiveCamera') && !files.perspectiveStage.includes('new THREE.OrthographicCamera'), 'world-boss camera is not perspective'],
   [files.perspectiveStage.includes('camera.aspect < 0.7 ? 50 : 44') && files.perspectiveStage.includes('(portrait ? 13.7 : 11.9)') && files.perspectiveStage.includes('(portrait ? 19.6 : 16.7)'), 'portrait player-safe camera framing is missing'],
@@ -42,4 +43,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: KayKit perspective sanctum, ring-free center, sharper iPhone rendering, compact HUD, dominant Ash King, adaptive budgets and complete cleanup are active.');
+console.log('World-boss performance audit passed: KayKit perspective sanctum, central sigil removed only in the boss stage, sharper iPhone rendering, compact HUD, dominant Ash King, adaptive budgets and complete cleanup are active.');
