@@ -1,2 +1,0 @@
-Deploy the fully validated low-call world-boss renderer to the fixed test link.
-Final branch-push deployment trigger after removing PR environment conflicts.
