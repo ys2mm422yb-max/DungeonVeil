@@ -25,6 +25,7 @@ jobs:
       - name: Patch perspective framing
         run: |
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
           path = Path('artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx')
@@ -33,32 +34,15 @@ jobs:
               print('World boss framing patch already applied.')
               raise SystemExit(0)
 
-          def replace_once(old: str, new: str, label: str) -> None:
-              global text
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
-              text = text.replace(old, new, 1)
+          old_fov = "      camera.fov = camera.aspect < 0.7 ? 48 : 44;"
+          if text.count(old_fov) != 1:
+              raise SystemExit(f'portrait fov: expected exactly one match, found {text.count(old_fov)}')
+          text = text.replace(old_fov, "      camera.fov = camera.aspect < 0.7 ? 50 : 44;", 1)
 
-          replace_once(
-              "      camera.fov = camera.aspect < 0.7 ? 48 : 44;",
-              "      camera.fov = camera.aspect < 0.7 ? 50 : 44;",
-              'portrait fov',
-          )
-
-          replace_once(
-              """    const mapZ = (value: number) => {
-              const current = state();
-              return current ? value / TILE - current.map.height / 2 + 0.5 : 0;
-            };
-
-            const disposeObject""",
-              """    const mapZ = (value: number) => {
-              const current = state();
-              return current ? value / TILE - current.map.height / 2 + 0.5 : 0;
-            };
-
-            const cleanBossFloorLane = async (shell: any, current: NonNullable<ReturnType<typeof state>>) => {
+          dispose_anchor = "    const disposeObject = (root: any) => root?.traverse?.((node: any) => {"
+          if text.count(dispose_anchor) != 1:
+              raise SystemExit(f'dispose anchor: expected exactly one match, found {text.count(dispose_anchor)}')
+          helper = """    const cleanBossFloorLane = async (shell: any, current: NonNullable<ReturnType<typeof state>>) => {
               await shell.userData?.ready;
               if (disposed) return;
               const floorStep = 4;
@@ -81,27 +65,17 @@ jobs:
               });
             };
 
-            const disposeObject""",
-              'clean boss floor helper',
-          )
+          """
+          text = text.replace(dispose_anchor, helper + dispose_anchor, 1)
 
-          replace_once(
-              """    const updateCamera = (delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number) => {
-              const focusX = clamp(playerX * 0.38 + bossX * 0.62, -3.6, 3.6);
-              const focusZ = clamp(playerZ * 0.36 + bossZ * 0.64, -3.3, 2.8);
-              const spread = Math.hypot(playerX - bossX, playerZ - bossZ);
-              const extra = clamp((spread - 10) * 0.24, 0, 2.8);
-              const portrait = camera.aspect < 0.72;
-              cameraGoal.set(focusX, (portrait ? 12.8 : 11.5) + extra * 0.35, focusZ + (portrait ? 17.6 : 16.1) + extra);
-              camera.position.x = damp(camera.position.x, cameraGoal.x, 5.8, delta);
-              camera.position.y = damp(camera.position.y, cameraGoal.y, 5.2, delta);
-              camera.position.z = damp(camera.position.z, cameraGoal.z, 5.8, delta);
-              cameraLook.set(focusX, 1.12, focusZ - (portrait ? 3.15 : 3.55));
-              camera.lookAt(cameraLook);
-              camera.userData.dungeonPlayerX = playerX;
-              camera.userData.dungeonPlayerZ = playerZ;
-            };""",
-              """    const updateCamera = (delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number) => {
+          camera_pattern = re.compile(
+              r"    const updateCamera = \(delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number\) => \{.*?\n    \};",
+              re.DOTALL,
+          )
+          camera_matches = list(camera_pattern.finditer(text))
+          if len(camera_matches) != 1 or 'playerX * 0.38 + bossX * 0.62' not in camera_matches[0].group(0):
+              raise SystemExit(f'mobile camera framing: expected one legacy block, found {len(camera_matches)}')
+          new_camera = """    const updateCamera = (delta: number, playerX: number, playerZ: number, bossX: number, bossZ: number) => {
               const portrait = camera.aspect < 0.72;
               const focusX = clamp(
                 playerX * (portrait ? 0.56 : 0.44) + bossX * (portrait ? 0.44 : 0.56),
@@ -127,19 +101,16 @@ jobs:
               camera.lookAt(cameraLook);
               camera.userData.dungeonPlayerX = playerX;
               camera.userData.dungeonPlayerZ = playerZ;
-            };""",
-              'mobile camera framing',
-          )
+            };"""
+          text = camera_pattern.sub(new_camera, text, count=1)
 
-          replace_once(
-              """      roomRoot.userData.theme = theme;
-              scene.add(roomRoot);
-              const architecturePromise = loadArchitecture(GLTFLoader);""",
-              """      roomRoot.userData.theme = theme;
-              scene.add(roomRoot);
-              void cleanBossFloorLane(shell, current);
-              const architecturePromise = loadArchitecture(GLTFLoader);""",
-              'clean floor invocation',
+          scene_anchor = "      scene.add(roomRoot);\n      const architecturePromise = loadArchitecture(GLTFLoader);"
+          if text.count(scene_anchor) != 1:
+              raise SystemExit(f'clean floor invocation: expected exactly one match, found {text.count(scene_anchor)}')
+          text = text.replace(
+              scene_anchor,
+              "      scene.add(roomRoot);\n      void cleanBossFloorLane(shell, current);\n      const architecturePromise = loadArchitecture(GLTFLoader);",
+              1,
           )
 
           path.write_text(text)
