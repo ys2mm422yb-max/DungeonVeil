@@ -1,0 +1,25 @@
+name: Temporary Menu Audit Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-menu-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run isolated menu audit
+        shell: bash
+        run: |
+          cd artifacts/dungeon-rpg
+          node scripts/validate-social-navigation.mjs > ../../menu-audit.log 2>&1 || true
+          cat ../../menu-audit.log
+      - name: Upload diagnostic output
+        uses: actions/upload-artifact@v4
+        with:
+          name: menu-audit-diagnostic
+          path: menu-audit.log
