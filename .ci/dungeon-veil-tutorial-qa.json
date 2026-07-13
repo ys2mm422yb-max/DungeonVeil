@@ -1,10 +1,10 @@
 {
   "workflow": "Dungeon Veil Social Tutorial Mobile QA",
   "status": "failure",
-  "validatedCommit": null,
+  "validatedCommit": "31d62826c563d1c3f07bc5a1cbaed437728de313",
   "outcomes": {
-    "install": "skipped",
-    "audit": "skipped",
+    "install": "success",
+    "audit": "failure",
     "typecheck": "skipped",
     "build": "skipped",
     "browsers": "skipped",
@@ -16,6 +16,7 @@
     "validate": "skipped",
     "upload": "skipped"
   },
+  "auditLog": "\n> @workspace/dungeon-rpg@0.0.0 audit:social /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs\n\nSocial/navigation audit passed: weekly rift removed, NPC-routed mailbox and friends navigation active, secure guild links available, friend codes and full friend workflows wired, and the semantic Ash King ritual arena is QA-addressable.\nSocial progression audit failed with 1 error(s):\n  - world-boss friend and guild rankings are missing\n/home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg:\n ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/dungeon-rpg@0.0.0 audit:social: `node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs`\nExit status 1\n",
   "screenshots": [],
   "sizes": {
     "tutorialIphone": 0,
@@ -27,5 +28,5 @@
     "menuIphoneThumb": 0,
     "menuAndroidThumb": 0
   },
-  "completedAt": "2026-07-13T04:24:59.023Z"
+  "completedAt": "2026-07-13T04:25:25.399Z"
 }
