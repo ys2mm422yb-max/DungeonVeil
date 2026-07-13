@@ -4,6 +4,9 @@ const files = {
   hud: await readFile(new URL('../src/components/HUD.tsx', import.meta.url), 'utf8'),
   reward: await readFile(new URL('../src/components/MetaRewardBanner.tsx', import.meta.url), 'utf8'),
   canvas: await readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),
+  canvasHost: await readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
+  combatStage: await readFile(new URL('../src/components/CombatStage.tsx', import.meta.url), 'utf8'),
+  camera: await readFile(new URL('../src/components/RunCameraRig.ts', import.meta.url), 'utf8'),
   enemy: await readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
   engine: await readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
   props: await readFile(new URL('../src/game/propPresentation3D.ts', import.meta.url), 'utf8'),
@@ -18,6 +21,11 @@ const checks = [
   [files.hud.includes('absolute right-3 top-'), 'HUD status is not in the right-side lane'],
   [files.reward.includes('right-[max(12px,env(safe-area-inset-right))]'), 'reward toast still covers the HUD'],
   [files.canvas.includes('MAX_ARROW_VISUALS') && files.canvas.includes('MAX_DAMAGE_VISUALS'), 'mobile visual budgets are missing'],
+  [files.canvas.includes("canvas.style.width = '100%'") && files.canvas.includes("canvas.style.height = '100%'") && files.canvas.includes('renderer.setSize(width, height, false)'), 'run canvas CSS size is still coupled to reduced render pixel ratio'],
+  [files.canvas.includes('new ResizeObserver(resize)') && files.canvas.includes("window.visualViewport?.addEventListener('resize', resize)") && files.canvas.includes("window.visualViewport?.addEventListener('scroll', resize)"), 'run renderer does not track the real visual viewport and host size'],
+  [files.canvasHost.includes('data-testid="run-canvas-host"') && files.canvasHost.includes('overflow-hidden'), 'run canvas host is not a clipped full-size render surface'],
+  [files.combatStage.includes('data-testid="run-visual-viewport"') && files.combatStage.includes('viewport.offsetLeft') === false && files.combatStage.includes('visualViewport'), 'combat stage is not bound to the visible mobile viewport'],
+  [files.camera.includes('responsiveFrame') && files.camera.includes('camera.aspect'), 'run camera does not use renderer aspect for portrait framing'],
   [files.enemy.includes('glow.visible = burning') && files.enemy.includes("tintMode: 'normal'"), 'inactive status meshes or tint traversal guard missing'],
   [files.engine.includes('const targets = visible.slice') && files.engine.includes('Math.atan2(endY - py, endX - px)'), 'arrows are not directly aimed at selected targets'],
   [files.props.includes('function inferredCollider') && files.props.includes("key.includes('/chair')"), 'automatic solid-prop colliders are missing'],
@@ -39,4 +47,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the cohesive adaptive world-boss renderer are active.');
+console.log('Mobile combat audit passed: full-size real-viewport canvas, responsive camera, compact HUD, bounded effects, collision guards and the adaptive world-boss renderer are active.');

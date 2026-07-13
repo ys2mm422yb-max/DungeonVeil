@@ -62,6 +62,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let perfWindowStarted = performance.now();
     let perfFrames = 0;
     let lowFpsWindows = 0;
+    let resizeObserver: ResizeObserver | null = null;
+    let lastRenderWidth = 0;
+    let lastRenderHeight = 0;
 
     const enemyVisuals = new Map<string, KayKitEnemyVisual>();
     const enemyLoading = new Set<string>();
@@ -626,9 +629,20 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
     const resize = () => {
       if (!renderer || !camera) return;
-      const width = host.clientWidth || innerWidth;
-      const height = host.clientHeight || innerHeight;
+      const rect = host.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const width = Math.max(1, Math.round(rect.width || viewport?.width || window.innerWidth));
+      const height = Math.max(1, Math.round(rect.height || viewport?.height || window.innerHeight));
+      if (width === lastRenderWidth && height === lastRenderHeight) return;
+      lastRenderWidth = width;
+      lastRenderHeight = height;
       renderer.setSize(width, height, false);
+      const canvas = renderer.domElement as HTMLCanvasElement;
+      canvas.style.position = 'absolute';
+      canvas.style.inset = '0';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
       camera.aspect = width / Math.max(1, height);
       camera.updateProjectionMatrix();
     };
@@ -695,7 +709,13 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = IS_ANDROID ? 1.16 : 1.12;
-      host.appendChild(renderer.domElement);
+      const canvas = renderer.domElement as HTMLCanvasElement;
+      canvas.style.position = 'absolute';
+      canvas.style.inset = '0';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      host.appendChild(canvas);
       camera = new THREE.PerspectiveCamera(RUN_CAMERA.fov, 1, 0.1, 150);
       camera.position.set(0, RUN_CAMERA.height, RUN_CAMERA.distance);
       cameraGoal = new THREE.Vector3();
@@ -727,12 +747,21 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
 
     window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+    window.visualViewport?.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('scroll', resize);
+    resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(host);
     boot().catch(error => console.error('KayKit run renderer failed', error));
     return () => {
       disposed = true;
       roomGeneration += 1;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('orientationchange', resize);
+      window.visualViewport?.removeEventListener('resize', resize);
+      window.visualViewport?.removeEventListener('scroll', resize);
+      resizeObserver?.disconnect();
       playerRig?.stop();
       for (const visual of enemyVisuals.values()) { visual.mixer?.stopAllAction?.(); disposeObject(visual.root); }
       for (const mesh of arrowVisuals.values()) disposeObject(mesh);
@@ -749,5 +778,5 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
   }, []);
 
-  return <div ref={hostRef} className="absolute inset-0 pointer-events-none" />;
+  return <div ref={hostRef} className="absolute inset-0 overflow-hidden pointer-events-none" data-testid="run-three-host" style={{ width: '100%', height: '100%' }} />;
 }

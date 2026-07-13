@@ -9,6 +9,18 @@ const ROOM_NAMES = [
   'WÄCHTERPASSAGE', 'EINGESTÜRZTES GEWÖLBE', 'SCHLEIER-RISS', 'WÄCHTERVORHALLE', 'BOSSHEILIGTUM',
 ] as const;
 
+type ViewportBox = { width: number; height: number; left: number; top: number };
+
+function readViewport(): ViewportBox {
+  const viewport = window.visualViewport;
+  return {
+    width: Math.max(1, Math.round(viewport?.width ?? window.innerWidth)),
+    height: Math.max(1, Math.round(viewport?.height ?? window.innerHeight)),
+    left: Math.round(viewport?.offsetLeft ?? 0),
+    top: Math.round(viewport?.offsetTop ?? 0),
+  };
+}
+
 export function CombatStage({ gameState }: { gameState: GameState }) {
   const previousHpRef = useRef(gameState.player.hp);
   const previousFloorRef = useRef(gameState.floor);
@@ -19,6 +31,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   const [hitFlash, setHitFlash] = useState(false);
   const [roomTitle, setRoomTitle] = useState(() => ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
   const [showRoomTitle, setShowRoomTitle] = useState(true);
+  const [viewport, setViewport] = useState<ViewportBox>(() => readViewport());
 
   const triggerShake = (heavy: boolean) => {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
@@ -28,6 +41,26 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
       shakeTimerRef.current = window.setTimeout(() => setShakeClass(''), heavy ? 200 : 110);
     });
   };
+
+  useEffect(() => {
+    let frame = 0;
+    const updateViewport = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setViewport(readViewport()));
+    };
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+    window.visualViewport?.addEventListener('resize', updateViewport);
+    window.visualViewport?.addEventListener('scroll', updateViewport);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+      window.visualViewport?.removeEventListener('resize', updateViewport);
+      window.visualViewport?.removeEventListener('scroll', updateViewport);
+    };
+  }, []);
 
   useEffect(() => {
     if (previousFloorRef.current === gameState.floor) return undefined;
@@ -50,7 +83,6 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
       return () => window.clearTimeout(timer);
     }
     previousHpRef.current = gameState.player.hp;
-
     const latest = gameState.damageNumbers[gameState.damageNumbers.length - 1];
     if (!latest || latest.id === lastDamageIdRef.current || latest.id.startsWith('clear-')) return undefined;
     lastDamageIdRef.current = latest.id;
@@ -65,7 +97,6 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
       }
       return () => window.clearTimeout(flashTimer);
     }
-
     return undefined;
   }, [gameState.damageNumbers, gameState.player.hp]);
 
@@ -78,57 +109,21 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
   }, []);
 
-  useEffect(() => {
-    const compactSynergyBanner = () => {
-      const labels = Array.from(document.querySelectorAll<HTMLElement>('div,span'))
-        .filter(node => node.childElementCount === 0 && node.textContent?.trim().includes('SYNERGIE ERWACHT'));
-      labels.forEach(label => {
-        let panel: HTMLElement | null = label.parentElement;
-        for (let depth = 0; panel && depth < 4; depth++) {
-          const rect = panel.getBoundingClientRect();
-          if (rect.width >= 240 && rect.height <= 210) break;
-          panel = panel.parentElement;
-        }
-        if (!panel || panel.dataset.dvCompactSynergy === '1') return;
-        panel.dataset.dvCompactSynergy = '1';
-        panel.style.setProperty('left', '50%', 'important');
-        panel.style.setProperty('right', 'auto', 'important');
-        panel.style.setProperty('top', 'max(5.4rem, calc(env(safe-area-inset-top) + 4.4rem))', 'important');
-        panel.style.setProperty('bottom', 'auto', 'important');
-        panel.style.setProperty('width', 'min(86vw, 390px)', 'important');
-        panel.style.setProperty('max-width', '390px', 'important');
-        panel.style.setProperty('min-height', '0', 'important');
-        panel.style.setProperty('padding', '10px 14px', 'important');
-        panel.style.setProperty('transform', 'translateX(-50%)', 'important');
-        panel.style.setProperty('border-radius', '16px', 'important');
-        panel.style.setProperty('z-index', '46', 'important');
-        panel.querySelectorAll<HTMLElement>('div,p,span').forEach(child => {
-          child.style.setProperty('line-height', '1.25', 'important');
-          if (child !== label && child.textContent && child.textContent.length > 24) {
-            child.style.setProperty('font-size', '12px', 'important');
-          }
-        });
-        label.style.setProperty('font-size', '7px', 'important');
-      });
-    };
-    compactSynergyBanner();
-    const observer = new MutationObserver(compactSynergyBanner);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div
+      className="fixed overflow-hidden bg-black"
+      style={{ left: viewport.left, top: viewport.top, width: viewport.width, height: viewport.height }}
+      data-testid="run-visual-viewport"
+      data-viewport-width={viewport.width}
+      data-viewport-height={viewport.height}
+    >
       <div className={`absolute inset-0 ${shakeClass}`}>
         <GameCanvas gameState={gameState} />
       </div>
-
       <div className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-200 ${hurtFlash ? 'opacity-100' : 'opacity-0'}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_38%,rgba(185,22,27,.48)_100%)]" />
       </div>
-
       <div className={`pointer-events-none absolute inset-0 z-20 bg-white transition-opacity duration-75 ${hitFlash ? 'opacity-[.06]' : 'opacity-0'}`} />
-
       <div className={`pointer-events-none absolute inset-x-0 top-[22%] z-30 flex justify-center transition-all duration-400 ${showRoomTitle ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}>
         <div className="relative min-w-[220px] max-w-[78vw] overflow-hidden rounded-xl border border-amber-200/18 bg-black/62 px-5 py-3 text-center shadow-[0_14px_38px_rgba(0,0,0,.38)] backdrop-blur-md">
           <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/65 to-transparent" />
@@ -136,22 +131,9 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
           <div className="mt-1 font-serif text-[16px] tracking-[.08em] text-[#f4ead5]">{roomTitle}</div>
         </div>
       </div>
-
       <style>{`
-        @keyframes dvLightImpact {
-          0% { transform: translate3d(0,0,0) scale(1); }
-          22% { transform: translate3d(-2px,1px,0) scale(1.002); }
-          48% { transform: translate3d(2px,-1px,0) scale(1.002); }
-          100% { transform: translate3d(0,0,0) scale(1); }
-        }
-        @keyframes dvHeavyImpact {
-          0% { transform: translate3d(0,0,0) scale(1); }
-          14% { transform: translate3d(-7px,3px,0) scale(1.008); }
-          32% { transform: translate3d(6px,-3px,0) scale(1.008); }
-          52% { transform: translate3d(-4px,2px,0) scale(1.004); }
-          72% { transform: translate3d(2px,-1px,0) scale(1.002); }
-          100% { transform: translate3d(0,0,0) scale(1); }
-        }
+        @keyframes dvLightImpact { 0% { transform: translate3d(0,0,0) scale(1); } 22% { transform: translate3d(-2px,1px,0) scale(1.002); } 48% { transform: translate3d(2px,-1px,0) scale(1.002); } 100% { transform: translate3d(0,0,0) scale(1); } }
+        @keyframes dvHeavyImpact { 0% { transform: translate3d(0,0,0) scale(1); } 14% { transform: translate3d(-7px,3px,0) scale(1.008); } 32% { transform: translate3d(6px,-3px,0) scale(1.008); } 52% { transform: translate3d(-4px,2px,0) scale(1.004); } 72% { transform: translate3d(2px,-1px,0) scale(1.002); } 100% { transform: translate3d(0,0,0) scale(1); } }
         .dv-light-impact { animation: dvLightImpact 105ms linear both; }
         .dv-heavy-impact { animation: dvHeavyImpact 195ms cubic-bezier(.22,.61,.36,1) both; }
       `}</style>
