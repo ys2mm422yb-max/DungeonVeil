@@ -44,7 +44,10 @@ jobs:
 
       - name: Run social and tutorial audits
         id: audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:social
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/dungeon-rpg audit:social 2>&1 | tee /tmp/social-audit.log
 
       - name: Typecheck Dungeon Veil
         id: typecheck
@@ -212,6 +215,7 @@ jobs:
               status: success ? 'success' : 'failure',
               validatedCommit: process.env.PRODUCT_SHA || null,
               outcomes,
+              auditLog: fs.existsSync('/tmp/social-audit.log') ? fs.readFileSync('/tmp/social-audit.log', 'utf8').slice(-12000) : '',
               screenshots: Object.keys(local).filter(key => fs.existsSync(local[key])).map(key => remote[key]),
               sizes: Object.fromEntries(Object.keys(local).map(key => [key, fs.existsSync(local[key]) ? fs.statSync(local[key]).size : 0])),
               completedAt: new Date().toISOString(),
