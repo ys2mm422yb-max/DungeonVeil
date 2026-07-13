@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Validation trigger for wide ritual hall, mailbox and social systems 21840bb.
+# Exact validation trigger for social, tutorial and Veil village pass a6367fa.
 on:
   workflow_dispatch:
 
