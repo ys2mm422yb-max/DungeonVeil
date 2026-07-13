@@ -33,8 +33,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build visual review
         run: pnpm --filter @workspace/dungeon-rpg build
-      - name: Install Chromium
-        run: npx -y playwright@1.54.2 install --with-deps chromium
+      - name: Install Chromium and WebKit
+        run: npx -y playwright@1.54.2 install --with-deps chromium webkit
       - name: Start preview
         env:
           PORT: 4173
@@ -52,7 +52,7 @@ jobs:
           status=0
 
           timeout 75s npx -y playwright@1.54.2 screenshot \
-            --browser=chromium \
+            --browser=webkit \
             --device="iPhone 13" \
             --wait-for-timeout=12000 \
             "http://127.0.0.1:4173/?qa=worldboss" \
