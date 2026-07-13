@@ -1,0 +1,30 @@
+name: Dragon Asset Inspection
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/dragon-asset-inspection.yml'
+      - '.ci/dragon-asset-inspection-trigger.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: github.event.pull_request.head.ref == 'rework/worldboss-full-3d-arena'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+      - name: List imported enemy assets
+        run: |
+          echo '=== IMPORTED ENEMIES ==='
+          find artifacts/dungeon-rpg/public/assets/imported/enemies -maxdepth 2 -type f | sort
+          echo '=== GLB STRINGS ==='
+          for file in artifacts/dungeon-rpg/public/assets/imported/enemies/*; do
+            [ -f "$file" ] || continue
+            echo "--- $file"
+            strings "$file" | grep -Ei 'dragon|wyvern|drake|idle|attack|fly|walk|run|death|bite|fire' | head -n 80 || true
+          done
