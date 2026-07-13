@@ -9,7 +9,7 @@ on:
       - '.ci/worldboss-final-deploy-trigger.txt'
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -57,3 +57,12 @@ jobs:
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Record successful deployment
+        run: |
+          mkdir -p .ci
+          printf '%s\n%s\n' "$GITHUB_SHA" "${{ steps.deployment.outputs.page_url }}" > .ci/worldboss-pages-deployed.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .ci/worldboss-pages-deployed.txt
+          git commit -m "Record successful world boss Pages deployment"
+          git push
