@@ -17,6 +17,9 @@ const checks = [
   [files.perspectiveStage.includes("root.name = 'AshKingPerspectiveSanctum'") && files.perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && files.perspectiveStage.includes("'VeilGateArch'"), 'perspective sanctum architecture is missing'],
   [files.perspectiveStage.includes("throne.name = 'BrokenAshThronePerspective'") && files.perspectiveStage.includes("seal.name = 'AshKingPerspectiveSeal'"), 'throne or ritual seal is missing'],
   [files.perspectiveStage.includes('new THREE.PerspectiveCamera') && !files.perspectiveStage.includes('new THREE.OrthographicCamera'), 'world-boss camera is not perspective'],
+  [files.perspectiveStage.includes('camera.aspect < 0.7 ? 50 : 44') && files.perspectiveStage.includes('(portrait ? 13.7 : 11.9)') && files.perspectiveStage.includes('(portrait ? 19.6 : 16.7)'), 'portrait player-safe camera framing is missing'],
+  [files.perspectiveStage.includes('WorldBossCleanFloor_') && files.perspectiveStage.includes('WorldBossFrontWallClearance_'), 'central combat lane or front-wall clearance is missing'],
+  [files.battle.includes('data-testid="worldboss-compact-status"') && files.battle.includes('bg-black/84') && files.battle.includes("{de ? 'DU' : 'YOU'}"), 'compact world-boss HUD is missing'],
   [files.perspectiveStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;') && files.perspectiveStage.includes('return 33;') && files.perspectiveStage.includes('return 42;') && files.perspectiveStage.includes('return 50;'), 'mobile projectile or frame budgets are missing'],
   [files.perspectiveStage.includes('fps < 19 ? 2 : fps < 27') && files.perspectiveStage.includes('IS_ANDROID ? 0.62 : 0.7'), 'adaptive mobile quality ladder is missing'],
   [files.perspectiveStage.includes('loadWorldBossMobileRig') && files.perspectiveStage.includes('bossRig.root.scale.setScalar(2.05') && files.perspectiveStage.includes("root.name = 'AshKingDominanceAura'"), 'dominant Ash King presentation is missing'],
@@ -35,4 +38,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: KayKit perspective sanctum, dominant Ash King, adaptive mobile budgets and complete cleanup are active.');
+console.log('World-boss performance audit passed: KayKit perspective sanctum, player-safe mobile framing, compact HUD, dominant Ash King, adaptive budgets and complete cleanup are active.');
