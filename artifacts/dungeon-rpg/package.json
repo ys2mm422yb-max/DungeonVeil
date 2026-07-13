@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "audit:assets": "node scripts/audit-kaykit-assets.mjs",
     "audit:worldboss": "node scripts/validate-worldboss-performance.mjs",
-    "audit:rooms": "node scripts/validate-all-rooms.mjs && node scripts/validate-production-rooms.mjs && node scripts/validate-spawn-hitboxes.mjs && node scripts/validate-enemy-visibility.mjs && node scripts/validate-mobile-combat.mjs && node scripts/validate-worldboss-performance.mjs",
+    "audit:social": "node scripts/validate-social-navigation.mjs",
+    "audit:rooms": "node scripts/validate-all-rooms.mjs && node scripts/validate-production-rooms.mjs && node scripts/validate-spawn-hitboxes.mjs && node scripts/validate-enemy-visibility.mjs && node scripts/validate-mobile-combat.mjs && node scripts/validate-worldboss-performance.mjs && node scripts/validate-social-navigation.mjs",
     "audit:pages": "node scripts/validate-pages-build.mjs"
   },
   "devDependencies": {
@@ -59,7 +60,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "catalog:",
-    "input-otp": "^1.4.2",
+    "input-otp": "^1.4.0",
     "lucide-react": "catalog:",
     "next-themes": "^0.4.6",
     "react": "catalog:",
