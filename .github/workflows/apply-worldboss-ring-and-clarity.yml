@@ -1,0 +1,240 @@
+name: Apply World Boss Ring And Clarity Patch
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx'
+      - 'artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs'
+      - 'artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs'
+      - '.github/workflows/apply-worldboss-ring-and-clarity.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout world boss branch
+        uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+          fetch-depth: 0
+      - name: Apply approved visual pass
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          stage_path = Path('artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx')
+          stage = stage_path.read_text()
+          if 'WorldBossSoftTelegraph' not in stage:
+              stage = re.sub(
+                  r"    const pixelRatio = \(\) => \{.*?\n    \};\n\n    const frameInterval",
+                  """    const pixelRatio = () => {
+                    const ratio = window.devicePixelRatio || 1;
+                    if (!IS_MOBILE) return Math.min(ratio, qualityLevel ? 1.35 : 1.75);
+                    if (qualityLevel >= 2) return IS_ANDROID ? 0.72 : 0.88;
+                    if (qualityLevel >= 1) return IS_ANDROID ? 0.9 : 1.05;
+                    return Math.min(ratio, IS_ANDROID ? 1.05 : 1.3);
+                  };
+
+                  const frameInterval""",
+                  stage,
+                  count=1,
+                  flags=re.DOTALL,
+              )
+
+              stage = re.sub(
+                  r"      const seal = new THREE\.Mesh\(.*?      root\.add\(seal\);\n\n",
+                  '',
+                  stage,
+                  count=1,
+                  flags=re.DOTALL,
+              )
+              stage = stage.replace('      root.userData.seal = seal;\n', '')
+
+              stage = re.sub(
+                  r"    const buildBossAura = \(\) => \{.*?\n    \};\n\n    const buildProjectilePool",
+                  """    const buildBossAura = () => {
+                    const root = new THREE.Group();
+                    root.name = 'AshKingDominanceAura';
+                    const shadow = new THREE.Mesh(
+                      keepGeometry(new THREE.CircleGeometry(2.2, 48)),
+                      keepMaterial(new THREE.MeshBasicMaterial({ color: 0x050304, transparent: true, opacity: 0.48, depthWrite: false })),
+                    );
+                    shadow.rotation.x = -Math.PI / 2;
+                    shadow.position.y = 0.018;
+                    root.add(shadow);
+                    root.userData.shadow = shadow;
+                    scene.add(root);
+                    return root;
+                  };
+
+                  const buildProjectilePool""",
+                  stage,
+                  count=1,
+                  flags=re.DOTALL,
+              )
+
+              stage = re.sub(
+                  r"    const syncTelegraph = \(\) => \{.*?\n    \};\n\n    const syncEmbers",
+                  """    const syncTelegraph = () => {
+                    const current = state();
+                    if (!current || !telegraph) return;
+                    const effect = [...current.effects].reverse().find(item => item.type === 'circle');
+                    if (!effect) { telegraph.visible = false; return; }
+                    const progress = clamp(effect.lifeTime / Math.max(1, effect.maxLifeTime), 0, 1);
+                    telegraph.visible = true;
+                    telegraph.position.set(mapX(effect.x), 0.055, mapZ(effect.y));
+                    telegraph.scale.setScalar(Math.max(0.18, effect.maxRadius / TILE * Math.max(0.22, progress)));
+                    telegraph.material.opacity = Math.max(0.035, 0.16 * (1 - progress));
+                  };
+
+                  const syncEmbers""",
+                  stage,
+                  count=1,
+                  flags=re.DOTALL,
+              )
+
+              stage = re.sub(
+                  r"        if \(bossAura\) \{.*?\n        \}",
+                  """        if (bossAura) {
+                          bossAura.position.set(bossX, 0, bossZ);
+                          const shadow = bossAura.userData.shadow;
+                          if (shadow) {
+                            const pulse = 1 + Math.sin(now * 0.0024) * 0.035;
+                            shadow.scale.setScalar(pulse);
+                            shadow.material.opacity = 0.43 + Math.sin(now * 0.0021) * 0.05;
+                          }
+                        }""",
+                  stage,
+                  count=1,
+                  flags=re.DOTALL,
+              )
+
+              stage = re.sub(
+                  r"\n      if \(architecture\?\.userData\?\.seal\) \{.*?\n      \}",
+                  '',
+                  stage,
+                  count=1,
+                  flags=re.DOTALL,
+              )
+
+              stage = stage.replace(
+                  "scene.fog = new THREE.Fog(0x151116, 22, 54);",
+                  "scene.fog = new THREE.Fog(0x151116, 26, 60);",
+              )
+              stage = stage.replace(
+                  "renderer = new THREE.WebGLRenderer({ antialias: !IS_ANDROID, alpha: false, powerPreference: 'high-performance', precision: IS_MOBILE ? 'mediump' : 'highp' });",
+                  "renderer = new THREE.WebGLRenderer({ antialias: !IS_ANDROID, alpha: false, powerPreference: 'high-performance', precision: IS_ANDROID ? 'mediump' : 'highp' });",
+              )
+              stage = stage.replace(
+                  "renderer.toneMappingExposure = IS_ANDROID ? 1.14 : 1.08;",
+                  "renderer.toneMappingExposure = IS_ANDROID ? 1.08 : 1.02;",
+              )
+              stage = stage.replace(
+                  "scene.add(new THREE.AmbientLight(0xd6c9bd, IS_ANDROID ? 0.72 : 0.62));",
+                  "scene.add(new THREE.AmbientLight(0xd6c9bd, IS_ANDROID ? 0.56 : 0.46));",
+              )
+              stage = stage.replace(
+                  "scene.add(new THREE.HemisphereLight(0xd8bd9e, 0x17131c, IS_ANDROID ? 1.08 : 0.92));",
+                  "scene.add(new THREE.HemisphereLight(0xd8bd9e, 0x17131c, IS_ANDROID ? 0.88 : 0.76));",
+              )
+              stage = stage.replace(
+                  "const key = new THREE.DirectionalLight(0xffbf83, IS_ANDROID ? 1.5 : 1.72);",
+                  "const key = new THREE.DirectionalLight(0xffbf83, IS_ANDROID ? 1.72 : 2.02);",
+              )
+              stage = stage.replace(
+                  "const fill = new THREE.DirectionalLight(0x7f82c8, 0.54);",
+                  "const fill = new THREE.DirectionalLight(0x7f82c8, 0.38);",
+              )
+              stage = stage.replace(
+                  "bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 2.8 : 4, 25, Math.PI / 5, 0.7, 1.8);",
+                  "bossLight = new THREE.SpotLight(0xff8a52, IS_MOBILE ? 3.35 : 4.5, 25, Math.PI / 5, 0.66, 1.8);",
+              )
+              stage = stage.replace(
+                  "keepGeometry(new THREE.RingGeometry(0.82, 1, 40)),\n        keepMaterial(new THREE.MeshBasicMaterial({ color: 0xff7247, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),",
+                  "keepGeometry(new THREE.CircleGeometry(1, 48)),\n        keepMaterial(new THREE.MeshBasicMaterial({ color: 0xd85a2a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.NormalBlending })),",
+              )
+              stage = stage.replace(
+                  "telegraph.rotation.x = -Math.PI / 2;",
+                  "telegraph.name = 'WorldBossSoftTelegraph';\n      telegraph.rotation.x = -Math.PI / 2;",
+              )
+
+              helper_anchor = """    const disposeObject = (root: any) => root?.traverse?.((node: any) => {
+                  node.geometry?.dispose?.();
+                  if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
+                  else node.material?.dispose?.();
+                });
+"""
+              clarity_helper = helper_anchor + """
+                const improveSceneTextureClarity = (root: any) => {
+                  const anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() ?? 1, IS_MOBILE ? 4 : 8);
+                  root?.traverse?.((node: any) => {
+                    const materials = Array.isArray(node.material) ? node.material : [node.material];
+                    materials.filter(Boolean).forEach((material: any) => {
+                      for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap']) {
+                        const texture = material[key];
+                        if (!texture) continue;
+                        texture.anisotropy = anisotropy;
+                        texture.needsUpdate = true;
+                      }
+                    });
+                  });
+                };
+"""
+              if helper_anchor not in stage:
+                  raise SystemExit('texture clarity helper anchor missing')
+              stage = stage.replace(helper_anchor, clarity_helper, 1)
+              stage = stage.replace(
+                  "await Promise.all([shell.userData?.ready ?? Promise.resolve(), theme.userData?.ready ?? Promise.resolve(), architecturePromise]);\n      if (disposed || !playerRig || (!bossRig && !fallbackBoss)) return;",
+                  "await Promise.all([shell.userData?.ready ?? Promise.resolve(), theme.userData?.ready ?? Promise.resolve(), architecturePromise]);\n      improveSceneTextureClarity(scene);\n      if (disposed || !playerRig || (!bossRig && !fallbackBoss)) return;",
+                  1,
+              )
+
+              if 'new THREE.RingGeometry' in stage or 'AshKingPerspectiveSeal' in stage:
+                  raise SystemExit('static ring geometry still present after patch')
+              stage_path.write_text(stage)
+
+          audit_path = Path('artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs')
+          audit = audit_path.read_text()
+          audit = audit.replace(
+              "[files.perspectiveStage.includes(\"throne.name = 'BrokenAshThronePerspective'\") && files.perspectiveStage.includes(\"seal.name = 'AshKingPerspectiveSeal'\"), 'throne or ritual seal is missing'],",
+              "[files.perspectiveStage.includes(\"throne.name = 'BrokenAshThronePerspective'\") && !files.perspectiveStage.includes('new THREE.RingGeometry') && !files.perspectiveStage.includes('AshKingPerspectiveSeal'), 'throne is missing or static red ritual rings remain'],",
+          )
+          audit = audit.replace(
+              "files.perspectiveStage.includes('IS_ANDROID ? 0.62 : 0.7')",
+              "files.perspectiveStage.includes('IS_ANDROID ? 0.72 : 0.88')",
+          )
+          audit = audit.replace(
+              "[files.perspectiveStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.perspectiveStage.includes('key.castShadow = !IS_MOBILE'), 'mobile-safe shadow policy is missing'],",
+              "[files.perspectiveStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.perspectiveStage.includes('key.castShadow = !IS_MOBILE'), 'mobile-safe shadow policy is missing'],\n  [files.perspectiveStage.includes(\"telegraph.name = 'WorldBossSoftTelegraph'\") && files.perspectiveStage.includes('improveSceneTextureClarity') && files.perspectiveStage.includes('IS_ANDROID ? 1.05 : 1.3'), 'soft telegraph or mobile clarity pass is missing'],",
+          )
+          audit = audit.replace(
+              'KayKit perspective sanctum, player-safe mobile framing, compact HUD, dominant Ash King, adaptive budgets and complete cleanup are active.',
+              'KayKit perspective sanctum, ring-free arena, sharper mobile rendering, compact HUD, dominant Ash King, adaptive budgets and complete cleanup are active.',
+          )
+          audit_path.write_text(audit)
+
+          mobile_path = Path('artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs')
+          mobile = mobile_path.read_text()
+          mobile = mobile.replace(
+              "[files.bossStage.includes('bossRig.root.scale.setScalar(2.05') && files.bossStage.includes(\"root.name = 'AshKingDominanceAura'\"), 'world-boss mobile silhouette is not dominant enough'],",
+              "[files.bossStage.includes('bossRig.root.scale.setScalar(2.05') && files.bossStage.includes(\"root.name = 'AshKingDominanceAura'\"), 'world-boss mobile silhouette is not dominant enough'],\n  [files.bossStage.includes(\"telegraph.name = 'WorldBossSoftTelegraph'\") && !files.bossStage.includes('new THREE.RingGeometry') && files.bossStage.includes('IS_ANDROID ? 1.05 : 1.3'), 'world-boss rings or low-resolution mobile rendering remain'],",
+          )
+          mobile_path.write_text(mobile)
+          PY
+      - name: Commit approved world boss pass
+        run: |
+          if git diff --quiet; then
+            echo "No world boss ring or clarity changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+          git commit -m "Remove world boss rings and sharpen mobile rendering"
+          git push origin HEAD:rework/worldboss-full-3d-arena
