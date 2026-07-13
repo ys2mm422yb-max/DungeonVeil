@@ -50,7 +50,7 @@ export function GuildSocialPanel({ language }: Props) {
       className="absolute right-3 top-3 rounded-xl border border-cyan-300/16 bg-[#071218]/92 px-3 py-2 text-[7px] font-black uppercase tracking-[.12em] text-cyan-100 shadow-lg active:scale-[.98]"
     >{de ? 'Profile' : 'Profiles'} · {members.length}</button>}
 
-    {profilesOpen && <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-5 backdrop-blur-md" onPointerDown={() => setProfilesOpen(false)}>
+    {profilesOpen && membership && <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-5 backdrop-blur-md" onPointerDown={() => setProfilesOpen(false)}>
       <div className="max-h-[76vh] w-full max-w-sm overflow-y-auto rounded-3xl border border-cyan-300/18 bg-[#081014]/98 p-4 text-white shadow-2xl" onPointerDown={event => event.stopPropagation()}>
         <div className="text-[8px] font-black uppercase tracking-[.25em] text-cyan-100/45">{de ? 'GILDENPROFILE' : 'GUILD PROFILES'}</div>
         <div className="mt-1 text-lg font-black text-cyan-50">[{membership.guild.tag}] {membership.guild.name}</div>
