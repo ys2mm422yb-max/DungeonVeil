@@ -22,7 +22,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
   const hasGold = tasks.some(task => task.gold);
 
   return (
-    <div className={`overflow-hidden rounded-2xl border ${hasGold ? 'border-amber-200/35 bg-[linear-gradient(120deg,rgba(104,69,17,.78),rgba(9,8,8,.92))]' : 'border-amber-300/20 bg-[linear-gradient(120deg,rgba(73,48,16,.72),rgba(9,8,8,.9))]'} shadow-[0_12px_34px_rgba(0,0,0,.32)] ${compact ? '' : 'backdrop-blur-xl'}`}>
+    <div data-testid="daily-quest-panel" className={`overflow-hidden rounded-2xl border ${hasGold ? 'border-amber-200/35 bg-[linear-gradient(120deg,rgba(104,69,17,.78),rgba(9,8,8,.92))]' : 'border-amber-300/20 bg-[linear-gradient(120deg,rgba(73,48,16,.72),rgba(9,8,8,.9))]'} shadow-[0_12px_34px_rgba(0,0,0,.32)] ${compact ? '' : 'backdrop-blur-xl'}`}>
       <button type="button" onPointerDown={event => { event.preventDefault(); event.stopPropagation(); setOpen(value => !value); }} className="flex w-full items-center gap-3 px-4 py-3 text-left active:scale-[.985]">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-amber-300/25 bg-amber-300/10 text-base text-amber-200">{hasGold ? '✹' : '✦'}</div>
         <div className="min-w-0 flex-1">
