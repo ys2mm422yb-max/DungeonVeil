@@ -50,6 +50,7 @@ const checks = [
   [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-guildmaster') && villageHub.includes('npc-worldkeeper'), 'interactive village NPC navigation is missing'],
   [menu.includes('<VillageNpcHub') && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall') && menuScene.includes('villageNpcs'), 'village NPC navigation is not backed by a visible village scene'],
   [main.includes("qaMode === 'tutorial'") && main.includes('<TutorialVisualQa'), 'tutorial visual QA route is missing'],
+  [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'village menu visual QA route is missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
