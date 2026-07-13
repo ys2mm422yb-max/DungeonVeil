@@ -33,6 +33,15 @@ function pointBlocked(point, colliders, radius) {
   );
 }
 
+function hasCollider(colliders, x, z, halfW, halfH) {
+  return colliders.some(collider =>
+    Math.abs(collider.x - x) < 0.05 &&
+    Math.abs(collider.z - z) < 0.05 &&
+    collider.halfW >= halfW &&
+    collider.halfH >= halfH
+  );
+}
+
 const server = await createServer({
   root: ROOT,
   configFile: false,
@@ -59,6 +68,13 @@ try {
     const runtimeSpawns = spawns.getRoomSpawnPoints(room);
     const plan = encounters.getEncounterPlan(room);
     const boss = chapter.isBossRoom(room);
+
+    if (room === 1) {
+      if (!hasCollider(colliders, 0, -5.65, 0.9, 0.78)) fail(room, 'grand entrance shrine collider is missing or undersized');
+      if (!hasCollider(colliders, -4.25, -8.2, 0.78, 0.78)) fail(room, 'left grand entrance pillar collider is missing or undersized');
+      if (!hasCollider(colliders, 4.25, -8.2, 0.78, 0.78)) fail(room, 'right grand entrance pillar collider is missing or undersized');
+      if (colliders.some(collider => Math.abs(collider.x) < 1.2 && collider.z < -9.2)) fail(room, 'grand entrance gate opening is blocked by a central collider');
+    }
 
     for (const piece of pieces) {
       const footprint = presentation.roomPropColliderFootprint(piece);
@@ -106,7 +122,7 @@ try {
     errors.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;
   } else {
-    console.log('Spawn and portal validation passed: all 50 rooms keep solid hero props, full-size enemy hitboxes and safe boss starts.');
+    console.log('Spawn and portal validation passed: all 50 rooms keep solid hero props, room-one entrance footprints, full-size enemy hitboxes and safe boss starts.');
   }
 } finally {
   await server.close();

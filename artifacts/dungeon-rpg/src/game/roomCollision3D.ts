@@ -38,6 +38,12 @@ function architectureCollidersForRoom(room: number): RoomPropCollider[] {
     add(portal.x + spread, portal.z - 1.75, size);
   }
 
+  if (room === 1) {
+    add(0, -5.65, 0.9, 0.78);
+    add(-4.25, -8.2, 0.78, 0.78);
+    add(4.25, -8.2, 0.78, 0.78);
+  }
+
   switch (spec.silhouette) {
     case 'three-lane':
       for (const z of [-5.5, -0.8, 4.1]) { add(-6.6, z, 0.68); add(6.6, z, 0.68); }
@@ -59,9 +65,6 @@ function architectureCollidersForRoom(room: number): RoomPropCollider[] {
     case 'zigzag':
     case 's-curve':
     case 's-lane':
-      // Diese Silhouetten werden ausschließlich durch die tatsächlich sichtbaren
-      // Setpiece-Collider definiert. Unsichtbare Standard-Felsen würden Schüsse
-      // und Bewegung blockieren, obwohl im Raum nichts zu sehen ist.
       break;
   }
 
