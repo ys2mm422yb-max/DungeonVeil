@@ -27,11 +27,11 @@ on:
 permissions:
   contents: write
 
-# Explicitly approved integration of PR #40. The preparation job joins both histories
-# and then adopts the already validated product snapshot without force-pushing main.
+# Explicitly approved integration of PR #40. A temporary PR starts the preparation job,
+# which joins both histories and adopts the already validated product snapshot.
 jobs:
   prepare-integration:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' && github.head_ref == 'validation/prepare-main-integration'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout complete main history
