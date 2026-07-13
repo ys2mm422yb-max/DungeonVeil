@@ -19,6 +19,8 @@ const [menu, villageHub, menuSceneProxy, villageScene, mailbox, inviteCard, guil
   read('../src/components/WorldBossCombatBandStage.tsx'),
 ]);
 
+const renderStart = villageScene.lastIndexOf('raf = requestAnimationFrame(loop);');
+const assetStart = villageScene.indexOf('void loadVillageAssets(');
 const checks = [
   [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
   [!menu.includes('WeeklyRiftPanel') && !menu.includes("overlay === 'rift'") && !menu.includes("setOverlay('rift')"), 'weekly-rift shortcut or panel is still mounted in the main menu'],
@@ -38,8 +40,9 @@ const checks = [
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
   [menuSceneProxy.includes('ModernVillageSquareScene as MainMenuDungeonScene'), 'main menu scene proxy is not routed to the modern village renderer'],
   [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes("'VillageGate'") && villageScene.includes("'VillageSquareShrine'") && villageScene.includes('VILLAGE_ASSETS'), 'modern KayKit village-square staging is missing'],
-  [villageScene.includes('async function loadVillageAssetsProgressively') && villageScene.includes('void loadVillageAssetsProgressively') && villageScene.includes('raf = requestAnimationFrame(loop)'), 'progressive village rendering is missing'],
-  [villageScene.includes('for (const rule of VILLAGE_ASSETS)') && villageScene.includes('catch (error)') && villageScene.includes('failed to load'), 'individual village asset failures are not isolated'],
+  [villageScene.includes('async function loadVillageAssets(') && renderStart >= 0 && assetStart > renderStart, 'village renderer does not start before asynchronous asset loading'],
+  [villageScene.includes('Promise.allSettled') && villageScene.includes("result.status === 'rejected'") && villageScene.includes('Village asset failed to load'), 'individual village asset failures are not isolated'],
+  [villageScene.includes("window.visualViewport?.addEventListener('resize', resize)"), 'mobile village viewport resize handling is missing'],
   [villageHub.includes('grid grid-cols-5') && villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock is missing or floating labels remain'],
   [menu.includes('grid-cols-2') && menu.includes('min-h-[250px] flex-1') && !menu.includes('h-[41vh]'), 'main-menu action layout is not separated from the village scene'],
   [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
@@ -53,4 +56,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: progressive KayKit village rendering, compact place dock, stable social routes and world-boss navigation remain active.');
+console.log('Social/navigation audit passed: resilient mobile KayKit village rendering, compact place dock, stable social routes and world-boss navigation remain active.');
