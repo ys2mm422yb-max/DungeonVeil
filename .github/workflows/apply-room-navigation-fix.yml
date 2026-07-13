@@ -47,68 +47,16 @@ jobs:
           const { roomPropColliders } = await import('../src/game/roomPropCollision.ts');
           const { roomBibleSpec } = await import('../src/game/roomBible.ts');
           const { CHAPTER_ROOMS } = await import('../src/game/chapterRun.ts');
-
           const STEP = 0.35;
           const HALF_PLAYER = 0.46;
-          const MIN_X = -10.2;
-          const MAX_X = 10.2;
-          const MIN_Z = -13.0;
-          const MAX_Z = 9.6;
-
+          const MIN_X = -10.2, MAX_X = 10.2, MIN_Z = -13.0, MAX_Z = 9.6;
           const key = (x, z) => `${Math.round((x - MIN_X) / STEP)},${Math.round((z - MIN_Z) / STEP)}`;
-          const free = (colliders, x, z) => x >= MIN_X && x <= MAX_X && z >= MIN_Z && z <= MAX_Z && !colliders.some(c =>
-            Math.abs(x - c.x) < c.halfW + HALF_PLAYER && Math.abs(z - c.z) < c.halfH + HALF_PLAYER
-          );
-          const nearestFree = (colliders, start) => {
-            if (free(colliders, start.x, start.z)) return start;
-            for (let radius = STEP; radius <= 2.8; radius += STEP) {
-              for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 12) {
-                const point = { x: start.x + Math.cos(angle) * radius, z: start.z + Math.sin(angle) * radius };
-                if (free(colliders, point.x, point.z)) return point;
-              }
-            }
-            return null;
-          };
-          const reachable = (colliders, startInput, targetInput) => {
-            const start = nearestFree(colliders, startInput);
-            const target = nearestFree(colliders, targetInput);
-            if (!start || !target) return false;
-            const queue = [start];
-            const seen = new Set([key(start.x, start.z)]);
-            for (let cursor = 0; cursor < queue.length; cursor++) {
-              const current = queue[cursor];
-              if (Math.hypot(current.x - target.x, current.z - target.z) <= STEP * 1.8) return true;
-              for (const [dx, dz] of [[STEP,0],[-STEP,0],[0,STEP],[0,-STEP]]) {
-                const next = { x: current.x + dx, z: current.z + dz };
-                const id = key(next.x, next.z);
-                if (!seen.has(id) && free(colliders, next.x, next.z)) {
-                  seen.add(id);
-                  queue.push(next);
-                }
-              }
-            }
-            return false;
-          };
-
-          const failures = [];
-          for (let room = 1; room <= CHAPTER_ROOMS; room++) {
-            const colliders = roomPropColliders(room);
-            const portal = roomBibleSpec(room).portal;
-            const target = { x: portal.x, z: portal.z < -8 ? -8.5 : portal.z };
-            const starts = {
-              center: { x: 0, z: 8.5 },
-              left: { x: -6.4, z: 7.2 },
-              right: { x: 6.4, z: 7.2 },
-            };
-            for (const [lane, start] of Object.entries(starts)) {
-              if (!reachable(colliders, start, target)) failures.push(`room ${room}: ${lane} route cannot reach portal`);
-            }
-          }
-          if (failures.length) {
-            console.error(`Room navigation audit failed with ${failures.length} blocked route(s):`);
-            failures.forEach(item => console.error(`  - ${item}`));
-            process.exit(1);
-          }
+          const free = (cs, x, z) => x >= MIN_X && x <= MAX_X && z >= MIN_Z && z <= MAX_Z && !cs.some(c => Math.abs(x-c.x) < c.halfW+HALF_PLAYER && Math.abs(z-c.z) < c.halfH+HALF_PLAYER);
+          const nearestFree = (cs, s) => { if (free(cs,s.x,s.z)) return s; for(let r=STEP;r<=2.8;r+=STEP) for(let a=0;a<Math.PI*2;a+=Math.PI/12){const p={x:s.x+Math.cos(a)*r,z:s.z+Math.sin(a)*r};if(free(cs,p.x,p.z))return p;} return null; };
+          const reachable = (cs, si, ti) => { const s=nearestFree(cs,si),t=nearestFree(cs,ti); if(!s||!t)return false; const q=[s],seen=new Set([key(s.x,s.z)]); for(let i=0;i<q.length;i++){const c=q[i];if(Math.hypot(c.x-t.x,c.z-t.z)<=STEP*1.8)return true;for(const[dX,dZ]of[[STEP,0],[-STEP,0],[0,STEP],[0,-STEP]]){const n={x:c.x+dX,z:c.z+dZ},id=key(n.x,n.z);if(!seen.has(id)&&free(cs,n.x,n.z)){seen.add(id);q.push(n);}}}return false; };
+          const failures=[];
+          for(let room=1;room<=CHAPTER_ROOMS;room++){const cs=roomPropColliders(room),portal=roomBibleSpec(room).portal,target={x:portal.x,z:portal.z < -8 ? -8.5 : portal.z};for(const[lane,start]of Object.entries({center:{x:0,z:8.5},left:{x:-6.4,z:7.2},right:{x:6.4,z:7.2}})){if(!reachable(cs,start,target))failures.push(`room ${room}: ${lane} route cannot reach portal`);}}
+          if(failures.length){console.error(`Room navigation audit failed with ${failures.length} blocked route(s):`);failures.forEach(x=>console.error(`  - ${x}`));process.exit(1);}
           console.log(`Room navigation audit passed: center, left and right portal routes are reachable in all ${CHAPTER_ROOMS} rooms.`);
           EOF
           rm .github/workflows/apply-room-navigation-fix.yml
