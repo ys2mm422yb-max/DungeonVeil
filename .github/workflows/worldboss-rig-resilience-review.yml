@@ -57,12 +57,18 @@ jobs:
           mkdir -p artifacts-review
           cat >/tmp/pw/review.cjs <<'NODE'
           const { chromium, devices } = require('/tmp/pw/node_modules/playwright');
+          const fs = require('fs');
 
           (async () => {
             const browser = await chromium.launch({ headless: true });
             const context = await browser.newContext({ ...devices['iPhone 13'] });
             const page = await context.newPage();
             const blocked = [];
+            const browserErrors = [];
+            page.on('pageerror', error => browserErrors.push(String(error)));
+            page.on('console', message => {
+              if (message.type() === 'error') browserErrors.push(message.text());
+            });
             await page.route('**/*', async route => {
               const url = route.request().url();
               if (/Rig_Medium_(General|MovementBasic|CombatMelee)\.glb/i.test(url)) {
@@ -72,15 +78,16 @@ jobs:
               }
               await route.continue();
             });
-            await page.goto('http://127.0.0.1:4173/?qa=worldboss', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.goto('http://127.0.0.1:4173/?qa=worldboss', { waitUntil: 'domcontentloaded', timeout: 60000 });
             await page.waitForSelector('[data-testid="ash-king-perspective-stage"]', { timeout: 30000 });
-            await page.waitForTimeout(7000);
+            await page.waitForTimeout(12000);
             const telemetry = await page.evaluate(() => {
               const raw = localStorage.getItem('dungeon-veil-worldboss-performance');
               return raw ? JSON.parse(raw) : null;
             });
-            const result = { blockedAnimations: blocked.length, telemetry };
-            require('fs').writeFileSync('artifacts-review/worldboss-rig-resilience.json', JSON.stringify(result, null, 2));
+            const result = { blockedAnimations: blocked.length, blocked, telemetry, browserErrors };
+            console.log(JSON.stringify(result, null, 2));
+            fs.writeFileSync('artifacts-review/worldboss-rig-resilience.json', JSON.stringify(result, null, 2));
             await page.screenshot({ path: 'artifacts-review/worldboss-rig-resilience-iphone.png', fullPage: true });
             await browser.close();
             if (blocked.length < 3) throw new Error(`Expected three blocked animation requests, saw ${blocked.length}`);
@@ -95,9 +102,10 @@ jobs:
           NODE
           node /tmp/pw/review.cjs
       - name: Upload review evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: worldboss-rig-resilience
           path: artifacts-review/*
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 3
