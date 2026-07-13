@@ -14,33 +14,84 @@ jobs:
   scan:
     if: github.event.pull_request.head.ref == 'rework/worldboss-full-3d-arena'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           ref: rework/worldboss-full-3d-arena
-      - name: Scan model and animation files
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Inspect dragon FBX
         run: |
           mkdir -p scan-report
+          cat > /tmp/inspect-dragon.mjs <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          import * as THREE from 'three';
+          import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+
+          const paths = [
+            'artifacts/dungeon-rpg/public/assets/3d/Dragon.fbx',
+            'artifacts/dungeon-rpg/public/assets/3d/library/monsters/Dragon.fbx',
+          ];
+
+          const report = [];
+          for (const path of paths) {
+            const bytes = await readFile(path);
+            const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+            const loader = new FBXLoader();
+            try {
+              const root = loader.parse(buffer, '');
+              let meshes = 0;
+              let skinnedMeshes = 0;
+              let bones = 0;
+              let materials = 0;
+              root.traverse(node => {
+                if (node.isMesh) meshes += 1;
+                if (node.isSkinnedMesh) skinnedMeshes += 1;
+                if (node.isBone) bones += 1;
+                if (node.material) materials += Array.isArray(node.material) ? node.material.length : 1;
+              });
+              root.updateMatrixWorld(true);
+              const box = new THREE.Box3().setFromObject(root);
+              const size = box.getSize(new THREE.Vector3());
+              report.push({
+                path,
+                bytes: bytes.length,
+                meshes,
+                skinnedMeshes,
+                bones,
+                materials,
+                animationCount: root.animations?.length ?? 0,
+                animations: (root.animations ?? []).map(clip => ({ name: clip.name, duration: clip.duration, tracks: clip.tracks.length })),
+                size: { x: size.x, y: size.y, z: size.z },
+                children: root.children.map(child => child.name),
+              });
+            } catch (error) {
+              report.push({ path, bytes: bytes.length, parseError: String(error?.stack ?? error) });
+            }
+          }
+          console.log(JSON.stringify(report, null, 2));
+          NODE
+          node /tmp/inspect-dragon.mjs > scan-report/dragon-fbx-report.json
           {
-            echo '=== NAME MATCHES ==='
-            find artifacts/dungeon-rpg/public -type f \
-              \( -iname '*dragon*' -o -iname '*wyvern*' -o -iname '*drake*' -o -iname '*wyrm*' -o -iname '*beast*' -o -iname '*monster*' -o -iname '*boss*' \) \
-              | sort
+            echo '=== DRAGON FBX REPORT ==='
+            cat scan-report/dragon-fbx-report.json
             echo
-            echo '=== LARGE CHARACTER / CREATURE MODELS ==='
-            find artifacts/dungeon-rpg/public -type f \( -iname '*.glb' -o -iname '*.gltf' \) -printf '%s %p\n' \
-              | sort -nr | head -n 250
+            echo '=== DRAGON FILE STRINGS ==='
+            strings artifacts/dungeon-rpg/public/assets/3d/Dragon.fbx | grep -Ei 'AnimationStack|AnimationLayer|Deformer|LimbNode|Skeleton|dragon|wing|tail|head|jaw|idle|attack|fly|walk' | head -n 300 || true
             echo
             echo '=== LARGE RIG ANIMATIONS ==='
-            find artifacts/dungeon-rpg/public -type f \( -iname '*Rig_Large*.glb' -o -iname '*Rig_Large*.gltf' \) | sort
-            echo
-            echo '=== MANIFEST KEYWORD MATCHES ==='
-            grep -RniE 'dragon|wyvern|drake|wyrm|beast|monster|boss' artifacts/dungeon-rpg/public/assets/kaykit/manifest.json || true
+            find artifacts/dungeon-rpg/public/assets/kaykit/animations -type f -iname '*Rig_Large*.glb' | sort
           } > scan-report/dragon-assets.txt
           cat scan-report/dragon-assets.txt
       - uses: actions/upload-artifact@v4
         with:
           name: dragon-asset-scan
-          path: scan-report/dragon-assets.txt
+          path: scan-report/*
           retention-days: 2
