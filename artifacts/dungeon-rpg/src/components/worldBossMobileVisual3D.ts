@@ -39,12 +39,13 @@ function findNodes(root: any, patterns: RegExp[]) {
 }
 
 function prepareDragonMaterials(THREE: any, root: any) {
+  root.visible = true;
   root.traverse((node: any) => {
-    if (!node.isMesh && !node.isSkinnedMesh) return;
     node.visible = true;
+    if (!node.isMesh && !node.isSkinnedMesh) return;
     node.castShadow = !IS_MOBILE;
     node.receiveShadow = !IS_MOBILE;
-    node.frustumCulled = true;
+    node.frustumCulled = false;
     if (!node.material) return;
     const materials = Array.isArray(node.material) ? node.material : [node.material];
     const prepared = materials.map((material: any) => {
@@ -54,6 +55,12 @@ function prepareDragonMaterials(THREE: any, root: any) {
       if ('metalness' in clone) clone.metalness = Math.min(0.18, clone.metalness ?? 0.04);
       if ('emissive' in clone) clone.emissive.set(0x120302);
       if ('emissiveIntensity' in clone) clone.emissiveIntensity = 0.08;
+      clone.transparent = false;
+      clone.opacity = 1;
+      clone.depthWrite = true;
+      clone.depthTest = true;
+      clone.side = THREE.DoubleSide;
+      clone.needsUpdate = true;
       return clone;
     });
     node.material = Array.isArray(node.material) ? prepared : prepared[0];
@@ -63,15 +70,21 @@ function prepareDragonMaterials(THREE: any, root: any) {
 function normalizeDragon(THREE: any, visual: any) {
   visual.scale.setScalar(1);
   visual.position.set(0, 0, 0);
+  visual.rotation.set(0, Math.PI, 0);
   visual.updateMatrixWorld(true);
-  const bounds = new THREE.Box3().setFromObject(visual);
-  const size = bounds.getSize(new THREE.Vector3());
-  const center = bounds.getCenter(new THREE.Vector3());
-  const largest = Math.max(size.x, size.y, size.z, 0.001);
-  const scale = 3.25 / largest;
-  visual.scale.setScalar(scale);
-  visual.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale);
-  visual.rotation.y = Math.PI;
+
+  const initialBounds = new THREE.Box3().setFromObject(visual);
+  const initialSize = initialBounds.getSize(new THREE.Vector3());
+  const largest = Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001);
+  visual.scale.setScalar(3.25 / largest);
+  visual.updateMatrixWorld(true);
+
+  const scaledBounds = new THREE.Box3().setFromObject(visual);
+  const scaledCenter = scaledBounds.getCenter(new THREE.Vector3());
+  visual.position.x -= scaledCenter.x;
+  visual.position.z -= scaledCenter.z;
+  visual.position.y -= scaledBounds.min.y;
+  visual.updateMatrixWorld(true);
 }
 
 async function loadDragon(FBXLoader: any, attempts = 3) {
