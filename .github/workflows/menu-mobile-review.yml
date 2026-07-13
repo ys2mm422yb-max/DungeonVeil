@@ -1,0 +1,68 @@
+name: Menu Mobile Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/menu-mobile-review.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Build review
+        run: pnpm --filter @workspace/dungeon-rpg build
+      - name: Install Chromium
+        run: npx -y playwright@1.54.2 install --with-deps chromium
+      - name: Start preview
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory artifacts/dungeon-rpg/dist/public > /tmp/menu-preview.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/menu-preview.log
+          exit 1
+      - name: Capture iPhone and Android
+        run: |
+          mkdir -p screenshots
+          npm exec --yes --package=playwright@1.54.2 -- node <<'NODE'
+          const { chromium, devices } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            for (const [name, profile] of [['iphone13', devices['iPhone 13']], ['pixel5', devices['Pixel 5']]]) {
+              const context = await browser.newContext({ ...profile, locale: 'de-DE' });
+              const page = await context.newPage();
+              await page.goto('http://127.0.0.1:4173/?qa=menu', { waitUntil: 'networkidle', timeout: 45000 });
+              await page.waitForTimeout(10000);
+              await page.screenshot({ path: `screenshots/menu-${name}.png`, fullPage: false });
+              await context.close();
+            }
+            await browser.close();
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: menu-mobile-review
+          path: screenshots/*.png
+          if-no-files-found: error
+          retention-days: 3
