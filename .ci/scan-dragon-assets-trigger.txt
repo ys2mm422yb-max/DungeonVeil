@@ -1,1 +1,1 @@
-Scan all packaged models and animations for an existing dragon or wyvern world-boss candidate.
+Inspect the packaged Dragon.fbx files for meshes, bones, embedded animations and world-boss suitability.
