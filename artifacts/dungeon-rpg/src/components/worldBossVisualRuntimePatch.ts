@@ -1,5 +1,6 @@
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const PATCH_FLAG = Symbol.for('dungeon-veil-worldboss-visual-runtime-patch');
+const ADD_PATCH_FLAG = Symbol.for('dungeon-veil-worldboss-ring-add-patch');
 
 let installPromise: Promise<void> | null = null;
 
@@ -20,9 +21,26 @@ function isWorldBossScene(scene: any) {
   );
 }
 
+function softenTelegraph(THREE: any, node: any) {
+  if (!node || node.geometry?.type !== 'RingGeometry') return false;
+  const oldGeometry = node.geometry;
+  node.geometry = new THREE.CircleGeometry(1, 48);
+  node.name = 'WorldBossSoftTelegraphRuntime';
+  oldGeometry?.dispose?.();
+  for (const material of materialList(node)) {
+    material.color?.setHex?.(0xb55d32);
+    material.opacity = Math.min(Number(material.opacity ?? 0), 0.14);
+    material.blending = THREE.NormalBlending;
+    material.depthWrite = false;
+    material.transparent = true;
+    material.needsUpdate = true;
+  }
+  return true;
+}
+
 function improveTextureClarity(THREE: any, renderer: any, scene: any) {
   const maxAnisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() ?? 1, 4);
-  let softTelegraph: any = null;
+  let softTelegraph = scene.userData?.worldBossSoftTelegraph ?? null;
 
   scene?.traverse?.((node: any) => {
     const ringGeometry = node.geometry?.type === 'RingGeometry';
@@ -30,17 +48,7 @@ function improveTextureClarity(THREE: any, renderer: any, scene: any) {
     if (node.parent?.name === 'AshKingDominanceAura' && ringGeometry) node.visible = false;
 
     if (ringGeometry && node.parent === scene && node.name !== 'AshKingPerspectiveSeal') {
-      const oldGeometry = node.geometry;
-      node.geometry = new THREE.CircleGeometry(1, 48);
-      node.name = 'WorldBossSoftTelegraphRuntime';
-      oldGeometry?.dispose?.();
-      for (const material of materialList(node)) {
-        material.blending = THREE.NormalBlending;
-        material.depthWrite = false;
-        material.transparent = true;
-        material.needsUpdate = true;
-      }
-      softTelegraph = node;
+      if (softenTelegraph(THREE, node)) softTelegraph = node;
     }
 
     for (const material of materialList(node)) {
@@ -65,8 +73,31 @@ export function installWorldBossVisualRuntimePatch(): Promise<void> {
   installPromise = (async () => {
     const THREE = await import(/* @vite-ignore */ THREE_URL) as any;
     const rendererPrototype = THREE.WebGLRenderer?.prototype as any;
-    if (!rendererPrototype || rendererPrototype[PATCH_FLAG]) return;
+    const objectPrototype = THREE.Object3D?.prototype as any;
+    if (!rendererPrototype || !objectPrototype) return;
 
+    if (!objectPrototype[ADD_PATCH_FLAG]) {
+      objectPrototype[ADD_PATCH_FLAG] = true;
+      const originalAdd = objectPrototype.add;
+      objectPrototype.add = function patchedWorldBossAdd(...objects: any[]) {
+        for (const object of objects) {
+          const ringGeometry = object?.geometry?.type === 'RingGeometry';
+          if (!ringGeometry) continue;
+
+          if (this?.name === 'AshKingPerspectiveSanctum' || this?.name === 'AshKingDominanceAura') {
+            object.visible = false;
+            continue;
+          }
+
+          if (this?.isScene && isWorldBossScene(this) && softenTelegraph(THREE, object)) {
+            this.userData = { ...(this.userData ?? {}), worldBossSoftTelegraph: object };
+          }
+        }
+        return originalAdd.apply(this, objects);
+      };
+    }
+
+    if (rendererPrototype[PATCH_FLAG]) return;
     rendererPrototype[PATCH_FLAG] = true;
     const originalRender = rendererPrototype.render;
     const originalSetPixelRatio = rendererPrototype.setPixelRatio;
