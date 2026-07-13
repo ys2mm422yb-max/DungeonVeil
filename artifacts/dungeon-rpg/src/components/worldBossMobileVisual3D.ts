@@ -101,38 +101,21 @@ async function loadDragon(FBXLoader: any, attempts = 3) {
   throw lastError instanceof Error ? lastError : new Error('Dragon model could not be loaded');
 }
 
-function clipKey(clip: any) {
-  return String(clip?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-}
-
-function chooseClip(clips: any[], terms: string[]) {
-  return clips.find(clip => terms.some(term => clipKey(clip).includes(term))) ?? null;
-}
-
 export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Promise<WorldBossMobileRig> {
   const { FBXLoader } = await import(/* @vite-ignore */ FBX_LOADER_URL) as any;
   const visual = await loadDragon(FBXLoader);
   visual.name = 'DungeonVeilDragon';
+  visual.animations = [];
   prepareDragonMaterials(THREE, visual);
   normalizeDragon(THREE, visual);
   const visualBasePosition = visual.position.clone();
+  const visualBaseRotationY = visual.rotation.y;
 
   const root = new THREE.Group();
   root.name = 'VeilDragonWorldBoss';
   root.add(visual);
 
-  const clips = visual.animations ?? [];
   const mixer = new THREE.AnimationMixer(visual);
-  const idleClip = chooseClip(clips, ['idle', 'fly', 'hover', 'walk']);
-  const attackClip = chooseClip(clips, ['attack', 'bite', 'fire', 'roar']);
-  const idle = idleClip ? mixer.clipAction(idleClip) : null;
-  const attack = attackClip ? mixer.clipAction(attackClip) : null;
-  idle?.reset().play();
-  if (attack) {
-    attack.setLoop(THREE.LoopOnce, 1);
-    attack.clampWhenFinished = false;
-  }
-
   const head = findNode(visual, [/head/, /neck/]);
   const jaw = findNode(visual, [/jaw/, /mouth/]);
   const leftWing = findNode(visual, [/wingleft/, /leftwing/, /wingl$/]);
@@ -157,22 +140,17 @@ export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Prom
     },
     triggerAttack() {
       attackRemaining = 0.72;
-      if (attack) {
-        attack.reset().fadeIn(0.05).play();
-        idle?.fadeOut(0.05);
-      }
     },
     update(delta: number, now: number) {
       if (stopped) return;
-      mixer.update(delta);
       attackRemaining = Math.max(0, attackRemaining - delta);
-      if (attackRemaining === 0 && attack && !idle?.isRunning?.()) idle?.reset().fadeIn(0.12).play();
 
       const seconds = now * 0.001;
       const attackPulse = Math.max(0, attackRemaining / 0.72);
       const targetY = visualBasePosition.y + 0.08 + Math.sin(seconds * 1.9) * 0.045;
       visual.position.set(visualBasePosition.x, visual.position.y + (targetY - visual.position.y) * Math.min(1, delta * 5.5), visualBasePosition.z);
       visual.rotation.x = Math.sin(seconds * 1.15) * 0.025 - attackPulse * 0.1;
+      visual.rotation.y = visualBaseRotationY;
       visual.rotation.z = Math.sin(seconds * 0.72) * 0.018;
 
       const flap = Math.sin(seconds * (moving ? 4.8 : 2.25)) * (moving ? 0.22 : 0.11) + attackPulse * 0.18;
