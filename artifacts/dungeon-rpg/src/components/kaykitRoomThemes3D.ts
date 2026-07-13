@@ -8,6 +8,14 @@ import { roomPropDisplayScale, roomPropScaleClass } from '../game/propPresentati
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const modelPromises = new Map<string, Promise<any>>();
+const DUNGEON = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
+const ROOM_ONE_HERO_MODELS = [
+  `${DUNGEON}/wall_arched.gltf`,
+  `${DUNGEON}/pillar_decorated.gltf`,
+  `${DUNGEON}/banner_shield_red.gltf`,
+  `${DUNGEON}/sword_shield_gold.gltf`,
+  `${DUNGEON}/torch_lit.gltf`,
+] as const;
 
 const ROOM_ACCENTS: Record<number, number> = {
   1: 0xd99a55, 2: 0xd5b06d, 3: 0x8da7bd, 4: 0xb98245, 5: 0x72a9a0, 6: 0xff7a32,
@@ -63,35 +71,18 @@ async function prototypeForPiece(piece: LogicalRoomSetpiece) {
 }
 
 function additiveMaterial(THREE: any, color: number, opacity: number) {
-  return new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    depthTest: false,
-    blending: THREE.AdditiveBlending,
-  });
+  return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending });
 }
 
 function addGroundSigil(THREE: any, root: any, x: number, z: number, radius: number, color: number, opacity = 0.5) {
   const group = new THREE.Group();
   group.position.set(x, 0.035, z);
-
-  const outer = new THREE.Mesh(
-    new THREE.RingGeometry(radius * 0.78, radius, IS_MOBILE ? 28 : 48),
-    additiveMaterial(THREE, color, opacity),
-  );
+  const outer = new THREE.Mesh(new THREE.RingGeometry(radius * 0.78, radius, IS_MOBILE ? 28 : 48), additiveMaterial(THREE, color, opacity));
   outer.rotation.x = -Math.PI / 2;
   group.add(outer);
-
-  const inner = new THREE.Mesh(
-    new THREE.RingGeometry(radius * 0.38, radius * 0.48, IS_MOBILE ? 24 : 40),
-    additiveMaterial(THREE, color, opacity * 0.72),
-  );
+  const inner = new THREE.Mesh(new THREE.RingGeometry(radius * 0.38, radius * 0.48, IS_MOBILE ? 24 : 40), additiveMaterial(THREE, color, opacity * 0.72));
   inner.rotation.x = -Math.PI / 2;
   group.add(inner);
-
   outer.onBeforeRender = () => {
     const now = performance.now();
     outer.rotation.z = now * 0.00022;
@@ -102,58 +93,65 @@ function addGroundSigil(THREE: any, root: any, x: number, z: number, radius: num
   return group;
 }
 
+function addRoomOneGrandEntrance(THREE: any, root: any) {
+  const layout = [
+    { path: ROOM_ONE_HERO_MODELS[0], x: 0, y: -0.28, z: -13.9, scale: 1.75, rotation: Math.PI, name: 'RoomOneGrandVeilGate' },
+    { path: ROOM_ONE_HERO_MODELS[1], x: -5.25, y: 0, z: -12.55, scale: 1.42, rotation: 0, name: 'RoomOneGatePillarLeft' },
+    { path: ROOM_ONE_HERO_MODELS[1], x: 5.25, y: 0, z: -12.55, scale: 1.42, rotation: 0, name: 'RoomOneGatePillarRight' },
+    { path: ROOM_ONE_HERO_MODELS[2], x: -6.8, y: 2.45, z: -14.75, scale: 1.12, rotation: Math.PI, name: 'RoomOneBannerLeft' },
+    { path: ROOM_ONE_HERO_MODELS[2], x: 6.8, y: 2.45, z: -14.75, scale: 1.12, rotation: Math.PI, name: 'RoomOneBannerRight' },
+    { path: ROOM_ONE_HERO_MODELS[3], x: 0, y: 2.2, z: -14.72, scale: 1.3, rotation: Math.PI, name: 'RoomOneGateCrest' },
+    { path: ROOM_ONE_HERO_MODELS[4], x: -3.25, y: 0.9, z: -12.25, scale: 1.32, rotation: Math.PI, name: 'RoomOneTorchLeft' },
+    { path: ROOM_ONE_HERO_MODELS[4], x: 3.25, y: 0.9, z: -12.25, scale: 1.32, rotation: Math.PI, name: 'RoomOneTorchRight' },
+  ];
+
+  const ready = Promise.all(layout.map(async entry => {
+    const prototype = await prototypeFor(entry.path);
+    if (root.userData.disposed) return;
+    const object = prototype.clone(true);
+    object.name = entry.name;
+    object.position.set(entry.x, entry.y, entry.z);
+    object.rotation.y = entry.rotation;
+    object.scale.setScalar(entry.scale);
+    root.add(object);
+  })).then(() => undefined);
+
+  const gateLight = new THREE.SpotLight(0xffb869, IS_MOBILE ? 3.1 : 5.2, 20, Math.PI / 5.2, 0.42, 1.5);
+  gateLight.position.set(0, 8.4, -10.6);
+  gateLight.target.position.set(0, 0.4, -6.6);
+  root.add(gateLight, gateLight.target);
+  const thresholdLight = new THREE.PointLight(0xd58a45, IS_MOBILE ? 1.8 : 3.2, 11, 2);
+  thresholdLight.position.set(0, 2.8, -11.7);
+  root.add(thresholdLight);
+  root.userData.roomOneGrandEntrance = true;
+  return ready;
+}
+
 function addRoomHeroEffects(THREE: any, root: any, room: number) {
+  if (room === 1) return addRoomOneGrandEntrance(THREE, root);
   if (room === 6) {
-    const ember = new THREE.Mesh(
-      new THREE.CircleGeometry(1.15, IS_MOBILE ? 28 : 48),
-      additiveMaterial(THREE, 0xff6428, 0.34),
-    );
+    const ember = new THREE.Mesh(new THREE.CircleGeometry(1.15, IS_MOBILE ? 28 : 48), additiveMaterial(THREE, 0xff6428, 0.34));
     ember.rotation.x = -Math.PI / 2;
     ember.position.set(0, 0.045, -1.0);
-    ember.onBeforeRender = () => {
-      ember.material.opacity = 0.26 + Math.sin(performance.now() * 0.004) * 0.08;
-    };
+    ember.onBeforeRender = () => { ember.material.opacity = 0.26 + Math.sin(performance.now() * 0.004) * 0.08; };
     root.add(ember);
     const glow = new THREE.PointLight(0xff6a2f, IS_MOBILE ? 1.8 : 3.5, 8, 2);
     glow.position.set(0, 2.1, -1.0);
     root.add(glow);
-    return;
+    return Promise.resolve();
   }
-
-  if (room === 9) {
-    addGroundSigil(THREE, root, 0, 0, 2.25, 0x9b63ff, 0.55);
-    return;
-  }
-
-  if (room === 10) {
-    addGroundSigil(THREE, root, 0, -3.2, 2.45, 0x6e8bb7, 0.42);
-    return;
-  }
-
-  if (room === 15) {
-    addGroundSigil(THREE, root, 0, 0, 3.25, 0xb869ff, 0.6);
-    return;
-  }
-
+  if (room === 9) { addGroundSigil(THREE, root, 0, 0, 2.25, 0x9b63ff, 0.55); return Promise.resolve(); }
+  if (room === 10) { addGroundSigil(THREE, root, 0, -3.2, 2.45, 0x6e8bb7, 0.42); return Promise.resolve(); }
+  if (room === 15) { addGroundSigil(THREE, root, 0, 0, 3.25, 0xb869ff, 0.6); return Promise.resolve(); }
   if (room === 18) {
     addGroundSigil(THREE, root, 0, 0, 2.5, 0x8a5cff, 0.48);
     const rift = new THREE.Group();
-    rift.position.set(0, 0, 0);
-
-    const veil = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.25, 4.8),
-      additiveMaterial(THREE, 0x7246dd, 0.5),
-    );
+    const veil = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 4.8), additiveMaterial(THREE, 0x7246dd, 0.5));
     veil.position.y = 2.45;
     rift.add(veil);
-
-    const core = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.28, 4.35),
-      additiveMaterial(THREE, 0xd5c2ff, 0.72),
-    );
+    const core = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 4.35), additiveMaterial(THREE, 0xd5c2ff, 0.72));
     core.position.set(0.05, 2.45, 0.02);
     rift.add(core);
-
     veil.onBeforeRender = () => {
       const pulse = 0.5 + Math.sin(performance.now() * 0.0032) * 0.5;
       veil.scale.x = 0.86 + pulse * 0.22;
@@ -161,40 +159,28 @@ function addRoomHeroEffects(THREE: any, root: any, room: number) {
       core.material.opacity = 0.58 + pulse * 0.22;
     };
     root.add(rift);
-
     const riftLight = new THREE.PointLight(0x8c62ff, IS_MOBILE ? 2.2 : 4.8, 12, 2);
     riftLight.position.set(0, 2.6, 0.5);
     root.add(riftLight);
-    return;
+    return Promise.resolve();
   }
-
   if (room === 20) {
     addGroundSigil(THREE, root, 0, 0, 3.55, 0xc04f70, 0.52);
-    for (const [x, z] of [[-5.8, -4.8], [5.8, -4.8], [-5.8, 4.8], [5.8, 4.8]] as const) {
-      addGroundSigil(THREE, root, x, z, 0.85, 0xa96cff, 0.46);
-    }
+    for (const [x, z] of [[-5.8, -4.8], [5.8, -4.8], [-5.8, 4.8], [5.8, 4.8]] as const) addGroundSigil(THREE, root, x, z, 0.85, 0xa96cff, 0.46);
   }
+  return Promise.resolve();
 }
 
 function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
   const accent = ROOM_ACCENTS[room] ?? spec.light.fill;
   const ambient = new THREE.AmbientLight(spec.light.ambient, IS_MOBILE ? 0.32 : 0.34);
-  const hemisphere = new THREE.HemisphereLight(
-    spec.light.hemisphereSky,
-    spec.light.hemisphereGround,
-    IS_MOBILE ? 0.55 : 0.62,
-  );
-  root.add(ambient);
-  root.add(hemisphere);
-
+  const hemisphere = new THREE.HemisphereLight(spec.light.hemisphereSky, spec.light.hemisphereGround, IS_MOBILE ? 0.55 : 0.62);
+  root.add(ambient, hemisphere);
   const heroLight = new THREE.PointLight(accent, IS_MOBILE ? 1.75 : 3.4, spec.silhouette === 'arena' ? 18 : 15, 2);
   const heroZ = spec.silhouette === 'ring' || spec.silhouette === 'orbit' || spec.silhouette === 'arena' ? 0 : -4.6;
   heroLight.position.set(0, 4.2, heroZ);
   root.add(heroLight);
-
   const lights = [ambient, hemisphere, heroLight];
-  // The animated portal already owns a point light. A second mobile portal light was
-  // redundant and expensive, so architecture uses it only on larger screens.
   if (!IS_MOBILE) {
     const portalLight = new THREE.PointLight(spec.light.fill, 1.8, 9.5, 2);
     portalLight.position.set(spec.portal.x, 3.2, spec.portal.z < -8 ? -8.5 : spec.portal.z);
@@ -206,18 +192,8 @@ function addLights(THREE: any, root: any, room: number, spec: RoomBibleSpec) {
 
 function bindEnvironmentDriver(THREE: any, root: any, spec: RoomBibleSpec) {
   const background = new THREE.Color(spec.light.background);
-  const fog = new THREE.Fog(
-    spec.light.fog,
-    spec.shell === 'veil' ? 24 : spec.shell === 'abandoned' ? 27 : 30,
-    spec.shell === 'veil' ? 48 : spec.shell === 'abandoned' ? 53 : 58,
-  );
-  const material = new THREE.MeshBasicMaterial({
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    depthTest: false,
-    colorWrite: false,
-  });
+  const fog = new THREE.Fog(spec.light.fog, spec.shell === 'veil' ? 24 : spec.shell === 'abandoned' ? 27 : 30, spec.shell === 'veil' ? 48 : spec.shell === 'abandoned' ? 53 : 58);
+  const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, depthTest: false, colorWrite: false });
   const driver = new THREE.Mesh(new THREE.PlaneGeometry(0.001, 0.001), material);
   driver.position.set(0, 0.1, 0);
   driver.frustumCulled = false;
@@ -233,7 +209,10 @@ function bindEnvironmentDriver(THREE: any, root: any, spec: RoomBibleSpec) {
 
 export async function preloadKayKitRoomTheme(room: number) {
   await preloadKayKitOuterWorld();
-  await Promise.all(logicalRoomSetpieces(room).map(prototypeForPiece));
+  await Promise.all([
+    ...logicalRoomSetpieces(room).map(prototypeForPiece),
+    ...(room === 1 ? ROOM_ONE_HERO_MODELS.map(prototypeFor) : []),
+  ]);
 }
 
 export function buildKayKitRoomTheme(THREE: any, room: number) {
@@ -242,17 +221,14 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   const spec = roomBibleSpec(room);
   root.name = `KayKitSetpieceRoom${room}_${identity.id}_${spec.silhouette}`;
   root.userData.roomIdentity = identity;
-  root.userData.environment = {
-    background: spec.light.background,
-    fog: spec.light.fog,
-    exposure: spec.light.exposure,
-  };
+  root.userData.environment = { background: spec.light.background, fog: spec.light.fog, exposure: spec.light.exposure };
+  root.userData.disposed = false;
   let active = true;
 
   const outer = buildKayKitOuterWorld(THREE, 24, 32, room);
   root.add(outer);
   addLights(THREE, root, room, spec);
-  addRoomHeroEffects(THREE, root, room);
+  const heroReady = addRoomHeroEffects(THREE, root, room);
   bindEnvironmentDriver(THREE, root, spec);
 
   const ready = Promise.all(logicalRoomSetpieces(room).map(async piece => {
@@ -263,20 +239,14 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     object.position.set(piece.x, piece.y ?? 0, piece.z);
     object.rotation.y = piece.rotation ?? 0;
     object.scale.setScalar(displayScale);
-    object.userData = {
-      ...(object.userData ?? {}),
-      roomPropPresentation: {
-        authoredScale: piece.scale ?? 1,
-        displayScale,
-        scaleClass: roomPropScaleClass(piece),
-      },
-    };
+    object.userData = { ...(object.userData ?? {}), roomPropPresentation: { authoredScale: piece.scale ?? 1, displayScale, scaleClass: roomPropScaleClass(piece) } };
     root.add(object);
-  })).then(() => outer.userData?.ready ?? Promise.resolve()).then(() => undefined);
+  })).then(() => Promise.all([outer.userData?.ready ?? Promise.resolve(), heroReady])).then(() => undefined);
 
   root.userData.ready = ready;
   root.userData.dispose = () => {
     active = false;
+    root.userData.disposed = true;
     if (root.userData.environmentDriver) root.userData.environmentDriver.onBeforeRender = () => undefined;
     outer.userData?.dispose?.();
   };
