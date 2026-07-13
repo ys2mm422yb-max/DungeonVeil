@@ -1,8 +1,8 @@
 export const RUN_CAMERA = {
   fov: 50,
-  height: 19.2,
-  distance: 24.4,
-  lookHeight: 0.66,
+  height: 18.4,
+  distance: 22.8,
+  lookHeight: 0.82,
   followLerp: 0.1,
   minFollowX: -4.65,
   maxFollowX: 4.65,
@@ -18,10 +18,18 @@ export const RUN_CAMERA = {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+type CameraFrame = { height: number; distance: number; lookAhead: number; focusBias: number };
+
+function responsiveFrame(aspect: number): CameraFrame {
+  if (aspect < 0.55) return { height: 16.9, distance: 20.6, lookAhead: 4.1, focusBias: 1.45 };
+  if (aspect < 0.68) return { height: 17.5, distance: 21.6, lookAhead: 3.8, focusBias: 1.25 };
+  return { height: RUN_CAMERA.height, distance: RUN_CAMERA.distance, lookAhead: 3.35, focusBias: 1.0 };
+}
+
 /**
- * Die Kamera folgt der Mitte der Spieler-Hitbox, bleibt aber innerhalb einer
- * festen Hochformat-Komposition. Nach Raumabschluss wird die Z-Bewegung enger,
- * damit der Gang zum Portal weder wie ein Zoom wirkt noch die Außenkulisse zeigt.
+ * Die Kamera folgt der Mitte der Spieler-Hitbox und passt ihre echte 3D-Komposition
+ * an das sichtbare Hochformat an. Das ist kein CSS-Zoom: Seitenverhältnis,
+ * Perspektive, Fokus und Kameraposition bleiben vollständig im Renderer synchron.
  */
 export function updateRunCamera(
   camera: any,
@@ -34,9 +42,10 @@ export function updateRunCamera(
   const centeredPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
   const minZ = roomClearReady ? RUN_CAMERA.clearMinFollowZ : RUN_CAMERA.minFollowZ;
   const maxZ = roomClearReady ? RUN_CAMERA.clearMaxFollowZ : RUN_CAMERA.maxFollowZ;
+  const frame = responsiveFrame(Number(camera.aspect) || 1);
 
   let focusX = clamp(centeredPlayerX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX);
-  let focusZ = clamp(centeredPlayerZ - 0.7, minZ, maxZ);
+  let focusZ = clamp(centeredPlayerZ - frame.focusBias, minZ, maxZ);
 
   const offsetX = centeredPlayerX - focusX;
   if (offsetX > RUN_CAMERA.safeHalfX) focusX += offsetX - RUN_CAMERA.safeHalfX;
@@ -49,7 +58,7 @@ export function updateRunCamera(
   focusX = clamp(focusX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX);
   focusZ = clamp(focusZ, minZ, maxZ);
 
-  cameraGoal.set(focusX, RUN_CAMERA.height, focusZ + RUN_CAMERA.distance);
+  cameraGoal.set(focusX, frame.height, focusZ + frame.distance);
   camera.position.lerp(cameraGoal, RUN_CAMERA.followLerp);
-  camera.lookAt(focusX, RUN_CAMERA.lookHeight, focusZ - 2.85);
+  camera.lookAt(focusX, RUN_CAMERA.lookHeight, focusZ - frame.lookAhead);
 }

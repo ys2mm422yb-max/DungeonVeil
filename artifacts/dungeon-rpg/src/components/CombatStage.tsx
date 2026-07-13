@@ -19,6 +19,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   const [hitFlash, setHitFlash] = useState(false);
   const [roomTitle, setRoomTitle] = useState(() => ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
   const [showRoomTitle, setShowRoomTitle] = useState(true);
+  const [visualHeight, setVisualHeight] = useState(() => Math.max(1, Math.round(window.visualViewport?.height ?? window.innerHeight)));
 
   const triggerShake = (heavy: boolean) => {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
@@ -28,6 +29,19 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
       shakeTimerRef.current = window.setTimeout(() => setShakeClass(''), heavy ? 200 : 110);
     });
   };
+
+  useEffect(() => {
+    const updateVisualHeight = () => setVisualHeight(Math.max(1, Math.round(window.visualViewport?.height ?? window.innerHeight)));
+    updateVisualHeight();
+    window.addEventListener('resize', updateVisualHeight);
+    window.visualViewport?.addEventListener('resize', updateVisualHeight);
+    window.visualViewport?.addEventListener('scroll', updateVisualHeight);
+    return () => {
+      window.removeEventListener('resize', updateVisualHeight);
+      window.visualViewport?.removeEventListener('resize', updateVisualHeight);
+      window.visualViewport?.removeEventListener('scroll', updateVisualHeight);
+    };
+  }, []);
 
   useEffect(() => {
     if (previousFloorRef.current === gameState.floor) return undefined;
@@ -118,7 +132,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
   }, []);
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute left-0 top-0 w-full overflow-hidden" style={{ height: `${visualHeight}px` }} data-testid="run-visual-viewport">
       <div className={`absolute inset-0 ${shakeClass}`}>
         <GameCanvas gameState={gameState} />
       </div>
