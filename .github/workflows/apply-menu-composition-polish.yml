@@ -1,0 +1,64 @@
+name: Apply Menu Composition Polish
+
+on:
+  push:
+    branches: [rework/main-menu-veil-village]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'Polish menu composition after mobile review') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rework/main-menu-veil-village
+          fetch-depth: 0
+      - name: Apply visual composition pass
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          scene_path = Path('artifacts/dungeon-rpg/src/components/MainMenuDungeonScene.tsx')
+          scene = scene_path.read_text()
+          replacements = [
+              ("new THREE.MeshBasicMaterial({ color: 0xb8a0ff, transparent: true, opacity: 0.48, depthWrite: false, blending: THREE.AdditiveBlending })", "new THREE.MeshBasicMaterial({ color: 0xb8a0ff, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending })"),
+              ("""  for (const [rotationX, rotationY, rotationZ, arc] of [
+    [Math.PI / 2.55, 0.18, -0.44, Math.PI * 1.28],
+    [Math.PI / 1.8, -0.25, 1.08, Math.PI * 0.82],
+  ] as Array<[number, number, number, number]>) {""", """  for (const [rotationX, rotationY, rotationZ, arc] of [
+    [Math.PI / 2.35, 0.46, -0.82, Math.PI * 0.78],
+  ] as Array<[number, number, number, number]>) {"""),
+              ("add(models.arch, 0, 0, -8.4, 2.1, Math.PI, 'VeilCourtGate');", "add(models.arch, 0, -0.35, -9.25, 1.58, Math.PI, 'VeilCourtGate');"),
+              ("add(models.shrine, 0, 0.12, -7.25, 1.25, 0, 'VeilHeartShrine');", "add(models.shrine, 0, 0.06, -7.55, 1.05, 0, 'VeilHeartShrine');"),
+              ("add(models.pillar, side * 3.45, 0, -6.75, 1.45, 0, `VeilCourtPillar${side}`);", "add(models.pillar, side * 3.45, -0.08, -7.05, 1.28, 0, `VeilCourtPillar${side}`);"),
+              ("add(models.banner, side * 3.7, 2.65, -8.05, 1.2, Math.PI, `VeilCourtBanner${side}`);", "add(models.banner, side * 3.7, 2.35, -8.55, 1.02, Math.PI, `VeilCourtBanner${side}`);"),
+              ("orb.scale.setScalar(1.02);", "orb.scale.setScalar(0.96);"),
+              ("arc.material.opacity = 0.34 + pulse * 0.18;", "arc.material.opacity = 0.2 + pulse * 0.11;"),
+          ]
+          for old, new in replacements:
+              if scene.count(old) != 1:
+                  raise SystemExit(f'expected one scene anchor, got {scene.count(old)}: {old[:70]}')
+              scene = scene.replace(old, new, 1)
+          scene_path.write_text(scene)
+
+          screen_path = Path('artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx')
+          screen = screen_path.read_text()
+          anchor = '    <div className="pointer-events-none absolute left-1/2 top-[51%] h-[25%] w-[2px] -translate-x-1/2 bg-gradient-to-b from-amber-100/20 via-amber-100/8 to-transparent" />\n'
+          replacement = '    <div className="pointer-events-none absolute inset-x-0 top-0 h-[22%] bg-gradient-to-b from-[#080910]/88 via-[#0b0c12]/58 to-transparent" />\n' + anchor
+          if screen.count(anchor) != 1:
+              raise SystemExit('menu top-shade anchor missing')
+          screen = screen.replace(anchor, replacement, 1)
+          screen_path.write_text(screen)
+          PY
+      - name: Commit composition pass
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/MainMenuDungeonScene.tsx artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx
+          git commit -m "Polish menu composition after mobile review"
+          git push origin HEAD:rework/main-menu-veil-village
