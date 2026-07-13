@@ -38,7 +38,7 @@ const checks = [
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
   [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall'), 'main menu lacks the central world orb or visible village staging'],
   [villageHub.includes('accent="world"') && villageHub.includes('top="47.5%"') && menu.includes('h-[41vh]'), 'NPC hub is not balanced around the world orb or remains overlapped by action cards'],
-  [stageWrapper.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage') && perspectiveStage.includes("root.name = 'AshKingPerspectiveSanctum'") && perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && perspectiveStage.includes("throne.name = 'BrokenAshThronePerspective'"), 'perspective semantic Ash King sanctum is missing'],
+  [stageWrapper.includes('installWorldBossVisualRuntimePatch') && stageWrapper.includes('<WorldBossPerspectiveStage') && perspectiveStage.includes("root.name = 'AshKingPerspectiveSanctum'") && perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && perspectiveStage.includes("throne.name = 'BrokenAshThronePerspective'"), 'perspective semantic Ash King sanctum or runtime visual patch is missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or cohesive stage route are missing'],
 ];
 
@@ -49,4 +49,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: village, mailbox, friends and guild routes remain intact, and the perspective Ash King sanctum is QA-addressable.');
+console.log('Social/navigation audit passed: village, mailbox, friends and guild routes remain intact, and the patched perspective Ash King sanctum is QA-addressable.');
