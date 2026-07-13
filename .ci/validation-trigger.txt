@@ -1,1 +1,2 @@
 Prepare the conflict-free integration of PR #40 into main after explicit user approval.
+Trigger the corrected integration job on 2026-07-13.
