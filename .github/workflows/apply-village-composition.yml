@@ -1,0 +1,66 @@
+name: Apply village composition pass
+
+on:
+  push:
+    branches: [rework/village-square-readable-composition]
+    paths: ['.github/workflows/apply-village-composition.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply validated village base and composition fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin fix/menu-village-visible-mobile
+          for path in \
+            artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs \
+            artifacts/dungeon-rpg/scripts/validate-social-progression.mjs \
+            artifacts/dungeon-rpg/src/components/MainMenuDungeonScene.tsx \
+            artifacts/dungeon-rpg/src/components/ModernVillageSquareScene.tsx \
+            artifacts/dungeon-rpg/src/components/VillageNpcHub.tsx \
+            artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx; do
+            git checkout origin/fix/menu-village-visible-mobile -- "$path"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('artifacts/dungeon-rpg/src/components/ModernVillageSquareScene.tsx')
+          text = path.read_text()
+          replacements = {
+            "camera.position.set(0, 4.45, 10.7);": "camera.position.set(0, 6.25, 14.6);",
+            "camera.lookAt(0, 1.15, -3.75);": "camera.lookAt(0, 0.85, -3.65);",
+            "mira: [[-2.55, 0, -1.1, 0.98, 0.18, 'MiraQuestKeeper']],": "mira: [[-3.1, 0, -1.5, 0.56, 0.18, 'MiraQuestKeeper']],",
+            "orin: [[2.55, 0, -1.1, 0.98, -0.18, 'OrinPostKeeper']],": "orin: [[3.1, 0, -1.5, 0.56, -0.18, 'OrinPostKeeper']],",
+            "tala: [[-2.7, 0, -3.55, 0.98, 0.1, 'TalaScoutKeeper']],": "tala: [[-3.2, 0, -4.0, 0.54, 0.1, 'TalaScoutKeeper']],",
+            "brom: [[2.7, 0, -3.55, 0.98, -0.1, 'BromGuildKeeper']],": "brom: [[3.2, 0, -4.0, 0.54, -0.1, 'BromGuildKeeper']],",
+            "aelric: [[0, 0.08, -4.25, 1.04, 0, 'AelricWorldKeeper']],": "aelric: [[0, 0.02, -5.65, 0.34, 0, 'AelricWorldKeeper']],",
+            "camera.fov = camera.aspect < 0.72 ? 38 : 35;": "camera.fov = camera.aspect < 0.72 ? 44 : 38;"
+          }
+          for old, new in replacements.items():
+            if old not in text:
+              raise SystemExit(f'marker not found: {old}')
+            text = text.replace(old, new)
+          path.write_text(text)
+
+          audit = Path('artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs')
+          audit_text = audit.read_text()
+          audit_text = audit_text.replace(
+            "villageScene.includes(\"window.visualViewport?.addEventListener('resize', resize)\")",
+            "villageScene.includes(\"window.visualViewport?.addEventListener('resize', resize)\") && villageScene.includes('camera.position.set(0, 6.25, 14.6)') && villageScene.includes(\"'AelricWorldKeeper'\")"
+          )
+          audit.write_text(audit_text)
+          PY
+          rm .github/workflows/apply-village-composition.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Reframe village square and normalize keepers"
+          git push origin HEAD:rework/village-square-readable-composition
