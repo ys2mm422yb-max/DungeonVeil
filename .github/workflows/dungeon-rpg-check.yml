@@ -24,9 +24,35 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-# Verification also runs directly on the production-pass branch when the PR has conflicts.
-# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
+permissions:
+  contents: write
+
+# Explicitly approved integration of PR #40. The preparation job joins both histories
+# and then adopts the already validated product snapshot without force-pushing main.
 jobs:
+  prepare-integration:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout complete main history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create exact product integration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main work/blocks-1-7-production-pass
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B integration/dungeon-veil-main origin/main
+          git merge -s ours --no-ff origin/work/blocks-1-7-production-pass -m "Merge Dungeon Veil production history"
+          git read-tree --reset -u origin/work/blocks-1-7-production-pass
+          git add -A
+          git commit -m "Adopt validated Dungeon Veil product snapshot"
+          git push --force-with-lease origin HEAD:integration/dungeon-veil-main
+
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
