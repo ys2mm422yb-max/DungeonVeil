@@ -44,4 +44,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: low-call hall, open raid collision, stable joystick input and normal arrow palette are active.');
+console.log('World-boss performance audit passed: low-call hall, open raid collision, stable held-stick input and neutral player-arrow palette are active.');
