@@ -15,6 +15,7 @@ import { GuildSocialPanel } from '../GuildSocialPanel';
 import { GuildInviteLinkCard } from '../GuildInviteLinkCard';
 import { MailboxPanel } from '../MailboxPanel';
 import { FriendsPanel } from '../FriendsPanel';
+import { VillageNpcHub } from '../VillageNpcHub';
 import { WorldBossPanel } from '../WorldBossPanel';
 
 interface Props {
@@ -82,16 +83,6 @@ export function MainMenuScreen(props: Props) {
     </button>;
   };
 
-  const sideButton = (label: string, icon: string, action: () => void, testId?: string) => <button
-    data-testid={testId}
-    type="button"
-    onPointerDown={event => { event.preventDefault(); action(); }}
-    className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-300/24 bg-[linear-gradient(145deg,rgba(49,34,15,.88),rgba(18,14,8,.9))] px-2 text-[7px] font-black uppercase tracking-[.12em] text-amber-100/82 shadow-lg backdrop-blur-xl active:scale-95"
-  >
-    <span className="text-[12px] text-amber-300/70">{icon}</span>
-    {label}
-  </button>;
-
   const startNormalRun = () => { clearWeeklyRiftRun(); props.onNewGame(); };
   const replayTutorial = () => {
     requestTutorialReplay();
@@ -105,21 +96,22 @@ export function MainMenuScreen(props: Props) {
 
   return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#070706] text-white">
     {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
-    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,.18),rgba(0,0,0,.1)_35%,rgba(0,0,0,.84)_76%,#050505)]" />
-    <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="absolute right-4 top-[max(18px,calc(env(safe-area-inset-top)+8px))] z-20 grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-black/58 text-lg text-white/60 backdrop-blur-xl active:scale-95">•••</button>
+    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,.18),rgba(0,0,0,.08)_34%,rgba(0,0,0,.58)_67%,#050505_84%)]" />
+    {overlay !== 'worldBoss' && <VillageNpcHub
+      language={language}
+      dailyProgress={`${retention.daily.claimed.length}/3`}
+      mailUnread={mailUnread}
+      onQuests={() => setOverlay('daily')}
+      onMailbox={() => setOverlay('mailbox')}
+      onFriends={() => setOverlay('friends')}
+      onGuild={() => setOverlay('guild')}
+      onWorldBoss={() => setOverlay('worldBoss')}
+    />}
+    <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="absolute right-4 top-[max(18px,calc(env(safe-area-inset-top)+8px))] z-30 grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-black/58 text-lg text-white/60 backdrop-blur-xl active:scale-95">•••</button>
 
-    <div className="relative flex h-full flex-col px-5 pb-[max(22px,calc(env(safe-area-inset-bottom)+8px))] pt-[max(34px,calc(env(safe-area-inset-top)+14px))]">
+    <div className="relative z-[5] flex h-full flex-col px-5 pb-[max(22px,calc(env(safe-area-inset-bottom)+8px))] pt-[max(34px,calc(env(safe-area-inset-top)+14px))]">
       <header className="text-center"><div className="text-[7px] font-black uppercase tracking-[.5em] text-amber-200/42">{language === 'de' ? 'BETRITT DEN SCHLEIER' : 'ENTER THE VEIL'}</div><h1 className="mt-1.5 font-serif text-[clamp(2.45rem,10.5vw,3.7rem)] font-black leading-[.86] tracking-[.07em] text-[#d7a347]">DUNGEON<br />VEIL</h1><p className="mt-2.5 text-[7px] uppercase tracking-[.28em] text-white/28">{t.subtitle}</p></header>
-      <div className="mt-5 flex justify-center gap-3">
-        <button aria-label={language === 'de' ? 'Aufgaben' : 'Quests'} type="button" onPointerDown={event => { event.preventDefault(); setOverlay('daily'); }} className="relative grid h-11 w-11 place-items-center rounded-full border border-amber-300/22 bg-black/58 text-base text-amber-200 backdrop-blur-xl active:scale-95">✦<span className="absolute -right-1 -top-1 rounded-full border border-amber-100/25 bg-amber-500 px-1.5 py-0.5 text-[7px] font-black text-black">{retention.daily.claimed.length}/3</span></button>
-        <button data-testid="mailbox-button" aria-label={language === 'de' ? 'Postfach' : 'Mailbox'} type="button" onPointerDown={event => { event.preventDefault(); setOverlay('mailbox'); }} className="relative grid h-11 w-11 place-items-center rounded-full border border-sky-300/22 bg-black/58 text-base text-sky-100 backdrop-blur-xl active:scale-95">✉{mailUnread > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full border border-sky-100/25 bg-sky-400 px-1 py-0.5 text-[7px] font-black text-black">{Math.min(99, mailUnread)}</span>}</button>
-      </div>
       <div className="flex-1" />
-      <div className="mx-auto mb-2 flex w-full max-w-sm gap-2">
-        {sideButton(language === 'de' ? 'GILDE' : 'GUILD', '♜', () => setOverlay('guild'))}
-        {sideButton(language === 'de' ? 'FREUNDE' : 'FRIENDS', '♡', () => setOverlay('friends'), 'friends-button')}
-        {sideButton(language === 'de' ? 'WELTBOSS' : 'WORLD BOSS', '♛', () => setOverlay('worldBoss'))}
-      </div>
       <div className="mx-auto w-full max-w-sm space-y-2.5">{button(t.newGame, startNormalRun, undefined, 'primary')}{button(t.continueGame, props.onContinue, continueText, 'normal', !props.saveData)}{button(language === 'de' ? 'Schleierkammer' : 'Veil Chamber', props.onVeilChamber, language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Schleierstaub` : `Rank ${meta.rank} · ${meta.dust} Veil Dust`, 'chamber')}{button(language === 'de' ? 'Kodex' : 'Codex', props.onCodex, language === 'de' ? 'Bestien · Jagd · Wächter · Relikte' : 'Beasts · Hunts · Wardens · Relics')}</div>
     </div>
 
