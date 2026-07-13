@@ -1,5 +1,6 @@
 name: Dungeon Veil Mobile Visual QA
 
+# QA trigger for ritual arena, mailbox and guild links bc342df.
 on:
   push:
     branches: [main]
