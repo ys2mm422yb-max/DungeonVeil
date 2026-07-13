@@ -2,12 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SaveData } from '../game/saveManager';
 import {
   currentOnlineSession,
-  getCurrentWorldBoss,
   onlineSessionEventName,
   type OnlineSession,
   type WorldBossEvent,
 } from '../game/supabaseOnline';
 import {
+  getCurrentOrRecentWorldBoss,
   getWorldBossSocialDashboard,
   prepareWorldBossNotice,
   prepareWorldBossReward,
@@ -102,7 +102,7 @@ export function WorldBossPanel({ language, saveData }: Props) {
       return;
     }
 
-    const nextBoss = await getCurrentWorldBoss();
+    const nextBoss = await getCurrentOrRecentWorldBoss();
     setBoss(nextBoss);
     if (!nextBoss) {
       setDashboard(null);
@@ -156,18 +156,11 @@ export function WorldBossPanel({ language, saveData }: Props) {
       {!session ? <div className="rounded-2xl border border-violet-300/12 bg-violet-400/[.04] p-3 text-[10px] leading-relaxed text-white/42">{de ? 'Melde dich zuerst unter Online & Cloud an, um Weltbossdaten und Ranglisten zu laden.' : 'Sign in through Online & Cloud to load the world boss and rankings.'}</div> : boss ? <div className="space-y-3">
         <section className="rounded-2xl border border-orange-300/16 bg-orange-400/[.05] p-3"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-black text-orange-50">{boss.name}</div><div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/32">{boss.slug}</div></div><div className="rounded-full border border-orange-300/18 bg-orange-400/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[.14em] text-orange-100">{statusLabel(boss.status, de)}</div></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-black/60"><div className="h-full bg-gradient-to-r from-red-600 via-orange-500 to-amber-300" style={{ width: `${hpPercent}%` }} /></div><div className="mt-2 flex items-center justify-between gap-3 text-[9px] text-white/42"><span>{formatNumber(boss.current_hp)} HP</span><span>{formatNumber(boss.max_hp)} HP</span></div></section>
 
-        {dashboard && <section className="rounded-2xl border border-amber-300/12 bg-amber-400/[.03] p-3">
-          <div className="text-[8px] font-black uppercase tracking-[.18em] text-amber-100/48">{de ? 'DEIN BEITRAG' : 'YOUR CONTRIBUTION'}</div>
-          <div className="mt-2 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Platz' : 'Rank'}</div><div className="mt-1 font-black text-amber-100">{dashboard.personal.rank ? `#${dashboard.personal.rank}` : '—'}</div></div><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Schaden' : 'Damage'}</div><div className="mt-1 font-black text-orange-100">{formatNumber(dashboard.personal.damage)}</div></div><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Treffer' : 'Hits'}</div><div className="mt-1 font-black text-cyan-100">{dashboard.personal.hits}</div></div></div>
-        </section>}
+        {dashboard && <section className="rounded-2xl border border-amber-300/12 bg-amber-400/[.03] p-3"><div className="text-[8px] font-black uppercase tracking-[.18em] text-amber-100/48">{de ? 'DEIN BEITRAG' : 'YOUR CONTRIBUTION'}</div><div className="mt-2 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Platz' : 'Rank'}</div><div className="mt-1 font-black text-amber-100">{dashboard.personal.rank ? `#${dashboard.personal.rank}` : '—'}</div></div><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Schaden' : 'Damage'}</div><div className="mt-1 font-black text-orange-100">{formatNumber(dashboard.personal.damage)}</div></div><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Treffer' : 'Hits'}</div><div className="mt-1 font-black text-cyan-100">{dashboard.personal.hits}</div></div></div></section>}
 
         {reward && <section className="rounded-2xl border border-emerald-300/18 bg-emerald-400/[.055] p-3"><div className="text-[9px] font-black uppercase tracking-[.16em] text-emerald-100">{de ? 'Belohnung liegt im Postfach' : 'Reward is in your mailbox'}</div><div className="mt-1 text-[9px] leading-relaxed text-white/42">{de ? `Stufe ${reward.tier}: ${reward.xp} Rang-XP · ${reward.dust} Schleierstaub · ${reward.gold} Gold${reward.guild_bonus ? ' · Gildenbonus' : ''}` : `Tier ${reward.tier}: ${reward.xp} rank XP · ${reward.dust} Veil Dust · ${reward.gold} gold${reward.guild_bonus ? ' · guild bonus' : ''}`}</div></section>}
 
-        {dashboard && <section className="rounded-2xl border border-white/8 bg-white/[.02] p-3">
-          <div className="grid grid-cols-3 gap-1.5">{(['friends', 'guild', 'global'] as RankingTab[]).map(tab => <button key={tab} type="button" onClick={() => setRankingTab(tab)} className={`min-h-9 rounded-xl border text-[7px] font-black uppercase tracking-[.1em] ${rankingTab === tab ? 'border-orange-300/24 bg-orange-400/10 text-orange-100' : 'border-white/7 bg-black/20 text-white/30'}`}>{tab === 'friends' ? (de ? 'Freunde' : 'Friends') : tab === 'guild' ? (de ? 'Gilden' : 'Guilds') : 'Global'}</button>)}</div>
-          <div className="mt-2">{rankingTab === 'guild' ? <GuildRanking rows={dashboard.guilds} de={de} /> : <PlayerRanking rows={rankingRows} de={de} />}</div>
-          {rankingTab === 'guild' && dashboard.myGuild && <div className="mt-3"><div className="mb-1.5 text-[7px] font-black uppercase tracking-[.16em] text-white/28">{de ? `DEINE GILDE [${dashboard.myGuild.tag}] · PLATZ ${dashboard.myGuild.rank}` : `YOUR GUILD [${dashboard.myGuild.tag}] · RANK ${dashboard.myGuild.rank}`}</div><PlayerRanking rows={dashboard.myGuild.members} de={de} /></div>}
-        </section>}
+        {dashboard && <section className="rounded-2xl border border-white/8 bg-white/[.02] p-3"><div className="grid grid-cols-3 gap-1.5">{(['friends', 'guild', 'global'] as RankingTab[]).map(tab => <button key={tab} type="button" onClick={() => setRankingTab(tab)} className={`min-h-9 rounded-xl border text-[7px] font-black uppercase tracking-[.1em] ${rankingTab === tab ? 'border-orange-300/24 bg-orange-400/10 text-orange-100' : 'border-white/7 bg-black/20 text-white/30'}`}>{tab === 'friends' ? (de ? 'Freunde' : 'Friends') : tab === 'guild' ? (de ? 'Gilden' : 'Guilds') : 'Global'}</button>)}</div><div className="mt-2">{rankingTab === 'guild' ? <GuildRanking rows={dashboard.guilds} de={de} /> : <PlayerRanking rows={rankingRows} de={de} />}</div>{rankingTab === 'guild' && dashboard.myGuild && <div className="mt-3"><div className="mb-1.5 text-[7px] font-black uppercase tracking-[.16em] text-white/28">{de ? `DEINE GILDE [${dashboard.myGuild.tag}] · PLATZ ${dashboard.myGuild.rank}` : `YOUR GUILD [${dashboard.myGuild.tag}] · RANK ${dashboard.myGuild.rank}`}</div><PlayerRanking rows={dashboard.myGuild.members} de={de} /></div>}</section>}
 
         <section className="grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-white/[.025] p-3 text-[9px]"><div><div className="text-[7px] font-black uppercase tracking-[.16em] text-white/28">START</div><div className="mt-1 text-white/55">{formatDate(boss.starts_at, language)}</div></div><div><div className="text-[7px] font-black uppercase tracking-[.16em] text-white/28">ENDE</div><div className="mt-1 text-white/55">{formatDate(boss.ends_at, language)}</div></div></section>
 
