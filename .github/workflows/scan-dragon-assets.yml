@@ -1,0 +1,46 @@
+name: Scan Dragon Assets
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/scan-dragon-assets.yml'
+      - '.ci/scan-dragon-assets-trigger.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    if: github.event.pull_request.head.ref == 'rework/worldboss-full-3d-arena'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+      - name: Scan model and animation files
+        run: |
+          mkdir -p scan-report
+          {
+            echo '=== NAME MATCHES ==='
+            find artifacts/dungeon-rpg/public -type f \
+              \( -iname '*dragon*' -o -iname '*wyvern*' -o -iname '*drake*' -o -iname '*wyrm*' -o -iname '*beast*' -o -iname '*monster*' -o -iname '*boss*' \) \
+              | sort
+            echo
+            echo '=== LARGE CHARACTER / CREATURE MODELS ==='
+            find artifacts/dungeon-rpg/public -type f \( -iname '*.glb' -o -iname '*.gltf' \) -printf '%s %p\n' \
+              | sort -nr | head -n 250
+            echo
+            echo '=== LARGE RIG ANIMATIONS ==='
+            find artifacts/dungeon-rpg/public -type f \( -iname '*Rig_Large*.glb' -o -iname '*Rig_Large*.gltf' \) | sort
+            echo
+            echo '=== MANIFEST KEYWORD MATCHES ==='
+            grep -RniE 'dragon|wyvern|drake|wyrm|beast|monster|boss' artifacts/dungeon-rpg/public/assets/kaykit/manifest.json || true
+          } > scan-report/dragon-assets.txt
+          cat scan-report/dragon-assets.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dragon-asset-scan
+          path: scan-report/dragon-assets.txt
+          retention-days: 2
