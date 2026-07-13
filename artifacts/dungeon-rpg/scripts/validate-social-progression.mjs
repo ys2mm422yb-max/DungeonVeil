@@ -47,8 +47,8 @@ const checks = [
   [tutorial.includes('data-testid="tutorial-overlay"') && tutorial.includes('lastDodgeTime') && tutorial.includes('Math.hypot(player.x') && tutorial.includes('KAPITEL 7 · WELTENHÜTER'), 'seven-part interactive tutorial is incomplete'],
   [tutorialState.includes('requestTutorialReplay') && tutorialState.includes('completeTutorial') && bridge.includes('<TutorialOverlay'), 'tutorial persistence or gameplay bridge is missing'],
   [menu.includes('Tutorial wiederholen') && menu.includes('requestTutorialReplay') && menu.includes('syncSocialProfileProgress'), 'main-menu tutorial replay or social progress sync is missing'],
-  [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-guildmaster') && villageHub.includes('npc-worldkeeper'), 'interactive village NPC navigation is missing'],
-  [menu.includes('<VillageNpcHub') && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall') && menuScene.includes('villageNpcs'), 'village NPC navigation is not backed by a visible village scene'],
+  [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-guildmaster') && villageHub.includes('npc-worldkeeper'), 'interactive village navigation is missing'],
+  [menu.includes('<VillageNpcHub') && menuScene.includes("villageRoot.name = 'ModernVeilVillageSquare'") && menuScene.includes("'MiraQuestKeeper'") && menuScene.includes("'OrinPostKeeper'") && menuScene.includes("'AelricWorldKeeper'"), 'village navigation is not backed by visible KayKit characters and locations'],
   [main.includes("qaMode === 'tutorial'") && main.includes('<TutorialVisualQa'), 'tutorial visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'village menu visual QA route is missing'],
 ];
@@ -60,4 +60,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: friend codes, presence and favorites, extended profile cards, direct guild invites, social mailbox notices and bulk actions, friend/guild world-boss rankings, participation-gated rewards, the seven-part tutorial and interactive Veil village NPC hub are wired.');
+console.log('Social progression audit passed: social systems, rewards, tutorial flow and the modern visible KayKit village-square navigation are wired.');
