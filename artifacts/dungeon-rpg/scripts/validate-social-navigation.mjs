@@ -26,7 +26,7 @@ const checks = [
   [guildMigration.includes('enable row level security') && guildMigration.includes('security definer') && guildMigration.includes('extensions.digest'), 'mailbox and guild link security controls are incomplete'],
   [(menu.includes("'friends-button'") || menu.includes('data-testid="friends-button"')) && menu.includes('<FriendsPanel'), 'main-menu friends entry is missing'],
   [friendsPanel.includes('sendFriendRequestOnline') && friendsPanel.includes('acceptFriendRequestOnline') && friendsPanel.includes('cancelFriendRequestOnline') && friendsPanel.includes('removeFriendOnline'), 'friends panel actions are incomplete'],
-  [friendClient.includes("rpc<OnlineFriend[]>('list_friends')") && friendClient.includes("rpc<OnlineFriendRequest[]>('list_friend_requests')") && friendClient.includes("rpc<SentFriendRequest[]>('send_friend_request'"), 'authenticated friends client is incomplete'],
+  [friendClient.includes("rpc<OnlineFriend[]>('list_friends_v2')") && friendClient.includes("rpc<OnlineFriendRequest[]>('list_friend_requests')") && friendClient.includes("rpc<SentFriendRequest[]>('send_friend_request_by_query'"), 'authenticated friend-code client is incomplete'],
   [mailbox.includes("message.kind === 'friend_request'") && mailbox.includes('answerFriendRequest') && mailbox.includes('acceptFriendRequestOnline'), 'friend requests are not actionable from the mailbox'],
   [friendMigration.includes('create table if not exists public.friend_requests') && friendMigration.includes('create table if not exists public.friendships'), 'friends database tables are missing'],
   [friendMigration.includes('friend_requests_read_related') && friendMigration.includes('friendships_read_own') && friendMigration.includes('revoke execute') && friendMigration.includes('grant execute'), 'friends RLS or RPC permissions are incomplete'],
@@ -43,4 +43,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: weekly rift removed, mailbox active, secure guild links available, full friends workflows wired, and the semantic Ash King ritual arena is QA-addressable.');
+console.log('Social/navigation audit passed: weekly rift removed, mailbox active, secure guild links available, friend codes and full friend workflows wired, and the semantic Ash King ritual arena is QA-addressable.');
