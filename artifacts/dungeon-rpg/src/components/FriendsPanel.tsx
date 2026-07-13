@@ -24,6 +24,9 @@ import { PlayerProfileCard } from './PlayerProfileCard';
 type Props = { language: 'de' | 'en' };
 type Tab = 'friends' | 'requests' | 'add';
 
+const FAVORITES_KEY = 'dungeon-veil-favorite-friends-v1';
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
 function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
 }
@@ -34,6 +37,32 @@ function formatSince(value: string, language: 'de' | 'en'): string {
   return new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-US', {
     day: '2-digit', month: '2-digit', year: '2-digit',
   }).format(date);
+}
+
+function isOnline(value: string): boolean {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && Date.now() - time <= ONLINE_WINDOW_MS;
+}
+
+function formatLastSeen(value: string, de: boolean): string {
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return de ? 'zuletzt unbekannt' : 'last seen unknown';
+  const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
+  if (minutes < 5) return de ? 'jetzt online' : 'online now';
+  if (minutes < 60) return de ? `vor ${minutes} Min.` : `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return de ? `vor ${hours} Std.` : `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return de ? `vor ${days} Tag${days === 1 ? '' : 'en'}` : `${days}d ago`;
+}
+
+function loadFavorites(): Set<string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? '[]');
+    return new Set(Array.isArray(parsed) ? parsed.filter(value => typeof value === 'string') : []);
+  } catch {
+    return new Set();
+  }
 }
 
 export function FriendsPanel({ language }: Props) {
@@ -51,6 +80,7 @@ export function FriendsPanel({ language }: Props) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(loadFavorites);
 
   const refresh = useCallback(async () => {
     const active = Boolean(currentOnlineSession());
@@ -96,6 +126,13 @@ export function FriendsPanel({ language }: Props) {
 
   const incoming = useMemo(() => requests.filter(request => request.direction === 'incoming'), [requests]);
   const outgoing = useMemo(() => requests.filter(request => request.direction === 'outgoing'), [requests]);
+  const sortedFriends = useMemo(() => [...friends].sort((left, right) => {
+    const favoriteDelta = Number(favorites.has(right.user_id)) - Number(favorites.has(left.user_id));
+    if (favoriteDelta) return favoriteDelta;
+    const onlineDelta = Number(isOnline(right.last_active_at)) - Number(isOnline(left.last_active_at));
+    if (onlineDelta) return onlineDelta;
+    return left.display_name.localeCompare(right.display_name);
+  }), [favorites, friends]);
   const canInviteToGuild = membership?.role === 'owner' || membership?.role === 'officer';
 
   const run = async (id: string, task: () => Promise<void>, success: string) => {
@@ -137,6 +174,16 @@ export function FriendsPanel({ language }: Props) {
     window.setTimeout(() => setCopied(false), 1400);
   };
 
+  const toggleFavorite = (friendId: string) => {
+    setFavorites(current => {
+      const next = new Set(current);
+      if (next.has(friendId)) next.delete(friendId);
+      else next.add(friendId);
+      try { localStorage.setItem(FAVORITES_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
   const removeFriend = (friend: OnlineFriend) => {
     const confirmed = window.confirm(de
       ? `${friend.display_name} wirklich aus deiner Freundesliste entfernen?`
@@ -166,7 +213,7 @@ export function FriendsPanel({ language }: Props) {
       <div>
         <div className="text-[8px] font-black uppercase tracking-[.3em] text-cyan-200/48">{de ? 'FREUNDE' : 'FRIENDS'}</div>
         <div className="mt-1 text-lg font-black text-cyan-100">{de ? 'Gefährten im Schleier' : 'Companions in the Veil'}</div>
-        <div className="mt-1 text-[9px] leading-relaxed text-white/38">{de ? 'Finde Spieler über Profilnamen oder Freundescode und öffne ihre Profilkarte.' : 'Find players by profile name or friend code and open their profile card.'}</div>
+        <div className="mt-1 text-[9px] leading-relaxed text-white/38">{de ? 'Finde Spieler über Profilnamen oder Freundescode, sehe ihren Status und markiere wichtige Gefährten als Favoriten.' : 'Find players by profile name or friend code, see their status and favorite important companions.'}</div>
       </div>
 
       {(message || error) && <div className={`mt-3 rounded-xl border px-3 py-2 text-[10px] ${error ? 'border-red-400/25 bg-red-500/10 text-red-200' : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}
@@ -178,11 +225,11 @@ export function FriendsPanel({ language }: Props) {
 
       {signedIn && <>
         {myProfile && <section className="mt-4 flex items-center gap-3 rounded-2xl border border-cyan-300/14 bg-cyan-400/[.045] p-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/18 bg-black/20 text-[10px] font-black text-cyan-100">{initials(myProfile.display_name)}</div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[7px] font-black uppercase tracking-[.16em] text-white/30">{de ? 'DEIN FREUNDESCODE' : 'YOUR FRIEND CODE'}</div>
+          <button type="button" onClick={() => setSelectedProfileId(myProfile.id)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/18 bg-black/20 text-[10px] font-black text-cyan-100 active:scale-[.96]">{initials(myProfile.display_name)}</button>
+          <button type="button" onClick={() => setSelectedProfileId(myProfile.id)} className="min-w-0 flex-1 text-left active:opacity-70">
+            <div className="text-[7px] font-black uppercase tracking-[.16em] text-white/30">{de ? 'DEIN PROFIL & FREUNDESCODE' : 'YOUR PROFILE & FRIEND CODE'}</div>
             <div className="mt-1 text-[13px] font-black tracking-[.16em] text-cyan-50">{myProfile.friend_code}</div>
-          </div>
+          </button>
           <button type="button" onClick={() => void copyFriendCode()} className="rounded-xl border border-cyan-300/18 bg-cyan-400/[.06] px-3 py-2 text-[8px] font-black uppercase tracking-[.12em] text-cyan-100 active:scale-[.98]">{copied ? (de ? 'Kopiert' : 'Copied') : (de ? 'Kopieren' : 'Copy')}</button>
         </section>}
 
@@ -195,21 +242,26 @@ export function FriendsPanel({ language }: Props) {
         {loading && <div className="mt-3 rounded-2xl border border-white/8 bg-white/[.025] p-4 text-center text-[9px] uppercase tracking-[.18em] text-white/34">{de ? 'Freunde werden geladen …' : 'Loading friends …'}</div>}
 
         {!loading && tab === 'friends' && <section className="mt-3 space-y-2">
-          {friends.map(friend => <article key={friend.user_id} className="rounded-2xl border border-cyan-300/10 bg-cyan-400/[.025] p-3">
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-cyan-300/18 bg-cyan-400/8 text-[11px] font-black text-cyan-100">{initials(friend.display_name)}</div>
-              <button type="button" onClick={() => setSelectedProfileId(friend.user_id)} className="min-w-0 flex-1 text-left active:opacity-70">
-                <div className="truncate text-[12px] font-black text-white/86">{friend.display_name}</div>
-                <div className="mt-1 text-[7px] uppercase tracking-[.12em] text-white/28">{friend.friend_code} · {de ? 'Rang' : 'Rank'} {friend.current_rank} · {de ? 'Kapitel' : 'Chapter'} {friend.current_chapter}</div>
-              </button>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setSelectedProfileId(friend.user_id)} className="min-h-9 rounded-xl border border-cyan-300/14 bg-cyan-400/[.045] text-[8px] font-black uppercase tracking-[.12em] text-cyan-100 active:scale-[.98]">{de ? 'Profil' : 'Profile'}</button>
-              {canInviteToGuild ? <button type="button" disabled={Boolean(busyId)} onClick={() => inviteFriendToGuild(friend)} className="min-h-9 rounded-xl border border-amber-300/18 bg-amber-400/[.05] text-[8px] font-black uppercase tracking-[.12em] text-amber-100 active:scale-[.98] disabled:opacity-35">{busyId === `guild-${friend.user_id}` ? '…' : (de ? 'In Gilde einladen' : 'Invite to guild')}</button> : <button type="button" disabled={Boolean(busyId)} onClick={() => removeFriend(friend)} className="min-h-9 rounded-xl border border-red-400/14 bg-red-500/[.045] text-[8px] font-black uppercase tracking-[.12em] text-red-200/70 active:scale-[.98] disabled:opacity-35">{de ? 'Entfernen' : 'Remove'}</button>}
-            </div>
-            {canInviteToGuild && <button type="button" disabled={Boolean(busyId)} onClick={() => removeFriend(friend)} className="mt-2 w-full rounded-lg py-1.5 text-[7px] font-black uppercase tracking-[.12em] text-red-200/34 active:text-red-200">{de ? 'Freund entfernen' : 'Remove friend'}</button>}
-            <div className="mt-1 text-center text-[7px] uppercase tracking-[.12em] text-white/20">{de ? 'Freunde seit' : 'Friends since'} {formatSince(friend.friends_since, language)}</div>
-          </article>)}
+          {sortedFriends.map(friend => {
+            const online = isOnline(friend.last_active_at);
+            const favorite = favorites.has(friend.user_id);
+            return <article key={friend.user_id} className={`rounded-2xl border p-3 ${favorite ? 'border-amber-300/16 bg-amber-400/[.035]' : 'border-cyan-300/10 bg-cyan-400/[.025]'}`}>
+              <div className="flex items-center gap-3">
+                <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full border border-cyan-300/18 bg-cyan-400/8 text-[11px] font-black text-cyan-100">{initials(friend.display_name)}<span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#081014] ${online ? 'bg-emerald-400' : 'bg-white/25'}`} /></div>
+                <button type="button" onClick={() => setSelectedProfileId(friend.user_id)} className="min-w-0 flex-1 text-left active:opacity-70">
+                  <div className="flex items-center gap-2"><div className="truncate text-[12px] font-black text-white/86">{friend.display_name}</div><span className={`text-[7px] font-black uppercase ${online ? 'text-emerald-200/72' : 'text-white/28'}`}>{formatLastSeen(friend.last_active_at, de)}</span></div>
+                  <div className="mt-1 text-[7px] uppercase tracking-[.12em] text-white/28">{friend.friend_code} · {de ? 'Rang' : 'Rank'} {friend.current_rank} · {de ? 'Kapitel' : 'Chapter'} {friend.current_chapter}</div>
+                </button>
+                <button type="button" aria-label={de ? 'Favorit umschalten' : 'Toggle favorite'} onClick={() => toggleFavorite(friend.user_id)} className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border text-sm active:scale-[.94] ${favorite ? 'border-amber-300/25 bg-amber-400/10 text-amber-200' : 'border-white/8 bg-black/20 text-white/24'}`}>{favorite ? '★' : '☆'}</button>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setSelectedProfileId(friend.user_id)} className="min-h-9 rounded-xl border border-cyan-300/14 bg-cyan-400/[.045] text-[8px] font-black uppercase tracking-[.12em] text-cyan-100 active:scale-[.98]">{de ? 'Profil' : 'Profile'}</button>
+                {canInviteToGuild ? <button type="button" disabled={Boolean(busyId)} onClick={() => inviteFriendToGuild(friend)} className="min-h-9 rounded-xl border border-amber-300/18 bg-amber-400/[.05] text-[8px] font-black uppercase tracking-[.12em] text-amber-100 active:scale-[.98] disabled:opacity-35">{busyId === `guild-${friend.user_id}` ? '…' : (de ? 'In Gilde einladen' : 'Invite to guild')}</button> : <button type="button" disabled={Boolean(busyId)} onClick={() => removeFriend(friend)} className="min-h-9 rounded-xl border border-red-400/14 bg-red-500/[.045] text-[8px] font-black uppercase tracking-[.12em] text-red-200/70 active:scale-[.98] disabled:opacity-35">{de ? 'Entfernen' : 'Remove'}</button>}
+              </div>
+              {canInviteToGuild && <button type="button" disabled={Boolean(busyId)} onClick={() => removeFriend(friend)} className="mt-2 w-full rounded-lg py-1.5 text-[7px] font-black uppercase tracking-[.12em] text-red-200/34 active:text-red-200">{de ? 'Freund entfernen' : 'Remove friend'}</button>}
+              <div className="mt-1 text-center text-[7px] uppercase tracking-[.12em] text-white/20">{de ? 'Freunde seit' : 'Friends since'} {formatSince(friend.friends_since, language)}</div>
+            </article>;
+          })}
           {!friends.length && <div className="rounded-2xl border border-white/8 bg-white/[.025] p-5 text-center text-[10px] text-white/38">{de ? 'Noch keine Freunde. Suche im Tab „Hinzufügen“ nach einem Namen oder Code.' : 'No friends yet. Search by name or code in the Add tab.'}</div>}
         </section>}
 
