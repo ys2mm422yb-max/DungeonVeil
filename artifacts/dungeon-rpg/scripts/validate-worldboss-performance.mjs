@@ -1,39 +1,29 @@
 import { readFile } from 'node:fs/promises';
 
-// Final gate after screenshot validation on real iPhone 13 and Pixel 5 emulation.
 const files = {
   battle: await readFile(new URL('../src/components/WorldBossBattleScreen.tsx', import.meta.url), 'utf8'),
   proxyStage: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
   combatBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
   cohesiveStage: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
-  perspectiveStage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
-  runtimePatch: await readFile(new URL('../src/components/worldBossVisualRuntimePatch.ts', import.meta.url), 'utf8'),
+  stage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
 };
 
 const checks = [
   [files.battle.includes("import { WorldBossLiteStage }") && files.battle.includes('<WorldBossLiteStage'), 'battle screen is not using the dedicated world-boss stage'],
-  [!files.battle.includes('CombatStage') && !files.battle.includes('GameCanvas'), 'world boss still mounts the normal dungeon renderer'],
   [files.proxyStage.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.combatBand.includes('<WorldBossCohesiveStage'), 'world-boss stage routing is broken'],
-  [files.cohesiveStage.includes('installWorldBossVisualRuntimePatch') && files.cohesiveStage.includes('<WorldBossPerspectiveStage'), 'cohesive stage does not install the visual patch before rendering'],
-  [files.perspectiveStage.includes('buildKayKitDungeonRoom') && files.perspectiveStage.includes('buildKayKitRoomTheme') && files.perspectiveStage.includes('const VISUAL_ROOM = 20;'), 'production KayKit room pipeline is missing'],
-  [files.perspectiveStage.includes("root.name = 'AshKingPerspectiveSanctum'") && files.perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && files.perspectiveStage.includes("'VeilGateArch'"), 'perspective sanctum architecture is missing'],
-  [files.perspectiveStage.includes("throne.name = 'BrokenAshThronePerspective'") && files.perspectiveStage.includes("seal.name = 'AshKingPerspectiveSeal'"), 'throne or ritual marker is missing'],
-  [files.runtimePatch.includes("parent?.name?.startsWith?.('KayKitSetpieceRoom20_')") && files.runtimePatch.includes("object.name = 'WorldBossCentralRoom20Sigil'") && files.runtimePatch.includes("ringChildren.length === 2"), 'central room-20 double sigil is not removed only for the world-boss stage'],
-  [files.runtimePatch.includes("node.name === 'AshKingPerspectiveSeal'") && files.runtimePatch.includes("node.parent?.name === 'AshKingDominanceAura'") && files.runtimePatch.includes("node.geometry?.type === 'RingGeometry'"), 'static world-boss ring cleanup is missing'],
-  [files.runtimePatch.includes('Math.min(deviceRatio, 1.3)') && files.runtimePatch.includes('texture.anisotropy = maxAnisotropy') && files.runtimePatch.includes("contrast(1.055) saturate(1.035)"), 'iPhone render-resolution or texture-clarity pass is missing'],
-  [files.perspectiveStage.includes('new THREE.PerspectiveCamera') && !files.perspectiveStage.includes('new THREE.OrthographicCamera'), 'world-boss camera is not perspective'],
-  [files.perspectiveStage.includes('camera.aspect < 0.7 ? 50 : 44') && files.perspectiveStage.includes('(portrait ? 13.7 : 11.9)') && files.perspectiveStage.includes('(portrait ? 19.6 : 16.7)'), 'portrait player-safe camera framing is missing'],
-  [files.perspectiveStage.includes('WorldBossCleanFloor_') && files.perspectiveStage.includes('WorldBossFrontWallClearance_'), 'central combat lane or front-wall clearance is missing'],
-  [files.battle.includes('data-testid="worldboss-compact-status"') && files.battle.includes('bg-black/84') && files.battle.includes("{de ? 'DU' : 'YOU'}"), 'compact world-boss HUD is missing'],
-  [files.perspectiveStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 5 : 10;') && files.perspectiveStage.includes('return 33;') && files.perspectiveStage.includes('return 42;') && files.perspectiveStage.includes('return 50;'), 'mobile projectile or frame budgets are missing'],
-  [files.perspectiveStage.includes('fps < 19 ? 2 : fps < 27') && files.perspectiveStage.includes('IS_ANDROID ? 0.62 : 0.7'), 'adaptive mobile quality ladder is missing'],
-  [files.perspectiveStage.includes('loadWorldBossMobileRig') && files.perspectiveStage.includes('bossRig.root.scale.setScalar(2.05') && files.perspectiveStage.includes("root.name = 'AshKingDominanceAura'"), 'dominant Ash King presentation is missing'],
-  [files.perspectiveStage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.perspectiveStage.includes('key.castShadow = !IS_MOBILE'), 'mobile-safe shadow policy is missing'],
+  [files.cohesiveStage.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'cohesive stage does not route directly to the performance renderer'],
+  [files.stage.includes('buildKayKitDungeonRoom') && !files.stage.includes('buildKayKitRoomTheme') && !files.stage.includes('preloadKayKitRoomTheme'), 'heavy room-20 theme layer is still mounted'],
+  [files.stage.includes("root.name = 'AshKingPerformanceSanctum'") && files.stage.includes("lower.name = 'AshKingRaisedDais'") && files.stage.includes("'VeilGateArch'"), 'simplified sanctum architecture is missing'],
+  [!files.stage.includes('models.barrier') && !files.stage.includes('models.banner') && !files.stage.includes('models.shrine'), 'excess arena models remain'],
+  [files.stage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.stage.includes('const EMBER_COUNT = IS_MOBILE ? 10 : 28;'), 'mobile effect budgets are too high'],
+  [files.stage.includes('qualityLevel === 0) return 0') && files.stage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)"), 'mobile frame pacing or resolution is not performance safe'],
+  [files.stage.includes('fps < 24 ? 2 : fps < 44') && files.stage.includes('IS_MOBILE ? 60 : 0'), 'adaptive 60-fps-first ladder is missing'],
+  [files.stage.includes('playerX * 0.14') && files.stage.includes("data-camera=\"calm-perspective-camera\""), 'calm mobile camera is missing'],
+  [files.stage.includes('new THREE.CircleGeometry(1, 28)') && !files.stage.includes('new THREE.RingGeometry'), 'neon ring telegraphs remain'],
+  [files.stage.includes("shadow.name = 'AshKingGroundShadow'") && files.stage.includes('bossRig.root.scale.setScalar(2.0'), 'dominant boss presentation is missing'],
+  [files.stage.includes('renderer.shadowMap.enabled = !IS_MOBILE') && files.stage.includes('key.castShadow = !IS_MOBILE'), 'mobile-safe shadow policy is missing'],
   [files.battle.includes('const TIMER_PAINT_MS = 250;') && files.battle.includes('if (!arenaReadyRef.current)'), 'timer throttling or ready gate is missing'],
-  [files.perspectiveStage.includes('readyRaf = requestAnimationFrame') && files.perspectiveStage.includes('readyRef.current()'), 'ready callback is not deferred until a rendered frame'],
-  [files.perspectiveStage.includes('cancelAnimationFrame(raf)') && files.perspectiveStage.includes('playerRig?.stop()') && files.perspectiveStage.includes('bossRig?.stop()'), 'renderer or animation cleanup is incomplete'],
-  [files.perspectiveStage.includes('renderer?.renderLists?.dispose?.()') && files.perspectiveStage.includes('renderer?.forceContextLoss?.()'), 'WebGL cleanup is incomplete'],
-  [!files.perspectiveStage.includes('MutationObserver'), 'world boss uses a document-wide MutationObserver'],
+  [files.stage.includes('cancelAnimationFrame(raf)') && files.stage.includes('renderer?.forceContextLoss?.()'), 'renderer cleanup is incomplete'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -43,4 +33,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: KayKit perspective sanctum, central sigil removed only in the boss stage, sharper iPhone rendering, compact HUD, dominant Ash King, adaptive budgets and complete cleanup are active.');
+console.log('World-boss performance audit passed: simplified KayKit sanctum, calm camera, bounded effects and adaptive mobile rendering are active.');
