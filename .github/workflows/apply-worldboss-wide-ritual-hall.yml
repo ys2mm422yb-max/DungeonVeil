@@ -1,0 +1,106 @@
+name: Apply Wide World Boss Ritual Hall
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-worldboss-wide-ritual-hall.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+          fetch-depth: 0
+
+      - name: Widen and clarify the ritual hall
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          stage_path = Path('artifacts/dungeon-rpg/src/components/WorldBossDedicatedStage.tsx')
+          stage = stage_path.read_text()
+          replacements = {
+            'const ARENA_WIDTH = 10.4;': 'const ARENA_WIDTH = 11.8;',
+            'const ARENA_INNER_X = 4.25;': 'const ARENA_INNER_X = 4.95;',
+            'const viewHeight = portrait ? ARENA_DEPTH + 0.55 : 16.8;': 'const viewHeight = portrait ? 19.7 : 16.8;',
+            'const viewWidth = viewHeight * Math.max(0.42, aspect);': 'const viewWidth = portrait ? Math.max(11.65, viewHeight * aspect) : viewHeight * Math.max(0.42, aspect);',
+            'camera.position.set(0, portrait ? 20.2 : 15.8, portrait ? 12.1 : 14.2);': 'camera.position.set(0, portrait ? 23.8 : 15.8, portrait ? 8.6 : 14.2);',
+            'camera.lookAt(0, 0.38, portrait ? 0.15 : 0.35);': 'camera.lookAt(0, 0.22, portrait ? 0.2 : 0.35);',
+            'new THREE.MeshStandardMaterial({ color: 0x211c20, roughness: 0.95, metalness: 0.02 })': 'new THREE.MeshStandardMaterial({ color: 0x2b252a, roughness: 0.94, metalness: 0.02 })',
+            'new THREE.MeshStandardMaterial({ color: 0x30282d, roughness: 0.92, metalness: 0.03 })': 'new THREE.MeshStandardMaterial({ color: 0x3b3035, roughness: 0.9, metalness: 0.035 })',
+            'grid.material.opacity = 0.16;': 'grid.material.opacity = 0.24;',
+            'new THREE.CylinderGeometry(2.12, 2.42, 0.24, 28)': 'new THREE.CylinderGeometry(2.45, 2.82, 0.24, 28)',
+            'new THREE.RingGeometry(2.08, 2.34, 40)': 'new THREE.RingGeometry(2.42, 2.72, 40)',
+            'new THREE.PlaneGeometry(3.2, 7.6)': 'new THREE.PlaneGeometry(4.25, 8.4)',
+            'for (const x of [-1.12, 1.12])': 'for (const x of [-1.48, 1.48])',
+            'new THREE.BoxGeometry(4.5, 0.16, 0.72)': 'new THREE.BoxGeometry(6.6, 0.16, 0.72)',
+            '[-3.35, 1.45, -9.52, 0.7, 2.9],': '[-4.25, 1.45, -9.52, 0.7, 2.9],',
+            '[3.35, 1.45, -9.52, 0.7, 2.9],': '[4.25, 1.45, -9.52, 0.7, 2.9],',
+            '[0, 2.62, -9.52, 7.4, 0.5],': '[0, 2.62, -9.52, 9.2, 0.5],',
+            "[[-4.2, -5.25], [4.2, -5.25], [-4.2, 5.9], [4.2, 5.9]]": "[[-4.75, -5.55], [4.75, -5.55], [-4.75, 6.45], [4.75, 6.45]]",
+            'new THREE.MeshStandardMaterial({ color: 0x171419, roughness: 0.9, metalness: 0.04 })': 'new THREE.MeshStandardMaterial({ color: 0x2a2025, roughness: 0.88, metalness: 0.05 })',
+            '[-4.35, -4.95],\n        [4.35, -4.95],\n        [-4.35, 4.92],\n        [4.35, 4.92],': '[-5.0, -8.35],\n        [5.0, -8.35],\n        [-5.0, 8.15],\n        [5.0, 8.15],',
+          }
+          for before, after in replacements.items():
+              if before not in stage:
+                  raise SystemExit(f'missing stage replacement: {before}')
+              stage = stage.replace(before, after, 1)
+
+          aisle_anchor = """      const channelMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xff6433, emissive: 0x761b0a, emissiveIntensity: 0.72, roughness: 0.48 }));
+          """
+          aisle_block = """      const sideAisleMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0x241d22, roughness: 0.96, metalness: 0.01 }));
+          const sideAisleGeometry = rememberGeometry(new THREE.PlaneGeometry(1.95, 16.4));
+          for (const x of [-4.35, 4.35]) {
+            const aisle = new THREE.Mesh(sideAisleGeometry, sideAisleMaterial);
+            aisle.name = 'RitualSideAisle';
+            aisle.rotation.x = -Math.PI / 2;
+            aisle.position.set(x, 0.014, 0.2);
+            root.add(aisle);
+          }
+
+          const channelMaterial = rememberMaterial(new THREE.MeshStandardMaterial({ color: 0xff6433, emissive: 0x761b0a, emissiveIntensity: 0.72, roughness: 0.48 }));
+          """
+          if aisle_anchor not in stage:
+              raise SystemExit('side aisle anchor missing')
+          stage = stage.replace(aisle_anchor, aisle_block, 1)
+          stage_path.write_text(stage)
+
+          band_path = Path('artifacts/dungeon-rpg/src/components/WorldBossCombatBandStage.tsx')
+          band_path.write_text("""import React from 'react';
+          import type { GameEngine } from '../game/runEngine';
+          import { WorldBossDedicatedStage } from './WorldBossDedicatedStage';
+
+          type Props = {
+            engineRef: React.RefObject<GameEngine | null>;
+            onReady: () => void;
+          };
+
+          export function WorldBossCombatBandStage(props: Props) {
+            return <div data-testid=\"worldboss-combat-band\" className=\"pointer-events-none fixed inset-0 overflow-hidden bg-[#07090d]\">
+              <WorldBossDedicatedStage {...props} />
+              <div className=\"absolute inset-x-0 bottom-0 h-[9vh] bg-gradient-to-t from-[#07090d] via-[#07090d]/20 to-transparent\" />
+              <span data-testid=\"ritual-arena-meaning\" className=\"sr-only\">Thronbogen, Aschensiegel und Schleiertor</span>
+            </div>;
+          }
+          """)
+
+          audit_path = Path('artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs')
+          audit = audit_path.read_text()
+          old = "stage.includes('const ARENA_DEPTH = 20.4;') && stage.includes(\"dais.name = 'AshKingDais'\")"
+          new = "stage.includes('const ARENA_WIDTH = 11.8;') && stage.includes('const ARENA_DEPTH = 20.4;') && stage.includes(\"aisle.name = 'RitualSideAisle'\") && stage.includes(\"dais.name = 'AshKingDais'\")"
+          if old not in audit:
+              raise SystemExit('social audit arena assertion missing')
+          audit_path.write_text(audit.replace(old, new, 1))
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/WorldBossDedicatedStage.tsx artifacts/dungeon-rpg/src/components/WorldBossCombatBandStage.tsx artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
+          git commit -m "Widen Ash King ritual hall after visual QA"
+          git push origin HEAD:work/blocks-1-7-production-pass
