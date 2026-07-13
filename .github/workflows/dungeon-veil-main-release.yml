@@ -1,5 +1,6 @@
 name: Dungeon Veil Main Release
 
+# Post-merge main validation trigger.
 on:
   push:
     branches: [main]
