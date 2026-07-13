@@ -1,4 +1,4 @@
-name: Final Device Review Deploy
+name: Block 1 Email Confirmation Deploy
 
 on:
   pull_request:
@@ -12,12 +12,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: dungeon-veil-final-device-review
+  group: dungeon-veil-block-1-email-confirmation
   cancel-in-progress: true
 
 jobs:
   validate-and-build:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'verify/blocks-1-6-final-device-review'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'fix/block-1-email-confirmation-redirect'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -48,7 +48,7 @@ jobs:
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
 
-      - name: Room, collision, run, guild, world-boss and social audits
+      - name: Room, collision, run, guild, world-boss, social and auth audits
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
 
       - name: Typecheck workspace
@@ -69,7 +69,7 @@ jobs:
       - name: Write deployment marker
         shell: bash
         run: |
-          printf '{"commit":"%s","deployedAt":"%s","source":"PR-104-final-device-review"}\n' "${{ steps.commit.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          printf '{"commit":"%s","deployedAt":"%s","source":"block-1-email-confirmation-redirect"}\n' "${{ steps.commit.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
           touch artifacts/dungeon-rpg/dist/public/.nojekyll
 
       - name: Configure GitHub Pages
@@ -81,7 +81,7 @@ jobs:
           path: artifacts/dungeon-rpg/dist/public
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'verify/blocks-1-6-final-device-review'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'fix/block-1-email-confirmation-redirect'
     needs: validate-and-build
     runs-on: ubuntu-latest
     steps:
