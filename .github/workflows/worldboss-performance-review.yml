@@ -3,6 +3,12 @@ name: World Boss Performance Review
 on:
   push:
     branches: [rework/worldboss-full-3d-arena]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/worldboss-performance-review.yml'
+      - '.ci/worldboss-performance-review-trigger.txt'
 
 permissions:
   contents: read
