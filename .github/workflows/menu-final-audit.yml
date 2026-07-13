@@ -1,0 +1,41 @@
+name: Temporary Menu Final Audit
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  isolate:
+    if: github.head_ref == 'fix/menu-village-visible-mobile'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run exact room audit chain
+        working-directory: artifacts/dungeon-rpg
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            validate-all-rooms.mjs \
+            validate-production-rooms.mjs \
+            validate-spawn-hitboxes.mjs \
+            validate-enemy-visibility.mjs \
+            validate-mobile-combat.mjs \
+            validate-worldboss-performance.mjs \
+            validate-social-navigation.mjs \
+            validate-social-progression.mjs; do
+            echo "===== $script ====="
+            node "scripts/$script"
+          done
