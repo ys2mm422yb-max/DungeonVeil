@@ -41,6 +41,7 @@ function findNodes(root: any, patterns: RegExp[]) {
 function prepareDragonMaterials(THREE: any, root: any) {
   root.traverse((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
+    node.visible = true;
     node.castShadow = !IS_MOBILE;
     node.receiveShadow = !IS_MOBILE;
     node.frustumCulled = true;
@@ -101,6 +102,7 @@ export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Prom
   visual.name = 'DungeonVeilDragon';
   prepareDragonMaterials(THREE, visual);
   normalizeDragon(THREE, visual);
+  const visualBasePosition = visual.position.clone();
 
   const root = new THREE.Group();
   root.name = 'VeilDragonWorldBoss';
@@ -155,7 +157,8 @@ export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Prom
 
       const seconds = now * 0.001;
       const attackPulse = Math.max(0, attackRemaining / 0.72);
-      visual.position.y += (0.08 + Math.sin(seconds * 1.9) * 0.045 - visual.position.y) * Math.min(1, delta * 5.5);
+      const targetY = visualBasePosition.y + 0.08 + Math.sin(seconds * 1.9) * 0.045;
+      visual.position.set(visualBasePosition.x, visual.position.y + (targetY - visual.position.y) * Math.min(1, delta * 5.5), visualBasePosition.z);
       visual.rotation.x = Math.sin(seconds * 1.15) * 0.025 - attackPulse * 0.1;
       visual.rotation.z = Math.sin(seconds * 0.72) * 0.018;
 
