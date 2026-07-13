@@ -152,7 +152,7 @@ export function MailboxPanel({ language, onUnreadChange }: Props) {
 
   const claimRewardMessage = async (message: MailboxMessage) => {
     const eventId = typeof message.payload.event_id === 'string' ? message.payload.event_id : '';
-    if (!eventId) return { xp: 0, dust: 0, gold: 0, applied: false };
+    if (!eventId) throw new Error(de ? 'Die Belohnungsnachricht enthält kein gültiges Event.' : 'The reward message has no valid event.');
     const reward = await claimWorldBossReward(eventId);
     const applied = applyWorldBossRewardLocally(eventId, reward);
     await Promise.all([markMailboxActioned(message.id).catch(() => {}), markMailboxRead([message.id]).catch(() => {})]);
