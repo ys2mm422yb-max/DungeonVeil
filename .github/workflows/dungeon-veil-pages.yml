@@ -1,5 +1,6 @@
 name: Deploy Dungeon Veil Test Site
 
+# Final exact validation trigger for the social progression, weekly rewards and tutorial block.
 on:
   push:
     branches:
