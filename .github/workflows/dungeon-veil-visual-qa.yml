@@ -1,6 +1,6 @@
 name: Dungeon Veil Mobile Visual QA
 
-# QA trigger for final ritual arena and social menu 5eb2769.
+# QA trigger for final audited ritual arena and social menu 07b1f74.
 on:
   push:
     branches: [main]
