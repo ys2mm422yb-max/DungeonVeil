@@ -1,0 +1,21 @@
+{
+  "workflow": "Dungeon Veil Mobile Visual QA",
+  "status": "failure",
+  "validatedCommit": "07b1f747348b46af0205079e4c10bfed4a8d7ced",
+  "outcomes": {
+    "install": "success",
+    "build": "success",
+    "chromium": "success",
+    "serve": "success",
+    "iphone": "failure",
+    "android": "skipped",
+    "validate": "skipped",
+    "upload": "skipped"
+  },
+  "screenshots": [],
+  "sizes": {
+    "iphone": 0,
+    "android": 0
+  },
+  "completedAt": "2026-07-13T02:39:12.003Z"
+}
