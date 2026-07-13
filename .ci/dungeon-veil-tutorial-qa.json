@@ -1,7 +1,7 @@
 {
   "workflow": "Dungeon Veil Social Tutorial Mobile QA",
   "status": "failure",
-  "validatedCommit": "d9eae54d1c35f2e240a45ddc6a22f7ad992b8560",
+  "validatedCommit": "09f4a781845ae452ea6e2fd730bfd4c75d680046",
   "outcomes": {
     "install": "success",
     "audit": "failure",
@@ -27,5 +27,5 @@
     "menuIphoneThumb": 0,
     "menuAndroidThumb": 0
   },
-  "completedAt": "2026-07-13T04:19:52.924Z"
+  "completedAt": "2026-07-13T04:23:29.599Z"
 }
