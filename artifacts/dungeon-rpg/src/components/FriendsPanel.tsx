@@ -94,12 +94,22 @@ export function FriendsPanel({ language }: Props) {
     }
   };
 
-  const sendRequest = () => run('send', async () => {
-    const result = await sendFriendRequestOnline(searchName);
-    setSearchName('');
-    setTab('requests');
-    setMessage(de ? `Anfrage an ${result.display_name} gesendet.` : `Request sent to ${result.display_name}.`);
-  }, '');
+  const sendRequest = async () => {
+    setBusyId('send');
+    setError('');
+    setMessage('');
+    try {
+      const result = await sendFriendRequestOnline(searchName);
+      setSearchName('');
+      setTab('requests');
+      setMessage(de ? `Anfrage an ${result.display_name} gesendet.` : `Request sent to ${result.display_name}.`);
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setBusyId('');
+    }
+  };
 
   const removeFriend = (friend: OnlineFriend) => {
     const confirmed = window.confirm(de
