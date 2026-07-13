@@ -18,7 +18,7 @@ import {
   markMailboxRead,
   type MailboxMessage,
 } from '../game/guildMailboxOnline';
-import { claimWorldBossReward } from '../game/socialProgressOnline';
+import { claimWorldBossReward, prepareRecentWorldBossRewards } from '../game/socialProgressOnline';
 import { applyWorldBossRewardLocally } from '../game/worldBossRewardLocal';
 
 type Props = { language: 'de' | 'en'; onUnreadChange?: (count: number) => void };
@@ -61,6 +61,7 @@ export function MailboxPanel({ language, onUnreadChange }: Props) {
     try {
       const claimed = await claimPendingGuildInviteLink();
       if (claimed) setNotice(de ? `Einladung von [${claimed.guild_tag}] ${claimed.guild_name} liegt jetzt im Postfach.` : `Invitation from [${claimed.guild_tag}] ${claimed.guild_name} is now in your mailbox.`);
+      await prepareRecentWorldBossRewards();
       const next = await listMailboxMessages();
       setMessages(next);
       const unreadIds = next.filter(message => !message.read_at).map(message => message.id);
