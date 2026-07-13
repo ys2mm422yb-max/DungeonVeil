@@ -19,34 +19,46 @@ type TutorialStep = {
 
 const STEPS: TutorialStep[] = [
   {
-    eyebrowDe: 'SCHRITT 1 VON 5', eyebrowEn: 'STEP 1 OF 5', icon: '◎',
-    titleDe: 'Bewege deinen Waldläufer', titleEn: 'Move your ranger',
-    bodyDe: 'Ziehe den linken Steuerkreis. Sobald du ein Stück gelaufen bist, geht es automatisch weiter.',
-    bodyEn: 'Drag the left movement stick. The tutorial advances automatically after you move a short distance.',
+    eyebrowDe: 'KAPITEL 1 · ERWACHEN', eyebrowEn: 'CHAPTER 1 · AWAKENING', icon: '◎',
+    titleDe: 'Der Waldläufer erwacht', titleEn: 'The ranger awakens',
+    bodyDe: 'Der Schleier hat dich ausgespuckt. Ziehe den linken Steuerkreis und finde wieder festen Boden unter deinen Füßen.',
+    bodyEn: 'The Veil has cast you out. Drag the left movement stick and find solid ground beneath your feet again.',
   },
   {
-    eyebrowDe: 'SCHRITT 2 VON 5', eyebrowEn: 'STEP 2 OF 5', icon: '➜',
-    titleDe: 'Weiche mit Dash aus', titleEn: 'Dodge with Dash',
-    bodyDe: 'Tippe rechts auf Dash. Während des kurzen Ausweichschritts kannst du Angriffen entkommen.',
-    bodyEn: 'Tap Dash on the right. The short dodge lets you escape enemy attacks.',
+    eyebrowDe: 'KAPITEL 2 · ERSTER KONTAKT', eyebrowEn: 'CHAPTER 2 · FIRST CONTACT', icon: '➶',
+    titleDe: 'Dein Bogen kennt den Feind', titleEn: 'Your bow knows the enemy',
+    bodyDe: 'Bleib kurz stehen. Gegner in Reichweite werden automatisch beschossen. Du lenkst Bewegung und Position – dein Waldläufer übernimmt den Schuss.',
+    bodyEn: 'Stand still briefly. Enemies in range are attacked automatically. You control movement and positioning—the ranger handles the shot.',
   },
   {
-    eyebrowDe: 'SCHRITT 3 VON 5', eyebrowEn: 'STEP 3 OF 5', icon: '➶',
-    titleDe: 'Angriffe laufen automatisch', titleEn: 'Attacks are automatic',
-    bodyDe: 'Bleib kurz stehen: Dein Waldläufer schießt automatisch auf Gegner in Reichweite. Neue Gaben verstärken Pfeile, Elemente und Abklingzeiten.',
-    bodyEn: 'Stand still briefly: your ranger automatically shoots enemies in range. New gifts improve arrows, elements and cooldowns.',
+    eyebrowDe: 'KAPITEL 3 · AUSWEICHEN', eyebrowEn: 'CHAPTER 3 · DODGE', icon: '➜',
+    titleDe: 'Durch die Lücke', titleEn: 'Through the opening',
+    bodyDe: 'Tippe rechts auf Dash. Während des kurzen Ausweichschritts kannst du gefährlichen Treffern entkommen.',
+    bodyEn: 'Tap Dash on the right. The short dodge lets you escape dangerous hits.',
   },
   {
-    eyebrowDe: 'SCHRITT 4 VON 5', eyebrowEn: 'STEP 4 OF 5', icon: '✦',
-    titleDe: 'Überlebe und öffne den Ausgang', titleEn: 'Survive and open the exit',
-    bodyDe: 'Oben siehst du Leben, Raum und Fortschritt. Besiege alle Gegner, sammle Beute und betrete danach das leuchtende Portal.',
-    bodyEn: 'Your health, room and progress are shown above. Defeat every enemy, collect loot, then enter the glowing portal.',
+    eyebrowDe: 'KAPITEL 4 · GABEN', eyebrowEn: 'CHAPTER 4 · GIFTS', icon: '✦',
+    titleDe: 'Der Schleier verändert deine Pfeile', titleEn: 'The Veil changes your arrows',
+    bodyDe: 'Gaben verstärken Feuer, Frost, Mehrfachschuss und Abklingzeiten. Baue nicht alles gleich – entscheide dich für eine Richtung und kombiniere passende Effekte.',
+    bodyEn: 'Gifts improve fire, frost, multishot and cooldowns. Do not build everything equally—choose a direction and combine matching effects.',
   },
   {
-    eyebrowDe: 'SCHRITT 5 VON 5', eyebrowEn: 'STEP 5 OF 5', icon: '♛',
-    titleDe: 'Der Schleier geht im Hauptmenü weiter', titleEn: 'The Veil continues in the main menu',
-    bodyDe: 'Dort warten Aufgaben, Postfach, Freunde, Gilde, Schleierkammer und der gemeinsame Wochenboss. Online-Funktionen sind optional – dein Run funktioniert auch offline.',
-    bodyEn: 'Quests, mailbox, friends, guild, Veil Chamber and the shared weekly boss wait there. Online features are optional—your run also works offline.',
+    eyebrowDe: 'KAPITEL 5 · BEUTE', eyebrowEn: 'CHAPTER 5 · LOOT', icon: '◆',
+    titleDe: 'Nichts im Dungeon ist umsonst', titleEn: 'Nothing in the dungeon is free',
+    bodyDe: 'Besiege alle Gegner, sammle Gold und Beute und betrete danach das leuchtende Portal. Oben siehst du Leben, Raum und Fortschritt.',
+    bodyEn: 'Defeat every enemy, collect gold and loot, then enter the glowing portal. Your health, room and progress are shown above.',
+  },
+  {
+    eyebrowDe: 'KAPITEL 6 · DORFPLATZ', eyebrowEn: 'CHAPTER 6 · VILLAGE SQUARE', icon: '⌂',
+    titleDe: 'Im Dorf warten echte Verbündete', titleEn: 'Real allies wait in the village',
+    bodyDe: 'Im Hauptmenü sprichst du mit Questmeisterin, Postmeister, Späherin und Gildenmeister. Dort findest du Aufgaben, Postfach, Freunde, Profile und Gilden.',
+    bodyEn: 'In the main menu, speak with the Quest Keeper, Postmaster, Scout and Guildmaster. They lead to quests, mailbox, friends, profiles and guilds.',
+  },
+  {
+    eyebrowDe: 'KAPITEL 7 · WELTENHÜTER', eyebrowEn: 'CHAPTER 7 · WORLD KEEPER', icon: '♛',
+    titleDe: 'Jede Woche öffnet sich der große Riss', titleEn: 'The great rift opens each week',
+    bodyDe: 'Der Weltenhüter führt dich zum gemeinsamen Wochenboss. Dein Schaden zählt für dich, deine Freunde und deine Gilde. Belohnungen landen im Postfach. Online ist optional – normale Runs funktionieren auch offline.',
+    bodyEn: 'The World Keeper leads to the shared weekly boss. Your damage counts for you, your friends and your guild. Rewards arrive in the mailbox. Online play is optional—normal runs also work offline.',
   },
 ];
 
@@ -77,7 +89,7 @@ export function TutorialOverlay({ getEngine, language }: Props) {
       const player = engine?.state.player;
       if (!engine || !player) return;
 
-      if (step <= 1) player.invincibleUntil = Math.max(player.invincibleUntil, performance.now() + 650);
+      if (step <= 2) player.invincibleUntil = Math.max(player.invincibleUntil, performance.now() + 650);
 
       if (step === 0) {
         startPositionRef.current ??= { x: player.x, y: player.y };
@@ -85,13 +97,10 @@ export function TutorialOverlay({ getEngine, language }: Props) {
         const distance = Math.hypot(player.x - start.x, player.y - start.y);
         const progress = Math.min(1, distance / 48);
         setMovementProgress(progress);
-        if (progress >= 1) {
-          dodgeBaselineRef.current = player.lastDodgeTime;
-          setStep(1);
-        }
-      } else if (step === 1) {
+        if (progress >= 1) setStep(1);
+      } else if (step === 2) {
         if (!dodgeBaselineRef.current) dodgeBaselineRef.current = player.lastDodgeTime;
-        if (player.lastDodgeTime > dodgeBaselineRef.current) setStep(2);
+        if (player.lastDodgeTime > dodgeBaselineRef.current) setStep(3);
       }
     }, 90);
     return () => window.clearInterval(timer);
@@ -105,7 +114,18 @@ export function TutorialOverlay({ getEngine, language }: Props) {
     setOpen(false);
   };
 
-  const canAdvance = step >= 2;
+  const advance = () => {
+    if (step >= STEPS.length - 1) {
+      finish();
+      return;
+    }
+    if (step === 1) {
+      dodgeBaselineRef.current = getEngine()?.state.player.lastDodgeTime ?? 0;
+    }
+    setStep(value => value + 1);
+  };
+
+  const canAdvance = step !== 0 && step !== 2;
   return <div data-testid="tutorial-overlay" className="pointer-events-none fixed inset-0 z-[96]">
     <div className="pointer-events-auto absolute left-1/2 top-[max(5.7rem,calc(env(safe-area-inset-top)+4.6rem))] w-[92vw] max-w-sm -translate-x-1/2 rounded-3xl border border-amber-300/24 bg-[linear-gradient(150deg,rgba(23,17,10,.96),rgba(8,8,9,.96))] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,.58)] backdrop-blur-xl">
       <div className="flex items-start gap-3">
@@ -121,11 +141,11 @@ export function TutorialOverlay({ getEngine, language }: Props) {
         <div className="mb-1 flex justify-between text-[7px] font-black uppercase tracking-[.16em] text-white/30"><span>{de ? 'Bewegung' : 'Movement'}</span><span>{Math.round(movementProgress * 100)}%</span></div>
         <div className="h-1.5 overflow-hidden rounded-full bg-white/8"><div className="h-full bg-gradient-to-r from-amber-600 to-amber-200 transition-[width]" style={{ width: `${movementProgress * 100}%` }} /></div>
       </div>}
-      {step === 1 && <div className="mt-3 rounded-xl border border-cyan-300/12 bg-cyan-400/[.04] px-3 py-2 text-center text-[8px] font-black uppercase tracking-[.18em] text-cyan-100/62">{de ? 'Tippe jetzt auf DASH' : 'Tap DASH now'}</div>}
+      {step === 2 && <div className="mt-3 rounded-xl border border-cyan-300/12 bg-cyan-400/[.04] px-3 py-2 text-center text-[8px] font-black uppercase tracking-[.18em] text-cyan-100/62">{de ? 'Tippe jetzt auf DASH' : 'Tap DASH now'}</div>}
 
       <div className="mt-3 flex items-center gap-2">
         <button type="button" onClick={finish} className="min-h-10 flex-1 rounded-xl border border-white/8 bg-white/[.025] px-3 text-[8px] font-black uppercase tracking-[.14em] text-white/34 active:scale-[.98]">{de ? 'Überspringen' : 'Skip'}</button>
-        {canAdvance && <button type="button" onClick={() => step >= STEPS.length - 1 ? finish() : setStep(value => value + 1)} className="min-h-10 flex-[1.35] rounded-xl border border-amber-300/28 bg-amber-500/12 px-3 text-[8px] font-black uppercase tracking-[.14em] text-amber-100 active:scale-[.98]">{step >= STEPS.length - 1 ? (de ? 'Fertig' : 'Finish') : (de ? 'Weiter' : 'Next')}</button>}
+        {canAdvance && <button type="button" onClick={advance} className="min-h-10 flex-[1.35] rounded-xl border border-amber-300/28 bg-amber-500/12 px-3 text-[8px] font-black uppercase tracking-[.14em] text-amber-100 active:scale-[.98]">{step >= STEPS.length - 1 ? (de ? 'Fertig' : 'Finish') : (de ? 'Weiter' : 'Next')}</button>}
       </div>
     </div>
   </div>;
