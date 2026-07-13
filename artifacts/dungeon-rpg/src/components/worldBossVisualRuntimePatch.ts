@@ -9,6 +9,10 @@ function materialList(node: any): any[] {
   return Array.isArray(node.material) ? node.material.filter(Boolean) : [node.material];
 }
 
+function isWorldBossMounted() {
+  return typeof document !== 'undefined' && Boolean(document.querySelector('[data-testid="ash-king-perspective-stage"]'));
+}
+
 function isWorldBossRenderer(renderer: any) {
   const parent = renderer?.domElement?.parentElement as HTMLElement | null | undefined;
   return parent?.dataset?.testid === 'ash-king-perspective-stage';
@@ -19,6 +23,13 @@ function isWorldBossScene(scene: any) {
     scene?.getObjectByName?.('KayKitWorldBossPerspectiveRoom')
     || scene?.getObjectByName?.('AshKingPerspectiveSanctum'),
   );
+}
+
+function isCentralRoom20Sigil(parent: any, object: any) {
+  if (!isWorldBossMounted() || !parent?.name?.startsWith?.('KayKitSetpieceRoom20_')) return false;
+  const nearCenter = Math.abs(Number(object?.position?.x ?? 99)) < 0.05 && Math.abs(Number(object?.position?.z ?? 99)) < 0.05;
+  const ringChildren = object?.children?.filter?.((child: any) => child?.geometry?.type === 'RingGeometry') ?? [];
+  return nearCenter && ringChildren.length === 2;
 }
 
 function softenTelegraph(THREE: any, node: any) {
@@ -44,6 +55,7 @@ function improveTextureClarity(THREE: any, renderer: any, scene: any) {
 
   scene?.traverse?.((node: any) => {
     const ringGeometry = node.geometry?.type === 'RingGeometry';
+    if (node.name === 'WorldBossCentralRoom20Sigil') node.visible = false;
     if (node.name === 'AshKingPerspectiveSeal') node.visible = false;
     if (node.parent?.name === 'AshKingDominanceAura' && ringGeometry) node.visible = false;
 
@@ -81,6 +93,12 @@ export function installWorldBossVisualRuntimePatch(): Promise<void> {
       const originalAdd = objectPrototype.add;
       objectPrototype.add = function patchedWorldBossAdd(...objects: any[]) {
         for (const object of objects) {
+          if (isCentralRoom20Sigil(this, object)) {
+            object.visible = false;
+            object.name = 'WorldBossCentralRoom20Sigil';
+            continue;
+          }
+
           const ringGeometry = object?.geometry?.type === 'RingGeometry';
           if (!ringGeometry) continue;
 
