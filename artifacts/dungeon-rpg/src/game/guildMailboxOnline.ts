@@ -18,7 +18,7 @@ export type ClaimedGuildInvite = {
 };
 export type MailboxMessage = {
   id: string;
-  kind: 'guild_invite' | 'system' | 'notice' | 'reward';
+  kind: 'guild_invite' | 'friend_request' | 'system' | 'notice' | 'reward';
   title: string;
   body: string;
   payload: Record<string, unknown>;
