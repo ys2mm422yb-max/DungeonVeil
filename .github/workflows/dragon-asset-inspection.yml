@@ -18,19 +18,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: rework/worldboss-full-3d-arena
-      - name: Build concise enemy report
+      - name: Inspect dragon FBX
         run: |
           mkdir -p dragon-inspection
+          DRAGON='artifacts/dungeon-rpg/public/assets/3d/Dragon.fbx'
           {
-            echo 'IMPORTED ENEMY FILES'
-            find artifacts/dungeon-rpg/public/assets/imported/enemies -maxdepth 2 -type f | sort
+            echo 'DRAGON FILE'
+            ls -lh "$DRAGON"
+            file "$DRAGON"
+            sha256sum "$DRAGON"
             echo
-            echo 'MATCHED NAMES AND ANIMATIONS'
-            for file in artifacts/dungeon-rpg/public/assets/imported/enemies/*; do
-              [ -f "$file" ] || continue
-              echo "--- $(basename "$file")"
-              strings "$file" | grep -Ei 'dragon|wyvern|drake|idle|attack|fly|walk|run|death|bite|fire' | sort -u | head -n 120 || true
-            done
+            echo 'FBX STRUCTURE KEYWORDS'
+            strings "$DRAGON" | grep -Ei 'AnimationStack|AnimationLayer|AnimationCurve|Deformer|Skin|Cluster|Skeleton|LimbNode|Model::|Material::|Texture::|dragon|wing|head|tail|jaw|idle|attack|fly|walk|run|death|fire|bite' | sort -u | head -n 400 || true
+            echo
+            echo 'DUPLICATE CHECK'
+            sha256sum artifacts/dungeon-rpg/public/assets/3d/Dragon.fbx artifacts/dungeon-rpg/public/assets/3d/library/monsters/Dragon.fbx
           } > dragon-inspection/report.txt
       - uses: actions/upload-artifact@v4
         with:
