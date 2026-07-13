@@ -1,4 +1,4 @@
-name: Dungeon Veil Tutorial Mobile QA
+name: Dungeon Veil Social Tutorial Mobile QA
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: dungeon-veil-tutorial-mobile-qa
+  group: dungeon-veil-social-tutorial-mobile-qa
   cancel-in-progress: true
 
 jobs:
@@ -65,32 +65,40 @@ jobs:
         id: serve
         shell: bash
         run: |
-          mkdir -p /tmp/dv-tutorial/DungeonVeil artifacts/dungeon-rpg/visual-qa
-          cp -a artifacts/dungeon-rpg/dist/public/. /tmp/dv-tutorial/DungeonVeil/
-          python3 -m http.server 4174 --directory /tmp/dv-tutorial >/tmp/dv-tutorial-server.log 2>&1 &
+          mkdir -p /tmp/dv-social/DungeonVeil artifacts/dungeon-rpg/visual-qa
+          cp -a artifacts/dungeon-rpg/dist/public/. /tmp/dv-social/DungeonVeil/
+          python3 -m http.server 4174 --directory /tmp/dv-social >/tmp/dv-social-server.log 2>&1 &
           for attempt in {1..30}; do
             curl -fsS http://127.0.0.1:4174/DungeonVeil/ >/dev/null && exit 0
             sleep 1
           done
-          cat /tmp/dv-tutorial-server.log
+          cat /tmp/dv-social-server.log
           exit 1
 
       - name: Capture iPhone tutorial
-        id: iphone
+        id: tutorial_iphone
         run: pnpm dlx playwright@1.55.0 screenshot --browser=webkit --device="iPhone 13" --color-scheme=dark --wait-for-timeout=2500 "http://127.0.0.1:4174/DungeonVeil/?qa=tutorial" artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png
 
       - name: Capture Android tutorial
-        id: android
+        id: tutorial_android
         run: pnpm dlx playwright@1.55.0 screenshot --browser=chromium --device="Pixel 7" --color-scheme=dark --wait-for-timeout=2500 "http://127.0.0.1:4174/DungeonVeil/?qa=tutorial" artifacts/dungeon-rpg/visual-qa/tutorial-android.png
+
+      - name: Capture iPhone Veil village
+        id: menu_iphone
+        run: pnpm dlx playwright@1.55.0 screenshot --browser=webkit --device="iPhone 13" --color-scheme=dark --wait-for-timeout=6500 "http://127.0.0.1:4174/DungeonVeil/?qa=menu" artifacts/dungeon-rpg/visual-qa/menu-iphone.png
+
+      - name: Capture Android Veil village
+        id: menu_android
+        run: pnpm dlx playwright@1.55.0 screenshot --browser=chromium --device="Pixel 7" --color-scheme=dark --wait-for-timeout=6500 "http://127.0.0.1:4174/DungeonVeil/?qa=menu" artifacts/dungeon-rpg/visual-qa/menu-android.png
 
       - name: Validate mobile screenshots
         id: validate
         shell: bash
         run: |
-          test -s artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png
-          test -s artifacts/dungeon-rpg/visual-qa/tutorial-android.png
-          test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png)" -gt 25000
-          test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/tutorial-android.png)" -gt 25000
+          for file in tutorial-iphone tutorial-android menu-iphone menu-android; do
+            test -s "artifacts/dungeon-rpg/visual-qa/${file}.png"
+            test "$(stat -c%s "artifacts/dungeon-rpg/visual-qa/${file}.png")" -gt 25000
+          done
           python3 -m pip install --quiet pillow
           python3 <<'PY'
           from pathlib import Path
@@ -99,6 +107,8 @@ jobs:
           expected = {
               'tutorial-iphone.png': (390, 844),
               'tutorial-android.png': (412, 915),
+              'menu-iphone.png': (390, 844),
+              'menu-android.png': (412, 915),
           }
           for name, minimum in expected.items():
               image = Image.open(root / name).convert('RGB')
@@ -116,8 +126,10 @@ jobs:
         id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: dungeon-veil-tutorial-mobile-qa-${{ steps.product.outputs.sha }}
-          path: artifacts/dungeon-rpg/visual-qa/tutorial-*
+          name: dungeon-veil-social-tutorial-mobile-qa-${{ steps.product.outputs.sha }}
+          path: |
+            artifacts/dungeon-rpg/visual-qa/tutorial-*
+            artifacts/dungeon-rpg/visual-qa/menu-*
           retention-days: 14
 
       - name: Publish QA evidence and marker
@@ -131,8 +143,10 @@ jobs:
           BUILD: ${{ steps.build.outcome }}
           BROWSERS: ${{ steps.browsers.outcome }}
           SERVE: ${{ steps.serve.outcome }}
-          IPHONE: ${{ steps.iphone.outcome }}
-          ANDROID: ${{ steps.android.outcome }}
+          TUTORIAL_IPHONE: ${{ steps.tutorial_iphone.outcome }}
+          TUTORIAL_ANDROID: ${{ steps.tutorial_android.outcome }}
+          MENU_IPHONE: ${{ steps.menu_iphone.outcome }}
+          MENU_ANDROID: ${{ steps.menu_android.outcome }}
           VALIDATE: ${{ steps.validate.outcome }}
           UPLOAD: ${{ steps.upload.outcome }}
         with:
@@ -156,19 +170,27 @@ jobs:
               });
             }
             const local = {
-              iphone: 'artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png',
-              android: 'artifacts/dungeon-rpg/visual-qa/tutorial-android.png',
-              iphoneThumb: 'artifacts/dungeon-rpg/visual-qa/tutorial-iphone-thumb.jpg',
-              androidThumb: 'artifacts/dungeon-rpg/visual-qa/tutorial-android-thumb.jpg',
+              tutorialIphone: 'artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png',
+              tutorialAndroid: 'artifacts/dungeon-rpg/visual-qa/tutorial-android.png',
+              tutorialIphoneThumb: 'artifacts/dungeon-rpg/visual-qa/tutorial-iphone-thumb.jpg',
+              tutorialAndroidThumb: 'artifacts/dungeon-rpg/visual-qa/tutorial-android-thumb.jpg',
+              menuIphone: 'artifacts/dungeon-rpg/visual-qa/menu-iphone.png',
+              menuAndroid: 'artifacts/dungeon-rpg/visual-qa/menu-android.png',
+              menuIphoneThumb: 'artifacts/dungeon-rpg/visual-qa/menu-iphone-thumb.jpg',
+              menuAndroidThumb: 'artifacts/dungeon-rpg/visual-qa/menu-android-thumb.jpg',
             };
             const remote = {
-              iphone: '.ci/visual-qa/tutorial-iphone.png',
-              android: '.ci/visual-qa/tutorial-android.png',
-              iphoneThumb: '.ci/visual-qa/tutorial-iphone-thumb.jpg',
-              androidThumb: '.ci/visual-qa/tutorial-android-thumb.jpg',
+              tutorialIphone: '.ci/visual-qa/tutorial-iphone.png',
+              tutorialAndroid: '.ci/visual-qa/tutorial-android.png',
+              tutorialIphoneThumb: '.ci/visual-qa/tutorial-iphone-thumb.jpg',
+              tutorialAndroidThumb: '.ci/visual-qa/tutorial-android-thumb.jpg',
+              menuIphone: '.ci/visual-qa/menu-iphone.png',
+              menuAndroid: '.ci/visual-qa/menu-android.png',
+              menuIphoneThumb: '.ci/visual-qa/menu-iphone-thumb.jpg',
+              menuAndroidThumb: '.ci/visual-qa/menu-android-thumb.jpg',
             };
             for (const key of Object.keys(local)) {
-              if (fs.existsSync(local[key])) await write(remote[key], fs.readFileSync(local[key]), `Record tutorial ${key} QA for ${process.env.PRODUCT_SHA.slice(0, 7)}`);
+              if (fs.existsSync(local[key])) await write(remote[key], fs.readFileSync(local[key]), `Record social ${key} QA for ${process.env.PRODUCT_SHA.slice(0, 7)}`);
             }
             const outcomes = {
               install: process.env.INSTALL,
@@ -177,14 +199,16 @@ jobs:
               build: process.env.BUILD,
               browsers: process.env.BROWSERS,
               serve: process.env.SERVE,
-              iphone: process.env.IPHONE,
-              android: process.env.ANDROID,
+              tutorialIphone: process.env.TUTORIAL_IPHONE,
+              tutorialAndroid: process.env.TUTORIAL_ANDROID,
+              menuIphone: process.env.MENU_IPHONE,
+              menuAndroid: process.env.MENU_ANDROID,
               validate: process.env.VALIDATE,
               upload: process.env.UPLOAD,
             };
             const success = Object.values(outcomes).every(value => value === 'success');
             const marker = {
-              workflow: 'Dungeon Veil Tutorial Mobile QA',
+              workflow: 'Dungeon Veil Social Tutorial Mobile QA',
               status: success ? 'success' : 'failure',
               validatedCommit: process.env.PRODUCT_SHA || null,
               outcomes,
@@ -192,4 +216,4 @@ jobs:
               sizes: Object.fromEntries(Object.keys(local).map(key => [key, fs.existsSync(local[key]) ? fs.statSync(local[key]).size : 0])),
               completedAt: new Date().toISOString(),
             };
-            await write('.ci/dungeon-veil-tutorial-qa.json', JSON.stringify(marker, null, 2) + '\n', `Record tutorial QA ${success ? 'success' : 'failure'} for ${(process.env.PRODUCT_SHA || 'unknown').slice(0, 7)}`);
+            await write('.ci/dungeon-veil-tutorial-qa.json', JSON.stringify(marker, null, 2) + '\n', `Record social tutorial QA ${success ? 'success' : 'failure'} for ${(process.env.PRODUCT_SHA || 'unknown').slice(0, 7)}`);
