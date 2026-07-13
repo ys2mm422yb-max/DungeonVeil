@@ -11,7 +11,7 @@ import { requestTutorialReplay } from '../../game/tutorialState';
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { DailyQuestPanel } from '../DailyQuestPanel';
 import { OnlinePanel } from '../OnlinePanel';
-import { GuildPanel } from '../GuildPanel';
+import { GuildSocialPanel } from '../GuildSocialPanel';
 import { GuildInviteLinkCard } from '../GuildInviteLinkCard';
 import { MailboxPanel } from '../MailboxPanel';
 import { FriendsPanel } from '../FriendsPanel';
@@ -62,8 +62,13 @@ export function MainMenuScreen(props: Props) {
   }, []);
 
   useEffect(() => {
-    if (!currentOnlineSession()) return;
-    void syncSocialProfileProgress(props.saveData?.chapter ?? 1, meta.rank, 'archer').catch(() => {});
+    const sync = () => {
+      if (!currentOnlineSession()) return;
+      void syncSocialProfileProgress(props.saveData?.chapter ?? 1, meta.rank, 'archer').catch(() => {});
+    };
+    window.addEventListener(onlineSessionEventName(), sync);
+    sync();
+    return () => window.removeEventListener(onlineSessionEventName(), sync);
   }, [meta.rank, props.saveData?.chapter]);
 
   const button = (label: string, action: () => void, subtitle?: string, kind: 'normal' | 'primary' | 'chamber' = 'normal', disabled = false) => {
@@ -123,7 +128,7 @@ export function MainMenuScreen(props: Props) {
       {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
       {overlay === 'friends' && <FriendsPanel language={language} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
-      {overlay === 'guild' && <div className="space-y-3"><GuildInviteLinkCard language={language} /><GuildPanel language={language} /></div>}
+      {overlay === 'guild' && <div className="space-y-3"><GuildInviteLinkCard language={language} /><GuildSocialPanel language={language} /></div>}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} />}
       {overlay === 'more' && <div className="rounded-3xl border border-white/10 bg-[#0c0b0a]/95 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-white/32">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{button(language === 'de' ? 'Online & Cloud' : 'Online & Cloud', () => setOverlay('online'), language === 'de' ? 'Konto · Profil · Cloud-Spielstand' : 'Account · Profile · Cloud save', 'chamber')}{button(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', replayTutorial, language === 'de' ? 'Bewegung · Dash · Kampf · Hauptmenü' : 'Movement · Dash · Combat · Main menu')}{button(t.settings, () => { setOverlay(null); props.onSettings(); })}{button(t.credits, () => { setOverlay(null); props.onCredits(); })}</div></div>}
       <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-white/10 bg-black/72 py-3 text-[9px] font-black uppercase tracking-[.2em] text-white/50">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>
