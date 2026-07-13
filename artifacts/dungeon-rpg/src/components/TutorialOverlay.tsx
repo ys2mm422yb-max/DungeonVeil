@@ -107,7 +107,7 @@ export function TutorialOverlay({ getEngine, language }: Props) {
 
   const canAdvance = step >= 2;
   return <div data-testid="tutorial-overlay" className="pointer-events-none fixed inset-0 z-[96]">
-    <div className="pointer-events-auto absolute left-1/2 top-[max(5.7rem,calc(env(safe-area-inset-top)+4.6rem))] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-3xl border border-amber-300/24 bg-[linear-gradient(150deg,rgba(23,17,10,.96),rgba(8,8,9,.96))] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,.58)] backdrop-blur-xl">
+    <div className="pointer-events-auto absolute left-1/2 top-[max(5.7rem,calc(env(safe-area-inset-top)+4.6rem))] w-[92vw] max-w-sm -translate-x-1/2 rounded-3xl border border-amber-300/24 bg-[linear-gradient(150deg,rgba(23,17,10,.96),rgba(8,8,9,.96))] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,.58)] backdrop-blur-xl">
       <div className="flex items-start gap-3">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-300/22 bg-amber-400/10 text-lg text-amber-200">{copy.icon}</div>
         <div className="min-w-0 flex-1">
