@@ -167,6 +167,31 @@ function addAshKingRegalia(THREE: any, root: any) {
   return { mantle, crown, core, eyeBar, emberMaterial };
 }
 
+const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+async function loadRequiredBossModel(GLTFLoader: any, url: string, attempts = 3) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await new GLTFLoader().loadAsync(url);
+    } catch (error) {
+      lastError = error;
+      console.warn(`Ash King model load attempt ${attempt}/${attempts} failed`, error);
+      if (attempt < attempts) await wait(180 * attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Ash King model could not be loaded');
+}
+
+async function loadOptionalBossAsset(GLTFLoader: any, url: string, label: string) {
+  try {
+    return await new GLTFLoader().loadAsync(url);
+  } catch (error) {
+    console.warn(`Optional Ash King ${label} asset unavailable`, error);
+    return null;
+  }
+}
+
 export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promise<WorldBossMobileRig> {
   const manifest = await loadKayKitManifest();
   const skeletonPath = firstKayKitModel(manifest, 'skeletons', /\/characters\/gltf\/.*(?:warrior|knight|barbarian).*\.glb$/i)
@@ -176,15 +201,7 @@ export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promi
   const axePath = firstKayKitModel(manifest, 'skeletons', /skeleton_axe\.(?:gltf|glb)$/i)
     ?? firstKayKitModel(manifest, 'skeletons', /\/assets\/gltf\/.*axe.*\.(?:gltf|glb)$/i);
 
-  const loader = new GLTFLoader();
-  const [skeletonGltf, generalGltf, movementGltf, combatGltf, axeGltf] = await Promise.all([
-    loader.loadAsync(modelUrl(manifest, skeletonPath)),
-    loader.loadAsync(ANIMATION_ASSETS.general),
-    loader.loadAsync(ANIMATION_ASSETS.movement),
-    loader.loadAsync(ANIMATION_ASSETS.combat),
-    axePath ? loader.loadAsync(modelUrl(manifest, axePath)).catch(() => null) : Promise.resolve(null),
-  ]);
-
+  const skeletonGltf = await loadRequiredBossModel(GLTFLoader, modelUrl(manifest, skeletonPath));
   const root = new THREE.Group();
   root.name = 'AshKingVeilWarden';
 
@@ -195,34 +212,16 @@ export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promi
   root.add(visual);
 
   const rightHand = findBone(visual, ['righthand', 'handr', 'handright']);
-  attachAxe(THREE, rightHand, axeGltf?.scene ?? null);
-
   const regalia = addAshKingRegalia(THREE, root);
-  const clips = [
-    ...(skeletonGltf.animations ?? []),
-    ...(generalGltf.animations ?? []),
-    ...(movementGltf.animations ?? []),
-    ...(combatGltf.animations ?? []),
-  ];
-  const idleClip = chooseClip(clips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep']);
-  const moveClip = chooseClip(clips, [['walk', 'forward'], ['walk'], ['run']], ['back', 'left', 'right', 'crouch']);
-  const attackClip = chooseClip(clips, [['attack', 'a'], ['attack']], ['bow', 'crossbow', 'ranged']);
   const mixer = new THREE.AnimationMixer(visual);
-  const idle = idleClip ? mixer.clipAction(idleClip) : null;
-  const move = moveClip ? mixer.clipAction(moveClip) : null;
-  const attack = attackClip ? mixer.clipAction(attackClip) : null;
-  let moving = false;
-  let current = idle ?? move;
-  let attackRemaining = 0;
 
-  current?.reset().play();
-  if (move) move.timeScale = 0.82;
-  if (attack) {
-    attack.setLoop(THREE.LoopOnce, 1);
-    attack.clampWhenFinished = false;
-    const duration = Math.max(0.2, attackClip?.duration ?? 0.6);
-    attack.timeScale = Math.max(0.9, duration / 0.62);
-  }
+  let moving = false;
+  let attackRemaining = 0;
+  let stopped = false;
+  let idle: any = null;
+  let move: any = null;
+  let attack: any = null;
+  let current: any = null;
 
   const playBase = () => {
     const next = moving ? move ?? idle : idle ?? move;
@@ -231,6 +230,47 @@ export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promi
     current?.fadeOut(0.1);
     current = next;
   };
+
+  const installAnimationClips = (clips: any[]) => {
+    if (stopped || !clips.length) return;
+    const idleClip = chooseClip(clips, [['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep']);
+    const moveClip = chooseClip(clips, [['walk', 'forward'], ['walk'], ['run']], ['back', 'left', 'right', 'crouch']);
+    const attackClip = chooseClip(clips, [['attack', 'a'], ['attack']], ['bow', 'crossbow', 'ranged']);
+
+    idle?.stop();
+    move?.stop();
+    attack?.stop();
+    idle = idleClip ? mixer.clipAction(idleClip) : null;
+    move = moveClip ? mixer.clipAction(moveClip) : null;
+    attack = attackClip ? mixer.clipAction(attackClip) : null;
+    current = null;
+
+    if (move) move.timeScale = 0.82;
+    if (attack) {
+      attack.setLoop(THREE.LoopOnce, 1);
+      attack.clampWhenFinished = false;
+      const duration = Math.max(0.2, attackClip?.duration ?? 0.6);
+      attack.timeScale = Math.max(0.9, duration / 0.62);
+    }
+    playBase();
+  };
+
+  installAnimationClips(skeletonGltf.animations ?? []);
+
+  void (async () => {
+    if (axePath) {
+      const axeGltf = await loadOptionalBossAsset(GLTFLoader, modelUrl(manifest, axePath), 'axe');
+      if (!stopped) attachAxe(THREE, rightHand, axeGltf?.scene ?? null);
+    }
+
+    const clips = [...(skeletonGltf.animations ?? [])];
+    for (const [label, url] of Object.entries(ANIMATION_ASSETS)) {
+      if (stopped) return;
+      const gltf = await loadOptionalBossAsset(GLTFLoader, url, `${label} animation`);
+      if (gltf?.animations?.length) clips.push(...gltf.animations);
+    }
+    installAnimationClips(clips);
+  })();
 
   return {
     root,
@@ -257,6 +297,7 @@ export async function loadWorldBossMobileRig(THREE: any, GLTFLoader: any): Promi
       regalia.mantle.rotation.z = Math.sin(now * 0.0018) * 0.02;
     },
     stop() {
+      stopped = true;
       mixer.stopAllAction();
     },
   };
