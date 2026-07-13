@@ -11,6 +11,7 @@ const files = {
   boss: await readFile(new URL('../src/components/WorldBossBattleScreen.tsx', import.meta.url), 'utf8'),
   bossStageProxy: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
   bossBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
+  bossController: await readFile(new URL('../src/components/WorldBossThreeAttackStage.tsx', import.meta.url), 'utf8'),
   bossStage: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
 };
 
@@ -25,7 +26,8 @@ const checks = [
   [files.boss.includes('const TIMER_PAINT_MS = 250;'), 'world-boss timer is repainting too often'],
   [files.boss.includes("import { WorldBossLiteStage }") && !files.boss.includes("import { CombatStage }"), 'world boss still uses the full run renderer'],
   [files.boss.includes('engine.onStateChange = () => {}') && files.boss.includes('setGameState(snapshotRaidState(engine.state))'), 'world boss React updates are not throttled'],
-  [files.bossStageProxy.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.bossBand.includes('<WorldBossCohesiveStage'), 'world-boss stage proxy does not route to the cohesive renderer'],
+  [files.bossStageProxy.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.bossBand.includes('<WorldBossThreeAttackStage'), 'world-boss stage proxy does not route through the three-attack controller'],
+  [files.bossController.includes("type AttackKind = 'breath' | 'claw' | 'wing'") && files.bossController.includes('const CLAW_RANGE = 150;') && files.bossController.includes('const WING_RANGE = 245;') && files.bossController.includes('boss-shot-breath-'), 'three distinct dragon attacks are missing'],
   [files.bossStage.includes('pixelRatioForQuality') && files.bossStage.includes('frameIntervalForQuality'), 'adaptive world-boss quality is missing'],
   [files.bossStage.includes("root.name = 'AshKingRitualHall'") && !files.bossStage.includes('buildKayKitDungeonRoom'), 'world boss still builds the full room and theme'],
   [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 4 : 7;'), 'world-boss projectiles are not bounded'],
@@ -39,4 +41,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the cohesive adaptive world-boss renderer are active.');
+console.log('Mobile combat audit passed: compact HUD, bounded effects, direct arrows and the three-attack adaptive dragon renderer are active.');
