@@ -18,10 +18,16 @@ export const RUN_CAMERA = {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+function responsiveFrame(aspect: number) {
+  if (aspect < 0.55) return { height: 18.1, distance: 22.6, lookAhead: 2.45 };
+  if (aspect < 0.68) return { height: 18.7, distance: 23.5, lookAhead: 2.65 };
+  return { height: RUN_CAMERA.height, distance: RUN_CAMERA.distance, lookAhead: 2.85 };
+}
+
 /**
- * Die Kamera folgt der Mitte der Spieler-Hitbox, bleibt aber innerhalb einer
- * festen Hochformat-Komposition. Nach Raumabschluss wird die Z-Bewegung enger,
- * damit der Gang zum Portal weder wie ein Zoom wirkt noch die Außenkulisse zeigt.
+ * Die Kamera folgt der Mitte der Spieler-Hitbox und passt ihre echte 3D-Framing-
+ * Distanz an das sichtbare Hochformat an. Das ist kein CSS-Zoom: Seitenverhältnis,
+ * Perspektive und Kameraposition bleiben vollständig im Renderer synchron.
  */
 export function updateRunCamera(
   camera: any,
@@ -49,7 +55,8 @@ export function updateRunCamera(
   focusX = clamp(focusX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX);
   focusZ = clamp(focusZ, minZ, maxZ);
 
-  cameraGoal.set(focusX, RUN_CAMERA.height, focusZ + RUN_CAMERA.distance);
+  const frame = responsiveFrame(Number(camera.aspect) || 1);
+  cameraGoal.set(focusX, frame.height, focusZ + frame.distance);
   camera.position.lerp(cameraGoal, RUN_CAMERA.followLerp);
-  camera.lookAt(focusX, RUN_CAMERA.lookHeight, focusZ - 2.85);
+  camera.lookAt(focusX, RUN_CAMERA.lookHeight, focusZ - frame.lookAhead);
 }
