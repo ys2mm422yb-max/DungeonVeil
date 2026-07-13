@@ -8,6 +8,18 @@ function materialList(node: any): any[] {
   return Array.isArray(node.material) ? node.material.filter(Boolean) : [node.material];
 }
 
+function isWorldBossRenderer(renderer: any) {
+  const parent = renderer?.domElement?.parentElement as HTMLElement | null | undefined;
+  return parent?.dataset?.testid === 'ash-king-perspective-stage';
+}
+
+function isWorldBossScene(scene: any) {
+  return Boolean(
+    scene?.getObjectByName?.('KayKitWorldBossPerspectiveRoom')
+    || scene?.getObjectByName?.('AshKingPerspectiveSanctum'),
+  );
+}
+
 function improveTextureClarity(renderer: any, scene: any) {
   const maxAnisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() ?? 1, 4);
   scene?.traverse?.((node: any) => {
@@ -38,6 +50,7 @@ export function installWorldBossVisualRuntimePatch(): Promise<void> {
     const originalSetPixelRatio = rendererPrototype.setPixelRatio;
 
     rendererPrototype.setPixelRatio = function patchedSetPixelRatio(value: number) {
+      if (!isWorldBossRenderer(this)) return originalSetPixelRatio.call(this, value);
       const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
       const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
       const deviceRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
@@ -46,11 +59,12 @@ export function installWorldBossVisualRuntimePatch(): Promise<void> {
     };
 
     rendererPrototype.render = function patchedWorldBossRender(scene: any, camera: any) {
-      if (scene && !scene.userData?.worldBossVisualRuntimePatched) {
+      const worldBossScene = isWorldBossRenderer(this) && isWorldBossScene(scene);
+      if (worldBossScene && !scene.userData?.worldBossVisualRuntimePatched) {
         improveTextureClarity(this, scene);
         scene.userData = { ...(scene.userData ?? {}), worldBossVisualRuntimePatched: true };
       }
-      if (this?.domElement?.style) {
+      if (worldBossScene && this?.domElement?.style) {
         this.domElement.style.filter = 'contrast(1.055) saturate(1.035)';
         this.domElement.style.imageRendering = 'auto';
       }
