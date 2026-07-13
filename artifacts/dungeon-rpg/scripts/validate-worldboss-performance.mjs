@@ -7,16 +7,19 @@ const files = {
   combatBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
   cohesiveStage: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
   perspectiveStage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
+  runtimePatch: await readFile(new URL('../src/components/worldBossVisualRuntimePatch.ts', import.meta.url), 'utf8'),
 };
 
 const checks = [
   [files.battle.includes("import { WorldBossLiteStage }") && files.battle.includes('<WorldBossLiteStage'), 'battle screen is not using the dedicated world-boss stage'],
   [!files.battle.includes('CombatStage') && !files.battle.includes('GameCanvas'), 'world boss still mounts the normal dungeon renderer'],
   [files.proxyStage.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.combatBand.includes('<WorldBossCohesiveStage'), 'world-boss stage routing is broken'],
-  [files.cohesiveStage.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'cohesive stage does not route to the perspective renderer'],
+  [files.cohesiveStage.includes('installWorldBossVisualRuntimePatch') && files.cohesiveStage.includes('<WorldBossPerspectiveStage'), 'cohesive stage does not install the visual patch before rendering'],
   [files.perspectiveStage.includes('buildKayKitDungeonRoom') && files.perspectiveStage.includes('buildKayKitRoomTheme') && files.perspectiveStage.includes('const VISUAL_ROOM = 20;'), 'production KayKit room pipeline is missing'],
   [files.perspectiveStage.includes("root.name = 'AshKingPerspectiveSanctum'") && files.perspectiveStage.includes("lower.name = 'AshKingRaisedDais'") && files.perspectiveStage.includes("'VeilGateArch'"), 'perspective sanctum architecture is missing'],
-  [files.perspectiveStage.includes("throne.name = 'BrokenAshThronePerspective'") && files.perspectiveStage.includes("seal.name = 'AshKingPerspectiveSeal'"), 'throne or ritual seal is missing'],
+  [files.perspectiveStage.includes("throne.name = 'BrokenAshThronePerspective'") && files.perspectiveStage.includes("seal.name = 'AshKingPerspectiveSeal'"), 'throne or ritual marker is missing'],
+  [files.runtimePatch.includes("node.name === 'AshKingPerspectiveSeal'") && files.runtimePatch.includes("node.parent?.name === 'AshKingDominanceAura'") && files.runtimePatch.includes("node.geometry?.type === 'RingGeometry'"), 'static red center rings are not removed at runtime'],
+  [files.runtimePatch.includes('Math.min(deviceRatio, 1.3)') && files.runtimePatch.includes('texture.anisotropy = maxAnisotropy') && files.runtimePatch.includes("contrast(1.055) saturate(1.035)"), 'iPhone render-resolution or texture-clarity pass is missing'],
   [files.perspectiveStage.includes('new THREE.PerspectiveCamera') && !files.perspectiveStage.includes('new THREE.OrthographicCamera'), 'world-boss camera is not perspective'],
   [files.perspectiveStage.includes('camera.aspect < 0.7 ? 50 : 44') && files.perspectiveStage.includes('(portrait ? 13.7 : 11.9)') && files.perspectiveStage.includes('(portrait ? 19.6 : 16.7)'), 'portrait player-safe camera framing is missing'],
   [files.perspectiveStage.includes('WorldBossCleanFloor_') && files.perspectiveStage.includes('WorldBossFrontWallClearance_'), 'central combat lane or front-wall clearance is missing'],
@@ -39,4 +42,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: KayKit perspective sanctum, player-safe mobile framing, compact HUD, dominant Ash King, adaptive budgets and complete cleanup are active.');
+console.log('World-boss performance audit passed: KayKit perspective sanctum, ring-free center, sharper iPhone rendering, compact HUD, dominant Ash King, adaptive budgets and complete cleanup are active.');
