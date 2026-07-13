@@ -1,6 +1,9 @@
 name: Dungeon Veil Mobile Visual QA
 
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/dungeon-veil-visual-qa.yml']
   pull_request:
     branches: [main]
     types: [opened, reopened, synchronize]
