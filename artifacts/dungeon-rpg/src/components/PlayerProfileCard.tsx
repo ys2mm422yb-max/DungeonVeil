@@ -7,6 +7,8 @@ type Props = {
   onClose: () => void;
 };
 
+type Achievement = { icon: string; de: string; en: string };
+
 function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
 }
@@ -23,7 +25,7 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(Number(value) || 0);
 }
 
-const ACHIEVEMENTS: Record<string, { icon: string; de: string; en: string }> = {
+const ACHIEVEMENTS: Record<string, Achievement> = {
   first_steps: { icon: '➜', de: 'Erste Schritte', en: 'First Steps' },
   veil_walker: { icon: '◈', de: 'Schleierwanderer', en: 'Veil Walker' },
   boss_hunter: { icon: '♛', de: 'Bossjäger', en: 'Boss Hunter' },
@@ -49,7 +51,9 @@ export function PlayerProfileCard({ userId, language, onClose }: Props) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  const achievements = useMemo(() => (profile?.achievement_keys ?? []).map(key => ACHIEVEMENTS[key]).filter(Boolean), [profile?.achievement_keys]);
+  const achievements = useMemo(() => (profile?.achievement_keys ?? [])
+    .map(key => ACHIEVEMENTS[key])
+    .filter((achievement): achievement is Achievement => Boolean(achievement)), [profile?.achievement_keys]);
 
   const copyCode = async () => {
     if (!profile?.friend_code) return;
