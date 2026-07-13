@@ -1,0 +1,195 @@
+name: Dungeon Veil Tutorial Mobile QA
+
+on:
+  push:
+    branches: [work/blocks-1-7-production-pass]
+    paths-ignore:
+      - '.ci/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dungeon-veil-tutorial-mobile-qa
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact product commit
+        uses: actions/checkout@v4
+
+      - name: Resolve validated commit
+        id: product
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace
+        id: install
+        run: pnpm install --frozen-lockfile
+
+      - name: Run social and tutorial audits
+        id: audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:social
+
+      - name: Typecheck Dungeon Veil
+        id: typecheck
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
+
+      - name: Build QA site
+        id: build
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+        run: pnpm --dir artifacts/dungeon-rpg run build
+
+      - name: Install mobile browsers
+        id: browsers
+        run: pnpm dlx playwright@1.55.0 install --with-deps chromium webkit
+
+      - name: Serve QA site
+        id: serve
+        shell: bash
+        run: |
+          mkdir -p /tmp/dv-tutorial/DungeonVeil artifacts/dungeon-rpg/visual-qa
+          cp -a artifacts/dungeon-rpg/dist/public/. /tmp/dv-tutorial/DungeonVeil/
+          python3 -m http.server 4174 --directory /tmp/dv-tutorial >/tmp/dv-tutorial-server.log 2>&1 &
+          for attempt in {1..30}; do
+            curl -fsS http://127.0.0.1:4174/DungeonVeil/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/dv-tutorial-server.log
+          exit 1
+
+      - name: Capture iPhone tutorial
+        id: iphone
+        run: pnpm dlx playwright@1.55.0 screenshot --browser=webkit --device="iPhone 13" --color-scheme=dark --wait-for-timeout=2500 "http://127.0.0.1:4174/DungeonVeil/?qa=tutorial" artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png
+
+      - name: Capture Android tutorial
+        id: android
+        run: pnpm dlx playwright@1.55.0 screenshot --browser=chromium --device="Pixel 7" --color-scheme=dark --wait-for-timeout=2500 "http://127.0.0.1:4174/DungeonVeil/?qa=tutorial" artifacts/dungeon-rpg/visual-qa/tutorial-android.png
+
+      - name: Validate mobile screenshots
+        id: validate
+        shell: bash
+        run: |
+          test -s artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png
+          test -s artifacts/dungeon-rpg/visual-qa/tutorial-android.png
+          test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png)" -gt 25000
+          test "$(stat -c%s artifacts/dungeon-rpg/visual-qa/tutorial-android.png)" -gt 25000
+          python3 -m pip install --quiet pillow
+          python3 <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageStat
+          root = Path('artifacts/dungeon-rpg/visual-qa')
+          expected = {
+              'tutorial-iphone.png': (390, 844),
+              'tutorial-android.png': (412, 915),
+          }
+          for name, minimum in expected.items():
+              image = Image.open(root / name).convert('RGB')
+              width, height = image.size
+              if width < minimum[0] or height < minimum[1]:
+                  raise SystemExit(f'{name}: unexpected viewport {image.size}')
+              stat = ImageStat.Stat(image)
+              if max(stat.var) < 250:
+                  raise SystemExit(f'{name}: screenshot is visually empty')
+              image.thumbnail((260, 560), Image.Resampling.LANCZOS)
+              image.save(root / name.replace('.png', '-thumb.jpg'), quality=55, optimize=True, progressive=True)
+          PY
+
+      - name: Upload QA evidence
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-veil-tutorial-mobile-qa-${{ steps.product.outputs.sha }}
+          path: artifacts/dungeon-rpg/visual-qa/tutorial-*
+          retention-days: 14
+
+      - name: Publish QA evidence and marker
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          PRODUCT_SHA: ${{ steps.product.outputs.sha }}
+          INSTALL: ${{ steps.install.outcome }}
+          AUDIT: ${{ steps.audit.outcome }}
+          TYPECHECK: ${{ steps.typecheck.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          BROWSERS: ${{ steps.browsers.outcome }}
+          SERVE: ${{ steps.serve.outcome }}
+          IPHONE: ${{ steps.iphone.outcome }}
+          ANDROID: ${{ steps.android.outcome }}
+          VALIDATE: ${{ steps.validate.outcome }}
+          UPLOAD: ${{ steps.upload.outcome }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = 'main';
+            async function write(path, data, message) {
+              let sha;
+              try {
+                const result = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
+                if (!Array.isArray(result.data)) sha = result.data.sha;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              await github.rest.repos.createOrUpdateFileContents({
+                owner, repo, path, branch, sha, message,
+                content: Buffer.from(data).toString('base64'),
+              });
+            }
+            const local = {
+              iphone: 'artifacts/dungeon-rpg/visual-qa/tutorial-iphone.png',
+              android: 'artifacts/dungeon-rpg/visual-qa/tutorial-android.png',
+              iphoneThumb: 'artifacts/dungeon-rpg/visual-qa/tutorial-iphone-thumb.jpg',
+              androidThumb: 'artifacts/dungeon-rpg/visual-qa/tutorial-android-thumb.jpg',
+            };
+            const remote = {
+              iphone: '.ci/visual-qa/tutorial-iphone.png',
+              android: '.ci/visual-qa/tutorial-android.png',
+              iphoneThumb: '.ci/visual-qa/tutorial-iphone-thumb.jpg',
+              androidThumb: '.ci/visual-qa/tutorial-android-thumb.jpg',
+            };
+            for (const key of Object.keys(local)) {
+              if (fs.existsSync(local[key])) await write(remote[key], fs.readFileSync(local[key]), `Record tutorial ${key} QA for ${process.env.PRODUCT_SHA.slice(0, 7)}`);
+            }
+            const outcomes = {
+              install: process.env.INSTALL,
+              audit: process.env.AUDIT,
+              typecheck: process.env.TYPECHECK,
+              build: process.env.BUILD,
+              browsers: process.env.BROWSERS,
+              serve: process.env.SERVE,
+              iphone: process.env.IPHONE,
+              android: process.env.ANDROID,
+              validate: process.env.VALIDATE,
+              upload: process.env.UPLOAD,
+            };
+            const success = Object.values(outcomes).every(value => value === 'success');
+            const marker = {
+              workflow: 'Dungeon Veil Tutorial Mobile QA',
+              status: success ? 'success' : 'failure',
+              validatedCommit: process.env.PRODUCT_SHA || null,
+              outcomes,
+              screenshots: Object.keys(local).filter(key => fs.existsSync(local[key])).map(key => remote[key]),
+              sizes: Object.fromEntries(Object.keys(local).map(key => [key, fs.existsSync(local[key]) ? fs.statSync(local[key]).size : 0])),
+              completedAt: new Date().toISOString(),
+            };
+            await write('.ci/dungeon-veil-tutorial-qa.json', JSON.stringify(marker, null, 2) + '\n', `Record tutorial QA ${success ? 'success' : 'failure'} for ${(process.env.PRODUCT_SHA || 'unknown').slice(0, 7)}`);
