@@ -1,0 +1,59 @@
+name: Deploy World Boss Final Review
+
+on:
+  push:
+    branches: [rework/worldboss-full-3d-arena]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/deploy-worldboss-final-review.yml'
+      - '.ci/worldboss-final-deploy-trigger.txt'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout branch head
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Asset audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Room and collision audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Typecheck
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
+      - name: Production build
+        run: pnpm --filter @workspace/dungeon-rpg build
+      - name: Pages artifact audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:pages
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
