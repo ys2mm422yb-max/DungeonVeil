@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stage, band] = await Promise.all([
+const [menu, villageHub, menuSceneProxy, villageScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stageWrapper, aggressiveStage, perspectiveStage, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
+  read('../src/components/ModernVillageSquareScene.tsx'),
   read('../src/components/MailboxPanel.tsx'),
   read('../src/components/GuildInviteLinkCard.tsx'),
   read('../src/game/guildMailboxOnline.ts'),
@@ -15,18 +16,22 @@ const [menu, villageHub, menuScene, mailbox, inviteCard, guildClient, guildMigra
   read('../../../supabase/migrations/20260713023500_harden_friend_pair_uniqueness.sql'),
   read('../src/main.tsx'),
   read('../src/components/WorldBossCohesiveStage.tsx'),
+  read('../src/components/WorldBossAggressiveStage.tsx'),
+  read('../src/components/WorldBossPerspectiveStage.tsx'),
   read('../src/components/WorldBossCombatBandStage.tsx'),
 ]);
 
+const renderStart = villageScene.lastIndexOf('raf = requestAnimationFrame(loop);');
+const assetStart = villageScene.indexOf('void loadVillageAssets(');
 const checks = [
-  [menu.includes('<VillageNpcHub') && villageHub.includes('testId="npc-postmaster"') && villageHub.includes('onClick={onMailbox}') && menu.includes('<MailboxPanel'), 'NPC-routed main-menu mailbox entry is missing'],
+  [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
   [!menu.includes('WeeklyRiftPanel') && !menu.includes("overlay === 'rift'") && !menu.includes("setOverlay('rift')"), 'weekly-rift shortcut or panel is still mounted in the main menu'],
   [menu.includes('<GuildInviteLinkCard') && inviteCard.includes('createGuildInviteLinkOnline') && inviteCard.includes('navigator.share'), 'shareable guild invite link UI is missing'],
   [guildClient.includes('captureGuildInviteTokenFromUrl') && guildClient.includes('claimPendingGuildInviteLink') && guildClient.includes('rpc/claim_guild_invite_link'), 'guild invitation link claim flow is incomplete'],
   [mailbox.includes('acceptGuildInvite') && mailbox.includes('declineGuildInvite') && mailbox.includes('markMailboxActioned'), 'mailbox guild invitation actions are incomplete'],
   [guildMigration.includes('create table if not exists public.guild_invite_links') && guildMigration.includes('create table if not exists public.player_mailbox'), 'guild invite link or mailbox table migration is missing'],
   [guildMigration.includes('enable row level security') && guildMigration.includes('security definer') && guildMigration.includes('extensions.digest'), 'mailbox and guild link security controls are incomplete'],
-  [menu.includes('<VillageNpcHub') && villageHub.includes('testId="npc-scout"') && villageHub.includes('onClick={onFriends}') && menu.includes('<FriendsPanel'), 'NPC-routed main-menu friends entry is missing'],
+  [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-scout'") && villageHub.includes('action: onFriends') && menu.includes('<FriendsPanel'), 'village-routed main-menu friends entry is missing'],
   [friendsPanel.includes('sendFriendRequestOnline') && friendsPanel.includes('acceptFriendRequestOnline') && friendsPanel.includes('cancelFriendRequestOnline') && friendsPanel.includes('removeFriendOnline'), 'friends panel actions are incomplete'],
   [friendClient.includes("rpc<OnlineFriend[]>('list_friends_v2')") && friendClient.includes("rpc<OnlineFriendRequest[]>('list_friend_requests')") && friendClient.includes("rpc<SentFriendRequest[]>('send_friend_request_by_query'"), 'authenticated friend-code client is incomplete'],
   [mailbox.includes("message.kind === 'friend_request'") && mailbox.includes('answerFriendRequest') && mailbox.includes('acceptFriendRequestOnline'), 'friend requests are not actionable from the mailbox'],
@@ -35,10 +40,15 @@ const checks = [
   [friendHardening.includes('friend_requests_pair_uidx') && friendHardening.includes('least(sender_id, receiver_id)') && friendHardening.includes('on conflict do nothing'), 'unordered friend-pair race protection is missing'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall'), 'main menu lacks the central world orb or visible village staging'],
-  [villageHub.includes('accent="world"') && villageHub.includes('top="47.5%"') && menu.includes('h-[41vh]'), 'NPC hub is not balanced around the world orb or remains overlapped by action cards'],
-  [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
-  [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or cohesive stage route are missing'],
+  [menuSceneProxy.includes('ModernVillageSquareScene as MainMenuDungeonScene'), 'main menu scene proxy is not routed to the modern village renderer'],
+  [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes("'VillageGate'") && villageScene.includes("'VillageSquareShrine'") && villageScene.includes('VILLAGE_ASSETS'), 'modern KayKit village-square staging is missing'],
+  [villageScene.includes('async function loadVillageAssets(') && renderStart >= 0 && assetStart > renderStart, 'village renderer does not start before asynchronous asset loading'],
+  [villageScene.includes('Promise.allSettled') && villageScene.includes("result.status === 'rejected'") && villageScene.includes('Village asset failed to load'), 'individual village asset failures are not isolated'],
+  [villageScene.includes("window.visualViewport?.addEventListener('resize', resize)"), 'mobile village viewport resize handling is missing'],
+  [villageHub.includes('grid grid-cols-5') && villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock is missing or floating labels remain'],
+  [menu.includes('grid-cols-2') && menu.includes('min-h-[250px] flex-1') && !menu.includes('h-[41vh]'), 'main-menu action layout is not separated from the village scene'],
+  [stageWrapper.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && aggressiveStage.includes('<WorldBossPerspectiveStage') && perspectiveStage.includes("root.name = 'AshKingLowCostKayKitHall'") && perspectiveStage.includes("floor.name = 'AshKingDetailedSingleFloor'") && !perspectiveStage.includes('buildKayKitDungeonRoom'), 'single-floor low-call dragon hall or aggressive controller is missing'],
+  [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or stage route are missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -48,4 +58,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: weekly rift removed, world-orb village hub active, mailbox and friends routes secure, and the cohesive Ash King ritual hall is QA-addressable.');
+console.log('Social/navigation audit passed: resilient mobile village rendering, stable social routes and aggressive dragon world-boss navigation remain active.');
