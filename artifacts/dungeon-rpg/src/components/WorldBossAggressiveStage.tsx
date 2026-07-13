@@ -128,7 +128,7 @@ export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
               player.invincibleUntil = now + 720;
               player.lastHitTime = now;
               engine.state.damageNumbers.push({
-                id: `hit-fireball-${serial}-${Math.round(now)}`,
+                id: `hit-fireball-${fireballSerialRef.current}-${Math.round(now)}`,
                 x: player.x,
                 y: player.y - 10,
                 value: `-${damage}`,
