@@ -12,6 +12,7 @@ const files = {
   bossStageProxy: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
   bossBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
   bossCohesive: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
+  bossController: await readFile(new URL('../src/components/WorldBossAggressiveStage.tsx', import.meta.url), 'utf8'),
   bossStage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
   bossRig: await readFile(new URL('../src/components/worldBossMobileVisual3D.ts', import.meta.url), 'utf8'),
 };
@@ -28,7 +29,8 @@ const checks = [
   [files.boss.includes("import { WorldBossLiteStage }") && !files.boss.includes("import { CombatStage }"), 'world boss still uses the full run renderer'],
   [files.boss.includes('engine.onStateChange = () => {}') && files.boss.includes('setGameState(snapshotRaidState(engine.state))'), 'world boss React updates are not throttled'],
   [files.bossStageProxy.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.bossBand.includes('<WorldBossCohesiveStage'), 'world-boss stage proxy routing is broken'],
-  [files.bossCohesive.includes('WorldBossPerspectiveStage as WorldBossCohesiveStage'), 'world-boss stage is not routed directly'],
+  [files.bossCohesive.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && files.bossController.includes('<WorldBossPerspectiveStage'), 'world-boss aggressive controller routing is missing'],
+  [files.bossController.includes('const PURSUIT_SPEED = 82;') && files.bossController.includes('const ATTACK_READY_WINDOW_MS = 720;'), 'world-boss pressure tuning is missing'],
   [!files.bossStage.includes('buildKayKitDungeonRoom') && files.bossStage.includes('new THREE.CanvasTexture(canvas)') && files.bossStage.includes('new THREE.PlaneGeometry(24, 32, 1, 1)'), 'high-call room shell or repeated floor geometry remains'],
   [files.bossStage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.bossStage.includes('const EMBER_COUNT = IS_MOBILE ? 6 : 20;'), 'world-boss effects are not bounded tightly enough'],
   [files.bossStage.includes('qualityLevel === 0) return 0') && files.bossStage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)"), 'mobile renderer is capped or oversampled at default quality'],
@@ -46,4 +48,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: compact HUD, single-floor hall, imported dragon boss and bounded mobile effects are active.');
+console.log('Mobile combat audit passed: compact HUD, aggressive dragon controller, single-floor hall and bounded mobile effects are active.');
