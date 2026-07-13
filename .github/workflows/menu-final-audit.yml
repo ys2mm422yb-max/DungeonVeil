@@ -22,11 +22,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Run exact room audit chain
+      - name: Capture exact room audit chain
         working-directory: artifacts/dungeon-rpg
         shell: bash
         run: |
-          set -euo pipefail
+          mkdir -p audit-output
+          set +e
+          overall=0
           for script in \
             validate-all-rooms.mjs \
             validate-production-rooms.mjs \
@@ -36,6 +38,15 @@ jobs:
             validate-worldboss-performance.mjs \
             validate-social-navigation.mjs \
             validate-social-progression.mjs; do
-            echo "===== $script ====="
-            node "scripts/$script"
+            echo "===== $script =====" | tee "audit-output/$script.log"
+            node "scripts/$script" 2>&1 | tee -a "audit-output/$script.log"
+            code=${PIPESTATUS[0]}
+            echo "$code" > "audit-output/$script.exit"
+            if [ "$code" -ne 0 ]; then overall=1; fi
           done
+          echo "$overall" > audit-output/overall.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: menu-final-audit
+          path: artifacts/dungeon-rpg/audit-output
