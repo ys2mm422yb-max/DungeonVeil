@@ -2,6 +2,8 @@ import path from 'node:path';
 import { createServer } from 'vite';
 
 const ROOT = process.cwd();
+const guardHallSource = await readFile(new URL('../src/components/roomTwoGuardCommandHall3D.ts', import.meta.url), 'utf8');
+const themeSource = await readFile(new URL('../src/components/kaykitRoomThemes3D.ts', import.meta.url), 'utf8');
 const errors = [];
 const notes = [];
 
@@ -156,7 +158,10 @@ try {
   note('Rooms 21–50 use thirty separate compositions without shared boundary templates.');
   note('Boss arenas keep bounded collider counts and clear authored spawn points.');
 
-  if (errors.length) {
+  if (!guardHallSource.includes("root.name = 'RoomTwoGuardCommandHall'") || !guardHallSource.includes("'RoomTwoGuardGate'") || !guardHallSource.includes("'RoomTwoShieldDisplayLeft'")) errors.push('Room 2 guard command hall staging is missing');
+if (!themeSource.includes('room === 2 ? buildRoomTwoGuardCommandHall(THREE) : null')) errors.push('Room 2 guard hall is not wired into the theme builder');
+
+if (errors.length) {
     console.error(`Production room validation failed with ${errors.length} error(s):`);
     errors.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;

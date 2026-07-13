@@ -4,6 +4,7 @@ import { logicalRoomSetpieces, type LogicalRoomSetpiece } from '../game/logicalR
 import { roomIdentity } from '../game/roomIdentity';
 import { roomBibleSpec, type RoomBibleSpec } from '../game/roomBible';
 import { roomPropDisplayScale, roomPropScaleClass } from '../game/propPresentation3D';
+import { buildRoomTwoGuardCommandHall } from './roomTwoGuardCommandHall3D';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
@@ -253,6 +254,8 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   root.add(outer);
   addLights(THREE, root, room, spec);
   addRoomHeroEffects(THREE, root, room);
+  const roomTwoGuardHall = room === 2 ? buildRoomTwoGuardCommandHall(THREE) : null;
+  if (roomTwoGuardHall) root.add(roomTwoGuardHall);
   bindEnvironmentDriver(THREE, root, spec);
 
   const ready = Promise.all(logicalRoomSetpieces(room).map(async piece => {
@@ -278,6 +281,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   root.userData.dispose = () => {
     active = false;
     if (root.userData.environmentDriver) root.userData.environmentDriver.onBeforeRender = () => undefined;
+    roomTwoGuardHall?.userData?.dispose?.();
     outer.userData?.dispose?.();
   };
   return root;

@@ -1,1 +1,0 @@
-apply room-two guard command hall
