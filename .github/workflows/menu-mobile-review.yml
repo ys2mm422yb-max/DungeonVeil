@@ -30,8 +30,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build review
         run: pnpm --filter @workspace/dungeon-rpg build
-      - name: Install Chromium
-        run: npx -y playwright@1.54.2 install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: |
+          python3 -m pip install --user playwright==1.54.0
+          python3 -m playwright install --with-deps chromium
       - name: Start preview
         run: |
           python3 -m http.server 4173 --bind 127.0.0.1 --directory artifacts/dungeon-rpg/dist/public > /tmp/menu-preview.log 2>&1 &
@@ -44,21 +46,21 @@ jobs:
       - name: Capture iPhone and Android
         run: |
           mkdir -p screenshots
-          npm exec --yes --package=playwright@1.54.2 -- node <<'NODE'
-          const { chromium, devices } = require('playwright');
-          (async () => {
-            const browser = await chromium.launch({ headless: true });
-            for (const [name, profile] of [['iphone13', devices['iPhone 13']], ['pixel5', devices['Pixel 5']]]) {
-              const context = await browser.newContext({ ...profile, locale: 'de-DE' });
-              const page = await context.newPage();
-              await page.goto('http://127.0.0.1:4173/?qa=menu', { waitUntil: 'networkidle', timeout: 45000 });
-              await page.waitForTimeout(10000);
-              await page.screenshot({ path: `screenshots/menu-${name}.png`, fullPage: false });
-              await context.close();
-            }
-            await browser.close();
-          })().catch(error => { console.error(error); process.exit(1); });
-          NODE
+          python3 - <<'PY'
+          from playwright.sync_api import sync_playwright
+
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch(headless=True)
+              for filename, device_name in [('iphone13', 'iPhone 13'), ('pixel5', 'Pixel 5')]:
+                  profile = playwright.devices[device_name]
+                  context = browser.new_context(**profile, locale='de-DE')
+                  page = context.new_page()
+                  page.goto('http://127.0.0.1:4173/?qa=menu', wait_until='networkidle', timeout=45000)
+                  page.wait_for_timeout(10000)
+                  page.screenshot(path=f'screenshots/menu-{filename}.png', full_page=False)
+                  context.close()
+              browser.close()
+          PY
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
         with:
