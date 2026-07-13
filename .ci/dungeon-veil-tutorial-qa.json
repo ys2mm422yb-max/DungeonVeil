@@ -1,42 +1,33 @@
 {
   "workflow": "Dungeon Veil Social Tutorial Mobile QA",
-  "status": "success",
-  "validatedCommit": "6f5b22447a50a38b0093e108e1c21035e9def49c",
+  "status": "failure",
+  "validatedCommit": "38689c6072d35ac626080866277ad6f5b0d755a0",
   "outcomes": {
     "install": "success",
     "audit": "success",
-    "typecheck": "success",
-    "build": "success",
-    "browsers": "success",
-    "serve": "success",
-    "tutorialIphone": "success",
-    "tutorialAndroid": "success",
-    "menuIphone": "success",
-    "menuAndroid": "success",
-    "validate": "success",
-    "upload": "success"
+    "typecheck": "cancelled",
+    "build": "skipped",
+    "browsers": "skipped",
+    "serve": "skipped",
+    "tutorialIphone": "skipped",
+    "tutorialAndroid": "skipped",
+    "menuIphone": "skipped",
+    "menuAndroid": "skipped",
+    "validate": "skipped",
+    "upload": "skipped"
   },
   "auditLog": "\n> @workspace/dungeon-rpg@0.0.0 audit:social /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs\n\nSocial/navigation audit passed: weekly rift removed, NPC-routed mailbox and friends navigation active, secure guild links available, friend codes and full friend workflows wired, and the semantic Ash King ritual arena is QA-addressable.\nSocial progression audit passed: friend codes, presence and favorites, extended profile cards, direct guild invites, social mailbox notices and bulk actions, friend/guild world-boss rankings, participation-gated rewards, the seven-part tutorial and interactive Veil village NPC hub are wired.\n",
   "typecheckLog": "\n> @workspace/dungeon-rpg@0.0.0 typecheck /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> tsc -p tsconfig.json --noEmit\n\n",
-  "screenshots": [
-    ".ci/visual-qa/tutorial-iphone.png",
-    ".ci/visual-qa/tutorial-android.png",
-    ".ci/visual-qa/tutorial-iphone-thumb.jpg",
-    ".ci/visual-qa/tutorial-android-thumb.jpg",
-    ".ci/visual-qa/menu-iphone.png",
-    ".ci/visual-qa/menu-android.png",
-    ".ci/visual-qa/menu-iphone-thumb.jpg",
-    ".ci/visual-qa/menu-android-thumb.jpg"
-  ],
+  "screenshots": [],
   "sizes": {
-    "tutorialIphone": 298407,
-    "tutorialAndroid": 755824,
-    "tutorialIphoneThumb": 5902,
-    "tutorialAndroidThumb": 5362,
-    "menuIphone": 252093,
-    "menuAndroid": 355461,
-    "menuIphoneThumb": 10445,
-    "menuAndroidThumb": 11027
+    "tutorialIphone": 0,
+    "tutorialAndroid": 0,
+    "tutorialIphoneThumb": 0,
+    "tutorialAndroidThumb": 0,
+    "menuIphone": 0,
+    "menuAndroid": 0,
+    "menuIphoneThumb": 0,
+    "menuAndroidThumb": 0
   },
-  "completedAt": "2026-07-13T04:44:57.192Z"
+  "completedAt": "2026-07-13T05:05:41.671Z"
 }
