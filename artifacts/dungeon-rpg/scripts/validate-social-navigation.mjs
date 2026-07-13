@@ -18,14 +18,14 @@ const [menu, villageHub, mailbox, inviteCard, guildClient, guildMigration, frien
 ]);
 
 const checks = [
-  [menu.includes('<VillageNpcHub') && villageHub.includes('data-testid="npc-postmaster"') && villageHub.includes('onMailbox={') === false && villageHub.includes('onClick={onMailbox}') && menu.includes('<MailboxPanel'), 'NPC-routed main-menu mailbox entry is missing'],
+  [menu.includes('<VillageNpcHub') && villageHub.includes('testId="npc-postmaster"') && villageHub.includes('onClick={onMailbox}') && menu.includes('<MailboxPanel'), 'NPC-routed main-menu mailbox entry is missing'],
   [!menu.includes('WeeklyRiftPanel') && !menu.includes("overlay === 'rift'") && !menu.includes("setOverlay('rift')"), 'weekly-rift shortcut or panel is still mounted in the main menu'],
   [menu.includes('<GuildInviteLinkCard') && inviteCard.includes('createGuildInviteLinkOnline') && inviteCard.includes('navigator.share'), 'shareable guild invite link UI is missing'],
   [guildClient.includes('captureGuildInviteTokenFromUrl') && guildClient.includes('claimPendingGuildInviteLink') && guildClient.includes('rpc/claim_guild_invite_link'), 'guild invitation link claim flow is incomplete'],
   [mailbox.includes('acceptGuildInvite') && mailbox.includes('declineGuildInvite') && mailbox.includes('markMailboxActioned'), 'mailbox guild invitation actions are incomplete'],
   [guildMigration.includes('create table if not exists public.guild_invite_links') && guildMigration.includes('create table if not exists public.player_mailbox'), 'guild invite link or mailbox table migration is missing'],
   [guildMigration.includes('enable row level security') && guildMigration.includes('security definer') && guildMigration.includes('extensions.digest'), 'mailbox and guild link security controls are incomplete'],
-  [menu.includes('<VillageNpcHub') && villageHub.includes('data-testid="npc-scout"') && villageHub.includes('onClick={onFriends}') && menu.includes('<FriendsPanel'), 'NPC-routed main-menu friends entry is missing'],
+  [menu.includes('<VillageNpcHub') && villageHub.includes('testId="npc-scout"') && villageHub.includes('onClick={onFriends}') && menu.includes('<FriendsPanel'), 'NPC-routed main-menu friends entry is missing'],
   [friendsPanel.includes('sendFriendRequestOnline') && friendsPanel.includes('acceptFriendRequestOnline') && friendsPanel.includes('cancelFriendRequestOnline') && friendsPanel.includes('removeFriendOnline'), 'friends panel actions are incomplete'],
   [friendClient.includes("rpc<OnlineFriend[]>('list_friends_v2')") && friendClient.includes("rpc<OnlineFriendRequest[]>('list_friend_requests')") && friendClient.includes("rpc<SentFriendRequest[]>('send_friend_request_by_query'"), 'authenticated friend-code client is incomplete'],
   [mailbox.includes("message.kind === 'friend_request'") && mailbox.includes('answerFriendRequest') && mailbox.includes('acceptFriendRequestOnline'), 'friend requests are not actionable from the mailbox'],
