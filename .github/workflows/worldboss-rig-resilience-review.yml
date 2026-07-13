@@ -1,0 +1,103 @@
+name: World Boss Rig Resilience Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/worldboss-rig-resilience-review.yml'
+      - '.ci/worldboss-rig-resilience-trigger.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  resilient-boss:
+    if: github.event.pull_request.head.ref == 'rework/worldboss-full-3d-arena'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Build review version
+        env:
+          BASE_PATH: /
+        run: pnpm --filter @workspace/dungeon-rpg build
+      - name: Install isolated Playwright
+        run: |
+          mkdir -p /tmp/pw
+          cd /tmp/pw
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.54.2 >/dev/null 2>&1
+          npx playwright install --with-deps chromium
+      - name: Start preview
+        run: |
+          python3 -m http.server 4173 --directory artifacts/dungeon-rpg/dist/public >/tmp/worldboss-rig-preview.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/worldboss-rig-preview.log
+          exit 1
+      - name: Block optional animations and verify real boss
+        run: |
+          mkdir -p artifacts-review
+          cat >/tmp/pw/review.cjs <<'NODE'
+          const { chromium, devices } = require('/tmp/pw/node_modules/playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const context = await browser.newContext({ ...devices['iPhone 13'] });
+            const page = await context.newPage();
+            const blocked = [];
+            await page.route('**/*', async route => {
+              const url = route.request().url();
+              if (/Rig_Medium_(General|MovementBasic|CombatMelee)\.glb/i.test(url)) {
+                blocked.push(url);
+                await route.abort('failed');
+                return;
+              }
+              await route.continue();
+            });
+            await page.goto('http://127.0.0.1:4173/?qa=worldboss', { waitUntil: 'networkidle', timeout: 60000 });
+            await page.waitForSelector('[data-testid="ash-king-perspective-stage"]', { timeout: 30000 });
+            await page.waitForTimeout(7000);
+            const telemetry = await page.evaluate(() => {
+              const raw = localStorage.getItem('dungeon-veil-worldboss-performance');
+              return raw ? JSON.parse(raw) : null;
+            });
+            const result = { blockedAnimations: blocked.length, telemetry };
+            require('fs').writeFileSync('artifacts-review/worldboss-rig-resilience.json', JSON.stringify(result, null, 2));
+            await page.screenshot({ path: 'artifacts-review/worldboss-rig-resilience-iphone.png', fullPage: true });
+            await browser.close();
+            if (blocked.length < 3) throw new Error(`Expected three blocked animation requests, saw ${blocked.length}`);
+            if (!telemetry) throw new Error('World-boss performance telemetry was not written');
+            if (telemetry.mobileBossSource !== 'ash-warden-skeleton') {
+              throw new Error(`Expected real Ash King skeleton, received ${telemetry.mobileBossSource}`);
+            }
+          })().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+          node /tmp/pw/review.cjs
+      - name: Upload review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldboss-rig-resilience
+          path: artifacts-review/*
+          if-no-files-found: error
+          retention-days: 3
