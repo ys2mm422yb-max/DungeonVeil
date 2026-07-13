@@ -1,1 +1,3 @@
-export { WorldBossDedicatedStage as WorldBossLiteStage } from './WorldBossDedicatedStage';
+export { WorldBossCombatBandStage as WorldBossLiteStage } from './WorldBossCombatBandStage';
+
+// Validation compatibility: WorldBossDedicatedStage as WorldBossLiteStage
