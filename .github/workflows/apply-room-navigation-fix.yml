@@ -1,0 +1,119 @@
+name: Apply room navigation fix
+
+on:
+  push:
+    branches: [fix/room13-and-room-navigation-audit]
+    paths: ['.github/workflows/apply-room-navigation-fix.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/room13-and-room-navigation-audit
+      - name: Apply targeted room fix and navigation audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('artifacts/dungeon-rpg/src/game/logicalRoomSetpieces.ts')
+          text = path.read_text()
+          old = """    p(`${D}/wall_corner_gated.gltf`, -8.0, -4.2, Math.PI / 2, 0.86, [1.8, 1.8]),
+    p(`${D}/wall_corner_gated.gltf`, 8.0, -4.2, -Math.PI / 2, 0.86, [1.8, 1.8]),
+    p(`${D}/wall_corner_gated.gltf`, -8.0, 3.7, Math.PI / 2, 0.86, [1.8, 1.8]),
+    p(`${D}/wall_corner_gated.gltf`, 8.0, 3.7, -Math.PI / 2, 0.86, [1.8, 1.8]),"""
+          new = """    p(`${D}/wall_corner_gated.gltf`, -8.25, -4.2, Math.PI / 2, 0.86, [1.15, 1.3]),
+    p(`${D}/wall_corner_gated.gltf`, 8.25, -4.2, -Math.PI / 2, 0.86, [1.15, 1.3]),
+    p(`${D}/wall_corner_gated.gltf`, -8.25, 3.7, Math.PI / 2, 0.86, [1.15, 1.3]),
+    p(`${D}/wall_corner_gated.gltf`, 8.25, 3.7, -Math.PI / 2, 0.86, [1.15, 1.3]),"""
+          if old not in text:
+              raise SystemExit('room 13 source block not found')
+          path.write_text(text.replace(old, new))
+
+          pkg = Path('artifacts/dungeon-rpg/package.json')
+          ptext = pkg.read_text()
+          ptext = ptext.replace(
+              '"audit:rooms": "node scripts/validate-all-rooms.mjs',
+              '"audit:rooms": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/validate-room-navigation.mjs && node scripts/validate-all-rooms.mjs'
+          )
+          pkg.write_text(ptext)
+          PY
+          cat > artifacts/dungeon-rpg/scripts/validate-room-navigation.mjs <<'EOF'
+          const { roomPropColliders } = await import('../src/game/roomPropCollision.ts');
+          const { roomBibleSpec } = await import('../src/game/roomBible.ts');
+          const { CHAPTER_ROOMS } = await import('../src/game/chapterRun.ts');
+
+          const STEP = 0.35;
+          const HALF_PLAYER = 0.46;
+          const MIN_X = -10.2;
+          const MAX_X = 10.2;
+          const MIN_Z = -13.0;
+          const MAX_Z = 9.6;
+
+          const key = (x, z) => `${Math.round((x - MIN_X) / STEP)},${Math.round((z - MIN_Z) / STEP)}`;
+          const free = (colliders, x, z) => x >= MIN_X && x <= MAX_X && z >= MIN_Z && z <= MAX_Z && !colliders.some(c =>
+            Math.abs(x - c.x) < c.halfW + HALF_PLAYER && Math.abs(z - c.z) < c.halfH + HALF_PLAYER
+          );
+          const nearestFree = (colliders, start) => {
+            if (free(colliders, start.x, start.z)) return start;
+            for (let radius = STEP; radius <= 2.8; radius += STEP) {
+              for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 12) {
+                const point = { x: start.x + Math.cos(angle) * radius, z: start.z + Math.sin(angle) * radius };
+                if (free(colliders, point.x, point.z)) return point;
+              }
+            }
+            return null;
+          };
+          const reachable = (colliders, startInput, targetInput) => {
+            const start = nearestFree(colliders, startInput);
+            const target = nearestFree(colliders, targetInput);
+            if (!start || !target) return false;
+            const queue = [start];
+            const seen = new Set([key(start.x, start.z)]);
+            for (let cursor = 0; cursor < queue.length; cursor++) {
+              const current = queue[cursor];
+              if (Math.hypot(current.x - target.x, current.z - target.z) <= STEP * 1.8) return true;
+              for (const [dx, dz] of [[STEP,0],[-STEP,0],[0,STEP],[0,-STEP]]) {
+                const next = { x: current.x + dx, z: current.z + dz };
+                const id = key(next.x, next.z);
+                if (!seen.has(id) && free(colliders, next.x, next.z)) {
+                  seen.add(id);
+                  queue.push(next);
+                }
+              }
+            }
+            return false;
+          };
+
+          const failures = [];
+          for (let room = 1; room <= CHAPTER_ROOMS; room++) {
+            const colliders = roomPropColliders(room);
+            const portal = roomBibleSpec(room).portal;
+            const target = { x: portal.x, z: portal.z < -8 ? -8.5 : portal.z };
+            const starts = {
+              center: { x: 0, z: 8.5 },
+              left: { x: -6.4, z: 7.2 },
+              right: { x: 6.4, z: 7.2 },
+            };
+            for (const [lane, start] of Object.entries(starts)) {
+              if (!reachable(colliders, start, target)) failures.push(`room ${room}: ${lane} route cannot reach portal`);
+            }
+          }
+          if (failures.length) {
+            console.error(`Room navigation audit failed with ${failures.length} blocked route(s):`);
+            failures.forEach(item => console.error(`  - ${item}`));
+            process.exit(1);
+          }
+          console.log(`Room navigation audit passed: center, left and right portal routes are reachable in all ${CHAPTER_ROOMS} rooms.`);
+          EOF
+          rm .github/workflows/apply-room-navigation-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix room 13 passage and audit all room routes"
+          git push origin HEAD:fix/room13-and-room-navigation-audit
