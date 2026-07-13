@@ -1,6 +1,6 @@
 name: Dungeon RPG CI
 
-# Post-merge validation trigger for main after production promotion.
+# Validation trigger for restored world boss quality bca0e02.
 on:
   push:
     branches: [main, work/blocks-1-7-production-pass]
