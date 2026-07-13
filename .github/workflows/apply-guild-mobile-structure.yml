@@ -1,0 +1,156 @@
+name: Apply Guild Mobile Structure
+
+on:
+  push:
+    branches: [fix/guild-mobile-structure]
+    paths:
+      - '.github/workflows/apply-guild-mobile-structure.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/guild-mobile-structure
+          fetch-depth: 0
+      - name: Restructure guild mobile UI
+        shell: python
+        run: |
+          from pathlib import Path
+
+          panel_path = Path('artifacts/dungeon-rpg/src/components/GuildPanel.tsx')
+          panel = panel_path.read_text()
+          replacements = [
+            (
+              'return <div className="max-h-[76vh] overflow-y-auto rounded-3xl border border-amber-300/18 bg-[#0d0b08]/96 p-4 text-white shadow-2xl">',
+              'return <div data-testid="guild-panel-shell" className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-amber-300/18 bg-[#0d0b08]/96 p-3 text-white shadow-2xl">'
+            ),
+            (
+              '<div className="mb-4">',
+              '<div data-testid="guild-panel-header" className="shrink-0 border-b border-white/8 pb-3 pr-20">'
+            ),
+            (
+              '{session && membership && <div className="space-y-3">',
+              '{session && membership && <div className="flex min-h-0 flex-1 flex-col pt-3">'
+            ),
+            (
+              '<div className="grid grid-cols-3 gap-2">',
+              '<div data-testid="guild-tabs" className="grid shrink-0 grid-cols-3 gap-2">'
+            ),
+            (
+              "{tab === 'overview' && <div className=\"space-y-3\">",
+              "{tab === 'overview' && <div data-testid=\"guild-overview-tab\" className=\"min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-[max(18px,env(safe-area-inset-bottom))] pt-3 [-webkit-overflow-scrolling:touch]\">"
+            ),
+            (
+              "{tab === 'members' && <section className=\"space-y-2\">",
+              "{tab === 'members' && <section data-testid=\"guild-members-tab\" className=\"min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-[max(18px,env(safe-area-inset-bottom))] pt-3 [-webkit-overflow-scrolling:touch]\">"
+            ),
+            (
+              "{tab === 'invite' && <section className=\"space-y-3 rounded-2xl border border-white/8 bg-white/[.025] p-3\">",
+              "{tab === 'invite' && <section data-testid=\"guild-invite-tab\" className=\"mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain rounded-2xl border border-white/8 bg-white/[.025] p-3 pb-[max(18px,env(safe-area-inset-bottom))] [-webkit-overflow-scrolling:touch]\">"
+            ),
+            (
+              '<ActionButton label={busy ? (de ? \'Lädt …\' : \'Loading …\') : (de ? \'Aktualisieren\' : \'Refresh\')} onClick={() => run(refreshGuildData)} disabled={busy} />\n    </div>}',
+              '<div className="mt-2 shrink-0"><ActionButton label={busy ? (de ? \'Lädt …\' : \'Loading …\') : (de ? \'Aktualisieren\' : \'Refresh\')} onClick={() => run(refreshGuildData)} disabled={busy} /></div>\n    </div>}'
+            ),
+          ]
+          for old, new in replacements:
+            if old not in panel:
+              raise SystemExit(f'Missing GuildPanel marker: {old[:90]}')
+            panel = panel.replace(old, new, 1)
+
+          old_danger = '''        <section className="space-y-2 rounded-2xl border border-red-400/14 bg-red-500/[.035] p-3">
+          <div className="text-[8px] font-black uppercase tracking-[.2em] text-red-200/55">{de ? 'MITGLIEDSCHAFT' : 'MEMBERSHIP'}</div>
+          {ownerMustTransfer ? <>
+            <div className="text-[9px] leading-relaxed text-white/38">{de ? 'Als Anführer musst du die Führung übertragen, bevor du die Gilde verlassen kannst.' : 'As leader, transfer leadership before leaving the guild.'}</div>
+            <ActionButton label={de ? 'Mitglied auswählen' : 'Choose member'} onClick={() => setTab('members')} disabled={busy} danger />
+          </> : <>
+            <div className="text-[9px] leading-relaxed text-white/38">{isOwner
+              ? (de ? 'Du bist das einzige Mitglied. Beim Verlassen wird die Gilde vollständig aufgelöst.' : 'You are the only member. Leaving will disband the guild.')
+              : (de ? 'Du kannst die Gilde jederzeit verlassen.' : 'You can leave the guild at any time.')}</div>
+            <ActionButton label={isOwner ? (de ? 'Gilde auflösen' : 'Disband guild') : (de ? 'Gilde verlassen' : 'Leave guild')} onClick={leaveCurrentGuild} disabled={busy} danger />
+          </>}
+        </section>'''
+          new_danger = '''        <details data-testid="guild-danger-zone" className="group rounded-2xl border border-red-400/14 bg-red-500/[.035]">
+          <summary className="cursor-pointer list-none px-3 py-3 text-[8px] font-black uppercase tracking-[.2em] text-red-200/55">
+            <span className="flex items-center justify-between gap-3"><span>{de ? 'MITGLIEDSCHAFT VERWALTEN' : 'MANAGE MEMBERSHIP'}</span><span className="text-red-100/35 transition-transform group-open:rotate-90">›</span></span>
+          </summary>
+          <div className="space-y-2 border-t border-red-400/10 px-3 pb-3 pt-2">
+            {ownerMustTransfer ? <>
+              <div className="text-[9px] leading-relaxed text-white/38">{de ? 'Als Anführer musst du die Führung übertragen, bevor du die Gilde verlassen kannst.' : 'As leader, transfer leadership before leaving the guild.'}</div>
+              <ActionButton label={de ? 'Mitglied auswählen' : 'Choose member'} onClick={() => setTab('members')} disabled={busy} danger />
+            </> : <>
+              <div className="text-[9px] leading-relaxed text-white/38">{isOwner
+                ? (de ? 'Du bist das einzige Mitglied. Beim Verlassen wird die Gilde vollständig aufgelöst.' : 'You are the only member. Leaving will disband the guild.')
+                : (de ? 'Du kannst die Gilde jederzeit verlassen.' : 'You can leave the guild at any time.')}</div>
+              <ActionButton label={isOwner ? (de ? 'Gilde auflösen' : 'Disband guild') : (de ? 'Gilde verlassen' : 'Leave guild')} onClick={leaveCurrentGuild} disabled={busy} danger />
+            </>}
+          </div>
+        </details>'''
+          if old_danger not in panel:
+            raise SystemExit('Missing danger-zone block')
+          panel = panel.replace(old_danger, new_danger, 1)
+          panel_path.write_text(panel)
+
+          social_path = Path('artifacts/dungeon-rpg/src/components/GuildSocialPanel.tsx')
+          social = social_path.read_text()
+          social = social.replace(
+            'return <div data-testid="guild-social-panel" className="relative">',
+            'return <div data-testid="guild-social-panel" className="relative min-h-0 flex-1">',
+            1,
+          )
+          social = social.replace(
+            'className="absolute right-3 top-3 rounded-xl border border-cyan-300/16 bg-[#071218]/92 px-3 py-2 text-[7px] font-black uppercase tracking-[.12em] text-cyan-100 shadow-lg active:scale-[.98]"',
+            'className="absolute right-3 top-3 z-20 rounded-xl border border-cyan-300/16 bg-[#071218]/92 px-3 py-2 text-[7px] font-black uppercase tracking-[.12em] text-cyan-100 shadow-lg active:scale-[.98]"',
+            1,
+          )
+          social = social.replace('max-h-[76vh] w-full max-w-sm overflow-y-auto', 'max-h-[calc(100dvh-3rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-sm overflow-y-auto', 1)
+          social_path.write_text(social)
+
+          menu_path = Path('artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx')
+          menu = menu_path.read_text()
+          old_open = '''{overlay && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/74 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>'''
+          new_open = '''{overlay && <div className={`absolute inset-0 z-40 flex bg-[#06070b]/74 backdrop-blur-md ${overlay === 'guild' ? 'items-stretch justify-center px-3 pb-[max(8px,env(safe-area-inset-bottom))] pt-[max(8px,env(safe-area-inset-top))]' : 'items-center justify-center px-5'}`} onPointerDown={() => setOverlay(null)}><div data-testid={overlay === 'guild' ? 'guild-overlay-shell' : undefined} className={overlay === 'guild' ? 'flex min-h-0 w-full max-w-md flex-col' : 'w-full max-w-sm'} onPointerDown={event => event.stopPropagation()}>'''
+          if old_open not in menu:
+            raise SystemExit('Missing main-menu overlay marker')
+          menu = menu.replace(old_open, new_open, 1)
+          menu = menu.replace(
+            '''{overlay === 'guild' && <div className="space-y-3"><GuildInviteLinkCard language={language} /><GuildSocialPanel language={language} /></div>}''',
+            '''{overlay === 'guild' && <div className="flex min-h-0 flex-1 flex-col gap-2"><div className="shrink-0"><GuildInviteLinkCard language={language} /></div><GuildSocialPanel language={language} /></div>}''',
+            1,
+          )
+          menu = menu.replace(
+            '''<button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-amber-50/14 bg-[#11100f]/88 py-3 text-[9px] font-black uppercase tracking-[.2em] text-amber-50/58">''',
+            '''<button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className={`${overlay === 'guild' ? 'mt-2 shrink-0' : 'mt-3'} w-full rounded-2xl border border-amber-50/14 bg-[#11100f]/88 py-3 text-[9px] font-black uppercase tracking-[.2em] text-amber-50/58`}>''',
+            1,
+          )
+          menu_path.write_text(menu)
+
+          audit_path = Path('artifacts/dungeon-rpg/scripts/validate-social-progression.mjs')
+          audit = audit_path.read_text()
+          audit = audit.replace('friendsPanel, guildSocial, profileCard', 'friendsPanel, guildSocial, guildPanel, profileCard', 1)
+          audit = audit.replace("read('../src/components/GuildSocialPanel.tsx'),", "read('../src/components/GuildSocialPanel.tsx'),\n  read('../src/components/GuildPanel.tsx'),", 1)
+          marker = "  [guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && menu.includes('<GuildSocialPanel'), 'guild member profile cards are missing'],"
+          addition = marker + "\n  [guildPanel.includes('data-testid=\"guild-panel-shell\"') && guildPanel.includes('data-testid=\"guild-tabs\"') && guildPanel.includes('data-testid=\"guild-overview-tab\"') && guildPanel.includes('data-testid=\"guild-members-tab\"') && guildPanel.includes('data-testid=\"guild-invite-tab\"') && guildPanel.includes('data-testid=\"guild-danger-zone\"') && menu.includes('guild-overlay-shell'), 'mobile guild shell, isolated tabs or collapsed danger zone is missing'],"
+          if marker not in audit:
+            raise SystemExit('Missing social audit marker')
+          audit = audit.replace(marker, addition, 1)
+          audit_path.write_text(audit)
+
+          workflow = Path('.github/workflows/apply-guild-mobile-structure.yml')
+          workflow.unlink()
+      - name: Commit final guild structure
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/GuildPanel.tsx \
+                  artifacts/dungeon-rpg/src/components/GuildSocialPanel.tsx \
+                  artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx \
+                  artifacts/dungeon-rpg/scripts/validate-social-progression.mjs \
+                  .github/workflows/apply-guild-mobile-structure.yml
+          git commit -m "Restructure the guild screen for mobile"
+          git push origin HEAD:fix/guild-mobile-structure
