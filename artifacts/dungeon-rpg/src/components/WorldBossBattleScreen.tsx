@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SaveData } from '../game/saveManager';
 import { GameEngine, type GameState } from '../game/runEngine';
-import { TILE_SIZE, isWalkable } from '../game/dungeon';
+import { TILE_SIZE, TileType, isWalkable } from '../game/dungeon';
 import { collidesWithRoomProp } from '../game/roomCollision3D';
 import { submitWorldBossHit, type WorldBossEvent } from '../game/supabaseOnline';
 import { VirtualJoystick } from './VirtualJoystick';
@@ -94,6 +94,18 @@ function snapshotRaidState(state: GameState): GameState {
   };
 }
 
+function prepareRaidArenaMap(map: GameState['map']) {
+  for (let tileY = 0; tileY < map.height; tileY++) {
+    for (let tileX = 0; tileX < map.width; tileX++) {
+      const boundary = tileX === 0 || tileY === 0 || tileX === map.width - 1 || tileY === map.height - 1;
+      map.tiles[tileY][tileX] = boundary ? TileType.WALL : TileType.FLOOR;
+    }
+  }
+  map.chests = [];
+  map.decorations = [];
+  map.torches = [];
+}
+
 function findRaidSpawn(options: {
   map: GameState['map'];
   floor: number;
@@ -105,8 +117,9 @@ function findRaidSpawn(options: {
   fallbackY: number;
   avoid?: { x: number; y: number };
   minimumDistance?: number;
+  ignoreRoomProps?: boolean;
 }): RaidSpawn {
-  const { map, floor, width, height, desiredXRatio, desiredYRatio, fallbackX, fallbackY, avoid, minimumDistance = 0 } = options;
+  const { map, floor, width, height, desiredXRatio, desiredYRatio, fallbackX, fallbackY, avoid, minimumDistance = 0, ignoreRoomProps = false } = options;
   const desiredTileX = Math.max(1, Math.min(map.width - 2, Math.round((map.width - 1) * desiredXRatio)));
   const desiredTileY = Math.max(1, Math.min(map.height - 2, Math.round((map.height - 1) * desiredYRatio)));
   const candidates: Array<{ tileX: number; tileY: number; score: number }> = [];
@@ -137,7 +150,7 @@ function findRaidSpawn(options: {
       [centerX, centerY],
     ];
     if (!corners.every(([checkX, checkY]) => isWalkable(map, checkX, checkY))) continue;
-    if (collidesWithRoomProp(floor, map.width, map.height, x, y, width, height, 0.18)) continue;
+    if (!ignoreRoomProps && collidesWithRoomProp(floor, map.width, map.height, x, y, width, height, 0.18)) continue;
 
     const spawn = { x, y, centerX, centerY };
     if (!avoid) return spawn;
@@ -202,6 +215,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     let lastTimerPaint = 0;
     let lastSimulationStep = 0;
     const engine = new GameEngine();
+    engine.ignoreRoomPropCollisions = true;
     engineRef.current = engine;
     finishedRef.current = false;
     arenaReadyRef.current = false;
@@ -211,6 +225,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
 
     const raidSave = makeRaidSave(engine, saveData);
     engine.continueGame(raidSave);
+    prepareRaidArenaMap(engine.state.map);
     engine.state.player.hp = engine.state.player.maxHp;
     engine.state.player.attackRange = 520;
     engine.state.status = 'paused';
@@ -226,6 +241,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       desiredYRatio: 0.76,
       fallbackX: player.x,
       fallbackY: player.y,
+      ignoreRoomProps: true,
     });
     player.x = playerSpawn.x;
     player.y = playerSpawn.y;
@@ -246,6 +262,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
         desiredYRatio: 0.24,
         fallbackX: boss.x,
         fallbackY: boss.y,
+        ignoreRoomProps: true,
         avoid: { x: playerSpawn.centerX, y: playerSpawn.centerY },
         minimumDistance: minimumStartDistance,
       });
@@ -372,20 +389,20 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     return de ? 'Angriff beendet' : 'Attack finished';
   }, [de, finishReason, submitError]);
 
-  const handleMove = (x: number, y: number) => {
+  const handleMove = useCallback((x: number, y: number) => {
     const engine = engineRef.current;
     if (!engine || !arenaReady || phase !== 'fighting') return;
     engine.input.joyX = x;
     engine.input.joyY = y;
-  };
+  }, [arenaReady, phase]);
 
-  const handleDodge = () => {
+  const handleDodge = useCallback(() => {
     const engine = engineRef.current;
     if (!engine || !arenaReady || phase !== 'fighting') return;
     engine.input.dodge = true;
-  };
+  }, [arenaReady, phase]);
 
-  const closeAndReset = () => {
+  const closeAndReset = useCallback(() => {
     arenaReadyRef.current = false;
     const engine = engineRef.current;
     if (engine) {
@@ -398,32 +415,41 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engine.state.damageNumbers.length = 0;
     }
     onClose();
-  };
+  }, [onClose]);
 
   return <div className="fixed inset-0 z-[120] overflow-hidden bg-[#080401] text-white">
     {gameState && <>
       <WorldBossLiteStage engineRef={engineRef} onReady={handleArenaReady} />
-      <div className="pointer-events-none absolute inset-x-3 top-[max(12px,calc(env(safe-area-inset-top)+6px))] z-50">
-        <div className="mx-auto max-w-md rounded-2xl border border-orange-300/25 bg-black/90 p-3 shadow-2xl">
-          <div className="flex items-start justify-between gap-3">
-            <div><div className="text-[7px] font-black uppercase tracking-[.28em] text-orange-200/55">{de ? 'WELTBOSS-ANGRIFF' : 'WORLD BOSS ATTACK'}</div><div className="mt-1 text-sm font-black text-orange-50">{event.name}</div></div>
-            <div className="flex items-center gap-2">
-              <div className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-[11px] font-black text-amber-100">{arenaReady ? `${seconds}s` : (de ? 'LÄDT' : 'LOAD')}</div>
-              <button type="button" onPointerDown={pointerEvent => { pointerEvent.preventDefault(); closeAndReset(); }} className="pointer-events-auto grid h-8 w-8 place-items-center rounded-full border border-white/12 bg-black/80 text-[12px] font-black text-white/55 active:scale-90">×</button>
-            </div>
+      <div data-testid="worldboss-compact-status" className="pointer-events-none absolute inset-x-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-50">
+      <div className="mx-auto max-w-md rounded-xl border border-orange-300/22 bg-black/84 px-3 py-2 shadow-xl backdrop-blur-sm">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[6px] font-black uppercase tracking-[.25em] text-orange-200/48">{de ? 'WELTBOSS-ANGRIFF' : 'WORLD BOSS ATTACK'}</div>
+            <div className="truncate text-[13px] font-black text-orange-50">{event.name}</div>
           </div>
-          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-black/80"><div className="h-full bg-gradient-to-r from-red-700 via-orange-500 to-amber-300 transition-[width] duration-100" style={{ width: `${localBossPercent}%` }} /></div>
-          <div className="mt-1 flex justify-between text-[8px] text-white/42"><span>{de ? 'BOSS-HP' : 'BOSS HP'}</span><span>{Math.max(0, Math.ceil(localBoss?.hp ?? 0))}/{Math.ceil(localBoss?.maxHp ?? 0)}</span></div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/80"><div className="h-full bg-emerald-400 transition-[width] duration-100" style={{ width: `${playerPercent}%` }} /></div>
-          <div className="mt-1 flex justify-between text-[7px] text-white/32"><span>{de ? 'DEINE LEBEN' : 'YOUR HEALTH'}</span><span>{Math.max(0, Math.ceil(gameState.player.hp))}/{Math.ceil(gameState.player.maxHp)}</span></div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="rounded-full border border-amber-300/22 bg-amber-400/10 px-2.5 py-1 text-[10px] font-black text-amber-100">{arenaReady ? `${seconds}s` : (de ? 'LÄDT' : 'LOAD')}</div>
+            <button type="button" onPointerDown={pointerEvent => { pointerEvent.preventDefault(); closeAndReset(); }} className="pointer-events-auto grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-black/70 text-[11px] font-black text-white/55 active:scale-90">×</button>
+          </div>
+        </div>
+        <div className="mt-1.5 flex items-center gap-2">
+          <span className="w-8 text-[6px] font-black uppercase tracking-[.12em] text-white/38">BOSS</span>
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-black/70"><div className="h-full bg-gradient-to-r from-red-700 via-orange-500 to-amber-300 transition-[width] duration-100" style={{ width: `${localBossPercent}%` }} /></div>
+          <span className="w-[54px] text-right text-[7px] text-white/42">{Math.max(0, Math.ceil(localBoss?.hp ?? 0))}/{Math.ceil(localBoss?.maxHp ?? 0)}</span>
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="w-8 text-[6px] font-black uppercase tracking-[.12em] text-white/28">{de ? 'DU' : 'YOU'}</span>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/70"><div className="h-full bg-emerald-400 transition-[width] duration-100" style={{ width: `${playerPercent}%` }} /></div>
+          <span className="w-[54px] text-right text-[7px] text-white/32">{Math.max(0, Math.ceil(gameState.player.hp))}/{Math.ceil(gameState.player.maxHp)}</span>
         </div>
       </div>
+    </div>
 
       {!arenaReady && phase === 'fighting' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[radial-gradient(circle_at_50%_54%,rgba(163,61,16,.28),rgba(8,4,1,.97)_34%,#080401_72%)] px-6 pt-28">
         <div className="w-full max-w-xs rounded-3xl border border-orange-300/20 bg-black/78 p-6 text-center shadow-[0_0_70px_rgba(180,66,12,.18)]">
           <div className="mx-auto h-12 w-12 animate-pulse rounded-full border border-orange-200/30 bg-orange-500/12 shadow-[0_0_34px_rgba(255,107,31,.45)]" />
           <div className="mt-5 text-[9px] font-black uppercase tracking-[.28em] text-orange-100/72">{de ? 'BOSSARENA WIRD GELADEN' : 'LOADING BOSS ARENA'}</div>
-          <div className="mt-2 text-[10px] leading-relaxed text-white/38">{de ? 'Der Angriff startet erst, wenn die leichte Bossarena vollständig sichtbar ist.' : 'The attack starts only after the lightweight boss arena is fully visible.'}</div>
+          <div className="mt-2 text-[10px] leading-relaxed text-white/38">{de ? 'Der Angriff startet erst, wenn die Bossarena vollständig sichtbar ist.' : 'The attack starts only after the boss arena is fully visible.'}</div>
         </div>
       </div>}
 
