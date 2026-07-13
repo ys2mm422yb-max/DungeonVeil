@@ -123,6 +123,12 @@ export async function prepareWorldBossReward(eventId: string): Promise<WorldBoss
   return result;
 }
 
+export async function prepareRecentWorldBossRewards(): Promise<number> {
+  if (!currentOnlineSession()) return 0;
+  const result = await rpc<number>('prepare_recent_world_boss_rewards');
+  return Math.max(0, Number(result) || 0);
+}
+
 export async function claimWorldBossReward(eventId: string): Promise<WorldBossRewardPayload> {
   const result = await rpc<WorldBossRewardPayload>('claim_world_boss_reward', { p_event_id: eventId });
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('dungeon-veil-mailbox-changed'));
