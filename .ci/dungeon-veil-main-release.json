@@ -1,10 +1,10 @@
 {
   "workflow": "Dungeon Veil Main Release",
   "status": "success",
-  "validatedCommit": "ed49413eafb09a964414dbc8fe53bf1cf720394e",
-  "deployedCommit": "ed49413eafb09a964414dbc8fe53bf1cf720394e",
+  "validatedCommit": "c1b9a29826dc65455e5a08f55707ed1b8b1cac27",
+  "deployedCommit": "c1b9a29826dc65455e5a08f55707ed1b8b1cac27",
   "validationResult": "success",
   "deploymentResult": "success",
   "pageUrl": "https://ys2mm422yb-max.github.io/DungeonVeil/",
-  "completedAt": "2026-07-13T06:56:27.471Z"
+  "completedAt": "2026-07-13T06:58:11.699Z"
 }
