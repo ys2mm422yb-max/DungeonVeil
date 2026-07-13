@@ -1,0 +1,44 @@
+name: Run World Boss Ring And Clarity Pass
+
+on:
+  push:
+    branches: [rework/worldboss-full-3d-arena]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, 'Remove world boss rings and sharpen mobile rendering') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout world boss branch
+        uses: actions/checkout@v4
+        with:
+          ref: rework/worldboss-full-3d-arena
+          fetch-depth: 0
+      - name: Execute approved patch script
+        run: |
+          python3 - <<'RUNNER'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/apply-worldboss-ring-and-clarity.yml').read_text()
+          marker = "          python3 - <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end = workflow.index("\n          PY", start)
+          script = textwrap.dedent(workflow[start:end])
+          exec(compile(script, 'worldboss-ring-and-clarity', 'exec'), {'__name__': '__main__'})
+          RUNNER
+      - name: Commit approved pass
+        run: |
+          if git diff --quiet; then
+            echo "No world boss changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/WorldBossPerspectiveStage.tsx artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+          git commit -m "Remove world boss rings and sharpen mobile rendering"
+          git push origin HEAD:rework/worldboss-full-3d-arena
