@@ -33,10 +33,13 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build review
         run: pnpm --filter @workspace/dungeon-rpg build
-      - name: Install Playwright
+      - name: Install Playwright outside workspace
         run: |
-          npm install --no-save playwright@1.54.2
-          npx playwright install --with-deps chromium
+          mkdir -p /tmp/pw
+          cd /tmp/pw
+          npm init -y
+          npm install playwright@1.54.2
+          ./node_modules/.bin/playwright install --with-deps chromium
       - name: Start preview
         run: |
           python3 -m http.server 4173 -d artifacts/dungeon-rpg/dist/public > /tmp/worldboss-preview.log 2>&1 &
@@ -47,6 +50,8 @@ jobs:
           cat /tmp/worldboss-preview.log
           exit 1
       - name: Capture moving iPhone and Android review
+        env:
+          NODE_PATH: /tmp/pw/node_modules
         run: |
           mkdir -p review
           cat > /tmp/capture-worldboss.cjs <<'NODE'
