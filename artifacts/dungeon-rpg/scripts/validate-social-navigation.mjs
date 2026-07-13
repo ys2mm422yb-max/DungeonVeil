@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuSceneProxy, villageScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stage, band] = await Promise.all([
+const [menu, villageHub, menuSceneProxy, villageScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stageWrapper, aggressiveStage, perspectiveStage, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
@@ -16,6 +16,8 @@ const [menu, villageHub, menuSceneProxy, villageScene, mailbox, inviteCard, guil
   read('../../../supabase/migrations/20260713023500_harden_friend_pair_uniqueness.sql'),
   read('../src/main.tsx'),
   read('../src/components/WorldBossCohesiveStage.tsx'),
+  read('../src/components/WorldBossAggressiveStage.tsx'),
+  read('../src/components/WorldBossPerspectiveStage.tsx'),
   read('../src/components/WorldBossCombatBandStage.tsx'),
 ]);
 
@@ -40,8 +42,8 @@ const checks = [
   [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes("'VillageGate'") && villageScene.includes("'VillageSquareShrine'") && villageScene.includes('loadVillageAssets') && villageScene.includes('VILLAGE_ASSETS'), 'modern KayKit village-square staging is missing'],
   [villageHub.includes('grid grid-cols-5') && villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock is missing or floating labels remain'],
   [menu.includes('grid-cols-2') && menu.includes('min-h-[250px] flex-1') && !menu.includes('h-[41vh]'), 'main-menu action layout is not separated from the village scene'],
-  [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
-  [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or cohesive stage route are missing'],
+  [stageWrapper.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && aggressiveStage.includes('<WorldBossPerspectiveStage') && perspectiveStage.includes("root.name = 'AshKingLowCostKayKitHall'") && perspectiveStage.includes("floor.name = 'AshKingDetailedSingleFloor'") && !perspectiveStage.includes('buildKayKitDungeonRoom'), 'single-floor low-call Ash King hall or aggressive controller is missing'],
+  [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or stage route are missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -51,4 +53,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: modern KayKit village square, compact place dock, stable social routes and world-boss navigation remain active.');
+console.log('Social/navigation audit passed: modern KayKit village square, stable social routes and aggressive single-floor dragon stage remain active.');
