@@ -1,0 +1,140 @@
+name: Apply World Boss Combat Band From Main
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-worldboss-combat-band-main.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/blocks-1-7-production-pass
+          fetch-depth: 0
+      - name: Apply combat-band framing
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          stage_path = Path('artifacts/dungeon-rpg/src/components/WorldBossDedicatedStage.tsx')
+          text = stage_path.read_text()
+          old = """    const frameCamera = (width: number, height: number) => {
+              if (!camera) return;
+              const aspect = width / height;
+              const portrait = aspect < 0.72;
+              const viewWidth = portrait ? 11.7 : 15.2;
+              const viewHeight = viewWidth / Math.max(0.25, aspect);
+              camera.left = -viewWidth / 2;
+              camera.right = viewWidth / 2;
+              camera.top = viewHeight / 2;
+              camera.bottom = -viewHeight / 2;
+              camera.position.set(0, portrait ? 12.8 : 12.4, portrait ? 14.9 : 14.1);
+              camera.lookAt(0, 0.68, portrait ? 0.65 : 0.35);
+              camera.updateProjectionMatrix();
+            };
+
+            const viewportSize = () => {
+              const viewport = window.visualViewport;
+              return {
+                width: Math.max(1, Math.round(viewport?.width ?? window.innerWidth)),
+                height: Math.max(1, Math.round(viewport?.height ?? window.innerHeight)),
+              };
+            };
+
+            const resize = () => {
+              if (!renderer || !camera) return;
+              const { width, height } = viewportSize();
+              host.style.width = `${width}px`;
+              host.style.height = `${height}px`;
+              renderer.setPixelRatio(pixelRatioForQuality());
+              renderer.setSize(width, height, false);
+              renderer.domElement.style.width = '100%';
+              renderer.domElement.style.height = '100%';
+              frameCamera(width, height);
+            };
+"""
+          new = """    const frameCamera = (width: number, height: number) => {
+              if (!camera) return;
+              const aspect = width / height;
+              const portrait = aspect < 0.92;
+              const viewWidth = portrait ? 11.45 : 15.2;
+              const viewHeight = viewWidth / Math.max(0.45, aspect);
+              camera.left = -viewWidth / 2;
+              camera.right = viewWidth / 2;
+              camera.top = viewHeight / 2;
+              camera.bottom = -viewHeight / 2;
+              camera.position.set(0, portrait ? 11.7 : 12.4, portrait ? 16.2 : 14.1);
+              camera.lookAt(0, 0.48, portrait ? 0.1 : 0.35);
+              camera.updateProjectionMatrix();
+            };
+
+            const viewportSize = () => {
+              const viewport = window.visualViewport;
+              const width = Math.max(1, Math.round(viewport?.width ?? window.innerWidth));
+              const fullHeight = Math.max(1, Math.round(viewport?.height ?? window.innerHeight));
+              const portrait = width / fullHeight < 0.78;
+              const topInset = portrait
+                ? clamp(Math.round(fullHeight * 0.205), 235, 315)
+                : clamp(Math.round(fullHeight * 0.12), 96, 170);
+              const bottomInset = portrait
+                ? clamp(Math.round(fullHeight * 0.145), 150, 225)
+                : clamp(Math.round(fullHeight * 0.08), 72, 130);
+              return {
+                width,
+                height: Math.max(320, fullHeight - topInset - bottomInset),
+                topInset,
+              };
+            };
+
+            const resize = () => {
+              if (!renderer || !camera) return;
+              const { width, height, topInset } = viewportSize();
+              host.style.left = '0px';
+              host.style.top = `${topInset}px`;
+              host.style.bottom = 'auto';
+              host.style.width = `${width}px`;
+              host.style.height = `${height}px`;
+              renderer.setPixelRatio(pixelRatioForQuality());
+              renderer.setSize(width, height, false);
+              renderer.domElement.style.width = '100%';
+              renderer.domElement.style.height = '100%';
+              frameCamera(width, height);
+            };
+"""
+          if old not in text:
+              raise SystemExit('camera/viewport block not found')
+          text = text.replace(old, new, 1)
+          replacements = {
+              "playerRig.root.scale.setScalar(IS_MOBILE ? 1.14 : 1.1);": "playerRig.root.scale.setScalar(IS_MOBILE ? 1.02 : 1.1);",
+              "mobileBossRig.root.scale.setScalar(1.72 + attackPulse * 0.04);": "mobileBossRig.root.scale.setScalar(1.48 + attackPulse * 0.035);",
+              "mobileBossFallback.scale.setScalar(1.28 + attackPulse * 0.06);": "mobileBossFallback.scale.setScalar(1.16 + attackPulse * 0.05);",
+              "mobileBossRig.root.scale.setScalar(1.72);": "mobileBossRig.root.scale.setScalar(1.48);",
+              "mobileBossFallback.scale.setScalar(1.28);": "mobileBossFallback.scale.setScalar(1.16);",
+              "return <div ref={hostRef} className=\"pointer-events-none fixed inset-0 overflow-hidden\" style={{ width: '100vw', height: '100dvh' }} />;": "return <div ref={hostRef} className=\"pointer-events-none fixed left-0 top-0 overflow-hidden\" style={{ width: '100vw', height: '100dvh' }} />;",
+          }
+          for before, after in replacements.items():
+              if before not in text:
+                  raise SystemExit(f'missing replacement: {before}')
+              text = text.replace(before, after, 1)
+          stage_path.write_text(text)
+
+          audit_path = Path('artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs')
+          audit = audit_path.read_text()
+          needle = "  [files.dedicatedStage.includes('window.visualViewport') && files.dedicatedStage.includes(\"renderer.domElement.style.width = '100%'\") && files.dedicatedStage.includes(\"renderer.domElement.style.height = '100%'\"), 'world-boss canvas is not bound to the full visual viewport'],\n"
+          extra = needle + "  [files.dedicatedStage.includes('const topInset = portrait') && files.dedicatedStage.includes('const bottomInset = portrait') && files.dedicatedStage.includes(\"host.style.top = `${topInset}px`\"), 'world-boss renderer is not framed inside the mobile combat band'],\n"
+          if needle not in audit:
+              raise SystemExit('audit insertion point not found')
+          audit_path.write_text(audit.replace(needle, extra, 1))
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/WorldBossDedicatedStage.tsx artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
+          git commit -m "Expand world boss arena into combat band"
+          git push origin HEAD:work/blocks-1-7-production-pass
