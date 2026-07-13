@@ -1,6 +1,6 @@
 name: Deploy Dungeon Veil Test Site
 
-# Final exact validation trigger for the social progression, weekly rewards and tutorial block.
+# Final exact deployment trigger for the world-orb village and cohesive Ash Warden hall.
 on:
   push:
     branches:
