@@ -1,4 +1,4 @@
-const { roomPropColliders } = await import('../src/game/roomPropCollisionBase.ts');
+const { roomPropColliders } = await import('../src/game/roomPropCollision.ts');
 const { roomBibleSpec } = await import('../src/game/roomBible.ts');
 const { CHAPTER_ROOMS } = await import('../src/game/chapterRun.ts');
 
