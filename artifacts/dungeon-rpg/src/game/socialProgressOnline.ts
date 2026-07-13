@@ -1,4 +1,4 @@
-import { authenticatedSupabaseRest, currentOnlineSession } from './supabaseOnline';
+import { authenticatedSupabaseRest, currentOnlineSession, type WorldBossEvent } from './supabaseOnline';
 
 export type SocialProfile = {
   id: string;
@@ -93,6 +93,18 @@ export async function findSocialProfile(query: string): Promise<SocialProfile | 
 export async function getSocialProfileCard(userId: string): Promise<SocialProfileCardData | null> {
   const rows = await rpc<SocialProfileCardData[]>('get_social_profile_card', { p_user_id: userId });
   return rows[0] ?? null;
+}
+
+export async function getCurrentOrRecentWorldBoss(): Promise<WorldBossEvent | null> {
+  if (!currentOnlineSession()) return null;
+  const live = await authenticatedSupabaseRest<WorldBossEvent[]>(
+    'world_boss_events?status=in.(active,scheduled)&select=*&order=starts_at.asc&limit=1',
+  );
+  if (live[0]) return live[0];
+  const completed = await authenticatedSupabaseRest<WorldBossEvent[]>(
+    'world_boss_events?status=in.(defeated,expired)&select=*&order=ends_at.desc&limit=1',
+  );
+  return completed[0] ?? null;
 }
 
 export async function getWorldBossSocialDashboard(eventId: string): Promise<WorldBossSocialDashboard> {
