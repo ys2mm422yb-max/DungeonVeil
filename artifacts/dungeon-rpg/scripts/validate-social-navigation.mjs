@@ -1,12 +1,16 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, mailbox, inviteCard, client, migration, main, stage, band] = await Promise.all([
+const [menu, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stage, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/MailboxPanel.tsx'),
   read('../src/components/GuildInviteLinkCard.tsx'),
   read('../src/game/guildMailboxOnline.ts'),
   read('../../../supabase/migrations/20260713020000_guild_invite_links_and_player_mailbox.sql'),
+  read('../src/components/FriendsPanel.tsx'),
+  read('../src/game/friendOnline.ts'),
+  read('../../../supabase/migrations/20260713023000_add_friends_system.sql'),
+  read('../../../supabase/migrations/20260713023500_harden_friend_pair_uniqueness.sql'),
   read('../src/main.tsx'),
   read('../src/components/WorldBossDedicatedStage.tsx'),
   read('../src/components/WorldBossCombatBandStage.tsx'),
@@ -16,10 +20,17 @@ const checks = [
   [menu.includes('data-testid="mailbox-button"') && menu.includes('<MailboxPanel'), 'main-menu mailbox entry is missing'],
   [!menu.includes('WeeklyRiftPanel') && !menu.includes("overlay === 'rift'") && !menu.includes("setOverlay('rift')"), 'weekly-rift shortcut or panel is still mounted in the main menu'],
   [menu.includes('<GuildInviteLinkCard') && inviteCard.includes('createGuildInviteLinkOnline') && inviteCard.includes('navigator.share'), 'shareable guild invite link UI is missing'],
-  [client.includes('captureGuildInviteTokenFromUrl') && client.includes('claimPendingGuildInviteLink') && client.includes('rpc/claim_guild_invite_link'), 'guild invitation link claim flow is incomplete'],
-  [mailbox.includes('acceptGuildInvite') && mailbox.includes('declineGuildInvite') && mailbox.includes('markMailboxActioned'), 'mailbox invitation actions are incomplete'],
-  [migration.includes('create table if not exists public.guild_invite_links') && migration.includes('create table if not exists public.player_mailbox'), 'guild invite link or mailbox table migration is missing'],
-  [migration.includes('enable row level security') && migration.includes('security definer') && migration.includes('extensions.digest'), 'mailbox and link security controls are incomplete'],
+  [guildClient.includes('captureGuildInviteTokenFromUrl') && guildClient.includes('claimPendingGuildInviteLink') && guildClient.includes('rpc/claim_guild_invite_link'), 'guild invitation link claim flow is incomplete'],
+  [mailbox.includes('acceptGuildInvite') && mailbox.includes('declineGuildInvite') && mailbox.includes('markMailboxActioned'), 'mailbox guild invitation actions are incomplete'],
+  [guildMigration.includes('create table if not exists public.guild_invite_links') && guildMigration.includes('create table if not exists public.player_mailbox'), 'guild invite link or mailbox table migration is missing'],
+  [guildMigration.includes('enable row level security') && guildMigration.includes('security definer') && guildMigration.includes('extensions.digest'), 'mailbox and guild link security controls are incomplete'],
+  [menu.includes('data-testid="friends-button"') && menu.includes('<FriendsPanel'), 'main-menu friends entry is missing'],
+  [friendsPanel.includes('sendFriendRequestOnline') && friendsPanel.includes('acceptFriendRequestOnline') && friendsPanel.includes('cancelFriendRequestOnline') && friendsPanel.includes('removeFriendOnline'), 'friends panel actions are incomplete'],
+  [friendClient.includes("rpc<OnlineFriend[]>('list_friends')") && friendClient.includes("rpc<OnlineFriendRequest[]>('list_friend_requests')") && friendClient.includes("rpc<SentFriendRequest[]>('send_friend_request'"), 'authenticated friends client is incomplete'],
+  [mailbox.includes("message.kind === 'friend_request'") && mailbox.includes('answerFriendRequest') && mailbox.includes('acceptFriendRequestOnline'), 'friend requests are not actionable from the mailbox'],
+  [friendMigration.includes('create table if not exists public.friend_requests') && friendMigration.includes('create table if not exists public.friendships'), 'friends database tables are missing'],
+  [friendMigration.includes('friend_requests_read_related') && friendMigration.includes('friendships_read_own') && friendMigration.includes('revoke execute') && friendMigration.includes('grant execute'), 'friends RLS or RPC permissions are incomplete'],
+  [friendHardening.includes('friend_requests_pair_uidx') && friendHardening.includes('least(sender_id, receiver_id)') && friendHardening.includes('on conflict do nothing'), 'unordered friend-pair race protection is missing'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [stage.includes('const ARENA_DEPTH = 20.4;') && stage.includes("dais.name = 'AshKingDais'") && stage.includes("threshold.name = 'VeilGateThreshold'") && stage.includes("channel.name = 'EmberChannel'"), 'semantic ritual arena set pieces are missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning'), 'world-boss combat band QA markers are missing'],
@@ -32,4 +43,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: weekly rift removed, mailbox active, secure guild links available, and the semantic Ash King ritual arena is QA-addressable.');
+console.log('Social/navigation audit passed: weekly rift removed, mailbox active, secure guild links available, full friends workflows wired, and the semantic Ash King ritual arena is QA-addressable.');
