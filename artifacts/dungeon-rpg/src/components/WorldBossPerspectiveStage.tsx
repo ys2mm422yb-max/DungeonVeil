@@ -330,7 +330,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
         slot.mesh.visible = true;
         slot.mesh.position.set(mapX(effect.x) + Math.cos(angle) * travel * progress, bossShot ? 1.55 : 1.0, mapZ(effect.y) + Math.sin(angle) * travel * progress);
         slot.mesh.rotation.set(Math.PI / 2, -angle, 0);
-        slot.material.color.set(effect.color);
+        slot.material.color.set(bossShot ? effect.color : '#d8b77a');
         slot.material.opacity = Math.max(0.25, 0.9 - progress * 0.48);
         slot.mesh.scale.setScalar(bossShot ? 1.35 : 0.88 + Math.sin(now * 0.018 + slotIndex) * 0.08);
       }

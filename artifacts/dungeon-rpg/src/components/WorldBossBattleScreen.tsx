@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SaveData } from '../game/saveManager';
 import { GameEngine, type GameState } from '../game/runEngine';
-import { TILE_SIZE, isWalkable } from '../game/dungeon';
+import { TILE_SIZE, TileType, isWalkable } from '../game/dungeon';
 import { collidesWithRoomProp } from '../game/roomCollision3D';
 import { submitWorldBossHit, type WorldBossEvent } from '../game/supabaseOnline';
 import { VirtualJoystick } from './VirtualJoystick';
@@ -94,6 +94,18 @@ function snapshotRaidState(state: GameState): GameState {
   };
 }
 
+function prepareRaidArenaMap(map: GameState['map']) {
+  for (let tileY = 0; tileY < map.height; tileY++) {
+    for (let tileX = 0; tileX < map.width; tileX++) {
+      const boundary = tileX === 0 || tileY === 0 || tileX === map.width - 1 || tileY === map.height - 1;
+      map.tiles[tileY][tileX] = boundary ? TileType.WALL : TileType.FLOOR;
+    }
+  }
+  map.chests = [];
+  map.decorations = [];
+  map.torches = [];
+}
+
 function findRaidSpawn(options: {
   map: GameState['map'];
   floor: number;
@@ -105,8 +117,9 @@ function findRaidSpawn(options: {
   fallbackY: number;
   avoid?: { x: number; y: number };
   minimumDistance?: number;
+  ignoreRoomProps?: boolean;
 }): RaidSpawn {
-  const { map, floor, width, height, desiredXRatio, desiredYRatio, fallbackX, fallbackY, avoid, minimumDistance = 0 } = options;
+  const { map, floor, width, height, desiredXRatio, desiredYRatio, fallbackX, fallbackY, avoid, minimumDistance = 0, ignoreRoomProps = false } = options;
   const desiredTileX = Math.max(1, Math.min(map.width - 2, Math.round((map.width - 1) * desiredXRatio)));
   const desiredTileY = Math.max(1, Math.min(map.height - 2, Math.round((map.height - 1) * desiredYRatio)));
   const candidates: Array<{ tileX: number; tileY: number; score: number }> = [];
@@ -137,7 +150,7 @@ function findRaidSpawn(options: {
       [centerX, centerY],
     ];
     if (!corners.every(([checkX, checkY]) => isWalkable(map, checkX, checkY))) continue;
-    if (collidesWithRoomProp(floor, map.width, map.height, x, y, width, height, 0.18)) continue;
+    if (!ignoreRoomProps && collidesWithRoomProp(floor, map.width, map.height, x, y, width, height, 0.18)) continue;
 
     const spawn = { x, y, centerX, centerY };
     if (!avoid) return spawn;
@@ -202,6 +215,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     let lastTimerPaint = 0;
     let lastSimulationStep = 0;
     const engine = new GameEngine();
+    engine.ignoreRoomPropCollisions = true;
     engineRef.current = engine;
     finishedRef.current = false;
     arenaReadyRef.current = false;
@@ -211,6 +225,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
 
     const raidSave = makeRaidSave(engine, saveData);
     engine.continueGame(raidSave);
+    prepareRaidArenaMap(engine.state.map);
     engine.state.player.hp = engine.state.player.maxHp;
     engine.state.player.attackRange = 520;
     engine.state.status = 'paused';
@@ -226,6 +241,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       desiredYRatio: 0.76,
       fallbackX: player.x,
       fallbackY: player.y,
+      ignoreRoomProps: true,
     });
     player.x = playerSpawn.x;
     player.y = playerSpawn.y;
@@ -246,6 +262,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
         desiredYRatio: 0.24,
         fallbackX: boss.x,
         fallbackY: boss.y,
+        ignoreRoomProps: true,
         avoid: { x: playerSpawn.centerX, y: playerSpawn.centerY },
         minimumDistance: minimumStartDistance,
       });
@@ -372,20 +389,20 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     return de ? 'Angriff beendet' : 'Attack finished';
   }, [de, finishReason, submitError]);
 
-  const handleMove = (x: number, y: number) => {
+  const handleMove = useCallback((x: number, y: number) => {
     const engine = engineRef.current;
     if (!engine || !arenaReady || phase !== 'fighting') return;
     engine.input.joyX = x;
     engine.input.joyY = y;
-  };
+  }, [arenaReady, phase]);
 
-  const handleDodge = () => {
+  const handleDodge = useCallback(() => {
     const engine = engineRef.current;
     if (!engine || !arenaReady || phase !== 'fighting') return;
     engine.input.dodge = true;
-  };
+  }, [arenaReady, phase]);
 
-  const closeAndReset = () => {
+  const closeAndReset = useCallback(() => {
     arenaReadyRef.current = false;
     const engine = engineRef.current;
     if (engine) {
@@ -398,7 +415,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engine.state.damageNumbers.length = 0;
     }
     onClose();
-  };
+  }, [onClose]);
 
   return <div className="fixed inset-0 z-[120] overflow-hidden bg-[#080401] text-white">
     {gameState && <>
