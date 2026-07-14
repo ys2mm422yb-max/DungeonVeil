@@ -1,72 +1,54 @@
 name: Dungeon RPG Check
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [main, work/blocks-1-7-production-pass]
     paths:
+      - 'artifacts/dungeon-rpg/**'
+      - 'lib/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
+  pull_request:
+    branches: [main, work/blocks-1-7-production-pass]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - 'lib/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.ci/validation-trigger.txt'
+  workflow_dispatch:
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: dungeon-veil-pages-root-repair
-  cancel-in-progress: false
-
+# Verification also runs directly on the production-pass branch when the PR has conflicts.
+# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
-  repair-pages:
+  typecheck-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: fix/menu-copy-relic-progression
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Validate and build
-        run: |
-          pnpm --filter @workspace/dungeon-rpg audit:social
-          pnpm --filter @workspace/dungeon-rpg audit:rooms
-          pnpm run typecheck
-          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-          test -f artifacts/dungeon-rpg/dist/public/index.html
-          test -d artifacts/dungeon-rpg/dist/public/assets
-          printf '{"source":"pages-root-repair-v1","commit":"%s"}\n' "$(git rev-parse HEAD)" > artifacts/dungeon-rpg/dist/public/deployment.json
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: artifacts/dungeon-rpg/dist/public
-      - name: Deploy corrected Pages root
-        id: deployment
-        uses: actions/deploy-pages@v4
-      - name: Verify live index and marker
-        run: |
-          for attempt in $(seq 1 24); do
-            status=$(curl -L -s -o /tmp/index.html -w '%{http_code}' "https://ys2mm422yb-max.github.io/DungeonVeil/?attempt=${attempt}" || true)
-            marker=$(curl -fsSL "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?attempt=${attempt}" || true)
-            echo "attempt=$attempt status=$status marker=$marker"
-            if [ "$status" = "200" ] && grep -qi '<div id="root"' /tmp/index.html && echo "$marker" | grep -q 'pages-root-repair-v1'; then
-              exit 0
-            fi
-            sleep 10
-          done
-          exit 1
-      - name: Restore normal workflow
-        shell: bash
-        run: |
-          git checkout 52c6333ba969e378e55163d93ec5c59e7c56906f -- .github/workflows/dungeon-rpg-check.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows/dungeon-rpg-check.yml
-          git commit -m 'Remove temporary Pages root repair workflow'
-          git push origin HEAD:fix/menu-copy-relic-progression
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Asset audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Room and collision audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Typecheck Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
+      - name: Build Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg build
