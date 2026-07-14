@@ -82,7 +82,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     let lastFrame = performance.now();
     let lastSystemTick = 0;
     let lastProfileFlush = lastFrame;
-    let lastKillCount = Math.max(0, getEngineRef.current()?.state.player.killCount ?? 0);
+    let lastKillCount = Math.max(0, getEngineRef.current()?.state.killCount ?? 0);
     let pendingDamage = 0;
     const seenDamageIds = new Set<string>();
     const mobileTick = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
@@ -103,7 +103,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     };
 
     const flushProfile = (time: number, engine: GameEngine) => {
-      const currentKills = Math.max(0, engine.state.player.killCount ?? 0);
+      const currentKills = Math.max(0, engine.state.killCount ?? 0);
       const kills = currentKills >= lastKillCount ? currentKills - lastKillCount : currentKills;
       recordPlayerProfileSession({
         playTimeMs: Math.max(0, time - lastProfileFlush),

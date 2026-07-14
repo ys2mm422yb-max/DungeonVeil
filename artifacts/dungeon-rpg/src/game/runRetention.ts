@@ -1,4 +1,5 @@
 import type { GameEngine } from './runEngine';
+import { recordPlayerProfileQuestCompleted } from './playerProfile';
 import { isBossRoom } from './chapterRun';
 import { dailyTaskIdsForDate, taskById, tasksForDate, type DailyMetric, type DailyTaskId } from './dailyQuests';
 import { activeWeeklyRiftId } from './weeklyRiftRun';
@@ -100,6 +101,7 @@ function claimCompletedDailies(profile: RetentionProfile): void {
     if (profile.daily.claimed.includes(task.id) || dailyProgressForTask(profile, task.id) < task.target) continue;
     profile.daily.claimed.push(task.id);
     profile.sigils += task.reward;
+    recordPlayerProfileQuestCompleted();
     toast(task.gold ? 'GOLD-AUFTRAG ERFÜLLT' : 'TAGESAUFTRAG ERFÜLLT', `${task.title} · +${task.reward} Schleier-Siegel`, task.gold ? 'relic' : 'daily');
   }
 }
