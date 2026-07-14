@@ -1,0 +1,50 @@
+name: Inspect Ranger Clips
+
+on:
+  push:
+    branches: [fix/main-menu-equipped-ranger]
+    paths:
+      - '.github/workflows/inspect-ranger-clips.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/main-menu-equipped-ranger
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Inspect GLB animation names
+        shell: bash
+        run: |
+          node <<'NODE' > ranger-clip-diagnostic.txt
+          const fs = require('fs');
+          const paths = [
+            'artifacts/dungeon-rpg/public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb',
+            'artifacts/dungeon-rpg/public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Rogue.glb',
+            'artifacts/dungeon-rpg/public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Rogue_Hooded.glb',
+            'artifacts/dungeon-rpg/public/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb',
+            'artifacts/dungeon-rpg/public/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb',
+            'artifacts/dungeon-rpg/public/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb',
+          ];
+          for (const path of paths) {
+            const buffer = fs.readFileSync(path);
+            const jsonLength = buffer.readUInt32LE(12);
+            const jsonType = buffer.toString('ascii', 16, 20);
+            if (jsonType !== 'JSON') throw new Error(`No JSON chunk in ${path}`);
+            const json = JSON.parse(buffer.toString('utf8', 20, 20 + jsonLength).replace(/\u0000+$/g, ''));
+            console.log(`\n${path}`);
+            console.log('animations:', (json.animations ?? []).map(animation => animation.name));
+            console.log('scenes:', (json.scenes ?? []).map(scene => scene.name));
+            console.log('root nodes:', (json.scenes?.[json.scene ?? 0]?.nodes ?? []).map(index => json.nodes?.[index]?.name));
+          }
+          NODE
+          rm -f .github/workflows/inspect-ranger-clips.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Record ranger clip diagnostic'
+          git push origin HEAD:fix/main-menu-equipped-ranger
