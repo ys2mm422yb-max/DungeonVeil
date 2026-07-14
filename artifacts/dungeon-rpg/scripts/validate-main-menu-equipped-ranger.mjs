@@ -27,4 +27,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the hooded archer uses Idle_B and visibly presents the selected bow, quiver and talisman.');
+console.log('Main-menu equipped ranger audit passed: the dedicated hooded archer uses Idle_B and presents the selected bow, quiver and talisman in front-visible anchors.');
