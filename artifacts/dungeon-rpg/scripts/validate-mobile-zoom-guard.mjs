@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
+// Guard the final mobile behavior: gameplay input stays active while Safari zoom gestures stay disabled.
 const [html, canvas] = await Promise.all([
   readFile(new URL('../index.html', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
