@@ -1,5 +1,6 @@
 name: Apply Player Profile Showcase
 
+# Second push after workflow registration.
 on:
   push:
     branches: [feature/player-profile-showcase]
