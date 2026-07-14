@@ -24,47 +24,9 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 # Verification also runs directly on the production-pass branch when the PR has conflicts.
 # Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
-  apply-main-menu-v14-polish:
-    if: github.event_name == 'pull_request' && github.head_ref == 'fix/main-menu-equipped-ranger'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout working branch
-        uses: actions/checkout@v4
-        with:
-          ref: fix/main-menu-equipped-ranger
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply approved V14 patch and self-clean
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          python3 - <<'EXTRACT'
-          from pathlib import Path
-          source = Path('.github/workflows/main-menu-v14-polish.yml').read_text()
-          marker = "          python3 - <<'PY'\n"
-          start = source.index(marker) + len(marker)
-          end = source.index("\n          PY\n", start)
-          lines = source[start:end].splitlines()
-          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
-          Path('/tmp/apply-main-menu-v14.py').write_text(script)
-          EXTRACT
-          python3 -c "from pathlib import Path; import base64; p=Path('/tmp/apply-main-menu-v14.py'); s=p.read_text(); a=s.index('replace_once(showcase, \"  let shrineHidden = false;\\\\n\", \"\")'); b=s.index(\"\\n\\naudit = Path('artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs')\", a); r=base64.b64decode('cmVwbGFjZV9vbmNlKHNob3djYXNlLCAiICBsZXQgc2hyaW5lSGlkZGVuID0gZmFsc2U7XG4iLCAiIikKcmVwbGFjZV9vbmNlKHNob3djYXNlLAogICIiIiAgICAgIHJvb3QucG9zaXRpb24ueSA9IC0wLjA2ICsgTWF0aC5zaW4oZWxhcHNlZCAqIDEuMjUpICogMC4wMTsKICAgICAgcm9vdC5wb3NpdGlvbi56ID0gLTIuNDI7CiAgICAgIHJvb3Qucm90YXRpb24ueSA9IDAuMDQ7CiAgICAgIHJvb3Quc2NhbGUuc2V0U2NhbGFyKDAuNTgpOyIiIiwKICAiIiIgICAgICByb290LnBvc2l0aW9uLnkgPSAtMC4wOCArIE1hdGguc2luKGVsYXBzZWQgKiAxLjE4KSAqIDAuMDA4OwogICAgICByb290LnBvc2l0aW9uLnogPSAtMS44MjsKICAgICAgcm9vdC5yb3RhdGlvbi55ID0gLTAuMDI1OwogICAgICByb290LnNjYWxlLnNldFNjYWxhcigwLjcyKTsiIiIpCnJlcGxhY2Vfb25jZShzaG93Y2FzZSwKICAiIiIKICAgICAgaWYgKCFzaHJpbmVIaWRkZW4pIHsKICAgICAgICBjb25zdCBzaHJpbmUgPSByb290LnBhcmVudD8uZ2V0T2JqZWN0QnlOYW1lPy4oJ1ZpbGxhZ2VTcXVhcmVTaHJpbmUnKTsKICAgICAgICBpZiAoc2hyaW5lKSB7CiAgICAgICAgICBzaHJpbmUudmlzaWJsZSA9IGZhbHNlOwogICAgICAgICAgc2hyaW5lSGlkZGVuID0gdHJ1ZTsKICAgICAgICB9CiAgICAgIH0iIiIsCiAgIiIp').decode(); p.write_text(s[:a]+r+s[b:])"
-          python3 /tmp/apply-main-menu-v14.py
-          rm -f .ci/main-menu-v14-apply.log
-          git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Polish the main-menu player focus and village composition'
-          git push origin HEAD:fix/main-menu-equipped-ranger
-
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -1,1 +1,0 @@
-missing marker in artifacts/dungeon-rpg/src/components/kaykitVillagePlayer3D.ts: '      root.position.y = -0.06 + Math.sin(elapsed * 1.25) * 0.01;\n      root.position.z = -2.42;\n      root.rotation.y = '

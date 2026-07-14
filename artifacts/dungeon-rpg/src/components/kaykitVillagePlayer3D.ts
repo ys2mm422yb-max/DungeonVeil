@@ -104,8 +104,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
 
   const root = new THREE.Group();
   root.name = 'VillageEquippedPlayer';
-  root.userData.presentation = 'village-showcase-v12-clean-ranger';
-  root.userData.showcasePose = 'v12-idle-b-clean-side-loadout';
+  root.userData.presentation = 'village-showcase-v14-player-focus';
+  root.userData.showcasePose = 'v14-idle-b-readable-loadout';
   root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
     quiver: meta.equipped.quiver,
@@ -130,7 +130,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   mixer.update(0.01);
 
   const equipmentRoot = new THREE.Group();
-  equipmentRoot.name = 'VillageCleanLoadout';
+  equipmentRoot.name = 'VillageReadableLoadout';
   root.add(equipmentRoot);
 
   const bowHolder = addPresentationModel(
@@ -138,33 +138,51 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     equipmentRoot,
     weapons.bow,
     'VillageVisibleEquippedBow',
-    1.3,
-    [-0.82, 0.84, 0.06],
-    [Math.PI / 2, 0.04, 0.06],
+    1.58,
+    [-0.92, 0.94, 0.3],
+    [Math.PI / 2, 0.03, 0.12],
   );
   const quiverHolder = addPresentationModel(
     THREE,
     equipmentRoot,
     quiverGltf?.scene ?? null,
     'VillageVisibleEquippedQuiver',
-    0.9,
-    [0.68, 0.98, -0.18],
-    [0.08, -0.2, -0.16],
+    1.08,
+    [0.8, 1.08, 0.18],
+    [0.08, -0.38, -0.22],
   );
   const talismanHolder = addPresentationModel(
     THREE,
     equipmentRoot,
     talismanGltf?.scene ?? null,
     'VillageVisibleEquippedTalisman',
-    meta.equipped.talisman === 'frost-grimoire' ? 0.24 : 0.17,
-    [0.02, 1.02, 0.23],
+    meta.equipped.talisman === 'frost-grimoire' ? 0.28 : 0.2,
+    [0.02, 1.08, 0.38],
     [Math.PI / 2, 0, 0],
   );
+
+  let arrowCount = 0;
+  if (quiverHolder && weapons.arrow) {
+    for (let index = 0; index < 3; index++) {
+      const arrow = weapons.arrow.clone(true);
+      const arrowHolder = addPresentationModel(
+        THREE,
+        quiverHolder,
+        arrow,
+        `VillageVisibleQuiverArrow${index + 1}`,
+        0.72,
+        [(index - 1) * 0.08, 0.32 + (index % 2) * 0.04, -0.02],
+        [0.02, 0, (index - 1) * 0.05],
+      );
+      if (arrowHolder) arrowCount++;
+    }
+  }
 
   root.userData.visibleEquipment = {
     bow: Boolean(bowHolder),
     quiver: Boolean(quiverHolder),
     talisman: Boolean(talismanHolder),
+    arrows: arrowCount,
   };
 
   if (typeof window !== 'undefined') {
@@ -176,11 +194,11 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       visibleEquipment: root.userData.visibleEquipment,
       cleanSingleBody: true,
       depthTestedEquipment: true,
+      playerFocusedScale: 0.72,
     };
   }
 
   let elapsed = 0;
-  let shrineHidden = false;
   return {
     root,
     arrowPrototype: weapons.arrow ?? new THREE.Group(),
@@ -192,18 +210,11 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       elapsed += delta;
       mixer.update(delta);
       root.position.x = 0;
-      root.position.y = -0.06 + Math.sin(elapsed * 1.25) * 0.01;
-      root.position.z = -2.42;
-      root.rotation.y = 0.04;
-      root.scale.setScalar(0.58);
+      root.position.y = -0.08 + Math.sin(elapsed * 1.18) * 0.008;
+      root.position.z = -1.82;
+      root.rotation.y = -0.025;
+      root.scale.setScalar(0.72);
 
-      if (!shrineHidden) {
-        const shrine = root.parent?.getObjectByName?.('VillageSquareShrine');
-        if (shrine) {
-          shrine.visible = false;
-          shrineHidden = true;
-        }
-      }
     },
     stop() {
       mixer.stopAllAction();

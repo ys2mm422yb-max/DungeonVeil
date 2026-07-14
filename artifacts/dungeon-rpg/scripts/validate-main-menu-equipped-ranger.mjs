@@ -12,14 +12,20 @@ const [village, showcase, player, weapons, manifest, meta] = await Promise.all([
 
 const checks = [
   [village.includes("import { loadKayKitVillageArcher } from './kaykitVillagePlayer3D';") && village.includes('loadKayKitVillageArcher(THREE, GLTFLoader)'), 'main menu is not routed through the village player adapter'],
-  [showcase.includes("root.userData.presentation = 'village-showcase-v12-clean-ranger'") && showcase.includes("root.userData.showcasePose = 'v12-idle-b-clean-side-loadout'"), 'clean V12 Ranger presentation mode is missing'],
+  [showcase.includes("root.userData.presentation = 'village-showcase-v14-player-focus'") && showcase.includes("root.userData.showcasePose = 'v14-idle-b-readable-loadout'"), 'focused V14 Ranger presentation mode is missing'],
   [showcase.includes('KAYKIT_PLAYER_ASSETS.ranger') && showcase.includes("visual.name = 'VillageRunRangerBody'"), 'menu does not use the same Ranger body as a run'],
   [showcase.includes("clipKey(clip).includes('idle_b')") && showcase.includes('new THREE.AnimationMixer(visual)'), 'calm Ranger Idle_B is not driving the menu body'],
-  [showcase.includes("equipmentRoot.name = 'VillageCleanLoadout'") && !showcase.includes('loadKayKitRanger(THREE'), 'menu still reuses duplicate combat attachments'],
+  [showcase.includes("equipmentRoot.name = 'VillageReadableLoadout'") && !showcase.includes('loadKayKitRanger(THREE'), 'menu still reuses duplicate combat attachments'],
   [showcase.includes('material.depthTest = true') && showcase.includes('material.depthWrite = true') && !showcase.includes('material.depthTest = false'), 'menu equipment can still draw through the Ranger body'],
   [showcase.includes("'VillageVisibleEquippedBow'") && showcase.includes("'VillageVisibleEquippedQuiver'") && showcase.includes("'VillageVisibleEquippedTalisman'"), 'clean visible equipment anchors are incomplete'],
   [showcase.includes('bow: meta.equipped.bow') && showcase.includes('quiver: meta.equipped.quiver') && showcase.includes('talisman: meta.equipped.talisman'), 'village showcase does not preserve the current equipped loadout'],
-  [showcase.includes("getObjectByName?.('VillageSquareShrine')") && showcase.includes('shrine.visible = false'), 'central shrine can still merge visually with the player'],
+  [showcase.includes('for (let index = 0; index < 3; index++)') && showcase.includes('VillageVisibleQuiverArrow'), 'quiver arrows are not visibly represented'],
+  [showcase.includes('root.position.z = -1.82') && showcase.includes('root.scale.setScalar(0.72)'), 'player is not large and forward enough to dominate the menu composition'],
+  [village.includes('villageRoot.userData.clearPlayerSilhouette = true') && village.includes('skinnedKeepersUseOriginalScenes = true'), 'village NPCs can still overlap the central player silhouette'],
+  [!village.includes("{ key: 'table'") && !village.includes('QuestTable') && !village.includes('PostTable'), 'lamp-table assets can still appear as white cones in front of the NPCs'],
+  [village.includes("mira: [[-4.05") && village.includes("orin: [[4.05") && village.includes("tala: [[-4.28") && village.includes("brom: [[4.28"), 'village keepers are not pushed to the side lanes'],
+  [village.includes('camera.position.set(0, 5.35, 13.2)') && village.includes('camera.fov = camera.aspect < 0.72 ? 41 : 36'), 'mobile camera does not prioritize the player'],
+  [village.includes('const playerKey = new THREE.PointLight') && village.includes('const playerRim = new THREE.PointLight'), 'player-focused key and rim lighting are missing'],
   [showcase.includes('function resolveVillageAssetUrl') && showcase.includes('new URL(NORMALIZED_APP_BASE_URL, window.location.origin)') && showcase.includes('return new URL(relative, appBase).href'), 'menu asset URLs are not resolved against the Pages base exactly once'],
   [player.includes('KAYKIT_PLAYER_ASSETS.ranger') && player.includes('Ranger.glb'), 'shared player rig no longer uses the in-game Ranger body'],
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the model loader'],
@@ -35,4 +41,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: one depth-tested Ranger body shows the current bow, quiver and talisman without shrine or face clipping.');
+console.log('Main-menu equipped ranger audit passed: lamps are gone, NPCs stay in side lanes and one enlarged Ranger clearly shows the current bow, quiver, arrows and talisman.');

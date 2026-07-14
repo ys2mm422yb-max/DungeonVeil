@@ -16,7 +16,6 @@ const VILLAGE_ASSETS: AssetRule[] = [
   { key: 'torch', pack: 'dungeon', include: /torch.*lit|lit.*torch|torch/i },
   { key: 'banner', pack: 'dungeon', include: /banner.*shield|shield.*banner|banner/i },
   { key: 'bench', pack: 'furniture', include: /bench/i },
-  { key: 'table', pack: 'furniture', include: /table/i },
   { key: 'crate', pack: 'resources', include: /crate/i },
   { key: 'barrel', pack: 'resources', include: /barrel/i },
   { key: 'rock', pack: 'forest', include: /rock|stone/i },
@@ -67,6 +66,7 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any, keeper
   const villageRoot = new THREE.Group();
   villageRoot.name = 'ModernKayKitVillageSquare';
   villageRoot.userData.skinnedKeepersUseOriginalScenes = true;
+  villageRoot.userData.clearPlayerSilhouette = true;
   scene.add(villageRoot);
 
   const addLoaded = (
@@ -92,19 +92,18 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any, keeper
   };
 
   const placements: Record<string, Array<[number, number, number, number, number, string]>> = {
-    gate: [[0, -0.35, -9.2, 1.85, Math.PI, 'VillageGate']],
-    pillar: [[-3.55, -0.08, -7.0, 1.35, 0, 'VillagePillarLeft'], [3.55, -0.08, -7.0, 1.35, 0, 'VillagePillarRight']],
-    banner: [[-3.75, 2.25, -8.0, 1.05, Math.PI, 'VillageBannerLeft'], [3.75, 2.25, -8.0, 1.05, Math.PI, 'VillageBannerRight']],
-    torch: [[-2.5, 0.84, -5.8, 1.2, Math.PI, 'VillageTorchLeft'], [2.5, 0.84, -5.8, 1.2, Math.PI, 'VillageTorchRight']],
-    bench: [[-3.25, 0, -2.8, 1.0, 1.2, 'VillageBenchLeft'], [3.25, 0, -2.8, 1.0, -1.2, 'VillageBenchRight']],
-    crate: [[-4.0, 0, -1.2, 0.9, -0.16, 'VillageCrateLeft'], [4.0, 0, -1.2, 0.9, 0.16, 'VillageCrateRight']],
-    barrel: [[-4.25, 0, -1.85, 0.88, 0.12, 'VillageBarrelLeft'], [4.25, 0, -1.85, 0.88, -0.12, 'VillageBarrelRight']],
-    rock: [[-4.15, 0, -4.4, 0.95, -0.32, 'VillageRockLeft'], [4.15, 0, -4.4, 0.95, 0.32, 'VillageRockRight']],
-    table: [[-3.0, 0, -0.7, 0.95, 0.14, 'QuestTable'], [3.0, 0, -0.7, 0.95, -0.14, 'PostTable']],
-    mira: [[-3.1, 0, -1.5, 0.56, 0.18, 'MiraQuestKeeper']],
-    orin: [[3.1, 0, -1.5, 0.56, -0.18, 'OrinPostKeeper']],
-    tala: [[-3.2, 0, -4.0, 0.54, 0.1, 'TalaScoutKeeper']],
-    brom: [[3.2, 0, -4.0, 0.54, -0.1, 'BromGuildKeeper']],
+    gate: [[0, -0.35, -10.15, 1.62, Math.PI, 'VillageGate']],
+    pillar: [[-4.05, -0.08, -7.45, 1.24, 0, 'VillagePillarLeft'], [4.05, -0.08, -7.45, 1.24, 0, 'VillagePillarRight']],
+    banner: [[-4.18, 2.15, -8.15, 0.96, Math.PI, 'VillageBannerLeft'], [4.18, 2.15, -8.15, 0.96, Math.PI, 'VillageBannerRight']],
+    torch: [[-3.05, 0.82, -6.2, 1.08, Math.PI, 'VillageTorchLeft'], [3.05, 0.82, -6.2, 1.08, Math.PI, 'VillageTorchRight']],
+    bench: [[-4.0, 0, -3.1, 0.88, 1.2, 'VillageBenchLeft'], [4.0, 0, -3.1, 0.88, -1.2, 'VillageBenchRight']],
+    crate: [[-4.45, 0, -1.55, 0.76, -0.16, 'VillageCrateLeft'], [4.45, 0, -1.55, 0.76, 0.16, 'VillageCrateRight']],
+    barrel: [[-4.62, 0, -2.05, 0.76, 0.12, 'VillageBarrelLeft'], [4.62, 0, -2.05, 0.76, -0.12, 'VillageBarrelRight']],
+    rock: [[-4.45, 0, -4.7, 0.82, -0.32, 'VillageRockLeft'], [4.45, 0, -4.7, 0.82, 0.32, 'VillageRockRight']],
+    mira: [[-4.05, 0, -2.05, 0.48, 0.28, 'MiraQuestKeeper']],
+    orin: [[4.05, 0, -2.05, 0.48, -0.28, 'OrinPostKeeper']],
+    tala: [[-4.28, 0, -4.65, 0.46, 0.18, 'TalaScoutKeeper']],
+    brom: [[4.28, 0, -4.65, 0.46, -0.18, 'BromGuildKeeper']],
   };
 
   const results = await Promise.allSettled(VILLAGE_ASSETS.map(async (rule, index) => {
@@ -152,49 +151,49 @@ export function ModernVillageSquareScene() {
       if (disposed) return;
 
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x242127);
-      scene.fog = new THREE.Fog(0x242127, 14, 31);
+      scene.background = new THREE.Color(0x29252b);
+      scene.fog = new THREE.Fog(0x29252b, 16, 34);
       renderer = new THREE.WebGLRenderer({ antialias: !IS_MOBILE, alpha: false, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_MOBILE ? 1 : 1.3));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = IS_MOBILE ? 1.36 : 1.22;
+      renderer.toneMappingExposure = IS_MOBILE ? 1.46 : 1.32;
       renderer.shadowMap.enabled = false;
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
       renderer.domElement.style.display = 'block';
       host.appendChild(renderer.domElement);
 
-      const camera = new THREE.PerspectiveCamera(37, 1, 0.1, 80);
-      camera.position.set(0, 6.25, 14.6);
-      camera.lookAt(0, 0.85, -3.65);
+      const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 80);
+      camera.position.set(0, 5.35, 13.2);
+      camera.lookAt(0, 1.02, -2.85);
 
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(17, 27), new THREE.MeshStandardMaterial({ color: 0x40362e, roughness: 0.96 }));
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(17, 27), new THREE.MeshStandardMaterial({ color: 0x4a3c32, roughness: 0.96 }));
       floor.rotation.x = -Math.PI / 2;
       floor.position.set(0, -0.03, -4.8);
       scene.add(floor);
-      const pathMaterial = new THREE.MeshStandardMaterial({ color: 0x76604a, roughness: 0.9 });
+      const pathMaterial = new THREE.MeshStandardMaterial({ color: 0x806a50, roughness: 0.9 });
       for (let index = 0; index < 9; index++) {
         const slab = new THREE.Mesh(new THREE.BoxGeometry(3.8 + (index % 2) * 0.22, 0.07, 1.38), pathMaterial);
         slab.position.set(index % 2 ? 0.1 : -0.08, 0.008, 4.4 - index * 1.38);
         slab.rotation.y = (index % 3 - 1) * 0.026;
         scene.add(slab);
       }
-      const plaza = new THREE.Mesh(new THREE.CylinderGeometry(4.9, 5.1, 0.18, IS_MOBILE ? 36 : 56), new THREE.MeshStandardMaterial({ color: 0x5a493c, roughness: 0.92 }));
-      plaza.position.set(0, 0.035, -3.7);
+      const plaza = new THREE.Mesh(new THREE.CylinderGeometry(4.9, 5.1, 0.18, IS_MOBILE ? 36 : 56), new THREE.MeshStandardMaterial({ color: 0x685447, roughness: 0.92 }));
+      plaza.position.set(0, 0.035, -3.2);
       plaza.scale.z = 0.78;
       scene.add(plaza);
-      const centralMark = new THREE.Mesh(new THREE.RingGeometry(2.35, 2.5, IS_MOBILE ? 40 : 64), new THREE.MeshBasicMaterial({ color: 0xdab56f, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false }));
+      const centralMark = new THREE.Mesh(new THREE.RingGeometry(2.35, 2.5, IS_MOBILE ? 40 : 64), new THREE.MeshBasicMaterial({ color: 0xe6bf76, transparent: true, opacity: 0.46, side: THREE.DoubleSide, depthWrite: false }));
       centralMark.rotation.x = -Math.PI / 2;
-      centralMark.position.set(0, 0.14, -3.7);
+      centralMark.position.set(0, 0.14, -3.2);
       centralMark.scale.z = 0.78;
       scene.add(centralMark);
 
       [
-        { x: -3.7, z: -1.5, rot: 0.18, color: 0x8a5632 },
-        { x: 3.7, z: -1.5, rot: -0.18, color: 0x3e7180 },
-        { x: -3.7, z: -4.2, rot: 0.1, color: 0x4f7755 },
-        { x: 3.7, z: -4.2, rot: -0.1, color: 0x754b68 },
+        { x: -4.15, z: -1.7, rot: 0.2, color: 0x8a5632 },
+        { x: 4.15, z: -1.7, rot: -0.2, color: 0x3e7180 },
+        { x: -4.2, z: -4.45, rot: 0.14, color: 0x4f7755 },
+        { x: 4.2, z: -4.45, rot: -0.14, color: 0x754b68 },
       ].forEach(entry => {
         const stall = buildMarketStall(THREE, entry.color);
         stall.position.set(entry.x, 0, entry.z);
@@ -202,24 +201,30 @@ export function ModernVillageSquareScene() {
         scene.add(stall);
       });
 
-      scene.add(new THREE.HemisphereLight(0xffe2bd, 0x252936, 1.35));
-      scene.add(new THREE.AmbientLight(0xffead0, 0.52));
-      const key = new THREE.DirectionalLight(0xffc77e, 2.15);
+      scene.add(new THREE.HemisphereLight(0xffe5c6, 0x2a3040, 1.48));
+      scene.add(new THREE.AmbientLight(0xffead4, 0.58));
+      const key = new THREE.DirectionalLight(0xffc77e, 2.45);
       key.position.set(-4.5, 10, 7);
       scene.add(key);
-      const fill = new THREE.DirectionalLight(0x92a6e5, 0.72);
+      const fill = new THREE.DirectionalLight(0x9ab2ef, 0.92);
       fill.position.set(5.5, 8, 0);
       scene.add(fill);
-      const plazaLight = new THREE.PointLight(0xffb45f, IS_MOBILE ? 1.85 : 2.45, 11, 2);
-      plazaLight.position.set(0, 2.0, -4.8);
+      const plazaLight = new THREE.PointLight(0xffb45f, IS_MOBILE ? 1.35 : 1.8, 10, 2);
+      plazaLight.position.set(0, 1.8, -4.25);
       scene.add(plazaLight);
+      const playerKey = new THREE.PointLight(0xffd39a, IS_MOBILE ? 3.0 : 3.6, 7.5, 2);
+      playerKey.position.set(-0.85, 2.75, -0.45);
+      scene.add(playerKey);
+      const playerRim = new THREE.PointLight(0x8fa9ff, IS_MOBILE ? 1.05 : 1.35, 6.5, 2);
+      playerRim.position.set(2.5, 2.1, -2.6);
+      scene.add(playerRim);
 
       const resize = () => {
         const width = host.clientWidth || innerWidth;
         const height = host.clientHeight || innerHeight;
         renderer.setSize(width, height, false);
         camera.aspect = width / Math.max(1, height);
-        camera.fov = camera.aspect < 0.72 ? 44 : 38;
+        camera.fov = camera.aspect < 0.72 ? 41 : 36;
         camera.updateProjectionMatrix();
       };
       resize();
@@ -241,9 +246,10 @@ export function ModernVillageSquareScene() {
         const delta = lastRigFrame ? Math.min(0.05, (now - lastRigFrame) / 1000) : (IS_MOBILE ? 1 / 30 : 1 / 60);
         lastFrame = now;
         lastRigFrame = now;
-        plazaLight.intensity = (IS_MOBILE ? 1.7 : 2.25) + Math.sin(now * 0.0022) * 0.18;
-        centralMark.material.opacity = 0.34 + Math.sin(now * 0.0018) * 0.08;
-        keepers.forEach(keeper => { keeper.position.y = Math.sin(now * 0.0014 + keeper.userData.villagePhase) * 0.022; });
+        plazaLight.intensity = (IS_MOBILE ? 1.25 : 1.65) + Math.sin(now * 0.0022) * 0.12;
+        playerKey.intensity = (IS_MOBILE ? 2.85 : 3.45) + Math.sin(now * 0.0017) * 0.12;
+        centralMark.material.opacity = 0.4 + Math.sin(now * 0.0018) * 0.06;
+        keepers.forEach(keeper => { keeper.position.y = Math.sin(now * 0.0014 + keeper.userData.villagePhase) * 0.016; });
         villagePlayerRig?.update(delta);
         renderer.render(scene, camera);
       };
@@ -258,9 +264,6 @@ export function ModernVillageSquareScene() {
           return;
         }
         villagePlayerRig = rig;
-        rig.root.position.set(0, -0.02, -2.85);
-        rig.root.rotation.y = 0.08;
-        rig.root.scale.setScalar(0.52);
         scene.add(rig.root);
       }).catch(error => {
         console.error('Equipped village player failed to load', error);
