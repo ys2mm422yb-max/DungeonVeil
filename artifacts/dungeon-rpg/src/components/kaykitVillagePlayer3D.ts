@@ -66,7 +66,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const meta = loadMetaProgression();
 
   rig.root.name = 'VillageEquippedPlayer';
-  rig.root.userData.presentation = 'village-showcase-v7-visible-loadout';
+  rig.root.userData.presentation = 'village-showcase-v5-single-base-run-ranger';
+  rig.root.userData.showcasePose = 'v7-visible-loadout';
   rig.root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
     quiver: meta.equipped.quiver,
@@ -86,7 +87,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   if (moveToShowcaseRoot(rig.root, bow)) {
     bow.position.set(-0.54, 1.05, 0.34);
     bow.rotation.set(Math.PI / 2, 0.05, -0.08);
-    bow.scale.setScalar(meta.equipped.bow.includes('crossbow') ? 0.78 : 0.9);
+    bow.scale.setScalar(0.9);
     bow.userData.menuEquipment = 'equipped-bow';
   }
 
