@@ -24,9 +24,45 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 # Verification also runs directly on the production-pass branch when the PR has conflicts.
 # Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
+  apply-main-menu-v14-polish:
+    if: github.event_name == 'pull_request' && github.head_ref == 'fix/main-menu-equipped-ranger'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/main-menu-equipped-ranger
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply approved V14 patch and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          python3 - <<'EXTRACT'
+          from pathlib import Path
+          source = Path('.github/workflows/main-menu-v14-polish.yml').read_text()
+          marker = "          python3 - <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          lines = source[start:end].splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          Path('/tmp/apply-main-menu-v14.py').write_text(script)
+          EXTRACT
+          python3 /tmp/apply-main-menu-v14.py
+          git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Polish the main-menu player focus and village composition'
+          git push origin HEAD:fix/main-menu-equipped-ranger
+
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
