@@ -81,7 +81,7 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any, keeper
 
   const placements: Record<string, Array<[number, number, number, number, number, string]>> = {
     gate: [[0, -0.35, -9.2, 1.85, Math.PI, 'VillageGate']],
-    shrine: [[0, 0.02, -4.9, 1.15, 0, 'VillageSquareShrine']],
+    shrine: [[0, 0.02, -6.1, 1.15, 0, 'VillageSquareShrine']],
     pillar: [[-3.55, -0.08, -7.0, 1.35, 0, 'VillagePillarLeft'], [3.55, -0.08, -7.0, 1.35, 0, 'VillagePillarRight']],
     banner: [[-3.75, 2.25, -8.0, 1.05, Math.PI, 'VillageBannerLeft'], [3.75, 2.25, -8.0, 1.05, Math.PI, 'VillageBannerRight']],
     torch: [[-2.5, 0.84, -5.8, 1.2, Math.PI, 'VillageTorchLeft'], [2.5, 0.84, -5.8, 1.2, Math.PI, 'VillageTorchRight']],
@@ -242,9 +242,9 @@ export function ModernVillageSquareScene() {
           return;
         }
         villagePlayerRig = rig;
-        rig.root.position.set(0, -0.02, -4.35);
-        rig.root.rotation.y = -0.42;
-        rig.root.scale.setScalar(0.5);
+        rig.root.position.set(0, -0.02, -2.85);
+        rig.root.rotation.y = 0.08;
+        rig.root.scale.setScalar(0.52);
         scene.add(rig.root);
       }).catch(error => {
         console.error('Equipped village player failed to load', error);
