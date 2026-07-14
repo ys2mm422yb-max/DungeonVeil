@@ -33,7 +33,7 @@ jobs:
           const browser = await chromium.launch({ headless: true });
           const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
           await page.goto('https://ys2mm422yb-max.github.io/DungeonVeil/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-          const result = await page.evaluate(async () => {
+          const variants = await page.evaluate(async () => {
             const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js');
             const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js');
             document.body.innerHTML = '<div id="labels"></div>';
@@ -58,7 +58,7 @@ jobs:
             const idle = general.animations.find(c => c.name === 'Idle_B') ?? general.animations.find(c => /idle/i.test(c.name));
             const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const findBone = (root, key) => { let hit = null; root.traverse(n => { if (!hit && n.isBone && normalize(n.name).includes(key)) hit = n; }); return hit; };
-            const variants = [
+            const options = [
               { name: 'Ranger · Idle_B', file: 'Ranger.glb', pose: 'none' },
               { name: 'Ranger · Z runter', file: 'Ranger.glb', pose: 'z' },
               { name: 'Ranger · X runter', file: 'Ranger.glb', pose: 'x' },
@@ -67,8 +67,8 @@ jobs:
               { name: 'Rogue · Idle_B', file: 'Rogue.glb', pose: 'none' },
             ];
             const summaries = [];
-            for (let index = 0; index < variants.length; index++) {
-              const variant = variants[index];
+            for (let index = 0; index < options.length; index++) {
+              const variant = options[index];
               const gltf = await loader.loadAsync(base + variant.file);
               const model = gltf.scene;
               model.position.set((index - 2.5) * 2.25, 0, 0);
@@ -102,7 +102,7 @@ jobs:
             renderer.render(scene, camera);
             const labels = document.getElementById('labels');
             Object.assign(labels.style, { position: 'fixed', inset: '0', pointerEvents: 'none', color: '#f0dfbd', font: '700 18px system-ui' });
-            variants.forEach((variant, index) => {
+            options.forEach((variant, index) => {
               const label = document.createElement('div');
               label.textContent = variant.name;
               Object.assign(label.style, { position: 'absolute', left: `${65 + index * 225}px`, top: '820px', width: '210px', textAlign: 'center' });
@@ -111,7 +111,7 @@ jobs:
             return summaries;
           });
           await page.screenshot({ path: 'menu-character-pose-lab.png', fullPage: true });
-          await writeFile('menu-character-pose-lab.json', JSON.stringify(result, null, 2));
+          await writeFile('menu-character-pose-lab.json', JSON.stringify({ runId: process.env.GITHUB_RUN_ID, variants }, null, 2));
           await browser.close();
           EOF
           node pose-lab.mjs
@@ -119,10 +119,17 @@ jobs:
         shell: bash
         run: |
           mkdir -p .ci/menu-character-pose-lab
-          mv menu-character-pose-lab.png .ci/menu-character-pose-lab/variants.png
-          mv menu-character-pose-lab.json .ci/menu-character-pose-lab/variants.json
+          cp menu-character-pose-lab.png .ci/menu-character-pose-lab/variants.png
+          cp menu-character-pose-lab.json .ci/menu-character-pose-lab/variants.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .ci/menu-character-pose-lab
           git commit -m 'Record actual menu character pose comparison'
           git push origin HEAD:fix/main-menu-equipped-ranger
+      - uses: actions/upload-artifact@v4
+        with:
+          name: menu-character-pose-lab
+          path: |
+            menu-character-pose-lab.png
+            menu-character-pose-lab.json
+          if-no-files-found: error
