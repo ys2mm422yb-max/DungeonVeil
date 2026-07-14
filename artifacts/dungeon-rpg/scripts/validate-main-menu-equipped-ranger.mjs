@@ -27,4 +27,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the clean Ranger outfit and the selected bow, quiver and talisman are all visible without combat-rig clipping.');
+console.log('Main-menu equipped ranger audit passed: clean Ranger clothing and the selected bow, quiver and talisman remain visible without combat-rig clipping.');
