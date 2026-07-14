@@ -40,15 +40,12 @@ jobs:
           ref: fix/main-menu-equipped-ranger
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply approved V14 patch and capture exact failure
+      - name: Apply approved V14 patch and self-clean
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
-          mkdir -p .ci
-          set +e
-          {
-            python3 - <<'EXTRACT'
+          python3 - <<'EXTRACT'
           from pathlib import Path
           source = Path('.github/workflows/main-menu-v14-polish.yml').read_text()
           marker = "          python3 - <<'PY'\n"
@@ -58,18 +55,35 @@ jobs:
           script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
           Path('/tmp/apply-main-menu-v14.py').write_text(script)
           EXTRACT
-            python3 /tmp/apply-main-menu-v14.py
-          } > .ci/main-menu-v14-apply.log 2>&1
-          code=$?
-          set -e
-          if [ "$code" -ne 0 ]; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add .ci/main-menu-v14-apply.log
-            git commit -m 'Record the exact V14 patch failure'
-            git push origin HEAD:fix/main-menu-equipped-ranger
-            exit "$code"
-          fi
+          python3 - <<'PATCH'
+          from pathlib import Path
+          path = Path('/tmp/apply-main-menu-v14.py')
+          script = path.read_text()
+          start = script.index('replace_once(showcase, "  let shrineHidden = false;\\n", "")')
+          end = script.index("\n\naudit = Path('artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs')", start)
+          replacement = '''replace_once(showcase, "  let shrineHidden = false;\\n", "")
+replace_once(showcase,
+  """      root.position.y = -0.06 + Math.sin(elapsed * 1.25) * 0.01;
+      root.position.z = -2.42;
+      root.rotation.y = 0.04;
+      root.scale.setScalar(0.58);""",
+  """      root.position.y = -0.08 + Math.sin(elapsed * 1.18) * 0.008;
+      root.position.z = -1.82;
+      root.rotation.y = -0.025;
+      root.scale.setScalar(0.72);""")
+replace_once(showcase,
+  """
+      if (!shrineHidden) {
+        const shrine = root.parent?.getObjectByName?.('VillageSquareShrine');
+        if (shrine) {
+          shrine.visible = false;
+          shrineHidden = true;
+        }
+      }""",
+  "")'''
+          path.write_text(script[:start] + replacement + script[end:])
+          PATCH
+          python3 /tmp/apply-main-menu-v14.py
           rm -f .ci/main-menu-v14-apply.log
           git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
           git config user.name 'github-actions[bot]'
