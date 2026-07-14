@@ -67,7 +67,7 @@ jobs:
           exit 1
 
       - name: Capture real iPhone menu rendering
-        run: npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size='393,852' --wait-for-timeout=8000 --full-page 'http://127.0.0.1:4173/DungeonVeil/?qa=menu' main-menu-v3-iphone.png
+        run: npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size='393,852' --wait-for-timeout=25000 --full-page 'http://127.0.0.1:4173/DungeonVeil/?qa=menu' main-menu-v3-iphone.png
 
       - name: Upload visual proof
         uses: actions/upload-artifact@v4
