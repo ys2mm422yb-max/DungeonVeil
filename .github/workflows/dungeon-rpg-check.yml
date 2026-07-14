@@ -40,12 +40,15 @@ jobs:
           ref: fix/main-menu-equipped-ranger
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply approved V14 patch and self-clean
+      - name: Apply approved V14 patch and capture exact failure
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
-          python3 - <<'EXTRACT'
+          mkdir -p .ci
+          set +e
+          {
+            python3 - <<'EXTRACT'
           from pathlib import Path
           source = Path('.github/workflows/main-menu-v14-polish.yml').read_text()
           marker = "          python3 - <<'PY'\n"
@@ -55,7 +58,19 @@ jobs:
           script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
           Path('/tmp/apply-main-menu-v14.py').write_text(script)
           EXTRACT
-          python3 /tmp/apply-main-menu-v14.py
+            python3 /tmp/apply-main-menu-v14.py
+          } > .ci/main-menu-v14-apply.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add .ci/main-menu-v14-apply.log
+            git commit -m 'Record the exact V14 patch failure'
+            git push origin HEAD:fix/main-menu-equipped-ranger
+            exit "$code"
+          fi
+          rm -f .ci/main-menu-v14-apply.log
           git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
