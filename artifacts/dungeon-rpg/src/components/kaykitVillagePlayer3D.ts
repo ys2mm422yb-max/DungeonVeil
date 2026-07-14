@@ -1,9 +1,10 @@
 import { EQUIPMENT, loadMetaProgression, type EquipmentId } from '../game/metaProgression';
+import { loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
-import { KAYKIT_PLAYER_ASSETS, type KayKitPlayerRig } from './kaykitPlayer3D';
+import { type KayKitPlayerRig } from './kaykitPlayer3D';
 
-const KAYKIT_ROOT = '/assets/kaykit';
-const VILLAGE_ARCHER_ASSET = `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Rogue_Hooded.glb`;
+const VILLAGE_ARCHER_MODEL = 'adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Rogue_Hooded.glb';
+const GENERAL_ANIMATION_MODEL = 'animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 function clipKey(clip: any) {
@@ -38,16 +39,35 @@ function fitObject(THREE: any, object: any, targetSize: number) {
   object.position.sub(center.multiplyScalar(scale));
 }
 
+function buildProceduralBow(THREE: any, accent: string) {
+  const root = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: accent, roughness: 0.74, metalness: 0.08 });
+  const grip = new THREE.MeshStandardMaterial({ color: 0x3a281d, roughness: 0.9 });
+  const limb = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.025, 6, 32, Math.PI * 1.42), wood);
+  limb.rotation.z = Math.PI * 0.79;
+  root.add(limb);
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.26, 8), grip);
+  handle.rotation.z = Math.PI / 2;
+  root.add(handle);
+  const stringGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-0.31, 0.34, 0),
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(-0.31, -0.34, 0),
+  ]);
+  root.add(new THREE.Line(stringGeometry, new THREE.LineBasicMaterial({ color: 0xe8dcc4 })));
+  return root;
+}
+
 function addBow(THREE: any, parent: any, bow: any, bowId: EquipmentId) {
   const crossbow = bowId === 'frost-bow' || bowId === 'splinter-bow';
   prepareModel(bow);
-  fitObject(THREE, bow, crossbow ? 0.82 : 1.18);
+  fitObject(THREE, bow, crossbow ? 0.9 : 1.32);
 
   const holder = new THREE.Group();
   holder.name = `VillageVisibleBow_${bowId}`;
   holder.userData.equipmentId = bowId;
-  holder.position.set(crossbow ? 0.62 : 0.68, crossbow ? 0.82 : 0.9, 0.38);
-  holder.rotation.set(crossbow ? 0.06 : 0.02, crossbow ? -0.1 : 0.12, crossbow ? -0.28 : -0.52);
+  holder.position.set(crossbow ? 0.66 : 0.72, crossbow ? 0.84 : 0.91, 0.48);
+  holder.rotation.set(crossbow ? 0.08 : 0.03, crossbow ? -0.08 : 0.14, crossbow ? -0.25 : -0.5);
   holder.add(bow);
   parent.add(holder);
 }
@@ -70,13 +90,13 @@ function buildProceduralQuiver(THREE: any, accent: string) {
     root.add(rim);
   }
 
-  for (const x of [-0.055, 0, 0.055]) {
+  for (const x of [-0.065, 0, 0.065]) {
     const arrow = new THREE.Group();
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.63, 6), shaftMaterial);
-    shaft.position.y = 0.45;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.7, 6), shaftMaterial);
+    shaft.position.y = 0.49;
     arrow.add(shaft);
-    const feather = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.11, 0.018), featherMaterial);
-    feather.position.y = 0.78;
+    const feather = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.018), featherMaterial);
+    feather.position.y = 0.85;
     feather.rotation.z = x * 2.2;
     arrow.add(feather);
     arrow.position.x = x;
@@ -91,22 +111,16 @@ function addQuiver(THREE: any, parent: any, payload: any | null, quiverId: Equip
   holder.name = `VillageVisibleQuiver_${quiverId}`;
   holder.userData.equipmentId = quiverId;
 
-  if (quiverId === 'ranger-quiver' && payload) {
+  holder.add(buildProceduralQuiver(THREE, definition?.accent ?? '#63c8d8'));
+  if (payload && quiverId !== 'ranger-quiver') {
     prepareModel(payload);
-    fitObject(THREE, payload, 0.82);
+    fitObject(THREE, payload, quiverId === 'black-quiver' ? 0.38 : 0.28);
+    payload.position.set(0, 0.18, 0.12);
     holder.add(payload);
-  } else {
-    holder.add(buildProceduralQuiver(THREE, definition?.accent ?? '#63c8d8'));
-    if (payload) {
-      prepareModel(payload);
-      fitObject(THREE, payload, quiverId === 'black-quiver' ? 0.36 : 0.25);
-      payload.position.set(0, 0.18, 0.12);
-      holder.add(payload);
-    }
   }
 
-  holder.position.set(-0.62, 1.02, 0.28);
-  holder.rotation.set(-0.08, 0.28, 0.32);
+  holder.position.set(-0.67, 1.05, 0.42);
+  holder.rotation.set(-0.08, 0.22, 0.3);
   parent.add(holder);
 }
 
@@ -117,7 +131,7 @@ function addTalisman(THREE: any, parent: any, talisman: any | null, talismanId: 
   const holder = new THREE.Group();
   holder.name = `VillageVisibleTalisman_${talismanId}`;
   holder.userData.equipmentId = talismanId;
-  holder.position.set(-0.3, 0.62, 0.4);
+  holder.position.set(-0.32, 0.62, 0.46);
   holder.rotation.set(talismanId === 'frost-grimoire' ? 0.12 : Math.PI / 2, 0, talismanId === 'frost-grimoire' ? -0.2 : 0.08);
   holder.add(talisman);
   parent.add(holder);
@@ -125,25 +139,27 @@ function addTalisman(THREE: any, parent: any, talisman: any | null, talismanId: 
 
 export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
+  const manifest = await loadKayKitManifest();
   const meta = loadMetaProgression();
   const bowId = meta.equipped.bow;
   const quiverId = meta.equipped.quiver;
   const talismanId = meta.equipped.talisman;
+  const bowDefinition = EQUIPMENT[bowId];
   const quiverDefinition = EQUIPMENT[quiverId];
   const talismanDefinition = EQUIPMENT[talismanId];
 
   const [characterGltf, generalGltf, weapons, quiverGltf, talismanGltf] = await Promise.all([
-    loader.loadAsync(VILLAGE_ARCHER_ASSET),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
-    loadKayKitRangerWeapons(),
-    loader.loadAsync(`${KAYKIT_ROOT}/${quiverDefinition.assetPath}`).catch(() => null),
-    loader.loadAsync(`${KAYKIT_ROOT}/${talismanDefinition.assetPath}`).catch(() => null),
+    loader.loadAsync(modelUrl(manifest, VILLAGE_ARCHER_MODEL)),
+    loader.loadAsync(modelUrl(manifest, GENERAL_ANIMATION_MODEL)),
+    loadKayKitRangerWeapons().catch(() => null),
+    quiverDefinition?.assetPath ? loader.loadAsync(modelUrl(manifest, quiverDefinition.assetPath)).catch(() => null) : Promise.resolve(null),
+    talismanDefinition?.assetPath ? loader.loadAsync(modelUrl(manifest, talismanDefinition.assetPath)).catch(() => null) : Promise.resolve(null),
   ]);
-  if (!weapons) throw new Error('No equipped KayKit bow available for the village archer');
 
   const root = new THREE.Group();
   root.name = 'VillageEquippedPlayer';
-  root.userData.presentation = 'village-showcase-v2';
+  root.userData.presentation = 'village-showcase-v3-pages-safe';
+  root.userData.assetRoot = manifest.root;
   root.userData.equippedLoadout = { bow: bowId, quiver: quiverId, talisman: talismanId };
 
   const visual = characterGltf.scene;
@@ -160,7 +176,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
 
   const gear = new THREE.Group();
   gear.name = 'VillageEquippedGear';
-  addBow(THREE, gear, weapons.bow, bowId);
+  const bow = weapons?.bow ?? buildProceduralBow(THREE, bowDefinition?.accent ?? '#d4a65f');
+  addBow(THREE, gear, bow, bowId);
   addQuiver(THREE, gear, quiverGltf?.scene ?? null, quiverId);
   addTalisman(THREE, gear, talismanGltf?.scene ?? null, talismanId);
   root.add(gear);
