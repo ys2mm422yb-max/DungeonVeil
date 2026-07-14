@@ -2,7 +2,7 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [main, work/blocks-1-7-production-pass, audit/block-6-rooms-6-50-quality]
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   prepare-block-6-fixes:
-    if: github.event_name == 'pull_request' && github.head_ref == 'audit/block-6-rooms-6-50-quality'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/audit/block-6-rooms-6-50-quality'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,14 +51,14 @@ jobs:
           collision = Path('artifacts/dungeon-rpg/src/game/roomCollision3D.ts')
           text = collision.read_text()
           old = """  return [...props, ...architectureCollidersForRoom(room)];
-"""
+          """
           new = """  const architecture = architectureCollidersForRoom(room).filter(candidate => !props.some(prop => {
-    const overlapX = Math.min(candidate.x + candidate.halfW, prop.x + prop.halfW) - Math.max(candidate.x - candidate.halfW, prop.x - prop.halfW);
-    const overlapZ = Math.min(candidate.z + candidate.halfH, prop.z + prop.halfH) - Math.max(candidate.z - candidate.halfH, prop.z - prop.halfH);
-    return overlapX > 0.5 && overlapZ > 0.5;
-  }));
-  return [...props, ...architecture];
-"""
+            const overlapX = Math.min(candidate.x + candidate.halfW, prop.x + prop.halfW) - Math.max(candidate.x - candidate.halfW, prop.x - prop.halfW);
+            const overlapZ = Math.min(candidate.z + candidate.halfH, prop.z + prop.halfH) - Math.max(candidate.z - candidate.halfH, prop.z - prop.halfH);
+            return overlapX > 0.5 && overlapZ > 0.5;
+          }));
+          return [...props, ...architecture];
+          """
           if old not in text:
             raise SystemExit('collider return marker missing')
           collision.write_text(text.replace(old, new))
@@ -82,7 +82,7 @@ jobs:
           audit.write_text(text)
           PY
           git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
-          rm -f .ci/room-quality-6-50.txt
+          rm -f .ci/validation-trigger.txt .ci/room-quality-6-50.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
