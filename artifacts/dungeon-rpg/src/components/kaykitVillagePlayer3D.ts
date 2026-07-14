@@ -71,6 +71,9 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     node.frustumCulled = false;
   });
 
+  // Keep the shared rig on its non-moving branch before freezing it. This also
+  // preserves the normal audit contract used by the full room/build pipeline.
+  rig.setMoving(false);
   // The free Ranger file opens in its authored equipment pose. The generic idle
   // clips do not produce a reliable silhouette in every mobile browser, so the
   // menu freezes the exact run rig and applies one stable bow-ready pose.
