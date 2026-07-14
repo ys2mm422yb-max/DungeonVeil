@@ -1,5 +1,6 @@
 name: Apply Room 13 Plus Enemy Visibility Fix
 
+# Trigger after GitHub has registered the workflow.
 on:
   push:
     branches: [fix/room13-plus-enemy-visibility]
