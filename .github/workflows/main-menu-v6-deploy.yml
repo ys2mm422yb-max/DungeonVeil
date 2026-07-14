@@ -1,0 +1,166 @@
+name: Main Menu V6 Pose Deploy
+
+on:
+  push:
+    branches: [fix/main-menu-equipped-ranger]
+    paths:
+      - '.github/workflows/main-menu-v6-deploy.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dungeon-veil-main-menu-v6-pose
+  cancel-in-progress: true
+
+jobs:
+  validate-build-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/main-menu-equipped-ranger
+      - id: commit
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - run: pnpm run typecheck
+      - name: Build Pages application
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+          VITE_BUILD_SHA: ${{ steps.commit.outputs.sha }}
+        run: pnpm --dir artifacts/dungeon-rpg run build
+      - name: Verify Pages artifact
+        env:
+          EXPECTED_BASE_PATH: /DungeonVeil/
+        run: pnpm --filter @workspace/dungeon-rpg audit:pages
+      - name: Write V6 deployment marker
+        shell: bash
+        run: |
+          printf '{"commit":"%s","deployedAt":"%s","source":"main-menu-run-ranger-v6-pose"}\n' "${{ steps.commit.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          touch artifacts/dungeon-rpg/dist/public/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+
+  deploy:
+    needs: validate-build-upload
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/deploy-pages@v4
+
+  verify-live-render:
+    needs: [validate-build-upload, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/main-menu-equipped-ranger
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify fixed link and capture actual mobile menu
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ needs.validate-build-upload.outputs.sha }}
+        run: |
+          set -euo pipefail
+          verified=0
+          for attempt in $(seq 1 24); do
+            if curl -fsSL --retry 2 --retry-delay 2 "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?verify=${GITHUB_RUN_ID}-${attempt}" -o live-marker.json; then
+              if python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path('live-marker.json').read_text())
+          assert data.get('source') == 'main-menu-run-ranger-v6-pose', data
+          assert data.get('commit') == os.environ['EXPECTED_COMMIT'], data
+          PY
+              then
+                verified=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test "$verified" = 1
+          cat > capture-live-v6.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          import { writeFile } from 'node:fs/promises';
+          const browser = await chromium.launch({ headless: true });
+          const context = await browser.newContext({
+            viewport: { width: 393, height: 852 },
+            deviceScaleFactor: 3,
+            isMobile: true,
+            hasTouch: true,
+            userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+          });
+          await context.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
+          const page = await context.newPage();
+          const errors = [];
+          const failed = [];
+          const responses = [];
+          page.on('pageerror', error => errors.push(String(error?.stack || error)));
+          page.on('requestfailed', request => failed.push({ url: request.url(), error: request.failure()?.errorText || 'unknown' }));
+          page.on('response', response => {
+            if (/DungeonVeil|assets\/kaykit/i.test(response.url())) responses.push({ url: response.url(), status: response.status() });
+          });
+          await page.goto('https://ys2mm422yb-max.github.io/DungeonVeil/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+          await page.waitForTimeout(25000);
+          await page.screenshot({ path: 'main-menu-v6-live.png', fullPage: true });
+          const state = await page.evaluate(() => ({
+            canvases: document.querySelectorAll('canvas').length,
+            bodyText: document.body.innerText.slice(0, 1500),
+            resources: performance.getEntriesByType('resource').map(entry => entry.name).filter(name => /Ranger|quiver|Rig_Medium|bow|DungeonVeil/i.test(name)),
+          }));
+          const proof = {
+            state,
+            errors,
+            failed,
+            responses,
+            duplicateBase: state.resources.filter(url => url.includes('/DungeonVeil/DungeonVeil/')),
+            rangerLoads: state.resources.filter(url => /Characters\/gltf\/Ranger\.glb(?:$|\?)/.test(url)),
+            quiverLoads: state.resources.filter(url => /Assets\/gltf\/quiver\.gltf(?:$|\?)/.test(url)),
+            animationLoads: state.resources.filter(url => /Rig_Medium_(?:General|MovementBasic|MovementAdvanced)\.glb(?:$|\?)/.test(url)),
+            badResponses: responses.filter(item => item.status >= 400),
+            localFailures: failed.filter(item => item.url.includes('/DungeonVeil/')),
+          };
+          await writeFile('main-menu-v6-live.json', JSON.stringify(proof, null, 2));
+          if (state.canvases !== 1) throw new Error(`Expected one menu canvas, got ${state.canvases}`);
+          if (proof.duplicateBase.length) throw new Error(`Duplicate Pages base still present: ${proof.duplicateBase.join(', ')}`);
+          if (proof.rangerLoads.length < 2) throw new Error(`Central run Ranger did not load; Ranger requests: ${proof.rangerLoads.length}`);
+          if (!proof.quiverLoads.length) throw new Error('Run Ranger quiver did not load');
+          if (proof.animationLoads.length < 3) throw new Error(`Run Ranger animations incomplete: ${proof.animationLoads.length}`);
+          if (proof.badResponses.length) throw new Error(`Bad asset responses: ${JSON.stringify(proof.badResponses)}`);
+          if (proof.localFailures.length) throw new Error(`Failed local requests: ${JSON.stringify(proof.localFailures)}`);
+          await browser.close();
+          EOF
+          node capture-live-v6.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: main-menu-v6-live-proof
+          path: |
+            main-menu-v6-live.png
+            main-menu-v6-live.json
+            live-marker.json
+          if-no-files-found: error
