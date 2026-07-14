@@ -1,5 +1,6 @@
 name: Mobile Double-Tap Zoom Deploy
 
+# Trigger deployment after the workflow has been registered by GitHub.
 on:
   push:
     branches: [fix/mobile-double-tap-zoom]
