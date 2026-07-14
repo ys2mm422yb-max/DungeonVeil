@@ -24,41 +24,9 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
+# Verification also runs directly on the production-pass branch when the PR has conflicts.
+# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
-  capture-v14-audit-failure:
-    if: github.event_name == 'pull_request' && github.head_ref == 'fix/main-menu-equipped-ranger'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: fix/main-menu-equipped-ranger
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Capture full audit output
-        shell: bash
-        run: |
-          set +e
-          mkdir -p .ci
-          pnpm --filter @workspace/dungeon-rpg audit:rooms > .ci/main-menu-v14-audit.log 2>&1
-          code=$?
-          printf '\nEXIT_CODE=%s\n' "$code" >> .ci/main-menu-v14-audit.log
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .ci/main-menu-v14-audit.log
-          git commit -m 'Record exact V14 audit failure'
-          git push origin HEAD:fix/main-menu-equipped-ranger
-
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
