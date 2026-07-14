@@ -27,12 +27,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install Chromium
-        run: npx --yes playwright@1.55.0 install --with-deps chromium
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
       - name: Inspect exact fixed live link
         shell: bash
         run: |
-          cat > /tmp/inspect-live.mjs <<'EOF'
+          cat > inspect-live.mjs <<'EOF'
           import { chromium } from 'playwright';
           import { writeFile } from 'node:fs/promises';
 
@@ -87,12 +89,13 @@ jobs:
           await writeFile('live-menu-diagnostic.json', JSON.stringify({ diagnostic, consoleMessages, pageErrors, failedRequests, responses }, null, 2));
           await browser.close();
           EOF
-          npx --yes -p playwright@1.55.0 node /tmp/inspect-live.mjs
+          node inspect-live.mjs
       - name: Upload diagnostic
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: live-menu-diagnostic
           path: |
             live-menu.png
             live-menu-diagnostic.json
-          if-no-files-found: error
+          if-no-files-found: warn
