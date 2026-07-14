@@ -125,7 +125,7 @@ export function MainMenuScreen(props: Props) {
       <div className="mx-auto mt-2 grid w-full max-w-md grid-cols-2 gap-2 px-4">
         {action(t.newGame, language === 'de' ? 'NEUES ABENTEUER' : 'NEW ADVENTURE', startNormalRun, 'gold')}
         {action(t.continueGame, continueText, props.onContinue, 'dark', !props.saveData)}
-        {action(language === 'de' ? 'Schleierkammer' : 'Veil Chamber', language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Staub` : `Rank ${meta.rank} · ${meta.dust} dust`, props.onVeilChamber, 'violet')}
+        {action(language === 'de' ? 'Inventar' : 'Inventory', language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Staub` : `Rank ${meta.rank} · ${meta.dust} dust`, props.onVeilChamber, 'violet')}
         {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · JAGD · RELIKTE' : 'BEASTS · HUNTS · RELICS', props.onCodex, 'blue')}
       </div>
     </div>

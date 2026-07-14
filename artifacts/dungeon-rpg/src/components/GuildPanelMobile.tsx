@@ -21,9 +21,10 @@ import {
 import { leaveGuildOnline, transferGuildOwnershipOnline } from '../game/guildOnlineActions';
 import { loadMetaProgression, saveMetaProgression } from '../game/metaProgression';
 import { GuildInviteLinkCard } from './GuildInviteLinkCard';
+import { GuildChatPanel } from './GuildChatPanel';
 
 type Props = { language: 'de' | 'en'; onClose: () => void };
-type GuildTab = 'overview' | 'members' | 'invite';
+type GuildTab = 'overview' | 'chat' | 'members' | 'invite';
 const GUILD_CREATION_COST = 2500;
 
 function ActionButton({ label, onClick, disabled = false, primary = false, danger = false, compact = false }: {
@@ -229,7 +230,7 @@ export function GuildPanelMobile({ language, onClose }: Props) {
       <div className="text-[7px] font-black uppercase tracking-[.28em] text-amber-200/48">{de ? 'GILDE' : 'GUILD'}</div>
       <div className="mt-1 truncate text-[16px] font-black text-amber-100">{membership ? `[${membership.guild.tag}] ${membership.guild.name}` : (de ? 'Gilde gründen' : 'Create a guild')}</div>
       <div className="mt-1 line-clamp-2 text-[8px] leading-relaxed text-white/36">{membership
-        ? (de ? 'Mitglieder, Rollen und Einladungen an einem Ort.' : 'Members, roles and invitations in one place.')
+        ? (de ? 'Chat, Mitglieder, Rollen und Einladungen an einem Ort.' : 'Chat, members, roles and invitations in one place.')
         : (de ? `Gründe eine Gilde für ${formatGold(GUILD_CREATION_COST, language)} Gold oder nimm eine Einladung an.` : `Create a guild for ${formatGold(GUILD_CREATION_COST, language)} gold or accept an invite.`)}</div>
     </header>
 
@@ -238,8 +239,9 @@ export function GuildPanelMobile({ language, onClose }: Props) {
     {!session && <div className={`${scrollClass} text-[10px] leading-relaxed text-white/45`}>{de ? 'Melde dich zuerst unter Online & Cloud an. Mitgliedschaften und Einladungen werden danach hier geladen.' : 'Sign in through Online & Cloud first. Memberships and invites will then load here.'}</div>}
 
     {session && membership && <div className="flex min-h-0 flex-1 flex-col">
-      <div data-testid="guild-tabs" className="grid shrink-0 grid-cols-3 gap-2 pt-3">
+      <div data-testid="guild-tabs" className="grid shrink-0 grid-cols-4 gap-1.5 pt-3">
         {tabButton('overview', de ? 'Übersicht' : 'Overview')}
+        {tabButton('chat', 'Chat')}
         {tabButton('members', de ? 'Mitglieder' : 'Members')}
         {tabButton('invite', de ? 'Einladen' : 'Invite')}
       </div>
@@ -270,6 +272,8 @@ export function GuildPanelMobile({ language, onClose }: Props) {
           </div>
         </details>
       </div>}
+
+      {tab === 'chat' && <GuildChatPanel guildId={membership.guild.id} language={language} />}
 
       {tab === 'members' && <section data-testid="guild-members-tab" className={`${scrollClass} space-y-2`}>
         {members.map(member => {
