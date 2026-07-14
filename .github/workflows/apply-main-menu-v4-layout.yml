@@ -1,0 +1,45 @@
+name: Apply Main Menu V4 Layout
+
+on:
+  push:
+    branches: [fix/main-menu-equipped-ranger]
+    paths:
+      - '.github/workflows/apply-main-menu-v4-layout.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/main-menu-equipped-ranger
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Separate player from shrine and face the camera
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('artifacts/dungeon-rpg/src/components/ModernVillageSquareScene.tsx')
+          text = path.read_text()
+          replacements = {
+              "shrine: [[0, 0.02, -4.9, 1.15, 0, 'VillageSquareShrine']],": "shrine: [[0, 0.02, -6.1, 1.15, 0, 'VillageSquareShrine']],",
+              "rig.root.position.set(0, -0.02, -4.35);": "rig.root.position.set(0, -0.02, -2.85);",
+              "rig.root.rotation.y = -0.42;": "rig.root.rotation.y = 0.08;",
+              "rig.root.scale.setScalar(0.5);": "rig.root.scale.setScalar(0.52);",
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing layout marker: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          rm -f .github/workflows/apply-main-menu-v4-layout.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Separate the run Ranger from the village shrine'
+          git push origin HEAD:fix/main-menu-equipped-ranger
