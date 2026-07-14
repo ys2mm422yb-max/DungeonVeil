@@ -1,0 +1,131 @@
+name: iPad and Enemy Live Deploy
+
+on:
+  push:
+    branches: [fix/ipad-landscape-run-layout]
+    paths:
+      - '.github/workflows/ipad-enemy-live-deploy.yml'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dungeon-veil-ipad-enemy-live
+  cancel-in-progress: false
+
+jobs:
+  validate-build-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - name: Checkout exact fix head
+        uses: actions/checkout@v4
+        with:
+          ref: fix/ipad-landscape-run-layout
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve deployment commit
+        id: commit
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Full assets and gameplay audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets && pnpm --filter @workspace/dungeon-rpg audit:rooms
+
+      - name: Typecheck workspace
+        run: pnpm run typecheck
+
+      - name: Build GitHub Pages application
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+          VITE_BUILD_SHA: ${{ steps.commit.outputs.sha }}
+        run: pnpm --dir artifacts/dungeon-rpg run build
+
+      - name: Verify Pages artifact
+        env:
+          EXPECTED_BASE_PATH: /DungeonVeil/
+        run: pnpm --filter @workspace/dungeon-rpg audit:pages
+
+      - name: Write deployment marker
+        shell: bash
+        run: |
+          printf '{"commit":"%s","deployedAt":"%s","source":"room13-enemy-ipad-landscape"}\n' "${{ steps.commit.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          touch artifacts/dungeon-rpg/dist/public/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+
+  deploy:
+    needs: validate-build-upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+
+  verify-and-clean:
+    needs: [validate-build-upload, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/ipad-landscape-run-layout
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify fixed link and self-clean
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ needs.validate-build-upload.outputs.sha }}
+        run: |
+          set -euo pipefail
+          verified=0
+          for attempt in $(seq 1 30); do
+            if curl -fsSL --retry 2 --retry-delay 2 "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?verify=${GITHUB_RUN_ID}-${attempt}" -o live-response.json; then
+              if python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads(Path('live-response.json').read_text())
+          assert data.get('source') == 'room13-enemy-ipad-landscape', data
+          assert data.get('commit') == os.environ['EXPECTED_COMMIT'], data
+          PY
+              then
+                verified=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test "$verified" = 1
+          rm -f live-response.json .github/workflows/ipad-enemy-live-deploy.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Remove temporary iPad and enemy deployment workflow'
+          git push origin HEAD:fix/ipad-landscape-run-layout
