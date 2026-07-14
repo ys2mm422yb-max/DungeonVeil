@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
+// This audit covers the live V4 menu path, not a mock or isolated model preview.
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const [village, showcase, player, weapons, manifest, meta] = await Promise.all([
   read('../src/components/ModernVillageSquareScene.tsx'),
