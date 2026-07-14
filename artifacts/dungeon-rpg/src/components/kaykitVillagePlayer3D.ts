@@ -95,8 +95,7 @@ function collectBones(root: any): Map<string, any> {
 /**
  * The village uses the exact dungeon-run Ranger rig and the same saved bow,
  * quiver and talisman definitions. The KayKit Idle_A skeleton drives the body,
- * while its authored arm quaternions are enforced so mobile renderers cannot
- * leave the character in the GLB bind pose.
+ * while a local arm rotation removes the GLB bind pose on mobile renderers.
  */
 export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const meta = loadMetaProgression();
@@ -115,7 +114,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
 
   rig.root.name = 'VillageEquippedPlayer';
   rig.root.userData.presentation = 'village-showcase-v5-single-base-run-ranger';
-  rig.root.userData.showcasePose = 'v8-animated-visible-loadout';
+  rig.root.userData.showcasePose = 'v10-lowered-arms-visible-loadout';
   rig.root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
     quiver: meta.equipped.quiver,
@@ -167,15 +166,15 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     .filter(pair => Boolean(pair.target));
   if (bonePairs.length < 20) throw new Error(`Village Ranger idle retarget found only ${bonePairs.length} matching bones`);
 
-  const setArmQuaternion = (key: string, values: [number, number, number, number]) => {
+  const rotateLocalZ = (key: string, amount: number) => {
     const bone = targetBones.get(key);
-    if (bone) bone.quaternion.set(...values);
+    if (bone) bone.rotateZ(amount);
   };
   const enforceReadableArmPose = () => {
-    setArmQuaternion('upperarml', [-0.53361487, -0.11677447, -0.77174187, 0.3256276]);
-    setArmQuaternion('lowerarml', [0, 0, -0.35859543, 0.93349308]);
-    setArmQuaternion('upperarmr', [-0.56062764, 0.04683267, 0.73693085, 0.37474841]);
-    setArmQuaternion('lowerarmr', [0, 0, 0.37637338, 0.92646819]);
+    rotateLocalZ('upperarml', -1.16);
+    rotateLocalZ('lowerarml', -0.28);
+    rotateLocalZ('upperarmr', 1.16);
+    rotateLocalZ('lowerarmr', 0.28);
   };
   const refreshSkeletons = () => {
     rig.root.updateMatrixWorld(true);
@@ -205,7 +204,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     (window as any).__DUNGEON_VEIL_MENU_RANGER__ = {
       presentation: rig.root.userData.presentation,
       pose: rig.root.userData.showcasePose,
-      animationDriver: 'copied-kaykit-idle-a-locked-arms',
+      animationDriver: 'copied-kaykit-idle-a-lowered-arms',
       matchedBones: bonePairs.length,
       loadout: rig.root.userData.equippedLoadout,
       visibleEquipment: rig.root.userData.visibleEquipment,
