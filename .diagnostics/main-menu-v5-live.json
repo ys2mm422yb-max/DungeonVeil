@@ -1,0 +1,278 @@
+{
+  "runId": "29336549134",
+  "commit": "9efbe043f370d53aed4428fdda8c09cebbac9aa3",
+  "state": {
+    "canvases": 1,
+    "bodyText": "•••\nBETRITT DEN SCHLEIER\nDUNGEON VEIL\n\nBAUEN. AUSWEICHEN. ÜBERLEBEN.\n\nDORFPLATZ\nWähle einen Ort\n✦\n0/3\nAUFTRÄGE\nMIRA\n✉\nPOST\nORIN\n♡\nFREUNDE\nTALA\n♜\nGILDE\nBROM\n◉\nWELTBOSS\nAELRIC\nNeuer Run\nNEUES ABENTEUER\n›\nFortsetzen\nKEIN SPEICHERSTAND\nSchleierkammer\nRANG 1 · 0 STAUB\n›\nKodex\nBESTIEN · JAGD · RELIKTE\n›",
+    "resources": [
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/index-9hWgENnF.js",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/index-o6h94EKM.css",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?check=mrkox9kd",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?check=mrkox9o7",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/manifest.json",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/key.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/wall_arched.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/pillar.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/torch.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/banner_blue.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf/shrine_candles.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/furniture/Assets/gltf/lamp_table.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf/Fuel_A_Barrel.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/forest/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/Rock_1_A_Color1.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Mage.glb",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Rogue_Hooded.glb",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Knight.glb",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/key.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/rogue_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/bow_withString.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_bow_bundle.gltf",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/wall_arched.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf/shrine_candles.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf/halloweenbits_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/forest/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/Rock_1_A_Color1.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/forest/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/forest_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/banner_blue.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/furniture/Assets/gltf/lamp_table.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/furniture/Assets/gltf/furniturebits_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/torch.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf/Fuel_A_Barrel.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf/resource_bits_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/bow_withString.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/ranger_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_bow_bundle.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/ranger_texture.png",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/pillar.bin",
+      "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png"
+    ]
+  },
+  "errors": [],
+  "failed": [],
+  "responses": [
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/index-o6h94EKM.css",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/index-9hWgENnF.js",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?check=mrkox9kd",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?check=mrkox9o7",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/manifest.json",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/key.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/wall_arched.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf/shrine_candles.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/forest/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/Rock_1_A_Color1.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/banner_blue.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Knight.glb",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Mage.glb",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/furniture/Assets/gltf/lamp_table.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/key.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/rogue_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Rogue_Hooded.glb",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/torch.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf/Fuel_A_Barrel.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/bow_withString.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_bow_bundle.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/forest/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/forest_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/wall_arched.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf/halloweenbits_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf/shrine_candles.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/forest/KayKit_Forest_Nature_Pack_1.0_FREE/Assets/gltf/Rock_1_A_Color1.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/banner_blue.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/furniture/Assets/gltf/furniturebits_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/furniture/Assets/gltf/lamp_table.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/torch.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/arrow_bow_bundle.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf/Fuel_A_Barrel.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/ranger_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/bow_withString.bin",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/pillar.gltf",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/ranger_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf/resource_bits_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/dungeon_texture.png",
+      "status": 200
+    },
+    {
+      "url": "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/pillar.bin",
+      "status": 200
+    }
+  ],
+  "duplicateBase": [],
+  "rangerLoads": [
+    "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb",
+    "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb"
+  ],
+  "quiverLoads": [
+    "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf"
+  ],
+  "animationLoads": [
+    "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb",
+    "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb",
+    "https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb"
+  ],
+  "badResponses": [],
+  "localFailures": []
+}
