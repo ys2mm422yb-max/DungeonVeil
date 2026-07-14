@@ -1,0 +1,131 @@
+name: Build Block 2 World Boss Resume
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'fix/block-2-worldboss-five-minute-resume'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/block-2-worldboss-five-minute-resume
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build final Block 2 snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feat/worldboss-24h-attempt-lock
+          git checkout origin/feat/worldboss-24h-attempt-lock -- \
+            artifacts/dungeon-rpg/src/components/WorldBossPanel.tsx \
+            artifacts/dungeon-rpg/src/game/worldBossAttemptOnline.ts \
+            artifacts/dungeon-rpg/scripts/validate-social-progression.mjs \
+            supabase/migrations/20260713203500_world_boss_24h_attempt_lock.sql
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          base = Path('supabase/migrations/20260713203500_world_boss_24h_attempt_lock.sql')
+          text = base.read_text()
+          text = text.replace("v_now + interval '10 minutes',", "v_now + interval '5 minutes',")
+          base.write_text(text)
+
+          panel = Path('artifacts/dungeon-rpg/src/components/WorldBossPanel.tsx')
+          text = panel.read_text()
+          text = text.replace(
+            "  const cooldownRemainingMs = attemptStatus?.nextAvailableAt ? Math.max(0, new Date(attemptStatus.nextAvailableAt).getTime() - serverNowMs) : 0;\n  const attemptAvailable = Boolean(attemptStatus && (attemptStatus.canAttack || attemptStatus.canResume));",
+            "  const cooldownRemainingMs = attemptStatus?.nextAvailableAt ? Math.max(0, new Date(attemptStatus.nextAvailableAt).getTime() - serverNowMs) : 0;\n  const resumeRemainingMs = attemptStatus?.fightExpiresAt ? Math.max(0, new Date(attemptStatus.fightExpiresAt).getTime() - serverNowMs) : 0;\n  const attemptAvailable = Boolean(attemptStatus && (attemptStatus.canAttack || (attemptStatus.canResume && resumeRemainingMs > 0)));"
+          )
+          text = text.replace(
+            "      ? (de ? 'ANGRIFF FORTSETZEN' : 'RESUME ATTACK')",
+            "      ? resumeRemainingMs > 0\n        ? `${de ? 'ANGRIFF FORTSETZEN' : 'RESUME ATTACK'} · ${formatRemaining(resumeRemainingMs).slice(3)}`\n        : (de ? 'VERSUCH ABGELAUFEN' : 'ATTEMPT EXPIRED')"
+          )
+          text = text.replace(
+            "Ein Angriff pro Konto alle 24 Stunden. Die Sperre wird vom Server geprüft.",
+            "Ein Angriff pro Konto alle 24 Stunden. Ein begonnener Versuch bleibt fünf Minuten fortsetzbar."
+          )
+          text = text.replace(
+            "One attack per account every 24 hours. Availability is checked by the server.",
+            "One attack per account every 24 hours. A started attempt can be resumed for five minutes."
+          )
+          text = text.replace(
+            "{attemptStatus?.canResume ? (de ? 'LÄUFT' : 'ACTIVE') : attemptStatus?.canAttack ? (de ? 'BEREIT' : 'READY') : (de ? 'GESPERRT' : 'LOCKED')}",
+            "{attemptStatus?.canResume && resumeRemainingMs > 0 ? `${de ? 'VERSUCH' : 'ATTEMPT'} · ${formatRemaining(resumeRemainingMs).slice(3)}` : attemptStatus?.canAttack ? (de ? 'BEREIT' : 'READY') : (de ? 'GESPERRT' : 'LOCKED')}"
+          )
+          panel.write_text(text)
+
+          audit = Path('artifacts/dungeon-rpg/scripts/validate-social-progression.mjs')
+          text = audit.read_text()
+          text = text.replace("interval '10 minutes'", "interval '5 minutes'")
+          text = text.replace(
+            "bossPanel.includes('WIEDER IN') && bossPanel.includes('24 Stunden')",
+            "bossPanel.includes('WIEDER IN') && bossPanel.includes('24 Stunden') && bossPanel.includes('resumeRemainingMs') && bossPanel.includes('VERSUCH') && bossPanel.includes('fünf Minuten')"
+          )
+          audit.write_text(text)
+          PY
+
+          cat > supabase/migrations/20260714003000_world_boss_five_minute_resume.sql <<'SQL'
+          create or replace function public.start_world_boss_attempt(p_event_id uuid)
+          returns table (
+            attempt_id uuid,
+            started_at timestamptz,
+            fight_expires_at timestamptz,
+            next_available_at timestamptz,
+            server_now timestamptz,
+            resumed boolean
+          )
+          language plpgsql
+          security definer
+          set search_path = public
+          as $$
+          declare
+            v_user_id uuid := auth.uid();
+            v_now timestamptz := clock_timestamp();
+            v_event public.world_boss_events%rowtype;
+            v_latest public.world_boss_attempts%rowtype;
+            v_attempt public.world_boss_attempts%rowtype;
+          begin
+            if v_user_id is null then raise exception 'not authenticated'; end if;
+            if p_event_id is null then raise exception 'world boss event missing'; end if;
+
+            perform pg_advisory_xact_lock(hashtextextended(v_user_id::text, 0));
+            select * into v_event from public.world_boss_events where id = p_event_id for update;
+            if not found then raise exception 'world boss event not found'; end if;
+            if v_event.status <> 'active' or v_now < v_event.starts_at or v_now >= v_event.ends_at or v_event.current_hp <= 0 then
+              raise exception 'world boss event is not active';
+            end if;
+
+            select * into v_latest from public.world_boss_attempts where user_id = v_user_id order by started_at desc limit 1;
+            if v_latest.id is not null and v_latest.event_id = p_event_id and v_latest.submitted_at is null and v_latest.fight_expires_at > v_now then
+              return query select v_latest.id, v_latest.started_at, v_latest.fight_expires_at, v_latest.next_available_at, v_now, true;
+              return;
+            end if;
+            if v_latest.id is not null and v_latest.next_available_at > v_now then
+              raise exception 'world boss cooldown active until %', v_latest.next_available_at;
+            end if;
+
+            insert into public.world_boss_attempts (event_id, user_id, started_at, fight_expires_at, next_available_at)
+            values (p_event_id, v_user_id, v_now, v_now + interval '5 minutes', v_now + interval '24 hours')
+            returning * into v_attempt;
+
+            return query select v_attempt.id, v_attempt.started_at, v_attempt.fight_expires_at, v_attempt.next_available_at, v_now, false;
+          end;
+          $$;
+
+          revoke all on function public.start_world_boss_attempt(uuid) from public, anon;
+          grant execute on function public.start_world_boss_attempt(uuid) to authenticated;
+          SQL
+
+          rm .github/workflows/build-block-2-worldboss-resume.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Reduce world boss resume window to five minutes'
+          git push origin HEAD:fix/block-2-worldboss-five-minute-resume
