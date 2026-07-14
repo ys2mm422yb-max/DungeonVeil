@@ -21,7 +21,7 @@ const checks = [
   [progression.includes('attemptMigration') && progression.includes('villageScene') && progression.includes('GuildPanelMobile'), 'social progression audit lost a block during integration'],
   [navigation.includes('ModernVillageSquareScene') && navigation.includes("!menu.includes('<GuildInviteLinkCard')"), 'social navigation audit lost village or guild routing'],
   [portal.includes('this.livingEnemies().length === 0') && portal.includes('const exitRadius = TILE_SIZE * 1.05'), 'loot-independent portal behavior is missing'],
-  [village.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('loadKayKitRanger') && villagePlayer.includes("village-showcase-v4-run-ranger"), 'real equipped run Ranger is missing from the village'],
+  [village.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('loadKayKitRanger') && villagePlayer.includes('village-showcase-v5-single-base-run-ranger'), 'real equipped run Ranger is missing from the village'],
   [guild.includes('guild-close-button') && guild.includes('GuildInviteLinkCard'), 'fixed guild close or invite-tab content is missing'],
   [roomAudit.includes('all 45 rooms from 6–50') && roomComposition.includes('Rooms 4–5 composition audit passed'), 'room quality coverage is incomplete'],
   [bossClient.includes('getWorldBossAttemptStatus') && bossClient.includes('startWorldBossAttempt'), 'five-minute world-boss resume client is missing'],
