@@ -7,13 +7,17 @@ on:
       - '.github/workflows/menu-character-pose-lab.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   render-variants:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/main-menu-equipped-ranger
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -111,10 +115,14 @@ jobs:
           await browser.close();
           EOF
           node pose-lab.mjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: menu-character-pose-lab
-          path: |
-            menu-character-pose-lab.png
-            menu-character-pose-lab.json
-          if-no-files-found: error
+      - name: Store comparison on branch
+        shell: bash
+        run: |
+          mkdir -p .ci/menu-character-pose-lab
+          mv menu-character-pose-lab.png .ci/menu-character-pose-lab/variants.png
+          mv menu-character-pose-lab.json .ci/menu-character-pose-lab/variants.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .ci/menu-character-pose-lab
+          git commit -m 'Record actual menu character pose comparison'
+          git push origin HEAD:fix/main-menu-equipped-ranger
