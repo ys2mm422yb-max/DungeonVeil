@@ -67,6 +67,12 @@ export type KayKitEnemyVisual = {
 let libraryPromise: Promise<EnemyLibrary> | null = null;
 const importedPromises = new Map<EnemyType, Promise<EnemyPrototype | null>>();
 
+function importedCreatureUrl(path: string) {
+  const normalized = path.replace(/^\/+/, '');
+  if (typeof document === 'undefined') return `/${normalized}`;
+  return new URL(normalized, document.baseURI).toString();
+}
+
 function clipName(clip: any) {
   return String(clip?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
@@ -138,7 +144,9 @@ function prepareModel(root: any) {
     if (node.material) node.material = Array.isArray(node.material) ? node.material.map((material: any) => material.clone()) : node.material.clone();
     node.castShadow = !IS_MOBILE;
     node.receiveShadow = !IS_MOBILE;
-    node.frustumCulled = true;
+    // Animated bounds can lag behind the skinned pose on mobile. Never let a
+    // living enemy disappear only because its bind-pose bounds left the frustum.
+    node.frustumCulled = !node.isSkinnedMesh;
   });
 }
 
@@ -160,7 +168,7 @@ async function loadImportedPrototype(type: EnemyType): Promise<EnemyPrototype | 
   const promise = (async () => {
     try {
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
-      const gltf = await new GLTFLoader().loadAsync(config.path);
+      const gltf = await new GLTFLoader().loadAsync(importedCreatureUrl(config.path));
       return {
         scene: gltf.scene,
         clips: gltf.animations ?? [],
