@@ -1,3 +1,4 @@
+# Deploy the all-room visibility guard to the fixed review link.
 name: All-Room Enemy Visibility Deploy
 
 on:
