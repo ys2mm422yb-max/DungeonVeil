@@ -18,7 +18,19 @@ export const RUN_CAMERA = {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+function isTabletLandscape(aspect: number) {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const viewport = window.visualViewport;
+  const width = viewport?.width ?? window.innerWidth;
+  const height = viewport?.height ?? window.innerHeight;
+  const coarsePointer = navigator.maxTouchPoints > 1 || window.matchMedia?.('(pointer: coarse)').matches;
+  return coarsePointer && aspect >= 1.15 && width > height && Math.min(width, height) >= 650;
+}
+
 function responsiveFrame(aspect: number) {
+  // iPad landscape previously inherited the distant desktop framing, leaving the
+  // combat room small with large black bands above and below it.
+  if (isTabletLandscape(aspect)) return { height: 15.9, distance: 19.0, lookAhead: 2.15 };
   if (aspect < 0.55) return { height: 20.2, distance: 21.7, lookAhead: 2.35 };
   if (aspect < 0.68) return { height: 19.6, distance: 22.4, lookAhead: 2.55 };
   return { height: 19.0, distance: 22.8, lookAhead: 2.75 };
