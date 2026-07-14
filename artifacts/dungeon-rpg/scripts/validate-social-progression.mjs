@@ -58,7 +58,7 @@ const checks = [
   [tutorialState.includes('requestTutorialReplay') && tutorialState.includes('completeTutorial') && bridge.includes('<TutorialOverlay'), 'tutorial persistence or gameplay bridge is missing'],
   [menu.includes('Tutorial wiederholen') && menu.includes('requestTutorialReplay') && menu.includes('syncSocialProfileProgress'), 'main-menu tutorial replay or social progress sync is missing'],
   [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-guildmaster') && villageHub.includes('npc-worldkeeper'), 'interactive village NPC navigation is missing'],
-  [menu.includes('<VillageNpcHub') && menuScene.includes('ModernVillageSquareScene') && villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('loadKayKitRanger') && villagePlayer.includes('village-showcase-v5-single-base-run-ranger'), 'village NPC navigation is not backed by the real equipped run Ranger scene'],
+  [menu.includes('<VillageNpcHub') && menuScene.includes('ModernVillageSquareScene') && villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v12-clean-ranger'), 'village NPC navigation is not backed by the clean equipped Ranger scene'],
   [main.includes("qaMode === 'tutorial'") && main.includes('<TutorialVisualQa'), 'tutorial visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'village menu visual QA route is missing'],
 ];
@@ -70,4 +70,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: the server-enforced boss gate, real equipped run Ranger and fixed mobile guild shell are wired with the existing social progression.');
+console.log('Social progression audit passed: the server-enforced boss gate, clean equipped Ranger and fixed mobile guild shell are wired with the existing social progression.');
