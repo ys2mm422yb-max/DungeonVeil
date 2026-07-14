@@ -23,7 +23,7 @@ import { loadMetaProgression, saveMetaProgression } from '../game/metaProgressio
 import { GuildInviteLinkCard } from './GuildInviteLinkCard';
 import { GuildChatPanel } from './GuildChatPanel';
 
-type Props = { language: 'de' | 'en'; onClose: () => void };
+type Props = { language: 'de' | 'en'; onClose: () => void; onOpenOnline: () => void };
 type GuildTab = 'overview' | 'chat' | 'members' | 'invite';
 const GUILD_CREATION_COST = 2500;
 
@@ -64,7 +64,7 @@ function formatGold(value: number, language: 'de' | 'en') {
   return new Intl.NumberFormat(language === 'de' ? 'de-DE' : 'en-US').format(Math.floor(value));
 }
 
-export function GuildPanelMobile({ language, onClose }: Props) {
+export function GuildPanelMobile({ language, onClose, onOpenOnline }: Props) {
   const de = language === 'de';
   const [session, setSession] = useState<OnlineSession | null>(() => currentOnlineSession());
   const [membership, setMembership] = useState<OnlineGuildMembership | null>(null);
@@ -236,7 +236,7 @@ export function GuildPanelMobile({ language, onClose }: Props) {
 
     {(message || error) && <div className={`mt-2 shrink-0 rounded-xl border px-3 py-2 text-[9px] ${error ? 'border-red-400/25 bg-red-500/10 text-red-200' : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}
 
-    {!session && <div className={`${scrollClass} text-[10px] leading-relaxed text-white/45`}>{de ? 'Melde dich zuerst unter Online & Cloud an. Mitgliedschaften und Einladungen werden danach hier geladen.' : 'Sign in through Online & Cloud first. Memberships and invites will then load here.'}</div>}
+    {!session && <div className={`${scrollClass} space-y-3 text-[10px] leading-relaxed text-white/45`}><div>{de ? 'Melde dich an, damit Mitgliedschaften und Einladungen hier geladen werden.' : 'Sign in to load memberships and invitations here.'}</div><ActionButton label={de ? 'Zu Online & Cloud' : 'Open Online & Cloud'} onClick={onOpenOnline} primary /></div>}
 
     {session && membership && <div className="flex min-h-0 flex-1 flex-col">
       <div data-testid="guild-tabs" className="grid shrink-0 grid-cols-4 gap-1.5 pt-3">

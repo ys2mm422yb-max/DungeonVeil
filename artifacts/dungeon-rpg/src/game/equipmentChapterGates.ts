@@ -9,20 +9,20 @@ export const EQUIPMENT_UNLOCK_CHAPTER: Record<EquipmentId, number> = {
   'frost-bow': 3,
   'splinter-bow': 3,
   'veil-bow': 4,
-  'warden-bow': 5,
+  'warden-bow': 4,
   'ranger-quiver': 1,
   'black-quiver': 2,
   'rune-quiver': 4,
   'frost-quiver': 3,
   'splinter-quiver': 3,
-  'warden-quiver': 5,
+  'warden-quiver': 4,
   'veil-key': 1,
   'guardian-sigil': 3,
   'frost-grimoire': 4,
   'ritual-shard': 4,
   'ash-amulet': 2,
   'depth-seal': 3,
-  'veil-eye': 5,
+  'veil-eye': 4,
 };
 
 export function highestReachedChapter(): number {

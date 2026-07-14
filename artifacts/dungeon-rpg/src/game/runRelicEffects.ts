@@ -1,5 +1,5 @@
 import type { GameEngine } from './runEngine';
-import { consumeVeilHeartForCurrentRun, equippedVeilRelic } from './veilRelics';
+import { activateWorldCoreForCurrentRun, consumeVeilHeartForCurrentRun, equippedVeilRelic } from './veilRelics';
 
 export type RunRelicEffectState = {
   lastAttackTime: number;
@@ -13,6 +13,15 @@ export function createRunRelicEffectState(): RunRelicEffectState {
 export function updateRunRelicEffects(engine: GameEngine, state: RunRelicEffectState, time: number): void {
   const player = engine.state.player;
   const relic = equippedVeilRelic();
+
+  if (relic === 'world-core' && activateWorldCoreForCurrentRun()) {
+    const healthGain = Math.max(1, Math.round(player.maxHp * 0.12));
+    player.maxHp += healthGain;
+    player.hp = Math.min(player.maxHp, player.hp + healthGain);
+    player.attack = Math.max(player.attack + 1, Math.round(player.attack * 1.08));
+    engine.state.effects.push({ id: `world-core-${time}`, x: player.x + 16, y: player.y + 16, radius: 0, maxRadius: 110, color: '#ff8b4a', lifeTime: 0, maxLifeTime: 850, type: 'circle', element: 'fire' });
+    window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title: 'DER WELTENKERN ERWACHT', text: '+8 % Angriff · +12 % maximales Leben für diesen Run', tone: 'relic' } }));
+  }
 
   if (relic === 'marked-claw' && (player.relicAttackSpeedUntil ?? 0) > time && player.lastAttackTime > state.lastAttackTime) {
     state.lastAttackTime = player.lastAttackTime;

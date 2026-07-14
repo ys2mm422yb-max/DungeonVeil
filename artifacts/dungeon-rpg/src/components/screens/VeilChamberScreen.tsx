@@ -76,6 +76,12 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
     return de ? 'NOCH NICHT GEFUNDEN' : 'NOT FOUND YET';
   };
 
+  const relicSourceLabel = (source: 'hunt' | 'boss' | 'worldboss', compact = false) => {
+    if (source === 'hunt') return de ? (compact ? 'JAGD-DROP' : 'JAGD-RELIKT') : (compact ? 'HUNT DROP' : 'HUNT RELIC');
+    if (source === 'worldboss') return de ? (compact ? 'NUR WELTBOSS' : 'WELTBOSS-RELIKT') : (compact ? 'WORLD BOSS ONLY' : 'WORLD BOSS RELIC');
+    return de ? (compact ? 'BOSS-DROP AB RAUM 20' : 'BOSS-RELIKT AB RAUM 20') : (compact ? 'BOSS DROP FROM ROOM 20' : 'BOSS RELIC FROM ROOM 20');
+  };
+
   const refresh = (next = loadMetaProgression()) => setMeta({ ...next });
   const changeTab = (next: ChamberTab) => {
     setTab(next);
@@ -126,10 +132,10 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
               <div className="relative">
                 <div className="text-[8px] font-black tracking-[.24em] text-violet-200/55">{de ? 'AKTIVES SCHLEIER-RELIKT' : 'ACTIVE VEIL RELIC'}</div>
                 {activeRelic ? <>
-                  <div className="mt-4 flex items-center gap-4"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-white/15 bg-black/40 text-3xl shadow-[0_0_32px_currentColor]" style={{ color: activeRelic.accent }}>◆</div><div><h2 className="text-xl font-black leading-tight text-white">{de ? activeRelic.nameDe : activeRelic.nameEn}</h2><div className="mt-1 text-[8px] font-black uppercase tracking-[.18em] text-violet-200/45">{activeRelic.source === 'hunt' ? (de ? 'JAGD-RELIKT' : 'HUNT RELIC') : (de ? 'RAUM-20-RELIKT' : 'ROOM 20 RELIC')}</div></div></div>
+                  <div className="mt-4 flex items-center gap-4"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-white/15 bg-black/40 text-3xl shadow-[0_0_32px_currentColor]" style={{ color: activeRelic.accent }}>◆</div><div><h2 className="text-xl font-black leading-tight text-white">{de ? activeRelic.nameDe : activeRelic.nameEn}</h2><div className="mt-1 text-[8px] font-black uppercase tracking-[.18em] text-violet-200/45">{relicSourceLabel(activeRelic.source)}</div></div></div>
                   <p className="mt-5 text-[13px] leading-relaxed text-white/72">{de ? activeRelic.descriptionDe : activeRelic.descriptionEn}</p>
                   <button type="button" onPointerDown={event => { event.preventDefault(); const next = equipVeilRelic(activeRelic.id); setRelicProfile({ ...next }); }} disabled={relicProfile.equipped === activeRelic.id} className="mt-5 w-full rounded-xl border border-violet-300/25 bg-violet-500/14 px-3 py-3 text-[9px] font-black tracking-[.14em] text-violet-100 disabled:border-emerald-300/20 disabled:bg-emerald-400/10 disabled:text-emerald-200/55">{relicProfile.equipped === activeRelic.id ? (de ? 'AKTIV' : 'EQUIPPED') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button>
-                </> : <div className="mt-8 rounded-2xl border border-white/8 bg-black/30 px-4 py-8 text-center text-[10px] font-bold leading-relaxed text-white/35">{de ? 'Noch kein seltenes Schleier-Relikt gefunden. Jagd-Gegner und Raum 20 können Relikte fallen lassen.' : 'No rare Veil relic found yet. Hunt enemies and room 20 can drop relics.'}</div>}
+                </> : <div className="mt-8 rounded-2xl border border-white/8 bg-black/30 px-4 py-8 text-center text-[10px] font-bold leading-relaxed text-white/35">{de ? 'Noch kein seltenes Schleier-Relikt gefunden. Jagd-Gegner und Bossräume ab Raum 20 können Relikte fallen lassen. Der Weltenkern stammt ausschließlich vom Weltboss.' : 'No rare Veil relic found yet. Hunt enemies and boss rooms from room 20 onward can drop relics. The World Core comes exclusively from the world boss.'}</div>}
               </div>
             </section>
             <section className="mt-3 grid gap-2">
@@ -138,7 +144,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
                 const isEquipped = relicProfile.equipped === relic.id;
                 return <button key={relic.id} type="button" disabled={!owned} onPointerDown={event => { event.preventDefault(); if (owned) setSelectedRelic(relic.id); }} className={`relative flex items-center gap-3 rounded-2xl border p-3 text-left active:scale-[.99] ${selectedRelic === relic.id && owned ? 'border-violet-300/35 bg-violet-400/[.09]' : 'border-white/8 bg-black/38'} ${owned ? '' : 'opacity-32'}`}>
                   <div className="h-3 w-3 shrink-0 rounded-full shadow-[0_0_16px_currentColor]" style={{ color: relic.accent, background: relic.accent }} />
-                  <div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black text-white/82">{de ? relic.nameDe : relic.nameEn}</div><div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/30">{owned ? (de ? 'GEFUNDEN' : 'FOUND') : (relic.source === 'hunt' ? (de ? 'JAGD-DROP' : 'HUNT DROP') : (de ? 'RAUM-20-DROP' : 'ROOM 20 DROP'))}</div></div>
+                  <div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black text-white/82">{de ? relic.nameDe : relic.nameEn}</div><div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/30">{owned ? (de ? 'GEFUNDEN' : 'FOUND') : relicSourceLabel(relic.source, true)}</div></div>
                   {isEquipped && <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[7px] font-black tracking-[.12em] text-emerald-200">{de ? 'AKTIV' : 'ACTIVE'}</span>}
                 </button>;
               })}
@@ -152,8 +158,9 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
                 <div className={`flex flex-col ${relicTier ? 'p-4 pt-10' : 'p-4'}`}>
                   <div className="text-[8px] font-black tracking-[.22em]" style={{ color: selectedItem.accent }}>{SLOT_LABELS[selectedItem.slot][de ? 'de' : 'en']}</div>
                   <h2 className="mt-2 text-xl font-black leading-tight text-white">{de ? selectedPresentation.nameDe : selectedPresentation.nameEn}</h2>
-                  <div className="mt-2 text-[9px] font-black tracking-[.18em] text-white/40">{selectedLevel > 0 ? `${de ? 'STUFE' : 'LEVEL'} ${selectedLevel}/5 · ${selectedCopies} ${de ? 'KOPIEN' : 'COPIES'}` : `${lockedLabel(selectedItem)} · ${sourceLabel}`}</div>
+                  <div className="mt-2 text-[9px] font-black tracking-[.18em] text-white/40">{selectedLevel > 0 ? `${de ? 'AUSRÜSTUNGSLEVEL' : 'EQUIPMENT LEVEL'} ${selectedLevel}/5 · ${selectedCopies} ${de ? 'KOPIEN' : 'COPIES'}` : `${lockedLabel(selectedItem)} · ${sourceLabel}`}</div>
                   <p className="mt-4 text-[12px] leading-relaxed text-white/62">{de ? selectedPresentation.descriptionDe : selectedPresentation.descriptionEn}</p>
+                  <div className="mt-2 text-[7px] leading-relaxed text-white/28">{de ? 'Ausrüstungslevel = dauerhaftes Item-Level. Der Bonus gilt in jedem Run.' : 'Equipment level = permanent item level. The bonus applies in every run.'}</div>
                   <div className="flex-1" />
                   {selectedLevel > 0 ? <div className="mt-4 grid gap-2">
                     <div className="grid grid-cols-2 gap-2"><button type="button" onPointerDown={event => { event.preventDefault(); refresh(equipMetaItem(selected)); }} disabled={equipped} className={`rounded-xl border px-2 py-3 text-[9px] font-black tracking-[.12em] active:scale-[.98] ${equipped ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200/55' : 'border-violet-300/25 bg-violet-500/14 text-violet-100'}`}>{equipped ? (de ? 'AKTIV' : 'EQUIPPED') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button type="button" onPointerDown={event => { event.preventDefault(); refresh(upgradeMetaItem(selected)); }} disabled={!canUpgrade} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-2 py-3 text-[9px] font-black tracking-[.08em] text-amber-100 disabled:opacity-30 active:scale-[.98]">{cost ? 'UPGRADE' : 'MAX'}</button></div>
@@ -162,7 +169,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
                 </div>
               </div>
             </section>
-            <section className="mt-3 grid gap-2">{items.map(item => { const progress = meta.owned[item.id]; const isEquipped = meta.equipped[item.slot] === item.id; const itemSource = SOURCE_LABELS[item.dropSource][de ? 'de' : 'en']; const presentation = equipmentPresentation(item); return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); setSelected(item.id); }} className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left active:scale-[.99] ${selected === item.id ? 'border-white/22 bg-white/[.075]' : 'border-white/8 bg-black/38'}`}><div className="h-3 w-3 shrink-0 rounded-full shadow-[0_0_16px_currentColor]" style={{ color: item.accent, background: item.accent }} /><div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black text-white/82">{de ? presentation.nameDe : presentation.nameEn}</div><div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/30">{progress ? `${de ? 'STUFE' : 'LEVEL'} ${progress.level} · ${progress.copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${lockedLabel(item)} · ${itemSource}`}</div></div>{isEquipped && <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[7px] font-black tracking-[.12em] text-emerald-200">{de ? 'AKTIV' : 'ACTIVE'}</span>}</button>; })}</section>
+            <section className="mt-3 grid gap-2">{items.map(item => { const progress = meta.owned[item.id]; const isEquipped = meta.equipped[item.slot] === item.id; const itemSource = SOURCE_LABELS[item.dropSource][de ? 'de' : 'en']; const presentation = equipmentPresentation(item); return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); setSelected(item.id); }} className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left active:scale-[.99] ${selected === item.id ? 'border-white/22 bg-white/[.075]' : 'border-white/8 bg-black/38'}`}><div className="h-3 w-3 shrink-0 rounded-full shadow-[0_0_16px_currentColor]" style={{ color: item.accent, background: item.accent }} /><div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black text-white/82">{de ? presentation.nameDe : presentation.nameEn}</div><div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/30">{progress ? `${de ? 'ITEM-LVL' : 'ITEM LVL'} ${progress.level} · ${progress.copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${lockedLabel(item)} · ${itemSource}`}</div></div>{isEquipped && <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[7px] font-black tracking-[.12em] text-emerald-200">{de ? 'AKTIV' : 'ACTIVE'}</span>}</button>; })}</section>
           </>
         ) : null}
       </div>

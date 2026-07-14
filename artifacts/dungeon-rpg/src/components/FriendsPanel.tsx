@@ -21,7 +21,7 @@ import {
 import { getMySocialProfile, type SocialProfile } from '../game/socialProgressOnline';
 import { PlayerProfileCard } from './PlayerProfileCard';
 
-type Props = { language: 'de' | 'en' };
+type Props = { language: 'de' | 'en'; onOpenOnline: () => void };
 type Tab = 'friends' | 'requests' | 'add';
 
 const FAVORITES_KEY = 'dungeon-veil-favorite-friends-v1';
@@ -65,7 +65,7 @@ function loadFavorites(): Set<string> {
   }
 }
 
-export function FriendsPanel({ language }: Props) {
+export function FriendsPanel({ language, onOpenOnline }: Props) {
   const de = language === 'de';
   const [signedIn, setSignedIn] = useState(() => Boolean(currentOnlineSession()));
   const [friends, setFriends] = useState<OnlineFriend[]>([]);
@@ -220,7 +220,8 @@ export function FriendsPanel({ language }: Props) {
 
       {!signedIn && <div className="mt-4 rounded-2xl border border-violet-300/14 bg-violet-400/[.05] p-4 text-[10px] leading-relaxed text-white/46">
         <div className="font-black text-violet-100">{de ? 'Online-Anmeldung erforderlich' : 'Online sign-in required'}</div>
-        <div className="mt-1">{de ? 'Melde dich unter Online & Cloud an, um Freunde zu suchen und Anfragen zu beantworten.' : 'Sign in under Online & Cloud to find friends and answer requests.'}</div>
+        <div className="mt-1">{de ? 'Melde dich an, um Freunde zu suchen und Anfragen zu beantworten.' : 'Sign in to find friends and answer requests.'}</div>
+        <button type="button" onClick={onOpenOnline} className="mt-3 w-full rounded-xl border border-violet-300/25 bg-violet-500/12 py-2.5 text-[8px] font-black uppercase tracking-[.15em] text-violet-100 active:scale-[.98]">{de ? 'ZU ONLINE & CLOUD' : 'OPEN ONLINE & CLOUD'}</button>
       </div>}
 
       {signedIn && <>

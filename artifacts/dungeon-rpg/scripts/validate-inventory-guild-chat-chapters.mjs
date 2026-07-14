@@ -22,7 +22,7 @@ const checks = [
   [chatPanel.includes('window.setInterval') && chatPanel.includes('5000') && chatPanel.includes('maxLength={400}') && chatPanel.includes('guild-chat-send'), 'guild chat polling, input limit or send control is missing'],
   [chatClient.includes("authenticatedSupabaseRest('guild_messages'") && chatClient.includes('listGuildChatMessages') && chatClient.includes('sendGuildChatMessage'), 'authenticated guild chat client is incomplete'],
   [meta.includes('equipmentUnlockedForCurrentProgress(item.id)') && meta.includes('recordReachedChapter(chapter)'), 'equipment drops are not chapter gated'],
-  [gates.includes("'warden-bow': 5") && gates.includes("'veil-eye': 5") && gates.includes("'hunter-bow': 2"), 'strong equipment chapter thresholds are incomplete'],
+  [gates.includes("'warden-bow': 4") && gates.includes("'veil-eye': 4") && gates.includes("'hunter-bow': 2") && !gates.match(/: [5-9],/), 'equipment must all unlock by chapter 4'],
   [migration.includes('alter table public.guild_messages enable row level security') && migration.includes('guild_messages_read_members') && migration.includes('guild_messages_send_members') && migration.includes('user_id = (select auth.uid())') && migration.includes('guild_messages_user_idx'), 'guild chat RLS or required indexes are incomplete'],
   [invitePermissionFix.includes('create or replace function public.accept_guild_invite') && invitePermissionFix.includes('update public.guild_invites') && !invitePermissionFix.includes('update public.player_mailbox') && invitePermissionFix.includes('grant execute on function public.accept_guild_invite(uuid) to authenticated'), 'guild invite acceptance still writes directly to the protected mailbox table'],
 ];
@@ -33,4 +33,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Inventory/guild-chat/chapter audit passed: labels are clean, guild chat is member-only, stronger items unlock in later chapters and guild invites use the protected mailbox RPC flow.');
+console.log('Inventory/guild-chat/chapter audit passed: labels are clean, guild chat is member-only, all normal equipment unlocks by chapter 4 and guild invites use the protected mailbox RPC flow.');

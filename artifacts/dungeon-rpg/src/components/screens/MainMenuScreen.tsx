@@ -150,10 +150,10 @@ export function MainMenuScreen(props: Props) {
     {overlay && overlay !== 'profile' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
       {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
-      {overlay === 'friends' && <FriendsPanel language={language} />}
+      {overlay === 'friends' && <FriendsPanel language={language} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
-      {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} />}
-      {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} />}
+      {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} onOpenOnline={() => setOverlay('online')} />}
+      {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'more' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', replayTutorial, 'dark')}{action(t.settings, '', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div></div>}
       {overlay !== 'guild' && <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-amber-50/14 bg-[#11100f]/88 py-3 text-[9px] font-black uppercase tracking-[.2em] text-amber-50/58">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>}
     </div></div>}

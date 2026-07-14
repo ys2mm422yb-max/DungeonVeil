@@ -6,7 +6,7 @@ interface Props {
 }
 
 export function CreditsScreen({ onBack }: Props) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -73,8 +73,14 @@ export function CreditsScreen({ onBack }: Props) {
 
         {/* Credits entries */}
         <div className="space-y-8 text-center w-full">
-          <CreditEntry label={t.creditsDesign} value="Replit AI" />
-          <CreditEntry label={t.creditsBuiltWith} value="React · TypeScript · Vite · Canvas API" />
+          <CreditEntry
+            label={language === 'de' ? 'IDEE, DESIGN & FRAGWÜRDIGE FREIZEITPLANUNG' : 'IDEA, DESIGN & QUESTIONABLE FREE-TIME PLANNING'}
+            value={language === 'de' ? 'Ein hobbyloser Typ bei seinem ersten Spielprojekt' : 'One hobbyless guy building his first game'}
+          />
+          <CreditEntry
+            label={language === 'de' ? 'TECHNISCHE KOMPLIZEN' : 'TECHNICAL ACCOMPLICES'}
+            value={language === 'de' ? 'React · TypeScript · Three.js · KI-Hilfe · zu viel Kaffee' : 'React · TypeScript · Three.js · AI help · too much coffee'}
+          />
           <CreditEntry label="Font" value="Cinzel by Natanael Gama" />
         </div>
 
@@ -82,10 +88,10 @@ export function CreditsScreen({ onBack }: Props) {
 
         <div className="text-center">
           <p className="text-white/30 text-xs tracking-widest uppercase font-mono mb-2">
-            {t.creditsSpecialThanks}
+            {language === 'de' ? 'BESONDERER DANK AN' : 'SPECIAL THANKS TO'}
           </p>
           <p className="text-white/50 text-sm italic leading-relaxed max-w-xs mx-auto">
-            "{t.creditsThanksText}"
+            {language === 'de' ? '„Alle Bugs, die sich erfolgreich als Features verkleidet haben.“' : '“Every bug that successfully disguised itself as a feature.”'}
           </p>
         </div>
 

@@ -10,13 +10,13 @@ import {
 import { GuildPanelMobile } from './GuildPanelMobile';
 import { PlayerProfileCard } from './PlayerProfileCard';
 
-type Props = { language: 'de' | 'en'; onClose: () => void };
+type Props = { language: 'de' | 'en'; onClose: () => void; onOpenOnline: () => void };
 
 function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
-export function GuildSocialPanel({ language, onClose }: Props) {
+export function GuildSocialPanel({ language, onClose, onOpenOnline }: Props) {
   const de = language === 'de';
   const [membership, setMembership] = useState<OnlineGuildMembership | null>(null);
   const [members, setMembers] = useState<OnlineGuildMember[]>([]);
@@ -42,7 +42,7 @@ export function GuildSocialPanel({ language, onClose }: Props) {
   }, [refresh]);
 
   return <div data-testid="guild-social-panel" className="relative min-h-0 flex-1">
-    <GuildPanelMobile language={language} onClose={onClose} />
+    <GuildPanelMobile language={language} onClose={onClose} onOpenOnline={onOpenOnline} />
     {membership && members.length > 0 && <button
       data-testid="guild-profile-list-button"
       type="button"

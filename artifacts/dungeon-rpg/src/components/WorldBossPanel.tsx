@@ -23,7 +23,7 @@ import {
 } from '../game/socialProgressOnline';
 import { WorldBossBattleScreen } from './WorldBossBattleScreen';
 
-type Props = { language: 'de' | 'en'; saveData: SaveData | null };
+type Props = { language: 'de' | 'en'; saveData: SaveData | null; onOpenOnline: () => void };
 type RankingTab = 'friends' | 'guild' | 'global';
 type ServerClock = { serverMs: number; performanceMs: number };
 
@@ -93,7 +93,7 @@ function GuildRanking({ rows, de }: { rows: WorldBossGuildRow[]; de: boolean }) 
   return <div className="space-y-1.5">{rows.slice(0, 10).map(row => <div key={row.guild_id} className="flex items-center gap-2 rounded-xl border border-white/7 bg-black/20 px-2.5 py-2"><div className="w-6 text-center text-[9px] font-black text-amber-200/68">#{row.rank}</div><div className="min-w-0 flex-1 truncate text-[10px] font-black text-white/72">[{row.tag}] {row.name}</div><div className="text-[10px] font-black text-orange-100">{formatNumber(row.damage)}</div></div>)}</div>;
 }
 
-export function WorldBossPanel({ language, saveData }: Props) {
+export function WorldBossPanel({ language, saveData, onOpenOnline }: Props) {
   const de = language === 'de';
   const serverClockRef = useRef<ServerClock | null>(null);
   const [session, setSession] = useState<OnlineSession | null>(() => currentOnlineSession());
@@ -232,7 +232,7 @@ export function WorldBossPanel({ language, saveData }: Props) {
 
       {error && <div className="mb-3 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-[10px] text-red-200">{error}</div>}
 
-      {!session ? <div className="rounded-2xl border border-violet-300/12 bg-violet-400/[.04] p-3 text-[10px] leading-relaxed text-white/42">{de ? 'Melde dich zuerst unter Online & Cloud an, um Weltbossdaten und Ranglisten zu laden.' : 'Sign in through Online & Cloud to load the world boss and rankings.'}</div> : boss ? <div className="space-y-3">
+      {!session ? <div className="space-y-3 rounded-2xl border border-violet-300/12 bg-violet-400/[.04] p-3 text-[10px] leading-relaxed text-white/42"><div>{de ? 'Melde dich an, um Weltbossdaten, Ranglisten und Wochenbelohnungen zu laden.' : 'Sign in to load the world boss, rankings and weekly rewards.'}</div><ActionButton label={de ? 'ZU ONLINE & CLOUD' : 'OPEN ONLINE & CLOUD'} onClick={onOpenOnline} primary /></div> : boss ? <div className="space-y-3">
         <section className="rounded-2xl border border-orange-300/16 bg-orange-400/[.05] p-3"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-black text-orange-50">{boss.name}</div><div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/32">{boss.slug}</div></div><div className="rounded-full border border-orange-300/18 bg-orange-400/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[.14em] text-orange-100">{statusLabel(boss.status, de)}</div></div><div className="mt-3 h-2.5 overflow-hidden rounded-full bg-black/60"><div className="h-full bg-gradient-to-r from-red-600 via-orange-500 to-amber-300" style={{ width: `${hpPercent}%` }} /></div><div className="mt-2 flex items-center justify-between gap-3 text-[9px] text-white/42"><span>{formatNumber(boss.current_hp)} HP</span><span>{formatNumber(boss.max_hp)} HP</span></div></section>
 
         {dashboard && <section className="rounded-2xl border border-amber-300/12 bg-amber-400/[.03] p-3"><div className="text-[8px] font-black uppercase tracking-[.18em] text-amber-100/48">{de ? 'DEIN BEITRAG' : 'YOUR CONTRIBUTION'}</div><div className="mt-2 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Platz' : 'Rank'}</div><div className="mt-1 font-black text-amber-100">{dashboard.personal.rank ? `#${dashboard.personal.rank}` : '—'}</div></div><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Schaden' : 'Damage'}</div><div className="mt-1 font-black text-orange-100">{formatNumber(dashboard.personal.damage)}</div></div><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] text-white/28">{de ? 'Treffer' : 'Hits'}</div><div className="mt-1 font-black text-cyan-100">{dashboard.personal.hits}</div></div></div></section>}

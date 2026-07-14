@@ -1,5 +1,6 @@
 import { loadMetaProgression, saveMetaProgression, xpForNextRank } from './metaProgression';
 import type { WorldBossRewardPayload } from './socialProgressOnline';
+import { unlockVeilRelic } from './veilRelics';
 
 export type AppliedWorldBossReward = {
   applied: boolean;
@@ -8,6 +9,7 @@ export type AppliedWorldBossReward = {
   xp: number;
   dust: number;
   gold: number;
+  relicUnlocked: boolean;
 };
 
 export function applyWorldBossRewardLocally(eventId: string, reward: WorldBossRewardPayload): AppliedWorldBossReward {
@@ -16,7 +18,7 @@ export function applyWorldBossRewardLocally(eventId: string, reward: WorldBossRe
   const rankBefore = meta.rank;
 
   if (meta.rewardLedger.includes(ledgerKey)) {
-    return { applied: false, rankBefore, rankAfter: meta.rank, xp: 0, dust: 0, gold: 0 };
+    return { applied: false, rankBefore, rankAfter: meta.rank, xp: 0, dust: 0, gold: 0, relicUnlocked: false };
   }
 
   const xp = Math.max(0, Math.floor(Number(reward.xp) || 0));
@@ -32,6 +34,7 @@ export function applyWorldBossRewardLocally(eventId: string, reward: WorldBossRe
   meta.dust += dust;
   meta.gold += gold;
   saveMetaProgression(meta);
+  const relic = unlockVeilRelic('world-core');
 
-  return { applied: true, rankBefore, rankAfter: meta.rank, xp, dust, gold };
+  return { applied: true, rankBefore, rankAfter: meta.rank, xp, dust, gold, relicUnlocked: relic.newUnlock };
 }

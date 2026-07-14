@@ -164,10 +164,11 @@ export function MailboxPanel({ language, onUnreadChange }: Props) {
     setError('');
     try {
       const applied = await claimRewardMessage(message);
+      const relicText = applied.relicUnlocked ? (de ? ' · Neues Relikt: Weltenkern!' : ' · New relic: World Core!') : '';
       setNotice(applied.applied
         ? de
-          ? `Belohnung abgeholt: ${applied.xp} Rang-XP, ${applied.dust} Schleierstaub und ${applied.gold} Gold${applied.rankAfter > applied.rankBefore ? ` · Rang ${applied.rankAfter}!` : ''}`
-          : `Reward claimed: ${applied.xp} rank XP, ${applied.dust} Veil Dust and ${applied.gold} gold${applied.rankAfter > applied.rankBefore ? ` · Rank ${applied.rankAfter}!` : ''}`
+          ? `Belohnung abgeholt: ${applied.xp} Rang-XP, ${applied.dust} Schleierstaub und ${applied.gold} Gold${applied.rankAfter > applied.rankBefore ? ` · Rang ${applied.rankAfter}!` : ''}${relicText}`
+          : `Reward claimed: ${applied.xp} rank XP, ${applied.dust} Veil Dust and ${applied.gold} gold${applied.rankAfter > applied.rankBefore ? ` · Rank ${applied.rankAfter}!` : ''}${relicText}`
         : de ? 'Diese Belohnung wurde bereits deinem Spielstand gutgeschrieben.' : 'This reward was already added to your save.');
       await refresh();
     } catch (reason) {
@@ -185,6 +186,7 @@ export function MailboxPanel({ language, onUnreadChange }: Props) {
     let dust = 0;
     let gold = 0;
     let appliedCount = 0;
+    let relicUnlocked = false;
     try {
       for (const message of rewardMessages) {
         const applied = await claimRewardMessage(message);
@@ -193,11 +195,12 @@ export function MailboxPanel({ language, onUnreadChange }: Props) {
           xp += applied.xp;
           dust += applied.dust;
           gold += applied.gold;
+          relicUnlocked = relicUnlocked || applied.relicUnlocked;
         }
       }
       setNotice(de
-        ? `${appliedCount} Belohnungen eingesammelt: ${xp} Rang-XP · ${dust} Schleierstaub · ${gold} Gold.`
-        : `${appliedCount} rewards claimed: ${xp} rank XP · ${dust} Veil Dust · ${gold} gold.`);
+        ? `${appliedCount} Belohnungen eingesammelt: ${xp} Rang-XP · ${dust} Schleierstaub · ${gold} Gold.${relicUnlocked ? ' · Neues Relikt: Weltenkern!' : ''}`
+        : `${appliedCount} rewards claimed: ${xp} rank XP · ${dust} Veil Dust · ${gold} gold.${relicUnlocked ? ' · New relic: World Core!' : ''}`);
       await refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
