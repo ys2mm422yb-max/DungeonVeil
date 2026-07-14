@@ -180,6 +180,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   }
 
   let elapsed = 0;
+  let shrineHidden = false;
   return {
     root,
     arrowPrototype: weapons.arrow ?? new THREE.Group(),
@@ -195,6 +196,14 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       root.position.z = -2.42;
       root.rotation.y = 0.04;
       root.scale.setScalar(0.58);
+
+      if (!shrineHidden) {
+        const shrine = root.parent?.getObjectByName?.('VillageSquareShrine');
+        if (shrine) {
+          shrine.visible = false;
+          shrineHidden = true;
+        }
+      }
     },
     stop() {
       mixer.stopAllAction();
