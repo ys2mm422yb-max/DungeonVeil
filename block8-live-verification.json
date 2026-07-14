@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-07-14T08:02:40.134851+00:00",
+  "expectedCommit": "09b2c9f3a10ff6152a8952dbad55263fac287957",
+  "expectedSource": "block-8-final-integration",
+  "live": {
+    "commit": "4d75c261f3ddfefb9df5abeb448fec01074d175e",
+    "deployedAt": "2026-07-13T22:13:53Z",
+    "source": "block-1-email-confirmation-redirect"
+  },
+  "verified": false
+}
