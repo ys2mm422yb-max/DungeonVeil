@@ -5,6 +5,14 @@ on:
     branches: [fix/main-menu-equipped-ranger]
     paths:
       - '.github/workflows/main-menu-v3-visual-proof.yml'
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+    paths:
+      - '.github/workflows/main-menu-v3-visual-proof.yml'
+      - 'artifacts/dungeon-rpg/src/components/kaykitVillagePlayer3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/kaykitWeapons3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/ModernVillageSquareScene.tsx'
   workflow_dispatch:
 
 permissions:
@@ -12,6 +20,7 @@ permissions:
 
 jobs:
   render-iphone-proof:
+    if: github.event_name != 'pull_request' || github.head_ref == 'fix/main-menu-equipped-ranger'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -38,7 +47,7 @@ jobs:
         env:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
-          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: pnpm --dir artifacts/dungeon-rpg run build
 
       - name: Install Chromium
