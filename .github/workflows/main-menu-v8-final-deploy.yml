@@ -137,7 +137,7 @@ jobs:
           };
           await writeFile('main-menu-v8-live.json', JSON.stringify(proof, null, 2));
           const visible = state.ranger?.visibleEquipment;
-          if (state.canvases !== 1 || state.ranger?.pose !== 'v8-animated-visible-loadout' || !visible?.bow || !visible?.quiver || !visible?.talisman || proof.duplicateBase.length || proof.rangerLoads.length < 2 || !proof.quiverLoads.length || !proof.bowLoads.length || !proof.talismanLoads.length || proof.badResponses.length || proof.localFailures.length || errors.length) {
+          if (state.canvases !== 1 || state.ranger?.pose !== 'v10-lowered-arms-visible-loadout' || !visible?.bow || !visible?.quiver || !visible?.talisman || proof.duplicateBase.length || proof.rangerLoads.length < 2 || !proof.quiverLoads.length || !proof.bowLoads.length || !proof.talismanLoads.length || proof.badResponses.length || proof.localFailures.length || errors.length) {
             throw new Error(JSON.stringify(proof));
           }
           await browser.close();
