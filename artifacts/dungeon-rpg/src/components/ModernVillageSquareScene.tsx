@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { findKayKitModels, loadKayKitManifest, modelUrl, type KayKitPackName } from './kaykitManifest3D';
-import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
+import { type KayKitPlayerRig } from './kaykitPlayer3D';
+import { loadKayKitVillageArcher } from './kaykitVillagePlayer3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -235,16 +236,15 @@ export function ModernVillageSquareScene() {
       void loadVillageAssets(THREE, GLTFLoader, scene, keepers, () => disposed).catch(error => {
         console.error('Modern village KayKit assets failed to load', error);
       });
-      void loadKayKitRanger(THREE, GLTFLoader, { presentation: 'village' }).then(rig => {
+      void loadKayKitVillageArcher(THREE, GLTFLoader).then(rig => {
         if (disposed) {
           rig.stop();
           return;
         }
         villagePlayerRig = rig;
-        rig.root.name = 'VillageEquippedPlayer';
-        rig.root.position.set(0, 0.02, -4.48);
-        rig.root.rotation.y = -0.28;
-        rig.root.scale.setScalar(0.45);
+        rig.root.position.set(0, -0.02, -4.35);
+        rig.root.rotation.y = -0.42;
+        rig.root.scale.setScalar(0.5);
         scene.add(rig.root);
       }).catch(error => {
         console.error('Equipped village player failed to load', error);
