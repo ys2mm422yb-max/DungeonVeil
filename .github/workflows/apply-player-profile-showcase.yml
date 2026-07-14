@@ -1,0 +1,45 @@
+name: Apply Player Profile Showcase
+
+on:
+  push:
+    branches: [feature/player-profile-showcase]
+    paths:
+      - '.github/workflows/apply-player-profile-showcase.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/player-profile-showcase
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Apply profile integration hooks
+        run: python3 .ci/apply-player-profile-hooks.py
+      - run: pnpm install --frozen-lockfile
+      - name: Validate profile feature and project
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:social
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm run typecheck
+          pnpm --dir artifacts/dungeon-rpg run build
+      - name: Commit clean profile feature
+        shell: bash
+        run: |
+          rm -f .ci/apply-player-profile-hooks.py .github/workflows/apply-player-profile-showcase.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add persistent player profile showcase'
+          git push origin HEAD:feature/player-profile-showcase
