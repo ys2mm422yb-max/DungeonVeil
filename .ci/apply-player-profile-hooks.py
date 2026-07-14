@@ -40,3 +40,16 @@ if old not in text:
     raise SystemExit('quest completion profile hook marker missing')
 text = text.replace(old, new, 1)
 retention.write_text(text)
+
+# The run-wide kill counter belongs to GameState, not Player.
+bridge = Path('artifacts/dungeon-rpg/src/components/GameSessionBridge.tsx')
+text = bridge.read_text()
+old = 'getEngineRef.current()?.state.player.killCount ?? 0'
+if old not in text:
+    raise SystemExit('initial kill counter marker missing')
+text = text.replace(old, 'getEngineRef.current()?.state.killCount ?? 0', 1)
+old = 'engine.state.player.killCount ?? 0'
+if old not in text:
+    raise SystemExit('live kill counter marker missing')
+text = text.replace(old, 'engine.state.killCount ?? 0', 1)
+bridge.write_text(text)
