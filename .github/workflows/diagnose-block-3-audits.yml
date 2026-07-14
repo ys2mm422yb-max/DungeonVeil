@@ -31,8 +31,9 @@ jobs:
         shell: bash
         run: |
           set +e
-          log=.ci/block3-audit.log
+          log="$GITHUB_WORKSPACE/.ci/block3-audit.log"
           : > "$log"
+          cd artifacts/dungeon-rpg
           scripts=(
             validate-all-rooms.mjs
             validate-production-rooms.mjs
@@ -45,7 +46,7 @@ jobs:
           )
           for script in "${scripts[@]}"; do
             echo "### $script" >> "$log"
-            node "artifacts/dungeon-rpg/scripts/$script" >> "$log" 2>&1
+            node "scripts/$script" >> "$log" 2>&1
             echo "exit=$?" >> "$log"
             echo >> "$log"
           done
