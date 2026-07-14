@@ -1,90 +1,21 @@
 ### validate-all-rooms.mjs
-[2m6:14:12 AM[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module /src/game/chapterRun.ts: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?[39m
-      at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33)
-node:internal/modules/run_main:123
-    triggerUncaughtException(
-    ^
-
-Error: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?
-    at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33) {
-  code: 'ERR_LOAD_URL',
-  runnerError: Error: RunnerError
-      at reviveInvokeError (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:476:64)
-      at Object.invoke (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:549:11)
-      at async SSRCompatModuleRunner.getModuleInformation (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1086:7)
-      at async SSRCompatModuleRunner.import (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1013:23)
-      at async instantiateModule (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:15157:10)
-      at async file:///home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs:101:19
-}
-
-Node.js v22.23.1
-exit=1
+Room validation passed: 50/50 rooms, prop classes, readable scale, exact collider footprints, portal routes and projectile collision.
+exit=0
 
 ### validate-production-rooms.mjs
-[2m6:14:12 AM[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module /src/game/logicalRoomSetpieces.ts: Failed to load url /src/game/logicalRoomSetpieces.ts (resolved id: /src/game/logicalRoomSetpieces.ts). Does the file exist?[39m
-      at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33)
-node:internal/modules/run_main:123
-    triggerUncaughtException(
-    ^
-
-Error: Failed to load url /src/game/logicalRoomSetpieces.ts (resolved id: /src/game/logicalRoomSetpieces.ts). Does the file exist?
-    at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33) {
-  code: 'ERR_LOAD_URL',
-  runnerError: Error: RunnerError
-      at reviveInvokeError (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:476:64)
-      at Object.invoke (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:549:11)
-      at async SSRCompatModuleRunner.getModuleInformation (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1086:7)
-      at async SSRCompatModuleRunner.import (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1013:23)
-      at async instantiateModule (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:15157:10)
-      at async file:///home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs:44:19
-}
-
-Node.js v22.23.1
-exit=1
+  - Rooms 1–20 retain their authored identities and known mobile fixes.
+  - Rooms 21–50 use thirty separate compositions without shared boundary templates.
+  - Boss arenas keep bounded collider counts and clear authored spawn points.
+Production room validation passed: identities, regional differentiation, chase lanes and boss clearances.
+exit=0
 
 ### validate-spawn-hitboxes.mjs
-[2m6:14:13 AM[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module /src/game/chapterRun.ts: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?[39m
-      at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33)
-node:internal/modules/run_main:123
-    triggerUncaughtException(
-    ^
-
-Error: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?
-    at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33) {
-  code: 'ERR_LOAD_URL',
-  runnerError: Error: RunnerError
-      at reviveInvokeError (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:476:64)
-      at Object.invoke (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:549:11)
-      at async SSRCompatModuleRunner.getModuleInformation (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1086:7)
-      at async SSRCompatModuleRunner.import (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1013:23)
-      at async instantiateModule (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:15157:10)
-      at async file:///home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs:46:19
-}
-
-Node.js v22.23.1
-exit=1
+Spawn and portal validation passed: all 50 rooms keep solid hero props, full-size enemy hitboxes and safe boss starts.
+exit=0
 
 ### validate-enemy-visibility.mjs
-[2m6:14:13 AM[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module /src/game/chapterRun.ts: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?[39m
-      at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33)
-node:internal/modules/run_main:123
-    triggerUncaughtException(
-    ^
-
-Error: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?
-    at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33) {
-  code: 'ERR_LOAD_URL',
-  runnerError: Error: RunnerError
-      at reviveInvokeError (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:476:64)
-      at Object.invoke (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:549:11)
-      at async SSRCompatModuleRunner.getModuleInformation (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1086:7)
-      at async SSRCompatModuleRunner.import (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1013:23)
-      at async instantiateModule (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:15157:10)
-      at async file:///home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs:32:19
-}
-
-Node.js v22.23.1
-exit=1
+Enemy visibility audit passed: rooms 14-50, 228 enemy starts, 32 initially occluded starts protected by global line-of-sight, room-ready and attack-marker guards.
+exit=0
 
 ### validate-mobile-combat.mjs
 Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the cohesive adaptive world-boss renderer are active.
