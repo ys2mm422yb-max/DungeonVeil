@@ -4,14 +4,13 @@ import { equipmentPresentation } from '../../game/equipmentPresentation';
 import {
   EQUIPMENT,
   equipMetaItem,
-  equipmentUpgradeCost,
   loadMetaProgression,
   type EquipmentDropSource,
   type EquipmentId,
   type EquipmentSlot,
-  upgradeMetaItem,
   xpForNextRank,
 } from '../../game/metaProgression';
+import { balancedEquipmentUpgradeCost, upgradeMetaItemBalanced } from '../../game/equipmentUpgradeEconomy';
 import { equipmentUnlockChapter, highestReachedChapter } from '../../game/equipmentChapterGates';
 import { equipVeilRelic, loadVeilRelicProfile, VEIL_RELICS, type VeilRelicId } from '../../game/veilRelics';
 import { KayKitEquipmentPreview } from '../KayKitEquipmentPreview';
@@ -62,7 +61,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const selectedLevel = selectedProgress?.level ?? 0;
   const selectedCopies = selectedProgress?.copies ?? 0;
   const equipped = selectedItem ? meta.equipped[selectedItem.slot] === selected : false;
-  const cost = selectedItem ? equipmentUpgradeCost(selected, meta) : null;
+  const cost = selectedItem ? balancedEquipmentUpgradeCost(selected, meta) : null;
   const canUpgrade = Boolean(cost && meta.gold >= cost.gold && selectedCopies >= cost.copies);
   const xpTarget = xpForNextRank(meta.rank);
   const xpPercent = Math.max(0, Math.min(100, meta.xp / xpTarget * 100));
@@ -163,7 +162,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
                   <div className="mt-2 text-[7px] leading-relaxed text-white/28">{de ? 'Ausrüstungslevel = dauerhaftes Item-Level. Der Bonus gilt in jedem Run.' : 'Equipment level = permanent item level. The bonus applies in every run.'}</div>
                   <div className="flex-1" />
                   {selectedLevel > 0 ? <div className="mt-4 grid gap-2">
-                    <div className="grid grid-cols-2 gap-2"><button type="button" onPointerDown={event => { event.preventDefault(); refresh(equipMetaItem(selected)); }} disabled={equipped} className={`rounded-xl border px-2 py-3 text-[9px] font-black tracking-[.12em] active:scale-[.98] ${equipped ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200/55' : 'border-violet-300/25 bg-violet-500/14 text-violet-100'}`}>{equipped ? (de ? 'AKTIV' : 'EQUIPPED') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button type="button" onPointerDown={event => { event.preventDefault(); refresh(upgradeMetaItem(selected)); }} disabled={!canUpgrade} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-2 py-3 text-[9px] font-black tracking-[.08em] text-amber-100 disabled:opacity-30 active:scale-[.98]">{cost ? 'UPGRADE' : 'MAX'}</button></div>
+                    <div className="grid grid-cols-2 gap-2"><button type="button" onPointerDown={event => { event.preventDefault(); refresh(equipMetaItem(selected)); }} disabled={equipped} className={`rounded-xl border px-2 py-3 text-[9px] font-black tracking-[.12em] active:scale-[.98] ${equipped ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200/55' : 'border-violet-300/25 bg-violet-500/14 text-violet-100'}`}>{equipped ? (de ? 'AKTIV' : 'EQUIPPED') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button type="button" onPointerDown={event => { event.preventDefault(); refresh(upgradeMetaItemBalanced(selected)); }} disabled={!canUpgrade} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-2 py-3 text-[9px] font-black tracking-[.08em] text-amber-100 disabled:opacity-30 active:scale-[.98]">{cost ? 'UPGRADE' : 'MAX'}</button></div>
                     {cost && <div className="grid grid-cols-2 gap-2 text-center text-[8px] font-black tracking-[.1em]"><div className={meta.gold >= cost.gold ? 'text-yellow-200' : 'text-red-300'}>GOLD {meta.gold}/{cost.gold}</div><div className={selectedCopies >= cost.copies ? 'text-violet-200' : 'text-red-300'}>{de ? 'KOPIEN' : 'COPIES'} {selectedCopies}/{cost.copies}</div></div>}
                   </div> : <div className="mt-4 rounded-xl border border-white/8 bg-white/[.03] px-3 py-3 text-center text-[8px] font-black tracking-[.14em] text-white/30">{`${lockedLabel(selectedItem)} · DROP: ${sourceLabel}`}</div>}
                 </div>
