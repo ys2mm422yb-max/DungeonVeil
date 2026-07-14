@@ -1,0 +1,104 @@
+### validate-all-rooms.mjs
+[2m6:14:12 AM[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module /src/game/chapterRun.ts: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?[39m
+      at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33)
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+Error: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?
+    at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33) {
+  code: 'ERR_LOAD_URL',
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:476:64)
+      at Object.invoke (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:549:11)
+      at async SSRCompatModuleRunner.getModuleInformation (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1086:7)
+      at async SSRCompatModuleRunner.import (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1013:23)
+      at async instantiateModule (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:15157:10)
+      at async file:///home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs:101:19
+}
+
+Node.js v22.23.1
+exit=1
+
+### validate-production-rooms.mjs
+[2m6:14:12 AM[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module /src/game/logicalRoomSetpieces.ts: Failed to load url /src/game/logicalRoomSetpieces.ts (resolved id: /src/game/logicalRoomSetpieces.ts). Does the file exist?[39m
+      at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33)
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+Error: Failed to load url /src/game/logicalRoomSetpieces.ts (resolved id: /src/game/logicalRoomSetpieces.ts). Does the file exist?
+    at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33) {
+  code: 'ERR_LOAD_URL',
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:476:64)
+      at Object.invoke (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:549:11)
+      at async SSRCompatModuleRunner.getModuleInformation (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1086:7)
+      at async SSRCompatModuleRunner.import (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1013:23)
+      at async instantiateModule (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:15157:10)
+      at async file:///home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs:44:19
+}
+
+Node.js v22.23.1
+exit=1
+
+### validate-spawn-hitboxes.mjs
+[2m6:14:13 AM[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module /src/game/chapterRun.ts: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?[39m
+      at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33)
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+Error: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?
+    at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33) {
+  code: 'ERR_LOAD_URL',
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:476:64)
+      at Object.invoke (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:549:11)
+      at async SSRCompatModuleRunner.getModuleInformation (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1086:7)
+      at async SSRCompatModuleRunner.import (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1013:23)
+      at async instantiateModule (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:15157:10)
+      at async file:///home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs:46:19
+}
+
+Node.js v22.23.1
+exit=1
+
+### validate-enemy-visibility.mjs
+[2m6:14:13 AM[22m [31m[1m[vite][22m[39m [31m[2m(ssr)[22m[39m [31mError when evaluating SSR module /src/game/chapterRun.ts: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?[39m
+      at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33)
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+Error: Failed to load url /src/game/chapterRun.ts (resolved id: /src/game/chapterRun.ts). Does the file exist?
+    at loadAndTransform (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:22739:33) {
+  code: 'ERR_LOAD_URL',
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:476:64)
+      at Object.invoke (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:549:11)
+      at async SSRCompatModuleRunner.getModuleInformation (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1086:7)
+      at async SSRCompatModuleRunner.import (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/module-runner.js:1013:23)
+      at async instantiateModule (file:///home/runner/work/DungeonVeil/DungeonVeil/node_modules/.pnpm/vite@7.3.5_@types+node@25.9.4_jiti@2.7.0_lightningcss@1.32.0_tsx@4.22.4_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:15157:10)
+      at async file:///home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs:32:19
+}
+
+Node.js v22.23.1
+exit=1
+
+### validate-mobile-combat.mjs
+Mobile combat audit passed: compact HUD, bounded effects, direct arrows, solid-prop collision guards and the cohesive adaptive world-boss renderer are active.
+exit=0
+
+### validate-worldboss-performance.mjs
+World-boss performance audit passed: cohesive stone ritual hall, Ash Warden skeleton, full visual viewport, adaptive mobile budgets and complete cleanup are active.
+exit=0
+
+### validate-social-navigation.mjs
+Social/navigation audit passed: the main menu uses the real equipped player rig and retains secure social navigation.
+exit=0
+
+### validate-social-progression.mjs
+Social progression audit passed: social progression remains wired and the interactive village uses the real equipped player scene.
+exit=0
+
