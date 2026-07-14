@@ -1,3 +1,4 @@
+-- Keep mailbox state changes behind mark_mailbox_actioned / mark_mailbox_read.
 create or replace function public.accept_guild_invite(p_invite_id uuid)
 returns uuid
 language plpgsql
