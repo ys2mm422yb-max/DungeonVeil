@@ -1,0 +1,1 @@
+Compact profile badge validation scope: smaller card, higher placement, reduced avatar and text footprint.
