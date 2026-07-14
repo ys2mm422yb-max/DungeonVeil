@@ -90,7 +90,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const talismanDefinition = EQUIPMENT[meta.equipped.talisman];
 
   const [rig, weapons, quiverGltf, talismanGltf] = await Promise.all([
-    loadKayKitRanger(THREE, Loader),
+    loadKayKitRanger(THREE, pagesSafeLoader(GLTFLoader)),
     loadKayKitRangerWeapons(),
     quiverDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverDefinition.assetPath}`) : Promise.resolve(null),
     talismanDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${talismanDefinition.assetPath}`) : Promise.resolve(null),
