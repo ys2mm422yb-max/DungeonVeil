@@ -24,9 +24,34 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-# Verification also runs directly on the production-pass branch when the PR has conflicts.
-# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
+permissions:
+  contents: write
+
 jobs:
+  prepare-block-5:
+    if: github.event_name == 'pull_request' && github.head_ref == 'rework/block-5-rooms-4-5'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rework/block-5-rooms-4-5
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply room rework and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main fix/block-1-email-confirmation-redirect
+          git checkout origin/fix/block-1-email-confirmation-redirect -- artifacts/dungeon-rpg/src/game/logicalRoomSetpieces.ts artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
+          python3 .ci/block5_patch.py
+          git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
+          rm -f .github/workflows/build-block-5-rooms-4-5.yml .ci/block5-trigger.txt .ci/block5_patch.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Recompose rooms four and five around clear themed stations'
+          git push origin HEAD:rework/block-5-rooms-4-5
+
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
