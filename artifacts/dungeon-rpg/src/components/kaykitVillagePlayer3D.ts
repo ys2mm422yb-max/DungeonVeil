@@ -35,6 +35,7 @@ function normalizedName(value: unknown): string {
 function prepareShowcaseModel(object: any): void {
   object.traverse?.((node: any) => {
     node.visible = true;
+    node.renderOrder = 30;
     if (!node.isMesh && !node.isSkinnedMesh) return;
     node.frustumCulled = false;
     node.castShadow = false;
@@ -43,7 +44,8 @@ function prepareShowcaseModel(object: any): void {
     materials.filter(Boolean).forEach((material: any) => {
       material.transparent = false;
       material.opacity = 1;
-      material.depthWrite = true;
+      material.depthTest = false;
+      material.depthWrite = false;
       material.needsUpdate = true;
     });
   });
@@ -92,9 +94,9 @@ function collectBones(root: any): Map<string, any> {
 
 /**
  * The village uses the exact dungeon-run Ranger rig and the same saved bow,
- * quiver and talisman definitions. The KayKit Idle_A animation is copied from
- * its source skeleton onto the Ranger bones so the menu can never fall back to
- * the GLB bind pose on mobile browsers.
+ * quiver and talisman definitions. The KayKit Idle_A skeleton drives the body,
+ * while its authored arm quaternions are enforced so mobile renderers cannot
+ * leave the character in the GLB bind pose.
  */
 export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const meta = loadMetaProgression();
@@ -129,8 +131,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     rig.root,
     weapons?.bow ?? null,
     'VillageVisibleEquippedBow',
-    1.8,
-    [-0.78, 1.08, 0.62],
+    1.95,
+    [-0.68, 1.02, 0.82],
     [Math.PI / 2, 0.05, -0.08],
   );
   const quiverHolder = addShowcaseModel(
@@ -138,8 +140,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     rig.root,
     quiverGltf?.scene ?? null,
     'VillageVisibleEquippedQuiver',
-    1.05,
-    [0.76, 1.1, 0.5],
+    1.15,
+    [0.68, 1.08, 0.76],
     [0.04, -0.14, -0.2],
   );
   const talismanHolder = addShowcaseModel(
@@ -147,8 +149,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     rig.root,
     talismanGltf?.scene ?? null,
     'VillageVisibleEquippedTalisman',
-    0.34,
-    [0.02, 1.22, 0.76],
+    0.38,
+    [0.02, 1.2, 0.9],
     [Math.PI / 2, 0, 0],
   );
 
@@ -165,14 +167,33 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     .filter(pair => Boolean(pair.target));
   if (bonePairs.length < 20) throw new Error(`Village Ranger idle retarget found only ${bonePairs.length} matching bones`);
 
+  const setArmQuaternion = (key: string, values: [number, number, number, number]) => {
+    const bone = targetBones.get(key);
+    if (bone) bone.quaternion.set(...values);
+  };
+  const enforceReadableArmPose = () => {
+    setArmQuaternion('upperarml', [-0.53361487, -0.11677447, -0.77174187, 0.3256276]);
+    setArmQuaternion('lowerarml', [0, 0, -0.35859543, 0.93349308]);
+    setArmQuaternion('upperarmr', [-0.56062764, 0.04683267, 0.73693085, 0.37474841]);
+    setArmQuaternion('lowerarmr', [0, 0, 0.37637338, 0.92646819]);
+  };
+  const refreshSkeletons = () => {
+    rig.root.updateMatrixWorld(true);
+    rig.root.traverse?.((node: any) => {
+      if (node.isSkinnedMesh) node.skeleton?.update?.();
+    });
+  };
   const applyIdlePose = () => {
     bonePairs.forEach(({ source, target }) => {
       target.position.copy(source.position);
       target.quaternion.copy(source.quaternion);
       target.scale.copy(source.scale);
     });
+    enforceReadableArmPose();
+    refreshSkeletons();
   };
   idleMixer.update(0.01);
+  idleGltf.scene.updateMatrixWorld(true);
   applyIdlePose();
 
   rig.root.userData.visibleEquipment = {
@@ -184,7 +205,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     (window as any).__DUNGEON_VEIL_MENU_RANGER__ = {
       presentation: rig.root.userData.presentation,
       pose: rig.root.userData.showcasePose,
-      animationDriver: 'copied-kaykit-idle-a',
+      animationDriver: 'copied-kaykit-idle-a-locked-arms',
       matchedBones: bonePairs.length,
       loadout: rig.root.userData.equippedLoadout,
       visibleEquipment: rig.root.userData.visibleEquipment,
@@ -205,6 +226,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     update(delta: number) {
       elapsed += delta;
       idleMixer.update(delta);
+      idleGltf.scene.updateMatrixWorld(true);
       applyIdlePose();
       rig.root.position.x = 0.04;
       rig.root.position.y = -0.05 + Math.sin(elapsed * 1.35) * 0.012;
