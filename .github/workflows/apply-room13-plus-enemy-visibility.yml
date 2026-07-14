@@ -1,0 +1,190 @@
+name: Apply Room 13 Plus Enemy Visibility Fix
+
+on:
+  push:
+    branches: [fix/room13-plus-enemy-visibility]
+    paths:
+      - '.github/workflows/apply-room13-plus-enemy-visibility.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/room13-plus-enemy-visibility
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Apply permanent room 13+ visibility safety
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          enemy = Path('artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts')
+          text = enemy.read_text()
+          old = "    node.frustumCulled = !node.isSkinnedMesh;"
+          new = "    // Chrome/iPad may report stale bounds for imported and skinned enemy meshes.\n    // Combat actors stay renderer-visible; room geometry still handles real occlusion.\n    node.frustumCulled = false;"
+          if old not in text:
+              raise SystemExit('enemy culling marker missing')
+          enemy.write_text(text.replace(old, new, 1))
+
+          canvas = Path('artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx')
+          text = canvas.read_text()
+
+          old = """    const enemyVisuals = new Map<string, KayKitEnemyVisual>();
+              const enemyFallbacks = new Map<string, any>();
+              const enemyLoading = new Set<string>();
+          """
+          new = """    const enemyVisuals = new Map<string, KayKitEnemyVisual>();
+              const enemyFallbacks = new Map<string, any>();
+              const enemySafetyShells = new Map<string, any>();
+              const enemyLoading = new Set<string>();
+          """
+          if old not in text:
+              raise SystemExit('enemy maps marker missing')
+          text = text.replace(old, new, 1)
+
+          old = """        root.userData.visibilityFallback = true;
+                  root.userData.ring = ring;
+                  return root;
+                };
+          """
+          new = """        root.userData.visibilityFallback = true;
+                  root.userData.ring = ring;
+                  root.userData.body = body;
+                  root.userData.head = head;
+                  root.traverse((node: any) => {
+                    if (node.isMesh) node.frustumCulled = false;
+                  });
+                  return root;
+                };
+
+                const createEnemySafetyShell = (enemy: GameState['enemies'][number]) => {
+                  const shell = createEnemyFallback(enemy);
+                  shell.name = `EnemyVisibilitySafety_${enemy.id}`;
+                  const scale = enemy.enemyType === 'boss' ? 1.18 : enemy.isElite ? 0.88 : 0.72;
+                  shell.scale.multiplyScalar(scale);
+                  for (const part of [shell.userData.body, shell.userData.head]) {
+                    if (!part?.material) continue;
+                    part.material.transparent = false;
+                    part.material.opacity = 1;
+                    part.material.depthTest = true;
+                    part.material.depthWrite = true;
+                    part.renderOrder = -8;
+                  }
+                  if (shell.userData.ring?.material) {
+                    shell.userData.ring.material.opacity = 0.34;
+                    shell.userData.ring.material.depthTest = false;
+                    shell.userData.ring.renderOrder = 8;
+                  }
+                  shell.userData.visibilitySafety = true;
+                  return shell;
+                };
+          """
+          if old not in text:
+              raise SystemExit('fallback helper marker missing')
+          text = text.replace(old, new, 1)
+
+          old = """      for (const [id, fallback] of enemyFallbacks) {
+                if (active.has(id)) continue;
+                scene.remove(fallback);
+                disposeObject(fallback);
+                enemyFallbacks.delete(id);
+              }
+
+              for (const enemy of state.enemies) {
+                const nextX = mapX(state, enemy.x + enemy.width / 2);
+                const nextZ = mapZ(state, enemy.y + enemy.height / 2);
+                let visual = enemyVisuals.get(enemy.id);
+          """
+          new = """      for (const [id, fallback] of enemyFallbacks) {
+                if (active.has(id)) continue;
+                scene.remove(fallback);
+                disposeObject(fallback);
+                enemyFallbacks.delete(id);
+              }
+              for (const [id, shell] of enemySafetyShells) {
+                if (active.has(id)) continue;
+                scene.remove(shell);
+                disposeObject(shell);
+                enemySafetyShells.delete(id);
+              }
+
+              for (const enemy of state.enemies) {
+                const nextX = mapX(state, enemy.x + enemy.width / 2);
+                const nextZ = mapZ(state, enemy.y + enemy.height / 2);
+                const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;
+                let safetyShell = enemySafetyShells.get(enemy.id);
+                if (requiresPermanentSafety) {
+                  if (!safetyShell) {
+                    safetyShell = createEnemySafetyShell(enemy);
+                    enemySafetyShells.set(enemy.id, safetyShell);
+                    scene.add(safetyShell);
+                  }
+                  safetyShell.visible = true;
+                  safetyShell.position.set(nextX, 0.008, nextZ);
+                  safetyShell.rotation.y = gameNow * 0.00045 + enemy.id.length;
+                  if (safetyShell.userData.ring?.material) {
+                    safetyShell.userData.ring.material.opacity = 0.26 + Math.sin(gameNow * 0.006 + enemy.id.length) * 0.08;
+                  }
+                } else if (safetyShell) {
+                  scene.remove(safetyShell);
+                  disposeObject(safetyShell);
+                  enemySafetyShells.delete(enemy.id);
+                  safetyShell = null;
+                }
+                let visual = enemyVisuals.get(enemy.id);
+          """
+          if old not in text:
+              raise SystemExit('enemy sync safety marker missing')
+          text = text.replace(old, new, 1)
+          canvas.write_text(text)
+
+          audit = Path('artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs')
+          text = audit.read_text()
+          text = text.replace("node.frustumCulled = !node.isSkinnedMesh;", "node.frustumCulled = false;")
+          old = """    'EnemyVisibilityFallback_',
+                'KayKit enemy failed; keeping visibility fallback',
+          """
+          new = """    'EnemyVisibilityFallback_',
+                'EnemyVisibilitySafety_',
+                'const enemySafetyShells = new Map<string, any>();',
+                'const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;',
+                'shell.userData.visibilitySafety = true;',
+                'KayKit enemy failed; keeping visibility fallback',
+          """
+          if old not in text:
+              raise SystemExit('visibility audit marker missing')
+          text = text.replace(old, new, 1)
+          text = text.replace("animated enemy skinned meshes can still disappear through stale frustum bounds", "enemy meshes can still disappear through stale Chrome/iPad frustum bounds")
+          text = text.replace("non-culled skinned meshes and visible loading/error fallbacks", "non-culled meshes, permanent room 13+ safety shells and visible loading/error fallbacks")
+          audit.write_text(text)
+
+          Path('.github/workflows/apply-room13-plus-enemy-visibility.yml').unlink(missing_ok=True)
+          PY
+      - run: pnpm install --frozen-lockfile
+      - name: Validate all rooms and build
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm run typecheck
+          pnpm --dir artifacts/dungeon-rpg run build
+      - name: Commit clean fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Keep every enemy visible from room 13 onward'
+          git push origin HEAD:fix/room13-plus-enemy-visibility
