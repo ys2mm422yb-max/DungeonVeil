@@ -27,4 +27,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the final device-review build uses the hooded Idle_B archer and front-visible equipped bow, quiver and talisman anchors.');
+console.log('Main-menu equipped ranger audit passed: the cleaned final head keeps the dungeon rig unchanged and uses the hooded Idle_B showcase with front-visible equipped gear.');
