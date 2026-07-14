@@ -84,7 +84,7 @@ try {
     if (room >= 21 && room <= 30 && models.filter(model => model.includes('tree') || model.includes('bush') || model.includes('grass') || model.includes('rock')).length < 3) {
       roomFailures.push('meadow identity is too weak');
     }
-    if (room >= 31 && room <= 40 && models.filter(model => /grave|shrine|coffin|candle|skull|bone/.test(model)).length < 2) {
+    if (room >= 31 && room <= 40 && models.filter(model => /grave|shrine|coffin|candle|skull|bone|lantern/.test(model)).length < 2) {
       roomFailures.push('darkwood identity is too weak');
     }
     if (room >= 41 && room <= 50 && models.filter(model => /wall|pillar|barrier|shield|gate|anvil|torch|brazier/.test(model)).length < 2) {

@@ -78,7 +78,12 @@ function collidersForRoom(room: number): RoomPropCollider[] {
       return { x: piece.x, z: piece.z, halfW: footprint.width / 2, halfH: footprint.height / 2 };
     })
     .filter((collider): collider is RoomPropCollider => Boolean(collider));
-  return [...props, ...architectureCollidersForRoom(room)];
+  const architecture = architectureCollidersForRoom(room).filter(candidate => !props.some(prop => {
+  const overlapX = Math.min(candidate.x + candidate.halfW, prop.x + prop.halfW) - Math.max(candidate.x - candidate.halfW, prop.x - prop.halfW);
+  const overlapZ = Math.min(candidate.z + candidate.halfH, prop.z + prop.halfH) - Math.max(candidate.z - candidate.halfH, prop.z - prop.halfH);
+  return overlapX > 0.5 && overlapZ > 0.5;
+}));
+return [...props, ...architecture];
 }
 
 const ROOM_COLLIDERS = new Map<number, RoomPropCollider[]>();

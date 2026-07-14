@@ -2,7 +2,7 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [main, work/blocks-1-7-production-pass, audit/block-6-rooms-6-50-quality]
+    branches: [main, work/blocks-1-7-production-pass]
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
@@ -24,71 +24,9 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
+# Verification also runs directly on the production-pass branch when the PR has conflicts.
+# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
-  prepare-block-6-fixes:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/audit/block-6-rooms-6-50-quality'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: audit/block-6-rooms-6-50-quality
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply targeted room fixes and self-clean
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main fix/block-1-email-confirmation-redirect
-          git checkout origin/fix/block-1-email-confirmation-redirect -- \
-            artifacts/dungeon-rpg/src/game/roomCollision3D.ts \
-            artifacts/dungeon-rpg/src/game/expandedWorldRooms.ts
-          python3 - <<'PY'
-          from pathlib import Path
-
-          collision = Path('artifacts/dungeon-rpg/src/game/roomCollision3D.ts')
-          text = collision.read_text()
-          old = """  return [...props, ...architectureCollidersForRoom(room)];
-          """
-          new = """  const architecture = architectureCollidersForRoom(room).filter(candidate => !props.some(prop => {
-            const overlapX = Math.min(candidate.x + candidate.halfW, prop.x + prop.halfW) - Math.max(candidate.x - candidate.halfW, prop.x - prop.halfW);
-            const overlapZ = Math.min(candidate.z + candidate.halfH, prop.z + prop.halfH) - Math.max(candidate.z - candidate.halfH, prop.z - prop.halfH);
-            return overlapX > 0.5 && overlapZ > 0.5;
-          }));
-          return [...props, ...architecture];
-          """
-          if old not in text:
-            raise SystemExit('collider return marker missing')
-          collision.write_text(text.replace(old, new))
-
-          rooms = Path('artifacts/dungeon-rpg/src/game/expandedWorldRooms.ts')
-          text = rooms.read_text()
-          text = text.replace(
-            "s(`${H}/bench.gltf`, 7.0, -3.4, -Math.PI / 2, 1.0, [1.4, 0.8]),\n  ],",
-            "s(`${H}/bench.gltf`, 7.0, -3.4, -Math.PI / 2, 1.0, [1.4, 0.8]), s(`${H}/gravemarker_A.gltf`, 6.5, 3.6, -0.12, 0.96, [1.0, 1.2]),\n  ],",
-            1,
-          )
-          text = text.replace(
-            "s(`${H}/lantern_standing.gltf`, 0, -4.2, 0, 1.28), s(`${F}/Tree_1_C_Color1.gltf`, 8.0, 4.0, -0.1, 1.08, [1.8, 1.8]),\n  ],",
-            "s(`${H}/lantern_standing.gltf`, 0, -4.2, 0, 1.28), s(`${H}/skull_candle.gltf`, 0, 2.0, 0, 1.16), s(`${F}/Tree_1_C_Color1.gltf`, 8.0, 4.0, -0.1, 1.08, [1.8, 1.8]),\n  ],",
-            1,
-          )
-          rooms.write_text(text)
-
-          audit = Path('artifacts/dungeon-rpg/scripts/validate-room-quality-6-50.mjs')
-          text = audit.read_text().replace('/grave|shrine|coffin|candle|skull|bone/', '/grave|shrine|coffin|candle|skull|bone|lantern/')
-          audit.write_text(text)
-          PY
-          git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
-          rm -f .ci/validation-trigger.txt .ci/room-quality-6-50.txt
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Fix the eight room quality audit findings'
-          git push origin HEAD:audit/block-6-rooms-6-50-quality
-
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15

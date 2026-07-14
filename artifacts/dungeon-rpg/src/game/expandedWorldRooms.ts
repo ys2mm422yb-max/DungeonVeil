@@ -188,12 +188,12 @@ const DARKWOOD_LAYOUTS: Record<number, ExpandedWorldSetpiece[]> = {
   6: [
     s(`${F}/Rock_3_D_Color1.gltf`, -4.4, -2.2, 0.22, 1.25, [1.2, 0.9]), s(`${F}/Rock_3_G_Color1.gltf`, 4.4, 1.8, -0.22, 1.25, [1.2, 0.9]),
     s(`${H}/post_lantern.gltf`, 0, 3.8, 0, 1.25), s(`${F}/Tree_2_B_Color1.gltf`, -8.2, 3.4, 0.1, 1.14, [1.8, 1.8]),
-    s(`${H}/bench.gltf`, 7.0, -3.4, -Math.PI / 2, 1.0, [1.4, 0.8]),
+    s(`${H}/bench.gltf`, 7.0, -3.4, -Math.PI / 2, 1.0, [1.4, 0.8]), s(`${H}/gravemarker_A.gltf`, 6.5, 3.6, -0.12, 0.96, [1.0, 1.2]),
   ],
   7: [
     s(`${H}/bench.gltf`, -5.4, -1.2, Math.PI / 2, 1.08, [1.4, 0.8]), s(`${H}/bench_decorated.gltf`, 5.4, -1.2, -Math.PI / 2, 1.08, [1.4, 0.8]),
     s(`${D}/barrel_small_stack.gltf`, -2.2, 3.4, 0, 1.0, [1.1, 0.9]), s(`${D}/box_stacked.gltf`, 2.2, 3.4, 0, 1.0, [1.1, 0.9]),
-    s(`${H}/lantern_standing.gltf`, 0, -4.2, 0, 1.28), s(`${F}/Tree_1_C_Color1.gltf`, 8.0, 4.0, -0.1, 1.08, [1.8, 1.8]),
+    s(`${H}/lantern_standing.gltf`, 0, -4.2, 0, 1.28), s(`${H}/skull_candle.gltf`, 0, 2.0, 0, 1.16), s(`${F}/Tree_1_C_Color1.gltf`, 8.0, 4.0, -0.1, 1.08, [1.8, 1.8]),
   ],
   8: [
     s(`${H}/shrine_candles.gltf`, 0, -1.8, 0, 1.62, [1.4, 1.4]), s(`${H}/candle_triple.gltf`, -3.4, 1.8, 0, 1.22), s(`${H}/candle_triple.gltf`, 3.4, 1.8, 0, 1.22),
