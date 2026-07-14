@@ -1,0 +1,98 @@
+name: Build Block 3 Equipped Village Player
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'feat/block-3-equipped-village-player'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/block-3-equipped-village-player
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build final Block 3 snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin fix/block-1-email-confirmation-redirect
+          git checkout origin/fix/block-1-email-confirmation-redirect -- \
+            artifacts/dungeon-rpg/src/components/ModernVillageSquareScene.tsx \
+            artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx \
+            artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          scene = Path('artifacts/dungeon-rpg/src/components/ModernVillageSquareScene.tsx')
+          text = scene.read_text()
+          text = text.replace(
+            "import { findKayKitModels, loadKayKitManifest, modelUrl, type KayKitPackName } from './kaykitManifest3D';",
+            "import { findKayKitModels, loadKayKitManifest, modelUrl, type KayKitPackName } from './kaykitManifest3D';\nimport { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';"
+          )
+          text = text.replace("  { key: 'aelric', pack: 'adventurers', include: /Characters\\/gltf\\/Barbarian\\.glb$/i },\n", "")
+          text = text.replace("    aelric: [[0, 0.02, -5.65, 0.34, 0, 'AelricWorldKeeper']],\n", "")
+          text = text.replace("    if (['mira', 'orin', 'tala', 'brom', 'aelric'].includes(rule.key)) {", "    if (['mira', 'orin', 'tala', 'brom'].includes(rule.key)) {")
+          text = text.replace("    let scene: any = null;\n    const keepers: any[] = [];", "    let scene: any = null;\n    let villagePlayerRig: KayKitPlayerRig | null = null;\n    const keepers: any[] = [];")
+          needle = """      void loadVillageAssets(THREE, GLTFLoader, scene, keepers, () => disposed).catch(error => {
+        console.error('Modern village KayKit assets failed to load', error);
+      });
+"""
+          replacement = """      void loadVillageAssets(THREE, GLTFLoader, scene, keepers, () => disposed).catch(error => {
+        console.error('Modern village KayKit assets failed to load', error);
+      });
+      void loadKayKitRanger(THREE, GLTFLoader).then(rig => {
+        if (disposed) {
+          rig.stop();
+          return;
+        }
+        villagePlayerRig = rig;
+        rig.root.name = 'VillageEquippedPlayer';
+        rig.root.position.set(0, 0.02, -4.55);
+        rig.root.rotation.y = 0;
+        rig.root.scale.setScalar(0.42);
+        rig.root.userData.villagePhase = 4.85;
+        keepers.push(rig.root);
+        scene.add(rig.root);
+      }).catch(error => {
+        console.error('Equipped village player failed to load', error);
+      });
+"""
+          if needle not in text:
+            raise SystemExit('village asset load marker missing')
+          text = text.replace(needle, replacement)
+          text = text.replace("        keepers.forEach(keeper => { keeper.position.y = Math.sin(now * 0.0014 + keeper.userData.villagePhase) * 0.022; });\n        renderer.render(scene, camera);", "        keepers.forEach(keeper => { keeper.position.y = Math.sin(now * 0.0014 + keeper.userData.villagePhase) * 0.022; });\n        villagePlayerRig?.update(IS_MOBILE ? 1 / 30 : 1 / 60);\n        renderer.render(scene, camera);")
+          text = text.replace("      removeResize();\n      scene?.traverse?.", "      removeResize();\n      villagePlayerRig?.stop();\n      scene?.traverse?.")
+          scene.write_text(text)
+
+          menu = Path('artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx')
+          text = menu.read_text()
+          text = text.replace("{overlay !== 'worldBoss' && <MainMenuDungeonScene />}", "{overlay !== 'worldBoss' && <MainMenuDungeonScene key={`village-${meta.equipped.bow}-${meta.equipped.quiver}-${meta.equipped.talisman}`} />}")
+          menu.write_text(text)
+
+          audit = Path('artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs')
+          text = audit.read_text()
+          text = text.replace(
+            "villageScene.includes(\"window.visualViewport?.addEventListener('resize', resize)\") && villageScene.includes('camera.position.set(0, 6.25, 14.6)') && villageScene.includes(\"'AelricWorldKeeper'\")",
+            "villageScene.includes(\"window.visualViewport?.addEventListener('resize', resize)\") && villageScene.includes('camera.position.set(0, 6.25, 14.6)') && villageScene.includes('loadKayKitRanger') && villageScene.includes(\"rig.root.name = 'VillageEquippedPlayer'\") && !villageScene.includes('AelricWorldKeeper')"
+          )
+          text = text.replace(
+            "[menu.includes('grid-cols-2') && menu.includes('min-h-[250px] flex-1') && !menu.includes('h-[41vh]'), 'main-menu action layout is not separated from the village scene'],",
+            "[menu.includes('grid-cols-2') && menu.includes('min-h-[250px] flex-1') && !menu.includes('h-[41vh]'), 'main-menu action layout is not separated from the village scene'],\n  [menu.includes('meta.equipped.bow') && menu.includes('meta.equipped.quiver') && menu.includes('meta.equipped.talisman'), 'village player does not refresh when the equipped loadout changes'],"
+          )
+          audit.write_text(text)
+          PY
+
+          rm .github/workflows/build-block-3-equipped-village-player.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Show the equipped player in the village square'
+          git push origin HEAD:feat/block-3-equipped-village-player
