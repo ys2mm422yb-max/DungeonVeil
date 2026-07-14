@@ -8,6 +8,8 @@ create table if not exists public.guild_messages (
 
 create index if not exists guild_messages_guild_created_idx
   on public.guild_messages (guild_id, created_at desc);
+create index if not exists guild_messages_user_idx
+  on public.guild_messages (user_id);
 
 alter table public.guild_messages enable row level security;
 revoke all on public.guild_messages from anon, authenticated;
