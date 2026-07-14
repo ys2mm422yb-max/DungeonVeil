@@ -42,25 +42,31 @@ function findNode(root: any, names: string[]): any | null {
   return match;
 }
 
-function addLocalRotation(node: any, x: number, y: number, z: number): void {
-  if (!node?.rotation) return;
-  node.rotation.x += x;
-  node.rotation.y += y;
-  node.rotation.z += z;
+function moveToShowcaseRoot(root: any, object: any): boolean {
+  if (!object) return false;
+  root.updateMatrixWorld?.(true);
+  object.updateMatrixWorld?.(true);
+  root.attach(object);
+  object.visible = true;
+  object.traverse?.((node: any) => {
+    node.visible = true;
+    if (!node.isMesh && !node.isSkinnedMesh) return;
+    node.frustumCulled = false;
+  });
+  return true;
 }
 
 /**
  * The village displays the exact same Ranger body and equipped items as a real
- * run. The menu adapter only gives that rig a readable showcase pose and keeps
- * the background shrine away from the character silhouette.
+ * run. The adapter freezes a real idle pose, then places the already-loaded bow,
+ * quiver and talisman where they remain readable in the compact mobile menu.
  */
 export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const rig = await loadKayKitRanger(THREE, pagesSafeLoader(GLTFLoader));
   const meta = loadMetaProgression();
 
   rig.root.name = 'VillageEquippedPlayer';
-  rig.root.userData.presentation = 'village-showcase-v5-single-base-run-ranger';
-  rig.root.userData.showcasePose = 'v6-bow-ready-no-shrine-overlap';
+  rig.root.userData.presentation = 'village-showcase-v7-visible-loadout';
   rig.root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
     quiver: meta.equipped.quiver,
@@ -71,27 +77,42 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     node.frustumCulled = false;
   });
 
-  // Keep the shared rig on its non-moving branch before freezing it. This also
-  // preserves the normal audit contract used by the full room/build pipeline.
+  // Advance the shared run rig once so the menu never freezes on the GLB bind/T pose.
   rig.setMoving(false);
-  // The free Ranger file opens in its authored equipment pose. The generic idle
-  // clips do not produce a reliable silhouette in every mobile browser, so the
-  // menu freezes the exact run rig and applies one stable bow-ready pose.
+  rig.update(0.12);
   rig.stop();
-  addLocalRotation(findNode(rig.root, ['upperarml']), 0, 0.18, -0.96);
-  addLocalRotation(findNode(rig.root, ['lowerarml']), 0, 0.08, -0.2);
-  addLocalRotation(findNode(rig.root, ['upperarmr']), 0, -0.38, 0.92);
-  addLocalRotation(findNode(rig.root, ['lowerarmr']), 0, -0.24, 0.96);
-  addLocalRotation(findNode(rig.root, ['chest', 'spine2']), 0, 0.12, 0);
-  addLocalRotation(findNode(rig.root, ['head']), 0, -0.08, 0);
 
-  const bow = findNode(rig.root, ['bowwithstring', 'bowa', 'bowb']);
-  if (bow?.scale) bow.scale.multiplyScalar(1.08);
+  const bow = findNode(rig.root, ['bowwithstring', 'bowawithstring', 'bowbwithstring', 'crossbow1handed', 'crossbow2handed', 'bowa', 'bowb']);
+  if (moveToShowcaseRoot(rig.root, bow)) {
+    bow.position.set(-0.54, 1.05, 0.34);
+    bow.rotation.set(Math.PI / 2, 0.05, -0.08);
+    bow.scale.setScalar(meta.equipped.bow.includes('crossbow') ? 0.78 : 0.9);
+    bow.userData.menuEquipment = 'equipped-bow';
+  }
+
   const quiver = findNode(rig.root, ['quiver']);
-  if (quiver?.scale) quiver.scale.multiplyScalar(1.12);
+  if (moveToShowcaseRoot(rig.root, quiver)) {
+    quiver.position.set(0.5, 1.12, 0.14);
+    quiver.rotation.set(0.06, -0.12, -0.2);
+    quiver.scale.setScalar(1.18);
+    quiver.userData.menuEquipment = 'equipped-quiver';
+  }
+
+  const talisman = findNode(rig.root, ['key', 'shieldspikescolor', 'spellbook', 'smokebomb', 'shieldbadge', 'wand']);
+  if (moveToShowcaseRoot(rig.root, talisman)) {
+    talisman.position.set(0.02, 1.18, 0.43);
+    talisman.rotation.set(Math.PI / 2, 0, 0);
+    talisman.scale.setScalar(0.24);
+    talisman.userData.menuEquipment = 'equipped-talisman';
+  }
+
+  rig.root.userData.visibleEquipment = {
+    bow: Boolean(bow),
+    quiver: Boolean(quiver),
+    talisman: Boolean(talisman),
+  };
 
   let elapsed = 0;
-  let shrineSeparated = false;
   return {
     root: rig.root,
     arrowPrototype: rig.arrowPrototype,
@@ -101,21 +122,11 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     triggerDash: () => undefined,
     update(delta: number) {
       elapsed += delta;
-      rig.root.position.x = 0.1;
+      rig.root.position.x = 0.06;
       rig.root.position.y = -0.045 + Math.sin(elapsed * 1.35) * 0.012;
-      rig.root.position.z = -2.62;
-      rig.root.rotation.y = -0.42;
+      rig.root.position.z = -2.58;
+      rig.root.rotation.y = -0.16;
       rig.root.scale.setScalar(0.58);
-
-      if (!shrineSeparated) {
-        const shrine = rig.root.parent?.getObjectByName?.('VillageSquareShrine');
-        if (shrine) {
-          shrine.position.set(-2.25, 0.02, -6.15);
-          shrine.rotation.y = -0.24;
-          shrine.scale.setScalar(0.82);
-          shrineSeparated = true;
-        }
-      }
     },
     stop() {
       rig.stop();
