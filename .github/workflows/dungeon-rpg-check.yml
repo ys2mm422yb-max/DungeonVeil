@@ -1,5 +1,6 @@
 name: Dungeon RPG Check
 
+# Registered branch validation trigger.
 on:
   push:
     branches: [balance/equipment-upgrade-gold-costs]
