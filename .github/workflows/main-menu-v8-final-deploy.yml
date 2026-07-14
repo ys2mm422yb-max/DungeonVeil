@@ -1,4 +1,4 @@
-name: Main Menu V8 Final Deploy
+name: Main Menu V12 Final Deploy
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: dungeon-veil-main-menu-v8-final
+  group: dungeon-veil-main-menu-v12-final
   cancel-in-progress: true
 
 jobs:
@@ -52,7 +52,7 @@ jobs:
         run: pnpm --filter @workspace/dungeon-rpg audit:pages
       - name: Write final deployment marker
         run: |
-          printf '{"commit":"%s","deployedAt":"%s","source":"main-menu-run-ranger-v8-final"}\n' "${{ steps.commit.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          printf '{"commit":"%s","deployedAt":"%s","source":"main-menu-clean-ranger-v12-final"}\n' "${{ steps.commit.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
           touch artifacts/dungeon-rpg/dist/public/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
@@ -93,7 +93,7 @@ jobs:
           import json, os
           from pathlib import Path
           data = json.loads(Path('live-marker.json').read_text())
-          assert data.get('source') == 'main-menu-run-ranger-v8-final', data
+          assert data.get('source') == 'main-menu-clean-ranger-v12-final', data
           assert data.get('commit') == os.environ['EXPECTED_COMMIT'], data
           PY
               then
@@ -104,7 +104,7 @@ jobs:
             sleep 5
           done
           test "$verified" = 1
-          cat > capture-live-v8.mjs <<'EOF'
+          cat > capture-live-v12.mjs <<'EOF'
           import { chromium } from 'playwright';
           import { writeFile } from 'node:fs/promises';
           const browser = await chromium.launch({ headless: true });
@@ -118,7 +118,7 @@ jobs:
           await page.goto('https://ys2mm422yb-max.github.io/DungeonVeil/', { waitUntil: 'domcontentloaded', timeout: 60000 });
           await page.waitForFunction(() => Boolean(window.__DUNGEON_VEIL_MENU_RANGER__), null, { timeout: 60000 });
           await page.waitForTimeout(8000);
-          await page.screenshot({ path: 'main-menu-v8-live.png', fullPage: true });
+          await page.screenshot({ path: 'main-menu-v12-live.png', fullPage: true });
           const state = await page.evaluate(() => ({
             canvases: document.querySelectorAll('canvas').length,
             bodyText: document.body.innerText.slice(0, 1500),
@@ -135,19 +135,19 @@ jobs:
             badResponses: responses.filter(item => item.status >= 400),
             localFailures: failed.filter(item => item.url.includes('/DungeonVeil/')),
           };
-          await writeFile('main-menu-v8-live.json', JSON.stringify(proof, null, 2));
+          await writeFile('main-menu-v12-live.json', JSON.stringify(proof, null, 2));
           const visible = state.ranger?.visibleEquipment;
-          if (state.canvases !== 1 || state.ranger?.pose !== 'v11-baked-idle-visible-loadout' || state.ranger?.bakedMeshCount < 1 || !visible?.bow || !visible?.quiver || !visible?.talisman || proof.duplicateBase.length || proof.rangerLoads.length < 2 || !proof.quiverLoads.length || !proof.bowLoads.length || !proof.talismanLoads.length || proof.badResponses.length || proof.localFailures.length || errors.length) {
+          if (state.canvases !== 1 || state.ranger?.pose !== 'v12-idle-b-clean-side-loadout' || !state.ranger?.cleanSingleBody || !state.ranger?.depthTestedEquipment || !visible?.bow || !visible?.quiver || !visible?.talisman || proof.duplicateBase.length || proof.rangerLoads.length < 2 || !proof.quiverLoads.length || !proof.bowLoads.length || !proof.talismanLoads.length || proof.badResponses.length || proof.localFailures.length || errors.length) {
             throw new Error(JSON.stringify(proof));
           }
           await browser.close();
           EOF
-          node capture-live-v8.mjs
+          node capture-live-v12.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: main-menu-v8-final-proof
+          name: main-menu-v12-final-proof
           path: |
-            main-menu-v8-live.png
-            main-menu-v8-live.json
+            main-menu-v12-live.png
+            main-menu-v12-live.json
             live-marker.json
           if-no-files-found: error
