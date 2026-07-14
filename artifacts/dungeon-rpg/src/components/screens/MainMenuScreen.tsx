@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { SaveData } from '../../game/saveManager';
 import { loadMetaProgression } from '../../game/metaProgression';
+import { recordReachedChapter } from '../../game/equipmentChapterGates';
 import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
 import { loadRetentionProfile, type RetentionProfile } from '../../game/runRetention';
 import { captureGuildInviteTokenFromUrl, mailboxUnreadCount, MAILBOX_EVENT } from '../../game/guildMailboxOnline';
@@ -47,6 +48,10 @@ export function MainMenuScreen(props: Props) {
       window.removeEventListener('dungeon-veil-retention-update', refreshRetention as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    recordReachedChapter(props.saveData?.chapter ?? 1);
+  }, [props.saveData?.chapter]);
 
   useEffect(() => {
     const captured = captureGuildInviteTokenFromUrl();
