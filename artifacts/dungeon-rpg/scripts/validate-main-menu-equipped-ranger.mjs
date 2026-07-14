@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 // Guards the final V14 mobile composition against white lamp props, crowded NPCs and unreadable equipment.
+// The live Pages proof additionally rejects lamp-table requests and requires three visible quiver arrows.
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const [village, showcase, player, weapons, manifest, meta] = await Promise.all([
   read('../src/components/ModernVillageSquareScene.tsx'),
