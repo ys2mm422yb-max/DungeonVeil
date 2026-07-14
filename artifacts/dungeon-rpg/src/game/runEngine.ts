@@ -76,12 +76,14 @@ const UI_EMIT_MS = 125;
 export class GameEngine {
   state: RunGameState;
   lastTime = 0;
+  ignoreRoomPropCollisions = false;
   private lastStepTime = 0;
   private lastUiEmitTime = 0;
   private roomAnnouncedClear = false;
   private lootCounter = 0;
   private roomEntrySnapshot: RoomEntrySnapshot | null = null;
   private enemyWindups = new Map<string, EnemyWindup>();
+  private exitCenterCache: { map: DungeonMap; x: number; y: number } | null = null;
 
   input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
   onStateChange: (state: RunGameState) => void = () => {};
@@ -361,7 +363,7 @@ export class GameEngine {
   }
 
   private shotPathBlocked(fromX: number, fromY: number, toX: number, toY: number, padding = 0.035) {
-    if (shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, fromX, fromY, toX, toY, padding)) return true;
+    if (!this.ignoreRoomPropCollisions && shotBlockedByRoomProp(this.state.floor, this.state.map.width, this.state.map.height, fromX, fromY, toX, toY, padding)) return true;
     const length = Math.hypot(toX - fromX, toY - fromY);
     const steps = Math.max(2, Math.ceil(length / 7));
     for (let step = 1; step < steps; step++) {
@@ -709,7 +711,7 @@ export class GameEngine {
       const spawn = sceneSpawnToGame(point, this.state.map.width, this.state.map.height, enemy.width);
       const farEnough = Math.hypot(spawn.x - p.x, spawn.y - p.y) > 120;
       if (!farEnough || !isWalkable(this.state.map, spawn.x + enemy.width / 2, spawn.y + enemy.height / 2)) continue;
-      if (collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, spawn.x, spawn.y, enemy.width, enemy.height, 0.22)) continue;
+      if (!this.ignoreRoomPropCollisions && collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, spawn.x, spawn.y, enemy.width, enemy.height, 0.22)) continue;
       enemy.x = spawn.x;
       enemy.y = spawn.y;
       enemy.targetX = spawn.x;
@@ -729,6 +731,28 @@ export class GameEngine {
     return this.state.status === 'playing' && this.state.enemies.length === 0 && this.state.roomClearReady;
   }
 
+  private getRoomExitCenter(): { x: number; y: number } | null {
+    if (this.exitCenterCache?.map === this.state.map) return this.exitCenterCache;
+    for (let tileY = 0; tileY < this.state.map.height; tileY++) {
+      for (let tileX = 0; tileX < this.state.map.width; tileX++) {
+        if (this.state.map.tiles[tileY]?.[tileX] !== TileType.STAIRS_DOWN) continue;
+        this.exitCenterCache = { map: this.state.map, x: tileX * TILE_SIZE + TILE_SIZE / 2, y: tileY * TILE_SIZE + TILE_SIZE / 2 };
+        return this.exitCenterCache;
+      }
+    }
+    this.exitCenterCache = null;
+    return null;
+  }
+
+  private playerWithinOpenExit(radius = TILE_SIZE * 1.05): boolean {
+    if (!this.canExitRoom()) return false;
+    const exit = this.getRoomExitCenter();
+    if (!exit) return false;
+    const playerX = this.state.player.x + this.state.player.width / 2;
+    const playerY = this.state.player.y + this.state.player.height / 2;
+    return Math.hypot(playerX - exit.x, playerY - exit.y) <= radius;
+  }
+
   private updateRoomFlow(time: number): void {
     const living = this.livingEnemies().length;
     const deathPending = this.state.enemies.some(enemy => enemy.isDead);
@@ -741,9 +765,11 @@ export class GameEngine {
     }
 
     const p = this.state.player;
-    const tx = Math.floor((p.x + 16) / TILE_SIZE);
-    const ty = Math.floor((p.y + 16) / TILE_SIZE);
-    if (this.state.map.tiles[ty]?.[tx] !== TileType.STAIRS_DOWN) return;
+    const exit = this.getRoomExitCenter();
+    if (!exit) return;
+    const playerX = p.x + p.width / 2;
+    const playerY = p.y + p.height / 2;
+    if (Math.hypot(playerX - exit.x, playerY - exit.y) > TILE_SIZE * 0.92) return;
     if (!this.canExitRoom()) {
       this.state.exitHintCount = living + (deathPending ? 1 : 0);
       this.state.exitHintUntil = time + 850;
@@ -860,7 +886,8 @@ export class GameEngine {
   }
 
   private blockedByRoomProp(entity: { x: number; y: number; width: number; height: number }) {
-    return collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, entity.x, entity.y, entity.width, entity.height);
+    if (entity === this.state.player && this.playerWithinOpenExit(TILE_SIZE * 1.35)) return false;
+    return !this.ignoreRoomPropCollisions && collidesWithRoomProp(this.state.floor, this.state.map.width, this.state.map.height, entity.x, entity.y, entity.width, entity.height);
   }
 
   private moveEntity(entity: { x: number; y: number; width: number; height: number }, dx: number, dy: number): void {

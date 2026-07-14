@@ -46,6 +46,7 @@ try {
   const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');
   const presentation = await server.ssrLoadModule('/src/game/propPresentation3D.ts');
   const chapter = await server.ssrLoadModule('/src/game/chapterRun.ts');
+  const runEngineSource = await import('node:fs/promises').then(fs => fs.readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'));
 
   const fingerprints = new Map();
   const regionAnchorFingerprints = new Map();
@@ -152,6 +153,8 @@ try {
     }
   }
 
+  if (!runEngineSource.includes('getRoomExitCenter') || !runEngineSource.includes('TILE_SIZE * 0.92') || !runEngineSource.includes('playerWithinOpenExit')) fail(0, 'portal priority regression');
+  if (/canExitRoom\(\)[\s\S]{0,240}state\.items/.test(runEngineSource)) fail(0, 'optional loot blocks room exit');
   note('Rooms 1–20 retain their authored identities and known mobile fixes.');
   note('Rooms 21–50 use thirty separate compositions without shared boundary templates.');
   note('Boss arenas keep bounded collider counts and clear authored spawn points.');
