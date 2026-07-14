@@ -7,16 +7,16 @@ import {
   type OnlineGuildMember,
   type OnlineGuildMembership,
 } from '../game/supabaseOnline';
-import { GuildPanel } from './GuildPanel';
+import { GuildPanelMobile } from './GuildPanelMobile';
 import { PlayerProfileCard } from './PlayerProfileCard';
 
-type Props = { language: 'de' | 'en' };
+type Props = { language: 'de' | 'en'; onClose: () => void };
 
 function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
-export function GuildSocialPanel({ language }: Props) {
+export function GuildSocialPanel({ language, onClose }: Props) {
   const de = language === 'de';
   const [membership, setMembership] = useState<OnlineGuildMembership | null>(null);
   const [members, setMembers] = useState<OnlineGuildMember[]>([]);
@@ -41,17 +41,17 @@ export function GuildSocialPanel({ language }: Props) {
     return () => window.removeEventListener(onlineSessionEventName(), handleChange);
   }, [refresh]);
 
-  return <div data-testid="guild-social-panel" className="relative">
-    <GuildPanel language={language} />
+  return <div data-testid="guild-social-panel" className="relative min-h-0 flex-1">
+    <GuildPanelMobile language={language} onClose={onClose} />
     {membership && members.length > 0 && <button
       data-testid="guild-profile-list-button"
       type="button"
       onClick={() => setProfilesOpen(true)}
-      className="absolute right-3 top-3 rounded-xl border border-cyan-300/16 bg-[#071218]/92 px-3 py-2 text-[7px] font-black uppercase tracking-[.12em] text-cyan-100 shadow-lg active:scale-[.98]"
+      className="absolute right-14 top-3 z-20 rounded-xl border border-cyan-300/16 bg-[#071218]/92 px-3 py-2 text-[7px] font-black uppercase tracking-[.12em] text-cyan-100 shadow-lg active:scale-[.98]"
     >{de ? 'Profile' : 'Profiles'} · {members.length}</button>}
 
-    {profilesOpen && membership && <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-5 backdrop-blur-md" onPointerDown={() => setProfilesOpen(false)}>
-      <div className="max-h-[76vh] w-full max-w-sm overflow-y-auto rounded-3xl border border-cyan-300/18 bg-[#081014]/98 p-4 text-white shadow-2xl" onPointerDown={event => event.stopPropagation()}>
+    {profilesOpen && membership && <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/80 px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] backdrop-blur-md" onPointerDown={() => setProfilesOpen(false)}>
+      <div className="max-h-full w-full max-w-sm overflow-y-auto rounded-3xl border border-cyan-300/18 bg-[#081014]/98 p-4 text-white shadow-2xl" onPointerDown={event => event.stopPropagation()}>
         <div className="text-[8px] font-black uppercase tracking-[.25em] text-cyan-100/45">{de ? 'GILDENPROFILE' : 'GUILD PROFILES'}</div>
         <div className="mt-1 text-lg font-black text-cyan-50">[{membership.guild.tag}] {membership.guild.name}</div>
         <div className="mt-3 space-y-2">{members.map(member => {
