@@ -18,6 +18,7 @@ const checks = [
   [showcase.includes('modelUrl(manifest, quiverDefinition.assetPath)') && showcase.includes('modelUrl(manifest, talismanDefinition.assetPath)'), 'quiver or talisman bypasses the app base path'],
   [showcase.includes('VillageVisibleBow_${bowId}') && showcase.includes('VillageVisibleQuiver_${quiverId}') && showcase.includes('VillageVisibleTalisman_${talismanId}'), 'equipped gear does not have isolated visible showcase anchors'],
   [showcase.includes('root.userData.equippedLoadout = { bow: bowId, quiver: quiverId, talisman: talismanId }'), 'village showcase does not preserve the current equipped loadout'],
+  [showcase.includes('buildFallbackArcherBody') && showcase.includes('root.userData.characterFallback = !characterGltf'), 'model failure can still remove the complete menu character'],
   [showcase.includes('buildProceduralBow') && showcase.includes('buildProceduralQuiver'), 'visible bow or quiver fallback is missing'],
   [showcase.includes('holder.position.set(crossbow ? 0.66 : 0.72') && showcase.includes('holder.position.set(-0.67, 1.05, 0.42)'), 'bow or quiver is still positioned behind the character'],
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the model loader'],
@@ -33,4 +34,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: all character and loadout assets resolve below the configured /DungeonVeil/ base path.');
+console.log('Main-menu equipped ranger audit passed: Pages-safe assets and guaranteed visible archer, bow and quiver fallbacks are active.');
