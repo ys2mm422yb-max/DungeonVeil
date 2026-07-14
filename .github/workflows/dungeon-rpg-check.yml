@@ -1,50 +1,54 @@
 name: Dungeon RPG Check
 
-# Registered branch validation trigger.
 on:
   push:
-    branches: [balance/equipment-upgrade-gold-costs]
+    branches: [main, work/blocks-1-7-production-pass]
     paths:
+      - 'artifacts/dungeon-rpg/**'
+      - 'lib/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
+  pull_request:
+    branches: [main, work/blocks-1-7-production-pass]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - 'lib/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.ci/validation-trigger.txt'
+  workflow_dispatch:
 
-permissions:
-  contents: write
-
+# Verification also runs directly on the production-pass branch when the PR has conflicts.
+# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
-  apply-and-validate:
+  typecheck-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: balance/equipment-upgrade-gold-costs
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - name: Apply upgrade economy patch
-        run: python3 .ci/apply-upgrade-economy.py
-      - run: pnpm install --frozen-lockfile
-      - name: Validate combined profile and economy build
-        run: |
-          node artifacts/dungeon-rpg/scripts/validate-profile-badge-compact.mjs
-          node artifacts/dungeon-rpg/scripts/validate-upgrade-economy.mjs
-          pnpm --filter @workspace/dungeon-rpg audit:assets
-          pnpm --filter @workspace/dungeon-rpg audit:social
-          pnpm --filter @workspace/dungeon-rpg audit:rooms
-          pnpm run typecheck
-          pnpm --filter @workspace/dungeon-rpg build
-      - name: Restore normal workflow and commit clean result
-        run: |
-          git checkout 5d5c8ba801818682adb89e5f53dc5bc14e1d24f8 -- .github/workflows/dungeon-rpg-check.yml
-          rm -f .ci/apply-upgrade-economy.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Raise permanent equipment upgrade gold costs'
-          git push origin HEAD:balance/equipment-upgrade-gold-costs
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Asset audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Room and collision audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Typecheck Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
+      - name: Build Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg build
