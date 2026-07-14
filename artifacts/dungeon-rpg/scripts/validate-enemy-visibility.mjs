@@ -33,8 +33,9 @@ try {
   const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');
   const identities = await server.ssrLoadModule('/src/game/enemyRegionalIdentity.ts');
 
-  const [engineSource, canvasSource, overlaySource, enemyVisualSource] = await Promise.all([
+  const [engineSource, hostCanvasSource, rendererSource, overlaySource, enemyVisualSource] = await Promise.all([
     readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/CombatFeedbackOverlay.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
@@ -59,14 +60,21 @@ try {
     if (!engineSource.includes(required)) fail(`missing global enemy attack guard: ${required}`);
   }
 
+  if (!hostCanvasSource.includes("const renderedRoomKeyRef = useRef('');")) {
+    fail('initial continued rooms can begin before their visual staging pass');
+  }
+  const enemyPreloads = hostCanvasSource.match(/preloadKayKitEnemyVisuals\(\)/g) ?? [];
+  if (enemyPreloads.length < 2) {
+    fail(`enemy library is not preloaded for initial and next-room staging (found ${enemyPreloads.length} calls)`);
+  }
+
   for (const required of [
-    "const renderedRoomKeyRef = useRef('');",
     'const enemyFallbacks = new Map<string, any>();',
     'const createEnemyFallback = (enemy:',
     'EnemyVisibilityFallback_',
     'KayKit enemy failed; keeping visibility fallback',
   ]) {
-    if (!canvasSource.includes(required)) fail(`missing global enemy visibility fallback guard: ${required}`);
+    if (!rendererSource.includes(required)) fail(`missing global enemy visibility fallback guard: ${required}`);
   }
 
   if (!enemyVisualSource.includes('node.frustumCulled = !node.isSkinnedMesh;')) {
@@ -79,10 +87,6 @@ try {
     fail('imported enemies still use a root-relative asset URL');
   }
 
-  const enemyPreloads = canvasSource.match(/preloadKayKitEnemyVisuals\(\)/g) ?? [];
-  if (enemyPreloads.length < 2) {
-    fail(`enemy library is not preloaded for initial and next-room staging (found ${enemyPreloads.length} calls)`);
-  }
   if (!overlaySource.includes("kind: 'fire' | 'ice' | 'attack'")) {
     fail('attack-source overlay marker is missing');
   }
