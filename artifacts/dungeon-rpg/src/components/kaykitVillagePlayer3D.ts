@@ -142,6 +142,14 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     quiver: Boolean(quiverHolder),
     talisman: Boolean(talismanHolder),
   };
+  if (typeof window !== 'undefined') {
+    (window as any).__DUNGEON_VEIL_MENU_RANGER__ = {
+      presentation: rig.root.userData.presentation,
+      pose: rig.root.userData.showcasePose,
+      loadout: rig.root.userData.equippedLoadout,
+      visibleEquipment: rig.root.userData.visibleEquipment,
+    };
+  }
 
   rig.setMoving(false);
   let elapsed = 0;
