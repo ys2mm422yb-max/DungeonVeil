@@ -1,0 +1,105 @@
+name: All-Room Enemy Visibility Deploy
+
+on:
+  push:
+    branches: [fix/all-room-enemy-visibility]
+    paths:
+      - '.github/workflows/all-room-enemy-visibility-deploy.yml'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dungeon-veil-all-room-enemy-visibility
+  cancel-in-progress: false
+
+jobs:
+  validate-build-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/all-room-enemy-visibility
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate all fifty rooms
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm run typecheck
+      - name: Build Pages app
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+          VITE_BUILD_SHA: ${{ steps.commit.outputs.sha }}
+        run: pnpm --dir artifacts/dungeon-rpg run build
+      - name: Verify and mark build
+        env:
+          EXPECTED_BASE_PATH: /DungeonVeil/
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:pages
+          printf '{"commit":"%s","deployedAt":"%s","source":"all-room-enemy-visibility"}\n' "${{ steps.commit.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          touch artifacts/dungeon-rpg/dist/public/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+
+  deploy:
+    needs: validate-build-upload
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/deploy-pages@v4
+
+  verify-and-clean:
+    needs: [validate-build-upload, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/all-room-enemy-visibility
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify fixed link and remove workflow
+        env:
+          EXPECTED_COMMIT: ${{ needs.validate-build-upload.outputs.sha }}
+        run: |
+          set -euo pipefail
+          verified=0
+          for attempt in $(seq 1 24); do
+            if curl -fsSL --retry 2 --retry-delay 2 "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?verify=${GITHUB_RUN_ID}-${attempt}" -o live.json; then
+              if python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path('live.json').read_text())
+          assert data.get('source') == 'all-room-enemy-visibility', data
+          assert data.get('commit') == os.environ['EXPECTED_COMMIT'], data
+          PY
+              then
+                verified=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test "$verified" = 1
+          rm -f live.json .github/workflows/all-room-enemy-visibility-deploy.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Remove temporary all-room visibility deployment workflow'
+          git push origin HEAD:fix/all-room-enemy-visibility
