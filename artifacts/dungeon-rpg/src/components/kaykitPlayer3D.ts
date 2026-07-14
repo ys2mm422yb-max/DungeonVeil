@@ -13,6 +13,8 @@ export const KAYKIT_PLAYER_ASSETS = {
   movementAdvanced: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb`,
 } as const;
 
+export type KayKitRangerPresentation = 'combat' | 'village';
+
 export type KayKitPlayerRig = {
   root: any;
   arrowPrototype: any;
@@ -96,6 +98,83 @@ function attachTalisman(THREE: any, parent: any, object: any, id: string) {
   parent.add(object);
 }
 
+function attachVillageBow(THREE: any, parent: any, object: any, id: string): BowRig {
+  prepareModel(object);
+  const crossbow = id === 'frost-bow' || id === 'splinter-bow';
+  fitAttachment(THREE, object, crossbow ? 0.86 : 1.26);
+
+  const holder = new THREE.Group();
+  holder.name = `VillageEquippedBow_${id}`;
+  holder.userData.equipmentId = id;
+  holder.position.set(crossbow ? 0.48 : 0.42, crossbow ? 0.98 : 1.05, crossbow ? 0.02 : -0.2);
+  holder.rotation.set(crossbow ? 0.12 : 0.08, crossbow ? -0.42 : -0.18, crossbow ? -0.24 : -0.82);
+  holder.add(object);
+  parent.add(holder);
+
+  const basePosition = holder.position.clone();
+  const baseRotation = holder.rotation.clone();
+  return {
+    bow: object,
+    anchor: holder,
+    basePosition,
+    baseRotation,
+    updateShotPose: () => undefined,
+  };
+}
+
+function attachVillageQuiver(THREE: any, parent: any, object: any, id: string, accent: string) {
+  if (!object) return;
+  const holder = new THREE.Group();
+  holder.name = `VillageEquippedQuiver_${id}`;
+  holder.userData.equipmentId = id;
+
+  prepareModel(object);
+  if (id === 'ranger-quiver') {
+    fitAttachment(THREE, object, 0.76);
+    holder.add(object);
+  } else {
+    const shell = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.14, 0.68, 8),
+      new THREE.MeshStandardMaterial({ color: accent, roughness: 0.72, metalness: 0.12 }),
+    );
+    shell.position.y = -0.05;
+    shell.rotation.z = 0.04;
+    holder.add(shell);
+
+    const rimMaterial = new THREE.MeshStandardMaterial({ color: 0x34271f, roughness: 0.86 });
+    for (const y of [-0.36, 0.28]) {
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(y < 0 ? 0.13 : 0.105, 0.018, 6, 16), rimMaterial);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.y = y;
+      holder.add(rim);
+    }
+
+    fitAttachment(THREE, object, id === 'black-quiver' ? 0.58 : 0.44);
+    const payload = new THREE.Group();
+    payload.position.set(0, 0.24, 0);
+    payload.rotation.set(0.08, 0.1, -0.08);
+    payload.add(object);
+    holder.add(payload);
+  }
+
+  holder.position.set(-0.38, 1.05, -0.2);
+  holder.rotation.set(-0.05, 0.18, 0.28);
+  parent.add(holder);
+}
+
+function attachVillageTalisman(THREE: any, parent: any, object: any, id: string) {
+  if (!object) return;
+  prepareModel(object);
+  const holder = new THREE.Group();
+  holder.name = `VillageEquippedTalisman_${id}`;
+  holder.userData.equipmentId = id;
+  fitAttachment(THREE, object, id === 'frost-grimoire' || id === 'ritual-shard' ? 0.24 : 0.16);
+  holder.position.set(-0.24, 0.68, 0.14);
+  holder.rotation.set(id === 'frost-grimoire' ? 0.15 : Math.PI / 2, 0, id === 'frost-grimoire' ? -0.24 : 0.08);
+  holder.add(object);
+  parent.add(holder);
+}
+
 function keepSharedResource(resource: any) {
   if (!resource) return resource;
   resource.userData = { ...(resource.userData ?? {}), dungeonVeilSharedProjectile: true };
@@ -146,9 +225,15 @@ function buildArrowPrototype(THREE: any) {
   return root;
 }
 
-export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
+export async function loadKayKitRanger(
+  THREE: any,
+  GLTFLoader: any,
+  options: { presentation?: KayKitRangerPresentation } = {},
+): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
+  const presentation = options.presentation ?? 'combat';
   const meta = loadMetaProgression();
+  const bowId = meta.equipped.bow;
   const quiverId = meta.equipped.quiver;
   const talismanId = meta.equipped.talisman;
   const quiverVariant = quiverId === 'ranger-quiver' ? null : EQUIPMENT[quiverId];
@@ -167,6 +252,8 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   const root = new THREE.Group();
   root.name = 'KayKitRangerPlayer';
+  root.userData.presentation = presentation;
+  root.userData.equippedLoadout = { bow: bowId, quiver: quiverId, talisman: talismanId };
   const visual = rangerGltf.scene;
   visual.name = 'KayKitRanger';
   visual.scale.setScalar(1.18);
@@ -195,14 +282,24 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   prepareModel(weapons.bow);
   prepareModel(quiverGltf.scene);
-  const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   const chest = findBone(visual, ['spine2', 'chest', 'spine1']);
-  attachQuiver(spine, quiverGltf.scene);
-  if (quiverVariantGltf && (quiverId === 'black-quiver' || quiverId === 'rune-quiver')) {
-    attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
+  let bowRig: BowRig;
+
+  if (presentation === 'village') {
+    bowRig = attachVillageBow(THREE, root, weapons.bow, bowId);
+    const selectedQuiver = quiverId === 'ranger-quiver' ? quiverGltf.scene : quiverVariantGltf?.scene ?? quiverGltf.scene;
+    attachVillageQuiver(THREE, root, selectedQuiver, quiverId, EQUIPMENT[quiverId]?.accent ?? '#63c8d8');
+    if (talismanGltf) attachVillageTalisman(THREE, root, talismanGltf.scene, talismanId);
+  } else {
+    bowRig = attachBowToRanger(THREE, visual, weapons.bow);
+    attachQuiver(spine, quiverGltf.scene);
+    if (quiverVariantGltf && (quiverId === 'black-quiver' || quiverId === 'rune-quiver')) {
+      attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
+    }
+    if (talismanGltf) attachTalisman(THREE, chest, talismanGltf.scene, talismanId);
   }
-  if (talismanGltf) attachTalisman(THREE, chest, talismanGltf.scene, talismanId);
+
   const arrowPrototype = buildArrowPrototype(THREE);
   const upperArmL = findBone(visual, ['upperarml']);
   const lowerArmL = findBone(visual, ['lowerarml']);
@@ -257,19 +354,23 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     root,
     arrowPrototype,
     setMoving(value: boolean) {
+      if (presentation === 'village') return;
       moving = value;
       if (dashRemaining <= 0) playBase();
     },
     setMotionSpeed(moveMultiplier: number, attackSpeedMultiplier: number) {
+      if (presentation === 'village') return;
       movementMultiplier = Math.max(0.8, Math.min(1.8, moveMultiplier));
       attackMultiplier = Math.max(1, Math.min(1.9, attackSpeedMultiplier));
       shotDuration = 0.24 / attackMultiplier;
       applySpeeds();
     },
     triggerAttack() {
+      if (presentation === 'village') return;
       if (dashRemaining <= 0) shotTime = shotDuration;
     },
     triggerDash() {
+      if (presentation === 'village') return;
       shotTime = 0;
       bowRig.updateShotPose(0);
       dashDuration = dash ? Math.max(0.2, Math.min(0.34, dashClip!.duration / dash.timeScale)) : 0.24;
@@ -282,6 +383,14 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       }
     },
     update(delta: number) {
+      if (presentation === 'village') {
+        mixer.update(delta);
+        visual.position.set(0, 0, 0);
+        visual.rotation.x = 0;
+        visual.rotation.z = 0;
+        return;
+      }
+
       if (dashRemaining > 0) {
         dashRemaining = Math.max(0, dashRemaining - delta);
         const progress = 1 - dashRemaining / Math.max(0.001, dashDuration);
