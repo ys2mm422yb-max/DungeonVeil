@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, inventory, hub, guildPanel, chatPanel, chatClient, meta, gates, migration] = await Promise.all([
+const [menu, inventory, hub, guildPanel, chatPanel, chatClient, meta, gates, migration, invitePermissionFix] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/screens/VeilChamberScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
@@ -11,6 +11,7 @@ const [menu, inventory, hub, guildPanel, chatPanel, chatClient, meta, gates, mig
   read('../src/game/metaProgression.ts'),
   read('../src/game/equipmentChapterGates.ts'),
   read('../../../supabase/migrations/20260714183000_guild_text_chat.sql'),
+  read('../../../supabase/migrations/20260714194500_fix_guild_invite_mailbox_permission.sql'),
 ]);
 
 const checks = [
@@ -23,6 +24,7 @@ const checks = [
   [meta.includes('equipmentUnlockedForCurrentProgress(item.id)') && meta.includes('recordReachedChapter(chapter)'), 'equipment drops are not chapter gated'],
   [gates.includes("'warden-bow': 5") && gates.includes("'veil-eye': 5") && gates.includes("'hunter-bow': 2"), 'strong equipment chapter thresholds are incomplete'],
   [migration.includes('alter table public.guild_messages enable row level security') && migration.includes('guild_messages_read_members') && migration.includes('guild_messages_send_members') && migration.includes('user_id = (select auth.uid())') && migration.includes('guild_messages_user_idx'), 'guild chat RLS or required indexes are incomplete'],
+  [invitePermissionFix.includes('create or replace function public.accept_guild_invite') && invitePermissionFix.includes('update public.guild_invites') && !invitePermissionFix.includes('update public.player_mailbox') && invitePermissionFix.includes('grant execute on function public.accept_guild_invite(uuid) to authenticated'), 'guild invite acceptance still writes directly to the protected mailbox table'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -31,4 +33,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Inventory/guild-chat/chapter audit passed: labels are clean, guild chat is member-only and stronger items unlock in later chapters.');
+console.log('Inventory/guild-chat/chapter audit passed: labels are clean, guild chat is member-only, stronger items unlock in later chapters and guild invites use the protected mailbox RPC flow.');
