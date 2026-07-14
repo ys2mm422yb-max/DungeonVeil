@@ -1,5 +1,6 @@
 name: Player Profile Live Deploy
 
+# Registered workflow trigger for the tested profile build.
 on:
   push:
     branches: [feature/player-profile-showcase]
