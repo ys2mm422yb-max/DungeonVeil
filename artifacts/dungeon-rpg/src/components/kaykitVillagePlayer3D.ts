@@ -113,7 +113,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
 
   rig.root.name = 'VillageEquippedPlayer';
   rig.root.userData.presentation = 'village-showcase-v5-single-base-run-ranger';
-  rig.root.userData.showcasePose = 'v9-copied-idle-a-visible-loadout';
+  rig.root.userData.showcasePose = 'v8-animated-visible-loadout';
   rig.root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
     quiver: meta.equipped.quiver,
