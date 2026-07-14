@@ -24,40 +24,9 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
+# Verification also runs directly on the production-pass branch when the PR has conflicts.
+# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
-  prepare-block-7:
-    if: github.event_name == 'pull_request' && github.head_ref == 'fix/block-7-guild-invite-close'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: fix/block-7-guild-invite-close
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply guild layout patch and self-clean
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main fix/block-1-email-confirmation-redirect
-          git checkout origin/fix/block-1-email-confirmation-redirect -- \
-            artifacts/dungeon-rpg/src/components/GuildPanelMobile.tsx \
-            artifacts/dungeon-rpg/src/components/GuildSocialPanel.tsx \
-            artifacts/dungeon-rpg/src/components/GuildInviteLinkCard.tsx \
-            artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx \
-            artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs \
-            artifacts/dungeon-rpg/scripts/validate-social-progression.mjs
-          python3 .ci/block7_patch.py
-          git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
-          rm -f .github/workflows/build-block-7-guild.yml .ci/block7-trigger.txt .ci/block7_patch.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Move guild sharing into invite tab and add fixed close control'
-          git push origin HEAD:fix/block-7-guild-invite-close
-
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
