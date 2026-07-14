@@ -5,6 +5,11 @@ on:
     branches: [fix/main-menu-equipped-ranger]
     paths:
       - '.github/workflows/live-menu-diagnostic.yml'
+  pull_request:
+    branches: [integration/block-8-final-device-review]
+    types: [opened, reopened, synchronize]
+    paths:
+      - '.github/workflows/live-menu-diagnostic.yml'
   workflow_dispatch:
 
 permissions:
@@ -12,6 +17,7 @@ permissions:
 
 jobs:
   inspect-live:
+    if: github.event_name != 'pull_request' || github.head_ref == 'fix/main-menu-equipped-ranger'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
