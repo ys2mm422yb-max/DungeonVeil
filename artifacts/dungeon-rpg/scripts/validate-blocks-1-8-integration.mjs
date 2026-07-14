@@ -32,4 +32,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Block 8 integration audit passed: Blocks 1–7 coexist in one final device-review snapshot.');
+console.log('Block 8 integration audit passed: the final Blocks 1–7 changes coexist in one clean device-review snapshot.');
