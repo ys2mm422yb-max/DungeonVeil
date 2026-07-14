@@ -2,7 +2,6 @@ import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest
 import { EQUIPMENT, loadMetaProgression, type EquipmentId } from '../game/metaProgression';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
-const KAYKIT_ROOT = '/assets/kaykit';
 const FANTASY_WEAPONS_GLTF = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 
 export type KayKitRangerWeapons = {
@@ -57,11 +56,9 @@ async function loadRangerWeaponPrototype(cacheKey: string, bowId: EquipmentId | 
 
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
       const loader = new GLTFLoader();
-      const bowUrl = preferredBowPath ? `${KAYKIT_ROOT}/${bowPath}` : modelUrl(manifest, bowPath);
-      const arrowUrl = equippedArrowPath(bowId) ? `${KAYKIT_ROOT}/${arrowPath}` : modelUrl(manifest, arrowPath);
       const [bowGltf, arrowGltf] = await Promise.all([
-        loader.loadAsync(bowUrl),
-        loader.loadAsync(arrowUrl),
+        loader.loadAsync(modelUrl(manifest, bowPath)),
+        loader.loadAsync(modelUrl(manifest, arrowPath)),
       ]);
       return { bow: bowGltf.scene, arrow: arrowGltf.scene };
     })());
