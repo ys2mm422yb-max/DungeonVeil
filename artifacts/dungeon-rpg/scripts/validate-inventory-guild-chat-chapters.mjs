@@ -22,7 +22,7 @@ const checks = [
   [chatClient.includes("authenticatedSupabaseRest('guild_messages'") && chatClient.includes('listGuildChatMessages') && chatClient.includes('sendGuildChatMessage'), 'authenticated guild chat client is incomplete'],
   [meta.includes('equipmentUnlockedForCurrentProgress(item.id)') && meta.includes('recordReachedChapter(chapter)'), 'equipment drops are not chapter gated'],
   [gates.includes("'warden-bow': 5") && gates.includes("'veil-eye': 5") && gates.includes("'hunter-bow': 2"), 'strong equipment chapter thresholds are incomplete'],
-  [migration.includes('alter table public.guild_messages enable row level security') && migration.includes('guild_messages_read_members') && migration.includes('guild_messages_send_members') && migration.includes('user_id = (select auth.uid())'), 'guild chat RLS is incomplete'],
+  [migration.includes('alter table public.guild_messages enable row level security') && migration.includes('guild_messages_read_members') && migration.includes('guild_messages_send_members') && migration.includes('user_id = (select auth.uid())') && migration.includes('guild_messages_user_idx'), 'guild chat RLS or required indexes are incomplete'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
