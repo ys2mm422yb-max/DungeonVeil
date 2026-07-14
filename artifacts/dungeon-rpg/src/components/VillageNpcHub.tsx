@@ -33,13 +33,6 @@ export function VillageNpcHub({ language, dailyProgress, mailUnread, onQuests, o
   ];
 
   return <section data-testid="veil-village-npc-hub" className="relative z-20 mx-auto w-full max-w-md px-4">
-    <div className="mb-2 flex items-center justify-between px-1">
-      <div>
-        <div className="text-[7px] font-black uppercase tracking-[.26em] text-amber-100/45">{de ? 'DORFPLATZ' : 'VILLAGE SQUARE'}</div>
-        <div className="mt-0.5 text-[10px] font-bold text-amber-50/78">{de ? 'Wähle einen Ort' : 'Choose a place'}</div>
-      </div>
-      <div className="h-px flex-1 bg-gradient-to-r from-amber-100/18 to-transparent ml-3" />
-    </div>
     <div className="grid grid-cols-5 gap-1.5 rounded-2xl border border-amber-50/10 bg-[#100e0c]/88 p-2 shadow-[0_14px_34px_rgba(0,0,0,.34)] backdrop-blur-xl">
       {places.map(place => <button
         key={place.testId}
