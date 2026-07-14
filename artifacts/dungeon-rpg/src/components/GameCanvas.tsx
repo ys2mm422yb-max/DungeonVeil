@@ -186,7 +186,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   }, [rendererGeneration]);
 
   return (
-    <div ref={hostRef} className="absolute inset-0">
+    <div ref={hostRef} className="absolute inset-0 overflow-hidden" data-testid="run-canvas-host" style={{ width: '100%', height: '100%' }}>
       <GameCanvasKayKit3D key={rendererGeneration} gameState={renderState} />
       <CombatFeedbackOverlay gameState={gameState} />
     </div>

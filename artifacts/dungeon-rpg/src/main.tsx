@@ -1,12 +1,17 @@
 import { createRoot } from 'react-dom/client';
 
+import './game/portalExitPolicy';
 import App from './App';
 import { MainMenuVisualQa } from './components/MainMenuVisualQa';
 import { TutorialVisualQa } from './components/TutorialVisualQa';
 import { WorldBossVisualQa } from './components/WorldBossVisualQa';
+import { installEmailConfirmationRedirect } from './game/emailConfirmationRedirect';
 import { startVersionGuard } from './game/versionGuard';
 
 import './index.css';
+import './guild-mobile.css';
+
+installEmailConfirmationRedirect();
 
 const qaMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('qa') : null;
 if (!qaMode) startVersionGuard();
