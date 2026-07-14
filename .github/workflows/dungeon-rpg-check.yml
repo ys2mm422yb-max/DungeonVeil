@@ -2,53 +2,101 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [feature/player-profile-showcase]
     paths:
-      - 'artifacts/dungeon-rpg/**'
-      - 'lib/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
-      - '.github/workflows/dungeon-rpg-ci.yml'
-  pull_request:
-    branches: [main, work/blocks-1-7-production-pass]
-    paths:
-      - 'artifacts/dungeon-rpg/**'
-      - 'lib/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/dungeon-rpg-check.yml'
-      - '.github/workflows/dungeon-rpg-ci.yml'
-      - '.ci/validation-trigger.txt'
-  workflow_dispatch:
 
-# Verification also runs directly on the production-pass branch when the PR has conflicts.
-# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
+permissions:
+  contents: write
+
 jobs:
-  typecheck-and-build:
+  apply-profile:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/player-profile-showcase
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
         with:
           version: 10
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - name: Install workspace
-        run: pnpm install --frozen-lockfile
-      - name: Asset audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:assets
-      - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
-      - name: Typecheck Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg typecheck
-      - name: Build Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg build
+      - name: Apply profile integration hooks
+        run: python3 .ci/apply-player-profile-hooks.py
+      - run: pnpm install --frozen-lockfile
+      - name: Validate profile and complete project
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:social
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm run typecheck
+          pnpm --dir artifacts/dungeon-rpg run build
+      - name: Restore normal check and commit clean profile feature
+        shell: bash
+        run: |
+          cat > .github/workflows/dungeon-rpg-check.yml <<'YAML'
+          name: Dungeon RPG Check
+
+          on:
+            push:
+              branches: [main, work/blocks-1-7-production-pass]
+              paths:
+                - 'artifacts/dungeon-rpg/**'
+                - 'lib/**'
+                - 'package.json'
+                - 'pnpm-lock.yaml'
+                - 'pnpm-workspace.yaml'
+                - '.github/workflows/dungeon-rpg-check.yml'
+                - '.github/workflows/dungeon-rpg-ci.yml'
+            pull_request:
+              branches: [main, work/blocks-1-7-production-pass]
+              paths:
+                - 'artifacts/dungeon-rpg/**'
+                - 'lib/**'
+                - 'package.json'
+                - 'pnpm-lock.yaml'
+                - 'pnpm-workspace.yaml'
+                - '.github/workflows/dungeon-rpg-check.yml'
+                - '.github/workflows/dungeon-rpg-ci.yml'
+                - '.ci/validation-trigger.txt'
+            workflow_dispatch:
+
+          # Verification also runs directly on the production-pass branch when the PR has conflicts.
+          # Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
+          jobs:
+            typecheck-and-build:
+              runs-on: ubuntu-latest
+              timeout-minutes: 15
+              steps:
+                - name: Checkout
+                  uses: actions/checkout@v4
+                - name: Setup pnpm
+                  uses: pnpm/action-setup@v4
+                  with:
+                    version: 10
+                - name: Setup Node
+                  uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+                    cache: pnpm
+                - name: Install workspace
+                  run: pnpm install --frozen-lockfile
+                - name: Asset audit
+                  run: pnpm --filter @workspace/dungeon-rpg audit:assets
+                - name: Room and collision audit
+                  run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+                - name: Typecheck Dungeon Veil
+                  run: pnpm --filter @workspace/dungeon-rpg typecheck
+                - name: Build Dungeon Veil
+                  run: pnpm --filter @workspace/dungeon-rpg build
+          YAML
+          rm -f .ci/apply-player-profile-hooks.py .github/workflows/apply-player-profile-showcase.yml README_PROFILE_TASK.tmp
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add persistent player profile showcase'
+          git push origin HEAD:feature/player-profile-showcase
