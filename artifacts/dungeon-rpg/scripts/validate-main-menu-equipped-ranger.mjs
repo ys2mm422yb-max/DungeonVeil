@@ -27,4 +27,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the clean base outfit, selected bow, selected quiver and talisman are isolated in the village showcase.');
+console.log('Main-menu equipped ranger audit passed: the clean Ranger outfit and the selected bow, quiver and talisman are all visible without combat-rig clipping.');
