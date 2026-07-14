@@ -24,18 +24,12 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   capture-block-6-report:
     if: github.event_name == 'pull_request' && github.head_ref == 'audit/block-6-rooms-6-50-quality'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: audit/block-6-rooms-6-50-quality
-          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -44,21 +38,19 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Write complete room report
+      - name: Generate complete room report
         shell: bash
         run: |
+          mkdir -p diagnostics
           set +e
-          cd artifacts/dungeon-rpg
-          node scripts/validate-room-quality-6-50.mjs > ../../.ci/room-quality-6-50.txt 2>&1
-          cd ../..
+          (cd artifacts/dungeon-rpg && node scripts/validate-room-quality-6-50.mjs) > diagnostics/room-quality-6-50.txt 2>&1
+          echo $? > diagnostics/exit-code.txt
           set -e
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .ci/room-quality-6-50.txt .github/workflows/dungeon-rpg-check.yml
-          git commit -m 'Record complete room quality report'
-          git push origin HEAD:audit/block-6-rooms-6-50-quality
+      - name: Upload room report
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-quality-6-50
+          path: diagnostics
 
   typecheck-and-build:
     runs-on: ubuntu-latest
