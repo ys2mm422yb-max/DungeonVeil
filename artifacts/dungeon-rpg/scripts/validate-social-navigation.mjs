@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stage, band] = await Promise.all([
+const [menu, villageHub, menuScene, villageScene, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, stage, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
+  read('../src/components/ModernVillageSquareScene.tsx'),
   read('../src/components/MailboxPanel.tsx'),
   read('../src/components/GuildInviteLinkCard.tsx'),
   read('../src/game/guildMailboxOnline.ts'),
@@ -35,8 +36,8 @@ const checks = [
   [friendHardening.includes('friend_requests_pair_uidx') && friendHardening.includes('least(sender_id, receiver_id)') && friendHardening.includes('on conflict do nothing'), 'unordered friend-pair race protection is missing'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuScene.includes("root.name = 'VeilWorldOrb'") && menuScene.includes("globe.name = 'VeilWorldGlobe'") && menuScene.includes('buildVillageNpc') && menuScene.includes('buildVillageStall'), 'main menu lacks the central world orb or visible village staging'],
-  [villageHub.includes('accent="world"') && villageHub.includes('top="47.5%"') && menu.includes('h-[41vh]'), 'NPC hub is not balanced around the world orb or remains overlapped by action cards'],
+  [menuScene.includes('ModernVillageSquareScene') && menuScene.includes('dungeon-veil-meta-changed') && !menuScene.includes('VeilWorldOrb'), 'main menu is not routed to the equipped modern village renderer'],
+  [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitRanger') && villageScene.includes("rig.root.name = 'VillageEquippedPlayer'") && !villageScene.includes('AelricWorldKeeper'), 'equipped player does not replace the fixed village Barbarian'],
   [stage.includes("root.name = 'AshKingRitualHall'") && stage.includes("slabA.name = 'StoneFloorSlabs'") && stage.includes("part.name = 'BrokenAshThrone'") && stage.includes("threshold.name = 'VeilGateThreshold'"), 'cohesive semantic Ash King ritual hall is missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or cohesive stage route are missing'],
 ];
@@ -48,4 +49,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: weekly rift removed, world-orb village hub active, mailbox and friends routes secure, and the cohesive Ash King ritual hall is QA-addressable.');
+console.log('Social/navigation audit passed: the main menu uses the real equipped player rig and retains secure social navigation.');
