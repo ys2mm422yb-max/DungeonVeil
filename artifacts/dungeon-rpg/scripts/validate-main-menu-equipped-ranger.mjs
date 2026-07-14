@@ -33,4 +33,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: Pages-safe character and equipment URLs plus visible bow/quiver fallbacks are active.');
+console.log('Main-menu equipped ranger audit passed: all character and loadout assets resolve below the configured /DungeonVeil/ base path.');
