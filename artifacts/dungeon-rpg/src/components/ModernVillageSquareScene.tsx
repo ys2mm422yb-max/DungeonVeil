@@ -6,6 +6,7 @@ import { loadKayKitVillageArcher } from './kaykitVillagePlayer3D';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const KEEPER_KEYS = new Set(['mira', 'orin', 'tala', 'brom']);
 
 type AssetRule = { key: string; pack: KayKitPackName; include: RegExp; exclude?: RegExp };
 
@@ -14,7 +15,6 @@ const VILLAGE_ASSETS: AssetRule[] = [
   { key: 'pillar', pack: 'dungeon', include: /pillar.*decorated|decorated.*pillar|pillar/i },
   { key: 'torch', pack: 'dungeon', include: /torch.*lit|lit.*torch|torch/i },
   { key: 'banner', pack: 'dungeon', include: /banner.*shield|shield.*banner|banner/i },
-  { key: 'shrine', pack: 'halloween', include: /shrine.*candle|candle.*shrine|altar/i },
   { key: 'bench', pack: 'furniture', include: /bench/i },
   { key: 'table', pack: 'furniture', include: /table/i },
   { key: 'crate', pack: 'resources', include: /crate/i },
@@ -66,10 +66,22 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any, keeper
   const loader = new GLTFLoader();
   const villageRoot = new THREE.Group();
   villageRoot.name = 'ModernKayKitVillageSquare';
+  villageRoot.userData.skinnedKeepersUseOriginalScenes = true;
   scene.add(villageRoot);
 
-  const addLoaded = (prototype: any, x: number, y: number, z: number, scale: number, rotation = 0, name = '') => {
-    const object = prototype.clone(true);
+  const addLoaded = (
+    prototype: any,
+    x: number,
+    y: number,
+    z: number,
+    scale: number,
+    rotation = 0,
+    name = '',
+    clonePrototype = true,
+  ) => {
+    // Object3D.clone(true) does not safely rebind a SkinnedMesh skeleton. Every
+    // keeper is loaded from its own GLB and therefore uses that original scene.
+    const object = clonePrototype ? prototype.clone(true) : prototype;
     object.position.set(x, y, z);
     object.rotation.y = rotation;
     object.scale.setScalar(scale);
@@ -81,7 +93,6 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any, keeper
 
   const placements: Record<string, Array<[number, number, number, number, number, string]>> = {
     gate: [[0, -0.35, -9.2, 1.85, Math.PI, 'VillageGate']],
-    shrine: [[0, 0.02, -6.1, 1.15, 0, 'VillageSquareShrine']],
     pillar: [[-3.55, -0.08, -7.0, 1.35, 0, 'VillagePillarLeft'], [3.55, -0.08, -7.0, 1.35, 0, 'VillagePillarRight']],
     banner: [[-3.75, 2.25, -8.0, 1.05, Math.PI, 'VillageBannerLeft'], [3.75, 2.25, -8.0, 1.05, Math.PI, 'VillageBannerRight']],
     torch: [[-2.5, 0.84, -5.8, 1.2, Math.PI, 'VillageTorchLeft'], [2.5, 0.84, -5.8, 1.2, Math.PI, 'VillageTorchRight']],
@@ -101,8 +112,13 @@ async function loadVillageAssets(THREE: any, GLTFLoader: any, scene: any, keeper
     if (!relative) throw new Error(`Missing required village asset: ${rule.key}`);
     const gltf = await loader.loadAsync(modelUrl(manifest, relative));
     if (isDisposed()) return;
-    const created = (placements[rule.key] ?? []).map(args => addLoaded(gltf.scene, ...args));
-    if (['mira', 'orin', 'tala', 'brom'].includes(rule.key)) {
+    const isKeeper = KEEPER_KEYS.has(rule.key);
+    const created = (placements[rule.key] ?? []).map((args, placementIndex) => addLoaded(
+      gltf.scene,
+      ...args,
+      !(isKeeper && placementIndex === 0),
+    ));
+    if (isKeeper) {
       created.forEach(object => {
         object.userData.villagePhase = index * 0.91;
         keepers.push(object);
@@ -194,9 +210,9 @@ export function ModernVillageSquareScene() {
       const fill = new THREE.DirectionalLight(0x92a6e5, 0.72);
       fill.position.set(5.5, 8, 0);
       scene.add(fill);
-      const shrineLight = new THREE.PointLight(0xffb45f, IS_MOBILE ? 1.85 : 2.45, 11, 2);
-      shrineLight.position.set(0, 2.0, -4.8);
-      scene.add(shrineLight);
+      const plazaLight = new THREE.PointLight(0xffb45f, IS_MOBILE ? 1.85 : 2.45, 11, 2);
+      plazaLight.position.set(0, 2.0, -4.8);
+      scene.add(plazaLight);
 
       const resize = () => {
         const width = host.clientWidth || innerWidth;
@@ -225,7 +241,7 @@ export function ModernVillageSquareScene() {
         const delta = lastRigFrame ? Math.min(0.05, (now - lastRigFrame) / 1000) : (IS_MOBILE ? 1 / 30 : 1 / 60);
         lastFrame = now;
         lastRigFrame = now;
-        shrineLight.intensity = (IS_MOBILE ? 1.7 : 2.25) + Math.sin(now * 0.0022) * 0.18;
+        plazaLight.intensity = (IS_MOBILE ? 1.7 : 2.25) + Math.sin(now * 0.0022) * 0.18;
         centralMark.material.opacity = 0.34 + Math.sin(now * 0.0018) * 0.08;
         keepers.forEach(keeper => { keeper.position.y = Math.sin(now * 0.0014 + keeper.userData.villagePhase) * 0.022; });
         villagePlayerRig?.update(delta);
