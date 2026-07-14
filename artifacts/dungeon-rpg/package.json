@@ -10,8 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "audit:assets": "node scripts/audit-kaykit-assets.mjs",
     "audit:worldboss": "node scripts/validate-worldboss-performance.mjs",
-    "audit:social": "node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs",
-    "audit:rooms": "node scripts/validate-all-rooms.mjs && node scripts/validate-production-rooms.mjs && node scripts/validate-spawn-hitboxes.mjs && node scripts/validate-enemy-visibility.mjs && node scripts/validate-mobile-combat.mjs && node scripts/validate-worldboss-performance.mjs && node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs",
+    "audit:social": "node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs && node scripts/validate-guild-mobile-layout.mjs",
+    "audit:rooms": "node scripts/validate-all-rooms.mjs && node scripts/validate-production-rooms.mjs && node scripts/validate-spawn-hitboxes.mjs && node scripts/validate-enemy-visibility.mjs && node scripts/validate-mobile-combat.mjs && node scripts/validate-worldboss-performance.mjs && node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs && node scripts/validate-guild-mobile-layout.mjs",
     "audit:pages": "node scripts/validate-pages-build.mjs"
   },
   "devDependencies": {
