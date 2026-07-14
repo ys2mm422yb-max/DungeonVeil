@@ -48,7 +48,9 @@ jobs:
         shell: bash
         run: |
           set +e
-          node artifacts/dungeon-rpg/scripts/validate-room-quality-6-50.mjs > .ci/room-quality-6-50.txt 2>&1
+          cd artifacts/dungeon-rpg
+          node scripts/validate-room-quality-6-50.mjs > ../../.ci/room-quality-6-50.txt 2>&1
+          cd ../..
           set -e
           git fetch origin main
           git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
