@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
-// Guards the final mobile composition against white lamp props, crowded NPCs,
-// redundant labels and unnatural equipment placement.
+// Guards the final reviewed mobile composition against white lamp props, crowded NPCs,
+// redundant labels and unnatural equipment placement after the live V15 deployment.
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const [village, villageHub, showcase, player, weapons, manifest, meta] = await Promise.all([
   read('../src/components/ModernVillageSquareScene.tsx'),
