@@ -55,34 +55,7 @@ jobs:
           script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
           Path('/tmp/apply-main-menu-v14.py').write_text(script)
           EXTRACT
-          python3 - <<'PATCH'
-          from pathlib import Path
-          path = Path('/tmp/apply-main-menu-v14.py')
-          script = path.read_text()
-          start = script.index('replace_once(showcase, "  let shrineHidden = false;\\n", "")')
-          end = script.index("\n\naudit = Path('artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs')", start)
-          replacement = '''replace_once(showcase, "  let shrineHidden = false;\\n", "")
-replace_once(showcase,
-  """      root.position.y = -0.06 + Math.sin(elapsed * 1.25) * 0.01;
-      root.position.z = -2.42;
-      root.rotation.y = 0.04;
-      root.scale.setScalar(0.58);""",
-  """      root.position.y = -0.08 + Math.sin(elapsed * 1.18) * 0.008;
-      root.position.z = -1.82;
-      root.rotation.y = -0.025;
-      root.scale.setScalar(0.72);""")
-replace_once(showcase,
-  """
-      if (!shrineHidden) {
-        const shrine = root.parent?.getObjectByName?.('VillageSquareShrine');
-        if (shrine) {
-          shrine.visible = false;
-          shrineHidden = true;
-        }
-      }""",
-  "")'''
-          path.write_text(script[:start] + replacement + script[end:])
-          PATCH
+          python3 -c "from pathlib import Path; import base64; p=Path('/tmp/apply-main-menu-v14.py'); s=p.read_text(); a=s.index('replace_once(showcase, \"  let shrineHidden = false;\\\\n\", \"\")'); b=s.index(\"\\n\\naudit = Path('artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs')\", a); r=base64.b64decode('cmVwbGFjZV9vbmNlKHNob3djYXNlLCAiICBsZXQgc2hyaW5lSGlkZGVuID0gZmFsc2U7XG4iLCAiIikKcmVwbGFjZV9vbmNlKHNob3djYXNlLAogICIiIiAgICAgIHJvb3QucG9zaXRpb24ueSA9IC0wLjA2ICsgTWF0aC5zaW4oZWxhcHNlZCAqIDEuMjUpICogMC4wMTsKICAgICAgcm9vdC5wb3NpdGlvbi56ID0gLTIuNDI7CiAgICAgIHJvb3Qucm90YXRpb24ueSA9IDAuMDQ7CiAgICAgIHJvb3Quc2NhbGUuc2V0U2NhbGFyKDAuNTgpOyIiIiwKICAiIiIgICAgICByb290LnBvc2l0aW9uLnkgPSAtMC4wOCArIE1hdGguc2luKGVsYXBzZWQgKiAxLjE4KSAqIDAuMDA4OwogICAgICByb290LnBvc2l0aW9uLnogPSAtMS44MjsKICAgICAgcm9vdC5yb3RhdGlvbi55ID0gLTAuMDI1OwogICAgICByb290LnNjYWxlLnNldFNjYWxhcigwLjcyKTsiIiIpCnJlcGxhY2Vfb25jZShzaG93Y2FzZSwKICAiIiIKICAgICAgaWYgKCFzaHJpbmVIaWRkZW4pIHsKICAgICAgICBjb25zdCBzaHJpbmUgPSByb290LnBhcmVudD8uZ2V0T2JqZWN0QnlOYW1lPy4oJ1ZpbGxhZ2VTcXVhcmVTaHJpbmUnKTsKICAgICAgICBpZiAoc2hyaW5lKSB7CiAgICAgICAgICBzaHJpbmUudmlzaWJsZSA9IGZhbHNlOwogICAgICAgICAgc2hyaW5lSGlkZGVuID0gdHJ1ZTsKICAgICAgICB9CiAgICAgIH0iIiIsCiAgIiIp').decode(); p.write_text(s[:a]+r+s[b:])"
           python3 /tmp/apply-main-menu-v14.py
           rm -f .ci/main-menu-v14-apply.log
           git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
