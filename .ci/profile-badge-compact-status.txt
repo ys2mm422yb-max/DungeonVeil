@@ -1,0 +1,1 @@
+Profile badge compact implementation is ready for CI and device review.
