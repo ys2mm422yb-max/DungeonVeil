@@ -20,6 +20,8 @@ type RuntimeDiagnostics = {
 
 const DIAGNOSTICS_KEY = 'dungeon-veil-runtime-diagnostics';
 const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
+const DOUBLE_TAP_ZOOM_WINDOW_MS = 360;
+const DOUBLE_TAP_ZOOM_DISTANCE_PX = 44;
 
 function roomKey(state: GameState) {
   return `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
@@ -56,6 +58,50 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   const [renderState, setRenderState] = useState(gameState);
   const [rendererGeneration, setRendererGeneration] = useState(0);
   const liveRoomKey = roomKey(gameState);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    let lastTouchEndedAt = 0;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
+    const preventBrowserZoom = (event: Event) => {
+      if (event.cancelable) event.preventDefault();
+    };
+    const preventPinchZoom = (event: TouchEvent) => {
+      if (event.touches.length > 1 && event.cancelable) event.preventDefault();
+    };
+    const preventDoubleTapZoom = (event: TouchEvent) => {
+      if (event.changedTouches.length !== 1) return;
+      const touch = event.changedTouches[0];
+      const now = performance.now();
+      const closeToLastTap = Math.hypot(touch.clientX - lastTouchX, touch.clientY - lastTouchY) <= DOUBLE_TAP_ZOOM_DISTANCE_PX;
+      if (now - lastTouchEndedAt <= DOUBLE_TAP_ZOOM_WINDOW_MS && closeToLastTap && event.cancelable) {
+        event.preventDefault();
+      }
+      lastTouchEndedAt = now;
+      lastTouchX = touch.clientX;
+      lastTouchY = touch.clientY;
+    };
+
+    host.addEventListener('touchmove', preventPinchZoom, { passive: false });
+    host.addEventListener('touchend', preventDoubleTapZoom, { passive: false });
+    host.addEventListener('dblclick', preventBrowserZoom, { passive: false });
+    document.addEventListener('gesturestart', preventBrowserZoom, { passive: false });
+    document.addEventListener('gesturechange', preventBrowserZoom, { passive: false });
+    document.addEventListener('gestureend', preventBrowserZoom, { passive: false });
+
+    return () => {
+      host.removeEventListener('touchmove', preventPinchZoom);
+      host.removeEventListener('touchend', preventDoubleTapZoom);
+      host.removeEventListener('dblclick', preventBrowserZoom);
+      document.removeEventListener('gesturestart', preventBrowserZoom);
+      document.removeEventListener('gesturechange', preventBrowserZoom);
+      document.removeEventListener('gestureend', preventBrowserZoom);
+    };
+  }, []);
 
   useEffect(() => {
     if (liveRoomKey === renderedRoomKeyRef.current) setRenderState(gameState);
@@ -186,7 +232,12 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   }, [rendererGeneration]);
 
   return (
-    <div ref={hostRef} className="absolute inset-0 overflow-hidden" data-testid="run-canvas-host" style={{ width: '100%', height: '100%' }}>
+    <div
+      ref={hostRef}
+      className="absolute inset-0 overflow-hidden"
+      data-testid="run-canvas-host"
+      style={{ width: '100%', height: '100%', touchAction: 'none', WebkitUserSelect: 'none' }}
+    >
       <GameCanvasKayKit3D key={rendererGeneration} gameState={renderState} />
       <CombatFeedbackOverlay gameState={gameState} />
     </div>
