@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 
+import './game/portalExitPolicy';
 import App from './App';
 import { MainMenuVisualQa } from './components/MainMenuVisualQa';
 import { TutorialVisualQa } from './components/TutorialVisualQa';
