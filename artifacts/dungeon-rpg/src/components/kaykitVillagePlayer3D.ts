@@ -106,6 +106,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   root.name = 'VillageEquippedPlayer';
   root.userData.presentation = 'village-showcase-v14-player-focus';
   root.userData.showcasePose = 'v14-idle-b-readable-loadout';
+  root.userData.equipmentPose = 'left-hand-bow-right-shoulder-quiver';
   root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
     quiver: meta.equipped.quiver,
@@ -138,18 +139,18 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     equipmentRoot,
     weapons.bow,
     'VillageVisibleEquippedBow',
-    1.58,
-    [-0.92, 0.94, 0.3],
-    [Math.PI / 2, 0.03, 0.12],
+    1.42,
+    [-0.54, 0.78, 0.2],
+    [Math.PI / 2, -0.05, -0.38],
   );
   const quiverHolder = addPresentationModel(
     THREE,
     equipmentRoot,
     quiverGltf?.scene ?? null,
     'VillageVisibleEquippedQuiver',
-    1.08,
-    [0.8, 1.08, 0.18],
-    [0.08, -0.38, -0.22],
+    0.84,
+    [0.46, 1.3, -0.1],
+    [0.06, 0.48, 0.14],
   );
   const talismanHolder = addPresentationModel(
     THREE,
@@ -170,9 +171,9 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
         quiverHolder,
         arrow,
         `VillageVisibleQuiverArrow${index + 1}`,
-        0.72,
-        [(index - 1) * 0.08, 0.32 + (index % 2) * 0.04, -0.02],
-        [0.02, 0, (index - 1) * 0.05],
+        0.58,
+        [(index - 1) * 0.055, 0.28 + (index % 2) * 0.035, 0.015],
+        [0.02, 0, (index - 1) * 0.04],
       );
       if (arrowHolder) arrowCount++;
     }
@@ -189,6 +190,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     (window as any).__DUNGEON_VEIL_MENU_RANGER__ = {
       presentation: root.userData.presentation,
       pose: root.userData.showcasePose,
+      equipmentPose: root.userData.equipmentPose,
       animationDriver: idleClip.name,
       loadout: root.userData.equippedLoadout,
       visibleEquipment: root.userData.visibleEquipment,
@@ -214,7 +216,6 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       root.position.z = -1.82;
       root.rotation.y = -0.025;
       root.scale.setScalar(0.72);
-
     },
     stop() {
       mixer.stopAllAction();
