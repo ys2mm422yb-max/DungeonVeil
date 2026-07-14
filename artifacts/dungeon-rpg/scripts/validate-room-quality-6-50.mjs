@@ -96,13 +96,14 @@ try {
     roomFailures.forEach(message => failures.push(`Room ${room} (${name}): ${message}`));
   }
 
+  if (summaries.length !== 45) failures.push(`expected 45 audited rooms, received ${summaries.length}`);
   summaries.forEach(summary => console.log(summary));
   if (failures.length) {
     console.error(`Room quality audit failed with ${failures.length} error(s):`);
     failures.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;
   } else {
-    console.log('Room quality audit passed: rooms 6–50 have unique themes, bounded mobile complexity, clear portals and safe enemy spawns.');
+    console.log('Room quality audit passed: all 45 rooms from 6–50 have unique themes, bounded mobile complexity, clear portals and safe enemy spawns.');
   }
 } finally {
   await server.close();
