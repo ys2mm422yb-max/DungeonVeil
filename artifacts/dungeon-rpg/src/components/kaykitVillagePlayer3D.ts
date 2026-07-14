@@ -39,6 +39,52 @@ function fitObject(THREE: any, object: any, targetSize: number) {
   object.position.sub(center.multiplyScalar(scale));
 }
 
+function buildFallbackArcherBody(THREE: any) {
+  const root = new THREE.Group();
+  root.name = 'VillageFallbackHoodedArcher';
+  const cloth = new THREE.MeshStandardMaterial({ color: 0x2f7652, roughness: 0.88 });
+  const leather = new THREE.MeshStandardMaterial({ color: 0x593b27, roughness: 0.92 });
+  const hood = new THREE.MeshStandardMaterial({ color: 0x303a35, roughness: 0.9 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xd0a176, roughness: 0.82 });
+
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.38, 0.82, 8), cloth);
+  torso.position.y = 0.88;
+  root.add(torso);
+  const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.39, 0.12, 8), leather);
+  belt.position.y = 0.55;
+  root.add(belt);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), skin);
+  head.position.y = 1.43;
+  root.add(head);
+  const hoodShell = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.62, 8), hood);
+  hoodShell.position.y = 1.63;
+  root.add(hoodShell);
+  const faceOpening = new THREE.Mesh(new THREE.SphereGeometry(0.205, 12, 10, 0, Math.PI * 2, 0.38, Math.PI * 0.48), skin);
+  faceOpening.position.set(0, 1.41, 0.12);
+  root.add(faceOpening);
+
+  for (const x of [-0.17, 0.17]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.12, 0.62, 8), leather);
+    leg.position.set(x, 0.17, 0);
+    root.add(leg);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.34), leather);
+    boot.position.set(x, -0.12, 0.07);
+    root.add(boot);
+  }
+  for (const x of [-0.43, 0.43]) {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.105, 0.66, 8), cloth);
+    arm.position.set(x, 0.92, 0);
+    arm.rotation.z = x < 0 ? -0.16 : 0.16;
+    root.add(arm);
+  }
+  const cape = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.92, 0.08), hood);
+  cape.position.set(0, 0.87, -0.28);
+  cape.rotation.x = -0.08;
+  root.add(cape);
+  prepareModel(root);
+  return root;
+}
+
 function buildProceduralBow(THREE: any, accent: string) {
   const root = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: accent, roughness: 0.74, metalness: 0.08 });
@@ -149,8 +195,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const talismanDefinition = EQUIPMENT[talismanId];
 
   const [characterGltf, generalGltf, weapons, quiverGltf, talismanGltf] = await Promise.all([
-    loader.loadAsync(modelUrl(manifest, VILLAGE_ARCHER_MODEL)),
-    loader.loadAsync(modelUrl(manifest, GENERAL_ANIMATION_MODEL)),
+    loader.loadAsync(modelUrl(manifest, VILLAGE_ARCHER_MODEL)).catch(() => null),
+    loader.loadAsync(modelUrl(manifest, GENERAL_ANIMATION_MODEL)).catch(() => null),
     loadKayKitRangerWeapons().catch(() => null),
     quiverDefinition?.assetPath ? loader.loadAsync(modelUrl(manifest, quiverDefinition.assetPath)).catch(() => null) : Promise.resolve(null),
     talismanDefinition?.assetPath ? loader.loadAsync(modelUrl(manifest, talismanDefinition.assetPath)).catch(() => null) : Promise.resolve(null),
@@ -161,18 +207,19 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   root.userData.presentation = 'village-showcase-v3-pages-safe';
   root.userData.assetRoot = manifest.root;
   root.userData.equippedLoadout = { bow: bowId, quiver: quiverId, talisman: talismanId };
+  root.userData.characterFallback = !characterGltf;
 
-  const visual = characterGltf.scene;
-  visual.name = 'VillageHoodedArcherOutfit';
-  visual.scale.setScalar(1.18);
+  const visual = characterGltf?.scene ?? buildFallbackArcherBody(THREE);
+  visual.name = characterGltf ? 'VillageHoodedArcherOutfit' : 'VillageFallbackHoodedArcher';
+  visual.scale.setScalar(characterGltf ? 1.18 : 1);
   prepareModel(visual);
   root.add(visual);
 
   const mixer = new THREE.AnimationMixer(visual);
-  const idleClip = chooseVillageIdle([...(characterGltf.animations ?? []), ...(generalGltf.animations ?? [])]);
+  const idleClip = chooseVillageIdle([...(characterGltf?.animations ?? []), ...(generalGltf?.animations ?? [])]);
   const idle = idleClip ? mixer.clipAction(idleClip) : null;
   idle?.reset().play();
-  root.userData.idleClip = idleClip?.name ?? 'none';
+  root.userData.idleClip = idleClip?.name ?? 'procedural-idle';
 
   const gear = new THREE.Group();
   gear.name = 'VillageEquippedGear';
@@ -195,6 +242,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       elapsed += delta;
       mixer.update(delta);
       gear.position.y = Math.sin(elapsed * 1.25) * 0.008;
+      if (!characterGltf) visual.rotation.y = Math.sin(elapsed * 0.7) * 0.018;
     },
     stop() {
       mixer.stopAllAction();
