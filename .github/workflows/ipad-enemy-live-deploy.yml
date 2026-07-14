@@ -1,5 +1,6 @@
 name: iPad and Enemy Live Deploy
 
+# Trigger after workflow registration.
 on:
   push:
     branches: [fix/ipad-landscape-run-layout]
