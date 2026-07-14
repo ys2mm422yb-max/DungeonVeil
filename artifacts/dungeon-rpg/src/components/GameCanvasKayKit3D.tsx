@@ -68,6 +68,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
     const enemyVisuals = new Map<string, KayKitEnemyVisual>();
     const enemyFallbacks = new Map<string, any>();
+    const enemySafetyShells = new Map<string, any>();
     const enemyLoading = new Set<string>();
     const arrowVisuals = new Map<string, any>();
     const lootVisuals = new Map<string, any>();
@@ -104,7 +105,34 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       root.scale.setScalar(enemy.enemyType === 'boss' ? 1.65 : enemy.isElite ? 1.16 : 1);
       root.userData.visibilityFallback = true;
       root.userData.ring = ring;
+      root.userData.body = body;
+      root.userData.head = head;
+      root.traverse((node: any) => {
+        if (node.isMesh) node.frustumCulled = false;
+      });
       return root;
+    };
+
+    const createEnemySafetyShell = (enemy: GameState['enemies'][number]) => {
+      const shell = createEnemyFallback(enemy);
+      shell.name = `EnemyVisibilitySafety_${enemy.id}`;
+      const scale = enemy.enemyType === 'boss' ? 1.18 : enemy.isElite ? 0.88 : 0.72;
+      shell.scale.multiplyScalar(scale);
+      for (const part of [shell.userData.body, shell.userData.head]) {
+        if (!part?.material) continue;
+        part.material.transparent = false;
+        part.material.opacity = 1;
+        part.material.depthTest = true;
+        part.material.depthWrite = true;
+        part.renderOrder = -8;
+      }
+      if (shell.userData.ring?.material) {
+        shell.userData.ring.material.opacity = 0.34;
+        shell.userData.ring.material.depthTest = false;
+        shell.userData.ring.renderOrder = 8;
+      }
+      shell.userData.visibilitySafety = true;
+      return shell;
     };
 
     const disposeObject = (object: any) => object?.traverse?.((node: any) => {
@@ -188,10 +216,35 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         disposeObject(fallback);
         enemyFallbacks.delete(id);
       }
+      for (const [id, shell] of enemySafetyShells) {
+        if (active.has(id)) continue;
+        scene.remove(shell);
+        disposeObject(shell);
+        enemySafetyShells.delete(id);
+      }
 
       for (const enemy of state.enemies) {
         const nextX = mapX(state, enemy.x + enemy.width / 2);
         const nextZ = mapZ(state, enemy.y + enemy.height / 2);
+        const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;
+        let safetyShell = enemySafetyShells.get(enemy.id);
+        if (requiresPermanentSafety) {
+          if (!safetyShell) {
+            safetyShell = createEnemySafetyShell(enemy);
+            enemySafetyShells.set(enemy.id, safetyShell);
+            scene.add(safetyShell);
+          }
+          safetyShell.visible = true;
+          safetyShell.position.set(nextX, 0.008, nextZ);
+          safetyShell.rotation.y = gameNow * 0.00045 + enemy.id.length;
+          if (safetyShell.userData.ring?.material) {
+            safetyShell.userData.ring.material.opacity = 0.26 + Math.sin(gameNow * 0.006 + enemy.id.length) * 0.08;
+          }
+        } else if (safetyShell) {
+          scene.remove(safetyShell);
+          disposeObject(safetyShell);
+          enemySafetyShells.delete(enemy.id);
+        }
         let visual = enemyVisuals.get(enemy.id);
         if (!visual) {
           let fallback = enemyFallbacks.get(enemy.id);

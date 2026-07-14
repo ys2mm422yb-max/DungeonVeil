@@ -146,7 +146,9 @@ function prepareModel(root: any) {
     node.receiveShadow = !IS_MOBILE;
     // Animated bounds can lag behind the skinned pose on mobile. Never let a
     // living enemy disappear only because its bind-pose bounds left the frustum.
-    node.frustumCulled = !node.isSkinnedMesh;
+    // Chrome/iPad may report stale bounds for imported and skinned enemy meshes.
+    // Combat actors stay renderer-visible; room geometry still handles real occlusion.
+    node.frustumCulled = false;
   });
 }
 

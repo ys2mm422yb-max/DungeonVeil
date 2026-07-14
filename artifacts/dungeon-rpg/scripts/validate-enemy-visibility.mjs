@@ -72,13 +72,17 @@ try {
     'const enemyFallbacks = new Map<string, any>();',
     'const createEnemyFallback = (enemy:',
     'EnemyVisibilityFallback_',
+    'EnemyVisibilitySafety_',
+    'const enemySafetyShells = new Map<string, any>();',
+    'const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;',
+    'shell.userData.visibilitySafety = true;',
     'KayKit enemy failed; keeping visibility fallback',
   ]) {
     if (!rendererSource.includes(required)) fail(`missing global enemy visibility fallback guard: ${required}`);
   }
 
-  if (!enemyVisualSource.includes('node.frustumCulled = !node.isSkinnedMesh;')) {
-    fail('animated enemy skinned meshes can still disappear through stale frustum bounds');
+  if (!enemyVisualSource.includes('node.frustumCulled = false;')) {
+    fail('enemy meshes can still disappear through stale Chrome/iPad frustum bounds');
   }
   if (!enemyVisualSource.includes('new URL(normalized, document.baseURI).toString()')) {
     fail('imported enemy assets are not resolved against the GitHub Pages base path');
@@ -161,7 +165,7 @@ try {
     errors.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;
   } else {
-    console.log(`Enemy visibility audit passed: all ${checkedRooms} rooms, ${checkedEnemies} enemy starts and ${initiallyOccluded} initially occluded starts are protected by safe spawns, line-of-sight guards, non-culled skinned meshes and visible loading/error fallbacks.`);
+    console.log(`Enemy visibility audit passed: all ${checkedRooms} rooms, ${checkedEnemies} enemy starts and ${initiallyOccluded} initially occluded starts are protected by safe spawns, line-of-sight guards, non-culled meshes, permanent room 13+ safety shells and visible loading/error fallbacks.`);
   }
 } finally {
   await server.close();

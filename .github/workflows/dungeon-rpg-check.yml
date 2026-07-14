@@ -2,100 +2,53 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [fix/room13-plus-enemy-visibility]
+    branches: [main, work/blocks-1-7-production-pass]
     paths:
+      - 'artifacts/dungeon-rpg/**'
+      - 'lib/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
+  pull_request:
+    branches: [main, work/blocks-1-7-production-pass]
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - 'lib/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/dungeon-rpg-check.yml'
+      - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.ci/validation-trigger.txt'
+  workflow_dispatch:
 
-permissions:
-  contents: write
-
+# Verification also runs directly on the production-pass branch when the PR has conflicts.
+# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
-  apply-room13-visibility:
+  typecheck-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: fix/room13-plus-enemy-visibility
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: pnpm/action-setup@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - name: Apply visibility patch
-        run: python3 .ci/apply-room13-visibility.py
-      - run: pnpm install --frozen-lockfile
-      - name: Validate complete project
-        run: |
-          pnpm --filter @workspace/dungeon-rpg audit:assets
-          pnpm --filter @workspace/dungeon-rpg audit:rooms
-          pnpm run typecheck
-          pnpm --dir artifacts/dungeon-rpg run build
-      - name: Restore normal workflow and commit clean fix
-        shell: bash
-        run: |
-          cat > .github/workflows/dungeon-rpg-check.yml <<'YAML'
-          name: Dungeon RPG Check
-
-          on:
-            push:
-              branches: [main, work/blocks-1-7-production-pass]
-              paths:
-                - 'artifacts/dungeon-rpg/**'
-                - 'lib/**'
-                - 'package.json'
-                - 'pnpm-lock.yaml'
-                - 'pnpm-workspace.yaml'
-                - '.github/workflows/dungeon-rpg-check.yml'
-                - '.github/workflows/dungeon-rpg-ci.yml'
-            pull_request:
-              branches: [main, work/blocks-1-7-production-pass]
-              paths:
-                - 'artifacts/dungeon-rpg/**'
-                - 'lib/**'
-                - 'package.json'
-                - 'pnpm-lock.yaml'
-                - 'pnpm-workspace.yaml'
-                - '.github/workflows/dungeon-rpg-check.yml'
-                - '.github/workflows/dungeon-rpg-ci.yml'
-                - '.ci/validation-trigger.txt'
-            workflow_dispatch:
-
-          # Verification also runs directly on the production-pass branch when the PR has conflicts.
-          # Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
-          jobs:
-            typecheck-and-build:
-              runs-on: ubuntu-latest
-              timeout-minutes: 15
-              steps:
-                - name: Checkout
-                  uses: actions/checkout@v4
-                - name: Setup pnpm
-                  uses: pnpm/action-setup@v4
-                  with:
-                    version: 10
-                - name: Setup Node
-                  uses: actions/setup-node@v4
-                  with:
-                    node-version: 22
-                    cache: pnpm
-                - name: Install workspace
-                  run: pnpm install --frozen-lockfile
-                - name: Asset audit
-                  run: pnpm --filter @workspace/dungeon-rpg audit:assets
-                - name: Room and collision audit
-                  run: pnpm --filter @workspace/dungeon-rpg audit:rooms
-                - name: Typecheck Dungeon Veil
-                  run: pnpm --filter @workspace/dungeon-rpg typecheck
-                - name: Build Dungeon Veil
-                  run: pnpm --filter @workspace/dungeon-rpg build
-          YAML
-          rm -f .github/workflows/apply-room13-plus-enemy-visibility.yml .ci/apply-room13-visibility.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Keep every enemy visible from room 13 onward'
-          git push origin HEAD:fix/room13-plus-enemy-visibility
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Asset audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Room and collision audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Typecheck Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
+      - name: Build Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg build
