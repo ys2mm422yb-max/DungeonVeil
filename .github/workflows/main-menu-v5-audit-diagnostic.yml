@@ -1,0 +1,39 @@
+name: Main Menu V5 Audit Diagnostic
+
+on:
+  push:
+    branches: [fix/main-menu-equipped-ranger]
+    paths:
+      - '.github/workflows/main-menu-v5-audit-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  capture-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/main-menu-equipped-ranger
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture full room audit output
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg audit:rooms > main-menu-v5-audit.log 2>&1
+          printf '\nEXIT_CODE=%s\n' "$?" >> main-menu-v5-audit.log
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: main-menu-v5-audit-log
+          path: main-menu-v5-audit.log
+          if-no-files-found: error
