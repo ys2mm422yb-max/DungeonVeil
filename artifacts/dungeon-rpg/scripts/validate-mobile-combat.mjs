@@ -23,7 +23,7 @@ const files = {
 };
 
 const checks = [
-  [files.hud.includes('absolute right-3 top-'), 'HUD status is not in the right-side lane'],
+  [files.hud.includes("const rightEdge=tabletLandscape?'right-6':'right-3';") && files.hud.includes('absolute ${rightEdge} top-'), 'HUD status is not in the responsive right-side lane'],
   [files.reward.includes('right-[max(12px,env(safe-area-inset-right))]'), 'reward toast still covers the HUD'],
   [files.canvas.includes('MAX_ARROW_VISUALS') && files.canvas.includes('MAX_DAMAGE_VISUALS'), 'mobile visual budgets are missing'],
   [files.canvas.includes("canvas.style.width = '100%'") && files.canvas.includes("canvas.style.height = '100%'") && files.canvas.includes('renderer.setSize(width, height, false)'), 'run canvas CSS size is still coupled to reduced render pixel ratio'],
@@ -63,4 +63,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: full-size run canvas, loot-independent portal exits, responsive camera, three-attack dragon controller and bounded mobile effects are active.');
+console.log('Mobile combat audit passed: full-size run canvas, responsive tablet HUD, loot-independent portal exits, responsive camera, three-attack dragon controller and bounded mobile effects are active.');
