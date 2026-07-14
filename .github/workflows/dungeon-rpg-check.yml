@@ -24,187 +24,31 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: dungeon-veil-main-menu-v14-final
-  cancel-in-progress: true
-
+# Verification also runs directly on the production-pass branch when the PR has conflicts.
+# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
-  validate-build-upload:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'fix/main-menu-equipped-ranger'
+  typecheck-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
-    outputs:
-      sha: ${{ steps.commit.outputs.sha }}
+    timeout-minutes: 15
     steps:
-      - name: Checkout exact V14 branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: fix/main-menu-equipped-ranger
-      - name: Resolve deployment commit
-        id: commit
-        shell: bash
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - uses: pnpm/action-setup@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
-      - name: Full V14 and Blocks 1-8 audit
+      - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
-      - name: Typecheck workspace
-        run: pnpm run typecheck
-      - name: Build Pages application
-        env:
-          BASE_PATH: /DungeonVeil/
-          NODE_ENV: production
-          VITE_BUILD_SHA: ${{ steps.commit.outputs.sha }}
-        run: pnpm --dir artifacts/dungeon-rpg run build
-      - name: Verify Pages artifact
-        env:
-          EXPECTED_BASE_PATH: /DungeonVeil/
-        run: pnpm --filter @workspace/dungeon-rpg audit:pages
-      - name: Write V14 deployment marker
-        shell: bash
-        run: |
-          printf '{"commit":"%s","deployedAt":"%s","source":"main-menu-v14-player-focus-final"}\n' "${{ steps.commit.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
-          touch artifacts/dungeon-rpg/dist/public/.nojekyll
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: artifacts/dungeon-rpg/dist/public
-
-  deploy:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'fix/main-menu-equipped-ranger'
-    needs: validate-build-upload
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy V14 to fixed Pages link
-        uses: actions/deploy-pages@v4
-
-  verify-live-render:
-    if: github.event_name == 'pull_request' && github.head_ref == 'fix/main-menu-equipped-ranger'
-    needs: [validate-build-upload, deploy]
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Checkout working branch
-        uses: actions/checkout@v4
-        with:
-          ref: fix/main-menu-equipped-ranger
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install Playwright and Chromium
-        run: |
-          npm install --no-save playwright@1.55.0
-          npx playwright install --with-deps chromium
-      - name: Verify fixed link and capture actual iPhone menu
-        shell: bash
-        env:
-          EXPECTED_COMMIT: ${{ needs.validate-build-upload.outputs.sha }}
-        run: |
-          set -euo pipefail
-          verified=0
-          for attempt in $(seq 1 24); do
-            if curl -fsSL "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?verify=${GITHUB_RUN_ID}-${attempt}" -o live-marker.json; then
-              if python3 - <<'PY'
-          import json, os
-          from pathlib import Path
-          data = json.loads(Path('live-marker.json').read_text())
-          assert data.get('source') == 'main-menu-v14-player-focus-final', data
-          assert data.get('commit') == os.environ['EXPECTED_COMMIT'], data
-          PY
-              then
-                verified=1
-                break
-              fi
-            fi
-            sleep 5
-          done
-          test "$verified" = 1
-          cat > capture-main-menu-v14.mjs <<'EOF'
-          import { chromium } from 'playwright';
-          import { writeFile } from 'node:fs/promises';
-          const browser = await chromium.launch({ headless: true });
-          const context = await browser.newContext({
-            viewport: { width: 393, height: 852 },
-            deviceScaleFactor: 3,
-            isMobile: true,
-            hasTouch: true,
-            userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
-          });
-          await context.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
-          const page = await context.newPage();
-          const errors = [];
-          const failed = [];
-          const responses = [];
-          page.on('pageerror', error => errors.push(String(error?.stack || error)));
-          page.on('requestfailed', request => failed.push({ url: request.url(), error: request.failure()?.errorText || 'unknown' }));
-          page.on('response', response => {
-            if (/DungeonVeil|assets\/kaykit/i.test(response.url())) responses.push({ url: response.url(), status: response.status() });
-          });
-          await page.goto('https://ys2mm422yb-max.github.io/DungeonVeil/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-          await page.waitForFunction(() => Boolean(window.__DUNGEON_VEIL_MENU_RANGER__), null, { timeout: 60000 });
-          await page.waitForTimeout(10000);
-          await page.screenshot({ path: 'main-menu-v14-live.png', fullPage: true });
-          const state = await page.evaluate(() => ({
-            canvases: document.querySelectorAll('canvas').length,
-            bodyText: document.body.innerText.slice(0, 1600),
-            ranger: window.__DUNGEON_VEIL_MENU_RANGER__,
-            resources: performance.getEntriesByType('resource').map(entry => entry.name).filter(name => /DungeonVeil|Ranger|Rogue|quiver|bow|key\.gltf|lamp_table/i.test(name)),
-          }));
-          const proof = {
-            state,
-            errors,
-            failed,
-            responses,
-            lampTableLoads: state.resources.filter(url => /lamp_table\.gltf/i.test(url)),
-            duplicateBase: state.resources.filter(url => url.includes('/DungeonVeil/DungeonVeil/')),
-            badResponses: responses.filter(item => item.status >= 400),
-            localFailures: failed.filter(item => item.url.includes('/DungeonVeil/')),
-          };
-          await writeFile('main-menu-v14-live.json', JSON.stringify(proof, null, 2));
-          const visible = state.ranger?.visibleEquipment;
-          if (
-            state.canvases !== 1 ||
-            state.ranger?.presentation !== 'village-showcase-v14-player-focus' ||
-            state.ranger?.pose !== 'v14-idle-b-readable-loadout' ||
-            state.ranger?.playerFocusedScale !== 0.72 ||
-            !visible?.bow || !visible?.quiver || !visible?.talisman || visible?.arrows < 3 ||
-            proof.lampTableLoads.length || proof.duplicateBase.length || proof.badResponses.length || proof.localFailures.length || errors.length
-          ) {
-            throw new Error(JSON.stringify(proof));
-          }
-          await browser.close();
-          EOF
-          node capture-main-menu-v14.mjs
-      - name: Upload V14 mobile proof
-        uses: actions/upload-artifact@v4
-        with:
-          name: main-menu-v14-live-proof
-          path: |
-            main-menu-v14-live.png
-            main-menu-v14-live.json
-            live-marker.json
-          if-no-files-found: error
-      - name: Restore normal workflow after verified deployment
-        shell: bash
-        run: |
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/dungeon-rpg-check.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows/dungeon-rpg-check.yml
-          git commit -m 'Restore normal checks after verified V14 deployment'
-          git push origin HEAD:fix/main-menu-equipped-ranger
+      - name: Typecheck Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
+      - name: Build Dungeon Veil
+        run: pnpm --filter @workspace/dungeon-rpg build
