@@ -1,0 +1,120 @@
+name: Menu Character Pose Lab
+
+on:
+  push:
+    branches: [fix/main-menu-equipped-ranger]
+    paths:
+      - '.github/workflows/menu-character-pose-lab.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  render-variants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Render available character and arm-pose variants
+        shell: bash
+        run: |
+          cat > pose-lab.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          import { writeFile } from 'node:fs/promises';
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
+          await page.goto('https://ys2mm422yb-max.github.io/DungeonVeil/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+          const result = await page.evaluate(async () => {
+            const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js');
+            const { GLTFLoader } = await import('https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js');
+            document.body.innerHTML = '<div id="labels"></div>';
+            document.body.style.margin = '0';
+            document.body.style.background = '#17151b';
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(1400, 900, false);
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.35;
+            document.body.appendChild(renderer.domElement);
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x17151b);
+            scene.add(new THREE.HemisphereLight(0xffe6c8, 0x24202c, 2.3));
+            const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-4, 8, 8); scene.add(key);
+            const camera = new THREE.PerspectiveCamera(34, 1400 / 900, 0.1, 100);
+            camera.position.set(0, 4.5, 15.5); camera.lookAt(0, 1.45, 0);
+            const loader = new GLTFLoader();
+            const base = 'https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/';
+            const generalUrl = 'https://ys2mm422yb-max.github.io/DungeonVeil/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb';
+            const general = await loader.loadAsync(generalUrl);
+            const idle = general.animations.find(c => c.name === 'Idle_B') ?? general.animations.find(c => /idle/i.test(c.name));
+            const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const findBone = (root, key) => { let hit = null; root.traverse(n => { if (!hit && n.isBone && normalize(n.name).includes(key)) hit = n; }); return hit; };
+            const variants = [
+              { name: 'Ranger · Idle_B', file: 'Ranger.glb', pose: 'none' },
+              { name: 'Ranger · Z runter', file: 'Ranger.glb', pose: 'z' },
+              { name: 'Ranger · X runter', file: 'Ranger.glb', pose: 'x' },
+              { name: 'Rogue Hooded · Idle_B', file: 'Rogue_Hooded.glb', pose: 'none' },
+              { name: 'Rogue Hooded · Z runter', file: 'Rogue_Hooded.glb', pose: 'z' },
+              { name: 'Rogue · Idle_B', file: 'Rogue.glb', pose: 'none' },
+            ];
+            const summaries = [];
+            for (let index = 0; index < variants.length; index++) {
+              const variant = variants[index];
+              const gltf = await loader.loadAsync(base + variant.file);
+              const model = gltf.scene;
+              model.position.set((index - 2.5) * 2.25, 0, 0);
+              model.scale.setScalar(1.45);
+              scene.add(model);
+              const mixer = new THREE.AnimationMixer(model);
+              mixer.clipAction(idle).play();
+              mixer.update(0.65);
+              const upperL = findBone(model, 'upperarml');
+              const upperR = findBone(model, 'upperarmr');
+              const lowerL = findBone(model, 'lowerarml');
+              const lowerR = findBone(model, 'lowerarmr');
+              if (variant.pose === 'z') {
+                if (upperL) upperL.rotation.z -= 1.05;
+                if (upperR) upperR.rotation.z += 1.05;
+                if (lowerL) lowerL.rotation.z -= 0.22;
+                if (lowerR) lowerR.rotation.z += 0.22;
+              }
+              if (variant.pose === 'x') {
+                if (upperL) upperL.rotation.x += 1.05;
+                if (upperR) upperR.rotation.x -= 1.05;
+                if (lowerL) lowerL.rotation.x += 0.2;
+                if (lowerR) lowerR.rotation.x -= 0.2;
+              }
+              model.updateMatrixWorld(true);
+              model.traverse(n => { if (n.isSkinnedMesh) n.skeleton?.update?.(); });
+              summaries.push({ ...variant, upperL: upperL?.name, upperR: upperR?.name });
+            }
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(18, 5), new THREE.MeshStandardMaterial({ color: 0x40362e, roughness: 0.95 }));
+            floor.rotation.x = -Math.PI / 2; floor.position.y = -0.03; scene.add(floor);
+            renderer.render(scene, camera);
+            const labels = document.getElementById('labels');
+            Object.assign(labels.style, { position: 'fixed', inset: '0', pointerEvents: 'none', color: '#f0dfbd', font: '700 18px system-ui' });
+            variants.forEach((variant, index) => {
+              const label = document.createElement('div');
+              label.textContent = variant.name;
+              Object.assign(label.style, { position: 'absolute', left: `${65 + index * 225}px`, top: '820px', width: '210px', textAlign: 'center' });
+              labels.appendChild(label);
+            });
+            return summaries;
+          });
+          await page.screenshot({ path: 'menu-character-pose-lab.png', fullPage: true });
+          await writeFile('menu-character-pose-lab.json', JSON.stringify(result, null, 2));
+          await browser.close();
+          EOF
+          node pose-lab.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: menu-character-pose-lab
+          path: |
+            menu-character-pose-lab.png
+            menu-character-pose-lab.json
+          if-no-files-found: error
