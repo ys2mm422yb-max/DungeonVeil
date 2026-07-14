@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-// This audit covers the live V4 menu path, not a mock or isolated model preview.
+// This audit covers the live V5 menu path, not a mock or isolated model preview.
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const [village, showcase, player, weapons, manifest, meta] = await Promise.all([
   read('../src/components/ModernVillageSquareScene.tsx'),
@@ -16,8 +16,9 @@ const checks = [
   [village.includes('rig.root.position.set(0, -0.02, -2.85)') && village.includes('rig.root.rotation.y = 0.08') && village.includes('rig.root.scale.setScalar(0.52)'), 'main-menu Ranger is not separated from the shrine and framed from the front'],
   [village.includes("shrine: [[0, 0.02, -6.1") && village.includes("'VillageSquareShrine'"), 'village shrine can still visually merge with the player'],
   [showcase.includes("import { loadKayKitRanger") && showcase.includes('loadKayKitRanger(THREE, pagesSafeLoader(GLTFLoader))'), 'menu does not reuse the exact in-game Ranger rig'],
-  [showcase.includes("root.userData.presentation = 'village-showcase-v4-run-ranger'") && showcase.includes('rig.setMoving(false)'), 'V4 run-Ranger presentation mode is missing'],
-  [showcase.includes("url.startsWith('/assets/')") && showcase.includes('import.meta.env.BASE_URL'), 'shared run rig URLs are not rewritten below the Pages base path'],
+  [showcase.includes("root.userData.presentation = 'village-showcase-v5-single-base-run-ranger'") && showcase.includes('rig.setMoving(false)'), 'V5 run-Ranger presentation mode is missing'],
+  [showcase.includes('function resolveVillageAssetUrl') && showcase.includes('new URL(NORMALIZED_APP_BASE_URL, window.location.origin)') && showcase.includes('relative.startsWith(`${appBaseSegment}/`)') && showcase.includes('return new URL(relative, appBase).href'), 'shared run rig URLs are not resolved against the Pages base exactly once'],
+  [!showcase.includes("url.startsWith('/assets/')") && !showcase.includes('`${NORMALIZED_APP_BASE_URL}${url.replace'), 'the old double-prefix Pages rewrite is still present'],
   [showcase.includes('bow: meta.equipped.bow') && showcase.includes('quiver: meta.equipped.quiver') && showcase.includes('talisman: meta.equipped.talisman'), 'village showcase does not preserve the current equipped loadout'],
   [player.includes('attachBowToRanger') && player.includes('attachQuiver(spine') && player.includes('attachTalisman(THREE, chest'), 'shared in-game equipment attachments are incomplete'],
   [player.includes('KAYKIT_PLAYER_ASSETS.ranger') && player.includes('Ranger.glb'), 'shared player rig is not the in-game Ranger body'],
@@ -34,4 +35,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the village reuses the real run Ranger and equipment rig with Pages-safe URLs and clear shrine separation.');
+console.log('Main-menu equipped ranger audit passed: the village reuses the real run Ranger and equipment rig with one Pages base and clear shrine separation.');
