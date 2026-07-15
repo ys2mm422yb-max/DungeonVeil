@@ -10,7 +10,7 @@ import { collidesWithRoomProp, shotBlockedByRoomProp } from './roomCollision3D';
 import { getRoomSpawnPoints, sceneSpawnToGame } from './roomSpawn3D';
 import { availableRunSkills, nextSkillRank, skillRank } from './runSkills';
 import { getEncounterPlan } from './encounterPlan';
-import { bossCombatProfile } from './enemyRegionalIdentity';
+import { bossCombatProfile, enemyVisualProfile } from './enemyRegionalIdentity';
 
 export interface RunGameState {
   status: 'playing' | 'gameover' | 'levelup' | 'paused';
@@ -53,6 +53,8 @@ type EnemyWindup = {
   range: number;
   archetype: ReturnType<typeof enemyArchetype>;
   index: number;
+  damageScale: number;
+  projectileElement?: VisualEffect['element'];
 };
 
 const ENEMY_STATS: Record<EnemyType, { hp: number; attack: number; defense: number; speed: number; size: number; xp: number; color: string }> = {
@@ -503,6 +505,16 @@ export class GameEngine {
     }
   }
 
+  private enemySpawnIndex(enemy: Enemy) {
+    const parsed = Number(enemy.id.split('-').at(-1));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private isDarkwoodMage(enemy: Enemy) {
+    if (this.state.floor < 11 || this.state.floor > 20) return false;
+    return enemyVisualProfile(this.state.floor, enemy.enemyType, this.enemySpawnIndex(enemy)).role === 'mage';
+  }
+
   private attackWindupMs(archetype: ReturnType<typeof enemyArchetype>) {
     if (archetype === 'skirmisher') return 165;
     if (archetype === 'guardian') return 270;
@@ -520,7 +532,8 @@ export class GameEngine {
     const attackTargetX = p.x + 16;
     const attackTargetY = p.y + 16;
     const dist = Math.hypot(attackTargetX - attackFromX, attackTargetY - attackFromY);
-    if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;
+    const allowedRangeScale = windup.projectileElement ? 1.04 : 1.18;
+    if (windup.archetype !== 'dragon' && dist > windup.range * allowedRangeScale) return;
     if (this.shotPathBlocked(attackFromX, attackFromY, attackTargetX, attackTargetY, 0.08)) return;
 
     if (windup.archetype === 'dragon') {
@@ -539,9 +552,15 @@ export class GameEngine {
       } else if (dist > windup.range * 1.18) return;
     }
 
+    if (windup.projectileElement && windup.archetype !== 'dragon') {
+      const angle = Math.atan2(attackTargetY - attackFromY, attackTargetX - attackFromX);
+      this.addShotEffect(`darkwood-mage-shot-${time}-${windup.index}`, attackFromX, attackFromY, attackTargetX, attackTargetY, angle, '#9f72ff', windup.projectileElement, 5, enemy.id);
+      this.state.particles.push(...makeHitSpark(attackTargetX, attackTargetY, '#9f72ff', 8));
+    }
+
     if (time <= p.invincibleUntil) return;
     const raw = enemy.attack - p.defense + Math.floor(Math.random() * 3);
-    const damage = Math.max(1, raw);
+    const damage = Math.max(1, Math.round(raw * windup.damageScale));
     p.hp -= damage;
     p.lastHitTime = time;
     if (skillRank(this.state.runSkills, 'defense') > 0) p.lastGuardTime = time;
@@ -596,9 +615,12 @@ export class GameEngine {
       const playerCenterY = p.y + 16;
       const dist = Math.max(1, Math.hypot(playerCenterX - enemyCenterX, playerCenterY - enemyCenterY));
       const plan = planEnemyMove(enemy, p, dt, time);
+      const darkwoodMage = this.isDarkwoodMage(enemy);
+      const attackRange = darkwoodMage ? Math.min(plan.attackRange, 50) : plan.attackRange;
+      const attackDelay = darkwoodMage ? Math.max(1120, Math.round(plan.attackDelay * 1.32)) : plan.attackDelay;
       const hasLineOfSight = !this.shotPathBlocked(enemyCenterX, enemyCenterY, playerCenterX, playerCenterY, 0.08);
       const visualSpawnGracePassed = time - enemy.spawnTime >= 900;
-      const canAttackFromHere = dist <= plan.attackRange && hasLineOfSight && visualSpawnGracePassed;
+      const canAttackFromHere = dist <= attackRange && hasLineOfSight && visualSpawnGracePassed;
       enemy.state = canAttackFromHere ? 'attack' : 'chase';
       const frostFactor = enemy.frostUntil && time < enemy.frostUntil ? 1 - (enemy.frostSlow ?? 0) : 1;
       const beforeX = enemy.x;
@@ -606,29 +628,36 @@ export class GameEngine {
       if (enemy.state === 'chase' || enemyArchetype(enemy.enemyType) === 'dragon') this.moveEntity(enemy, plan.dx * frostFactor, plan.dy * frostFactor);
       enemy.vx = enemy.x - beforeX;
       enemy.vy = enemy.y - beforeY;
-      this.checkEnemyStuck(enemy, time, dist, plan.attackRange);
+      this.checkEnemyStuck(enemy, time, dist, attackRange);
 
       if (canAttackFromHere && time > enemy.nextAttackTime) {
         const archetype = enemyArchetype(enemy.enemyType);
-        const windupMs = this.attackWindupMs(archetype);
-        enemy.nextAttackTime = time + plan.attackDelay + windupMs;
+        const windupMs = darkwoodMage ? Math.max(360, this.attackWindupMs(archetype)) : this.attackWindupMs(archetype);
+        enemy.nextAttackTime = time + attackDelay + windupMs;
         enemy.lastAttackTime = time;
         enemy.state = 'attack';
-        this.enemyWindups.set(enemy.id, { hitAt: time + windupMs, range: plan.attackRange, archetype, index: i });
+        this.enemyWindups.set(enemy.id, {
+          hitAt: time + windupMs,
+          range: attackRange,
+          archetype,
+          index: i,
+          damageScale: darkwoodMage ? 0.62 : 1,
+          projectileElement: darkwoodMage ? 'arcane' : undefined,
+        });
         const ex = enemy.x + enemy.width / 2;
         const ey = enemy.y + enemy.height / 2;
-        const warningColor = archetype === 'dragon' ? (this.state.floor === 50 ? '#765cff' : '#ff633d') : archetype === 'guardian' ? '#e8a45d' : '#e6c987';
+        const warningColor = darkwoodMage ? '#9f72ff' : archetype === 'dragon' ? (this.state.floor === 50 ? '#765cff' : '#ff633d') : archetype === 'guardian' ? '#e8a45d' : '#e6c987';
         this.state.effects.push({
           id: `telegraph-${time}-${enemy.id}`,
           x: ex,
           y: ey,
           radius: 0,
-          maxRadius: Math.max(30, plan.attackRange * 0.58),
+          maxRadius: Math.max(30, attackRange * 0.58),
           color: warningColor,
           lifeTime: 0,
           maxLifeTime: windupMs,
           type: 'circle',
-          element: archetype === 'dragon' ? (this.state.floor === 50 ? 'arcane' : 'fire') : 'normal',
+          element: darkwoodMage ? 'arcane' : archetype === 'dragon' ? (this.state.floor === 50 ? 'arcane' : 'fire') : 'normal',
         });
       }
     }

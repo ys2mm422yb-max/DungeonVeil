@@ -54,7 +54,7 @@ try {
 
   for (const required of [
     'const visualSpawnGracePassed = time - enemy.spawnTime >= 900;',
-    'const canAttackFromHere = dist <= plan.attackRange && hasLineOfSight && visualSpawnGracePassed;',
+    'const canAttackFromHere = dist <= attackRange && hasLineOfSight && visualSpawnGracePassed;',
     'if (canAttackFromHere && time > enemy.nextAttackTime)',
   ]) {
     if (!engineSource.includes(required)) fail(`missing global enemy attack guard: ${required}`);

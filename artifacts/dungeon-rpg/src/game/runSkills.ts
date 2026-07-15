@@ -29,8 +29,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   attackSpeed: {
     maxRank: 3,
-    rankTextDe: ['16% schneller', '30% schneller', '42% schneller'],
-    rankTextEn: ['16% faster', '30% faster', '42% faster'],
+    rankTextDe: ['+16 % Angriffsgeschwindigkeit', '+30 % Angriffsgeschwindigkeit', '+42 % Angriffsgeschwindigkeit'],
+    rankTextEn: ['+16% attack speed', '+30% attack speed', '+42% attack speed'],
   },
   piercing: {
     maxRank: 3,
