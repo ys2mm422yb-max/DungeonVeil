@@ -8,6 +8,7 @@ on:
       - fix/guild-members-tab-profiles
       - work/block-5-public-player-profiles
       - work/block-6-friends-public-profiles
+      - work/block-7-online-offline-presence
     paths-ignore:
       - '.ci/**'
   workflow_dispatch:
