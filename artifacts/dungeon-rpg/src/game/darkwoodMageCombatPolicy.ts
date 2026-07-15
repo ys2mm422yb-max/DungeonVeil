@@ -19,25 +19,7 @@ type RuntimeWindup = {
   index: number;
 };
 
-type RuntimeEngine = GameEngine & {
-  enemyWindups: Map<string, RuntimeWindup>;
-  updateEnemies: (dt: number, time: number) => void;
-  resolveEnemyAttack: (enemy: Enemy, windup: RuntimeWindup, time: number) => void;
-  shotPathBlocked: (fromX: number, fromY: number, toX: number, toY: number, padding?: number) => boolean;
-  addShotEffect: (
-    id: string,
-    x: number,
-    y: number,
-    toX: number,
-    toY: number,
-    angle: number,
-    color: string,
-    element: 'arcane',
-    width: number,
-    fromEnemyId?: string,
-  ) => void;
-  moveEntity: (entity: Enemy, dx: number, dy: number) => void;
-};
+type RuntimeEngine = any;
 
 function spawnIndex(enemy: Enemy): number {
   const parsed = Number(enemy.id.split('-').at(-1));
@@ -51,7 +33,7 @@ function isDarkwoodMage(engine: GameEngine, enemy: Enemy): boolean {
 }
 
 function installDarkwoodMageCombatPolicy(): void {
-  const prototype = GameEngine.prototype as unknown as RuntimeEngine & { __darkwoodMagePolicyInstalled?: boolean };
+  const prototype = GameEngine.prototype as RuntimeEngine;
   if (prototype.__darkwoodMagePolicyInstalled) return;
   prototype.__darkwoodMagePolicyInstalled = true;
 
@@ -60,7 +42,7 @@ function installDarkwoodMageCombatPolicy(): void {
 
   prototype.updateEnemies = function updateEnemiesWithReadableDarkwoodMages(this: RuntimeEngine, dt: number, time: number): void {
     const previousAttackTimes = new Map<string, number>();
-    for (const enemy of this.state.enemies) {
+    for (const enemy of this.state.enemies as Enemy[]) {
       if (isDarkwoodMage(this, enemy)) previousAttackTimes.set(enemy.id, enemy.lastAttackTime);
     }
 
@@ -69,7 +51,7 @@ function installDarkwoodMageCombatPolicy(): void {
     const playerX = this.state.player.x + 16;
     const playerY = this.state.player.y + 16;
 
-    for (const enemy of this.state.enemies) {
+    for (const enemy of this.state.enemies as Enemy[]) {
       if (enemy.isDead || !isDarkwoodMage(this, enemy)) continue;
 
       const enemyX = enemy.x + enemy.width / 2;
@@ -77,7 +59,7 @@ function installDarkwoodMageCombatPolicy(): void {
       const dx = playerX - enemyX;
       const dy = playerY - enemyY;
       const distance = Math.max(1, Math.hypot(dx, dy));
-      const windup = this.enemyWindups.get(enemy.id);
+      const windup = this.enemyWindups.get(enemy.id) as RuntimeWindup | undefined;
 
       if (distance > DARKWOOD_RANGE) {
         if (windup) this.enemyWindups.delete(enemy.id);
