@@ -135,13 +135,14 @@ test('main menu, profile and every hub panel open without fatal errors', async (
 
   await test.step('structured quest board', async () => {
     await reloadMenu(page, testInfo.project.name);
-    await openMenuButton(page, /Aufträge|Quests/i);
     const toggle = page.getByTestId('quest-board-toggle');
+    const content = page.getByTestId('quest-board-content');
     await expect(toggle).toBeVisible();
-    if (!await page.getByTestId('quest-board-content').isVisible().catch(() => false)) await toggle.click();
-    await expect(page.getByTestId('quest-board-summary')).toBeVisible();
-    await expect(page.getByTestId('quest-active-section')).toBeVisible();
-    await expect(page.getByTestId('quest-completed-section')).toBeVisible();
+    if (!await content.isVisible().catch(() => false)) await toggle.click();
+    await expect(content).toBeVisible();
+    await expect(page.getByText(/Aktive Aufträge|Active Quests/i).first()).toBeVisible();
+    await expect(page.getByText(/Erledigte Aufträge|Completed Quests/i).first()).toBeVisible();
+    await expect(page.getByText(/Siegel|Sigils/i).first()).toBeVisible();
   });
 
   await test.step('codex', async () => {
