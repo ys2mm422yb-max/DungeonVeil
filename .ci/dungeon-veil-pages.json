@@ -1,10 +1,10 @@
 {
   "workflow": "Deploy Dungeon Veil Test Site",
   "status": "failure",
-  "attemptedCommit": "5eb40e907889335b03aafce09700db22fca40174",
+  "attemptedCommit": "afbd5bab4d477bb920408f044fcf6ad7287721b5",
   "deployedCommit": null,
   "validationResult": "cancelled",
   "deploymentResult": "cancelled",
   "pageUrl": "https://ys2mm422yb-max.github.io/DungeonVeil/",
-  "completedAt": "2026-07-15T21:08:31.591Z"
+  "completedAt": "2026-07-15T21:09:09.357Z"
 }
