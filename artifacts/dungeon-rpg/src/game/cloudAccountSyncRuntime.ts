@@ -6,7 +6,6 @@ import { currentOnlineSession, onlineSessionEventName } from './supabaseOnline';
 import { WEEKLY_ELITE_EVENT } from './weeklyElite';
 
 const CLOUD_USER_KEY = 'dungeon-veil-cloud-user-v1';
-const RESTORE_RELOAD_KEY = 'dungeon-veil-cloud-restore-reload-v1';
 const SYNC_EVENTS = [
   PLAYER_PROFILE_EVENT,
   'dungeon-veil-meta-changed',
@@ -16,6 +15,7 @@ const SYNC_EVENTS = [
   WEEKLY_ELITE_EVENT,
 ] as const;
 
+let installed = false;
 let syncPromise: Promise<void> | null = null;
 let pushTimer = 0;
 
@@ -61,21 +61,16 @@ function runAccountSync(): void {
     .finally(() => { syncPromise = null; });
 }
 
-function installCloudAccountSyncRuntime(): void {
-  if (typeof window === 'undefined') return;
-
-  const restoredOnPreviousLoad = sessionStorage.getItem(RESTORE_RELOAD_KEY) === '1';
-  if (restoredOnPreviousLoad) sessionStorage.removeItem(RESTORE_RELOAD_KEY);
+export function installCloudAccountSyncRuntime(): void {
+  if (typeof window === 'undefined' || installed) return;
+  installed = true;
 
   window.addEventListener(onlineSessionEventName(), runAccountSync);
   for (const eventName of SYNC_EVENTS) window.addEventListener(eventName, schedulePush as EventListener);
   window.addEventListener('dungeon-veil-cloud-save-restored', () => {
-    sessionStorage.setItem(RESTORE_RELOAD_KEY, '1');
     window.setTimeout(() => window.location.reload(), 80);
   });
   window.addEventListener('pagehide', () => { void pushCurrentAccountState(); });
 
   runAccountSync();
 }
-
-installCloudAccountSyncRuntime();
