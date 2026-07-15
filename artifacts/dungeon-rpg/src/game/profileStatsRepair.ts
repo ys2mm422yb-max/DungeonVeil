@@ -9,5 +9,3 @@ export function repairLegacyProfileStats(): void {
   const repaired = missingEquipmentDrops > 0 ? recordPlayerProfileItemFound(missingEquipmentDrops) : profile;
   void syncOnlineProfileCosmetics(repaired).catch(() => {});
 }
-
-repairLegacyProfileStats();
