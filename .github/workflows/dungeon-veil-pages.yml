@@ -1,11 +1,10 @@
 name: Deploy Dungeon Veil Test Site
 
-# Temporary combined device-review trigger; removed after live verification.
+# Final exact deployment trigger for the world-orb village and cohesive Ash Warden hall.
 on:
   push:
     branches:
       - work/blocks-1-7-production-pass
-      - test/live-profile-loading-combat-review
     paths-ignore:
       - '.ci/**'
   workflow_dispatch:
