@@ -6,6 +6,7 @@ import { appAssetUrl } from '../game/appAssetUrl';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const IS_IOS_WEBKIT = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function assetUrl(path: string) {
   return appAssetUrl(path.startsWith('/') ? path : `assets/kaykit/${path}`);
@@ -42,12 +43,54 @@ function prepareObject(THREE: any, object: any, accent: string, strength: number
   });
 }
 
-async function loadPrimary(loader: any, visual: EquipmentVisualProfile) {
+function makeFallbackDisplay(THREE: any, accent: string, kind: EquipmentVisualProfile['kind']) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color: accent,
+    emissive: accent,
+    emissiveIntensity: 0.12,
+    roughness: 0.62,
+    metalness: 0.08,
+  });
+
+  if (kind === 'bow' || kind === 'crossbow') {
+    const limb = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.075, 8, 28, Math.PI * 1.45), material);
+    limb.rotation.z = Math.PI * 0.77;
+    group.add(limb);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.72, 8), material);
+    grip.rotation.z = Math.PI / 2;
+    group.add(grip);
+  } else if (kind === 'quiver') {
+    group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 1.15, 10), material));
+  } else if (kind === 'book') {
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.2, 0.76), material));
+  } else {
+    group.add(new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.12, 10, 28), material));
+  }
+
+  return group;
+}
+
+async function loadPrimary(loader: any, visual: EquipmentVisualProfile): Promise<any | null> {
+  const primaryUrl = assetUrl(visual.primaryPath);
   try {
-    return await loader.loadAsync(assetUrl(visual.primaryPath));
-  } catch (primaryError) {
-    if (visual.primaryPath === visual.fallbackPath) throw primaryError;
-    return loader.loadAsync(assetUrl(visual.fallbackPath));
+    return await loader.loadAsync(primaryUrl);
+  } catch {
+    if (IS_IOS_WEBKIT) {
+      try {
+        await new Promise(resolve => window.setTimeout(resolve, 90));
+        return await loader.loadAsync(primaryUrl);
+      } catch {
+        return null;
+      }
+    }
+
+    if (visual.primaryPath === visual.fallbackPath) return null;
+    try {
+      return await loader.loadAsync(assetUrl(visual.fallbackPath));
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -55,6 +98,12 @@ async function buildDisplay(THREE: any, loader: any, itemId: EquipmentId, accent
   const visual = equipmentVisualProfile(itemId);
   const loaded = await loadPrimary(loader, visual);
   const display = new THREE.Group();
+
+  if (!loaded?.scene) {
+    display.add(makeFallbackDisplay(THREE, accent, visual.kind));
+    return display;
+  }
+
   const primary = loaded.scene;
   prepareObject(THREE, primary, accent, visual.tintStrength);
   display.add(primary);
@@ -212,7 +261,7 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
       await renderCurrent(runtime, current.itemId, current.accent);
     };
 
-    boot().catch(error => console.error('KayKit equipment preview failed', error));
+    boot().catch(error => console.warn('KayKit equipment preview unavailable', error));
 
     return () => {
       disposed = true;
@@ -237,7 +286,7 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    void renderCurrent(runtime, itemId, accent).catch(error => console.error('KayKit equipment preview update failed', error));
+    void renderCurrent(runtime, itemId, accent).catch(error => console.warn('KayKit equipment preview update unavailable', error));
   }, [accent, itemId]);
 
   return <div ref={hostRef} className="h-full w-full overflow-hidden" />;
