@@ -15,6 +15,7 @@ const [
   profileCard,
   socialClient,
   migration,
+  denyMigration,
 ] = await Promise.all([
   read('../src/pages/game.tsx'),
   read('../src/game/runIdentity.ts'),
@@ -29,6 +30,7 @@ const [
   read('../src/components/PlayerProfileCard.tsx'),
   read('../src/game/socialProgressOnline.ts'),
   read('../../../supabase/migrations/20260716001000_add_friend_spectating_and_public_career_stats.sql'),
+  read('../../../supabase/migrations/20260716002000_deny_direct_spectator_snapshot_access.sql'),
 ]);
 
 const checks = [
@@ -47,6 +49,7 @@ const checks = [
   [onlinePanel.includes('spectating-privacy-setting') && onlinePanel.includes('setSpectatingAllowed'), 'spectating privacy control is missing from Online & Cloud'],
   [migration.includes('spectator_snapshots') && migration.includes("interval '8 seconds'") && migration.includes('octet_length(p_snapshot::text) > 300000'), 'spectator snapshots are not size-limited and short-lived'],
   [migration.includes('friendship required') && migration.includes('spectating_allowed') && migration.includes('revoke all on public.spectator_snapshots'), 'spectator access is not restricted to confirmed friends and RPCs'],
+  [denyMigration.includes('spectator_snapshots_deny_direct_access') && denyMigration.includes('using (false)') && denyMigration.includes('with check (false)'), 'spectator snapshot table lacks an explicit deny-all direct access policy'],
 
   [profileCard.includes('public-player-profile-best-progress') && profileCard.includes('public-player-profile-career-stats') && !profileCard.includes('public-player-profile-progress'), 'friend public profile still uses the duplicate Level/Rank/Chapter layout'],
   [profileCard.includes('rooms_cleared') && profileCard.includes('enemies_defeated') && profileCard.includes('bosses_defeated') && profileCard.includes('quests_completed') && profileCard.includes('play_time_ms'), 'meaningful public career statistics are incomplete'],
