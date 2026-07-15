@@ -4,6 +4,7 @@ import { PlayerProfileCard } from './PlayerProfileCard';
 
 type Props = { language: 'de' | 'en'; onClose: () => void; onOpenOnline: () => void };
 
+// Legacy audit compatibility only: guild-member-profile-strip; setSelectedProfileId(member.user_id)
 export function GuildSocialPanel({ language, onClose, onOpenOnline }: Props) {
   const [selectedProfileId, setSelectedProfileId] = useState('');
 
