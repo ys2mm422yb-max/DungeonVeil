@@ -16,6 +16,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   static-regression:
@@ -71,6 +73,8 @@ jobs:
       - name: Build current branch for browser regression
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
       - name: Test current branch on iPhone, Android, iPad and desktop
+        id: browser-tests
+        continue-on-error: true
         env:
           DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
           BASE_PATH: /DungeonVeil/
@@ -85,6 +89,69 @@ jobs:
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
           pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+      - name: Build compact Playwright failure summary
+        if: steps.browser-tests.outcome == 'failure'
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'artifacts/dungeon-rpg/test-results/full-game-results.json';
+          const marker = '<!-- dungeon-veil-browser-regression -->';
+          let report;
+          try {
+            report = JSON.parse(fs.readFileSync(path, 'utf8'));
+          } catch (error) {
+            fs.writeFileSync('/tmp/playwright-failure.md', `${marker}\n## Browser regression failed\n\nThe JSON report could not be read: \`${String(error.message).replace(/`/g, "'")}\``);
+            process.exit(0);
+          }
+          const failures = [];
+          const walk = (suite, parents = []) => {
+            const next = suite.title ? [...parents, suite.title] : parents;
+            for (const spec of suite.specs || []) {
+              for (const test of spec.tests || []) {
+                if (test.status === 'expected' || test.status === 'skipped') continue;
+                const result = [...(test.results || [])].reverse().find(item => item.status !== 'passed') || test.results?.at(-1) || {};
+                const errors = [...(result.errors || []), ...(result.error ? [result.error] : [])]
+                  .map(error => error?.message || error?.value || String(error))
+                  .filter(Boolean)
+                  .join('\n');
+                failures.push({
+                  title: [...next, spec.title].filter(Boolean).join(' › '),
+                  project: test.projectName || result.projectName || 'unknown project',
+                  status: test.status || result.status || 'failed',
+                  errors,
+                });
+              }
+            }
+            for (const child of suite.suites || []) walk(child, next);
+          };
+          for (const suite of report.suites || []) walk(suite);
+          const lines = [marker, '## Browser regression failed', '', `Commit: \`${process.env.GITHUB_SHA}\``, `Failures: **${failures.length}**`, ''];
+          for (const failure of failures.slice(0, 20)) {
+            lines.push(`### ${failure.project}: ${failure.title}`, `Status: \`${failure.status}\``, '', '```text', (failure.errors || 'No detailed error recorded').slice(0, 5000).replace(/```/g, "'''"), '```', '');
+          }
+          fs.writeFileSync('/tmp/playwright-failure.md', lines.join('\n').slice(0, 60000));
+          NODE
+      - name: Publish Playwright failure summary to pull request
+        if: steps.browser-tests.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const marker = '<!-- dungeon-veil-browser-regression -->';
+            const body = fs.readFileSync('/tmp/playwright-failure.md', 'utf8');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const previous = comments.find(comment => comment.user?.type === 'Bot' && comment.body?.includes(marker));
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+      - name: Fail browser regression after diagnostics
+        if: steps.browser-tests.outcome == 'failure'
+        run: exit 1
       - name: Upload browser report and failure evidence
         if: always()
         uses: actions/upload-artifact@v4
