@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 
 import './game/portalExitPolicy';
 import App from './App';
+import { GlobalLoadingLayer } from './components/GlobalLoadingLayer';
 import { MainMenuVisualQa } from './components/MainMenuVisualQa';
 import { TutorialVisualQa } from './components/TutorialVisualQa';
 import { WorldBossVisualQa } from './components/WorldBossVisualQa';
@@ -21,5 +22,6 @@ const qaView = qaMode === 'worldboss'
     ? <TutorialVisualQa />
     : qaMode === 'menu'
       ? <MainMenuVisualQa />
-      : <App />;
-createRoot(document.getElementById('root')!).render(qaView);
+      : null;
+const appView = qaView ?? <><App /><GlobalLoadingLayer /></>;
+createRoot(document.getElementById('root')!).render(appView);
