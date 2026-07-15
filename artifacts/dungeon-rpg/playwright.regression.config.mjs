@@ -7,9 +7,9 @@ export default defineConfig({
   testMatch: /full-game-smoke\.spec\.mjs/,
   timeout: 120_000,
   expect: { timeout: 20_000 },
-  fullyParallel: false,
+  fullyParallel: true,
   retries: 1,
-  workers: 1,
+  workers: process.env.CI ? 4 : undefined,
   reporter: [
     ['list'],
     ['json', { outputFile: 'test-results/full-game-results.json' }],
