@@ -16,8 +16,8 @@ const checks = [
   [hud.includes("tabletLandscape?'h-14 w-14 text-base'"), 'iPad pause control scaling is missing'],
   [joystick.includes('data-testid="run-joystick"') && joystick.includes('h-[148px] w-[148px]'), 'iPad joystick sizing is missing'],
   [joystick.includes('left-[max(2rem,calc(env(safe-area-inset-left)+1.4rem))]'), 'iPad joystick safe inset is missing'],
-  [actions.includes('data-testid="run-dash-control"') && actions.includes("tabletLandscape ? 80 : 68"), 'iPad dash sizing is missing'],
-  [actions.includes("max(32px,calc(env(safe-area-inset-right) + 22px))"), 'iPad dash safe inset is missing'],
+  [actions.includes('data-testid="run-dash-control"') && actions.includes('const size = worldBoss ? 78 : tabletLandscape ? 90 : 78;'), 'iPad dash sizing is missing'],
+  [actions.includes("max(34px,calc(env(safe-area-inset-right) + 24px))"), 'iPad dash safe inset is missing'],
   [canvas.includes('const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;'), 'room 13+ enemy visibility safety is missing from the combined build'],
   [enemy.includes('node.frustumCulled = false;'), 'enemy meshes can still be culled in the combined build'],
 ];
@@ -29,4 +29,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('iPad run layout audit passed: camera, HUD, joystick and dash use dedicated tablet-landscape framing while room 13+ enemies retain permanent visibility safety.');
+console.log('iPad run layout audit passed: camera, HUD, 148px joystick and 90px dash use dedicated tablet-landscape framing while room 13+ enemies retain permanent visibility safety.');
