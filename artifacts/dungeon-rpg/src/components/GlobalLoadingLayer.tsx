@@ -6,6 +6,9 @@ import { LoadingScreen } from './LoadingScreen';
 
 type RoomTransition = { key: string; floor: number };
 
+const BOOT_LOADING_MIN_MS = 720;
+const BOOT_LOADING_MAX_MS = 4_500;
+
 function currentLanguage(): 'de' | 'en' {
   try { return localStorage.getItem('dungeon-veil-language') === 'de' ? 'de' : 'en'; }
   catch { return 'en'; }
@@ -32,10 +35,15 @@ export function GlobalLoadingLayer() {
       preloadKayKitDungeonRoom(1),
       preloadKayKitRoomTheme(1),
     ]);
+    const warmup = Promise.all([delay(BOOT_LOADING_MIN_MS), fontsReady, coreAssets]).then(() => undefined);
 
-    void Promise.all([delay(720), fontsReady, coreAssets]).finally(() => {
+    // Fonts, CDNs or individual 3D requests must never trap the whole app behind
+    // the boot veil. Continue warming in the background after the deadline.
+    void Promise.race([warmup, delay(BOOT_LOADING_MAX_MS)]).finally(() => {
       if (active) setBooting(false);
     });
+    void warmup.catch(() => undefined);
+
     return () => { active = false; };
   }, []);
 
