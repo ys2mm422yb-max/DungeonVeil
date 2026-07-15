@@ -6,6 +6,9 @@ const BUNDLE_KEYS = [
   'dungeon-veil-relics-v1',
   'dungeon-veil-retention-v2',
   'dungeon-veil-weekly-rift-records-v1',
+  'dungeon-veil-player-profile-v1',
+  'dungeon-veil-weekly-elite-v1',
+  'dungeon-veil-seen-unlocks-v1',
 ] as const;
 
 export type DungeonVeilSaveBundle = {
@@ -40,6 +43,10 @@ export function markCloudRevision(updatedAt: string): void {
   try { localStorage.setItem(CLOUD_REVISION_KEY, updatedAt); } catch {}
 }
 
+export function clearCloudRevision(): void {
+  try { localStorage.removeItem(CLOUD_REVISION_KEY); } catch {}
+}
+
 export function exportSaveBundle(): DungeonVeilSaveBundle {
   const data: Record<string, string> = {};
   for (const key of BUNDLE_KEYS) {
@@ -57,6 +64,7 @@ export function importSaveBundle(bundle: DungeonVeilSaveBundle): boolean {
     for (const key of BUNDLE_KEYS) {
       const value = bundle.data[key];
       if (typeof value === 'string') localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
     }
     localStorage.setItem(PLAYER_ID_KEY, bundle.playerId);
     markCloudRevision(bundle.updatedAt);
