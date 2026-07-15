@@ -73,15 +73,20 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
 
   useEffect(() => {
     if (!currentOnlineSession()) return;
+    const engine = getEngineRef.current();
+    if (!active || !engine) {
+      void publishMenuActivity(engine?.state.chapter ?? 1, engine?.state.floor ?? 1).catch(() => {});
+      return;
+    }
+
     let stopped = false;
     let publishing = false;
     const publish = async () => {
       if (stopped || publishing) return;
       publishing = true;
       try {
-        const engine = getEngineRef.current();
-        if (active && engine) await publishSpectatorState(engine.state);
-        else await publishMenuActivity(engine?.state.chapter ?? 1, engine?.state.floor ?? 1);
+        const current = getEngineRef.current();
+        if (current) await publishSpectatorState(current.state);
       } catch {}
       finally { publishing = false; }
     };
@@ -90,8 +95,8 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     return () => {
       stopped = true;
       window.clearInterval(interval);
-      const engine = getEngineRef.current();
-      void publishMenuActivity(engine?.state.chapter ?? 1, engine?.state.floor ?? 1).catch(() => {});
+      const current = getEngineRef.current();
+      void publishMenuActivity(current?.state.chapter ?? 1, current?.state.floor ?? 1).catch(() => {});
     };
   }, [active]);
 
