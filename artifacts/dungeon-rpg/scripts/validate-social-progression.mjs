@@ -45,7 +45,7 @@ const checks = [
   [socialClient.includes('lifetime_world_boss_damage') && socialClient.includes('account_level') && socialClient.includes('achievement_keys'), 'extended profile client types are missing'],
   [attemptClient.includes('getWorldBossAttemptStatus') && attemptClient.includes('startWorldBossAttempt') && attemptClient.includes('authenticatedSupabaseRest'), 'world-boss attempt client is incomplete'],
   [friendClient.includes("'list_friends_v2'") && friendClient.includes("'send_friend_request_by_query'") && friendClient.includes('friend_code'), 'friend client is not using codes and extended profiles'],
-  [friendsPanel.includes('DEIN PROFIL & FREUNDESCODE') && friendsPanel.includes('PlayerProfileCard') && friendsPanel.includes('inviteGuildMember'), 'friends UI lacks self profile, profile cards or direct guild invitations'],
+  [friendsPanel.includes('data-testid="friends-self-profile"') && friendsPanel.includes('data-testid="friend-profile-button"') && friendsPanel.includes('friend-request-profile-button') && friendsPanel.includes('PlayerProfileCard') && friendsPanel.includes('inviteGuildMember'), 'friends UI lacks self, friend or request profile routing'],
   [friendsPanel.includes('FAVORITES_KEY') && friendsPanel.includes('ONLINE_WINDOW_MS') && friendsPanel.includes('formatLastSeen') && friendsPanel.includes('toggleFavorite'), 'friend presence or favorites are missing'],
   [guildSocial.includes('GuildPanelMobile') && guildSocial.includes('PlayerProfileCard') && guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}') && guildPanel.includes('data-testid="guild-members-tab"') && guildPanel.includes('data-testid="guild-member-profile-button"') && !guildSocial.includes('guild-profile-list-button') && !guildSocial.includes('guild-member-profile-strip') && guildSocial.includes('onClose') && menu.includes('<GuildSocialPanel'), 'guild member profiles are not contained in the Members tab or fixed close routing is missing'],
   [profileCard.includes('data-testid="player-profile-card"') && profileCard.includes('lifetime_world_boss_damage') && profileCard.includes('achievement_keys') && profileCard.includes('account_level'), 'social profile card is incomplete'],
@@ -71,4 +71,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: guild profiles live only in the Members tab while the server-enforced boss gate and focused equipped Ranger remain intact.');
+console.log('Social progression audit passed: public friend/request profiles, guild member routing, server boss gates and focused Ranger remain intact.');
