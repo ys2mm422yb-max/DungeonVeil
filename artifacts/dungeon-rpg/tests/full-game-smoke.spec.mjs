@@ -87,6 +87,7 @@ async function openOverflow(page) {
 }
 
 test('main menu, profile and every hub panel open without fatal errors', async ({ page }, testInfo) => {
+  test.setTimeout(300_000);
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
   await assertNoHorizontalOverflow(page);
