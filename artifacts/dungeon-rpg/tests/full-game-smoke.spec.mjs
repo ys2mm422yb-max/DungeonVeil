@@ -31,6 +31,10 @@ async function preparePage(page, projectName) {
     });
   }
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+  const germanButton = page.getByRole('button', { name: /Deutsch/i }).first();
+  if (await germanButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await germanButton.click();
+  }
   await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
 }
