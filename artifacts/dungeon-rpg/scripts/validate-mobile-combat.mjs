@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const files = {
   hud: await readFile(new URL('../src/components/HUD.tsx', import.meta.url), 'utf8'),
+  actions: await readFile(new URL('../src/components/ActionButtons.tsx', import.meta.url), 'utf8'),
   reward: await readFile(new URL('../src/components/MetaRewardBanner.tsx', import.meta.url), 'utf8'),
   canvas: await readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),
   canvasHost: await readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
@@ -26,7 +27,10 @@ const files = {
 };
 
 const checks = [
-  [files.hud.includes("const rightEdge=tabletLandscape?'right-6':'right-3';") && files.hud.includes('absolute ${rightEdge} top-'), 'HUD status is not in the responsive right-side lane'],
+  [files.hud.includes("const rightEdge=tabletLandscape?'right-6':'right-3';") && files.hud.includes('data-testid="run-health-panel"') && files.hud.includes('data-testid="run-enemy-status"'), 'HUD health and enemy status do not use protected responsive lanes'],
+  [files.hud.includes('max-w-[calc(100vw-5.5rem)]') && files.hud.includes('data-testid="run-pause-control"'), 'HUD can still overlap the pause control on narrow screens'],
+  [files.actions.includes('const size = worldBoss ? 78 : tabletLandscape ? 90 : 78;') && files.actions.includes('run-dash-button') && files.actions.includes('run-dash-state'), 'dash control lacks the larger touch target or readable state'],
+  [files.actions.includes('env(safe-area-inset-right)') && files.actions.includes('env(safe-area-inset-bottom)'), 'dash control does not respect mobile safe areas'],
   [files.reward.includes('right-[max(12px,env(safe-area-inset-right))]'), 'reward toast still covers the HUD'],
   [files.controlSettings.includes("type JoystickMode = 'fixed' | 'floating'") && files.controlSettings.includes('saveJoystickMode') && files.controlSettings.includes('CONTROL_SETTINGS_EVENT'), 'joystick mode is not persisted or broadcast'],
   [files.settings.includes('joystick-mode-settings') && files.settings.includes('joystick-mode-fixed') && files.settings.includes('joystick-mode-floating'), 'settings screen lacks fixed and floating joystick choices'],
@@ -70,4 +74,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: selectable joystick modes, responsive HUD, stable canvas, safe exits and bounded mobile effects are active.');
+console.log('Mobile combat audit passed: protected HUD lanes, readable dash state, selectable joystick modes and bounded mobile effects are active.');
