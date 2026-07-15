@@ -3,6 +3,8 @@ import type { GameState } from '../game/runEngine';
 import { RUN_CAMERA } from './RunCameraRig';
 
 const TILE = 40;
+const EARLY_ATTACK_WARNING_MS = 520;
+const ACTIVE_ATTACK_WARNING_MS = 720;
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
 
@@ -11,8 +13,20 @@ type StatusMarker = {
   left: number;
   top: number;
   size: number;
-  kind: 'fire' | 'ice' | 'attack';
+  kind: 'fire' | 'ice' | 'attack' | 'presence';
 };
+
+type DangerMarker = {
+  id: string;
+  left: number;
+  top: number;
+  size: number;
+  progress: number;
+  color: string;
+  rune: boolean;
+};
+
+type ProjectedPoint = { left: number; top: number; depth: number };
 
 function normalize(vector: [number, number, number]): [number, number, number] {
   const length = Math.hypot(vector[0], vector[1], vector[2]) || 1;
@@ -56,7 +70,7 @@ function cameraFocus(state: GameState): { x: number; z: number } {
   };
 }
 
-function projectEnemy(state: GameState, enemy: GameState['enemies'][number]): Omit<StatusMarker, 'id' | 'kind'> | null {
+function projectWorld(state: GameState, gameX: number, gameY: number, worldY: number): ProjectedPoint | null {
   if (typeof window === 'undefined') return null;
   const focus = cameraFocus(state);
   const camera: [number, number, number] = [focus.x, RUN_CAMERA.height, focus.z + RUN_CAMERA.distance];
@@ -65,9 +79,8 @@ function projectEnemy(state: GameState, enemy: GameState['enemies'][number]): Om
   const right = normalize(cross(forward, [0, 1, 0]));
   const up = normalize(cross(right, forward));
 
-  const worldX = (enemy.x + enemy.width / 2) / TILE - state.map.width / 2 + 0.5;
-  const worldZ = (enemy.y + enemy.height / 2) / TILE - state.map.height / 2 + 0.5;
-  const worldY = enemy.enemyType === 'boss' ? 1.35 : 0.82;
+  const worldX = gameX / TILE - state.map.width / 2 + 0.5;
+  const worldZ = gameY / TILE - state.map.height / 2 + 0.5;
   const relative: [number, number, number] = [worldX - camera[0], worldY - camera[1], worldZ - camera[2]];
   const cameraX = dot(relative, right);
   const cameraY = dot(relative, up);
@@ -83,7 +96,22 @@ function projectEnemy(state: GameState, enemy: GameState['enemies'][number]): Om
   return {
     left: (ndcX * 0.5 + 0.5) * 100,
     top: (-ndcY * 0.5 + 0.5) * 100,
-    size: clamp(32 * (28 / cameraDepth), 24, enemy.enemyType === 'boss' ? 58 : 46),
+    depth: cameraDepth,
+  };
+}
+
+function projectEnemy(state: GameState, enemy: GameState['enemies'][number]): Omit<StatusMarker, 'id' | 'kind'> | null {
+  const projected = projectWorld(
+    state,
+    enemy.x + enemy.width / 2,
+    enemy.y + enemy.height / 2,
+    enemy.enemyType === 'boss' ? 1.35 : 0.82,
+  );
+  if (!projected) return null;
+  return {
+    left: projected.left,
+    top: projected.top,
+    size: clamp(32 * (28 / projected.depth), 24, enemy.enemyType === 'boss' ? 58 : 46),
   };
 }
 
@@ -120,6 +148,25 @@ function AttackStatus({ marker }: { marker: StatusMarker }) {
   </div>;
 }
 
+function EnemyPresence({ marker }: { marker: StatusMarker }) {
+  const size = marker.size * 0.74;
+  return <div className="dv-enemy-presence" style={{ left: `${marker.left}%`, top: `${marker.top}%`, width: size, height: size }}><span /></div>;
+}
+
+function DangerWarning({ marker }: { marker: DangerMarker }) {
+  const convergeScale = 1.36 - marker.progress * 1.02;
+  return <div
+    data-testid="combat-danger-warning"
+    data-danger-kind={marker.rune ? 'rune' : 'enemy'}
+    className={`dv-ground-warning ${marker.rune ? 'dv-ground-rune' : 'dv-ground-enemy'}`}
+    style={{ left: `${marker.left}%`, top: `${marker.top}%`, width: marker.size, height: marker.size, color: marker.color }}
+  >
+    <span className="dv-ground-warning-fill" />
+    <span className="dv-ground-warning-outer" />
+    <span className="dv-ground-warning-converge" style={{ transform: `translate(-50%,-50%) scale(${convergeScale})` }} />
+  </div>;
+}
+
 export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
   const lastHp = useRef(gameState.player.hp);
   const [playerHit, setPlayerHit] = useState(0);
@@ -134,15 +181,20 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
 
   const statusMarkers = useMemo(() => {
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const showPresenceGuard = IS_MOBILE && gameState.floor >= 13;
     return gameState.enemies.flatMap<StatusMarker>(enemy => {
       if (enemy.isDead) return [];
       const burning = Boolean(enemy.burnUntil && enemy.burnUntil > now);
       const frozen = Boolean(enemy.frostUntil && enemy.frostUntil > now);
-      const attacking = enemy.state === 'attack' && enemy.lastAttackTime > 0 && now - enemy.lastAttackTime <= 950;
-      if (!burning && !frozen && !attacking) return [];
+      const warningRemaining = enemy.nextAttackTime - now;
+      const earlyWarning = enemy.state === 'attack' && warningRemaining > 0 && warningRemaining <= EARLY_ATTACK_WARNING_MS;
+      const activeWarning = enemy.state === 'attack' && enemy.lastAttackTime > 0 && now - enemy.lastAttackTime <= ACTIVE_ATTACK_WARNING_MS;
+      const attacking = earlyWarning || activeWarning;
+      if (!showPresenceGuard && !burning && !frozen && !attacking) return [];
       const projected = projectEnemy(gameState, enemy);
       if (!projected) return [];
       const markers: StatusMarker[] = [];
+      if (showPresenceGuard) markers.push({ id: `${enemy.id}-presence`, kind: 'presence', ...projected });
       if (attacking) markers.push({ id: `${enemy.id}-attack`, kind: 'attack', ...projected });
       if (burning) markers.push({ id: `${enemy.id}-fire`, kind: 'fire', ...projected });
       if (frozen) markers.push({ id: `${enemy.id}-ice`, kind: 'ice', ...projected });
@@ -150,13 +202,34 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
     });
   }, [gameState]);
 
+  const dangerMarkers = useMemo(() => gameState.effects
+    .filter(effect => (effect.id.startsWith('telegraph-') && !effect.id.startsWith('telegraph-inner-')) || effect.id.startsWith('rune-warning-'))
+    .slice(-14)
+    .flatMap<DangerMarker>(effect => {
+      const projected = projectWorld(gameState, effect.x, effect.y, 0.08);
+      if (!projected) return [];
+      const rune = effect.id.startsWith('rune-warning-');
+      return [{
+        id: effect.id,
+        left: projected.left,
+        top: projected.top,
+        size: clamp(effect.maxRadius * (18 / projected.depth), rune ? 66 : 52, rune ? 190 : 152),
+        progress: clamp(effect.lifeTime / Math.max(1, effect.maxLifeTime), 0, 1),
+        color: effect.color,
+        rune,
+      }];
+    }), [gameState]);
+
   return <div className="pointer-events-none fixed inset-0 z-[25] overflow-hidden">
     {playerHit > 0 && <div key={`player-hit-${playerHit}`} className="absolute inset-0" style={{ animation: 'dvPlayerHit .34s ease-out both' }} />}
+    {dangerMarkers.map(marker => <DangerWarning key={marker.id} marker={marker} />)}
     {statusMarkers.map(marker => marker.kind === 'fire'
       ? <FireStatus key={marker.id} marker={marker} />
       : marker.kind === 'ice'
         ? <IceStatus key={marker.id} marker={marker} />
-        : <AttackStatus key={marker.id} marker={marker} />)}
+        : marker.kind === 'presence'
+          ? <EnemyPresence key={marker.id} marker={marker} />
+          : <AttackStatus key={marker.id} marker={marker} />)}
     <style>{`
       @keyframes dvPlayerHit {
         0% { opacity: 0; box-shadow: inset 0 0 0 rgba(255,45,45,0); transform: translateX(0); }
@@ -196,6 +269,17 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
         0%,100% { transform: translate(-50%,-50%) scale(.72) rotate(0deg); opacity: .55; }
         50% { transform: translate(-50%,-50%) scale(1.08) rotate(16deg); opacity: 1; }
       }
+      @keyframes dvPresencePulse {
+        0%,100% { opacity:.42; transform:translate(-50%,-50%) scale(.9); }
+        50% { opacity:.82; transform:translate(-50%,-50%) scale(1.08); }
+      }
+      .dv-ground-warning { position:absolute; transform:translate(-50%,-50%); border-radius:50%; transition:left 45ms linear,top 45ms linear; filter:drop-shadow(0 0 8px currentColor); }
+      .dv-ground-warning-fill { position:absolute; inset:14%; border-radius:50%; background:radial-gradient(circle,transparent 0 34%,currentColor 35% 38%,transparent 39% 100%); opacity:.34; }
+      .dv-ground-warning-outer { position:absolute; inset:5%; border-radius:50%; border:3px solid currentColor; box-shadow:inset 0 0 16px currentColor,0 0 10px currentColor; opacity:.88; }
+      .dv-ground-warning-converge { position:absolute; left:50%; top:50%; width:72%; height:72%; border-radius:50%; border:3px dashed currentColor; transform-origin:center; transition:transform 90ms linear; opacity:.98; }
+      .dv-ground-rune { color:#c9a8ff !important; }
+      .dv-ground-rune .dv-ground-warning-fill { background:radial-gradient(circle,rgba(174,126,255,.24) 0 28%,transparent 30% 45%,rgba(203,170,255,.22) 47% 52%,transparent 54%); opacity:.9; }
+      .dv-ground-enemy .dv-ground-warning-fill { background:radial-gradient(circle,rgba(255,93,42,.15) 0 28%,transparent 31% 50%,currentColor 52% 56%,transparent 58%); opacity:.72; }
       .dv-natural-status { position:absolute; transform:translate(-50%,-50%); transition:left 55ms linear,top 55ms linear; }
       .dv-natural-fire { filter:drop-shadow(0 0 7px rgba(255,82,22,.92)); }
       .dv-natural-fire::after { content:''; position:absolute; left:18%; right:18%; bottom:8%; height:28%; border-radius:50%; background:radial-gradient(ellipse,rgba(255,122,30,.5),rgba(255,43,10,.16) 48%,transparent 72%); }
@@ -217,6 +301,8 @@ export function CombatFeedbackOverlay({ gameState }: { gameState: GameState }) {
       .dv-snow { position:absolute; color:#dffcff; font-size:12px; text-shadow:0 0 6px #71dcff; animation:dvSnowDrift 1.15s linear infinite; }
       .dv-snow-a { left:25%; top:48%; }
       .dv-snow-b { right:20%; top:57%; animation-delay:-.62s; }
+      .dv-enemy-presence { position:absolute; transform:translate(-50%,-50%); border-radius:50%; border:2px solid rgba(255,224,137,.72); box-shadow:0 0 8px rgba(255,187,71,.5),inset 0 0 6px rgba(255,187,71,.32); transition:left 55ms linear,top 55ms linear; animation:dvPresencePulse 1.05s ease-in-out infinite; }
+      .dv-enemy-presence span { position:absolute; left:50%; top:50%; width:5px; height:5px; transform:translate(-50%,-50%); border-radius:50%; background:#ffe3a0; box-shadow:0 0 7px #ff9f38; }
       .dv-attack-warning { position:absolute; transform:translate(-50%,-50%); transition:left 45ms linear,top 45ms linear; filter:drop-shadow(0 0 5px rgba(255,70,34,.9)); }
       .dv-attack-warning::before { content:''; position:absolute; left:50%; top:62%; width:82%; height:36%; border-radius:50%; border:2px solid rgba(255,108,54,.82); animation:dvDangerPulse .55s ease-out infinite; }
       .dv-danger-core { position:absolute; left:50%; top:42%; width:18%; height:32%; transform:translate(-50%,-50%); background:linear-gradient(to top,#ff3d22,#ffd06a); clip-path:polygon(50% 0,100% 64%,64% 100%,36% 100%,0 64%); animation:dvDangerSpark .42s ease-in-out infinite; }
