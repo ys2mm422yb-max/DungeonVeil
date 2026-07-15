@@ -1,0 +1,83 @@
+name: Full Game Regression
+
+on:
+  push:
+    branches: [test/full-game-regression-pass]
+    paths:
+      - '.github/workflows/full-game-regression.yml'
+      - 'artifacts/dungeon-rpg/**'
+      - '.ci/full-game-regression-trigger.txt'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/full-game-regression.yml'
+      - 'artifacts/dungeon-rpg/**'
+      - '.ci/full-game-regression-trigger.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  static-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Verify regression coverage
+        run: node artifacts/dungeon-rpg/scripts/validate-full-game-regression-scope.mjs
+      - name: Audit every asset
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Audit all social and menu systems
+        run: pnpm --filter @workspace/dungeon-rpg audit:social
+      - name: Audit rooms 1-50, collision, enemies and mobile combat
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Typecheck full workspace
+        run: pnpm run typecheck
+      - name: Build GitHub Pages production output
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+          test -f artifacts/dungeon-rpg/dist/public/index.html
+          grep -q '/DungeonVeil/' artifacts/dungeon-rpg/dist/public/index.html
+
+  browser-regression:
+    needs: static-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install isolated browser test runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install Chromium and WebKit
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium webkit
+      - name: Test live iPhone, Android, iPad and desktop flows
+        env:
+          DUNGEON_VEIL_URL: https://ys2mm422yb-max.github.io/DungeonVeil/
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+      - name: Upload browser report and failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-game-regression-evidence
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            artifacts/dungeon-rpg/playwright-report
+            artifacts/dungeon-rpg/test-results
