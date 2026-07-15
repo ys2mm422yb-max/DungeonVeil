@@ -33,4 +33,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Block 8 integration audit passed: the final Blocks 1–7 changes and the focused equipped Ranger coexist in one device-review snapshot.');
+await import('./validate-blocks-4-15-integration.mjs');
+console.log('Combined integration audit passed: legacy Blocks 1–8 and current Blocks 4–15 remain compatible in one build.');
