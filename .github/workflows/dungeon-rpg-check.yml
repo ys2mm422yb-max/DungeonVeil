@@ -37,40 +37,49 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Focused darkwood mage audit
-        run: node artifacts/dungeon-rpg/scripts/validate-darkwood-mage-balance.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-darkwood-mage-balance.mjs
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Social and menu audit
         run: pnpm --filter @workspace/dungeon-rpg audit:social
       - name: All-room data audit
-        run: node artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-all-rooms.mjs
       - name: Production room composition audit
-        run: node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-production-rooms.mjs
       - name: Spawn and hitbox audit
-        run: node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-spawn-hitboxes.mjs
       - name: Enemy visibility audit
-        run: node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-enemy-visibility.mjs
       - name: Mobile combat audit
-        run: node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-mobile-combat.mjs
       - name: Mobile zoom audit
-        run: node artifacts/dungeon-rpg/scripts/validate-mobile-zoom-guard.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-mobile-zoom-guard.mjs
       - name: iPad layout audit
-        run: node artifacts/dungeon-rpg/scripts/validate-ipad-run-layout.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-ipad-run-layout.mjs
       - name: Remaining room integration audits
+        working-directory: artifacts/dungeon-rpg
         run: |
-          node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
-          node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
-          node artifacts/dungeon-rpg/scripts/validate-social-progression.mjs
-          node artifacts/dungeon-rpg/scripts/validate-rooms-4-5-composition.mjs
-          node artifacts/dungeon-rpg/scripts/validate-room-quality-6-50.mjs
-          node artifacts/dungeon-rpg/scripts/validate-guild-mobile-layout.mjs
-          node artifacts/dungeon-rpg/scripts/validate-blocks-1-8-integration.mjs
-          node artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs
-          node artifacts/dungeon-rpg/scripts/validate-inventory-guild-chat-chapters.mjs
-          node artifacts/dungeon-rpg/scripts/validate-player-profile.mjs
-          node artifacts/dungeon-rpg/scripts/validate-menu-copy-relic-progression.mjs
-          node artifacts/dungeon-rpg/scripts/validate-profile-badge-compact.mjs
-          node artifacts/dungeon-rpg/scripts/validate-upgrade-economy.mjs
+          node scripts/validate-worldboss-performance.mjs
+          node scripts/validate-social-navigation.mjs
+          node scripts/validate-social-progression.mjs
+          node scripts/validate-rooms-4-5-composition.mjs
+          node scripts/validate-room-quality-6-50.mjs
+          node scripts/validate-guild-mobile-layout.mjs
+          node scripts/validate-blocks-1-8-integration.mjs
+          node scripts/validate-main-menu-equipped-ranger.mjs
+          node scripts/validate-inventory-guild-chat-chapters.mjs
+          node scripts/validate-player-profile.mjs
+          node scripts/validate-menu-copy-relic-progression.mjs
+          node scripts/validate-profile-badge-compact.mjs
+          node scripts/validate-upgrade-economy.mjs
       - name: Typecheck
         run: pnpm run typecheck
       - name: Pages production build
