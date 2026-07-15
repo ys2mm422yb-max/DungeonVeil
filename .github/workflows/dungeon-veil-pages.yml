@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - work/blocks-1-7-production-pass
+      - feature/loading-transitions
     paths-ignore:
       - '.ci/**'
   workflow_dispatch:
