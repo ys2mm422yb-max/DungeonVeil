@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { preloadKayKitDungeonRoom } from './kaykitRoom3D';
 import { preloadKayKitRoomTheme } from './kaykitRoomThemes3D';
 import { preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
@@ -39,7 +39,7 @@ export function GlobalLoadingLayer() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const clearTimer = (ref: React.MutableRefObject<number | null>) => {
       if (ref.current !== null) window.clearTimeout(ref.current);
       ref.current = null;
