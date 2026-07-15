@@ -17,6 +17,12 @@ export default defineConfig(async () => {
     enforce: 'pre',
     transform(code, id) {
       if (normalizedBasePath === '/' || !id.includes('/src/') || !code.includes('/assets/')) return null;
+      if (id.endsWith('/src/components/kaykitEnemy3D.ts')) {
+        return {
+          code: code.replaceAll('/assets/', 'assets/'),
+          map: null,
+        };
+      }
       return {
         code: code.replaceAll('/assets/', `${normalizedBasePath}assets/`),
         map: null,

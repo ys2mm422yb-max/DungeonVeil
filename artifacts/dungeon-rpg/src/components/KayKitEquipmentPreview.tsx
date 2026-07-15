@@ -1,14 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import type { EquipmentId } from '../game/metaProgression';
 import { equipmentVisualProfile, type EquipmentVisualProfile } from '../game/equipmentVisuals';
+import { appAssetUrl } from '../game/appAssetUrl';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
-const KAYKIT_ROOT = '/assets/kaykit/';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 function assetUrl(path: string) {
-  return path.startsWith('/') ? path : `${KAYKIT_ROOT}${path}`;
+  return appAssetUrl(path.startsWith('/') ? path : `assets/kaykit/${path}`);
 }
 
 function disposeObject(object: any) {
