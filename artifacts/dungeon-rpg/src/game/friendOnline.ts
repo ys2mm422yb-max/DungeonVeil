@@ -1,4 +1,5 @@
 import { authenticatedSupabaseRest, currentOnlineSession } from './supabaseOnline';
+import { friendErrorMessage } from './friendErrorMessages';
 
 export const FRIENDS_EVENT = 'dungeon-veil-friends-changed';
 
@@ -41,11 +42,15 @@ function emitFriendsChanged(): void {
 }
 
 async function rpc<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
-  if (!currentOnlineSession()) throw new Error('Nicht angemeldet');
-  return authenticatedSupabaseRest<T>(`rpc/${name}`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
+  if (!currentOnlineSession()) throw new Error(friendErrorMessage(new Error('Nicht angemeldet')));
+  try {
+    return await authenticatedSupabaseRest<T>(`rpc/${name}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  } catch (reason) {
+    throw new Error(friendErrorMessage(reason));
+  }
 }
 
 export async function listFriendsOnline(): Promise<OnlineFriend[]> {
@@ -60,7 +65,7 @@ export async function listFriendRequestsOnline(): Promise<OnlineFriendRequest[]>
 
 export async function sendFriendRequestOnline(query: string): Promise<SentFriendRequest> {
   const rows = await rpc<SentFriendRequest[]>('send_friend_request_by_query', { p_query: query.trim() });
-  if (!rows[0]) throw new Error('Freundschaftsanfrage konnte nicht gesendet werden');
+  if (!rows[0]) throw new Error(friendErrorMessage(new Error('friend request could not be sent')));
   emitFriendsChanged();
   return rows[0];
 }
