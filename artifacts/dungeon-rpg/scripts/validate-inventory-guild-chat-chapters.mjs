@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, inventory, hub, guildPanel, chatPanel, chatClient, meta, gates, migration, invitePermissionFix] = await Promise.all([
+const [menu, inventory, markers, hub, guildPanel, chatPanel, chatClient, meta, gates, migration, invitePermissionFix] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/screens/VeilChamberScreen.tsx'),
+  read('../src/game/newContentMarkers.ts'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/GuildChatPanel.tsx'),
@@ -17,6 +18,8 @@ const [menu, inventory, hub, guildPanel, chatPanel, chatClient, meta, gates, mig
 const checks = [
   [menu.includes("language === 'de' ? 'Inventar' : 'Inventory'") && !menu.includes("'Schleierkammer' : 'Veil Chamber'") && menu.includes('recordReachedChapter(props.saveData?.chapter ?? 1)'), 'main-menu inventory label or saved chapter migration is missing'],
   [inventory.includes("'INVENTAR' : 'INVENTORY'") && inventory.includes('equipmentUnlockChapter') && inventory.includes("'AB KAPITEL' : 'FROM CHAPTER'"), 'inventory heading or chapter requirement is missing'],
+  [markers.includes('initialized: boolean') && markers.includes('initializeSeenUnlocks') && markers.includes('unseenEquipmentIds') && markers.includes('unseenRelicIds'), 'persistent unseen-unlock tracking is incomplete'],
+  [inventory.includes('inventory-tab-new-badge') && inventory.includes('inventory-item-new-badge') && inventory.includes('markEquipmentSeen') && inventory.includes('markRelicSeen'), 'inventory NEW markers or seen actions are missing'],
   [!hub.includes('detailDe') && !hub.includes('detailEn') && !hub.includes('Mira') && !hub.includes('Orin') && !hub.includes('Tala') && !hub.includes('Brom') && !hub.includes('Aelric'), 'NPC names remain below the main-menu routes'],
   [guildPanel.includes("type GuildTab = 'overview' | 'chat' | 'members' | 'invite'") && guildPanel.includes("tabButton('chat', 'Chat')") && guildPanel.includes('<GuildChatPanel guildId={membership.guild.id}'), 'guild chat tab is not mounted'],
   [chatPanel.includes('window.setInterval') && chatPanel.includes('5000') && chatPanel.includes('maxLength={400}') && chatPanel.includes('guild-chat-send'), 'guild chat polling, input limit or send control is missing'],
@@ -33,4 +36,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Inventory/guild-chat/chapter audit passed: labels are clean, guild chat is member-only, all normal equipment unlocks by chapter 4 and guild invites use the protected mailbox RPC flow.');
+console.log('Inventory/guild-chat/chapter audit passed: persistent NEW markers, chapter gates, guild chat and protected invitation flow remain coherent.');
