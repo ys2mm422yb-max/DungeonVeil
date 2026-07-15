@@ -19,6 +19,8 @@ for (const variant of ["'boot'", "'run'", "'worldBoss'"]) {
 requireText(loadingScreen, 'role="status"', 'LoadingScreen must expose an accessible status role');
 requireText(globalLayer, 'preloadKayKitOuterWorld()', 'Boot loading does not warm the menu world');
 requireText(globalLayer, 'preloadKayKitDungeonRoom(1)', 'Boot loading does not warm the first dungeon room');
+requireText(globalLayer, 'BOOT_LOADING_MAX_MS', 'Boot loading has no hard upper bound');
+requireText(globalLayer, 'Promise.race([warmup, delay(BOOT_LOADING_MAX_MS)])', 'Boot loading can still wait indefinitely for fonts or assets');
 requireText(globalLayer, "dungeon-veil-room-preparing", 'Room loading does not listen for preparation');
 requireText(globalLayer, "dungeon-veil-room-ready", 'Room loading does not wait for the ready event');
 requireText(globalLayer, 'app-boot-loading-screen', 'Boot loading test hook is missing');
@@ -27,4 +29,4 @@ requireText(main, '<GlobalLoadingLayer />', 'Global loading layer is not mounted
 requireText(characterCreation, 'new-run-loading-screen', 'New-run full-screen loader is missing');
 requireText(worldBoss, 'BOSSARENA WIRD GELADEN', 'World-boss arena loader was removed');
 
-console.log('Loading transitions verified: boot, new run, room entry and world boss.');
+console.log('Loading transitions verified: boot has a hard deadline; new run, room entry and world boss remain covered.');
