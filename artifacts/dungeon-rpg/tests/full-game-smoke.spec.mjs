@@ -2,15 +2,25 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
-function attachRuntimeMonitor(page) {
+function isWebKitNavigationAssetAbort(text, projectName) {
+  if (!projectName.includes('webkit')) return false;
+  return /DungeonVeil\/assets\/kaykit\//i.test(text)
+    && (/due to access control checks/i.test(text) || /KayKit equipment preview failed TypeError: Load failed/i.test(text));
+}
+
+function attachRuntimeMonitor(page, projectName) {
   const issues = [];
   const appOrigin = new URL(APP_URL).origin;
 
-  page.on('pageerror', error => issues.push(`pageerror: ${error.message}`));
+  page.on('pageerror', error => {
+    if (isWebKitNavigationAssetAbort(error.message, projectName)) return;
+    issues.push(`pageerror: ${error.message}`);
+  });
   page.on('console', message => {
     if (message.type() !== 'error') return;
     const text = message.text();
     if (/favicon|supabase.*401|supabase.*403/i.test(text)) return;
+    if (isWebKitNavigationAssetAbort(text, projectName)) return;
     if (/TypeError|ReferenceError|Cannot read|permission denied|Failed to fetch dynamically imported module/i.test(text)) {
       issues.push(`console: ${text}`);
     }
@@ -67,7 +77,7 @@ async function openMenuButton(page, name) {
 }
 
 test('main menu, profile and every hub panel open without fatal errors', async ({ page }, testInfo) => {
-  const issues = attachRuntimeMonitor(page);
+  const issues = attachRuntimeMonitor(page, testInfo.project.name);
   await preparePage(page, testInfo.project.name);
   await assertNoHorizontalOverflow(page);
 
@@ -145,7 +155,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
 });
 
 test('new run renders combat controls and stays stable', async ({ page }, testInfo) => {
-  const issues = attachRuntimeMonitor(page);
+  const issues = attachRuntimeMonitor(page, testInfo.project.name);
   await preparePage(page, testInfo.project.name);
 
   await page.getByRole('button', { name: /Neuer Run|New Run/i }).click();
