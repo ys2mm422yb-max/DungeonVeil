@@ -5,10 +5,14 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 function attachRuntimeMonitor(page) {
   const issues = [];
   const appOrigin = new URL(APP_URL).origin;
+  page.__dungeonVeilIntentionalNavigation = false;
+  const intentionallyNavigating = () => page.__dungeonVeilIntentionalNavigation === true;
 
-  page.on('pageerror', error => issues.push(`pageerror: ${error.message}`));
+  page.on('pageerror', error => {
+    if (!intentionallyNavigating()) issues.push(`pageerror: ${error.message}`);
+  });
   page.on('console', message => {
-    if (message.type() !== 'error') return;
+    if (message.type() !== 'error' || intentionallyNavigating()) return;
     const text = message.text();
     if (/favicon|supabase.*401|supabase.*403/i.test(text)) return;
     if (/TypeError|ReferenceError|Cannot read|permission denied|Failed to fetch dynamically imported module/i.test(text)) {
@@ -52,12 +56,17 @@ async function assertNoHorizontalOverflow(page) {
 }
 
 async function reloadMenu(page, projectName) {
-  await page.context().clearCookies();
-  await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-  if (projectName.includes('ipad')) {
-    await page.evaluate(() => Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 }));
+  page.__dungeonVeilIntentionalNavigation = true;
+  try {
+    await page.context().clearCookies();
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+    if (projectName.includes('ipad')) {
+      await page.evaluate(() => Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 }));
+    }
+    await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
+  } finally {
+    page.__dungeonVeilIntentionalNavigation = false;
   }
-  await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
 }
 
 async function openMenuButton(page, name) {
