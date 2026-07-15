@@ -34,14 +34,20 @@ jobs:
           cache: pnpm
       - name: Apply focused ranged-enemy fix
         run: python3 .ci/apply-darkwood-mage-range-balance.py
-      - run: pnpm install --frozen-lockfile
-      - name: Validate darkwood mage and Schnellzug changes
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Focused darkwood mage audit
+        run: node artifacts/dungeon-rpg/scripts/validate-darkwood-mage-balance.mjs
+      - name: Asset audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Social and menu audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:social
+      - name: Room and combat audit
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Pages production build
         run: |
-          node artifacts/dungeon-rpg/scripts/validate-darkwood-mage-balance.mjs
-          pnpm --filter @workspace/dungeon-rpg audit:assets
-          pnpm --filter @workspace/dungeon-rpg audit:social
-          pnpm --filter @workspace/dungeon-rpg audit:rooms
-          pnpm run typecheck
           BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
           test -f artifacts/dungeon-rpg/dist/public/index.html
       - name: Commit clean validated result
