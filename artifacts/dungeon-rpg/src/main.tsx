@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 
 import './game/portalExitPolicy';
+import './game/profileCosmeticsExpansion';
 import './game/onlinePresenceRuntime';
 import App from './App';
 import { GlobalLoadingLayer } from './components/GlobalLoadingLayer';
@@ -9,7 +10,9 @@ import { TutorialVisualQa } from './components/TutorialVisualQa';
 import { UnlockPresentationLayer } from './components/UnlockPresentationLayer';
 import { WorldBossVisualQa } from './components/WorldBossVisualQa';
 import { installAccessibilitySettings } from './game/accessibilitySettings';
+import { installCloudAccountSyncRuntime } from './game/cloudAccountSyncRuntime';
 import { installEmailConfirmationRedirect } from './game/emailConfirmationRedirect';
+import { repairLegacyProfileStats } from './game/profileStatsRepair';
 import { installProfileStorageIntegrity } from './game/profileStorageIntegrity';
 import { startVersionGuard } from './game/versionGuard';
 
@@ -19,6 +22,8 @@ import './readability.css';
 
 installAccessibilitySettings();
 installProfileStorageIntegrity();
+repairLegacyProfileStats();
+installCloudAccountSyncRuntime();
 installEmailConfirmationRedirect();
 
 const qaMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('qa') : null;

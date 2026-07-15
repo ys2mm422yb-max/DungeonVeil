@@ -91,8 +91,9 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       for (const number of engine.state.damageNumbers) {
         if (seenDamageIds.has(number.id)) continue;
         seenDamageIds.add(number.id);
-        if (number.id.startsWith('hit-') || number.id.startsWith('clear-')) continue;
-        const value = typeof number.value === 'number' ? number.value : Number(number.value);
+        const outgoingDamage = number.id.startsWith('dmg-') || number.id.startsWith('burn-');
+        if (!outgoingDamage) continue;
+        const value = Math.abs(Number(number.value));
         if (Number.isFinite(value) && value > 0) pendingDamage += Math.floor(value);
       }
       if (seenDamageIds.size > 600) {

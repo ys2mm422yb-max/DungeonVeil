@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [credits, inventory, presentation, gates, relics, retention, reward, effects, menu, friends, guild, worldboss, quests] = await Promise.all([
+const [credits, inventory, presentation, gates, relics, retention, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, sessionBridge, main] = await Promise.all([
   read('../src/components/screens/CreditsScreen.tsx'),
   read('../src/components/screens/VeilChamberScreen.tsx'),
   read('../src/game/equipmentPresentation.ts'),
@@ -15,6 +15,13 @@ const [credits, inventory, presentation, gates, relics, retention, reward, effec
   read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/WorldBossPanel.tsx'),
   read('../src/components/DailyQuestPanel.tsx'),
+  read('../src/components/PlayerProfilePanel.tsx'),
+  read('../src/components/PlayerProfileCard.tsx'),
+  read('../src/game/weeklyElite.ts'),
+  read('../src/game/persistentSaveBundle.ts'),
+  read('../src/game/cloudAccountSyncRuntime.ts'),
+  read('../src/components/GameSessionBridge.tsx'),
+  read('../src/main.tsx'),
 ]);
 
 const checks = [
@@ -26,15 +33,22 @@ const checks = [
   [effects.includes("relic === 'world-core'") && effects.includes('activateWorldCoreForCurrentRun'), 'World Core has no real run effect'],
   [menu.includes("onOpenOnline={() => setOverlay('online')}") && friends.includes('onOpenOnline') && guild.includes('onOpenOnline') && worldboss.includes('onOpenOnline'), 'direct Online & Cloud navigation is missing'],
   [inventory.includes('Bossräume ab Raum 20') && inventory.includes('ausschließlich vom Weltboss'), 'relic source explanation is not accurate'],
-  [quests.includes('data-testid="quest-board-summary"') && quests.includes('data-testid="quest-active-section"') && quests.includes('data-testid="quest-elite-section"') && quests.includes('data-testid="quest-completed-section"'), 'quest board is not separated into summary, standard, elite and completed sections'],
-  [quests.includes('activeTasks') && quests.includes('completedTasks') && quests.includes('eliteTasks') && quests.includes('completedOpen'), 'quest board does not derive or control its structured task groups'],
-  [quests.includes("data-quest-kind={task.gold ? 'elite' : 'standard'}") && quests.includes('Elite-Aufträge') && quests.includes('ELITE ·'), 'gold contracts are not visibly identified as elite quests inside the quest board'],
+  [quests.includes('data-testid="quest-board-summary"') && quests.includes('data-testid="quest-active-section"') && quests.includes('data-testid="quest-gold-section"') && quests.includes('data-testid="quest-elite-section"') && quests.includes('data-testid="quest-completed-section"'), 'quest board is not separated into daily, gold, weekly elite and completed sections'],
+  [quests.includes('Wöchentliche Elite-Aufträge') && quests.includes('weeklyEliteQuests') && quests.includes('claimWeeklyEliteQuest') && quests.includes('weekly-elite-card'), 'real weekly elite contracts are not shown in the quest board'],
+  [quests.includes('Gold-Aufträge') && quests.includes("data-quest-kind={task.gold ? 'gold' : 'standard'}"), 'daily gold quests are still mislabeled as weekly elite contracts'],
+  [weekly.includes("id: 'enemy-hunt'") && weekly.includes("id: 'contract-master'") && weekly.includes('ownedRewardIds') && weekly.includes('eliteMarks'), 'weekly elite rotation or permanent rewards are incomplete'],
+  [profile.includes("type Tab = 'overview' | 'stats' | 'titles' | 'cards' | 'avatars'") && profile.includes('Visitenkarten') && profile.includes('profile-collection-summary') && !profile.includes("| 'weekly'"), 'profile collections are incomplete or elite contracts leaked back into the profile'],
+  [publicProfile.includes('resolveOnlineAvatar') && publicProfile.includes('resolveOnlineTitle') && publicProfile.includes('resolveOnlineCard'), 'public profiles do not display equipped cosmetics'],
+  [bundle.includes("'dungeon-veil-player-profile-v1'") && bundle.includes("'dungeon-veil-weekly-elite-v1'") && bundle.includes("'dungeon-veil-seen-unlocks-v1'"), 'cloud bundle omits profile cosmetics, elite rewards or new-content markers'],
+  [syncRuntime.includes('pullCloudSave()') && syncRuntime.includes('pushCloudSave()') && syncRuntime.includes('onlineSessionEventName()') && syncRuntime.includes('window.location.reload()'), 'account save synchronization is not installed end to end'],
+  [main.includes("import './game/profileCosmeticsExpansion'") && main.includes('installCloudAccountSyncRuntime()'), 'expanded profile collections or account synchronization are not installed at startup'],
+  [sessionBridge.includes("number.id.startsWith('dmg-')") && sessionBridge.includes("number.id.startsWith('burn-')"), 'real outgoing damage is not counted for profile and elite progress'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
 if (failures.length) {
-  console.error(`Menu copy/relic progression audit failed with ${failures.length} error(s):`);
+  console.error(`Menu/profile/cloud progression audit failed with ${failures.length} error(s):`);
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Menu copy/relic progression audit passed: menu routes, structured standard and elite quests, item levels, relic sources and direct sign-in routes are coherent.');
+console.log('Menu/profile/cloud progression audit passed: complete collections, account saves and weekly elite contracts are integrated.');
