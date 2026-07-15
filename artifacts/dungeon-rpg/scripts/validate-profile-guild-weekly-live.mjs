@@ -12,6 +12,7 @@ const expansion = read('src/game/profileCosmeticsExpansion.ts');
 const weekly = read('src/game/weeklyElite.ts');
 const panel = read('src/components/PlayerProfilePanel.tsx');
 const guild = read('src/components/GuildSocialPanel.tsx');
+const guildPanel = read('src/components/GuildPanelMobile.tsx');
 const publicProfile = read('src/components/PlayerProfileCard.tsx');
 const online = read('src/game/onlineProfileCosmetics.ts');
 const session = read('src/components/GameSessionBridge.tsx');
@@ -33,11 +34,13 @@ requireText(profile + expansion, "id: 'weekly-breaker'", 'Weekly title reward is
 requireText(profile + expansion, "id: 'rift-seal'", 'Weekly calling card reward is not equippable');
 requireText(profile + expansion, "id: 'night-watch'", 'Weekly avatar reward is not equippable');
 requireText(profile + expansion, 'myth', 'Mythic cosmetics are missing');
-requireText(guild, 'guild-member-profile-strip', 'Guild member avatars are not shown');
-requireText(guild, 'setSelectedProfileId(member.user_id)', 'Guild member cards must open profiles');
-requireText(guild, 'resolveOnlineTitle', 'Guild members do not show their active title');
+requireText(guildPanel, 'data-testid="guild-members-tab"', 'Guild members are not contained in the Members tab');
+requireText(guildPanel, 'data-testid="guild-member-profile-button"', 'Guild member cards do not expose a profile action');
+requireText(guild, 'onOpenMemberProfile={setSelectedProfileId}', 'Guild member cards do not open public profiles');
+if (guild.includes('guild-member-profile-strip')) throw new Error('Obsolete external guild profile strip is still rendered');
 requireText(publicProfile, 'resolveOnlineCard', 'Public profile does not show the selected calling card');
 requireText(publicProfile, 'resolveOnlineAvatar', 'Public profile does not show the selected avatar');
+requireText(publicProfile, 'resolveOnlineTitle', 'Public profile does not show the selected title');
 requireText(online, 'syncOnlineProfileCosmetics', 'Equipped cosmetics are not synced online');
 requireText(session, 'Math.abs(Number(number.value))', 'Negative-formatted outgoing damage is still ignored');
 requireText(repair, 'ownedEquipment - profile.stats.itemsFound', 'Legacy equipment statistics are not reconciled');
@@ -46,4 +49,4 @@ requireText(main, "import './game/profileStatsRepair';", 'Profile statistics rep
 const cosmeticCount = ((profile + expansion).match(/nameDe:/g) ?? []).length;
 if (cosmeticCount < 38) throw new Error(`Expanded cosmetic collection is incomplete: ${cosmeticCount}`);
 
-console.log('Profile, guild member profiles, Visitenkarten, repaired statistics and weekly elite rewards verified.');
+console.log('Profile, guild member profiles in the Members tab, Visitenkarten, repaired statistics and weekly elite rewards verified.');
