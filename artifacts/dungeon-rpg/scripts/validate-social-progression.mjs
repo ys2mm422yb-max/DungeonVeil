@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, villageScene, villagePlayer, main] = await Promise.all([
+const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, guildPanel, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, villageScene, villagePlayer, main] = await Promise.all([
   read('../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql'),
   read('../../../supabase/migrations/20260713034500_social_acceptance_mailbox_notices.sql'),
   read('../../../supabase/migrations/20260713035500_prepare_recent_world_boss_rewards.sql'),
@@ -12,6 +12,7 @@ const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigrat
   read('../src/game/worldBossAttemptOnline.ts'),
   read('../src/components/FriendsPanel.tsx'),
   read('../src/components/GuildSocialPanel.tsx'),
+  read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/PlayerProfileCard.tsx'),
   read('../src/components/OnlinePanel.tsx'),
   read('../src/components/WorldBossPanel.tsx'),
@@ -46,7 +47,7 @@ const checks = [
   [friendClient.includes("'list_friends_v2'") && friendClient.includes("'send_friend_request_by_query'") && friendClient.includes('friend_code'), 'friend client is not using codes and extended profiles'],
   [friendsPanel.includes('DEIN PROFIL & FREUNDESCODE') && friendsPanel.includes('PlayerProfileCard') && friendsPanel.includes('inviteGuildMember'), 'friends UI lacks self profile, profile cards or direct guild invitations'],
   [friendsPanel.includes('FAVORITES_KEY') && friendsPanel.includes('ONLINE_WINDOW_MS') && friendsPanel.includes('formatLastSeen') && friendsPanel.includes('toggleFavorite'), 'friend presence or favorites are missing'],
-  [guildSocial.includes('GuildPanelMobile') && guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && guildSocial.includes('onClose') && menu.includes('<GuildSocialPanel'), 'guild member profiles or fixed close routing are missing'],
+  [guildSocial.includes('GuildPanelMobile') && guildSocial.includes('PlayerProfileCard') && guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}') && guildPanel.includes('data-testid="guild-members-tab"') && guildPanel.includes('data-testid="guild-member-profile-button"') && !guildSocial.includes('guild-profile-list-button') && !guildSocial.includes('guild-member-profile-strip') && guildSocial.includes('onClose') && menu.includes('<GuildSocialPanel'), 'guild member profiles are not contained in the Members tab or fixed close routing is missing'],
   [profileCard.includes('data-testid="player-profile-card"') && profileCard.includes('lifetime_world_boss_damage') && profileCard.includes('achievement_keys') && profileCard.includes('account_level'), 'social profile card is incomplete'],
   [onlinePanel.includes('social-profile-summary') && onlinePanel.includes('friend_code') && onlinePanel.includes('current_rank'), 'online profile does not expose friend code and progress'],
   [bossPanel.includes('worldboss-social-panel') && bossPanel.includes('getWorldBossSocialDashboard') && (bossPanel.includes('dashboard.friends') || bossPanel.includes('dashboard?.friends')) && bossPanel.includes('dashboard.guilds') && bossPanel.includes('dashboard.myGuild'), 'world-boss friend and guild rankings are missing'],
@@ -70,4 +71,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: the server-enforced boss gate, focused equipped Ranger and fixed mobile guild shell are wired with the existing social progression.');
+console.log('Social progression audit passed: guild profiles live only in the Members tab while the server-enforced boss gate and focused equipped Ranger remain intact.');
