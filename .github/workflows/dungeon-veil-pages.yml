@@ -1,14 +1,12 @@
 name: Deploy Dungeon Veil Test Site
 
-# Final exact deployment trigger for the world-orb village and cohesive Ash Warden hall.
+# Deploy every production-pass, fix and chained block branch to the shared review site.
 on:
   push:
     branches:
       - work/blocks-1-7-production-pass
-      - fix/guild-members-tab-profiles
-      - work/block-5-public-player-profiles
-      - work/block-6-friends-public-profiles
-      - work/block-7-online-offline-presence
+      - 'fix/**'
+      - 'work/block-*'
     paths-ignore:
       - '.ci/**'
   workflow_dispatch:
