@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, inventory, markers, hub, guildPanel, chatPanel, chatClient, meta, gates, migration, invitePermissionFix] = await Promise.all([
+const [menu, main, inventory, markers, unlockLayer, hub, guildPanel, chatPanel, chatClient, meta, gates, migration, invitePermissionFix] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
+  read('../src/main.tsx'),
   read('../src/components/screens/VeilChamberScreen.tsx'),
   read('../src/game/newContentMarkers.ts'),
+  read('../src/components/UnlockPresentationLayer.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/GuildChatPanel.tsx'),
@@ -20,6 +22,9 @@ const checks = [
   [inventory.includes("'INVENTAR' : 'INVENTORY'") && inventory.includes('equipmentUnlockChapter') && inventory.includes("'AB KAPITEL' : 'FROM CHAPTER'"), 'inventory heading or chapter requirement is missing'],
   [markers.includes('initialized: boolean') && markers.includes('initializeSeenUnlocks') && markers.includes('unseenEquipmentIds') && markers.includes('unseenRelicIds'), 'persistent unseen-unlock tracking is incomplete'],
   [inventory.includes('inventory-tab-new-badge') && inventory.includes('inventory-item-new-badge') && inventory.includes('markEquipmentSeen') && inventory.includes('markRelicSeen'), 'inventory NEW markers or seen actions are missing'],
+  [unlockLayer.includes('unlock-presentation-layer') && unlockLayer.includes('dungeon-veil-meta-changed') && unlockLayer.includes('dungeon-veil-relic-changed'), 'new unlock presentation does not react to equipment and relic changes'],
+  [unlockLayer.includes('announcedRef') && !unlockLayer.includes('markEquipmentSeen(') && !unlockLayer.includes('markRelicSeen('), 'unlock presentation incorrectly consumes persistent NEW markers'],
+  [main.includes('<UnlockPresentationLayer />'), 'unlock presentation layer is not mounted globally'],
   [!hub.includes('detailDe') && !hub.includes('detailEn') && !hub.includes('Mira') && !hub.includes('Orin') && !hub.includes('Tala') && !hub.includes('Brom') && !hub.includes('Aelric'), 'NPC names remain below the main-menu routes'],
   [guildPanel.includes("type GuildTab = 'overview' | 'chat' | 'members' | 'invite'") && guildPanel.includes("tabButton('chat', 'Chat')") && guildPanel.includes('<GuildChatPanel guildId={membership.guild.id}'), 'guild chat tab is not mounted'],
   [chatPanel.includes('window.setInterval') && chatPanel.includes('5000') && chatPanel.includes('maxLength={400}') && chatPanel.includes('guild-chat-send'), 'guild chat polling, input limit or send control is missing'],
@@ -36,4 +41,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Inventory/guild-chat/chapter audit passed: persistent NEW markers, chapter gates, guild chat and protected invitation flow remain coherent.');
+console.log('Inventory/guild-chat/chapter audit passed: persistent NEW markers, visible unlock presentations, chapter gates and guild systems remain coherent.');
