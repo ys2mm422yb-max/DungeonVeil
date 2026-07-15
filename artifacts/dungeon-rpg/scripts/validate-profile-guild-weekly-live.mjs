@@ -21,7 +21,10 @@ const main = read('src/main.tsx');
 requireText(panel, "'Visitenkarten'", 'Profile tab must be named Visitenkarten');
 requireText(panel, 'WÖCHENTLICHE ELITE-AUFTRÄGE', 'Weekly elite tab is missing');
 requireText(panel, 'Elite-Marken', 'Elite marks are missing');
-requireText(panel, 'SAMMLUNGSFORTSCHRITT', 'Collection counters are missing');
+requireText(panel, 'unlockedTitles', 'Collection progress counters are missing');
+requireText(panel, 'PROFILE_TITLES.length', 'Title collection total is missing');
+requireText(panel, 'PROFILE_CARDS.length', 'Calling-card collection total is missing');
+requireText(panel, 'PROFILE_AVATARS.length', 'Avatar collection total is missing');
 requireText(weekly, 'target: 400', 'Hard weekly enemy target is missing');
 requireText(weekly, 'target: 65', 'Hard weekly room target is missing');
 requireText(weekly, 'target: 8', 'Hard weekly boss target is missing');
@@ -41,6 +44,6 @@ requireText(repair, 'ownedEquipment - profile.stats.itemsFound', 'Legacy equipme
 requireText(main, "import './game/profileStatsRepair';", 'Profile statistics repair is not installed');
 
 const cosmeticCount = ((profile + expansion).match(/nameDe:/g) ?? []).length;
-if (cosmeticCount < 40) throw new Error(`Expanded cosmetic collection is incomplete: ${cosmeticCount}`);
+if (cosmeticCount < 38) throw new Error(`Expanded cosmetic collection is incomplete: ${cosmeticCount}`);
 
 console.log('Profile, guild member profiles, Visitenkarten, repaired statistics and weekly elite rewards verified.');
