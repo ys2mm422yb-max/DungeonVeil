@@ -10,6 +10,7 @@ import { UnlockPresentationLayer } from './components/UnlockPresentationLayer';
 import { WorldBossVisualQa } from './components/WorldBossVisualQa';
 import { installAccessibilitySettings } from './game/accessibilitySettings';
 import { installEmailConfirmationRedirect } from './game/emailConfirmationRedirect';
+import { installProfileStorageIntegrity } from './game/profileStorageIntegrity';
 import { startVersionGuard } from './game/versionGuard';
 
 import './index.css';
@@ -17,6 +18,7 @@ import './guild-mobile.css';
 import './readability.css';
 
 installAccessibilitySettings();
+installProfileStorageIntegrity();
 installEmailConfirmationRedirect();
 
 const qaMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('qa') : null;
