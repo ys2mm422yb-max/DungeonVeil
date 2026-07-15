@@ -29,9 +29,25 @@ function attachRuntimeMonitor(page) {
   return issues;
 }
 
+async function navigateToApp(page) {
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      const retryable = /ERR_ABORTED|frame was detached/i.test(String(error));
+      if (!retryable || attempt === 1) throw error;
+      await page.waitForTimeout(350);
+    }
+  }
+  throw lastError;
+}
+
 async function waitForReadyMenu(page) {
+  await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 12_000 });
   await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
 }
 
@@ -43,7 +59,7 @@ async function preparePage(page, projectName) {
       Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
     }
   }, { emulateIpad: ipad });
-  await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+  await navigateToApp(page);
   await waitForReadyMenu(page);
 }
 
@@ -68,7 +84,7 @@ async function reloadMenu(page, projectName) {
   page.__dungeonVeilIntentionalNavigation = true;
   try {
     await page.context().clearCookies();
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+    await navigateToApp(page);
     if (projectName.includes('ipad')) {
       await page.evaluate(() => Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 }));
     }
