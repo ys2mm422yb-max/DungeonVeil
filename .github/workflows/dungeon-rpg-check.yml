@@ -2,7 +2,7 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [main, work/blocks-1-7-production-pass, feature/loading-transitions]
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
