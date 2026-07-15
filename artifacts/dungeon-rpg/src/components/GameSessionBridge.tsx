@@ -16,7 +16,10 @@ import { createFirstWardenFinaleState, updateFirstWardenFinale } from '../game/f
 import { createEquipmentWorldLootState, disposeEquipmentWorldLoot, spawnRoomEquipmentReward, updateEquipmentWorldLoot } from '../game/equipmentWorldLoot';
 import { pushCloudSave } from '../game/cloudSave';
 import { isBossRoom } from '../game/chapterRun';
-import { recordPlayerProfileItemFound, recordPlayerProfileRoomClear, recordPlayerProfileSession } from '../game/playerProfile';
+import { loadPlayerProfile, recordPlayerProfileItemFound, recordPlayerProfileRoomClear, recordPlayerProfileSession } from '../game/playerProfile';
+import { syncPublicProfileStats } from '../game/socialProgressOnline';
+import { currentOnlineSession } from '../game/supabaseOnline';
+import { publishMenuActivity, publishSpectatorState, SPECTATOR_REFRESH_MS } from '../game/socialSpectatorOnline';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 import { FirstWardenOverlay } from './FirstWardenOverlay';
@@ -24,6 +27,7 @@ import { TutorialOverlay } from './TutorialOverlay';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 const PROFILE_FLUSH_MS = 5_000;
+const PUBLIC_PROFILE_SYNC_MS = 15_000;
 
 function restorePendingRoomGift(engine: GameEngine): void {
   const save = loadGame();
@@ -68,6 +72,30 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
   }, [active]);
 
   useEffect(() => {
+    if (!currentOnlineSession()) return;
+    let stopped = false;
+    let publishing = false;
+    const publish = async () => {
+      if (stopped || publishing) return;
+      publishing = true;
+      try {
+        const engine = getEngineRef.current();
+        if (active && engine) await publishSpectatorState(engine.state);
+        else await publishMenuActivity(engine?.state.chapter ?? 1, engine?.state.floor ?? 1);
+      } catch {}
+      finally { publishing = false; }
+    };
+    void publish();
+    const interval = window.setInterval(() => void publish(), SPECTATOR_REFRESH_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      const engine = getEngineRef.current();
+      void publishMenuActivity(engine?.state.chapter ?? 1, engine?.state.floor ?? 1).catch(() => {});
+    };
+  }, [active]);
+
+  useEffect(() => {
     if (!active) return;
     const effects = createRunEffectSystemState();
     const balance = createRunBalanceState();
@@ -82,6 +110,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     let lastFrame = performance.now();
     let lastSystemTick = 0;
     let lastProfileFlush = lastFrame;
+    let lastPublicProfileSync = 0;
     let lastKillCount = Math.max(0, getEngineRef.current()?.state.killCount ?? 0);
     let pendingDamage = 0;
     const seenDamageIds = new Set<string>();
@@ -103,6 +132,12 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       }
     };
 
+    const syncPublicProfile = (time: number, force = false) => {
+      if (!currentOnlineSession() || (!force && time - lastPublicProfileSync < PUBLIC_PROFILE_SYNC_MS)) return;
+      lastPublicProfileSync = time;
+      void syncPublicProfileStats(loadPlayerProfile()).catch(() => {});
+    };
+
     const flushProfile = (time: number, engine: GameEngine) => {
       const currentKills = Math.max(0, engine.state.killCount ?? 0);
       const kills = currentKills >= lastKillCount ? currentKills - lastKillCount : currentKills;
@@ -116,6 +151,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       lastProfileFlush = time;
       lastKillCount = currentKills;
       pendingDamage = 0;
+      syncPublicProfile(time);
     };
 
     const update = (time: number) => {
@@ -153,6 +189,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
               }
               window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
             }
+            syncPublicProfile(time, true);
             void pushCloudSave();
           }
         } else {
