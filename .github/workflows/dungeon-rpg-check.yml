@@ -48,12 +48,15 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          if ! pnpm --filter @workspace/dungeon-rpg audit:rooms > /tmp/dungeon-audit.log 2>&1; then
-            echo '--- failing audit tail ---'
-            tail -n 80 /tmp/dungeon-audit.log
-            exit 1
-          fi
-          tail -n 40 /tmp/dungeon-audit.log
+          pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee /tmp/dungeon-audit.log
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-audit-evidence
+          if-no-files-found: warn
+          retention-days: 7
+          path: /tmp/dungeon-audit.log
       - name: Typecheck Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
