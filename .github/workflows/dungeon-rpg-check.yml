@@ -24,8 +24,7 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-# Verification also runs directly on the production-pass branch when the PR has conflicts.
-# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
+# Temporary artifact capture on the profile branch; removed after the failing audit is identified.
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
@@ -47,7 +46,19 @@ jobs:
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg audit:rooms > audit-room-results.txt 2>&1
+          status=$?
+          cat audit-room-results.txt
+          exit "$status"
+      - name: Upload room audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile-room-audit-debug
+          path: audit-room-results.txt
       - name: Typecheck Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
