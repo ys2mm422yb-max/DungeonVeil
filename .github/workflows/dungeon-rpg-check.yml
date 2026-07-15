@@ -2,7 +2,7 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [main, work/blocks-1-7-production-pass, 'fix/**', 'work/block-*']
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
@@ -12,7 +12,7 @@ on:
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.github/workflows/dungeon-rpg-ci.yml'
   pull_request:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [main, work/blocks-1-7-production-pass, 'fix/**', 'work/block-*']
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
@@ -24,8 +24,6 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-# Verification also runs directly on the production-pass branch when the PR has conflicts.
-# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
