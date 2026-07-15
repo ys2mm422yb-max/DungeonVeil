@@ -3,189 +3,60 @@ import type { SaveData } from '../game/saveManager';
 import type { MetaProgression } from '../game/metaProgression';
 import type { RetentionProfile } from '../game/runRetention';
 import {
-  PROFILE_AVATARS,
-  PROFILE_CARDS,
-  PROFILE_TITLES,
-  cosmeticProgress,
-  cosmeticUnlocked,
-  selectPlayerProfileAvatar,
-  selectPlayerProfileCard,
-  selectPlayerProfileTitle,
-  selectedProfileAvatar,
-  selectedProfileCard,
-  selectedProfileTitle,
-  type PlayerProfileProgress,
-  type ProfileAvatarDefinition,
-  type ProfileCardDefinition,
-  type ProfileTitleDefinition,
+  PROFILE_AVATARS, PROFILE_CARDS, PROFILE_TITLES,
+  cosmeticProgress, cosmeticUnlocked,
+  selectPlayerProfileAvatar, selectPlayerProfileCard, selectPlayerProfileTitle,
+  selectedProfileAvatar, selectedProfileCard, selectedProfileTitle,
+  type PlayerProfileProgress, type ProfileAvatarDefinition, type ProfileCardDefinition, type ProfileTitleDefinition,
 } from '../game/playerProfile';
 import { currentOnlineSession, getMyGuildMembership, type OnlineGuildMembership } from '../game/supabaseOnline';
 import { getMySocialProfile, type SocialProfile } from '../game/socialProgressOnline';
 
 type Tab = 'overview' | 'stats' | 'titles' | 'cards' | 'avatars';
+type Props = { profile: PlayerProfileProgress; saveData: SaveData | null; meta: MetaProgression; retention: RetentionProfile; language: 'de' | 'en'; onProfileChange: (profile: PlayerProfileProgress) => void; onClose: () => void };
 
-type Props = {
-  profile: PlayerProfileProgress;
-  saveData: SaveData | null;
-  meta: MetaProgression;
-  retention: RetentionProfile;
-  language: 'de' | 'en';
-  onProfileChange: (profile: PlayerProfileProgress) => void;
-  onClose: () => void;
-};
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(Math.max(0, Number(value) || 0));
-}
-
-function formatTime(value: number, de: boolean): string {
-  const minutes = Math.floor(Math.max(0, value) / 60000);
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (hours <= 0) return de ? `${rest} Min.` : `${rest} min`;
-  return de ? `${hours} Std. ${rest} Min.` : `${hours}h ${rest}m`;
-}
-
-function TabButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`min-h-10 rounded-xl border px-2 text-[7px] font-black uppercase tracking-[.12em] active:scale-[.98] ${active ? 'border-amber-300/34 bg-amber-400/12 text-amber-100' : 'border-white/8 bg-black/22 text-white/36'}`}>{label}</button>;
-}
-
-function Stat({ label, value, tone = 'text-white/88' }: { label: string; value: React.ReactNode; tone?: string }) {
-  return <div className="rounded-2xl border border-white/8 bg-white/[.025] p-3 text-center">
-    <div className="text-[6px] font-black uppercase tracking-[.14em] text-white/28">{label}</div>
-    <div className={`mt-1 text-[15px] font-black ${tone}`}>{value}</div>
-  </div>;
-}
-
-function ProgressBar({ value, target }: { value: number; target: number }) {
-  const percent = Math.max(0, Math.min(100, target > 0 ? value / target * 100 : 100));
-  return <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/45"><div className="h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-200" style={{ width: `${percent}%` }} /></div>;
-}
+const formatNumber = (value: number) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(Math.max(0, Number(value) || 0));
+function formatTime(value: number, de: boolean) { const minutes = Math.floor(Math.max(0, value) / 60000); const hours = Math.floor(minutes / 60); const rest = minutes % 60; return hours ? (de ? `${hours} Std. ${rest} Min.` : `${hours}h ${rest}m`) : (de ? `${rest} Min.` : `${rest} min`); }
+function rarity(value: unknown) { const key = String(value ?? '').toLowerCase(); if (key === 'mythic' || key === 'mythisch') return 'mythic'; if (key === 'epic' || key === 'episch') return 'epic'; if (key === 'rare' || key === 'selten') return 'rare'; return 'common'; }
+function rarityLabel(value: unknown, de: boolean) { const key = rarity(value); if (key === 'mythic') return de ? 'Mythisch' : 'Mythic'; if (key === 'epic') return de ? 'Episch' : 'Epic'; if (key === 'rare') return de ? 'Selten' : 'Rare'; return de ? 'Gewöhnlich' : 'Common'; }
+function rarityTone(value: unknown) { const key = rarity(value); if (key === 'mythic') return 'border-fuchsia-300/18 bg-fuchsia-400/[.06] text-fuchsia-200'; if (key === 'epic') return 'border-violet-300/18 bg-violet-400/[.06] text-violet-200'; if (key === 'rare') return 'border-cyan-300/18 bg-cyan-400/[.06] text-cyan-200'; return 'border-white/10 bg-white/[.035] text-white/48'; }
+function Stat({ label, value, tone = 'text-white/88' }: { label: string; value: React.ReactNode; tone?: string }) { return <div className="rounded-2xl border border-white/8 bg-white/[.025] p-3 text-center"><div className="text-[6px] font-black uppercase tracking-[.14em] text-white/28">{label}</div><div className={`mt-1 text-[15px] font-black ${tone}`}>{value}</div></div>; }
+function Progress({ value, target }: { value: number; target: number }) { const width = Math.max(0, Math.min(100, target ? value / target * 100 : 100)); return <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/45"><div className="h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-200" style={{ width: `${width}%` }} /></div>; }
 
 export function PlayerProfilePanel({ profile, saveData, meta, retention, language, onProfileChange, onClose }: Props) {
   const de = language === 'de';
   const [tab, setTab] = useState<Tab>('overview');
   const [onlineProfile, setOnlineProfile] = useState<SocialProfile | null>(null);
   const [membership, setMembership] = useState<OnlineGuildMembership | null>(null);
-  const title = selectedProfileTitle(profile);
-  const card = selectedProfileCard(profile);
-  const avatar = selectedProfileAvatar(profile);
+  const title = selectedProfileTitle(profile); const card = selectedProfileCard(profile); const avatar = selectedProfileAvatar(profile);
   const playerName = saveData?.playerName?.trim() || onlineProfile?.display_name || (de ? 'Waldläufer' : 'Ranger');
   const ownedItems = Object.keys(meta.owned).length;
   const codexEntries = retention.codex.enemies.length + retention.codex.bosses.length + retention.codex.hunts.length + retention.codex.relics.length;
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!currentOnlineSession()) return undefined;
-    void Promise.all([getMySocialProfile(), getMyGuildMembership()])
-      .then(([nextProfile, nextMembership]) => {
-        if (cancelled) return;
-        setOnlineProfile(nextProfile);
-        setMembership(nextMembership);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
+  useEffect(() => { let cancelled = false; if (!currentOnlineSession()) return; void Promise.all([getMySocialProfile(), getMyGuildMembership()]).then(([nextProfile, nextMembership]) => { if (!cancelled) { setOnlineProfile(nextProfile); setMembership(nextMembership); } }).catch(() => {}); return () => { cancelled = true; }; }, []);
 
   const tabs = useMemo(() => [
-    ['overview', de ? 'Übersicht' : 'Overview'],
-    ['stats', de ? 'Statistik' : 'Stats'],
-    ['titles', de ? 'Titel' : 'Titles'],
-    ['cards', de ? 'Karten' : 'Cards'],
-    ['avatars', de ? 'Avatare' : 'Avatars'],
+    ['overview', de ? 'Übersicht' : 'Overview'], ['stats', de ? 'Statistik' : 'Stats'], ['titles', de ? 'Titel' : 'Titles'], ['cards', de ? 'Visitenkarten' : 'Calling Cards'], ['avatars', de ? 'Avatare' : 'Avatars'],
   ] as const, [de]);
+  const unlockedTitles = PROFILE_TITLES.filter(item => cosmeticUnlocked(item, profile, meta.rank)).length;
+  const unlockedCards = PROFILE_CARDS.filter(item => cosmeticUnlocked(item, profile, meta.rank)).length;
+  const unlockedAvatars = PROFILE_AVATARS.filter(item => cosmeticUnlocked(item, profile, meta.rank)).length;
 
-  const equipTitle = (definition: ProfileTitleDefinition) => onProfileChange(selectPlayerProfileTitle(definition.id, meta.rank));
-  const equipCard = (definition: ProfileCardDefinition) => onProfileChange(selectPlayerProfileCard(definition.id, meta.rank));
-  const equipAvatar = (definition: ProfileAvatarDefinition) => onProfileChange(selectPlayerProfileAvatar(definition.id, meta.rank));
-
-  const cosmeticTile = <T extends ProfileTitleDefinition | ProfileCardDefinition | ProfileAvatarDefinition>(
-    definition: T,
-    selected: boolean,
-    onEquip: () => void,
-    preview: React.ReactNode,
-  ) => {
-    const unlocked = cosmeticUnlocked(definition, profile, meta.rank);
-    const progress = cosmeticProgress(definition, profile, meta.rank);
-    return <article key={definition.id} className={`rounded-2xl border p-3 ${selected ? 'border-amber-300/32 bg-amber-400/[.07]' : unlocked ? 'border-white/10 bg-white/[.025]' : 'border-white/6 bg-black/20 opacity-60'}`}>
-      <div className="flex items-center gap-3">
-        {preview}
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[11px] font-black text-white/88">{de ? definition.nameDe : definition.nameEn}</div>
-          <div className="mt-1 text-[7px] leading-relaxed text-white/34">{de ? definition.requirementDe : definition.requirementEn}</div>
-        </div>
-        <button type="button" disabled={!unlocked || selected} onClick={onEquip} className={`rounded-lg border px-2.5 py-2 text-[6px] font-black uppercase tracking-[.12em] ${selected ? 'border-amber-300/20 bg-amber-400/10 text-amber-100' : unlocked ? 'border-white/12 bg-white/[.04] text-white/62 active:scale-[.97]' : 'border-white/6 text-white/20'}`}>{selected ? (de ? 'Aktiv' : 'Active') : unlocked ? (de ? 'Ausrüsten' : 'Equip') : '🔒'}</button>
-      </div>
-      {!unlocked && <><ProgressBar value={progress.value} target={progress.target} /><div className="mt-1 text-right text-[6px] font-black text-white/25">{progress.value}/{progress.target}</div></>}
-    </article>;
+  const tile = <T extends ProfileTitleDefinition | ProfileCardDefinition | ProfileAvatarDefinition>(definition: T, selected: boolean, equip: () => void, preview: React.ReactNode) => {
+    const unlocked = cosmeticUnlocked(definition, profile, meta.rank); const progress = cosmeticProgress(definition, profile, meta.rank);
+    return <article key={definition.id} className={`rounded-2xl border p-3 ${selected ? 'border-amber-300/32 bg-amber-400/[.07]' : unlocked ? 'border-white/10 bg-white/[.025]' : 'border-white/8 bg-black/24'}`}><div className="flex items-center gap-3">{preview}<div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><div className="truncate text-[11px] font-black text-white/88">{de ? definition.nameDe : definition.nameEn}</div><span className={`rounded-full border px-1.5 py-0.5 text-[5px] font-black uppercase tracking-[.1em] ${rarityTone(definition.rarity)}`}>{rarityLabel(definition.rarity, de)}</span></div><div className={`mt-1 text-[7px] leading-relaxed ${unlocked ? 'text-white/36' : 'text-white/48'}`}>{de ? definition.requirementDe : definition.requirementEn}</div></div><button type="button" disabled={!unlocked || selected} onClick={equip} className={`shrink-0 rounded-lg border px-2.5 py-2 text-[6px] font-black uppercase tracking-[.12em] ${selected ? 'border-amber-300/20 bg-amber-400/10 text-amber-100' : unlocked ? 'border-white/12 bg-white/[.04] text-white/62 active:scale-[.97]' : 'border-white/8 bg-black/24 text-white/30'}`}>{selected ? (de ? 'Aktiv' : 'Active') : unlocked ? (de ? 'Ausrüsten' : 'Equip') : (de ? 'Gesperrt' : 'Locked')}</button></div>{!unlocked && <><Progress value={progress.value} target={progress.target} /><div className="mt-1 text-right text-[6px] font-black text-white/34">{formatNumber(progress.value)}/{formatNumber(progress.target)}</div></>}</article>;
   };
 
-  return <div className="fixed inset-0 z-[180] overflow-hidden bg-[#07080b]/96 text-white backdrop-blur-xl" data-testid="player-profile-panel">
-    <div className="mx-auto flex h-full w-full max-w-lg flex-col px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-[max(14px,env(safe-area-inset-top))]">
-      <div className="flex items-center justify-between gap-3">
-        <div><div className="text-[7px] font-black uppercase tracking-[.3em] text-amber-100/42">{de ? 'SPIELERPROFIL' : 'PLAYER PROFILE'}</div><div className="mt-1 text-xl font-black text-amber-50">{de ? 'Dein Weg im Schleier' : 'Your path through the Veil'}</div></div>
-        <button type="button" onClick={onClose} className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[.035] text-lg text-white/55 active:scale-[.96]">×</button>
-      </div>
-
-      <section className="mt-4 rounded-3xl border p-4 shadow-2xl" style={{ background: card.background, borderColor: card.border, boxShadow: `0 18px 52px rgba(0,0,0,.45),0 0 26px ${card.glow}` }}>
-        <div className="flex items-center gap-3">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-white/20 text-2xl shadow-inner" style={{ background: avatar.background }}>{avatar.icon}</div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-lg font-black text-white">{playerName}</div>
-            <div className="mt-1 text-[8px] font-black uppercase tracking-[.16em] text-white/55">{de ? `Rang ${meta.rank}` : `Rank ${meta.rank}`} · {de ? title.nameDe : title.nameEn}</div>
-            <div className="mt-2 flex flex-wrap gap-1.5 text-[6px] font-black uppercase tracking-[.12em] text-white/38">
-              <span className="rounded-full border border-white/10 bg-black/16 px-2 py-1">{de ? card.nameDe : card.nameEn}</span>
-              {membership && <span className="rounded-full border border-white/10 bg-black/16 px-2 py-1">[{membership.guild.tag}] {membership.guild.name}</span>}
-            </div>
-          </div>
-        </div>
-        {onlineProfile?.friend_code && <div className="mt-3 flex items-center justify-between rounded-xl border border-white/10 bg-black/16 px-3 py-2 text-[8px]"><span className="text-white/35">{de ? 'Freundescode' : 'Friend code'}</span><span className="font-black tracking-[.16em] text-white/70">{onlineProfile.friend_code}</span></div>}
-      </section>
-
-      <div className="mt-3 grid grid-cols-5 gap-1.5">
-        {tabs.map(([key, label]) => <TabButton key={key} active={tab === key} label={label} onClick={() => setTab(key)} />)}
-      </div>
-
-      <div className="mt-3 min-h-0 flex-1 overflow-y-auto pb-4">
-        {tab === 'overview' && <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Stat label={de ? 'Höchstes Kapitel' : 'Highest chapter'} value={profile.stats.highestChapter} tone="text-violet-100" />
-            <Stat label={de ? 'Höchster Raum' : 'Highest room'} value={profile.stats.highestRoom} tone="text-cyan-100" />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Stat label={de ? 'Rang' : 'Rank'} value={meta.rank} tone="text-amber-100" />
-            <Stat label={de ? 'Items' : 'Items'} value={ownedItems} tone="text-emerald-100" />
-            <Stat label={de ? 'Kodex' : 'Codex'} value={codexEntries} tone="text-sky-100" />
-          </div>
-          <section className="rounded-2xl border border-white/8 bg-white/[.025] p-4">
-            <div className="text-[7px] font-black uppercase tracking-[.2em] text-white/30">{de ? 'AUSGERÜSTETE IDENTITÄT' : 'EQUIPPED IDENTITY'}</div>
-            <div className="mt-3 space-y-2 text-[9px]">
-              <div className="flex items-center justify-between"><span className="text-white/34">{de ? 'Titel' : 'Title'}</span><span className="font-black text-amber-100/78">{title.icon} {de ? title.nameDe : title.nameEn}</span></div>
-              <div className="flex items-center justify-between"><span className="text-white/34">{de ? 'Visitenkarte' : 'Calling card'}</span><span className="font-black text-white/72">{card.icon} {de ? card.nameDe : card.nameEn}</span></div>
-              <div className="flex items-center justify-between"><span className="text-white/34">{de ? 'Profilbild' : 'Avatar'}</span><span className="font-black text-white/72">{avatar.icon} {de ? avatar.nameDe : avatar.nameEn}</span></div>
-            </div>
-          </section>
-        </div>}
-
-        {tab === 'stats' && <div className="grid grid-cols-2 gap-2">
-          <Stat label={de ? 'Höchstes Kapitel' : 'Highest chapter'} value={profile.stats.highestChapter} tone="text-violet-100" />
-          <Stat label={de ? 'Höchster Raum' : 'Highest room'} value={profile.stats.highestRoom} tone="text-cyan-100" />
-          <Stat label={de ? 'Gestartete Runs' : 'Runs started'} value={formatNumber(profile.stats.runsStarted)} />
-          <Stat label={de ? 'Räume abgeschlossen' : 'Rooms cleared'} value={formatNumber(profile.stats.roomsCleared)} />
-          <Stat label={de ? 'Gegner besiegt' : 'Enemies defeated'} value={formatNumber(profile.stats.enemiesDefeated)} />
-          <Stat label={de ? 'Bosse besiegt' : 'Bosses defeated'} value={formatNumber(profile.stats.bossesDefeated)} tone="text-amber-100" />
-          <Stat label={de ? 'Gesamtschaden' : 'Total damage'} value={formatNumber(profile.stats.totalDamage)} tone="text-orange-100" />
-          <Stat label={de ? 'Items erhalten' : 'Items found'} value={formatNumber(profile.stats.itemsFound)} tone="text-emerald-100" />
-          <Stat label={de ? 'Aufträge abgeschlossen' : 'Quests completed'} value={formatNumber(profile.stats.questsCompleted)} tone="text-violet-100" />
-          <Stat label={de ? 'Spielzeit' : 'Play time'} value={formatTime(profile.stats.playTimeMs, de)} tone="text-sky-100" />
-        </div>}
-
-        {tab === 'titles' && <div className="space-y-2">{PROFILE_TITLES.map(definition => cosmeticTile(definition, profile.selectedTitle === definition.id, () => equipTitle(definition), <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-300/16 bg-amber-400/[.05] text-lg text-amber-100">{definition.icon}</div>))}</div>}
-
-        {tab === 'cards' && <div className="space-y-2">{PROFILE_CARDS.map(definition => cosmeticTile(definition, profile.selectedCard === definition.id, () => equipCard(definition), <div className="h-10 w-16 shrink-0 rounded-xl border" style={{ background: definition.background, borderColor: definition.border, boxShadow: `0 0 12px ${definition.glow}` }} />))}</div>}
-
-        {tab === 'avatars' && <div className="space-y-2">{PROFILE_AVATARS.map(definition => cosmeticTile(definition, profile.selectedAvatar === definition.id, () => equipAvatar(definition), <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/14 text-lg" style={{ background: definition.background }}>{definition.icon}</div>))}</div>}
-      </div>
+  return <div className="fixed inset-0 z-[180] overflow-hidden bg-[#07080b]/96 text-white backdrop-blur-xl" data-testid="player-profile-panel"><div className="mx-auto flex h-full w-full max-w-lg flex-col px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-[max(14px,env(safe-area-inset-top))]">
+    <div className="flex items-center justify-between gap-3"><div><div className="text-[7px] font-black uppercase tracking-[.3em] text-amber-100/42">{de ? 'SPIELERPROFIL' : 'PLAYER PROFILE'}</div><div className="mt-1 text-xl font-black text-amber-50">{de ? 'Dein Weg im Schleier' : 'Your path through the Veil'}</div></div><button type="button" aria-label={de ? 'Profil schließen' : 'Close profile'} onClick={onClose} className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[.035] text-lg text-white/55 active:scale-[.96]">×</button></div>
+    <section className="mt-4 rounded-3xl border p-4 shadow-2xl" style={{ background: card.background, borderColor: card.border, boxShadow: `0 18px 52px rgba(0,0,0,.45),0 0 26px ${card.glow}` }}><div className="flex items-center gap-3"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-white/20 text-2xl shadow-inner" style={{ background: avatar.background }}>{avatar.icon}</div><div className="min-w-0 flex-1"><div className="truncate text-lg font-black text-white">{playerName}</div><div className="mt-1 text-[8px] font-black uppercase tracking-[.16em] text-white/55">{de ? `Rang ${meta.rank}` : `Rank ${meta.rank}`} · {de ? title.nameDe : title.nameEn}</div><div className="mt-2 flex flex-wrap gap-1.5 text-[6px] font-black uppercase tracking-[.12em] text-white/38"><span className="rounded-full border border-white/10 bg-black/16 px-2 py-1">{de ? card.nameDe : card.nameEn}</span>{membership && <span className="rounded-full border border-white/10 bg-black/16 px-2 py-1">[{membership.guild.tag}] {membership.guild.name}</span>}</div></div></div>{onlineProfile?.friend_code && <div className="mt-3 flex items-center justify-between rounded-xl border border-white/10 bg-black/16 px-3 py-2 text-[8px]"><span className="text-white/35">{de ? 'Freundescode' : 'Friend code'}</span><span className="font-black tracking-[.16em] text-white/70">{onlineProfile.friend_code}</span></div>}</section>
+    <div data-testid="player-profile-tabs" className="mt-3 flex gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">{tabs.map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className={`min-h-10 shrink-0 rounded-xl border px-3 text-[7px] font-black uppercase tracking-[.12em] active:scale-[.98] ${tab === key ? 'border-amber-300/34 bg-amber-400/12 text-amber-100' : 'border-white/8 bg-black/22 text-white/36'}`}>{label}</button>)}</div>
+    <div className="mt-3 min-h-0 flex-1 overflow-y-auto pb-4">
+      {tab === 'overview' && <div className="space-y-3"><div data-testid="profile-collection-summary" className="grid grid-cols-3 gap-2"><Stat label={de ? 'Titel' : 'Titles'} value={`${unlockedTitles}/${PROFILE_TITLES.length}`} tone="text-amber-100" /><Stat label={de ? 'Visitenkarten' : 'Cards'} value={`${unlockedCards}/${PROFILE_CARDS.length}`} tone="text-violet-100" /><Stat label={de ? 'Avatare' : 'Avatars'} value={`${unlockedAvatars}/${PROFILE_AVATARS.length}`} tone="text-cyan-100" /></div><div className="grid grid-cols-2 gap-2"><Stat label={de ? 'Höchstes Kapitel' : 'Highest chapter'} value={profile.stats.highestChapter} tone="text-violet-100" /><Stat label={de ? 'Höchster Raum' : 'Highest room'} value={profile.stats.highestRoom} tone="text-cyan-100" /></div><div className="grid grid-cols-3 gap-2"><Stat label={de ? 'Rang' : 'Rank'} value={meta.rank} tone="text-amber-100" /><Stat label={de ? 'Items' : 'Items'} value={ownedItems} tone="text-emerald-100" /><Stat label={de ? 'Kodex' : 'Codex'} value={codexEntries} tone="text-sky-100" /></div><section className="rounded-2xl border border-white/8 bg-white/[.025] p-4"><div className="text-[7px] font-black uppercase tracking-[.2em] text-white/30">{de ? 'AUSGERÜSTETE IDENTITÄT' : 'EQUIPPED IDENTITY'}</div><div className="mt-3 space-y-2 text-[9px]"><div className="flex items-center justify-between"><span className="text-white/34">{de ? 'Titel' : 'Title'}</span><span className="font-black text-amber-100/78">{title.icon} {de ? title.nameDe : title.nameEn}</span></div><div className="flex items-center justify-between"><span className="text-white/34">{de ? 'Visitenkarte' : 'Calling card'}</span><span className="font-black text-white/72">{card.icon} {de ? card.nameDe : card.nameEn}</span></div><div className="flex items-center justify-between"><span className="text-white/34">{de ? 'Profilbild' : 'Avatar'}</span><span className="font-black text-white/72">{avatar.icon} {de ? avatar.nameDe : avatar.nameEn}</span></div></div></section></div>}
+      {tab === 'stats' && <div className="grid grid-cols-2 gap-2"><Stat label={de ? 'Höchstes Kapitel' : 'Highest chapter'} value={profile.stats.highestChapter} tone="text-violet-100" /><Stat label={de ? 'Höchster Raum' : 'Highest room'} value={profile.stats.highestRoom} tone="text-cyan-100" /><Stat label={de ? 'Gestartete Runs' : 'Runs started'} value={formatNumber(profile.stats.runsStarted)} /><Stat label={de ? 'Räume abgeschlossen' : 'Rooms cleared'} value={formatNumber(profile.stats.roomsCleared)} /><Stat label={de ? 'Gegner besiegt' : 'Enemies defeated'} value={formatNumber(profile.stats.enemiesDefeated)} /><Stat label={de ? 'Bosse besiegt' : 'Bosses defeated'} value={formatNumber(profile.stats.bossesDefeated)} tone="text-amber-100" /><Stat label={de ? 'Gesamtschaden' : 'Total damage'} value={formatNumber(profile.stats.totalDamage)} tone="text-orange-100" /><Stat label={de ? 'Items erhalten' : 'Items found'} value={formatNumber(profile.stats.itemsFound)} tone="text-emerald-100" /><Stat label={de ? 'Aufträge abgeschlossen' : 'Quests completed'} value={formatNumber(profile.stats.questsCompleted)} tone="text-violet-100" /><Stat label={de ? 'Spielzeit' : 'Play time'} value={formatTime(profile.stats.playTimeMs, de)} tone="text-sky-100" /></div>}
+      {tab === 'titles' && <div className="space-y-2">{PROFILE_TITLES.map(definition => tile(definition, profile.selectedTitle === definition.id, () => onProfileChange(selectPlayerProfileTitle(definition.id, meta.rank)), <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-300/16 bg-amber-400/[.05] text-lg text-amber-100">{definition.icon}</div>))}</div>}
+      {tab === 'cards' && <div className="space-y-2">{PROFILE_CARDS.map(definition => tile(definition, profile.selectedCard === definition.id, () => onProfileChange(selectPlayerProfileCard(definition.id, meta.rank)), <div className="h-11 w-20 shrink-0 rounded-xl border" style={{ background: definition.background, borderColor: definition.border, boxShadow: `0 0 12px ${definition.glow}` }} />))}</div>}
+      {tab === 'avatars' && <div className="space-y-2">{PROFILE_AVATARS.map(definition => tile(definition, profile.selectedAvatar === definition.id, () => onProfileChange(selectPlayerProfileAvatar(definition.id, meta.rank)), <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/14 text-lg" style={{ background: definition.background }}>{definition.icon}</div>))}</div>}
     </div>
-  </div>;
+  </div></div>;
 }
