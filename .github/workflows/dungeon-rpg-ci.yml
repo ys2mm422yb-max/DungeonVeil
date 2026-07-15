@@ -1,11 +1,11 @@
 name: Dungeon RPG CI
 
-# Validation trigger for restored world boss quality bca0e02.
+# Validation for main, production passes and chained block branches.
 on:
   push:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [main, work/blocks-1-7-production-pass, 'fix/**', 'work/block-*']
   pull_request:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [main, work/blocks-1-7-production-pass, 'fix/**', 'work/block-*']
 
 permissions:
   contents: read
