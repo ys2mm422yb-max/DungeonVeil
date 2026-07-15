@@ -1,23 +1,27 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { consumeRunLoadingRemainingMs, LOADING_TIMING, waitForMinimum } from '../game/loadingTiming';
 import { preloadKayKitDungeonRoom } from './kaykitRoom3D';
 import { preloadKayKitRoomTheme } from './kaykitRoomThemes3D';
 import { preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
 import { LoadingScreen } from './LoadingScreen';
 
-type RoomTransition = { key: string; floor: number };
+type RoomTransition = {
+  key: string;
+  floor: number;
+  shownAt: number;
+  minimumVisibleMs: number;
+};
 
 function currentLanguage(): 'de' | 'en' {
   try { return localStorage.getItem('dungeon-veil-language') === 'de' ? 'de' : 'en'; }
   catch { return 'en'; }
 }
 
-function delay(milliseconds: number) {
-  return new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
-}
-
 export function GlobalLoadingLayer() {
   const [booting, setBooting] = useState(true);
   const [roomTransition, setRoomTransition] = useState<RoomTransition | null>(null);
+  const transitionRef = useRef<RoomTransition | null>(null);
+  const firstRoomPreparationRef = useRef(true);
   const showTimerRef = useRef<number | null>(null);
   const hideTimerRef = useRef<number | null>(null);
   const language = currentLanguage();
@@ -33,7 +37,11 @@ export function GlobalLoadingLayer() {
       preloadKayKitRoomTheme(1),
     ]);
 
-    void Promise.all([delay(720), fontsReady, coreAssets]).finally(() => {
+    void Promise.all([
+      waitForMinimum(LOADING_TIMING.bootMinimumMs),
+      fontsReady,
+      coreAssets,
+    ]).finally(() => {
       if (active) setBooting(false);
     });
     return () => { active = false; };
@@ -44,23 +52,65 @@ export function GlobalLoadingLayer() {
       if (ref.current !== null) window.clearTimeout(ref.current);
       ref.current = null;
     };
+    const clearTransition = (key?: string) => {
+      setRoomTransition(current => {
+        if (key && current?.key !== key) return current;
+        transitionRef.current = null;
+        return null;
+      });
+    };
+    const showTransition = (transition: Omit<RoomTransition, 'shownAt'>) => {
+      const next = { ...transition, shownAt: performance.now() };
+      transitionRef.current = next;
+      setRoomTransition(next);
+    };
+
     const handlePreparing = (event: Event) => {
-      const detail = (event as CustomEvent<{ key?: string; floor?: number }>).detail ?? {};
+      const detail = (event as CustomEvent<{ key?: string; floor?: number; reason?: string }>).detail ?? {};
       clearTimer(showTimerRef);
       clearTimer(hideTimerRef);
+      clearTransition();
+
+      const firstRoomPreparation = firstRoomPreparationRef.current;
+      firstRoomPreparationRef.current = false;
+      const key = detail.key ?? `room-${detail.floor ?? 1}`;
+      const floor = detail.floor ?? 1;
+      const recovery = detail.reason === 'webglcontextlost';
+      const entryRemaining = firstRoomPreparation ? consumeRunLoadingRemainingMs() : 0;
+
+      if (firstRoomPreparation && entryRemaining <= 0) return;
+
+      const minimumVisibleMs = recovery
+        ? LOADING_TIMING.recoveryMinimumVisibleMs
+        : firstRoomPreparation
+          ? entryRemaining
+          : LOADING_TIMING.roomMinimumVisibleMs;
+      const showDelayMs = recovery || firstRoomPreparation ? 0 : LOADING_TIMING.roomShowDelayMs;
+
+      if (showDelayMs <= 0) {
+        showTransition({ key, floor, minimumVisibleMs });
+        return;
+      }
+
       showTimerRef.current = window.setTimeout(() => {
-        setRoomTransition({ key: detail.key ?? `room-${detail.floor ?? 1}`, floor: detail.floor ?? 1 });
+        showTransition({ key, floor, minimumVisibleMs });
         showTimerRef.current = null;
-      }, 90);
+      }, showDelayMs);
     };
+
     const handleReady = (event: Event) => {
       const detail = (event as CustomEvent<{ key?: string }>).detail ?? {};
       clearTimer(showTimerRef);
       clearTimer(hideTimerRef);
+
+      const current = transitionRef.current;
+      if (!current || (detail.key && current.key !== detail.key)) return;
+      const elapsed = performance.now() - current.shownAt;
+      const remaining = Math.max(0, current.minimumVisibleMs - elapsed);
       hideTimerRef.current = window.setTimeout(() => {
-        setRoomTransition(current => !detail.key || current?.key === detail.key ? null : current);
+        clearTransition(detail.key);
         hideTimerRef.current = null;
-      }, 140);
+      }, remaining);
     };
 
     window.addEventListener('dungeon-veil-room-preparing', handlePreparing);
