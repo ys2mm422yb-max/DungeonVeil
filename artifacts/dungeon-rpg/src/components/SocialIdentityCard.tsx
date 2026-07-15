@@ -9,6 +9,7 @@ export function SocialIdentityCard({
   statusLabel,
   detail,
   compact = false,
+  testId,
   onClick,
 }: {
   displayName: string;
@@ -18,6 +19,7 @@ export function SocialIdentityCard({
   statusLabel?: string;
   detail?: string;
   compact?: boolean;
+  testId?: string;
   onClick?: () => void;
 }) {
   const avatar = resolveOnlineAvatar(avatarKey);
@@ -38,6 +40,6 @@ export function SocialIdentityCard({
   const className = 'flex w-full min-w-0 items-center gap-3 rounded-2xl border p-2.5 active:scale-[.995]';
   const style = { background: card.background, borderColor: `${card.border}70`, boxShadow: `0 0 18px ${card.glow}` };
   return onClick
-    ? <button type="button" onClick={onClick} className={className} style={style}>{content}<span className="shrink-0 text-base text-white/28">›</span></button>
-    : <div className={className} style={style}>{content}</div>;
+    ? <button data-testid={testId} type="button" onClick={onClick} className={className} style={style}>{content}<span className="shrink-0 text-base text-white/28">›</span></button>
+    : <div data-testid={testId} className={className} style={style}>{content}</div>;
 }
