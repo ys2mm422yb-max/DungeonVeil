@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { RunGameState } from '../game/runEngine';
 import { loadFriendSpectatorFeed, SPECTATOR_REFRESH_MS, type FriendSpectatorFeed } from '../game/socialSpectatorOnline';
 import { CombatStage } from './CombatStage';
@@ -10,6 +10,7 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   onClose: () => void;
 }) {
   const de = language === 'de';
+  const hadFeedRef = useRef(false);
   const [feed, setFeed] = useState<FriendSpectatorFeed | null>(null);
   const [loading, setLoading] = useState(true);
   const [ended, setEnded] = useState(false);
@@ -25,10 +26,11 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
         const next = await loadFriendSpectatorFeed(friendId);
         if (cancelled) return;
         if (next) {
+          hadFeedRef.current = true;
           setFeed(next);
           setEnded(false);
           setError('');
-        } else if (feed) {
+        } else {
           setEnded(true);
         }
       } catch (reason) {
@@ -44,6 +46,7 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   }, [friendId]);
 
   const gameState = feed?.snapshot?.state as RunGameState | undefined;
+  const unavailable = !loading && !gameState && ended;
 
   return <div data-testid="spectator-screen" className="fixed inset-0 z-[220] overflow-hidden bg-black text-white">
     {gameState && <CombatStage gameState={gameState} />}
@@ -58,8 +61,8 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
       <button type="button" aria-label={de ? 'Zuschauen beenden' : 'Stop spectating'} onClick={onClose} className="pointer-events-auto grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/16 bg-black/72 text-xl font-black text-white/80 backdrop-blur-lg active:scale-90">×</button>
     </header>
 
-    {(loading || error || ended) && <div className="absolute inset-x-4 bottom-[max(18px,env(safe-area-inset-bottom))] z-[240] rounded-2xl border border-white/12 bg-black/78 p-4 text-center backdrop-blur-xl">
-      <div className="text-[9px] font-black uppercase tracking-[.17em] text-violet-100">{loading ? (de ? 'LIVE-RUN WIRD GELADEN …' : 'LOADING LIVE RUN …') : ended ? (de ? 'DER RUN WURDE BEENDET ODER PAUSIERT' : 'THE RUN ENDED OR WAS PAUSED') : (de ? 'ZUSCHAUEN NICHT VERFÜGBAR' : 'SPECTATING UNAVAILABLE')}</div>
+    {(loading || error || unavailable || (ended && hadFeedRef.current)) && <div className="absolute inset-x-4 bottom-[max(18px,env(safe-area-inset-bottom))] z-[240] rounded-2xl border border-white/12 bg-black/78 p-4 text-center backdrop-blur-xl">
+      <div className="text-[9px] font-black uppercase tracking-[.17em] text-violet-100">{loading ? (de ? 'LIVE-RUN WIRD GELADEN …' : 'LOADING LIVE RUN …') : ended && hadFeedRef.current ? (de ? 'DER RUN WURDE BEENDET ODER PAUSIERT' : 'THE RUN ENDED OR WAS PAUSED') : (de ? 'ZUSCHAUEN NICHT VERFÜGBAR' : 'SPECTATING UNAVAILABLE')}</div>
       {(error || ended) && <div className="mt-2 text-[9px] leading-relaxed text-white/42">{error || (de ? 'Du kannst zur Freundesliste zurückkehren.' : 'You can return to the friends list.')}</div>}
       {(error || ended) && <button type="button" onClick={onClose} className="mt-3 rounded-xl border border-violet-300/20 bg-violet-500/12 px-5 py-2.5 text-[8px] font-black uppercase tracking-[.14em] text-violet-100 active:scale-[.98]">{de ? 'ZURÜCK' : 'BACK'}</button>}
     </div>}
