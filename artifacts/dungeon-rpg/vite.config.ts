@@ -16,7 +16,8 @@ export default defineConfig(async () => {
     name: 'dungeon-veil-internal-asset-base',
     enforce: 'pre',
     transform(code, id) {
-      if (normalizedBasePath === '/' || !id.includes('/src/') || !code.includes('/assets/')) return null;
+      const resolvesOwnAssetBase = id.endsWith('/src/components/kaykitEnemy3D.ts');
+      if (normalizedBasePath === '/' || resolvesOwnAssetBase || !id.includes('/src/') || !code.includes('/assets/')) return null;
       return {
         code: code.replaceAll('/assets/', `${normalizedBasePath}assets/`),
         map: null,
