@@ -24,7 +24,7 @@ export function SocialIdentityCard({
   const title = resolveOnlineTitle(avatarKey);
   const card = resolveOnlineCard(avatarKey);
   const content = <>
-    <div className={`relative grid shrink-0 place-items-center rounded-2xl border border-white/18 text-xl shadow-inner ${compact ? 'h-11 w-11' : 'h-13 w-13'}`} style={{ background: avatar.background }}>
+    <div className={`relative grid shrink-0 place-items-center rounded-2xl border border-white/18 text-xl shadow-inner ${compact ? 'h-11 w-11' : 'h-12 w-12'}`} style={{ background: avatar.background }}>
       {avatar.icon}
       <span className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-[#08090c] ${online ? 'bg-emerald-400' : 'bg-white/25'}`} />
     </div>
@@ -35,7 +35,7 @@ export function SocialIdentityCard({
     </div>
   </>;
 
-  const className = `flex w-full min-w-0 items-center gap-3 rounded-2xl border p-2.5 active:scale-[.995]`;
+  const className = 'flex w-full min-w-0 items-center gap-3 rounded-2xl border p-2.5 active:scale-[.995]';
   const style = { background: card.background, borderColor: `${card.border}70`, boxShadow: `0 0 18px ${card.glow}` };
   return onClick
     ? <button type="button" onClick={onClick} className={className} style={style}>{content}<span className="shrink-0 text-base text-white/28">›</span></button>
