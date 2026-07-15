@@ -44,7 +44,7 @@ async function preparePage(page, projectName) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
   const germanButton = page.getByRole('button', { name: /Deutsch/i }).first();
   if (await germanButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await germanButton.click();
+    await germanButton.click({ force: true, noWaitAfter: true });
   }
   await waitForReadyMenu(page);
 }
@@ -59,6 +59,11 @@ async function assertNoHorizontalOverflow(page) {
     Math.max(geometry.bodyWidth, geometry.documentWidth),
     `horizontal overflow: ${JSON.stringify(geometry)}`,
   ).toBeLessThanOrEqual(geometry.innerWidth + 4);
+}
+
+async function clickAnimatedUi(locator) {
+  await expect(locator).toBeVisible();
+  await locator.click({ force: true, noWaitAfter: true });
 }
 
 async function reloadMenu(page, projectName) {
@@ -76,15 +81,11 @@ async function reloadMenu(page, projectName) {
 }
 
 async function openMenuButton(page, name) {
-  const button = page.getByRole('button', { name }).first();
-  await expect(button).toBeVisible();
-  await button.click();
+  await clickAnimatedUi(page.getByRole('button', { name }).first());
 }
 
 async function openOverflow(page) {
-  const overflow = page.locator('button').filter({ hasText: /⋯|•••|\.\.\./ }).first();
-  await expect(overflow).toBeVisible();
-  await overflow.click();
+  await clickAnimatedUi(page.getByRole('button', { name: /Mehr|More/i }).first());
 }
 
 test('main menu, profile and every hub panel open without fatal errors', async ({ page }, testInfo) => {
@@ -93,7 +94,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   await assertNoHorizontalOverflow(page);
 
   await test.step('profile overview and statistics', async () => {
-    await page.getByTestId('main-menu-profile-badge').click();
+    await clickAnimatedUi(page.getByTestId('main-menu-profile-badge'));
     await expect(page.getByText(/Statistik|Statistics/i).first()).toBeVisible();
     await expect(page.getByText(/Höchstes Kapitel|Highest Chapter/i).first()).toBeVisible();
     await expect(page.getByText(/Höchster Raum|Highest Room/i).first()).toBeVisible();
@@ -111,8 +112,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   await test.step('mailbox has no permission error', async () => {
     await reloadMenu(page, testInfo.project.name);
     const mailboxButton = page.getByTestId('npc-postmaster');
-    await expect(mailboxButton).toBeVisible();
-    await mailboxButton.click();
+    await clickAnimatedUi(mailboxButton);
     await expect(page.getByText(/Nachrichten aus dem Schleier|Messages from the Veil/i)).toBeVisible();
     await expect(page.getByText(/permission denied/i)).toHaveCount(0);
   });
