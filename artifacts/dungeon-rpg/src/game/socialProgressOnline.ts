@@ -1,4 +1,5 @@
 import { authenticatedSupabaseRest, currentOnlineSession, type WorldBossEvent } from './supabaseOnline';
+import type { PlayerProfileProgress } from './playerProfile';
 
 export type SocialProfile = {
   id: string;
@@ -20,6 +21,18 @@ export type SocialProfileCardData = SocialProfile & {
   world_boss_events: number;
   friend_count: number;
   achievement_keys: string[];
+  activity_state: 'menu' | 'run' | 'paused';
+  activity_chapter: number;
+  activity_room: number;
+  highest_chapter: number;
+  highest_room: number;
+  rooms_cleared: number;
+  enemies_defeated: number;
+  bosses_defeated: number;
+  quests_completed: number;
+  play_time_ms: number;
+  total_damage: number;
+  items_found: number;
 };
 
 export type WorldBossPlayerRow = {
@@ -87,6 +100,24 @@ export async function syncSocialProfileProgress(chapter: number, rank: number, c
     p_character_key: characterKey,
   });
   return rows[0] ?? null;
+}
+
+export async function syncPublicProfileStats(profile: PlayerProfileProgress): Promise<boolean> {
+  if (!currentOnlineSession()) return false;
+  await rpc<Record<string, number>>('sync_public_profile_stats', {
+    p_stats: {
+      highestChapter: profile.stats.highestChapter,
+      highestRoom: profile.stats.highestRoom,
+      roomsCleared: profile.stats.roomsCleared,
+      enemiesDefeated: profile.stats.enemiesDefeated,
+      bossesDefeated: profile.stats.bossesDefeated,
+      questsCompleted: profile.stats.questsCompleted,
+      playTimeMs: profile.stats.playTimeMs,
+      totalDamage: profile.stats.totalDamage,
+      itemsFound: profile.stats.itemsFound,
+    },
+  });
+  return true;
 }
 
 export async function findSocialProfile(query: string): Promise<SocialProfile | null> {
