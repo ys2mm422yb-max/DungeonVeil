@@ -9,7 +9,7 @@ const [config, smoke, regressionWorkflow, pagesWorkflow] = await Promise.all([
 ]);
 
 const checks = [
-  [config.includes("name: 'iphone-webkit'") && config.includes("name: 'android-chromium'") && config.includes("name: 'ipad-landscape'") && config.includes("name: 'desktop-chromium'"), 'final device matrix does not cover iPhone, Android, iPad and desktop'],
+  [config.includes("name: 'iphone-webkit'") && config.includes("name: 'android-chromium'") && config.includes("name: 'ipad-landscape-webkit'") && config.includes("name: 'desktop-chromium'"), 'final device matrix does not cover iPhone, Android, iPad and desktop'],
   [config.includes("screenshot: 'only-on-failure'") && config.includes("trace: 'retain-on-failure'") && config.includes("video: 'retain-on-failure'"), 'final browser evidence is incomplete'],
   [smoke.includes('settings persist accessibility, storage and joystick choices') && smoke.includes('profile-storage-settings') && smoke.includes('contrast-mode-high') && smoke.includes('joystick-mode-floating'), 'final settings and persistence flow is missing'],
   [smoke.includes('structured quest board') && smoke.includes('quest-board-summary') && smoke.includes('quest-completed-section'), 'final quest-board flow is missing'],
