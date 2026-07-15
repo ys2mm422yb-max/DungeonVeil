@@ -87,7 +87,9 @@ test('main menu, profile and every hub panel open without fatal errors', async (
 
   await test.step('mailbox has no permission error', async () => {
     await reloadMenu(page, testInfo.project.name);
-    await openMenuButton(page, /^Post$|^Mail$/i);
+    const mailboxButton = page.getByTestId('npc-postmaster');
+    await expect(mailboxButton).toBeVisible();
+    await mailboxButton.click();
     await expect(page.getByText(/Nachrichten aus dem Schleier|Messages from the Veil/i)).toBeVisible();
     await expect(page.getByText(/permission denied/i)).toHaveCount(0);
   });
@@ -147,17 +149,14 @@ test('new run renders combat controls and stays stable', async ({ page }, testIn
   await preparePage(page, testInfo.project.name);
 
   await page.getByRole('button', { name: /Neuer Run|New Run/i }).click();
+  const nameInput = page.getByRole('textbox').first();
+  await expect(nameInput).toBeVisible();
+  await nameInput.fill('Test Ranger');
+  const startButton = page.getByRole('button', { name: /Run starten|Start Game/i }).first();
+  await expect(startButton).toBeEnabled();
+  await startButton.click();
 
   const hud = page.getByTestId('run-hud');
-  if (!(await hud.isVisible({ timeout: 8_000 }).catch(() => false))) {
-    const startLabels = [/Waldläufer|Ranger/i, /Start|Beginnen|Enter|Betreten/i, /Weiter|Continue/i];
-    for (const label of startLabels) {
-      const candidate = page.getByRole('button', { name: label }).first();
-      if (await candidate.isVisible().catch(() => false)) await candidate.click();
-      if (await hud.isVisible({ timeout: 3_000 }).catch(() => false)) break;
-    }
-  }
-
   await expect(hud).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('run-joystick')).toBeVisible();
   await expect(page.getByTestId('run-dash-control')).toBeVisible();
