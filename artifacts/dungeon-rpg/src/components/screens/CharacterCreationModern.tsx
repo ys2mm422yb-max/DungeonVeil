@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ClassKey } from '../../game/classes';
+import { LOADING_TIMING, markRunLoadingStarted, waitForMinimum } from '../../game/loadingTiming';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { LoadingScreen } from '../LoadingScreen';
 import { RangerPreview } from '../RangerPreview';
@@ -26,9 +27,13 @@ export function CharacterCreationModern({ onConfirm, onBack }: Props) {
   useEffect(() => { void preloadRun().catch(error => console.error('KayKit preload failed', error)); }, []);
   const start = async () => {
     if (!valid) return;
+    markRunLoadingStarted();
     setStarting(true);
     try {
-      await preloadRun();
+      await Promise.all([
+        preloadRun(),
+        waitForMinimum(LOADING_TIMING.runEntryMinimumMs),
+      ]);
       await onConfirm(name.trim(), 'archer');
     } finally {
       setStarting(false);
