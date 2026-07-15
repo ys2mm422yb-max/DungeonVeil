@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 
 import './game/portalExitPolicy';
+import './game/darkwoodMageCombatPolicy';
 import './game/profileCosmeticsExpansion';
 import './game/profileRarityCompatibility';
 import './game/profileStatsRepair';
