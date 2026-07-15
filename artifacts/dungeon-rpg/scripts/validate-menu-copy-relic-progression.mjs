@@ -26,8 +26,9 @@ const checks = [
   [effects.includes("relic === 'world-core'") && effects.includes('activateWorldCoreForCurrentRun'), 'World Core has no real run effect'],
   [menu.includes("onOpenOnline={() => setOverlay('online')}") && friends.includes('onOpenOnline') && guild.includes('onOpenOnline') && worldboss.includes('onOpenOnline'), 'direct Online & Cloud navigation is missing'],
   [inventory.includes('Bossräume ab Raum 20') && inventory.includes('ausschließlich vom Weltboss'), 'relic source explanation is not accurate'],
-  [quests.includes('data-testid="quest-board-summary"') && quests.includes('data-testid="quest-active-section"') && quests.includes('data-testid="quest-completed-section"'), 'quest board is not separated into summary, active and completed sections'],
-  [quests.includes('activeTasks') && quests.includes('completedTasks') && quests.includes('completedOpen'), 'quest board does not derive or control its structured task groups'],
+  [quests.includes('data-testid="quest-board-summary"') && quests.includes('data-testid="quest-active-section"') && quests.includes('data-testid="quest-elite-section"') && quests.includes('data-testid="quest-completed-section"'), 'quest board is not separated into summary, standard, elite and completed sections'],
+  [quests.includes('activeTasks') && quests.includes('completedTasks') && quests.includes('eliteTasks') && quests.includes('completedOpen'), 'quest board does not derive or control its structured task groups'],
+  [quests.includes("data-quest-kind={task.gold ? 'elite' : 'standard'}") && quests.includes('Elite-Aufträge') && quests.includes('ELITE ·'), 'gold contracts are not visibly identified as elite quests inside the quest board'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -36,4 +37,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Menu copy/relic progression audit passed: menu routes, structured quests, item levels, relic sources and direct sign-in routes are coherent.');
+console.log('Menu copy/relic progression audit passed: menu routes, structured standard and elite quests, item levels, relic sources and direct sign-in routes are coherent.');
