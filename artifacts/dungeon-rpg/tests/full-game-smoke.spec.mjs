@@ -71,11 +71,22 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   await preparePage(page, testInfo.project.name);
   await assertNoHorizontalOverflow(page);
 
-  await test.step('profile overview and statistics', async () => {
+  await test.step('profile overview, collections and weekly elite contracts', async () => {
     await page.getByTestId('main-menu-profile-badge').click();
     await expect(page.getByText(/Statistik|Statistics/i).first()).toBeVisible();
     await expect(page.getByText(/Höchstes Kapitel|Highest Chapter/i).first()).toBeVisible();
     await expect(page.getByText(/Höchster Raum|Highest Room/i).first()).toBeVisible();
+
+    const callingCardsTab = page.getByRole('button', { name: /Visitenkarten|Calling Cards/i }).first();
+    await expect(callingCardsTab).toBeVisible();
+    await callingCardsTab.click();
+    await expect(page.getByText(/Aschepfad|Ash Path/i).first()).toBeVisible();
+
+    const weeklyEliteTab = page.getByRole('button', { name: /Elite der Woche|Weekly Elite/i }).first();
+    await expect(weeklyEliteTab).toBeVisible();
+    await weeklyEliteTab.click();
+    await expect(page.getByText(/Drei schwere Prüfungen|Three hard trials/i).first()).toBeVisible();
+    await expect(page.getByText(/Elite-Marken|Elite Marks/i).first()).toBeVisible();
   });
 
   await test.step('inventory', async () => {
@@ -144,7 +155,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   expect(issues, issues.join('\n')).toEqual([]);
 });
 
-test('new run renders combat controls and stays stable', async ({ page }, testInfo) => {
+test('new run loading transition and combat controls stay stable', async ({ page }, testInfo) => {
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
 
@@ -155,6 +166,12 @@ test('new run renders combat controls and stays stable', async ({ page }, testIn
   const startButton = page.getByRole('button', { name: /Run starten|Start Game/i }).first();
   await expect(startButton).toBeEnabled();
   await startButton.click();
+
+  const newRunLoader = page.getByTestId('new-run-loading-screen');
+  await expect(newRunLoader).toBeVisible({ timeout: 3_000 });
+  const loaderObservedAt = Date.now();
+  await expect(newRunLoader).toBeHidden({ timeout: 15_000 });
+  expect(Date.now() - loaderObservedAt, 'new-run loader disappeared before it could be perceived').toBeGreaterThanOrEqual(1_000);
 
   const hud = page.getByTestId('run-hud');
   await expect(hud).toBeVisible({ timeout: 60_000 });
