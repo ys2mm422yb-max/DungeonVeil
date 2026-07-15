@@ -32,50 +32,48 @@ export function ActionButtons({ gameState: g, onDodge, variant = 'default' }: Pr
 
   const ready = dash <= 0.001;
   const seconds = Math.max(0, dash * def.dodgeCooldownMs / 1000);
-  const size = worldBoss ? 72 : tabletLandscape ? 80 : 68;
+  const size = worldBoss ? 78 : tabletLandscape ? 90 : 78;
+  const iconSize = worldBoss ? 21 : tabletLandscape ? 25 : 21;
 
-  return (
-    <div
-      className="fixed z-50 pointer-events-auto touch-none select-none"
-      style={{
-        width: size,
-        height: size,
-        right: tabletLandscape && !worldBoss ? 'max(32px,calc(env(safe-area-inset-right) + 22px))' : 'max(16px,env(safe-area-inset-right))',
-        bottom: worldBoss
-          ? 'max(104px,calc(env(safe-area-inset-bottom) + 84px))'
-          : tabletLandscape
-            ? 'max(32px,calc(env(safe-area-inset-bottom) + 22px))'
-            : 'max(22px,calc(env(safe-area-inset-bottom) + 14px))',
+  return <div
+    data-ui-control
+    data-testid="run-dash-control"
+    className="pointer-events-auto fixed z-50 touch-none select-none"
+    style={{
+      width: size,
+      height: size,
+      right: tabletLandscape && !worldBoss
+        ? 'max(34px,calc(env(safe-area-inset-right) + 24px))'
+        : 'max(18px,calc(env(safe-area-inset-right) + 10px))',
+      bottom: worldBoss
+        ? 'max(110px,calc(env(safe-area-inset-bottom) + 90px))'
+        : tabletLandscape
+          ? 'max(34px,calc(env(safe-area-inset-bottom) + 24px))'
+          : 'max(26px,calc(env(safe-area-inset-bottom) + 18px))',
+    }}
+  >
+    <button
+      data-testid="run-dash-button"
+      type="button"
+      aria-label={ready ? 'Dash bereit' : `Dash in ${seconds.toFixed(1)} Sekunden`}
+      aria-disabled={!ready}
+      onPointerDown={event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!ready) return;
+        try { navigator.vibrate?.(14); } catch {}
+        onDodge();
       }}
-      data-ui-control
-      data-testid="run-dash-control"
+      className={`absolute inset-0 grid place-items-center overflow-hidden rounded-full border-2 backdrop-blur-md transition-[transform,opacity,border-color,background-color] duration-150 ${ready ? 'border-cyan-100/45 bg-black/68 shadow-[0_10px_28px_rgba(0,0,0,.58),0_0_18px_rgba(91,184,227,.18)] active:scale-88' : 'border-white/10 bg-black/76 opacity-78'}`}
     >
-      <button
-        type="button"
-        aria-label="Dash"
-        onPointerDown={event => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (!ready) return;
-          try { navigator.vibrate?.(14); } catch {}
-          onDodge();
-        }}
-        className={`absolute inset-0 grid place-items-center overflow-hidden rounded-full border backdrop-blur-md transition-all duration-150 ${ready ? 'border-amber-300/38 bg-black/58 shadow-[0_8px_20px_rgba(0,0,0,.48),0_0_10px_rgba(91,184,227,.08)] active:scale-90' : 'border-white/8 bg-black/66 opacity-70'}`}
-      >
-        <div className={`absolute inset-2 rounded-full border ${ready ? 'border-cyan-100/14 bg-[radial-gradient(circle_at_35%_28%,rgba(101,205,241,.72),rgba(16,58,82,.94)_58%,rgba(6,24,38,.98))]' : 'border-white/5 bg-[radial-gradient(circle_at_35%_28%,rgba(60,80,90,.62),rgba(12,25,32,.96))]'}`} />
-        {ready && <div className="absolute inset-1 rounded-full border border-cyan-200/10 animate-[pulse_2.2s_ease-in-out_infinite]" />}
-        <div className="relative z-10 flex flex-col items-center gap-0.5">
-          <Wind size={worldBoss ? 20 : tabletLandscape ? 22 : 18} strokeWidth={1.8} className={ready ? 'text-cyan-50' : 'text-white/35'} />
-          <span className={`font-black tracking-[.16em] ${tabletLandscape&&!worldBoss?'text-[9px]':'text-[8px]'} ${ready ? 'text-white/90' : 'text-white/35'}`}>DASH</span>
-          {!ready && <span className="text-[7px] font-black tabular-nums text-cyan-100/50">{seconds.toFixed(1)}s</span>}
-        </div>
-        {dash > 0 && (
-          <div
-            className="absolute inset-2 rounded-full"
-            style={{ background: `conic-gradient(rgba(0,0,0,.7) ${dash * 360}deg,transparent 0deg)`, transform: 'rotate(-90deg)' }}
-          />
-        )}
-      </button>
-    </div>
-  );
+      <div className={`absolute inset-[9px] rounded-full border ${ready ? 'border-cyan-100/18 bg-[radial-gradient(circle_at_35%_28%,rgba(116,216,247,.78),rgba(16,58,82,.96)_58%,rgba(6,24,38,.99))]' : 'border-white/6 bg-[radial-gradient(circle_at_35%_28%,rgba(60,80,90,.64),rgba(12,25,32,.98))]'}`} />
+      {ready && <div className="absolute inset-[5px] rounded-full border border-cyan-200/14 animate-[pulse_2.2s_ease-in-out_infinite]" />}
+      <div className="relative z-10 flex flex-col items-center gap-0.5">
+        <Wind size={iconSize} strokeWidth={1.9} className={ready ? 'text-cyan-50 drop-shadow-[0_1px_3px_#000]' : 'text-white/38'} />
+        <span className={`font-black tracking-[.14em] ${tabletLandscape && !worldBoss ? 'text-[9px]' : 'text-[8px]'} ${ready ? 'text-white/95' : 'text-white/40'}`}>DASH</span>
+        <span data-testid="run-dash-state" className={`text-[6px] font-black uppercase tracking-[.12em] ${ready ? 'text-emerald-100/72' : 'tabular-nums text-cyan-100/54'}`}>{ready ? 'BEREIT' : `${seconds.toFixed(1)}s`}</span>
+      </div>
+      {dash > 0 && <div className="absolute inset-[9px] rounded-full" style={{ background: `conic-gradient(rgba(0,0,0,.74) ${dash * 360}deg,transparent 0deg)`, transform: 'rotate(-90deg)' }} />}
+    </button>
+  </div>;
 }
