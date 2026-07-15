@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - work/blocks-1-7-production-pass
+      - fix/friends-query-database-errors
     paths-ignore:
       - '.ci/**'
   workflow_dispatch:
