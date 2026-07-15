@@ -1,0 +1,74 @@
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid rgb(253 230 138 / 0.95);
+  outline-offset: 3px;
+}
+
+html[data-contrast='high'] body {
+  color: rgb(255 255 255);
+}
+
+html[data-contrast='high'] button,
+html[data-contrast='high'] input,
+html[data-contrast='high'] textarea,
+html[data-contrast='high'] section,
+html[data-contrast='high'] article,
+html[data-contrast='high'] [role='dialog'] {
+  border-color: rgb(255 255 255 / 0.25) !important;
+}
+
+html[data-contrast='high'] button,
+html[data-contrast='high'] input,
+html[data-contrast='high'] textarea {
+  color: rgb(255 255 255) !important;
+}
+
+html[data-contrast='high'] input::placeholder,
+html[data-contrast='high'] textarea::placeholder {
+  color: rgb(255 255 255 / 0.58) !important;
+}
+
+html[data-contrast='high'] [class*='text-white/2'],
+html[data-contrast='high'] [class*='text-white/3'],
+html[data-contrast='high'] [class*='text-white/4'] {
+  color: rgb(255 255 255 / 0.72) !important;
+}
+
+html[data-contrast='high'] [class*='bg-black/2'],
+html[data-contrast='high'] [class*='bg-black/3'],
+html[data-contrast='high'] [class*='bg-black/4'],
+html[data-contrast='high'] [class*='bg-black/5'] {
+  background-color: rgb(0 0 0 / 0.82) !important;
+}
+
+html[data-text-size='large'] button,
+html[data-text-size='large'] input,
+html[data-text-size='large'] textarea,
+html[data-text-size='large'] [role='dialog'],
+html[data-text-size='large'] [data-testid$='panel'],
+html[data-text-size='large'] [data-testid$='card'] {
+  font-size: max(12px, 1em);
+  line-height: 1.4;
+}
+
+html[data-text-size='large'] input,
+html[data-text-size='large'] textarea,
+html[data-text-size='large'] button {
+  min-height: 44px;
+}
+
+@media (prefers-contrast: more) {
+  html:not([data-contrast='standard']) button,
+  html:not([data-contrast='standard']) input,
+  html:not([data-contrast='standard']) textarea {
+    border-color: rgb(255 255 255 / 0.32);
+  }
+}
