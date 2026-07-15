@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GameEngine, GameState } from '../game/runEngine';
-import { ClassKey } from '../game/classes';
 import { hasSave, loadGame, SaveData } from '../game/saveManager';
 import { saveEngineSession } from '../game/sessionStore';
 import { UpgradeKey, Language } from '../i18n/translations';
@@ -15,11 +14,12 @@ import { GameOverScreen } from '../components/screens/GameOverScreen';
 import { LevelUpScreen } from '../components/screens/LevelUpScreen';
 import { LanguageSelectScreen } from '../components/screens/LanguageSelectScreen';
 import { MainMenuScreen } from '../components/screens/MainMenuScreen';
-import { CharacterCreationScreen } from '../components/screens/CharacterCreationScreen';
+import { RunNamePromptScreen } from '../components/screens/RunNamePromptScreen';
 import { SettingsScreen } from '../components/screens/SettingsScreen';
 import { CreditsScreen } from '../components/screens/CreditsScreen';
 import { VeilChamberScreen } from '../components/screens/VeilChamberScreen';
 import { CodexScreen } from '../components/screens/CodexScreen';
+import { LoadingScreen } from '../components/LoadingScreen';
 import { preloadKayKitDungeonRoom } from '../components/kaykitRoom3D';
 import { preloadKayKitRoomTheme } from '../components/kaykitRoomThemes3D';
 import { preloadKayKitEnemyVisuals } from '../components/kaykitEnemy3D';
@@ -27,10 +27,11 @@ import { preloadKayKitHealingPotion } from '../components/kaykitLoot3D';
 import { preloadKayKitOuterWorld } from '../components/kaykitOuterWorld3D';
 import { applyMetaLoadoutToNewRun, beginMetaRun } from '../game/metaProgression';
 import { beginPlayerProfileRun } from '../game/playerProfile';
+import { rememberRunName, resolvePreferredRunName, sanitizeRunName } from '../game/runIdentity';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 
-type UiState = 'lang_select' | 'main_menu' | 'char_create' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
+type UiState = 'lang_select' | 'main_menu' | 'run_name' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
 type MoveVector = { x: number; y: number };
 type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
 
@@ -60,6 +61,7 @@ export default function Game() {
   const resumeSessionOnBootRef = useRef(hasActiveRunSession());
   const roomVisualReadyRef = useRef(true);
   const [roomPreparing, setRoomPreparing] = useState(false);
+  const [startingRun, setStartingRun] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [uiState, setUiState] = useState<UiState>(() => !hasChosen ? 'lang_select' : 'main_menu');
@@ -167,7 +169,49 @@ export default function Game() {
   }, [resetMovement]);
 
   const goSettings = useCallback((returnTo: UiState) => { settingsReturnRef.current = returnTo; setUiState('settings'); }, []);
-  const handleNewGame = useCallback(() => { markActiveRun(false); setUiState('char_create'); }, []);
+
+  const beginFreshRun = useCallback(async (requestedName: string) => {
+    const name = rememberRunName(sanitizeRunName(requestedName));
+    const engine = engineRef.current;
+    if (!engine || name.length < 2) return;
+    setStartingRun(true);
+    try {
+      await Promise.allSettled([
+        preloadKayKitDungeonRoom(1),
+        preloadKayKitRoomTheme(1),
+        preloadKayKitEnemyVisuals(),
+        preloadKayKitHealingPotion(),
+        preloadKayKitOuterWorld(),
+      ]);
+      beginMetaRun();
+      engine.startNewGame(name, 'archer');
+      beginPlayerProfileRun(engine.state.chapter, engine.state.floor);
+      applyMetaLoadoutToNewRun(engine);
+      setSaveData(loadGame());
+      setGameState({ ...engine.state });
+      markActiveRun(true);
+      setUiState('game');
+    } finally {
+      setStartingRun(false);
+    }
+  }, []);
+
+  const handleNewGame = useCallback(async () => {
+    if (saveData) {
+      const confirmed = window.confirm(language === 'de'
+        ? 'Einen neuen Run starten? Der aktuelle Run wird ersetzt, dauerhafte Fortschritte bleiben erhalten.'
+        : 'Start a new run? The current run will be replaced, while permanent progress remains.');
+      if (!confirmed) return;
+    }
+    markActiveRun(false);
+    const name = await resolvePreferredRunName(saveData);
+    if (!name) {
+      setUiState('run_name');
+      return;
+    }
+    await beginFreshRun(name);
+  }, [beginFreshRun, language, saveData]);
+
   const handleContinue = useCallback(() => {
     const save = loadGame();
     if (!save) return;
@@ -175,32 +219,20 @@ export default function Game() {
     markActiveRun(true);
     setUiState('game');
   }, []);
-  const handleCharConfirm = useCallback((name: string, _cls: ClassKey) => {
-    void Promise.allSettled([
-      preloadKayKitDungeonRoom(1),
-      preloadKayKitRoomTheme(1),
-      preloadKayKitEnemyVisuals(),
-      preloadKayKitHealingPotion(),
-      preloadKayKitOuterWorld(),
-    ]);
-    const engine = engineRef.current;
-    if (!engine) return;
-    beginMetaRun();
-    engine.startNewGame(name, 'archer');
-    beginPlayerProfileRun(engine.state.chapter, engine.state.floor);
-    applyMetaLoadoutToNewRun(engine);
-    setSaveData(loadGame());
-    setGameState({ ...engine.state });
-    markActiveRun(true);
-    setUiState('game');
-  }, []);
-  const handleRetry = useCallback(() => { markActiveRun(false); setUiState('char_create'); }, []);
+
+  const handleRetry = useCallback(() => {
+    const name = sanitizeRunName(engineRef.current?.state.player.playerName || saveData?.playerName) || (language === 'de' ? 'Waldläufer' : 'Ranger');
+    markActiveRun(false);
+    void beginFreshRun(name);
+  }, [beginFreshRun, language, saveData?.playerName]);
+
   const handleMainMenu = useCallback(() => {
     saveCurrentGame();
     resetMovement();
     markActiveRun(false);
     setUiState('main_menu');
   }, [resetMovement, saveCurrentGame]);
+
   const handleSettingsBack = useCallback(() => {
     const returnTo = settingsReturnRef.current;
     if (returnTo === 'game' && engineRef.current) { engineRef.current.state.status = 'paused'; setGameState({ ...engineRef.current.state }); }
@@ -277,8 +309,8 @@ export default function Game() {
     <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none overscroll-none">
       <GameSessionBridge getEngine={() => engineRef.current} active={uiState === 'game'} />
       {uiState === 'lang_select' && <LanguageSelectScreen />}
-      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={handleNewGame} onContinue={handleContinue} onVeilChamber={() => setUiState('veil_chamber')} onCodex={() => setUiState('codex')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
-      {uiState === 'char_create' && <CharacterCreationScreen onConfirm={handleCharConfirm} onBack={handleMainMenu} />}
+      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={() => void handleNewGame()} onContinue={handleContinue} onVeilChamber={() => setUiState('veil_chamber')} onCodex={() => setUiState('codex')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
+      {uiState === 'run_name' && <RunNamePromptScreen onConfirm={beginFreshRun} onBack={() => setUiState('main_menu')} />}
       {uiState === 'settings' && <SettingsScreen onBack={handleSettingsBack} onSaveDeleted={handleSaveDeleted} />}
       {uiState === 'credits' && <CreditsScreen onBack={handleMainMenu} />}
       {uiState === 'veil_chamber' && <VeilChamberScreen onBack={() => setUiState('main_menu')} />}
@@ -295,6 +327,7 @@ export default function Game() {
           <ActionButtons gameState={gameState} onDodge={handleDodge} />
         </>}
       </>}
+      {startingRun && <LoadingScreen variant="run" language={language} testId="new-run-loading-screen" title={language === 'de' ? 'DEIN RUN WIRD VORBEREITET' : 'PREPARING YOUR RUN'} subtitle={language === 'de' ? 'Bewegen = ausweichen · stehen = automatisch schießen.' : 'Move to dodge · stop to shoot automatically.'} />}
     </div>
   );
 }
