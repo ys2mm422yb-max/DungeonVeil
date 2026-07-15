@@ -9,6 +9,10 @@ const BUNDLE_KEYS = [
   'dungeon-veil-player-profile-v1',
   'dungeon-veil-weekly-elite-v1',
   'dungeon-veil-seen-unlocks-v1',
+  'dungeon-veil-highest-chapter-v1',
+  'dungeon-veil-control-settings-v1',
+  'dungeon-veil-accessibility-v1',
+  'dungeon-veil-language',
 ] as const;
 
 export type DungeonVeilSaveBundle = {
