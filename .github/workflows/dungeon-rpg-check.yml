@@ -6,11 +6,13 @@ on:
     paths:
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.ci/apply-darkwood-mage-range-balance.py'
+      - '.ci/update-enemy-visibility-validator.py'
   pull_request:
     branches: [main]
     paths:
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.ci/apply-darkwood-mage-range-balance.py'
+      - '.ci/update-enemy-visibility-validator.py'
 
 permissions:
   contents: write
@@ -33,7 +35,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Apply focused ranged-enemy fix
-        run: python3 .ci/apply-darkwood-mage-range-balance.py
+        run: |
+          python3 .ci/apply-darkwood-mage-range-balance.py
+          python3 .ci/update-enemy-visibility-validator.py
       - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Focused darkwood mage audit
@@ -89,7 +93,7 @@ jobs:
       - name: Commit clean validated result
         run: |
           git checkout b2bc5b30fd76836674dfcbc8aea012d13bb2152d -- .github/workflows/dungeon-rpg-check.yml
-          rm -f .ci/apply-darkwood-mage-range-balance.py
+          rm -f .ci/apply-darkwood-mage-range-balance.py .ci/update-enemy-visibility-validator.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
