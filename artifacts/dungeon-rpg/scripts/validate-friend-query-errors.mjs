@@ -1,19 +1,22 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [migration, client, messages] = await Promise.all([
+const [baseMigration, finalMigration, client, messages] = await Promise.all([
   read('../../../supabase/migrations/20260715114000_fix_friend_query_ambiguity.sql'),
+  read('../../../supabase/migrations/20260715115000_fix_friend_query_mailbox_ambiguity.sql'),
   read('../src/game/friendOnline.ts'),
   read('../src/game/friendErrorMessages.ts'),
 ]);
 
 const checks = [
-  [migration.includes('select p.display_name into v_sender_name'), 'sender name lookup must be qualified'],
-  [migration.includes("raise exception 'cannot add yourself'"), 'self request guard is missing'],
-  [migration.includes("raise exception 'already friends'"), 'friendship guard is missing'],
-  [migration.includes("raise exception 'incoming friend request already pending'"), 'incoming request guard is missing'],
-  [migration.includes('on conflict (sender_id, receiver_id) do update'), 'old request reuse is missing'],
-  [migration.includes('from public.send_friend_request_by_query(p_display_name) as r'), 'legacy RPC wrapper is missing'],
+  [finalMigration.includes('select p.display_name into v_sender_name'), 'sender name lookup must be qualified'],
+  [finalMigration.includes('where m.user_id = v_target.id'), 'mailbox user lookup must be qualified'],
+  [!finalMigration.includes('on conflict (user_id, source_key)'), 'ambiguous mailbox conflict target returned'],
+  [finalMigration.includes("raise exception 'cannot add yourself'"), 'self request guard is missing'],
+  [finalMigration.includes("raise exception 'already friends'"), 'friendship guard is missing'],
+  [finalMigration.includes("raise exception 'incoming friend request already pending'"), 'incoming request guard is missing'],
+  [finalMigration.includes('on conflict (sender_id, receiver_id) do update'), 'old request reuse is missing'],
+  [baseMigration.includes('from public.send_friend_request_by_query(p_display_name) as r'), 'legacy RPC wrapper is missing'],
   [client.includes("import { friendErrorMessage } from './friendErrorMessages'"), 'friendly error helper is not imported'],
   [client.includes('throw new Error(friendErrorMessage(reason))'), 'RPC failures are not mapped'],
   [messages.includes('Freundescode gefunden'), 'not-found player copy is missing'],
