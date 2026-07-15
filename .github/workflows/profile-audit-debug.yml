@@ -1,0 +1,65 @@
+name: Profile Audit Debug
+
+on:
+  push:
+    branches: [feature/profile-guild-weekly-rewards-live]
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run audits with per-script evidence
+        shell: bash
+        run: |
+          set +e
+          cd artifacts/dungeon-rpg
+          : > audit-results.txt
+          status=0
+          scripts=(
+            validate-all-rooms.mjs
+            validate-production-rooms.mjs
+            validate-spawn-hitboxes.mjs
+            validate-enemy-visibility.mjs
+            validate-mobile-combat.mjs
+            validate-mobile-zoom-guard.mjs
+            validate-ipad-run-layout.mjs
+            validate-worldboss-performance.mjs
+            validate-social-navigation.mjs
+            validate-social-progression.mjs
+            validate-rooms-4-5-composition.mjs
+            validate-room-quality-6-50.mjs
+            validate-guild-mobile-layout.mjs
+            validate-blocks-1-8-integration.mjs
+            validate-main-menu-equipped-ranger.mjs
+            validate-inventory-guild-chat-chapters.mjs
+            validate-player-profile.mjs
+            validate-menu-copy-relic-progression.mjs
+            validate-profile-badge-compact.mjs
+            validate-upgrade-economy.mjs
+            validate-profile-guild-weekly-live.mjs
+          )
+          for script in "${scripts[@]}"; do
+            echo "===== $script =====" | tee -a audit-results.txt
+            node "scripts/$script" >> audit-results.txt 2>&1
+            code=$?
+            echo "exit=$code" | tee -a audit-results.txt
+            if [ "$code" -ne 0 ]; then status=$code; fi
+          done
+          exit "$status"
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile-audit-debug
+          path: artifacts/dungeon-rpg/audit-results.txt
