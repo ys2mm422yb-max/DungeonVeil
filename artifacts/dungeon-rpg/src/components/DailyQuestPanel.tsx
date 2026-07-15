@@ -67,7 +67,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
     return <article data-testid={claimed ? 'quest-completed-card' : 'quest-active-card'} data-quest-kind={task.gold ? 'gold' : 'standard'} key={task.id} className={`rounded-xl border px-3 py-2.5 ${claimed ? 'border-emerald-300/15 bg-emerald-400/[.06]' : task.gold ? 'border-amber-200/40 bg-[linear-gradient(135deg,rgba(178,119,28,.18),rgba(70,43,12,.26))]' : 'border-white/8 bg-black/25'}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1"><div className={`text-[10px] font-black ${task.gold ? 'text-amber-100' : 'text-white/82'}`}>{task.gold ? '✹ ' : ''}{task.title}</div><div className="mt-0.5 text-[7px] font-bold leading-relaxed text-white/40">{task.description}</div></div>
-        <div className={`shrink-0 rounded-full border px-2 py-1 text-[6px] font-black uppercase tracking-[.11em] ${claimed ? 'border-emerald-300/15 text-emerald-200' : task.gold ? 'border-amber-200/35 bg-amber-200/10 text-amber-100' : 'border-amber-300/15 text-amber-200'}`}>{task.gold ? `${de ? 'GOLD' : 'GOLD'} · ${status}` : status}</div>
+        <div className={`shrink-0 rounded-full border px-2 py-1 text-[6px] font-black uppercase tracking-[.11em] ${claimed ? 'border-emerald-300/15 text-emerald-200' : task.gold ? 'border-amber-200/35 bg-amber-200/10 text-amber-100' : 'border-amber-300/15 text-amber-200'}`}>{task.gold ? `GOLD · ${status}` : status}</div>
       </div>
       <div className="mt-2 flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8"><div className={`h-full rounded-full ${claimed ? 'bg-emerald-300/75' : 'bg-amber-300/75'}`} style={{ width: `${progress}%` }} /></div><span className="text-[7px] font-black text-white/35">{Math.min(value, task.target)}/{task.target}</span></div>
     </article>;
@@ -126,7 +126,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
       </section>
 
       <section data-testid="quest-completed-section" className="mt-3 overflow-hidden rounded-xl border border-white/8 bg-black/16">
-        <button type="button" onClick={() => setCompletedOpen(value => !value)} className="flex w-full items-center justify-between px-3 py-2.5 text-[7px] font-black uppercase tracking-[.18em] text-white/38"><span>{de ? 'Erledigte Tagesaufträge' : 'Completed Daily Quests'} · {completedStandardTasks.length}</span><span className={`text-base transition-transform ${completedOpen ? 'rotate-90' : ''}`}>›</span></button>
+        <button type="button" onClick={() => setCompletedOpen(value => !value)} className="flex w-full items-center justify-between px-3 py-2.5 text-[7px] font-black uppercase tracking-[.18em] text-white/38"><span>{de ? 'Erledigte Aufträge' : 'Completed Quests'} · {completedStandardTasks.length}</span><span className={`text-base transition-transform ${completedOpen ? 'rotate-90' : ''}`}>›</span></button>
         {completedOpen && <div className="space-y-2 border-t border-white/7 p-2.5">{completedStandardTasks.map(task => dailyTaskCard(task, true))}{!completedStandardTasks.length && <div className="p-2 text-center text-[8px] text-white/28">{de ? 'Noch kein normaler Tagesauftrag erledigt.' : 'No standard daily quest completed yet.'}</div>}</div>}
       </section>
     </div>}
