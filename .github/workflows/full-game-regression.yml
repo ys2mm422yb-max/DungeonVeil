@@ -73,9 +73,10 @@ jobs:
       - name: Test current branch on iPhone, Android, iPad and desktop
         env:
           DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
         shell: bash
         run: |
-          pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill $PREVIEW_PID || true' EXIT
           for attempt in {1..40}; do
