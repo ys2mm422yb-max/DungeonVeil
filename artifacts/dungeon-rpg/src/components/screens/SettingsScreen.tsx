@@ -10,6 +10,7 @@ import {
 } from '../../game/accessibilitySettings';
 import { loadJoystickMode, saveJoystickMode, type JoystickMode } from '../../game/controlSettings';
 import { clearSave } from '../../game/saveManager';
+import { ProfileStorageSettings } from '../ProfileStorageSettings';
 
 interface Props {
   onBack: () => void;
@@ -77,6 +78,10 @@ export function SettingsScreen({ onBack, onSaveDeleted }: Props) {
             {optionButton(joystickMode === 'floating', de ? 'Dynamisch' : 'Floating', de ? 'Folgt dem ersten Antippen' : 'Follows first touch', () => chooseJoystickMode('floating'), 'joystick-mode-floating')}
           </div>
         </div>
+      </Section>
+
+      <Section title={de ? 'STATISTIK & SPEICHER' : 'STATISTICS & STORAGE'}>
+        <ProfileStorageSettings language={language} />
       </Section>
 
       <Section title={t.deleteSave}>
