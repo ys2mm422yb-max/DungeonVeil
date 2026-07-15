@@ -6,6 +6,7 @@ on:
     branches:
       - work/blocks-1-7-production-pass
       - test/live-profile-loading-combat-review
+      - test/live-block-4-mage-projectile-review
     paths-ignore:
       - '.ci/**'
   workflow_dispatch:
