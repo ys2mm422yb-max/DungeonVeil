@@ -4,7 +4,7 @@ const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const [
   main, game, save, portal, guildPanel, guildSocial, publicProfile, friends, presence, presenceRuntime,
   profilePanel, quests, inventory, markers, unlockLayer, settings, joystick, hud, actions,
-  accessibility, readability, storageIntegrity, storageSettings, worldBoss, regressionWorkflow,
+  accessibility, readability, storageIntegrity, storageSettings, worldBossBattle, worldBossPanel, regressionWorkflow,
 ] = await Promise.all([
   read('../src/main.tsx'),
   read('../src/pages/game.tsx'),
@@ -30,6 +30,7 @@ const [
   read('../src/game/profileStorageIntegrity.ts'),
   read('../src/components/ProfileStorageSettings.tsx'),
   read('../src/components/WorldBossBattleScreen.tsx'),
+  read('../src/components/WorldBossPanel.tsx'),
   read('../../../.github/workflows/full-game-regression.yml'),
 ]);
 
@@ -48,7 +49,7 @@ const checks = [
   [storageIntegrity.includes('repairProfileStorage') && storageIntegrity.includes('restoreProfileStorageBackup') && storageSettings.includes('profile-storage-settings') && main.includes('installProfileStorageIntegrity();'), 'Block 15 statistics storage integrity is incomplete'],
   [game.includes('saveEngineSession') && game.includes('handleContinue') && game.includes('beginPlayerProfileRun') && save.includes('loadGame'), 'critical new-run, continue or save paths are missing'],
   [portal.includes('this.livingEnemies().length === 0') && portal.includes('this.nextRoom()'), 'critical room-exit behavior is missing'],
-  [worldBoss.includes('WorldBossLiteStage') && worldBoss.includes('startWorldBossAttempt'), 'critical world-boss entry or stage is missing'],
+  [worldBossBattle.includes('WorldBossLiteStage') && worldBossPanel.includes('startWorldBossAttempt') && worldBossPanel.includes('getWorldBossAttemptStatus'), 'critical world-boss entry or stage is missing'],
   [regressionWorkflow.includes('Build current branch for browser regression') && regressionWorkflow.includes('http://127.0.0.1:4173/DungeonVeil/'), 'full regression no longer tests the current branch build'],
 ];
 
