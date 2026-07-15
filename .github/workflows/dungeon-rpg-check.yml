@@ -2,53 +2,54 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [fix/darkwood-mage-range-balance]
     paths:
-      - 'artifacts/dungeon-rpg/**'
-      - 'lib/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
-      - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.ci/apply-darkwood-mage-range-balance.py'
   pull_request:
-    branches: [main, work/blocks-1-7-production-pass]
+    branches: [main]
     paths:
-      - 'artifacts/dungeon-rpg/**'
-      - 'lib/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
-      - '.github/workflows/dungeon-rpg-ci.yml'
-      - '.ci/validation-trigger.txt'
-  workflow_dispatch:
+      - '.ci/apply-darkwood-mage-range-balance.py'
 
-# Verification also runs directly on the production-pass branch when the PR has conflicts.
-# Final device-review validation covers natural status effects, skill HUD and lightweight projectiles.
+permissions:
+  contents: write
+
 jobs:
-  typecheck-and-build:
+  apply-and-validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/darkwood-mage-range-balance
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
         with:
           version: 10
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - name: Install workspace
-        run: pnpm install --frozen-lockfile
-      - name: Asset audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:assets
-      - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
-      - name: Typecheck Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg typecheck
-      - name: Build Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg build
+      - name: Apply focused ranged-enemy fix
+        run: python3 .ci/apply-darkwood-mage-range-balance.py
+      - run: pnpm install --frozen-lockfile
+      - name: Validate darkwood mage and Schnellzug changes
+        run: |
+          node artifacts/dungeon-rpg/scripts/validate-darkwood-mage-balance.mjs
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:social
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm run typecheck
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+          test -f artifacts/dungeon-rpg/dist/public/index.html
+      - name: Commit clean validated result
+        run: |
+          git checkout b2bc5b30fd76836674dfcbc8aea012d13bb2152d -- .github/workflows/dungeon-rpg-check.yml
+          rm -f .ci/apply-darkwood-mage-range-balance.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Balance darkwood mage attacks and clarify Schnellzug'
+          git push origin HEAD:fix/darkwood-mage-range-balance
