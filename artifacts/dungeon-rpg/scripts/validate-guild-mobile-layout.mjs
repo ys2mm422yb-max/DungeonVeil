@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, panel, social, invite] = await Promise.all([
+const [menu, panel, social, invite, identity] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/GuildSocialPanel.tsx'),
   read('../src/components/GuildInviteLinkCard.tsx'),
+  read('../src/components/SocialIdentityCard.tsx'),
 ]);
 
 const checks = [
@@ -14,8 +15,9 @@ const checks = [
   [panel.includes('data-testid="guild-close-button"') && panel.includes('onClick={onClose}') && panel.includes('absolute right-0 top-0 z-30'), 'fixed guild close control is missing'],
   [panel.includes('data-testid="guild-invite-tab"') && panel.includes('<GuildInviteLinkCard language={language} />'), 'link sharing is not isolated inside the Invite tab'],
   [panel.includes("tabButton('chat', 'Chat')") && panel.includes('<GuildChatPanel guildId={membership.guild.id}'), 'member guild chat tab is missing'],
-  [panel.includes('data-testid="guild-members-tab"') && panel.includes('data-testid="guild-member-card"') && panel.includes('data-testid="guild-member-profile-button"'), 'member profiles are not integrated into the Members tab'],
-  [panel.includes('onOpenMemberProfile?.(member.user_id)') && social.includes('onOpenMemberProfile={setSelectedProfileId}'), 'member cards do not open the public profile'],
+  [panel.includes('data-testid="guild-members-tab"') && panel.includes('data-testid="guild-member-card"') && panel.includes('testId="guild-member-profile-button"'), 'member profiles are not integrated into the Members tab'],
+  [panel.includes('onOpenMemberProfile(member.user_id)') && social.includes('onOpenMemberProfile={setSelectedProfileId}'), 'member cards do not open the public profile'],
+  [panel.includes('<SocialIdentityCard') && panel.includes('member.profile?.avatar_key') && identity.includes('resolveOnlineCard') && identity.includes('resolveOnlineTitle'), 'guild members do not show equipped calling cards, avatars and titles'],
   [panel.includes("`${members.length} Mitglieder`") && panel.includes('roleLabel(member.role, de)'), 'member count or translated guild roles are missing'],
   [!social.includes('guild-member-profile-strip') && !social.includes('guild-profile-list-button') && !social.includes('profilesOpen'), 'a separate guild profile strip or overlay still exists outside the Members tab'],
   [panel.includes('data-testid="guild-member-management"'), 'member management is not separated from the profile button'],
@@ -28,4 +30,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Guild mobile layout audit passed: profiles live only in the Members tab, cards open public profiles, roles are translated and management stays separate.');
+console.log('Guild mobile layout audit passed: cosmetic member cards live in the Members tab, open public profiles, keep translated roles and separate management actions.');
