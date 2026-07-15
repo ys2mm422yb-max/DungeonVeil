@@ -2,13 +2,13 @@ name: Full Game Regression
 
 on:
   push:
-    branches: [test/full-game-regression-pass]
+    branches: [test/full-game-regression-pass, 'fix/**', 'work/block-*']
     paths:
       - '.github/workflows/full-game-regression.yml'
       - 'artifacts/dungeon-rpg/**'
       - '.ci/full-game-regression-trigger*.txt'
   pull_request:
-    branches: [main]
+    branches: [main, 'fix/**', 'work/block-*']
     paths:
       - '.github/workflows/full-game-regression.yml'
       - 'artifacts/dungeon-rpg/**'
@@ -68,10 +68,22 @@ jobs:
         run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
       - name: Install Chromium and WebKit
         run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium webkit
-      - name: Test live iPhone, Android, iPad and desktop flows
+      - name: Build current branch for browser regression
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Test current branch on iPhone, Android, iPad and desktop
         env:
-          DUNGEON_VEIL_URL: https://ys2mm422yb-max.github.io/DungeonVeil/
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+        shell: bash
+        run: |
+          pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
+          pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
       - name: Upload browser report and failure evidence
         if: always()
         uses: actions/upload-artifact@v4
