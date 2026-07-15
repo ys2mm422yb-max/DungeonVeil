@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { resolveOnlineAvatar, resolveOnlineCard, resolveOnlineTitle } from '../game/onlineProfileCosmetics';
 import {
   currentOnlineSession,
   getMyGuildMembership,
@@ -11,20 +12,6 @@ import { GuildPanelMobile } from './GuildPanelMobile';
 import { PlayerProfileCard } from './PlayerProfileCard';
 
 type Props = { language: 'de' | 'en'; onClose: () => void; onOpenOnline: () => void };
-
-const AVATAR_ICONS: Record<string, string> = {
-  ranger: '🏹', ember: '🔥', frost: '❄', warden: '♜', sigil: '✦', veil: '◈',
-  'night-watch': '☾', 'arcane-eye': '◉',
-};
-
-function initials(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
-}
-
-function avatarFor(member: OnlineGuildMember): string {
-  const key = member.profile?.avatar_key ?? '';
-  return AVATAR_ICONS[key] ?? initials(member.profile?.display_name ?? '?');
-}
 
 function roleLabel(role: OnlineGuildMember['role'], de: boolean): string {
   if (role === 'owner') return de ? 'Anführer' : 'Leader';
@@ -63,24 +50,30 @@ export function GuildSocialPanel({ language, onClose, onOpenOnline }: Props) {
 
     {membership && members.length > 0 && <section data-testid="guild-member-profile-strip" className="absolute inset-x-3 bottom-3 z-30 rounded-2xl border border-cyan-300/14 bg-[#071116]/96 p-2.5 shadow-2xl backdrop-blur-xl">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-[7px] font-black uppercase tracking-[.2em] text-cyan-100/46">{de ? `${members.length} MITGLIEDERPROFILE` : `${members.length} MEMBER PROFILES`}</div>
-        <div className="text-[7px] text-white/24">{de ? 'Antippen zum Öffnen' : 'Tap to open'}</div>
+        <div className="text-[7px] font-black uppercase tracking-[.2em] text-cyan-100/46">{de ? `${members.length} MITGLIEDER` : `${members.length} MEMBERS`}</div>
+        <div className="text-[7px] text-white/28">{de ? 'Profil antippen' : 'Tap a profile'}</div>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch]">
+      <div className="flex gap-2 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {members.map(member => {
           const name = member.profile?.display_name ?? (de ? 'Abenteurer' : 'Adventurer');
+          const avatar = resolveOnlineAvatar(member.profile?.avatar_key);
+          const title = resolveOnlineTitle(member.profile?.avatar_key);
+          const card = resolveOnlineCard(member.profile?.avatar_key);
           return <button
             key={member.user_id}
             type="button"
+            aria-label={de ? `Profil von ${name} öffnen` : `Open ${name}'s profile`}
             onClick={() => setSelectedProfileId(member.user_id)}
-            className="flex min-w-[148px] items-center gap-2.5 rounded-xl border border-white/8 bg-white/[.035] p-2 text-left active:scale-[.98]"
+            className="flex min-w-[172px] items-center gap-2.5 rounded-xl border p-2 text-left active:scale-[.98]"
+            style={{ background: card.background, borderColor: `${card.border}66`, boxShadow: `0 0 14px ${card.glow}` }}
           >
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/18 bg-[radial-gradient(circle_at_35%_28%,rgba(103,232,249,.22),rgba(12,32,42,.92)_72%)] text-base font-black text-cyan-50">{avatarFor(member)}</div>
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/18 text-base shadow-inner" style={{ background: avatar.background }}>{avatar.icon}</div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[10px] font-black text-white/86">{name}</div>
-              <div className="mt-1 truncate text-[6px] font-black uppercase tracking-[.13em] text-cyan-100/46">{roleLabel(member.role, de)}</div>
+              <div className="truncate text-[10px] font-black text-white/90">{name}</div>
+              <div className="mt-1 truncate text-[6px] font-black uppercase tracking-[.1em] text-white/52">{de ? title.nameDe : title.nameEn}</div>
+              <div className="mt-0.5 truncate text-[5.5px] font-black uppercase tracking-[.12em] text-white/34">{roleLabel(member.role, de)}</div>
             </div>
-            <span className="text-base text-white/20">›</span>
+            <span className="text-base text-white/24">›</span>
           </button>;
         })}
       </div>
