@@ -37,8 +37,8 @@ export function enemyVisualProfile(room: number, type: EnemyType, index = 0): En
   if (safeRoom <= 20) {
     if (type === 'skeleton') return skeleton(index % 2 === 0 ? 'mage' : 'rogue', index % 2 === 0 ? 'mage' : 'rogue');
     if (type === 'orc' || type === 'golem') return skeleton('warrior', 'warrior');
-    if (type === 'vampire' && index % 2 === 1) return skeleton('mage', 'mage');
-    return creature(type === 'vampire' ? 'mage' : type === 'spider' ? 'rogue' : 'minion');
+    if (type === 'vampire') return skeleton('mage', 'mage');
+    return creature(type === 'spider' ? 'rogue' : 'minion');
   }
 
   if (safeRoom <= 30) {
