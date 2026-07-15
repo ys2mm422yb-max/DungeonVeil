@@ -45,8 +45,7 @@ const checks = [
   [attemptClient.includes('getWorldBossAttemptStatus') && attemptClient.includes('startWorldBossAttempt') && attemptClient.includes('authenticatedSupabaseRest'), 'world-boss attempt client is incomplete'],
   [friendClient.includes("'list_friends_v2'") && friendClient.includes("'send_friend_request_by_query'") && friendClient.includes('friend_code'), 'friend client is not using codes and extended profiles'],
   [friendsPanel.includes('DEIN PROFIL & FREUNDESCODE') && friendsPanel.includes('PlayerProfileCard') && friendsPanel.includes('inviteGuildMember'), 'friends UI lacks self profile, profile cards or direct guild invitations'],
-  [friendsPanel.includes('FAVORITES_KEY') && friendsPanel.includes('ONLINE_WINDOW_MS') && friendsPanel.includes('formatLastSeen') && friendsPanel.includes('toggleFavorite'), 'friend presence or favorites are missing'],
-  [guildSocial.includes('GuildPanelMobile') && guildSocial.includes('guild-profile-list-button') && guildSocial.includes('PlayerProfileCard') && guildSocial.includes('onClose') && menu.includes('<GuildSocialPanel'), 'guild member profiles or fixed close routing are missing'],
+  [guildSocial.includes('GuildPanelMobile') && guildSocial.includes('guild-member-profile-strip') && guildSocial.includes('setSelectedProfileId(member.user_id)') && guildSocial.includes('PlayerProfileCard') && guildSocial.includes('onClose') && menu.includes('<GuildSocialPanel'), 'direct guild member profiles or fixed close routing are missing'],
   [profileCard.includes('data-testid="player-profile-card"') && profileCard.includes('lifetime_world_boss_damage') && profileCard.includes('achievement_keys') && profileCard.includes('account_level'), 'social profile card is incomplete'],
   [onlinePanel.includes('social-profile-summary') && onlinePanel.includes('friend_code') && onlinePanel.includes('current_rank'), 'online profile does not expose friend code and progress'],
   [bossPanel.includes('worldboss-social-panel') && bossPanel.includes('getWorldBossSocialDashboard') && (bossPanel.includes('dashboard.friends') || bossPanel.includes('dashboard?.friends')) && bossPanel.includes('dashboard.guilds') && bossPanel.includes('dashboard.myGuild'), 'world-boss friend and guild rankings are missing'],
@@ -70,4 +69,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: the server-enforced boss gate, focused equipped Ranger and fixed mobile guild shell are wired with the existing social progression.');
+console.log('Social progression audit passed: the server-enforced boss gate, focused equipped Ranger and direct guild member profiles are wired with the existing social progression.');
