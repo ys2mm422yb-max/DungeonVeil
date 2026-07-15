@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ClassKey } from '../../game/classes';
+import { LOADING_TIMING, waitForMinimum } from '../../game/loadingTiming';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { LoadingScreen } from '../LoadingScreen';
 import { RangerPreview } from '../RangerPreview';
@@ -28,7 +29,10 @@ export function CharacterCreationModern({ onConfirm, onBack }: Props) {
     if (!valid) return;
     setStarting(true);
     try {
-      await preloadRun();
+      await Promise.all([
+        preloadRun(),
+        waitForMinimum(LOADING_TIMING.runEntryMinimumMs),
+      ]);
       await onConfirm(name.trim(), 'archer');
     } finally {
       setStarting(false);
