@@ -20,11 +20,18 @@ const files = {
   bossController: await readFile(new URL('../src/components/WorldBossAggressiveStage.tsx', import.meta.url), 'utf8'),
   bossStage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
   bossRig: await readFile(new URL('../src/components/worldBossMobileVisual3D.ts', import.meta.url), 'utf8'),
+  controlSettings: await readFile(new URL('../src/game/controlSettings.ts', import.meta.url), 'utf8'),
+  settings: await readFile(new URL('../src/components/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
+  joystick: await readFile(new URL('../src/components/VirtualJoystick.tsx', import.meta.url), 'utf8'),
 };
 
 const checks = [
   [files.hud.includes("const rightEdge=tabletLandscape?'right-6':'right-3';") && files.hud.includes('absolute ${rightEdge} top-'), 'HUD status is not in the responsive right-side lane'],
   [files.reward.includes('right-[max(12px,env(safe-area-inset-right))]'), 'reward toast still covers the HUD'],
+  [files.controlSettings.includes("type JoystickMode = 'fixed' | 'floating'") && files.controlSettings.includes('saveJoystickMode') && files.controlSettings.includes('CONTROL_SETTINGS_EVENT'), 'joystick mode is not persisted or broadcast'],
+  [files.settings.includes('joystick-mode-settings') && files.settings.includes('joystick-mode-fixed') && files.settings.includes('joystick-mode-floating'), 'settings screen lacks fixed and floating joystick choices'],
+  [files.joystick.includes('data-joystick-mode') && files.joystick.includes('run-joystick-floating-zone') && files.joystick.includes('positionFloatingBase'), 'virtual joystick does not apply the selected fixed or floating mode'],
+  [files.joystick.includes('window.addEventListener(CONTROL_SETTINGS_EVENT') && files.joystick.includes('reset();'), 'joystick does not apply control changes safely at runtime'],
   [files.canvas.includes('MAX_ARROW_VISUALS') && files.canvas.includes('MAX_DAMAGE_VISUALS'), 'mobile visual budgets are missing'],
   [files.canvas.includes("canvas.style.width = '100%'") && files.canvas.includes("canvas.style.height = '100%'") && files.canvas.includes('renderer.setSize(width, height, false)'), 'run canvas CSS size is still coupled to reduced render pixel ratio'],
   [files.canvas.includes('new ResizeObserver(resize)') && files.canvas.includes("window.visualViewport?.addEventListener('resize', resize)") && files.canvas.includes("window.visualViewport?.addEventListener('scroll', resize)"), 'run renderer does not track the real visual viewport and host size'],
@@ -41,7 +48,7 @@ const checks = [
   [files.props.includes('function inferredCollider') && files.props.includes("key.includes('/chair')"), 'automatic solid-prop colliders are missing'],
   [files.effects.includes('if (IS_MOBILE) return;'), 'mobile duplicate telegraphs are still enabled'],
   [files.boss.includes('const TIMER_PAINT_MS = 250;'), 'world-boss timer is repainting too often'],
-  [files.boss.includes("import { WorldBossLiteStage }") && !files.boss.includes("import { CombatStage }"), 'world boss still uses the full run renderer'],
+  [files.boss.includes('import { WorldBossLiteStage }') && !files.boss.includes('import { CombatStage }'), 'world boss still uses the full run renderer'],
   [files.boss.includes('engine.onStateChange = () => {}') && files.boss.includes('setGameState(snapshotRaidState(engine.state))'), 'world boss React updates are not throttled'],
   [files.bossStageProxy.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.bossBand.includes('<WorldBossCohesiveStage'), 'world-boss stage proxy routing is broken'],
   [files.bossCohesive.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && files.bossController.includes('<WorldBossPerspectiveStage'), 'world-boss aggressive controller routing is missing'],
@@ -63,4 +70,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: full-size run canvas, responsive tablet HUD, loot-independent portal exits, responsive camera, three-attack dragon controller and bounded mobile effects are active.');
+console.log('Mobile combat audit passed: selectable joystick modes, responsive HUD, stable canvas, safe exits and bounded mobile effects are active.');
