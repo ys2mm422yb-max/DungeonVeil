@@ -14,7 +14,7 @@ const checks = [
   [panel.includes('data-testid="guild-close-button"') && panel.includes('onClick={onClose}') && panel.includes('absolute right-0 top-0 z-30'), 'fixed guild close control is missing'],
   [panel.includes('data-testid="guild-invite-tab"') && panel.includes('<GuildInviteLinkCard language={language} />'), 'link sharing is not isolated inside the Invite tab'],
   [panel.includes("tabButton('chat', 'Chat')") && panel.includes('<GuildChatPanel guildId={membership.guild.id}'), 'member guild chat tab is missing'],
-  [social.includes('absolute right-14 top-3'), 'profile control can overlap the fixed close button'],
+  [social.includes('guild-member-profile-strip') && social.includes('setSelectedProfileId(member.user_id)') && !social.includes('absolute right-14 top-3'), 'guild member profiles are not inline or a floating profile control can still overlap the close button'],
   [!invite.includes('border-sky-300') && !invite.includes('bg-sky-400') && invite.includes('border-amber-300'), 'obsolete blue invitation styling remains'],
 ];
 
@@ -24,4 +24,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Guild mobile layout audit passed: close control stays visible, chat is available and invitations live only in the Invite tab.');
+console.log('Guild mobile layout audit passed: close control stays visible, chat is available, member profiles are inline and invitations live only in the Invite tab.');
