@@ -8,7 +8,7 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "audit:assets": "node scripts/audit-kaykit-assets.mjs",
+    "audit:assets": "node scripts/audit-kaykit-assets.mjs && node scripts/validate-ios-equipment-preview-fallback.mjs",
     "audit:worldboss": "node scripts/validate-worldboss-performance.mjs",
     "audit:loading": "node scripts/validate-loading-transitions.mjs",
     "audit:social": "node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs && node scripts/validate-guild-mobile-layout.mjs && node scripts/validate-main-menu-equipped-ranger.mjs && node scripts/validate-inventory-guild-chat-chapters.mjs && node scripts/validate-player-profile.mjs && node scripts/validate-menu-copy-relic-progression.mjs && node scripts/validate-profile-badge-compact.mjs && node scripts/validate-upgrade-economy.mjs && node scripts/validate-loading-transitions.mjs && node scripts/validate-profile-guild-weekly-live.mjs",
