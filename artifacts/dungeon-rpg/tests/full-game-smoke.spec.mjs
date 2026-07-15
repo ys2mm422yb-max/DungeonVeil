@@ -36,16 +36,14 @@ async function waitForReadyMenu(page) {
 }
 
 async function preparePage(page, projectName) {
-  if (projectName.includes('ipad')) {
-    await page.addInitScript(() => {
+  const ipad = projectName.includes('ipad');
+  await page.addInitScript(({ emulateIpad }) => {
+    localStorage.setItem('dungeon-veil-language', 'de');
+    if (emulateIpad) {
       Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
-    });
-  }
+    }
+  }, { emulateIpad: ipad });
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-  const germanButton = page.getByRole('button', { name: /Deutsch/i }).first();
-  if (await germanButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await germanButton.click({ force: true, noWaitAfter: true });
-  }
   await waitForReadyMenu(page);
 }
 
