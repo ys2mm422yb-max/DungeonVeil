@@ -98,7 +98,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
       </section>
 
       <section data-testid="quest-active-section" className="mt-3">
-        <div className="mb-2 flex items-center justify-between text-[7px] font-black uppercase tracking-[.18em] text-white/38"><span>{de ? 'Tägliche Aufträge' : 'Daily Quests'}</span><span>{activeStandardTasks.length}</span></div>
+        <div className="mb-2 flex items-center justify-between text-[7px] font-black uppercase tracking-[.18em] text-white/38"><span>{de ? 'Aktive Aufträge' : 'Active Quests'}</span><span>{activeStandardTasks.length}</span></div>
         <div className="space-y-2">{activeStandardTasks.map(task => dailyTaskCard(task, false))}{!activeStandardTasks.length && <div className="rounded-xl border border-emerald-300/12 bg-emerald-400/[.04] p-3 text-center text-[9px] text-emerald-100/65">{de ? 'Alle normalen Tagesaufträge sind erledigt.' : 'All standard daily quests are complete.'}</div>}</div>
       </section>
 
