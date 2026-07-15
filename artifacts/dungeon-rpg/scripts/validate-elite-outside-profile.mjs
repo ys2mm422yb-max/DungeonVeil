@@ -24,8 +24,8 @@ if (!profile.includes("type Tab = 'overview' | 'stats' | 'titles' | 'cards' | 'a
   console.error('Elite/profile separation failed: profile tab scope is no longer explicit.');
   process.exit(1);
 }
-if (!profileAudit.includes('full profile menu')) {
-  console.error('Elite/profile separation failed: the profile regression audit is missing.');
+if (!profileAudit.includes('data-testid="player-profile-panel"') || !profileAudit.includes('persistent profile statistics are incomplete')) {
+  console.error('Elite/profile separation failed: the profile regression audit no longer covers the profile and its statistics.');
   process.exit(1);
 }
 
