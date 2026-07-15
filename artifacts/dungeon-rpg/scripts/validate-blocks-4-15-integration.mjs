@@ -59,4 +59,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Blocks 4–15 integration audit passed: social, profile, quests, unlocks, controls, accessibility, statistics, saving, room exits and world boss coexist.');
+await import('./validate-final-device-gate.mjs');
+console.log('Blocks 4–17 integration audit passed: all functional blocks and the final automated device gate coexist in one build.');
