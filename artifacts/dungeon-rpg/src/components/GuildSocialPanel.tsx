@@ -43,15 +43,19 @@ export function GuildSocialPanel({ language, onClose, onOpenOnline }: Props) {
     return () => window.removeEventListener(onlineSessionEventName(), handleChange);
   }, [refresh]);
 
-  return <div data-testid="guild-social-panel" className="relative flex min-h-0 flex-1 flex-col">
-    <div className="min-h-0 flex-1">
+  const compactGuildPanel = membership && members.length > 0
+    ? '[&_[data-testid=guild-panel-shell]]:!h-[min(52dvh,520px)]'
+    : '';
+
+  return <div data-testid="guild-social-panel" className="relative flex max-h-[min(84dvh,760px)] min-h-0 flex-1 flex-col gap-2">
+    <div className={`min-h-0 flex-1 ${compactGuildPanel}`}>
       <GuildPanelMobile language={language} onClose={onClose} onOpenOnline={onOpenOnline} />
     </div>
 
-    {membership && members.length > 0 && <section data-testid="guild-member-profile-strip" className="absolute inset-x-3 bottom-3 z-30 rounded-2xl border border-cyan-300/14 bg-[#071116]/96 p-2.5 shadow-2xl backdrop-blur-xl">
+    {membership && members.length > 0 && <section data-testid="guild-member-profile-strip" className="shrink-0 rounded-2xl border border-cyan-300/14 bg-[#071116]/96 p-2.5 shadow-2xl backdrop-blur-xl">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-[7px] font-black uppercase tracking-[.2em] text-cyan-100/46">{de ? `${members.length} MITGLIEDER` : `${members.length} MEMBERS`}</div>
-        <div className="text-[7px] text-white/28">{de ? 'Profil antippen' : 'Tap a profile'}</div>
+        <div className="text-[7px] font-black uppercase tracking-[.2em] text-cyan-100/52">{de ? `${members.length} MITGLIEDERPROFILE` : `${members.length} MEMBER PROFILES`}</div>
+        <div className="text-[7px] text-white/34">{de ? 'Antippen zum Öffnen' : 'Tap to open'}</div>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {members.map(member => {
@@ -70,10 +74,10 @@ export function GuildSocialPanel({ language, onClose, onOpenOnline }: Props) {
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/18 text-base shadow-inner" style={{ background: avatar.background }}>{avatar.icon}</div>
             <div className="min-w-0 flex-1">
               <div className="truncate text-[10px] font-black text-white/90">{name}</div>
-              <div className="mt-1 truncate text-[6px] font-black uppercase tracking-[.1em] text-white/52">{de ? title.nameDe : title.nameEn}</div>
-              <div className="mt-0.5 truncate text-[5.5px] font-black uppercase tracking-[.12em] text-white/34">{roleLabel(member.role, de)}</div>
+              <div className="mt-1 truncate text-[6px] font-black uppercase tracking-[.1em] text-white/56">{de ? title.nameDe : title.nameEn}</div>
+              <div className="mt-0.5 truncate text-[5.5px] font-black uppercase tracking-[.12em] text-white/40">{roleLabel(member.role, de)}</div>
             </div>
-            <span className="text-base text-white/24">›</span>
+            <span className="text-base text-white/28">›</span>
           </button>;
         })}
       </div>
