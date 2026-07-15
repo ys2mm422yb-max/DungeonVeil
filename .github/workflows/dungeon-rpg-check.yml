@@ -42,8 +42,35 @@ jobs:
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Social and menu audit
         run: pnpm --filter @workspace/dungeon-rpg audit:social
-      - name: Room and combat audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: All-room data audit
+        run: node artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs
+      - name: Production room composition audit
+        run: node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
+      - name: Spawn and hitbox audit
+        run: node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
+      - name: Enemy visibility audit
+        run: node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
+      - name: Mobile combat audit
+        run: node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+      - name: Mobile zoom audit
+        run: node artifacts/dungeon-rpg/scripts/validate-mobile-zoom-guard.mjs
+      - name: iPad layout audit
+        run: node artifacts/dungeon-rpg/scripts/validate-ipad-run-layout.mjs
+      - name: Remaining room integration audits
+        run: |
+          node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
+          node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
+          node artifacts/dungeon-rpg/scripts/validate-social-progression.mjs
+          node artifacts/dungeon-rpg/scripts/validate-rooms-4-5-composition.mjs
+          node artifacts/dungeon-rpg/scripts/validate-room-quality-6-50.mjs
+          node artifacts/dungeon-rpg/scripts/validate-guild-mobile-layout.mjs
+          node artifacts/dungeon-rpg/scripts/validate-blocks-1-8-integration.mjs
+          node artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs
+          node artifacts/dungeon-rpg/scripts/validate-inventory-guild-chat-chapters.mjs
+          node artifacts/dungeon-rpg/scripts/validate-player-profile.mjs
+          node artifacts/dungeon-rpg/scripts/validate-menu-copy-relic-progression.mjs
+          node artifacts/dungeon-rpg/scripts/validate-profile-badge-compact.mjs
+          node artifacts/dungeon-rpg/scripts/validate-upgrade-economy.mjs
       - name: Typecheck
         run: pnpm run typecheck
       - name: Pages production build
