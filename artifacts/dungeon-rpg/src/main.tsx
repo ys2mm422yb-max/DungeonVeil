@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 
 import './game/portalExitPolicy';
+import './game/profileCosmeticsExpansion';
 import App from './App';
 import { GlobalLoadingLayer } from './components/GlobalLoadingLayer';
 import { MainMenuVisualQa } from './components/MainMenuVisualQa';
