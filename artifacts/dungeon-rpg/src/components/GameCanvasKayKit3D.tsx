@@ -62,8 +62,13 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let perfWindowStarted = performance.now();
     let perfFrames = 0;
     let lowFpsWindows = 0;
+    let resizeObserver: ResizeObserver | null = null;
+    let lastRenderWidth = 0;
+    let lastRenderHeight = 0;
 
     const enemyVisuals = new Map<string, KayKitEnemyVisual>();
+    const enemyFallbacks = new Map<string, any>();
+    const enemySafetyShells = new Map<string, any>();
     const enemyLoading = new Set<string>();
     const arrowVisuals = new Map<string, any>();
     const lootVisuals = new Map<string, any>();
@@ -74,6 +79,61 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
     const mapX = (state: GameState, value: number) => value / TILE - state.map.width / 2 + 0.5;
     const mapZ = (state: GameState, value: number) => value / TILE - state.map.height / 2 + 0.5;
+
+    const createEnemyFallback = (enemy: GameState['enemies'][number]) => {
+      const root = new THREE.Group();
+      root.name = `EnemyVisibilityFallback_${enemy.id}`;
+      const colors: Record<string, number> = {
+        slime: 0x62c978, goblin: 0xb6a45d, skeleton: 0xd9d4c5, orc: 0x8eb16b,
+        spider: 0x9b79c7, vampire: 0x9b4f72, demon: 0xd15b44, golem: 0x8d8174, boss: 0xffb454,
+      };
+      const color = colors[enemy.enemyType] ?? 0xff6b5d;
+      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.92, depthTest: true, depthWrite: true });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.72, 8), material);
+      body.position.y = 0.4;
+      root.add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6), material.clone());
+      head.position.y = 0.91;
+      root.add(head);
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.38, 0.5, 18),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.018;
+      root.add(ring);
+      root.scale.setScalar(enemy.enemyType === 'boss' ? 1.65 : enemy.isElite ? 1.16 : 1);
+      root.userData.visibilityFallback = true;
+      root.userData.ring = ring;
+      root.userData.body = body;
+      root.userData.head = head;
+      root.traverse((node: any) => {
+        if (node.isMesh) node.frustumCulled = false;
+      });
+      return root;
+    };
+
+    const createEnemySafetyShell = (enemy: GameState['enemies'][number]) => {
+      const shell = createEnemyFallback(enemy);
+      shell.name = `EnemyVisibilitySafety_${enemy.id}`;
+      const scale = enemy.enemyType === 'boss' ? 1.18 : enemy.isElite ? 0.88 : 0.72;
+      shell.scale.multiplyScalar(scale);
+      for (const part of [shell.userData.body, shell.userData.head]) {
+        if (!part?.material) continue;
+        part.material.transparent = false;
+        part.material.opacity = 1;
+        part.material.depthTest = true;
+        part.material.depthWrite = true;
+        part.renderOrder = -8;
+      }
+      if (shell.userData.ring?.material) {
+        shell.userData.ring.material.opacity = 0.34;
+        shell.userData.ring.material.depthTest = false;
+        shell.userData.ring.renderOrder = 8;
+      }
+      shell.userData.visibilitySafety = true;
+      return shell;
+    };
 
     const disposeObject = (object: any) => object?.traverse?.((node: any) => {
       node.geometry?.dispose?.();
@@ -150,26 +210,84 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         disposeObject(visual.root);
         enemyVisuals.delete(id);
       }
+      for (const [id, fallback] of enemyFallbacks) {
+        if (active.has(id)) continue;
+        scene.remove(fallback);
+        disposeObject(fallback);
+        enemyFallbacks.delete(id);
+      }
+      for (const [id, shell] of enemySafetyShells) {
+        if (active.has(id)) continue;
+        scene.remove(shell);
+        disposeObject(shell);
+        enemySafetyShells.delete(id);
+      }
 
       for (const enemy of state.enemies) {
+        const nextX = mapX(state, enemy.x + enemy.width / 2);
+        const nextZ = mapZ(state, enemy.y + enemy.height / 2);
+        const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;
+        let safetyShell = enemySafetyShells.get(enemy.id);
+        if (requiresPermanentSafety) {
+          if (!safetyShell) {
+            safetyShell = createEnemySafetyShell(enemy);
+            enemySafetyShells.set(enemy.id, safetyShell);
+            scene.add(safetyShell);
+          }
+          safetyShell.visible = true;
+          safetyShell.position.set(nextX, 0.008, nextZ);
+          safetyShell.rotation.y = gameNow * 0.00045 + enemy.id.length;
+          if (safetyShell.userData.ring?.material) {
+            safetyShell.userData.ring.material.opacity = 0.26 + Math.sin(gameNow * 0.006 + enemy.id.length) * 0.08;
+          }
+        } else if (safetyShell) {
+          scene.remove(safetyShell);
+          disposeObject(safetyShell);
+          enemySafetyShells.delete(enemy.id);
+        }
         let visual = enemyVisuals.get(enemy.id);
+        if (!visual) {
+          let fallback = enemyFallbacks.get(enemy.id);
+          if (!fallback) {
+            fallback = createEnemyFallback(enemy);
+            enemyFallbacks.set(enemy.id, fallback);
+            scene.add(fallback);
+          }
+          fallback.position.set(nextX, 0, nextZ);
+          fallback.rotation.y = gameNow * 0.0015 + enemy.id.length;
+          if (fallback.userData.ring?.material) {
+            fallback.userData.ring.material.opacity = 0.46 + Math.sin(gameNow * 0.008 + enemy.id.length) * 0.16;
+          }
+        }
         if (!visual && !enemyLoading.has(enemy.id)) {
           enemyLoading.add(enemy.id);
           createKayKitEnemyVisual(THREE, enemy).then(created => {
             enemyLoading.delete(enemy.id);
             if (!created || disposed || !stateRef.current.enemies.some(current => current.id === enemy.id)) return;
+            const fallback = enemyFallbacks.get(enemy.id);
+            if (fallback) {
+              scene.remove(fallback);
+              disposeObject(fallback);
+              enemyFallbacks.delete(enemy.id);
+            }
             enemyVisuals.set(enemy.id, created);
             scene.add(created.root);
           }).catch(error => {
             enemyLoading.delete(enemy.id);
-            console.error('KayKit enemy failed', error);
+            // Keep the visible fallback in the scene. A failed model may never
+            // turn a living, attacking enemy into an invisible target.
+            console.error('KayKit enemy failed; keeping visibility fallback', error);
           });
           continue;
         }
         visual = enemyVisuals.get(enemy.id);
         if (!visual) continue;
-        const nextX = mapX(state, enemy.x + enemy.width / 2);
-        const nextZ = mapZ(state, enemy.y + enemy.height / 2);
+        const fallback = enemyFallbacks.get(enemy.id);
+        if (fallback) {
+          scene.remove(fallback);
+          disposeObject(fallback);
+          enemyFallbacks.delete(enemy.id);
+        }
         const moveX = nextX - visual.root.position.x;
         const moveZ = nextZ - visual.root.position.z;
         visual.root.position.set(nextX, 0, nextZ);
@@ -626,9 +744,20 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
     const resize = () => {
       if (!renderer || !camera) return;
-      const width = host.clientWidth || innerWidth;
-      const height = host.clientHeight || innerHeight;
+      const rect = host.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const width = Math.max(1, Math.round(rect.width || viewport?.width || window.innerWidth));
+      const height = Math.max(1, Math.round(rect.height || viewport?.height || window.innerHeight));
+      if (width === lastRenderWidth && height === lastRenderHeight) return;
+      lastRenderWidth = width;
+      lastRenderHeight = height;
       renderer.setSize(width, height, false);
+      const canvas = renderer.domElement as HTMLCanvasElement;
+      canvas.style.position = 'absolute';
+      canvas.style.inset = '0';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
       camera.aspect = width / Math.max(1, height);
       camera.updateProjectionMatrix();
     };
@@ -695,7 +824,13 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = IS_ANDROID ? 1.16 : 1.12;
-      host.appendChild(renderer.domElement);
+      const canvas = renderer.domElement as HTMLCanvasElement;
+      canvas.style.position = 'absolute';
+      canvas.style.inset = '0';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      host.appendChild(canvas);
       camera = new THREE.PerspectiveCamera(RUN_CAMERA.fov, 1, 0.1, 150);
       camera.position.set(0, RUN_CAMERA.height, RUN_CAMERA.distance);
       cameraGoal = new THREE.Vector3();
@@ -727,12 +862,21 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
 
     window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+    window.visualViewport?.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('scroll', resize);
+    resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(host);
     boot().catch(error => console.error('KayKit run renderer failed', error));
     return () => {
       disposed = true;
       roomGeneration += 1;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('orientationchange', resize);
+      window.visualViewport?.removeEventListener('resize', resize);
+      window.visualViewport?.removeEventListener('scroll', resize);
+      resizeObserver?.disconnect();
       playerRig?.stop();
       for (const visual of enemyVisuals.values()) { visual.mixer?.stopAllAction?.(); disposeObject(visual.root); }
       for (const mesh of arrowVisuals.values()) disposeObject(mesh);
@@ -749,5 +893,5 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
   }, []);
 
-  return <div ref={hostRef} className="absolute inset-0 pointer-events-none" />;
+  return <div ref={hostRef} className="absolute inset-0 overflow-hidden pointer-events-none" data-testid="run-three-host" style={{ width: '100%', height: '100%' }} />;
 }

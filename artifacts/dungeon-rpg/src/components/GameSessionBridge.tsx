@@ -15,12 +15,15 @@ import { createRunSynergyState, updateRunSynergies } from '../game/runSynergies'
 import { createFirstWardenFinaleState, updateFirstWardenFinale } from '../game/firstWardenFinale';
 import { createEquipmentWorldLootState, disposeEquipmentWorldLoot, spawnRoomEquipmentReward, updateEquipmentWorldLoot } from '../game/equipmentWorldLoot';
 import { pushCloudSave } from '../game/cloudSave';
+import { isBossRoom } from '../game/chapterRun';
+import { recordPlayerProfileItemFound, recordPlayerProfileRoomClear, recordPlayerProfileSession } from '../game/playerProfile';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 import { FirstWardenOverlay } from './FirstWardenOverlay';
 import { TutorialOverlay } from './TutorialOverlay';
 
 const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
+const PROFILE_FLUSH_MS = 5_000;
 
 function restorePendingRoomGift(engine: GameEngine): void {
   const save = loadGame();
@@ -78,13 +81,48 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     let checkedClearKey = '';
     let lastFrame = performance.now();
     let lastSystemTick = 0;
+    let lastProfileFlush = lastFrame;
+    let lastKillCount = Math.max(0, getEngineRef.current()?.state.killCount ?? 0);
+    let pendingDamage = 0;
+    const seenDamageIds = new Set<string>();
     const mobileTick = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+
+    const collectDamage = (engine: GameEngine) => {
+      for (const number of engine.state.damageNumbers) {
+        if (seenDamageIds.has(number.id)) continue;
+        seenDamageIds.add(number.id);
+        if (number.id.startsWith('hit-') || number.id.startsWith('clear-')) continue;
+        const value = typeof number.value === 'number' ? number.value : Number(number.value);
+        if (Number.isFinite(value) && value > 0) pendingDamage += Math.floor(value);
+      }
+      if (seenDamageIds.size > 600) {
+        const recent = [...seenDamageIds].slice(-240);
+        seenDamageIds.clear();
+        recent.forEach(id => seenDamageIds.add(id));
+      }
+    };
+
+    const flushProfile = (time: number, engine: GameEngine) => {
+      const currentKills = Math.max(0, engine.state.killCount ?? 0);
+      const kills = currentKills >= lastKillCount ? currentKills - lastKillCount : currentKills;
+      recordPlayerProfileSession({
+        playTimeMs: Math.max(0, time - lastProfileFlush),
+        kills,
+        damage: pendingDamage,
+        chapter: engine.state.chapter,
+        room: engine.state.floor,
+      });
+      lastProfileFlush = time;
+      lastKillCount = currentKills;
+      pendingDamage = 0;
+    };
 
     const update = (time: number) => {
       const engine = getEngineRef.current();
       const dt = Math.min(100, Math.max(0, time - lastFrame));
       lastFrame = time;
       if (engine) {
+        collectDamage(engine);
         const interval = mobileTick ? 50 : 33;
         if (time - lastSystemTick >= interval) {
           const systemDt = Math.min(100, Math.max(dt, time - lastSystemTick));
@@ -100,12 +138,15 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           updateRunRelicEffects(engine, relicEffects, time);
           updateEquipmentWorldLoot(engine, worldLoot, time);
         }
+        if (engine.state.status === 'playing' && time - lastProfileFlush >= PROFILE_FLUSH_MS) flushProfile(time, engine);
         if (engine.state.roomClearReady) {
           const clearKey = `${engine.state.chapter}:${engine.state.floor}:${engine.state.roomClearAt}`;
           if (checkedClearKey !== clearKey) {
             checkedClearKey = clearKey;
             const reward = rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
             if (reward) {
+              recordPlayerProfileRoomClear(engine.state.chapter, engine.state.floor, isBossRoom(engine.state.floor));
+              if (reward.item) recordPlayerProfileItemFound();
               if (reward.item && reward.source && reward.rarity) {
                 spawnRoomEquipmentReward(engine, { item: reward.item, duplicate: Boolean(reward.duplicate), source: reward.source, rarity: reward.rarity });
               }
@@ -124,7 +165,11 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     return () => {
       cancelAnimationFrame(frame);
       const engine = getEngineRef.current();
-      if (engine) disposeEquipmentWorldLoot(engine, worldLoot);
+      if (engine) {
+        collectDamage(engine);
+        flushProfile(performance.now(), engine);
+        disposeEquipmentWorldLoot(engine, worldLoot);
+      }
     };
   }, [active]);
 

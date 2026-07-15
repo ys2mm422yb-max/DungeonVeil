@@ -137,10 +137,6 @@ const TOOL_WEAPON_TERMS = [
 
 export function roomPropScaleClass(piece: RoomPropPresentationInput): RoomPropScaleClass {
   const key = modelKey(piece.model);
-
-  // Structural models win before decoration keywords. This keeps models such as
-  // shrine_candles and shelf_small_candles solid instead of treating the whole
-  // object as a tiny candle.
   if (hasAny(key, ARCHITECTURE_TERMS)) return 'architecture';
   if (hasAny(key, FURNITURE_TERMS)) return 'furniture';
   if (hasAny(key, NATURE_SOLID_TERMS)) return 'nature-solid';
@@ -155,16 +151,9 @@ export function roomPropScaleClass(piece: RoomPropPresentationInput): RoomPropSc
 
 function lightingDisplayScale(piece: RoomPropPresentationInput, key: string, base: number) {
   const elevated = (piece.y ?? 0) >= 0.45;
-
-  if (key.includes('candle')) {
-    return Math.max(base * (elevated ? 1.18 : 1.32), elevated ? 1.0 : 1.24);
-  }
-  if (key.includes('lantern') || key.includes('lamp_') || key.includes('lamp.')) {
-    return Math.max(base * (elevated ? 1.24 : 1.48), elevated ? 1.18 : 1.44);
-  }
-  if (key.includes('torch')) {
-    return Math.max(base * (elevated ? 1.2 : 1.42), elevated ? 1.18 : 1.5);
-  }
+  if (key.includes('candle')) return Math.max(base * (elevated ? 1.18 : 1.32), elevated ? 1.0 : 1.24);
+  if (key.includes('lantern') || key.includes('lamp_') || key.includes('lamp.')) return Math.max(base * (elevated ? 1.24 : 1.48), elevated ? 1.18 : 1.44);
+  if (key.includes('torch')) return Math.max(base * (elevated ? 1.2 : 1.42), elevated ? 1.18 : 1.5);
   return base * 1.28;
 }
 
@@ -172,7 +161,6 @@ export function roomPropDisplayScale(piece: RoomPropPresentationInput) {
   const base = piece.scale ?? 1;
   const key = modelKey(piece.model);
   const classification = roomPropScaleClass(piece);
-
   if (classification === 'lighting') return lightingDisplayScale(piece, key, base);
   if (classification === 'small-prop') return base * 1.2;
   if (classification === 'tool-weapon') return base * ((piece.y ?? 0) >= 0.45 ? 1.16 : 1.12);
@@ -223,8 +211,12 @@ export function roomPropColliderScale(piece: RoomPropPresentationInput) {
 }
 
 export function roomPropColliderFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
-  const collider = piece.collider ?? inferredCollider(piece);
-  if (!roomPropBlocksGameplay(piece) || !collider) return null;
+  const key = modelKey(piece.model);
+  const authored = piece.collider ?? inferredCollider(piece);
+  if (!roomPropBlocksGameplay(piece) || !authored) return null;
+  const collider: readonly [number, number] = key.includes('/wall_corner_gated.')
+    ? [Math.min(authored[0], 1.15), Math.min(authored[1], 1.3)]
+    : authored;
   const inset = roomPropColliderInset(piece);
   const scale = roomPropColliderScale(piece) * inset;
   const localWidth = collider[0] * scale;

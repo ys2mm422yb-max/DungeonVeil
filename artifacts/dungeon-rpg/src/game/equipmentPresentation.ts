@@ -40,12 +40,20 @@ const OVERRIDES: Partial<Record<EquipmentId, PresentationOverride>> = {
   },
 };
 
+function clarifyGermanItemLevel(value: string): string {
+  return value.replace(/pro Stufe/g, 'je Ausrüstungslevel');
+}
+
+function clarifyEnglishItemLevel(value: string): string {
+  return value.replace(/per level/g, 'per equipment level');
+}
+
 export function equipmentPresentation(definition: EquipmentDefinition) {
   const override = OVERRIDES[definition.id];
   return {
     nameDe: override?.nameDe ?? definition.nameDe,
     nameEn: override?.nameEn ?? definition.nameEn,
-    descriptionDe: override?.descriptionDe ?? definition.descriptionDe,
-    descriptionEn: override?.descriptionEn ?? definition.descriptionEn,
+    descriptionDe: clarifyGermanItemLevel(override?.descriptionDe ?? definition.descriptionDe),
+    descriptionEn: clarifyEnglishItemLevel(override?.descriptionEn ?? definition.descriptionEn),
   };
 }

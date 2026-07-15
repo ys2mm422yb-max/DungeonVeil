@@ -20,6 +20,11 @@ export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
   const latestMoveRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
   const worldBoss = variant === 'worldBoss';
+  const tabletLandscape = typeof window !== 'undefined'
+    && typeof navigator !== 'undefined'
+    && navigator.maxTouchPoints > 1
+    && window.innerWidth > window.innerHeight
+    && Math.min(window.innerWidth, window.innerHeight) >= 650;
 
   const emitMove = useCallback((x: number, y: number) => {
     latestMoveRef.current = { x, y };
@@ -91,12 +96,15 @@ export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
 
   const placementClass = worldBoss
     ? 'bottom-[max(6.4rem,calc(env(safe-area-inset-bottom)+5.2rem))] left-[max(.9rem,env(safe-area-inset-left))] h-[116px] w-[116px]'
-    : 'bottom-[max(1.15rem,env(safe-area-inset-bottom))] left-[max(1.15rem,env(safe-area-inset-left))] h-[132px] w-[132px]';
+    : tabletLandscape
+      ? 'bottom-[max(2rem,calc(env(safe-area-inset-bottom)+1.4rem))] left-[max(2rem,calc(env(safe-area-inset-left)+1.4rem))] h-[148px] w-[148px]'
+      : 'bottom-[max(1.15rem,env(safe-area-inset-bottom))] left-[max(1.15rem,env(safe-area-inset-left))] h-[132px] w-[132px]';
 
   return (
     <div
       ref={baseRef}
       data-ui-control
+      data-testid="run-joystick"
       onPointerDown={event => {
         if (pointerIdRef.current !== null) return;
         event.preventDefault();
@@ -112,7 +120,7 @@ export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f3dca4]/30" />
       <div
         ref={knobRef}
-        className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f4dfaa]/55 bg-[radial-gradient(circle_at_35%_30%,rgba(255,239,195,.45),rgba(154,121,61,.38))] shadow-[0_8px_22px_rgba(0,0,0,.55),inset_0_0_14px_rgba(255,241,201,.18)] will-change-transform ${worldBoss ? 'h-[40px] w-[40px]' : 'h-[44px] w-[44px]'}`}
+        className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f4dfaa]/55 bg-[radial-gradient(circle_at_35%_30%,rgba(255,239,195,.45),rgba(154,121,61,.38))] shadow-[0_8px_22px_rgba(0,0,0,.55),inset_0_0_14px_rgba(255,241,201,.18)] will-change-transform ${worldBoss ? 'h-[40px] w-[40px]' : tabletLandscape ? 'h-[50px] w-[50px]' : 'h-[44px] w-[44px]'}`}
       />
     </div>
   );

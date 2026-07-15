@@ -54,8 +54,8 @@ try {
     [1, ['shelf', 'pallet']],
     [2, ['table_long', 'sword_shield']],
     [3, ['torch']],
-    [4, ['pallet', 'pickaxe', 'bars_stack']],
-    [5, ['table_long', 'anvil', 'grindstone']],
+    [4, ['pallet', 'pickaxe', 'bars_stack', 'banner']],
+    [5, ['table_long', 'anvil', 'grindstone', 'shelf']],
     [6, ['anvil', 'grindstone']],
     [7, ['bed_single', 'cabinet']],
     [8, ['shelf', 'bars_stack', 'pallet']],
@@ -92,6 +92,11 @@ try {
       for (const token of requiredTokens.get(room) ?? []) {
         if (!includesModel(pieces, token)) fail(room, `missing production identity asset: ${token}`);
       }
+    }
+
+    if (room === 4 || room === 5) {
+      const centralBlockers = colliders.filter(collider => Math.abs(collider.x) < 2.7 && collider.z > -4.2 && collider.z < 4.8);
+      if (centralBlockers.length) fail(room, 'authored center lane is blocked');
     }
 
     if (room === 6) {

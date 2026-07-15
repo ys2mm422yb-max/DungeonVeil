@@ -1,6 +1,7 @@
 import type { GameEngine } from './runEngine';
 import { skillRank } from './runSkills';
 import { isBossRoom } from './chapterRun';
+import { equipmentUnlockedForCurrentProgress, recordReachedChapter } from './equipmentChapterGates';
 
 export type EquipmentSlot = 'bow' | 'quiver' | 'talisman';
 export type EquipmentRarity = 'common' | 'rare' | 'epic';
@@ -275,7 +276,7 @@ function isStarterItem(id: EquipmentId) {
 }
 
 function availableDrops(meta: MetaProgression, source: EquipmentDropSource) {
-  return Object.values(EQUIPMENT).filter(item => item.unlockRank <= meta.rank && item.dropSource === source && !isStarterItem(item.id));
+  return Object.values(EQUIPMENT).filter(item => item.unlockRank <= meta.rank && equipmentUnlockedForCurrentProgress(item.id) && item.dropSource === source && !isStarterItem(item.id));
 }
 
 function chooseDrop(meta: MetaProgression, source: EquipmentDropSource): PendingEquipmentDrop | null {
@@ -300,6 +301,7 @@ export function equipmentSourceForRoom(floor: number): EquipmentDropSource {
 }
 
 export function rewardMetaRoomClear(chapter: number, floor: number): MetaReward | null {
+  recordReachedChapter(chapter);
   const meta = loadMetaProgression();
   if (!meta.currentRunId) beginMetaRun();
   const live = loadMetaProgression();

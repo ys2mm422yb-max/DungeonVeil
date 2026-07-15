@@ -1,10 +1,11 @@
 import type { GameEngine } from './runEngine';
+import { recordPlayerProfileQuestCompleted } from './playerProfile';
 import { isBossRoom } from './chapterRun';
 import { dailyTaskIdsForDate, taskById, tasksForDate, type DailyMetric, type DailyTaskId } from './dailyQuests';
 import { activeWeeklyRiftId } from './weeklyRiftRun';
 import {
   HUNT_RELIC_POOL,
-  ROOM_TWENTY_RELIC_POOL,
+  BOSS_RELIC_POOL,
   VEIL_RELICS,
   equippedVeilRelic,
   unlockVeilRelic,
@@ -14,7 +15,7 @@ import {
 const STORAGE_KEY = 'dungeon-veil-retention-v2';
 const LEGACY_STORAGE_KEY = 'dungeon-veil-retention-v1';
 type DailyProgress = Record<DailyMetric, number>;
-type PendingRelicDrop = { relicId: VeilRelicId; roomKey: string; source: 'hunt' | 'room20' };
+type PendingRelicDrop = { relicId: VeilRelicId; roomKey: string; source: 'hunt' | 'boss' };
 
 export type RetentionProfile = {
   sigils: number;
@@ -100,6 +101,7 @@ function claimCompletedDailies(profile: RetentionProfile): void {
     if (profile.daily.claimed.includes(task.id) || dailyProgressForTask(profile, task.id) < task.target) continue;
     profile.daily.claimed.push(task.id);
     profile.sigils += task.reward;
+    recordPlayerProfileQuestCompleted();
     toast(task.gold ? 'GOLD-AUFTRAG ERFÜLLT' : 'TAGESAUFTRAG ERFÜLLT', `${task.title} · +${task.reward} Schleier-Siegel`, task.gold ? 'relic' : 'daily');
   }
 }
@@ -188,11 +190,11 @@ function pulseHuntAura(engine: GameEngine, state: RunRetentionState, time: numbe
   engine.state.effects.push({ id: `hunt-aura-${time}`, x: target.x + target.width / 2, y: target.y + target.height / 2, radius: 12, maxRadius: 58, color: target.huntVisualVariant === 1 ? '#d692ff' : target.huntVisualVariant === 2 ? '#ff7558' : '#f1b94f', lifeTime: 0, maxLifeTime: 620, type: 'circle', element: 'arcane' });
 }
 
-function spawnRareRelicDrop(engine: GameEngine, state: RunRetentionState, source: 'hunt' | 'room20', x: number, y: number): void {
+function spawnRareRelicDrop(engine: GameEngine, state: RunRetentionState, source: 'hunt' | 'boss', x: number, y: number): void {
   const riftBonus = activeWeeklyRiftId() === 'empty-veil' ? (source === 'hunt' ? 0.12 : 0.04) : 0;
-  const chance = (source === 'hunt' ? 0.18 : 0.02) + riftBonus;
+  const chance = (source === 'hunt' ? 0.18 : engine.state.floor === 50 ? 0.12 : 0.06) + riftBonus;
   if (Math.random() > chance) return;
-  const pool = source === 'hunt' ? HUNT_RELIC_POOL : ROOM_TWENTY_RELIC_POOL;
+  const pool = source === 'hunt' ? HUNT_RELIC_POOL : BOSS_RELIC_POOL;
   const relicId = pool[Math.floor(Math.random() * pool.length)] as VeilRelicId;
   const itemId = `relic-drop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   engine.state.items.push({ id: itemId, type: 'item', itemType: 'relic', relicId, value: 0, x: x - 10, y: y - 10, width: 20, height: 20, vx: 0, vy: 0, color: VEIL_RELICS[relicId].accent, spawnTime: performance.now() });
@@ -261,7 +263,7 @@ function processRoomClear(engine: GameEngine, state: RunRetentionState): void {
     if (engine.state.player.hp / Math.max(1, engine.state.player.maxHp) >= 0.8) profile.daily.progress.highHpRooms++;
     profile.daily.progress.deepestRoom = Math.max(profile.daily.progress.deepestRoom, engine.state.floor);
   });
-  if (engine.state.floor === 20) spawnRareRelicDrop(engine, state, 'room20', engine.state.map.width * 20, engine.state.map.height * 20);
+  if (engine.state.floor >= 20 && isBossRoom(engine.state.floor)) spawnRareRelicDrop(engine, state, 'boss', engine.state.map.width * 20, engine.state.map.height * 20);
 }
 
 export function updateRunRetentionSystems(engine: GameEngine, state: RunRetentionState, time: number): void {

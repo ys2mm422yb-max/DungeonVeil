@@ -64,15 +64,15 @@ export function GuildInviteLinkCard({ language }: Props) {
     }
   };
 
-  return <section data-testid="guild-invite-link-card" className="rounded-2xl border border-sky-300/18 bg-[linear-gradient(135deg,rgba(20,48,65,.88),rgba(9,16,24,.94))] p-3 text-white shadow-xl">
+  return <section data-testid="guild-invite-link-card" className="rounded-2xl border border-amber-300/14 bg-amber-400/[.035] p-3 text-white shadow-xl">
     <div className="flex items-start gap-3">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-sky-300/18 bg-sky-400/8 text-lg text-sky-100">↗</div>
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-300/16 bg-amber-400/8 text-lg text-amber-100">↗</div>
       <div className="min-w-0 flex-1">
-        <div className="text-[8px] font-black uppercase tracking-[.2em] text-sky-200/52">{de ? 'EINLADUNG PER LINK' : 'INVITE BY LINK'}</div>
+        <div className="text-[8px] font-black uppercase tracking-[.2em] text-amber-100/52">{de ? 'EINLADUNG PER LINK' : 'INVITE BY LINK'}</div>
         <div className="mt-1 text-[9px] leading-relaxed text-white/42">{de ? 'Teile einen sicheren Link. Nach der Anmeldung landet die Einladung automatisch im Postfach.' : 'Share a secure link. After sign-in, the invitation automatically arrives in the mailbox.'}</div>
       </div>
     </div>
     {(message || error) && <div className={`mt-2 rounded-xl border px-3 py-2 text-[9px] ${error ? 'border-red-400/20 bg-red-500/10 text-red-200' : 'border-emerald-400/18 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}
-    <button type="button" disabled={busy} onClick={() => void createAndShare()} className="mt-3 w-full rounded-xl border border-sky-300/24 bg-sky-400/10 py-2.5 text-[8px] font-black uppercase tracking-[.16em] text-sky-100 active:scale-[.98] disabled:opacity-35">{busy ? (de ? 'WIRD ERSTELLT …' : 'CREATING …') : (de ? 'LINK TEILEN' : 'SHARE LINK')}</button>
+    <button type="button" disabled={busy} onClick={() => void createAndShare()} className="mt-3 w-full rounded-xl border border-amber-300/24 bg-amber-400/10 py-2.5 text-[8px] font-black uppercase tracking-[.16em] text-amber-100 active:scale-[.98] disabled:opacity-35">{busy ? (de ? 'WIRD ERSTELLT …' : 'CREATING …') : (de ? 'LINK TEILEN' : 'SHARE LINK')}</button>
   </section>;
 }

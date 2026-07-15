@@ -26,6 +26,7 @@ import { preloadKayKitEnemyVisuals } from '../components/kaykitEnemy3D';
 import { preloadKayKitHealingPotion } from '../components/kaykitLoot3D';
 import { preloadKayKitOuterWorld } from '../components/kaykitOuterWorld3D';
 import { applyMetaLoadoutToNewRun, beginMetaRun } from '../game/metaProgression';
+import { beginPlayerProfileRun } from '../game/playerProfile';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 
@@ -186,6 +187,7 @@ export default function Game() {
     if (!engine) return;
     beginMetaRun();
     engine.startNewGame(name, 'archer');
+    beginPlayerProfileRun(engine.state.chapter, engine.state.floor);
     applyMetaLoadoutToNewRun(engine);
     setSaveData(loadGame());
     setGameState({ ...engine.state });

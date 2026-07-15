@@ -2,8 +2,6 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'vite';
 
 const ROOT = process.cwd();
-const MAP_WIDTH = 24;
-const MAP_HEIGHT = 32;
 const ENEMY_SIZES = {
   slime: 32,
   goblin: 30,
@@ -33,11 +31,14 @@ try {
   const encounters = await server.ssrLoadModule('/src/game/encounterPlan.ts');
   const spawns = await server.ssrLoadModule('/src/game/roomSpawn3D.ts');
   const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');
+  const identities = await server.ssrLoadModule('/src/game/enemyRegionalIdentity.ts');
 
-  const [engineSource, canvasSource, overlaySource] = await Promise.all([
+  const [engineSource, hostCanvasSource, rendererSource, overlaySource, enemyVisualSource] = await Promise.all([
     readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/CombatFeedbackOverlay.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
   ]);
 
   const playerDamageWrites = engineSource.match(/\bp\.hp\s*-=/g) ?? [];
@@ -59,13 +60,37 @@ try {
     if (!engineSource.includes(required)) fail(`missing global enemy attack guard: ${required}`);
   }
 
-  if (!canvasSource.includes("const renderedRoomKeyRef = useRef('');")) {
+  if (!hostCanvasSource.includes("const renderedRoomKeyRef = useRef('');")) {
     fail('initial continued rooms can begin before their visual staging pass');
   }
-  const enemyPreloads = canvasSource.match(/preloadKayKitEnemyVisuals\(\)/g) ?? [];
+  const enemyPreloads = hostCanvasSource.match(/preloadKayKitEnemyVisuals\(\)/g) ?? [];
   if (enemyPreloads.length < 2) {
     fail(`enemy library is not preloaded for initial and next-room staging (found ${enemyPreloads.length} calls)`);
   }
+
+  for (const required of [
+    'const enemyFallbacks = new Map<string, any>();',
+    'const createEnemyFallback = (enemy:',
+    'EnemyVisibilityFallback_',
+    'EnemyVisibilitySafety_',
+    'const enemySafetyShells = new Map<string, any>();',
+    'const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;',
+    'shell.userData.visibilitySafety = true;',
+    'KayKit enemy failed; keeping visibility fallback',
+  ]) {
+    if (!rendererSource.includes(required)) fail(`missing global enemy visibility fallback guard: ${required}`);
+  }
+
+  if (!enemyVisualSource.includes('node.frustumCulled = false;')) {
+    fail('enemy meshes can still disappear through stale Chrome/iPad frustum bounds');
+  }
+  if (!enemyVisualSource.includes('new URL(normalized, document.baseURI).toString()')) {
+    fail('imported enemy assets are not resolved against the GitHub Pages base path');
+  }
+  if (enemyVisualSource.includes('loadAsync(config.path)')) {
+    fail('imported enemies still use a root-relative asset URL');
+  }
+
   if (!overlaySource.includes("kind: 'fire' | 'ice' | 'attack'")) {
     fail('attack-source overlay marker is missing');
   }
@@ -76,8 +101,9 @@ try {
   let checkedRooms = 0;
   let checkedEnemies = 0;
   let initiallyOccluded = 0;
+  const focusRooms = [];
 
-  for (let room = 14; room <= chapter.CHAPTER_ROOMS; room++) {
+  for (let room = 1; room <= chapter.CHAPTER_ROOMS; room++) {
     checkedRooms++;
     const map = chapter.generateRunRoom(room);
     const boss = chapter.isBossRoom(room);
@@ -88,15 +114,28 @@ try {
       continue;
     }
 
+    let roomOccluded = 0;
     plan.forEach((type, index) => {
       checkedEnemies++;
       const size = ENEMY_SIZES[type];
       const point = points[index];
+      const profile = identities.enemyVisualProfile(room, type, index);
       if (!size || !point) {
         fail(`room ${room} enemy ${index + 1} has no validated hitbox or spawn`);
         return;
       }
+      if (!profile?.family || !profile?.role) {
+        fail(`room ${room} enemy ${index + 1} (${type}) has no visual profile`);
+      }
+      if (Math.abs(point.x) > (boss ? 7.2 : 4.25) || point.z < -6.6 || point.z > 5.5) {
+        fail(`room ${room} enemy ${index + 1} (${type}) spawns outside the visible combat staging zone`);
+      }
+
       const game = spawns.sceneSpawnToGame(point, map.width, map.height, size);
+      if (!Number.isFinite(game.x) || !Number.isFinite(game.y)) {
+        fail(`room ${room} enemy ${index + 1} has non-finite runtime coordinates`);
+        return;
+      }
       if (collision.collidesWithRoomProp(room, map.width, map.height, game.x, game.y, size, size, 0.22)) {
         fail(`room ${room} enemy ${index + 1} starts inside visible collision geometry`);
       }
@@ -107,16 +146,26 @@ try {
       const enemyY = game.y + size / 2;
       if (collision.shotBlockedByRoomProp(room, map.width, map.height, enemyX, enemyY, playerX, playerY, 0.08)) {
         initiallyOccluded++;
+        roomOccluded++;
       }
     });
+
+    if (room === 15 || room === 16) {
+      focusRooms.push(`room ${room}: ${plan.length} enemies, ${points.length} safe spawns, ${roomOccluded} initially occluded, fallback guaranteed during model load/failure`);
+    }
   }
+
+  if (checkedRooms !== 50) fail(`expected 50 audited rooms, checked ${checkedRooms}`);
+  if (focusRooms.length !== 2) fail('rooms 15 and 16 were not both included in the visibility audit');
+
+  focusRooms.forEach(summary => console.log(`Enemy visibility focus: ${summary}`));
 
   if (errors.length) {
     console.error(`Enemy visibility audit failed with ${errors.length} error(s):`);
     errors.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;
   } else {
-    console.log(`Enemy visibility audit passed: rooms 14-${chapter.CHAPTER_ROOMS}, ${checkedEnemies} enemy starts, ${initiallyOccluded} initially occluded starts protected by global line-of-sight, room-ready and attack-marker guards.`);
+    console.log(`Enemy visibility audit passed: all ${checkedRooms} rooms, ${checkedEnemies} enemy starts and ${initiallyOccluded} initially occluded starts are protected by safe spawns, line-of-sight guards, non-culled meshes, permanent room 13+ safety shells and visible loading/error fallbacks.`);
   }
 } finally {
   await server.close();
