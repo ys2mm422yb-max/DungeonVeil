@@ -120,7 +120,7 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   weight += stringArrayLength(codex.enemies) * 500 + stringArrayLength(codex.bosses) * 2_000;
   weight += stringArrayLength(codex.hunts) * 1_000 + stringArrayLength(codex.relics) * 3_000;
   weight += number(elite.eliteMarks) * 20_000 + stringArrayLength(elite.ownedRewardIds) * 25_000;
-  weight += Object.keys(relics).length * 2_000;
+  weight += stringArrayLength(relics.owned) * 8_000;
   return Math.floor(weight);
 }
 
