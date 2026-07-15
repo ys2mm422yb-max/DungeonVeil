@@ -85,7 +85,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     const weeklyEliteTab = page.getByRole('button', { name: /^(Elite|Elite der Woche|Weekly Elite)$/i }).first();
     await expect(weeklyEliteTab).toBeVisible();
     await weeklyEliteTab.click();
-    await expect(page.getByText(/Drei schwere Prüfungen|Three hard trials/i).first()).toBeVisible();
+    await expect(page.getByText(/WÖCHENTLICHE ELITE-AUFTRÄGE|WEEKLY ELITE CONTRACTS/i).first()).toBeVisible();
     await expect(page.getByText(/Elite-Marken|Elite Marks/i).first()).toBeVisible();
   });
 
