@@ -5,10 +5,14 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 function attachRuntimeMonitor(page) {
   const issues = [];
   const appOrigin = new URL(APP_URL).origin;
+  page.__dungeonVeilIntentionalNavigation = false;
+  const intentionallyNavigating = () => page.__dungeonVeilIntentionalNavigation === true;
 
-  page.on('pageerror', error => issues.push(`pageerror: ${error.message}`));
+  page.on('pageerror', error => {
+    if (!intentionallyNavigating()) issues.push(`pageerror: ${error.message}`);
+  });
   page.on('console', message => {
-    if (message.type() !== 'error') return;
+    if (message.type() !== 'error' || intentionallyNavigating()) return;
     const text = message.text();
     if (/favicon|supabase.*401|supabase.*403/i.test(text)) return;
     if (/TypeError|ReferenceError|Cannot read|permission denied|Failed to fetch dynamically imported module/i.test(text)) {
@@ -16,6 +20,7 @@ function attachRuntimeMonitor(page) {
     }
   });
   page.on('response', response => {
+    if (intentionallyNavigating()) return;
     const url = response.url();
     if (!url.startsWith(appOrigin)) return;
     if (response.status() >= 400) issues.push(`http ${response.status()}: ${url}`);
@@ -52,18 +57,29 @@ async function assertNoHorizontalOverflow(page) {
 }
 
 async function reloadMenu(page, projectName) {
-  await page.context().clearCookies();
-  await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-  if (projectName.includes('ipad')) {
-    await page.evaluate(() => Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 }));
+  page.__dungeonVeilIntentionalNavigation = true;
+  try {
+    await page.context().clearCookies();
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
+    if (projectName.includes('ipad')) {
+      await page.evaluate(() => Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 }));
+    }
+    await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
+  } finally {
+    page.__dungeonVeilIntentionalNavigation = false;
   }
-  await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
 }
 
 async function openMenuButton(page, name) {
   const button = page.getByRole('button', { name }).first();
   await expect(button).toBeVisible();
   await button.click();
+}
+
+async function openOverflow(page) {
+  const overflow = page.locator('button').filter({ hasText: /⋯|•••|\.\.\./ }).first();
+  await expect(overflow).toBeVisible();
+  await overflow.click();
 }
 
 test('main menu, profile and every hub panel open without fatal errors', async ({ page }, testInfo) => {
@@ -83,6 +99,8 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await openMenuButton(page, /Inventar|Inventory/i);
     await expect(page.getByRole('heading', { name: /Inventar|Inventory/i })).toBeVisible();
     await expect(page.getByText(/Ausrüstungslevel|Equipment Level/i).first()).toBeVisible();
+    await expect(page.getByTestId('inventory-tab-bow')).toBeVisible();
+    await expect(page.getByTestId('inventory-tab-relic')).toBeVisible();
   });
 
   await test.step('mailbox has no permission error', async () => {
@@ -115,10 +133,15 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await expect(page.getByRole('button', { name: /Online & Cloud/i })).toBeVisible();
   });
 
-  await test.step('quests', async () => {
+  await test.step('structured quest board', async () => {
     await reloadMenu(page, testInfo.project.name);
     await openMenuButton(page, /Aufträge|Quests/i);
-    await expect(page.getByText(/Aufträge|Quests/i).first()).toBeVisible();
+    const toggle = page.getByTestId('quest-board-toggle');
+    await expect(toggle).toBeVisible();
+    if (!await page.getByTestId('quest-board-content').isVisible().catch(() => false)) await toggle.click();
+    await expect(page.getByTestId('quest-board-summary')).toBeVisible();
+    await expect(page.getByTestId('quest-active-section')).toBeVisible();
+    await expect(page.getByTestId('quest-completed-section')).toBeVisible();
   });
 
   await test.step('codex', async () => {
@@ -129,9 +152,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
 
   await test.step('credits from overflow menu', async () => {
     await reloadMenu(page, testInfo.project.name);
-    const overflow = page.locator('button').filter({ hasText: /⋯|•••|\.\.\./ }).first();
-    await expect(overflow).toBeVisible();
-    await overflow.click();
+    await openOverflow(page);
     await openMenuButton(page, /Credits/i);
     await expect(page.getByText(/hobbyloser Typ|hobbyless guy/i)).toBeVisible();
   });
@@ -144,7 +165,41 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   expect(issues, issues.join('\n')).toEqual([]);
 });
 
-test('new run renders combat controls and stays stable', async ({ page }, testInfo) => {
+test('settings persist accessibility, storage and joystick choices', async ({ page }, testInfo) => {
+  const issues = attachRuntimeMonitor(page);
+  await preparePage(page, testInfo.project.name);
+  await openOverflow(page);
+  await openMenuButton(page, /Einstellungen|Settings/i);
+
+  await expect(page.getByTestId('accessibility-settings')).toBeVisible();
+  await expect(page.getByTestId('joystick-mode-settings')).toBeVisible();
+  await expect(page.getByTestId('profile-storage-settings')).toBeVisible();
+  await page.getByTestId('contrast-mode-high').click();
+  await page.getByTestId('text-size-large').click();
+  await page.getByTestId('joystick-mode-floating').click();
+
+  const applied = await page.evaluate(() => ({
+    contrast: document.documentElement.dataset.contrast,
+    textSize: document.documentElement.dataset.textSize,
+    joystick: JSON.parse(localStorage.getItem('dungeon-veil-control-settings-v1') || '{}').joystickMode,
+  }));
+  expect(applied).toEqual({ contrast: 'high', textSize: 'large', joystick: 'floating' });
+  await assertNoHorizontalOverflow(page);
+
+  await reloadMenu(page, testInfo.project.name);
+  const persisted = await page.evaluate(() => ({
+    contrast: document.documentElement.dataset.contrast,
+    textSize: document.documentElement.dataset.textSize,
+  }));
+  expect(persisted).toEqual({ contrast: 'high', textSize: 'large' });
+  expect(issues, issues.join('\n')).toEqual([]);
+});
+
+test('new run renders responsive combat controls and stays stable', async ({ page }, testInfo) => {
+  const phoneFloating = testInfo.project.name.includes('iphone') || testInfo.project.name.includes('android');
+  if (phoneFloating) {
+    await page.addInitScript(() => localStorage.setItem('dungeon-veil-control-settings-v1', JSON.stringify({ joystickMode: 'floating' })));
+  }
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
 
@@ -158,25 +213,34 @@ test('new run renders combat controls and stays stable', async ({ page }, testIn
 
   const hud = page.getByTestId('run-hud');
   await expect(hud).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('run-joystick')).toBeVisible();
-  await expect(page.getByTestId('run-dash-control')).toBeVisible();
+  await expect(page.getByTestId('run-health-panel')).toBeVisible();
+  await expect(page.getByTestId('run-pause-control')).toBeVisible();
+  await expect(page.getByTestId('run-enemy-status')).toBeVisible();
+  const joystick = page.getByTestId('run-joystick');
+  await expect(joystick).toBeVisible();
+  await expect(page.getByTestId('run-dash-button')).toBeVisible();
+  await expect(page.getByTestId('run-dash-state')).toBeVisible();
   await expect(page.locator('canvas').first()).toBeVisible();
+
+  if (phoneFloating) {
+    await expect(joystick).toHaveAttribute('data-joystick-mode', 'floating');
+    await expect(page.getByTestId('run-joystick-floating-zone')).toBeVisible();
+  } else {
+    await expect(joystick).toHaveAttribute('data-joystick-mode', 'fixed');
+  }
 
   await page.waitForTimeout(8_000);
   await assertNoHorizontalOverflow(page);
 
   if (testInfo.project.name.includes('ipad')) {
-    const joystickBox = await page.getByTestId('run-joystick').boundingBox();
+    const joystickBox = await joystick.boundingBox();
     const dashBox = await page.getByTestId('run-dash-control').boundingBox();
     expect(joystickBox?.width ?? 0).toBeGreaterThanOrEqual(140);
-    expect(dashBox?.width ?? 0).toBeGreaterThanOrEqual(78);
+    expect(dashBox?.width ?? 0).toBeGreaterThanOrEqual(88);
   }
 
-  const pauseButton = page.getByRole('button', { name: /Ⅱ|Pause/i }).first();
-  if (await pauseButton.isVisible().catch(() => false)) {
-    await pauseButton.click();
-    await expect(page.getByText(/Pause|Fortsetzen|Continue/i).first()).toBeVisible();
-  }
+  await page.getByTestId('run-pause-control').click();
+  await expect(page.getByText(/Pause|Fortsetzen|Continue/i).first()).toBeVisible();
 
   await testInfo.attach('runtime-issues.json', {
     body: Buffer.from(JSON.stringify(issues, null, 2)),
