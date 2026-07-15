@@ -20,6 +20,13 @@ const checks = [
   [!hub.includes('detailDe') && !hub.includes('detailEn') && !hub.includes('Mira') && !hub.includes('Orin') && !hub.includes('Tala') && !hub.includes('Brom') && !hub.includes('Aelric'), 'NPC names remain below the main-menu routes'],
   [guildPanel.includes("type GuildTab = 'overview' | 'chat' | 'members' | 'invite'") && guildPanel.includes("tabButton('chat', 'Chat')") && guildPanel.includes('<GuildChatPanel guildId={membership.guild.id}'), 'guild chat tab is not mounted'],
   [chatPanel.includes('window.setInterval') && chatPanel.includes('5000') && chatPanel.includes('maxLength={400}') && chatPanel.includes('guild-chat-send'), 'guild chat polling, input limit or send control is missing'],
+  [chatPanel.includes('data-testid="guild-chat-header"') && chatPanel.includes('data-testid="guild-chat-refresh"') && chatPanel.includes("'GILDENCHAT' : 'GUILD CHAT'"), 'compact guild-chat header or refresh control is missing'],
+  [chatPanel.includes('role="log"') && chatPanel.includes('aria-live="polite"') && chatPanel.includes('overflow-x-hidden') && chatPanel.includes('[overflow-wrap:anywhere]'), 'message history is not a contained accessible scroll log'],
+  [chatPanel.includes('guild-chat-message-own') && chatPanel.includes('guild-chat-message-other') && chatPanel.includes("mine ? 'justify-end' : 'justify-start'"), 'own and other guild messages are not visually separated'],
+  [chatPanel.includes('data-testid="guild-chat-loading"') && chatPanel.includes('data-testid="guild-chat-empty"') && chatPanel.includes('data-testid="guild-chat-error"'), 'guild-chat loading, empty or error state is missing'],
+  [chatPanel.includes('data-testid="guild-chat-composer"') && chatPanel.includes('rows={1}') && chatPanel.includes('data-testid="guild-chat-character-count"') && chatPanel.includes('input.style.height'), 'compact growing chat composer or integrated character count is missing'],
+  [chatPanel.includes('stayAtBottomRef') && chatPanel.includes('forceBottomRef') && chatPanel.includes('element.scrollTo'), 'chat no longer follows the newest message after sending'],
+  [chatPanel.includes("[data-testid='guild-chat-tab'] ~ div[class~='shrink-0']") && chatPanel.includes('display: none'), 'obsolete standalone guild refresh footer remains visible below the chat'],
   [chatClient.includes("authenticatedSupabaseRest('guild_messages'") && chatClient.includes('listGuildChatMessages') && chatClient.includes('sendGuildChatMessage'), 'authenticated guild chat client is incomplete'],
   [meta.includes('equipmentUnlockedForCurrentProgress(item.id)') && meta.includes('recordReachedChapter(chapter)'), 'equipment drops are not chapter gated'],
   [gates.includes("'warden-bow': 4") && gates.includes("'veil-eye': 4") && gates.includes("'hunter-bow': 2") && !gates.match(/: [5-9],/), 'equipment must all unlock by chapter 4'],
@@ -33,4 +40,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Inventory/guild-chat/chapter audit passed: labels are clean, guild chat is member-only, all normal equipment unlocks by chapter 4 and guild invites use the protected mailbox RPC flow.');
+console.log('Inventory/guild-chat/chapter audit passed: chat has a contained history, compact composer, refresh header, explicit states and reliable newest-message scrolling; inventory and chapter gates remain intact.');
