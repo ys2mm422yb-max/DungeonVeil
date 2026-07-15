@@ -29,6 +29,12 @@ function attachRuntimeMonitor(page) {
   return issues;
 }
 
+async function waitForReadyMenu(page) {
+  await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 12_000 });
+  await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
+}
+
 async function preparePage(page, projectName) {
   if (projectName.includes('ipad')) {
     await page.addInitScript(() => {
@@ -40,8 +46,7 @@ async function preparePage(page, projectName) {
   if (await germanButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await germanButton.click();
   }
-  await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
+  await waitForReadyMenu(page);
 }
 
 async function assertNoHorizontalOverflow(page) {
@@ -64,7 +69,7 @@ async function reloadMenu(page, projectName) {
     if (projectName.includes('ipad')) {
       await page.evaluate(() => Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 }));
     }
-    await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
+    await waitForReadyMenu(page);
   } finally {
     page.__dungeonVeilIntentionalNavigation = false;
   }
@@ -135,6 +140,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
 
   await test.step('structured quest board', async () => {
     await reloadMenu(page, testInfo.project.name);
+    await openMenuButton(page, /Aufträge|Quests/i);
     const toggle = page.getByTestId('quest-board-toggle');
     const content = page.getByTestId('quest-board-content');
     await expect(toggle).toBeVisible();
