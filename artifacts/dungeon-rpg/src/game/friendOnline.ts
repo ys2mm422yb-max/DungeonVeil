@@ -12,6 +12,11 @@ export type OnlineFriend = {
   character_key: string;
   friends_since: string;
   last_active_at: string;
+  activity_state: 'menu' | 'run' | 'paused';
+  activity_chapter: number;
+  activity_room: number;
+  highest_chapter: number;
+  highest_room: number;
 };
 
 export type OnlineFriendRequest = {
