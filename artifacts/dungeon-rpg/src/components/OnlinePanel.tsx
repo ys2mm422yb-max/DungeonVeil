@@ -13,6 +13,7 @@ import {
   type OnlineSession,
 } from '../game/supabaseOnline';
 import { getMySocialProfile, type SocialProfile } from '../game/socialProgressOnline';
+import { loadSpectatingAllowed, refreshSpectatingAllowed, setSpectatingAllowed } from '../game/socialSpectatorOnline';
 
 type Props = { language: 'de' | 'en' };
 type AuthMode = 'login' | 'register';
@@ -49,6 +50,7 @@ export function OnlinePanel({ language }: Props) {
   const [displayName, setDisplayName] = useState('');
   const [profile, setProfile] = useState<OnlineProfile | null>(null);
   const [socialProfile, setSocialProfile] = useState<SocialProfile | null>(null);
+  const [spectatingAllowed, setSpectatingAllowedState] = useState(loadSpectatingAllowed);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState('');
@@ -70,11 +72,17 @@ export function OnlinePanel({ language }: Props) {
       setProfile(null);
       setSocialProfile(null);
       setDisplayName('');
+      setSpectatingAllowedState(loadSpectatingAllowed());
       return;
     }
-    const [nextProfile, nextSocialProfile] = await Promise.all([getOnlineProfile(), getMySocialProfile()]);
+    const [nextProfile, nextSocialProfile, nextSpectatingAllowed] = await Promise.all([
+      getOnlineProfile(),
+      getMySocialProfile(),
+      refreshSpectatingAllowed().catch(() => loadSpectatingAllowed()),
+    ]);
     setProfile(nextProfile);
     setSocialProfile(nextSocialProfile);
+    setSpectatingAllowedState(nextSpectatingAllowed);
     setDisplayName(nextProfile?.display_name ?? nextSocialProfile?.display_name ?? '');
   }, []);
 
@@ -132,6 +140,15 @@ export function OnlinePanel({ language }: Props) {
     setMessage(de ? 'Profil gespeichert.' : 'Profile saved.');
   });
 
+  const toggleSpectating = () => run(async () => {
+    const next = !spectatingAllowed;
+    await setSpectatingAllowed(next);
+    setSpectatingAllowedState(next);
+    setMessage(next
+      ? (de ? 'Freunde dürfen deinen laufenden Run ansehen.' : 'Friends may watch your active run.')
+      : (de ? 'Zuschauen ist jetzt deaktiviert.' : 'Spectating is now disabled.'));
+  });
+
   const copyFriendCode = async () => {
     if (!socialProfile?.friend_code) return;
     await navigator.clipboard?.writeText(socialProfile.friend_code);
@@ -187,6 +204,13 @@ export function OnlinePanel({ language }: Props) {
         <div className="flex items-center justify-between gap-3"><div><div className="text-[7px] font-black uppercase tracking-[.18em] text-cyan-100/42">{de ? 'FREUNDESCODE' : 'FRIEND CODE'}</div><div className="mt-1 text-[14px] font-black tracking-[.16em] text-cyan-50">{socialProfile.friend_code}</div></div><button type="button" onClick={() => void copyFriendCode()} className="rounded-xl border border-cyan-300/18 bg-cyan-400/[.06] px-3 py-2 text-[8px] font-black uppercase tracking-[.12em] text-cyan-100 active:scale-[.98]">{copied ? (de ? 'Kopiert' : 'Copied') : (de ? 'Kopieren' : 'Copy')}</button></div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-center"><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] uppercase tracking-[.12em] text-white/28">{de ? 'Rang' : 'Rank'}</div><div className="mt-1 font-black text-amber-100">{socialProfile.current_rank}</div></div><div className="rounded-xl border border-white/7 bg-black/20 p-2"><div className="text-[7px] uppercase tracking-[.12em] text-white/28">{de ? 'Kapitel' : 'Chapter'}</div><div className="mt-1 font-black text-violet-100">{socialProfile.current_chapter}</div></div></div>
       </section>}
+
+      <section data-testid="spectating-privacy-setting" className="rounded-2xl border border-emerald-300/12 bg-emerald-400/[.035] p-3">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1"><div className="text-[8px] font-black uppercase tracking-[.18em] text-emerald-100/62">{de ? 'FREUNDEN ZUSCHAUEN ERLAUBEN' : 'ALLOW FRIEND SPECTATING'}</div><div className="mt-1 text-[9px] leading-relaxed text-white/38">{de ? 'Nur bestätigte Freunde können deinen aktiven Run mit kurzer Verzögerung ansehen.' : 'Only confirmed friends can watch your active run with a short delay.'}</div></div>
+          <button type="button" role="switch" aria-checked={spectatingAllowed} disabled={busy} onClick={toggleSpectating} className={`relative h-7 w-12 shrink-0 rounded-full border transition ${spectatingAllowed ? 'border-emerald-300/35 bg-emerald-500/25' : 'border-white/12 bg-black/40'} disabled:opacity-40`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all ${spectatingAllowed ? 'left-6' : 'left-1'}`} /></button>
+        </div>
+      </section>
 
       <section className="space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3">
         <div className="text-[8px] font-black uppercase tracking-[.2em] text-white/35">{de ? 'PROFIL & CLOUD' : 'PROFILE & CLOUD'}</div>
