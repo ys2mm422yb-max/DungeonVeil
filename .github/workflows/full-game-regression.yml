@@ -2,7 +2,7 @@ name: Full Game Regression
 
 on:
   push:
-    branches: [test/full-game-regression-pass]
+    branches: [test/full-game-regression-pass, fix/pages-asset-url-resolution]
     paths:
       - '.github/workflows/full-game-regression.yml'
       - 'artifacts/dungeon-rpg/**'
