@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - work/blocks-1-7-production-pass
+      - fix/loading-screen-readable-duration-live
     paths-ignore:
       - '.ci/**'
   workflow_dispatch:
