@@ -7,6 +7,17 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
+class PreviewLoadCancelled extends Error {
+  constructor() {
+    super('Equipment preview load cancelled');
+    this.name = 'PreviewLoadCancelled';
+  }
+}
+
+function isPreviewLoadCancelled(error: unknown): error is PreviewLoadCancelled {
+  return error instanceof PreviewLoadCancelled;
+}
+
 function assetUrl(path: string) {
   return appAssetUrl(path.startsWith('/') ? path : `assets/kaykit/${path}`);
 }
@@ -42,18 +53,34 @@ function prepareObject(THREE: any, object: any, accent: string, strength: number
   });
 }
 
-async function loadPrimary(loader: any, visual: EquipmentVisualProfile) {
+async function loadPrimary(loader: any, visual: EquipmentVisualProfile, isActive: () => boolean) {
   try {
-    return await loader.loadAsync(assetUrl(visual.primaryPath));
+    const loaded = await loader.loadAsync(assetUrl(visual.primaryPath));
+    if (!isActive()) {
+      disposeObject(loaded.scene);
+      throw new PreviewLoadCancelled();
+    }
+    return loaded;
   } catch (primaryError) {
+    if (!isActive()) throw new PreviewLoadCancelled();
     if (visual.primaryPath === visual.fallbackPath) throw primaryError;
-    return loader.loadAsync(assetUrl(visual.fallbackPath));
+    const fallback = await loader.loadAsync(assetUrl(visual.fallbackPath));
+    if (!isActive()) {
+      disposeObject(fallback.scene);
+      throw new PreviewLoadCancelled();
+    }
+    return fallback;
   }
 }
 
-async function buildDisplay(THREE: any, loader: any, itemId: EquipmentId, accent: string) {
+async function buildDisplay(THREE: any, loader: any, itemId: EquipmentId, accent: string, isActive: () => boolean) {
   const visual = equipmentVisualProfile(itemId);
-  const loaded = await loadPrimary(loader, visual);
+  const loaded = await loadPrimary(loader, visual, isActive);
+  if (!isActive()) {
+    disposeObject(loaded.scene);
+    throw new PreviewLoadCancelled();
+  }
+
   const display = new THREE.Group();
   const primary = loaded.scene;
   prepareObject(THREE, primary, accent, visual.tintStrength);
@@ -62,6 +89,11 @@ async function buildDisplay(THREE: any, loader: any, itemId: EquipmentId, accent
   if (visual.accessoryPath) {
     try {
       const accessoryLoaded = await loader.loadAsync(assetUrl(visual.accessoryPath));
+      if (!isActive()) {
+        disposeObject(accessoryLoaded.scene);
+        disposeObject(display);
+        throw new PreviewLoadCancelled();
+      }
       const accessory = accessoryLoaded.scene;
       prepareObject(THREE, accessory, accent, Math.min(0.65, visual.tintStrength + 0.18));
       accessory.position.set(...(visual.accessoryPosition ?? [0, 0, 0]));
@@ -69,6 +101,10 @@ async function buildDisplay(THREE: any, loader: any, itemId: EquipmentId, accent
       accessory.scale.setScalar(visual.accessoryScale ?? 1);
       display.add(accessory);
     } catch (error) {
+      if (!isActive() || isPreviewLoadCancelled(error)) {
+        disposeObject(display);
+        throw new PreviewLoadCancelled();
+      }
       console.warn(`Equipment accessory failed for ${itemId}`, error);
     }
   }
@@ -120,20 +156,26 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
 
   const renderCurrent = async (runtime: Runtime, nextItemId: EquipmentId, nextAccent: string) => {
     const token = ++runtime.loadToken;
-    const nextDisplay = await buildDisplay(runtime.THREE, runtime.loader, nextItemId, nextAccent);
-    if (token !== runtime.loadToken) {
-      disposeObject(nextDisplay);
-      return;
-    }
+    const isActive = () => token === runtime.loadToken;
+    try {
+      const nextDisplay = await buildDisplay(runtime.THREE, runtime.loader, nextItemId, nextAccent, isActive);
+      if (!isActive()) {
+        disposeObject(nextDisplay);
+        return;
+      }
 
-    if (runtime.display) {
-      runtime.root.remove(runtime.display);
-      disposeObject(runtime.display);
+      if (runtime.display) {
+        runtime.root.remove(runtime.display);
+        disposeObject(runtime.display);
+      }
+      runtime.display = nextDisplay;
+      runtime.root.add(nextDisplay);
+      fitDisplay(runtime.THREE, nextDisplay, nextItemId, runtime.width, runtime.height);
+      runtime.renderer.render(runtime.scene, runtime.camera);
+    } catch (error) {
+      if (isPreviewLoadCancelled(error) || !isActive()) return;
+      throw error;
     }
-    runtime.display = nextDisplay;
-    runtime.root.add(nextDisplay);
-    fitDisplay(runtime.THREE, nextDisplay, nextItemId, runtime.width, runtime.height);
-    runtime.renderer.render(runtime.scene, runtime.camera);
   };
 
   useEffect(() => {
@@ -212,7 +254,9 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
       await renderCurrent(runtime, current.itemId, current.accent);
     };
 
-    boot().catch(error => console.error('KayKit equipment preview failed', error));
+    boot().catch(error => {
+      if (!disposed && !isPreviewLoadCancelled(error)) console.error('KayKit equipment preview failed', error);
+    });
 
     return () => {
       disposed = true;
@@ -237,7 +281,9 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    void renderCurrent(runtime, itemId, accent).catch(error => console.error('KayKit equipment preview update failed', error));
+    void renderCurrent(runtime, itemId, accent).catch(error => {
+      if (runtimeRef.current === runtime && !isPreviewLoadCancelled(error)) console.error('KayKit equipment preview update failed', error);
+    });
   }, [accent, itemId]);
 
   return <div ref={hostRef} className="h-full w-full overflow-hidden" />;
