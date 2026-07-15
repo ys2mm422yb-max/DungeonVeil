@@ -82,7 +82,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await callingCardsTab.click();
     await expect(page.getByText(/Aschepfad|Ash Path/i).first()).toBeVisible();
 
-    const weeklyEliteTab = page.getByRole('button', { name: /Elite der Woche|Weekly Elite/i }).first();
+    const weeklyEliteTab = page.getByRole('button', { name: /^(Elite|Elite der Woche|Weekly Elite)$/i }).first();
     await expect(weeklyEliteTab).toBeVisible();
     await weeklyEliteTab.click();
     await expect(page.getByText(/Drei schwere Prüfungen|Three hard trials/i).first()).toBeVisible();
