@@ -1,0 +1,240 @@
+name: Temporary PR 187 normal enemy and hitbox patch
+
+on:
+  push:
+    branches:
+      - work/boss-telegraphs-room-21-30-theme
+    paths:
+      - .github/workflows/temporary-pr187-normal-enemy-hitbox-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/boss-telegraphs-room-21-30-theme
+          fetch-depth: 0
+      - name: Apply normal enemy telegraph and prop hitbox patch
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              return text.replace(old, new, 1)
+
+          run_engine_path = Path('artifacts/dungeon-rpg/src/game/runEngine.ts')
+          run_engine = run_engine_path.read_text()
+          windup_block = """  private attackWindupMs(archetype: ReturnType<typeof enemyArchetype>) {
+    if (archetype === 'skirmisher') return 165;
+    if (archetype === 'guardian') return 270;
+    if (archetype === 'dragon') {
+      const pattern = bossCombatProfile(this.state.floor).pattern;
+      return pattern === 'assassin' ? 230 : pattern === 'ranger' ? 320 : pattern === 'caster' ? 460 : pattern === 'warden' ? 420 : 340;
+    }
+    return 185;
+  }
+"""
+          windup_with_radius = windup_block + """
+  private normalEnemyDamageRadius(range: number) {
+    // Keep the existing combat reach exactly unchanged. This helper only makes
+    // the visible warning use the same radius as the already-existing hit check.
+    return range * 1.18;
+  }
+"""
+          run_engine = replace_once(run_engine, windup_block, windup_with_radius, 'insert normal damage radius helper')
+          run_engine = replace_once(
+              run_engine,
+              "if (windup.archetype !== 'dragon' && dist > windup.range * 1.18) return;",
+              "if (windup.archetype !== 'dragon' && dist > this.normalEnemyDamageRadius(windup.range)) return;",
+              'share normal damage radius with hit resolution',
+          )
+          run_engine = replace_once(
+              run_engine,
+              "          maxRadius: Math.max(30, plan.attackRange * 0.58),",
+              "          maxRadius: archetype === 'dragon'\n            ? Math.max(30, plan.attackRange * 0.58)\n            : this.normalEnemyDamageRadius(plan.attackRange),",
+              'match normal telegraph to real damage radius',
+          )
+          run_engine_path.write_text(run_engine)
+
+          prop_path = Path('artifacts/dungeon-rpg/src/game/propPresentation3D.ts')
+          prop = prop_path.read_text()
+          type_block = """export type RoomPropColliderFootprint = {
+  width: number;
+  height: number;
+  inset: number;
+};
+"""
+          prop = replace_once(
+              prop,
+              type_block,
+              type_block + "\nexport const MAX_ROOM_PROP_COLLIDER_INSET = 0.985;\n",
+              'add collider ceiling',
+          )
+          old_insets = """export function roomPropColliderInset(piece: RoomPropPresentationInput) {
+  const classification = roomPropScaleClass(piece);
+  if (classification === 'architecture') return 0.96;
+  if (classification === 'furniture') return 0.94;
+  if (classification === 'nature-solid') return 0.9;
+  if (classification === 'heavy-prop') return 0.94;
+  return 0.88;
+}
+"""
+          new_insets = """export function roomPropColliderInset(piece: RoomPropPresentationInput) {
+  const classification = roomPropScaleClass(piece);
+  if (classification === 'architecture') return MAX_ROOM_PROP_COLLIDER_INSET;
+  if (classification === 'furniture') return 0.98;
+  if (classification === 'nature-solid') return 0.965;
+  if (classification === 'heavy-prop') return 0.975;
+  return 0.96;
+}
+"""
+          prop = replace_once(prop, old_insets, new_insets, 'tighten solid prop hitboxes')
+          old_footprint = """export function roomPropColliderFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
+  const key = modelKey(piece.model);
+  const authored = piece.collider ?? inferredCollider(piece);
+  if (!roomPropBlocksGameplay(piece) || !authored) return null;
+  const collider: readonly [number, number] = key.includes('/wall_corner_gated.')
+    ? [Math.min(authored[0], 1.15), Math.min(authored[1], 1.3)]
+    : authored;
+  const inset = roomPropColliderInset(piece);
+  const scale = roomPropColliderScale(piece) * inset;
+  const localWidth = collider[0] * scale;
+  const localHeight = collider[1] * scale;
+  const angle = piece.rotation ?? 0;
+  const cos = Math.abs(Math.cos(angle));
+  const sin = Math.abs(Math.sin(angle));
+  return {
+    width: localWidth * cos + localHeight * sin,
+    height: localWidth * sin + localHeight * cos,
+    inset,
+  };
+}
+"""
+          new_footprint = """function roomPropAuthoredFootprint(piece: RoomPropPresentationInput): readonly [number, number] | null {
+  const key = modelKey(piece.model);
+  const authored = piece.collider ?? inferredCollider(piece);
+  if (!roomPropBlocksGameplay(piece) || !authored) return null;
+  return key.includes('/wall_corner_gated.')
+    ? [Math.min(authored[0], 1.15), Math.min(authored[1], 1.3)]
+    : authored;
+}
+
+export function roomPropVisualFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
+  const authored = roomPropAuthoredFootprint(piece);
+  if (!authored) return null;
+  const scale = roomPropColliderScale(piece);
+  const localWidth = authored[0] * scale;
+  const localHeight = authored[1] * scale;
+  const angle = piece.rotation ?? 0;
+  const cos = Math.abs(Math.cos(angle));
+  const sin = Math.abs(Math.sin(angle));
+  return {
+    width: localWidth * cos + localHeight * sin,
+    height: localWidth * sin + localHeight * cos,
+    inset: 1,
+  };
+}
+
+export function roomPropColliderFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
+  const visual = roomPropVisualFootprint(piece);
+  if (!visual) return null;
+  const inset = Math.min(MAX_ROOM_PROP_COLLIDER_INSET, roomPropColliderInset(piece));
+  return {
+    width: visual.width * inset,
+    height: visual.height * inset,
+    inset,
+  };
+}
+"""
+          prop = replace_once(prop, old_footprint, new_footprint, 'bind collider to visible footprint')
+          prop_path.write_text(prop)
+
+          suite_path = Path('artifacts/dungeon-rpg/scripts/run-room-audit-suite.mjs')
+          suite = suite_path.read_text()
+          suite = replace_once(
+              suite,
+              "  'validate-spawn-hitboxes.mjs',\n",
+              "  'validate-spawn-hitboxes.mjs',\n  'validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs',\n",
+              'register new room audit',
+          )
+          suite_path.write_text(suite)
+
+          audit_path = Path('artifacts/dungeon-rpg/scripts/validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs')
+          audit_path.write_text("""import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createServer } from 'vite';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const sourceRoot = path.resolve(here, '../src');
+const runEngine = fs.readFileSync(path.join(sourceRoot, 'game/runEngine.ts'), 'utf8');
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+assert(runEngine.includes('private normalEnemyDamageRadius(range: number)'), 'Normal enemies need one shared damage-radius contract.');
+assert(runEngine.includes("dist > this.normalEnemyDamageRadius(windup.range)"), 'Normal enemy hit resolution must use the shared radius.');
+assert(runEngine.includes(': this.normalEnemyDamageRadius(plan.attackRange)'), 'Normal enemy warning radius must match the real damage radius.');
+assert(runEngine.includes('return range * 1.18;'), 'Existing normal enemy reach must remain unchanged.');
+assert(runEngine.includes('maxLifeTime: windupMs'), 'Normal warning lifetime must remain tied to the actual windup.');
+assert(runEngine.includes("id: `telegraph-${time}-${enemy.id}`"), 'Normal attacks must keep their real telegraph effects.');
+
+const server = await createServer({
+  root: path.resolve(here, '..'),
+  configFile: false,
+  appType: 'custom',
+  optimizeDeps: { noDiscovery: true, include: [] },
+  logLevel: 'error',
+  server: { middlewareMode: true },
+});
+
+try {
+  const chapter = await server.ssrLoadModule('/src/game/chapterRun.ts');
+  const layouts = await server.ssrLoadModule('/src/game/logicalRoomSetpieces.ts');
+  const presentation = await server.ssrLoadModule('/src/game/propPresentation3D.ts');
+  let checked = 0;
+
+  for (let room = 1; room <= chapter.CHAPTER_ROOMS; room++) {
+    for (const piece of layouts.logicalRoomSetpieces(room)) {
+      const collider = presentation.roomPropColliderFootprint(piece);
+      if (!collider) continue;
+      const visual = presentation.roomPropVisualFootprint(piece);
+      assert(visual, `Room ${room}: solid prop has no visible footprint: ${piece.model}`);
+      assert(collider.inset >= 0.96, `Room ${room}: collider remains too far inside ${piece.model}`);
+      assert(collider.inset <= presentation.MAX_ROOM_PROP_COLLIDER_INSET, `Room ${room}: collider exceeds the hard inset ceiling for ${piece.model}`);
+      assert(collider.width <= visual.width + 1e-9, `Room ${room}: collider is wider than visible prop ${piece.model}`);
+      assert(collider.height <= visual.height + 1e-9, `Room ${room}: collider is deeper than visible prop ${piece.model}`);
+      checked += 1;
+    }
+  }
+
+  assert(checked > 100, `Expected broad 50-room collider coverage, checked only ${checked}.`);
+  console.log(`Normal enemy telegraph and prop hitbox audit passed: ${checked} solid props checked across all rooms.`);
+} finally {
+  await server.close();
+}
+""")
+          PY
+      - name: Commit patch and remove temporary runner
+        shell: bash
+        run: |
+          rm .github/workflows/temporary-pr187-normal-enemy-hitbox-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/game/runEngine.ts \
+            artifacts/dungeon-rpg/src/game/propPresentation3D.ts \
+            artifacts/dungeon-rpg/scripts/run-room-audit-suite.mjs \
+            artifacts/dungeon-rpg/scripts/validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs \
+            .github/workflows/temporary-pr187-normal-enemy-hitbox-patch.yml
+          git commit -m "Align normal enemy telegraphs and prop hitboxes"
+          git push origin HEAD:work/boss-telegraphs-room-21-30-theme
