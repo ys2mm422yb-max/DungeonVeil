@@ -7,6 +7,8 @@ const paths = {
   inventory: '../src/components/screens/VeilChamberScreen.tsx',
   quests: '../src/components/DailyQuestPanel.tsx',
   relics: '../src/game/veilRelics.ts',
+  worldBossReward: '../src/game/worldBossRewardLocal.ts',
+  worldBossMigration: '../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql',
   portrait: '../src/components/ProfileAvatarPortrait.tsx',
   badge: '../src/components/ProfileBadge.tsx',
   profile: '../src/components/PlayerProfilePanel.tsx',
@@ -27,6 +29,7 @@ const checks = [
   [!files.quests.includes('profile.sigils') && !files.quests.includes("'Siegel'") && !files.quests.includes("'Sigils'"), 'quest board still exposes the removed sigil wallet'],
   [files.quests.includes('loadMetaProgression().dust') && files.quests.includes("'Schleierstaub'") && files.quests.includes("'Veil Dust'"), 'quest board does not display Veil Dust'],
   [files.retention.includes('grantMetaDust(task.reward)') && files.retention.includes('grantMetaDust(huntReward)') && files.retention.includes('grantMetaDust(dustReward)'), 'daily, hunt or relic rewards do not all grant dust'],
+  [files.worldBossMigration.includes('v_dust integer') && files.worldBossMigration.includes("'dust', v_dust") && files.worldBossReward.includes('meta.dust += dust'), 'world-boss rewards are not connected to Veil Dust'],
   [files.relics.includes('50 % mehr Schleierstaub') && files.relics.includes('50% more Veil Dust'), 'Night Hunt relic still describes a sigil bonus'],
   [files.economy.includes('dust: 75') && files.economy.includes('dust: 250') && files.economy.includes('dust: 700') && files.economy.includes('dust: 1800'), 'equipment upgrades do not contain all agreed dust costs'],
   [files.inventory.includes('data-testid="equipment-upgrade-costs"') && files.inventory.includes('grid-cols-3'), 'inventory does not visibly separate all three upgrade resources'],
@@ -45,4 +48,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Dust/avatar overhaul audit passed: legacy sigils migrate once, all repeatable rewards feed Veil Dust, upgrades consume three resources and all profile surfaces use vector portraits.');
+console.log('Dust/avatar overhaul audit passed: legacy sigils migrate once, quests/hunts/relics/world bosses feed Veil Dust, upgrades consume three resources and all profile surfaces use vector portraits.');
