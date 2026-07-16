@@ -1,4 +1,5 @@
 import type { GameEngine } from './runEngine';
+import { loadMetaProgression, type EquipmentId } from './metaProgression';
 import { skillRank } from './runSkills';
 
 export type RunSynergyId = 'inferno-lance' | 'shatterfrost' | 'arrow-storm' | 'veil-step' | 'elemental-storm' | 'veil-chain';
@@ -7,6 +8,12 @@ export type RunSynergyState = {
   announced: Set<RunSynergyId>;
   processedEffects: Set<string>;
   fusionEffects: Set<string>;
+  equipmentEffects: Set<string>;
+  frostDeaths: Set<string>;
+  frostApplications: Map<string, number>;
+  equipmentIds: Set<EquipmentId>;
+  equipmentRefreshAt: number;
+  ritualRicochets: number;
   lastAttackTime: number;
   attackChain: number;
   elementalAttackTime: number;
@@ -19,6 +26,12 @@ export function createRunSynergyState(): RunSynergyState {
     announced: new Set(),
     processedEffects: new Set(),
     fusionEffects: new Set(),
+    equipmentEffects: new Set(),
+    frostDeaths: new Set(),
+    frostApplications: new Map(),
+    equipmentIds: new Set(),
+    equipmentRefreshAt: 0,
+    ritualRicochets: 0,
     lastAttackTime: 0,
     attackChain: 0,
     elementalAttackTime: 0,
@@ -42,6 +55,89 @@ function damageEnemy(engine: GameEngine, enemy: GameEngine['state']['enemies'][n
   const x = enemy.x + enemy.width / 2;
   const y = enemy.y + enemy.height / 2;
   engine.state.damageNumbers.push({ id: `${id}-${time}-${enemy.id}`, x, y: enemy.y - 8, value: `-${dealt}`, color, lifeTime: 0, maxLifeTime: 650, scale: 1.18 });
+}
+
+function refreshEquipment(state: RunSynergyState, time: number) {
+  if (time < state.equipmentRefreshAt) return;
+  state.equipmentRefreshAt = time + 750;
+  const meta = loadMetaProgression();
+  state.equipmentIds = new Set(Object.values(meta.equipped));
+}
+
+function hasEquipment(state: RunSynergyState, id: EquipmentId) {
+  return state.equipmentIds.has(id);
+}
+
+function markEquipmentEffect(state: RunSynergyState, key: string) {
+  if (state.equipmentEffects.has(key)) return false;
+  state.equipmentEffects.add(key);
+  return true;
+}
+
+function equipmentFrostSet(engine: GameEngine, state: RunSynergyState, time: number) {
+  const activeEnemyIds = new Set(engine.state.enemies.map(enemy => enemy.id));
+  for (const id of state.frostApplications.keys()) if (!activeEnemyIds.has(id)) state.frostApplications.delete(id);
+
+  if (hasEquipment(state, 'frost-quiver')) {
+    for (const enemy of engine.state.enemies) {
+      const current = enemy.frostUntil ?? 0;
+      const previous = state.frostApplications.get(enemy.id) ?? 0;
+      if (enemy.isDead || current <= time || current <= previous) continue;
+      const extended = time + Math.round((current - time) * 1.2);
+      enemy.frostUntil = extended;
+      state.frostApplications.set(enemy.id, extended);
+    }
+  }
+
+  if (!hasEquipment(state, 'frost-grimoire')) return;
+  for (const enemy of engine.state.enemies) {
+    if (!enemy.isDead || state.frostDeaths.has(enemy.id) || (enemy.frostUntil ?? 0) <= (enemy.deathTime ?? time)) continue;
+    state.frostDeaths.add(enemy.id);
+    const x = enemy.x + enemy.width / 2;
+    const y = enemy.y + enemy.height / 2;
+    const damage = Math.max(4, Math.round(engine.state.player.attack * 0.15));
+    engine.state.effects.push({ id: `frost-grimoire-${enemy.id}`, x, y, radius: 0, maxRadius: 70, color: '#79ddff', lifeTime: 0, maxLifeTime: 520, type: 'circle', element: 'ice' });
+    for (const target of engine.state.enemies) {
+      const tx = target.x + target.width / 2;
+      const ty = target.y + target.height / 2;
+      if (Math.hypot(tx - x, ty - y) > 62) continue;
+      damageEnemy(engine, target, damage, time, '#79ddff', 'frost-grimoire');
+      target.frostUntil = Math.max(target.frostUntil ?? 0, time + 800);
+      target.frostSlow = Math.max(target.frostSlow ?? 0, 0.18);
+    }
+  }
+}
+
+function equipmentProjectileSets(engine: GameEngine, state: RunSynergyState, time: number) {
+  for (const effect of engine.state.effects) {
+    const target = effect.toEnemyId ? engine.state.enemies.find(enemy => enemy.id === effect.toEnemyId) : null;
+    if (!target) continue;
+
+    if (effect.id.startsWith('rico-') && hasEquipment(state, 'rune-quiver') && markEquipmentEffect(state, `rune:${effect.id}`)) {
+      const bonus = Math.max(1, Math.round(engine.state.player.attack * 0.08));
+      damageEnemy(engine, target, bonus, time, '#b184ff', 'rune-quiver');
+    }
+
+    if (effect.id.startsWith('rico-') && hasEquipment(state, 'ritual-shard') && markEquipmentEffect(state, `ritual:${effect.id}`)) {
+      state.ritualRicochets++;
+      if (state.ritualRicochets % 3 === 0) {
+        const x = target.x + target.width / 2;
+        const y = target.y + target.height / 2;
+        const damage = Math.max(3, Math.round(engine.state.player.attack * 0.12));
+        engine.state.effects.push({ id: `ritual-pulse-${effect.id}`, x, y, radius: 0, maxRadius: 58, color: '#d684ff', lifeTime: 0, maxLifeTime: 440, type: 'circle', element: 'arcane' });
+        for (const enemy of engine.state.enemies) {
+          const ex = enemy.x + enemy.width / 2;
+          const ey = enemy.y + enemy.height / 2;
+          if (Math.hypot(ex - x, ey - y) <= 50) damageEnemy(engine, enemy, damage, time, '#d684ff', 'ritual-pulse');
+        }
+      }
+    }
+
+    if (effect.id.startsWith('pierce-') && hasEquipment(state, 'splinter-quiver') && markEquipmentEffect(state, `splinter:${effect.id}`)) {
+      const bonus = Math.max(2, Math.round(engine.state.player.attack * 0.1));
+      damageEnemy(engine, target, bonus, time, '#e0c089', 'splinter-quiver');
+    }
+  }
 }
 
 function infernoLance(engine: GameEngine, state: RunSynergyState, time: number) {
@@ -183,6 +279,13 @@ export function updateRunSynergies(engine: GameEngine, state: RunSynergyState, t
   const activeEffects = new Set(engine.state.effects.map(effect => effect.id));
   for (const id of state.processedEffects) if (!activeEffects.has(id)) state.processedEffects.delete(id);
   for (const id of state.fusionEffects) if (!activeEffects.has(id)) state.fusionEffects.delete(id);
+  for (const key of state.equipmentEffects) {
+    const effectId = key.slice(key.indexOf(':') + 1);
+    if (!activeEffects.has(effectId)) state.equipmentEffects.delete(key);
+  }
+  refreshEquipment(state, time);
+  equipmentFrostSet(engine, state, time);
+  equipmentProjectileSets(engine, state, time);
   infernoLance(engine, state, time);
   shatterfrost(engine, state, time);
   elementalStorm(engine, state, time);
