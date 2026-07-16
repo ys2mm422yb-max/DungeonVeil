@@ -11,29 +11,50 @@ export type VeilRelicDefinition = {
 };
 
 export const VEIL_RELICS: Record<VeilRelicId, VeilRelicDefinition> = {
-  'ash-eye': { id: 'ash-eye', nameDe: 'Auge des Aschenjägers', nameEn: "Ash Hunter's Eye", descriptionDe: 'Spürt Jagd-Gegner früher auf und erhöht ihre Erscheinungschance.', descriptionEn: 'Detects hunt enemies earlier and increases their appearance chance.', source: 'hunt', accent: '#e6a94a' },
-  'marked-claw': { id: 'marked-claw', nameDe: 'Gezeichnete Kralle', nameEn: 'Marked Claw', descriptionDe: 'Nach jedem Kill 2,5 Sekunden lang 22 % schneller schießen.', descriptionEn: 'After every kill, shoot 22% faster for 2.5 seconds.', source: 'hunt', accent: '#e15e4e' },
+  'ash-eye': { id: 'ash-eye', nameDe: 'Auge des Aschenjägers', nameEn: "Ash Hunter's Eye", descriptionDe: 'Erlaubt eine zusätzliche Jagd pro Kapitel und spürt Jagd-Gegner früher auf.', descriptionEn: 'Allows one additional hunt per chapter and detects hunt enemies earlier.', source: 'hunt', accent: '#e6a94a' },
+  'marked-claw': { id: 'marked-claw', nameDe: 'Gezeichnete Kralle', nameEn: 'Marked Claw', descriptionDe: 'Nach jedem fünften Kill 3 Sekunden lang 18 % schneller schießen.', descriptionEn: 'After every fifth kill, shoot 18% faster for 3 seconds.', source: 'hunt', accent: '#e15e4e' },
   'night-hunt-sigil': { id: 'night-hunt-sigil', nameDe: 'Siegel der Nachtjagd', nameEn: 'Night Hunt Sigil', descriptionDe: 'Jagd-Gegner gewähren 50 % mehr Schleierstaub.', descriptionEn: 'Hunt enemies grant 50% more Veil Dust.', source: 'hunt', accent: '#9c74e8' },
   'veil-heart': { id: 'veil-heart', nameDe: 'Herz des Schleiers', nameEn: 'Heart of the Veil', descriptionDe: 'Verhindert einmal pro Run tödlichen Schaden und stellt 30 % Leben wieder her.', descriptionEn: 'Prevents lethal damage once per run and restores 30% health.', source: 'boss', accent: '#c786ff' },
-  'broken-guardian-crown': { id: 'broken-guardian-crown', nameDe: 'Krone des gebrochenen Wächters', nameEn: 'Crown of the Broken Guardian', descriptionDe: 'Nach einem Boss-Kill erhältst du für den restlichen Run 10 % mehr Angriff.', descriptionEn: 'After a boss kill, gain 10% attack for the rest of the run.', source: 'boss', accent: '#e6c16f' },
-  'depth-rune-shard': { id: 'depth-rune-shard', nameDe: 'Runensplitter der Tiefe', nameEn: 'Depth Rune Shard', descriptionDe: 'Runensturm-Schaden wird um 25 % reduziert.', descriptionEn: 'Rune storm damage is reduced by 25%.', source: 'boss', accent: '#7dbfff' },
-  'world-core': { id: 'world-core', nameDe: 'Weltenkern', nameEn: 'World Core', descriptionDe: 'Zu Beginn jedes Runs: +8 % Angriff und +12 % maximales Leben.', descriptionEn: 'At the start of every run: +8% attack and +12% maximum health.', source: 'worldboss', accent: '#ff8b4a' },
+  'broken-guardian-crown': { id: 'broken-guardian-crown', nameDe: 'Krone des gebrochenen Wächters', nameEn: 'Crown of the Broken Guardian', descriptionDe: 'Boss-Kills gewähren je 4 % Angriff, maximal fünf Stapel pro Run.', descriptionEn: 'Boss kills grant 4% attack each, up to five stacks per run.', source: 'boss', accent: '#e6c16f' },
+  'depth-rune-shard': { id: 'depth-rune-shard', nameDe: 'Runensplitter der Tiefe', nameEn: 'Depth Rune Shard', descriptionDe: 'Runensturm-Schaden wird vor dem Treffer um 25 % reduziert.', descriptionEn: 'Rune storm damage is reduced by 25% before the hit.', source: 'boss', accent: '#7dbfff' },
+  'world-core': { id: 'world-core', nameDe: 'Weltenkern', nameEn: 'World Core', descriptionDe: 'Zu Beginn jedes Runs: +6 % Angriff und +10 % maximales Leben.', descriptionEn: 'At the start of every run: +6% attack and +10% maximum health.', source: 'worldboss', accent: '#ff8b4a' },
 };
 
 const RELIC_KEY = 'dungeon-veil-relics-v1';
 const META_KEY = 'dungeon-veil-meta';
 
-type VeilRelicProfile = {
+export const HUNT_RELIC_PITY = 6;
+export const BOSS_RELIC_PITY = 8;
+export const GUARDIAN_CROWN_MAX_STACKS = 5;
+
+export type VeilRelicProfile = {
   owned: VeilRelicId[];
   equipped: VeilRelicId | null;
   consumedHeartRuns: string[];
   activatedWorldCoreRuns: string[];
+  huntPity: number;
+  bossPity: number;
+  crownRunId: string;
+  crownStacks: number;
 };
 
-const DEFAULT_PROFILE: VeilRelicProfile = { owned: [], equipped: null, consumedHeartRuns: [], activatedWorldCoreRuns: [] };
+const DEFAULT_PROFILE: VeilRelicProfile = {
+  owned: [],
+  equipped: null,
+  consumedHeartRuns: [],
+  activatedWorldCoreRuns: [],
+  huntPity: 0,
+  bossPity: 0,
+  crownRunId: '',
+  crownStacks: 0,
+};
 
 function isRelicId(value: unknown): value is VeilRelicId {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(VEIL_RELICS, value);
+}
+
+function safeCounter(value: unknown, max: number): number {
+  return Math.max(0, Math.min(max, Math.floor(Number(value) || 0)));
 }
 
 export function loadVeilRelicProfile(): VeilRelicProfile {
@@ -48,6 +69,10 @@ export function loadVeilRelicProfile(): VeilRelicProfile {
       equipped,
       consumedHeartRuns: Array.isArray(parsed.consumedHeartRuns) ? parsed.consumedHeartRuns.filter(value => typeof value === 'string').slice(-30) : [],
       activatedWorldCoreRuns: Array.isArray(parsed.activatedWorldCoreRuns) ? parsed.activatedWorldCoreRuns.filter(value => typeof value === 'string').slice(-30) : [],
+      huntPity: safeCounter(parsed.huntPity, HUNT_RELIC_PITY),
+      bossPity: safeCounter(parsed.bossPity, BOSS_RELIC_PITY),
+      crownRunId: typeof parsed.crownRunId === 'string' ? parsed.crownRunId : '',
+      crownStacks: safeCounter(parsed.crownStacks, GUARDIAN_CROWN_MAX_STACKS),
     };
   } catch {
     return structuredClone(DEFAULT_PROFILE);
@@ -59,6 +84,9 @@ function saveVeilRelicProfile(profile: VeilRelicProfile): VeilRelicProfile {
     ...profile,
     consumedHeartRuns: profile.consumedHeartRuns.slice(-30),
     activatedWorldCoreRuns: profile.activatedWorldCoreRuns.slice(-30),
+    huntPity: safeCounter(profile.huntPity, HUNT_RELIC_PITY),
+    bossPity: safeCounter(profile.bossPity, BOSS_RELIC_PITY),
+    crownStacks: safeCounter(profile.crownStacks, GUARDIAN_CROWN_MAX_STACKS),
   }));
   window.dispatchEvent(new CustomEvent('dungeon-veil-relic-changed', { detail: profile }));
   return profile;
@@ -121,3 +149,48 @@ export function consumeVeilHeartForCurrentRun(): boolean {
 
 export const HUNT_RELIC_POOL: VeilRelicId[] = ['ash-eye', 'marked-claw', 'night-hunt-sigil'];
 export const BOSS_RELIC_POOL: VeilRelicId[] = ['veil-heart', 'broken-guardian-crown', 'depth-rune-shard'];
+
+export function rollVeilRelicDrop(source: 'hunt' | 'boss', chance: number): VeilRelicId | null {
+  const profile = loadVeilRelicProfile();
+  const pityKey = source === 'hunt' ? 'huntPity' : 'bossPity';
+  const pityLimit = source === 'hunt' ? HUNT_RELIC_PITY : BOSS_RELIC_PITY;
+  const guaranteed = profile[pityKey] >= pityLimit - 1;
+  if (!guaranteed && Math.random() > Math.max(0, Math.min(1, chance))) {
+    profile[pityKey] = Math.min(pityLimit, profile[pityKey] + 1);
+    saveVeilRelicProfile(profile);
+    return null;
+  }
+
+  profile[pityKey] = 0;
+  const pool = source === 'hunt' ? HUNT_RELIC_POOL : BOSS_RELIC_POOL;
+  const unowned = pool.filter(id => !profile.owned.includes(id));
+  const candidates = unowned.length ? unowned : pool;
+  const id = candidates[Math.floor(Math.random() * candidates.length)] as VeilRelicId;
+  saveVeilRelicProfile(profile);
+  return id;
+}
+
+function crownProfileForCurrentRun(): { profile: VeilRelicProfile; runId: string } {
+  const profile = loadVeilRelicProfile();
+  const runId = currentRunId();
+  if (profile.crownRunId !== runId) {
+    profile.crownRunId = runId;
+    profile.crownStacks = 0;
+    saveVeilRelicProfile(profile);
+  }
+  return { profile, runId };
+}
+
+export function guardianCrownStacksForCurrentRun(): number {
+  if (!hasEquippedVeilRelic('broken-guardian-crown')) return 0;
+  return crownProfileForCurrentRun().profile.crownStacks;
+}
+
+export function advanceGuardianCrownForCurrentRun(): number {
+  if (!hasEquippedVeilRelic('broken-guardian-crown')) return 0;
+  const { profile, runId } = crownProfileForCurrentRun();
+  if (!runId || profile.crownStacks >= GUARDIAN_CROWN_MAX_STACKS) return profile.crownStacks;
+  profile.crownStacks++;
+  saveVeilRelicProfile(profile);
+  return profile.crownStacks;
+}
