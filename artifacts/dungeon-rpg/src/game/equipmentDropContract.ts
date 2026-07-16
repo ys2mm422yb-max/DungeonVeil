@@ -33,11 +33,12 @@ function eligibleEquipment(
   source: EquipmentDropSource | null,
 ): EquipmentDefinition[] {
   const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
-  return Object.values(EQUIPMENT).filter(item => {
+  const eligible = Object.values(EQUIPMENT).filter(item => {
     if (source && item.dropSource !== source) return false;
-    if (item.unlockRank > meta.rank || equipmentUnlockChapter(item.id) > safeChapter) return false;
-    return (meta.owned[item.id]?.level ?? 0) < 5;
+    return item.unlockRank <= meta.rank && equipmentUnlockChapter(item.id) <= safeChapter;
   });
+  const unfinished = eligible.filter(item => (meta.owned[item.id]?.level ?? 0) < 5);
+  return unfinished.length ? unfinished : eligible;
 }
 
 function equipmentDrop(meta: MetaProgression, item: EquipmentDefinition): PendingEquipmentDrop {
@@ -114,8 +115,8 @@ export function bossEquipmentSource(chapter: number, floor: number): EquipmentDr
   const safeFloor = Math.max(1, Math.min(FINAL_BOSS_ROOM, Math.floor(Number(floor) || 1)));
   if (!isBossRoom(safeFloor) || safeFloor === FINAL_BOSS_ROOM) return null;
   if (safeFloor === 10) return 'forge';
-  if (safeFloor === 20) return safeChapter >= 4 ? 'ritual' : 'hunt';
-  if (safeFloor === 30) return safeChapter >= 3 ? 'warden' : 'depth';
+  if (safeFloor === 20) return safeChapter >= 6 ? 'ritual' : 'hunt';
+  if (safeFloor === 30) return safeChapter >= 4 ? 'warden' : 'depth';
   return safeFloor === 40 ? 'depth' : null;
 }
 
