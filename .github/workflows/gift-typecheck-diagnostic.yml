@@ -1,9 +1,11 @@
 name: Gift Typecheck Diagnostic
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/bounded-run-gift-progression
+      - main
+      - 'fix/**'
+      - 'work/**'
 
 permissions:
   contents: read
