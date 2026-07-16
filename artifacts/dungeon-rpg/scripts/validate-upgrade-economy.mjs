@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 
-const [economy, inventory] = await Promise.all([
+const [economy, meta, inventory] = await Promise.all([
   readFile(new URL('../src/game/equipmentUpgradeEconomy.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/metaProgression.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/screens/VeilChamberScreen.tsx', import.meta.url), 'utf8'),
 ]);
 
@@ -12,6 +13,7 @@ const checks = [
   [economy.includes('4: { gold: 35000, copies: 5, dust: 1800 }'), 'level 4 upgrade does not cost 35000 gold, 5 copies and 1800 dust'],
   [economy.includes('meta.gold < cost.gold') && economy.includes('meta.dust < cost.dust') && economy.includes('progress.copies < cost.copies'), 'upgrade validation does not require all three resources'],
   [economy.includes('meta.gold -= cost.gold') && economy.includes('meta.dust -= cost.dust') && economy.includes('progress.copies -= cost.copies') && economy.includes('progress.level += 1'), 'real upgrade deduction does not subtract gold, dust and copies'],
+  [!meta.includes('const UPGRADE_COSTS') && !meta.includes('function equipmentUpgradeCost') && !meta.includes('function upgradeMetaItem'), 'legacy gold-and-copy-only upgrade logic still exists'],
   [inventory.includes('balancedEquipmentUpgradeCost(selected, meta)'), 'inventory is not displaying the balanced cost'],
   [inventory.includes('meta.dust >= cost.dust') && inventory.includes('selectedCopies >= cost.copies'), 'inventory upgrade button does not require dust and copies'],
   [inventory.includes('upgradeMetaItemBalanced(selected)'), 'inventory upgrade button still uses the legacy economy'],
@@ -26,4 +28,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Upgrade economy audit passed: upgrades require 2000/6000/15000/35000 gold, unchanged copy gates and 75/250/700/1800 Veil Dust.');
+console.log('Upgrade economy audit passed: the sole upgrade path requires 2000/6000/15000/35000 gold, unchanged copy gates and 75/250/700/1800 Veil Dust.');
