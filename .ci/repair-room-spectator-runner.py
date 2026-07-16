@@ -5,8 +5,11 @@ target_path = Path('.ci/apply-room-spectator-firelands.repaired.mjs')
 text = source_path.read_text(encoding='utf-8')
 
 # The runner writes TypeScript files through multiline JavaScript template literals.
-# Escape template literals that belong to the generated TypeScript while preserving
-# the outer delimiters used by the runner itself.
+# Escape template literals and ${...} expressions that belong to the generated
+# TypeScript while preserving the outer delimiters used by the runner itself.
+def escape_generated_template(body: str) -> str:
+    return body.replace('`', r'\`').replace('${', r'\${')
+
 pos = 0
 while True:
     call = text.find("write('", pos)
@@ -16,7 +19,7 @@ while True:
     closing = text.find('\n`);', opening + 1)
     if opening < 0 or closing < 0:
         raise RuntimeError(f'Unable to locate write template near offset {call}')
-    body = text[opening + 1:closing].replace('`', r'\`')
+    body = escape_generated_template(text[opening + 1:closing])
     text = text[:opening + 1] + body + text[closing:]
     pos = opening + 1 + len(body) + len('\n`);')
 
@@ -37,7 +40,7 @@ while True:
     closing = text.find('`,\n);', opening + 1)
     if closing < 0:
         raise RuntimeError(f'Unable to locate patch template near offset {call}')
-    body = text[opening + 1:closing].replace('`', r'\`')
+    body = escape_generated_template(text[opening + 1:closing])
     text = text[:opening + 1] + body + text[closing:]
     pos = opening + 1 + len(body) + len('`,\n);')
 
