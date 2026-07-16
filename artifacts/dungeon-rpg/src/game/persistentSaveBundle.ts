@@ -4,6 +4,7 @@ const PRE_RESTORE_BACKUP_KEY = 'dungeon-veil-pre-cloud-restore-v1';
 const BUNDLE_KEYS = [
   'dungeon-veil-save',
   'dungeon-veil-meta',
+  'dungeon-veil-equipment-targeting-v1',
   'dungeon-veil-relics-v1',
   'dungeon-veil-retention-v2',
   'dungeon-veil-weekly-rift-records-v1',
@@ -58,6 +59,10 @@ function equipmentProgressWeight(value: unknown): number {
   }, 0);
 }
 
+function sourceMarkWeight(value: unknown): number {
+  return Object.values(record(value)).reduce<number>((total, raw) => total + Math.floor(number(raw)) * 3_000, 0);
+}
+
 export function persistentPlayerId(): string {
   try {
     const stored = localStorage.getItem(PLAYER_ID_KEY);
@@ -99,6 +104,7 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   const stats = record(profile.stats);
   const meta = parseBundleValue(bundle, 'dungeon-veil-meta');
   const owned = record(meta.owned);
+  const targeting = parseBundleValue(bundle, 'dungeon-veil-equipment-targeting-v1');
   const retention = parseBundleValue(bundle, 'dungeon-veil-retention-v2');
   const codex = record(retention.codex);
   const elite = parseBundleValue(bundle, 'dungeon-veil-weekly-elite-v1');
@@ -129,6 +135,8 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   weight += number(meta.dust) * 100;
   weight += Object.keys(owned).length * 10_000;
   weight += equipmentProgressWeight(owned);
+  weight += sourceMarkWeight(targeting.sourceMarks);
+  if (typeof targeting.wishItem === 'string' && targeting.wishItem) weight += 2_000;
   weight += number(retention.sigils) * 100;
   weight += stringArrayLength(codex.enemies) * 500 + stringArrayLength(codex.bosses) * 2_000;
   weight += stringArrayLength(codex.hunts) * 1_000 + stringArrayLength(codex.relics) * 3_000;
