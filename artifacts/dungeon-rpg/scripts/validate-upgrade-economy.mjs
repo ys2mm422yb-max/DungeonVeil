@@ -20,7 +20,7 @@ const checks = [
   [!meta.includes('const UPGRADE_COSTS') && !meta.includes('function equipmentUpgradeCost') && !meta.includes('function upgradeMetaItem'), 'legacy gold-and-copy-only upgrade logic still exists'],
   [targeting.includes('export const EQUIPMENT_SOURCE_MARK_COST = 3;'), 'copy crafting does not require exactly three source marks'],
   [targeting.includes('profile.sourceMarks[source] < EQUIPMENT_SOURCE_MARK_COST') && targeting.includes('profile.sourceMarks[source] -= EQUIPMENT_SOURCE_MARK_COST'), 'copy crafting does not validate and deduct source marks atomically'],
-  [targeting.includes('collectMetaEquipmentDrop(id)') && targeting.includes('newUnlock: !result.duplicate'), 'source marks cannot unlock or copy the selected equipment'],
+  [targeting.includes('collectBalancedEquipmentDrop(id)') && targeting.includes('newUnlock: !result.duplicate') && targeting.includes('convertedDust: result.convertedDust'), 'source marks cannot unlock, copy or safely convert the selected equipment'],
   [targeting.includes('equipmentCanBeTargeted(id, meta)') && targeting.includes('level < 5'), 'locked or completed equipment can be crafted'],
   [dropContract.includes('export const HUNT_EQUIPMENT_DROP_CHANCE = 0.18;'), 'hunt equipment chance regressed while adding targeted copies'],
   [dropContract.includes('misses >= WISH_PITY_MISSES') && dropContract.includes('SOURCE_WISH_CHANCE') && dropContract.includes('CHAPTER_WISH_CHANCE'), 'wish chance and pity are not active in the real drop contract'],
@@ -43,4 +43,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Upgrade economy audit passed: the sole three-resource upgrade path remains active, while three source marks and bounded wish pity provide controlled copies.');
+console.log('Upgrade economy audit passed: the sole three-resource upgrade path remains active, while three source marks, safe duplicate conversion and bounded wish pity provide controlled copies.');
