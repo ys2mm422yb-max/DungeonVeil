@@ -5,10 +5,15 @@ import {
 import { buildRoomOneGrandEntrance } from './roomOneGrandEntrance3D';
 import { buildRoomTwoCommandWatch } from './roomTwoCommandWatch3D';
 import { buildFirelandsTheme } from './firelandsTheme3D';
+import { buildMeadowRoomTheme, preloadMeadowRoomTheme } from './meadowRoomsTheme3D';
 
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
-export const preloadKayKitRoomTheme = preloadBaseKayKitRoomTheme;
+export async function preloadKayKitRoomTheme(room: number) {
+  const tasks: Promise<unknown>[] = [preloadBaseKayKitRoomTheme(room)];
+  if (room >= 21 && room <= 30) tasks.push(preloadMeadowRoomTheme(room));
+  await Promise.allSettled(tasks);
+}
 
 function cleanStaticRoomTheme(root: any, room: number) {
   let pointLights = 0;
@@ -41,12 +46,15 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
 
   if (room === 1) additions.push(buildRoomOneGrandEntrance(THREE));
   if (room === 2) additions.push(buildRoomTwoCommandWatch(THREE));
+  if (room >= 21 && room <= 30) additions.push(buildMeadowRoomTheme(THREE, room));
   if (room >= 41 && room <= 50) additions.push(buildFirelandsTheme(THREE, room));
 
   additions.forEach(addition => root.add(addition));
   cleanStaticRoomTheme(root, room);
 
-  const baseReady = root.userData?.ready ?? Promise.resolve();
+  const baseReady = Promise.resolve(root.userData?.ready ?? Promise.resolve()).catch(error => {
+    console.warn(`Base room theme partially unavailable in room ${room}`, error);
+  });
   root.userData.ready = Promise.all([
     baseReady,
     ...additions.map(addition => addition.userData?.ready ?? Promise.resolve()),

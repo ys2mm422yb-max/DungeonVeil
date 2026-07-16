@@ -154,7 +154,7 @@ const MEADOW_LAYOUTS: Record<number, ExpandedWorldSetpiece[]> = {
     s(`${F}/Tree_1_B_Color1.gltf`, -8.4, -5.0, 0.12, 1.12, [1.8, 1.8]), s(`${F}/Grass_2_Mesh.gltf`, 0, 2.0, 0, 1.52), s(`${F}/Bush_3_B_Color1.gltf`, 7.2, -4.2, 0, 1.08),
   ],
   10: [
-    s(`${F}/Rock_3_R_Color1.gltf`, 0, -4.8, 0, 1.62, [1.8, 1.4]), s(`${F}/Tree_1_C_Color1.gltf`, -7.0, -1.0, 0.1, 1.28, [1.8, 1.8]),
+    s(`${F}/Rock_3_A_Color1.gltf`, 0, -4.8, 0, 1.62, [1.8, 1.4]), s(`${F}/Tree_1_C_Color1.gltf`, -7.0, -1.0, 0.1, 1.28, [1.8, 1.8]),
     s(`${F}/Tree_2_B_Color1.gltf`, 7.0, -1.0, -0.1, 1.28, [1.8, 1.8]), s(`${F}/Rock_2_A_Color1.gltf`, -6.2, 4.4, 0.2, 1.08, [1.2, 1.0]),
     s(`${F}/Rock_2_C_Color1.gltf`, 6.2, 4.4, -0.2, 1.08, [1.2, 1.0]),
   ],
