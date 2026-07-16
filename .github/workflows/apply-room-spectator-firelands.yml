@@ -1,54 +1,73 @@
 name: Apply requested room and spectator pass
 
 on:
-  push:
+  pull_request:
     branches:
-      - work/room-loading-spectator-firelands
-    paths:
-      - '.ci/apply-room-spectator-firelands.mjs'
-      - '.github/workflows/apply-room-spectator-firelands.yml'
+      - fix/mobile-telegraphs-room-21-50-balance
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[applied-room-spectator-firelands]') }}
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'work/room-loading-spectator-firelands'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - name: Checkout work branch
         uses: actions/checkout@v4
         with:
+          ref: work/room-loading-spectator-firelands
           fetch-depth: 0
 
+      - name: Guard repeated runs
+        id: guard
+        shell: bash
+        run: |
+          if git log -1 --pretty=%B | grep -q '\[applied-room-spectator-firelands\]'; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup pnpm
+        if: steps.guard.outputs.should_run == 'true'
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Setup Node
+        if: steps.guard.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
       - name: Apply requested changes
+        if: steps.guard.outputs.should_run == 'true'
         run: node .ci/apply-room-spectator-firelands.mjs
 
       - name: Install dependencies
+        if: steps.guard.outputs.should_run == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Validate requested pass
+        if: steps.guard.outputs.should_run == 'true'
         run: pnpm --filter @workspace/dungeon-rpg audit:requested-pass
 
       - name: TypeScript
+        if: steps.guard.outputs.should_run == 'true'
         run: pnpm run typecheck
 
       - name: Production build
+        if: steps.guard.outputs.should_run == 'true'
         run: pnpm --dir artifacts/dungeon-rpg run build
 
       - name: Commit validated branch changes
+        if: steps.guard.outputs.should_run == 'true'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -56,5 +75,3 @@ jobs:
           git add artifacts/dungeon-rpg supabase/migrations
           git commit -m "[applied-room-spectator-firelands] implement requested gameplay pass"
           git push origin HEAD:work/room-loading-spectator-firelands
-
-# Explicit second trigger after the workflow existed on the branch.
