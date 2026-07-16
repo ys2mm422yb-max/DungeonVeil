@@ -51,7 +51,8 @@ jobs:
         shell: bash
         run: |
           set +e
-          node .ci/apply-room-spectator-firelands.mjs 2>&1 | tee .ci/patch-run.log
+          python .ci/repair-room-spectator-runner.py
+          node .ci/apply-room-spectator-firelands.repaired.mjs 2>&1 | tee .ci/patch-run.log
           status=${PIPESTATUS[0]}
           exit "$status"
 
