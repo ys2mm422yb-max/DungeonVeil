@@ -49,7 +49,14 @@ jobs:
           path: audit-social.log
           if-no-files-found: ignore
       - name: Audit rooms 1-50, collision, enemies and mobile combat
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee audit-rooms-after-social.log
+      - name: Upload combined room audit diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-room-audit-diagnostics
+          path: audit-rooms-after-social.log
+          if-no-files-found: ignore
       - name: Typecheck full workspace
         run: pnpm run typecheck
       - name: Build GitHub Pages production output
