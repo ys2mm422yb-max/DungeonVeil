@@ -2,8 +2,10 @@ import React, { useMemo, useState } from 'react';
 import {
   ArrowUpRight,
   ChevronsRight,
+  Coins,
   Flame,
   Gauge,
+  Gem,
   GitMerge,
   HeartPulse,
   Orbit,
@@ -17,7 +19,7 @@ import {
 } from 'lucide-react';
 import { UpgradeKey } from '../../i18n/translations';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { RUN_SKILL_DEFS, isFusionKey, isInstantGift, nextSkillRank } from '../../game/runSkills';
+import { RUN_SKILL_DEFS, isFusionKey, isInstantGift, isMasteryGift, nextSkillRank } from '../../game/runSkills';
 
 interface Props {
   choices: UpgradeKey[];
@@ -48,8 +50,10 @@ const CARD_STYLES: Record<UpgradeKey, CardStyle> = {
   veilChain: { Icon: GitMerge, accent: '#b8a2ff', glow: 'rgba(184,162,255,.52)', labelDe: 'SCHLEIERKETTE', labelEn: 'VEIL CHAIN', tierDe: 'FUSION', tierEn: 'FUSION', rune: '⌁' },
   maxHp: { Icon: HeartPulse, accent: '#ff6e7e', glow: 'rgba(255,110,126,.46)', labelDe: 'LEBENSKRAFT', labelEn: 'VITALITY', tierDe: 'VITALITÄT', tierEn: 'VITALITY', rune: '♥' },
   heal: { Icon: Sparkles, accent: '#70e5a2', glow: 'rgba(112,229,162,.44)', labelDe: 'ERHOLUNG', labelEn: 'RECOVERY', tierDe: 'SOFORT', tierEn: 'INSTANT', rune: '+' },
-  hunterBlessing: { Icon: Swords, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERSEGEN', labelEn: 'HUNTER BLESSING', tierDe: 'SEGEN', tierEn: 'BLESSING', rune: '✧' },
-  vitalSpark: { Icon: HeartPulse, accent: '#ff8da0', glow: 'rgba(255,141,160,.46)', labelDe: 'LEBENSFUNKE', labelEn: 'VITAL SPARK', tierDe: 'SEGEN', tierEn: 'BLESSING', rune: '✦' },
+  hunterBlessing: { Icon: Swords, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERSEGEN', labelEn: 'HUNTER BLESSING', tierDe: 'MEISTERSCHAFT', tierEn: 'MASTERY', rune: '✧' },
+  vitalSpark: { Icon: HeartPulse, accent: '#ff8da0', glow: 'rgba(255,141,160,.46)', labelDe: 'LEBENSFUNKE', labelEn: 'VITAL SPARK', tierDe: 'MEISTERSCHAFT', tierEn: 'MASTERY', rune: '✦' },
+  veilCache: { Icon: Gem, accent: '#b793ff', glow: 'rgba(183,147,255,.46)', labelDe: 'SCHLEIERVORRAT', labelEn: 'VEIL CACHE', tierDe: 'BELOHNUNG', tierEn: 'REWARD', rune: '◇' },
+  goldCache: { Icon: Coins, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERTRUHE', labelEn: 'HUNTER CACHE', tierDe: 'BELOHNUNG', tierEn: 'REWARD', rune: '¤' },
   attack: { Icon: Swords, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERINSTINKT', labelEn: 'HUNTER INSTINCT', tierDe: 'ANGRIFF', tierEn: 'ATTACK', rune: 'X' },
   speed: { Icon: WandSparkles, accent: '#69cbff', glow: 'rgba(105,203,255,.44)', labelDe: 'WINDLÄUFER', labelEn: 'WINDRUNNER', tierDe: 'TEMPO', tierEn: 'TEMPO', rune: '≈' },
   defense: { Icon: Shield, accent: '#8eb2ff', glow: 'rgba(142,178,255,.44)', labelDe: 'WALDHAUT', labelEn: 'FOREST SKIN', tierDe: 'SCHUTZ', tierEn: 'GUARD', rune: '⬡' },
@@ -66,12 +70,14 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
     const def = RUN_SKILL_DEFS[key];
     const instant = isInstantGift(key);
     const fusion = isFusionKey(key);
+    const mastery = isMasteryGift(key);
     return {
       key,
       ...style,
       rank,
       instant,
       fusion,
+      mastery,
       label: language === 'de' ? style.labelDe : style.labelEn,
       tier: language === 'de' ? style.tierDe : style.tierEn,
       detail: language === 'de' ? def.rankTextDe[Math.max(0, rank - 1)] : def.rankTextEn[Math.max(0, rank - 1)],
@@ -94,9 +100,9 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
       <div className="relative flex h-full flex-col px-5 pb-[max(26px,env(safe-area-inset-bottom))] pt-[max(30px,env(safe-area-inset-top))]">
         <header className="mb-5 text-center" style={{ animation: 'veilTitle .48s cubic-bezier(.2,.9,.25,1) both' }}>
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full border border-amber-300/45 bg-amber-400/10 shadow-[0_0_48px_rgba(229,176,73,.22)]"><Sparkles size={24} strokeWidth={1.7} /></div>
-          <div className="text-[9px] font-black uppercase tracking-[.44em] text-amber-200/55">{language === 'de' ? 'RAUM BEZWUNGEN' : 'ROOM CLEARED'}</div>
+          <div className="text-[9px] font-black uppercase tracking-[.44em] text-amber-200/55">{language === 'de' ? 'MEILENSTEIN ERREICHT' : 'MILESTONE CLEARED'}</div>
           <h1 className="mt-2 font-serif text-[36px] leading-[.95] tracking-[.08em] text-[#f4ead5]">{language === 'de' ? 'WÄHLE DEINE GABE' : 'CHOOSE YOUR GIFT'}</h1>
-          <p className="mt-3 text-[10px] uppercase tracking-[.25em] text-white/38">{language === 'de' ? 'Eine Wahl vor dem nächsten Raum' : 'One choice before the next room'}</p>
+          <p className="mt-3 text-[10px] uppercase tracking-[.25em] text-white/38">{language === 'de' ? 'Eine Wahl für deinen fortlaufenden Run' : 'One choice for your ongoing run'}</p>
         </header>
 
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-3">
@@ -107,10 +113,10 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
             const rankLabel = card.fusion
               ? (language === 'de' ? 'KOMBINATION · 2× RANG III' : 'COMBINATION · 2× RANK III')
               : card.instant
-                ? card.key === 'heal'
-                  ? (language === 'de' ? `WAHL ${index + 1} · SOFORTEFFEKT` : `CHOICE ${index + 1} · INSTANT EFFECT`)
-                  : (language === 'de' ? `WAHL ${index + 1} · WIEDERHOLBARER SEGEN` : `CHOICE ${index + 1} · REPEATABLE BLESSING`)
-                : (language === 'de' ? `GABE ${index + 1} · RANG ${roman(card.rank)}` : `GIFT ${index + 1} · RANK ${roman(card.rank)}`);
+                ? (language === 'de' ? `WAHL ${index + 1} · SOFORTEFFEKT` : `CHOICE ${index + 1} · INSTANT EFFECT`)
+                : card.mastery
+                  ? (language === 'de' ? `MEISTERSCHAFT · RANG ${roman(card.rank)}` : `MASTERY · RANK ${roman(card.rank)}`)
+                  : (language === 'de' ? `GABE ${index + 1} · RANG ${roman(card.rank)}` : `GIFT ${index + 1} · RANK ${roman(card.rank)}`);
             return (
               <button
                 key={card.key}

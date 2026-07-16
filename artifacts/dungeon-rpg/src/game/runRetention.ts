@@ -5,10 +5,10 @@ import { dailyTaskIdsForDate, taskById, tasksForDate, type DailyMetric, type Dai
 import { activeWeeklyRiftId } from './weeklyRiftRun';
 import { grantMetaDust, migrateLegacySigilsToDust } from './metaCurrency';
 import {
-  HUNT_RELIC_POOL,
-  BOSS_RELIC_POOL,
   VEIL_RELICS,
+  advanceGuardianCrownForCurrentRun,
   equippedVeilRelic,
+  rollVeilRelicDrop,
   unlockVeilRelic,
   type VeilRelicId,
 } from './veilRelics';
@@ -32,6 +32,10 @@ export type RunRetentionState = {
   processedDeaths: Set<string>;
   huntTargetId: string;
   roomsSinceHunt: number;
+  huntChapter: number;
+  huntsSpawnedThisChapter: number;
+  lastHuntFloor: number;
+  clawKillChain: number;
   lastAuraAt: number;
   pendingRelics: Map<string, PendingRelicDrop>;
 };
@@ -130,7 +134,19 @@ function mutateProfile(mutator: (profile: RetentionProfile) => void): RetentionP
 }
 
 export function createRunRetentionState(): RunRetentionState {
-  return { roomKey: '', roomClearKey: '', processedDeaths: new Set<string>(), huntTargetId: '', roomsSinceHunt: 0, lastAuraAt: 0, pendingRelics: new Map() };
+  return {
+    roomKey: '',
+    roomClearKey: '',
+    processedDeaths: new Set<string>(),
+    huntTargetId: '',
+    roomsSinceHunt: 0,
+    huntChapter: 0,
+    huntsSpawnedThisChapter: 0,
+    lastHuntFloor: -99,
+    clawKillChain: 0,
+    lastAuraAt: 0,
+    pendingRelics: new Map(),
+  };
 }
 
 function markDiscoveries(engine: GameEngine): void {
@@ -146,15 +162,30 @@ function updateRunDailyMetrics(engine: GameEngine): void {
   });
 }
 
+function prepareHuntChapter(engine: GameEngine, state: RunRetentionState): void {
+  if (state.huntChapter === engine.state.chapter) return;
+  state.huntChapter = engine.state.chapter;
+  state.huntsSpawnedThisChapter = 0;
+  state.lastHuntFloor = -99;
+  state.roomsSinceHunt = 0;
+}
+
 function spawnHuntTarget(engine: GameEngine, state: RunRetentionState): void {
+  prepareHuntChapter(engine, state);
   const relic = equippedVeilRelic();
+  const riftActive = activeWeeklyRiftId() === 'empty-veil';
+  const maxHunts = Math.min(5, 3 + (relic === 'ash-eye' ? 1 : 0) + (riftActive ? 1 : 0));
+  if (state.huntsSpawnedThisChapter >= maxHunts) return;
+
   const minimumFloor = relic === 'ash-eye' ? 6 : 8;
   if (engine.state.floor < minimumFloor || isBossRoom(engine.state.floor)) return;
+  if (engine.state.floor - state.lastHuntFloor < 7) return;
   const living = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead);
   if (!living.length) return;
-  const riftBonus = activeWeeklyRiftId() === 'empty-veil' ? 0.4 : 0;
-  const relicBonus = relic === 'ash-eye' ? 0.16 : 0;
-  const chance = Math.min(0.18 + riftBonus + relicBonus + state.roomsSinceHunt * 0.09, activeWeeklyRiftId() === 'empty-veil' ? 0.96 : relic === 'ash-eye' ? 0.88 : 0.72);
+
+  const riftBonus = riftActive ? 0.22 : 0;
+  const relicBonus = relic === 'ash-eye' ? 0.12 : 0;
+  const chance = Math.min(0.16 + riftBonus + relicBonus + state.roomsSinceHunt * 0.075, riftActive ? 0.88 : relic === 'ash-eye' ? 0.78 : 0.68);
   if (Math.random() > chance) { state.roomsSinceHunt++; return; }
 
   const target = [...living].sort((a, b) => b.maxHp - a.maxHp)[0];
@@ -167,12 +198,14 @@ function spawnHuntTarget(engine: GameEngine, state: RunRetentionState): void {
   target.huntVisualVariant = visualVariant;
   target.width = Math.round(target.width * 1.16);
   target.height = Math.round(target.height * 1.16);
-  target.maxHp = Math.max(target.maxHp + 80, Math.round(target.maxHp * 3.1));
+  target.maxHp = Math.max(target.maxHp + 80, Math.round(target.maxHp * 2.65));
   target.hp = target.maxHp;
-  target.attack = Math.max(target.attack + 5, Math.round(target.attack * 1.5));
-  target.speed *= 1.12;
+  target.attack = Math.max(target.attack + 4, Math.round(target.attack * 1.38));
+  target.speed *= 1.1;
   target.color = visualVariant === 1 ? '#c984ef' : visualVariant === 2 ? '#ed7656' : '#d9a94b';
   state.huntTargetId = target.id;
+  state.huntsSpawnedThisChapter++;
+  state.lastHuntFloor = engine.state.floor;
   state.roomsSinceHunt = 0;
   const x = target.x + target.width / 2;
   const y = target.y + target.height / 2;
@@ -202,11 +235,10 @@ function pulseHuntAura(engine: GameEngine, state: RunRetentionState, time: numbe
 }
 
 function spawnRareRelicDrop(engine: GameEngine, state: RunRetentionState, source: 'hunt' | 'boss', x: number, y: number): void {
-  const riftBonus = activeWeeklyRiftId() === 'empty-veil' ? (source === 'hunt' ? 0.12 : 0.04) : 0;
-  const chance = (source === 'hunt' ? 0.18 : engine.state.floor === 50 ? 0.12 : 0.06) + riftBonus;
-  if (Math.random() > chance) return;
-  const pool = source === 'hunt' ? HUNT_RELIC_POOL : BOSS_RELIC_POOL;
-  const relicId = pool[Math.floor(Math.random() * pool.length)] as VeilRelicId;
+  const riftBonus = activeWeeklyRiftId() === 'empty-veil' ? (source === 'hunt' ? 0.05 : 0.03) : 0;
+  const baseChance = source === 'hunt' ? 0.1 : engine.state.floor === 50 ? 0.2 : 0.12;
+  const relicId = rollVeilRelicDrop(source, baseChance + riftBonus);
+  if (!relicId) return;
   const itemId = `relic-drop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   engine.state.items.push({ id: itemId, type: 'item', itemType: 'relic', relicId, value: 0, x: x - 10, y: y - 10, width: 20, height: 20, vx: 0, vy: 0, color: VEIL_RELICS[relicId].accent, spawnTime: performance.now() });
   state.pendingRelics.set(itemId, { relicId, roomKey: `${engine.state.chapter}:${engine.state.floor}`, source });
@@ -221,7 +253,7 @@ function processPendingRelicPickups(engine: GameEngine, state: RunRetentionState
     if (pending.roomKey !== roomKey) continue;
     const relic = VEIL_RELICS[pending.relicId];
     const result = unlockVeilRelic(pending.relicId);
-    const dustReward = pending.source === 'hunt' ? 18 : 60;
+    const dustReward = pending.source === 'hunt' ? 24 : 48;
     mutateProfile(profile => {
       profile.codex.relics.push(relic.nameDe);
       profile.daily.progress.relicFinds++;
@@ -250,13 +282,21 @@ function processDeaths(engine: GameEngine, state: RunRetentionState, time: numbe
     });
 
     if (activeRelic === 'marked-claw') {
-      engine.state.player.relicAttackSpeedUntil = time + 2500;
-      engine.state.effects.push({ id: `claw-rush-${time}`, x: engine.state.player.x + 16, y: engine.state.player.y + 16, radius: 0, maxRadius: 54, color: '#e15e4e', lifeTime: 0, maxLifeTime: 420, type: 'circle', element: 'fire' });
+      state.clawKillChain++;
+      if (state.clawKillChain % 5 === 0) {
+        engine.state.player.relicAttackSpeedUntil = time + 3000;
+        engine.state.effects.push({ id: `claw-rush-${time}`, x: engine.state.player.x + 16, y: engine.state.player.y + 16, radius: 0, maxRadius: 54, color: '#e15e4e', lifeTime: 0, maxLifeTime: 420, type: 'circle', element: 'fire' });
+      }
     }
+
     if (enemy.enemyType === 'boss' && activeRelic === 'broken-guardian-crown') {
-      engine.state.player.attack = Math.max(engine.state.player.attack + 1, Math.round(engine.state.player.attack * 1.1));
-      toast('DIE KRONE ERWACHT', '+10 % Angriff für den restlichen Run', 'relic');
+      const crown = advanceGuardianCrownForCurrentRun();
+      if (crown.gained) {
+        engine.state.player.attack += Math.max(1, Math.round(engine.state.player.attack * 0.04));
+        toast('DIE KRONE ERWACHT', `+4 % Angriff · Stapel ${crown.stack}/5`, 'relic');
+      }
     }
+
     if (isHunt) {
       toast('JAGD ABGESCHLOSSEN', `${huntName} besiegt · +${huntReward} Schleierstaub`, 'hunt');
       spawnRareRelicDrop(engine, state, 'hunt', enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
@@ -275,7 +315,7 @@ function processRoomClear(engine: GameEngine, state: RunRetentionState): void {
     if (engine.state.player.hp / Math.max(1, engine.state.player.maxHp) >= 0.8) profile.daily.progress.highHpRooms++;
     profile.daily.progress.deepestRoom = Math.max(profile.daily.progress.deepestRoom, engine.state.floor);
   });
-  if (engine.state.floor >= 20 && isBossRoom(engine.state.floor)) spawnRareRelicDrop(engine, state, 'boss', engine.state.map.width * 20, engine.state.map.height * 20);
+  if (isBossRoom(engine.state.floor)) spawnRareRelicDrop(engine, state, 'boss', engine.state.map.width * 20, engine.state.map.height * 20);
 }
 
 export function updateRunRetentionSystems(engine: GameEngine, state: RunRetentionState, time: number): void {

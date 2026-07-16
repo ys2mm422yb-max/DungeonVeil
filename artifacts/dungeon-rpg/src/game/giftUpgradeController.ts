@@ -1,5 +1,6 @@
 import type { UpgradeKey } from '../i18n/translations';
 import type { GameEngine, RunGameState } from './runEngine';
+import { grantMetaDust, grantMetaGold } from './metaCurrency';
 import {
   buildRunGiftChoices,
   consumeFusionComponents,
@@ -40,7 +41,8 @@ export function applyGiftUpgrade(engine: GameEngine, choice: UpgradeKey): boolea
   else if (choice === 'vitalSpark') {
     player.maxHp += 8;
     player.hp = Math.min(player.maxHp, player.hp + 8);
-  }
+  } else if (choice === 'veilCache') grantMetaDust(30);
+  else if (choice === 'goldCache') grantMetaGold(300);
 
   player.lastGiftTime = Date.now();
   player.lastGiftKey = choice;

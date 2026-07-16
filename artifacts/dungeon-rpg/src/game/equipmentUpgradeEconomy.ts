@@ -1,12 +1,12 @@
+import { clearEquipmentWishItemIfMatches } from './equipmentTargeting';
 import {
   loadMetaProgression,
   saveMetaProgression,
   type EquipmentId,
-  type EquipmentUpgradeCost,
   type MetaProgression,
 } from './metaProgression';
 
-export type BalancedEquipmentUpgradeCost = EquipmentUpgradeCost & { dust: number };
+export type BalancedEquipmentUpgradeCost = { gold: number; copies: number; dust: number };
 
 const BALANCED_UPGRADE_COSTS: Record<number, BalancedEquipmentUpgradeCost> = {
   1: { gold: 2000, copies: 1, dust: 75 },
@@ -35,7 +35,9 @@ export function upgradeMetaItemBalanced(id: EquipmentId) {
   meta.dust -= cost.dust;
   progress.copies -= cost.copies;
   progress.level += 1;
-  return saveMetaProgression(meta);
+  const saved = saveMetaProgression(meta);
+  if (progress.level >= 5) clearEquipmentWishItemIfMatches(id);
+  return saved;
 }
 
 export const EQUIPMENT_UPGRADE_GOLD_COSTS = Object.freeze({

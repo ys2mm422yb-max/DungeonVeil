@@ -7,7 +7,9 @@ export type SkillRankDef = {
 };
 
 export type FusionKey = 'elementalStorm' | 'arrowStorm' | 'veilChain';
-export type InstantGiftKey = 'heal' | 'hunterBlessing' | 'vitalSpark';
+export type InstantGiftKey = 'heal' | 'veilCache' | 'goldCache';
+export type MasteryGiftKey = 'hunterBlessing' | 'vitalSpark';
+export type OverflowGiftKey = InstantGiftKey | MasteryGiftKey;
 export type BaseCombatGiftKey = 'multishot' | 'ricochet' | 'fireArrow' | 'iceArrow' | 'attackSpeed' | 'piercing';
 
 export const DEFAULT_RUN_UPGRADE_POOL: UpgradeKey[] = [
@@ -21,7 +23,7 @@ export const FUSION_RECIPES: Record<FusionKey, readonly [BaseCombatGiftKey, Base
   veilChain: ['ricochet', 'piercing'],
 };
 
-export const OVERFLOW_GIFTS: InstantGiftKey[] = ['hunterBlessing', 'vitalSpark', 'heal'];
+export const OVERFLOW_GIFTS: OverflowGiftKey[] = ['hunterBlessing', 'vitalSpark', 'heal', 'veilCache', 'goldCache'];
 
 export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   multishot: {
@@ -56,18 +58,18 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   elementalStorm: {
     maxRank: 1,
-    rankTextDe: ['Feuerpfeil III + Frostpfeil III · beide Elementeffekte bleiben in einem Gabenplatz aktiv'],
-    rankTextEn: ['Fire Arrow III + Frost Arrow III · both elemental effects remain active in one gift slot'],
+    rankTextDe: ['Feuerpfeil III + Frostpfeil III · jeder fünfte Elementartreffer entfesselt einen kleinen Ausbruch'],
+    rankTextEn: ['Fire Arrow III + Frost Arrow III · every fifth elemental hit unleashes a small burst'],
   },
   arrowStorm: {
     maxRank: 1,
-    rankTextDe: ['Mehrfachpfeil III + Schnellzug III · Pfeilfächer und maximales Angriffstempo in einem Gabenplatz'],
-    rankTextEn: ['Multishot III + Quick Draw III · full arrow fan and maximum attack speed in one gift slot'],
+    rankTextDe: ['Mehrfachpfeil III + Schnellzug III · Zusatzpfeile verursachen 90% Schaden'],
+    rankTextEn: ['Multishot III + Quick Draw III · extra arrows deal 90% damage'],
   },
   veilChain: {
     maxRank: 1,
-    rankTextDe: ['Abpraller III + Durchbohren III · volle Ketten- und Durchschlagswirkung in einem Gabenplatz'],
-    rankTextEn: ['Ricochet III + Piercing III · full chain and piercing effects in one gift slot'],
+    rankTextDe: ['Abpraller III + Durchbohren III · Folge- und Kettentreffer verursachen 10% mehr Schaden'],
+    rankTextEn: ['Ricochet III + Piercing III · follow-up and chain hits deal 10% more damage'],
   },
   attack: {
     maxRank: 3,
@@ -95,14 +97,24 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
     rankTextEn: ['Instantly heal 20% max HP'],
   },
   hunterBlessing: {
-    maxRank: 1,
-    rankTextDe: ['Wiederholbarer später Segen · +2 Angriff für diesen Run'],
-    rankTextEn: ['Repeatable late blessing · +2 attack for this run'],
+    maxRank: 3,
+    rankTextDe: ['Meisterschaft I · +2 Angriff', 'Meisterschaft II · nochmals +2 Angriff', 'Meisterschaft III · letztmals +2 Angriff'],
+    rankTextEn: ['Mastery I · +2 attack', 'Mastery II · another +2 attack', 'Mastery III · final +2 attack'],
   },
   vitalSpark: {
+    maxRank: 3,
+    rankTextDe: ['Meisterschaft I · +8 Max-LP und +8 LP', 'Meisterschaft II · nochmals +8 Max-LP und LP', 'Meisterschaft III · letztmals +8 Max-LP und LP'],
+    rankTextEn: ['Mastery I · +8 max HP and HP', 'Mastery II · another +8 max HP and HP', 'Mastery III · final +8 max HP and HP'],
+  },
+  veilCache: {
     maxRank: 1,
-    rankTextDe: ['Wiederholbarer später Segen · +8 Max-LP und +8 LP'],
-    rankTextEn: ['Repeatable late blessing · +8 max HP and +8 HP'],
+    rankTextDe: ['Sofort +30 Schleierstaub erhalten'],
+    rankTextEn: ['Instantly gain +30 Veil Dust'],
+  },
+  goldCache: {
+    maxRank: 1,
+    rankTextDe: ['Sofort +300 Gold erhalten'],
+    rankTextEn: ['Instantly gain +300 gold'],
   },
 };
 
@@ -115,7 +127,11 @@ export function isFusionKey(key: UpgradeKey): key is FusionKey {
 }
 
 export function isInstantGift(key: UpgradeKey): key is InstantGiftKey {
-  return key === 'heal' || key === 'hunterBlessing' || key === 'vitalSpark';
+  return key === 'heal' || key === 'veilCache' || key === 'goldCache';
+}
+
+export function isMasteryGift(key: UpgradeKey): key is MasteryGiftKey {
+  return key === 'hunterBlessing' || key === 'vitalSpark';
 }
 
 export function activeFusionForBase(skills: Partial<Record<UpgradeKey, number>>, key: UpgradeKey): FusionKey | null {
@@ -159,6 +175,10 @@ export function availableRunSkills(skills: Partial<Record<UpgradeKey, number>>, 
   });
 }
 
+function availableOverflowGifts(skills: Partial<Record<UpgradeKey, number>>): OverflowGiftKey[] {
+  return OVERFLOW_GIFTS.filter(key => isInstantGift(key) || rawSkillRank(skills, key) < RUN_SKILL_DEFS[key].maxRank);
+}
+
 function shuffled<T>(items: T[]): T[] {
   return [...items].sort(() => Math.random() - 0.5);
 }
@@ -166,11 +186,12 @@ function shuffled<T>(items: T[]): T[] {
 export function buildRunGiftChoices(skills: Partial<Record<UpgradeKey, number>>, pool: UpgradeKey[] = DEFAULT_RUN_UPGRADE_POOL): UpgradeKey[] {
   const fusions = shuffled<UpgradeKey>(availableFusionSkills(skills));
   const regular = shuffled(availableRunSkills(skills, pool));
+  const overflow = shuffled<UpgradeKey>(availableOverflowGifts(skills));
   const choices: UpgradeKey[] = [];
 
   for (const fusion of fusions) if (choices.length < 3) choices.push(fusion);
   for (const gift of regular) if (choices.length < 3 && !choices.includes(gift)) choices.push(gift);
-  for (const fallback of OVERFLOW_GIFTS) if (choices.length < 3 && !choices.includes(fallback)) choices.push(fallback);
+  for (const fallback of overflow) if (choices.length < 3 && !choices.includes(fallback)) choices.push(fallback);
 
   return choices.slice(0, 3);
 }

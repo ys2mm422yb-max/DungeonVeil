@@ -1,10 +1,18 @@
 import type { GameEngine } from './runEngine';
-import { equipmentCombatModifiers } from './metaProgression';
+import { equipmentCombatModifiers, loadMetaProgression, type EquipmentId } from './metaProgression';
 import { skillRank } from './runSkills';
+import { equippedVeilRelic } from './veilRelics';
 
 const ARCHER_BASE_ATTACK_COOLDOWN_MS = 270;
 const ARCHER_BASE_DODGE_COOLDOWN_MS = 900;
 const QUICK_DRAW_MULTIPLIERS = [1, 1.16, 1.3, 1.42] as const;
+
+const EQUIPMENT_SKILL_SETS = Object.freeze({
+  fireArrow: ['ember-bow', 'ash-amulet', 'ash-armor'] as EquipmentId[],
+  iceArrow: ['frost-bow', 'frost-quiver', 'frost-grimoire', 'frost-armor'] as EquipmentId[],
+  ricochet: ['veil-bow', 'rune-quiver', 'ritual-shard', 'veil-mantle'] as EquipmentId[],
+  piercing: ['splinter-bow', 'splinter-quiver'] as EquipmentId[],
+});
 
 export type EquipmentRuntimeBalanceState = {
   roomKey: string;
@@ -12,10 +20,11 @@ export type EquipmentRuntimeBalanceState = {
   lastDodgeTime: number;
   lastHp: number | null;
   lastHitId: string;
+  setBonusSignature: string;
 };
 
 export function createEquipmentRuntimeBalanceState(): EquipmentRuntimeBalanceState {
-  return { roomKey: '', lastAttackTime: 0, lastDodgeTime: 0, lastHp: null, lastHitId: '' };
+  return { roomKey: '', lastAttackTime: 0, lastDodgeTime: 0, lastHp: null, lastHitId: '', setBonusSignature: '' };
 }
 
 export function defenseMitigationForValue(defense: number): number {
@@ -26,7 +35,7 @@ export function defenseMitigationForValue(defense: number): number {
 function latestPlayerHit(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
   return [...engine.state.damageNumbers].reverse().find(number => (
     number.id !== state.lastHitId
-    && (number.id.startsWith('hit-') || number.id.startsWith('rune-hit-'))
+    && (number.id.startsWith('hit-') || number.id.startsWith('rune-hit-') || number.id.startsWith('volatile-hit-'))
   ));
 }
 
@@ -54,7 +63,9 @@ function reconcileIncomingDamage(engine: GameEngine, state: EquipmentRuntimeBala
   const number = latestPlayerHit(engine, state);
   if (number) state.lastHitId = number.id;
   const enemyAttack = number ? enemyAttackForHit(engine, number.id) : null;
-  const unmitigatedDamage = enemyAttack === null ? observedDamage : enemyAttack + 1;
+  const rawDamage = enemyAttack === null ? observedDamage : enemyAttack + 1;
+  const runeReduced = Boolean(number?.id.startsWith('rune-hit-') && equippedVeilRelic() === 'depth-rune-shard');
+  const unmitigatedDamage = runeReduced ? Math.max(1, Math.round(rawDamage * 0.75)) : rawDamage;
   const mitigation = defenseMitigationForValue(player.defense);
   const adjustedDamage = Math.max(1, Math.round(unmitigatedDamage * (1 - mitigation)));
   const previousStatus = engine.state.status;
@@ -65,6 +76,25 @@ function reconcileIncomingDamage(engine: GameEngine, state: EquipmentRuntimeBala
   state.lastHp = player.hp;
 
   if (engine.state.status !== previousStatus) engine.onStateChange({ ...engine.state });
+}
+
+function setRank(engine: GameEngine, key: 'fireArrow' | 'iceArrow' | 'ricochet' | 'piercing', rank: number) {
+  if (rank <= skillRank(engine.state.runSkills, key)) return;
+  engine.state.runSkills[key] = rank;
+}
+
+function applyEquipmentSetSkills(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
+  const meta = loadMetaProgression();
+  const equipped = Object.values(meta.equipped);
+  const signature = [...equipped].sort().join('|');
+  if (state.setBonusSignature === signature) return;
+  state.setBonusSignature = signature;
+
+  for (const [key, pieces] of Object.entries(EQUIPMENT_SKILL_SETS) as Array<['fireArrow' | 'iceArrow' | 'ricochet' | 'piercing', EquipmentId[]]>) {
+    const count = pieces.filter(id => equipped.includes(id)).length;
+    const rank = count >= 3 ? 3 : count >= 2 ? 2 : 0;
+    if (rank > 0) setRank(engine, key, rank);
+  }
 }
 
 function normalizeAttackCooldown(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
@@ -97,6 +127,7 @@ export function updateEquipmentRuntimeBalance(engine: GameEngine, state: Equipme
     state.lastHitId = '';
   }
 
+  applyEquipmentSetSkills(engine, state);
   normalizeAttackCooldown(engine, state);
   normalizeDodgeCooldown(engine, state);
   reconcileIncomingDamage(engine, state);

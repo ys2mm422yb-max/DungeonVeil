@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [main, packageJson, progression, navigation, portal, village, villagePlayer, guild, roomAudit, roomComposition, bossClient] = await Promise.all([
+const [main, packageJson, roomSuite, progression, navigation, portal, village, villagePlayer, guild, roomAudit, roomComposition, bossClient] = await Promise.all([
   read('../src/main.tsx'),
   read('../package.json'),
+  read('./run-room-audit-suite.mjs'),
   read('./validate-social-progression.mjs'),
   read('./validate-social-navigation.mjs'),
   read('../src/game/portalExitPolicy.ts'),
@@ -17,7 +18,7 @@ const [main, packageJson, progression, navigation, portal, village, villagePlaye
 
 const checks = [
   [main.includes("import './game/portalExitPolicy';") && main.includes('installEmailConfirmationRedirect();'), 'auth redirect and portal policy are not both installed'],
-  [packageJson.includes('validate-rooms-4-5-composition.mjs') && packageJson.includes('validate-room-quality-6-50.mjs') && packageJson.includes('validate-guild-mobile-layout.mjs'), 'combined room and guild audits are missing'],
+  [packageJson.includes('node scripts/run-room-audit-suite.mjs') && roomSuite.includes('validate-rooms-4-5-composition.mjs') && roomSuite.includes('validate-room-quality-6-50.mjs') && roomSuite.includes('validate-guild-mobile-layout.mjs'), 'consolidated room and guild audit coverage is missing'],
   [progression.includes('attemptMigration') && progression.includes('villageScene') && progression.includes('GuildPanelMobile'), 'social progression audit lost a block during integration'],
   [navigation.includes('ModernVillageSquareScene') && navigation.includes("!menu.includes('<GuildInviteLinkCard')"), 'social navigation audit lost village or guild routing'],
   [portal.includes('this.livingEnemies().length === 0') && portal.includes('const exitRadius = TILE_SIZE * 1.05'), 'loot-independent portal behavior is missing'],
@@ -34,4 +35,4 @@ if (failures.length) {
 }
 
 await import('./validate-blocks-4-15-integration.mjs');
-console.log('Combined integration audit passed: legacy Blocks 1–8 and current Blocks 4–15 remain compatible in one build.');
+console.log('Combined integration audit passed: legacy Blocks 1–8 and current Blocks 4–17 remain compatible in one build.');

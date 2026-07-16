@@ -1,9 +1,10 @@
 import { TILE_SIZE, TileType } from './dungeon';
 import type { GameEngine } from './runEngine';
+import { rollHuntEquipmentReward } from './equipmentDropContract';
+import { collectBalancedEquipmentDrop } from './equipmentCollection';
+import { grantHuntEquipmentSourceMark } from './equipmentTargeting';
 import {
   EQUIPMENT,
-  collectMetaEquipmentDrop,
-  rollMetaEquipmentDrop,
   spawnEquipmentDrop,
   type EquipmentId,
   type PendingEquipmentDrop,
@@ -75,12 +76,15 @@ function processCollectedEquipment(engine: GameEngine, state: EquipmentWorldLoot
     if (tracked.roomKey !== key) continue;
 
     const definition = EQUIPMENT[tracked.item];
-    const result = collectMetaEquipmentDrop(tracked.item);
+    const result = collectBalancedEquipmentDrop(tracked.item);
+    const converted = result.convertedDust > 0;
     engine.state.damageNumbers.push({
       id: `equipment-pickup-${time}-${itemId}`,
       x: engine.state.player.x + engine.state.player.width / 2,
       y: engine.state.player.y - 16,
-      value: result.duplicate ? `KOPIE +1 · ${definition.nameDe}` : `NEU · ${definition.nameDe}`,
+      value: converted
+        ? `MAX-DUPLIKAT · +${result.convertedDust} STAUB`
+        : result.duplicate ? `KOPIE +1 · ${definition.nameDe}` : `NEU · ${definition.nameDe}`,
       color: definition.accent,
       lifeTime: 0,
       maxLifeTime: 1600,
@@ -99,7 +103,7 @@ function processCollectedEquipment(engine: GameEngine, state: EquipmentWorldLoot
       element: 'arcane',
     });
     window.dispatchEvent(new CustomEvent('dungeon-veil-equipment-picked', {
-      detail: { item: tracked.item, duplicate: result.duplicate, copies: result.progress.copies, level: result.progress.level },
+      detail: { item: tracked.item, duplicate: result.duplicate, copies: result.progress.copies, level: result.progress.level, convertedDust: result.convertedDust },
     }));
   }
 }
@@ -108,17 +112,20 @@ function spawnHuntEquipment(engine: GameEngine, state: EquipmentWorldLootState) 
   for (const enemy of engine.state.enemies) {
     if (!enemy.isDead || !enemy.isHuntTarget || state.processedHuntDeaths.has(enemy.id)) continue;
     state.processedHuntDeaths.add(enemy.id);
-    const drop = rollMetaEquipmentDrop('hunt', 0.32);
+    const mark = grantHuntEquipmentSourceMark(engine.state.chapter);
+    if (mark.granted) {
+      window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', {
+        detail: { title: 'JAGDMARKE GEBORGEN', text: '+1 Jagdmarke · 3 Marken ergeben eine gewünschte Kopie', tone: 'hunt' },
+      }));
+    }
+    const drop = rollHuntEquipmentReward(engine.state.chapter);
     if (!drop) continue;
     spawnEquipmentDrop(engine, drop, enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
   }
 }
 
 function warningLoot(engine: GameEngine) {
-  return engine.state.items.filter(item => item.itemType === 'relic' || (
-    item.itemType === 'equipment'
-    && (item.isNewEquipment || item.equipmentRarity === 'rare' || item.equipmentRarity === 'epic')
-  ));
+  return engine.state.items.filter(item => item.itemType === 'relic' || item.itemType === 'equipment');
 }
 
 function playerNearExit(engine: GameEngine) {
