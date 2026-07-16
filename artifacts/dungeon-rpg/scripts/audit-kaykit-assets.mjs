@@ -19,6 +19,7 @@ const CATEGORY_RULES = {
   lighting: ['torch', 'lantern', 'candle', 'fire', 'brazier', 'lamp'],
   weapons: ['bow', 'crossbow', 'sword', 'axe', 'spear', 'dagger', 'staff', 'wand', 'shield', 'hammer', 'halberd'],
   characters: ['character', 'skeleton', 'knight', 'mage', 'ranger', 'rogue', 'barbarian', 'warrior'],
+  armor: ['armor', 'armour', 'helmet', 'helm', 'chest', 'pauldron', 'cloak', 'cape', 'knight', 'ranger', 'rogue', 'barbarian', 'mage', 'mannequin'],
 };
 
 const BIOMES = [
@@ -77,7 +78,7 @@ for (const biome of BIOMES) {
   });
 }
 
-const requiredCategories = ['architecture', 'floors', 'interiors', 'tools', 'resources', 'nature', 'graveyard', 'ritual', 'lighting', 'weapons', 'characters'];
+const requiredCategories = ['architecture', 'floors', 'interiors', 'tools', 'resources', 'nature', 'graveyard', 'ritual', 'lighting', 'weapons', 'characters', 'armor'];
 for (const category of requiredCategories) {
   if (!categories[category] || categories[category].length === 0) throw new Error('Asset audit: category without models: ' + category);
 }
