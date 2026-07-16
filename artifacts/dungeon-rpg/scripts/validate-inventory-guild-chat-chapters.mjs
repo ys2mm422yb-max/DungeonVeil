@@ -30,7 +30,7 @@ const checks = [
   [chatPanel.includes('window.setInterval') && chatPanel.includes('5000') && chatPanel.includes('maxLength={400}') && chatPanel.includes('guild-chat-send'), 'guild chat polling, input limit or send control is missing'],
   [chatClient.includes("authenticatedSupabaseRest('guild_messages'") && chatClient.includes('listGuildChatMessages') && chatClient.includes('sendGuildChatMessage'), 'authenticated guild chat client is incomplete'],
   [meta.includes('equipmentUnlockedForCurrentProgress(item.id)') && meta.includes('recordReachedChapter(chapter)'), 'equipment drops are not chapter gated'],
-  [gates.includes("'warden-bow': 4") && gates.includes("'veil-eye': 4") && gates.includes("'hunter-bow': 2") && !gates.match(/: [5-9],/), 'equipment must all unlock by chapter 4'],
+  [gates.includes("'hunter-bow': 2") && gates.includes("'rune-quiver': 5") && gates.includes("'depth-armor': 6") && gates.includes("'warden-bow': 7") && gates.includes("'veil-eye': 8") && !gates.match(/: (?:9|[1-9][0-9]),/), 'equipment must unlock progressively through chapter 8 without later gaps'],
   [migration.includes('alter table public.guild_messages enable row level security') && migration.includes('guild_messages_read_members') && migration.includes('guild_messages_send_members') && migration.includes('user_id = (select auth.uid())') && migration.includes('guild_messages_user_idx'), 'guild chat RLS or required indexes are incomplete'],
   [invitePermissionFix.includes('create or replace function public.accept_guild_invite') && invitePermissionFix.includes('update public.guild_invites') && !invitePermissionFix.includes('update public.player_mailbox') && invitePermissionFix.includes('grant execute on function public.accept_guild_invite(uuid) to authenticated'), 'guild invite acceptance still writes directly to the protected mailbox table'],
 ];
@@ -41,4 +41,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Inventory/guild-chat/chapter audit passed: persistent NEW markers, visible unlock presentations, chapter gates and guild systems remain coherent.');
+console.log('Inventory/guild-chat/chapter audit passed: persistent NEW markers, visible unlock presentations, long-term chapter gates and guild systems remain coherent.');
