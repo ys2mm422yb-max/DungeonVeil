@@ -5,6 +5,7 @@ import type { GameEngine } from '../game/runEngine';
 import { useLanguage } from '../i18n/LanguageContext';
 import { buildRunGiftChoices } from '../game/runSkills';
 import { installBoundedRunGiftProgression, shouldRestorePendingGift } from '../game/runGiftProgression';
+import { installRunFusionEffects } from '../game/runFusionEffects';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 import { createEquipmentRuntimeBalanceState, updateEquipmentRuntimeBalance } from '../game/equipmentRuntimeBalance';
@@ -111,6 +112,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const worldLoot = createEquipmentWorldLootState();
     const initialEngine = getEngineRef.current();
     const disposeGiftProgression = initialEngine ? installBoundedRunGiftProgression(initialEngine) : () => {};
+    const disposeFusionEffects = initialEngine ? installRunFusionEffects(initialEngine) : () => {};
     let frame = 0;
     let checkedClearKey = '';
     let lastFrame = performance.now();
@@ -209,6 +211,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     frame = requestAnimationFrame(update);
     return () => {
       cancelAnimationFrame(frame);
+      disposeFusionEffects();
       disposeGiftProgression();
       const engine = getEngineRef.current();
       if (engine) {
