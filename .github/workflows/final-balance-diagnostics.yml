@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - test/final-balance-integration
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
 
 permissions:
   contents: read
