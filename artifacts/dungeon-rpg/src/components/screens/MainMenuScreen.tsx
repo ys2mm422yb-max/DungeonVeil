@@ -11,6 +11,7 @@ import { syncSocialProfileProgress } from '../../game/socialProgressOnline';
 import { requestTutorialReplay } from '../../game/tutorialState';
 import { loadPlayerProfile, PLAYER_PROFILE_EVENT, recordPlayerProfileProgress, type PlayerProfileProgress } from '../../game/playerProfile';
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
+import { MainMenuUpdateGate } from '../MainMenuUpdateGate';
 import { DailyQuestPanel } from '../DailyQuestPanel';
 import { OnlinePanel } from '../OnlinePanel';
 import { GuildSocialPanel } from '../GuildSocialPanel';
@@ -113,6 +114,7 @@ export function MainMenuScreen(props: Props) {
     {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
     <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(8,8,11,.18),rgba(8,8,11,.04)_36%,rgba(7,7,9,.46)_58%,#08080a_72%)]" />
     <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/48 to-transparent" />
+    <MainMenuUpdateGate language={language} />
 
     <ProfileBadge profile={profile} playerName={profileName} rank={meta.rank} language={language} onOpen={() => setOverlay('profile')} />
     <button type="button" aria-label="Mehr" onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="absolute right-4 top-[max(14px,calc(env(safe-area-inset-top)+6px))] z-30 grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-black/42 text-base text-white/72 backdrop-blur-lg active:scale-95">•••</button>

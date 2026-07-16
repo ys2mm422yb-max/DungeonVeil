@@ -1,7 +1,7 @@
 const PLAYER_ID_KEY = 'dungeon-veil-player-id';
 const CLOUD_REVISION_KEY = 'dungeon-veil-cloud-revision';
 const PRE_RESTORE_BACKUP_KEY = 'dungeon-veil-pre-cloud-restore-v1';
-const BUNDLE_KEYS = [
+const CORE_BUNDLE_KEYS = [
   'dungeon-veil-save',
   'dungeon-veil-meta',
   'dungeon-veil-equipment-targeting-v1',
@@ -17,10 +17,24 @@ const BUNDLE_KEYS = [
   'dungeon-veil-language',
 ] as const;
 
+const DEVICE_ONLY_KEYS = new Set([
+  PLAYER_ID_KEY,
+  CLOUD_REVISION_KEY,
+  PRE_RESTORE_BACKUP_KEY,
+  'dungeon-veil-supabase-session-v1',
+  'dungeon-veil-performance',
+  'dungeon-veil-low-gpu',
+  'dungeon-veil-spectating-allowed-v1',
+  'dungeon-veil-update-dismissed-v1',
+]);
+
 export type DungeonVeilSaveBundle = {
   version: 1;
   playerId: string;
   updatedAt: string;
+  activityAt?: number;
+  progressWeight?: number;
+  keyCount?: number;
   data: Record<string, string>;
 };
 
@@ -47,6 +61,27 @@ function number(value: unknown): number {
 
 function stringArrayLength(value: unknown): number {
   return Array.isArray(value) ? value.filter(item => typeof item === 'string').length : 0;
+}
+
+function isCloudManagedKey(key: string): boolean {
+  if (DEVICE_ONLY_KEYS.has(key)) return false;
+  if (key === 'dungeon-veil-language') return true;
+  if (!key.startsWith('dungeon-veil-')) return false;
+  return !/(?:session|cloud-revision|pre-cloud-restore|performance|low-gpu|spectating-allowed|update-dismissed|debug|asset-cache)/i.test(key);
+}
+
+function managedBundleKeys(bundle?: DungeonVeilSaveBundle): string[] {
+  const keys = new Set<string>(CORE_BUNDLE_KEYS);
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key && isCloudManagedKey(key)) keys.add(key);
+    }
+  } catch {}
+  if (bundle) {
+    for (const key of Object.keys(bundle.data)) if (isCloudManagedKey(key)) keys.add(key);
+  }
+  return [...keys].sort();
 }
 
 function equipmentProgressWeight(value: unknown): number {
@@ -89,13 +124,22 @@ export function clearCloudRevision(): void {
 
 export function exportSaveBundle(): DungeonVeilSaveBundle {
   const data: Record<string, string> = {};
-  for (const key of BUNDLE_KEYS) {
+  for (const key of managedBundleKeys()) {
     try {
       const value = localStorage.getItem(key);
       if (value !== null) data[key] = value;
     } catch {}
   }
-  return { version: 1, playerId: persistentPlayerId(), updatedAt: new Date().toISOString(), data };
+  const bundle: DungeonVeilSaveBundle = {
+    version: 1,
+    playerId: persistentPlayerId(),
+    updatedAt: new Date().toISOString(),
+    data,
+  };
+  bundle.activityAt = bundleActivityTimestamp(bundle);
+  bundle.progressWeight = bundleProgressWeight(bundle);
+  bundle.keyCount = Object.keys(data).length;
+  return bundle;
 }
 
 export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
@@ -130,8 +174,6 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   if (profile.selectedCard && profile.selectedCard !== 'ash') weight += 5_000;
   if (profile.selectedAvatar && profile.selectedAvatar !== 'ranger') weight += 5_000;
   weight += Math.max(0, number(meta.rank) - 1) * 50_000;
-  // Old Veil Sigils migrate 1:1 into Veil Dust. Both values must carry the same
-  // conflict-resolution weight so migration cannot make a save look weaker.
   weight += number(meta.dust) * 100;
   weight += Object.keys(owned).length * 10_000;
   weight += equipmentProgressWeight(owned);
@@ -148,14 +190,14 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
 export function bundleActivityTimestamp(bundle: DungeonVeilSaveBundle): number {
   const save = parseBundleValue(bundle, 'dungeon-veil-save');
   const profile = parseBundleValue(bundle, 'dungeon-veil-player-profile-v1');
-  const hasProgress = bundleProgressWeight(bundle) > 0;
+  const hasProgress = Math.max(bundleProgressWeight(bundle), number(bundle.progressWeight)) > 0;
   if (!hasProgress) return 0;
-  return Math.max(number(save.savedAt), number(profile.updatedAt));
+  return Math.max(number(bundle.activityAt), number(save.savedAt), number(profile.updatedAt));
 }
 
 export function shouldRestoreRemoteBundle(local: DungeonVeilSaveBundle, remote: DungeonVeilSaveBundle): boolean {
-  const localWeight = bundleProgressWeight(local);
-  const remoteWeight = bundleProgressWeight(remote);
+  const localWeight = Math.max(bundleProgressWeight(local), number(local.progressWeight));
+  const remoteWeight = Math.max(bundleProgressWeight(remote), number(remote.progressWeight));
   if (localWeight <= 0) return remoteWeight > 0;
   if (remoteWeight <= 0) return false;
 
@@ -163,7 +205,8 @@ export function shouldRestoreRemoteBundle(local: DungeonVeilSaveBundle, remote: 
   const remoteActivity = bundleActivityTimestamp(remote);
   if (remoteActivity > localActivity) return true;
   if (localActivity > remoteActivity) return false;
-  return remoteWeight > localWeight;
+  if (remoteWeight !== localWeight) return remoteWeight > localWeight;
+  return Date.parse(remote.updatedAt) > Date.parse(local.updatedAt);
 }
 
 function preserveLocalBeforeRestore(): void {
@@ -176,7 +219,7 @@ export function importSaveBundle(bundle: DungeonVeilSaveBundle): boolean {
   if (!bundle || bundle.version !== 1 || typeof bundle.playerId !== 'string' || !bundle.data) return false;
   try {
     preserveLocalBeforeRestore();
-    for (const key of BUNDLE_KEYS) {
+    for (const key of managedBundleKeys(bundle)) {
       const value = bundle.data[key];
       if (typeof value === 'string') localStorage.setItem(key, value);
       else localStorage.removeItem(key);
