@@ -46,6 +46,8 @@ function rebuildDungeon(floor: number): DungeonMap {
 function persistentRunSkills(skills: Partial<Record<UpgradeKey, number>> | undefined): Partial<Record<UpgradeKey, number>> {
   const persistent = { ...(skills ?? {}) };
   delete persistent.heal;
+  delete persistent.hunterBlessing;
+  delete persistent.vitalSpark;
   return persistent;
 }
 
