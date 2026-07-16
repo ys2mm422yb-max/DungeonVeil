@@ -13,10 +13,12 @@ export type EquipmentVisualProfile = {
   yOffset: number;
   lockYaw: boolean;
   tintStrength: number;
-  kind: 'bow' | 'crossbow' | 'quiver' | 'book' | 'talisman';
+  kind: 'bow' | 'crossbow' | 'quiver' | 'book' | 'talisman' | 'armor';
 };
 
 const A = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf';
+const C = 'adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf';
+const M = 'animations/KayKit_Character_Animations_1.1/Mannequin Character/characters';
 const W = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 const D = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 
@@ -46,16 +48,21 @@ const profile = (
 
 const bowPose = [0.08, -0.48, Math.PI / 2] as const;
 const importedBowPose = [0.02, -0.18, 0] as const;
-// Crossbows are presented upright in the portrait preview so the stock, bow limbs
-// and trigger silhouette remain readable instead of collapsing into a flat side view.
 const frostCrossbowPose = [-0.18, -0.78, Math.PI / 2 - 0.08] as const;
 const splinterCrossbowPose = [-0.22, -0.7, Math.PI / 2 - 0.1] as const;
+const armorPose = [0, -0.28, 0] as const;
 const importedBowRoot = '/assets/imported/medieval-weapons';
 const quiverAccessory = (path: string) => ({
   accessoryPath: path,
   accessoryPosition: [0, 0.18, 0.08] as const,
   accessoryRotation: [0, 0, 0] as const,
   accessoryScale: 0.78,
+});
+const shieldAccessory = (path: string) => ({
+  accessoryPath: path,
+  accessoryPosition: [0.48, -0.12, 0.04] as const,
+  accessoryRotation: [0.1, -0.22, 0.08] as const,
+  accessoryScale: 0.52,
 });
 
 /**
@@ -91,6 +98,13 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'ash-amulet': profile(`${D}/bottle_C_brown.gltf`, `${A}/smokebomb.gltf`, [-0.08, -0.4, 0.08], 0.65, 0.7, 0, true, 0.28, 'talisman'),
   'depth-seal': profile(`${D}/coin.gltf`, `${A}/shield_badge.gltf`, [-0.18, -0.38, 0.08], 0.68, 0.7, 0, true, 0.38, 'talisman'),
   'veil-eye': profile(`${A}/staff.gltf`, `${A}/wand.gltf`, [-0.02, -0.36, 0.18], 0.7, 0.72, 0, true, 0.34, 'talisman'),
+
+  'ranger-cloak': profile(`${C}/Ranger.glb`, `${M}/Mannequin_Medium.glb`, armorPose, 0.68, 0.8, -0.03, true, 0.08, 'armor'),
+  'ash-armor': profile(`${C}/Rogue_Hooded.glb`, `${C}/Rogue.glb`, armorPose, 0.68, 0.8, -0.03, true, 0.22, 'armor'),
+  'frost-armor': profile(`${C}/Mage.glb`, `${M}/Mannequin_Medium.glb`, armorPose, 0.68, 0.8, -0.03, true, 0.28, 'armor'),
+  'warden-armor': profile(`${C}/Knight.glb`, `${M}/Mannequin_Medium.glb`, armorPose, 0.68, 0.8, -0.03, true, 0.12, 'armor', shieldAccessory(`${A}/shield_badge_color.gltf`)),
+  'veil-mantle': profile(`${C}/Rogue.glb`, `${C}/Rogue_Hooded.glb`, armorPose, 0.68, 0.8, -0.03, true, 0.34, 'armor'),
+  'depth-armor': profile(`${C}/Barbarian.glb`, `${M}/Mannequin_Medium.glb`, armorPose, 0.68, 0.8, -0.03, true, 0.3, 'armor', shieldAccessory(`${A}/shield_round_barbarian.gltf`)),
 };
 
 export function equipmentVisualProfile(id: EquipmentId) {
@@ -103,6 +117,7 @@ export function equipmentVisualAudit() {
     if (visual.kind === 'quiver' && !/quiver/i.test(visual.primaryPath)) issues.push(`${id}: primary is not a quiver`);
     if (visual.kind === 'quiver' && !/bundle/i.test(visual.accessoryPath ?? '')) issues.push(`${id}: quiver has no arrow bundle`);
     if (visual.kind === 'crossbow' && !/crossbow/i.test(visual.primaryPath)) issues.push(`${id}: crossbow path is not a crossbow`);
+    if (visual.kind === 'armor' && !/(characters|mannequin)/i.test(visual.primaryPath)) issues.push(`${id}: armor preview is not character based`);
     if (visual.fillWidth <= 0 || visual.fillWidth > 0.96) issues.push(`${id}: unsafe preview width`);
     if (visual.fillHeight <= 0 || visual.fillHeight > 0.82) issues.push(`${id}: unsafe preview height`);
     return issues;
