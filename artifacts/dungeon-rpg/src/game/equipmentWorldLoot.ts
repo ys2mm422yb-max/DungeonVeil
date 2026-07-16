@@ -1,6 +1,7 @@
 import { TILE_SIZE, TileType } from './dungeon';
 import type { GameEngine } from './runEngine';
 import { rollHuntEquipmentReward } from './equipmentDropContract';
+import { grantHuntEquipmentSourceMark } from './equipmentTargeting';
 import {
   EQUIPMENT,
   collectMetaEquipmentDrop,
@@ -108,6 +109,12 @@ function spawnHuntEquipment(engine: GameEngine, state: EquipmentWorldLootState) 
   for (const enemy of engine.state.enemies) {
     if (!enemy.isDead || !enemy.isHuntTarget || state.processedHuntDeaths.has(enemy.id)) continue;
     state.processedHuntDeaths.add(enemy.id);
+    const mark = grantHuntEquipmentSourceMark(engine.state.chapter);
+    if (mark.granted) {
+      window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', {
+        detail: { title: 'JAGDMARKE GEBORGEN', text: '+1 Jagdmarke · 3 Marken ergeben eine gewünschte Kopie', tone: 'hunt' },
+      }));
+    }
     const drop = rollHuntEquipmentReward(engine.state.chapter);
     if (!drop) continue;
     spawnEquipmentDrop(engine, drop, enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
@@ -115,10 +122,7 @@ function spawnHuntEquipment(engine: GameEngine, state: EquipmentWorldLootState) 
 }
 
 function warningLoot(engine: GameEngine) {
-  return engine.state.items.filter(item => item.itemType === 'relic' || (
-    item.itemType === 'equipment'
-    && (item.isNewEquipment || item.equipmentRarity === 'rare' || item.equipmentRarity === 'epic')
-  ));
+  return engine.state.items.filter(item => item.itemType === 'relic' || item.itemType === 'equipment');
 }
 
 function playerNearExit(engine: GameEngine) {
