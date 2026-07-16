@@ -35,7 +35,7 @@ export function defenseMitigationForValue(defense: number): number {
 function latestPlayerHit(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
   return [...engine.state.damageNumbers].reverse().find(number => (
     number.id !== state.lastHitId
-    && (number.id.startsWith('hit-') || number.id.startsWith('rune-hit-'))
+    && (number.id.startsWith('hit-') || number.id.startsWith('rune-hit-') || number.id.startsWith('volatile-hit-'))
   ));
 }
 
