@@ -48,6 +48,16 @@ function stringArrayLength(value: unknown): number {
   return Array.isArray(value) ? value.filter(item => typeof item === 'string').length : 0;
 }
 
+function equipmentProgressWeight(value: unknown): number {
+  return Object.values(record(value)).reduce((total, raw) => {
+    if (typeof raw === 'number') return total + Math.max(1, Math.floor(number(raw))) * 2_500;
+    const item = record(raw);
+    const level = Math.max(1, Math.floor(number(item.level) || 1));
+    const copies = Math.floor(number(item.copies));
+    return total + level * 2_500 + copies * 300;
+  }, 0);
+}
+
 export function persistentPlayerId(): string {
   try {
     const stored = localStorage.getItem(PLAYER_ID_KEY);
@@ -118,6 +128,7 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   // conflict-resolution weight so migration cannot make a save look weaker.
   weight += number(meta.dust) * 100;
   weight += Object.keys(owned).length * 10_000;
+  weight += equipmentProgressWeight(owned);
   weight += number(retention.sigils) * 100;
   weight += stringArrayLength(codex.enemies) * 500 + stringArrayLength(codex.bosses) * 2_000;
   weight += stringArrayLength(codex.hunts) * 1_000 + stringArrayLength(codex.relics) * 3_000;
