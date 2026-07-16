@@ -92,7 +92,6 @@ export type MetaProgression = {
 };
 export type MetaReward = { xp: number; dust: number; gold: number; rankBefore: number; rankAfter: number; item?: EquipmentId; duplicate?: boolean; source?: EquipmentDropSource; rarity?: EquipmentRarity };
 export type PendingEquipmentDrop = { item: EquipmentId; duplicate: boolean; source: EquipmentDropSource; rarity: EquipmentRarity };
-export type EquipmentUpgradeCost = { gold: number; copies: number };
 
 export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['bow', 'quiver', 'talisman', 'armor'];
 const META_KEY = 'dungeon-veil-meta';
@@ -112,12 +111,6 @@ const DEFAULT_META: MetaProgression = {
   equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', talisman: 'veil-key', armor: 'ranger-cloak' },
   rewardLedger: [],
   currentRunId: '',
-};
-const UPGRADE_COSTS: Record<number, EquipmentUpgradeCost> = {
-  1: { gold: 250, copies: 1 },
-  2: { gold: 650, copies: 2 },
-  3: { gold: 1300, copies: 3 },
-  4: { gold: 2400, copies: 5 },
 };
 
 export function xpForNextRank(rank: number) { return 100 + Math.max(0, rank - 1) * 65; }
@@ -270,21 +263,6 @@ export function equipMetaItem(id: EquipmentId) {
   const meta = loadMetaProgression();
   if (!meta.owned[id]) return meta;
   meta.equipped[EQUIPMENT[id].slot] = id;
-  return saveMetaProgression(meta);
-}
-export function equipmentUpgradeCost(id: EquipmentId, meta = loadMetaProgression()): EquipmentUpgradeCost | null {
-  const level = meta.owned[id]?.level ?? 0;
-  return level <= 0 || level >= 5 ? null : UPGRADE_COSTS[level];
-}
-export function upgradeMetaItem(id: EquipmentId) {
-  const meta = loadMetaProgression();
-  const progress = meta.owned[id];
-  if (!progress) return meta;
-  const cost = equipmentUpgradeCost(id, meta);
-  if (!cost || meta.gold < cost.gold || progress.copies < cost.copies) return meta;
-  meta.gold -= cost.gold;
-  progress.copies -= cost.copies;
-  progress.level += 1;
   return saveMetaProgression(meta);
 }
 
