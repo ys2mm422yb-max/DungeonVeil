@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { Language, UpgradeKey } from '../i18n/translations';
+import { CHAPTER_ROOMS } from '../game/chapterRun';
 import { isFusionKey, isInstantGift } from '../game/runSkills';
 import { DailyQuestPanel } from './DailyQuestPanel';
 
@@ -22,13 +23,13 @@ const NAMES_DE: Record<UpgradeKey, string> = {
   multishot: 'MEHRFACHPFEIL', ricochet: 'ABPRALLER', fireArrow: 'FEUERPFEIL', iceArrow: 'FROSTPFEIL', attackSpeed: 'SCHNELLZUG', piercing: 'DURCHBOHREN',
   elementalStorm: 'ELEMENTARSTURM', arrowStorm: 'PFEILSTURM', veilChain: 'SCHLEIERKETTE',
   attack: 'JÄGERINSTINKT', maxHp: 'LEBENSKRAFT', speed: 'WINDLÄUFER', defense: 'WALDHAUT',
-  heal: 'ERHOLUNG', hunterBlessing: 'JÄGERSEGEN', vitalSpark: 'LEBENSFUNKE',
+  heal: 'ERHOLUNG', hunterBlessing: 'JÄGERSEGEN', vitalSpark: 'LEBENSFUNKE', veilCache: 'SCHLEIERVORRAT', goldCache: 'JÄGERTRUHE',
 };
 const NAMES_EN: Record<UpgradeKey, string> = {
   multishot: 'MULTISHOT', ricochet: 'RICOCHET', fireArrow: 'FIRE ARROW', iceArrow: 'FROST ARROW', attackSpeed: 'QUICK DRAW', piercing: 'PIERCING',
   elementalStorm: 'ELEMENTAL STORM', arrowStorm: 'ARROW STORM', veilChain: 'VEIL CHAIN',
   attack: 'HUNTER INSTINCT', maxHp: 'VITALITY', speed: 'WINDRUNNER', defense: 'FOREST SKIN',
-  heal: 'RECOVERY', hunterBlessing: 'HUNTER BLESSING', vitalSpark: 'VITAL SPARK',
+  heal: 'RECOVERY', hunterBlessing: 'HUNTER BLESSING', vitalSpark: 'VITAL SPARK', veilCache: 'VEIL CACHE', goldCache: 'HUNTER CACHE',
 };
 const roman = (rank: number) => rank === 1 ? 'I' : rank === 2 ? 'II' : rank === 3 ? 'III' : String(rank);
 
@@ -70,7 +71,7 @@ export function GamePausePanel(props: GamePausePanelProps) {
     <div ref={panelRef} className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto bg-black/80 px-5 py-5 backdrop-blur-sm" data-ui-control>
       <div className="w-full max-w-sm rounded-[26px] border border-white/10 bg-[#0a0908]/95 p-5 shadow-2xl">
         <h2 className="text-center font-serif text-4xl tracking-widest text-white">{props.paused}</h2>
-        <p className="mt-2 text-center font-mono text-[10px] tracking-widest text-white/35">{props.gameState.player.playerName} · {props.classNameText} · {de ? 'RAUM' : 'ROOM'} {props.gameState.floor}/20</p>
+        <p className="mt-2 text-center font-mono text-[10px] tracking-widest text-white/35">{props.gameState.player.playerName} · {props.classNameText} · {de ? 'RAUM' : 'ROOM'} {props.gameState.floor}/{CHAPTER_ROOMS}</p>
 
         <div className="mt-4"><DailyQuestPanel compact /></div>
 
