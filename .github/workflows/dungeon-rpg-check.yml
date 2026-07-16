@@ -47,6 +47,21 @@ jobs:
       - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg typecheck
+        id: typecheck
+        continue-on-error: true
+        run: pnpm --filter @workspace/dungeon-rpg typecheck > typecheck-errors.txt 2>&1
+      - name: Upload TypeScript diagnostics
+        if: steps.typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-rpg-typecheck-errors
+          path: typecheck-errors.txt
+          retention-days: 1
+      - name: Fail after TypeScript diagnostics
+        if: steps.typecheck.outcome == 'failure'
+        run: |
+          cat typecheck-errors.txt
+          exit 1
       - name: Build Dungeon Veil
+        if: steps.typecheck.outcome == 'success'
         run: pnpm --filter @workspace/dungeon-rpg build
