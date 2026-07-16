@@ -29,6 +29,7 @@ import { preloadKayKitOuterWorld } from '../components/kaykitOuterWorld3D';
 import { applyMetaLoadoutToNewRun, beginMetaRun } from '../game/metaProgression';
 import { beginPlayerProfileRun } from '../game/playerProfile';
 import { rememberRunName, resolvePreferredRunName, sanitizeRunName } from '../game/runIdentity';
+import { applyGiftUpgrade, prepareGiftChoices } from '../game/giftUpgradeController';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 
@@ -106,6 +107,7 @@ export default function Game() {
     engineRef.current = engine;
     engine.onStateChange = state => {
       const live = engine.state;
+      prepareGiftChoices(live);
       setGameState({
         ...state,
         player: live.player,
@@ -115,6 +117,8 @@ export default function Game() {
         particles: live.particles,
         effects: live.effects,
         camera: live.camera,
+        upgradeChoices: live.upgradeChoices,
+        runSkills: live.runSkills,
       });
     };
 
@@ -276,7 +280,7 @@ export default function Game() {
   const handleLevelUpSelect = useCallback((choice: UpgradeKey) => {
     const engine = engineRef.current;
     if (!engine || engine.state.status !== 'levelup') return;
-    engine.applyUpgrade(choice);
+    applyGiftUpgrade(engine, choice);
   }, []);
 
   useEffect(() => {
