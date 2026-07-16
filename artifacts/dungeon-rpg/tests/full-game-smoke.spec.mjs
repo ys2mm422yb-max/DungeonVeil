@@ -268,6 +268,10 @@ test('new run renders responsive combat controls and stays stable', async ({ pag
   await expect(startButton).toBeEnabled();
   await startButton.click();
 
+  const openingGiftChoices = page.locator('[data-testid^="gift-choice-"]');
+  await expect(openingGiftChoices).toHaveCount(3, { timeout: 60_000 });
+  await openingGiftChoices.first().click();
+
   const hud = page.getByTestId('run-hud');
   await expect(hud).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('run-health-panel')).toBeVisible();
