@@ -27,7 +27,7 @@ jobs:
         id: guard
         shell: bash
         run: |
-          if git log -1 --pretty=%B | grep -q '\[applied-room-spectator-firelands\]'; then
+          if git log -1 --pretty=%B | grep -Eq '\[(applied-room-spectator-firelands|patch-error)\]'; then
             echo "should_run=false" >> "$GITHUB_OUTPUT"
           else
             echo "should_run=true" >> "$GITHUB_OUTPUT"
@@ -48,26 +48,41 @@ jobs:
 
       - name: Apply requested changes
         if: steps.guard.outputs.should_run == 'true'
-        run: node .ci/apply-room-spectator-firelands.mjs
+        shell: bash
+        run: |
+          set +e
+          node .ci/apply-room-spectator-firelands.mjs 2>&1 | tee .ci/patch-run.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Capture patch failure
+        if: failure() && steps.guard.outputs.should_run == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/patch-run.log
+          git commit -m "[patch-error] capture requested pass failure" || true
+          git push origin HEAD:work/room-loading-spectator-firelands
 
       - name: Install dependencies
-        if: steps.guard.outputs.should_run == 'true'
+        if: steps.guard.outputs.should_run == 'true' && success()
         run: pnpm install --frozen-lockfile
 
       - name: Validate requested pass
-        if: steps.guard.outputs.should_run == 'true'
+        if: steps.guard.outputs.should_run == 'true' && success()
         run: pnpm --filter @workspace/dungeon-rpg audit:requested-pass
 
       - name: TypeScript
-        if: steps.guard.outputs.should_run == 'true'
+        if: steps.guard.outputs.should_run == 'true' && success()
         run: pnpm run typecheck
 
       - name: Production build
-        if: steps.guard.outputs.should_run == 'true'
+        if: steps.guard.outputs.should_run == 'true' && success()
         run: pnpm --dir artifacts/dungeon-rpg run build
 
       - name: Commit validated branch changes
-        if: steps.guard.outputs.should_run == 'true'
+        if: steps.guard.outputs.should_run == 'true' && success()
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
