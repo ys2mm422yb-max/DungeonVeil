@@ -27,12 +27,12 @@ const [credits, inventory, presentation, gates, relics, retention, reward, effec
 const checks = [
   [credits.includes('Ein hobbyloser Typ bei seinem ersten Spielprojekt') && !credits.includes('value="Replit AI"'), 'credits are not the new humorous first-project copy'],
   [presentation.includes("'je Ausrüstungslevel'") && inventory.includes("'AUSRÜSTUNGSLEVEL'") && inventory.includes('Ausrüstungslevel ist dauerhaft') && inventory.includes('Gold, Itemkopien und Schleierstaub'), 'equipment levels or their permanent three-resource upgrade path remain unclear'],
-  [gates.includes("'warden-bow': 4") && gates.includes("'warden-quiver': 4") && gates.includes("'veil-eye': 4") && !gates.match(/: [5-9],/), 'normal equipment still unlocks after chapter 4'],
-  [retention.includes('engine.state.floor >= 20 && isBossRoom(engine.state.floor)') && retention.includes('BOSS_RELIC_POOL'), 'boss relics are not limited to boss rooms from room 20 onward'],
+  [gates.includes("'splinter-bow': 5") && gates.includes("'rune-quiver': 7") && gates.includes("'veil-mantle': 8") && gates.includes("'warden-quiver': 9") && gates.includes("'warden-bow': 10") && gates.includes("'veil-eye': 10") && !gates.match(/: (?:1[1-9]|[2-9]\d),/), 'equipment is not distributed through chapter 10 as intended'],
+  [retention.includes("if (isBossRoom(engine.state.floor)) spawnRareRelicDrop(engine, state, 'boss'") && retention.includes("engine.state.floor === 50 ? 0.2 : 0.12"), 'boss relics are not available at every boss milestone with the intended room-50 bonus'],
   [relics.includes("'world-core'") && relics.includes("source: 'worldboss'") && reward.includes("unlockVeilRelic('world-core')"), 'world-boss-exclusive relic is missing'],
   [effects.includes("relic === 'world-core'") && effects.includes('activateWorldCoreForCurrentRun'), 'World Core has no real run effect'],
   [menu.includes("onOpenOnline={() => setOverlay('online')}") && friends.includes('onOpenOnline') && guild.includes('onOpenOnline') && worldboss.includes('onOpenOnline'), 'direct Online & Cloud navigation is missing'],
-  [inventory.includes('Bossräume ab Raum 20') && inventory.includes('ausschließlich vom Weltboss'), 'relic source explanation is not accurate'],
+  [inventory.includes('Bossräume 10, 20, 30, 40 und 50') && inventory.includes("compact ? 'BOSS-DROP' : 'BOSS-RELIKT'") && !inventory.includes('Bossräume ab Raum 20') && inventory.includes('ausschließlich vom Weltboss'), 'relic source explanation does not match all five boss rooms'],
   [quests.includes('data-testid="quest-board-summary"') && quests.includes('data-testid="quest-active-section"') && quests.includes('data-testid="quest-gold-section"') && quests.includes('data-testid="quest-elite-section"') && quests.includes('data-testid="quest-completed-section"'), 'quest board is not separated into daily, gold, weekly elite and completed sections'],
   [quests.includes('Wöchentliche Elite-Aufträge') && quests.includes('weeklyEliteQuests') && quests.includes('claimWeeklyEliteQuest') && quests.includes('weekly-elite-card'), 'real weekly elite contracts are not shown in the quest board'],
   [quests.includes('Gold-Aufträge') && quests.includes("data-quest-kind={task.gold ? 'gold' : 'standard'}"), 'daily gold quests are still mislabeled as weekly elite contracts'],
@@ -52,4 +52,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Menu/profile/cloud progression audit passed: complete collections, safe account saves, dust upgrades and weekly elite contracts are integrated.');
+console.log('Menu/profile/cloud progression audit passed: complete collections, safe account saves, chapter-10 equipment, all boss relic milestones, dust upgrades and weekly elite contracts are integrated.');
