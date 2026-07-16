@@ -2,8 +2,9 @@ import type { RunGameState } from './runEngine';
 import { authenticatedSupabaseRest, currentOnlineSession } from './supabaseOnline';
 
 const SPECTATING_ALLOWED_KEY = 'dungeon-veil-spectating-allowed-v1';
-export const SPECTATOR_REFRESH_MS = 500;
-export const SPECTATOR_STALE_MS = 12_000;
+export const SPECTATOR_REFRESH_MS = 100;
+export const SPECTATOR_STALE_MS = 5_000;
+export const SPECTATOR_VIEWER_HEARTBEAT_MS = 3_000;
 
 export type OnlineActivityState = 'menu' | 'run' | 'paused';
 
@@ -53,13 +54,13 @@ export function buildSpectatorSnapshot(state: RunGameState): SpectatorSnapshot {
     ...state,
     player: { ...state.player, playerName: '' },
     enemies: state.enemies.map(enemy => ({ ...enemy })),
-    items: state.items.slice(-30).map(item => ({ ...item })),
-    chests: state.chests.slice(-12).map(chest => ({ ...chest })),
-    damageNumbers: state.damageNumbers.slice(-24).map(number => ({ ...number })),
-    particles: state.particles.slice(-80).map(particle => ({ ...particle })),
-    effects: state.effects.slice(-48).map(effect => ({ ...effect })),
+    items: state.items.slice(-20).map(item => ({ ...item })),
+    chests: state.chests.slice(-8).map(chest => ({ ...chest })),
+    damageNumbers: state.damageNumbers.slice(-12).map(number => ({ ...number })),
+    particles: state.particles.slice(-24).map(particle => ({ ...particle })),
+    effects: state.effects.slice(-20).map(effect => ({ ...effect })),
     upgradeChoices: [],
-    runSkills: {},
+    runSkills: { ...state.runSkills },
   };
   return { version: 1, emittedAt: Date.now(), state: cloneForNetwork(safeState) };
 }
@@ -97,4 +98,20 @@ export async function loadFriendSpectatorFeed(userId: string): Promise<FriendSpe
     return { ...feed, snapshot: null };
   }
   return { ...feed, snapshot };
+}
+
+export async function heartbeatSpectatorViewer(hostUserId: string): Promise<boolean> {
+  if (!currentOnlineSession()) return false;
+  return rpc<boolean>('heartbeat_spectator_viewer', { p_host_user_id: hostUserId });
+}
+
+export async function leaveSpectatorViewer(hostUserId: string): Promise<void> {
+  if (!currentOnlineSession()) return;
+  await rpc<boolean>('leave_spectator_viewer', { p_host_user_id: hostUserId });
+}
+
+export async function loadMySpectatorViewerCount(): Promise<number> {
+  if (!currentOnlineSession()) return 0;
+  const value = await rpc<number>('get_my_spectator_viewer_count');
+  return Math.max(0, Math.floor(Number(value) || 0));
 }
