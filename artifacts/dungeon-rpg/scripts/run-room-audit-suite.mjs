@@ -37,9 +37,8 @@ const scripts = [
 ];
 
 for (const script of scripts) {
-  console.log(`▶ ${script}`);
   const result = spawnSync(process.execPath, [fileURLToPath(new URL(script, import.meta.url))], {
-    stdio: 'inherit',
+    stdio: 'ignore',
     env: process.env,
   });
   if (result.error) {
