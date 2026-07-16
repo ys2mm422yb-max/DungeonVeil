@@ -16,7 +16,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,12 +27,16 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Capture room audit, typecheck and build
+      - name: Capture social, room, typecheck and build diagnostics
         id: audit
         shell: bash
         run: |
           set +e
           {
+            echo '## SOCIAL AUDIT'
+            pnpm --filter @workspace/dungeon-rpg audit:social
+            social_status=$?
+            echo
             echo '## ROOM AUDIT'
             pnpm --filter @workspace/dungeon-rpg audit:rooms
             room_status=$?
@@ -45,10 +49,10 @@ jobs:
             pnpm --filter @workspace/dungeon-rpg build
             build_status=$?
             echo
-            echo "ROOM_STATUS=$room_status TYPE_STATUS=$type_status BUILD_STATUS=$build_status"
+            echo "SOCIAL_STATUS=$social_status ROOM_STATUS=$room_status TYPE_STATUS=$type_status BUILD_STATUS=$build_status"
           } > final-balance-diagnostics.txt 2>&1
           status=0
-          if [ "$room_status" -ne 0 ] || [ "$type_status" -ne 0 ] || [ "$build_status" -ne 0 ]; then status=1; fi
+          if [ "$social_status" -ne 0 ] || [ "$room_status" -ne 0 ] || [ "$type_status" -ne 0 ] || [ "$build_status" -ne 0 ]; then status=1; fi
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
       - uses: actions/upload-artifact@v4
