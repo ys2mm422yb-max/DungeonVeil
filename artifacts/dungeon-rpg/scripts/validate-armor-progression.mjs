@@ -51,7 +51,8 @@ assert(cloud.includes('equipmentProgressWeight') && cloud.includes('level * 2_50
 assert(visuals.includes("previewPose?: 'idle-ready'") && visuals.includes("previewPose: 'idle-ready'"), 'armor previews do not declare a ready stance');
 assert(visuals.includes('/(ranger|knight|barbarian)\\.glb$/i') && visuals.includes('armor preview is not a male character model'), 'visual audit does not enforce male armor models');
 assert(!visuals.includes('/Mage.glb') && !visuals.includes('/Rogue.glb') && !visuals.includes('/Rogue_Hooded.glb'), 'female or ambiguous armor preview models remain configured');
-assert(visuals.includes("const ritualMantleAccessory") && visuals.includes("accessoryPath: `${A}/staff.gltf`") && visuals.includes("'veil-mantle': armorProfile(`${C}/Ranger.glb`, `${C}/Knight.glb`, 0.48, ritualMantleAccessory)"), 'veil mantle is not visually distinct from the starter cloak');
+assert(visuals.includes("const ritualMantleAccessory") && visuals.includes("accessoryPath: `${A}/staff.gltf`") && visuals.includes("'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.54, ritualMantleAccessory)"), 'veil mantle does not use its distinct male ritual armor model');
+assert(!visuals.includes("'veil-mantle': armorProfile(`${C}/Ranger.glb`"), 'veil mantle has regressed to the starter ranger model');
 assert(visuals.includes("shield_badge_color.gltf`, 0.78, [0.4, 0.58, 0.08]") && visuals.includes("shield_round_barbarian.gltf`, 0.82, [0.42, 0.54, 0.08]"), 'armor shields are too small or positioned near the feet');
 assert(preview.includes('AnimationMixer') && preview.includes('chooseIdleClip') && preview.includes('applyFallbackReadyPose'), 'armor preview does not animate or provide a ready-pose fallback');
 assert(preview.includes("data-equipment-preview-pose={visual.previewPose ?? 'static'}") && preview.includes('data-equipment-preview-model={visual.primaryPath}'), 'browser-testable armor preview metadata is missing');
@@ -87,4 +88,4 @@ for (let chapter = 2; chapter <= 12; chapter++) {
   assert(bossHpScale(chapter) > bossHpScale(chapter - 1), `boss HP pressure does not rise into chapter ${chapter}`);
 }
 
-console.log('Armor progression audit passed: distinct ritual mantle, readable shields, male animated previews, meaningful item levels, capped cooldowns, diminishing defense, save migration and moderated chapter pressure are coherent.');
+console.log('Armor progression audit passed: distinct male ritual armor, readable shields, male animated previews, meaningful item levels, capped cooldowns, diminishing defense, save migration and moderated chapter pressure are coherent.');
