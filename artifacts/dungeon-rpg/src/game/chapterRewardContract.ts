@@ -1,10 +1,10 @@
 import { FINAL_BOSS_ROOM, isBossRoom } from './chapterRun';
 import { recordReachedChapter } from './equipmentChapterGates';
 import { rollBalancedRoomEquipmentDrop } from './equipmentDropBalance';
+import { xpForNextVeilRank } from './rankProgression';
 import {
   loadMetaProgression,
   saveMetaProgression,
-  xpForNextRank,
   type MetaReward,
   type MetaProgression,
 } from './metaProgression';
@@ -25,8 +25,8 @@ export function chapterRoomRewardAmounts(chapter: number, floor: number): Chapte
 
 function addRankXp(meta: MetaProgression, xp: number): void {
   meta.xp += xp;
-  while (meta.xp >= xpForNextRank(meta.rank)) {
-    meta.xp -= xpForNextRank(meta.rank);
+  while (meta.xp >= xpForNextVeilRank(meta.rank)) {
+    meta.xp -= xpForNextVeilRank(meta.rank);
     meta.rank++;
   }
 }
