@@ -40,23 +40,9 @@ jobs:
       - name: Audit every asset
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Audit all social and menu systems
-        run: pnpm --filter @workspace/dungeon-rpg audit:social 2>&1 | tee audit-social.log
-      - name: Upload social audit diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: social-audit-diagnostics
-          path: audit-social.log
-          if-no-files-found: ignore
+        run: pnpm --filter @workspace/dungeon-rpg audit:social
       - name: Audit rooms 1-50, collision, enemies and mobile combat
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee audit-rooms-after-social.log
-      - name: Upload combined room audit diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: combined-room-audit-diagnostics
-          path: audit-rooms-after-social.log
-          if-no-files-found: ignore
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck full workspace
         run: pnpm run typecheck
       - name: Build GitHub Pages production output
