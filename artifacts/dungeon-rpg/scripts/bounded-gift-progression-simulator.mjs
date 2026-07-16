@@ -12,9 +12,11 @@ import {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(HERE, '..');
 
-export const BOUNDED_GIFT_SIMULATOR_VERSION = 1;
+export const BOUNDED_GIFT_SIMULATOR_VERSION = 2;
 export const BOUNDED_GIFT_RULES = Object.freeze({
-  firstChapterGiftSelections: 11,
+  openingGiftSelections: 1,
+  firstChapterRoomGiftSelections: 11,
+  firstChapterGiftSelections: 12,
   laterChapterGiftSelections: 5,
   finiteBuildSelections: 33,
   hunterBlessingMaxRank: 3,
@@ -37,7 +39,9 @@ export function boundedGiftGrowth(chapter) {
   const postBuildChoices = Math.max(0, totalChoices - BOUNDED_GIFT_RULES.finiteBuildSelections);
   const offensiveMasterySelections = Math.min(postBuildChoices, BOUNDED_GIFT_RULES.hunterBlessingMaxRank);
   const defensiveMasterySelections = Math.min(postBuildChoices, BOUNDED_GIFT_RULES.vitalSparkMaxRank);
-  const nonPowerChoices = Math.max(0, postBuildChoices - offensiveMasterySelections - defensiveMasterySelections);
+  const nonPowerChoices = Math.max(0, postBuildChoices
+    - BOUNDED_GIFT_RULES.hunterBlessingMaxRank
+    - BOUNDED_GIFT_RULES.vitalSparkMaxRank);
 
   return {
     chapter: safeChapter,
@@ -85,7 +89,7 @@ export function renderBoundedGiftMarkdown(report) {
     .map(row => `| ${row.chapter} | ${row.totalChoices} | ${row.postBuildChoices} | ${row.offensiveMasterySelections}/3 | ${row.defensiveMasterySelections}/3 | ${row.nonPowerChoices} | ${row.offensiveAttack} | ${row.defensiveMaxHealth} | ${row.guardianCrownAttackMultiplier}x |`)
     .join('\n');
 
-  return `# Dungeon Veil bounded gift progression\n\nGenerated deterministically from the PR #170 progression baseline.\n\n- Scenario: \`${report.scenario}\`\n- Seed: \`${report.seed}\`\n- Samples: ${report.samples}\n- Simulated chapters per sample: ${report.maxChapters}\n- Chapter 1 gift choices: ${report.currentRules.firstChapterGiftSelections}\n- Later chapter gift choices: ${report.currentRules.laterChapterGiftSelections}\n\n## Remaining warnings\n\n${warnings}\n\n## Gifts across the uninterrupted run\n\n| Chapter | Total choices | Post-build choices | Attack mastery | HP mastery | Non-power choices | Offensive raw attack | Defensive max HP | Guardian Crown multiplier |\n|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n${giftRows}\n\nHunter Blessing and Vital Spark stop at mastery rank III. Once both masteries are full, later milestones offer healing or currency instead of permanent combat-stat growth. The Guardian Crown remains intentionally visible as a separate unresolved relic risk.\n`;
+  return `# Dungeon Veil bounded gift progression\n\nGenerated deterministically from the PR #170 progression baseline.\n\n- Scenario: \`${report.scenario}\`\n- Seed: \`${report.seed}\`\n- Samples: ${report.samples}\n- Simulated chapters per sample: ${report.maxChapters}\n- Opening gift choices: ${report.currentRules.openingGiftSelections}\n- Chapter 1 room-milestone choices: ${report.currentRules.firstChapterRoomGiftSelections}\n- Total chapter 1 gift choices: ${report.currentRules.firstChapterGiftSelections}\n- Later chapter gift choices: ${report.currentRules.laterChapterGiftSelections}\n\n## Remaining warnings\n\n${warnings}\n\n## Gifts across the uninterrupted run\n\n| Chapter | Total choices | Post-build choices | Attack mastery | HP mastery | Non-power choices | Offensive raw attack | Defensive max HP | Guardian Crown multiplier |\n|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n${giftRows}\n\nHunter Blessing and Vital Spark stop at mastery rank III. Once both masteries are full, later milestones offer healing or currency instead of permanent combat-stat growth. The Guardian Crown remains intentionally visible as a separate unresolved relic risk.\n`;
 }
 
 function parseCli(argv) {
