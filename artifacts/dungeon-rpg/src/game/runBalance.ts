@@ -114,9 +114,9 @@ function affixFor(room: number, chapter: number, enemy: Enemy): EliteAffix {
   return ELITE_AFFIXES[(room + chapter + enemyIndex(enemy)) % ELITE_AFFIXES.length];
 }
 
-function applyEliteAffix(enemy: Enemy, time: number): { hp: number; attack: number; speed: number } {
+function applyEliteAffix(enemy: Enemy, room: number, chapter: number, time: number): { hp: number; attack: number; speed: number } {
   if (!enemy.isElite) return { hp: 1, attack: 1, speed: 1 };
-  enemy.eliteAffix = affixFor(Math.max(1, Number(enemy.id.split('-')[1]) || 1), 1, enemy);
+  enemy.eliteAffix = affixFor(room, chapter, enemy);
   if (enemy.eliteAffix === 'bulwark') {
     enemy.defense = (enemy.defense ?? 0) + 3;
     enemy.color = '#79c8a2';
@@ -228,7 +228,7 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
     const hpRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1;
 
     enemy.isElite = shouldBeElite(room, enemy, chapter);
-    const elite = applyEliteAffix(enemy, time);
+    const elite = applyEliteAffix(enemy, room, chapter, time);
     const eliteHp = enemy.isElite ? 1.3 * elite.hp : 1;
     const eliteAttack = enemy.isElite ? 1.1 * elite.attack : 1;
     const eliteSpeed = enemy.isElite ? 1.04 * elite.speed : 1;
