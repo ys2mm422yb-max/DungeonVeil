@@ -42,7 +42,7 @@ function starterFallbackPool(meta: MetaProgression): EquipmentId[] {
   return unlocked.length ? unlocked : [...STARTER_EQUIPMENT_IDS];
 }
 
-function chooseFromPool(meta: MetaProgression, ids: EquipmentId[]): PendingEquipmentDrop | null {
+function chooseFromPool(meta: MetaProgression, ids: EquipmentId[], source: EquipmentDropSource): PendingEquipmentDrop | null {
   if (!ids.length) return null;
   const unowned = ids.filter(id => !meta.owned[id]);
   const pool = unowned.length ? unowned : ids;
@@ -51,14 +51,14 @@ function chooseFromPool(meta: MetaProgression, ids: EquipmentId[]): PendingEquip
   return {
     item: id,
     duplicate: Boolean(meta.owned[id]),
-    source: definition.dropSource,
+    source,
     rarity: definition.rarity,
   };
 }
 
 function chooseForSource(meta: MetaProgression, source: EquipmentDropSource): PendingEquipmentDrop | null {
   const requested = sourcePool(meta, source);
-  return chooseFromPool(meta, requested.length ? requested : starterFallbackPool(meta));
+  return chooseFromPool(meta, requested.length ? requested : starterFallbackPool(meta), source);
 }
 
 function finalBossSource(meta: MetaProgression): EquipmentDropSource {
