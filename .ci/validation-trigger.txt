@@ -1,1 +1,1 @@
-bounded-run-gift-progression-validation
+equipment-target-pity-validation
