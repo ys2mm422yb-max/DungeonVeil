@@ -102,6 +102,9 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.018;
       root.add(ring);
+      // Enemy visibility fallbacks keep the body visible, but the permanent floor
+      // rings looked like stale telegraphs and cluttered rooms 13+.
+      ring.visible = false;
       root.scale.setScalar(enemy.enemyType === 'boss' ? 1.65 : enemy.isElite ? 1.16 : 1);
       root.userData.visibilityFallback = true;
       root.userData.ring = ring;

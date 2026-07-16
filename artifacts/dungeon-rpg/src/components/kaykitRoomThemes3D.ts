@@ -4,6 +4,7 @@ import {
 } from './kaykitRoomThemesBase3D';
 import { buildRoomOneGrandEntrance } from './roomOneGrandEntrance3D';
 import { buildRoomTwoCommandWatch } from './roomTwoCommandWatch3D';
+import { buildFirelandsTheme } from './firelandsTheme3D';
 
 export const preloadKayKitRoomTheme = preloadBaseKayKitRoomTheme;
 
@@ -13,6 +14,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
 
   if (room === 1) additions.push(buildRoomOneGrandEntrance(THREE));
   if (room === 2) additions.push(buildRoomTwoCommandWatch(THREE));
+  if (room >= 41 && room <= 50) additions.push(buildFirelandsTheme(THREE, room));
   if (!additions.length) return root;
 
   additions.forEach(addition => root.add(addition));

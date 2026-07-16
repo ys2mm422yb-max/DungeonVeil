@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useState } from 'react';
 import { resolveOnlineAvatar, resolveOnlineCard, resolveOnlineTitle } from '../game/onlineProfileCosmetics';
 import { getSocialProfileCard, type SocialProfileCardData } from '../game/socialProgressOnline';
 import type { CosmeticRarity } from '../game/playerProfile';
+import { EQUIPMENT, type EquipmentSlot } from '../game/metaProgression';
 import { ProfileAvatarPortrait } from './ProfileAvatarPortrait';
 
 type Props = { userId: string; language: 'de' | 'en'; onClose: () => void };
@@ -19,6 +20,12 @@ function rarityLabel(rarity: CosmeticRarity | undefined, de: boolean) {
   if (rarity === 'epic') return de ? 'Episch' : 'Epic';
   if (rarity === 'rare') return de ? 'Selten' : 'Rare';
   return de ? 'Gewöhnlich' : 'Common';
+}
+function equipmentSlotLabel(slot: EquipmentSlot, de: boolean) {
+  if (slot === 'bow') return de ? 'Bogen' : 'Bow';
+  if (slot === 'quiver') return de ? 'Köcher' : 'Quiver';
+  if (slot === 'talisman') return de ? 'Talisman' : 'Talisman';
+  return de ? 'Rüstung' : 'Armor';
 }
 function activityLabel(profile: SocialProfileCardData, de: boolean) {
   const online = Date.now() - new Date(profile.last_active_at).getTime() <= 5 * 60 * 1000;
@@ -86,6 +93,16 @@ export function PlayerProfileCard({ userId, language, onClose }: Props) {
             <div data-testid="public-player-profile-title-cosmetic" className="min-w-0 rounded-xl border border-white/8 bg-black/25 p-2"><div className="text-[6px] font-black uppercase text-white/28">{de ? 'Titel' : 'Title'}</div><div className="mt-1 truncate text-[7px] font-black text-white/70">{de ? title.nameDe : title.nameEn}</div><div className="mt-1 text-[6px] uppercase text-amber-100/52">{rarityLabel(title.rarity, de)}</div></div>
             <div data-testid="public-player-profile-calling-card-cosmetic" className="min-w-0 rounded-xl border border-white/8 bg-black/25 p-2"><div className="text-[6px] font-black uppercase text-white/28">{de ? 'Visitenkarte' : 'Calling card'}</div><div className="mt-1 truncate text-[7px] font-black text-white/70">{de ? card.nameDe : card.nameEn}</div><div className="mt-1 text-[6px] uppercase text-amber-100/52">{rarityLabel(card.rarity, de)}</div></div>
           </div>
+        </section>
+
+        <section data-testid="public-player-profile-equipment" className="mt-3 rounded-2xl border border-cyan-300/10 bg-cyan-400/[.025] p-3">
+          <div className="text-[7px] font-black uppercase tracking-[.18em] text-cyan-100/46">{de ? 'AKTUELLE AUSRÜSTUNG' : 'CURRENT EQUIPMENT'}</div>
+          <div className="mt-2 grid grid-cols-2 gap-2">{(profile.equipped_items ?? []).map(item => {
+            const definition = EQUIPMENT[item.id];
+            if (!definition) return null;
+            return <div key={item.slot} className="min-w-0 rounded-xl border bg-black/25 p-2" style={{ borderColor: `${definition.accent}55` }}><div className="text-[6px] font-black uppercase tracking-[.12em] text-white/28">{equipmentSlotLabel(item.slot, de)}</div><div className="mt-1 truncate text-[8px] font-black" style={{ color: definition.accent }}>{de ? definition.nameDe : definition.nameEn}</div><div className="mt-1 text-[6px] uppercase text-white/42">{de ? `Stufe ${item.level}` : `Level ${item.level}`} · {item.rarity}</div></div>;
+          })}</div>
+          {!(profile.equipped_items ?? []).length && <div className="mt-2 text-[8px] text-white/32">{de ? 'Keine Ausrüstung veröffentlicht.' : 'No equipment published.'}</div>}
         </section>
 
         <section data-testid="public-player-profile-worldboss" className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-orange-300/10 bg-orange-400/[.025] p-3"><div><div className="text-[7px] font-black uppercase tracking-[.16em] text-orange-100/45">{de ? 'WELTBOSS' : 'WORLD BOSS'}</div><div className="mt-1 text-[9px] text-white/38">{de ? `${profile.world_boss_events} gewertete Wochen` : `${profile.world_boss_events} scored weeks`}</div></div><div className="text-right"><div className="text-[15px] font-black text-orange-100">{formatNumber(profile.lifetime_world_boss_damage, language)}</div><div className="text-[6px] uppercase tracking-[.12em] text-white/28">{de ? 'Gesamtschaden' : 'Lifetime damage'}</div></div></section>

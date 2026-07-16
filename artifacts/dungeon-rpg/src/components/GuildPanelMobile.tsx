@@ -31,6 +31,7 @@ import {
 import { GuildInviteLinkCard } from './GuildInviteLinkCard';
 import { GuildChatPanel } from './GuildChatPanel';
 import { SocialIdentityCard } from './SocialIdentityCard';
+import { SpectatorScreen } from './SpectatorScreen';
 
 type Props = {
   language: 'de' | 'en';
@@ -39,7 +40,7 @@ type Props = {
   onOpenMemberProfile?: (userId: string) => void;
 };
 type GuildTab = 'overview' | 'chat' | 'members' | 'invite';
-const GUILD_CREATION_COST = 2500;
+const GUILD_CREATION_COST = 10000;
 
 function ActionButton({ label, onClick, disabled = false, primary = false, danger = false, compact = false }: {
   label: string;
@@ -91,6 +92,7 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [spectatingMember, setSpectatingMember] = useState<{ id: string; name: string } | null>(null);
 
   const run = useCallback(async (task: () => Promise<void>) => {
     setBusy(true);
@@ -244,7 +246,8 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
   const tabButton = (key: GuildTab, label: string) => <button type="button" onClick={() => setTab(key)} className={`min-h-10 rounded-xl border px-2 text-[7px] font-black uppercase tracking-[.12em] active:scale-[.98] ${tab === key ? 'border-amber-300/35 bg-amber-500/15 text-amber-100' : 'border-white/8 bg-black/25 text-white/38'}`}>{label}</button>;
   const scrollClass = 'min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[max(18px,env(safe-area-inset-bottom))] pt-3 [-webkit-overflow-scrolling:touch]';
 
-  return <div data-testid="guild-panel-shell" className="flex h-[min(64dvh,620px)] min-h-[360px] flex-col overflow-hidden rounded-3xl border border-amber-300/18 bg-[#0d0b08]/96 p-3 text-white shadow-2xl">
+  return <>
+  <div data-testid="guild-panel-shell" className="flex h-[min(64dvh,620px)] min-h-[360px] flex-col overflow-hidden rounded-3xl border border-amber-300/18 bg-[#0d0b08]/96 p-3 text-white shadow-2xl">
     <header data-testid="guild-panel-header" className="relative shrink-0 border-b border-white/8 pb-3 pr-24">
       <button data-testid="guild-close-button" type="button" aria-label={de ? 'Gilde schließen' : 'Close guild'} onClick={onClose} className="absolute right-0 top-0 z-30 grid h-9 w-9 place-items-center rounded-xl border border-white/12 bg-black/45 text-lg font-black text-white/72 active:scale-90">×</button>
       <div className="text-[7px] font-black uppercase tracking-[.28em] text-amber-200/48">{de ? 'GILDE' : 'GUILD'}</div>
@@ -286,6 +289,7 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
               compact
               onClick={onOpenMemberProfile ? () => onOpenMemberProfile(member.user_id) : undefined}
             />
+            {online && member.user_id !== session?.user.id && <div className="mt-2 flex justify-end border-t border-white/7 pt-2"><ActionButton label={de ? 'Live zuschauen' : 'Watch live'} onClick={() => setSpectatingMember({ id: member.user_id, name })} disabled={busy} primary compact /></div>}
             <div data-testid="guild-member-presence" className="sr-only">{formatPresence(presence, language, presenceNow)}</div>
             {isOwner && !ownerEntry && <div data-testid="guild-member-management" className="mt-2 grid grid-cols-3 gap-2 border-t border-white/7 pt-2"><ActionButton label={member.role === 'officer' ? (de ? 'Mitglied' : 'Member') : (de ? 'Offizier' : 'Officer')} onClick={() => changeRole(member, member.role === 'officer' ? 'member' : 'officer')} disabled={busy} compact /><ActionButton label={de ? 'Führung' : 'Leader'} onClick={() => transferLeadership(member)} disabled={busy} primary compact /><ActionButton label={de ? 'Entfernen' : 'Remove'} onClick={() => kickMember(member)} disabled={busy} danger compact /></div>}
           </article>;
@@ -298,5 +302,7 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
     </div>}
 
     {session && !membership && <div className={`${scrollClass} space-y-3`}><section className="space-y-3 rounded-2xl border border-amber-300/14 bg-amber-400/[.04] p-3"><div className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/25 px-3 py-2.5"><span className="text-[7px] font-black uppercase text-white/34">{de ? 'DEIN GOLD' : 'YOUR GOLD'}</span><span className={`text-[11px] font-black ${canAffordGuild ? 'text-amber-100' : 'text-red-200'}`}>{formatGold(gold, language)} / {formatGold(GUILD_CREATION_COST, language)}</span></div><input value={guildName} maxLength={32} onChange={event => setGuildName(event.target.value)} placeholder={de ? 'Gildenname' : 'Guild name'} className="w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[11px] text-white outline-none placeholder:text-white/24" /><input value={guildTag} maxLength={6} onChange={event => setGuildTag(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} placeholder={de ? 'Kürzel, z. B. VEIL' : 'Tag, e.g. VEIL'} className="w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[11px] uppercase text-white outline-none placeholder:text-white/24" /><textarea value={guildDescription} maxLength={500} rows={3} onChange={event => setGuildDescription(event.target.value)} placeholder={de ? 'Beschreibung (optional)' : 'Description (optional)'} className="w-full resize-none rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[10px] text-white outline-none placeholder:text-white/24" /><ActionButton label={de ? `Für ${formatGold(GUILD_CREATION_COST, language)} Gold gründen` : `Create for ${formatGold(GUILD_CREATION_COST, language)} gold`} onClick={createNewGuild} disabled={busy || !canAffordGuild} primary /></section>{invites.length > 0 && <section className="space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3"><div className="text-[7px] font-black uppercase tracking-[.18em] text-white/35">{de ? 'EINGEHENDE EINLADUNGEN' : 'INCOMING INVITATIONS'}</div>{invites.map(invite => <div key={invite.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/30 p-2.5"><div className="min-w-0 flex-1"><div className="truncate text-[10px] font-bold">[{invite.guild.tag}] {invite.guild.name}</div></div><ActionButton label="✓" onClick={() => answerInvite(invite.id, true)} disabled={busy} primary compact /><ActionButton label="×" onClick={() => answerInvite(invite.id, false)} disabled={busy} compact /></div>)}</section>}<ActionButton label={busy ? (de ? 'Lädt …' : 'Loading …') : (de ? 'Aktualisieren' : 'Refresh')} onClick={() => run(refreshGuildData)} disabled={busy} compact /></div>}
-  </div>;
+  </div>
+  {spectatingMember && <SpectatorScreen friendId={spectatingMember.id} friendName={spectatingMember.name} language={language} onClose={() => setSpectatingMember(null)} />}
+  </>;
 }

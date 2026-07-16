@@ -1,5 +1,6 @@
 import { authenticatedSupabaseRest, currentOnlineSession, type WorldBossEvent } from './supabaseOnline';
 import type { PlayerProfileProgress } from './playerProfile';
+import { EQUIPMENT, EQUIPMENT_SLOTS, loadMetaProgression, type EquipmentId, type EquipmentRarity, type EquipmentSlot } from './metaProgression';
 
 export type SocialProfile = {
   id: string;
@@ -11,6 +12,8 @@ export type SocialProfile = {
   character_key: string;
   last_active_at: string;
 };
+
+export type PublicEquipmentItem = { slot: EquipmentSlot; id: EquipmentId; level: number; rarity: EquipmentRarity };
 
 export type SocialProfileCardData = SocialProfile & {
   guild_name: string | null;
@@ -33,6 +36,7 @@ export type SocialProfileCardData = SocialProfile & {
   play_time_ms: number;
   total_damage: number;
   items_found: number;
+  equipped_items: PublicEquipmentItem[];
 };
 
 export type WorldBossPlayerRow = {
@@ -104,7 +108,12 @@ export async function syncSocialProfileProgress(chapter: number, rank: number, c
 
 export async function syncPublicProfileStats(profile: PlayerProfileProgress): Promise<boolean> {
   if (!currentOnlineSession()) return false;
-  await rpc<Record<string, number>>('sync_public_profile_stats', {
+  const meta = loadMetaProgression();
+  const equippedItems = EQUIPMENT_SLOTS.map(slot => {
+    const id = meta.equipped[slot];
+    return { slot, id, level: Math.max(1, Math.min(5, meta.owned[id]?.level ?? 1)), rarity: EQUIPMENT[id].rarity };
+  });
+  await rpc<Record<string, unknown>>('sync_public_profile_stats', {
     p_stats: {
       highestChapter: profile.stats.highestChapter,
       highestRoom: profile.stats.highestRoom,
@@ -115,6 +124,7 @@ export async function syncPublicProfileStats(profile: PlayerProfileProgress): Pr
       playTimeMs: profile.stats.playTimeMs,
       totalDamage: profile.stats.totalDamage,
       itemsFound: profile.stats.itemsFound,
+      equippedItems,
     },
   });
   return true;
