@@ -1,0 +1,3 @@
+Dungeon Veil test deployment
+Game code commit: a8d579869dcd80a7f9d46efa6a6762c5f1113c09
+Purpose: publish the fully tested PR #169 armor, pose and equipment balance revision to the fixed shared test site without merging.
