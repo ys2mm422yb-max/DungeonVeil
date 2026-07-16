@@ -19,7 +19,8 @@ const checks = [
   [publishedBaseline.baselineCommit === '68508484353162e987e20ade64bb259845250e1b', 'published baseline does not identify the PR #169 merge commit'],
   [publishedBaseline.scenario === 'chapter-50-reward-contract' && publishedBaseline.currentRules.chapterBossRewardRoom === 50, 'published pre-gift baseline no longer models room 50 as chapter reward boss'],
   [report.scenario === 'bounded-run-gifts', 'live simulator does not use the bounded gift scenario'],
-  [report.currentRules.firstChapterGiftSelections === 11 && report.currentRules.laterChapterGiftSelections === 5, 'simulator does not model the bounded 11/5 gift schedule'],
+  [report.currentRules.openingGiftSelections === 1 && report.currentRules.firstChapterRoomGiftSelections === 11, 'simulator does not model the opening choice plus eleven chapter-one milestones'],
+  [report.currentRules.firstChapterGiftSelections === 12 && report.currentRules.laterChapterGiftSelections === 5, 'simulator does not model the bounded 12/5 gift schedule'],
   [report.currentRules.hunterBlessingMaxRank === 3 && report.currentRules.vitalSparkMaxRank === 3, 'mastery caps are not represented in the simulator'],
   [report.roomRewardTotals[0].xp === 6020 && report.roomRewardTotals[0].dust === 1480 && report.roomRewardTotals[0].gold === 24770, 'chapter-one static room rewards changed without updating the simulator contract'],
   [report.sourceAttemptsPerChapter.steadyState.forge > 0.45 && report.sourceAttemptsPerChapter.steadyState.forge < 0.65, 'forge attempt rate left the expected current-baseline range'],
@@ -35,9 +36,9 @@ const checks = [
   [!warningCodes.has('room20_is_special_reward_boss'), 'simulator still reports the corrected room-20 reward asymmetry'],
   [warningCodes.has('guardian_crown_unbounded'), 'simulator no longer detects uncapped Guardian Crown growth'],
   [warningCodes.has('relic_source_skew'), 'simulator no longer detects relic source skew'],
-  [report.giftGrowth.atChapter10.offensiveAttack === 29 && report.giftGrowth.atChapter10.defensiveMaxHealth === 206, 'capped mastery stats do not stop at the intended reference values'],
+  [report.giftGrowth.atChapter10.totalChoices === 57 && report.giftGrowth.atChapter10.offensiveAttack === 29 && report.giftGrowth.atChapter10.defensiveMaxHealth === 206, 'capped mastery references do not match the twelve-choice opening schedule'],
   [report.giftGrowth.atChapter10.offensiveMasterySelections === 3 && report.giftGrowth.atChapter10.defensiveMasterySelections === 3, 'chapter-ten mastery ranks are not capped at III'],
-  [report.giftGrowth.atChapter10.nonPowerChoices > 0, 'late milestones do not transition to healing or currency choices'],
+  [report.giftGrowth.atChapter10.nonPowerChoices === 18, 'late milestones do not transition to the expected healing or currency choices'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
