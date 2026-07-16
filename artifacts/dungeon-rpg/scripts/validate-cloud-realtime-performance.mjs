@@ -35,3 +35,5 @@ if (failures.length) {
 }
 
 console.log('Cloud multi-device, safe updates, 10Hz spectating, viewer presence, gifts, ring cleanup and room 15 performance validated.');
+
+// Deployment validation marker for merged PR #185.
