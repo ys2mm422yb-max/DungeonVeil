@@ -40,7 +40,7 @@ export function veilModifierLabel(room: number): string | null {
   if (modifier === 'pressure') return 'SCHLEIERDRUCK';
   if (modifier === 'blood') return 'BLUTSCHLEIER';
   if (modifier === 'storm') return 'RUNENSTURM';
-  if (room === 20) return 'SCHLEIERKERN';
+  if (room === 50) return 'SCHLEIERKERN';
   return null;
 }
 
@@ -119,13 +119,13 @@ function applyBloodVeil(engine: GameEngine, system: RunEffectSystemState, time: 
 }
 
 function triggerFinalBossPhase(engine: GameEngine, system: RunEffectSystemState, time: number): void {
-  if (engine.state.floor !== 20) return;
+  if (engine.state.floor !== 50) return;
   const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss' && !enemy.isDead && enemy.hp > 0);
   if (!boss || boss.hp > boss.maxHp * 0.5 || system.bossPhaseTriggered.has(boss.id)) return;
   system.bossPhaseTriggered.add(boss.id);
-  boss.attack = Math.round(boss.attack * 1.22);
-  boss.speed *= 1.18;
-  boss.nextAttackTime = time + 320;
+  boss.attack = Math.round(boss.attack * 1.18);
+  boss.speed *= 1.14;
+  boss.nextAttackTime = time + 380;
   system.nextRuneStormAt = time + 1200;
 
   const x = boss.x + boss.width / 2;
@@ -133,12 +133,12 @@ function triggerFinalBossPhase(engine: GameEngine, system: RunEffectSystemState,
   engine.state.damageNumbers.push({ id: `boss-phase-${boss.id}`, x, y: boss.y - 28, value: 'SCHLEIERBRUCH', color: '#c6a5ff', lifeTime: 0, maxLifeTime: 2400, scale: 1.55 });
   engine.state.effects.push({ id: `boss-phase-wave-${boss.id}`, x, y, radius: 0, maxRadius: 180, color: '#875dff', lifeTime: 0, maxLifeTime: 1050, type: 'circle', element: 'arcane' });
   engine.state.particles.push(...makeHitSpark(x, y, '#a77cff', 24));
-  window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title: 'DER SCHLEIER BRICHT', text: 'Der Wächter entfesselt den Kern. Runenstürme erwachen.', tone: 'relic' } }));
+  window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title: 'DER SCHLEIER BRICHT', text: 'Der Kapitelwächter entfesselt den Kern. Runenstürme erwachen.', tone: 'relic' } }));
 }
 
 function updateRuneStorm(engine: GameEngine, system: RunEffectSystemState, time: number): void {
   const stormRoom = veilModifierForRoom(engine.state.floor) === 'storm';
-  const finalBossStorm = engine.state.floor === 20 && system.bossPhaseTriggered.size > 0;
+  const finalBossStorm = engine.state.floor === 50 && system.bossPhaseTriggered.size > 0;
   if (!stormRoom && !finalBossStorm) return;
 
   if (system.runeStrikeAt > 0 && time >= system.runeStrikeAt) {
@@ -309,7 +309,7 @@ function improveDamageNumberReadability(engine: GameEngine, system: RunEffectSys
     const isBurn = number.id.startsWith('burn-');
     const isBurst = number.id.startsWith('fire-burst-');
     const isHeal = number.id.startsWith('heal-') || number.id.startsWith('heal-visible-') || number.value.startsWith('+');
-    const isPlayerHit = number.id.startsWith('hit-') || number.id.startsWith('rune-hit-');
+    const isPlayerHit = number.id.startsWith('hit-') || number.id.startsWith('rune-hit-') || number.id.startsWith('volatile-hit-');
 
     if (isBurn) number.scale = Math.max(number.scale ?? 1, 1.02);
     else if (isBurst) number.scale = Math.max(number.scale ?? 1, 1.58);
