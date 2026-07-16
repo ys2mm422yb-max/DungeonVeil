@@ -15,17 +15,17 @@ export function updateRunRelicEffects(engine: GameEngine, state: RunRelicEffectS
   const relic = equippedVeilRelic();
 
   if (relic === 'world-core' && activateWorldCoreForCurrentRun()) {
-    const healthGain = Math.max(1, Math.round(player.maxHp * 0.12));
+    const healthGain = Math.max(1, Math.round(player.maxHp * 0.1));
     player.maxHp += healthGain;
     player.hp = Math.min(player.maxHp, player.hp + healthGain);
-    player.attack = Math.max(player.attack + 1, Math.round(player.attack * 1.08));
+    player.attack = Math.max(player.attack + 1, Math.round(player.attack * 1.06));
     engine.state.effects.push({ id: `world-core-${time}`, x: player.x + 16, y: player.y + 16, radius: 0, maxRadius: 110, color: '#ff8b4a', lifeTime: 0, maxLifeTime: 850, type: 'circle', element: 'fire' });
-    window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title: 'DER WELTENKERN ERWACHT', text: '+8 % Angriff · +12 % maximales Leben für diesen Run', tone: 'relic' } }));
+    window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title: 'DER WELTENKERN ERWACHT', text: '+6 % Angriff · +10 % maximales Leben für diesen Run', tone: 'relic' } }));
   }
 
   if (relic === 'marked-claw' && (player.relicAttackSpeedUntil ?? 0) > time && player.lastAttackTime > state.lastAttackTime) {
     state.lastAttackTime = player.lastAttackTime;
-    player.attackCooldown = Math.max(90, player.attackCooldown * 0.78);
+    player.attackCooldown = Math.max(90, player.attackCooldown * 0.82);
   } else if (player.lastAttackTime > state.lastAttackTime) {
     state.lastAttackTime = player.lastAttackTime;
   }
@@ -36,11 +36,19 @@ export function updateRunRelicEffects(engine: GameEngine, state: RunRelicEffectS
     for (const number of engine.state.damageNumbers) {
       if (!number.id.startsWith('rune-hit-') || state.processedRuneHits.has(number.id)) continue;
       state.processedRuneHits.add(number.id);
-      const damage = Math.abs(Number(number.value.replace(/[^0-9.]/g, '')) || 0);
-      if (damage <= 0) continue;
-      const restored = Math.max(1, Math.round(damage * 0.25));
-      player.hp = Math.min(player.maxHp, player.hp + restored);
-      engine.state.damageNumbers.push({ id: `rune-shard-${number.id}`, x: player.x + 16, y: player.y - 4, value: `+${restored}`, color: '#7dbfff', lifeTime: 0, maxLifeTime: 650, scale: 0.95 });
+      const originalDamage = Math.abs(Number(String(number.value).replace(/[^0-9.]/g, '')) || 0);
+      if (originalDamage <= 0) continue;
+      const reducedDamage = Math.max(1, Math.ceil(originalDamage * 0.75));
+      const prevented = Math.max(0, originalDamage - reducedDamage);
+      player.hp = Math.min(player.maxHp, player.hp + prevented);
+      number.value = `-${reducedDamage}`;
+      number.color = '#7dbfff';
+      if (player.hp > 0 && engine.state.status === 'gameover') {
+        player.state = 'idle';
+        engine.state.status = 'playing';
+        engine.onStateChange({ ...engine.state });
+      }
+      engine.state.damageNumbers.push({ id: `rune-shard-${number.id}`, x: player.x + 16, y: player.y - 4, value: `SCHUTZ ${prevented}`, color: '#7dbfff', lifeTime: 0, maxLifeTime: 650, scale: 0.9 });
     }
   }
 
