@@ -4,9 +4,12 @@ import { CHAPTER_ROOMS } from './chapterRun';
 
 export const FIRST_CHAPTER_GIFT_ROOMS = Object.freeze([3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]);
 export const LATER_CHAPTER_GIFT_ROOMS = Object.freeze([10, 20, 30, 40, 50]);
+export const FIRST_CHAPTER_GIFT_SELECTIONS = 1 + FIRST_CHAPTER_GIFT_ROOMS.length;
+export const LATER_CHAPTER_GIFT_SELECTIONS = LATER_CHAPTER_GIFT_ROOMS.length;
 
 const FIRST_CHAPTER_GIFT_SET = new Set<number>(FIRST_CHAPTER_GIFT_ROOMS);
 const LATER_CHAPTER_GIFT_SET = new Set<number>(LATER_CHAPTER_GIFT_ROOMS);
+const STARTING_GIFT_SAVE_REASONS = new Set(['new-run', 'meta-loadout']);
 
 export function shouldOfferGiftAfterRoom(chapter: number, room: number): boolean {
   const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
@@ -14,9 +17,12 @@ export function shouldOfferGiftAfterRoom(chapter: number, room: number): boolean
   return (safeChapter === 1 ? FIRST_CHAPTER_GIFT_SET : LATER_CHAPTER_GIFT_SET).has(safeRoom);
 }
 
-export function shouldRestorePendingGift(save: Pick<SaveData, 'chapter' | 'floor' | 'saveReason'>): boolean {
+export function shouldRestorePendingGift(save: Pick<SaveData, 'chapter' | 'floor' | 'saveReason' | 'pendingGift'>): boolean {
+  if (typeof save.pendingGift === 'boolean') return save.pendingGift;
+
   const chapter = Math.max(1, Math.floor(Number(save.chapter) || 1));
   const floor = Math.max(1, Math.min(CHAPTER_ROOMS, Math.floor(Number(save.floor) || 1)));
+  if (chapter === 1 && floor === 1 && STARTING_GIFT_SAVE_REASONS.has(save.saveReason ?? '')) return true;
   if (save.saveReason === 'chapter-complete') return shouldOfferGiftAfterRoom(Math.max(1, chapter - 1), CHAPTER_ROOMS);
   if (save.saveReason === 'room-complete' && floor > 1) return shouldOfferGiftAfterRoom(chapter, floor - 1);
   return false;
