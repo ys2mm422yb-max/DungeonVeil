@@ -7,6 +7,7 @@ const paths = {
   inventory: '../src/components/screens/VeilChamberScreen.tsx',
   quests: '../src/components/DailyQuestPanel.tsx',
   relics: '../src/game/veilRelics.ts',
+  bundle: '../src/game/persistentSaveBundle.ts',
   worldBossReward: '../src/game/worldBossRewardLocal.ts',
   worldBossMigration: '../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql',
   expansion: '../src/game/profileCosmeticsExpansion.ts',
@@ -28,6 +29,7 @@ const checks = [
   [files.retention.includes("if (parsed.currencyVersion !== 2)") && files.retention.includes('migrateLegacySigilsToDust(legacySigils)'), 'legacy sigils are not migrated 1:1 into dust'],
   [files.retention.indexOf('localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))') < files.retention.indexOf('migrateLegacySigilsToDust(legacySigils)'), 'migration does not persist its marker before granting dust'],
   [files.currency.includes('meta.dust += value') && files.currency.includes('saveMetaProgression(meta)'), 'shared dust grant does not persist into meta progression'],
+  [files.bundle.includes('number(meta.dust) * 100') && files.bundle.includes('number(retention.sigils) * 100'), 'old sigils and migrated dust do not carry equal cloud conflict weight'],
   [!files.retention.includes('profile.sigils +=') && !files.retention.includes('Schleier-Siegel'), 'run rewards still grant or name Veil Sigils'],
   [!files.quests.includes('profile.sigils') && !files.quests.includes("'Siegel'") && !files.quests.includes("'Sigils'"), 'quest board still exposes the removed sigil wallet'],
   [files.quests.includes('loadMetaProgression().dust') && files.quests.includes("'Schleierstaub'") && files.quests.includes("'Veil Dust'"), 'quest board does not display Veil Dust'],
@@ -53,4 +55,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Dust/avatar overhaul audit passed: legacy sigils migrate once, quests/hunts/relics/world bosses feed Veil Dust, upgrades consume three resources and all 17 profile avatars use safe vector portraits.');
+console.log('Dust/avatar overhaul audit passed: migration preserves cloud weight, all rewards feed Veil Dust, upgrades consume three resources and all 17 profile avatars use safe vector portraits.');
