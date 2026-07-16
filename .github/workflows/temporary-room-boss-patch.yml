@@ -1,0 +1,29 @@
+name: Temporary room and boss patch
+
+on:
+  push:
+    branches:
+      - work/boss-telegraphs-room-21-30-theme
+    paths:
+      - .github/workflows/temporary-room-boss-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/boss-telegraphs-room-21-30-theme
+          fetch-depth: 0
+      - name: Apply targeted patch
+        run: python .ci/apply-room-boss-patch.py
+      - name: Commit product changes and remove temporary runner
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Improve boss telegraphs and rooms 21-30"
+          git push origin HEAD:work/boss-telegraphs-room-21-30-theme
