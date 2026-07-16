@@ -1,18 +1,30 @@
 import type { GameEngine } from './runEngine';
 import { skillRank } from './runSkills';
 
-export type RunSynergyId = 'inferno-lance' | 'shatterfrost' | 'arrow-storm' | 'veil-step';
+export type RunSynergyId = 'inferno-lance' | 'shatterfrost' | 'arrow-storm' | 'veil-step' | 'elemental-storm' | 'veil-chain';
 
 export type RunSynergyState = {
   announced: Set<RunSynergyId>;
   processedEffects: Set<string>;
+  fusionEffects: Set<string>;
   lastAttackTime: number;
   attackChain: number;
+  elementalAttackTime: number;
+  elementalChain: number;
   lastDodgeTime: number;
 };
 
 export function createRunSynergyState(): RunSynergyState {
-  return { announced: new Set(), processedEffects: new Set(), lastAttackTime: 0, attackChain: 0, lastDodgeTime: 0 };
+  return {
+    announced: new Set(),
+    processedEffects: new Set(),
+    fusionEffects: new Set(),
+    lastAttackTime: 0,
+    attackChain: 0,
+    elementalAttackTime: 0,
+    elementalChain: 0,
+    lastDodgeTime: 0,
+  };
 }
 
 function announce(state: RunSynergyState, id: RunSynergyId, title: string, text: string) {
@@ -23,12 +35,13 @@ function announce(state: RunSynergyState, id: RunSynergyId, title: string, text:
 
 function damageEnemy(engine: GameEngine, enemy: GameEngine['state']['enemies'][number], damage: number, time: number, color: string, id: string) {
   if (enemy.isDead || enemy.hp <= 0) return;
-  enemy.hp -= damage;
+  const dealt = Math.max(1, Math.round(damage));
+  enemy.hp -= dealt;
   enemy.flashUntil = time + 120;
   enemy.lastHitTime = time;
   const x = enemy.x + enemy.width / 2;
   const y = enemy.y + enemy.height / 2;
-  engine.state.damageNumbers.push({ id: `${id}-${time}-${enemy.id}`, x, y: enemy.y - 8, value: `-${damage}`, color, lifeTime: 0, maxLifeTime: 650, scale: 1.18 });
+  engine.state.damageNumbers.push({ id: `${id}-${time}-${enemy.id}`, x, y: enemy.y - 8, value: `-${dealt}`, color, lifeTime: 0, maxLifeTime: 650, scale: 1.18 });
 }
 
 function infernoLance(engine: GameEngine, state: RunSynergyState, time: number) {
@@ -72,18 +85,79 @@ function shatterfrost(engine: GameEngine, state: RunSynergyState, time: number) 
   }
 }
 
+function elementalStorm(engine: GameEngine, state: RunSynergyState, time: number) {
+  if (skillRank(engine.state.runSkills, 'elementalStorm') < 1) return;
+  announce(state, 'elemental-storm', 'ELEMENTARSTURM', 'Jeder fünfte Angriff entfesselt einen Elementarburst');
+  const attackTime = engine.state.player.lastAttackTime;
+  if (!attackTime || attackTime <= state.elementalAttackTime) return;
+  state.elementalAttackTime = attackTime;
+  state.elementalChain++;
+  if (state.elementalChain % 5 !== 0) return;
+
+  const playerX = engine.state.player.x + engine.state.player.width / 2;
+  const playerY = engine.state.player.y + engine.state.player.height / 2;
+  const center = engine.state.enemies
+    .filter(enemy => enemy.hp > 0 && !enemy.isDead)
+    .sort((a, b) => Math.hypot(a.x - playerX, a.y - playerY) - Math.hypot(b.x - playerX, b.y - playerY))[0];
+  if (!center) return;
+
+  const burstIndex = state.elementalChain / 5;
+  const fire = burstIndex % 2 === 1;
+  const x = center.x + center.width / 2;
+  const y = center.y + center.height / 2;
+  const color = fire ? '#ff642c' : '#62d9ff';
+  const element = fire ? 'fire' as const : 'ice' as const;
+  const damage = Math.max(3, Math.round(engine.state.player.attack * 0.22));
+  engine.state.effects.push({ id: `elemental-storm-${attackTime}`, x, y, radius: 0, maxRadius: 72, color, lifeTime: 0, maxLifeTime: 480, type: 'circle', element });
+
+  for (const enemy of engine.state.enemies) {
+    const ex = enemy.x + enemy.width / 2;
+    const ey = enemy.y + enemy.height / 2;
+    if (Math.hypot(ex - x, ey - y) > 64) continue;
+    damageEnemy(engine, enemy, damage, time, color, 'elemental-storm');
+    if (fire) {
+      enemy.burnRanks = Math.max(enemy.burnRanks ?? 0, 1);
+      enemy.burnDamage = Math.max(enemy.burnDamage ?? 0, 2);
+      enemy.burnUntil = Math.max(enemy.burnUntil ?? 0, time + 1560);
+      if (!enemy.nextBurnTick || enemy.nextBurnTick <= time) enemy.nextBurnTick = time + 520;
+    } else {
+      enemy.frostUntil = Math.max(enemy.frostUntil ?? 0, time + 1400);
+      enemy.frostSlow = Math.max(enemy.frostSlow ?? 0, 0.2);
+    }
+  }
+}
+
 function arrowStorm(engine: GameEngine, state: RunSynergyState, time: number) {
   if (skillRank(engine.state.runSkills, 'multishot') < 2 || skillRank(engine.state.runSkills, 'attackSpeed') < 2) return;
-  announce(state, 'arrow-storm', 'PFEILHAGEL', 'Jeder fünfte Angriff entfesselt eine Extrasalve');
+  const fused = skillRank(engine.state.runSkills, 'arrowStorm') > 0;
+  announce(state, 'arrow-storm', fused ? 'PFEILSTURM' : 'PFEILHAGEL', fused ? 'Jede fünfte Extrasalve trifft bis zu vier Ziele mit 90% Schaden' : 'Jeder fünfte Angriff entfesselt eine Extrasalve');
   const attackTime = engine.state.player.lastAttackTime;
   if (!attackTime || attackTime <= state.lastAttackTime) return;
   state.lastAttackTime = attackTime;
   state.attackChain++;
   if (state.attackChain % 5 !== 0) return;
-  const targets = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead).sort((a, b) => a.hp - b.hp).slice(0, 3);
+  const targetCount = fused ? 4 : 3;
+  const damageScale = fused ? 0.9 : 0.7;
+  const targets = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead).sort((a, b) => a.hp - b.hp).slice(0, targetCount);
   for (const enemy of targets) {
-    damageEnemy(engine, enemy, Math.max(4, Math.round(engine.state.player.attack * 0.7)), time, '#ffe8a8', 'arrow-storm');
-    engine.state.effects.push({ id: `arrow-storm-${time}-${enemy.id}`, x: enemy.x + enemy.width / 2, y: enemy.y + enemy.height / 2, radius: 0, maxRadius: 44, color: '#ffe8a8', lifeTime: 0, maxLifeTime: 360, type: 'circle', element: 'normal' });
+    damageEnemy(engine, enemy, Math.max(4, Math.round(engine.state.player.attack * damageScale)), time, '#ffe8a8', 'arrow-storm');
+    engine.state.effects.push({ id: `arrow-storm-${time}-${enemy.id}`, x: enemy.x + enemy.width / 2, y: enemy.y + enemy.height / 2, radius: 0, maxRadius: fused ? 50 : 44, color: '#ffe8a8', lifeTime: 0, maxLifeTime: 360, type: 'circle', element: 'normal' });
+  }
+}
+
+function veilChain(engine: GameEngine, state: RunSynergyState, time: number) {
+  if (skillRank(engine.state.runSkills, 'veilChain') < 1) return;
+  announce(state, 'veil-chain', 'SCHLEIERKETTE', 'Kettentreffer erhalten 10% zusätzlichen Angriffsschaden');
+  for (const effect of engine.state.effects) {
+    if ((!effect.id.startsWith('rico-') && !effect.id.startsWith('pierce-')) || state.fusionEffects.has(effect.id)) continue;
+    state.fusionEffects.add(effect.id);
+    const target = effect.toEnemyId ? engine.state.enemies.find(enemy => enemy.id === effect.toEnemyId) : null;
+    if (!target) continue;
+    const bonus = Math.max(2, Math.round(engine.state.player.attack * 0.1));
+    const x = target.x + target.width / 2;
+    const y = target.y + target.height / 2;
+    damageEnemy(engine, target, bonus, time, '#c7b6ff', 'veil-chain');
+    engine.state.effects.push({ id: `veil-chain-${effect.id}`, x, y, radius: 0, maxRadius: 34, color: '#c7b6ff', lifeTime: 0, maxLifeTime: 300, type: 'circle', element: 'arcane' });
   }
 }
 
@@ -108,8 +182,11 @@ function veilStep(engine: GameEngine, state: RunSynergyState, time: number) {
 export function updateRunSynergies(engine: GameEngine, state: RunSynergyState, time: number) {
   const activeEffects = new Set(engine.state.effects.map(effect => effect.id));
   for (const id of state.processedEffects) if (!activeEffects.has(id)) state.processedEffects.delete(id);
+  for (const id of state.fusionEffects) if (!activeEffects.has(id)) state.fusionEffects.delete(id);
   infernoLance(engine, state, time);
   shatterfrost(engine, state, time);
+  elementalStorm(engine, state, time);
   arrowStorm(engine, state, time);
+  veilChain(engine, state, time);
   veilStep(engine, state, time);
 }
