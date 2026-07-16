@@ -8,6 +8,7 @@ export function grantMetaDust(amount: number): MetaProgression {
   return saveMetaProgression(meta);
 }
 
+/** One-time compatibility bridge. The caller persists currencyVersion 2 before invoking it. */
 export function migrateLegacySigilsToDust(amount: number): MetaProgression {
   return grantMetaDust(amount);
 }
