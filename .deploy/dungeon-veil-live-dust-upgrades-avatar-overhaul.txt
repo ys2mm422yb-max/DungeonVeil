@@ -1,0 +1,5 @@
+Dungeon Veil live test deployment
+Product source: 330e45bae5f541f8e02398a5f1734ea74bbbfe05
+Source PR: #168
+Scope: Veil Dust migration, three-resource equipment upgrades, and illustrated profile avatars
+No merge performed.
