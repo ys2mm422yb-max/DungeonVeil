@@ -6,6 +6,23 @@ export type SkillRankDef = {
   rankTextEn: string[];
 };
 
+export type FusionKey = 'elementalStorm' | 'arrowStorm' | 'veilChain';
+export type InstantGiftKey = 'heal' | 'hunterBlessing' | 'vitalSpark';
+export type BaseCombatGiftKey = 'multishot' | 'ricochet' | 'fireArrow' | 'iceArrow' | 'attackSpeed' | 'piercing';
+
+export const DEFAULT_RUN_UPGRADE_POOL: UpgradeKey[] = [
+  'multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing',
+  'attack', 'maxHp', 'speed', 'defense',
+];
+
+export const FUSION_RECIPES: Record<FusionKey, readonly [BaseCombatGiftKey, BaseCombatGiftKey]> = {
+  elementalStorm: ['fireArrow', 'iceArrow'],
+  arrowStorm: ['multishot', 'attackSpeed'],
+  veilChain: ['ricochet', 'piercing'],
+};
+
+export const OVERFLOW_GIFTS: InstantGiftKey[] = ['hunterBlessing', 'vitalSpark', 'heal'];
+
 export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   multishot: {
     maxRank: 3,
@@ -37,6 +54,21 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
     rankTextDe: ['1 Durchschlag · 70% Schaden', '2 Durchschläge · 75% Schaden', '3 Durchschläge · 80% Schaden'],
     rankTextEn: ['1 pierce · 70% damage', '2 pierces · 75% damage', '3 pierces · 80% damage'],
   },
+  elementalStorm: {
+    maxRank: 1,
+    rankTextDe: ['Feuerpfeil III + Frostpfeil III · beide Elementeffekte bleiben in einem Gabenplatz aktiv'],
+    rankTextEn: ['Fire Arrow III + Frost Arrow III · both elemental effects remain active in one gift slot'],
+  },
+  arrowStorm: {
+    maxRank: 1,
+    rankTextDe: ['Mehrfachpfeil III + Schnellzug III · Pfeilfächer und maximales Angriffstempo in einem Gabenplatz'],
+    rankTextEn: ['Multishot III + Quick Draw III · full arrow fan and maximum attack speed in one gift slot'],
+  },
+  veilChain: {
+    maxRank: 1,
+    rankTextDe: ['Abpraller III + Durchbohren III · volle Ketten- und Durchschlagswirkung in einem Gabenplatz'],
+    rankTextEn: ['Ricochet III + Piercing III · full chain and piercing effects in one gift slot'],
+  },
   attack: {
     maxRank: 3,
     rankTextDe: ['+4 Angriff', '+4 Angriff · stärkerer Einschlag', '+5 Angriff · maximaler Einschlag'],
@@ -59,19 +91,85 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   heal: {
     maxRank: 1,
-    rankTextDe: ['Sofort 50% Max-LP heilen'],
-    rankTextEn: ['Instantly heal 50% max HP'],
+    rankTextDe: ['Sofort 20% der Max-LP heilen'],
+    rankTextEn: ['Instantly heal 20% max HP'],
+  },
+  hunterBlessing: {
+    maxRank: 1,
+    rankTextDe: ['Wiederholbarer später Segen · +2 Angriff für diesen Run'],
+    rankTextEn: ['Repeatable late blessing · +2 attack for this run'],
+  },
+  vitalSpark: {
+    maxRank: 1,
+    rankTextDe: ['Wiederholbarer später Segen · +8 Max-LP und +8 LP'],
+    rankTextEn: ['Repeatable late blessing · +8 max HP and +8 HP'],
   },
 };
 
-export function skillRank(skills: Partial<Record<UpgradeKey, number>>, key: UpgradeKey) {
+function rawSkillRank(skills: Partial<Record<UpgradeKey, number>>, key: UpgradeKey) {
   return Math.max(0, Math.min(RUN_SKILL_DEFS[key].maxRank, skills[key] ?? 0));
 }
 
+export function isFusionKey(key: UpgradeKey): key is FusionKey {
+  return key === 'elementalStorm' || key === 'arrowStorm' || key === 'veilChain';
+}
+
+export function isInstantGift(key: UpgradeKey): key is InstantGiftKey {
+  return key === 'heal' || key === 'hunterBlessing' || key === 'vitalSpark';
+}
+
+export function activeFusionForBase(skills: Partial<Record<UpgradeKey, number>>, key: UpgradeKey): FusionKey | null {
+  for (const fusion of Object.keys(FUSION_RECIPES) as FusionKey[]) {
+    if (rawSkillRank(skills, fusion) > 0 && FUSION_RECIPES[fusion].includes(key as BaseCombatGiftKey)) return fusion;
+  }
+  return null;
+}
+
+export function skillRank(skills: Partial<Record<UpgradeKey, number>>, key: UpgradeKey) {
+  const direct = rawSkillRank(skills, key);
+  if (direct > 0 || isFusionKey(key) || isInstantGift(key)) return direct;
+  return activeFusionForBase(skills, key) ? 3 : direct;
+}
+
 export function nextSkillRank(skills: Partial<Record<UpgradeKey, number>>, key: UpgradeKey) {
-  return Math.min(RUN_SKILL_DEFS[key].maxRank, skillRank(skills, key) + 1);
+  return Math.min(RUN_SKILL_DEFS[key].maxRank, rawSkillRank(skills, key) + 1);
+}
+
+export function availableFusionSkills(skills: Partial<Record<UpgradeKey, number>>): FusionKey[] {
+  return (Object.keys(FUSION_RECIPES) as FusionKey[]).filter(fusion => {
+    if (rawSkillRank(skills, fusion) > 0) return false;
+    const [first, second] = FUSION_RECIPES[fusion];
+    return rawSkillRank(skills, first) >= 3 && rawSkillRank(skills, second) >= 3;
+  });
+}
+
+export function consumeFusionComponents(skills: Partial<Record<UpgradeKey, number>>, fusion: FusionKey): void {
+  const [first, second] = FUSION_RECIPES[fusion];
+  delete skills[first];
+  delete skills[second];
+  skills[fusion] = 1;
 }
 
 export function availableRunSkills(skills: Partial<Record<UpgradeKey, number>>, pool: UpgradeKey[]) {
-  return pool.filter(key => key === 'heal' || skillRank(skills, key) < RUN_SKILL_DEFS[key].maxRank);
+  return pool.filter(key => {
+    if (isInstantGift(key)) return true;
+    if (activeFusionForBase(skills, key)) return false;
+    return rawSkillRank(skills, key) < RUN_SKILL_DEFS[key].maxRank;
+  });
+}
+
+function shuffled<T>(items: T[]): T[] {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+export function buildRunGiftChoices(skills: Partial<Record<UpgradeKey, number>>, pool: UpgradeKey[] = DEFAULT_RUN_UPGRADE_POOL): UpgradeKey[] {
+  const fusions = shuffled<UpgradeKey>(availableFusionSkills(skills));
+  const regular = shuffled(availableRunSkills(skills, pool));
+  const choices: UpgradeKey[] = [];
+
+  for (const fusion of fusions) if (choices.length < 3) choices.push(fusion);
+  for (const gift of regular) if (choices.length < 3 && !choices.includes(gift)) choices.push(gift);
+  for (const fallback of OVERFLOW_GIFTS) if (choices.length < 3 && !choices.includes(fallback)) choices.push(fallback);
+
+  return choices.slice(0, 3);
 }
