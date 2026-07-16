@@ -58,18 +58,18 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   elementalStorm: {
     maxRank: 1,
-    rankTextDe: ['Feuerpfeil III + Frostpfeil III · beide Elementeffekte bleiben in einem Gabenplatz aktiv'],
-    rankTextEn: ['Fire Arrow III + Frost Arrow III · both elemental effects remain active in one gift slot'],
+    rankTextDe: ['Feuerpfeil III + Frostpfeil III · jeder fünfte Angriff entfesselt einen kleinen Feuer- oder Frostburst'],
+    rankTextEn: ['Fire Arrow III + Frost Arrow III · every fifth attack releases a small fire or frost burst'],
   },
   arrowStorm: {
     maxRank: 1,
-    rankTextDe: ['Mehrfachpfeil III + Schnellzug III · Pfeilfächer und maximales Angriffstempo in einem Gabenplatz'],
-    rankTextEn: ['Multishot III + Quick Draw III · full arrow fan and maximum attack speed in one gift slot'],
+    rankTextDe: ['Mehrfachpfeil III + Schnellzug III · jede fünfte Extrasalve trifft bis zu 4 Ziele mit 90% Schaden'],
+    rankTextEn: ['Multishot III + Quick Draw III · every fifth extra volley hits up to 4 targets for 90% damage'],
   },
   veilChain: {
     maxRank: 1,
-    rankTextDe: ['Abpraller III + Durchbohren III · volle Ketten- und Durchschlagswirkung in einem Gabenplatz'],
-    rankTextEn: ['Ricochet III + Piercing III · full chain and piercing effects in one gift slot'],
+    rankTextDe: ['Abpraller III + Durchbohren III · jeder Kettentreffer verursacht zusätzlich 10% Angriffsschaden'],
+    rankTextEn: ['Ricochet III + Piercing III · every chain hit deals an additional 10% attack damage'],
   },
   attack: {
     maxRank: 3,
