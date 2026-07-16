@@ -56,3 +56,5 @@ jobs:
           git add artifacts/dungeon-rpg supabase/migrations
           git commit -m "[applied-room-spectator-firelands] implement requested gameplay pass"
           git push origin HEAD:work/room-loading-spectator-firelands
+
+# Explicit second trigger after the workflow existed on the branch.
