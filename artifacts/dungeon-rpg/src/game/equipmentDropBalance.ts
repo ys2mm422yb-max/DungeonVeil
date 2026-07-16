@@ -1,5 +1,6 @@
 import { FINAL_BOSS_ROOM, isBossRoom } from './chapterRun';
 import { equipmentUnlockedForCurrentProgress } from './equipmentChapterGates';
+import { targetedEquipmentForAward } from './equipmentTargeting';
 import {
   EQUIPMENT,
   loadMetaProgression,
@@ -42,11 +43,7 @@ function starterFallbackPool(meta: MetaProgression): EquipmentId[] {
   return unlocked.length ? unlocked : [...STARTER_EQUIPMENT_IDS];
 }
 
-function chooseFromPool(meta: MetaProgression, ids: EquipmentId[], source: EquipmentDropSource): PendingEquipmentDrop | null {
-  if (!ids.length) return null;
-  const unowned = ids.filter(id => !meta.owned[id]);
-  const pool = unowned.length ? unowned : ids;
-  const id = pool[Math.floor(Math.random() * pool.length)];
+function pendingForItem(meta: MetaProgression, id: EquipmentId, source: EquipmentDropSource): PendingEquipmentDrop {
   const definition = EQUIPMENT[id];
   return {
     item: id,
@@ -56,7 +53,17 @@ function chooseFromPool(meta: MetaProgression, ids: EquipmentId[], source: Equip
   };
 }
 
-function chooseForSource(meta: MetaProgression, source: EquipmentDropSource): PendingEquipmentDrop | null {
+function chooseFromPool(meta: MetaProgression, ids: EquipmentId[], source: EquipmentDropSource): PendingEquipmentDrop | null {
+  if (!ids.length) return null;
+  const unowned = ids.filter(id => !meta.owned[id]);
+  const pool = unowned.length ? unowned : ids;
+  const id = pool[Math.floor(Math.random() * pool.length)];
+  return pendingForItem(meta, id, source);
+}
+
+function chooseForSource(meta: MetaProgression, source: EquipmentDropSource, guaranteedTarget = false): PendingEquipmentDrop | null {
+  const target = targetedEquipmentForAward(source, guaranteedTarget);
+  if (target) return pendingForItem(meta, target, source);
   const requested = sourcePool(meta, source);
   return chooseFromPool(meta, requested.length ? requested : starterFallbackPool(meta), source);
 }
@@ -80,7 +87,7 @@ export function rollBalancedRoomEquipmentDrop(floor: number): PendingEquipmentDr
     const source = safeFloor === FINAL_BOSS_ROOM
       ? finalBossSource(meta)
       : BOSS_EQUIPMENT_SOURCES[safeFloor] ?? ambientEquipmentSourceForRoom(safeFloor);
-    return chooseForSource(meta, source);
+    return chooseForSource(meta, source, safeFloor === FINAL_BOSS_ROOM);
   }
 
   if (safeFloor < 3 || Math.random() > NORMAL_ROOM_EQUIPMENT_CHANCE) return null;
