@@ -1,9 +1,10 @@
 import { TILE_SIZE, TileType } from './dungeon';
 import type { GameEngine } from './runEngine';
+import { HUNT_EQUIPMENT_CHANCE } from './equipmentDropBalance';
+import { rollBalancedSourceDrop } from './equipmentDropRoller';
 import {
   EQUIPMENT,
   collectMetaEquipmentDrop,
-  rollMetaEquipmentDrop,
   spawnEquipmentDrop,
   type EquipmentId,
   type PendingEquipmentDrop,
@@ -108,7 +109,7 @@ function spawnHuntEquipment(engine: GameEngine, state: EquipmentWorldLootState) 
   for (const enemy of engine.state.enemies) {
     if (!enemy.isDead || !enemy.isHuntTarget || state.processedHuntDeaths.has(enemy.id)) continue;
     state.processedHuntDeaths.add(enemy.id);
-    const drop = rollMetaEquipmentDrop('hunt', 0.32);
+    const drop = rollBalancedSourceDrop('hunt', HUNT_EQUIPMENT_CHANCE);
     if (!drop) continue;
     spawnEquipmentDrop(engine, drop, enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
   }
