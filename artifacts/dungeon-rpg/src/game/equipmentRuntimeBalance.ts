@@ -11,10 +11,11 @@ export type EquipmentRuntimeBalanceState = {
   lastAttackTime: number;
   lastDodgeTime: number;
   lastHp: number | null;
+  lastHitId: string;
 };
 
 export function createEquipmentRuntimeBalanceState(): EquipmentRuntimeBalanceState {
-  return { roomKey: '', lastAttackTime: 0, lastDodgeTime: 0, lastHp: null };
+  return { roomKey: '', lastAttackTime: 0, lastDodgeTime: 0, lastHp: null, lastHitId: '' };
 }
 
 export function defenseMitigationForValue(defense: number): number {
@@ -22,8 +23,19 @@ export function defenseMitigationForValue(defense: number): number {
   return Math.min(0.45, safe / (safe + 28));
 }
 
-function latestPlayerHit(engine: GameEngine) {
-  return [...engine.state.damageNumbers].reverse().find(number => number.id.startsWith('hit-') || number.id.startsWith('rune-hit-'));
+function latestPlayerHit(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
+  return [...engine.state.damageNumbers].reverse().find(number => (
+    number.id !== state.lastHitId
+    && (number.id.startsWith('hit-') || number.id.startsWith('rune-hit-'))
+  ));
+}
+
+function enemyAttackForHit(engine: GameEngine, hitId: string): number | null {
+  if (!hitId.startsWith('hit-')) return null;
+  const index = Number(hitId.split('-').at(-1));
+  if (!Number.isInteger(index) || index < 0) return null;
+  const attack = engine.state.enemies[index]?.attack;
+  return Number.isFinite(attack) ? Math.max(1, Number(attack)) : null;
 }
 
 function reconcileIncomingDamage(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
@@ -38,16 +50,21 @@ function reconcileIncomingDamage(engine: GameEngine, state: EquipmentRuntimeBala
     return;
   }
 
-  const rawDamage = Math.max(1, Math.round(state.lastHp - player.hp));
+  const observedDamage = Math.max(1, Math.round(state.lastHp - player.hp));
+  const number = latestPlayerHit(engine, state);
+  if (number) state.lastHitId = number.id;
+  const enemyAttack = number ? enemyAttackForHit(engine, number.id) : null;
+  const unmitigatedDamage = enemyAttack === null ? observedDamage : enemyAttack + 1;
   const mitigation = defenseMitigationForValue(player.defense);
-  const adjustedDamage = Math.max(1, Math.round(rawDamage * (1 - mitigation)));
-  const restored = Math.max(0, rawDamage - adjustedDamage);
-  if (restored > 0) player.hp = Math.min(player.maxHp, player.hp + restored);
+  const adjustedDamage = Math.max(1, Math.round(unmitigatedDamage * (1 - mitigation)));
+  const previousStatus = engine.state.status;
 
-  const number = latestPlayerHit(engine);
+  player.hp = Math.max(0, Math.min(player.maxHp, state.lastHp - adjustedDamage));
   if (number) number.value = `-${adjustedDamage}`;
-  if (player.hp > 0 && engine.state.status === 'gameover') engine.state.status = 'playing';
+  engine.state.status = player.hp <= 0 ? 'gameover' : previousStatus === 'gameover' ? 'playing' : previousStatus;
   state.lastHp = player.hp;
+
+  if (engine.state.status !== previousStatus) engine.onStateChange({ ...engine.state });
 }
 
 function normalizeAttackCooldown(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
@@ -77,6 +94,7 @@ export function updateEquipmentRuntimeBalance(engine: GameEngine, state: Equipme
     state.lastHp = engine.state.player.hp;
     state.lastAttackTime = engine.state.player.lastAttackTime;
     state.lastDodgeTime = engine.state.player.lastDodgeTime;
+    state.lastHitId = '';
   }
 
   normalizeAttackCooldown(engine, state);
