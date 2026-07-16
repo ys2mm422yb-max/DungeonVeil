@@ -1,0 +1,29 @@
+name: Temporary boss projectile timing correction
+
+on:
+  push:
+    branches:
+      - work/boss-telegraphs-room-21-30-theme
+    paths:
+      - .github/workflows/temporary-boss-projectile-timing.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/boss-telegraphs-room-21-30-theme
+          fetch-depth: 0
+      - name: Correct projectile timing
+        run: python .ci/fix-boss-projectile-timing.py
+      - name: Commit correction and remove temporary runner
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Show boss projectiles during windup"
+          git push origin HEAD:work/boss-telegraphs-room-21-30-theme
