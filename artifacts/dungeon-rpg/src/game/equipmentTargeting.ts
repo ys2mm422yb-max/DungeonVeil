@@ -1,7 +1,7 @@
 import { equipmentUnlockedForCurrentProgress } from './equipmentChapterGates';
+import { collectBalancedEquipmentDrop } from './equipmentCollection';
 import {
   EQUIPMENT,
-  collectMetaEquipmentDrop,
   loadMetaProgression,
   type EquipmentDropSource,
   type EquipmentId,
@@ -141,20 +141,22 @@ export function craftEquipmentCopy(id: EquipmentId): {
   crafted: boolean;
   newUnlock: boolean;
   copies: number;
+  convertedDust: number;
 } {
   const meta = loadMetaProgression();
   const profile = loadEquipmentTargeting();
   const source = EQUIPMENT[id].dropSource;
   if (!equipmentCanBeTargeted(id, meta) || profile.sourceMarks[source] < EQUIPMENT_SOURCE_MARK_COST) {
-    return { profile, crafted: false, newUnlock: false, copies: meta.owned[id]?.copies ?? 0 };
+    return { profile, crafted: false, newUnlock: false, copies: meta.owned[id]?.copies ?? 0, convertedDust: 0 };
   }
   profile.sourceMarks[source] -= EQUIPMENT_SOURCE_MARK_COST;
   saveEquipmentTargeting(profile);
-  const result = collectMetaEquipmentDrop(id);
+  const result = collectBalancedEquipmentDrop(id);
   return {
     profile: loadEquipmentTargeting(),
     crafted: true,
     newUnlock: !result.duplicate,
     copies: result.progress.copies,
+    convertedDust: result.convertedDust,
   };
 }
