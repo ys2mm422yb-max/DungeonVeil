@@ -1,3 +1,4 @@
+import { convertMaxLevelCopies } from './equipmentDuplicateEconomy';
 import { clearEquipmentTargetIfMaxed } from './equipmentTargeting';
 import {
   loadMetaProgression,
@@ -35,6 +36,7 @@ export function upgradeMetaItemBalanced(id: EquipmentId) {
   meta.dust -= cost.dust;
   progress.copies -= cost.copies;
   progress.level += 1;
+  if (progress.level >= 5) convertMaxLevelCopies(meta, id);
   const saved = saveMetaProgression(meta);
   if (progress.level >= 5) clearEquipmentTargetIfMaxed(id);
   return saved;
