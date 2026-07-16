@@ -2,14 +2,14 @@ import type { EliteAffix, Enemy } from './entities';
 import type { GameEngine } from './runEngine';
 
 const ENEMY_BASE: Record<string, { hp: number; attack: number; defense: number; speed: number }> = {
-  slime: { hp: 24, attack: 4, defense: 0, speed: 42 },
-  goblin: { hp: 34, attack: 6, defense: 1, speed: 68 },
-  skeleton: { hp: 52, attack: 8, defense: 2, speed: 72 },
-  orc: { hp: 92, attack: 12, defense: 4, speed: 56 },
-  spider: { hp: 38, attack: 7, defense: 1, speed: 88 },
-  vampire: { hp: 82, attack: 14, defense: 3, speed: 82 },
-  demon: { hp: 128, attack: 18, defense: 4, speed: 76 },
-  golem: { hp: 190, attack: 20, defense: 9, speed: 40 },
+  slime: { hp: 20, attack: 4, defense: 0, speed: 42 },
+  goblin: { hp: 28, attack: 6, defense: 1, speed: 68 },
+  skeleton: { hp: 42, attack: 8, defense: 2, speed: 72 },
+  orc: { hp: 72, attack: 11, defense: 4, speed: 56 },
+  spider: { hp: 30, attack: 7, defense: 1, speed: 88 },
+  vampire: { hp: 65, attack: 12, defense: 3, speed: 82 },
+  demon: { hp: 100, attack: 15, defense: 4, speed: 76 },
+  golem: { hp: 145, attack: 17, defense: 9, speed: 40 },
   boss: { hp: 520, attack: 24, defense: 7, speed: 54 },
 };
 
@@ -58,17 +58,17 @@ function enemyIndex(enemy: Enemy) {
 
 export function roomEnemyHpScale(room: number): number {
   const value = Math.max(1, Math.min(50, Math.floor(room)));
-  if (value <= 2) return 1 + (value - 1) * 0.05;
-  if (value <= 5) return 1.15 + (value - 3) * 0.08;
-  if (value <= 9) return 1.38 + (value - 6) * 0.08;
+  if (value <= 2) return 1 + (value - 1) * 0.04;
+  if (value <= 5) return 1.1 + (value - 3) * 0.06;
+  if (value <= 9) return 1.28 + (value - 6) * 0.07;
   if (value === 10) return 1;
-  if (value <= 19) return 1.65 + (value - 11) * 0.07;
+  if (value <= 19) return 1.5 + (value - 11) * 0.05;
   if (value === 20) return 1;
-  if (value <= 29) return 2.2 + (value - 21) * 0.055;
+  if (value <= 29) return 1.9 + (value - 21) * 0.05;
   if (value === 30) return 1;
-  if (value <= 39) return 2.65 + (value - 31) * 0.05;
+  if (value <= 39) return 2.25 + (value - 31) * 0.045;
   if (value === 40) return 1;
-  if (value <= 49) return 3.05 + (value - 41) * 0.045;
+  if (value <= 49) return 2.4 + (value - 41) * 0.04;
   return 1;
 }
 
