@@ -23,6 +23,7 @@ export type EquipmentTargetingProfile = {
   chapterWishMisses: number;
   sourceWishMisses: Record<EquipmentDropSource, number>;
   huntMarkLedger: string[];
+  huntWishLedger: string[];
 };
 
 function emptySourceRecord(): Record<EquipmentDropSource, number> {
@@ -36,6 +37,7 @@ const DEFAULT_TARGETING: EquipmentTargetingProfile = {
   chapterWishMisses: 0,
   sourceWishMisses: emptySourceRecord(),
   huntMarkLedger: [],
+  huntWishLedger: [],
 };
 
 function safeNumber(value: unknown): number {
@@ -49,6 +51,10 @@ function isEquipmentId(value: unknown): value is EquipmentId {
 function sourceRecord(value: unknown): Record<EquipmentDropSource, number> {
   const raw = value && typeof value === 'object' ? value as Partial<Record<EquipmentDropSource, unknown>> : {};
   return Object.fromEntries(EQUIPMENT_DROP_SOURCES.map(source => [source, safeNumber(raw[source])])) as Record<EquipmentDropSource, number>;
+}
+
+function stringLedger(value: unknown): string[] {
+  return Array.isArray(value) ? [...new Set(value.filter((key): key is string => typeof key === 'string'))].slice(-80) : [];
 }
 
 export function equipmentCanBeTargeted(id: EquipmentId, meta: MetaProgression = loadMetaProgression()): boolean {
@@ -70,9 +76,8 @@ export function loadEquipmentTargeting(): EquipmentTargetingProfile {
       sourceMarks: sourceRecord(parsed.sourceMarks),
       chapterWishMisses: safeNumber(parsed.chapterWishMisses),
       sourceWishMisses: sourceRecord(parsed.sourceWishMisses),
-      huntMarkLedger: Array.isArray(parsed.huntMarkLedger)
-        ? parsed.huntMarkLedger.filter((key): key is string => typeof key === 'string').slice(-80)
-        : [],
+      huntMarkLedger: stringLedger(parsed.huntMarkLedger),
+      huntWishLedger: stringLedger(parsed.huntWishLedger),
     };
   } catch {
     return structuredClone(DEFAULT_TARGETING);
@@ -86,7 +91,8 @@ export function saveEquipmentTargeting(profile: EquipmentTargetingProfile): Equi
     sourceMarks: sourceRecord(profile.sourceMarks),
     chapterWishMisses: safeNumber(profile.chapterWishMisses),
     sourceWishMisses: sourceRecord(profile.sourceWishMisses),
-    huntMarkLedger: [...new Set(profile.huntMarkLedger)].slice(-80),
+    huntMarkLedger: stringLedger(profile.huntMarkLedger),
+    huntWishLedger: stringLedger(profile.huntWishLedger),
   };
   localStorage.setItem(TARGETING_KEY, JSON.stringify(normalized));
   window.dispatchEvent(new Event('dungeon-veil-equipment-targeting-changed'));
