@@ -51,9 +51,10 @@ assert(cloud.includes('equipmentProgressWeight') && cloud.includes('level * 2_50
 assert(visuals.includes("previewPose?: 'idle-ready'") && visuals.includes("previewPose: 'idle-ready'"), 'armor previews do not declare a ready stance');
 assert(visuals.includes('/(ranger|knight|barbarian)\\.glb$/i') && visuals.includes('armor preview is not a male character model'), 'visual audit does not enforce male armor models');
 assert(!visuals.includes('/Mage.glb') && !visuals.includes('/Rogue.glb') && !visuals.includes('/Rogue_Hooded.glb'), 'female or ambiguous armor preview models remain configured');
-assert(visuals.includes("const ritualMantleAccessory") && visuals.includes("accessoryPath: `${A}/staff.gltf`") && visuals.includes("'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.54, ritualMantleAccessory)"), 'veil mantle does not use its distinct male ritual armor model');
+assert(visuals.includes("const ritualMantleAccessory") && visuals.includes("accessoryPath: `${A}/spellbook_open.gltf`") && visuals.includes("'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.58, ritualMantleAccessory)"), 'veil mantle does not use its distinct male ritual-book armor model');
 assert(!visuals.includes("'veil-mantle': armorProfile(`${C}/Ranger.glb`"), 'veil mantle has regressed to the starter ranger model');
-assert(visuals.includes("shield_badge_color.gltf`, 0.78, [0.4, 0.58, 0.08]") && visuals.includes("shield_round_barbarian.gltf`, 0.82, [0.42, 0.54, 0.08]"), 'armor shields are too small or positioned near the feet');
+assert(visuals.includes("'warden-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.12),") && visuals.includes("'depth-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.3),"), 'warden or depth armor still carries a buggy shield accessory');
+assert(!visuals.includes('const shieldAccessory'), 'unused shield accessory helper remains in armor visuals');
 assert(preview.includes('AnimationMixer') && preview.includes('chooseIdleClip') && preview.includes('applyFallbackReadyPose'), 'armor preview does not animate or provide a ready-pose fallback');
 assert(preview.includes("data-equipment-preview-pose={visual.previewPose ?? 'static'}") && preview.includes('data-equipment-preview-model={visual.primaryPath}'), 'browser-testable armor preview metadata is missing');
 assert(preview.includes('Rig_Medium_General.glb'), 'armor preview has no KayKit idle animation source');
@@ -69,6 +70,7 @@ const requiredModels = [
   'public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Knight.glb',
   'public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Barbarian.glb',
   'public/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb',
+  'public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/spellbook_open.gltf',
 ];
 for (const model of requiredModels) assert(exists(model), `required armor preview asset is missing: ${model}`);
 
@@ -88,4 +90,4 @@ for (let chapter = 2; chapter <= 12; chapter++) {
   assert(bossHpScale(chapter) > bossHpScale(chapter - 1), `boss HP pressure does not rise into chapter ${chapter}`);
 }
 
-console.log('Armor progression audit passed: distinct male ritual armor, readable shields, male animated previews, meaningful item levels, capped cooldowns, diminishing defense, save migration and moderated chapter pressure are coherent.');
+console.log('Armor progression audit passed: distinct male ritual-book armor, shield-free previews, male animated previews, meaningful item levels, capped cooldowns, diminishing defense, save migration and moderated chapter pressure are coherent.');
