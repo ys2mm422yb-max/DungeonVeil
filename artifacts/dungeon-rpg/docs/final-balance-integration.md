@@ -6,7 +6,7 @@ This branch consolidates the complete post-PR-169 balance pass into one testable
 
 - A chapter contains 50 rooms and room 50 owns the chapter-boss reward and combat phase.
 - The same run continues into the next chapter.
-- Chapter one grants twelve gift decisions; later chapters grant five boss milestones.
+- Chapter one grants eleven gift decisions; later chapters grant five boss milestones.
 - Hunter Blessing and Vital Spark stop at rank III; late choices become healing or currency.
 - All three fusions have bounded capstone effects.
 
