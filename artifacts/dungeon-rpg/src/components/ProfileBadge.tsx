@@ -1,6 +1,7 @@
 import React from 'react';
 import type { PlayerProfileProgress } from '../game/playerProfile';
 import { selectedProfileAvatar, selectedProfileCard, selectedProfileTitle } from '../game/playerProfile';
+import { ProfileAvatarPortrait } from './ProfileAvatarPortrait';
 
 type Props = {
   profile: PlayerProfileProgress;
@@ -23,7 +24,7 @@ export function ProfileBadge({ profile, playerName, rank, language, onOpen }: Pr
     style={{ background: card.background, borderColor: `${card.border}b8`, boxShadow: `0 8px 22px rgba(0,0,0,.34),0 0 14px ${card.glow}` }}
     data-testid="main-menu-profile-badge"
   >
-    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] border border-white/16 text-[16px] shadow-inner" style={{ background: avatar.background }} aria-hidden="true">{avatar.icon}</div>
+    <ProfileAvatarPortrait avatar={avatar} className="h-9 w-9 shrink-0 rounded-[11px] border border-white/16" />
     <div className="min-w-0 flex-1 leading-none">
       <div className="truncate text-[9px] font-black tracking-[.04em] text-white/92">{playerName}</div>
       <div className="mt-1 truncate text-[5.5px] font-black uppercase tracking-[.11em] text-white/50">
