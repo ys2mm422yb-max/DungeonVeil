@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { Language, UpgradeKey } from '../i18n/translations';
+import { isFusionKey, isInstantGift } from '../game/runSkills';
 import { DailyQuestPanel } from './DailyQuestPanel';
 
 export interface GamePausePanelProps {
@@ -17,8 +18,18 @@ export interface GamePausePanelProps {
   onRestartRoom: () => void;
 }
 
-const NAMES_DE: Record<UpgradeKey, string> = { multishot: 'MEHRFACHPFEIL', ricochet: 'ABPRALLER', fireArrow: 'FEUERPFEIL', iceArrow: 'FROSTPFEIL', attackSpeed: 'SCHNELLZUG', piercing: 'DURCHBOHREN', attack: 'JÄGERINSTINKT', maxHp: 'LEBENSKRAFT', speed: 'WINDLÄUFER', defense: 'WALDHAUT', heal: 'ERHOLUNG' };
-const NAMES_EN: Record<UpgradeKey, string> = { multishot: 'MULTISHOT', ricochet: 'RICOCHET', fireArrow: 'FIRE ARROW', iceArrow: 'FROST ARROW', attackSpeed: 'QUICK DRAW', piercing: 'PIERCING', attack: 'HUNTER INSTINCT', maxHp: 'VITALITY', speed: 'WINDRUNNER', defense: 'FOREST SKIN', heal: 'RECOVERY' };
+const NAMES_DE: Record<UpgradeKey, string> = {
+  multishot: 'MEHRFACHPFEIL', ricochet: 'ABPRALLER', fireArrow: 'FEUERPFEIL', iceArrow: 'FROSTPFEIL', attackSpeed: 'SCHNELLZUG', piercing: 'DURCHBOHREN',
+  elementalStorm: 'ELEMENTARSTURM', arrowStorm: 'PFEILSTURM', veilChain: 'SCHLEIERKETTE',
+  attack: 'JÄGERINSTINKT', maxHp: 'LEBENSKRAFT', speed: 'WINDLÄUFER', defense: 'WALDHAUT',
+  heal: 'ERHOLUNG', hunterBlessing: 'JÄGERSEGEN', vitalSpark: 'LEBENSFUNKE',
+};
+const NAMES_EN: Record<UpgradeKey, string> = {
+  multishot: 'MULTISHOT', ricochet: 'RICOCHET', fireArrow: 'FIRE ARROW', iceArrow: 'FROST ARROW', attackSpeed: 'QUICK DRAW', piercing: 'PIERCING',
+  elementalStorm: 'ELEMENTAL STORM', arrowStorm: 'ARROW STORM', veilChain: 'VEIL CHAIN',
+  attack: 'HUNTER INSTINCT', maxHp: 'VITALITY', speed: 'WINDRUNNER', defense: 'FOREST SKIN',
+  heal: 'RECOVERY', hunterBlessing: 'HUNTER BLESSING', vitalSpark: 'VITAL SPARK',
+};
 const roman = (rank: number) => rank === 1 ? 'I' : rank === 2 ? 'II' : rank === 3 ? 'III' : String(rank);
 
 function trigger(event: React.PointerEvent<HTMLButtonElement>, action: () => void): void {
@@ -33,7 +44,7 @@ export function GamePausePanel(props: GamePausePanelProps) {
   const [restartArmed, setRestartArmed] = useState(false);
   const names = de ? NAMES_DE : NAMES_EN;
   const gifts = useMemo(() => Object.entries(props.gameState.runSkills)
-    .filter(([key, value]) => key !== 'heal' && (value ?? 0) > 0)
+    .filter(([key, value]) => !isInstantGift(key as UpgradeKey) && (value ?? 0) > 0)
     .sort(([a], [b]) => a.localeCompare(b)) as Array<[UpgradeKey, number]>, [props.gameState.runSkills]);
 
   useEffect(() => {
@@ -65,7 +76,7 @@ export function GamePausePanel(props: GamePausePanelProps) {
 
         <div className="mt-3 rounded-2xl border border-white/8 bg-white/[.03] p-3">
           <div className="mb-2 text-[8px] font-black tracking-[.24em] text-amber-200/45">{de ? 'AKTIVE GABEN' : 'ACTIVE GIFTS'}</div>
-          {gifts.length ? <div className="flex flex-wrap gap-2">{gifts.map(([key, rank]) => <span key={key} className="rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-[8px] font-black tracking-[.1em] text-white/70">{names[key]} {roman(rank)}</span>)}</div> : <div className="text-[10px] text-white/30">{de ? 'Noch keine Gaben' : 'No gifts yet'}</div>}
+          {gifts.length ? <div className="flex flex-wrap gap-2">{gifts.map(([key, rank]) => <span key={key} data-testid={`pause-gift-${key}`} className="rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-[8px] font-black tracking-[.1em] text-white/70">{names[key]}{isFusionKey(key) ? '' : ` ${roman(rank)}`}</span>)}</div> : <div className="text-[10px] text-white/30">{de ? 'Noch keine Gaben' : 'No gifts yet'}</div>}
         </div>
 
         <div className="mt-3 rounded-xl border border-violet-300/15 bg-violet-500/[.06] px-3 py-2 text-center">
