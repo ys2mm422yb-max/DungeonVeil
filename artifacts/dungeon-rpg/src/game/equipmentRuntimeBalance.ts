@@ -1,6 +1,7 @@
 import type { GameEngine } from './runEngine';
 import { equipmentCombatModifiers, loadMetaProgression, type EquipmentId } from './metaProgression';
 import { skillRank } from './runSkills';
+import { equippedVeilRelic } from './veilRelics';
 
 const ARCHER_BASE_ATTACK_COOLDOWN_MS = 270;
 const ARCHER_BASE_DODGE_COOLDOWN_MS = 900;
@@ -62,7 +63,9 @@ function reconcileIncomingDamage(engine: GameEngine, state: EquipmentRuntimeBala
   const number = latestPlayerHit(engine, state);
   if (number) state.lastHitId = number.id;
   const enemyAttack = number ? enemyAttackForHit(engine, number.id) : null;
-  const unmitigatedDamage = enemyAttack === null ? observedDamage : enemyAttack + 1;
+  const rawDamage = enemyAttack === null ? observedDamage : enemyAttack + 1;
+  const runeReduced = Boolean(number?.id.startsWith('rune-hit-') && equippedVeilRelic() === 'depth-rune-shard');
+  const unmitigatedDamage = runeReduced ? Math.max(1, Math.round(rawDamage * 0.75)) : rawDamage;
   const mitigation = defenseMitigationForValue(player.defense);
   const adjustedDamage = Math.max(1, Math.round(unmitigatedDamage * (1 - mitigation)));
   const previousStatus = engine.state.status;
