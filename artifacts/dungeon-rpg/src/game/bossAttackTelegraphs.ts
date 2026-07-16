@@ -51,7 +51,7 @@ function warningEffects(enemy: Enemy, snapshot: BossAttackSnapshot): VisualEffec
   const source = bossCenter(enemy);
   const x = snapshot.contract.target === 'boss-radius' ? source.x : snapshot.targetX;
   const y = snapshot.contract.target === 'boss-radius' ? source.y : snapshot.targetY;
-  return [
+  const effects: VisualEffect[] = [
     {
       id: `telegraph-boss-${snapshot.contract.room}-${snapshot.startedAt}-${enemy.id}`,
       x,
@@ -77,28 +77,28 @@ function warningEffects(enemy: Enemy, snapshot: BossAttackSnapshot): VisualEffec
       element: snapshot.contract.element,
     },
   ];
-}
-
-function addBossImpact(engine: GameEngine, enemy: Enemy, snapshot: BossAttackSnapshot, time: number) {
-  const source = bossCenter(enemy);
-  const center = snapshot.contract.target === 'boss-radius' ? source : { x: snapshot.targetX, y: snapshot.targetY };
   if (snapshot.contract.target === 'locked-ground') {
-    const angle = Math.atan2(snapshot.targetY - source.y, snapshot.targetX - source.x);
-    engine.state.effects.push({
-      id: `shot-boss-${snapshot.contract.room}-${time}-${enemy.id}`,
+    effects.push({
+      id: `shot-boss-${snapshot.contract.room}-${snapshot.startedAt}-${enemy.id}`,
       x: source.x,
       y: source.y,
       radius: 0,
       maxRadius: Math.hypot(snapshot.targetX - source.x, snapshot.targetY - source.y),
       color: snapshot.contract.color,
       lifeTime: 0,
-      maxLifeTime: snapshot.contract.room === 30 ? 220 : 280,
+      maxLifeTime: snapshot.contract.windupMs,
       type: 'beam',
-      angle,
+      angle: Math.atan2(snapshot.targetY - source.y, snapshot.targetX - source.x),
       width: snapshot.contract.projectileWidth,
       element: snapshot.contract.element,
     });
   }
+  return effects;
+}
+
+function addBossImpact(engine: GameEngine, enemy: Enemy, snapshot: BossAttackSnapshot, time: number) {
+  const source = bossCenter(enemy);
+  const center = snapshot.contract.target === 'boss-radius' ? source : { x: snapshot.targetX, y: snapshot.targetY };
   engine.state.effects.push({
     id: `boss-impact-${snapshot.contract.room}-${time}-${enemy.id}`,
     x: center.x,
