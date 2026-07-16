@@ -39,4 +39,4 @@ This branch consolidates the complete post-PR-169 balance pass into one testable
 
 ## Release rule
 
-This is a dedicated test branch. It must not replace the live build or be merged without explicit approval after the fixed-link device test.
+After all required checks are green, the exact tested commit may be published as a test build at `https://ys2mm422yb-max.github.io/DungeonVeil/`. That fixed-link test deployment does not authorize merging the branch or declaring a final release; both still require explicit approval.
