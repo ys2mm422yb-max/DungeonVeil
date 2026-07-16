@@ -91,10 +91,10 @@ function hashSeed(seed, sample) {
 }
 
 function percentile(values, fraction) {
-  const finite = values.filter(Number.isFinite).sort((a, b) => a - b);
-  if (!finite.length) return null;
-  const index = Math.min(finite.length - 1, Math.max(0, Math.ceil(finite.length * fraction) - 1));
-  return finite[index];
+  const sorted = [...values].sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1));
+  return sorted[index];
 }
 
 function distribution(values, maxValue = null) {
