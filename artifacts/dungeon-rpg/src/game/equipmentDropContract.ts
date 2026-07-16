@@ -147,7 +147,17 @@ export function rollHuntEquipmentReward(
   const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
   const meta = loadMetaProgression();
   const profile = loadEquipmentTargeting();
-  const drop = chooseTargetedReward(meta, profile, safeChapter, 'hunt', random);
+  const runId = meta.currentRunId;
+  const wishKey = runId ? `${runId}:${safeChapter}:hunt-wish` : '';
+  const canUseWishAttempt = Boolean(
+    wishKey
+    && eligibleWishItem(meta, profile, safeChapter, 'hunt')
+    && !profile.huntWishLedger.includes(wishKey),
+  );
+  if (canUseWishAttempt) profile.huntWishLedger.push(wishKey);
+  const drop = canUseWishAttempt
+    ? chooseTargetedReward(meta, profile, safeChapter, 'hunt', random)
+    : chooseEquipment(meta, safeChapter, 'hunt', random);
   saveEquipmentTargeting(profile);
   return drop;
 }
