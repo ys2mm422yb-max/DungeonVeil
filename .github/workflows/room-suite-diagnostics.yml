@@ -42,3 +42,36 @@ jobs:
           path: |
             ${{ runner.temp }}/room-suite.log
             ${{ runner.temp }}/room-suite.status
+
+  capture-social-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Capture social audit
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg audit:social > "$RUNNER_TEMP/social-suite.log" 2>&1
+          status=$?
+          printf '%s\n' "$status" > "$RUNNER_TEMP/social-suite.status"
+          exit 0
+      - name: Upload social audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: social-suite-diagnostics
+          path: |
+            ${{ runner.temp }}/social-suite.log
+            ${{ runner.temp }}/social-suite.status
