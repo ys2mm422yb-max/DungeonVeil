@@ -1,0 +1,3 @@
+Dungeon Veil test deployment
+Game code commit: 2b73aa979913d3c8351273a6a44379ad256070ff
+Purpose: publish distinct veil mantle and larger armor shields to the fixed shared test site without merging.
