@@ -24,7 +24,7 @@ const checks = [
   [showcase.includes("'VillageVisibleEquippedBow'") && showcase.includes("'VillageVisibleEquippedQuiver'") && showcase.includes("'VillageVisibleEquippedTalisman'"), 'clean visible equipment anchors are incomplete'],
   [showcase.includes('[-0.54, 0.78, 0.2]') && showcase.includes('[Math.PI / 2, -0.05, -0.38]'), 'bow is not positioned beside the left hand'],
   [showcase.includes('[0.46, 1.3, -0.1]') && showcase.includes('[0.06, 0.48, 0.14]'), 'quiver is not positioned behind the right shoulder'],
-  [showcase.includes('bow: meta.equipped.bow') && showcase.includes('quiver: meta.equipped.quiver') && showcase.includes('talisman: meta.equipped.talisman'), 'village showcase does not preserve the current equipped loadout'],
+  [showcase.includes('bow: meta.equipped.bow') && showcase.includes('quiver: meta.equipped.quiver') && showcase.includes('talisman: meta.equipped.talisman'), 'village showcase does not preserve the currently visible loadout'],
   [showcase.includes('for (let index = 0; index < 3; index++)') && showcase.includes('VillageVisibleQuiverArrow'), 'quiver arrows are not visibly represented'],
   [showcase.includes('root.position.z = -1.82') && showcase.includes('root.scale.setScalar(0.72)'), 'player is not large and forward enough to dominate the menu composition'],
   [villageHub.includes('grid grid-cols-5') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place'), 'redundant village place prompt remains'],
@@ -38,7 +38,7 @@ const checks = [
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],
   [manifest.includes('import.meta.env.BASE_URL') && manifest.includes('appAssetUrl'), 'Pages-safe application asset resolver is missing'],
-  [meta.includes("equipped: Record<EquipmentSlot, EquipmentId>") && meta.includes("equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', talisman: 'veil-key' }"), 'equipment slots are not represented in saved meta progression'],
+  [meta.includes('equipped: Record<EquipmentSlot, EquipmentId>') && meta.includes("equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', talisman: 'veil-key', armor: 'ranger-cloak' }"), 'all four equipment slots are not represented in saved meta progression'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -48,4 +48,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the prompt is gone and bow, quiver, arrows and talisman use a natural readable presentation.');
+console.log('Main-menu equipped ranger audit passed: the prompt is gone, visible equipment stays readable and all four saved equipment slots remain protected.');
