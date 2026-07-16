@@ -30,3 +30,4 @@ assert(migration.includes("next_state in ('run', 'paused')") && migration.includ
 assert(migration.includes('equipped_items jsonb'), 'Supabase profile RPC must expose current equipment.');
 
 console.log('Requested room, spectator, guild and firelands pass validated.');
+// Deployment gate touch for the fully validated PR #183 test build.
