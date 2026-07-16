@@ -1,9 +1,9 @@
 import { FINAL_BOSS_ROOM, isBossRoom } from './chapterRun';
+import { equipmentDropRuleForRoom } from './equipmentDropBalance';
+import { rollBalancedEquipmentDrop } from './equipmentDropRoller';
 import { recordReachedChapter } from './equipmentChapterGates';
 import {
-  equipmentSourceForRoom,
   loadMetaProgression,
-  rollMetaEquipmentDrop,
   saveMetaProgression,
   xpForNextRank,
   type MetaReward,
@@ -55,9 +55,7 @@ export function rewardChapterRoomClear(chapter: number, floor: number): MetaRewa
   meta.gold += amounts.gold;
   saveMetaProgression(meta);
 
-  const source = equipmentSourceForRoom(safeFloor);
-  const shouldDrop = isBossRoom(safeFloor) || (safeFloor >= 3 && Math.random() < 0.18);
-  const drop = shouldDrop ? rollMetaEquipmentDrop(source, 1) : null;
+  const drop = rollBalancedEquipmentDrop(equipmentDropRuleForRoom(safeFloor));
 
   return {
     ...amounts,
