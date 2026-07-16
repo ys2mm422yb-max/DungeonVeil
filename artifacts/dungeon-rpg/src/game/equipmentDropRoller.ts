@@ -39,7 +39,8 @@ function chooseWildcard(meta: MetaProgression, sources: readonly EquipmentDropSo
 }
 
 export function rollBalancedEquipmentDrop(rule: Pick<EquipmentDropRule, 'chance' | 'sources' | 'mode'>): PendingEquipmentDrop | null {
-  if (!rule.sources.length || Math.random() > rule.chance) return null;
+  const chance = Math.max(0, Math.min(1, Number(rule.chance) || 0));
+  if (!rule.sources.length || chance <= 0 || Math.random() >= chance) return null;
   const meta = loadMetaProgression();
   return rule.mode === 'wildcard'
     ? chooseWildcard(meta, rule.sources)
