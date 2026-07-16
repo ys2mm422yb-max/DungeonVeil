@@ -1,0 +1,3 @@
+Dungeon Veil test deployment
+PR head: cdc5325f53e95ff434587344b373fa5750ac9fcc
+Purpose: ritual-book veil mantle and shield-free armor previews
