@@ -44,6 +44,7 @@ export interface Player extends Entity {
 }
 
 export type EnemyType = EnemyTypeName;
+export type EliteAffix = 'bulwark' | 'berserker' | 'swift';
 
 export interface Enemy extends Entity {
   type: 'enemy';
@@ -57,6 +58,7 @@ export interface Enemy extends Entity {
   state: 'patrol' | 'chase' | 'attack' | 'dead';
   isDead: boolean;
   isElite?: boolean;
+  eliteAffix?: EliteAffix;
   targetX: number;
   targetY: number;
   nextAttackTime: number;
