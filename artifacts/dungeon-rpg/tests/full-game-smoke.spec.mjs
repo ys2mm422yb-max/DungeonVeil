@@ -116,6 +116,27 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   });
 
   await test.step('inventory and armor migration', async () => {
+    await page.evaluate(() => {
+      localStorage.setItem('dungeon-veil-meta', JSON.stringify({
+        version: 2,
+        rank: 1,
+        xp: 0,
+        dust: 0,
+        gold: 0,
+        owned: {
+          'ash-bow': { level: 1, copies: 0 },
+          'ranger-quiver': { level: 1, copies: 0 },
+          'veil-key': { level: 1, copies: 0 },
+        },
+        equipped: {
+          bow: 'ash-bow',
+          quiver: 'ranger-quiver',
+          talisman: 'veil-key',
+        },
+        rewardLedger: [],
+        currentRunId: '',
+      }));
+    });
     await reloadMenu(page, testInfo.project.name);
     await openMenuButton(page, /Inventar|Inventory/i);
     await expect(page.getByRole('heading', { name: /Inventar|Inventory/i })).toBeVisible();
