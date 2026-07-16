@@ -67,21 +67,11 @@ const quiverAccessory = (path: string) => ({
   accessoryRotation: [0, 0, 0] as const,
   accessoryScale: 0.78,
 });
-const shieldAccessory = (
-  path: string,
-  scale: number,
-  position: readonly [number, number, number],
-) => ({
-  accessoryPath: path,
-  accessoryPosition: position,
-  accessoryRotation: [0.08, -0.18, 0.08] as const,
-  accessoryScale: scale,
-});
 const ritualMantleAccessory = {
-  accessoryPath: `${A}/staff.gltf`,
-  accessoryPosition: [-0.42, 0.46, -0.06] as const,
-  accessoryRotation: [0.02, 0.08, -0.12] as const,
-  accessoryScale: 0.84,
+  accessoryPath: `${A}/spellbook_open.gltf`,
+  accessoryPosition: [-0.32, 0.42, 0.2] as const,
+  accessoryRotation: [-0.34, 0.12, 0.08] as const,
+  accessoryScale: 0.58,
 };
 
 /**
@@ -121,9 +111,9 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'ranger-cloak': armorProfile(`${C}/Ranger.glb`, `${C}/Knight.glb`, 0.08),
   'ash-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.2),
   'frost-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.28),
-  'warden-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.12, shieldAccessory(`${A}/shield_badge_color.gltf`, 0.78, [0.4, 0.58, 0.08])),
-  'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.54, ritualMantleAccessory),
-  'depth-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.3, shieldAccessory(`${A}/shield_round_barbarian.gltf`, 0.82, [0.42, 0.54, 0.08])),
+  'warden-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.12),
+  'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.58, ritualMantleAccessory),
+  'depth-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.3),
 };
 
 export function equipmentVisualProfile(id: EquipmentId) {
