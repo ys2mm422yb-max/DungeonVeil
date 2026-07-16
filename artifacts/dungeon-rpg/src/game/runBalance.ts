@@ -60,16 +60,16 @@ export function chapterBalanceProfile(chapter: number): ChapterBalanceProfile {
   const value = Math.max(1, Math.floor(chapter));
   const fixed = [
     { attackScale: 1, bossHpScale: 1, earlyElitePressure: false },
-    { attackScale: 1.24, bossHpScale: 1.25, earlyElitePressure: false },
-    { attackScale: 1.5, bossHpScale: 1.55, earlyElitePressure: false },
-    { attackScale: 1.78, bossHpScale: 1.9, earlyElitePressure: true },
-    { attackScale: 2.08, bossHpScale: 2.25, earlyElitePressure: true },
+    { attackScale: 1.18, bossHpScale: 1.22, earlyElitePressure: false },
+    { attackScale: 1.36, bossHpScale: 1.45, earlyElitePressure: false },
+    { attackScale: 1.56, bossHpScale: 1.72, earlyElitePressure: true },
+    { attackScale: 1.78, bossHpScale: 2.02, earlyElitePressure: true },
   ] as const;
   if (value <= fixed.length) return fixed[value - 1];
   const overflow = value - fixed.length;
   return {
-    attackScale: fixed.at(-1)!.attackScale + overflow * 0.12,
-    bossHpScale: fixed.at(-1)!.bossHpScale + overflow * 0.15,
+    attackScale: fixed.at(-1)!.attackScale + overflow * 0.1,
+    bossHpScale: fixed.at(-1)!.bossHpScale + overflow * 0.12,
     earlyElitePressure: true,
   };
 }
@@ -111,7 +111,7 @@ function shouldBeElite(room: number, enemy: Enemy, chapter: number) {
   if (enemy.enemyType === 'boss' || room < 6) return false;
   const index = enemyIndex(enemy);
   if (room >= 35) return index === 0 || index === 2 || index === 4;
-  if (chapterBalanceProfile(chapter).earlyElitePressure && room >= 25) return index === 0 || index === 2 || index === 4;
+  if (chapterBalanceProfile(chapter).earlyElitePressure && room >= 30) return index === 0 || index === 2 || index === 4;
   if (room >= 15) return index === 0 || index === 3;
   if (room >= 11) return index === 0 || (room % 3 === 0 && index === 4);
   return index === 0;
