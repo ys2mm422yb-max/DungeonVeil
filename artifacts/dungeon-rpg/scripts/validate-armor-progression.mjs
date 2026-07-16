@@ -74,20 +74,24 @@ const requiredModels = [
 ];
 for (const model of requiredModels) assert(exists(model), `required armor preview asset is missing: ${model}`);
 
-assert(balance.includes('export function chapterBalanceProfile') && balance.includes('overflow * 0.1') && balance.includes('overflow * 0.12'), 'late chapters do not continue with the moderated scaling');
-assert(balance.includes('attackScale: 1.18') && balance.includes('attackScale: 1.78'), 'moderated chapter attack profile is incomplete');
-assert(balance.includes('bossHpScale: 1.22') && balance.includes('bossHpScale: 2.02'), 'moderated chapter boss HP profile is incomplete');
-assert(balance.includes('earlyElitePressure') && balance.includes('room >= 30') && !balance.includes('room >= 25'), 'later chapter elite pressure starts too early');
+assert(balance.includes('export function chapterBalanceProfile') && balance.includes('boundedSteps * 0.12 + overflow * 0.08') && balance.includes('boundedSteps * 0.08 + overflow * 0.06'), 'late chapters do not use the moderated 12/8 then 8/6 percent curve');
+assert(balance.includes('base.hp * roomEnemyHpScale(room) * profile.enemyHpScale') && balance.includes('base.attack * roomEnemyAttackScale(room) * profile.attackScale'), 'combat balance still compounds already-scaled enemy values');
+assert(balance.includes('earlyElitePressure: value >= 4') && balance.includes('room >= 30') && !balance.includes('room >= 25'), 'later chapter elite pressure starts too early');
 
-const attackScale = chapter => chapter <= 5
-  ? [1, 1.18, 1.36, 1.56, 1.78][chapter - 1]
-  : 1.78 + (chapter - 5) * 0.1;
-const bossHpScale = chapter => chapter <= 5
-  ? [1, 1.22, 1.45, 1.72, 2.02][chapter - 1]
-  : 2.02 + (chapter - 5) * 0.12;
+const attackScale = chapter => {
+  const boundedSteps = Math.min(5, chapter - 1);
+  const overflow = Math.max(0, chapter - 6);
+  return 1 + boundedSteps * 0.08 + overflow * 0.06;
+};
+const bossHpScale = chapter => {
+  const boundedSteps = Math.min(5, chapter - 1);
+  const overflow = Math.max(0, chapter - 6);
+  return 1 + boundedSteps * 0.12 + overflow * 0.08;
+};
 for (let chapter = 2; chapter <= 12; chapter++) {
   assert(attackScale(chapter) > attackScale(chapter - 1), `attack pressure does not rise into chapter ${chapter}`);
   assert(bossHpScale(chapter) > bossHpScale(chapter - 1), `boss HP pressure does not rise into chapter ${chapter}`);
 }
+assert(attackScale(10) < 1.7 && bossHpScale(10) < 2, 'chapter 10 pressure exceeds the moderated long-term ceiling');
 
-console.log('Armor progression audit passed: distinct male accessory-free ritual armor, shield-free previews, male animated previews, meaningful item levels, capped cooldowns, diminishing defense, save migration and moderated chapter pressure are coherent.');
+console.log('Armor progression audit passed: distinct male previews, meaningful item levels, capped defense and one authoritative moderated combat curve are coherent.');
