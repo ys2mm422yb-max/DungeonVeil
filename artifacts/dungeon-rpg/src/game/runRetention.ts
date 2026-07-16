@@ -3,6 +3,7 @@ import { recordPlayerProfileQuestCompleted } from './playerProfile';
 import { isBossRoom } from './chapterRun';
 import { dailyTaskIdsForDate, taskById, tasksForDate, type DailyMetric, type DailyTaskId } from './dailyQuests';
 import { activeWeeklyRiftId } from './weeklyRiftRun';
+import { grantMetaDust, migrateLegacySigilsToDust } from './metaCurrency';
 import {
   HUNT_RELIC_POOL,
   BOSS_RELIC_POOL,
@@ -18,7 +19,9 @@ type DailyProgress = Record<DailyMetric, number>;
 type PendingRelicDrop = { relicId: VeilRelicId; roomKey: string; source: 'hunt' | 'boss' };
 
 export type RetentionProfile = {
-  sigils: number;
+  currencyVersion: 2;
+  /** Kept at zero so older cloud bundles remain readable after the 1:1 dust migration. */
+  sigils: 0;
   daily: { date: string; selected: DailyTaskId[]; progress: DailyProgress; claimed: DailyTaskId[] };
   codex: { enemies: string[]; bosses: string[]; hunts: string[]; relics: string[] };
 };
@@ -49,7 +52,7 @@ function emptyProgress(): DailyProgress {
 
 function emptyProfile(): RetentionProfile {
   const date = localDateKey();
-  return { sigils: 0, daily: { date, selected: dailyTaskIdsForDate(date), progress: emptyProgress(), claimed: [] }, codex: { enemies: [], bosses: [], hunts: [], relics: [] } };
+  return { currencyVersion: 2, sigils: 0, daily: { date, selected: dailyTaskIdsForDate(date), progress: emptyProgress(), claimed: [] }, codex: { enemies: [], bosses: [], hunts: [], relics: [] } };
 }
 
 function unique(values: string[]): string[] { return [...new Set(values)]; }
@@ -72,7 +75,8 @@ export function loadRetentionProfile(): RetentionProfile {
       ? parsed.daily.claimed.filter((id: unknown): id is DailyTaskId => typeof id === 'string' && selected.includes(id as DailyTaskId))
       : [];
     const profile: RetentionProfile = {
-      sigils: safeNumber(parsed.sigils),
+      currencyVersion: 2,
+      sigils: 0,
       daily: { date, selected: selected.length === 3 ? selected : dailyTaskIdsForDate(date), progress, claimed },
       codex: {
         enemies: unique(Array.isArray(parsed.codex?.enemies) ? parsed.codex.enemies : []),
@@ -81,6 +85,13 @@ export function loadRetentionProfile(): RetentionProfile {
         relics: unique(Array.isArray(parsed.codex?.relics) ? parsed.codex.relics : []),
       },
     };
+
+    if (parsed.currencyVersion !== 2) {
+      const legacySigils = safeNumber(parsed.sigils);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(profile)); } catch {}
+      if (legacySigils > 0) migrateLegacySigilsToDust(legacySigils);
+    }
+
     if (profile.daily.date !== localDateKey()) return { ...profile, daily: emptyProfile().daily };
     return profile;
   } catch { return emptyProfile(); }
@@ -100,9 +111,9 @@ function claimCompletedDailies(profile: RetentionProfile): void {
   for (const task of currentDailyTasks(profile)) {
     if (profile.daily.claimed.includes(task.id) || dailyProgressForTask(profile, task.id) < task.target) continue;
     profile.daily.claimed.push(task.id);
-    profile.sigils += task.reward;
+    grantMetaDust(task.reward);
     recordPlayerProfileQuestCompleted();
-    toast(task.gold ? 'GOLD-AUFTRAG ERFÜLLT' : 'TAGESAUFTRAG ERFÜLLT', `${task.title} · +${task.reward} Schleier-Siegel`, task.gold ? 'relic' : 'daily');
+    toast(task.gold ? 'GOLD-AUFTRAG ERFÜLLT' : 'TAGESAUFTRAG ERFÜLLT', `${task.title} · +${task.reward} Schleierstaub`, task.gold ? 'relic' : 'daily');
   }
 }
 
@@ -210,12 +221,13 @@ function processPendingRelicPickups(engine: GameEngine, state: RunRetentionState
     if (pending.roomKey !== roomKey) continue;
     const relic = VEIL_RELICS[pending.relicId];
     const result = unlockVeilRelic(pending.relicId);
+    const dustReward = pending.source === 'hunt' ? 18 : 60;
     mutateProfile(profile => {
       profile.codex.relics.push(relic.nameDe);
       profile.daily.progress.relicFinds++;
-      profile.sigils += pending.source === 'hunt' ? 18 : 60;
+      grantMetaDust(dustReward);
     });
-    toast(result.newUnlock ? 'RELIKT GEBORGEN' : 'RELIKT-DUPLIKAT', result.newUnlock ? `${relic.nameDe} freigeschaltet` : `${relic.nameDe} erneut gefunden · Bonus-Siegel erhalten`, 'relic');
+    toast(result.newUnlock ? 'RELIKT GEBORGEN' : 'RELIKT-DUPLIKAT', result.newUnlock ? `${relic.nameDe} freigeschaltet · +${dustReward} Schleierstaub` : `${relic.nameDe} erneut gefunden · +${dustReward} Schleierstaub`, 'relic');
   }
 }
 
@@ -234,7 +246,7 @@ function processDeaths(engine: GameEngine, state: RunRetentionState, time: numbe
       if ((enemy.frostUntil ?? 0) > enemy.deathTime) profile.daily.progress.frostKills++;
       profile.codex.enemies.push(enemy.enemyType);
       if (enemy.enemyType === 'boss') { profile.daily.progress.bossKills++; profile.codex.bosses.push(`${engine.state.chapter}:${engine.state.floor}`); }
-      if (isHunt) { profile.daily.progress.hunts++; profile.sigils += huntReward; profile.codex.hunts.push(huntName); }
+      if (isHunt) { profile.daily.progress.hunts++; grantMetaDust(huntReward); profile.codex.hunts.push(huntName); }
     });
 
     if (activeRelic === 'marked-claw') {
@@ -246,7 +258,7 @@ function processDeaths(engine: GameEngine, state: RunRetentionState, time: numbe
       toast('DIE KRONE ERWACHT', '+10 % Angriff für den restlichen Run', 'relic');
     }
     if (isHunt) {
-      toast('JAGD ABGESCHLOSSEN', `${huntName} besiegt · +${huntReward} Schleier-Siegel`, 'hunt');
+      toast('JAGD ABGESCHLOSSEN', `${huntName} besiegt · +${huntReward} Schleierstaub`, 'hunt');
       spawnRareRelicDrop(engine, state, 'hunt', enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
       state.huntTargetId = '';
     }
