@@ -1,13 +1,15 @@
 import { ClassKey } from './classes';
 import { DungeonMap, generateDungeon } from './dungeon';
 import { UpgradeKey } from '../i18n/translations';
+import { shouldRestorePendingGift } from './runGiftProgression';
 
 const SAVE_KEY = 'dungeon-veil-save';
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export interface SaveData {
   saveVersion?: number;
   saveReason?: string;
+  pendingGift?: boolean;
   playerName: string;
   playerClass: ClassKey;
   floor: number;
@@ -51,12 +53,32 @@ function persistentRunSkills(skills: Partial<Record<UpgradeKey, number>> | undef
   return persistent;
 }
 
+function previousPendingGiftAtSamePosition(data: SaveData): boolean {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const previous = JSON.parse(raw) as Partial<SaveData>;
+    return previous.pendingGift === true
+      && Math.max(1, previous.chapter ?? 1) === Math.max(1, data.chapter ?? 1)
+      && Math.max(1, previous.floor ?? 1) === Math.max(1, data.floor ?? 1);
+  } catch {
+    return false;
+  }
+}
+
+function pendingGiftForSave(data: SaveData): boolean {
+  if (data.saveReason === 'ability' || data.saveReason === 'restart-room' || data.saveReason === 'leave-run') return false;
+  if (shouldRestorePendingGift({ ...data, pendingGift: undefined })) return true;
+  return previousPendingGiftAtSamePosition(data);
+}
+
 export function saveGame(data: SaveData): boolean {
   try {
     const { dungeonMap: _dungeonMap, ...compactData } = data;
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       ...compactData,
       runSkills: persistentRunSkills(compactData.runSkills),
+      pendingGift: pendingGiftForSave(data),
       saveVersion: SAVE_VERSION,
     }));
     return true;
@@ -80,6 +102,7 @@ export function loadGame(): SaveData | null {
       saveVersion: parsed.saveVersion ?? 1,
       chapter: Math.max(1, parsed.chapter ?? 1),
       runSkills: persistentRunSkills(parsed.runSkills),
+      pendingGift: typeof parsed.pendingGift === 'boolean' ? parsed.pendingGift : undefined,
       inDungeon,
       dungeonMap: inDungeon ? (parsed.dungeonMap ?? rebuildDungeon(parsed.floor)) : undefined,
       worldX: Number.isFinite(parsed.worldX) ? parsed.worldX : parsed.playerX ?? 0,
