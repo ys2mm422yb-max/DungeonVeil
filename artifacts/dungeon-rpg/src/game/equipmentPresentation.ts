@@ -20,11 +20,27 @@ const OVERRIDES: Partial<Record<EquipmentId, PresentationOverride>> = {
     descriptionDe: 'Durchschlag I und +2 Angriff pro Stufe',
     descriptionEn: 'Piercing I and +2 attack per level',
   },
+  'frost-quiver': {
+    descriptionDe: 'Frostpfeil I, +1 Angriff je Stufe und Frost hält 20 % länger',
+    descriptionEn: 'Ice Arrow I, +1 attack per level and frost lasts 20% longer',
+  },
+  'frost-grimoire': {
+    descriptionDe: 'Frostpfeil I, gefrorene Tode explodieren und -2 % Dash-Abklingzeit je Stufe',
+    descriptionEn: 'Ice Arrow I, frozen deaths explode and -2% dash cooldown per level',
+  },
+  'rune-quiver': {
+    descriptionDe: 'Abpraller I, +8 Reichweite je Stufe und Kettentreffer verursachen 8 % Zusatzschaden',
+    descriptionEn: 'Ricochet I, +8 range per level and chain hits deal 8% bonus damage',
+  },
   'ritual-shard': {
     nameDe: 'Ritualgrimoire',
     nameEn: 'Ritual Grimoire',
-    descriptionDe: 'Abpraller I und +4 Skill-Reichweite pro Stufe',
-    descriptionEn: 'Ricochet I and +4 skill range per level',
+    descriptionDe: 'Abpraller I; jeder dritte Kettentreffer erzeugt einen Ritualimpuls',
+    descriptionEn: 'Ricochet I; every third chain hit creates a ritual pulse',
+  },
+  'splinter-quiver': {
+    descriptionDe: 'Durchschlag I, +8 Reichweite je Stufe und Durchschlagstreffer verursachen 10 % Zusatzschaden',
+    descriptionEn: 'Piercing I, +8 range per level and piercing hits deal 10% bonus damage',
   },
   'ash-amulet': {
     nameDe: 'Aschenkapsel',
@@ -41,7 +57,7 @@ const OVERRIDES: Partial<Record<EquipmentId, PresentationOverride>> = {
 };
 
 function clarifyGermanItemLevel(value: string): string {
-  return value.replace(/pro Stufe/g, 'je Ausrüstungslevel');
+  return value.replace(/pro Stufe/g, 'je Ausrüstungslevel').replace(/je Stufe/g, 'je Ausrüstungslevel');
 }
 
 function clarifyEnglishItemLevel(value: string): string {
