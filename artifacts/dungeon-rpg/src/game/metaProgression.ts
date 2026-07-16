@@ -12,6 +12,8 @@ export type EquipmentId =
   | 'veil-key' | 'guardian-sigil' | 'frost-grimoire' | 'ritual-shard' | 'ash-amulet' | 'depth-seal' | 'veil-eye'
   | 'ranger-cloak' | 'ash-armor' | 'frost-armor' | 'warden-armor' | 'veil-mantle' | 'depth-armor';
 
+type GrantedSkill = 'fireArrow' | 'iceArrow' | 'multishot' | 'ricochet' | 'piercing';
+
 export type EquipmentDefinition = {
   id: EquipmentId;
   slot: EquipmentSlot;
@@ -27,41 +29,53 @@ export type EquipmentDefinition = {
   dropSource: EquipmentDropSource;
 };
 
+export type EquipmentCombatModifiers = {
+  attackFlat: number;
+  attackPercent: number;
+  maxHp: number;
+  defense: number;
+  speedPercent: number;
+  attackRange: number;
+  attackCooldownMultiplier: number;
+  dodgeCooldownMultiplier: number;
+  grantedSkills: Partial<Record<GrantedSkill, number>>;
+};
+
 const ADVENTURER_ASSETS = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf';
 const ADVENTURER_CHARACTERS = 'adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf';
 const WEAPON_ASSETS = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 const DUNGEON_ASSETS = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 
 export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
-  'ash-bow': { id: 'ash-bow', slot: 'bow', nameDe: 'Aschenbogen', nameEn: 'Ash Bow', descriptionDe: '+6 % Angriff pro Stufe', descriptionEn: '+6% attack per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/bow_withString.gltf`, unlockRank: 1, accent: '#d59b45', rarity: 'common', dropSource: 'forge' },
-  'ember-bow': { id: 'ember-bow', slot: 'bow', nameDe: 'Glutbogen', nameEn: 'Ember Bow', descriptionDe: 'Startet jeden Run mit Feuerpfeil I', descriptionEn: 'Start each run with Fire Arrow I', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_A_withString.gltf`, unlockRank: 2, accent: '#ff673d', rarity: 'common', dropSource: 'forge' },
-  'hunter-bow': { id: 'hunter-bow', slot: 'bow', nameDe: 'Bogen des Jägers', nameEn: "Hunter's Bow", descriptionDe: '+2 Angriff und +2 % Bewegung pro Stufe', descriptionEn: '+2 attack and +2% movement per level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_B_withString.gltf`, unlockRank: 4, accent: '#a8d381', rarity: 'rare', dropSource: 'hunt' },
-  'frost-bow': { id: 'frost-bow', slot: 'bow', nameDe: 'Frostbogen', nameEn: 'Frost Bow', descriptionDe: 'Frostpfeil I und +3 Reichweite pro Stufe', descriptionEn: 'Ice Arrow I and +3 range per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/crossbow_1handed.gltf`, unlockRank: 5, accent: '#79ddff', rarity: 'rare', dropSource: 'depth' },
-  'splinter-bow': { id: 'splinter-bow', slot: 'bow', nameDe: 'Splitterbogen', nameEn: 'Splinter Bow', descriptionDe: 'Durchschlag I und +2 Angriff pro Stufe', descriptionEn: 'Piercing I and +2 attack per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/crossbow_2handed.gltf`, unlockRank: 6, accent: '#e0c089', rarity: 'rare', dropSource: 'forge' },
-  'veil-bow': { id: 'veil-bow', slot: 'bow', nameDe: 'Schleierbogen', nameEn: 'Veil Bow', descriptionDe: 'Abpraller I und +4 % Bewegung pro Stufe', descriptionEn: 'Ricochet I and +4% movement per level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_A.gltf`, unlockRank: 8, accent: '#a88cff', rarity: 'epic', dropSource: 'ritual' },
-  'warden-bow': { id: 'warden-bow', slot: 'bow', nameDe: 'Wächterbogen', nameEn: 'Warden Bow', descriptionDe: '+4 Angriff und +1 Verteidigung pro Stufe', descriptionEn: '+4 attack and +1 defense per level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_B.gltf`, unlockRank: 10, accent: '#f1c66c', rarity: 'epic', dropSource: 'warden' },
+  'ash-bow': { id: 'ash-bow', slot: 'bow', nameDe: 'Aschenbogen', nameEn: 'Ash Bow', descriptionDe: '+4 % Angriff je Ausrüstungslevel', descriptionEn: '+4% attack per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/bow_withString.gltf`, unlockRank: 1, accent: '#d59b45', rarity: 'common', dropSource: 'forge' },
+  'ember-bow': { id: 'ember-bow', slot: 'bow', nameDe: 'Glutbogen', nameEn: 'Ember Bow', descriptionDe: 'Feuerpfeil I und +2 % Angriff je Ausrüstungslevel', descriptionEn: 'Fire Arrow I and +2% attack per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_A_withString.gltf`, unlockRank: 2, accent: '#ff673d', rarity: 'common', dropSource: 'forge' },
+  'hunter-bow': { id: 'hunter-bow', slot: 'bow', nameDe: 'Bogen des Jägers', nameEn: "Hunter's Bow", descriptionDe: '+1 Angriff und +1 % Bewegung je Ausrüstungslevel', descriptionEn: '+1 attack and +1% movement per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_B_withString.gltf`, unlockRank: 4, accent: '#a8d381', rarity: 'rare', dropSource: 'hunt' },
+  'frost-bow': { id: 'frost-bow', slot: 'bow', nameDe: 'Frostbogen', nameEn: 'Frost Bow', descriptionDe: 'Frostpfeil I und +8 Angriffsreichweite je Ausrüstungslevel', descriptionEn: 'Ice Arrow I and +8 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/crossbow_1handed.gltf`, unlockRank: 5, accent: '#79ddff', rarity: 'rare', dropSource: 'depth' },
+  'splinter-bow': { id: 'splinter-bow', slot: 'bow', nameDe: 'Splitterbogen', nameEn: 'Splinter Bow', descriptionDe: 'Durchschlag I und +1 Angriff je Ausrüstungslevel', descriptionEn: 'Piercing I and +1 attack per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/crossbow_2handed.gltf`, unlockRank: 6, accent: '#e0c089', rarity: 'rare', dropSource: 'forge' },
+  'veil-bow': { id: 'veil-bow', slot: 'bow', nameDe: 'Schleierbogen', nameEn: 'Veil Bow', descriptionDe: 'Abpraller I und +2 % Bewegung je Ausrüstungslevel', descriptionEn: 'Ricochet I and +2% movement per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_A.gltf`, unlockRank: 8, accent: '#a88cff', rarity: 'epic', dropSource: 'ritual' },
+  'warden-bow': { id: 'warden-bow', slot: 'bow', nameDe: 'Wächterbogen', nameEn: 'Warden Bow', descriptionDe: '+2 Angriff je Ausrüstungslevel und jede zweite Stufe +1 Verteidigung', descriptionEn: '+2 attack per equipment level and +1 defense every two levels', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_B.gltf`, unlockRank: 10, accent: '#f1c66c', rarity: 'epic', dropSource: 'warden' },
 
-  'ranger-quiver': { id: 'ranger-quiver', slot: 'quiver', nameDe: 'Waldläuferköcher', nameEn: 'Ranger Quiver', descriptionDe: '+3 % Bewegung pro Stufe', descriptionEn: '+3% movement per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/quiver.gltf`, unlockRank: 1, accent: '#63c8d8', rarity: 'common', dropSource: 'hunt' },
-  'black-quiver': { id: 'black-quiver', slot: 'quiver', nameDe: 'Schwarzer Köcher', nameEn: 'Black Quiver', descriptionDe: 'Startet jeden Run mit Mehrfachpfeil I', descriptionEn: 'Start each run with Multishot I', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_bow_bundle.gltf`, unlockRank: 3, accent: '#8b78ba', rarity: 'common', dropSource: 'hunt' },
-  'rune-quiver': { id: 'rune-quiver', slot: 'quiver', nameDe: 'Runenköcher', nameEn: 'Rune Quiver', descriptionDe: 'Startet jeden Run mit Abpraller I', descriptionEn: 'Start each run with Ricochet I', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/arrow_B.gltf`, unlockRank: 6, accent: '#b184ff', rarity: 'epic', dropSource: 'ritual' },
-  'frost-quiver': { id: 'frost-quiver', slot: 'quiver', nameDe: 'Frostköcher', nameEn: 'Frost Quiver', descriptionDe: 'Frostpfeil I und +3 Skill-Reichweite pro Stufe', descriptionEn: 'Ice Arrow I and +3 skill range per level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/arrow_A.gltf`, unlockRank: 4, accent: '#6fd8ff', rarity: 'rare', dropSource: 'depth' },
-  'splinter-quiver': { id: 'splinter-quiver', slot: 'quiver', nameDe: 'Splitterköcher', nameEn: 'Splinter Quiver', descriptionDe: 'Durchschlag I und +3 Angriffsreichweite pro Stufe', descriptionEn: 'Piercing I and +3 attack range per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_crossbow_bundle.gltf`, unlockRank: 6, accent: '#d8bd82', rarity: 'rare', dropSource: 'forge' },
-  'warden-quiver': { id: 'warden-quiver', slot: 'quiver', nameDe: 'Wächterköcher', nameEn: 'Warden Quiver', descriptionDe: '-4 % Angriffsabklingzeit und +1 Verteidigung pro Stufe', descriptionEn: '-4% attack cooldown and +1 defense per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_crossbow.gltf`, unlockRank: 8, accent: '#e6c46d', rarity: 'epic', dropSource: 'warden' },
+  'ranger-quiver': { id: 'ranger-quiver', slot: 'quiver', nameDe: 'Waldläuferköcher', nameEn: 'Ranger Quiver', descriptionDe: '+2 % Bewegung je Ausrüstungslevel', descriptionEn: '+2% movement per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/quiver.gltf`, unlockRank: 1, accent: '#63c8d8', rarity: 'common', dropSource: 'hunt' },
+  'black-quiver': { id: 'black-quiver', slot: 'quiver', nameDe: 'Schwarzer Köcher', nameEn: 'Black Quiver', descriptionDe: 'Mehrfachpfeil I und -2 % Angriffsabklingzeit je Ausrüstungslevel', descriptionEn: 'Multishot I and -2% attack cooldown per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_bow_bundle.gltf`, unlockRank: 3, accent: '#8b78ba', rarity: 'common', dropSource: 'hunt' },
+  'rune-quiver': { id: 'rune-quiver', slot: 'quiver', nameDe: 'Runenköcher', nameEn: 'Rune Quiver', descriptionDe: 'Abpraller I und +8 Angriffsreichweite je Ausrüstungslevel', descriptionEn: 'Ricochet I and +8 attack range per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/arrow_B.gltf`, unlockRank: 6, accent: '#b184ff', rarity: 'epic', dropSource: 'ritual' },
+  'frost-quiver': { id: 'frost-quiver', slot: 'quiver', nameDe: 'Frostköcher', nameEn: 'Frost Quiver', descriptionDe: 'Frostpfeil I und +1 Angriff je Ausrüstungslevel', descriptionEn: 'Ice Arrow I and +1 attack per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/arrow_A.gltf`, unlockRank: 4, accent: '#6fd8ff', rarity: 'rare', dropSource: 'depth' },
+  'splinter-quiver': { id: 'splinter-quiver', slot: 'quiver', nameDe: 'Splitterköcher', nameEn: 'Splinter Quiver', descriptionDe: 'Durchschlag I und +8 Angriffsreichweite je Ausrüstungslevel', descriptionEn: 'Piercing I and +8 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_crossbow_bundle.gltf`, unlockRank: 6, accent: '#d8bd82', rarity: 'rare', dropSource: 'forge' },
+  'warden-quiver': { id: 'warden-quiver', slot: 'quiver', nameDe: 'Wächterköcher', nameEn: 'Warden Quiver', descriptionDe: '-3 % Angriffsabklingzeit und +3 Leben je Ausrüstungslevel', descriptionEn: '-3% attack cooldown and +3 health per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_crossbow.gltf`, unlockRank: 8, accent: '#e6c46d', rarity: 'epic', dropSource: 'warden' },
 
-  'veil-key': { id: 'veil-key', slot: 'talisman', nameDe: 'Schleierschlüssel', nameEn: 'Veil Key', descriptionDe: '+4 % Bewegung und +2 Leben pro Stufe', descriptionEn: '+4% movement and +2 health per level', pack: 'dungeon', assetPath: `${DUNGEON_ASSETS}/key.gltf`, unlockRank: 1, accent: '#a58aff', rarity: 'common', dropSource: 'depth' },
-  'guardian-sigil': { id: 'guardian-sigil', slot: 'talisman', nameDe: 'Wächtersiegel', nameEn: 'Guardian Sigil', descriptionDe: '+8 Leben und +1 Verteidigung pro Stufe', descriptionEn: '+8 health and +1 defense per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/shield_spikes_color.gltf`, unlockRank: 5, accent: '#79d69d', rarity: 'rare', dropSource: 'warden' },
-  'frost-grimoire': { id: 'frost-grimoire', slot: 'talisman', nameDe: 'Frostgrimoire', nameEn: 'Frost Grimoire', descriptionDe: 'Frostpfeil I und -4 % Skill-Abklingzeit pro Stufe', descriptionEn: 'Ice Arrow I and -4% skill cooldown per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/spellbook_closed.gltf`, unlockRank: 8, accent: '#78ddff', rarity: 'epic', dropSource: 'depth' },
-  'ritual-shard': { id: 'ritual-shard', slot: 'talisman', nameDe: 'Ritualsplitter', nameEn: 'Ritual Shard', descriptionDe: 'Abpraller I und +4 Skill-Reichweite pro Stufe', descriptionEn: 'Ricochet I and +4 skill range per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/spellbook_open.gltf`, unlockRank: 5, accent: '#d684ff', rarity: 'epic', dropSource: 'ritual' },
-  'ash-amulet': { id: 'ash-amulet', slot: 'talisman', nameDe: 'Aschenamulett', nameEn: 'Ash Amulet', descriptionDe: '+3 Angriff und +2 Leben pro Stufe', descriptionEn: '+3 attack and +2 health per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/smokebomb.gltf`, unlockRank: 4, accent: '#e7804f', rarity: 'rare', dropSource: 'forge' },
-  'depth-seal': { id: 'depth-seal', slot: 'talisman', nameDe: 'Tiefensiegel', nameEn: 'Depth Seal', descriptionDe: '+5 Leben und +2 Angriffsreichweite pro Stufe', descriptionEn: '+5 health and +2 attack range per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/shield_badge.gltf`, unlockRank: 7, accent: '#5db2b8', rarity: 'rare', dropSource: 'depth' },
-  'veil-eye': { id: 'veil-eye', slot: 'talisman', nameDe: 'Auge des Schleiers', nameEn: 'Veil Eye', descriptionDe: '+5 % Angriff und -3 % Dash-Abklingzeit pro Stufe', descriptionEn: '+5% attack and -3% dash cooldown per level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/wand.gltf`, unlockRank: 10, accent: '#c375ff', rarity: 'epic', dropSource: 'ritual' },
+  'veil-key': { id: 'veil-key', slot: 'talisman', nameDe: 'Schleierschlüssel', nameEn: 'Veil Key', descriptionDe: '+2 % Bewegung und +3 Leben je Ausrüstungslevel', descriptionEn: '+2% movement and +3 health per equipment level', pack: 'dungeon', assetPath: `${DUNGEON_ASSETS}/key.gltf`, unlockRank: 1, accent: '#a58aff', rarity: 'common', dropSource: 'depth' },
+  'guardian-sigil': { id: 'guardian-sigil', slot: 'talisman', nameDe: 'Wächtersiegel', nameEn: 'Guardian Sigil', descriptionDe: '+6 Leben je Ausrüstungslevel und jede zweite Stufe +1 Verteidigung', descriptionEn: '+6 health per equipment level and +1 defense every two levels', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/shield_spikes_color.gltf`, unlockRank: 5, accent: '#79d69d', rarity: 'rare', dropSource: 'warden' },
+  'frost-grimoire': { id: 'frost-grimoire', slot: 'talisman', nameDe: 'Frostgrimoire', nameEn: 'Frost Grimoire', descriptionDe: 'Frostpfeil I und -2 % Dash-Abklingzeit je Ausrüstungslevel', descriptionEn: 'Ice Arrow I and -2% dash cooldown per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/spellbook_closed.gltf`, unlockRank: 8, accent: '#78ddff', rarity: 'epic', dropSource: 'depth' },
+  'ritual-shard': { id: 'ritual-shard', slot: 'talisman', nameDe: 'Ritualsplitter', nameEn: 'Ritual Shard', descriptionDe: 'Abpraller I und +8 Angriffsreichweite je Ausrüstungslevel', descriptionEn: 'Ricochet I and +8 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/spellbook_open.gltf`, unlockRank: 5, accent: '#d684ff', rarity: 'epic', dropSource: 'ritual' },
+  'ash-amulet': { id: 'ash-amulet', slot: 'talisman', nameDe: 'Aschenamulett', nameEn: 'Ash Amulet', descriptionDe: '+2 Angriff und +3 Leben je Ausrüstungslevel', descriptionEn: '+2 attack and +3 health per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/smokebomb.gltf`, unlockRank: 4, accent: '#e7804f', rarity: 'rare', dropSource: 'forge' },
+  'depth-seal': { id: 'depth-seal', slot: 'talisman', nameDe: 'Tiefensiegel', nameEn: 'Depth Seal', descriptionDe: '+5 Leben und +6 Angriffsreichweite je Ausrüstungslevel', descriptionEn: '+5 health and +6 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/shield_badge.gltf`, unlockRank: 7, accent: '#5db2b8', rarity: 'rare', dropSource: 'depth' },
+  'veil-eye': { id: 'veil-eye', slot: 'talisman', nameDe: 'Auge des Schleiers', nameEn: 'Veil Eye', descriptionDe: '+3 % Angriff und -2 % Dash-Abklingzeit je Ausrüstungslevel', descriptionEn: '+3% attack and -2% dash cooldown per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/wand.gltf`, unlockRank: 10, accent: '#c375ff', rarity: 'epic', dropSource: 'ritual' },
 
-  'ranger-cloak': { id: 'ranger-cloak', slot: 'armor', nameDe: 'Waldläufermantel', nameEn: 'Ranger Cloak', descriptionDe: '+5 Leben und +2 % Bewegung pro Stufe', descriptionEn: '+5 health and +2% movement per level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Ranger.glb`, unlockRank: 1, accent: '#78caa0', rarity: 'common', dropSource: 'hunt' },
-  'ash-armor': { id: 'ash-armor', slot: 'armor', nameDe: 'Aschenpanzer', nameEn: 'Ash Armor', descriptionDe: '+2 Angriff und +3 Leben pro Stufe', descriptionEn: '+2 attack and +3 health per level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Rogue_Hooded.glb`, unlockRank: 4, accent: '#db754b', rarity: 'rare', dropSource: 'forge' },
-  'frost-armor': { id: 'frost-armor', slot: 'armor', nameDe: 'Frostharnisch', nameEn: 'Frost Harness', descriptionDe: '+4 Leben und +3 Skill-Reichweite pro Stufe', descriptionEn: '+4 health and +3 skill range per level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Mage.glb`, unlockRank: 5, accent: '#72d8ff', rarity: 'rare', dropSource: 'depth' },
-  'warden-armor': { id: 'warden-armor', slot: 'armor', nameDe: 'Wächterrüstung', nameEn: 'Warden Armor', descriptionDe: '+1 Verteidigung und +6 Leben pro Stufe', descriptionEn: '+1 defense and +6 health per level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Knight.glb`, unlockRank: 7, accent: '#e5c36b', rarity: 'epic', dropSource: 'warden' },
-  'veil-mantle': { id: 'veil-mantle', slot: 'armor', nameDe: 'Schleiergewand', nameEn: 'Veil Mantle', descriptionDe: '+3 % Bewegung und +2 Angriffsreichweite pro Stufe', descriptionEn: '+3% movement and +2 attack range per level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Rogue.glb`, unlockRank: 8, accent: '#a786ff', rarity: 'epic', dropSource: 'ritual' },
-  'depth-armor': { id: 'depth-armor', slot: 'armor', nameDe: 'Rüstung der Tiefe', nameEn: 'Depth Armor', descriptionDe: '+8 Leben und alle zwei Stufen +1 Verteidigung', descriptionEn: '+8 health and +1 defense every two levels', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Barbarian.glb`, unlockRank: 10, accent: '#5fb4ba', rarity: 'epic', dropSource: 'depth' },
+  'ranger-cloak': { id: 'ranger-cloak', slot: 'armor', nameDe: 'Waldläufermantel', nameEn: 'Ranger Cloak', descriptionDe: '+4 Leben und +1 % Bewegung je Ausrüstungslevel', descriptionEn: '+4 health and +1% movement per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Ranger.glb`, unlockRank: 1, accent: '#78caa0', rarity: 'common', dropSource: 'hunt' },
+  'ash-armor': { id: 'ash-armor', slot: 'armor', nameDe: 'Aschenpanzer', nameEn: 'Ash Armor', descriptionDe: '+1 Angriff und +4 Leben je Ausrüstungslevel', descriptionEn: '+1 attack and +4 health per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Barbarian.glb`, unlockRank: 4, accent: '#db754b', rarity: 'rare', dropSource: 'forge' },
+  'frost-armor': { id: 'frost-armor', slot: 'armor', nameDe: 'Frostharnisch', nameEn: 'Frost Harness', descriptionDe: '+5 Leben und +6 Angriffsreichweite je Ausrüstungslevel', descriptionEn: '+5 health and +6 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Knight.glb`, unlockRank: 5, accent: '#72d8ff', rarity: 'rare', dropSource: 'depth' },
+  'warden-armor': { id: 'warden-armor', slot: 'armor', nameDe: 'Wächterrüstung', nameEn: 'Warden Armor', descriptionDe: '+5 Leben je Ausrüstungslevel und jede zweite Stufe +1 Verteidigung', descriptionEn: '+5 health per equipment level and +1 defense every two levels', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Knight.glb`, unlockRank: 7, accent: '#e5c36b', rarity: 'epic', dropSource: 'warden' },
+  'veil-mantle': { id: 'veil-mantle', slot: 'armor', nameDe: 'Schleiergewand', nameEn: 'Veil Mantle', descriptionDe: '+2 % Bewegung und +6 Angriffsreichweite je Ausrüstungslevel', descriptionEn: '+2% movement and +6 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Ranger.glb`, unlockRank: 8, accent: '#a786ff', rarity: 'epic', dropSource: 'ritual' },
+  'depth-armor': { id: 'depth-armor', slot: 'armor', nameDe: 'Rüstung der Tiefe', nameEn: 'Depth Armor', descriptionDe: '+7 Leben je Ausrüstungslevel und jede zweite Stufe +1 Verteidigung', descriptionEn: '+7 health per equipment level and +1 defense every two levels', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Barbarian.glb`, unlockRank: 10, accent: '#5fb4ba', rarity: 'epic', dropSource: 'depth' },
 };
 
 export type EquipmentProgress = { level: number; copies: number };
@@ -274,47 +288,78 @@ export function upgradeMetaItem(id: EquipmentId) {
   return saveMetaProgression(meta);
 }
 
-function ensureSkill(engine: GameEngine, key: 'fireArrow' | 'iceArrow' | 'multishot' | 'ricochet' | 'piercing', rank = 1) {
-  engine.state.runSkills[key] = Math.max(skillRank(engine.state.runSkills, key), rank);
+function levelOf(meta: MetaProgression, id: EquipmentId) {
+  return Math.max(1, Math.min(5, meta.owned[id]?.level ?? 1));
 }
-function addHealth(engine: GameEngine, amount: number) {
-  engine.state.player.maxHp += amount;
-  engine.state.player.hp += amount;
+
+function grant(modifiers: EquipmentCombatModifiers, key: GrantedSkill, rank = 1) {
+  modifiers.grantedSkills[key] = Math.max(modifiers.grantedSkills[key] ?? 0, rank);
+}
+
+export function equipmentCombatModifiers(meta = loadMetaProgression()): EquipmentCombatModifiers {
+  const modifiers: EquipmentCombatModifiers = {
+    attackFlat: 0,
+    attackPercent: 0,
+    maxHp: 0,
+    defense: 0,
+    speedPercent: 0,
+    attackRange: 0,
+    attackCooldownMultiplier: 1,
+    dodgeCooldownMultiplier: 1,
+    grantedSkills: {},
+  };
+
+  for (const slot of EQUIPMENT_SLOTS) {
+    const id = meta.equipped[slot];
+    const level = levelOf(meta, id);
+    if (id === 'ash-bow') modifiers.attackPercent += 0.04 * level;
+    else if (id === 'ember-bow') { grant(modifiers, 'fireArrow'); modifiers.attackPercent += 0.02 * level; }
+    else if (id === 'hunter-bow') { modifiers.attackFlat += level; modifiers.speedPercent += 0.01 * level; }
+    else if (id === 'frost-bow') { grant(modifiers, 'iceArrow'); modifiers.attackRange += 8 * level; }
+    else if (id === 'splinter-bow') { grant(modifiers, 'piercing'); modifiers.attackFlat += level; }
+    else if (id === 'veil-bow') { grant(modifiers, 'ricochet'); modifiers.speedPercent += 0.02 * level; }
+    else if (id === 'warden-bow') { modifiers.attackFlat += 2 * level; modifiers.defense += Math.floor(level / 2); }
+    else if (id === 'ranger-quiver') modifiers.speedPercent += 0.02 * level;
+    else if (id === 'black-quiver') { grant(modifiers, 'multishot'); modifiers.attackCooldownMultiplier *= 1 - 0.02 * level; }
+    else if (id === 'rune-quiver') { grant(modifiers, 'ricochet'); modifiers.attackRange += 8 * level; }
+    else if (id === 'frost-quiver') { grant(modifiers, 'iceArrow'); modifiers.attackFlat += level; }
+    else if (id === 'splinter-quiver') { grant(modifiers, 'piercing'); modifiers.attackRange += 8 * level; }
+    else if (id === 'warden-quiver') { modifiers.attackCooldownMultiplier *= 1 - 0.03 * level; modifiers.maxHp += 3 * level; }
+    else if (id === 'veil-key') { modifiers.speedPercent += 0.02 * level; modifiers.maxHp += 3 * level; }
+    else if (id === 'guardian-sigil') { modifiers.maxHp += 6 * level; modifiers.defense += Math.floor(level / 2); }
+    else if (id === 'frost-grimoire') { grant(modifiers, 'iceArrow'); modifiers.dodgeCooldownMultiplier *= 1 - 0.02 * level; }
+    else if (id === 'ritual-shard') { grant(modifiers, 'ricochet'); modifiers.attackRange += 8 * level; }
+    else if (id === 'ash-amulet') { modifiers.attackFlat += 2 * level; modifiers.maxHp += 3 * level; }
+    else if (id === 'depth-seal') { modifiers.maxHp += 5 * level; modifiers.attackRange += 6 * level; }
+    else if (id === 'veil-eye') { modifiers.attackPercent += 0.03 * level; modifiers.dodgeCooldownMultiplier *= 1 - 0.02 * level; }
+    else if (id === 'ranger-cloak') { modifiers.maxHp += 4 * level; modifiers.speedPercent += 0.01 * level; }
+    else if (id === 'ash-armor') { modifiers.attackFlat += level; modifiers.maxHp += 4 * level; }
+    else if (id === 'frost-armor') { modifiers.maxHp += 5 * level; modifiers.attackRange += 6 * level; }
+    else if (id === 'warden-armor') { modifiers.maxHp += 5 * level; modifiers.defense += Math.floor(level / 2); }
+    else if (id === 'veil-mantle') { modifiers.speedPercent += 0.02 * level; modifiers.attackRange += 6 * level; }
+    else if (id === 'depth-armor') { modifiers.maxHp += 7 * level; modifiers.defense += Math.floor(level / 2); }
+  }
+
+  modifiers.attackPercent = Math.min(0.3, modifiers.attackPercent);
+  modifiers.speedPercent = Math.min(0.28, modifiers.speedPercent);
+  modifiers.attackCooldownMultiplier = Math.max(0.78, modifiers.attackCooldownMultiplier);
+  modifiers.dodgeCooldownMultiplier = Math.max(0.82, modifiers.dodgeCooldownMultiplier);
+  return modifiers;
+}
+
+function ensureSkill(engine: GameEngine, key: GrantedSkill, rank = 1) {
+  engine.state.runSkills[key] = Math.max(skillRank(engine.state.runSkills, key), rank);
 }
 
 export function applyMetaLoadoutToNewRun(engine: GameEngine) {
-  const meta = loadMetaProgression();
+  const modifiers = equipmentCombatModifiers();
   const p = engine.state.player;
-  for (const slot of EQUIPMENT_SLOTS) {
-    const id = meta.equipped[slot];
-    const level = Math.max(1, meta.owned[id]?.level ?? 1);
-    if (id === 'ash-bow') p.attack = Math.round(p.attack * (1 + 0.06 * level));
-    else if (id === 'ember-bow') ensureSkill(engine, 'fireArrow');
-    else if (id === 'hunter-bow') { p.attack += 2 * level; p.speed *= 1 + 0.02 * level; }
-    else if (id === 'frost-bow') { ensureSkill(engine, 'iceArrow'); p.attackRange += 3 * level; }
-    else if (id === 'splinter-bow') { ensureSkill(engine, 'piercing'); p.attack += 2 * level; }
-    else if (id === 'veil-bow') { ensureSkill(engine, 'ricochet'); p.speed *= 1 + 0.04 * level; }
-    else if (id === 'warden-bow') { p.attack += 4 * level; p.defense += level; }
-    else if (id === 'ranger-quiver') p.speed *= 1 + 0.03 * level;
-    else if (id === 'black-quiver') ensureSkill(engine, 'multishot');
-    else if (id === 'rune-quiver') ensureSkill(engine, 'ricochet');
-    else if (id === 'frost-quiver') { ensureSkill(engine, 'iceArrow'); p.skillRange += 3 * level; }
-    else if (id === 'splinter-quiver') { ensureSkill(engine, 'piercing'); p.attackRange += 3 * level; }
-    else if (id === 'warden-quiver') { p.attackCooldown = Math.max(90, Math.round(p.attackCooldown * (1 - 0.04 * level))); p.defense += level; }
-    else if (id === 'veil-key') { p.speed *= 1 + 0.04 * level; addHealth(engine, 2 * level); }
-    else if (id === 'guardian-sigil') { addHealth(engine, 8 * level); p.defense += level; }
-    else if (id === 'frost-grimoire') { ensureSkill(engine, 'iceArrow'); p.skillCooldown = Math.max(700, Math.round(p.skillCooldown * (1 - 0.04 * level))); }
-    else if (id === 'ritual-shard') { ensureSkill(engine, 'ricochet'); p.skillRange += 4 * level; }
-    else if (id === 'ash-amulet') { p.attack += 3 * level; addHealth(engine, 2 * level); }
-    else if (id === 'depth-seal') { addHealth(engine, 5 * level); p.attackRange += 2 * level; }
-    else if (id === 'veil-eye') { p.attack = Math.round(p.attack * (1 + 0.05 * level)); p.dodgeCooldown = Math.max(250, Math.round(p.dodgeCooldown * (1 - 0.03 * level))); }
-    else if (id === 'ranger-cloak') { addHealth(engine, 5 * level); p.speed *= 1 + 0.02 * level; }
-    else if (id === 'ash-armor') { p.attack += 2 * level; addHealth(engine, 3 * level); }
-    else if (id === 'frost-armor') { addHealth(engine, 4 * level); p.skillRange += 3 * level; }
-    else if (id === 'warden-armor') { p.defense += level; addHealth(engine, 6 * level); }
-    else if (id === 'veil-mantle') { p.speed *= 1 + 0.03 * level; p.attackRange += 2 * level; }
-    else if (id === 'depth-armor') { addHealth(engine, 8 * level); p.defense += Math.ceil(level / 2); }
-  }
-  p.speed = Math.round(p.speed);
+  for (const [key, rank] of Object.entries(modifiers.grantedSkills) as Array<[GrantedSkill, number]>) ensureSkill(engine, key, rank);
+  p.attack = Math.max(1, Math.round((p.attack + modifiers.attackFlat) * (1 + modifiers.attackPercent)));
+  p.defense += modifiers.defense;
+  p.speed = Math.round(p.speed * (1 + modifiers.speedPercent));
+  p.attackRange += modifiers.attackRange;
+  p.maxHp += modifiers.maxHp;
+  p.hp += modifiers.maxHp;
   engine.saveNow('meta-loadout');
 }
