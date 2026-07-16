@@ -1,8 +1,13 @@
-import { cloudRevision, exportSaveBundle, importSaveBundle, markCloudRevision, persistentPlayerId, type DungeonVeilSaveBundle } from './persistentSaveBundle';
-import { currentOnlineSession, pullSupabaseSave, pushSupabaseSave } from './supabaseOnline';
+import { exportSaveBundle, importSaveBundle, markCloudRevision, persistentPlayerId, shouldRestoreRemoteBundle, type DungeonVeilSaveBundle } from './persistentSaveBundle';
+import { authenticatedSupabaseRest, currentOnlineSession, pullSupabaseSave } from './supabaseOnline';
 
 const CLOUD_URL = String(import.meta.env.VITE_DUNGEON_CLOUD_URL ?? '').replace(/\/$/, '');
 const CLOUD_KEY = String(import.meta.env.VITE_DUNGEON_CLOUD_KEY ?? '');
+
+type GuardedCloudSaveResult = {
+  accepted: boolean;
+  payload: DungeonVeilSaveBundle | null;
+};
 
 export function cloudSaveConfigured(): boolean {
   return Boolean(currentOnlineSession() || CLOUD_URL.length > 0);
@@ -45,9 +50,21 @@ export async function readCloudSave(): Promise<DungeonVeilSaveBundle | null> {
 export async function pushCloudSave(bundle = exportSaveBundle()): Promise<boolean> {
   try {
     if (currentOnlineSession()) {
-      const saved = await pushSupabaseSave(bundle);
-      if (saved) markCloudRevision(bundle.updatedAt);
-      return saved;
+      const result = await authenticatedSupabaseRest<GuardedCloudSaveResult>('rpc/upsert_guarded_game_save', {
+        method: 'POST',
+        body: JSON.stringify({
+          p_payload: bundle,
+          p_save_version: bundle.version,
+          p_progress_weight: Math.max(0, Math.floor(bundle.progressWeight ?? 0)),
+          p_activity_at: Math.max(0, Math.floor(bundle.activityAt ?? 0)),
+        }),
+      });
+      if (result.accepted) {
+        markCloudRevision(bundle.updatedAt);
+        return true;
+      }
+      if (result.payload?.version === 1 && shouldRestoreRemoteBundle(bundle, result.payload)) importSaveBundle(result.payload);
+      return false;
     }
     return pushLegacyCloud(bundle);
   } catch {
@@ -62,7 +79,7 @@ export function restoreCloudSave(bundle: DungeonVeilSaveBundle): boolean {
 export async function pullCloudSave(): Promise<boolean> {
   const remote = await readCloudSave();
   if (!remote) return false;
-  const revision = cloudRevision();
-  if (revision && Date.parse(remote.updatedAt) <= Date.parse(revision)) return false;
+  const local = exportSaveBundle();
+  if (!shouldRestoreRemoteBundle(local, remote)) return false;
   return restoreCloudSave(remote);
 }
