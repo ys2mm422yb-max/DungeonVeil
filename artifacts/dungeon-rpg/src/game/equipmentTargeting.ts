@@ -75,10 +75,7 @@ export function targetedEquipmentForAward(source: EquipmentDropSource, guarantee
   const state = loadEquipmentTargetState();
   const target = state.target;
   if (!target) return null;
-  if (guaranteed) {
-    saveEquipmentTargetState({ target, misses: 0 });
-    return target;
-  }
+  if (guaranteed) return target;
   if (EQUIPMENT[target].dropSource !== source) return null;
   if (state.misses >= EQUIPMENT_TARGET_HARD_PITY || Math.random() < EQUIPMENT_TARGET_SOURCE_CHANCE) {
     saveEquipmentTargetState({ target, misses: 0 });
