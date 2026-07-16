@@ -1,10 +1,35 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { RunGameState } from '../game/runEngine';
-import { loadFriendSpectatorFeed, SPECTATOR_REFRESH_MS, type FriendSpectatorFeed } from '../game/socialSpectatorOnline';
+import {
+  heartbeatSpectatorViewer,
+  leaveSpectatorViewer,
+  loadFriendSpectatorFeed,
+  SPECTATOR_REFRESH_MS,
+  SPECTATOR_VIEWER_HEARTBEAT_MS,
+  type FriendSpectatorFeed,
+} from '../game/socialSpectatorOnline';
 import { CombatStage } from './CombatStage';
 
-const INTERPOLATION_MS = 460;
+const INTERPOLATION_MS = 120;
 const lerp = (from: number, to: number, amount: number) => from + (to - from) * amount;
+
+const GIFT_LABELS: Record<string, readonly [string, string]> = {
+  multishot: ['Mehrfachpfeil', 'Multishot'],
+  ricochet: ['Abpraller', 'Ricochet'],
+  fireArrow: ['Feuerpfeil', 'Fire Arrow'],
+  iceArrow: ['Frostpfeil', 'Frost Arrow'],
+  attackSpeed: ['Schnellzug', 'Quick Draw'],
+  piercing: ['Durchbohren', 'Piercing'],
+  elementalStorm: ['Elementsturm', 'Elemental Storm'],
+  arrowStorm: ['Pfeilsturm', 'Arrow Storm'],
+  veilChain: ['Schleierkette', 'Veil Chain'],
+  attack: ['Angriff', 'Attack'],
+  maxHp: ['Lebenskraft', 'Vitality'],
+  speed: ['Bewegung', 'Movement'],
+  defense: ['Verteidigung', 'Defense'],
+  hunterBlessing: ['Jägersegen', 'Hunter Blessing'],
+  vitalSpark: ['Lebensfunke', 'Vital Spark'],
+};
 
 function interpolateState(previous: RunGameState, target: RunGameState, amount: number): RunGameState {
   if (previous.chapter !== target.chapter || previous.floor !== target.floor) return target;
@@ -46,6 +71,19 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
     document.documentElement.dataset.dungeonVeilSpectating = '1';
     return () => { delete document.documentElement.dataset.dungeonVeilSpectating; };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const heartbeat = () => { void heartbeatSpectatorViewer(friendId).catch(() => {}); };
+    heartbeat();
+    const interval = window.setInterval(heartbeat, SPECTATOR_VIEWER_HEARTBEAT_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      if (!cancelled) return;
+      void leaveSpectatorViewer(friendId).catch(() => {});
+    };
+  }, [friendId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +151,10 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   const maxHp = Math.max(1, Math.round(targetState?.player.maxHp ?? gameState?.player.maxHp ?? 1));
   const hpPercent = Math.max(0, Math.min(100, hp / maxHp * 100));
   const delayMs = feed?.snapshot ? Math.max(0, Date.now() - feed.snapshot.emittedAt) : 0;
+  const gifts = Object.entries(gameState?.runSkills ?? {})
+    .filter(([key, rank]) => key !== 'heal' && Number(rank) > 0)
+    .map(([key, rank]) => ({ key, rank: Number(rank), label: GIFT_LABELS[key]?.[de ? 0 : 1] ?? key }))
+    .slice(0, 12);
   const status = dead
     ? (de ? 'SPIELER BESIEGT' : 'PLAYER DEFEATED')
     : paused
@@ -136,7 +178,11 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
         <div className="mt-1 text-[7px] uppercase tracking-[.12em] text-white/42">{feed ? `${de ? 'Kapitel' : 'Chapter'} ${feed.chapter} · ${de ? 'Raum' : 'Room'} ${feed.room} · ${(delayMs / 1000).toFixed(1)} s` : (de ? 'Verbindung wird aufgebaut' : 'Connecting')}</div>
         {gameState && <div data-testid="spectator-health" className="mt-2">
           <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-[.12em]"><span className="text-white/38">{de ? 'LEBEN' : 'HEALTH'}</span><span className="text-white/72">{hp}/{maxHp}</span></div>
-          <div className="mt-1 h-2 overflow-hidden rounded-full border border-white/10 bg-black/70"><div className="h-full rounded-full bg-red-500 transition-[width] duration-300" style={{ width: `${hpPercent}%` }} /></div>
+          <div className="mt-1 h-2 overflow-hidden rounded-full border border-white/10 bg-black/70"><div className="h-full rounded-full bg-red-500 transition-[width] duration-100" style={{ width: `${hpPercent}%` }} /></div>
+        </div>}
+        {gifts.length > 0 && <div data-testid="spectator-gifts" className="mt-2 border-t border-white/8 pt-2">
+          <div className="mb-1 text-[6px] font-black uppercase tracking-[.16em] text-violet-100/45">{de ? 'GABEN' : 'GIFTS'}</div>
+          <div className="flex max-w-[min(76vw,330px)] flex-wrap gap-1">{gifts.map(gift => <span key={gift.key} className="rounded-full border border-violet-300/15 bg-violet-500/10 px-2 py-1 text-[6px] font-black text-violet-50/78">{gift.label}{gift.rank > 1 ? ` ${gift.rank}` : ''}</span>)}</div>
         </div>}
       </div>
       <button type="button" aria-label={de ? 'Zuschauen beenden' : 'Stop spectating'} onClick={onClose} className="pointer-events-auto grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/16 bg-black/76 text-xl font-black text-white/80 backdrop-blur-lg active:scale-90">×</button>
