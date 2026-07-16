@@ -49,7 +49,7 @@ function stringArrayLength(value: unknown): number {
 }
 
 function equipmentProgressWeight(value: unknown): number {
-  return Object.values(record(value)).reduce((total, raw) => {
+  return Object.values(record(value)).reduce<number>((total, raw) => {
     if (typeof raw === 'number') return total + Math.max(1, Math.floor(number(raw))) * 2_500;
     const item = record(raw);
     const level = Math.max(1, Math.floor(number(item.level) || 1));
