@@ -1,5 +1,6 @@
 import React from 'react';
 import { resolveOnlineAvatar, resolveOnlineCard, resolveOnlineTitle } from '../game/onlineProfileCosmetics';
+import { ProfileAvatarPortrait } from './ProfileAvatarPortrait';
 
 export function SocialIdentityCard({
   displayName,
@@ -26,8 +27,8 @@ export function SocialIdentityCard({
   const title = resolveOnlineTitle(avatarKey);
   const card = resolveOnlineCard(avatarKey);
   const content = <>
-    <div className={`relative grid shrink-0 place-items-center rounded-2xl border border-white/18 text-xl shadow-inner ${compact ? 'h-11 w-11' : 'h-12 w-12'}`} style={{ background: avatar.background }}>
-      {avatar.icon}
+    <div className={`relative shrink-0 ${compact ? 'h-11 w-11' : 'h-12 w-12'}`}>
+      <ProfileAvatarPortrait avatar={avatar} className="h-full w-full rounded-2xl border border-white/18" />
       <span className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-[#08090c] ${online ? 'bg-emerald-400' : 'bg-white/25'}`} />
     </div>
     <div className="min-w-0 flex-1 text-left">
