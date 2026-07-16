@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const scripts = [
   'validate-all-rooms.mjs',
@@ -36,14 +37,18 @@ const scripts = [
 ];
 
 for (const script of scripts) {
-  const result = spawnSync(process.execPath, [new URL(script, import.meta.url).pathname], {
-    encoding: 'utf8',
+  console.log(`▶ ${script}`);
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL(script, import.meta.url))], {
+    stdio: 'inherit',
     env: process.env,
   });
+  if (result.error) {
+    console.error(`ROOM AUDIT COULD NOT START: ${script}`);
+    console.error(result.error);
+    process.exit(1);
+  }
   if (result.status !== 0) {
     console.error(`ROOM AUDIT FAILED: ${script}`);
-    if (result.stdout.trim()) console.error(result.stdout.trim());
-    if (result.stderr.trim()) console.error(result.stderr.trim());
     process.exit(result.status ?? 1);
   }
   console.log(`✓ ${script}`);
