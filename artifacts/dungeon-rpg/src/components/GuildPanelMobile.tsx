@@ -30,6 +30,7 @@ import {
 } from '../game/onlinePresence';
 import { GuildInviteLinkCard } from './GuildInviteLinkCard';
 import { GuildChatPanel } from './GuildChatPanel';
+import { SocialIdentityCard } from './SocialIdentityCard';
 
 type Props = {
   language: 'de' | 'en';
@@ -60,10 +61,6 @@ function roleLabel(role: OnlineGuildRole, de: boolean) {
   if (role === 'owner') return de ? 'Anführer' : 'Leader';
   if (role === 'officer') return de ? 'Offizier' : 'Officer';
   return de ? 'Mitglied' : 'Member';
-}
-
-function initials(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
 function formatJoined(value: string, language: 'de' | 'en') {
@@ -270,18 +267,26 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
       {tab === 'chat' && <GuildChatPanel guildId={membership.guild.id} language={language} />}
 
       {tab === 'members' && <section data-testid="guild-members-tab" className={`${scrollClass} space-y-2`}>
-        <div className="flex items-center justify-between gap-3 px-1"><div className="text-[8px] font-black uppercase tracking-[.18em] text-amber-100/62">{de ? `${members.length} Mitglieder` : `${members.length} members`}</div><div className="text-[7px] text-white/34">{de ? `${stats.online} online` : `${stats.online} online`}</div></div>
+        <div className="flex items-center justify-between gap-3 px-1"><div className="text-[8px] font-black uppercase tracking-[.18em] text-amber-100/62">{de ? `${members.length} Mitglieder` : `${members.length} members`}</div><div className="text-[7px] text-white/34">{stats.online} online</div></div>
         {members.map(member => {
           const ownerEntry = member.role === 'owner';
           const name = member.profile?.display_name ?? (de ? 'Unbekannter Spieler' : 'Unknown player');
           const presence = presenceByUserId[member.user_id];
           const online = isPresenceOnline(presence, presenceNow);
+          const detail = `${roleLabel(member.role, de)}${member.joined_at ? ` · ${de ? 'Seit' : 'Since'} ${formatJoined(member.joined_at, language)}` : ''}`;
           return <article key={member.user_id} data-testid="guild-member-card" className="rounded-2xl border border-white/8 bg-white/[.025] p-2.5">
-            <button type="button" data-testid="guild-member-profile-button" onClick={() => onOpenMemberProfile?.(member.user_id)} disabled={!onOpenMemberProfile} className="flex w-full min-w-0 items-center gap-3 rounded-xl p-1.5 text-left disabled:cursor-default active:scale-[.99]">
-              <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-cyan-300/16 bg-cyan-400/8 text-[10px] font-black text-cyan-100">{initials(name)}<span className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[#0d0b08] ${online ? 'bg-emerald-400' : 'bg-white/25'}`} /></div>
-              <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-black text-white/88">{name}</div><div className="mt-1 truncate text-[7px] uppercase tracking-[.12em] text-amber-100/52">{roleLabel(member.role, de)}{member.joined_at ? ` · ${formatJoined(member.joined_at, language)}` : ''}</div><div data-testid="guild-member-presence" className={`mt-1 text-[7px] font-black uppercase tracking-[.12em] ${online ? 'text-emerald-200/76' : 'text-white/30'}`}>{formatPresence(presence, language, presenceNow)}</div></div>
-              <span className="shrink-0 rounded-full border border-amber-300/14 bg-amber-400/[.06] px-2 py-1 text-[6px] font-black uppercase text-amber-100/65">{roleLabel(member.role, de)}</span><span className="text-base text-white/28">›</span>
-            </button>
+            <SocialIdentityCard
+              testId="guild-member-profile-button"
+              displayName={name}
+              avatarKey={member.profile?.avatar_key}
+              language={language}
+              online={online}
+              statusLabel={formatPresence(presence, language, presenceNow)}
+              detail={detail}
+              compact
+              onClick={onOpenMemberProfile ? () => onOpenMemberProfile(member.user_id) : undefined}
+            />
+            <div data-testid="guild-member-presence" className="sr-only">{formatPresence(presence, language, presenceNow)}</div>
             {isOwner && !ownerEntry && <div data-testid="guild-member-management" className="mt-2 grid grid-cols-3 gap-2 border-t border-white/7 pt-2"><ActionButton label={member.role === 'officer' ? (de ? 'Mitglied' : 'Member') : (de ? 'Offizier' : 'Officer')} onClick={() => changeRole(member, member.role === 'officer' ? 'member' : 'officer')} disabled={busy} compact /><ActionButton label={de ? 'Führung' : 'Leader'} onClick={() => transferLeadership(member)} disabled={busy} primary compact /><ActionButton label={de ? 'Entfernen' : 'Remove'} onClick={() => kickMember(member)} disabled={busy} danger compact /></div>}
           </article>;
         })}

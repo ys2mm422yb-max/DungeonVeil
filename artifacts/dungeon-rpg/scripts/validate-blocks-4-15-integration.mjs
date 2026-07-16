@@ -37,7 +37,7 @@ const [
 const checks = [
   [guildPanel.includes('guild-members-tab') && guildPanel.includes('guild-member-profile-button') && guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}') && !guildSocial.includes('guild-profile-list-button'), 'Block 4 guild profiles are not contained in the Members tab'],
   [publicProfile.includes('public-player-profile-dialog') && publicProfile.includes('public-player-profile-loading') && publicProfile.includes('public-player-profile-error') && publicProfile.includes('public-player-profile-empty'), 'Block 5 public profile states are incomplete'],
-  [friends.includes('friend-request-profile-button') && friends.includes('incoming-friend-request-actions') && friends.includes('outgoing-friend-request-card'), 'Block 6 friend requests are not connected safely to public profiles'],
+  [friends.includes('<SocialIdentityCard') && friends.includes('setSelectedProfileId(request.user_id)') && friends.includes('incoming-friend-request-actions') && friends.includes('outgoing-friend-request-card'), 'Block 6 friend requests are not connected safely to cosmetic public profiles'],
   [presence.includes('publishOnlinePresence') && presenceRuntime.includes('ONLINE_PRESENCE_POLL_MS') && guildPanel.includes('guild-member-presence'), 'Block 7 online presence is not active across runtime and guild UI'],
   [!profilePanel.includes('weeklyElite') && !profilePanel.includes('WÖCHENTLICHE ELITE-AUFTRÄGE') && profilePanel.includes("type Tab = 'overview' | 'stats' | 'titles' | 'cards' | 'avatars'"), 'Block 8 elite content returned to the profile'],
   [quests.includes('quest-board-summary') && quests.includes('quest-active-section') && quests.includes('quest-completed-section'), 'Block 9 quest structure is missing'],
