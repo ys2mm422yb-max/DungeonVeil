@@ -9,6 +9,7 @@ const paths = {
   relics: '../src/game/veilRelics.ts',
   worldBossReward: '../src/game/worldBossRewardLocal.ts',
   worldBossMigration: '../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql',
+  expansion: '../src/game/profileCosmeticsExpansion.ts',
   portrait: '../src/components/ProfileAvatarPortrait.tsx',
   badge: '../src/components/ProfileBadge.tsx',
   profile: '../src/components/PlayerProfilePanel.tsx',
@@ -18,7 +19,9 @@ const paths = {
 
 const entries = await Promise.all(Object.entries(paths).map(async ([key, path]) => [key, await readFile(new URL(path, import.meta.url), 'utf8')]));
 const files = Object.fromEntries(entries);
-const avatarIds = ['ranger', 'ember', 'frost', 'warden', 'sigil', 'veil', 'ash-mask', 'demon-eye', 'rune-bow', 'worldboss-seal', 'night-watch', 'arcane-eye'];
+const baseAvatarIds = ['ranger', 'ember', 'frost', 'warden', 'sigil', 'veil', 'ash-mask', 'demon-eye', 'rune-bow', 'worldboss-seal', 'night-watch', 'arcane-eye'];
+const expandedAvatarIds = ['frost-skull', 'sentinel-helm', 'veil-crystal', 'boss-crown', 'void-phoenix'];
+const avatarIds = [...baseAvatarIds, ...expandedAvatarIds];
 
 const checks = [
   [files.retention.includes('currencyVersion: 2'), 'retention profile has no versioned currency migration'],
@@ -33,7 +36,9 @@ const checks = [
   [files.relics.includes('50 % mehr Schleierstaub') && files.relics.includes('50% more Veil Dust'), 'Night Hunt relic still describes a sigil bonus'],
   [files.economy.includes('dust: 75') && files.economy.includes('dust: 250') && files.economy.includes('dust: 700') && files.economy.includes('dust: 1800'), 'equipment upgrades do not contain all agreed dust costs'],
   [files.inventory.includes('data-testid="equipment-upgrade-costs"') && files.inventory.includes('grid-cols-3'), 'inventory does not visibly separate all three upgrade resources'],
-  [avatarIds.every(id => files.portrait.includes(`${id}:`) || files.portrait.includes(`'${id}':`)), 'portrait theme map does not cover all existing avatar ids'],
+  [expandedAvatarIds.every(id => files.expansion.includes(`id: '${id}'`)), 'expanded cosmetic collection contains an unaccounted avatar'],
+  [avatarIds.every(id => files.portrait.includes(`${id}:`) || files.portrait.includes(`'${id}':`)), 'portrait theme map does not cover every base and expanded avatar id'],
+  [files.portrait.includes('THEMES[avatarId] ?? THEMES.ranger'), 'future or malformed avatar ids have no safe portrait fallback'],
   [files.portrait.includes('<svg') && files.portrait.includes('ProfileAvatarPortrait'), 'avatars are not rendered as reusable vector portraits'],
   [files.badge.includes('<ProfileAvatarPortrait'), 'main-menu profile badge still uses an emoji avatar'],
   [files.profile.includes('<ProfileAvatarPortrait') && files.profile.match(/<ProfileAvatarPortrait/g)?.length >= 2, 'own profile header and avatar collection do not both use portraits'],
@@ -48,4 +53,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Dust/avatar overhaul audit passed: legacy sigils migrate once, quests/hunts/relics/world bosses feed Veil Dust, upgrades consume three resources and all profile surfaces use vector portraits.');
+console.log('Dust/avatar overhaul audit passed: legacy sigils migrate once, quests/hunts/relics/world bosses feed Veil Dust, upgrades consume three resources and all 17 profile avatars use safe vector portraits.');
