@@ -20,6 +20,7 @@ import { CreditsScreen } from '../components/screens/CreditsScreen';
 import { VeilChamberScreen } from '../components/screens/VeilChamberScreen';
 import { CodexScreen } from '../components/screens/CodexScreen';
 import { LoadingScreen } from '../components/LoadingScreen';
+import { NewRunConfirmDialog } from '../components/NewRunConfirmDialog';
 import { preloadKayKitDungeonRoom } from '../components/kaykitRoom3D';
 import { preloadKayKitRoomTheme } from '../components/kaykitRoomThemes3D';
 import { preloadKayKitEnemyVisuals } from '../components/kaykitEnemy3D';
@@ -62,6 +63,7 @@ export default function Game() {
   const roomVisualReadyRef = useRef(true);
   const [roomPreparing, setRoomPreparing] = useState(false);
   const [startingRun, setStartingRun] = useState(false);
+  const [confirmingNewRun, setConfirmingNewRun] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [uiState, setUiState] = useState<UiState>(() => !hasChosen ? 'lang_select' : 'main_menu');
@@ -196,13 +198,8 @@ export default function Game() {
     }
   }, []);
 
-  const handleNewGame = useCallback(async () => {
-    if (saveData) {
-      const confirmed = window.confirm(language === 'de'
-        ? 'Einen neuen Run starten? Der aktuelle Run wird ersetzt, dauerhafte Fortschritte bleiben erhalten.'
-        : 'Start a new run? The current run will be replaced, while permanent progress remains.');
-      if (!confirmed) return;
-    }
+  const continueNewRunFlow = useCallback(async () => {
+    setConfirmingNewRun(false);
     markActiveRun(false);
     const name = await resolvePreferredRunName(saveData);
     if (!name) {
@@ -210,7 +207,15 @@ export default function Game() {
       return;
     }
     await beginFreshRun(name);
-  }, [beginFreshRun, language, saveData]);
+  }, [beginFreshRun, saveData]);
+
+  const handleNewGame = useCallback(() => {
+    if (saveData) {
+      setConfirmingNewRun(true);
+      return;
+    }
+    void continueNewRunFlow();
+  }, [continueNewRunFlow, saveData]);
 
   const handleContinue = useCallback(() => {
     const save = loadGame();
@@ -309,7 +314,7 @@ export default function Game() {
     <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none overscroll-none">
       <GameSessionBridge getEngine={() => engineRef.current} active={uiState === 'game'} />
       {uiState === 'lang_select' && <LanguageSelectScreen />}
-      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={() => void handleNewGame()} onContinue={handleContinue} onVeilChamber={() => setUiState('veil_chamber')} onCodex={() => setUiState('codex')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
+      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={handleNewGame} onContinue={handleContinue} onVeilChamber={() => setUiState('veil_chamber')} onCodex={() => setUiState('codex')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
       {uiState === 'run_name' && <RunNamePromptScreen onConfirm={beginFreshRun} onBack={() => setUiState('main_menu')} />}
       {uiState === 'settings' && <SettingsScreen onBack={handleSettingsBack} onSaveDeleted={handleSaveDeleted} />}
       {uiState === 'credits' && <CreditsScreen onBack={handleMainMenu} />}
@@ -327,6 +332,13 @@ export default function Game() {
           <ActionButtons gameState={gameState} onDodge={handleDodge} />
         </>}
       </>}
+      {confirmingNewRun && saveData && <NewRunConfirmDialog
+        language={language}
+        chapter={saveData.chapter ?? 1}
+        room={saveData.floor}
+        onCancel={() => setConfirmingNewRun(false)}
+        onConfirm={() => void continueNewRunFlow()}
+      />}
       {startingRun && <LoadingScreen variant="run" language={language} testId="new-run-loading-screen" title={language === 'de' ? 'DEIN RUN WIRD VORBEREITET' : 'PREPARING YOUR RUN'} subtitle={language === 'de' ? 'Bewegen = ausweichen · stehen = automatisch schießen.' : 'Move to dodge · stop to shoot automatically.'} />}
     </div>
   );
