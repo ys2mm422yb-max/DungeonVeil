@@ -12,7 +12,7 @@ import {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(HERE, '..');
 
-export const BOUNDED_GIFT_SIMULATOR_VERSION = 1;
+export const BOUNDED_GIFT_SIMULATOR_VERSION = 2;
 export const BOUNDED_GIFT_RULES = Object.freeze({
   firstChapterGiftSelections: 11,
   laterChapterGiftSelections: 5,
@@ -23,6 +23,8 @@ export const BOUNDED_GIFT_RULES = Object.freeze({
   vitalSparkHealth: 8,
   veilCacheDust: 30,
   goldCacheGold: 300,
+  guardianCrownPercentPerBoss: 0.04,
+  guardianCrownMaxStacks: 5,
 });
 
 function round(value, digits = 3) {
@@ -38,6 +40,7 @@ export function boundedGiftGrowth(chapter) {
   const offensiveMasterySelections = Math.min(postBuildChoices, BOUNDED_GIFT_RULES.hunterBlessingMaxRank);
   const defensiveMasterySelections = Math.min(postBuildChoices, BOUNDED_GIFT_RULES.vitalSparkMaxRank);
   const nonPowerChoices = Math.max(0, postBuildChoices - offensiveMasterySelections - defensiveMasterySelections);
+  const guardianCrownStacks = Math.min(BOUNDED_GIFT_RULES.guardianCrownMaxStacks, safeChapter * 5);
 
   return {
     chapter: safeChapter,
@@ -48,7 +51,8 @@ export function boundedGiftGrowth(chapter) {
     nonPowerChoices,
     offensiveAttack: 10 + 13 + offensiveMasterySelections * BOUNDED_GIFT_RULES.hunterBlessingAttack,
     defensiveMaxHealth: 107 + 75 + defensiveMasterySelections * BOUNDED_GIFT_RULES.vitalSparkHealth,
-    guardianCrownAttackMultiplier: round(1.1 ** (5 * safeChapter)),
+    guardianCrownStacks,
+    guardianCrownAttackMultiplier: round(1 + guardianCrownStacks * BOUNDED_GIFT_RULES.guardianCrownPercentPerBoss),
   };
 }
 
@@ -58,10 +62,19 @@ export function simulateBoundedGiftProgression({
   maxChapters = DEFAULT_MAX_CHAPTERS,
 } = {}) {
   const report = simulatePublishedBaseline({ seed, samples, maxChapters });
-  const removedWarnings = new Set(['unbounded_gift_overflow', 'player_growth_outpaces_enemy_attack']);
+  const resolvedWarnings = new Set([
+    'unbounded_gift_overflow',
+    'player_growth_outpaces_enemy_attack',
+    'room20_is_special_reward_boss',
+    'starter_copies_impossible',
+    'equipment_source_skew',
+    'early_guaranteed_drops_have_empty_pools',
+    'guardian_crown_unbounded',
+    'relic_source_skew',
+  ]);
   return {
     ...report,
-    simulatorVersion: `${report.simulatorVersion}+gift-${BOUNDED_GIFT_SIMULATOR_VERSION}`,
+    simulatorVersion: `${report.simulatorVersion}+balance-${BOUNDED_GIFT_SIMULATOR_VERSION}`,
     scenario: 'bounded-run-gifts',
     currentRules: {
       ...report.currentRules,
@@ -73,19 +86,19 @@ export function simulateBoundedGiftProgression({
       atChapter5: boundedGiftGrowth(5),
       atChapter10: boundedGiftGrowth(10),
     },
-    warnings: report.warnings.filter(warning => !removedWarnings.has(warning.code)),
+    warnings: report.warnings.filter(warning => !resolvedWarnings.has(warning.code)),
   };
 }
 
 export function renderBoundedGiftMarkdown(report) {
-  const warnings = report.warnings
-    .map(warning => `- **${warning.severity.toUpperCase()} · ${warning.code}:** ${warning.message}`)
-    .join('\n');
+  const warnings = report.warnings.length
+    ? report.warnings.map(warning => `- **${warning.severity.toUpperCase()} · ${warning.code}:** ${warning.message}`).join('\n')
+    : '- No unresolved baseline warnings.';
   const giftRows = Object.values(report.giftGrowth)
-    .map(row => `| ${row.chapter} | ${row.totalChoices} | ${row.postBuildChoices} | ${row.offensiveMasterySelections}/3 | ${row.defensiveMasterySelections}/3 | ${row.nonPowerChoices} | ${row.offensiveAttack} | ${row.defensiveMaxHealth} | ${row.guardianCrownAttackMultiplier}x |`)
+    .map(row => `| ${row.chapter} | ${row.totalChoices} | ${row.postBuildChoices} | ${row.offensiveMasterySelections}/3 | ${row.defensiveMasterySelections}/3 | ${row.nonPowerChoices} | ${row.offensiveAttack} | ${row.defensiveMaxHealth} | ${row.guardianCrownStacks}/5 | ${row.guardianCrownAttackMultiplier}x |`)
     .join('\n');
 
-  return `# Dungeon Veil bounded gift progression\n\nGenerated deterministically from the PR #170 progression baseline.\n\n- Scenario: \`${report.scenario}\`\n- Seed: \`${report.seed}\`\n- Samples: ${report.samples}\n- Simulated chapters per sample: ${report.maxChapters}\n- Chapter 1 gift choices: ${report.currentRules.firstChapterGiftSelections}\n- Later chapter gift choices: ${report.currentRules.laterChapterGiftSelections}\n\n## Remaining warnings\n\n${warnings}\n\n## Gifts across the uninterrupted run\n\n| Chapter | Total choices | Post-build choices | Attack mastery | HP mastery | Non-power choices | Offensive raw attack | Defensive max HP | Guardian Crown multiplier |\n|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n${giftRows}\n\nHunter Blessing and Vital Spark stop at mastery rank III. Once both masteries are full, later milestones offer healing or currency instead of permanent combat-stat growth. The Guardian Crown remains intentionally visible as a separate unresolved relic risk.\n`;
+  return `# Dungeon Veil bounded progression\n\nGenerated deterministically from the PR #170 progression baseline and the completed balance contracts.\n\n- Scenario: \`${report.scenario}\`\n- Seed: \`${report.seed}\`\n- Samples: ${report.samples}\n- Simulated chapters per sample: ${report.maxChapters}\n- Chapter 1 gift choices: ${report.currentRules.firstChapterGiftSelections}\n- Later chapter gift choices: ${report.currentRules.laterChapterGiftSelections}\n\n## Remaining warnings\n\n${warnings}\n\n## Gifts and bounded crown across the uninterrupted run\n\n| Chapter | Total choices | Post-build choices | Attack mastery | HP mastery | Non-power choices | Offensive raw attack | Defensive max HP | Crown stacks | Crown multiplier |\n|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n${giftRows}\n\nHunter Blessing and Vital Spark stop at mastery rank III. Later milestones offer healing or currency instead of permanent combat-stat growth. The Guardian Crown stops at five linear 4% stacks.\n`;
 }
 
 function parseCli(argv) {
@@ -120,9 +133,9 @@ async function main() {
   if (options.format === 'json') console.log(JSON.stringify(report, null, 2));
   else if (options.format === 'markdown') console.log(markdown);
   else {
-    console.log(`Bounded gift simulator: ${report.samples} samples × ${report.maxChapters} chapters`);
+    console.log(`Bounded progression simulator: ${report.samples} samples × ${report.maxChapters} chapters`);
     console.log(`Remaining warnings: ${report.warnings.length}`);
-    console.log('Chapter 10 gift reference:', report.giftGrowth.atChapter10);
+    console.log('Chapter 10 reference:', report.giftGrowth.atChapter10);
   }
 }
 
