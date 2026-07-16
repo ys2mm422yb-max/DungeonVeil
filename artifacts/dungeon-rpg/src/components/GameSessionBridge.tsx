@@ -8,7 +8,7 @@ import { availableRunSkills } from '../game/runSkills';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 import { createEquipmentRuntimeBalanceState, updateEquipmentRuntimeBalance } from '../game/equipmentRuntimeBalance';
-import { rewardMetaRoomClear } from '../game/metaProgression';
+import { rewardChapterRoomClear } from '../game/chapterRewardContract';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
@@ -188,7 +188,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           const clearKey = `${engine.state.chapter}:${engine.state.floor}:${engine.state.roomClearAt}`;
           if (checkedClearKey !== clearKey) {
             checkedClearKey = clearKey;
-            const reward = rewardMetaRoomClear(engine.state.chapter, engine.state.floor);
+            const reward = rewardChapterRoomClear(engine.state.chapter, engine.state.floor);
             if (reward) {
               recordPlayerProfileRoomClear(engine.state.chapter, engine.state.floor, isBossRoom(engine.state.floor));
               if (reward.item) recordPlayerProfileItemFound();
