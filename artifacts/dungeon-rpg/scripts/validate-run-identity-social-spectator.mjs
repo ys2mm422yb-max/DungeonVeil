@@ -16,6 +16,7 @@ const [
   profileCard,
   socialClient,
   migration,
+  expansionMigration,
   denyMigration,
 ] = await Promise.all([
   read('../src/pages/game.tsx'),
@@ -32,6 +33,7 @@ const [
   read('../src/components/PlayerProfileCard.tsx'),
   read('../src/game/socialProgressOnline.ts'),
   read('../../../supabase/migrations/20260716001000_add_friend_spectating_and_public_career_stats.sql'),
+  read('../../../supabase/migrations/20260716230000_expand_spectating_and_public_equipment.sql'),
   read('../../../supabase/migrations/20260716002000_deny_direct_spectator_snapshot_access.sql'),
 ]);
 
@@ -46,19 +48,23 @@ const checks = [
   [friends.includes('<SocialIdentityCard') && friends.includes('avatar_key') && friends.includes('highest_chapter') && friends.includes('highest_room'), 'friend cards do not show equipped cosmetics and best progress'],
   [identityCard.includes('resolveOnlineAvatar') && identityCard.includes('resolveOnlineTitle') && identityCard.includes('resolveOnlineCard'), 'shared social identity card does not resolve all equipped cosmetics'],
   [guildPanel.includes('<SocialIdentityCard') && guildPanel.includes('member.profile?.avatar_key') && guildPanel.includes('guild-member-profile-button'), 'guild members do not show their equipped avatar, title and calling card'],
+  [guildPanel.includes('<SpectatorScreen') && guildPanel.includes("'Live zuschauen'") && guildPanel.includes('spectatingMember'), 'guild members cannot be opened in the live spectator view'],
   [spectatorScreen.includes('<CombatStage') && !spectatorScreen.includes('VirtualJoystick') && !spectatorScreen.includes('ActionButtons'), 'spectator screen is not a read-only combat view'],
-  [spectatorClient.includes('SPECTATOR_REFRESH_MS = 850') && spectatorClient.includes('SPECTATOR_STALE_MS = 8_000') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('effects.slice(-48)'), 'spectator feed is not bounded, short-lived and identity-sanitized'],
+  [spectatorScreen.includes('INTERPOLATION_MS') && spectatorScreen.includes('spectator-health') && spectatorScreen.includes('SPIELER BESIEGT') && spectatorScreen.includes('SPIEL PAUSIERT') && spectatorScreen.includes('SPIELER IM MENÜ') && spectatorScreen.includes('VERBINDUNG UNTERBROCHEN'), 'spectator view lacks smoothing, health or explicit lifecycle messages'],
+  [spectatorClient.includes('SPECTATOR_REFRESH_MS = 500') && spectatorClient.includes('SPECTATOR_STALE_MS = 12_000') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('effects.slice(-48)'), 'spectator feed is not bounded, responsive and identity-sanitized'],
   [bridge.includes('publishSpectatorState') && bridge.includes('publishMenuActivity') && bridge.includes('syncPublicProfileStats'), 'run bridge does not broadcast activity and public career progress'],
   [onlinePanel.includes('spectating-privacy-setting') && onlinePanel.includes('setSpectatingAllowed'), 'spectating privacy control is missing from Online & Cloud'],
-  [migration.includes('spectator_snapshots') && migration.includes("interval '8 seconds'") && migration.includes('octet_length(p_snapshot::text) > 300000'), 'spectator snapshots are not size-limited and short-lived'],
-  [migration.includes('friendship required') && migration.includes('spectating_allowed') && migration.includes('revoke all on public.spectator_snapshots'), 'spectator access is not restricted to confirmed friends and RPCs'],
+  [migration.includes('spectator_snapshots') && migration.includes('octet_length(p_snapshot::text) > 300000'), 'spectator snapshots are not size-limited'],
+  [expansionMigration.includes("next_state in ('run', 'paused')") && expansionMigration.includes("interval '12 seconds'") && expansionMigration.includes('shared guild required'), 'paused snapshots, twelve-second staleness or shared-guild access are missing'],
+  [expansionMigration.includes('join public.guild_members theirs') && expansionMigration.includes('p.spectating_allowed'), 'spectator access is not restricted to confirmed friends or members of the same guild'],
   [denyMigration.includes('spectator_snapshots_deny_direct_access') && denyMigration.includes('using (false)') && denyMigration.includes('with check (false)'), 'spectator snapshot table lacks an explicit deny-all direct access policy'],
 
   [profileCard.includes('public-player-profile-best-progress') && profileCard.includes('public-player-profile-career-stats') && !profileCard.includes('public-player-profile-progress'), 'friend public profile still uses the duplicate Level/Rank/Chapter layout'],
   [profileCard.includes('rooms_cleared') && profileCard.includes('enemies_defeated') && profileCard.includes('bosses_defeated') && profileCard.includes('quests_completed') && profileCard.includes('play_time_ms'), 'meaningful public career statistics are incomplete'],
   [profileCard.includes('public-player-profile-cosmetics') && profileCard.includes('PROFIL-AUSSTATTUNG') && profileCard.includes('public-player-profile-title-cosmetic') && profileCard.includes('public-player-profile-calling-card-cosmetic') && !profileCard.includes('public-player-profile-avatar-cosmetic') && !profileCard.includes('AUSGEWÄHLTE SAMMLUNG') && profileCard.includes('rarityLabel') && profileCard.includes('public-player-profile-worldboss'), 'friend profile must show only selectable title/calling-card cosmetics and keep rarity/world-boss details'],
-  [socialClient.includes('syncPublicProfileStats') && socialClient.includes('highest_chapter') && socialClient.includes('highest_room') && socialClient.includes('rooms_cleared'), 'public career profile client fields are incomplete'],
-  [migration.includes('greatest(coalesce((current_stats') && migration.includes("'highestChapter'") && migration.includes("'playTimeMs'"), 'server-side public career values are not protected against stale-device rollback'],
+  [profileCard.includes('public-player-profile-equipment') && profileCard.includes('AKTUELLE AUSRÜSTUNG') && profileCard.includes('profile.equipped_items'), 'friend profile does not show the current four-slot equipment loadout'],
+  [socialClient.includes('syncPublicProfileStats') && socialClient.includes('highest_chapter') && socialClient.includes('highest_room') && socialClient.includes('rooms_cleared') && socialClient.includes('equippedItems'), 'public career profile client fields or equipment publication are incomplete'],
+  [expansionMigration.includes('greatest(coalesce((current_stats') && expansionMigration.includes("'highestChapter'") && expansionMigration.includes("'playTimeMs'") && expansionMigration.includes("'equippedItems'"), 'server-side public career values or equipped items are not protected and persisted'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -68,4 +74,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Run identity/social spectator audit passed: account names, styled run replacement, cosmetic social cards, friend-only live viewing and meaningful public career profiles are integrated.');
+console.log('Run identity/social spectator audit passed: account names, cosmetic social cards, friend-or-guild live viewing, lifecycle status, health and public equipment are integrated.');

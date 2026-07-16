@@ -2,8 +2,8 @@ import type { RunGameState } from './runEngine';
 import { authenticatedSupabaseRest, currentOnlineSession } from './supabaseOnline';
 
 const SPECTATING_ALLOWED_KEY = 'dungeon-veil-spectating-allowed-v1';
-export const SPECTATOR_REFRESH_MS = 850;
-export const SPECTATOR_STALE_MS = 8_000;
+export const SPECTATOR_REFRESH_MS = 500;
+export const SPECTATOR_STALE_MS = 12_000;
 
 export type OnlineActivityState = 'menu' | 'run' | 'paused';
 
@@ -18,7 +18,7 @@ export type FriendSpectatorFeed = {
   chapter: number;
   room: number;
   updated_at: string;
-  snapshot: SpectatorSnapshot;
+  snapshot: SpectatorSnapshot | null;
 };
 
 async function rpc<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
@@ -72,7 +72,7 @@ export async function publishSpectatorState(state: RunGameState): Promise<boolea
     p_activity_state: activity,
     p_chapter: state.chapter,
     p_room: state.floor,
-    p_snapshot: allowed && activity === 'run' ? buildSpectatorSnapshot(state) : null,
+    p_snapshot: allowed ? buildSpectatorSnapshot(state) : null,
   });
 }
 
@@ -89,8 +89,12 @@ export async function publishMenuActivity(chapter = 1, room = 1): Promise<boolea
 export async function loadFriendSpectatorFeed(userId: string): Promise<FriendSpectatorFeed | null> {
   const rows = await rpc<FriendSpectatorFeed[]>('get_friend_spectator_snapshot', { p_user_id: userId });
   const feed = rows[0];
-  if (!feed?.snapshot || feed.snapshot.version !== 1) return null;
+  if (!feed) return null;
+  const snapshot = feed.snapshot?.version === 1 ? feed.snapshot : null;
   const updatedAt = new Date(feed.updated_at).getTime();
-  if (!Number.isFinite(updatedAt) || Date.now() - updatedAt > SPECTATOR_STALE_MS) return null;
-  return feed;
+  const stale = !Number.isFinite(updatedAt) || Date.now() - updatedAt > SPECTATOR_STALE_MS;
+  if ((feed.activity_state === 'run' || feed.activity_state === 'paused') && (!snapshot || stale)) {
+    return { ...feed, snapshot: null };
+  }
+  return { ...feed, snapshot };
 }

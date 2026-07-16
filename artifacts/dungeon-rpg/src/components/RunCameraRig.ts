@@ -27,20 +27,19 @@ function isTabletLandscape(aspect: number) {
   return coarsePointer && aspect >= 1.15 && width > height && Math.min(width, height) >= 650;
 }
 
+function isSpectatorViewport() {
+  return typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilSpectating === '1';
+}
+
 function responsiveFrame(aspect: number) {
-  // iPad landscape previously inherited the distant desktop framing, leaving the
-  // combat room small with large black bands above and below it.
   if (isTabletLandscape(aspect)) return { height: 15.9, distance: 19.0, lookAhead: 2.15 };
+  if (isSpectatorViewport() && aspect < 0.55) return { height: 23.8, distance: 28.6, lookAhead: 1.8 };
+  if (isSpectatorViewport() && aspect < 0.72) return { height: 22.4, distance: 27.0, lookAhead: 2.0 };
   if (aspect < 0.55) return { height: 20.2, distance: 21.7, lookAhead: 2.35 };
   if (aspect < 0.68) return { height: 19.6, distance: 22.4, lookAhead: 2.55 };
   return { height: 19.0, distance: 22.8, lookAhead: 2.75 };
 }
 
-/**
- * Die Kamera folgt der Mitte der Spieler-Hitbox und passt ihre echte 3D-Framing-
- * Distanz an das sichtbare Hochformat an. Das ist kein CSS-Zoom: Seitenverhältnis,
- * Perspektive und Kameraposition bleiben vollständig im Renderer synchron.
- */
 export function updateRunCamera(
   camera: any,
   cameraGoal: any,

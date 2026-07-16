@@ -20,7 +20,7 @@ import { pushCloudSave } from '../game/cloudSave';
 import { isBossRoom } from '../game/chapterRun';
 import { loadPlayerProfile, recordPlayerProfileItemFound, recordPlayerProfileRoomClear, recordPlayerProfileSession } from '../game/playerProfile';
 import { syncPublicProfileStats } from '../game/socialProgressOnline';
-import { currentOnlineSession } from '../game/supabaseOnline';
+import { currentOnlineSession, onlineSessionEventName } from '../game/supabaseOnline';
 import { publishMenuActivity, publishSpectatorState, SPECTATOR_REFRESH_MS } from '../game/socialSpectatorOnline';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
@@ -43,6 +43,36 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
   const { language } = useLanguage();
   const getEngineRef = useRef(getEngine);
   getEngineRef.current = getEngine;
+
+  useEffect(() => {
+    const stopInput = () => {
+      const engine = getEngineRef.current();
+      if (!engine) return;
+      engine.input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
+    };
+    window.addEventListener('dungeon-veil-room-preparing', stopInput);
+    return () => window.removeEventListener('dungeon-veil-room-preparing', stopInput);
+  }, []);
+
+  useEffect(() => {
+    let queued = false;
+    const sync = () => {
+      if (queued || !currentOnlineSession()) return;
+      queued = true;
+      queueMicrotask(() => {
+        queued = false;
+        void syncPublicProfileStats(loadPlayerProfile()).catch(() => {});
+      });
+    };
+    const sessionEvent = onlineSessionEventName();
+    window.addEventListener('dungeon-veil-meta-changed', sync);
+    window.addEventListener(sessionEvent, sync);
+    sync();
+    return () => {
+      window.removeEventListener('dungeon-veil-meta-changed', sync);
+      window.removeEventListener(sessionEvent, sync);
+    };
+  }, []);
 
   useEffect(() => {
     if (!active) return;
