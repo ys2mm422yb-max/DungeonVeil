@@ -2,11 +2,10 @@ import {
   loadMetaProgression,
   saveMetaProgression,
   type EquipmentId,
-  type EquipmentUpgradeCost,
   type MetaProgression,
 } from './metaProgression';
 
-export type BalancedEquipmentUpgradeCost = EquipmentUpgradeCost & { dust: number };
+export type BalancedEquipmentUpgradeCost = { gold: number; copies: number; dust: number };
 
 const BALANCED_UPGRADE_COSTS: Record<number, BalancedEquipmentUpgradeCost> = {
   1: { gold: 2000, copies: 1, dust: 75 },
