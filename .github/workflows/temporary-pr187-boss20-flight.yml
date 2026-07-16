@@ -1,0 +1,256 @@
+name: Temporary PR 187 boss 20 flight implementation
+
+on:
+  push:
+    branches:
+      - work/boss-telegraphs-room-21-30-theme
+    paths:
+      - .github/workflows/temporary-pr187-boss20-flight.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/boss-telegraphs-room-21-30-theme
+          fetch-depth: 0
+
+      - name: Implement real room 20 boss flight and landing
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          enemy_path = Path('artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts')
+          enemy = enemy_path.read_text()
+
+          old = "import { enemyVisualProfile } from '../game/enemyRegionalIdentity';\n"
+          new = old + "import { bossAttackContract } from '../game/bossAttackTelegraphs';\n"
+          assert old in enemy and "bossAttackContract" not in enemy, 'boss contract import anchor missing or already patched'
+          enemy = enemy.replace(old, new, 1)
+
+          old = "export type KayKitEnemyVisual = {\n  root: any;\n  scene: any;\n"
+          new = "export type KayKitEnemyVisual = {\n  root: any;\n  scene: any;\n  shadow: any;\n  roomNumber: number;\n  baseSceneY: number;\n  baseSceneRotationX: number;\n  shadowBaseOpacity: number;\n"
+          assert old in enemy, 'visual type anchor missing'
+          enemy = enemy.replace(old, new, 1)
+
+          old = "function roomFromEnemyId(enemy: Enemy) {\n  const parts = enemy.id.split('-');\n  const room = Number(parts.at(-2));\n  return Number.isFinite(room) ? room : 1;\n}\n"
+          new = old + """
+
+export type Room20BossFlightPose = {
+  active: boolean;
+  progress: number;
+  height: number;
+  tilt: number;
+  shadowScale: number;
+  shadowOpacity: number;
+};
+
+const GROUNDED_ROOM_20_BOSS_POSE: Room20BossFlightPose = {
+  active: false,
+  progress: 0,
+  height: 0,
+  tilt: 0,
+  shadowScale: 1,
+  shadowOpacity: 0.32,
+};
+
+export function room20BossFlightPose(
+  enemy: Enemy,
+  now = typeof performance !== 'undefined' ? performance.now() : Date.now(),
+): Room20BossFlightPose {
+  if (enemy.enemyType !== 'boss' || roomFromEnemyId(enemy) !== 20 || enemy.lastAttackTime <= 0 || enemy.isDead) {
+    return GROUNDED_ROOM_20_BOSS_POSE;
+  }
+
+  const durationMs = bossAttackContract(20)?.windupMs ?? 720;
+  const age = now - enemy.lastAttackTime;
+  if (age < 0 || age > durationMs) return GROUNDED_ROOM_20_BOSS_POSE;
+
+  const progress = Math.max(0, Math.min(1, age / Math.max(1, durationMs)));
+  const launchEnd = 0.28;
+  const diveStart = 0.68;
+  const maxHeight = 1.9;
+  let height = 0;
+  let tilt = 0;
+
+  if (progress < launchEnd) {
+    const phase = progress / launchEnd;
+    const eased = 1 - Math.pow(1 - phase, 3);
+    height = maxHeight * eased;
+    tilt = -0.14 * eased;
+  } else if (progress < diveStart) {
+    const phase = (progress - launchEnd) / (diveStart - launchEnd);
+    height = maxHeight + Math.sin(phase * Math.PI * 2) * 0.08;
+    tilt = -0.14 + Math.sin(phase * Math.PI) * 0.06;
+  } else {
+    const phase = (progress - diveStart) / (1 - diveStart);
+    height = maxHeight * (1 - phase * phase);
+    tilt = -0.08 + phase * 0.36;
+  }
+
+  const normalizedHeight = Math.max(0, Math.min(1, height / maxHeight));
+  return {
+    active: true,
+    progress,
+    height,
+    tilt,
+    shadowScale: 1 - normalizedHeight * 0.48,
+    shadowOpacity: 0.34 * (1 - normalizedHeight * 0.68),
+  };
+}
+"""
+          assert old in enemy, 'room helper anchor missing'
+          enemy = enemy.replace(old, new, 1)
+
+          old = "  return {\n    root,\n    scene,\n    mixer,\n"
+          new = "  return {\n    root,\n    scene,\n    shadow,\n    roomNumber,\n    baseSceneY: scene.position.y,\n    baseSceneRotationX: scene.rotation.x,\n    shadowBaseOpacity: enemy.enemyType === 'boss' ? 0.32 : 0.24,\n    mixer,\n"
+          assert old in enemy, 'return object anchor missing'
+          enemy = enemy.replace(old, new, 1)
+
+          old = "export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy, delta: number, now = Date.now()) {\n  const burning = Boolean(enemy.burnUntil && now < enemy.burnUntil);\n  const frozen = Boolean(enemy.frostUntil && now < enemy.frostUntil);\n"
+          new = old + """
+  const flight = room20BossFlightPose(enemy, now);
+  if (enemy.enemyType === 'boss' && visual.roomNumber === 20) {
+    visual.scene.position.y = visual.baseSceneY + flight.height;
+    visual.scene.rotation.x = visual.baseSceneRotationX + flight.tilt;
+    visual.shadow.scale.setScalar(flight.shadowScale);
+    visual.shadow.material.opacity = flight.active ? flight.shadowOpacity : visual.shadowBaseOpacity;
+  } else {
+    visual.scene.position.y = visual.baseSceneY;
+    visual.scene.rotation.x = visual.baseSceneRotationX;
+    visual.shadow.scale.setScalar(1);
+    visual.shadow.material.opacity = visual.shadowBaseOpacity;
+  }
+"""
+          assert old in enemy, 'visual update anchor missing'
+          enemy = enemy.replace(old, new, 1)
+          enemy_path.write_text(enemy)
+
+          canvas_path = Path('artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx')
+          canvas = canvas_path.read_text()
+          old = "import { createKayKitEnemyVisual, updateKayKitEnemyVisual, type KayKitEnemyVisual } from './kaykitEnemy3D';"
+          new = "import { createKayKitEnemyVisual, room20BossFlightPose, updateKayKitEnemyVisual, type KayKitEnemyVisual } from './kaykitEnemy3D';"
+          assert old in canvas, 'canvas import anchor missing'
+          canvas = canvas.replace(old, new, 1)
+
+          old = "        const nextX = mapX(state, enemy.x + enemy.width / 2);\n        const nextZ = mapZ(state, enemy.y + enemy.height / 2);\n        const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;\n"
+          new = "        const nextX = mapX(state, enemy.x + enemy.width / 2);\n        const nextZ = mapZ(state, enemy.y + enemy.height / 2);\n        const room20Flight = room20BossFlightPose(enemy, gameNow);\n        const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;\n"
+          assert old in canvas, 'enemy loop anchor missing'
+          canvas = canvas.replace(old, new, 1)
+
+          old = """          safetyShell.visible = true;
+          safetyShell.position.set(nextX, 0.008, nextZ);
+          safetyShell.rotation.y = gameNow * 0.00045 + enemy.id.length;
+          if (safetyShell.userData.ring?.material) {
+            safetyShell.userData.ring.material.opacity = 0.26 + Math.sin(gameNow * 0.006 + enemy.id.length) * 0.08;
+          }
+"""
+          new = """          safetyShell.visible = true;
+          safetyShell.position.set(nextX, 0.008, nextZ);
+          safetyShell.rotation.y = gameNow * 0.00045 + enemy.id.length;
+          const flightShadowOnly = room20Flight.active && enemy.enemyType === 'boss' && state.floor === 20;
+          for (const part of [safetyShell.userData.body, safetyShell.userData.head]) {
+            if (part) part.visible = !flightShadowOnly;
+          }
+          if (safetyShell.userData.ring?.material) {
+            safetyShell.userData.ring.visible = flightShadowOnly;
+            safetyShell.userData.ring.scale.setScalar(flightShadowOnly ? room20Flight.shadowScale : 1);
+            safetyShell.userData.ring.material.color.setHex(flightShadowOnly ? 0x000000 : 0xffb454);
+            safetyShell.userData.ring.material.opacity = flightShadowOnly
+              ? room20Flight.shadowOpacity
+              : 0.26 + Math.sin(gameNow * 0.006 + enemy.id.length) * 0.08;
+          }
+"""
+          assert old in canvas, 'safety shell anchor missing'
+          canvas = canvas.replace(old, new, 1)
+
+          old = "          fallback.position.set(nextX, 0, nextZ);\n          fallback.rotation.y = gameNow * 0.0015 + enemy.id.length;\n"
+          new = "          fallback.position.set(nextX, room20Flight.height, nextZ);\n          fallback.rotation.x = room20Flight.tilt;\n          fallback.rotation.y = gameNow * 0.0015 + enemy.id.length;\n"
+          assert old in canvas, 'fallback flight anchor missing'
+          canvas = canvas.replace(old, new, 1)
+          canvas_path.write_text(canvas)
+
+          audit_path = Path('artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs')
+          audit = audit_path.read_text()
+          old = "const expanded = read('src/game/expandedWorldRooms.ts');\n"
+          new = old + "const enemy3D = read('src/components/kaykitEnemy3D.ts');\nconst canvas3D = read('src/components/GameCanvasKayKit3D.tsx');\n"
+          assert old in audit and "const enemy3D" not in audit, 'audit read anchor missing'
+          audit = audit.replace(old, new, 1)
+          old = "assert(bridge.includes('installBossAttackTelegraphs') && bridge.includes('disposeBossAttacks'), 'Game session must install and clean up boss attack contracts.');\n"
+          new = old + """
+assert(enemy3D.includes('export function room20BossFlightPose'), 'Room 20 needs a real model flight pose.');
+assert(enemy3D.includes('const maxHeight = 1.9') && enemy3D.includes('height = maxHeight * (1 - phase * phase)'), 'Room 20 must visibly launch, hover and accelerate into landing.');
+assert(enemy3D.includes('visual.scene.position.y = visual.baseSceneY + flight.height'), 'The real boss model must move vertically during the attack.');
+assert(enemy3D.includes('visual.shadow.scale.setScalar(flight.shadowScale)') && enemy3D.includes('flight.shadowOpacity'), 'Room 20 flight needs a height-responsive ground shadow.');
+assert(canvas3D.includes('fallback.position.set(nextX, room20Flight.height, nextZ)'), 'The visibility fallback must also fly instead of remaining on the floor.');
+assert(canvas3D.includes('flightShadowOnly') && canvas3D.includes('room20Flight.shadowScale'), 'The safety shell must become a ground shadow during flight.');
+"""
+          assert old in audit, 'audit assertion anchor missing'
+          audit = audit.replace(old, new, 1)
+          audit_path.write_text(audit)
+          PY
+          git diff --check
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Run focused and full room audits
+        run: |
+          node artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+
+      - name: Typecheck workspace
+        run: pnpm run typecheck
+
+      - name: Build production output
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+          test -f artifacts/dungeon-rpg/dist/public/index.html
+
+      - name: Install isolated browser test runner
+        run: |
+          pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+          pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium webkit
+
+      - name: Run iPhone Android iPad and desktop regression
+        env:
+          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
+          pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+
+      - name: Commit implementation and remove temporary runner
+        shell: bash
+        run: |
+          git restore artifacts/dungeon-rpg/package.json pnpm-lock.yaml 2>/dev/null || true
+          git clean -fd artifacts/dungeon-rpg/dist artifacts/dungeon-rpg/test-results artifacts/dungeon-rpg/playwright-report 2>/dev/null || true
+          rm .github/workflows/temporary-pr187-boss20-flight.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs .github/workflows/temporary-pr187-boss20-flight.yml
+          git commit -m "Complete room 20 boss flight and landing"
+          git push origin HEAD:work/boss-telegraphs-room-21-30-theme
