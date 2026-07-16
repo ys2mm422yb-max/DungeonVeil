@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { pullCloudSave, pushCloudSave } from '../game/cloudSave';
-import { currentOnlineSession } from '../game/supabaseOnline';
+import { currentOnlineSession, onlineSessionEventName } from '../game/supabaseOnline';
 
 const CLOUD_POLL_MS = 15_000;
 const DEPLOYMENT_POLL_MS = 30_000;
@@ -15,27 +15,40 @@ export function MainMenuUpdateGate({ language }: { language: 'de' | 'en' }) {
   const [nextCommit, setNextCommit] = useState('');
   const currentCommit = String(import.meta.env.VITE_BUILD_SHA ?? '').trim();
 
-  const safeReload = async () => {
+  const safeReload = useCallback(async () => {
     if (reloadingRef.current) return;
     reloadingRef.current = true;
     try { await pushCloudSave(); } catch {}
     window.location.reload();
-  };
+  }, []);
 
   useEffect(() => {
-    if (!currentOnlineSession()) return;
     let stopped = false;
+    let busy = false;
     const pull = async (pushFirst = false) => {
+      if (stopped || busy || !currentOnlineSession()) return;
+      busy = true;
       try {
         if (pushFirst) await pushCloudSave();
         const restored = await pullCloudSave();
         if (restored && !stopped) await safeReload();
       } catch {}
+      finally { busy = false; }
     };
+    const sessionEvent = onlineSessionEventName();
+    const onSession = () => { void pull(true); };
+    const onRestore = () => { if (!stopped) void safeReload(); };
+    window.addEventListener(sessionEvent, onSession);
+    window.addEventListener('dungeon-veil-cloud-save-restored', onRestore);
     void pull(true);
     const interval = window.setInterval(() => void pull(false), CLOUD_POLL_MS);
-    return () => { stopped = true; window.clearInterval(interval); };
-  }, []);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      window.removeEventListener(sessionEvent, onSession);
+      window.removeEventListener('dungeon-veil-cloud-save-restored', onRestore);
+    };
+  }, [safeReload]);
 
   useEffect(() => {
     if (!currentCommit || currentCommit === 'dev') return;
@@ -61,7 +74,7 @@ export function MainMenuUpdateGate({ language }: { language: 'de' | 'en' }) {
     if (!nextCommit) return;
     const timer = window.setTimeout(() => void safeReload(), UPDATE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [nextCommit]);
+  }, [nextCommit, safeReload]);
 
   if (!nextCommit) return null;
   return <div data-testid="main-menu-update-gate" className="absolute inset-x-3 top-[max(4.1rem,calc(env(safe-area-inset-top)+3.3rem))] z-[70] mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-200/20 bg-[#07120e]/94 px-3 py-2.5 text-white shadow-2xl backdrop-blur-xl">
