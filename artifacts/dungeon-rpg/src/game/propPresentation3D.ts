@@ -24,6 +24,8 @@ export type RoomPropColliderFootprint = {
   inset: number;
 };
 
+export const MAX_ROOM_PROP_COLLIDER_INSET = 0.985;
+
 function modelKey(model: string) {
   return model.toLowerCase().replace(/\\/g, '/');
 }
@@ -199,34 +201,49 @@ export function roomPropBlocksGameplay(piece: RoomPropPresentationInput) {
 
 export function roomPropColliderInset(piece: RoomPropPresentationInput) {
   const classification = roomPropScaleClass(piece);
-  if (classification === 'architecture') return 0.96;
-  if (classification === 'furniture') return 0.94;
-  if (classification === 'nature-solid') return 0.9;
-  if (classification === 'heavy-prop') return 0.94;
-  return 0.88;
+  if (classification === 'architecture') return MAX_ROOM_PROP_COLLIDER_INSET;
+  if (classification === 'furniture') return 0.98;
+  if (classification === 'nature-solid') return 0.965;
+  if (classification === 'heavy-prop') return 0.975;
+  return 0.96;
 }
 
 export function roomPropColliderScale(piece: RoomPropPresentationInput) {
   return roomPropDisplayScale(piece);
 }
 
-export function roomPropColliderFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
+function roomPropAuthoredFootprint(piece: RoomPropPresentationInput): readonly [number, number] | null {
   const key = modelKey(piece.model);
   const authored = piece.collider ?? inferredCollider(piece);
   if (!roomPropBlocksGameplay(piece) || !authored) return null;
-  const collider: readonly [number, number] = key.includes('/wall_corner_gated.')
+  return key.includes('/wall_corner_gated.')
     ? [Math.min(authored[0], 1.15), Math.min(authored[1], 1.3)]
     : authored;
-  const inset = roomPropColliderInset(piece);
-  const scale = roomPropColliderScale(piece) * inset;
-  const localWidth = collider[0] * scale;
-  const localHeight = collider[1] * scale;
+}
+
+export function roomPropVisualFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
+  const authored = roomPropAuthoredFootprint(piece);
+  if (!authored) return null;
+  const scale = roomPropColliderScale(piece);
+  const localWidth = authored[0] * scale;
+  const localHeight = authored[1] * scale;
   const angle = piece.rotation ?? 0;
   const cos = Math.abs(Math.cos(angle));
   const sin = Math.abs(Math.sin(angle));
   return {
     width: localWidth * cos + localHeight * sin,
     height: localWidth * sin + localHeight * cos,
+    inset: 1,
+  };
+}
+
+export function roomPropColliderFootprint(piece: RoomPropPresentationInput): RoomPropColliderFootprint | null {
+  const visual = roomPropVisualFootprint(piece);
+  if (!visual) return null;
+  const inset = Math.min(MAX_ROOM_PROP_COLLIDER_INSET, roomPropColliderInset(piece));
+  return {
+    width: visual.width * inset,
+    height: visual.height * inset,
     inset,
   };
 }
