@@ -67,12 +67,6 @@ const quiverAccessory = (path: string) => ({
   accessoryRotation: [0, 0, 0] as const,
   accessoryScale: 0.78,
 });
-const ritualMantleAccessory = {
-  accessoryPath: `${A}/spellbook_open.gltf`,
-  accessoryPosition: [-0.32, 0.42, 0.2] as const,
-  accessoryRotation: [-0.34, 0.12, 0.08] as const,
-  accessoryScale: 0.58,
-};
 
 /**
  * One source of truth for inventory previews and world drops. Armor previews use
@@ -112,7 +106,7 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'ash-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.2),
   'frost-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.28),
   'warden-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.12),
-  'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.58, ritualMantleAccessory),
+  'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.58),
   'depth-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.3),
 };
 
