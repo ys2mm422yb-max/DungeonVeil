@@ -83,7 +83,7 @@ function eligibleWishItem(
   return id;
 }
 
-function chooseBossReward(
+function chooseTargetedReward(
   meta: MetaProgression,
   profile: EquipmentTargetingProfile,
   chapter: number,
@@ -132,7 +132,7 @@ export function rollBossEquipmentReward(
   const meta = loadMetaProgression();
   const profile = loadEquipmentTargeting();
   if (source) profile.sourceMarks[source] += 1;
-  const drop = chooseBossReward(meta, profile, safeChapter, source, random);
+  const drop = chooseTargetedReward(meta, profile, safeChapter, source, random);
   saveEquipmentTargeting(profile);
   return drop;
 }
@@ -144,7 +144,12 @@ export function rollHuntEquipmentReward(
 ): PendingEquipmentDrop | null {
   const safeChance = Math.max(0, Math.min(1, Number(chance) || 0));
   if (random() > safeChance) return null;
-  return chooseEquipment(loadMetaProgression(), chapter, 'hunt', random);
+  const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
+  const meta = loadMetaProgression();
+  const profile = loadEquipmentTargeting();
+  const drop = chooseTargetedReward(meta, profile, safeChapter, 'hunt', random);
+  saveEquipmentTargeting(profile);
+  return drop;
 }
 
 export function eligibleEquipmentForSource(
