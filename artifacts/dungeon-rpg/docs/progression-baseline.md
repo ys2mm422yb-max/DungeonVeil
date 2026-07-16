@@ -46,16 +46,16 @@ Hunt and relic dust are simulated separately and included in the JSON report.
 
 | Item | Source | Median first owned chapter | Median chapter with 11 copies | P90 chapter with 11 copies |
 |---|---|---:|---:|---:|
-| veil-bow | ritual | 8 | 109 | 143 |
-| rune-quiver | ritual | 8 | 109 | 144 |
-| veil-mantle | ritual | 8 | 109 | 144 |
-| splinter-bow | forge | 6 | 108 | 142 |
-| ritual-shard | ritual | 8 | 108 | 144 |
-| veil-eye | ritual | 8 | 108 | 142 |
-| ash-armor | forge | 5 | 107 | 142 |
-| ember-bow | forge | 4 | 106 | 142 |
-| splinter-quiver | forge | 6 | 106 | 141 |
-| ash-amulet | forge | 5 | 106 | 140 |
+| veil-bow | ritual | 8 | 112 | 156 |
+| rune-quiver | ritual | 8 | 112 | 157 |
+| veil-mantle | ritual | 8 | 112 | 157 |
+| ritual-shard | ritual | 8 | 111 | 155 |
+| veil-eye | ritual | 8 | 111 | 157 |
+| splinter-bow | forge | 6 | 110 | 154 |
+| ash-armor | forge | 5 | 110 | 153 |
+| ember-bow | forge | 4 | 109 | 153 |
+| splinter-quiver | forge | 6 | 108 | 152 |
+| ash-amulet | forge | 5 | 108 | 150 |
 
 The four starter items remain impossible to raise through copies in the current baseline because they are excluded from every drop pool.
 
