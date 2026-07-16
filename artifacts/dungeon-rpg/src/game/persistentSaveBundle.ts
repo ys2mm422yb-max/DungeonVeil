@@ -4,6 +4,7 @@ const PRE_RESTORE_BACKUP_KEY = 'dungeon-veil-pre-cloud-restore-v1';
 const BUNDLE_KEYS = [
   'dungeon-veil-save',
   'dungeon-veil-meta',
+  'dungeon-veil-equipment-target-v1',
   'dungeon-veil-relics-v1',
   'dungeon-veil-retention-v2',
   'dungeon-veil-weekly-rift-records-v1',
