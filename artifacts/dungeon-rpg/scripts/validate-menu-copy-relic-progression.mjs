@@ -40,7 +40,8 @@ const checks = [
   [profile.includes("type Tab = 'overview' | 'stats' | 'titles' | 'cards' | 'avatars'") && profile.includes('Visitenkarten') && profile.includes('profile-collection-summary') && !profile.includes("| 'weekly'"), 'profile collections are incomplete or elite contracts leaked back into the profile'],
   [publicProfile.includes('resolveOnlineAvatar') && publicProfile.includes('resolveOnlineTitle') && publicProfile.includes('resolveOnlineCard'), 'public profiles do not display equipped cosmetics'],
   [bundle.includes("'dungeon-veil-player-profile-v1'") && bundle.includes("'dungeon-veil-weekly-elite-v1'") && bundle.includes("'dungeon-veil-seen-unlocks-v1'"), 'cloud bundle omits profile cosmetics, elite rewards or new-content markers'],
-  [syncRuntime.includes('pullCloudSave()') && syncRuntime.includes('pushCloudSave()') && syncRuntime.includes('onlineSessionEventName()') && syncRuntime.includes('window.location.reload()'), 'account save synchronization is not installed end to end'],
+  [bundle.includes('shouldRestoreRemoteBundle') && bundle.includes('bundleProgressWeight') && bundle.includes('bundleActivityTimestamp') && bundle.includes('dungeon-veil-pre-cloud-restore-v1'), 'cloud conflict resolution does not protect meaningful local progress with a pre-restore backup'],
+  [syncRuntime.includes('readCloudSave()') && syncRuntime.includes('shouldRestoreRemoteBundle(local, remote)') && syncRuntime.includes('pushCloudSave(local)') && syncRuntime.includes('window.location.reload()'), 'account save synchronization does not safely choose between local and remote progress'],
   [main.includes("import './game/profileCosmeticsExpansion'") && main.includes('installCloudAccountSyncRuntime()'), 'expanded profile collections or account synchronization are not installed at startup'],
   [sessionBridge.includes("number.id.startsWith('dmg-')") && sessionBridge.includes("number.id.startsWith('burn-')"), 'real outgoing damage is not counted for profile and elite progress'],
 ];
@@ -51,4 +52,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Menu/profile/cloud progression audit passed: complete collections, account saves and weekly elite contracts are integrated.');
+console.log('Menu/profile/cloud progression audit passed: complete collections, safe account saves and weekly elite contracts are integrated.');

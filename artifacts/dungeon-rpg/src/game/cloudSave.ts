@@ -34,8 +34,15 @@ async function pullLegacyCloud(): Promise<DungeonVeilSaveBundle | null> {
   return response.json() as Promise<DungeonVeilSaveBundle>;
 }
 
-export async function pushCloudSave(): Promise<boolean> {
-  const bundle = exportSaveBundle();
+export async function readCloudSave(): Promise<DungeonVeilSaveBundle | null> {
+  try {
+    return currentOnlineSession() ? await pullSupabaseSave() : await pullLegacyCloud();
+  } catch {
+    return null;
+  }
+}
+
+export async function pushCloudSave(bundle = exportSaveBundle()): Promise<boolean> {
   try {
     if (currentOnlineSession()) {
       const saved = await pushSupabaseSave(bundle);
@@ -48,14 +55,14 @@ export async function pushCloudSave(): Promise<boolean> {
   }
 }
 
+export function restoreCloudSave(bundle: DungeonVeilSaveBundle): boolean {
+  return importSaveBundle(bundle);
+}
+
 export async function pullCloudSave(): Promise<boolean> {
-  try {
-    const remote = currentOnlineSession() ? await pullSupabaseSave() : await pullLegacyCloud();
-    if (!remote) return false;
-    const revision = cloudRevision();
-    if (revision && Date.parse(remote.updatedAt) <= Date.parse(revision)) return false;
-    return importSaveBundle(remote);
-  } catch {
-    return false;
-  }
+  const remote = await readCloudSave();
+  if (!remote) return false;
+  const revision = cloudRevision();
+  if (revision && Date.parse(remote.updatedAt) <= Date.parse(revision)) return false;
+  return restoreCloudSave(remote);
 }

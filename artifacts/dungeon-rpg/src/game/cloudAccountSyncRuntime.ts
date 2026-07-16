@@ -1,6 +1,6 @@
-import { pullCloudSave, pushCloudSave } from './cloudSave';
+import { pushCloudSave, readCloudSave, restoreCloudSave } from './cloudSave';
 import { syncOnlineProfileCosmetics } from './onlineProfileCosmetics';
-import { clearCloudRevision } from './persistentSaveBundle';
+import { clearCloudRevision, exportSaveBundle, shouldRestoreRemoteBundle } from './persistentSaveBundle';
 import { loadPlayerProfile, PLAYER_PROFILE_EVENT } from './playerProfile';
 import { currentOnlineSession, onlineSessionEventName } from './supabaseOnline';
 import { WEEKLY_ELITE_EVENT } from './weeklyElite';
@@ -49,9 +49,22 @@ async function synchronizeSignedInAccount(): Promise<void> {
   if (previousUser && previousUser !== session.user.id) clearCloudRevision();
   rememberCloudUser(session.user.id);
 
-  const restored = await pullCloudSave();
-  if (restored) return;
-  await pushCurrentAccountState();
+  const local = exportSaveBundle();
+  const remote = await readCloudSave();
+  if (!remote) {
+    await pushCurrentAccountState();
+    return;
+  }
+
+  if (shouldRestoreRemoteBundle(local, remote)) {
+    restoreCloudSave(remote);
+    return;
+  }
+
+  await Promise.allSettled([
+    pushCloudSave(local),
+    syncOnlineProfileCosmetics(loadPlayerProfile()),
+  ]);
 }
 
 function runAccountSync(): void {
