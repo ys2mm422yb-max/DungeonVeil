@@ -17,6 +17,7 @@ const [
   socialClient,
   migration,
   expansionMigration,
+  presenceMigration,
   denyMigration,
 ] = await Promise.all([
   read('../src/pages/game.tsx'),
@@ -34,6 +35,7 @@ const [
   read('../src/game/socialProgressOnline.ts'),
   read('../../../supabase/migrations/20260716001000_add_friend_spectating_and_public_career_stats.sql'),
   read('../../../supabase/migrations/20260716230000_expand_spectating_and_public_equipment.sql'),
+  read('../../../supabase/migrations/20260716235500_cloud_conflict_guard_and_spectator_presence.sql'),
   read('../../../supabase/migrations/20260716002000_deny_direct_spectator_snapshot_access.sql'),
 ]);
 
@@ -50,13 +52,15 @@ const checks = [
   [guildPanel.includes('<SocialIdentityCard') && guildPanel.includes('member.profile?.avatar_key') && guildPanel.includes('guild-member-profile-button'), 'guild members do not show their equipped avatar, title and calling card'],
   [guildPanel.includes('<SpectatorScreen') && guildPanel.includes("'Live zuschauen'") && guildPanel.includes('spectatingMember'), 'guild members cannot be opened in the live spectator view'],
   [spectatorScreen.includes('<CombatStage') && !spectatorScreen.includes('VirtualJoystick') && !spectatorScreen.includes('ActionButtons'), 'spectator screen is not a read-only combat view'],
-  [spectatorScreen.includes('INTERPOLATION_MS') && spectatorScreen.includes('spectator-health') && spectatorScreen.includes('SPIELER BESIEGT') && spectatorScreen.includes('SPIEL PAUSIERT') && spectatorScreen.includes('SPIELER IM MENÜ') && spectatorScreen.includes('VERBINDUNG UNTERBROCHEN'), 'spectator view lacks smoothing, health or explicit lifecycle messages'],
-  [spectatorClient.includes('SPECTATOR_REFRESH_MS = 500') && spectatorClient.includes('SPECTATOR_STALE_MS = 12_000') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('effects.slice(-48)'), 'spectator feed is not bounded, responsive and identity-sanitized'],
+  [spectatorScreen.includes('INTERPOLATION_MS = 120') && spectatorScreen.includes('spectator-health') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator view lacks fast smoothing, health, gifts or viewer presence'],
+  [spectatorScreen.includes('SPIELER BESIEGT') && spectatorScreen.includes('SPIEL PAUSIERT') && spectatorScreen.includes('SPIELER IM MENÜ') && spectatorScreen.includes('VERBINDUNG UNTERBROCHEN'), 'spectator lifecycle messages are incomplete'],
+  [spectatorClient.includes('SPECTATOR_REFRESH_MS = 100') && spectatorClient.includes('SPECTATOR_STALE_MS = 5_000') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('effects.slice(-20)') && spectatorClient.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not compact, ten-hertz, identity-sanitized and gift-aware'],
   [bridge.includes('publishSpectatorState') && bridge.includes('publishMenuActivity') && bridge.includes('syncPublicProfileStats'), 'run bridge does not broadcast activity and public career progress'],
   [onlinePanel.includes('spectating-privacy-setting') && onlinePanel.includes('setSpectatingAllowed'), 'spectating privacy control is missing from Online & Cloud'],
   [migration.includes('spectator_snapshots') && migration.includes('octet_length(p_snapshot::text) > 300000'), 'spectator snapshots are not size-limited'],
   [expansionMigration.includes("next_state in ('run', 'paused')") && expansionMigration.includes("interval '12 seconds'") && expansionMigration.includes('shared guild required'), 'paused snapshots, twelve-second staleness or shared-guild access are missing'],
   [expansionMigration.includes('join public.guild_members theirs') && expansionMigration.includes('p.spectating_allowed'), 'spectator access is not restricted to confirmed friends or members of the same guild'],
+  [presenceMigration.includes('spectator_viewers') && presenceMigration.includes('heartbeat_spectator_viewer') && presenceMigration.includes('get_my_spectator_viewer_count'), 'viewer presence and count RPCs are missing'],
   [denyMigration.includes('spectator_snapshots_deny_direct_access') && denyMigration.includes('using (false)') && denyMigration.includes('with check (false)'), 'spectator snapshot table lacks an explicit deny-all direct access policy'],
 
   [profileCard.includes('public-player-profile-best-progress') && profileCard.includes('public-player-profile-career-stats') && !profileCard.includes('public-player-profile-progress'), 'friend public profile still uses the duplicate Level/Rank/Chapter layout'],
@@ -74,4 +78,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Run identity/social spectator audit passed: account names, cosmetic social cards, friend-or-guild live viewing, lifecycle status, health and public equipment are integrated.');
+console.log('Run identity/social spectator audit passed: account names, friend-or-guild 10Hz viewing, viewer counts, gifts, lifecycle status and public equipment are integrated.');
