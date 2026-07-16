@@ -21,7 +21,7 @@ type BossAttackSnapshot = {
   contract: BossAttackContract;
 };
 
-type PatchedEngine = GameEngine & {
+type PatchedEngine = {
   updateEnemies: (dt: number, time: number) => void;
   resolveEnemyAttack: (enemy: Enemy, windup: { hitAt: number; range: number; archetype: string; index: number }, time: number) => void;
   enemyWindups: Map<string, { hitAt: number; range: number; archetype: string; index: number }>;
@@ -29,10 +29,10 @@ type PatchedEngine = GameEngine & {
 };
 
 const BOSS_ATTACK_CONTRACTS: Partial<Record<number, BossAttackContract>> = {
-  20: { room: 20, target: 'locked-ground', radius: 92, windupMs: 900, color: '#b995ff', element: 'arcane', label: 'SCHLEIERSTURZ — RAUS!', projectileWidth: 9 },
-  30: { room: 30, target: 'locked-ground', radius: 52, windupMs: 760, color: '#d9ef83', element: 'normal', label: 'PFEILSALVE — AUSWEICHEN!', projectileWidth: 5 },
-  40: { room: 40, target: 'boss-radius', radius: 88, windupMs: 620, color: '#d17aff', element: 'arcane', label: 'SCHATTENSCHLAG — ABSTAND!', projectileWidth: 7 },
-  50: { room: 50, target: 'locked-ground', radius: 96, windupMs: 900, color: '#ff7438', element: 'fire', label: 'GLUTSTURZ — RAUS!', projectileWidth: 10 },
+  20: { room: 20, target: 'locked-ground', radius: 92, windupMs: 720, color: '#b995ff', element: 'arcane', label: 'SCHLEIERSTURZ — RAUS!', projectileWidth: 9 },
+  30: { room: 30, target: 'locked-ground', radius: 52, windupMs: 700, color: '#d9ef83', element: 'normal', label: 'PFEILSALVE — AUSWEICHEN!', projectileWidth: 5 },
+  40: { room: 40, target: 'boss-radius', radius: 88, windupMs: 600, color: '#d17aff', element: 'arcane', label: 'SCHATTENSCHLAG — ABSTAND!', projectileWidth: 7 },
+  50: { room: 50, target: 'locked-ground', radius: 96, windupMs: 720, color: '#ff7438', element: 'fire', label: 'GLUTSTURZ — RAUS!', projectileWidth: 10 },
 };
 
 export function bossAttackContract(room: number): BossAttackContract | null {
@@ -151,7 +151,7 @@ function damagePlayer(engine: GameEngine, enemy: Enemy, snapshot: BossAttackSnap
 }
 
 export function installBossAttackTelegraphs(engine: GameEngine): () => void {
-  const runtime = engine as PatchedEngine;
+  const runtime = engine as unknown as PatchedEngine;
   const originalUpdateEnemies = runtime.updateEnemies.bind(engine);
   const originalResolveEnemyAttack = runtime.resolveEnemyAttack.bind(engine);
   const attacks = new Map<string, BossAttackSnapshot>();
