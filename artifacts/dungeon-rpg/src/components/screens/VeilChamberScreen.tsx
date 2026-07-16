@@ -12,6 +12,7 @@ import {
 } from '../../game/metaProgression';
 import { balancedEquipmentUpgradeCost, upgradeMetaItemBalanced } from '../../game/equipmentUpgradeEconomy';
 import { equipmentUnlockChapter, highestReachedChapter } from '../../game/equipmentChapterGates';
+import { EQUIPMENT_TARGET_EVENT, loadEquipmentTargetState, toggleEquipmentTarget } from '../../game/equipmentTargeting';
 import { equipVeilRelic, loadVeilRelicProfile, VEIL_RELICS, type VeilRelicId } from '../../game/veilRelics';
 import {
   initializeSeenUnlocks,
@@ -45,6 +46,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const { language } = useLanguage();
   const [meta, setMeta] = useState(loadMetaProgression);
   const [relicProfile, setRelicProfile] = useState(loadVeilRelicProfile);
+  const [targetState, setTargetState] = useState(loadEquipmentTargetState);
   const [tab, setTab] = useState<ChamberTab>('bow');
   const [selected, setSelected] = useState<EquipmentId>(meta.equipped.bow);
   const [selectedRelic, setSelectedRelic] = useState<VeilRelicId | null>(relicProfile.equipped ?? relicProfile.owned[0] ?? null);
@@ -55,8 +57,15 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     initializeSeenUnlocks(Object.keys(meta.owned) as EquipmentId[], relicProfile.owned);
     const refreshMarkers = () => setMarkerRevision(value => value + 1);
+    const refreshTarget = () => setTargetState({ ...loadEquipmentTargetState() });
     window.addEventListener(NEW_CONTENT_EVENT, refreshMarkers);
-    return () => window.removeEventListener(NEW_CONTENT_EVENT, refreshMarkers);
+    window.addEventListener(EQUIPMENT_TARGET_EVENT, refreshTarget);
+    window.addEventListener('dungeon-veil-cloud-save-restored', refreshTarget);
+    return () => {
+      window.removeEventListener(NEW_CONTENT_EVENT, refreshMarkers);
+      window.removeEventListener(EQUIPMENT_TARGET_EVENT, refreshTarget);
+      window.removeEventListener('dungeon-veil-cloud-save-restored', refreshTarget);
+    };
   }, []);
 
   const newEquipment = new Set(unseenEquipmentIds(Object.keys(meta.owned) as EquipmentId[]));
@@ -93,6 +102,9 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const relicTier = selectedItem?.rarity === 'epic';
   const activeRelic = selectedRelic ? VEIL_RELICS[selectedRelic] : null;
   const sourceLabel = selectedItem ? SOURCE_LABELS[selectedItem.dropSource][de ? 'de' : 'en'] : '';
+  const targetActive = targetState.target === selected;
+  const targetUnlocked = Boolean(selectedItem && highestChapter >= equipmentUnlockChapter(selectedItem.id) && meta.rank >= selectedItem.unlockRank);
+  const canTarget = Boolean(selectedItem && targetUnlocked && selectedLevel < 5);
 
   const lockedLabel = (item: (typeof EQUIPMENT)[EquipmentId]) => {
     const chapter = equipmentUnlockChapter(item.id);
@@ -161,10 +173,11 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
                 <div className="grid grid-cols-2 gap-2"><button type="button" onPointerDown={event => { event.preventDefault(); refresh(equipMetaItem(selected)); }} disabled={equipped} className={`rounded-xl border px-2 py-3 text-[9px] font-black tracking-[.12em] active:scale-[.98] ${equipped ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200/55' : 'border-violet-300/25 bg-violet-500/14 text-violet-100'}`}>{equipped ? (de ? 'AKTIV' : 'EQUIPPED') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button type="button" onPointerDown={event => { event.preventDefault(); refresh(upgradeMetaItemBalanced(selected)); }} disabled={!canUpgrade} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-2 py-3 text-[9px] font-black tracking-[.08em] text-amber-100 disabled:opacity-30 active:scale-[.98]">{cost ? (de ? 'VERBESSERN' : 'UPGRADE') : 'MAX'}</button></div>
                 {cost && <div data-testid="equipment-upgrade-costs" className="grid grid-cols-3 gap-1.5 text-center text-[7px] font-black tracking-[.06em]"><div className={`rounded-lg border border-white/7 bg-black/24 px-1 py-2 ${meta.gold >= cost.gold ? 'text-yellow-200' : 'text-red-300'}`}>GOLD<br />{meta.gold}/{cost.gold}</div><div className={`rounded-lg border border-white/7 bg-black/24 px-1 py-2 ${selectedCopies >= cost.copies ? 'text-violet-200' : 'text-red-300'}`}>{de ? 'KOPIEN' : 'COPIES'}<br />{selectedCopies}/{cost.copies}</div><div className={`rounded-lg border border-white/7 bg-black/24 px-1 py-2 ${meta.dust >= cost.dust ? 'text-amber-200' : 'text-red-300'}`}>{de ? 'STAUB' : 'DUST'}<br />{meta.dust}/{cost.dust}</div></div>}
               </div> : <div className="mt-4 rounded-xl border border-white/8 bg-white/[.03] px-3 py-3 text-center text-[8px] font-black tracking-[.14em] text-white/30">{`${lockedLabel(selectedItem)} · DROP: ${sourceLabel}`}</div>}
+              {canTarget && <div className="mt-2 grid gap-1.5"><button data-testid="equipment-target-toggle" type="button" onPointerDown={event => { event.preventDefault(); setTargetState({ ...toggleEquipmentTarget(selected) }); }} className={`rounded-xl border px-2 py-3 text-[8px] font-black tracking-[.1em] active:scale-[.98] ${targetActive ? 'border-cyan-200/35 bg-cyan-400/12 text-cyan-100' : 'border-white/12 bg-white/[.04] text-white/55'}`}>{targetActive ? (de ? 'ZIEL AKTIV · LÖSEN' : 'TARGET ACTIVE · CLEAR') : (de ? 'ALS ZIEL SETZEN' : 'SET AS TARGET')}</button>{targetActive && <div data-testid="equipment-target-pity" className="rounded-lg border border-cyan-200/12 bg-cyan-400/[.06] px-2 py-2 text-center text-[7px] font-black tracking-[.08em] text-cyan-100/70">{de ? `QUELLEN-PITY ${targetState.misses}/2 · RAUM 50 GARANTIERT` : `SOURCE PITY ${targetState.misses}/2 · ROOM 50 GUARANTEED`}</div>}</div>}
             </div>
           </div>
         </section>
-        <section className="mt-3 grid gap-2">{items.map(item => { const progress = meta.owned[item.id]; const isEquipped = meta.equipped[item.slot] === item.id; const isNew = newEquipment.has(item.id); const itemSource = SOURCE_LABELS[item.dropSource][de ? 'de' : 'en']; const presentation = equipmentPresentation(item); return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); selectEquipment(item.id); }} className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left active:scale-[.99] ${selected === item.id ? 'border-white/22 bg-white/[.075]' : 'border-white/8 bg-black/38'}`}><div className="h-3 w-3 shrink-0 rounded-full shadow-[0_0_16px_currentColor]" style={{ color: item.accent, background: item.accent }} /><div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black text-white/82">{de ? presentation.nameDe : presentation.nameEn}</div><div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/30">{progress ? `${de ? 'ITEM-LVL' : 'ITEM LVL'} ${progress.level} · ${progress.copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${lockedLabel(item)} · ${itemSource}`}</div></div>{isNew && <span data-testid="inventory-item-new-badge" className="rounded-full bg-red-500 px-2 py-1 text-[6px] font-black text-white">{de ? 'NEU' : 'NEW'}</span>}{isEquipped && <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[7px] font-black tracking-[.12em] text-emerald-200">{de ? 'AKTIV' : 'ACTIVE'}</span>}</button>; })}</section>
+        <section className="mt-3 grid gap-2">{items.map(item => { const progress = meta.owned[item.id]; const isEquipped = meta.equipped[item.slot] === item.id; const isTarget = targetState.target === item.id; const isNew = newEquipment.has(item.id); const itemSource = SOURCE_LABELS[item.dropSource][de ? 'de' : 'en']; const presentation = equipmentPresentation(item); return <button key={item.id} type="button" onPointerDown={event => { event.preventDefault(); selectEquipment(item.id); }} className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left active:scale-[.99] ${selected === item.id ? 'border-white/22 bg-white/[.075]' : 'border-white/8 bg-black/38'}`}><div className="h-3 w-3 shrink-0 rounded-full shadow-[0_0_16px_currentColor]" style={{ color: item.accent, background: item.accent }} /><div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black text-white/82">{de ? presentation.nameDe : presentation.nameEn}</div><div className="mt-1 text-[8px] uppercase tracking-[.14em] text-white/30">{progress ? `${de ? 'ITEM-LVL' : 'ITEM LVL'} ${progress.level} · ${progress.copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${lockedLabel(item)} · ${itemSource}`}</div></div>{isNew && <span data-testid="inventory-item-new-badge" className="rounded-full bg-red-500 px-2 py-1 text-[6px] font-black text-white">{de ? 'NEU' : 'NEW'}</span>}{isTarget && <span className="rounded-full border border-cyan-200/25 bg-cyan-400/10 px-2 py-1 text-[7px] font-black tracking-[.1em] text-cyan-100">{de ? 'ZIEL' : 'TARGET'}</span>}{isEquipped && <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[7px] font-black tracking-[.12em] text-emerald-200">{de ? 'AKTIV' : 'ACTIVE'}</span>}</button>; })}</section>
       </> : null}
     </div>
   </div>;
