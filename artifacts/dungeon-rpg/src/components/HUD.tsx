@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { UpgradeKey } from '../i18n/translations';
 import { CHAPTER_ROOMS } from '../game/chapterRun';
 import { veilModifierLabel } from '../game/runEffectSystems';
 import { isInstantGift } from '../game/runSkills';
+import { loadMySpectatorViewerCount } from '../game/socialSpectatorOnline';
 
 interface Props{gameState:GameState;onPause:()=>void;onExitDungeon?:()=>void}
 
@@ -27,6 +28,14 @@ function Bar({v,m,c}:{v:number;m:number;c:string}){
 }
 
 export function HUD({gameState:g,onPause}:Props){
+ const [viewerCount,setViewerCount]=useState(0);
+ useEffect(()=>{
+  let stopped=false;
+  const refresh=()=>{void loadMySpectatorViewerCount().then(value=>{if(!stopped)setViewerCount(value)}).catch(()=>{if(!stopped)setViewerCount(0)})};
+  refresh();
+  const interval=window.setInterval(refresh,2000);
+  return()=>{stopped=true;window.clearInterval(interval)};
+ },[]);
  const p=g.player;
  const tabletLandscape=typeof window!=='undefined'&&typeof navigator!=='undefined'&&navigator.maxTouchPoints>1&&window.innerWidth>window.innerHeight&&Math.min(window.innerWidth,window.innerHeight)>=650;
  const narrowPortrait=typeof window!=='undefined'&&window.innerWidth<380&&window.innerHeight>window.innerWidth;
@@ -54,9 +63,10 @@ export function HUD({gameState:g,onPause}:Props){
    </div>
    <button data-testid="run-pause-control" type="button" aria-label="Pause" onPointerDown={e=>{e.preventDefault();e.stopPropagation();onPause()}} className={`pointer-events-auto grid shrink-0 place-items-center rounded-full border border-white/15 bg-black/65 font-black text-white/88 shadow-lg backdrop-blur-md active:scale-90 ${tabletLandscape?'h-14 w-14 text-base':'h-12 w-12 text-sm'}`} data-ui-control>Ⅱ</button>
   </div>
-  <div data-testid="run-enemy-status" className={`absolute ${rightEdge} top-[max(5.25rem,calc(env(safe-area-inset-top)+4.25rem))] max-w-[min(44vw,190px)] truncate rounded-full border px-3 py-1.5 font-black tracking-[.12em] shadow-lg backdrop-blur-md ${tabletLandscape?'text-[9px]':'text-[8px]'} ${g.roomClearReady?'border-violet-300/30 bg-violet-500/18 text-violet-100':boss?'border-red-300/30 bg-red-950/65 text-red-100':hunt?'border-amber-300/35 bg-amber-950/68 text-amber-100':'border-white/10 bg-black/58 text-white/70'}`}>{enemyText}</div>
-  {hunt&&!boss&&<div className={`absolute ${rightEdge} top-[max(8.2rem,calc(env(safe-area-inset-top)+7rem))] w-[min(41vw,178px)] rounded-xl border border-amber-300/22 bg-black/76 px-3 py-2 shadow-[0_12px_34px_rgba(0,0,0,.42)] backdrop-blur-md`}><div className="mb-1.5 flex items-center justify-between gap-2 text-[6px] font-black tracking-[.12em] text-amber-100/75"><span className="truncate">{hunt.huntName??'GEZEICHNETE BEUTE'}</span><span>JAGD</span></div><Bar v={hunt.hp} m={hunt.maxHp} c="#c89538"/></div>}
-  {boss&&<div className={`absolute ${rightEdge} top-[max(8.15rem,calc(env(safe-area-inset-top)+6.95rem))] w-[min(41vw,178px)] rounded-xl border border-red-300/20 bg-black/78 px-3 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,.45)] backdrop-blur-md`}><div className="mb-1.5 flex items-center justify-between gap-2 text-[6px] font-black tracking-[.12em] text-red-100/75"><span>DER WÄCHTER</span><span>BOSS</span></div><Bar v={boss.hp} m={boss.maxHp} c="#9f2f33"/></div>}
-  {hintVisible&&<div className={`absolute ${rightEdge} top-[max(12rem,calc(env(safe-area-inset-top)+10.8rem))] max-w-[min(44vw,190px)] rounded-xl border border-orange-300/35 bg-black/82 px-3 py-2 text-center text-[8px] font-black tracking-[.12em] text-orange-100 shadow-xl`}>{exitHint}</div>}
+  {viewerCount>0&&<div data-testid="spectator-viewer-count" className={`absolute ${rightEdge} top-[max(4.7rem,calc(env(safe-area-inset-top)+3.8rem))] flex items-center gap-1 rounded-full border border-violet-300/20 bg-black/70 px-2.5 py-1 text-[8px] font-black text-violet-100 shadow-lg backdrop-blur-md`}><span aria-hidden="true">◉</span><span>{viewerCount}</span></div>}
+  <div data-testid="run-enemy-status" className={`absolute ${rightEdge} top-[max(6.6rem,calc(env(safe-area-inset-top)+5.5rem))] max-w-[min(44vw,190px)] truncate rounded-full border px-3 py-1.5 font-black tracking-[.12em] shadow-lg backdrop-blur-md ${tabletLandscape?'text-[9px]':'text-[8px]'} ${g.roomClearReady?'border-violet-300/30 bg-violet-500/18 text-violet-100':boss?'border-red-300/30 bg-red-950/65 text-red-100':hunt?'border-amber-300/35 bg-amber-950/68 text-amber-100':'border-white/10 bg-black/58 text-white/70'}`}>{enemyText}</div>
+  {hunt&&!boss&&<div className={`absolute ${rightEdge} top-[max(9.4rem,calc(env(safe-area-inset-top)+8.2rem))] w-[min(41vw,178px)] rounded-xl border border-amber-300/22 bg-black/76 px-3 py-2 shadow-[0_12px_34px_rgba(0,0,0,.42)] backdrop-blur-md`}><div className="mb-1.5 flex items-center justify-between gap-2 text-[6px] font-black tracking-[.12em] text-amber-100/75"><span className="truncate">{hunt.huntName??'GEZEICHNETE BEUTE'}</span><span>JAGD</span></div><Bar v={hunt.hp} m={hunt.maxHp} c="#c89538"/></div>}
+  {boss&&<div className={`absolute ${rightEdge} top-[max(9.35rem,calc(env(safe-area-inset-top)+8.15rem))] w-[min(41vw,178px)] rounded-xl border border-red-300/20 bg-black/78 px-3 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,.45)] backdrop-blur-md`}><div className="mb-1.5 flex items-center justify-between gap-2 text-[6px] font-black tracking-[.12em] text-red-100/75"><span>DER WÄCHTER</span><span>BOSS</span></div><Bar v={boss.hp} m={boss.maxHp} c="#9f2f33"/></div>}
+  {hintVisible&&<div className={`absolute ${rightEdge} top-[max(13.2rem,calc(env(safe-area-inset-top)+12rem))] max-w-[min(44vw,190px)] rounded-xl border border-orange-300/35 bg-black/82 px-3 py-2 text-center text-[8px] font-black tracking-[.12em] text-orange-100 shadow-xl`}>{exitHint}</div>}
  </div>
 }
