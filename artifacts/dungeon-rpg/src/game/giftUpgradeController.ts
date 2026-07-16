@@ -8,7 +8,7 @@ import {
   nextSkillRank,
 } from './runSkills';
 
-type EngineInternals = GameEngine & {
+type EngineInternals = {
   captureRoomEntrySnapshot: () => void;
   emit: () => void;
 };
@@ -47,7 +47,7 @@ export function applyGiftUpgrade(engine: GameEngine, choice: UpgradeKey): boolea
   state.upgradeChoices = [];
   state.status = 'playing';
 
-  const internals = engine as EngineInternals;
+  const internals = engine as unknown as EngineInternals;
   internals.captureRoomEntrySnapshot();
   engine.saveNow('ability');
   internals.emit();
