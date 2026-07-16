@@ -8,11 +8,11 @@ import {
   type EquipmentDropSource,
   type EquipmentId,
   type EquipmentSlot,
-  xpForNextRank,
 } from '../../game/metaProgression';
 import { balancedEquipmentUpgradeCost, upgradeMetaItemBalanced } from '../../game/equipmentUpgradeEconomy';
 import { equipmentUnlockChapter, highestReachedChapter } from '../../game/equipmentChapterGates';
 import { EQUIPMENT_TARGET_EVENT, loadEquipmentTargetState, toggleEquipmentTarget } from '../../game/equipmentTargeting';
+import { xpForNextVeilRank } from '../../game/rankProgression';
 import { equipVeilRelic, loadVeilRelicProfile, VEIL_RELICS, type VeilRelicId } from '../../game/veilRelics';
 import {
   initializeSeenUnlocks,
@@ -97,7 +97,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const equipped = selectedItem ? meta.equipped[selectedItem.slot] === selected : false;
   const cost = selectedItem ? balancedEquipmentUpgradeCost(selected, meta) : null;
   const canUpgrade = Boolean(cost && meta.gold >= cost.gold && meta.dust >= cost.dust && selectedCopies >= cost.copies);
-  const xpTarget = xpForNextRank(meta.rank);
+  const xpTarget = xpForNextVeilRank(meta.rank);
   const xpPercent = Math.max(0, Math.min(100, meta.xp / xpTarget * 100));
   const relicTier = selectedItem?.rarity === 'epic';
   const activeRelic = selectedRelic ? VEIL_RELICS[selectedRelic] : null;
