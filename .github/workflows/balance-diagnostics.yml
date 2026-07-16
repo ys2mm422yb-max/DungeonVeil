@@ -51,9 +51,21 @@ jobs:
       - name: Late combat telegraphs
         continue-on-error: true
         run: node scripts/validate-combat-telegraphs-late-balance.mjs
+      - name: Mobile zoom guard
+        continue-on-error: true
+        run: node scripts/validate-mobile-zoom-guard.mjs
+      - name: iPad run layout
+        continue-on-error: true
+        run: node scripts/validate-ipad-run-layout.mjs
       - name: World boss performance
         continue-on-error: true
         run: node scripts/validate-worldboss-performance.mjs
+      - name: Social navigation
+        continue-on-error: true
+        run: node scripts/validate-social-navigation.mjs
+      - name: Social progression
+        continue-on-error: true
+        run: node scripts/validate-social-progression.mjs
       - name: Run identity and spectator
         continue-on-error: true
         run: node scripts/validate-run-identity-social-spectator.mjs
@@ -63,18 +75,45 @@ jobs:
       - name: Dust and avatar overhaul
         continue-on-error: true
         run: node scripts/validate-dust-avatar-overhaul.mjs
+      - name: Rooms 4-5 composition
+        continue-on-error: true
+        run: node scripts/validate-rooms-4-5-composition.mjs
       - name: Room quality 6-50
         continue-on-error: true
         run: node scripts/validate-room-quality-6-50.mjs
+      - name: Guild mobile layout
+        continue-on-error: true
+        run: node scripts/validate-guild-mobile-layout.mjs
       - name: Blocks 1-8 integration
         continue-on-error: true
         run: node scripts/validate-blocks-1-8-integration.mjs
+      - name: Main menu equipped ranger
+        continue-on-error: true
+        run: node scripts/validate-main-menu-equipped-ranger.mjs
       - name: Inventory guild chat chapters
         continue-on-error: true
         run: node scripts/validate-inventory-guild-chat-chapters.mjs
+      - name: Player profile
+        continue-on-error: true
+        run: node scripts/validate-player-profile.mjs
+      - name: Public player profile
+        continue-on-error: true
+        run: node scripts/validate-public-player-profile.mjs
+      - name: Friends public profiles
+        continue-on-error: true
+        run: node scripts/validate-friends-public-profiles.mjs
+      - name: Online presence
+        continue-on-error: true
+        run: node scripts/validate-online-presence.mjs
+      - name: Elite outside profile
+        continue-on-error: true
+        run: node scripts/validate-elite-outside-profile.mjs
       - name: Menu copy relic progression
         continue-on-error: true
         run: node scripts/validate-menu-copy-relic-progression.mjs
+      - name: Profile badge compact
+        continue-on-error: true
+        run: node scripts/validate-profile-badge-compact.mjs
       - name: Upgrade economy
         continue-on-error: true
         run: node scripts/validate-upgrade-economy.mjs
