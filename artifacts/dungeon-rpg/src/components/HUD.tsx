@@ -1,13 +1,18 @@
 import React from 'react';
 import type { GameState } from '../game/runEngine';
+import type { UpgradeKey } from '../i18n/translations';
 import { CHAPTER_ROOMS } from '../game/chapterRun';
 import { veilModifierLabel } from '../game/runEffectSystems';
+import { isInstantGift } from '../game/runSkills';
 
 interface Props{gameState:GameState;onPause:()=>void;onExitDungeon?:()=>void}
 
-type CombatSkillKey = 'fireArrow' | 'iceArrow' | 'multishot' | 'ricochet' | 'piercing' | 'attackSpeed';
+type CombatSkillKey = 'fireArrow' | 'iceArrow' | 'multishot' | 'ricochet' | 'piercing' | 'attackSpeed' | 'elementalStorm' | 'arrowStorm' | 'veilChain';
 
 const COMBAT_SKILLS: Array<{ key: CombatSkillKey; icon: string; label: string; tone: string }> = [
+ {key:'elementalStorm',icon:'✺',label:'ELEMENT',tone:'border-fuchsia-200/25 bg-fuchsia-400/10 text-fuchsia-100'},
+ {key:'arrowStorm',icon:'⇶',label:'PFEILST.',tone:'border-amber-200/25 bg-amber-400/10 text-amber-100'},
+ {key:'veilChain',icon:'⌁',label:'KETTE',tone:'border-violet-200/25 bg-violet-400/10 text-violet-100'},
  {key:'fireArrow',icon:'🔥',label:'FEUER',tone:'border-orange-300/25 bg-orange-500/12 text-orange-100'},
  {key:'iceArrow',icon:'❄',label:'FROST',tone:'border-cyan-200/25 bg-cyan-400/10 text-cyan-100'},
  {key:'multishot',icon:'⇶',label:'MEHRF.',tone:'border-amber-200/22 bg-amber-400/9 text-amber-100'},
@@ -25,7 +30,7 @@ export function HUD({gameState:g,onPause}:Props){
  const p=g.player;
  const tabletLandscape=typeof window!=='undefined'&&typeof navigator!=='undefined'&&navigator.maxTouchPoints>1&&window.innerWidth>window.innerHeight&&Math.min(window.innerWidth,window.innerHeight)>=650;
  const narrowPortrait=typeof window!=='undefined'&&window.innerWidth<380&&window.innerHeight>window.innerWidth;
- const gifts=Object.entries(g.runSkills).reduce((sum,[key,value])=>key==='heal'?sum:sum+(value??0),0);
+ const gifts=Object.entries(g.runSkills).filter(([key,value])=>(value??0)>0&&!isInstantGift(key as UpgradeKey)).length;
  const activeCombatSkills=COMBAT_SKILLS.flatMap(skill=>{const rank=g.runSkills[skill.key]??0;return rank>0?[{...skill,rank}]:[]});
  const living=g.enemies.filter(enemy=>enemy.hp>0&&!enemy.isDead).length;
  const pending=g.enemies.filter(enemy=>enemy.isDead).length;
@@ -44,7 +49,7 @@ export function HUD({gameState:g,onPause}:Props){
     <div className={`mb-2 flex items-center justify-between gap-2 font-black tracking-[.14em] text-white/78 ${tabletLandscape?'text-[11px]':'text-[9px]'}`}><span className="truncate">KAPITEL {g.chapter}</span><span className="shrink-0">RAUM {g.floor}/{CHAPTER_ROOMS}</span></div>
     <Bar v={p.hp} m={p.maxHp} c="#cb463d"/>
     <div className={`mt-2 flex items-center justify-between gap-2 border-t border-white/8 pt-2 font-bold tracking-[.13em] text-white/45 ${tabletLandscape?'text-[9px]':'text-[7px]'}`}><span className="truncate">WALDLÄUFER</span><span className="shrink-0">{gifts} GABEN</span></div>
-    {activeCombatSkills.length>0&&<div className={`mt-2 grid gap-1 ${narrowPortrait?'grid-cols-2':'grid-cols-3'}`}>{activeCombatSkills.map(skill=><div key={skill.key} className={`min-w-0 truncate rounded-full border px-1.5 py-1 text-center font-black tracking-[.04em] ${tabletLandscape?'text-[6.5px]':'text-[5.5px]'} ${skill.tone}`}><span className={`mr-0.5 ${tabletLandscape?'text-[8px]':'text-[7px]'}`}>{skill.icon}</span>{skill.label} {skill.rank}</div>)}</div>}
+    {activeCombatSkills.length>0&&<div className={`mt-2 grid gap-1 ${narrowPortrait?'grid-cols-2':'grid-cols-3'}`}>{activeCombatSkills.map(skill=><div key={skill.key} data-testid={`run-gift-${skill.key}`} className={`min-w-0 truncate rounded-full border px-1.5 py-1 text-center font-black tracking-[.04em] ${tabletLandscape?'text-[6.5px]':'text-[5.5px]'} ${skill.tone}`}><span className={`mr-0.5 ${tabletLandscape?'text-[8px]':'text-[7px]'}`}>{skill.icon}</span>{skill.label}{skill.rank>1?` ${skill.rank}`:''}</div>)}</div>}
     {modifier&&<div className={`mt-2 truncate rounded-full border border-violet-300/15 bg-violet-500/[.07] px-2 py-1 text-center font-black tracking-[.16em] text-violet-100/65 ${tabletLandscape?'text-[7px]':'text-[6px]'}`}>{modifier}</div>}
    </div>
    <button data-testid="run-pause-control" type="button" aria-label="Pause" onPointerDown={e=>{e.preventDefault();e.stopPropagation();onPause()}} className={`pointer-events-auto grid shrink-0 place-items-center rounded-full border border-white/15 bg-black/65 font-black text-white/88 shadow-lg backdrop-blur-md active:scale-90 ${tabletLandscape?'h-14 w-14 text-base':'h-12 w-12 text-sm'}`} data-ui-control>Ⅱ</button>

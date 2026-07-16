@@ -4,17 +4,20 @@ import {
   ChevronsRight,
   Flame,
   Gauge,
+  GitMerge,
   HeartPulse,
+  Orbit,
   Route,
   Shield,
   Snowflake,
   Sparkles,
   Swords,
   WandSparkles,
+  Wind,
 } from 'lucide-react';
 import { UpgradeKey } from '../../i18n/translations';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { RUN_SKILL_DEFS, nextSkillRank } from '../../game/runSkills';
+import { RUN_SKILL_DEFS, isFusionKey, isInstantGift, nextSkillRank } from '../../game/runSkills';
 
 interface Props {
   choices: UpgradeKey[];
@@ -40,8 +43,13 @@ const CARD_STYLES: Record<UpgradeKey, CardStyle> = {
   iceArrow: { Icon: Snowflake, accent: '#71d9ff', glow: 'rgba(113,217,255,.5)', labelDe: 'FROSTPFEIL', labelEn: 'FROST ARROW', tierDe: 'ELEMENT', tierEn: 'ELEMENT', rune: '✦' },
   attackSpeed: { Icon: Gauge, accent: '#62d9ff', glow: 'rgba(98,217,255,.44)', labelDe: 'SCHNELLZUG', labelEn: 'QUICK DRAW', tierDe: 'TEMPO', tierEn: 'TEMPO', rune: '»' },
   piercing: { Icon: ArrowUpRight, accent: '#d7e4ec', glow: 'rgba(215,228,236,.42)', labelDe: 'DURCHBOHREN', labelEn: 'PIERCING', tierDe: 'PRÄZISION', tierEn: 'PRECISION', rune: '↑' },
+  elementalStorm: { Icon: Orbit, accent: '#d89cff', glow: 'rgba(216,156,255,.52)', labelDe: 'ELEMENTARSTURM', labelEn: 'ELEMENTAL STORM', tierDe: 'FUSION', tierEn: 'FUSION', rune: '✺' },
+  arrowStorm: { Icon: Wind, accent: '#f0cf72', glow: 'rgba(240,207,114,.5)', labelDe: 'PFEILSTURM', labelEn: 'ARROW STORM', tierDe: 'FUSION', tierEn: 'FUSION', rune: '⇶' },
+  veilChain: { Icon: GitMerge, accent: '#b8a2ff', glow: 'rgba(184,162,255,.52)', labelDe: 'SCHLEIERKETTE', labelEn: 'VEIL CHAIN', tierDe: 'FUSION', tierEn: 'FUSION', rune: '⌁' },
   maxHp: { Icon: HeartPulse, accent: '#ff6e7e', glow: 'rgba(255,110,126,.46)', labelDe: 'LEBENSKRAFT', labelEn: 'VITALITY', tierDe: 'VITALITÄT', tierEn: 'VITALITY', rune: '♥' },
   heal: { Icon: Sparkles, accent: '#70e5a2', glow: 'rgba(112,229,162,.44)', labelDe: 'ERHOLUNG', labelEn: 'RECOVERY', tierDe: 'SOFORT', tierEn: 'INSTANT', rune: '+' },
+  hunterBlessing: { Icon: Swords, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERSEGEN', labelEn: 'HUNTER BLESSING', tierDe: 'SEGEN', tierEn: 'BLESSING', rune: '✧' },
+  vitalSpark: { Icon: HeartPulse, accent: '#ff8da0', glow: 'rgba(255,141,160,.46)', labelDe: 'LEBENSFUNKE', labelEn: 'VITAL SPARK', tierDe: 'SEGEN', tierEn: 'BLESSING', rune: '✦' },
   attack: { Icon: Swords, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERINSTINKT', labelEn: 'HUNTER INSTINCT', tierDe: 'ANGRIFF', tierEn: 'ATTACK', rune: 'X' },
   speed: { Icon: WandSparkles, accent: '#69cbff', glow: 'rgba(105,203,255,.44)', labelDe: 'WINDLÄUFER', labelEn: 'WINDRUNNER', tierDe: 'TEMPO', tierEn: 'TEMPO', rune: '≈' },
   defense: { Icon: Shield, accent: '#8eb2ff', glow: 'rgba(142,178,255,.44)', labelDe: 'WALDHAUT', labelEn: 'FOREST SKIN', tierDe: 'SCHUTZ', tierEn: 'GUARD', rune: '⬡' },
@@ -56,12 +64,14 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
     const style = CARD_STYLES[key];
     const rank = nextSkillRank(runSkills, key);
     const def = RUN_SKILL_DEFS[key];
-    const instant = key === 'heal';
+    const instant = isInstantGift(key);
+    const fusion = isFusionKey(key);
     return {
       key,
       ...style,
       rank,
       instant,
+      fusion,
       label: language === 'de' ? style.labelDe : style.labelEn,
       tier: language === 'de' ? style.tierDe : style.tierEn,
       detail: language === 'de' ? def.rankTextDe[Math.max(0, rank - 1)] : def.rankTextEn[Math.max(0, rank - 1)],
@@ -94,12 +104,17 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
             const picked = selected === card.key;
             const faded = selected !== null && !picked;
             const Icon = card.Icon;
-            const rankLabel = card.instant
-              ? (language === 'de' ? `WAHL ${index + 1} · SOFORTEFFEKT` : `CHOICE ${index + 1} · INSTANT EFFECT`)
-              : (language === 'de' ? `GABE ${index + 1} · RANG ${roman(card.rank)}` : `GIFT ${index + 1} · RANK ${roman(card.rank)}`);
+            const rankLabel = card.fusion
+              ? (language === 'de' ? 'KOMBINATION · 2× RANG III' : 'COMBINATION · 2× RANK III')
+              : card.instant
+                ? card.key === 'heal'
+                  ? (language === 'de' ? `WAHL ${index + 1} · SOFORTEFFEKT` : `CHOICE ${index + 1} · INSTANT EFFECT`)
+                  : (language === 'de' ? `WAHL ${index + 1} · WIEDERHOLBARER SEGEN` : `CHOICE ${index + 1} · REPEATABLE BLESSING`)
+                : (language === 'de' ? `GABE ${index + 1} · RANG ${roman(card.rank)}` : `GIFT ${index + 1} · RANK ${roman(card.rank)}`);
             return (
               <button
                 key={card.key}
+                data-testid={`gift-choice-${card.key}`}
                 onPointerDown={(event) => { event.preventDefault(); choose(card.key); }}
                 className={`group relative min-h-[136px] overflow-hidden rounded-[24px] border text-left transition-all duration-300 ${picked ? 'scale-[1.04] border-white/75' : faded ? 'scale-[.94] opacity-0' : 'border-white/10 active:scale-[.975]'}`}
                 style={{ animation: `veilCard .48s cubic-bezier(.2,.9,.25,1) ${index * 85}ms both`, background: 'linear-gradient(135deg, rgba(18,20,22,.98), rgba(5,7,8,.98))', boxShadow: picked ? `0 0 70px ${card.glow}, inset 0 0 0 1px ${card.accent}66` : '0 20px 48px rgba(0,0,0,.4)' }}
@@ -114,10 +129,10 @@ export function LevelUpScreen({ choices, runSkills, onSelect }: Props) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex items-center gap-2">
-                      <span className="text-[8px] font-black uppercase tracking-[.32em]" style={{ color: card.accent }}>{rankLabel}</span>
+                      <span className="text-[8px] font-black uppercase tracking-[.24em]" style={{ color: card.accent }}>{rankLabel}</span>
                       <span className="h-px flex-1 bg-white/10" />
                     </div>
-                    <div className="text-[20px] font-black tracking-[.05em] text-[#f8f3e9]">{card.label}{card.instant ? '' : ` ${roman(card.rank)}`}</div>
+                    <div className="text-[20px] font-black tracking-[.05em] text-[#f8f3e9]">{card.label}{card.instant || card.fusion ? '' : ` ${roman(card.rank)}`}</div>
                     <div className="mt-1.5 text-[13px] leading-snug text-white/60">{card.detail}</div>
                   </div>
                 </div>
