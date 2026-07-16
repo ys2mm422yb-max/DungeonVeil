@@ -122,7 +122,7 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'ash-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.2),
   'frost-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.28),
   'warden-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.12, shieldAccessory(`${A}/shield_badge_color.gltf`, 0.78, [0.4, 0.58, 0.08])),
-  'veil-mantle': armorProfile(`${C}/Ranger.glb`, `${C}/Knight.glb`, 0.48, ritualMantleAccessory),
+  'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.54, ritualMantleAccessory),
   'depth-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.3, shieldAccessory(`${A}/shield_round_barbarian.gltf`, 0.82, [0.42, 0.54, 0.08])),
 };
 
