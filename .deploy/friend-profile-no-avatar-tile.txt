@@ -1,0 +1,3 @@
+Dungeon Veil live deployment trigger
+Product source: cf9330c266129da7292b2723ede61563ecd83f74
+Change: remove redundant fixed Waldlaeufer avatar tile from public friend profiles
