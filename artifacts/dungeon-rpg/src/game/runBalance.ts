@@ -26,6 +26,12 @@ type BossTuning = {
   firstAttackDelay: number;
 };
 
+export type ChapterBalanceProfile = {
+  attackScale: number;
+  bossHpScale: number;
+  earlyElitePressure: boolean;
+};
+
 export function createRunBalanceState(): RunBalanceState {
   return { balancedEnemyIds: new Set<string>() };
 }
@@ -50,8 +56,26 @@ function hpFactorForRoom(room: number): number {
   return 2.08 + (room - 19) * 0.035;
 }
 
+export function chapterBalanceProfile(chapter: number): ChapterBalanceProfile {
+  const value = Math.max(1, Math.floor(chapter));
+  const fixed = [
+    { attackScale: 1, bossHpScale: 1, earlyElitePressure: false },
+    { attackScale: 1.24, bossHpScale: 1.25, earlyElitePressure: false },
+    { attackScale: 1.5, bossHpScale: 1.55, earlyElitePressure: false },
+    { attackScale: 1.78, bossHpScale: 1.9, earlyElitePressure: true },
+    { attackScale: 2.08, bossHpScale: 2.25, earlyElitePressure: true },
+  ] as const;
+  if (value <= fixed.length) return fixed[value - 1];
+  const overflow = value - fixed.length;
+  return {
+    attackScale: fixed.at(-1)!.attackScale + overflow * 0.12,
+    bossHpScale: fixed.at(-1)!.bossHpScale + overflow * 0.15,
+    earlyElitePressure: true,
+  };
+}
+
 function chapterDanger(chapter: number) {
-  return 1 + Math.min(1.05, Math.max(0, chapter - 1) * 0.27);
+  return chapterBalanceProfile(chapter).attackScale;
 }
 
 function lateRoomAttackFactor(room: number): number {
@@ -83,10 +107,11 @@ function bossTuningForRoom(room: number): BossTuning {
   return { hpFloor: 920, hpScale: 1.05, attackFloor: 24, attackCap: 30, speedScale: 1.05, firstAttackDelay: 590 };
 }
 
-function shouldBeElite(room: number, enemy: Enemy) {
+function shouldBeElite(room: number, enemy: Enemy, chapter: number) {
   if (enemy.enemyType === 'boss' || room < 6) return false;
   const index = enemyIndex(enemy);
   if (room >= 35) return index === 0 || index === 2 || index === 4;
+  if (chapterBalanceProfile(chapter).earlyElitePressure && room >= 25) return index === 0 || index === 2 || index === 4;
   if (room >= 15) return index === 0 || index === 3;
   if (room >= 11) return index === 0 || (room % 3 === 0 && index === 4);
   return index === 0;
@@ -100,13 +125,14 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
 
   const room = Math.max(1, Math.min(50, engine.state.floor));
   const chapter = Math.max(1, Math.round(engine.state.chapter));
-  const danger = chapterDanger(chapter);
+  const profile = chapterBalanceProfile(chapter);
+  const danger = profile.attackScale;
   for (const enemy of engine.state.enemies) {
     const key = balanceKey(enemy.id);
     if (state.balancedEnemyIds.has(key)) continue;
     state.balancedEnemyIds.add(key);
 
-    enemy.isElite = shouldBeElite(room, enemy);
+    enemy.isElite = shouldBeElite(room, enemy, chapter);
     const eliteHp = enemy.isElite ? 1.42 : 1;
     const eliteAttack = enemy.isElite ? 1.18 : 1;
     const eliteSpeed = enemy.isElite ? 1.06 : 1;
@@ -123,7 +149,7 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
     if (enemy.enemyType === 'boss') {
       const tuning = bossTuningForRoom(room);
       enemy.maxHp = Math.max(
-        Math.round(tuning.hpFloor * danger),
+        Math.round(tuning.hpFloor * profile.bossHpScale),
         Math.round(enemy.maxHp * tuning.hpScale),
       );
       enemy.attack = Math.min(
