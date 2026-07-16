@@ -120,7 +120,8 @@ export function isInstantGift(key: UpgradeKey): key is InstantGiftKey {
 
 export function activeFusionForBase(skills: Partial<Record<UpgradeKey, number>>, key: UpgradeKey): FusionKey | null {
   for (const fusion of Object.keys(FUSION_RECIPES) as FusionKey[]) {
-    if (rawSkillRank(skills, fusion) > 0 && FUSION_RECIPES[fusion].includes(key as BaseCombatGiftKey)) return fusion;
+    const components: readonly BaseCombatGiftKey[] = FUSION_RECIPES[fusion];
+    if (rawSkillRank(skills, fusion) > 0 && components.includes(key as BaseCombatGiftKey)) return fusion;
   }
   return null;
 }
