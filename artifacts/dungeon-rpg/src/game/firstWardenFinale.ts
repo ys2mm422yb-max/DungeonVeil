@@ -21,7 +21,7 @@ export function updateFirstWardenFinale(engine: GameEngine, state: FirstWardenFi
     state.introShown = false;
     state.victoryShown = false;
   }
-  if (engine.state.floor !== 20) return;
+  if (engine.state.floor !== 50) return;
 
   const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
   if (boss && !boss.isDead && boss.hp > 0 && !state.introShown) {
@@ -40,7 +40,7 @@ export function updateFirstWardenFinale(engine: GameEngine, state: FirstWardenFi
     const centerY = engine.state.map.height * 20;
     engine.state.effects.push({ id: `warden-victory-outer-${time}`, x: centerX, y: centerY, radius: 0, maxRadius: 230, color: '#d8b7ff', lifeTime: 0, maxLifeTime: 1800, type: 'circle', element: 'arcane' });
     engine.state.effects.push({ id: `warden-victory-inner-${time}`, x: centerX, y: centerY, radius: 0, maxRadius: 120, color: '#e7c37a', lifeTime: 0, maxLifeTime: 1100, type: 'circle', element: 'normal' });
-    engine.state.damageNumbers.push({ id: `warden-victory-text-${time}`, x: centerX, y: centerY - 34, value: 'ERSTER WÄCHTER GEFALLEN', color: '#e7c37a', lifeTime: 0, maxLifeTime: 3000, scale: 1.45 });
+    engine.state.damageNumbers.push({ id: `warden-victory-text-${time}`, x: centerX, y: centerY - 34, value: 'KAPITELWÄCHTER GEFALLEN', color: '#e7c37a', lifeTime: 0, maxLifeTime: 3000, scale: 1.45 });
     emitStage('victory');
   }
 }
