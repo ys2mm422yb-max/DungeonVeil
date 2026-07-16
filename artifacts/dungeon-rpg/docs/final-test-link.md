@@ -1,7 +1,7 @@
 # Fixed balance test link
 
-The completed balance integration is intended for the dedicated path:
+The completed balance integration uses the fixed project root:
 
-`https://ys2mm422yb-max.github.io/DungeonVeil/balance-test/`
+`https://ys2mm422yb-max.github.io/DungeonVeil/`
 
-The deployment workflow must publish only the `balance-test` subdirectory and preserve the live root build. The link is valid only after the final CI, browser regression and Pages deployment all complete successfully on the same commit.
+The deployment workflow must publish the complete tested branch build to this project root. The link is valid only when final CI, the four-device browser regression and the Pages deployment all complete successfully for the exact same commit. Publishing this test build does not authorize a merge or a final release.
