@@ -163,7 +163,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await expect(content).toBeVisible();
     await expect(page.getByText(/Aktive Aufträge|Active Quests/i).first()).toBeVisible();
     await expect(page.getByText(/Erledigte Aufträge|Completed Quests/i).first()).toBeVisible();
-    await expect(page.getByText(/Siegel|Sigils/i).first()).toBeVisible();
+    await expect(page.getByText(/Schleierstaub|Veil Dust/i).first()).toBeVisible();
   });
 
   await test.step('codex', async () => {

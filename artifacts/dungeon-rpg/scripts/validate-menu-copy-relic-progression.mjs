@@ -26,7 +26,7 @@ const [credits, inventory, presentation, gates, relics, retention, reward, effec
 
 const checks = [
   [credits.includes('Ein hobbyloser Typ bei seinem ersten Spielprojekt') && !credits.includes('value="Replit AI"'), 'credits are not the new humorous first-project copy'],
-  [presentation.includes("'je Ausrüstungslevel'") && inventory.includes("'AUSRÜSTUNGSLEVEL'") && inventory.includes('dauerhaftes Item-Level'), 'equipment levels remain unclear'],
+  [presentation.includes("'je Ausrüstungslevel'") && inventory.includes("'AUSRÜSTUNGSLEVEL'") && inventory.includes('Ausrüstungslevel ist dauerhaft') && inventory.includes('Gold, Itemkopien und Schleierstaub'), 'equipment levels or their permanent three-resource upgrade path remain unclear'],
   [gates.includes("'warden-bow': 4") && gates.includes("'warden-quiver': 4") && gates.includes("'veil-eye': 4") && !gates.match(/: [5-9],/), 'normal equipment still unlocks after chapter 4'],
   [retention.includes('engine.state.floor >= 20 && isBossRoom(engine.state.floor)') && retention.includes('BOSS_RELIC_POOL'), 'boss relics are not limited to boss rooms from room 20 onward'],
   [relics.includes("'world-core'") && relics.includes("source: 'worldboss'") && reward.includes("unlockVeilRelic('world-core')"), 'world-boss-exclusive relic is missing'],
@@ -52,4 +52,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Menu/profile/cloud progression audit passed: complete collections, safe account saves and weekly elite contracts are integrated.');
+console.log('Menu/profile/cloud progression audit passed: complete collections, safe account saves, dust upgrades and weekly elite contracts are integrated.');

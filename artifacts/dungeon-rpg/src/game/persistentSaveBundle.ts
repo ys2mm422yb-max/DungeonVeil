@@ -114,7 +114,9 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   if (profile.selectedCard && profile.selectedCard !== 'ash') weight += 5_000;
   if (profile.selectedAvatar && profile.selectedAvatar !== 'ranger') weight += 5_000;
   weight += Math.max(0, number(meta.rank) - 1) * 50_000;
-  weight += number(meta.dust) * 10;
+  // Old Veil Sigils migrate 1:1 into Veil Dust. Both values must carry the same
+  // conflict-resolution weight so migration cannot make a save look weaker.
+  weight += number(meta.dust) * 100;
   weight += Object.keys(owned).length * 10_000;
   weight += number(retention.sigils) * 100;
   weight += stringArrayLength(codex.enemies) * 500 + stringArrayLength(codex.bosses) * 2_000;

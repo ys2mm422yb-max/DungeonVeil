@@ -5,6 +5,7 @@ import {
   recordPlayerProfileQuestCompleted,
   type PlayerProfileProgress,
 } from '../game/playerProfile';
+import { loadMetaProgression } from '../game/metaProgression';
 import { currentDailyTasks, dailyProgressForTask, loadRetentionProfile, type RetentionProfile } from '../game/runRetention';
 import {
   claimWeeklyEliteQuest,
@@ -21,6 +22,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
   const { language } = useLanguage();
   const de = language === 'de';
   const [profile, setProfile] = useState<RetentionProfile>(() => loadRetentionProfile());
+  const [dust, setDust] = useState(() => loadMetaProgression().dust);
   const [playerProfile, setPlayerProfile] = useState<PlayerProfileProgress>(() => loadPlayerProfile());
   const [weeklyState, setWeeklyState] = useState(() => loadWeeklyEliteState(loadPlayerProfile().stats));
   const [open, setOpen] = useState(defaultOpen);
@@ -31,6 +33,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
       const detail = event ? (event as CustomEvent<RetentionProfile>).detail : null;
       setProfile(detail ?? loadRetentionProfile());
     };
+    const refreshMeta = () => setDust(loadMetaProgression().dust);
     const refreshPlayer = (event?: Event) => {
       const next = (event as CustomEvent<PlayerProfileProgress> | undefined)?.detail ?? loadPlayerProfile();
       setPlayerProfile(next);
@@ -38,12 +41,15 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
     };
     const refreshWeekly = () => setWeeklyState(loadWeeklyEliteState(loadPlayerProfile().stats));
     window.addEventListener('dungeon-veil-retention-update', refreshDaily as EventListener);
+    window.addEventListener('dungeon-veil-meta-changed', refreshMeta);
     window.addEventListener(PLAYER_PROFILE_EVENT, refreshPlayer as EventListener);
     window.addEventListener(WEEKLY_ELITE_EVENT, refreshWeekly);
     refreshDaily();
+    refreshMeta();
     refreshPlayer();
     return () => {
       window.removeEventListener('dungeon-veil-retention-update', refreshDaily as EventListener);
+      window.removeEventListener('dungeon-veil-meta-changed', refreshMeta);
       window.removeEventListener(PLAYER_PROFILE_EVENT, refreshPlayer as EventListener);
       window.removeEventListener(WEEKLY_ELITE_EVENT, refreshWeekly);
     };
@@ -94,7 +100,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
       <section data-testid="quest-board-summary" className="grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl border border-white/8 bg-black/24 px-2 py-2"><div className="text-[13px] font-black text-amber-100">{activeTasks.length}</div><div className="text-[6px] font-black uppercase tracking-[.12em] text-white/28">{de ? 'Heute offen' : 'Open today'}</div></div>
         <div className="rounded-xl border border-white/8 bg-black/24 px-2 py-2"><div className="text-[13px] font-black text-emerald-100">{completedTasks.length}</div><div className="text-[6px] font-black uppercase tracking-[.12em] text-white/28">{de ? 'Erledigt' : 'Done'}</div></div>
-        <div className="rounded-xl border border-white/8 bg-black/24 px-2 py-2"><div className="text-[13px] font-black text-violet-100">{profile.sigils}</div><div className="text-[6px] font-black uppercase tracking-[.12em] text-white/28">{de ? 'Siegel' : 'Sigils'}</div></div>
+        <div className="rounded-xl border border-white/8 bg-black/24 px-2 py-2"><div className="text-[13px] font-black text-violet-100">✦ {dust}</div><div className="text-[6px] font-black uppercase tracking-[.12em] text-white/28">{de ? 'Schleierstaub' : 'Veil Dust'}</div></div>
       </section>
 
       <section data-testid="quest-active-section" className="mt-3">
@@ -113,7 +119,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
           <div className="shrink-0 text-right"><div className="rounded-lg border border-fuchsia-300/16 bg-fuchsia-400/[.06] px-2 py-1 text-[6px] font-black text-fuchsia-100">{weeklyEliteTimeLabel(language)}</div><div className="mt-1 text-[6px] font-black text-white/35">{de ? 'Elite-Marken' : 'Elite Marks'} · {weeklyState.eliteMarks}</div></div>
         </div>
         <div className="mt-3 space-y-2">{weeklyTasks.map(quest => {
-          const value = weeklyEliteProgress(quest, playerProfile.stats, weeklyState);
+          const value = weeklyEliteProgress(quest, playerProfile.stats);
           const complete = value >= quest.target;
           const claimed = weeklyState.claimedQuestIds.includes(quest.id);
           const percent = Math.max(0, Math.min(100, quest.target ? value / quest.target * 100 : 0));

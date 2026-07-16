@@ -6,17 +6,19 @@ import {
   type MetaProgression,
 } from './metaProgression';
 
-const BALANCED_UPGRADE_COSTS: Record<number, EquipmentUpgradeCost> = {
-  1: { gold: 1000, copies: 1 },
-  2: { gold: 2800, copies: 2 },
-  3: { gold: 6000, copies: 3 },
-  4: { gold: 11000, copies: 5 },
+export type BalancedEquipmentUpgradeCost = EquipmentUpgradeCost & { dust: number };
+
+const BALANCED_UPGRADE_COSTS: Record<number, BalancedEquipmentUpgradeCost> = {
+  1: { gold: 2000, copies: 1, dust: 75 },
+  2: { gold: 6000, copies: 2, dust: 250 },
+  3: { gold: 15000, copies: 3, dust: 700 },
+  4: { gold: 35000, copies: 5, dust: 1800 },
 };
 
 export function balancedEquipmentUpgradeCost(
   id: EquipmentId,
   meta: MetaProgression = loadMetaProgression(),
-): EquipmentUpgradeCost | null {
+): BalancedEquipmentUpgradeCost | null {
   const level = meta.owned[id]?.level ?? 0;
   return level <= 0 || level >= 5 ? null : BALANCED_UPGRADE_COSTS[level];
 }
@@ -27,17 +29,25 @@ export function upgradeMetaItemBalanced(id: EquipmentId) {
   if (!progress) return meta;
 
   const cost = balancedEquipmentUpgradeCost(id, meta);
-  if (!cost || meta.gold < cost.gold || progress.copies < cost.copies) return meta;
+  if (!cost || meta.gold < cost.gold || meta.dust < cost.dust || progress.copies < cost.copies) return meta;
 
   meta.gold -= cost.gold;
+  meta.dust -= cost.dust;
   progress.copies -= cost.copies;
   progress.level += 1;
   return saveMetaProgression(meta);
 }
 
 export const EQUIPMENT_UPGRADE_GOLD_COSTS = Object.freeze({
-  1: 1000,
-  2: 2800,
-  3: 6000,
-  4: 11000,
+  1: 2000,
+  2: 6000,
+  3: 15000,
+  4: 35000,
+});
+
+export const EQUIPMENT_UPGRADE_DUST_COSTS = Object.freeze({
+  1: 75,
+  2: 250,
+  3: 700,
+  4: 1800,
 });
