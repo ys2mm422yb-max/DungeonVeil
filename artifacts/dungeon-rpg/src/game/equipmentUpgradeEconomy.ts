@@ -1,3 +1,4 @@
+import { clearEquipmentTargetIfMaxed } from './equipmentTargeting';
 import {
   loadMetaProgression,
   saveMetaProgression,
@@ -34,7 +35,9 @@ export function upgradeMetaItemBalanced(id: EquipmentId) {
   meta.dust -= cost.dust;
   progress.copies -= cost.copies;
   progress.level += 1;
-  return saveMetaProgression(meta);
+  const saved = saveMetaProgression(meta);
+  if (progress.level >= 5) clearEquipmentTargetIfMaxed(id);
+  return saved;
 }
 
 export const EQUIPMENT_UPGRADE_GOLD_COSTS = Object.freeze({
