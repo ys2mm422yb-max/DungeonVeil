@@ -5,6 +5,7 @@ const [
   game,
   runIdentity,
   namePrompt,
+  newRunConfirm,
   friends,
   spectatorScreen,
   spectatorClient,
@@ -20,6 +21,7 @@ const [
   read('../src/pages/game.tsx'),
   read('../src/game/runIdentity.ts'),
   read('../src/components/screens/RunNamePromptScreen.tsx'),
+  read('../src/components/NewRunConfirmDialog.tsx'),
   read('../src/components/FriendsPanel.tsx'),
   read('../src/components/SpectatorScreen.tsx'),
   read('../src/game/socialSpectatorOnline.ts'),
@@ -35,7 +37,8 @@ const [
 
 const checks = [
   [game.includes('resolvePreferredRunName') && game.includes('<RunNamePromptScreen') && !game.includes('CharacterCreationScreen'), 'new runs still route through the duplicate character/name screen'],
-  [game.includes('window.confirm') && game.includes('beginFreshRun') && game.includes('new-run-loading-screen'), 'new-run replacement confirmation or direct loading route is missing'],
+  [game.includes('<NewRunConfirmDialog') && !game.includes('window.confirm') && game.includes('beginFreshRun') && game.includes('new-run-loading-screen'), 'new-run replacement still uses a native dialog or misses the direct loading route'],
+  [newRunConfirm.includes('new-run-confirm-dialog') && newRunConfirm.includes('new-run-confirm-accept') && newRunConfirm.includes('AKTUELLER RUN') && newRunConfirm.includes('BLEIBT ERHALTEN'), 'styled new-run confirmation does not clearly show affected and permanent progress'],
   [runIdentity.includes('getOnlineProfile') && runIdentity.includes('saveData?.playerName') && runIdentity.includes('LOCAL_RUN_NAME_KEY'), 'account, save and offline run-name fallback order is incomplete'],
   [namePrompt.includes('nur beim ersten Offline-Run') && namePrompt.includes('run-name-confirm'), 'first-offline-only name prompt is not explicit or testable'],
 
@@ -53,7 +56,7 @@ const checks = [
 
   [profileCard.includes('public-player-profile-best-progress') && profileCard.includes('public-player-profile-career-stats') && !profileCard.includes('public-player-profile-progress'), 'friend public profile still uses the duplicate Level/Rank/Chapter layout'],
   [profileCard.includes('rooms_cleared') && profileCard.includes('enemies_defeated') && profileCard.includes('bosses_defeated') && profileCard.includes('quests_completed') && profileCard.includes('play_time_ms'), 'meaningful public career statistics are incomplete'],
-  [profileCard.includes('public-player-profile-cosmetics') && profileCard.includes('rarityLabel') && profileCard.includes('public-player-profile-worldboss'), 'equipped cosmetic rarity or secondary world-boss section is missing'],
+  [profileCard.includes('public-player-profile-cosmetics') && profileCard.includes('PROFIL-AUSSTATTUNG') && !profileCard.includes('AUSGEWÄHLTE SAMMLUNG') && profileCard.includes('rarityLabel') && profileCard.includes('public-player-profile-worldboss'), 'profile cosmetics still use misleading collection wording or lack rarity/world-boss details'],
   [socialClient.includes('syncPublicProfileStats') && socialClient.includes('highest_chapter') && socialClient.includes('highest_room') && socialClient.includes('rooms_cleared'), 'public career profile client fields are incomplete'],
   [migration.includes('greatest(coalesce((current_stats') && migration.includes("'highestChapter'") && migration.includes("'playTimeMs'"), 'server-side public career values are not protected against stale-device rollback'],
 ];
@@ -65,4 +68,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Run identity/social spectator audit passed: account names, cosmetic social cards, friend-only live viewing and meaningful public career profiles are integrated.');
+console.log('Run identity/social spectator audit passed: account names, styled run replacement, cosmetic social cards, friend-only live viewing and meaningful public career profiles are integrated.');
