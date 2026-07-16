@@ -67,12 +67,22 @@ const quiverAccessory = (path: string) => ({
   accessoryRotation: [0, 0, 0] as const,
   accessoryScale: 0.78,
 });
-const shieldAccessory = (path: string) => ({
+const shieldAccessory = (
+  path: string,
+  scale: number,
+  position: readonly [number, number, number],
+) => ({
   accessoryPath: path,
-  accessoryPosition: [0.46, -0.1, 0.04] as const,
+  accessoryPosition: position,
   accessoryRotation: [0.08, -0.18, 0.08] as const,
-  accessoryScale: 0.5,
+  accessoryScale: scale,
 });
+const ritualMantleAccessory = {
+  accessoryPath: `${A}/staff.gltf`,
+  accessoryPosition: [-0.42, 0.46, -0.06] as const,
+  accessoryRotation: [0.02, 0.08, -0.12] as const,
+  accessoryScale: 0.84,
+};
 
 /**
  * One source of truth for inventory previews and world drops. Armor previews use
@@ -111,9 +121,9 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'ranger-cloak': armorProfile(`${C}/Ranger.glb`, `${C}/Knight.glb`, 0.08),
   'ash-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.2),
   'frost-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.28),
-  'warden-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.12, shieldAccessory(`${A}/shield_badge_color.gltf`)),
-  'veil-mantle': armorProfile(`${C}/Ranger.glb`, `${C}/Knight.glb`, 0.34),
-  'depth-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.3, shieldAccessory(`${A}/shield_round_barbarian.gltf`)),
+  'warden-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.12, shieldAccessory(`${A}/shield_badge_color.gltf`, 0.78, [0.4, 0.58, 0.08])),
+  'veil-mantle': armorProfile(`${C}/Ranger.glb`, `${C}/Knight.glb`, 0.48, ritualMantleAccessory),
+  'depth-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.3, shieldAccessory(`${A}/shield_round_barbarian.gltf`, 0.82, [0.42, 0.54, 0.08])),
 };
 
 export function equipmentVisualProfile(id: EquipmentId) {
