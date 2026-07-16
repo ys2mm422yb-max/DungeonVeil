@@ -27,6 +27,7 @@ const SLOT_LABELS: Record<EquipmentSlot, { de: string; en: string }> = {
   bow: { de: 'FERNWAFFE', en: 'RANGED' },
   quiver: { de: 'KÖCHER', en: 'QUIVER' },
   talisman: { de: 'ARTEFAKT', en: 'ARTIFACT' },
+  armor: { de: 'RÜSTUNG', en: 'ARMOR' },
 };
 
 const SOURCE_LABELS: Record<EquipmentDropSource, { de: string; en: string }> = {
@@ -38,6 +39,7 @@ const SOURCE_LABELS: Record<EquipmentDropSource, { de: string; en: string }> = {
 };
 
 type ChamberTab = EquipmentSlot | 'relic';
+const CHAMBER_TABS: ChamberTab[] = ['bow', 'quiver', 'talisman', 'armor', 'relic'];
 
 export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const { language } = useLanguage();
@@ -131,10 +133,10 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
         <div className="mt-2 flex justify-between text-[8px] font-bold tracking-[.16em] text-white/32"><span>{meta.xp} XP</span><span>{xpTarget} XP</span></div>
       </section>
 
-      <div className="mt-4 grid grid-cols-4 gap-2">
-        {(['bow', 'quiver', 'talisman', 'relic'] as ChamberTab[]).map(key => {
+      <div className="mt-4 grid grid-cols-5 gap-1.5">
+        {CHAMBER_TABS.map(key => {
           const count = newCountForTab(key);
-          return <button data-testid={`inventory-tab-${key}`} key={key} type="button" onPointerDown={event => { event.preventDefault(); changeTab(key); }} className={`relative rounded-xl border px-1 py-3 text-[8px] font-black tracking-[.12em] active:scale-[.98] ${tab === key ? 'border-amber-300/45 bg-amber-400/12 text-amber-100' : 'border-white/9 bg-black/42 text-white/38'}`}>{key === 'relic' ? (de ? 'RELIKT' : 'RELIC') : SLOT_LABELS[key][de ? 'de' : 'en']}{count > 0 && <span data-testid="inventory-tab-new-badge" className="absolute -right-1.5 -top-1.5 rounded-full border border-red-200/30 bg-red-500 px-1.5 py-0.5 text-[6px] font-black text-white shadow-lg">{de ? 'NEU' : 'NEW'} {count}</span>}</button>;
+          return <button data-testid={`inventory-tab-${key}`} key={key} type="button" onPointerDown={event => { event.preventDefault(); changeTab(key); }} className={`relative min-w-0 rounded-xl border px-0.5 py-3 text-[7px] font-black tracking-[.06em] active:scale-[.98] ${tab === key ? 'border-amber-300/45 bg-amber-400/12 text-amber-100' : 'border-white/9 bg-black/42 text-white/38'}`}>{key === 'relic' ? (de ? 'RELIKT' : 'RELIC') : SLOT_LABELS[key][de ? 'de' : 'en']}{count > 0 && <span data-testid="inventory-tab-new-badge" className="absolute -right-1.5 -top-1.5 rounded-full border border-red-200/30 bg-red-500 px-1.5 py-0.5 text-[6px] font-black text-white shadow-lg">{de ? 'NEU' : 'NEW'} {count}</span>}</button>;
         })}
       </div>
 

@@ -13,10 +13,12 @@ export type EquipmentVisualProfile = {
   yOffset: number;
   lockYaw: boolean;
   tintStrength: number;
-  kind: 'bow' | 'crossbow' | 'quiver' | 'book' | 'talisman';
+  kind: 'bow' | 'crossbow' | 'quiver' | 'book' | 'talisman' | 'armor';
+  previewPose?: 'idle-ready';
 };
 
 const A = 'adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf';
+const C = 'adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf';
 const W = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 const D = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 
@@ -44,10 +46,18 @@ const profile = (
   ...accessory,
 });
 
+const armorProfile = (
+  primaryPath: string,
+  fallbackPath: string,
+  tintStrength: number,
+  accessory?: Pick<EquipmentVisualProfile, 'accessoryPath' | 'accessoryPosition' | 'accessoryRotation' | 'accessoryScale'>,
+): EquipmentVisualProfile => ({
+  ...profile(primaryPath, fallbackPath, [0, -0.08, 0], 0.7, 0.8, -0.02, true, tintStrength, 'armor', accessory),
+  previewPose: 'idle-ready',
+});
+
 const bowPose = [0.08, -0.48, Math.PI / 2] as const;
 const importedBowPose = [0.02, -0.18, 0] as const;
-// Crossbows are presented upright in the portrait preview so the stock, bow limbs
-// and trigger silhouette remain readable instead of collapsing into a flat side view.
 const frostCrossbowPose = [-0.18, -0.78, Math.PI / 2 - 0.08] as const;
 const splinterCrossbowPose = [-0.22, -0.7, Math.PI / 2 - 0.1] as const;
 const importedBowRoot = '/assets/imported/medieval-weapons';
@@ -59,8 +69,8 @@ const quiverAccessory = (path: string) => ({
 });
 
 /**
- * One source of truth for inventory previews and world drops. The active set is
- * intentionally limited to the visually consistent KayKit family on mobile.
+ * One source of truth for inventory previews and world drops. Armor previews use
+ * only the clearly male Ranger, Knight and Barbarian models and share one idle-ready pose.
  */
 export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'ash-bow': profile(`${importedBowRoot}/Bow_Wooden2.glb`, `${A}/bow_withString.gltf`, importedBowPose, 0.86, 0.7, 0, true, 0.04, 'bow'),
@@ -91,6 +101,13 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'ash-amulet': profile(`${D}/bottle_C_brown.gltf`, `${A}/smokebomb.gltf`, [-0.08, -0.4, 0.08], 0.65, 0.7, 0, true, 0.28, 'talisman'),
   'depth-seal': profile(`${D}/coin.gltf`, `${A}/shield_badge.gltf`, [-0.18, -0.38, 0.08], 0.68, 0.7, 0, true, 0.38, 'talisman'),
   'veil-eye': profile(`${A}/staff.gltf`, `${A}/wand.gltf`, [-0.02, -0.36, 0.18], 0.7, 0.72, 0, true, 0.34, 'talisman'),
+
+  'ranger-cloak': armorProfile(`${C}/Ranger.glb`, `${C}/Knight.glb`, 0.08),
+  'ash-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.2),
+  'frost-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.28),
+  'warden-armor': armorProfile(`${C}/Knight.glb`, `${C}/Ranger.glb`, 0.12),
+  'veil-mantle': armorProfile(`${C}/Knight.glb`, `${C}/Barbarian.glb`, 0.58),
+  'depth-armor': armorProfile(`${C}/Barbarian.glb`, `${C}/Knight.glb`, 0.3),
 };
 
 export function equipmentVisualProfile(id: EquipmentId) {
@@ -103,6 +120,9 @@ export function equipmentVisualAudit() {
     if (visual.kind === 'quiver' && !/quiver/i.test(visual.primaryPath)) issues.push(`${id}: primary is not a quiver`);
     if (visual.kind === 'quiver' && !/bundle/i.test(visual.accessoryPath ?? '')) issues.push(`${id}: quiver has no arrow bundle`);
     if (visual.kind === 'crossbow' && !/crossbow/i.test(visual.primaryPath)) issues.push(`${id}: crossbow path is not a crossbow`);
+    if (visual.kind === 'armor' && !/(ranger|knight|barbarian)\.glb$/i.test(visual.primaryPath)) issues.push(`${id}: armor preview is not a male character model`);
+    if (visual.kind === 'armor' && !/(ranger|knight|barbarian)\.glb$/i.test(visual.fallbackPath)) issues.push(`${id}: armor fallback is not a male character model`);
+    if (visual.kind === 'armor' && visual.previewPose !== 'idle-ready') issues.push(`${id}: armor preview has no idle-ready pose`);
     if (visual.fillWidth <= 0 || visual.fillWidth > 0.96) issues.push(`${id}: unsafe preview width`);
     if (visual.fillHeight <= 0 || visual.fillHeight > 0.82) issues.push(`${id}: unsafe preview height`);
     return issues;

@@ -23,6 +23,12 @@ export const EQUIPMENT_UNLOCK_CHAPTER: Record<EquipmentId, number> = {
   'ash-amulet': 2,
   'depth-seal': 3,
   'veil-eye': 4,
+  'ranger-cloak': 1,
+  'ash-armor': 2,
+  'frost-armor': 3,
+  'warden-armor': 3,
+  'veil-mantle': 4,
+  'depth-armor': 4,
 };
 
 export function highestReachedChapter(): number {

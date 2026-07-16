@@ -7,6 +7,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { availableRunSkills } from '../game/runSkills';
 import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runEffectSystems';
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
+import { createEquipmentRuntimeBalanceState, updateEquipmentRuntimeBalance } from '../game/equipmentRuntimeBalance';
 import { rewardMetaRoomClear } from '../game/metaProgression';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
@@ -104,6 +105,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     if (!active) return;
     const effects = createRunEffectSystemState();
     const balance = createRunBalanceState();
+    const equipmentRuntime = createEquipmentRuntimeBalanceState();
     const retention = createRunRetentionState();
     const relicEffects = createRunRelicEffectState();
     const roomMechanics = createRoomMechanicState();
@@ -177,6 +179,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
             updateRunSynergies(engine, synergies, time);
             updateFirstWardenFinale(engine, firstWarden, time);
           }
+          updateEquipmentRuntimeBalance(engine, equipmentRuntime);
           updateRunRelicEffects(engine, relicEffects, time);
           updateEquipmentWorldLoot(engine, worldLoot, time);
         }

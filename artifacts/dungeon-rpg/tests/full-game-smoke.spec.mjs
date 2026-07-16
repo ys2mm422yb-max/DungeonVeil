@@ -115,13 +115,48 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await expect(page.getByText(/Höchster Raum|Highest Room/i).first()).toBeVisible();
   });
 
-  await test.step('inventory', async () => {
+  await test.step('inventory and armor migration', async () => {
+    await page.evaluate(() => {
+      localStorage.setItem('dungeon-veil-meta', JSON.stringify({
+        version: 2,
+        rank: 1,
+        xp: 0,
+        dust: 0,
+        gold: 0,
+        owned: {
+          'ash-bow': { level: 1, copies: 0 },
+          'ranger-quiver': { level: 1, copies: 0 },
+          'veil-key': { level: 1, copies: 0 },
+        },
+        equipped: {
+          bow: 'ash-bow',
+          quiver: 'ranger-quiver',
+          talisman: 'veil-key',
+        },
+        rewardLedger: [],
+        currentRunId: '',
+      }));
+    });
     await reloadMenu(page, testInfo.project.name);
     await openMenuButton(page, /Inventar|Inventory/i);
     await expect(page.getByRole('heading', { name: /Inventar|Inventory/i })).toBeVisible();
     await expect(page.getByText(/Ausrüstungslevel|Equipment Level/i).first()).toBeVisible();
     await expect(page.getByTestId('inventory-tab-bow')).toBeVisible();
+    const armorTab = page.getByTestId('inventory-tab-armor');
+    await expect(armorTab).toBeVisible();
     await expect(page.getByTestId('inventory-tab-relic')).toBeVisible();
+    await armorTab.click();
+    await expect(page.getByText(/Waldläufermantel|Ranger Cloak/i).first()).toBeVisible();
+    const armorMeta = await page.evaluate(() => {
+      const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
+      return {
+        version: meta.version,
+        equippedArmor: meta.equipped?.armor,
+        starterArmorLevel: meta.owned?.['ranger-cloak']?.level,
+      };
+    });
+    expect(armorMeta).toEqual({ version: 3, equippedArmor: 'ranger-cloak', starterArmorLevel: 1 });
+    await assertNoHorizontalOverflow(page);
   });
 
   await test.step('mailbox has no permission error', async () => {
