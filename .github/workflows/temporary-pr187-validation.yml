@@ -1,0 +1,74 @@
+name: Temporary PR 187 exact validation
+
+on:
+  push:
+    branches:
+      - work/boss-telegraphs-room-21-30-theme
+    paths:
+      - .github/workflows/temporary-pr187-validation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate-final-tree:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/boss-telegraphs-room-21-30-theme
+          fetch-depth: 0
+      - name: Remove temporary workflow from tested tree
+        run: rm .github/workflows/temporary-pr187-validation.yml
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Audit every asset
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Audit all social and menu systems
+        run: pnpm --filter @workspace/dungeon-rpg audit:social
+      - name: Audit rooms 1-50, collisions, bosses and mobile combat
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Typecheck full workspace
+        run: pnpm run typecheck
+      - name: Build GitHub Pages production output
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+          test -f artifacts/dungeon-rpg/dist/public/index.html
+          grep -q '/DungeonVeil/' artifacts/dungeon-rpg/dist/public/index.html
+      - name: Install isolated browser test runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install Chromium and WebKit
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium webkit
+      - name: Test current tree on iPhone, Android, iPad and desktop
+        env:
+          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
+          pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+      - name: Record successful validation and remove runner
+        run: |
+          git restore artifacts/dungeon-rpg/package.json pnpm-lock.yaml 2>/dev/null || true
+          git clean -fd artifacts/dungeon-rpg/dist artifacts/dungeon-rpg/test-results artifacts/dungeon-rpg/playwright-report 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/temporary-pr187-validation.yml
+          git commit -m "Validate boss telegraphs and room themes"
+          git push origin HEAD:work/boss-telegraphs-room-21-30-theme
