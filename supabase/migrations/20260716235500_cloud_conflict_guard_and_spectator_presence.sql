@@ -11,23 +11,58 @@ set search_path = public
 as $$
 declare
   current_payload jsonb;
+  current_updated_at timestamptz;
+  current_save jsonb := '{}'::jsonb;
+  current_profile jsonb := '{}'::jsonb;
   current_weight bigint := 0;
   current_activity bigint := 0;
+  incoming_weight bigint := greatest(0, p_progress_weight);
+  incoming_activity bigint := greatest(0, p_activity_at);
 begin
   if auth.uid() is null then raise exception 'authentication required'; end if;
   if p_payload is null or jsonb_typeof(p_payload) <> 'object' then raise exception 'invalid save payload'; end if;
   if octet_length(p_payload::text) > 1500000 then raise exception 'save payload too large'; end if;
 
-  select payload into current_payload
+  if coalesce(p_payload->>'progressWeight', '') ~ '^[0-9]+$' then
+    incoming_weight := greatest(incoming_weight, (p_payload->>'progressWeight')::bigint);
+  end if;
+  if coalesce(p_payload->>'activityAt', '') ~ '^[0-9]+$' then
+    incoming_activity := greatest(incoming_activity, (p_payload->>'activityAt')::bigint);
+  end if;
+
+  select payload, updated_at into current_payload, current_updated_at
   from public.game_saves
   where user_id = auth.uid()
   for update;
 
   if found then
-    current_weight := greatest(0, coalesce((current_payload->>'progressWeight')::bigint, 0));
-    current_activity := greatest(0, coalesce((current_payload->>'activityAt')::bigint, 0));
-    if current_activity > greatest(0, p_activity_at)
-      or (current_activity = greatest(0, p_activity_at) and current_weight > greatest(0, p_progress_weight))
+    if coalesce(current_payload->>'progressWeight', '') ~ '^[0-9]+$' then
+      current_weight := greatest(0, (current_payload->>'progressWeight')::bigint);
+    end if;
+    if coalesce(current_payload->>'activityAt', '') ~ '^[0-9]+$' then
+      current_activity := greatest(0, (current_payload->>'activityAt')::bigint);
+    end if;
+
+    begin
+      current_save := coalesce(nullif(current_payload->'data'->>'dungeon-veil-save', '')::jsonb, '{}'::jsonb);
+      current_profile := coalesce(nullif(current_payload->'data'->>'dungeon-veil-player-profile-v1', '')::jsonb, '{}'::jsonb);
+    exception when others then
+      current_save := '{}'::jsonb;
+      current_profile := '{}'::jsonb;
+    end;
+
+    if coalesce(current_save->>'savedAt', '') ~ '^[0-9]+(?:\.[0-9]+)?$' then
+      current_activity := greatest(current_activity, floor((current_save->>'savedAt')::numeric)::bigint);
+    end if;
+    if coalesce(current_profile->>'updatedAt', '') ~ '^[0-9]+(?:\.[0-9]+)?$' then
+      current_activity := greatest(current_activity, floor((current_profile->>'updatedAt')::numeric)::bigint);
+    end if;
+    if current_activity = 0 then
+      current_activity := floor(extract(epoch from current_updated_at) * 1000)::bigint;
+    end if;
+
+    if current_activity > incoming_activity
+      or (current_activity = incoming_activity and current_weight > incoming_weight)
     then
       return jsonb_build_object('accepted', false, 'payload', current_payload);
     end if;
