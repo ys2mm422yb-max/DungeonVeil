@@ -1,3 +1,4 @@
 Dungeon Veil fixed test deployment trigger
 Source merge commit: 58e488138faed747aeac430158e25cb532aca385
 PR: #183
+Gate: CI + Check + Full Game Regression
