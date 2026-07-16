@@ -1,0 +1,3 @@
+Dungeon Veil live UI correction
+Product source: c464daaad7c8977be5beac3c49e5cd9a79963aba
+Native new-run confirmation replaced; friend profile cosmetics label clarified.
