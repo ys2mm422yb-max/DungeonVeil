@@ -17,6 +17,36 @@ const THREE_VENDOR_FILES = [
   'examples/jsm/utils/SkeletonUtils.js',
 ] as const;
 
+const ENEMY_FALLBACK_BLOCK = `        let visual = enemyVisuals.get(enemy.id);
+        if (!visual) {
+          let fallback = enemyFallbacks.get(enemy.id);
+          if (!fallback) {
+            fallback = createEnemyFallback(enemy);
+            enemyFallbacks.set(enemy.id, fallback);
+            scene.add(fallback);
+          }
+          fallback.position.set(nextX, 0, nextZ);
+          fallback.rotation.y = gameNow * 0.0015 + enemy.id.length;
+          if (fallback.userData.ring?.material) {
+            fallback.userData.ring.material.opacity = 0.46 + Math.sin(gameNow * 0.008 + enemy.id.length) * 0.16;
+          }
+        }
+        if (!visual && !enemyLoading.has(enemy.id)) {`;
+
+const ENEMY_DEDICATED_MODEL_BLOCK = `        let visual = enemyVisuals.get(enemy.id);
+        // The outer room gate has already prepared every required dedicated
+        // model. Never render a generic colored stand-in while the cached clone
+        // is being attached to the scene.
+        if (!visual && !enemyLoading.has(enemy.id)) {`;
+
+const ENEMY_FALLBACK_ERROR = `            // Keep the visible fallback in the scene. A failed model may never
+            // turn a living, attacking enemy into an invisible target.
+            console.error('KayKit enemy failed; keeping visibility fallback', error);`;
+
+const ENEMY_DEDICATED_MODEL_ERROR = `            // The room gate should make this path unreachable. Keep retrying on
+            // later frames, but never replace the dedicated creature with a blob.
+            console.error('KayKit dedicated enemy visual failed after room preload', error);`;
+
 async function hasContent(file: string) {
   try {
     return (await fs.stat(file)).size > 0;
@@ -61,6 +91,18 @@ async function ensureLocalThreeRuntime() {
   }));
 }
 
+function dedicatedEnemyModelsOnly(code: string) {
+  const safetyNeedle = '        const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;';
+  if (!code.includes(safetyNeedle)) throw new Error('Enemy safety-shell contract changed; refusing to build generic enemy bodies');
+  if (!code.includes(ENEMY_FALLBACK_BLOCK)) throw new Error('Enemy fallback creation contract changed; refusing to build generic enemy bodies');
+  if (!code.includes(ENEMY_FALLBACK_ERROR)) throw new Error('Enemy fallback error contract changed; refusing to build generic enemy bodies');
+
+  return code
+    .replace(safetyNeedle, '        const requiresPermanentSafety = false;')
+    .replace(ENEMY_FALLBACK_BLOCK, ENEMY_DEDICATED_MODEL_BLOCK)
+    .replace(ENEMY_FALLBACK_ERROR, ENEMY_DEDICATED_MODEL_ERROR);
+}
+
 export default defineConfig(async () => {
   await ensureLocalThreeRuntime();
 
@@ -69,6 +111,16 @@ export default defineConfig(async () => {
   const basePath = process.env.BASE_PATH ?? '/';
   const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
   const replitPlugins = [];
+
+  const dedicatedEnemyModelsPlugin: Plugin = {
+    name: 'dungeon-veil-dedicated-enemy-models-only',
+    enforce: 'pre',
+    transform(code, id) {
+      const normalizedId = id.replaceAll('\\', '/');
+      if (!normalizedId.endsWith('/src/components/GameCanvasKayKit3D.tsx')) return null;
+      return { code: dedicatedEnemyModelsOnly(code), map: null };
+    },
+  };
 
   const internalAssetBasePlugin: Plugin = {
     name: 'dungeon-veil-internal-asset-base',
@@ -104,7 +156,7 @@ export default defineConfig(async () => {
 
   return {
     base: normalizedBasePath,
-    plugins: [internalAssetBasePlugin, react(), tailwindcss(), runtimeErrorOverlay(), ...replitPlugins],
+    plugins: [dedicatedEnemyModelsPlugin, internalAssetBasePlugin, react(), tailwindcss(), runtimeErrorOverlay(), ...replitPlugins],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, 'src'),
