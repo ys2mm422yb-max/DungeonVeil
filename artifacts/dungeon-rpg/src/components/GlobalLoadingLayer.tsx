@@ -6,8 +6,11 @@ import { LoadingScreen } from './LoadingScreen';
 
 type RoomTransition = { key: string; floor: number; startedAt: number };
 
+export const APP_BOOT_READY_EVENT = 'dungeon-veil-app-boot-ready';
+
 const BOOT_LOADING_MIN_MS = 720;
 const BOOT_LOADING_MAX_MS = 4_500;
+const BOOT_REVEAL_MS = 180;
 const ROOM_LOADING_MIN_MS = 680;
 const ROOM_LOADING_MAX_MS = 6_500;
 
@@ -20,31 +23,63 @@ function delay(milliseconds: number) {
   return new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
 }
 
+function bootPhase(language: 'de' | 'en', completed: number): string {
+  if (completed <= 0) return language === 'de' ? 'Der Schleier erwacht' : 'The veil awakens';
+  if (completed === 1) return language === 'de' ? 'Runen werden entzündet' : 'Igniting the runes';
+  if (completed < 4) return language === 'de' ? 'Dungeon und Welt werden vorbereitet' : 'Preparing dungeon and world';
+  return language === 'de' ? 'Profil und Spielstand werden verbunden' : 'Connecting profile and save';
+}
+
 export function GlobalLoadingLayer() {
+  const language = currentLanguage();
   const [booting, setBooting] = useState(true);
+  const [bootProgress, setBootProgress] = useState(10);
+  const [bootStatus, setBootStatus] = useState(() => bootPhase(language, 0));
   const [roomTransition, setRoomTransition] = useState<RoomTransition | null>(null);
   const activeRef = useRef<RoomTransition | null>(null);
   const hideTimerRef = useRef<number | null>(null);
   const safetyTimerRef = useRef<number | null>(null);
-  const language = currentLanguage();
 
   useEffect(() => {
     let active = true;
-    const fontsReady = typeof document !== 'undefined' && document.fonts?.ready
-      ? document.fonts.ready.catch(() => undefined)
-      : Promise.resolve();
-    const coreAssets = Promise.allSettled([
-      preloadKayKitOuterWorld(),
-      preloadKayKitDungeonRoom(1),
-      preloadKayKitRoomTheme(1),
-    ]);
-    const warmup = Promise.all([delay(BOOT_LOADING_MIN_MS), fontsReady, coreAssets]).then(() => undefined);
+    let revealTimer = 0;
+    let completed = 0;
+    const markTaskComplete = () => {
+      if (!active) return;
+      completed = Math.min(4, completed + 1);
+      setBootProgress(Math.min(92, 14 + completed * 19));
+      setBootStatus(bootPhase(language, completed));
+    };
+    const tracked = (work: () => Promise<unknown>) => Promise.resolve()
+      .then(work)
+      .catch(() => undefined)
+      .finally(markTaskComplete);
+    const fontsTask = tracked(() => typeof document !== 'undefined' && document.fonts?.ready
+      ? document.fonts.ready
+      : Promise.resolve());
+    const assetTasks = [
+      tracked(() => preloadKayKitOuterWorld()),
+      tracked(() => preloadKayKitDungeonRoom(1)),
+      tracked(() => preloadKayKitRoomTheme(1)),
+    ];
+    const warmup = Promise.all([delay(BOOT_LOADING_MIN_MS), fontsTask, ...assetTasks]).then(() => undefined);
     void Promise.race([warmup, delay(BOOT_LOADING_MAX_MS)]).finally(() => {
-      if (active) setBooting(false);
+      if (!active) return;
+      setBootProgress(100);
+      setBootStatus(language === 'de' ? 'Der Schleier ist bereit' : 'The veil is ready');
+      revealTimer = window.setTimeout(() => {
+        if (!active) return;
+        document.documentElement.dataset.dungeonVeilBootReady = '1';
+        setBooting(false);
+        window.dispatchEvent(new Event(APP_BOOT_READY_EVENT));
+      }, BOOT_REVEAL_MS);
     });
     void warmup.catch(() => undefined);
-    return () => { active = false; };
-  }, []);
+    return () => {
+      active = false;
+      window.clearTimeout(revealTimer);
+    };
+  }, [language]);
 
   useLayoutEffect(() => {
     const clearTimer = (ref: React.MutableRefObject<number | null>) => {
@@ -94,7 +129,7 @@ export function GlobalLoadingLayer() {
     };
   }, []);
 
-  if (booting) return <LoadingScreen variant="boot" language={language} testId="app-boot-loading-screen" />;
+  if (booting) return <LoadingScreen variant="boot" language={language} testId="app-boot-loading-screen" progress={bootProgress} phase={bootStatus} />;
   if (roomTransition) {
     const boss = [10, 20, 30, 40, 50].includes(roomTransition.floor);
     return <LoadingScreen
