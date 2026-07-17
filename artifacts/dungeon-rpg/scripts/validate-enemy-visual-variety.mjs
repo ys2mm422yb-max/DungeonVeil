@@ -52,7 +52,7 @@ for (const [name, relative] of shippedModels) {
 
 const checks = [
   [visual.includes("['slime', 'goblin', 'spider', 'vampire', 'demon']") && visual.includes('preloadRealCreatureModels'), 'the complete set of five distinct real creature models is no longer registered'],
-  [visual.includes('requestedImportedTypes(enemyTypes)') && visual.includes('preloadRealCreatureModels(importedTypes)'), 'real creature loading is not scoped to the current room enemy types'],
+  [visual.includes('requestedImportedTypes(enemyTypes)') && visual.includes('loadEnemyAssetsWithRetries(importedTypes)') && visual.includes('preloadRealCreatureModels(types)'), 'real creature loading is not scoped to the current room enemy types'],
   [visual.includes('types.map(preloadLocalEnemyAsset)') && visual.includes('types.map((type, index) =>'), 'room-scoped preload does not fully stage every requested real creature model'],
   [!visual.includes('IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset)'), 'all five real creatures are still forced to load before every room'],
   [visual.includes('IMPORTED_VISUAL_MAX_WAIT_MS = 20_000') && visual.includes('if (visual?.imported) return visual'), 'real creature loading can still permanently settle on a humanoid fallback'],
