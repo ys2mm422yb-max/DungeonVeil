@@ -32,6 +32,7 @@ requireText(vite, "const THREE_VENDOR_COMMIT = '0af9729d0c143a86a1d725d6e2c3ad83
 for (const file of [
   'LICENSE',
   'build/three.module.js',
+  'build/three.core.js',
   'examples/jsm/loaders/GLTFLoader.js',
   'examples/jsm/utils/BufferGeometryUtils.js',
   'examples/jsm/utils/SkeletonUtils.js',
@@ -49,6 +50,7 @@ if (process.argv.includes('--dist')) {
   const expectedFiles = new Map([
     ['assets/vendor/three/LICENSE', 500],
     ['assets/vendor/three/build/three.module.js', 500_000],
+    ['assets/vendor/three/build/three.core.js', 500_000],
     ['assets/vendor/three/examples/jsm/loaders/GLTFLoader.js', 50_000],
     ['assets/vendor/three/examples/jsm/utils/BufferGeometryUtils.js', 5_000],
     ['assets/vendor/three/examples/jsm/utils/SkeletonUtils.js', 2_000],
