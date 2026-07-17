@@ -46,6 +46,14 @@ jobs:
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Upload room audit failure marker
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-audit-failure-marker
+          if-no-files-found: warn
+          retention-days: 1
+          path: /tmp/dungeon-veil-room-audit-failure.txt
       - name: Typecheck Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
