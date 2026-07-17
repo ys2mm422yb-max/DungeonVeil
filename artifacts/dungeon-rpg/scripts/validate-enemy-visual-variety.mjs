@@ -52,12 +52,14 @@ for (const [name, relative] of shippedModels) {
 
 const checks = [
   [visual.includes("['slime', 'goblin', 'spider', 'vampire', 'demon']") && visual.includes('preloadRealCreatureModels'), 'the complete set of distinct real creature models is no longer registered'],
-  [visual.includes('requestedImportedTypes(enemyTypes)') && visual.includes('loadEnemyAssetsWithRetries(importedTypes)') && visual.includes('preloadRealCreatureModels(types)'), 'creature loading is not scoped to requested room types'],
-  [visual.includes('types.map(preloadLocalEnemyAsset)') && visual.includes('types.map((type, index) =>'), 'requested models are not fully staged'],
+  [visual.includes('requestedImportedTypes(requestedTypes)') && visual.includes('loadEnemyAssetsWithRetries(requestedTypes, importedTypes)') && visual.includes('preloadRealCreatureModels(importedTypes)'), 'creature loading is not scoped to requested room types'],
+  [visual.includes('types.map(preloadLocalEnemyAsset)') && visual.includes('types.map(loadImportedPrototype)'), 'requested models are not fully fetched and parsed'],
   [!visual.includes('IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset)'), 'all five creatures are still forced before every room'],
-  [visual.includes('IMPORTED_VISUAL_MAX_WAIT_MS = 20_000') && visual.includes('if (visual?.imported) return visual'), 'real creature loading can still settle on a humanoid fallback'],
-  [visual.includes('throw new Error(`Dedicated enemy model did not become ready:') && visual.includes('enemyPreloadPromises.delete(key)'), 'dedicated model failures are not retried safely'],
-  [!visual.includes('EnemyMageIdentity_') && !visual.includes('ConeGeometry') && !visual.includes('robeMaterial'), 'the fake mage costume overlay still exists'],
+  [visual.includes('createDedicatedImportedVisual') && visual.includes('if (importedEnemyType(enemy.enemyType))') && visual.includes('return createBaseKayKitEnemyVisual(THREE, enemy);'), 'imported creatures do not have a direct construction path separate from humanoid models'],
+  [visual.includes("const needsBaseLibrary = enemyTypes.length === 0 || enemyTypes.some(type => !importedEnemyType(type));") && visual.includes('needsBaseLibrary ? preloadBaseKayKitEnemyVisuals() : Promise.resolve()'), 'imported-only rooms still wait for the full humanoid library'],
+  [visual.includes('throw new Error(`Dedicated enemy model did not become ready:') && visual.includes('enemyPreloadPromises.delete(key)') && visual.includes('importedPrototypePromises.delete(type)'), 'dedicated model failures are not retried safely'],
+  [visual.includes('prepareImportedModel(scene)') && visual.includes('node.frustumCulled = false;'), 'direct imported creatures are not prepared for reliable mobile rendering'],
+  [!visual.includes('EnemyMageIdentity_') && !visual.includes('robeMaterial'), 'the fake mage costume overlay still exists'],
   [regional.includes("const realMage = (): EnemyVisualProfile => adventurer('mage', '/characters/gltf/mage.glb')"), 'the exact real Mage.glb profile is missing'],
   [regional.includes("if (room === 20) return { ...realMage(), bossVariant: 'veil-necromancer' }"), 'room 20 caster does not use Mage.glb'],
   [!regional.includes("skeleton('mage'") && regional.includes('return index % 2 === 0 ? realMage()'), 'humanoid mage roles can still select the wrong body'],
@@ -73,4 +75,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Enemy visual variety audit passed: distinct GLBs remain registered, only required room models preload, and balance is unchanged.');
+console.log('Enemy visual variety audit passed: distinct GLBs use a direct imported path, imported-only rooms skip the humanoid library, and balance is unchanged.');
