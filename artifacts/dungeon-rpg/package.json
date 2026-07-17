@@ -1,6 +1,7 @@
 {
   "name": "@workspace/dungeon-rpg",
   "version": "0.0.0",
+  "description": "Republish last playable fixed test build",
   "private": true,
   "type": "module",
   "scripts": {
