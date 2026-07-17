@@ -27,6 +27,9 @@ requireText(globalLayer, 'app-boot-loading-screen', 'Boot loading test hook is m
 requireText(globalLayer, 'run-room-loading-screen', 'Run loading test hook is missing');
 requireText(main, '<GlobalLoadingLayer />', 'Global loading layer is not mounted');
 requireText(characterCreation, 'new-run-loading-screen', 'New-run full-screen loader is missing');
+requireText(characterCreation, 'RUN_PRELOAD_MAX_MS', 'New-run asset loading has no hard deadline');
+requireText(characterCreation, 'Promise.race([preloadRun(), delay(RUN_PRELOAD_MAX_MS)])', 'A stalled optional model can still block a new run indefinitely');
+requireText(characterCreation, 'let runPreloadPromise', 'New-run preloading can still be started repeatedly');
 requireText(worldBoss, 'BOSSARENA WIRD GELADEN', 'World-boss arena loader was removed');
 
-console.log('Loading transitions verified: boot has a hard deadline; new run, room entry and world boss remain covered.');
+console.log('Loading transitions verified: boot and new-run loading have hard deadlines; room entry and world boss remain covered.');

@@ -30,7 +30,10 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module
 const IMPORTED_ENEMY_TYPES = ['slime', 'goblin', 'spider', 'vampire', 'demon'] as const satisfies readonly Enemy['enemyType'][];
 const IMPORTED_VISUAL_RETRY_MS = 180;
 const IMPORTED_VISUAL_MAX_WAIT_MS = 20_000;
+const ENEMY_PRELOAD_MAX_BLOCK_MS = 3_500;
 const flightVisuals = new WeakMap<object, FlightVisualState>();
+let enemyPreloadPromise: Promise<void> | null = null;
+let enemyPreloadStartedAt = 0;
 const GROUNDED_ROOM_20_BOSS_POSE: Room20BossFlightPose = {
   active: false,
   progress: 0,
@@ -124,9 +127,24 @@ async function preloadRealCreatureModels() {
   }
 }
 
+function startEnemyPreload() {
+  if (!enemyPreloadPromise) {
+    enemyPreloadStartedAt = Date.now();
+    enemyPreloadPromise = (async () => {
+      await preloadBaseKayKitEnemyVisuals();
+      await preloadRealCreatureModels();
+    })().catch(error => {
+      console.warn('Enemy preload failed; runtime loading remains available', error);
+    });
+  }
+  return enemyPreloadPromise;
+}
+
 export async function preloadKayKitEnemyVisuals() {
-  await preloadBaseKayKitEnemyVisuals();
-  await preloadRealCreatureModels();
+  const preload = startEnemyPreload();
+  const remaining = Math.max(0, ENEMY_PRELOAD_MAX_BLOCK_MS - (Date.now() - enemyPreloadStartedAt));
+  if (remaining <= 0) return;
+  await Promise.race([preload, wait(remaining)]);
 }
 
 function findGroundShadow(visual: BaseKayKitEnemyVisual) {
