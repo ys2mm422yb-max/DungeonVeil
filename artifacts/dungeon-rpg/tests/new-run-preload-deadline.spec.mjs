@@ -18,7 +18,9 @@ async function startNamedRun(page, name) {
 
   const startButton = page.getByRole('button', { name: /Run starten|Start Game/i }).first();
   await expect(startButton).toBeEnabled();
+  const startedAt = Date.now();
   await clickAnimatedUi(startButton);
+  return startedAt;
 }
 
 test('a stalled later creature model cannot trap the new-run loading screen', async ({ page }) => {
@@ -33,8 +35,7 @@ test('a stalled later creature model cannot trap the new-run loading screen', as
   });
 
   try {
-    const startedAt = Date.now();
-    await startNamedRun(page, 'Deadline Ranger');
+    const startedAt = await startNamedRun(page, 'Deadline Ranger');
 
     await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 12_000 });
     expect(Date.now() - startedAt).toBeLessThan(10_000);
