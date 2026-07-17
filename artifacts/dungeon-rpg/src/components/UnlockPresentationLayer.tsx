@@ -82,6 +82,7 @@ export function UnlockPresentationLayer() {
     if (bootReady) return;
     const handleBootReady = () => setBootReady(true);
     window.addEventListener(APP_BOOT_READY_EVENT, handleBootReady, { once: true });
+    if (document.documentElement.dataset.dungeonVeilBootReady === '1') handleBootReady();
     return () => window.removeEventListener(APP_BOOT_READY_EVENT, handleBootReady);
   }, [bootReady]);
 
