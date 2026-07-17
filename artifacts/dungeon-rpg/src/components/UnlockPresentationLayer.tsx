@@ -1,8 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { equipmentPresentation } from '../game/equipmentPresentation';
 import { EQUIPMENT, loadMetaProgression, type EquipmentId } from '../game/metaProgression';
-import { initializeSeenUnlocks, unseenEquipmentIds, unseenRelicIds } from '../game/newContentMarkers';
+import {
+  initializeSeenUnlocks,
+  markEquipmentAnnounced,
+  markRelicAnnounced,
+  unannouncedEquipmentIds,
+  unannouncedRelicIds,
+} from '../game/newContentMarkers';
 import { loadVeilRelicProfile, VEIL_RELICS, type VeilRelicId } from '../game/veilRelics';
+import { APP_BOOT_READY_EVENT } from './GlobalLoadingLayer';
 
 type PresentedUnlock =
   | { key: string; kind: 'equipment'; id: EquipmentId; nameDe: string; nameEn: string; detailDe: string; detailEn: string; accent: string }
@@ -18,7 +25,7 @@ function collectUnlocks(): PresentedUnlock[] {
   const relics = loadVeilRelicProfile();
   const equipmentIds = Object.keys(meta.owned) as EquipmentId[];
   initializeSeenUnlocks(equipmentIds, relics.owned);
-  const equipment = unseenEquipmentIds(equipmentIds).map(id => {
+  const equipment = unannouncedEquipmentIds(equipmentIds).map(id => {
     const item = EQUIPMENT[id];
     const presentation = equipmentPresentation(item);
     return {
@@ -32,7 +39,7 @@ function collectUnlocks(): PresentedUnlock[] {
       accent: item.accent,
     };
   });
-  const relicUnlocks = unseenRelicIds(relics.owned).map(id => {
+  const relicUnlocks = unannouncedRelicIds(relics.owned).map(id => {
     const relic = VEIL_RELICS[id];
     return {
       key: `relic:${id}`,
@@ -48,8 +55,14 @@ function collectUnlocks(): PresentedUnlock[] {
   return [...equipment, ...relicUnlocks];
 }
 
+function persistAnnouncement(unlock: PresentedUnlock): void {
+  if (unlock.kind === 'equipment') markEquipmentAnnounced(unlock.id);
+  else markRelicAnnounced(unlock.id);
+}
+
 export function UnlockPresentationLayer() {
   const [current, setCurrent] = useState<PresentedUnlock | null>(null);
+  const [bootReady, setBootReady] = useState(() => typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilBootReady === '1');
   const announcedRef = useRef(new Set<string>());
   const language = currentLanguage();
   const de = language === 'de';
@@ -57,11 +70,23 @@ export function UnlockPresentationLayer() {
   const detect = useCallback(() => {
     setCurrent(active => {
       if (active) return active;
-      return collectUnlocks().find(unlock => !announcedRef.current.has(unlock.key)) ?? null;
+      const next = collectUnlocks().find(unlock => !announcedRef.current.has(unlock.key)) ?? null;
+      if (!next) return null;
+      announcedRef.current.add(next.key);
+      persistAnnouncement(next);
+      return next;
     });
   }, []);
 
   useEffect(() => {
+    if (bootReady) return;
+    const handleBootReady = () => setBootReady(true);
+    window.addEventListener(APP_BOOT_READY_EVENT, handleBootReady, { once: true });
+    return () => window.removeEventListener(APP_BOOT_READY_EVENT, handleBootReady);
+  }, [bootReady]);
+
+  useEffect(() => {
+    if (!bootReady) return;
     detect();
     const handleChange = () => detect();
     window.addEventListener('dungeon-veil-meta-changed', handleChange);
@@ -70,11 +95,10 @@ export function UnlockPresentationLayer() {
       window.removeEventListener('dungeon-veil-meta-changed', handleChange);
       window.removeEventListener('dungeon-veil-relic-changed', handleChange);
     };
-  }, [detect]);
+  }, [bootReady, detect]);
 
-  if (!current) return null;
+  if (!bootReady || !current) return null;
   const close = () => {
-    announcedRef.current.add(current.key);
     setCurrent(null);
     window.setTimeout(detect, 0);
   };
