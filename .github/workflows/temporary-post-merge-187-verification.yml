@@ -32,22 +32,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Room audit suite
-        id: rooms
-        continue-on-error: true
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
 
       - name: Requested-pass audits
-        id: requested
-        continue-on-error: true
         run: pnpm --filter @workspace/dungeon-rpg audit:requested-pass
 
       - name: Verify room 20 flight runtime contract
-        id: flight
-        continue-on-error: true
         run: |
           cat > /tmp/verify-room20-flight.ts <<'TS'
           import { room20BossFlightPose } from '${{ github.workspace }}/artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts';
-
           const boss = { id: 'enemy-boss-20-0', enemyType: 'boss', lastAttackTime: 1000, isDead: false } as any;
           const nearStart = room20BossFlightPose(boss, 1000);
           const launch = room20BossFlightPose(boss, 1180);
@@ -70,24 +63,15 @@ jobs:
           pnpm dlx tsx@4.20.3 /tmp/verify-room20-flight.ts
 
       - name: Typecheck
-        id: typecheck
-        continue-on-error: true
         run: pnpm run typecheck
 
       - name: Production build
-        id: build
-        continue-on-error: true
         run: pnpm --filter @workspace/dungeon-rpg build
 
       - name: Install Chromium
-        id: chromium
-        continue-on-error: true
         run: pnpm dlx @playwright/test@1.54.1 install --with-deps chromium
 
       - name: Browser smoke across desktop and mobile profiles
-        id: browser
-        if: steps.build.outcome == 'success' && steps.chromium.outcome == 'success'
-        continue-on-error: true
         run: |
           cat > post-merge-playwright.config.ts <<'TS'
           import { defineConfig } from '@playwright/test';
@@ -128,20 +112,5 @@ jobs:
           curl -fsS http://127.0.0.1:4173/DungeonVeil/ >/dev/null
           pnpm dlx @playwright/test@1.54.1 test --config=post-merge-playwright.config.ts
 
-      - name: Report outcomes
-        if: always()
-        run: |
-          echo "room_audits=${{ steps.rooms.outcome }}"
-          echo "requested_audits=${{ steps.requested.outcome }}"
-          echo "flight_contract=${{ steps.flight.outcome }}"
-          echo "typecheck=${{ steps.typecheck.outcome }}"
-          echo "build=${{ steps.build.outcome }}"
-          echo "chromium_install=${{ steps.chromium.outcome }}"
-          echo "browser_profiles=${{ steps.browser.outcome }}"
-          test "${{ steps.rooms.outcome }}" = success
-          test "${{ steps.requested.outcome }}" = success
-          test "${{ steps.flight.outcome }}" = success
-          test "${{ steps.typecheck.outcome }}" = success
-          test "${{ steps.build.outcome }}" = success
-          test "${{ steps.chromium.outcome }}" = success
-          test "${{ steps.browser.outcome }}" = success
+      - name: Summary
+        run: echo 'All post-merge checks passed.'
