@@ -255,7 +255,7 @@ test('settings persist accessibility, storage and joystick choices', async ({ pa
 test('new run renders responsive combat controls and stays stable', async ({ page }, testInfo) => {
   const phoneFloating = testInfo.project.name.includes('iphone') || testInfo.project.name.includes('android');
   if (phoneFloating) {
-    await page.addInitScript(() => localStorage.setItem('dungeon-veil-control-settings-v1', JSON.stringify({ joystickMode: 'floating' })));
+    await page.addInitScript(() => localStorage.setItem('dungeon-veil-control-settings-v1', JSON.stringify({ version: 2, joystickMode: 'floating' })));
   }
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
