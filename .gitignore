@@ -11,6 +11,9 @@ out-tsc
 # dependencies
 node_modules
 
+# generated runtime vendor assets
+/artifacts/dungeon-rpg/public/assets/vendor/three/
+
 # IDEs and editors
 /.idea
 .project
@@ -41,7 +44,7 @@ testem.log
 .DS_Store
 Thumbs.db
 
-.cursor/rules/nx-rules.mdc
+.cursor/rules/nx.instructions.md
 .github/instructions/nx.instructions.md
 
 # Replit
