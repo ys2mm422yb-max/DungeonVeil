@@ -9,9 +9,9 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  diagnose-browser-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,74 +25,20 @@ jobs:
           corepack prepare pnpm@10.17.1 --activate
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Room audit suite
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee room-audit-final.log
-      - name: Upload room audit log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: room-audit-final-log
-          path: room-audit-final.log
-          retention-days: 1
-      - name: Requested-pass audits
-        run: pnpm --filter @workspace/dungeon-rpg audit:requested-pass
-      - name: Verify room 20 flight runtime contract
-        working-directory: artifacts/dungeon-rpg
-        run: |
-          cat > .tmp-verify-room20-flight.mjs <<'JS'
-          import { createServer } from 'vite';
-          const server = await createServer({
-            root: process.cwd(),
-            configFile: false,
-            appType: 'custom',
-            optimizeDeps: { noDiscovery: true, include: [] },
-            logLevel: 'error',
-            server: { middlewareMode: true },
-          });
-          try {
-            const { room20BossFlightPose } = await server.ssrLoadModule('/src/components/kaykitEnemy3D.ts');
-            const boss = { id: 'enemy-boss-20-0', enemyType: 'boss', lastAttackTime: 1000, isDead: false };
-            const samples = {
-              start: room20BossFlightPose(boss, 1000),
-              launch: room20BossFlightPose(boss, 1180),
-              hover: room20BossFlightPose(boss, 1360),
-              dive: room20BossFlightPose(boss, 1600),
-              landed: room20BossFlightPose(boss, 1720),
-              after: room20BossFlightPose(boss, 1721),
-              other: room20BossFlightPose({ ...boss, id: 'enemy-boss-30-0' }, 1360),
-            };
-            const assert = (condition, message) => { if (!condition) throw new Error(message); };
-            assert(samples.start.active && samples.start.height === 0, 'start grounded');
-            assert(samples.launch.height > 1, 'visible launch');
-            assert(samples.hover.height > 1.75, 'visible hover');
-            assert(samples.dive.height < samples.hover.height && samples.dive.height > 0, 'visible dive');
-            assert(samples.landed.active && Math.abs(samples.landed.height) < 1e-9, 'landing at 720 ms');
-            assert(!samples.after.active && samples.after.height === 0, 'grounded after impact');
-            assert(samples.launch.shadowScale < 0.75 && samples.hover.shadowScale < 0.75, 'airborne shadow smaller');
-            assert(samples.launch.shadowOpacity < 0.2 && samples.hover.shadowOpacity < 0.2, 'airborne shadow lighter');
-            assert(!samples.other.active, 'other boss rooms unaffected');
-            console.log('Room 20 flight runtime contract passed.');
-          } finally {
-            await server.close();
-          }
-          JS
-          node .tmp-verify-room20-flight.mjs
-          rm .tmp-verify-room20-flight.mjs
-      - name: Typecheck
-        run: pnpm run typecheck
       - name: Production build
         run: pnpm --filter @workspace/dungeon-rpg build
       - name: Install Chromium
         run: pnpm dlx @playwright/test@1.54.1 install --with-deps chromium
-      - name: Browser smoke across desktop and mobile profiles
+      - name: Browser smoke diagnostics
+        id: browser
+        continue-on-error: true
+        shell: bash
         run: |
+          set -o pipefail
           cat > post-merge-playwright.config.ts <<'TS'
           import { defineConfig } from '@playwright/test';
           export default defineConfig({
-            testDir: '.', testMatch: /post-merge-smoke\.spec\.ts/, timeout: 45000, retries: 1, reporter: 'line',
+            testDir: '.', testMatch: /post-merge-smoke\.spec\.ts/, timeout: 45000, retries: 0, reporter: 'line',
             use: { baseURL: 'http://127.0.0.1:4173', browserName: 'chromium' },
             projects: [
               { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
@@ -106,11 +52,17 @@ jobs:
           import { test, expect } from '@playwright/test';
           test('production build loads without fatal renderer errors', async ({ page }) => {
             const pageErrors: string[] = [];
+            const consoleErrors: string[] = [];
             page.on('pageerror', error => pageErrors.push(error.message));
-            const response = await page.goto('/DungeonVeil/', { waitUntil: 'networkidle' });
-            expect(response?.ok()).toBeTruthy();
+            page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+            const response = await page.goto('/DungeonVeil/', { waitUntil: 'domcontentloaded' });
+            expect(response?.ok(), `status=${response?.status()}`).toBeTruthy();
             await expect(page.locator('body')).toBeVisible();
             await expect(page.locator('#root')).toBeVisible();
+            await page.waitForTimeout(2500);
+            console.log('PROFILE', test.info().project.name, 'TITLE', await page.title());
+            console.log('PAGE_ERRORS', JSON.stringify(pageErrors));
+            console.log('CONSOLE_ERRORS', JSON.stringify(consoleErrors));
             expect((await page.title()).trim().length).toBeGreaterThan(0);
             expect((await page.locator('body').innerText()).trim().length).toBeGreaterThan(0);
             const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -118,7 +70,7 @@ jobs:
             expect(pageErrors, pageErrors.join('\n')).toEqual([]);
           });
           TS
-          pnpm --filter @workspace/dungeon-rpg serve -- --port 4173 > /tmp/dungeon-preview.log 2>&1 &
+          pnpm --filter @workspace/dungeon-rpg serve -- --port 4173 > preview.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill $PREVIEW_PID || true' EXIT
           for attempt in $(seq 1 60); do
@@ -126,8 +78,16 @@ jobs:
             sleep 1
           done
           curl -fsS http://127.0.0.1:4173/DungeonVeil/ >/dev/null
-          pnpm dlx @playwright/test@1.54.1 test --config=post-merge-playwright.config.ts
-      - name: Fixed test link availability
-        run: |
-          curl --fail --location --retry 3 --retry-delay 2 --max-time 30 https://ys2mm422yb-max.github.io/DungeonVeil/ -o /tmp/fixed-test-link.html
-          test -s /tmp/fixed-test-link.html
+          pnpm dlx @playwright/test@1.54.1 test --config=post-merge-playwright.config.ts 2>&1 | tee browser-smoke.log
+      - name: Upload browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-diagnostics
+          path: |
+            browser-smoke.log
+            preview.log
+          retention-days: 1
+      - name: Preserve browser result
+        if: steps.browser.outcome != 'success'
+        run: exit 1
