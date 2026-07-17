@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const scripts = [
@@ -40,6 +41,7 @@ const scripts = [
 const childEnvironment = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !key.toLowerCase().startsWith('npm_')),
 );
+const failureMarker = '/tmp/dungeon-veil-room-audit-failure.txt';
 
 for (const script of scripts) {
   console.log(`→ ${script}`);
@@ -48,11 +50,13 @@ for (const script of scripts) {
     stdio: 'inherit',
   });
   if (result.error) {
+    writeFileSync(failureMarker, `${script}\nstart-error\n${String(result.error)}\n`);
     console.error(`ROOM AUDIT COULD NOT START: ${script}`);
     console.error(result.error);
     process.exit(1);
   }
   if (result.status !== 0) {
+    writeFileSync(failureMarker, `${script}\nexit-status=${result.status ?? 'unknown'}\n`);
     console.error(`ROOM AUDIT FAILED: ${script}`);
     process.exit(result.status ?? 1);
   }
