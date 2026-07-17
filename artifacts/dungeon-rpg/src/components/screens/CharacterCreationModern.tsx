@@ -10,12 +10,30 @@ import { preloadKayKitOuterWorld } from '../kaykitOuterWorld3D';
 
 interface Props { onConfirm: (name: string, cls: ClassKey) => void | Promise<void>; onBack: () => void }
 
-const preloadRun = () => Promise.all([
-  preloadKayKitDungeonRoom(1),
-  preloadKayKitEnemyVisuals(),
-  preloadKayKitHealingPotion(),
-  preloadKayKitOuterWorld(),
-]);
+const RUN_PRELOAD_MAX_MS = 4_500;
+let runPreloadPromise: Promise<void> | null = null;
+
+function delay(milliseconds: number) {
+  return new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
+}
+
+function preloadRun() {
+  if (!runPreloadPromise) {
+    runPreloadPromise = Promise.all([
+      preloadKayKitDungeonRoom(1),
+      preloadKayKitEnemyVisuals(),
+      preloadKayKitHealingPotion(),
+      preloadKayKitOuterWorld(),
+    ]).then(() => undefined).catch(error => {
+      console.warn('Optional run preload failed; continuing with runtime loading', error);
+    });
+  }
+  return runPreloadPromise;
+}
+
+function waitForRunPreload() {
+  return Promise.race([preloadRun(), delay(RUN_PRELOAD_MAX_MS)]);
+}
 
 export function CharacterCreationModern({ onConfirm, onBack }: Props) {
   const { t, language } = useLanguage();
@@ -23,12 +41,12 @@ export function CharacterCreationModern({ onConfirm, onBack }: Props) {
   const [starting, setStarting] = useState(false);
   const valid = name.trim().length >= 2 && !starting;
 
-  useEffect(() => { void preloadRun().catch(error => console.error('KayKit preload failed', error)); }, []);
+  useEffect(() => { void preloadRun(); }, []);
   const start = async () => {
     if (!valid) return;
     setStarting(true);
     try {
-      await preloadRun();
+      await waitForRunPreload();
       await onConfirm(name.trim(), 'archer');
     } finally {
       setStarting(false);
