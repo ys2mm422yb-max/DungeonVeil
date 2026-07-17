@@ -11,6 +11,7 @@ const THREE_VENDOR_COMMIT = '0af9729d0c143a86a1d725d6e2c3ad83301f3f34';
 const THREE_VENDOR_FILES = [
   'LICENSE',
   'build/three.module.js',
+  'build/three.core.js',
   'examples/jsm/loaders/GLTFLoader.js',
   'examples/jsm/utils/BufferGeometryUtils.js',
   'examples/jsm/utils/SkeletonUtils.js',
