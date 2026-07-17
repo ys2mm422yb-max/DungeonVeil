@@ -1,5 +1,9 @@
 import { spawnSync } from 'node:child_process';
+import { rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+
+const failureFile = new URL('../room-audit-failure.txt', import.meta.url);
+try { rmSync(failureFile); } catch {}
 
 const scripts = [
   'validate-all-rooms.mjs',
@@ -43,14 +47,19 @@ for (const script of scripts) {
     env: process.env,
   });
   if (result.error) {
-    console.error(`ROOM AUDIT COULD NOT START: ${script}`);
-    console.error(result.error);
+    const diagnostic = `ROOM AUDIT COULD NOT START: ${script}\n${String(result.error)}\n`;
+    writeFileSync(failureFile, diagnostic);
+    console.error(diagnostic);
     process.exit(1);
   }
   if (result.status !== 0) {
-    console.error(`ROOM AUDIT FAILED: ${script}`);
-    if (result.stdout?.trim()) console.error(result.stdout.trim());
-    if (result.stderr?.trim()) console.error(result.stderr.trim());
+    const diagnostic = [
+      `ROOM AUDIT FAILED: ${script}`,
+      result.stdout?.trim() ?? '',
+      result.stderr?.trim() ?? '',
+    ].filter(Boolean).join('\n');
+    writeFileSync(failureFile, `${diagnostic}\n`);
+    console.error(diagnostic);
     process.exit(result.status ?? 1);
   }
   console.log(`✓ ${script}`);
