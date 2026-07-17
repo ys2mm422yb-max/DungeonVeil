@@ -2,18 +2,18 @@ export type RunMode = 'solo' | 'duo';
 export type CoopRole = 'host' | 'guest';
 export type CoopLobbyStatus = 'waiting' | 'ready' | 'in_run' | 'closed';
 
-export const SOLO_RUN_MODE: RunMode = 'solo';
-export const DUO_RUN_MODE: RunMode = 'duo';
+export const SOLO_RUN_MODE = 'solo' as const;
+export const DUO_RUN_MODE = 'duo' as const;
 export const SOLO_BALANCE_POLICY = 'immutable' as const;
 export const COOP_PLAYER_LIMIT = 2 as const;
 
 export type SoloRunContext = {
-  mode: 'solo';
+  mode: typeof SOLO_RUN_MODE;
   balancePolicy: typeof SOLO_BALANCE_POLICY;
 };
 
 export type DuoRunContext = {
-  mode: 'duo';
+  mode: typeof DUO_RUN_MODE;
   lobbyId: string;
   runSeed: number;
   role: CoopRole;
