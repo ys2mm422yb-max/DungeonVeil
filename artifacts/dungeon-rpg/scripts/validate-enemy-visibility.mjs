@@ -40,6 +40,7 @@ try {
     overlaySource,
     enemyVisualFacadeSource,
     enemyVisualBaseSource,
+    viteSource,
   ] = await Promise.all([
     readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
@@ -47,6 +48,7 @@ try {
     readFile(new URL('../src/components/CombatFeedbackOverlay.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/kaykitEnemyBase3D.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../vite.config.ts', import.meta.url), 'utf8'),
   ]);
   const enemyVisualSource = `${enemyVisualFacadeSource}\n${enemyVisualBaseSource}`;
 
@@ -69,25 +71,32 @@ try {
     if (!engineSource.includes(required)) fail(`missing global enemy attack guard: ${required}`);
   }
 
-  if (!hostCanvasSource.includes("const renderedRoomKeyRef = useRef('');")) {
-    fail('initial continued rooms can begin before their visual staging pass');
-  }
-  const enemyPreloads = hostCanvasSource.match(/preloadKayKitEnemyVisuals\(\)/g) ?? [];
-  if (enemyPreloads.length < 2) {
-    fail(`enemy library is not preloaded for initial and next-room staging (found ${enemyPreloads.length} calls)`);
+  for (const required of [
+    "const renderedRoomKeyRef = useRef('');",
+    'useState<GameState | null>(null)',
+    'currentRoomEnemyTypes(gameState)',
+    'preloadKayKitEnemyVisuals(requiredEnemyTypes)',
+    'plannedRoomEnemyTypes(nextFloor)',
+    'preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor))',
+    'renderState ? <GameCanvasKayKit3D',
+  ]) {
+    if (!hostCanvasSource.includes(required)) fail(`missing room-scoped enemy reveal guard: ${required}`);
   }
 
   for (const required of [
-    'const enemyFallbacks = new Map<string, any>();',
-    'const createEnemyFallback = (enemy:',
-    'EnemyVisibilityFallback_',
-    'EnemyVisibilitySafety_',
-    'const enemySafetyShells = new Map<string, any>();',
-    'const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;',
-    'shell.userData.visibilitySafety = true;',
-    'KayKit enemy failed; keeping visibility fallback',
+    "name: 'dungeon-veil-dedicated-enemy-models-only'",
+    ".replace(safetyNeedle, '        const requiresPermanentSafety = false;')",
+    '.replace(ENEMY_FALLBACK_BLOCK, ENEMY_DEDICATED_MODEL_BLOCK)',
+    "throw new Error('Enemy fallback creation contract changed; refusing to build generic enemy bodies')",
   ]) {
-    if (!rendererSource.includes(required)) fail(`missing global enemy visibility fallback guard: ${required}`);
+    if (!viteSource.includes(required)) fail(`missing dedicated-model-only production guard: ${required}`);
+  }
+
+  if (!rendererSource.includes('const createEnemyFallback = (enemy:')) {
+    fail('source visibility fallback contract changed without updating the fail-closed production transform');
+  }
+  if (!viteSource.includes('Never render a generic colored stand-in')) {
+    fail('production renderer does not document removal of colored enemy stand-ins');
   }
 
   if (!enemyVisualSource.includes('node.frustumCulled = false;')) {
@@ -160,7 +169,7 @@ try {
     });
 
     if (room === 15 || room === 16) {
-      focusRooms.push(`room ${room}: ${plan.length} enemies, ${points.length} safe spawns, ${roomOccluded} initially occluded, fallback guaranteed during model load/failure`);
+      focusRooms.push(`room ${room}: ${plan.length} enemies, ${points.length} safe spawns, ${roomOccluded} initially occluded, dedicated models gated before reveal`);
     }
   }
 
@@ -174,7 +183,7 @@ try {
     errors.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;
   } else {
-    console.log(`Enemy visibility audit passed: all ${checkedRooms} rooms, ${checkedEnemies} enemy starts and ${initiallyOccluded} initially occluded starts are protected by safe spawns, line-of-sight guards, non-culled meshes, permanent room 13+ safety shells and visible loading/error fallbacks.`);
+    console.log(`Enemy visibility audit passed: all ${checkedRooms} rooms and ${checkedEnemies} enemy starts use safe spawns, line-of-sight guards, non-culled meshes, room-scoped model gates and a production build that removes colored loading and permanent safety bodies.`);
   }
 } finally {
   await server.close();
