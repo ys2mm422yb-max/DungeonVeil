@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -68,3 +68,40 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Checkout target branch for deployment marker
+        uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-telegraphs-room-21-50-balance
+          fetch-depth: 0
+
+      - name: Record successful deployment
+        env:
+          DEPLOYED_COMMIT: ${{ github.sha }}
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        shell: bash
+        run: |
+          mkdir -p .ci
+          python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          payload = {
+              "workflow": "Temporary deploy target branch",
+              "status": "success",
+              "attemptedCommit": os.environ["DEPLOYED_COMMIT"],
+              "deployedCommit": os.environ["DEPLOYED_COMMIT"],
+              "validationResult": "success",
+              "deploymentResult": "success",
+              "pageUrl": os.environ["PAGE_URL"],
+              "completedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+          }
+          with open(".ci/dungeon-veil-pages.json", "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, indent=2)
+              handle.write("\n")
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .ci/dungeon-veil-pages.json
+          git commit -m "Record Dungeon Veil target-branch deployment success" || exit 0
+          git push origin HEAD:fix/mobile-telegraphs-room-21-50-balance
