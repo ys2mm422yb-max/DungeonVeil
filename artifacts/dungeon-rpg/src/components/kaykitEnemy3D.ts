@@ -28,12 +28,18 @@ type FlightVisualState = {
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const IMPORTED_ENEMY_TYPES = ['slime', 'goblin', 'spider', 'vampire', 'demon'] as const satisfies readonly Enemy['enemyType'][];
+const IMPORTED_ENEMY_ASSETS: Record<(typeof IMPORTED_ENEMY_TYPES)[number], string> = {
+  slime: 'assets/imported/enemies/Slime.glb',
+  goblin: 'assets/imported/enemies/Rat.glb',
+  spider: 'assets/imported/enemies/Spider.glb',
+  vampire: 'assets/imported/enemies/Bat.glb',
+  demon: 'assets/imported/enemies/Snake_angry.glb',
+};
 const IMPORTED_VISUAL_RETRY_MS = 180;
 const IMPORTED_VISUAL_MAX_WAIT_MS = 20_000;
-const ENEMY_PRELOAD_MAX_BLOCK_MS = 3_500;
+const ENEMY_ASSET_FETCH_ATTEMPTS = 4;
 const flightVisuals = new WeakMap<object, FlightVisualState>();
 let enemyPreloadPromise: Promise<void> | null = null;
-let enemyPreloadStartedAt = 0;
 const GROUNDED_ROOM_20_BOSS_POSE: Room20BossFlightPose = {
   active: false,
   progress: 0,
@@ -66,12 +72,38 @@ function importedEnemyType(type: Enemy['enemyType']): type is (typeof IMPORTED_E
   return IMPORTED_ENEMY_TYPES.includes(type as (typeof IMPORTED_ENEMY_TYPES)[number]);
 }
 
+function enemyAssetUrl(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  const path = IMPORTED_ENEMY_ASSETS[type];
+  if (typeof document === 'undefined') return `/${path}`;
+  return new URL(path, document.baseURI).toString();
+}
+
+async function preloadLocalEnemyAsset(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= ENEMY_ASSET_FETCH_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(enemyAssetUrl(type), {
+        cache: attempt === 1 ? 'default' : 'reload',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const bytes = await response.arrayBuffer();
+      if (bytes.byteLength < 512) throw new Error(`enemy asset is truncated (${bytes.byteLength} bytes)`);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < ENEMY_ASSET_FETCH_ATTEMPTS) await wait(attempt * 320);
+    }
+  }
+  throw new Error(`Local enemy asset failed to load: ${type}`, { cause: lastError });
+}
+
 async function createReliableEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
   let visual = await createBaseKayKitEnemyVisual(THREE, enemy);
   if (!visual || !importedEnemyType(enemy.enemyType) || visual.imported) return visual;
 
-  // The first request starts the cached GLB load. Do not return the temporary
-  // humanoid fallback while that real creature model is still loading.
+  // Never accept the humanoid fallback while the dedicated creature GLB is
+  // still resolving. The room gate waits for this promise before gameplay.
   const deadline = Date.now() + IMPORTED_VISUAL_MAX_WAIT_MS;
   while (Date.now() < deadline) {
     await wait(IMPORTED_VISUAL_RETRY_MS);
@@ -80,8 +112,7 @@ async function createReliableEnemyVisual(THREE: any, enemy: Enemy): Promise<KayK
     if (visual?.imported) return visual;
   }
 
-  if (visual) visual.root.userData.importedCreatureLoadTimedOut = enemy.enemyType;
-  return visual;
+  throw new Error(`Dedicated enemy model did not become ready: ${enemy.enemyType}`);
 }
 
 function preloadEnemy(type: (typeof IMPORTED_ENEMY_TYPES)[number], index: number): Enemy {
@@ -114,37 +145,43 @@ function preloadEnemy(type: (typeof IMPORTED_ENEMY_TYPES)[number], index: number
 }
 
 async function preloadRealCreatureModels() {
-  try {
-    const THREE = await import(/* @vite-ignore */ THREE_URL) as any;
-    const results = await Promise.all(IMPORTED_ENEMY_TYPES.map((type, index) =>
-      createReliableEnemyVisual(THREE, preloadEnemy(type, index))
-    ));
-    results.forEach((visual, index) => {
-      if (!visual?.imported) console.warn(`Real creature preload unavailable: ${IMPORTED_ENEMY_TYPES[index]}`);
-    });
-  } catch (error) {
-    console.warn('Real creature preload failed', error);
+  await Promise.all(IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset));
+  const THREE = await import(/* @vite-ignore */ THREE_URL) as any;
+  const results = await Promise.all(IMPORTED_ENEMY_TYPES.map((type, index) =>
+    createReliableEnemyVisual(THREE, preloadEnemy(type, index))
+  ));
+  const unavailable = IMPORTED_ENEMY_TYPES.filter((_, index) => !results[index]?.imported);
+  if (unavailable.length) throw new Error(`Real creature preload incomplete: ${unavailable.join(', ')}`);
+}
+
+async function loadEnemyAssetsWithRetries() {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await preloadBaseKayKitEnemyVisuals();
+      await preloadRealCreatureModels();
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Enemy preload attempt ${attempt} failed`, error);
+      if (attempt < 3) await wait(attempt * 500);
+    }
   }
+  throw lastError instanceof Error ? lastError : new Error('Enemy preload failed');
 }
 
 function startEnemyPreload() {
   if (!enemyPreloadPromise) {
-    enemyPreloadStartedAt = Date.now();
-    enemyPreloadPromise = (async () => {
-      await preloadBaseKayKitEnemyVisuals();
-      await preloadRealCreatureModels();
-    })().catch(error => {
-      console.warn('Enemy preload failed; runtime loading remains available', error);
+    enemyPreloadPromise = loadEnemyAssetsWithRetries().catch(error => {
+      enemyPreloadPromise = null;
+      throw error;
     });
   }
   return enemyPreloadPromise;
 }
 
 export async function preloadKayKitEnemyVisuals() {
-  const preload = startEnemyPreload();
-  const remaining = Math.max(0, ENEMY_PRELOAD_MAX_BLOCK_MS - (Date.now() - enemyPreloadStartedAt));
-  if (remaining <= 0) return;
-  await Promise.race([preload, wait(remaining)]);
+  await startEnemyPreload();
 }
 
 function findGroundShadow(visual: BaseKayKitEnemyVisual) {
