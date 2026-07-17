@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [credits, inventory, presentation, gates, relics, retention, daily, dailyRuntime, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, settingsPersistence, sessionBridge, main] = await Promise.all([
+const [credits, inventory, presentation, gates, relics, retention, daily, dailyRuntime, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, settingsPersistence, markers, unlockLayer, globalLoading, loading, sessionBridge, main] = await Promise.all([
   read('../src/components/screens/CreditsScreen.tsx'),
   read('../src/components/screens/VeilChamberScreen.tsx'),
   read('../src/game/equipmentPresentation.ts'),
@@ -23,6 +23,10 @@ const [credits, inventory, presentation, gates, relics, retention, daily, dailyR
   read('../src/game/persistentSaveBundle.ts'),
   read('../src/game/cloudAccountSyncRuntime.ts'),
   read('../src/game/settingsPersistence.ts'),
+  read('../src/game/newContentMarkers.ts'),
+  read('../src/components/UnlockPresentationLayer.tsx'),
+  read('../src/components/GlobalLoadingLayer.tsx'),
+  read('../src/components/LoadingScreen.tsx'),
   read('../src/components/GameSessionBridge.tsx'),
   read('../src/main.tsx'),
 ]);
@@ -44,6 +48,9 @@ const checks = [
   [weekly.includes("id: 'enemy-hunt'") && weekly.includes("id: 'contract-master'") && weekly.includes('ownedRewardIds') && weekly.includes('eliteMarks'), 'weekly elite rotation or permanent rewards are incomplete'],
   [profile.includes("type Tab = 'overview' | 'stats' | 'titles' | 'cards' | 'avatars'") && profile.includes('Visitenkarten') && profile.includes('profile-collection-summary') && !profile.includes("| 'weekly'"), 'profile collections are incomplete or elite contracts leaked back into the profile'],
   [publicProfile.includes('resolveOnlineAvatar') && publicProfile.includes('resolveOnlineTitle') && publicProfile.includes('resolveOnlineCard'), 'public profiles do not display equipped cosmetics'],
+  [markers.includes('MARKER_VERSION = 2') && markers.includes('announcedEquipment') && markers.includes('announcedRelics') && markers.includes('unannouncedEquipmentIds') && markers.includes('markEquipmentAnnounced') && markers.includes('...currentEquipment') && markers.includes('...currentRelics'), 'unlock notifications are not separated from inventory NEW markers or legacy items can replay'],
+  [unlockLayer.includes('unannouncedEquipmentIds') && unlockLayer.includes('unannouncedRelicIds') && unlockLayer.includes('persistAnnouncement(next)') && unlockLayer.includes('APP_BOOT_READY_EVENT') && unlockLayer.includes('if (!bootReady || !current) return null'), 'unlock notices can replay or appear over the boot screen'],
+  [globalLoading.includes("APP_BOOT_READY_EVENT = 'dungeon-veil-app-boot-ready'") && globalLoading.includes("document.documentElement.dataset.dungeonVeilBootReady = '1'") && loading.includes('data-boot-presentation="veil-gate"'), 'the dedicated boot sequence does not gate menu notifications'],
   [bundle.includes("'dungeon-veil-player-profile-v1'") && bundle.includes("'dungeon-veil-weekly-elite-v1'") && bundle.includes("'dungeon-veil-seen-unlocks-v1'"), 'cloud bundle omits profile cosmetics, elite rewards or new-content markers'],
   [bundle.includes('shouldRestoreRemoteBundle') && bundle.includes('bundleProgressWeight') && bundle.includes('bundleActivityTimestamp') && bundle.includes('dungeon-veil-pre-cloud-restore-v1'), 'cloud conflict resolution does not protect meaningful local progress with a pre-restore backup'],
   [syncRuntime.includes('readCloudSave()') && syncRuntime.includes('shouldRestoreRemoteBundle(local, remote)') && syncRuntime.includes('pushCurrentAccountState(true)') && syncRuntime.includes('CLOUD_RECONCILE_MS = 10_000') && syncRuntime.includes('SETTINGS_PERSISTENCE_EVENT') && syncRuntime.includes('window.location.reload()'), 'account save and settings synchronization does not safely reconcile local and remote progress'],
@@ -58,4 +65,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Menu/profile/cloud progression audit passed: daily and gold rotations, durable settings, complete collections, safe account saves and weekly elite contracts are integrated.');
+console.log('Menu/profile/cloud progression audit passed: one-time unlock notices, gated Veil boot, daily rotations, durable settings, safe account saves and weekly elite contracts are integrated.');
