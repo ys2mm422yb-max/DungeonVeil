@@ -1,0 +1,102 @@
+name: Temporary final Pages content verification
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify rooms and collision
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+
+      - name: Typecheck workspace
+        run: pnpm run typecheck
+
+      - name: Build exact GitHub Pages output
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+
+      - name: Compare live Pages HTML with current target build
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='artifacts/dungeon-rpg/dist/public/index.html'
+          for attempt in $(seq 1 12); do
+            curl --fail --silent --show-error --location --max-time 30 \
+              -H 'Cache-Control: no-cache' \
+              "https://ys2mm422yb-max.github.io/DungeonVeil/?verify=${GITHUB_SHA}-${attempt}" \
+              -o live-index.html
+            if cmp -s "$expected" live-index.html; then
+              echo 'Live GitHub Pages HTML exactly matches the current target-branch build.'
+              sha256sum "$expected" live-index.html
+              exit 0
+            fi
+            echo "Live HTML not updated yet (attempt ${attempt}/12)."
+            sha256sum "$expected" live-index.html
+            sleep 10
+          done
+          echo 'Live GitHub Pages HTML does not match the current target-branch build.' >&2
+          diff -u "$expected" live-index.html || true
+          exit 1
+
+      - name: Install Chromium
+        run: pnpm dlx @playwright/test@1.54.1 install --with-deps chromium
+
+      - name: Smoke test fixed live link on four profiles
+        run: |
+          cat > final-live-playwright.config.ts <<'TS'
+          import { defineConfig } from '@playwright/test';
+          export default defineConfig({
+            testDir: '.',
+            testMatch: /final-live-smoke\.spec\.ts/,
+            timeout: 45000,
+            reporter: 'line',
+            use: { baseURL: 'https://ys2mm422yb-max.github.io', browserName: 'chromium' },
+            projects: [
+              { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
+              { name: 'iphone', use: { viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 Version/18.5 Mobile/15E148 Safari/604.1', isMobile: true, hasTouch: true } },
+              { name: 'android', use: { viewport: { width: 412, height: 915 }, userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/136.0.0.0 Mobile Safari/537.36', isMobile: true, hasTouch: true } },
+              { name: 'ipad', use: { viewport: { width: 1024, height: 1366 }, userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_5 like Mac OS X) AppleWebKit/605.1.15 Version/18.5 Mobile/15E148 Safari/604.1', isMobile: true, hasTouch: true } },
+            ],
+          });
+          TS
+          cat > final-live-smoke.spec.ts <<'TS'
+          import { test, expect } from '@playwright/test';
+          test('fixed live link loads without fatal page errors', async ({ page }) => {
+            const pageErrors: string[] = [];
+            page.on('pageerror', error => pageErrors.push(error.message));
+            const response = await page.goto(`/DungeonVeil/?live=${Date.now()}`, { waitUntil: 'domcontentloaded' });
+            expect(response?.ok(), `Unexpected status ${response?.status()}`).toBeTruthy();
+            await expect(page.locator('#root')).toBeVisible();
+            await page.waitForTimeout(2500);
+            expect((await page.title()).trim().length).toBeGreaterThan(0);
+            expect((await page.locator('body').innerText()).trim().length).toBeGreaterThan(0);
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            expect(overflow).toBeLessThanOrEqual(2);
+            expect(pageErrors, pageErrors.join('\n')).toEqual([]);
+          });
+          TS
+          pnpm dlx @playwright/test@1.54.1 test --config=final-live-playwright.config.ts
