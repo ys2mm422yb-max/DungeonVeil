@@ -11,7 +11,7 @@
     "simulate:progression": "node scripts/progression-simulator.mjs --write",
     "audit:final": "node scripts/validate-final-balance-integration.mjs && node scripts/validate-final-balance-curve.mjs",
     "audit:progression": "node scripts/validate-progression-simulator.mjs && node scripts/validate-chapter-reward-contract.mjs && node scripts/validate-final-balance-integration.mjs && node scripts/validate-final-balance-curve.mjs",
-    "audit:assets": "node scripts/audit-kaykit-assets.mjs && node scripts/validate-armor-progression.mjs",
+    "audit:assets": "node scripts/audit-kaykit-assets.mjs && node scripts/validate-armor-progression.mjs && node scripts/validate-enemy-visual-variety.mjs",
     "audit:armor": "node scripts/validate-armor-progression.mjs",
     "audit:worldboss": "node scripts/validate-worldboss-performance.mjs",
     "audit:loading": "node scripts/validate-loading-transitions.mjs && node scripts/validate-room-spectator-firelands.mjs && node scripts/validate-cloud-realtime-performance.mjs",
