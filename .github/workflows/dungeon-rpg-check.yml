@@ -50,3 +50,51 @@ jobs:
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg build
+
+  room-audit-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: validate-all-rooms
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-all-rooms.mjs
+      - name: validate-production-rooms
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
+      - name: validate-spawn-hitboxes
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
+      - name: validate-normal-enemy-telegraphs-and-prop-hitboxes
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs
+      - name: validate-enemy-visibility
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
+      - name: validate-mobile-combat
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+      - name: validate-combat-telegraphs-late-balance
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-combat-telegraphs-late-balance.mjs
+      - name: validate-mobile-zoom-guard
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-mobile-zoom-guard.mjs
+      - name: validate-ipad-run-layout
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-ipad-run-layout.mjs
+      - name: validate-worldboss-performance
+        continue-on-error: true
+        run: node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
