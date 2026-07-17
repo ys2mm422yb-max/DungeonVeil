@@ -26,7 +26,6 @@
     <link rel="manifest" href="./manifest.webmanifest?v=20260717-3" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
       html, body, #root { width: 100%; height: 100%; margin: 0; background: #070706; }
@@ -73,8 +72,10 @@
     <script type="importmap">
       {
         "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+          "three": "./assets/vendor/three/build/three.module.js",
+          "three/addons/": "./assets/vendor/three/examples/jsm/",
+          "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js": "./assets/vendor/three/build/three.module.js",
+          "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/": "./assets/vendor/three/examples/jsm/"
         }
       }
     </script>
