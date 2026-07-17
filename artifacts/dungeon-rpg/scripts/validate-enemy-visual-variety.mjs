@@ -51,9 +51,12 @@ for (const [name, relative] of shippedModels) {
 }
 
 const checks = [
-  [visual.includes("['slime', 'goblin', 'spider', 'vampire', 'demon']") && visual.includes('preloadRealCreatureModels'), 'all five real creature models are not preloaded before the menu'],
+  [visual.includes("['slime', 'goblin', 'spider', 'vampire', 'demon']") && visual.includes('preloadRealCreatureModels'), 'the complete set of five distinct real creature models is no longer registered'],
+  [visual.includes('requestedImportedTypes(enemyTypes)') && visual.includes('preloadRealCreatureModels(importedTypes)'), 'real creature loading is not scoped to the current room enemy types'],
+  [visual.includes('types.map(preloadLocalEnemyAsset)') && visual.includes('types.map((type, index) =>'), 'room-scoped preload does not fully stage every requested real creature model'],
+  [!visual.includes('IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset)'), 'all five real creatures are still forced to load before every room'],
   [visual.includes('IMPORTED_VISUAL_MAX_WAIT_MS = 20_000') && visual.includes('if (visual?.imported) return visual'), 'real creature loading can still permanently settle on a humanoid fallback'],
-  [visual.includes('await preloadRealCreatureModels();') && visual.includes('createReliableEnemyVisual(THREE, preloadEnemy(type, index))'), 'boot preload does not resolve every real creature model'],
+  [visual.includes('throw new Error(`Dedicated enemy model did not become ready:') && visual.includes('enemyPreloadPromises.delete(key)'), 'dedicated model failures are not retried safely before room reveal'],
   [!visual.includes('EnemyMageIdentity_') && !visual.includes('ConeGeometry') && !visual.includes('robeMaterial'), 'the fake mage costume overlay still exists'],
   [regional.includes("const realMage = (): EnemyVisualProfile => adventurer('mage', '/characters/gltf/mage.glb')"), 'the exact real Mage.glb profile is missing'],
   [regional.includes("if (room === 20) return { ...realMage(), bossVariant: 'veil-necromancer' }"), 'room 20 caster does not use the real Mage.glb character'],
@@ -70,4 +73,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Enemy visual variety audit passed: all real creature GLBs preload before play, every humanoid mage uses the actual Mage.glb character, and solo encounters and balance remain unchanged.');
+console.log('Enemy visual variety audit passed: all distinct real creature GLBs remain registered, rooms preload only their required models, every humanoid mage uses the actual Mage.glb character, and solo encounters and balance remain unchanged.');
