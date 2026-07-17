@@ -37,11 +37,15 @@ const scripts = [
   'validate-final-balance-curve.mjs',
 ];
 
+const childEnvironment = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => !key.toLowerCase().startsWith('npm_')),
+);
+
 for (const script of scripts) {
+  console.log(`→ ${script}`);
   const result = spawnSync(process.execPath, [fileURLToPath(new URL(script, import.meta.url))], {
-    encoding: 'utf8',
-    env: process.env,
-    maxBuffer: 16 * 1024 * 1024,
+    env: childEnvironment,
+    stdio: 'inherit',
   });
   if (result.error) {
     console.error(`ROOM AUDIT COULD NOT START: ${script}`);
@@ -50,8 +54,6 @@ for (const script of scripts) {
   }
   if (result.status !== 0) {
     console.error(`ROOM AUDIT FAILED: ${script}`);
-    if (result.stdout?.trim()) console.error(result.stdout.trim());
-    if (result.stderr?.trim()) console.error(result.stderr.trim());
     process.exit(result.status ?? 1);
   }
   console.log(`✓ ${script}`);
