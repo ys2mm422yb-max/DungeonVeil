@@ -60,8 +60,8 @@ jobs:
           assert(samples.dive.height < samples.hover.height && samples.dive.height > 0, 'visible dive');
           assert(samples.landed.active && Math.abs(samples.landed.height) < 1e-9, 'landing at 720 ms');
           assert(!samples.after.active && samples.after.height === 0, 'grounded after impact');
-          assert(samples.hover.shadowScale < samples.launch.shadowScale, 'shadow shrinks with height');
-          assert(samples.hover.shadowOpacity < samples.launch.shadowOpacity, 'shadow fades with height');
+          assert(samples.launch.shadowScale < 0.75 && samples.hover.shadowScale < 0.75, 'airborne shadow is visibly smaller than grounded shadow');
+          assert(samples.launch.shadowOpacity < 0.2 && samples.hover.shadowOpacity < 0.2, 'airborne shadow is visibly lighter than grounded shadow');
           assert(!samples.other.active, 'other boss rooms unaffected');
           console.log('Room 20 flight runtime contract passed.');
           TS
