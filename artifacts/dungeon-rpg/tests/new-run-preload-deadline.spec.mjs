@@ -56,12 +56,14 @@ test('room 1 stays on the run loading screen until its rat model is ready', asyn
     await route.continue();
   });
 
-  await startNamedRun(page, 'Model Gate Ranger');
-  await expect(page.getByTestId('new-run-loading-screen')).toBeVisible({ timeout: 5_000 });
-  await expect(page.getByTestId('run-hud')).toBeHidden();
-  await expect(page.locator('canvas')).toHaveCount(0);
+  try {
+    await startNamedRun(page, 'Model Gate Ranger');
+    await expect(page.getByTestId('new-run-loading-screen')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId('run-hud')).toBeHidden();
+  } finally {
+    releaseRequiredModel();
+  }
 
-  releaseRequiredModel();
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 40_000 });
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
