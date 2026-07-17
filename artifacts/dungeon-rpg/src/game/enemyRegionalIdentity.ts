@@ -15,9 +15,10 @@ export type EnemyVisualProfile = {
 const creature = (role: EnemyVisualRole = 'minion'): EnemyVisualProfile => ({ family: 'creature', role, useImported: true });
 const skeleton = (role: EnemyVisualRole, modelToken?: string): EnemyVisualProfile => ({ family: 'skeleton', role, modelToken, useImported: false });
 const adventurer = (role: EnemyVisualRole, modelToken: string): EnemyVisualProfile => ({ family: 'adventurer', role, modelToken, useImported: false });
+const realMage = (): EnemyVisualProfile => adventurer('mage', '/characters/gltf/mage.glb');
 
 export function bossVisualProfile(room: number): EnemyVisualProfile {
-  if (room === 20) return { ...skeleton('mage', 'mage'), bossVariant: 'veil-necromancer' };
+  if (room === 20) return { ...realMage(), bossVariant: 'veil-necromancer' };
   if (room === 30) return { ...adventurer('ranger', 'ranger'), bossVariant: 'forest-captain' };
   if (room === 40) return { ...adventurer('rogue', 'rogue_hooded'), bossVariant: 'shadow-cultist' };
   if (room === 50) return { ...adventurer('knight', 'knight'), bossVariant: 'ember-warden' };
@@ -35,9 +36,9 @@ export function enemyVisualProfile(room: number, type: EnemyType, index = 0): En
   }
 
   if (safeRoom <= 20) {
-    if (type === 'skeleton') return skeleton(index % 2 === 0 ? 'mage' : 'rogue', index % 2 === 0 ? 'mage' : 'rogue');
+    if (type === 'skeleton') return index % 2 === 0 ? realMage() : skeleton('rogue', 'rogue');
     if (type === 'orc' || type === 'golem') return skeleton('warrior', 'warrior');
-    if (type === 'vampire' && index % 2 === 1) return skeleton('mage', 'mage');
+    if (type === 'vampire' && index % 2 === 1) return realMage();
     return creature(type === 'vampire' ? 'mage' : type === 'spider' ? 'rogue' : 'minion');
   }
 
@@ -50,16 +51,16 @@ export function enemyVisualProfile(room: number, type: EnemyType, index = 0): En
   }
 
   if (safeRoom <= 40) {
-    if (type === 'skeleton') return skeleton(index % 2 === 0 ? 'mage' : 'rogue', index % 2 === 0 ? 'mage' : 'rogue');
+    if (type === 'skeleton') return index % 2 === 0 ? realMage() : skeleton('rogue', 'rogue');
     if (type === 'orc') return adventurer('rogue', 'rogue_hooded');
     if (type === 'golem') return adventurer('knight', 'knight');
-    if (type === 'vampire') return index % 2 === 0 ? creature('mage') : adventurer('mage', 'mage');
+    if (type === 'vampire') return index % 2 === 0 ? creature('mage') : realMage();
     return creature(type === 'spider' ? 'rogue' : 'minion');
   }
 
   if (type === 'orc') return adventurer('barbarian', 'barbarian');
   if (type === 'golem') return adventurer('knight', 'knight');
-  if (type === 'vampire') return adventurer('mage', 'mage');
+  if (type === 'vampire') return realMage();
   if (type === 'skeleton') return skeleton('warrior', 'warrior');
   return creature(type === 'spider' ? 'rogue' : 'minion');
 }

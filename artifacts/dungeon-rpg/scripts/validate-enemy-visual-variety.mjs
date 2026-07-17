@@ -36,14 +36,31 @@ for (const type of enemyTypes) {
   if (!encounters.includes(`'${type}'`)) failures.push(`encounter plans no longer use ${type}`);
 }
 
+const shippedModels = [
+  ['slime', '../public/assets/imported/enemies/Slime.glb'],
+  ['goblin-rat', '../public/assets/imported/enemies/Rat.glb'],
+  ['spider', '../public/assets/imported/enemies/Spider.glb'],
+  ['vampire-bat', '../public/assets/imported/enemies/Bat.glb'],
+  ['demon-snake', '../public/assets/imported/enemies/Snake_angry.glb'],
+  ['real-mage', '../public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Mage.glb'],
+];
+for (const [name, relative] of shippedModels) {
+  const model = await readBuffer(relative);
+  if (model.length < 1024) failures.push(`${name} model is missing or unexpectedly small`);
+  if (model.subarray(0, 4).toString('ascii') !== 'glTF') failures.push(`${name} is not a binary GLB model`);
+}
+
 const checks = [
-  [visual.includes("new Set<Enemy['enemyType']>(['slime', 'goblin', 'spider', 'vampire', 'demon'])"), 'imported creature set is incomplete'],
-  [visual.includes('IMPORTED_VISUAL_RETRY_DELAYS_MS') && visual.includes('if (visual?.imported) break'), 'slow-device imported model retry is missing'],
-  [visual.includes('createReliableEnemyVisual') && visual.includes('humanoid fallback'), 'visual creation can still permanently collapse creatures into humanoid fallbacks'],
-  [visual.includes('EnemyMageIdentity_') && visual.includes("requestedVisualRole(enemy) !== 'mage'") && visual.includes("visual.role = 'mage'"), 'mage identity is not enforced'],
-  [regional.includes("skeleton('mage', 'mage')") && regional.includes("adventurer('mage', 'mage')"), 'regional mage profiles are missing'],
+  [visual.includes("['slime', 'goblin', 'spider', 'vampire', 'demon']") && visual.includes('preloadRealCreatureModels'), 'all five real creature models are not preloaded before the menu'],
+  [visual.includes('IMPORTED_VISUAL_MAX_WAIT_MS = 20_000') && visual.includes('if (visual?.imported) return visual'), 'real creature loading can still permanently settle on a humanoid fallback'],
+  [visual.includes('await preloadRealCreatureModels();') && visual.includes('createReliableEnemyVisual(THREE, preloadEnemy(type, index))'), 'boot preload does not resolve every real creature model'],
+  [!visual.includes('EnemyMageIdentity_') && !visual.includes('ConeGeometry') && !visual.includes('robeMaterial'), 'the fake mage costume overlay still exists'],
+  [regional.includes("const realMage = (): EnemyVisualProfile => adventurer('mage', '/characters/gltf/mage.glb')"), 'the exact real Mage.glb profile is missing'],
+  [regional.includes("if (room === 20) return { ...realMage(), bossVariant: 'veil-necromancer' }"), 'room 20 caster does not use the real Mage.glb character'],
+  [!regional.includes("skeleton('mage'") && regional.includes('return index % 2 === 0 ? realMage()'), 'humanoid mage roles can still select a skeleton or warrior body'],
   [manifest.includes('Characters/gltf/Mage.glb'), 'Mage.glb is missing from the shipped manifest'],
-  [baseVisual.includes("slime: { path: '/assets/imported/enemies/Slime.glb'") && baseVisual.includes("goblin: { path: '/assets/imported/enemies/Rat.glb'") && baseVisual.includes("spider: { path: '/assets/imported/enemies/Spider.glb'") && baseVisual.includes("vampire: { path: '/assets/imported/enemies/Bat.glb'") && baseVisual.includes("demon: { path: '/assets/imported/enemies/Snake_angry.glb'"), 'distinct imported creature assets are incomplete'],
+  [baseVisual.includes("slime: { path: '/assets/imported/enemies/Slime.glb'") && baseVisual.includes("goblin: { path: '/assets/imported/enemies/Rat.glb'") && baseVisual.includes("spider: { path: '/assets/imported/enemies/Spider.glb'") && baseVisual.includes("vampire: { path: '/assets/imported/enemies/Bat.glb'") && baseVisual.includes("demon: { path: '/assets/imported/enemies/Snake_angry.glb'"), 'distinct imported creature asset mapping is incomplete'],
+  [regional.includes('attackRange: 178, attackDelay: 1040, moveScale: 0.9') && regional.includes('attackRange: 190, attackDelay: 820, moveScale: 1.12'), 'boss combat balance values changed during the visual repair'],
 ];
 for (const [ok, message] of checks) if (!ok) failures.push(message);
 
@@ -53,4 +70,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Enemy visual variety audit passed: eight normal enemy types remain in the unchanged solo encounter system, imported creatures retry on slow devices, and humanoid mages have a strict visual identity.');
+console.log('Enemy visual variety audit passed: all real creature GLBs preload before play, every humanoid mage uses the actual Mage.glb character, and solo encounters and balance remain unchanged.');

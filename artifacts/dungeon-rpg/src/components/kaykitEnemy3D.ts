@@ -26,8 +26,10 @@ type FlightVisualState = {
   shadowBaseOpacity: number;
 };
 
-const IMPORTED_ENEMY_TYPES = new Set<Enemy['enemyType']>(['slime', 'goblin', 'spider', 'vampire', 'demon']);
-const IMPORTED_VISUAL_RETRY_DELAYS_MS = [120, 260, 520, 900] as const;
+const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+const IMPORTED_ENEMY_TYPES = ['slime', 'goblin', 'spider', 'vampire', 'demon'] as const satisfies readonly Enemy['enemyType'][];
+const IMPORTED_VISUAL_RETRY_MS = 180;
+const IMPORTED_VISUAL_MAX_WAIT_MS = 20_000;
 const flightVisuals = new WeakMap<object, FlightVisualState>();
 const GROUNDED_ROOM_20_BOSS_POSE: Room20BossFlightPose = {
   active: false,
@@ -57,74 +59,74 @@ function requestedVisualRole(enemy: Enemy) {
   return enemyVisualProfile(roomFromEnemyId(enemy), enemy.enemyType, spawnIndexFromEnemyId(enemy)).role;
 }
 
+function importedEnemyType(type: Enemy['enemyType']): type is (typeof IMPORTED_ENEMY_TYPES)[number] {
+  return IMPORTED_ENEMY_TYPES.includes(type as (typeof IMPORTED_ENEMY_TYPES)[number]);
+}
+
 async function createReliableEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
   let visual = await createBaseKayKitEnemyVisual(THREE, enemy);
-  if (!visual || !IMPORTED_ENEMY_TYPES.has(enemy.enemyType) || visual.imported) return visual;
+  if (!visual || !importedEnemyType(enemy.enemyType) || visual.imported) return visual;
 
-  // The base loader deliberately starts imported creatures with a short mobile
-  // budget. Keep retrying the already-cached load promise before accepting a
-  // humanoid fallback, otherwise five logical enemy types collapse into only a
-  // few repeated bodies on slower phones.
-  for (const delay of IMPORTED_VISUAL_RETRY_DELAYS_MS) {
-    await wait(delay);
+  // The first request starts the cached GLB load. Do not return the temporary
+  // humanoid fallback while that real creature model is still loading.
+  const deadline = Date.now() + IMPORTED_VISUAL_MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    await wait(IMPORTED_VISUAL_RETRY_MS);
     const retry = await createBaseKayKitEnemyVisual(THREE, enemy);
     if (retry) visual = retry;
-    if (visual?.imported) break;
+    if (visual?.imported) return visual;
   }
+
+  if (visual) visual.root.userData.importedCreatureLoadTimedOut = enemy.enemyType;
   return visual;
 }
 
-function ensureMageIdentity(THREE: any, visual: KayKitEnemyVisual, enemy: Enemy) {
-  if (visual.imported || requestedVisualRole(enemy) !== 'mage') return;
-  const identityName = `EnemyMageIdentity_${enemy.id}`;
-  if (visual.root.getObjectByName?.(identityName)) return;
+function preloadEnemy(type: (typeof IMPORTED_ENEMY_TYPES)[number], index: number): Enemy {
+  return {
+    id: `preload-1-${index}`,
+    type: 'enemy',
+    enemyType: type,
+    x: 0,
+    y: 0,
+    width: 32,
+    height: 32,
+    vx: 0,
+    vy: 0,
+    hp: 1,
+    maxHp: 1,
+    attack: 1,
+    defense: 0,
+    speed: 1,
+    color: '#ffffff',
+    state: 'patrol',
+    isDead: false,
+    targetX: 0,
+    targetY: 0,
+    nextAttackTime: 0,
+    flashUntil: 0,
+    spawnTime: 0,
+    lastAttackTime: 0,
+    deathTime: 0,
+  };
+}
 
-  const group = new THREE.Group();
-  group.name = identityName;
-  group.userData.enemyVisualRole = 'mage';
-
-  const robeMaterial = new THREE.MeshStandardMaterial({
-    color: 0x382257,
-    roughness: 0.78,
-    metalness: 0.04,
-  });
-  const arcaneMaterial = new THREE.MeshStandardMaterial({
-    color: 0xb99aff,
-    emissive: 0x5c2fa8,
-    emissiveIntensity: 1.15,
-    roughness: 0.28,
-  });
-
-  const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.46, 0.72, 10, 1, true), robeMaterial);
-  robe.position.y = 0.5;
-  group.add(robe);
-
-  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.5, 10), robeMaterial);
-  hood.position.y = 1.5;
-  hood.rotation.y = Math.PI / 10;
-  group.add(hood);
-
-  const hoodBand = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.034, 6, 16), arcaneMaterial);
-  hoodBand.rotation.x = Math.PI / 2;
-  hoodBand.position.y = 1.3;
-  group.add(hoodBand);
-
-  const focus = new THREE.Mesh(new THREE.SphereGeometry(0.115, 10, 8), arcaneMaterial);
-  focus.position.set(-0.43, 1.02, 0.08);
-  group.add(focus);
-
-  group.traverse((node: any) => {
-    if (!node.isMesh) return;
-    node.frustumCulled = false;
-    node.castShadow = false;
-    node.receiveShadow = false;
-  });
-  visual.root.add(group);
-  visual.role = 'mage';
+async function preloadRealCreatureModels() {
+  try {
+    const THREE = await import(/* @vite-ignore */ THREE_URL) as any;
+    const results = await Promise.all(IMPORTED_ENEMY_TYPES.map((type, index) =>
+      createReliableEnemyVisual(THREE, preloadEnemy(type, index))
+    ));
+    results.forEach((visual, index) => {
+      if (!visual?.imported) console.warn(`Real creature preload unavailable: ${IMPORTED_ENEMY_TYPES[index]}`);
+    });
+  } catch (error) {
+    console.warn('Real creature preload failed', error);
+  }
 }
 
 export async function preloadKayKitEnemyVisuals() {
   await preloadBaseKayKitEnemyVisuals();
+  await preloadRealCreatureModels();
 }
 
 function findGroundShadow(visual: BaseKayKitEnemyVisual) {
@@ -199,11 +201,11 @@ export async function createKayKitEnemyVisual(
 ): Promise<KayKitEnemyVisual | null> {
   const visual = await createReliableEnemyVisual(THREE, enemy);
   if (visual) {
-    ensureMageIdentity(THREE, visual, enemy);
     visual.root.userData.enemyVisualIdentity = {
       enemyType: enemy.enemyType,
       requestedRole: requestedVisualRole(enemy),
       imported: visual.imported,
+      modelRole: visual.role,
     };
     visualState(visual);
   }
