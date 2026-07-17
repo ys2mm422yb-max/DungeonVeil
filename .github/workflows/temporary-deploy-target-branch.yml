@@ -6,6 +6,11 @@ on:
       - fix/mobile-telegraphs-room-21-50-balance
     paths:
       - '.github/workflows/temporary-deploy-target-branch.yml'
+  pull_request:
+    branches:
+      - test/pages-deploy-base-187
+    paths:
+      - '.github/workflows/temporary-deploy-target-branch.yml'
   workflow_dispatch:
 
 permissions:
@@ -77,7 +82,7 @@ jobs:
 
       - name: Record successful deployment
         env:
-          DEPLOYED_COMMIT: ${{ github.sha }}
+          DEPLOYED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         shell: bash
         run: |
