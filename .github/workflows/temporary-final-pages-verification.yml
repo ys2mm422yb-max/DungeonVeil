@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           expected='artifacts/dungeon-rpg/dist/public/index.html'
-          for attempt in $(seq 1 12); do
+          for attempt in $(seq 1 3); do
             curl --fail --silent --show-error --location --max-time 30 \
               -H 'Cache-Control: no-cache' \
               "https://ys2mm422yb-max.github.io/DungeonVeil/?verify=${GITHUB_SHA}-${attempt}" \
@@ -54,9 +54,9 @@ jobs:
               sha256sum "$expected" live-index.html
               exit 0
             fi
-            echo "Live HTML not updated yet (attempt ${attempt}/12)."
+            echo "Live HTML mismatch (attempt ${attempt}/3)."
             sha256sum "$expected" live-index.html
-            sleep 10
+            sleep 5
           done
           echo 'Live GitHub Pages HTML does not match the current target-branch build.' >&2
           diff -u "$expected" live-index.html || true
