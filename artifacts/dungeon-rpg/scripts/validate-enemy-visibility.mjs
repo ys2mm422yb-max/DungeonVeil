@@ -37,6 +37,7 @@ try {
     engineSource,
     hostCanvasSource,
     rendererSource,
+    loadingSource,
     overlaySource,
     enemyVisualFacadeSource,
     enemyVisualBaseSource,
@@ -44,6 +45,7 @@ try {
     readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/GlobalLoadingLayer.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/CombatFeedbackOverlay.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/kaykitEnemyBase3D.ts', import.meta.url), 'utf8'),
@@ -77,7 +79,7 @@ try {
     fail(`enemy library is not preloaded for initial and next-room staging (found ${enemyPreloads.length} calls)`);
   }
 
-  for (const required of [
+  for (const forbidden of [
     'const enemyFallbacks = new Map<string, any>();',
     'const createEnemyFallback = (enemy:',
     'EnemyVisibilityFallback_',
@@ -87,7 +89,21 @@ try {
     'shell.userData.visibilitySafety = true;',
     'KayKit enemy failed; keeping visibility fallback',
   ]) {
-    if (!rendererSource.includes(required)) fail(`missing global enemy visibility fallback guard: ${required}`);
+    if (rendererSource.includes(forbidden)) fail(`colored or generic enemy fallback still exists: ${forbidden}`);
+  }
+
+  for (const required of [
+    'const prepareRoomEnemyVisuals = async',
+    'const enemyReady = prepareRoomEnemyVisuals(state, key, generation);',
+    'Promise.all([room.userData?.ready ?? Promise.resolve(), theme.userData?.ready ?? Promise.resolve(), enemyReady])',
+    "detail: { key, floor: state.floor, critical: true }",
+    'fallbackCount: 0',
+    'exactImported:',
+  ]) {
+    if (!rendererSource.includes(required)) fail(`missing exact enemy visibility gate: ${required}`);
+  }
+  if (!loadingSource.includes('if (!next.critical)')) {
+    fail('critical room loading can still reveal a room before its exact enemy models are ready');
   }
 
   if (!enemyVisualSource.includes('node.frustumCulled = false;')) {
@@ -98,6 +114,12 @@ try {
   }
   if (enemyVisualSource.includes('loadAsync(config.path)')) {
     fail('imported enemies still use a root-relative asset URL');
+  }
+  if (!enemyVisualFacadeSource.includes('retrying before room reveal') || !enemyVisualFacadeSource.includes('return null;')) {
+    fail('an imported creature can still settle on a generic humanoid replacement');
+  }
+  if (!enemyVisualBaseSource.includes('importedPromises.delete(type)')) {
+    fail('failed imported creature requests are not retried');
   }
 
   if (!overlaySource.includes("kind: 'fire' | 'ice' | 'attack'")) {
@@ -160,7 +182,7 @@ try {
     });
 
     if (room === 15 || room === 16) {
-      focusRooms.push(`room ${room}: ${plan.length} enemies, ${points.length} safe spawns, ${roomOccluded} initially occluded, fallback guaranteed during model load/failure`);
+      focusRooms.push(`room ${room}: ${plan.length} enemies, ${points.length} safe spawns, ${roomOccluded} initially occluded, exact models required before reveal`);
     }
   }
 
@@ -174,7 +196,7 @@ try {
     errors.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;
   } else {
-    console.log(`Enemy visibility audit passed: all ${checkedRooms} rooms, ${checkedEnemies} enemy starts and ${initiallyOccluded} initially occluded starts are protected by safe spawns, line-of-sight guards, non-culled meshes, permanent room 13+ safety shells and visible loading/error fallbacks.`);
+    console.log(`Enemy visibility audit passed: all ${checkedRooms} rooms and ${checkedEnemies} enemy starts keep line-of-sight and non-culled mesh guards, while each room waits for exact retryable models with zero colored placeholders.`);
   }
 } finally {
   await server.close();
