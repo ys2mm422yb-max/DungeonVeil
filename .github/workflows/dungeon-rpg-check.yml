@@ -53,7 +53,10 @@ jobs:
 
   room-audit-diagnostics:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: artifacts/dungeon-rpg
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,16 +70,113 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Install workspace
+        working-directory: .
         run: pnpm install --frozen-lockfile
       - name: validate-coop-solo-balance-isolation
         continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-coop-solo-balance-isolation.mjs
+        run: node scripts/validate-coop-solo-balance-isolation.mjs
       - name: validate-coop-lobby-foundation
         continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-coop-lobby-foundation.mjs
-      - name: run-room-audit-suite
+        run: node scripts/validate-coop-lobby-foundation.mjs
+      - name: validate-all-rooms
         continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/run-room-audit-suite.mjs
+        run: node scripts/validate-all-rooms.mjs
+      - name: validate-production-rooms
+        continue-on-error: true
+        run: node scripts/validate-production-rooms.mjs
+      - name: validate-spawn-hitboxes
+        continue-on-error: true
+        run: node scripts/validate-spawn-hitboxes.mjs
+      - name: validate-normal-enemy-telegraphs-and-prop-hitboxes
+        continue-on-error: true
+        run: node scripts/validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs
+      - name: validate-enemy-visibility
+        continue-on-error: true
+        run: node scripts/validate-enemy-visibility.mjs
+      - name: validate-mobile-combat
+        continue-on-error: true
+        run: node scripts/validate-mobile-combat.mjs
+      - name: validate-combat-telegraphs-late-balance
+        continue-on-error: true
+        run: node scripts/validate-combat-telegraphs-late-balance.mjs
+      - name: validate-mobile-zoom-guard
+        continue-on-error: true
+        run: node scripts/validate-mobile-zoom-guard.mjs
+      - name: validate-ipad-run-layout
+        continue-on-error: true
+        run: node scripts/validate-ipad-run-layout.mjs
+      - name: validate-worldboss-performance
+        continue-on-error: true
+        run: node scripts/validate-worldboss-performance.mjs
+      - name: validate-social-navigation
+        continue-on-error: true
+        run: node scripts/validate-social-navigation.mjs
+      - name: validate-social-progression
+        continue-on-error: true
+        run: node scripts/validate-social-progression.mjs
+      - name: validate-run-identity-social-spectator
+        continue-on-error: true
+        run: node scripts/validate-run-identity-social-spectator.mjs
+      - name: validate-gift-fusions
+        continue-on-error: true
+        run: node scripts/validate-gift-fusions.mjs
+      - name: validate-dust-avatar-overhaul
+        continue-on-error: true
+        run: node scripts/validate-dust-avatar-overhaul.mjs
+      - name: validate-rooms-4-5-composition
+        continue-on-error: true
+        run: node scripts/validate-rooms-4-5-composition.mjs
+      - name: validate-room-quality-6-50
+        continue-on-error: true
+        run: node scripts/validate-room-quality-6-50.mjs
+      - name: validate-guild-mobile-layout
+        continue-on-error: true
+        run: node scripts/validate-guild-mobile-layout.mjs
+      - name: validate-blocks-1-8-integration
+        continue-on-error: true
+        run: node scripts/validate-blocks-1-8-integration.mjs
+      - name: validate-main-menu-equipped-ranger
+        continue-on-error: true
+        run: node scripts/validate-main-menu-equipped-ranger.mjs
+      - name: validate-inventory-guild-chat-chapters
+        continue-on-error: true
+        run: node scripts/validate-inventory-guild-chat-chapters.mjs
+      - name: validate-player-profile
+        continue-on-error: true
+        run: node scripts/validate-player-profile.mjs
+      - name: validate-public-player-profile
+        continue-on-error: true
+        run: node scripts/validate-public-player-profile.mjs
+      - name: validate-friends-public-profiles
+        continue-on-error: true
+        run: node scripts/validate-friends-public-profiles.mjs
+      - name: validate-online-presence
+        continue-on-error: true
+        run: node scripts/validate-online-presence.mjs
+      - name: validate-elite-outside-profile
+        continue-on-error: true
+        run: node scripts/validate-elite-outside-profile.mjs
+      - name: validate-menu-copy-relic-progression
+        continue-on-error: true
+        run: node scripts/validate-menu-copy-relic-progression.mjs
+      - name: validate-profile-badge-compact
+        continue-on-error: true
+        run: node scripts/validate-profile-badge-compact.mjs
+      - name: validate-upgrade-economy
+        continue-on-error: true
+        run: node scripts/validate-upgrade-economy.mjs
+      - name: validate-armor-progression
+        continue-on-error: true
+        run: node scripts/validate-armor-progression.mjs
+      - name: validate-chapter-reward-contract
+        continue-on-error: true
+        run: node scripts/validate-chapter-reward-contract.mjs
+      - name: validate-final-balance-integration
+        continue-on-error: true
+        run: node scripts/validate-final-balance-integration.mjs
+      - name: validate-final-balance-curve
+        continue-on-error: true
+        run: node scripts/validate-final-balance-curve.mjs
       - name: validate-boss-room-telegraphs-and-meadow
         continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs
+        run: node scripts/validate-boss-room-telegraphs-and-meadow.mjs
