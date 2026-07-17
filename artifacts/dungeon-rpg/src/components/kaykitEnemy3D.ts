@@ -1,13 +1,13 @@
 import type { Enemy } from '../game/entities';
 import { bossAttackContract } from '../game/bossAttackTelegraphs';
+import { enemyVisualProfile } from '../game/enemyRegionalIdentity';
 import {
   createKayKitEnemyVisual as createBaseKayKitEnemyVisual,
-  preloadKayKitEnemyVisuals,
+  preloadKayKitEnemyVisuals as preloadBaseKayKitEnemyVisuals,
   updateKayKitEnemyVisual as updateBaseKayKitEnemyVisual,
   type KayKitEnemyVisual as BaseKayKitEnemyVisual,
 } from './kaykitEnemyBase3D';
 
-export { preloadKayKitEnemyVisuals };
 export type KayKitEnemyVisual = BaseKayKitEnemyVisual;
 
 export type Room20BossFlightPose = {
@@ -26,6 +26,8 @@ type FlightVisualState = {
   shadowBaseOpacity: number;
 };
 
+const IMPORTED_ENEMY_TYPES = new Set<Enemy['enemyType']>(['slime', 'goblin', 'spider', 'vampire', 'demon']);
+const IMPORTED_VISUAL_RETRY_DELAYS_MS = [120, 260, 520, 900] as const;
 const flightVisuals = new WeakMap<object, FlightVisualState>();
 const GROUNDED_ROOM_20_BOSS_POSE: Room20BossFlightPose = {
   active: false,
@@ -40,6 +42,89 @@ function roomFromEnemyId(enemy: Enemy) {
   const parts = enemy.id.split('-');
   const room = Number(parts.at(-2));
   return Number.isFinite(room) ? room : 1;
+}
+
+function spawnIndexFromEnemyId(enemy: Enemy) {
+  const index = Number(enemy.id.split('-').at(-1));
+  return Number.isFinite(index) ? index : 0;
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>(resolve => globalThis.setTimeout(resolve, milliseconds));
+}
+
+function requestedVisualRole(enemy: Enemy) {
+  return enemyVisualProfile(roomFromEnemyId(enemy), enemy.enemyType, spawnIndexFromEnemyId(enemy)).role;
+}
+
+async function createReliableEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
+  let visual = await createBaseKayKitEnemyVisual(THREE, enemy);
+  if (!visual || !IMPORTED_ENEMY_TYPES.has(enemy.enemyType) || visual.imported) return visual;
+
+  // The base loader deliberately starts imported creatures with a short mobile
+  // budget. Keep retrying the already-cached load promise before accepting a
+  // humanoid fallback, otherwise five logical enemy types collapse into only a
+  // few repeated bodies on slower phones.
+  for (const delay of IMPORTED_VISUAL_RETRY_DELAYS_MS) {
+    await wait(delay);
+    const retry = await createBaseKayKitEnemyVisual(THREE, enemy);
+    if (retry) visual = retry;
+    if (visual?.imported) break;
+  }
+  return visual;
+}
+
+function ensureMageIdentity(THREE: any, visual: KayKitEnemyVisual, enemy: Enemy) {
+  if (visual.imported || requestedVisualRole(enemy) !== 'mage') return;
+  const identityName = `EnemyMageIdentity_${enemy.id}`;
+  if (visual.root.getObjectByName?.(identityName)) return;
+
+  const group = new THREE.Group();
+  group.name = identityName;
+  group.userData.enemyVisualRole = 'mage';
+
+  const robeMaterial = new THREE.MeshStandardMaterial({
+    color: 0x382257,
+    roughness: 0.78,
+    metalness: 0.04,
+  });
+  const arcaneMaterial = new THREE.MeshStandardMaterial({
+    color: 0xb99aff,
+    emissive: 0x5c2fa8,
+    emissiveIntensity: 1.15,
+    roughness: 0.28,
+  });
+
+  const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.46, 0.72, 10, 1, true), robeMaterial);
+  robe.position.y = 0.5;
+  group.add(robe);
+
+  const hood = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.5, 10), robeMaterial);
+  hood.position.y = 1.5;
+  hood.rotation.y = Math.PI / 10;
+  group.add(hood);
+
+  const hoodBand = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.034, 6, 16), arcaneMaterial);
+  hoodBand.rotation.x = Math.PI / 2;
+  hoodBand.position.y = 1.3;
+  group.add(hoodBand);
+
+  const focus = new THREE.Mesh(new THREE.SphereGeometry(0.115, 10, 8), arcaneMaterial);
+  focus.position.set(-0.43, 1.02, 0.08);
+  group.add(focus);
+
+  group.traverse((node: any) => {
+    if (!node.isMesh) return;
+    node.frustumCulled = false;
+    node.castShadow = false;
+    node.receiveShadow = false;
+  });
+  visual.root.add(group);
+  visual.role = 'mage';
+}
+
+export async function preloadKayKitEnemyVisuals() {
+  await preloadBaseKayKitEnemyVisuals();
 }
 
 function findGroundShadow(visual: BaseKayKitEnemyVisual) {
@@ -112,8 +197,16 @@ export async function createKayKitEnemyVisual(
   THREE: any,
   enemy: Enemy,
 ): Promise<KayKitEnemyVisual | null> {
-  const visual = await createBaseKayKitEnemyVisual(THREE, enemy);
-  if (visual) visualState(visual);
+  const visual = await createReliableEnemyVisual(THREE, enemy);
+  if (visual) {
+    ensureMageIdentity(THREE, visual, enemy);
+    visual.root.userData.enemyVisualIdentity = {
+      enemyType: enemy.enemyType,
+      requestedRole: requestedVisualRole(enemy),
+      imported: visual.imported,
+    };
+    visualState(visual);
+  }
   return visual;
 }
 
