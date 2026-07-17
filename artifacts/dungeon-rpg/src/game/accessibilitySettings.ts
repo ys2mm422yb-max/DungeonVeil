@@ -1,7 +1,10 @@
+import { markSettingsActivity } from './settingsPersistence';
+
 export type ContrastMode = 'standard' | 'high';
 export type TextSizeMode = 'standard' | 'large';
 
 const STORAGE_KEY = 'dungeon-veil-accessibility-v1';
+const SETTINGS_VERSION = 2;
 export const ACCESSIBILITY_SETTINGS_EVENT = 'dungeon-veil-accessibility-changed';
 
 export type AccessibilitySettings = {
@@ -9,17 +12,35 @@ export type AccessibilitySettings = {
   textSize: TextSizeMode;
 };
 
-const DEFAULT_SETTINGS: AccessibilitySettings = { contrast: 'standard', textSize: 'standard' };
+type StoredAccessibilitySettings = AccessibilitySettings & {
+  version: number;
+  updatedAt: number;
+};
+
+const DEFAULT_SETTINGS: AccessibilitySettings = { contrast: 'high', textSize: 'standard' };
+
+function writeStoredSettings(settings: AccessibilitySettings, markActivity: boolean): AccessibilitySettings {
+  const updatedAt = Date.now();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, version: SETTINGS_VERSION, updatedAt } satisfies StoredAccessibilitySettings));
+  } catch {}
+  if (markActivity) markSettingsActivity();
+  return settings;
+}
 
 export function loadAccessibilitySettings(): AccessibilitySettings {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<AccessibilitySettings>;
-    return {
-      contrast: parsed.contrast === 'high' ? 'high' : 'standard',
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) as Partial<StoredAccessibilitySettings> : null;
+    if (!parsed || parsed.version !== SETTINGS_VERSION) return writeStoredSettings({ ...DEFAULT_SETTINGS }, true);
+    const settings: AccessibilitySettings = {
+      contrast: parsed.contrast === 'standard' ? 'standard' : 'high',
       textSize: parsed.textSize === 'large' ? 'large' : 'standard',
     };
+    if (parsed.contrast !== settings.contrast || parsed.textSize !== settings.textSize) writeStoredSettings(settings, true);
+    return settings;
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return writeStoredSettings({ ...DEFAULT_SETTINGS }, true);
   }
 }
 
@@ -32,10 +53,14 @@ export function applyAccessibilitySettings(settings = loadAccessibilitySettings(
 }
 
 export function saveAccessibilitySettings(settings: AccessibilitySettings): AccessibilitySettings {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch {}
-  applyAccessibilitySettings(settings);
-  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(ACCESSIBILITY_SETTINGS_EVENT, { detail: settings }));
-  return settings;
+  const normalized: AccessibilitySettings = {
+    contrast: settings.contrast === 'standard' ? 'standard' : 'high',
+    textSize: settings.textSize === 'large' ? 'large' : 'standard',
+  };
+  writeStoredSettings(normalized, true);
+  applyAccessibilitySettings(normalized);
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(ACCESSIBILITY_SETTINGS_EVENT, { detail: normalized }));
+  return normalized;
 }
 
 export function installAccessibilitySettings(): void {
@@ -44,5 +69,8 @@ export function installAccessibilitySettings(): void {
   window.addEventListener(ACCESSIBILITY_SETTINGS_EVENT, event => {
     const detail = (event as CustomEvent<AccessibilitySettings>).detail;
     if (detail) applyAccessibilitySettings(detail);
+  });
+  window.addEventListener('storage', event => {
+    if (event.key === STORAGE_KEY) applyAccessibilitySettings(loadAccessibilitySettings());
   });
 }

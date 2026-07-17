@@ -3,6 +3,7 @@ import { syncOnlineProfileCosmetics } from './onlineProfileCosmetics';
 import { clearCloudRevision, exportSaveBundle, shouldRestoreRemoteBundle, type DungeonVeilSaveBundle } from './persistentSaveBundle';
 import { loadPlayerProfile, PLAYER_PROFILE_EVENT } from './playerProfile';
 import { SAVE_EVENT } from './saveManager';
+import { SETTINGS_PERSISTENCE_EVENT } from './settingsPersistence';
 import { currentOnlineSession, onlineSessionEventName } from './supabaseOnline';
 import { WEEKLY_ELITE_EVENT } from './weeklyElite';
 
@@ -12,6 +13,7 @@ const CLOUD_RECONCILE_MS = 10_000;
 const SYNC_EVENTS = [
   SAVE_EVENT,
   PLAYER_PROFILE_EVENT,
+  SETTINGS_PERSISTENCE_EVENT,
   'dungeon-veil-meta-changed',
   'dungeon-veil-retention-update',
   'dungeon-veil-relics-changed',

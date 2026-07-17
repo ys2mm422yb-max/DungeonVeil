@@ -1,13 +1,15 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [credits, inventory, presentation, gates, relics, retention, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, sessionBridge, main] = await Promise.all([
+const [credits, inventory, presentation, gates, relics, retention, daily, dailyRuntime, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, settingsPersistence, sessionBridge, main] = await Promise.all([
   read('../src/components/screens/CreditsScreen.tsx'),
   read('../src/components/screens/VeilChamberScreen.tsx'),
   read('../src/game/equipmentPresentation.ts'),
   read('../src/game/equipmentChapterGates.ts'),
   read('../src/game/veilRelics.ts'),
   read('../src/game/runRetention.ts'),
+  read('../src/game/dailyQuests.ts'),
+  read('../src/game/dailyQuestRotationRuntime.ts'),
   read('../src/game/worldBossRewardLocal.ts'),
   read('../src/game/runRelicEffects.ts'),
   read('../src/components/screens/MainMenuScreen.tsx'),
@@ -20,6 +22,7 @@ const [credits, inventory, presentation, gates, relics, retention, reward, effec
   read('../src/game/weeklyElite.ts'),
   read('../src/game/persistentSaveBundle.ts'),
   read('../src/game/cloudAccountSyncRuntime.ts'),
+  read('../src/game/settingsPersistence.ts'),
   read('../src/components/GameSessionBridge.tsx'),
   read('../src/main.tsx'),
 ]);
@@ -35,14 +38,17 @@ const checks = [
   [inventory.includes('Bossräume 10, 20, 30, 40 und 50') && inventory.includes("compact ? 'BOSS-DROP' : 'BOSS-RELIKT'") && !inventory.includes('Bossräume ab Raum 20') && inventory.includes('ausschließlich vom Weltboss'), 'relic source explanation does not match all five boss rooms'],
   [quests.includes('data-testid="quest-board-summary"') && quests.includes('data-testid="quest-active-section"') && quests.includes('data-testid="quest-gold-section"') && quests.includes('data-testid="quest-elite-section"') && quests.includes('data-testid="quest-completed-section"'), 'quest board is not separated into daily, gold, weekly elite and completed sections'],
   [quests.includes('Wöchentliche Elite-Aufträge') && quests.includes('weeklyEliteQuests') && quests.includes('claimWeeklyEliteQuest') && quests.includes('weekly-elite-card'), 'real weekly elite contracts are not shown in the quest board'],
-  [quests.includes('Gold-Aufträge') && quests.includes("data-quest-kind={task.gold ? 'gold' : 'standard'}"), 'daily gold quests are still mislabeled as weekly elite contracts'],
+  [quests.includes('Gold-Auftrag') && quests.includes("data-quest-kind={task.gold ? 'gold' : 'standard'}"), 'daily gold quests are still mislabeled as weekly elite contracts'],
+  [daily.includes('return [standard[0].id, standard[1].id, gold[0].id]') && daily.includes('dailyTimeLabel') && quests.includes('daily-quest-reset-timer') && !quests.includes('Heute ist kein seltener Gold-Auftrag aktiv.'), 'daily rotations do not guarantee one gold quest with a visible 24-hour timer'],
+  [dailyRuntime.includes('DAILY_ROTATION_VERSION') && dailyRuntime.includes('ensureDailyQuestRotation') && dailyRuntime.includes('nextDailyResetAt') && dailyRuntime.includes("window.addEventListener('focus'") && dailyRuntime.includes('visibilitychange'), 'daily and gold quests are not persisted and refreshed at the next local day boundary'],
   [weekly.includes("id: 'enemy-hunt'") && weekly.includes("id: 'contract-master'") && weekly.includes('ownedRewardIds') && weekly.includes('eliteMarks'), 'weekly elite rotation or permanent rewards are incomplete'],
   [profile.includes("type Tab = 'overview' | 'stats' | 'titles' | 'cards' | 'avatars'") && profile.includes('Visitenkarten') && profile.includes('profile-collection-summary') && !profile.includes("| 'weekly'"), 'profile collections are incomplete or elite contracts leaked back into the profile'],
   [publicProfile.includes('resolveOnlineAvatar') && publicProfile.includes('resolveOnlineTitle') && publicProfile.includes('resolveOnlineCard'), 'public profiles do not display equipped cosmetics'],
   [bundle.includes("'dungeon-veil-player-profile-v1'") && bundle.includes("'dungeon-veil-weekly-elite-v1'") && bundle.includes("'dungeon-veil-seen-unlocks-v1'"), 'cloud bundle omits profile cosmetics, elite rewards or new-content markers'],
   [bundle.includes('shouldRestoreRemoteBundle') && bundle.includes('bundleProgressWeight') && bundle.includes('bundleActivityTimestamp') && bundle.includes('dungeon-veil-pre-cloud-restore-v1'), 'cloud conflict resolution does not protect meaningful local progress with a pre-restore backup'],
-  [syncRuntime.includes('readCloudSave()') && syncRuntime.includes('shouldRestoreRemoteBundle(local, remote)') && syncRuntime.includes('pushCurrentAccountState(true)') && syncRuntime.includes('CLOUD_RECONCILE_MS = 10_000') && syncRuntime.includes('window.location.reload()'), 'account save synchronization does not safely reconcile local and remote progress'],
-  [main.includes("import './game/profileCosmeticsExpansion'") && main.includes('installCloudAccountSyncRuntime()'), 'expanded profile collections or account synchronization are not installed at startup'],
+  [syncRuntime.includes('readCloudSave()') && syncRuntime.includes('shouldRestoreRemoteBundle(local, remote)') && syncRuntime.includes('pushCurrentAccountState(true)') && syncRuntime.includes('CLOUD_RECONCILE_MS = 10_000') && syncRuntime.includes('SETTINGS_PERSISTENCE_EVENT') && syncRuntime.includes('window.location.reload()'), 'account save and settings synchronization does not safely reconcile local and remote progress'],
+  [settingsPersistence.includes('profile.updatedAt = updatedAt') && settingsPersistence.includes('dungeon-veil-settings-activity-v1'), 'settings changes are not protected by the guarded cloud activity timestamp'],
+  [main.includes("import './game/profileCosmeticsExpansion'") && main.includes('installDailyQuestRotationRuntime();') && main.includes('installControlSettings();') && main.indexOf('installDailyQuestRotationRuntime();') < main.indexOf('installCloudAccountSyncRuntime();'), 'daily rotation, settings migration or account synchronization are not installed safely at startup'],
   [sessionBridge.includes("number.id.startsWith('dmg-')") && sessionBridge.includes("number.id.startsWith('burn-')"), 'real outgoing damage is not counted for profile and elite progress'],
 ];
 
@@ -52,4 +58,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Menu/profile/cloud progression audit passed: complete collections, safe account saves, chapter-10 equipment, all boss relic milestones, dust upgrades and weekly elite contracts are integrated.');
+console.log('Menu/profile/cloud progression audit passed: daily and gold rotations, durable settings, complete collections, safe account saves and weekly elite contracts are integrated.');
