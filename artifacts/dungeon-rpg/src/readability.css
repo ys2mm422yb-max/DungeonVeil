@@ -49,22 +49,6 @@ html[data-contrast='high'] [class*='bg-black/5'] {
   background-color: rgb(0 0 0 / 0.82) !important;
 }
 
-html[data-text-size='large'] button,
-html[data-text-size='large'] input,
-html[data-text-size='large'] textarea,
-html[data-text-size='large'] [role='dialog'],
-html[data-text-size='large'] [data-testid$='panel'],
-html[data-text-size='large'] [data-testid$='card'] {
-  font-size: max(12px, 1em);
-  line-height: 1.4;
-}
-
-html[data-text-size='large'] input,
-html[data-text-size='large'] textarea,
-html[data-text-size='large'] button {
-  min-height: 44px;
-}
-
 @media (prefers-contrast: more) {
   html:not([data-contrast='standard']) button,
   html:not([data-contrast='standard']) input,
