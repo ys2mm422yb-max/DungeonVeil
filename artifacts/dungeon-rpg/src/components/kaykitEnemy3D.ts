@@ -58,6 +58,16 @@ function wait(milliseconds: number) {
   return new Promise<void>(resolve => globalThis.setTimeout(resolve, milliseconds));
 }
 
+function disposeTemporaryVisual(visual: KayKitEnemyVisual | null) {
+  if (!visual) return;
+  visual.mixer?.stopAllAction?.();
+  visual.root?.traverse?.((node: any) => {
+    node.geometry?.dispose?.();
+    if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
+    else node.material?.dispose?.();
+  });
+}
+
 function requestedVisualRole(enemy: Enemy) {
   return enemyVisualProfile(roomFromEnemyId(enemy), enemy.enemyType, spawnIndexFromEnemyId(enemy)).role;
 }
@@ -76,12 +86,16 @@ async function createReliableEnemyVisual(THREE: any, enemy: Enemy): Promise<KayK
   while (Date.now() < deadline) {
     await wait(IMPORTED_VISUAL_RETRY_MS);
     const retry = await createBaseKayKitEnemyVisual(THREE, enemy);
-    if (retry) visual = retry;
+    if (retry) {
+      if (visual && visual !== retry && !visual.imported) disposeTemporaryVisual(visual);
+      visual = retry;
+    }
     if (visual?.imported) return visual;
   }
 
-  if (visual) visual.root.userData.importedCreatureLoadTimedOut = enemy.enemyType;
-  return visual;
+  disposeTemporaryVisual(visual);
+  console.warn(`Exact creature model still unavailable: ${enemy.enemyType}; retrying before room reveal`);
+  return null;
 }
 
 function preloadEnemy(type: (typeof IMPORTED_ENEMY_TYPES)[number], index: number): Enemy {

@@ -12,7 +12,7 @@
     "audit:final": "node scripts/validate-coop-solo-balance-isolation.mjs && node scripts/validate-final-balance-integration.mjs && node scripts/validate-final-balance-curve.mjs",
     "audit:progression": "node scripts/validate-progression-simulator.mjs && node scripts/validate-chapter-reward-contract.mjs && node scripts/validate-final-balance-integration.mjs && node scripts/validate-final-balance-curve.mjs",
     "audit:three-runtime": "node scripts/validate-local-three-runtime.mjs",
-    "audit:assets": "node scripts/validate-local-three-runtime.mjs && node scripts/audit-kaykit-assets.mjs && node scripts/validate-armor-progression.mjs && node scripts/validate-enemy-visual-variety.mjs",
+    "audit:assets": "node scripts/validate-exact-monster-models.mjs && node scripts/validate-local-three-runtime.mjs && node scripts/audit-kaykit-assets.mjs && node scripts/validate-armor-progression.mjs && node scripts/validate-enemy-visual-variety.mjs",
     "audit:armor": "node scripts/validate-armor-progression.mjs",
     "audit:worldboss": "node scripts/validate-worldboss-performance.mjs",
     "audit:loading": "node scripts/validate-local-three-runtime.mjs && node scripts/validate-loading-transitions.mjs && node scripts/validate-room-spectator-firelands.mjs && node scripts/validate-cloud-realtime-performance.mjs",
@@ -22,7 +22,8 @@
     "audit:rooms": "node scripts/validate-coop-solo-balance-isolation.mjs && node scripts/validate-coop-lobby-foundation.mjs && node scripts/run-room-audit-suite.mjs && node scripts/validate-boss-room-telegraphs-and-meadow.mjs",
     "audit:pages": "node scripts/validate-pages-build.mjs",
     "audit:sync": "node scripts/validate-cloud-realtime-performance.mjs",
-    "audit:requested-pass": "node scripts/validate-room-spectator-firelands.mjs && node scripts/validate-cloud-realtime-performance.mjs && node scripts/validate-boss-room-telegraphs-and-meadow.mjs"
+    "audit:requested-pass": "node scripts/validate-room-spectator-firelands.mjs && node scripts/validate-cloud-realtime-performance.mjs && node scripts/validate-boss-room-telegraphs-and-meadow.mjs",
+    "audit:monster-models": "node scripts/validate-exact-monster-models.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

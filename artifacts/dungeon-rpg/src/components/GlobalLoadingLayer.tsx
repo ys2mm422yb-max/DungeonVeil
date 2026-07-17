@@ -4,7 +4,7 @@ import { preloadKayKitRoomTheme } from './kaykitRoomThemes3D';
 import { preloadKayKitOuterWorld } from './kaykitOuterWorld3D';
 import { LoadingScreen } from './LoadingScreen';
 
-type RoomTransition = { key: string; floor: number; startedAt: number };
+type RoomTransition = { key: string; floor: number; startedAt: number; critical: boolean };
 
 export const APP_BOOT_READY_EVENT = 'dungeon-veil-app-boot-ready';
 
@@ -101,16 +101,16 @@ export function GlobalLoadingLayer() {
       }, remaining);
     };
     const handlePreparing = (event: Event) => {
-      const detail = (event as CustomEvent<{ key?: string; floor?: number }>).detail ?? {};
+      const detail = (event as CustomEvent<{ key?: string; floor?: number; critical?: boolean }>).detail ?? {};
       const key = detail.key ?? `room-${detail.floor ?? 1}`;
       if (activeRef.current?.key === key) return;
       clearTimer(hideTimerRef);
       clearTimer(safetyTimerRef);
-      const next = { key, floor: detail.floor ?? 1, startedAt: performance.now() };
+      const next = { key, floor: detail.floor ?? 1, startedAt: performance.now(), critical: detail.critical === true };
       activeRef.current = next;
       setRoomTransition(next);
       document.documentElement.dataset.dungeonVeilRoomLoading = '1';
-      safetyTimerRef.current = window.setTimeout(() => finish(key), ROOM_LOADING_MAX_MS);
+      if (!next.critical) safetyTimerRef.current = window.setTimeout(() => finish(key), ROOM_LOADING_MAX_MS);
     };
     const handleReady = (event: Event) => {
       const detail = (event as CustomEvent<{ key?: string }>).detail ?? {};

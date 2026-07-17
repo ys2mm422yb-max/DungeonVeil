@@ -186,7 +186,10 @@ async function loadImportedPrototype(type: EnemyType): Promise<EnemyPrototype | 
       console.warn(`Imported creature unavailable: ${type}`, error);
       return null;
     }
-  })();
+  })().then(result => {
+    if (!result) importedPromises.delete(type);
+    return result;
+  });
   importedPromises.set(type, promise);
   return promise;
 }
@@ -258,7 +261,10 @@ async function loadLibrary() {
       bossWeapon,
       finalBossFocus,
     };
-  })();
+  })().catch(error => {
+    libraryPromise = null;
+    throw error;
+  });
   return libraryPromise;
 }
 

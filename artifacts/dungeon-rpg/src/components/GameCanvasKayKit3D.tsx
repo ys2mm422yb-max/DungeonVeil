@@ -67,8 +67,6 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let lastRenderHeight = 0;
 
     const enemyVisuals = new Map<string, KayKitEnemyVisual>();
-    const enemyFallbacks = new Map<string, any>();
-    const enemySafetyShells = new Map<string, any>();
     const enemyLoading = new Set<string>();
     const arrowVisuals = new Map<string, any>();
     const lootVisuals = new Map<string, any>();
@@ -80,76 +78,45 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const mapX = (state: GameState, value: number) => value / TILE - state.map.width / 2 + 0.5;
     const mapZ = (state: GameState, value: number) => value / TILE - state.map.height / 2 + 0.5;
 
-    const createEnemyFallback = (enemy: GameState['enemies'][number]) => {
-      const root = new THREE.Group();
-      root.name = `EnemyVisibilityFallback_${enemy.id}`;
-      const colors: Record<string, number> = {
-        slime: 0x62c978, goblin: 0xb6a45d, skeleton: 0xd9d4c5, orc: 0x8eb16b,
-        spider: 0x9b79c7, vampire: 0x9b4f72, demon: 0xd15b44, golem: 0x8d8174, boss: 0xffb454,
-      };
-      const color = colors[enemy.enemyType] ?? 0xff6b5d;
-      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.92, depthTest: true, depthWrite: true });
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.72, 8), material);
-      body.position.y = 0.4;
-      root.add(body);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6), material.clone());
-      head.position.y = 0.91;
-      root.add(head);
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.38, 0.5, 18),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false }),
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.018;
-      root.add(ring);
-      // Enemy visibility fallbacks keep the body visible, but the permanent floor
-      // rings looked like stale telegraphs and cluttered rooms 13+.
-      ring.visible = false;
-      root.scale.setScalar(enemy.enemyType === 'boss' ? 1.65 : enemy.isElite ? 1.16 : 1);
-      root.userData.visibilityFallback = true;
-      root.userData.ring = ring;
-      root.userData.body = body;
-      root.userData.head = head;
-      root.traverse((node: any) => {
-        if (node.isMesh) node.frustumCulled = false;
-      });
-      return root;
-    };
-
-    const createEnemySafetyShell = (enemy: GameState['enemies'][number]) => {
-      const shell = createEnemyFallback(enemy);
-      shell.name = `EnemyVisibilitySafety_${enemy.id}`;
-      const scale = enemy.enemyType === 'boss' ? 1.18 : enemy.isElite ? 0.88 : 0.72;
-      shell.scale.multiplyScalar(scale);
-      for (const part of [shell.userData.body, shell.userData.head]) {
-        if (!part?.material) continue;
-        part.material.transparent = false;
-        part.material.opacity = 1;
-        part.material.depthTest = true;
-        part.material.depthWrite = true;
-        part.renderOrder = -8;
-      }
-      if (shell.userData.ring?.material) {
-        shell.userData.ring.material.opacity = 0.34;
-        shell.userData.ring.material.depthTest = false;
-        shell.userData.ring.renderOrder = 8;
-      }
-      shell.userData.visibilitySafety = true;
-      return shell;
-    };
-
     const disposeObject = (object: any) => object?.traverse?.((node: any) => {
       node.geometry?.dispose?.();
       if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
       else node.material?.dispose?.();
     });
 
+    const roomKeyFor = (state: GameState) => `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
+    const waitForEnemyRetry = (milliseconds: number) => new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
+
+    const prepareRoomEnemyVisuals = async (state: GameState, key: string, generation: number) => {
+      const snapshots = state.enemies.map(enemy => ({ ...enemy }));
+      const prepared = await Promise.all(snapshots.map(async enemy => {
+        enemyLoading.add(enemy.id);
+        try {
+          while (!disposed && generation === roomGeneration) {
+            const live = stateRef.current;
+            if (roomKeyFor(live) !== key || !live.enemies.some(current => current.id === enemy.id)) return null;
+            try {
+              const visual = await createKayKitEnemyVisual(THREE, enemy);
+              if (visual) return [enemy.id, visual] as const;
+            } catch (error) {
+              console.warn(`Exact enemy model retry scheduled: ${enemy.enemyType}`, error);
+            }
+            await waitForEnemyRetry(240);
+          }
+          return null;
+        } finally {
+          enemyLoading.delete(enemy.id);
+        }
+      }));
+      return prepared.filter((entry): entry is readonly [string, KayKitEnemyVisual] => Boolean(entry));
+    };
+
     const buildRoom = (state: GameState) => {
-      const key = `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
+      const key = roomKeyFor(state);
       if (key === lastRoomKey || key === pendingRoomKey) return;
       pendingRoomKey = key;
       const generation = ++roomGeneration;
-      window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { key, floor: state.floor } }));
+      window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { key, floor: state.floor, critical: true } }));
 
       const root = new THREE.Group();
       root.name = `KayKitRunRoom_${state.floor}`;
@@ -159,13 +126,15 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       root.add(theme);
       root.userData.room = room;
       root.userData.theme = theme;
+      const enemyReady = prepareRoomEnemyVisuals(state, key, generation);
 
-      Promise.all([room.userData?.ready ?? Promise.resolve(), theme.userData?.ready ?? Promise.resolve()]).then(() => {
+      Promise.all([room.userData?.ready ?? Promise.resolve(), theme.userData?.ready ?? Promise.resolve(), enemyReady]).then(([, , preparedEnemies]) => {
         const live = stateRef.current;
-        const liveKey = `${live.chapter}:${live.floor}:${live.map.width}x${live.map.height}`;
+        const liveKey = roomKeyFor(live);
         if (disposed || generation !== roomGeneration || liveKey !== key) {
           room.userData?.dispose?.();
           theme.userData?.dispose?.();
+          preparedEnemies.forEach(([, visual]) => disposeObject(visual.root));
           disposeObject(root);
           return;
         }
@@ -173,6 +142,20 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         const previous = roomRoot;
         roomRoot = root;
         scene.add(root);
+        for (const [id, visual] of preparedEnemies) {
+          if (!live.enemies.some(enemy => enemy.id === id)) {
+            disposeObject(visual.root);
+            continue;
+          }
+          const previousVisual = enemyVisuals.get(id);
+          if (previousVisual && previousVisual !== visual) {
+            scene.remove(previousVisual.root);
+            previousVisual.mixer?.stopAllAction?.();
+            disposeObject(previousVisual.root);
+          }
+          enemyVisuals.set(id, visual);
+          scene.add(visual.root);
+        }
         lastRoomKey = key;
         pendingRoomKey = '';
 
@@ -213,84 +196,25 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         disposeObject(visual.root);
         enemyVisuals.delete(id);
       }
-      for (const [id, fallback] of enemyFallbacks) {
-        if (active.has(id)) continue;
-        scene.remove(fallback);
-        disposeObject(fallback);
-        enemyFallbacks.delete(id);
-      }
-      for (const [id, shell] of enemySafetyShells) {
-        if (active.has(id)) continue;
-        scene.remove(shell);
-        disposeObject(shell);
-        enemySafetyShells.delete(id);
-      }
-
       for (const enemy of state.enemies) {
         const nextX = mapX(state, enemy.x + enemy.width / 2);
         const nextZ = mapZ(state, enemy.y + enemy.height / 2);
-        const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;
-        let safetyShell = enemySafetyShells.get(enemy.id);
-        if (requiresPermanentSafety) {
-          if (!safetyShell) {
-            safetyShell = createEnemySafetyShell(enemy);
-            enemySafetyShells.set(enemy.id, safetyShell);
-            scene.add(safetyShell);
-          }
-          safetyShell.visible = true;
-          safetyShell.position.set(nextX, 0.008, nextZ);
-          safetyShell.rotation.y = gameNow * 0.00045 + enemy.id.length;
-          if (safetyShell.userData.ring?.material) {
-            safetyShell.userData.ring.material.opacity = 0.26 + Math.sin(gameNow * 0.006 + enemy.id.length) * 0.08;
-          }
-        } else if (safetyShell) {
-          scene.remove(safetyShell);
-          disposeObject(safetyShell);
-          enemySafetyShells.delete(enemy.id);
-        }
         let visual = enemyVisuals.get(enemy.id);
-        if (!visual) {
-          let fallback = enemyFallbacks.get(enemy.id);
-          if (!fallback) {
-            fallback = createEnemyFallback(enemy);
-            enemyFallbacks.set(enemy.id, fallback);
-            scene.add(fallback);
-          }
-          fallback.position.set(nextX, 0, nextZ);
-          fallback.rotation.y = gameNow * 0.0015 + enemy.id.length;
-          if (fallback.userData.ring?.material) {
-            fallback.userData.ring.material.opacity = 0.46 + Math.sin(gameNow * 0.008 + enemy.id.length) * 0.16;
-          }
-        }
         if (!visual && !enemyLoading.has(enemy.id)) {
           enemyLoading.add(enemy.id);
           createKayKitEnemyVisual(THREE, enemy).then(created => {
             enemyLoading.delete(enemy.id);
             if (!created || disposed || !stateRef.current.enemies.some(current => current.id === enemy.id)) return;
-            const fallback = enemyFallbacks.get(enemy.id);
-            if (fallback) {
-              scene.remove(fallback);
-              disposeObject(fallback);
-              enemyFallbacks.delete(enemy.id);
-            }
             enemyVisuals.set(enemy.id, created);
             scene.add(created.root);
           }).catch(error => {
             enemyLoading.delete(enemy.id);
-            // Keep the visible fallback in the scene. A failed model may never
-            // turn a living, attacking enemy into an invisible target.
-            console.error('KayKit enemy failed; keeping visibility fallback', error);
+            console.error('KayKit exact enemy model failed; retrying without a placeholder', error);
           });
           continue;
         }
         visual = enemyVisuals.get(enemy.id);
         if (!visual) continue;
-        const fallback = enemyFallbacks.get(enemy.id);
-        if (fallback) {
-          scene.remove(fallback);
-          disposeObject(fallback);
-          enemyFallbacks.delete(enemy.id);
-        }
         const moveX = nextX - visual.root.position.x;
         const moveZ = nextZ - visual.root.position.z;
         visual.root.position.set(nextX, 0, nextZ);
@@ -306,6 +230,17 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         }
         updateKayKitEnemyVisual(visual, enemy, delta, gameNow);
       }
+
+      const importedTypes = new Set(['slime', 'goblin', 'spider', 'vampire', 'demon']);
+      const living = state.enemies.filter(enemy => !enemy.isDead);
+      (globalThis as any).__dungeonVeilEnemyVisualDiagnostics = {
+        floor: state.floor,
+        active: living.length,
+        loaded: living.filter(enemy => enemyVisuals.has(enemy.id)).length,
+        pending: living.filter(enemy => !enemyVisuals.has(enemy.id)).map(enemy => enemy.enemyType),
+        fallbackCount: 0,
+        exactImported: living.filter(enemy => importedTypes.has(enemy.enemyType)).every(enemy => enemyVisuals.get(enemy.id)?.imported === true),
+      };
     };
 
     const addElementVisual = (arrow: any, element: string | undefined, color: string) => {
@@ -893,6 +828,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (playerRig?.root) disposeObject(playerRig.root);
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
+      delete (globalThis as any).__dungeonVeilEnemyVisualDiagnostics;
     };
   }, []);
 
