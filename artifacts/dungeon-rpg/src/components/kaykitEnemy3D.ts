@@ -39,7 +39,7 @@ const IMPORTED_VISUAL_RETRY_MS = 180;
 const IMPORTED_VISUAL_MAX_WAIT_MS = 20_000;
 const ENEMY_ASSET_FETCH_ATTEMPTS = 4;
 const flightVisuals = new WeakMap<object, FlightVisualState>();
-let enemyPreloadPromise: Promise<void> | null = null;
+const enemyPreloadPromises = new Map<string, Promise<void>>();
 const GROUNDED_ROOM_20_BOSS_POSE: Room20BossFlightPose = {
   active: false,
   progress: 0,
@@ -70,6 +70,10 @@ function requestedVisualRole(enemy: Enemy) {
 
 function importedEnemyType(type: Enemy['enemyType']): type is (typeof IMPORTED_ENEMY_TYPES)[number] {
   return IMPORTED_ENEMY_TYPES.includes(type as (typeof IMPORTED_ENEMY_TYPES)[number]);
+}
+
+function requestedImportedTypes(enemyTypes: readonly Enemy['enemyType'][]) {
+  return [...new Set(enemyTypes.filter(importedEnemyType))].sort();
 }
 
 function enemyAssetUrl(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
@@ -144,44 +148,49 @@ function preloadEnemy(type: (typeof IMPORTED_ENEMY_TYPES)[number], index: number
   };
 }
 
-async function preloadRealCreatureModels() {
-  await Promise.all(IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset));
+async function preloadRealCreatureModels(types: readonly (typeof IMPORTED_ENEMY_TYPES)[number][]) {
+  if (!types.length) return;
+  await Promise.all(types.map(preloadLocalEnemyAsset));
   const THREE = await import(/* @vite-ignore */ THREE_URL) as any;
-  const results = await Promise.all(IMPORTED_ENEMY_TYPES.map((type, index) =>
+  const results = await Promise.all(types.map((type, index) =>
     createReliableEnemyVisual(THREE, preloadEnemy(type, index))
   ));
-  const unavailable = IMPORTED_ENEMY_TYPES.filter((_, index) => !results[index]?.imported);
+  const unavailable = types.filter((_, index) => !results[index]?.imported);
   if (unavailable.length) throw new Error(`Real creature preload incomplete: ${unavailable.join(', ')}`);
 }
 
-async function loadEnemyAssetsWithRetries() {
+async function loadEnemyAssetsWithRetries(types: readonly (typeof IMPORTED_ENEMY_TYPES)[number][]) {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       await preloadBaseKayKitEnemyVisuals();
-      await preloadRealCreatureModels();
+      await preloadRealCreatureModels(types);
       return;
     } catch (error) {
       lastError = error;
-      console.warn(`Enemy preload attempt ${attempt} failed`, error);
+      console.warn(`Enemy preload attempt ${attempt} failed for ${types.join(', ') || 'base library'}`, error);
       if (attempt < 3) await wait(attempt * 500);
     }
   }
   throw lastError instanceof Error ? lastError : new Error('Enemy preload failed');
 }
 
-function startEnemyPreload() {
-  if (!enemyPreloadPromise) {
-    enemyPreloadPromise = loadEnemyAssetsWithRetries().catch(error => {
-      enemyPreloadPromise = null;
-      throw error;
-    });
-  }
-  return enemyPreloadPromise;
+function startEnemyPreload(enemyTypes: readonly Enemy['enemyType'][]) {
+  const importedTypes = requestedImportedTypes(enemyTypes);
+  const key = importedTypes.join('|') || 'base';
+  const cached = enemyPreloadPromises.get(key);
+  if (cached) return cached;
+
+  const preload = loadEnemyAssetsWithRetries(importedTypes).catch(error => {
+    enemyPreloadPromises.delete(key);
+    throw error;
+  });
+  enemyPreloadPromises.set(key, preload);
+  return preload;
 }
 
-export async function preloadKayKitEnemyVisuals() {
-  await startEnemyPreload();
+export async function preloadKayKitEnemyVisuals(enemyTypes: readonly Enemy['enemyType'][] = []) {
+  await startEnemyPreload(enemyTypes);
 }
 
 function findGroundShadow(visual: BaseKayKitEnemyVisual) {
