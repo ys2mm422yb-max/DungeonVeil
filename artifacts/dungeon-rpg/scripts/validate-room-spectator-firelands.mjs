@@ -17,7 +17,8 @@ const migration = fs.readFileSync(new URL('../../../supabase/migrations/20260716
 
 assert(loading.includes('ROOM_LOADING_MIN_MS = 680'), 'Room transitions need a visible minimum loading gate.');
 assert(loading.includes('Geometrie, Gegner, Kollisionen und Effekte'), 'Loading copy must describe complete room readiness.');
-assert(renderer.includes('ring.visible = false'), 'Permanent enemy safety rings must be hidden.');
+assert(loading.includes('if (!next.critical)') && renderer.includes('prepareRoomEnemyVisuals') && renderer.includes('fallbackCount: 0'), 'Rooms must remain covered until exact enemy models are ready without colored safety placeholders.');
+assert(!renderer.includes('EnemyVisibilityFallback_') && !renderer.includes('EnemyVisibilitySafety_'), 'Colored enemy fallback or safety bodies still exist.');
 assert(spectator.includes('spectator-health'), 'Spectator HUD must show player health.');
 assert(spectator.includes('spectator-gifts') && spectator.includes('heartbeatSpectatorViewer'), 'Spectator gifts or viewer presence are missing.');
 assert(spectator.includes('SPIELER BESIEGT') && spectator.includes('SPIEL PAUSIERT') && spectator.includes('SPIELER IM MENÜ'), 'Spectator terminal and activity states are missing.');
@@ -31,4 +32,4 @@ assert(profile.includes('public-player-profile-equipment') && social.includes('e
 assert(migration.includes("next_state in ('run', 'paused')") && migration.includes('shared guild required'), 'Supabase spectator RPC must retain paused snapshots and allow guild members.');
 assert(migration.includes('equipped_items jsonb'), 'Supabase profile RPC must expose current equipment.');
 
-console.log('Requested room, spectator, guild and firelands pass validated.');
+console.log('Requested room, spectator, guild and firelands pass validated with exact room-gated monster models and zero colored placeholders.');
