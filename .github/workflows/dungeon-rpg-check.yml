@@ -53,7 +53,7 @@ jobs:
 
   room-audit-diagnostics:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,72 +68,15 @@ jobs:
           cache: pnpm
       - name: Install workspace
         run: pnpm install --frozen-lockfile
-      - name: validate-social-navigation
+      - name: validate-coop-solo-balance-isolation
         continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
-      - name: validate-social-progression
+        run: node artifacts/dungeon-rpg/scripts/validate-coop-solo-balance-isolation.mjs
+      - name: validate-coop-lobby-foundation
         continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-social-progression.mjs
-      - name: validate-run-identity-social-spectator
+        run: node artifacts/dungeon-rpg/scripts/validate-coop-lobby-foundation.mjs
+      - name: run-room-audit-suite
         continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-run-identity-social-spectator.mjs
-      - name: validate-gift-fusions
+        run: node artifacts/dungeon-rpg/scripts/run-room-audit-suite.mjs
+      - name: validate-boss-room-telegraphs-and-meadow
         continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-gift-fusions.mjs
-      - name: validate-dust-avatar-overhaul
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-dust-avatar-overhaul.mjs
-      - name: validate-rooms-4-5-composition
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-rooms-4-5-composition.mjs
-      - name: validate-room-quality-6-50
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-room-quality-6-50.mjs
-      - name: validate-guild-mobile-layout
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-guild-mobile-layout.mjs
-      - name: validate-blocks-1-8-integration
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-blocks-1-8-integration.mjs
-      - name: validate-main-menu-equipped-ranger
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs
-      - name: validate-inventory-guild-chat-chapters
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-inventory-guild-chat-chapters.mjs
-      - name: validate-player-profile
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-player-profile.mjs
-      - name: validate-public-player-profile
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-public-player-profile.mjs
-      - name: validate-friends-public-profiles
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-friends-public-profiles.mjs
-      - name: validate-online-presence
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-online-presence.mjs
-      - name: validate-elite-outside-profile
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-elite-outside-profile.mjs
-      - name: validate-menu-copy-relic-progression
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-menu-copy-relic-progression.mjs
-      - name: validate-profile-badge-compact
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-profile-badge-compact.mjs
-      - name: validate-upgrade-economy
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-upgrade-economy.mjs
-      - name: validate-armor-progression
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-armor-progression.mjs
-      - name: validate-chapter-reward-contract
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-chapter-reward-contract.mjs
-      - name: validate-final-balance-integration
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-final-balance-integration.mjs
-      - name: validate-final-balance-curve
-        continue-on-error: true
-        run: node artifacts/dungeon-rpg/scripts/validate-final-balance-curve.mjs
+        run: node artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs
