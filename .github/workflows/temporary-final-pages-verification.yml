@@ -39,9 +39,7 @@ jobs:
       - name: Build exact GitHub Pages output
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
 
-      - name: Capture live Pages content and compare bundles
-        id: compare
-        continue-on-error: true
+      - name: Verify live Pages content matches current target build
         shell: bash
         run: |
           set -euo pipefail
@@ -65,9 +63,6 @@ jobs:
           sha256sum pages-diagnostics/expected-index.html pages-diagnostics/live-index.html \
             pages-diagnostics/expected-app.js pages-diagnostics/live-app.js \
             | tee pages-diagnostics/sha256.txt
-          diff -u pages-diagnostics/expected-index.html pages-diagnostics/live-index.html \
-            > pages-diagnostics/index.diff || true
-
           cmp -s pages-diagnostics/expected-index.html pages-diagnostics/live-index.html
           cmp -s pages-diagnostics/expected-app.js pages-diagnostics/live-app.js
           echo 'Live GitHub Pages HTML and application bundle exactly match the current target build.'
@@ -84,8 +79,6 @@ jobs:
         run: pnpm dlx @playwright/test@1.54.1 install --with-deps chromium
 
       - name: Smoke test fixed live link on four profiles
-        id: browser
-        continue-on-error: true
         run: |
           cat > final-live-playwright.config.ts <<'TS'
           import { defineConfig } from '@playwright/test';
@@ -120,11 +113,3 @@ jobs:
           });
           TS
           pnpm dlx @playwright/test@1.54.1 test --config=final-live-playwright.config.ts
-
-      - name: Preserve verification result
-        if: always()
-        run: |
-          echo "content_compare=${{ steps.compare.outcome }}"
-          echo "live_browser_profiles=${{ steps.browser.outcome }}"
-          test "${{ steps.compare.outcome }}" = success
-          test "${{ steps.browser.outcome }}" = success
