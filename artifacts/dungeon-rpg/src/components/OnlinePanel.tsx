@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { pullCloudSave, pushCloudSave } from '../game/cloudSave';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { consumeGoogleOAuthResult, signInWithGoogle } from '../game/googleOAuth';
 import {
   currentOnlineSession,
@@ -17,6 +16,7 @@ import { loadSpectatingAllowed, refreshSpectatingAllowed, setSpectatingAllowed }
 
 type Props = { language: 'de' | 'en' };
 type AuthMode = 'login' | 'register';
+type ProfileSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
 function Field({ value, onChange, placeholder, type = 'text', maxLength }: {
   value: string;
@@ -51,10 +51,14 @@ export function OnlinePanel({ language }: Props) {
   const [profile, setProfile] = useState<OnlineProfile | null>(null);
   const [socialProfile, setSocialProfile] = useState<SocialProfile | null>(null);
   const [spectatingAllowed, setSpectatingAllowedState] = useState(loadSpectatingAllowed);
+  const [profileSaveState, setProfileSaveState] = useState<ProfileSaveState>('idle');
+  const [profileSaveError, setProfileSaveError] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const savedDisplayName = useRef('');
+  const profileSaveSequence = useRef(0);
 
   const run = useCallback(async (task: () => Promise<void>) => {
     setBusy(true);
@@ -69,9 +73,13 @@ export function OnlinePanel({ language }: Props) {
     const active = currentOnlineSession();
     setSession(active);
     if (!active) {
+      profileSaveSequence.current += 1;
+      savedDisplayName.current = '';
       setProfile(null);
       setSocialProfile(null);
       setDisplayName('');
+      setProfileSaveState('idle');
+      setProfileSaveError('');
       setSpectatingAllowedState(loadSpectatingAllowed());
       return;
     }
@@ -80,10 +88,14 @@ export function OnlinePanel({ language }: Props) {
       getMySocialProfile(),
       refreshSpectatingAllowed().catch(() => loadSpectatingAllowed()),
     ]);
+    const nextDisplayName = nextProfile?.display_name ?? nextSocialProfile?.display_name ?? '';
+    savedDisplayName.current = nextDisplayName.trim();
     setProfile(nextProfile);
     setSocialProfile(nextSocialProfile);
     setSpectatingAllowedState(nextSpectatingAllowed);
-    setDisplayName(nextProfile?.display_name ?? nextSocialProfile?.display_name ?? '');
+    setDisplayName(nextDisplayName);
+    setProfileSaveState('saved');
+    setProfileSaveError('');
   }, []);
 
   useEffect(() => {
@@ -106,6 +118,47 @@ export function OnlinePanel({ language }: Props) {
       window.removeEventListener(onlineSessionEventName(), refresh);
     };
   }, [de, refreshOnlineData, run]);
+
+  useEffect(() => {
+    if (!session) return;
+    const nextDisplayName = displayName.trim();
+    if (nextDisplayName.length < 2) {
+      setProfileSaveState(nextDisplayName ? 'error' : 'idle');
+      setProfileSaveError(nextDisplayName ? (de ? 'Der Spielername braucht mindestens 2 Zeichen.' : 'Player name needs at least 2 characters.') : '');
+      return;
+    }
+    if (nextDisplayName === savedDisplayName.current) {
+      setProfileSaveState('saved');
+      setProfileSaveError('');
+      return;
+    }
+
+    const sequence = ++profileSaveSequence.current;
+    setProfileSaveState('pending');
+    setProfileSaveError('');
+    const timer = window.setTimeout(() => {
+      setProfileSaveState('saving');
+      void (async () => {
+        try {
+          await updateOnlineProfile(nextDisplayName);
+          const [nextProfile, nextSocialProfile] = await Promise.all([
+            getOnlineProfile(),
+            getMySocialProfile(),
+          ]);
+          if (sequence !== profileSaveSequence.current) return;
+          savedDisplayName.current = nextDisplayName;
+          setProfile(nextProfile);
+          setSocialProfile(nextSocialProfile);
+          setProfileSaveState('saved');
+        } catch (reason) {
+          if (sequence !== profileSaveSequence.current) return;
+          setProfileSaveState('error');
+          setProfileSaveError(reason instanceof Error ? reason.message : String(reason));
+        }
+      })();
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [de, displayName, session]);
 
   const authenticate = () => run(async () => {
     if (!email.includes('@')) throw new Error(de ? 'Bitte eine gültige E-Mail eingeben.' : 'Enter a valid email address.');
@@ -132,14 +185,6 @@ export function OnlinePanel({ language }: Props) {
     setMessage(de ? 'Google-Konto verbunden.' : 'Google account connected.');
   });
 
-  const saveProfile = () => run(async () => {
-    if (displayName.trim().length < 2) throw new Error(de ? 'Der Spielername ist zu kurz.' : 'Player name is too short.');
-    const next = await updateOnlineProfile(displayName);
-    setProfile(next);
-    setSocialProfile(await getMySocialProfile());
-    setMessage(de ? 'Profil gespeichert.' : 'Profile saved.');
-  });
-
   const toggleSpectating = () => run(async () => {
     const next = !spectatingAllowed;
     await setSpectatingAllowed(next);
@@ -156,32 +201,31 @@ export function OnlinePanel({ language }: Props) {
     window.setTimeout(() => setCopied(false), 1400);
   };
 
-  const uploadSave = () => run(async () => {
-    if (!await pushCloudSave()) throw new Error(de ? 'Cloud-Speicherung fehlgeschlagen.' : 'Cloud save failed.');
-    setMessage(de ? 'Aktueller Spielstand wurde hochgeladen.' : 'Current save uploaded.');
-  });
-
-  const downloadSave = () => run(async () => {
-    const restored = await pullCloudSave();
-    setMessage(restored
-      ? de ? 'Neuerer Cloud-Spielstand geladen.' : 'Newer cloud save restored.'
-      : de ? 'Kein neuerer Cloud-Spielstand vorhanden.' : 'No newer cloud save is available.');
-  });
-
   const logout = () => run(async () => {
     await signOutOnline();
+    profileSaveSequence.current += 1;
+    savedDisplayName.current = '';
     setSession(null);
     setProfile(null);
     setSocialProfile(null);
     setDisplayName('');
+    setProfileSaveState('idle');
+    setProfileSaveError('');
     setMessage(de ? 'Abgemeldet. Lokales Spielen bleibt verfügbar.' : 'Signed out. Offline play remains available.');
   });
+
+  const profileStatusText = profileSaveError
+    || (profileSaveState === 'pending'
+      ? (de ? 'Änderung erkannt · wird gleich automatisch gespeichert.' : 'Change detected · saving automatically in a moment.')
+      : profileSaveState === 'saving'
+        ? (de ? 'Profil wird automatisch gespeichert …' : 'Profile is saving automatically …')
+        : (de ? 'Profil wird automatisch gespeichert.' : 'Profile saves automatically.'));
 
   return <div className="max-h-[78vh] overflow-y-auto rounded-3xl border border-violet-300/18 bg-[#0b0910]/96 p-4 text-white shadow-2xl">
     <div className="mb-4">
       <div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-200/45">ONLINE & CLOUD</div>
       <div className="mt-1 text-lg font-black">{session ? (profile?.display_name || session.user.email || 'Dungeon Veil') : (de ? 'Konto verbinden' : 'Connect account')}</div>
-      <div className="mt-1 text-[9px] leading-relaxed text-white/38">{de ? 'Profil, Freundescode und Cloud-Spielstand. Offline bleibt immer verfügbar.' : 'Profile, friend code and cloud save. Offline play always remains available.'}</div>
+      <div className="mt-1 text-[9px] leading-relaxed text-white/38">{de ? 'Profil und Spielstand werden automatisch synchronisiert. Offline bleibt immer verfügbar.' : 'Profile and save data sync automatically. Offline play always remains available.'}</div>
     </div>
 
     {(message || error) && <div className={`mb-3 rounded-xl border px-3 py-2 text-[10px] ${error ? 'border-red-400/25 bg-red-500/10 text-red-200' : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}
@@ -215,8 +259,8 @@ export function OnlinePanel({ language }: Props) {
       <section className="space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3">
         <div className="text-[8px] font-black uppercase tracking-[.2em] text-white/35">{de ? 'PROFIL & CLOUD' : 'PROFILE & CLOUD'}</div>
         <Field value={displayName} onChange={setDisplayName} placeholder={de ? 'Spielername' : 'Player name'} maxLength={24} />
-        <ActionButton label={de ? 'Profil speichern' : 'Save profile'} onClick={saveProfile} disabled={busy} primary />
-        <div className="grid grid-cols-2 gap-2"><ActionButton label={de ? 'Spielstand hochladen' : 'Upload save'} onClick={uploadSave} disabled={busy} /><ActionButton label={de ? 'Spielstand herunterladen' : 'Download save'} onClick={downloadSave} disabled={busy} /></div>
+        <div data-testid="profile-autosave-status" className={`rounded-xl border px-3 py-2 text-[8px] leading-relaxed ${profileSaveError ? 'border-red-300/18 bg-red-400/[.05] text-red-100/72' : 'border-emerald-300/14 bg-emerald-400/[.04] text-emerald-100/62'}`}>{profileStatusText}</div>
+        <div data-testid="cloud-autosync-status" className="rounded-xl border border-cyan-300/12 bg-cyan-400/[.035] px-3 py-2 text-[8px] leading-relaxed text-cyan-50/58">{de ? 'Der Spielstand wird im Hintergrund gesichert und beim Öffnen, Zurückkehren und Browserwechsel automatisch abgeglichen.' : 'Your save is backed up in the background and reconciled automatically when opening, returning, or switching browsers.'}</div>
       </section>
 
       <ActionButton label={de ? 'Abmelden' : 'Sign out'} onClick={logout} disabled={busy} />
