@@ -1,0 +1,169 @@
+name: Apply local Three runtime fix
+
+on:
+  push:
+    branches:
+      - fix/local-enemy-model-loader
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/local-enemy-model-loader
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Patch runtime imports and validation
+        shell: bash
+        run: |
+          python <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('artifacts/dungeon-rpg')
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text()
+              if old not in text:
+                  raise SystemExit(f'Expected source text missing in {path}: {old[:120]!r}')
+              path.write_text(text.replace(old, new, 1))
+
+          package_path = root / 'package.json'
+          package = json.loads(package_path.read_text())
+          package.setdefault('devDependencies', {})['three'] = '0.180.0'
+          package['devDependencies']['@types/three'] = '0.180.0'
+          package['devDependencies'] = dict(sorted(package['devDependencies'].items()))
+          package['scripts']['audit:three-runtime'] = 'node scripts/validate-local-three-runtime.mjs'
+          package['scripts']['audit:assets'] = 'node scripts/validate-local-three-runtime.mjs && node scripts/audit-kaykit-assets.mjs && node scripts/validate-armor-progression.mjs && node scripts/validate-enemy-visual-variety.mjs'
+          package_path.write_text(json.dumps(package, indent=2) + '\n')
+
+          canvas = root / 'src/components/GameCanvasKayKit3D.tsx'
+          replace_once(
+              canvas,
+              "import React, { useEffect, useRef } from 'react';\n",
+              "import React, { useEffect, useRef } from 'react';\nimport * as THREE_MODULE from 'three';\nimport { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';\n",
+          )
+          replace_once(
+              canvas,
+              "const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';\nconst GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';\n",
+              '',
+          )
+          replace_once(
+              canvas,
+              "      THREE = await import(/* @vite-ignore */ THREE_URL);\n      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;\n      if (disposed) return;\n",
+              "      THREE = THREE_MODULE;\n      if (disposed) return;\n",
+          )
+
+          base = root / 'src/components/kaykitEnemyBase3D.ts'
+          replace_once(
+              base,
+              "import type { Enemy, EnemyType } from '../game/entities';\n",
+              "import type { Enemy, EnemyType } from '../game/entities';\nimport { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';\nimport { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';\n",
+          )
+          replace_once(
+              base,
+              "const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';\nconst SKELETON_UTILS_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/SkeletonUtils.js';\n",
+              '',
+          )
+          replace_once(
+              base,
+              "      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;\n      const gltf = await new GLTFLoader().loadAsync(importedCreatureUrl(config.path));\n",
+              "      const gltf = await new GLTFLoader().loadAsync(importedCreatureUrl(config.path));\n",
+          )
+          replace_once(
+              base,
+              "    const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;\n    const loader = new GLTFLoader();\n",
+              "    const loader = new GLTFLoader();\n",
+          )
+          replace_once(
+              base,
+              "  const [library, skeletonUtils] = await Promise.all([\n    loadLibrary(),\n    import(/* @vite-ignore */ SKELETON_UTILS_URL) as any,\n  ]);\n",
+              "  const library = await loadLibrary();\n",
+          )
+          replace_once(base, '  const scene = skeletonUtils.clone(prototype.scene);\n', '  const scene = cloneSkeleton(prototype.scene);\n')
+
+          enemy = root / 'src/components/kaykitEnemy3D.ts'
+          replace_once(
+              enemy,
+              "import type { Enemy } from '../game/entities';\n",
+              "import type { Enemy } from '../game/entities';\nimport * as THREE_MODULE from 'three';\n",
+          )
+          replace_once(
+              enemy,
+              "const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';\n",
+              '',
+          )
+          replace_once(
+              enemy,
+              "    const THREE = await import(/* @vite-ignore */ THREE_URL) as any;\n",
+              "    const THREE = THREE_MODULE as any;\n",
+          )
+
+          validator = root / 'scripts/validate-local-three-runtime.mjs'
+          validator.write_text("""import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const files = [
+  'src/components/GameCanvasKayKit3D.tsx',
+  'src/components/kaykitEnemyBase3D.ts',
+  'src/components/kaykitEnemy3D.ts',
+];
+
+if (packageJson.devDependencies?.three !== '0.180.0') throw new Error('three must be pinned locally to 0.180.0');
+if (packageJson.devDependencies?.['@types/three'] !== '0.180.0') throw new Error('@types/three must match the local runtime');
+
+for (const file of files) {
+  const source = fs.readFileSync(path.join(root, file), 'utf8');
+  if (source.includes('cdn.jsdelivr.net/npm/three@')) throw new Error(`${file} still loads Three.js from the CDN`);
+  if (source.includes('@vite-ignore') && /THREE_URL|GLTF_URL|SKELETON_UTILS_URL/.test(source)) {
+    throw new Error(`${file} still contains a remote dynamic Three.js loader`);
+  }
+}
+
+const canvas = fs.readFileSync(path.join(root, files[0]), 'utf8');
+const enemyBase = fs.readFileSync(path.join(root, files[1]), 'utf8');
+const enemy = fs.readFileSync(path.join(root, files[2]), 'utf8');
+if (!canvas.includes("from 'three'") || !canvas.includes("three/examples/jsm/loaders/GLTFLoader.js")) throw new Error('Run renderer does not use the bundled Three.js runtime');
+if (!enemyBase.includes("three/examples/jsm/loaders/GLTFLoader.js") || !enemyBase.includes("three/examples/jsm/utils/SkeletonUtils.js")) throw new Error('Enemy loader is not fully bundled');
+if (!enemy.includes("from 'three'")) throw new Error('Enemy preload does not use the bundled Three.js runtime');
+
+console.log('Three.js, GLTFLoader and SkeletonUtils are bundled locally; no enemy runtime CDN remains.');
+""")
+          PY
+
+      - name: Update lockfile
+        run: pnpm install --lockfile-only
+
+      - name: Verify local runtime
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:three-runtime
+          pnpm --filter @workspace/dungeon-rpg typecheck
+          pnpm --filter @workspace/dungeon-rpg build
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+
+      - name: Commit completed fix
+        shell: bash
+        run: |
+          rm .github/workflows/apply-local-three-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Bundle enemy 3D runtime locally"
+          git push origin HEAD:fix/local-enemy-model-loader
