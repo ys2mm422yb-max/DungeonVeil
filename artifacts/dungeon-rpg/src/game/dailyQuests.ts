@@ -25,6 +25,8 @@ export type DailyTask = {
   gold?: boolean;
 };
 
+export const DAILY_ROTATION_VERSION = 2;
+
 export const DAILY_TASK_POOL: DailyTask[] = [
   { id: 'rooms-15', metric: 'rooms', title: 'Tiefer hinab', description: 'Schließe 15 Räume ab', target: 15, reward: 22 },
   { id: 'kills-80', metric: 'kills', title: 'Schleierbrecher', description: 'Besiege 80 Gegner', target: 80, reward: 34 },
@@ -65,8 +67,22 @@ export function dailyTaskIdsForDate(dateKey: string): DailyTaskId[] {
   const seed = hashDate(dateKey);
   const standard = seededOrder(DAILY_TASK_POOL.filter(task => !task.gold), seed);
   const gold = seededOrder(DAILY_TASK_POOL.filter(task => task.gold), seed ^ 0x9e3779b9);
-  const includeGold = seed % 4 === 0;
-  return includeGold ? [standard[0].id, standard[1].id, gold[0].id] : standard.slice(0, 3).map(task => task.id);
+  return [standard[0].id, standard[1].id, gold[0].id];
+}
+
+export function nextDailyResetAt(now = new Date()): number {
+  const reset = new Date(now);
+  reset.setHours(24, 0, 0, 0);
+  return reset.getTime();
+}
+
+export function dailyTimeLabel(language: 'de' | 'en', now = Date.now()): string {
+  const remaining = Math.max(0, nextDailyResetAt(new Date(now)) - now);
+  const totalSeconds = Math.floor(remaining / 1000);
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+  const minutes = String(Math.floor(totalSeconds % 3600 / 60)).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${language === 'de' ? 'Neu in' : 'New in'} ${hours}:${minutes}:${seconds}`;
 }
 
 export function taskById(id: DailyTaskId): DailyTask {
