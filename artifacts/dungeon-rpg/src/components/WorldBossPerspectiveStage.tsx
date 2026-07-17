@@ -10,6 +10,8 @@ const TILE = 40;
 const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 const IS_IOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const IS_MOBILE = typeof navigator !== 'undefined' && (IS_ANDROID || IS_IOS || navigator.maxTouchPoints > 1);
+const PHONE_PORTRAIT_MAX_WIDTH = 700;
+const PHONE_PORTRAIT_MIN_RATIO = 1.28;
 const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;
 const EMBER_COUNT = IS_MOBILE ? 6 : 20;
 const PERF_KEY = 'dungeon-veil-worldboss-performance';
@@ -108,6 +110,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       const viewport = window.visualViewport;
       const width = Math.max(1, Math.round(viewport?.width ?? window.innerWidth));
       const height = Math.max(1, Math.round(viewport?.height ?? window.innerHeight));
+      const phonePortrait = width <= PHONE_PORTRAIT_MAX_WIDTH && height / width >= PHONE_PORTRAIT_MIN_RATIO;
       host.style.width = `${width}px`;
       host.style.height = `${height}px`;
       renderer.setPixelRatio(pixelRatio());
@@ -115,7 +118,8 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
       camera.aspect = width / height;
-      camera.fov = camera.aspect < 0.7 ? 49 : 44;
+      camera.userData.dungeonPhonePortrait = phonePortrait;
+      camera.fov = phonePortrait ? 58 : camera.aspect < 0.7 ? 49 : 44;
       camera.updateProjectionMatrix();
     };
 
@@ -404,14 +408,17 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     };
 
     const updateCamera = (delta: number, playerX: number, playerZ: number) => {
+      const phonePortrait = camera.userData.dungeonPhonePortrait === true;
       const portrait = camera.aspect < 0.72;
-      const focusX = clamp(playerX * 0.12, -0.75, 0.75);
-      const focusZ = clamp(playerZ * 0.06, -0.42, 0.42);
-      cameraGoal.set(focusX, portrait ? 14.0 : 12.1, focusZ + (portrait ? 19.8 : 16.9));
-      camera.position.x = damp(camera.position.x, cameraGoal.x, 1.5, delta);
-      camera.position.y = damp(camera.position.y, cameraGoal.y, 1.4, delta);
-      camera.position.z = damp(camera.position.z, cameraGoal.z, 1.5, delta);
-      cameraLook.set(focusX * 0.25, portrait ? 0.95 : 1.05, -1.65 + focusZ * 0.15);
+      const focusX = clamp(playerX * (phonePortrait ? 0.045 : 0.12), phonePortrait ? -0.3 : -0.75, phonePortrait ? 0.3 : 0.75);
+      const focusZ = clamp(playerZ * (phonePortrait ? 0.025 : 0.06), phonePortrait ? -0.18 : -0.42, phonePortrait ? 0.18 : 0.42);
+      const cameraHeight = phonePortrait ? 16.4 : portrait ? 14.0 : 12.1;
+      const cameraDistance = phonePortrait ? 23.6 : portrait ? 19.8 : 16.9;
+      cameraGoal.set(focusX, cameraHeight, focusZ + cameraDistance);
+      camera.position.x = damp(camera.position.x, cameraGoal.x, phonePortrait ? 1.1 : 1.5, delta);
+      camera.position.y = damp(camera.position.y, cameraGoal.y, phonePortrait ? 1.1 : 1.4, delta);
+      camera.position.z = damp(camera.position.z, cameraGoal.z, phonePortrait ? 1.1 : 1.5, delta);
+      cameraLook.set(focusX * (phonePortrait ? 0.12 : 0.25), phonePortrait ? 0.72 : portrait ? 0.95 : 1.05, (phonePortrait ? -1.28 : -1.65) + focusZ * 0.15);
       camera.lookAt(cameraLook);
       camera.userData.dungeonPlayerX = playerX;
       camera.userData.dungeonPlayerZ = playerZ;
@@ -440,6 +447,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
           mobileBossSource: bossRig ? 'ash-warden-skeleton' : fallbackBoss ? 'veil-fallback' : 'loading',
           arena: 'single-floor-low-call-kaykit-hall',
           camera: 'calm-perspective-camera',
+          phoneSafeFraming: camera.userData.dungeonPhonePortrait === true,
           at: Date.now(),
         }));
       } catch {}
@@ -528,7 +536,7 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
       host.appendChild(renderer.domElement);
 
       camera = new THREE.PerspectiveCamera(48, 1, 0.1, 120);
-      camera.position.set(0, 14.0, 19.8);
+      camera.position.set(0, 16.4, 23.6);
       cameraGoal = new THREE.Vector3();
       cameraLook = new THREE.Vector3();
 
@@ -610,5 +618,5 @@ export function WorldBossPerspectiveStage({ engineRef, onReady }: Props) {
     };
   }, [engineRef]);
 
-  return <div ref={hostRef} data-testid="ash-king-perspective-stage" data-camera="calm-perspective-camera" className="pointer-events-none fixed inset-0 overflow-hidden" style={{ width: '100vw', height: '100dvh' }} />;
+  return <div ref={hostRef} data-testid="ash-king-perspective-stage" data-camera="calm-perspective-camera" data-phone-framing="adaptive" className="pointer-events-none fixed inset-0 overflow-hidden" style={{ width: '100vw', height: '100dvh' }} />;
 }
