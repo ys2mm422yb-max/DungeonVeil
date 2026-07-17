@@ -1,11 +1,6 @@
 name: Temporary deploy target branch
 
 on:
-  push:
-    branches:
-      - fix/mobile-telegraphs-room-21-50-balance
-    paths:
-      - '.github/workflows/temporary-deploy-target-branch.yml'
   pull_request:
     branches:
       - test/pages-deploy-base-187
@@ -18,15 +13,11 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: dungeon-veil-pages
-  cancel-in-progress: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout target branch
+      - name: Checkout deployment source
         uses: actions/checkout@v4
 
       - name: Setup pnpm
