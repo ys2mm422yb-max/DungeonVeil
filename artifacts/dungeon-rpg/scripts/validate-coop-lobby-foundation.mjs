@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [migration, client, panel, menu, mode, packageJson] = await Promise.all([
+const [migration, hardening, client, panel, menu, mode, packageJson] = await Promise.all([
   read('../../../supabase/migrations/20260717180000_add_coop_lobby_foundation.sql'),
+  read('../../../supabase/migrations/20260717183000_harden_coop_lobby_helper.sql'),
   read('../src/game/coopLobbyOnline.ts'),
   read('../src/components/CoopLobbyPanel.tsx'),
   read('../src/components/screens/MainMenuScreen.tsx'),
@@ -13,7 +14,8 @@ const [migration, client, panel, menu, mode, packageJson] = await Promise.all([
 const checks = [
   [migration.includes('create table if not exists public.coop_lobbies') && migration.includes('create table if not exists public.coop_lobby_members'), 'co-op lobby tables are missing'],
   [migration.includes("max_players smallint not null default 2 check (max_players = 2)") && migration.includes('coop_lobby_members_one_active_lobby_uidx'), 'lobbies are not strictly limited to two players or one active lobby per user'],
-  [migration.includes('alter table public.coop_lobbies enable row level security') && migration.includes('is_coop_lobby_member') && migration.includes('revoke all on table public.coop_lobbies'), 'co-op RLS or direct-write protection is incomplete'],
+  [migration.includes('alter table public.coop_lobbies enable row level security') && migration.includes('revoke all on table public.coop_lobbies'), 'co-op RLS or direct-write protection is incomplete'],
+  [hardening.includes('create or replace function private.is_coop_lobby_member') && hardening.includes('private.is_coop_lobby_member(id)') && hardening.includes('private.is_coop_lobby_member(lobby_id)') && hardening.includes('drop function public.is_coop_lobby_member'), 'internal membership checks remain exposed through the public API'],
   [migration.includes('create or replace function public.create_coop_lobby()') && migration.includes('create or replace function public.join_coop_lobby(p_invite_code text)') && migration.includes('create or replace function public.leave_coop_lobby()'), 'secure create, join or leave RPC is missing'],
   [migration.includes('create or replace function public.set_coop_lobby_ready') && migration.includes('create or replace function public.start_coop_lobby()') && migration.includes('both coop players must be ready'), 'ready gate or guarded host start is missing'],
   [migration.includes('run_seed bigint not null') && migration.includes("floor(random() * 9007199254740991)::bigint"), 'shared safe-integer dungeon seed is missing'],
@@ -33,4 +35,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Co-op lobby foundation passed: secure private two-player lobbies, shared seeds, host/guest roles, ready states and immutable solo balance are integrated.');
+console.log('Co-op lobby foundation passed: secure private two-player lobbies, hidden membership helpers, shared seeds, host/guest roles, ready states and immutable solo balance are integrated.');
