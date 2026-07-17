@@ -7,6 +7,7 @@ import {
 } from '../game/playerProfile';
 import { loadMetaProgression } from '../game/metaProgression';
 import { currentDailyTasks, dailyProgressForTask, loadRetentionProfile, type RetentionProfile } from '../game/runRetention';
+import { dailyTimeLabel } from '../game/dailyQuests';
 import {
   claimWeeklyEliteQuest,
   loadWeeklyEliteState,
@@ -25,6 +26,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
   const [dust, setDust] = useState(() => loadMetaProgression().dust);
   const [playerProfile, setPlayerProfile] = useState<PlayerProfileProgress>(() => loadPlayerProfile());
   const [weeklyState, setWeeklyState] = useState(() => loadWeeklyEliteState(loadPlayerProfile().stats));
+  const [dailyClock, setDailyClock] = useState(Date.now);
   const [open, setOpen] = useState(defaultOpen);
   const [completedOpen, setCompletedOpen] = useState(false);
 
@@ -40,6 +42,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
       setWeeklyState(loadWeeklyEliteState(next.stats));
     };
     const refreshWeekly = () => setWeeklyState(loadWeeklyEliteState(loadPlayerProfile().stats));
+    const clockTimer = window.setInterval(() => setDailyClock(Date.now()), 1000);
     window.addEventListener('dungeon-veil-retention-update', refreshDaily as EventListener);
     window.addEventListener('dungeon-veil-meta-changed', refreshMeta);
     window.addEventListener(PLAYER_PROFILE_EVENT, refreshPlayer as EventListener);
@@ -48,6 +51,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
     refreshMeta();
     refreshPlayer();
     return () => {
+      window.clearInterval(clockTimer);
       window.removeEventListener('dungeon-veil-retention-update', refreshDaily as EventListener);
       window.removeEventListener('dungeon-veil-meta-changed', refreshMeta);
       window.removeEventListener(PLAYER_PROFILE_EVENT, refreshPlayer as EventListener);
@@ -65,6 +69,7 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
   const weeklyTasks = useMemo(() => weeklyEliteQuests(weeklyState.weekKey), [weeklyState.weekKey]);
   const activeTask = activeTasks[0] ?? completedTasks[0];
   const activeProgress = activeTask ? dailyProgressForTask(profile, activeTask.id) : 0;
+  const resetLabel = dailyTimeLabel(language, dailyClock);
 
   const dailyTaskCard = (task: (typeof tasks)[number], claimed: boolean) => {
     const value = dailyProgressForTask(profile, task.id);
@@ -103,14 +108,16 @@ export function DailyQuestPanel({ compact = false, defaultOpen = false }: { comp
         <div className="rounded-xl border border-white/8 bg-black/24 px-2 py-2"><div className="text-[13px] font-black text-violet-100">✦ {dust}</div><div className="text-[6px] font-black uppercase tracking-[.12em] text-white/28">{de ? 'Schleierstaub' : 'Veil Dust'}</div></div>
       </section>
 
+      <section data-testid="daily-quest-reset-timer" className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-amber-200/14 bg-amber-300/[.045] px-3 py-2 text-[7px] font-black uppercase tracking-[.13em] text-amber-50/58"><span>{de ? 'Tages- & Gold-Aufträge' : 'Daily & Gold Quests'}</span><span className="shrink-0 text-amber-100">{resetLabel}</span></section>
+
       <section data-testid="quest-active-section" className="mt-3">
         <div className="mb-2 flex items-center justify-between text-[7px] font-black uppercase tracking-[.18em] text-white/38"><span>{de ? 'Aktive Aufträge' : 'Active Quests'}</span><span>{activeStandardTasks.length}</span></div>
         <div className="space-y-2">{activeStandardTasks.map(task => dailyTaskCard(task, false))}{!activeStandardTasks.length && <div className="rounded-xl border border-emerald-300/12 bg-emerald-400/[.04] p-3 text-center text-[9px] text-emerald-100/65">{de ? 'Alle normalen Tagesaufträge sind erledigt.' : 'All standard daily quests are complete.'}</div>}</div>
       </section>
 
       <section data-testid="quest-gold-section" className="mt-3 overflow-hidden rounded-xl border border-amber-200/20 bg-amber-300/[.035] p-2.5">
-        <div className="mb-2 flex items-center justify-between text-[7px] font-black uppercase tracking-[.18em] text-amber-100/62"><span>✹ {de ? 'Gold-Aufträge' : 'Gold Quests'}</span><span>{goldTasks.length}</span></div>
-        <div className="space-y-2">{goldTasks.map(task => dailyTaskCard(task, profile.daily.claimed.includes(task.id)))}{!goldTasks.length && <div className="rounded-xl border border-amber-200/10 bg-black/16 p-3 text-center text-[8px] leading-relaxed text-amber-50/42">{de ? 'Heute ist kein seltener Gold-Auftrag aktiv.' : 'No rare gold quest is active today.'}</div>}</div>
+        <div className="mb-2 flex items-center justify-between text-[7px] font-black uppercase tracking-[.18em] text-amber-100/62"><span>✹ {de ? 'Gold-Auftrag' : 'Gold Quest'}</span><span>{goldTasks.length}</span></div>
+        <div className="space-y-2">{goldTasks.map(task => dailyTaskCard(task, profile.daily.claimed.includes(task.id)))}</div>
       </section>
 
       <section data-testid="quest-elite-section" className="mt-3 overflow-hidden rounded-xl border border-fuchsia-300/22 bg-[linear-gradient(135deg,rgba(91,28,116,.25),rgba(13,9,20,.5))] p-3">
