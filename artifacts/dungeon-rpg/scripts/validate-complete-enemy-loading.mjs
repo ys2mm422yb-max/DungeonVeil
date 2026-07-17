@@ -18,9 +18,12 @@ for (const asset of ['Slime.glb', 'Rat.glb', 'Spider.glb', 'Bat.glb', 'Snake_ang
 }
 
 const requiredLoaderContracts = [
-  ['requestedImportedTypes(enemyTypes)', 'preload does not filter requested room types'],
+  ['requestedImportedTypes(requestedTypes)', 'preload does not filter normalized requested room types'],
+  ['loadEnemyAssetsWithRetries(requestedTypes, importedTypes)', 'preload does not preserve the full room type list for base-library decisions'],
   ['types.map(preloadLocalEnemyAsset)', 'requested GLBs are not fully fetched before model creation'],
+  ['types.map(loadImportedPrototype)', 'requested GLBs are not parsed before room entry'],
   ['const bytes = await response.arrayBuffer();', 'enemy GLBs are not fully read'],
+  ['createDedicatedImportedVisual', 'imported creatures do not have a direct visual construction path'],
   ['throw new Error(`Dedicated enemy model did not become ready:', 'a dedicated creature can still settle on a generic model'],
   ['const enemyPreloadPromises = new Map<string, Promise<void>>();', 'room-type preload results are not cached'],
   ['enemyPreloadPromises.delete(key);', 'failed room-type preload cannot be retried'],
@@ -72,4 +75,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Exact room enemy preload, always-mounted canvas and no-blob production build verified.');
+console.log('Exact room enemy preload, direct imported visual path, always-mounted canvas and no-blob production build verified.');
