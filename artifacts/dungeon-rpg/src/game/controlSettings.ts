@@ -24,8 +24,10 @@ export function loadJoystickMode(): JoystickMode {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) as Partial<StoredControlSettings> : null;
-    if (!parsed || parsed.version !== SETTINGS_VERSION) return writeJoystickMode('fixed', true);
-    return parsed.joystickMode === 'floating' ? 'floating' : 'fixed';
+    if (!parsed) return writeJoystickMode('fixed', true);
+    const joystickMode = parsed.joystickMode === 'floating' ? 'floating' : 'fixed';
+    if (parsed.version !== SETTINGS_VERSION) return writeJoystickMode(joystickMode, true);
+    return joystickMode;
   } catch {
     return writeJoystickMode('fixed', true);
   }
