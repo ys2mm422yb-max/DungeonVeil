@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const scripts = [
@@ -38,26 +37,20 @@ const scripts = [
   'validate-final-balance-curve.mjs',
 ];
 
-const childEnvironment = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => !key.toLowerCase().startsWith('npm_')),
-);
-const failureMarker = '/tmp/dungeon-veil-room-audit-failure.txt';
-
 for (const script of scripts) {
-  console.log(`→ ${script}`);
   const result = spawnSync(process.execPath, [fileURLToPath(new URL(script, import.meta.url))], {
-    env: childEnvironment,
-    stdio: 'inherit',
+    encoding: 'utf8',
+    env: process.env,
   });
   if (result.error) {
-    writeFileSync(failureMarker, `${script}\nstart-error\n${String(result.error)}\n`);
     console.error(`ROOM AUDIT COULD NOT START: ${script}`);
     console.error(result.error);
     process.exit(1);
   }
   if (result.status !== 0) {
-    writeFileSync(failureMarker, `${script}\nexit-status=${result.status ?? 'unknown'}\n`);
     console.error(`ROOM AUDIT FAILED: ${script}`);
+    if (result.stdout?.trim()) console.error(result.stdout.trim());
+    if (result.stderr?.trim()) console.error(result.stderr.trim());
     process.exit(result.status ?? 1);
   }
   console.log(`✓ ${script}`);
