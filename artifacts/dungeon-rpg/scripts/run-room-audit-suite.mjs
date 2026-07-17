@@ -39,7 +39,7 @@ const scripts = [
 
 for (const script of scripts) {
   const result = spawnSync(process.execPath, [fileURLToPath(new URL(script, import.meta.url))], {
-    stdio: 'ignore',
+    encoding: 'utf8',
     env: process.env,
   });
   if (result.error) {
@@ -49,6 +49,8 @@ for (const script of scripts) {
   }
   if (result.status !== 0) {
     console.error(`ROOM AUDIT FAILED: ${script}`);
+    if (result.stdout?.trim()) console.error(result.stdout.trim());
+    if (result.stderr?.trim()) console.error(result.stderr.trim());
     process.exit(result.status ?? 1);
   }
   console.log(`✓ ${script}`);

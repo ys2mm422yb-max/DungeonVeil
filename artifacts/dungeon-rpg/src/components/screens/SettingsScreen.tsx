@@ -6,7 +6,6 @@ import {
   saveAccessibilitySettings,
   type AccessibilitySettings,
   type ContrastMode,
-  type TextSizeMode,
 } from '../../game/accessibilitySettings';
 import { loadJoystickMode, saveJoystickMode, type JoystickMode } from '../../game/controlSettings';
 import { clearSave } from '../../game/saveManager';
@@ -32,7 +31,6 @@ export function SettingsScreen({ onBack, onSaveDeleted }: Props) {
 
   const chooseJoystickMode = (mode: JoystickMode) => setJoystickMode(saveJoystickMode(mode));
   const chooseContrast = (contrast: ContrastMode) => setAccessibility(saveAccessibilitySettings({ ...accessibility, contrast }));
-  const chooseTextSize = (textSize: TextSizeMode) => setAccessibility(saveAccessibilitySettings({ ...accessibility, textSize }));
 
   const optionButton = (active: boolean, label: string, detail: string, onSelect: () => void, testId: string) => <button
     data-testid={testId}
@@ -60,11 +58,6 @@ export function SettingsScreen({ onBack, onSaveDeleted }: Props) {
           <div className="grid grid-cols-2 gap-2">
             {optionButton(accessibility.contrast === 'standard', de ? 'Standard' : 'Standard', de ? 'Originale Darstellung' : 'Original presentation', () => chooseContrast('standard'), 'contrast-mode-standard')}
             {optionButton(accessibility.contrast === 'high', de ? 'Hoch' : 'High', de ? 'Stärkere Konturen' : 'Stronger outlines', () => chooseContrast('high'), 'contrast-mode-high')}
-          </div>
-          <div className="border-t border-white/8 pt-3"><div className="text-[11px] font-black text-white/86">{de ? 'UI-Schrift' : 'UI text size'}</div><div className="mt-1 text-[9px] leading-relaxed text-white/48">{de ? 'Groß hebt kleine Texte und Touch-Ziele auf ein lesbareres Mindestmaß.' : 'Large raises small text and touch targets to a more readable minimum.'}</div></div>
-          <div className="grid grid-cols-2 gap-2">
-            {optionButton(accessibility.textSize === 'standard', de ? 'Standard' : 'Standard', de ? 'Kompakte Oberfläche' : 'Compact interface', () => chooseTextSize('standard'), 'text-size-standard')}
-            {optionButton(accessibility.textSize === 'large', de ? 'Groß' : 'Large', de ? 'Größere Bedienelemente' : 'Larger controls', () => chooseTextSize('large'), 'text-size-large')}
           </div>
         </div>
       </Section>

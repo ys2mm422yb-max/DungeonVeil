@@ -1,10 +1,10 @@
 import { markSettingsActivity } from './settingsPersistence';
 
 export type ContrastMode = 'standard' | 'high';
-export type TextSizeMode = 'standard' | 'large';
+export type TextSizeMode = 'standard';
 
 const STORAGE_KEY = 'dungeon-veil-accessibility-v1';
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 export const ACCESSIBILITY_SETTINGS_EVENT = 'dungeon-veil-accessibility-changed';
 
 export type AccessibilitySettings = {
@@ -32,12 +32,12 @@ export function loadAccessibilitySettings(): AccessibilitySettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) as Partial<StoredAccessibilitySettings> : null;
-    if (!parsed || parsed.version !== SETTINGS_VERSION) return writeStoredSettings({ ...DEFAULT_SETTINGS }, true);
+    if (!parsed) return writeStoredSettings({ ...DEFAULT_SETTINGS }, true);
     const settings: AccessibilitySettings = {
       contrast: parsed.contrast === 'standard' ? 'standard' : 'high',
-      textSize: parsed.textSize === 'large' ? 'large' : 'standard',
+      textSize: 'standard',
     };
-    if (parsed.contrast !== settings.contrast || parsed.textSize !== settings.textSize) writeStoredSettings(settings, true);
+    if (parsed.version !== SETTINGS_VERSION || parsed.contrast !== settings.contrast || parsed.textSize !== 'standard') writeStoredSettings(settings, true);
     return settings;
   } catch {
     return writeStoredSettings({ ...DEFAULT_SETTINGS }, true);
@@ -47,7 +47,7 @@ export function loadAccessibilitySettings(): AccessibilitySettings {
 export function applyAccessibilitySettings(settings = loadAccessibilitySettings()): AccessibilitySettings {
   if (typeof document !== 'undefined') {
     document.documentElement.dataset.contrast = settings.contrast;
-    document.documentElement.dataset.textSize = settings.textSize;
+    document.documentElement.dataset.textSize = 'standard';
   }
   return settings;
 }
@@ -55,7 +55,7 @@ export function applyAccessibilitySettings(settings = loadAccessibilitySettings(
 export function saveAccessibilitySettings(settings: AccessibilitySettings): AccessibilitySettings {
   const normalized: AccessibilitySettings = {
     contrast: settings.contrast === 'standard' ? 'standard' : 'high',
-    textSize: settings.textSize === 'large' ? 'large' : 'standard',
+    textSize: 'standard',
   };
   writeStoredSettings(normalized, true);
   applyAccessibilitySettings(normalized);

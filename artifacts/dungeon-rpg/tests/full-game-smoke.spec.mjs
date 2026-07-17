@@ -46,7 +46,9 @@ async function navigateToApp(page) {
 }
 
 async function waitForReadyMenu(page) {
-  await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
+  const boot = page.getByTestId('app-boot-loading-screen');
+  await expect(boot).toHaveAttribute('data-boot-presentation', 'veil-gate', { timeout: 20_000 });
+  await expect(boot).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
 }
@@ -104,8 +106,14 @@ async function openOverflow(page) {
 
 test('main menu, profile and every hub panel open without fatal errors', async ({ page }, testInfo) => {
   test.setTimeout(300_000);
+  await page.addInitScript(() => localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({ version: 1, initialized: true, equipment: [], relics: [] })));
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
+  await page.waitForTimeout(250);
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0);
+  const migratedUnlockMarkers = await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-seen-unlocks-v1') || '{}'));
+  expect(migratedUnlockMarkers.version).toBe(2);
+  expect(migratedUnlockMarkers.announcedEquipment?.length ?? 0).toBeGreaterThan(0);
   await assertNoHorizontalOverflow(page);
 
   await test.step('profile overview and statistics', async () => {
@@ -138,6 +146,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
       }));
     });
     await reloadMenu(page, testInfo.project.name);
+    await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0);
     await openMenuButton(page, /Inventar|Inventory/i);
     await expect(page.getByRole('heading', { name: /Inventar|Inventory/i })).toBeVisible();
     await expect(page.getByText(/Ausrüstungslevel|Equipment Level/i).first()).toBeVisible();
@@ -222,8 +231,9 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   expect(issues, issues.join('\n')).toEqual([]);
 });
 
-test('settings persist accessibility, storage and joystick choices', async ({ page }, testInfo) => {
+test('settings persist contrast, storage and joystick with standard UI size', async ({ page }, testInfo) => {
   const issues = attachRuntimeMonitor(page);
+  await page.addInitScript(() => localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'high', textSize: 'large', updatedAt: 1 })));
   await preparePage(page, testInfo.project.name);
   await openOverflow(page);
   await openMenuButton(page, /Einstellungen|Settings/i);
@@ -231,16 +241,19 @@ test('settings persist accessibility, storage and joystick choices', async ({ pa
   await expect(page.getByTestId('accessibility-settings')).toBeVisible();
   await expect(page.getByTestId('joystick-mode-settings')).toBeVisible();
   await expect(page.getByTestId('profile-storage-settings')).toBeVisible();
+  await expect(page.getByTestId('text-size-large')).toHaveCount(0);
+  await expect(page.getByText(/UI-Schrift|UI text size/i)).toHaveCount(0);
   await page.getByTestId('contrast-mode-high').click();
-  await page.getByTestId('text-size-large').click();
   await page.getByTestId('joystick-mode-floating').click();
 
   const applied = await page.evaluate(() => ({
     contrast: document.documentElement.dataset.contrast,
     textSize: document.documentElement.dataset.textSize,
+    storedTextSize: JSON.parse(localStorage.getItem('dungeon-veil-accessibility-v1') || '{}').textSize,
+    accessibilityVersion: JSON.parse(localStorage.getItem('dungeon-veil-accessibility-v1') || '{}').version,
     joystick: JSON.parse(localStorage.getItem('dungeon-veil-control-settings-v1') || '{}').joystickMode,
   }));
-  expect(applied).toEqual({ contrast: 'high', textSize: 'large', joystick: 'floating' });
+  expect(applied).toEqual({ contrast: 'high', textSize: 'standard', storedTextSize: 'standard', accessibilityVersion: 3, joystick: 'floating' });
   await assertNoHorizontalOverflow(page);
 
   await reloadMenu(page, testInfo.project.name);
@@ -248,7 +261,7 @@ test('settings persist accessibility, storage and joystick choices', async ({ pa
     contrast: document.documentElement.dataset.contrast,
     textSize: document.documentElement.dataset.textSize,
   }));
-  expect(persisted).toEqual({ contrast: 'high', textSize: 'large' });
+  expect(persisted).toEqual({ contrast: 'high', textSize: 'standard' });
   expect(issues, issues.join('\n')).toEqual([]);
 });
 
