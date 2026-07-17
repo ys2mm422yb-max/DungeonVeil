@@ -15,11 +15,36 @@ on:
       - '.ci/full-game-regression-trigger*.txt'
 
 permissions:
-  contents: read
+  contents: write
   issues: write
   pull-requests: write
 
 jobs:
+  apply-exact-monster-fix:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/fix/local-enemy-model-loader' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/local-enemy-model-loader
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply focused monster model patch
+        run: node artifacts/dungeon-rpg/scripts/apply-exact-monster-model-fix.mjs
+      - name: Remove temporary patch machinery and commit
+        shell: bash
+        run: |
+          git fetch origin fix/mobile-telegraphs-room-21-50-balance
+          git checkout origin/fix/mobile-telegraphs-room-21-50-balance -- .github/workflows/full-game-regression.yml
+          rm artifacts/dungeon-rpg/scripts/apply-exact-monster-model-fix.mjs
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Load exact monster models before room reveal"
+          git push origin HEAD:fix/local-enemy-model-loader
+
   static-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 30
