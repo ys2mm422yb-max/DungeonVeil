@@ -26,6 +26,7 @@ const files = {
   bossRig: await readFile(new URL('../src/components/worldBossMobileVisual3D.ts', import.meta.url), 'utf8'),
   controlSettings: await readFile(new URL('../src/game/controlSettings.ts', import.meta.url), 'utf8'),
   accessibility: await readFile(new URL('../src/game/accessibilitySettings.ts', import.meta.url), 'utf8'),
+  settingsPersistence: await readFile(new URL('../src/game/settingsPersistence.ts', import.meta.url), 'utf8'),
   readability: await readFile(new URL('../src/readability.css', import.meta.url), 'utf8'),
   settings: await readFile(new URL('../src/components/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   joystick: await readFile(new URL('../src/components/VirtualJoystick.tsx', import.meta.url), 'utf8'),
@@ -38,11 +39,14 @@ const checks = [
   [files.actions.includes('env(safe-area-inset-right)') && files.actions.includes('env(safe-area-inset-bottom)'), 'dash control does not respect mobile safe areas'],
   [files.reward.includes('right-[max(12px,env(safe-area-inset-right))]'), 'reward toast still covers the HUD'],
   [files.accessibility.includes("type ContrastMode = 'standard' | 'high'") && files.accessibility.includes("type TextSizeMode = 'standard' | 'large'") && files.accessibility.includes('saveAccessibilitySettings'), 'contrast and text-size settings are not persisted'],
+  [files.accessibility.includes("DEFAULT_SETTINGS: AccessibilitySettings = { contrast: 'high', textSize: 'standard' }") && files.accessibility.includes('SETTINGS_VERSION = 2') && files.accessibility.includes('markSettingsActivity'), 'accessibility defaults or durable migration are incorrect'],
   [files.accessibility.includes('document.documentElement.dataset.contrast') && files.accessibility.includes('document.documentElement.dataset.textSize'), 'accessibility settings are not applied to the document'],
   [files.settings.includes('accessibility-settings') && files.settings.includes('contrast-mode-high') && files.settings.includes('text-size-large'), 'settings screen lacks contrast or readable-text controls'],
-  [files.main.includes('installAccessibilitySettings();') && files.main.includes("import './readability.css';"), 'readability settings or styles are not installed at startup'],
+  [files.main.includes('installAccessibilitySettings();') && files.main.includes('installControlSettings();') && files.main.includes("import './readability.css';"), 'readability or control settings are not installed at startup'],
   [files.readability.includes('button:focus-visible') && files.readability.includes("html[data-contrast='high']") && files.readability.includes("html[data-text-size='large']") && files.readability.includes('min-height: 44px'), 'focus, high-contrast or large-control readability rules are incomplete'],
   [files.controlSettings.includes("type JoystickMode = 'fixed' | 'floating'") && files.controlSettings.includes('saveJoystickMode') && files.controlSettings.includes('CONTROL_SETTINGS_EVENT'), 'joystick mode is not persisted or broadcast'],
+  [files.controlSettings.includes("return writeJoystickMode('fixed', true)") && files.controlSettings.includes('SETTINGS_VERSION = 2') && files.controlSettings.includes('installControlSettings'), 'fixed joystick default or durable migration is missing'],
+  [files.settingsPersistence.includes('dungeon-veil-settings-activity-v1') && files.settingsPersistence.includes('profile.updatedAt = updatedAt') && files.settingsPersistence.includes('SETTINGS_PERSISTENCE_EVENT'), 'settings changes do not participate in guarded cloud synchronization'],
   [files.settings.includes('joystick-mode-settings') && files.settings.includes('joystick-mode-fixed') && files.settings.includes('joystick-mode-floating'), 'settings screen lacks fixed and floating joystick choices'],
   [files.joystick.includes('data-joystick-mode') && files.joystick.includes('run-joystick-floating-zone') && files.joystick.includes('positionFloatingBase'), 'virtual joystick does not apply the selected fixed or floating mode'],
   [files.joystick.includes('window.addEventListener(CONTROL_SETTINGS_EVENT') && files.joystick.includes('reset();'), 'joystick does not apply control changes safely at runtime'],
@@ -84,4 +88,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: contrast controls, readable text, protected HUD lanes, safe joystick modes and bounded mobile effects are active.');
+console.log('Mobile combat audit passed: durable high-contrast, standard text, fixed joystick defaults, protected HUD lanes and bounded mobile effects are active.');
