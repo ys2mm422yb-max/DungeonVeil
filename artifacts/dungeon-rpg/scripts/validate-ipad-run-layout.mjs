@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
-const [camera, hud, joystick, actions, canvas, enemyWrapper, enemyBase] = await Promise.all([
+const [camera, hud, joystick, actions, canvas, loading, enemyWrapper, enemyBase] = await Promise.all([
   readFile(new URL('../src/components/RunCameraRig.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/HUD.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/VirtualJoystick.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ActionButtons.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/GlobalLoadingLayer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/kaykitEnemyBase3D.ts', import.meta.url), 'utf8'),
 ]);
@@ -20,7 +21,8 @@ const checks = [
   [joystick.includes('left-[max(2rem,calc(env(safe-area-inset-left)+1.4rem))]'), 'iPad joystick safe inset is missing'],
   [actions.includes('data-testid="run-dash-control"') && actions.includes('const size = worldBoss ? 78 : tabletLandscape ? 90 : 78;'), 'iPad dash sizing is missing'],
   [actions.includes("max(34px,calc(env(safe-area-inset-right) + 24px))"), 'iPad dash safe inset is missing'],
-  [canvas.includes('const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;'), 'room 13+ enemy visibility safety is missing from the combined build'],
+  [canvas.includes('prepareRoomEnemyVisuals') && canvas.includes('fallbackCount: 0') && !canvas.includes('EnemyVisibilitySafety_'), 'iPad rooms can still reveal colored or generic enemy safety models'],
+  [loading.includes('if (!next.critical)'), 'iPad room loading can end before exact monster models are ready'],
   [enemy.includes('node.frustumCulled = false;'), 'enemy meshes can still be culled in the combined build'],
 ];
 
@@ -31,4 +33,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('iPad run layout audit passed: camera, HUD, 148px joystick and 90px dash use dedicated tablet-landscape framing while room 13+ enemies retain permanent visibility safety.');
+console.log('iPad run layout audit passed: camera, HUD, 148px joystick and 90px dash use dedicated tablet framing while rooms wait for exact non-culled monster models with zero colored placeholders.');
