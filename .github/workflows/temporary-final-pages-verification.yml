@@ -39,33 +39,53 @@ jobs:
       - name: Build exact GitHub Pages output
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
 
-      - name: Compare live Pages HTML with current target build
+      - name: Capture live Pages content and compare bundles
+        id: compare
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          expected='artifacts/dungeon-rpg/dist/public/index.html'
-          for attempt in $(seq 1 3); do
-            curl --fail --silent --show-error --location --max-time 30 \
-              -H 'Cache-Control: no-cache' \
-              "https://ys2mm422yb-max.github.io/DungeonVeil/?verify=${GITHUB_SHA}-${attempt}" \
-              -o live-index.html
-            if cmp -s "$expected" live-index.html; then
-              echo 'Live GitHub Pages HTML exactly matches the current target-branch build.'
-              sha256sum "$expected" live-index.html
-              exit 0
-            fi
-            echo "Live HTML mismatch (attempt ${attempt}/3)."
-            sha256sum "$expected" live-index.html
-            sleep 5
-          done
-          echo 'Live GitHub Pages HTML does not match the current target-branch build.' >&2
-          diff -u "$expected" live-index.html || true
-          exit 1
+          mkdir -p pages-diagnostics
+          cp artifacts/dungeon-rpg/dist/public/index.html pages-diagnostics/expected-index.html
+          curl --fail --silent --show-error --location --max-time 30 \
+            -H 'Cache-Control: no-cache' \
+            "https://ys2mm422yb-max.github.io/DungeonVeil/?verify=${GITHUB_SHA}" \
+            -o pages-diagnostics/live-index.html
+
+          expected_src=$(grep -oE 'src="/DungeonVeil/assets/[^"]+\.js"' pages-diagnostics/expected-index.html | head -1 | cut -d'"' -f2)
+          live_src=$(grep -oE 'src="/DungeonVeil/assets/[^"]+\.js"' pages-diagnostics/live-index.html | head -1 | cut -d'"' -f2)
+          printf 'expected_src=%s\nlive_src=%s\n' "$expected_src" "$live_src" | tee pages-diagnostics/assets.txt
+
+          cp "artifacts/dungeon-rpg/dist/public${expected_src#/DungeonVeil}" pages-diagnostics/expected-app.js
+          curl --fail --silent --show-error --location --max-time 60 \
+            -H 'Cache-Control: no-cache' \
+            "https://ys2mm422yb-max.github.io${live_src}?verify=${GITHUB_SHA}" \
+            -o pages-diagnostics/live-app.js
+
+          sha256sum pages-diagnostics/expected-index.html pages-diagnostics/live-index.html \
+            pages-diagnostics/expected-app.js pages-diagnostics/live-app.js \
+            | tee pages-diagnostics/sha256.txt
+          diff -u pages-diagnostics/expected-index.html pages-diagnostics/live-index.html \
+            > pages-diagnostics/index.diff || true
+
+          cmp -s pages-diagnostics/expected-index.html pages-diagnostics/live-index.html
+          cmp -s pages-diagnostics/expected-app.js pages-diagnostics/live-app.js
+          echo 'Live GitHub Pages HTML and application bundle exactly match the current target build.'
+
+      - name: Upload Pages diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-pages-content-diagnostics
+          path: pages-diagnostics
+          retention-days: 1
 
       - name: Install Chromium
         run: pnpm dlx @playwright/test@1.54.1 install --with-deps chromium
 
       - name: Smoke test fixed live link on four profiles
+        id: browser
+        continue-on-error: true
         run: |
           cat > final-live-playwright.config.ts <<'TS'
           import { defineConfig } from '@playwright/test';
@@ -100,3 +120,11 @@ jobs:
           });
           TS
           pnpm dlx @playwright/test@1.54.1 test --config=final-live-playwright.config.ts
+
+      - name: Preserve verification result
+        if: always()
+        run: |
+          echo "content_compare=${{ steps.compare.outcome }}"
+          echo "live_browser_profiles=${{ steps.browser.outcome }}"
+          test "${{ steps.compare.outcome }}" = success
+          test "${{ steps.browser.outcome }}" = success
