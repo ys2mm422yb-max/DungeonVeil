@@ -7,7 +7,23 @@ async function clickAnimatedUi(locator) {
   await locator.click({ force: true, noWaitAfter: true });
 }
 
-test('a stalled later creature model cannot trap the new-run loading screen', async ({ page }) => {
+async function startNamedRun(page, name) {
+  await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
+  await clickAnimatedUi(page.getByRole('button', { name: /Neuer Run|New Run/i }));
+
+  const nameInput = page.getByRole('textbox').first();
+  await expect(nameInput).toBeVisible();
+  await nameInput.fill(name);
+
+  const startButton = page.getByRole('button', { name: /Run starten|Start Game/i }).first();
+  await expect(startButton).toBeEnabled();
+  const startedAt = Date.now();
+  await clickAnimatedUi(startButton);
+  return startedAt;
+}
+
+test('a stalled later creature model cannot trap room 1 loading', async ({ page }) => {
   test.setTimeout(120_000);
   await page.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
 
@@ -19,23 +35,34 @@ test('a stalled later creature model cannot trap the new-run loading screen', as
   });
 
   try {
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
-    await clickAnimatedUi(page.getByRole('button', { name: /Neuer Run|New Run/i }));
-
-    const nameInput = page.getByRole('textbox').first();
-    await expect(nameInput).toBeVisible();
-    await nameInput.fill('Deadline Ranger');
-
-    const startButton = page.getByRole('button', { name: /Run starten|Start Game/i }).first();
-    await expect(startButton).toBeEnabled();
-    const startedAt = Date.now();
-    await clickAnimatedUi(startButton);
-
-    await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 12_000 });
-    expect(Date.now() - startedAt).toBeLessThan(10_000);
+    const startedAt = await startNamedRun(page, 'Deadline Ranger');
+    await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
+    expect(Date.now() - startedAt).toBeLessThan(25_000);
     await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
   } finally {
     releaseStalledModel();
   }
+});
+
+test('room 1 stays on the run loading screen until its rat model is ready', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
+
+  let releaseRequiredModel = () => undefined;
+  const requiredModelGate = new Promise(resolve => { releaseRequiredModel = resolve; });
+  await page.route('**/assets/imported/enemies/Rat.glb', async route => {
+    await requiredModelGate;
+    await route.continue();
+  });
+
+  await startNamedRun(page, 'Model Gate Ranger');
+  await expect(page.getByTestId('new-run-loading-screen')).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId('run-hud')).toBeHidden();
+  await expect(page.locator('canvas')).toHaveCount(0);
+
+  releaseRequiredModel();
+  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 40_000 });
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
 });
