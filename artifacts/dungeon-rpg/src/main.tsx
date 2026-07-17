@@ -11,6 +11,8 @@ import { UnlockPresentationLayer } from './components/UnlockPresentationLayer';
 import { WorldBossVisualQa } from './components/WorldBossVisualQa';
 import { installAccessibilitySettings } from './game/accessibilitySettings';
 import { installCloudAccountSyncRuntime } from './game/cloudAccountSyncRuntime';
+import { installControlSettings } from './game/controlSettings';
+import { installDailyQuestRotationRuntime } from './game/dailyQuestRotationRuntime';
 import { installEmailConfirmationRedirect } from './game/emailConfirmationRedirect';
 import { repairLegacyProfileStats } from './game/profileStatsRepair';
 import { installProfileStorageIntegrity } from './game/profileStorageIntegrity';
@@ -21,6 +23,8 @@ import './guild-mobile.css';
 import './readability.css';
 
 installAccessibilitySettings();
+installControlSettings();
+installDailyQuestRotationRuntime();
 installProfileStorageIntegrity();
 repairLegacyProfileStats();
 installCloudAccountSyncRuntime();
