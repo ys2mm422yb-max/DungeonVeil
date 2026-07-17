@@ -33,13 +33,22 @@ try {
   const collision = await server.ssrLoadModule('/src/game/roomCollision3D.ts');
   const identities = await server.ssrLoadModule('/src/game/enemyRegionalIdentity.ts');
 
-  const [engineSource, hostCanvasSource, rendererSource, overlaySource, enemyVisualSource] = await Promise.all([
+  const [
+    engineSource,
+    hostCanvasSource,
+    rendererSource,
+    overlaySource,
+    enemyVisualFacadeSource,
+    enemyVisualBaseSource,
+  ] = await Promise.all([
     readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/CombatFeedbackOverlay.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/kaykitEnemyBase3D.ts', import.meta.url), 'utf8'),
   ]);
+  const enemyVisualSource = `${enemyVisualFacadeSource}\n${enemyVisualBaseSource}`;
 
   const playerDamageWrites = engineSource.match(/\bp\.hp\s*-=/g) ?? [];
   if (playerDamageWrites.length !== 1) {
