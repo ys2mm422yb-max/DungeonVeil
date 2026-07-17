@@ -1,0 +1,131 @@
+name: Temporary post-merge 187 verification
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.17.1 --activate
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run room and requested audits
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm --filter @workspace/dungeon-rpg audit:requested-pass
+
+      - name: Verify room 20 flight runtime contract
+        run: |
+          cat > /tmp/verify-room20-flight.ts <<'TS'
+          import { room20BossFlightPose } from '${{ github.workspace }}/artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts';
+
+          const boss = {
+            id: 'enemy-boss-20-0',
+            enemyType: 'boss',
+            lastAttackTime: 1000,
+            isDead: false,
+          } as any;
+          const nearStart = room20BossFlightPose(boss, 1000);
+          const launch = room20BossFlightPose(boss, 1180);
+          const hover = room20BossFlightPose(boss, 1360);
+          const dive = room20BossFlightPose(boss, 1600);
+          const landed = room20BossFlightPose(boss, 1720);
+          const after = room20BossFlightPose(boss, 1721);
+          const otherRoom = room20BossFlightPose({ ...boss, id: 'enemy-boss-30-0' }, 1360);
+
+          const assert = (condition: unknown, message: string) => {
+            if (!condition) throw new Error(message);
+          };
+          assert(nearStart.active && nearStart.height === 0, 'Room 20 boss must begin the attack grounded.');
+          assert(launch.height > 1, 'Room 20 boss must visibly rise during launch.');
+          assert(hover.height > 1.75, 'Room 20 boss must visibly hover near maximum height.');
+          assert(dive.height < hover.height && dive.height > 0, 'Room 20 boss must visibly descend before impact.');
+          assert(landed.active && Math.abs(landed.height) < 1e-9, 'Room 20 boss must touch the ground at the existing 720 ms hit time.');
+          assert(!after.active && after.height === 0, 'Room 20 boss must remain grounded after impact.');
+          assert(hover.shadowScale < launch.shadowScale && hover.shadowOpacity < launch.shadowOpacity, 'Shadow must shrink and fade with height.');
+          assert(!otherRoom.active && otherRoom.height === 0, 'Flight presentation must not affect other boss rooms.');
+          console.log('Room 20 flight runtime contract passed.');
+          TS
+          pnpm dlx tsx@4.20.3 /tmp/verify-room20-flight.ts
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Production build
+        run: pnpm --filter @workspace/dungeon-rpg build
+
+      - name: Install Chromium
+        run: pnpm dlx @playwright/test@1.54.1 install --with-deps chromium
+
+      - name: Browser smoke across desktop and mobile profiles
+        run: |
+          cat > post-merge-playwright.config.ts <<'TS'
+          import { defineConfig } from '@playwright/test';
+          export default defineConfig({
+            testDir: '.',
+            testMatch: /post-merge-smoke\.spec\.ts/,
+            timeout: 45000,
+            retries: 1,
+            reporter: 'line',
+            use: { baseURL: 'http://127.0.0.1:4173', browserName: 'chromium' },
+            projects: [
+              { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
+              { name: 'iphone', use: { viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 Version/18.5 Mobile/15E148 Safari/604.1', isMobile: true, hasTouch: true } },
+              { name: 'android', use: { viewport: { width: 412, height: 915 }, userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/136.0.0.0 Mobile Safari/537.36', isMobile: true, hasTouch: true } },
+              { name: 'ipad', use: { viewport: { width: 1024, height: 1366 }, userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_5 like Mac OS X) AppleWebKit/605.1.15 Version/18.5 Mobile/15E148 Safari/604.1', isMobile: true, hasTouch: true } },
+            ],
+          });
+          TS
+          cat > post-merge-smoke.spec.ts <<'TS'
+          import { test, expect } from '@playwright/test';
+
+          test('production build loads without fatal renderer errors', async ({ page }) => {
+            const pageErrors: string[] = [];
+            page.on('pageerror', error => pageErrors.push(error.message));
+            const response = await page.goto('/DungeonVeil/', { waitUntil: 'networkidle' });
+            expect(response?.ok(), `Unexpected response status: ${response?.status()}`).toBeTruthy();
+            await expect(page.locator('body')).toBeVisible();
+            await expect(page.locator('#root')).toBeVisible();
+            expect((await page.title()).trim().length).toBeGreaterThan(0);
+            expect((await page.locator('body').innerText()).trim().length).toBeGreaterThan(0);
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            expect(overflow).toBeLessThanOrEqual(2);
+            expect(pageErrors, pageErrors.join('\n')).toEqual([]);
+          });
+          TS
+          pnpm --filter @workspace/dungeon-rpg serve -- --port 4173 > /tmp/dungeon-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4173/DungeonVeil/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173/DungeonVeil/ >/dev/null
+          pnpm dlx @playwright/test@1.54.1 test --config=post-merge-playwright.config.ts
+
+      - name: Summarize verification
+        run: |
+          echo 'Post-merge verification completed: audits, room 20 flight contract, typecheck, build, and four Chromium profiles.'
