@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { markSettingsActivity } from '../game/settingsPersistence';
 import { Language, Translations, translations } from './translations';
 
 const STORAGE_KEY = 'dungeon-veil-language';
@@ -26,6 +27,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setLanguageState(lang);
     setHasChosen(true);
     localStorage.setItem(STORAGE_KEY, lang);
+    markSettingsActivity();
+  }, []);
+
+  useEffect(() => {
+    const refreshStoredLanguage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY) return;
+      const next = event.newValue;
+      if (next !== 'de' && next !== 'en') return;
+      setLanguageState(next);
+      setHasChosen(true);
+    };
+    window.addEventListener('storage', refreshStoredLanguage);
+    return () => window.removeEventListener('storage', refreshStoredLanguage);
   }, []);
 
   const t = translations[language];
