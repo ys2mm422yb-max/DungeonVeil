@@ -8,6 +8,7 @@ const failures = [];
 
 const enemyLoader = read('src/components/kaykitEnemy3D.ts');
 const canvas = read('src/components/GameCanvas.tsx');
+const vite = read('vite.config.ts');
 
 const requiredEnemyAssets = [
   'Slime.glb',
@@ -66,10 +67,21 @@ if (canvas.includes("detail: { key: liveRoomKey, floor: latest.floor, failed: tr
   failures.push('failed room staging can still reveal unfinished enemies');
 }
 
+const requiredBuildContracts = [
+  ["name: 'dungeon-veil-dedicated-enemy-models-only'", 'the production build does not install the dedicated-model-only transform'],
+  [".replace(safetyNeedle, '        const requiresPermanentSafety = false;')", 'permanent generic safety bodies are still enabled in production'],
+  ['.replace(ENEMY_FALLBACK_BLOCK, ENEMY_DEDICATED_MODEL_BLOCK)', 'colored enemy loading bodies are still emitted by the production build'],
+  ["throw new Error('Enemy fallback creation contract changed; refusing to build generic enemy bodies')", 'the build does not fail closed when fallback code changes'],
+  ["console.error('KayKit dedicated enemy visual failed after room preload', error);", 'runtime failures still describe or preserve a generic enemy body'],
+];
+for (const [needle, label] of requiredBuildContracts) {
+  if (!vite.includes(needle)) failures.push(label);
+}
+
 if (failures.length) {
   console.error('Complete enemy loading validation failed:');
   failures.forEach(failure => console.error(`- ${failure}`));
   process.exit(1);
 }
 
-console.log('Room-scoped enemy preload and hidden-until-ready room gate verified.');
+console.log('Room-scoped enemy preload, hidden-until-ready reveal and dedicated-model-only build verified.');
