@@ -1,0 +1,52 @@
+{
+  "workflow": "Dungeon Veil Social Tutorial Mobile QA",
+  "status": "success",
+  "validatedCommit": "fa211d56cbcc9261d277c664b0e69bf64b17812f",
+  "outcomes": {
+    "install": "success",
+    "audit": "success",
+    "typecheck": "success",
+    "build": "success",
+    "browsers": "success",
+    "serve": "success",
+    "tutorialIphone": "success",
+    "tutorialAndroid": "success",
+    "menuIphone": "success",
+    "menuAndroid": "success",
+    "worldbossIphone": "success",
+    "worldbossAndroid": "success",
+    "validate": "success",
+    "upload": "success"
+  },
+  "auditLog": "\n> @workspace/dungeon-rpg@0.0.0 audit:assets /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> node scripts/audit-kaykit-assets.mjs && node scripts/validate-armor-progression.mjs\n\nAsset audit complete\n{\"models\":693,\"kaykitModels\":662,\"importedModels\":31,\"referencedBasenames\":214,\"directlyReferencedModels\":215,\"candidatePoolNotDirectlyReferenced\":478}\n{\"architecture\":61,\"floors\":49,\"interiors\":90,\"tools\":17,\"resources\":170,\"nature\":76,\"graveyard\":16,\"ritual\":2,\"lighting\":29,\"weapons\":73,\"characters\":42,\"armor\":13}\n{\"inhabited-dungeon\":208,\"ancient-ruins\":45,\"meadow-forest\":87,\"darkwood-village\":86,\"fortress-ember\":165}\nArmor progression audit passed: distinct male armor previews, meaningful item levels, capped cooldowns, diminishing defense, save migration and the final centralized chapter curve are coherent.\n\n> @workspace/dungeon-rpg@0.0.0 audit:rooms /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> node scripts/run-room-audit-suite.mjs && node scripts/validate-boss-room-telegraphs-and-meadow.mjs\n\n✓ validate-all-rooms.mjs\n✓ validate-production-rooms.mjs\n✓ validate-spawn-hitboxes.mjs\n✓ validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs\n✓ validate-enemy-visibility.mjs\n✓ validate-mobile-combat.mjs\n✓ validate-combat-telegraphs-late-balance.mjs\n✓ validate-mobile-zoom-guard.mjs\n✓ validate-ipad-run-layout.mjs\n✓ validate-worldboss-performance.mjs\n✓ validate-social-navigation.mjs\n✓ validate-social-progression.mjs\n✓ validate-run-identity-social-spectator.mjs\n✓ validate-gift-fusions.mjs\n✓ validate-dust-avatar-overhaul.mjs\n✓ validate-rooms-4-5-composition.mjs\n✓ validate-room-quality-6-50.mjs\n✓ validate-guild-mobile-layout.mjs\n✓ validate-blocks-1-8-integration.mjs\n✓ validate-main-menu-equipped-ranger.mjs\n✓ validate-inventory-guild-chat-chapters.mjs\n✓ validate-player-profile.mjs\n✓ validate-public-player-profile.mjs\n✓ validate-friends-public-profiles.mjs\n✓ validate-online-presence.mjs\n✓ validate-elite-outside-profile.mjs\n✓ validate-menu-copy-relic-progression.mjs\n✓ validate-profile-badge-compact.mjs\n✓ validate-upgrade-economy.mjs\n✓ validate-armor-progression.mjs\n✓ validate-chapter-reward-contract.mjs\n✓ validate-final-balance-integration.mjs\n✓ validate-final-balance-curve.mjs\nRoom audit suite passed: 33 focused checks completed.\nBoss telegraphs, room-20 flight, meadow density and room-30 visibility audit passed.\n\n> @workspace/dungeon-rpg@0.0.0 audit:social /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> node scripts/validate-social-navigation.mjs && node scripts/validate-social-progression.mjs && node scripts/validate-run-identity-social-spectator.mjs && node scripts/validate-gift-fusions.mjs && node scripts/validate-dust-avatar-overhaul.mjs && node scripts/validate-guild-mobile-layout.mjs && node scripts/validate-main-menu-equipped-ranger.mjs && node scripts/validate-inventory-guild-chat-chapters.mjs && node scripts/validate-player-profile.mjs && node scripts/validate-public-player-profile.mjs && node scripts/validate-friends-public-profiles.mjs && node scripts/validate-online-presence.mjs && node scripts/validate-elite-outside-profile.mjs && node scripts/validate-menu-copy-relic-progression.mjs && node scripts/validate-profile-badge-compact.mjs && node scripts/validate-upgrade-economy.mjs && node scripts/validate-armor-progression.mjs && node scripts/validate-loading-transitions.mjs && node scripts/validate-room-spectator-firelands.mjs && node scripts/validate-cloud-realtime-performance.mjs\n\nSocial/navigation audit passed: exact email return path, one focused equipped Ranger, closable guild invites, compact social routes and the current world-boss pipeline remain active.\nSocial progression audit passed: public career profiles, cosmetic social cards, friend-only live viewing, server boss gates and focused Ranger remain integrated.\nRun identity/social spectator audit passed: account names, friend-or-guild 10Hz viewing, viewer counts, gifts, lifecycle status and public equipment are integrated.\nGift progression audit passed: bounded milestones and masteries remain intact, while all three fusions provide distinct capped combat effects.\nDust/avatar overhaul audit passed: migration preserves cloud weight, all rewards feed Veil Dust, upgrades consume three resources and all 17 profile avatars use safe vector portraits.\nGuild mobile layout audit passed: cosmetic member cards live in the Members tab, open public profiles, keep translated roles and separate management actions.\nMain-menu equipped ranger audit passed: the prompt is gone, visible equipment stays readable and all four saved equipment slots remain protected.\nInventory/guild-chat/chapter audit passed: persistent NEW markers, visible unlock presentations, chapter 1-10 gates and guild systems remain coherent.\nPlayer profile audit passed: complete statistics, rolling backup, startup repair, visible storage health and real run tracking are active.\nPublic player profile audit passed: mobile-safe friend profiles show best progress, career statistics, equipped cosmetics, friend code, achievements and guild/friend entry points.\nFriends/public-profile audit passed: cosmetic friend and request cards open public profiles, actions stay separate and active runs can be watched.\nOnline presence audit passed: active heartbeat, five-minute online window, automatic friend refresh and live guild presence are active.\nElite/profile separation passed: the player profile contains identity and statistics only, with no elite-task surface.\nMenu/profile/cloud progression audit passed: complete collections, safe account saves, chapter-10 equipment, all boss relic milestones, dust upgrades and weekly elite contracts are integrated.\nCompact profile badge audit passed: the top-left profile card uses the final 184px/52px layout and remains separated from the logo.\nUpgrade economy audit passed: the sole three-resource upgrade path remains active, while three source marks, safe duplicate conversion and bounded wish pity provide controlled copies.\nArmor progression audit passed: distinct male armor previews, meaningful item levels, capped cooldowns, diminishing defense, save migration and the final centralized chapter curve are coherent.\nLoading transitions verified: boot has a hard deadline; new run, room entry and world boss remain covered.\nRequested room, spectator, guild and firelands pass validated.\nCloud multi-device, safe updates, 10Hz spectating, viewer presence, gifts, ring cleanup and room 15 performance validated.\n",
+  "typecheckLog": "\n> @workspace/dungeon-rpg@0.0.0 typecheck /home/runner/work/DungeonVeil/DungeonVeil/artifacts/dungeon-rpg\n> tsc -p tsconfig.json --noEmit\n\n",
+  "screenshots": [
+    ".ci/visual-qa/tutorial-iphone.png",
+    ".ci/visual-qa/tutorial-android.png",
+    ".ci/visual-qa/tutorial-iphone-thumb.jpg",
+    ".ci/visual-qa/tutorial-android-thumb.jpg",
+    ".ci/visual-qa/menu-iphone.png",
+    ".ci/visual-qa/menu-android.png",
+    ".ci/visual-qa/menu-iphone-thumb.jpg",
+    ".ci/visual-qa/menu-android-thumb.jpg",
+    ".ci/visual-qa/worldboss-iphone.png",
+    ".ci/visual-qa/worldboss-android.png",
+    ".ci/visual-qa/worldboss-iphone-thumb.jpg",
+    ".ci/visual-qa/worldboss-android-thumb.jpg"
+  ],
+  "sizes": {
+    "tutorialIphone": 298407,
+    "tutorialAndroid": 755824,
+    "tutorialIphoneThumb": 5902,
+    "tutorialAndroidThumb": 5362,
+    "menuIphone": 282132,
+    "menuAndroid": 415500,
+    "menuIphoneThumb": 11491,
+    "menuAndroidThumb": 12487,
+    "worldbossIphone": 195875,
+    "worldbossAndroid": 513066,
+    "worldbossIphoneThumb": 4645,
+    "worldbossAndroidThumb": 11788
+  },
+  "completedAt": "2026-07-17T06:48:34.892Z"
+}
