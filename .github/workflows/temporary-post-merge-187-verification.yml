@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  diagnose-room-audits:
+  reproduce-room-package-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -18,55 +18,43 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: fix/enemy-visibility-audit-split-module
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.17.1 --activate
-      - name: Install dependencies
+          cache: pnpm
+      - name: Install workspace
         run: pnpm install --frozen-lockfile
-      - name: Run every room audit with full output
+      - name: Run exact audit rooms command five times
         id: rooms
         continue-on-error: true
         shell: bash
-        working-directory: artifacts/dungeon-rpg
         run: |
           set -o pipefail
-          node --input-type=module <<'NODE' 2>&1 | tee room-audits.log
-          import fs from 'node:fs';
-          import { spawnSync } from 'node:child_process';
-          const suite = fs.readFileSync('scripts/run-room-audit-suite.mjs', 'utf8');
-          const scripts = [...suite.matchAll(/'([^']+\.mjs)'/g)].map(match => match[1]);
-          const failures = [];
-          for (const script of scripts) {
-            console.log(`===== ${script} =====`);
-            const result = spawnSync(process.execPath, [`scripts/${script}`], { stdio: 'inherit', env: process.env });
-            if (result.error || result.status !== 0) failures.push(script);
-          }
-          console.log(`===== SUMMARY: ${scripts.length} audits, ${failures.length} failures =====`);
-          failures.forEach(script => console.error(`FAILED: ${script}`));
-          if (failures.length) process.exitCode = 1;
-          NODE
-      - name: Requested-pass audits
+          : > artifacts/dungeon-rpg/audit-rooms-exact.log
+          failed=0
+          for run in 1 2 3 4 5; do
+            echo "===== EXACT AUDIT RUN $run =====" | tee -a artifacts/dungeon-rpg/audit-rooms-exact.log
+            pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee -a artifacts/dungeon-rpg/audit-rooms-exact.log || failed=1
+          done
+          exit $failed
+      - name: Typecheck full workspace
         if: always()
-        working-directory: artifacts/dungeon-rpg
-        run: pnpm audit:requested-pass
-      - name: Full TypeScript check
+        run: pnpm run typecheck
+      - name: Build GitHub Pages production output
         if: always()
-        run: pnpm typecheck
-      - name: Production build
-        if: always()
-        run: pnpm --dir artifacts/dungeon-rpg build
-      - name: Upload room audit log
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+          test -f artifacts/dungeon-rpg/dist/public/index.html
+          grep -q '/DungeonVeil/' artifacts/dungeon-rpg/dist/public/index.html
+      - name: Upload exact audit log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: room-audits-pr190
-          path: artifacts/dungeon-rpg/room-audits.log
+          name: exact-audit-rooms-pr190
+          path: artifacts/dungeon-rpg/audit-rooms-exact.log
           retention-days: 1
-      - name: Preserve room audit result
-        if: steps.rooms.outcome != 'success'
-        run: exit 1
