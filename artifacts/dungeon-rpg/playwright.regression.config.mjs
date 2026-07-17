@@ -57,6 +57,7 @@ export default defineConfig({
         userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1',
       },
     },
+    // Full regression is mobile-only; desktop is invoked separately as a short non-blocking smoke check.
     {
       name: 'desktop-chromium',
       use: {
