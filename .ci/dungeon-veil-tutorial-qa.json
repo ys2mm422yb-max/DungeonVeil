@@ -1,7 +1,7 @@
 {
   "workflow": "Dungeon Veil Social Tutorial Mobile QA",
   "status": "success",
-  "validatedCommit": "fa211d56cbcc9261d277c664b0e69bf64b17812f",
+  "validatedCommit": "c0b58930fb063ef33650ad375dd0eebb8b876c38",
   "outcomes": {
     "install": "success",
     "audit": "success",
@@ -39,14 +39,14 @@
     "tutorialAndroid": 755824,
     "tutorialIphoneThumb": 5902,
     "tutorialAndroidThumb": 5362,
-    "menuIphone": 282132,
-    "menuAndroid": 415500,
-    "menuIphoneThumb": 11491,
+    "menuIphone": 282145,
+    "menuAndroid": 415713,
+    "menuIphoneThumb": 11492,
     "menuAndroidThumb": 12487,
-    "worldbossIphone": 195875,
-    "worldbossAndroid": 513066,
-    "worldbossIphoneThumb": 4645,
-    "worldbossAndroidThumb": 11788
+    "worldbossIphone": 192444,
+    "worldbossAndroid": 512387,
+    "worldbossIphoneThumb": 4602,
+    "worldbossAndroidThumb": 11821
   },
-  "completedAt": "2026-07-17T06:48:34.892Z"
+  "completedAt": "2026-07-17T09:36:33.917Z"
 }
