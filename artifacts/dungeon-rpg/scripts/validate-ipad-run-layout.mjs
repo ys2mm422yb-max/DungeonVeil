@@ -1,13 +1,15 @@
 import { readFile } from 'node:fs/promises';
 
-const [camera, hud, joystick, actions, canvas, enemy] = await Promise.all([
+const [camera, hud, joystick, actions, canvas, enemyWrapper, enemyBase] = await Promise.all([
   readFile(new URL('../src/components/RunCameraRig.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/HUD.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/VirtualJoystick.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ActionButtons.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/GameCanvasKayKit3D.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/kaykitEnemyBase3D.ts', import.meta.url), 'utf8'),
 ]);
+const enemy = `${enemyWrapper}\n${enemyBase}`;
 
 const checks = [
   [camera.includes('function isTabletLandscape') && camera.includes('Math.min(width, height) >= 650'), 'tablet landscape detection is missing from the run camera'],
