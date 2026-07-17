@@ -13,6 +13,8 @@ import { rewardChapterRoomClear } from '../game/chapterRewardContract';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
+import { installNormalEnemyAttackTelegraphs } from '../game/normalEnemyAttackTelegraphs';
+import { installBossAttackTelegraphs } from '../game/bossAttackTelegraphs';
 import { createRunSynergyState, updateRunSynergies } from '../game/runSynergies';
 import { createFirstWardenFinaleState, updateFirstWardenFinale } from '../game/firstWardenFinale';
 import { createEquipmentWorldLootState, disposeEquipmentWorldLoot, spawnRoomEquipmentReward, updateEquipmentWorldLoot } from '../game/equipmentWorldLoot';
@@ -143,6 +145,8 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const initialEngine = getEngineRef.current();
     const disposeGiftProgression = initialEngine ? installBoundedRunGiftProgression(initialEngine) : () => {};
     const disposeFusionEffects = initialEngine ? installRunFusionEffects(initialEngine) : () => {};
+    const disposeNormalAttacks = initialEngine ? installNormalEnemyAttackTelegraphs(initialEngine) : () => {};
+    const disposeBossAttacks = initialEngine ? installBossAttackTelegraphs(initialEngine) : () => {};
     let frame = 0;
     let checkedClearKey = '';
     let lastFrame = performance.now();
@@ -241,6 +245,8 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     frame = requestAnimationFrame(update);
     return () => {
       cancelAnimationFrame(frame);
+      disposeBossAttacks();
+      disposeNormalAttacks();
       disposeFusionEffects();
       disposeGiftProgression();
       const engine = getEngineRef.current();

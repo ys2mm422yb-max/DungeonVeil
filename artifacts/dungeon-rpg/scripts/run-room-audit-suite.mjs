@@ -5,6 +5,7 @@ const scripts = [
   'validate-all-rooms.mjs',
   'validate-production-rooms.mjs',
   'validate-spawn-hitboxes.mjs',
+  'validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs',
   'validate-enemy-visibility.mjs',
   'validate-mobile-combat.mjs',
   'validate-combat-telegraphs-late-balance.mjs',
