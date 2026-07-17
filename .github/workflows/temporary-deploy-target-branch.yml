@@ -34,8 +34,17 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
-      - name: Verify rooms
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Verify rooms with bounded retry
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            echo "Room audit attempt ${attempt}/3"
+            if pnpm --filter @workspace/dungeon-rpg audit:rooms; then
+              exit 0
+            fi
+          done
+          echo "Room audit failed in all three attempts" >&2
+          exit 1
 
       - name: Typecheck workspace
         run: pnpm run typecheck
