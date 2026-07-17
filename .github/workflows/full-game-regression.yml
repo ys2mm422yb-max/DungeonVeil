@@ -14,6 +14,10 @@ on:
       - 'artifacts/dungeon-rpg/**'
       - '.ci/full-game-regression-trigger*.txt'
 
+concurrency:
+  group: full-game-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   issues: write
@@ -52,9 +56,10 @@ jobs:
           grep -q '/DungeonVeil/' artifacts/dungeon-rpg/dist/public/index.html
 
   browser-regression:
+    name: Mobile browser regression (iPhone, Android, iPad)
     needs: static-regression
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -70,9 +75,9 @@ jobs:
         run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
       - name: Install Chromium and WebKit
         run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium webkit
-      - name: Build current branch for browser regression
+      - name: Build current branch for mobile browser regression
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-      - name: Test current branch on iPhone, Android, iPad and desktop
+      - name: Test current branch on iPhone, Android and iPad
         id: browser-tests
         continue-on-error: true
         env:
@@ -88,7 +93,11 @@ jobs:
             sleep 1
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+          pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            --config=playwright.regression.config.mjs \
+            --project=iphone-webkit \
+            --project=android-chromium \
+            --project=ipad-landscape-webkit
       - name: Build compact Playwright failure summary
         if: steps.browser-tests.outcome == 'failure'
         shell: bash
@@ -101,7 +110,7 @@ jobs:
           try {
             report = JSON.parse(fs.readFileSync(path, 'utf8'));
           } catch (error) {
-            fs.writeFileSync('/tmp/playwright-failure.md', `${marker}\n## Browser regression failed\n\nThe JSON report could not be read: \`${String(error.message).replace(/`/g, "'")}\``);
+            fs.writeFileSync('/tmp/playwright-failure.md', `${marker}\n## Mobile browser regression failed\n\nThe JSON report could not be read: \`${String(error.message).replace(/`/g, "'")}\``);
             process.exit(0);
           }
           const failures = [];
@@ -126,7 +135,7 @@ jobs:
             for (const child of suite.suites || []) walk(child, next);
           };
           for (const suite of report.suites || []) walk(suite);
-          const lines = [marker, '## Browser regression failed', '', `Commit: \`${process.env.GITHUB_SHA}\``, `Failures: **${failures.length}**`, ''];
+          const lines = [marker, '## Mobile browser regression failed', '', `Commit: \`${process.env.GITHUB_SHA}\``, `Failures: **${failures.length}**`, ''];
           for (const failure of failures.slice(0, 20)) {
             lines.push(`### ${failure.project}: ${failure.title}`, `Status: \`${failure.status}\``, '', '```text', (failure.errors || 'No detailed error recorded').slice(0, 5000).replace(/```/g, "'''"), '```', '');
           }
@@ -149,16 +158,68 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
-      - name: Fail browser regression after diagnostics
+      - name: Fail mobile browser regression after diagnostics
         if: steps.browser-tests.outcome == 'failure'
         run: exit 1
-      - name: Upload browser report and failure evidence
+      - name: Upload mobile browser report and failure evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: full-game-regression-evidence
           if-no-files-found: warn
           retention-days: 14
+          path: |
+            artifacts/dungeon-rpg/playwright-report
+            artifacts/dungeon-rpg/test-results
+
+  desktop-smoke:
+    name: Desktop smoke (non-blocking)
+    needs: static-regression
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install isolated desktop test runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install Chromium only
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium
+      - name: Build current branch for desktop smoke
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Verify boot and new run on desktop
+        env:
+          DUNGEON_VEIL_URL: http://127.0.0.1:4174/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4174 > /tmp/dungeon-veil-desktop-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:4174/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4174/DungeonVeil/ > /dev/null
+          pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/new-run-preload-deadline.spec.mjs \
+            --config=playwright.regression.config.mjs \
+            --project=desktop-chromium
+      - name: Upload desktop smoke evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-smoke-evidence
+          if-no-files-found: warn
+          retention-days: 7
           path: |
             artifacts/dungeon-rpg/playwright-report
             artifacts/dungeon-rpg/test-results
