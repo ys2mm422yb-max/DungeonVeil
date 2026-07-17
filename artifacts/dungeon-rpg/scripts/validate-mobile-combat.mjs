@@ -8,7 +8,10 @@ const files = {
   canvasHost: await readFile(new URL('../src/components/GameCanvas.tsx', import.meta.url), 'utf8'),
   combatStage: await readFile(new URL('../src/components/CombatStage.tsx', import.meta.url), 'utf8'),
   camera: await readFile(new URL('../src/components/RunCameraRig.ts', import.meta.url), 'utf8'),
-  enemy: await readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
+  enemy: [
+    await readFile(new URL('../src/components/kaykitEnemy3D.ts', import.meta.url), 'utf8'),
+    await readFile(new URL('../src/components/kaykitEnemyBase3D.ts', import.meta.url), 'utf8'),
+  ].join('\n'),
   engine: await readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
   portalExit: await readFile(new URL('../src/game/portalExitPolicy.ts', import.meta.url), 'utf8'),
   main: await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
