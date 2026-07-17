@@ -41,6 +41,7 @@ for (const script of scripts) {
   const result = spawnSync(process.execPath, [fileURLToPath(new URL(script, import.meta.url))], {
     encoding: 'utf8',
     env: process.env,
+    maxBuffer: 16 * 1024 * 1024,
   });
   if (result.error) {
     console.error(`ROOM AUDIT COULD NOT START: ${script}`);
