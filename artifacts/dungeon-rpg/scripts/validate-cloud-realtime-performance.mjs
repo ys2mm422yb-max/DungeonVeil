@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [bundle, cloud, updateGate, spectator, spectatorScreen, hud, themes, migration] = await Promise.all([
+const [bundle, cloud, runtime, saveManager, onlinePanel, updateGate, spectator, spectatorScreen, hud, themes, migration] = await Promise.all([
   read('../src/game/persistentSaveBundle.ts'),
   read('../src/game/cloudSave.ts'),
+  read('../src/game/cloudAccountSyncRuntime.ts'),
+  read('../src/game/saveManager.ts'),
+  read('../src/components/OnlinePanel.tsx'),
   read('../src/components/MainMenuUpdateGate.tsx'),
   read('../src/game/socialSpectatorOnline.ts'),
   read('../src/components/SpectatorScreen.tsx'),
@@ -17,6 +20,9 @@ const checks = [
   [bundle.includes('activityAt?: number') && bundle.includes('progressWeight?: number') && bundle.includes('shouldRestoreRemoteBundle'), 'cloud bundles lack conflict metadata or restore ordering'],
   [cloud.includes("rpc/upsert_guarded_game_save") && cloud.includes('shouldRestoreRemoteBundle(bundle, result.payload)'), 'cloud pushes are not protected from stale-device overwrite'],
   [migration.includes('for update') && migration.includes("jsonb_build_object('accepted', false") && migration.includes('upsert_guarded_game_save'), 'server-side cloud conflict guard is incomplete'],
+  [saveManager.includes("SAVE_EVENT = 'dungeon-veil-save-changed'") && saveManager.includes('emitSaveChange();'), 'normal run saves do not notify the cloud sync runtime'],
+  [runtime.includes('CLOUD_RECONCILE_MS = 10_000') && runtime.includes('bundleDataSignature') && runtime.includes('visibilitychange') && runtime.includes("window.addEventListener('focus'") && runtime.includes('SAVE_EVENT'), 'global cloud reconciliation is not frequent or browser-switch aware'],
+  [onlinePanel.includes('profile-autosave-status') && onlinePanel.includes('cloud-autosync-status') && onlinePanel.includes('updateOnlineProfile(nextDisplayName)') && !onlinePanel.includes('Spielstand hochladen') && !onlinePanel.includes('Spielstand herunterladen') && !onlinePanel.includes('Profil speichern'), 'online panel still depends on manual profile or save buttons'],
   [updateGate.includes('CLOUD_POLL_MS = 15_000') && updateGate.includes('pullCloudSave') && updateGate.includes('window.location.reload'), 'main-menu multi-device refresh is missing'],
   [updateGate.includes('deployment.json') && updateGate.includes('UPDATE_DELAY_MS') && updateGate.includes('pushCloudSave'), 'safe automatic main-menu deployment update is missing'],
   [spectator.includes('SPECTATOR_REFRESH_MS = 100') && spectator.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not ten-hertz and gift-aware'],
@@ -34,4 +40,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Cloud multi-device, safe updates, 10Hz spectating, viewer presence, gifts, ring cleanup and room 15 performance validated.');
+console.log('Automatic profile saves, ten-second multi-browser cloud reconciliation, safe updates, 10Hz spectating, viewer presence, gifts, ring cleanup and room 15 performance validated.');

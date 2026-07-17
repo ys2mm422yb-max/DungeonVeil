@@ -3,6 +3,7 @@ import { DungeonMap, generateDungeon } from './dungeon';
 import { UpgradeKey } from '../i18n/translations';
 
 const SAVE_KEY = 'dungeon-veil-save';
+export const SAVE_EVENT = 'dungeon-veil-save-changed';
 export const SAVE_VERSION = 4;
 
 export interface SaveData {
@@ -51,6 +52,10 @@ function persistentRunSkills(skills: Partial<Record<UpgradeKey, number>> | undef
   return persistent;
 }
 
+function emitSaveChange(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(SAVE_EVENT));
+}
+
 export function saveGame(data: SaveData): boolean {
   try {
     const { dungeonMap: _dungeonMap, ...compactData } = data;
@@ -59,6 +64,7 @@ export function saveGame(data: SaveData): boolean {
       runSkills: persistentRunSkills(compactData.runSkills),
       saveVersion: SAVE_VERSION,
     }));
+    emitSaveChange();
     return true;
   } catch (error) {
     console.error('Dungeon Veil save failed', error);
@@ -100,4 +106,5 @@ export function hasSave(): boolean {
 
 export function clearSave(): void {
   localStorage.removeItem(SAVE_KEY);
+  emitSaveChange();
 }
