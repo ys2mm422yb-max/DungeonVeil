@@ -1,0 +1,87 @@
+name: Apply enemy renderer no-fallback patch
+
+on:
+  push:
+    branches: [fix/room-scoped-enemy-model-loading]
+    paths:
+      - '.github/workflows/apply-enemy-renderer-no-fallback.yml'
+      - '.github/enemy-renderer-patch-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-renderer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/room-scoped-enemy-model-loading
+          fetch-depth: 0
+      - name: Apply focused no-fallback patch
+        shell: bash
+        run: |
+          if [ ! -f .github/enemy-renderer-patch-trigger.txt ]; then
+            echo 'Trigger not present yet; nothing to patch.'
+            exit 0
+          fi
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx')
+          source = path.read_text()
+
+          source = source.replace(
+              "        const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;",
+              "        const requiresPermanentSafety = false;",
+          )
+
+          fallback_block = """        let visual = enemyVisuals.get(enemy.id);
+        if (!visual) {
+          let fallback = enemyFallbacks.get(enemy.id);
+          if (!fallback) {
+            fallback = createEnemyFallback(enemy);
+            enemyFallbacks.set(enemy.id, fallback);
+            scene.add(fallback);
+          }
+          fallback.position.set(nextX, 0, nextZ);
+          fallback.rotation.y = gameNow * 0.0015 + enemy.id.length;
+          if (fallback.userData.ring?.material) {
+            fallback.userData.ring.material.opacity = 0.46 + Math.sin(gameNow * 0.008 + enemy.id.length) * 0.16;
+          }
+        }
+        if (!visual && !enemyLoading.has(enemy.id)) {"""
+          no_fallback_block = """        let visual = enemyVisuals.get(enemy.id);
+        // The outer room gate has already prepared every required dedicated
+        // model. Never render a generic colored stand-in while the cached clone
+        // is being attached to the scene.
+        if (!visual && !enemyLoading.has(enemy.id)) {"""
+          if fallback_block not in source:
+              raise SystemExit('enemy fallback creation block was not found')
+          source = source.replace(fallback_block, no_fallback_block)
+
+          old_error = """            // Keep the visible fallback in the scene. A failed model may never
+            // turn a living, attacking enemy into an invisible target.
+            console.error('KayKit enemy failed; keeping visibility fallback', error);"""
+          new_error = """            // The room gate should make this path unreachable. Keep retrying on
+            // later frames, but never replace the dedicated creature with a blob.
+            console.error('KayKit dedicated enemy visual failed after room preload', error);"""
+          if old_error not in source:
+              raise SystemExit('enemy fallback error block was not found')
+          source = source.replace(old_error, new_error)
+
+          path.write_text(source)
+          Path('.github/enemy-renderer-patch-trigger.txt').unlink()
+          Path('.github/workflows/apply-enemy-renderer-no-fallback.yml').unlink()
+          PY
+      - name: Commit focused patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx .github
+          git commit -m 'fix: remove colored enemy fallback bodies'
+          git push origin HEAD:fix/room-scoped-enemy-model-loading
