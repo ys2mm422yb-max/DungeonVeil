@@ -10,42 +10,43 @@ permissions:
   contents: read
 
 jobs:
-  diagnose-room-audits:
+  diagnose-enemy-visibility:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Enable pnpm
         run: |
           corepack enable
           corepack prepare pnpm@10.17.1 --activate
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Run room audit suite with diagnostics
-        id: rooms
+      - name: Run enemy visibility audit five times
+        id: visibility
         continue-on-error: true
         shell: bash
+        working-directory: artifacts/dungeon-rpg
         run: |
           set -o pipefail
-          pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee room-audit.log
-
-      - name: Upload room audit log
+          : > enemy-visibility.log
+          failed=0
+          for run in 1 2 3 4 5; do
+            echo "===== RUN $run =====" | tee -a enemy-visibility.log
+            node scripts/validate-enemy-visibility.mjs 2>&1 | tee -a enemy-visibility.log || failed=1
+          done
+          exit $failed
+      - name: Upload enemy visibility log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: room-audit-log
-          path: room-audit.log
+          name: enemy-visibility-log
+          path: artifacts/dungeon-rpg/enemy-visibility.log
           retention-days: 1
-
-      - name: Preserve audit result
-        if: steps.rooms.outcome != 'success'
+      - name: Preserve diagnostic result
+        if: steps.visibility.outcome != 'success'
         run: exit 1
