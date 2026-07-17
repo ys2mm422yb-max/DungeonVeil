@@ -27,6 +27,10 @@ function roomKey(state: GameState) {
   return `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
 }
 
+function wait(milliseconds: number) {
+  return new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
+}
+
 function updateDiagnostics(event: string, patch: Partial<RuntimeDiagnostics> = {}) {
   try {
     const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
@@ -55,7 +59,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   const preloadKeyRef = useRef('');
   const recoveringRef = useRef(false);
   const recoveryReadyTimerRef = useRef<number | null>(null);
-  const [renderState, setRenderState] = useState(gameState);
+  const [renderState, setRenderState] = useState<GameState | null>(null);
   const [rendererGeneration, setRendererGeneration] = useState(0);
   const liveRoomKey = roomKey(gameState);
 
@@ -108,32 +112,42 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   }, [gameState, liveRoomKey]);
 
   useEffect(() => {
-    if (liveRoomKey === renderedRoomKeyRef.current) return;
+    if (liveRoomKey === renderedRoomKeyRef.current) return undefined;
     const token = ++transitionTokenRef.current;
+    let cancelled = false;
     window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { key: liveRoomKey, floor: gameState.floor } }));
 
-    void Promise.all([
-      preloadKayKitDungeonRoom(gameState.floor),
-      preloadKayKitRoomTheme(gameState.floor),
-      preloadKayKitEnemyVisuals(),
-    ]).then(() => {
-      if (token !== transitionTokenRef.current) return;
-      const latest = latestStateRef.current;
-      if (roomKey(latest) !== liveRoomKey) return;
-      renderedRoomKeyRef.current = liveRoomKey;
-      setRenderState(latest);
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (token !== transitionTokenRef.current) return;
-        window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key: liveRoomKey, floor: latest.floor } }));
-      }));
-    }).catch(error => {
-      console.error('Dungeon Veil room staging failed', error);
-      if (token !== transitionTokenRef.current) return;
-      const latest = latestStateRef.current;
-      renderedRoomKeyRef.current = roomKey(latest);
-      setRenderState(latest);
-      window.setTimeout(() => window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key: liveRoomKey, floor: latest.floor, failed: true } })), 420);
-    });
+    const stageRoom = async () => {
+      let attempt = 0;
+      while (!cancelled && token === transitionTokenRef.current) {
+        try {
+          await Promise.all([
+            preloadKayKitDungeonRoom(gameState.floor),
+            preloadKayKitRoomTheme(gameState.floor),
+            preloadKayKitEnemyVisuals(),
+          ]);
+          if (cancelled || token !== transitionTokenRef.current) return;
+          const latest = latestStateRef.current;
+          if (roomKey(latest) !== liveRoomKey) return;
+          renderedRoomKeyRef.current = liveRoomKey;
+          setRenderState(latest);
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (cancelled || token !== transitionTokenRef.current) return;
+            window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key: liveRoomKey, floor: latest.floor } }));
+          }));
+          return;
+        } catch (error) {
+          attempt += 1;
+          console.error(`Dungeon Veil room staging attempt ${attempt} failed; retrying before reveal`, error);
+          await wait(Math.min(4_000, 500 * attempt));
+        }
+      }
+    };
+
+    void stageRoom();
+    return () => {
+      cancelled = true;
+    };
   }, [liveRoomKey, gameState.floor]);
 
   useEffect(() => {
@@ -238,7 +252,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
       data-testid="run-canvas-host"
       style={{ width: '100%', height: '100%', touchAction: 'none', WebkitUserSelect: 'none' }}
     >
-      <GameCanvasKayKit3D key={rendererGeneration} gameState={renderState} />
+      {renderState ? <GameCanvasKayKit3D key={rendererGeneration} gameState={renderState} /> : null}
       <CombatFeedbackOverlay gameState={gameState} />
     </div>
   );
