@@ -39,7 +39,12 @@ const requiredEntryContracts = [
   ["setUiState('game');", 'run entry no longer enters the game after preload'],
 ];
 for (const [needle, message] of requiredEntryContracts) if (!game.includes(needle)) failures.push(message);
-if (game.indexOf('await preloadRequiredRunRoom(1);') > game.indexOf("setUiState('game');")) failures.push('new run can enter the game before room 1 models are ready');
+const freshRunStart = game.indexOf('const beginFreshRun = useCallback');
+const freshRunPreload = game.indexOf('await preloadRequiredRunRoom(1);', freshRunStart);
+const freshRunEnter = game.indexOf("setUiState('game');", freshRunPreload);
+if (freshRunStart < 0 || freshRunPreload < 0 || freshRunEnter < 0 || freshRunPreload > freshRunEnter) {
+  failures.push('new run can enter the game before room 1 models are ready');
+}
 
 const requiredCanvasContracts = [
   ['const [renderState, setRenderState] = useState(gameState);', 'canvas no longer keeps a complete visible room during staging'],
