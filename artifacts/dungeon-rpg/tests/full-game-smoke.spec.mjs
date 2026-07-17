@@ -109,10 +109,12 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   await page.addInitScript(() => localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({ version: 1, initialized: true, equipment: [], relics: [] })));
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
-  await page.waitForTimeout(250);
+  await expect.poll(
+    () => page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-seen-unlocks-v1') || '{}').version),
+    { timeout: 10_000 },
+  ).toBe(2);
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0);
   const migratedUnlockMarkers = await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-seen-unlocks-v1') || '{}'));
-  expect(migratedUnlockMarkers.version).toBe(2);
   expect(migratedUnlockMarkers.announcedEquipment?.length ?? 0).toBeGreaterThan(0);
   await assertNoHorizontalOverflow(page);
 
@@ -197,6 +199,15 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await expect(page.getByRole('button', { name: /Online & Cloud/i })).toBeVisible();
   });
 
+  await test.step('duo lobby direct sign-in route', async () => {
+    await reloadMenu(page, testInfo.project.name);
+    await openOverflow(page);
+    await openMenuButton(page, /Duo-Run|Duo Run/i);
+    await expect(page.getByTestId('coop-lobby-panel')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Online & Cloud/i })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+  });
+
   await test.step('structured quest board', async () => {
     await reloadMenu(page, testInfo.project.name);
     await openMenuButton(page, /Aufträge|Quests/i);
@@ -273,13 +284,13 @@ test('new run renders responsive combat controls and stays stable', async ({ pag
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
 
-  await page.getByRole('button', { name: /Neuer Run|New Run/i }).click();
+  await clickAnimatedUi(page.getByRole('button', { name: /Neuer Run|New Run/i }));
   const nameInput = page.getByRole('textbox').first();
   await expect(nameInput).toBeVisible();
   await nameInput.fill('Test Ranger');
   const startButton = page.getByRole('button', { name: /Run starten|Start Game/i }).first();
   await expect(startButton).toBeEnabled();
-  await startButton.click();
+  await clickAnimatedUi(startButton);
 
   const hud = page.getByTestId('run-hud');
   await expect(hud).toBeVisible({ timeout: 60_000 });
