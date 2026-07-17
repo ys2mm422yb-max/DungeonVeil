@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -30,21 +32,47 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
+      - name: Resolve live product commit and prove source equivalence
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 30 \
+            -H 'Cache-Control: no-cache' \
+            "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?verify=${GITHUB_SHA}" \
+            -o live-deployment.json
+          live_commit=$(node -e "const fs=require('fs');const value=JSON.parse(fs.readFileSync('live-deployment.json','utf8')).commit;if(!/^[0-9a-f]{40}$/i.test(value||''))process.exit(1);process.stdout.write(value)")
+          git fetch origin fix/mobile-telegraphs-room-21-50-balance
+          git cat-file -e "${live_commit}^{commit}"
+          git diff --name-only "$live_commit" origin/fix/mobile-telegraphs-room-21-50-balance | tee product-diff.txt
+          if grep -Ev '^(\.ci/|\.github/)' product-diff.txt | grep -q .; then
+            echo 'Live product commit differs from target product source.' >&2
+            exit 1
+          fi
+          echo "LIVE_BUILD_SHA=$live_commit" >> "$GITHUB_ENV"
+          echo "Live product commit: $live_commit"
+          echo 'Any newer target-branch changes are metadata/workflow-only.'
+
       - name: Verify rooms and collision
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
 
       - name: Typecheck workspace
         run: pnpm run typecheck
 
-      - name: Build exact GitHub Pages output
-        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Build exact live product output
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+          VITE_BUILD_SHA: ${{ env.LIVE_BUILD_SHA }}
+        run: pnpm --dir artifacts/dungeon-rpg run build
 
-      - name: Verify live Pages content matches current target build
+      - name: Verify live Pages content matches reproduced product build
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p pages-diagnostics
           cp artifacts/dungeon-rpg/dist/public/index.html pages-diagnostics/expected-index.html
+          cp live-deployment.json pages-diagnostics/live-deployment.json
+          cp product-diff.txt pages-diagnostics/product-diff.txt
           curl --fail --silent --show-error --location --max-time 30 \
             -H 'Cache-Control: no-cache' \
             "https://ys2mm422yb-max.github.io/DungeonVeil/?verify=${GITHUB_SHA}" \
@@ -65,7 +93,7 @@ jobs:
             | tee pages-diagnostics/sha256.txt
           cmp -s pages-diagnostics/expected-index.html pages-diagnostics/live-index.html
           cmp -s pages-diagnostics/expected-app.js pages-diagnostics/live-app.js
-          echo 'Live GitHub Pages HTML and application bundle exactly match the current target build.'
+          echo 'Live GitHub Pages HTML and application bundle exactly match the reproduced current product build.'
 
       - name: Upload Pages diagnostics
         if: always()
