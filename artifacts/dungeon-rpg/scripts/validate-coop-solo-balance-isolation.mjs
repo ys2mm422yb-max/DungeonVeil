@@ -29,7 +29,7 @@ const contractChecks = [
   [runMode.includes("export type RunMode = 'solo' | 'duo'"), 'run modes are not explicitly separated'],
   [runMode.includes("SOLO_BALANCE_POLICY = 'immutable'"), 'solo balance is not marked immutable'],
   [runMode.includes('COOP_PLAYER_LIMIT = 2'), 'duo player limit is not fixed at two'],
-  [runMode.includes("mode: 'solo'") && runMode.includes("mode: 'duo'"), 'solo and duo contexts are not discriminated'],
+  [runMode.includes('mode: typeof SOLO_RUN_MODE') && runMode.includes('mode: typeof DUO_RUN_MODE'), 'solo and duo contexts are not discriminated'],
 ];
 for (const [ok, message] of contractChecks) if (!ok) failures.push(message);
 
