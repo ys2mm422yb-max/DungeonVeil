@@ -6,6 +6,7 @@ import { recordReachedChapter } from '../../game/equipmentChapterGates';
 import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
 import { loadRetentionProfile, type RetentionProfile } from '../../game/runRetention';
 import { captureGuildInviteTokenFromUrl, mailboxUnreadCount, MAILBOX_EVENT } from '../../game/guildMailboxOnline';
+import { captureCoopInviteCodeFromUrl } from '../../game/coopLobbyOnline';
 import { currentOnlineSession, onlineSessionEventName } from '../../game/supabaseOnline';
 import { syncSocialProfileProgress } from '../../game/socialProgressOnline';
 import { requestTutorialReplay } from '../../game/tutorialState';
@@ -21,6 +22,7 @@ import { VillageNpcHub } from '../VillageNpcHub';
 import { WorldBossPanel } from '../WorldBossPanel';
 import { ProfileBadge } from '../ProfileBadge';
 import { PlayerProfilePanel } from '../PlayerProfilePanel';
+import { CoopLobbyPanel } from '../CoopLobbyPanel';
 
 interface Props {
   saveData: SaveData | null;
@@ -32,7 +34,7 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'online' | 'guild' | 'worldBoss' | null;
+type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'online' | 'guild' | 'worldBoss' | 'coop' | null;
 
 export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
@@ -64,8 +66,10 @@ export function MainMenuScreen(props: Props) {
   }, [props.saveData?.chapter, props.saveData?.floor]);
 
   useEffect(() => {
-    const captured = captureGuildInviteTokenFromUrl();
-    if (captured) setOverlay('mailbox');
+    const capturedGuild = captureGuildInviteTokenFromUrl();
+    const capturedCoop = captureCoopInviteCodeFromUrl();
+    if (capturedGuild) setOverlay('mailbox');
+    else if (capturedCoop) setOverlay('coop');
     const refreshUnread = () => { void mailboxUnreadCount().then(setMailUnread).catch(() => setMailUnread(0)); };
     window.addEventListener(MAILBOX_EVENT, refreshUnread);
     window.addEventListener(onlineSessionEventName(), refreshUnread);
@@ -156,7 +160,8 @@ export function MainMenuScreen(props: Props) {
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} onOpenOnline={() => setOverlay('online')} />}
-      {overlay === 'more' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', replayTutorial, 'dark')}{action(t.settings, '', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div></div>}
+      {overlay === 'coop' && <CoopLobbyPanel language={language} onOpenOnline={() => setOverlay('online')} />}
+      {overlay === 'more' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{action(language === 'de' ? 'Duo-Run' : 'Duo Run', language === 'de' ? 'PRIVATE LOBBY · 2 SPIELER · VORSCHAU' : 'PRIVATE LOBBY · 2 PLAYERS · PREVIEW', () => setOverlay('coop'), 'violet')}{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', replayTutorial, 'dark')}{action(t.settings, '', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div></div>}
       {overlay !== 'guild' && <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-amber-50/14 bg-[#11100f]/88 py-3 text-[9px] font-black uppercase tracking-[.2em] text-amber-50/58">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>}
     </div></div>}
   </div>;
