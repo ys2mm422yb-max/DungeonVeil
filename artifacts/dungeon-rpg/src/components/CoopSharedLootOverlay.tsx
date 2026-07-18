@@ -40,8 +40,12 @@ function remainingSeconds(state: CoopSharedLootState): number {
   return Math.max(0, Math.ceil((resolveAt - (Date.now() - offset)) / 1000));
 }
 
+function resolutionKey(state: CoopSharedLootState): string {
+  return `${state.lobby_id}:${state.run_seed}:${state.chapter}:${state.room}:${state.drop_key}`;
+}
+
 function lootKey(state: CoopSharedLootState): string {
-  return `${state.lobby_id}:${state.run_seed}:${state.chapter}:${state.room}:${state.drop_key}:${state.status}`;
+  return `${resolutionKey(state)}:${state.status}`;
 }
 
 export function CoopSharedLootOverlay() {
@@ -69,6 +73,14 @@ export function CoopSharedLootOverlay() {
     return de ? 'DEIN MITSTREITER ERHÄLT DIE BEUTE' : 'YOUR TEAMMATE RECEIVES THE LOOT';
   }, [de, localUserId, loot]);
 
+  const applyResolutionOnce = (state: CoopSharedLootState) => {
+    if (state.status !== 'resolved') return;
+    const key = resolutionKey(state);
+    if (appliedKeysRef.current.has(key)) return;
+    appliedKeysRef.current.add(key);
+    applyCoopSharedLootResolution(state);
+  };
+
   useEffect(() => {
     const onProposal = (event: Event) => {
       const context = currentDuoRunContext();
@@ -95,11 +107,19 @@ export function CoopSharedLootOverlay() {
       if (stopped || polling || !context || !room || !currentOnlineSession()) return;
       polling = true;
       try {
-        const next = await loadCoopSharedLoot(context, room.chapter, room.room);
-        if (!stopped && next) {
-          const key = lootKey(next);
-          if (!hiddenKeysRef.current.has(key)) setLoot(next);
-        }
+        const states = await loadCoopSharedLoot(context, room.chapter, room.room);
+        if (stopped) return;
+        states.filter(state => state.status === 'resolved').forEach(applyResolutionOnce);
+        const visible = states.find(state => state.status === 'open' && !hiddenKeysRef.current.has(lootKey(state)))
+          ?? states.find(state => state.status === 'resolved' && !hiddenKeysRef.current.has(lootKey(state)))
+          ?? null;
+        setLoot(current => {
+          if (current?.status === 'open') {
+            const updated = states.find(state => state.drop_key === current.drop_key);
+            if (updated) return updated;
+          }
+          return visible ?? current;
+        });
       } catch {
         // A short network interruption must not dismiss an already visible vote.
       } finally {
@@ -130,11 +150,7 @@ export function CoopSharedLootOverlay() {
 
   useEffect(() => {
     if (!loot || loot.status !== 'resolved') return;
-    const resolutionKey = `${loot.lobby_id}:${loot.run_seed}:${loot.chapter}:${loot.room}:${loot.drop_key}`;
-    if (!appliedKeysRef.current.has(resolutionKey)) {
-      appliedKeysRef.current.add(resolutionKey);
-      applyCoopSharedLootResolution(loot);
-    }
+    applyResolutionOnce(loot);
     const timer = window.setTimeout(() => {
       hiddenKeysRef.current.add(stateKey);
       setLoot(current => current === loot ? null : current);
