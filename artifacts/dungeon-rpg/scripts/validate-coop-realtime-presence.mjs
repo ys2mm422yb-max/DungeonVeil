@@ -17,7 +17,7 @@ const combat = read('src/components/CombatStage.tsx');
 
 assert(realtime.includes("realtime:duo-run:${options.context.lobbyId}"), 'Duo realtime channel is not isolated by lobby id.');
 assert(realtime.includes("event: 'phx_join'") && realtime.includes("event: 'heartbeat'"), 'Duo transport lacks Phoenix join or heartbeat.');
-assert(realtime.includes("event: 'player_state'") && realtime.includes("event: 'player_left'"), 'Duo transport lacks player state or clean leave messages.');
+assert(realtime.includes("sendBroadcast('player_state'") && realtime.includes("sendBroadcast('player_left'"), 'Duo transport lacks player state or clean leave messages.');
 assert(realtime.includes('normalized.sequence <= previousSequence'), 'Out-of-order duo packets are not rejected.');
 assert(realtime.includes("this.setStatus('reconnecting')") && realtime.includes('MAX_RECONNECT_MS'), 'Short connection interruptions do not enter bounded reconnect mode.');
 assert(bridge.includes('const PUBLISH_MS = 100'), 'Local player state is not published at the intended 10 Hz rate.');
