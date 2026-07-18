@@ -1,10 +1,11 @@
 import { ClassKey } from './classes';
 import { DungeonMap, generateDungeon } from './dungeon';
 import { UpgradeKey } from '../i18n/translations';
+import { BASE_CRIT_CHANCE, BASE_CRIT_DAMAGE, MAX_TOTAL_CRIT_CHANCE, MAX_TOTAL_CRIT_DAMAGE } from './equipmentCore';
 
 const SAVE_KEY = 'dungeon-veil-save';
 export const SAVE_EVENT = 'dungeon-veil-save-changed';
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export interface SaveData {
   saveVersion?: number;
@@ -23,6 +24,8 @@ export interface SaveData {
   speed: number;
   attackRange: number;
   skillRange: number;
+  critChance?: number;
+  critDamage?: number;
   killCount: number;
   worldX: number;
   worldY: number;
@@ -86,6 +89,8 @@ export function loadGame(): SaveData | null {
       saveVersion: parsed.saveVersion ?? 1,
       chapter: Math.max(1, parsed.chapter ?? 1),
       runSkills: persistentRunSkills(parsed.runSkills),
+      critChance: Math.max(0, Math.min(MAX_TOTAL_CRIT_CHANCE, Number(parsed.critChance) || BASE_CRIT_CHANCE)),
+      critDamage: Math.max(1, Math.min(MAX_TOTAL_CRIT_DAMAGE, Number(parsed.critDamage) || BASE_CRIT_DAMAGE)),
       inDungeon,
       dungeonMap: inDungeon ? (parsed.dungeonMap ?? rebuildDungeon(parsed.floor)) : undefined,
       worldX: Number.isFinite(parsed.worldX) ? parsed.worldX : parsed.playerX ?? 0,
