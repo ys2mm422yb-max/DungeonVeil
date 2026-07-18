@@ -2,11 +2,11 @@
   "workflow": "Deploy Dungeon Veil Test Site",
   "branch": "fix/play-mode-menu-deploy-status",
   "status": "failure",
-  "attemptedCommit": "251f211082c1ee263e55c28829d9d36cf34683e9",
+  "attemptedCommit": "e4e259060f5a263513ba5200a45790a3794ebc5a",
   "deployedCommit": null,
   "validationResult": "failure",
   "deploymentResult": "skipped",
   "pageUrl": "https://ys2mm422yb-max.github.io/DungeonVeil/",
-  "workflowRunId": 29640412826,
-  "completedAt": "2026-07-18T10:11:00.315Z"
+  "workflowRunId": 29640499723,
+  "completedAt": "2026-07-18T10:14:14.920Z"
 }
