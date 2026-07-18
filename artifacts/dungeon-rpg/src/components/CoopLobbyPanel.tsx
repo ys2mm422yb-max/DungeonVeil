@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   COOP_LOBBY_EVENT,
   captureCoopInviteCodeFromUrl,
@@ -12,6 +12,7 @@ import {
   normalizeCoopInviteCode,
   pendingCoopInviteCode,
   setCoopLobbyReady,
+  startCoopLobby,
   type CoopLobbyMember,
   type CoopLobbySnapshot,
 } from '../game/coopLobbyOnline';
@@ -21,6 +22,7 @@ import { currentOnlineSession, onlineSessionEventName } from '../game/supabaseOn
 type Props = {
   language: 'de' | 'en';
   onOpenOnline: () => void;
+  onStartRun: (lobby: CoopLobbySnapshot) => void;
 };
 
 const POLL_MS = 3_000;
@@ -35,8 +37,9 @@ function errorText(error: unknown, de: boolean): string {
   return raw || (de ? 'Duo-Lobby konnte nicht geladen werden.' : 'The duo lobby could not be loaded.');
 }
 
-export function CoopLobbyPanel({ language, onOpenOnline }: Props) {
+export function CoopLobbyPanel({ language, onOpenOnline, onStartRun }: Props) {
   const de = language === 'de';
+  const startedLobbyRef = useRef('');
   const [signedIn, setSignedIn] = useState(() => Boolean(currentOnlineSession()));
   const [lobby, setLobby] = useState<CoopLobbySnapshot | null>(null);
   const [members, setMembers] = useState<CoopLobbyMember[]>([]);
@@ -51,6 +54,7 @@ export function CoopLobbyPanel({ language, onOpenOnline }: Props) {
     if (!online) {
       setLobby(null);
       setMembers([]);
+      startedLobbyRef.current = '';
       return;
     }
     try {
@@ -58,10 +62,15 @@ export function CoopLobbyPanel({ language, onOpenOnline }: Props) {
       setLobby(next);
       setMembers(next ? await listMyCoopLobbyMembers() : []);
       setError('');
+      if (!next) startedLobbyRef.current = '';
+      else if (next.status === 'in_run' && startedLobbyRef.current !== next.lobby_id) {
+        startedLobbyRef.current = next.lobby_id;
+        onStartRun(next);
+      }
     } catch (refreshError) {
       setError(errorText(refreshError, de));
     }
-  }, [de]);
+  }, [de, onStartRun]);
 
   useEffect(() => {
     const captured = captureCoopInviteCodeFromUrl();
@@ -135,7 +144,7 @@ export function CoopLobbyPanel({ language, onOpenOnline }: Props) {
 
   return <section data-testid="coop-lobby-panel" className="max-h-[76dvh] overflow-y-auto rounded-3xl border border-violet-200/16 bg-[#15111d]/96 p-4 text-white shadow-2xl">
     <div className="flex items-start justify-between gap-3">
-      <div><div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-100/52">{de ? 'DUO-RUN · GRUNDSYSTEM' : 'DUO RUN · FOUNDATION'}</div><h2 className="mt-1 font-serif text-xl font-black text-violet-50">{lobby ? (de ? 'Private Duo-Lobby' : 'Private duo lobby') : (de ? 'Duo-Lobby erstellen' : 'Create a duo lobby')}</h2></div>
+      <div><div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-100/52">{de ? 'DUO-RUN · ECHTZEIT' : 'DUO RUN · REALTIME'}</div><h2 className="mt-1 font-serif text-xl font-black text-violet-50">{lobby ? (de ? 'Private Duo-Lobby' : 'Private duo lobby') : (de ? 'Duo-Lobby erstellen' : 'Create a duo lobby')}</h2></div>
       <div className="rounded-full border border-emerald-200/18 bg-emerald-300/8 px-2 py-1 text-[6px] font-black uppercase tracking-[.13em] text-emerald-100/70">{de ? 'Solo unverändert' : 'Solo unchanged'}</div>
     </div>
 
@@ -170,8 +179,10 @@ export function CoopLobbyPanel({ language, onOpenOnline }: Props) {
 
       <div className="mt-3 rounded-2xl border border-sky-200/10 bg-sky-300/[.035] p-3 text-[8px] leading-relaxed text-sky-50/48">
         <div className="font-black uppercase tracking-[.14em] text-sky-100/68">{bothReady ? (de ? 'LOBBY BEREIT' : 'LOBBY READY') : (de ? 'VORBEREITUNG' : 'PREPARATION')}</div>
-        <p className="mt-1">{bothReady ? (de ? 'Beide Spieler und der gemeinsame Dungeon-Seed sind bestätigt. Der eigentliche gemeinsame Lauf wird mit dem Echtzeit-Synchronisationsblock aktiviert.' : 'Both players and the shared dungeon seed are confirmed. The actual shared run is enabled with the realtime synchronization block.') : (de ? 'Beide Spieler müssen anwesend und bereit sein. Die Solo-Balance bleibt dabei vollständig getrennt.' : 'Both players must be present and ready. Solo balance remains completely separate.')}</p>
+        <p className="mt-1">{bothReady ? (lobby.role === 'host' ? (de ? 'Beide Spieler sind bereit. Starte den gemeinsamen Run für euch beide.' : 'Both players are ready. Start the shared run for both players.') : (de ? 'Beide Spieler sind bereit. Warte, bis der Host den Run startet.' : 'Both players are ready. Wait for the host to start the run.')) : (de ? 'Beide Spieler müssen anwesend und bereit sein. Die Solo-Balance bleibt dabei vollständig getrennt.' : 'Both players must be present and ready. Solo balance remains completely separate.')}</p>
       </div>
+
+      {lobby.role === 'host' && <button data-testid="coop-start-run" type="button" disabled={busy || !bothReady} onPointerDown={event => { event.preventDefault(); void runAction(startCoopLobby); }} className="mt-3 w-full rounded-2xl border border-cyan-100/28 bg-[linear-gradient(135deg,#26556b,#173348)] py-3 text-[9px] font-black uppercase tracking-[.18em] text-cyan-50 shadow-[0_12px_26px_rgba(10,80,105,.22)] active:scale-[.98] disabled:opacity-30">{busy ? (de ? 'RUN STARTET…' : 'STARTING RUN…') : (de ? 'GEMEINSAMEN RUN STARTEN' : 'START SHARED RUN')}</button>}
 
       <button data-testid="coop-leave-lobby" type="button" disabled={busy} onPointerDown={event => { event.preventDefault(); void runAction(leaveCoopLobby); }} className="mt-3 w-full rounded-2xl border border-red-300/14 bg-red-400/5 py-2.5 text-[8px] font-black uppercase tracking-[.16em] text-red-100/62 active:scale-[.98] disabled:opacity-40">{lobby.role === 'host' ? (de ? 'LOBBY SCHLIESSEN' : 'CLOSE LOBBY') : (de ? 'LOBBY VERLASSEN' : 'LEAVE LOBBY')}</button>
     </>}
