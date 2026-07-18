@@ -68,4 +68,5 @@ if (failures.length) {
   process.exit(1);
 }
 
+// Revalidated after the Duo projectile integration reached the target branch.
 console.log('Guild search audit passed: discovery, RLS, capacity locks, direct joins and officer-reviewed requests share one bounded RPC contract.');
