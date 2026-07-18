@@ -13,10 +13,19 @@ import {
 } from '../game/supabaseOnline';
 import { getMySocialProfile, type SocialProfile } from '../game/socialProgressOnline';
 import { loadSpectatingAllowed, refreshSpectatingAllowed, setSpectatingAllowed } from '../game/socialSpectatorOnline';
+import { loadMetaProgression } from '../game/metaProgression';
+import {
+  commitPlayerNameChange,
+  playerNameChangeQuote,
+  PLAYER_NAME_CHANGE_EVENT,
+  PLAYER_NAME_CHANGE_GOLD_COST,
+} from '../game/playerNameChange';
+import { renameSavedPlayerName } from '../game/saveManager';
+import { rememberRunName, sanitizeRunName } from '../game/runIdentity';
+import { pushCloudSave } from '../game/cloudSave';
 
 type Props = { language: 'de' | 'en' };
 type AuthMode = 'login' | 'register';
-type ProfileSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
 function Field({ value, onChange, placeholder, type = 'text', maxLength }: {
   value: string;
@@ -51,14 +60,14 @@ export function OnlinePanel({ language }: Props) {
   const [profile, setProfile] = useState<OnlineProfile | null>(null);
   const [socialProfile, setSocialProfile] = useState<SocialProfile | null>(null);
   const [spectatingAllowed, setSpectatingAllowedState] = useState(loadSpectatingAllowed);
-  const [profileSaveState, setProfileSaveState] = useState<ProfileSaveState>('idle');
-  const [profileSaveError, setProfileSaveError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [nameChangeBusy, setNameChangeBusy] = useState(false);
+  const [, setNameEconomyRevision] = useState(0);
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const savedDisplayName = useRef('');
-  const profileSaveSequence = useRef(0);
+  const nameChangeLock = useRef(false);
 
   const run = useCallback(async (task: () => Promise<void>) => {
     setBusy(true);
@@ -73,13 +82,10 @@ export function OnlinePanel({ language }: Props) {
     const active = currentOnlineSession();
     setSession(active);
     if (!active) {
-      profileSaveSequence.current += 1;
       savedDisplayName.current = '';
       setProfile(null);
       setSocialProfile(null);
       setDisplayName('');
-      setProfileSaveState('idle');
-      setProfileSaveError('');
       setSpectatingAllowedState(loadSpectatingAllowed());
       return;
     }
@@ -88,14 +94,12 @@ export function OnlinePanel({ language }: Props) {
       getMySocialProfile(),
       refreshSpectatingAllowed().catch(() => loadSpectatingAllowed()),
     ]);
-    const nextDisplayName = nextProfile?.display_name ?? nextSocialProfile?.display_name ?? '';
-    savedDisplayName.current = nextDisplayName.trim();
+    const nextDisplayName = sanitizeRunName(nextProfile?.display_name ?? nextSocialProfile?.display_name ?? '');
+    savedDisplayName.current = nextDisplayName;
     setProfile(nextProfile);
     setSocialProfile(nextSocialProfile);
     setSpectatingAllowedState(nextSpectatingAllowed);
     setDisplayName(nextDisplayName);
-    setProfileSaveState('saved');
-    setProfileSaveError('');
   }, []);
 
   useEffect(() => {
@@ -120,52 +124,24 @@ export function OnlinePanel({ language }: Props) {
   }, [de, refreshOnlineData, run]);
 
   useEffect(() => {
-    if (!session) return;
-    const nextDisplayName = displayName.trim();
-    if (nextDisplayName.length < 2) {
-      setProfileSaveState(nextDisplayName ? 'error' : 'idle');
-      setProfileSaveError(nextDisplayName ? (de ? 'Der Spielername braucht mindestens 2 Zeichen.' : 'Player name needs at least 2 characters.') : '');
-      return;
-    }
-    if (nextDisplayName === savedDisplayName.current) {
-      setProfileSaveState('saved');
-      setProfileSaveError('');
-      return;
-    }
-
-    const sequence = ++profileSaveSequence.current;
-    setProfileSaveState('pending');
-    setProfileSaveError('');
-    const timer = window.setTimeout(() => {
-      setProfileSaveState('saving');
-      void (async () => {
-        try {
-          await updateOnlineProfile(nextDisplayName);
-          const [nextProfile, nextSocialProfile] = await Promise.all([
-            getOnlineProfile(),
-            getMySocialProfile(),
-          ]);
-          if (sequence !== profileSaveSequence.current) return;
-          savedDisplayName.current = nextDisplayName;
-          setProfile(nextProfile);
-          setSocialProfile(nextSocialProfile);
-          setProfileSaveState('saved');
-        } catch (reason) {
-          if (sequence !== profileSaveSequence.current) return;
-          setProfileSaveState('error');
-          setProfileSaveError(reason instanceof Error ? reason.message : String(reason));
-        }
-      })();
-    }, 800);
-    return () => window.clearTimeout(timer);
-  }, [de, displayName, session]);
+    const refresh = () => setNameEconomyRevision(value => value + 1);
+    window.addEventListener('dungeon-veil-meta-changed', refresh);
+    window.addEventListener(PLAYER_NAME_CHANGE_EVENT, refresh);
+    window.addEventListener('dungeon-veil-cloud-save-restored', refresh);
+    return () => {
+      window.removeEventListener('dungeon-veil-meta-changed', refresh);
+      window.removeEventListener(PLAYER_NAME_CHANGE_EVENT, refresh);
+      window.removeEventListener('dungeon-veil-cloud-save-restored', refresh);
+    };
+  }, []);
 
   const authenticate = () => run(async () => {
     if (!email.includes('@')) throw new Error(de ? 'Bitte eine gültige E-Mail eingeben.' : 'Enter a valid email address.');
     if (password.length < 8) throw new Error(de ? 'Das Passwort braucht mindestens 8 Zeichen.' : 'Password must contain at least 8 characters.');
     if (mode === 'register') {
-      if (displayName.trim().length < 2) throw new Error(de ? 'Der Spielername ist zu kurz.' : 'Player name is too short.');
-      const result = await signUpOnline(email, password, displayName);
+      const registrationName = sanitizeRunName(displayName);
+      if (registrationName.length < 2) throw new Error(de ? 'Der Spielername ist zu kurz.' : 'Player name is too short.');
+      const result = await signUpOnline(email, password, registrationName);
       if (result.confirmationRequired) {
         setMessage(de ? 'Konto erstellt. Bitte den Bestätigungslink in der E-Mail öffnen und danach anmelden.' : 'Account created. Confirm the email, then sign in.');
         setMode('login');
@@ -194,6 +170,61 @@ export function OnlinePanel({ language }: Props) {
       : (de ? 'Zuschauen ist jetzt deaktiviert.' : 'Spectating is now disabled.'));
   });
 
+  const changePlayerName = async () => {
+    if (!session || nameChangeLock.current) return;
+    const nextName = sanitizeRunName(displayName);
+    const previousName = sanitizeRunName(savedDisplayName.current);
+    if (nextName.length < 2) {
+      setError(de ? 'Der Spielername braucht mindestens 2 Zeichen.' : 'Player name needs at least 2 characters.');
+      return;
+    }
+    if (nextName === previousName) {
+      setError(de ? 'Bitte einen neuen Spielernamen eingeben.' : 'Enter a new player name.');
+      return;
+    }
+
+    const quote = playerNameChangeQuote(session.user.id);
+    if (!quote.affordable) {
+      setError(de ? `Nicht genug Gold. Benötigt: ${quote.cost}.` : `Not enough gold. Required: ${quote.cost}.`);
+      return;
+    }
+
+    nameChangeLock.current = true;
+    setNameChangeBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await updateOnlineProfile(nextName);
+      try {
+        commitPlayerNameChange(session.user.id);
+      } catch (reason) {
+        if (previousName) await updateOnlineProfile(previousName).catch(() => {});
+        throw reason;
+      }
+
+      rememberRunName(nextName);
+      renameSavedPlayerName(nextName);
+      const [nextProfile, nextSocialProfile] = await Promise.all([
+        getOnlineProfile(),
+        getMySocialProfile(),
+      ]);
+      savedDisplayName.current = nextName;
+      setDisplayName(nextName);
+      setProfile(nextProfile);
+      setSocialProfile(nextSocialProfile);
+      setNameEconomyRevision(value => value + 1);
+      void pushCloudSave();
+      setMessage(quote.free
+        ? (de ? `Spielername geändert. Die erste Änderung war kostenlos.` : 'Player name changed. The first change was free.')
+        : (de ? `Spielername geändert. ${quote.cost} Gold wurden bezahlt.` : `Player name changed. ${quote.cost} gold was paid.`));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      nameChangeLock.current = false;
+      setNameChangeBusy(false);
+    }
+  };
+
   const copyFriendCode = async () => {
     if (!socialProfile?.friend_code) return;
     await navigator.clipboard?.writeText(socialProfile.friend_code);
@@ -203,23 +234,27 @@ export function OnlinePanel({ language }: Props) {
 
   const logout = () => run(async () => {
     await signOutOnline();
-    profileSaveSequence.current += 1;
     savedDisplayName.current = '';
     setSession(null);
     setProfile(null);
     setSocialProfile(null);
     setDisplayName('');
-    setProfileSaveState('idle');
-    setProfileSaveError('');
     setMessage(de ? 'Abgemeldet. Lokales Spielen bleibt verfügbar.' : 'Signed out. Offline play remains available.');
   });
 
-  const profileStatusText = profileSaveError
-    || (profileSaveState === 'pending'
-      ? (de ? 'Änderung erkannt · wird gleich automatisch gespeichert.' : 'Change detected · saving automatically in a moment.')
-      : profileSaveState === 'saving'
-        ? (de ? 'Profil wird automatisch gespeichert …' : 'Profile is saving automatically …')
-        : (de ? 'Profil wird automatisch gespeichert.' : 'Profile saves automatically.'));
+  const sanitizedDraft = sanitizeRunName(displayName);
+  const savedName = sanitizeRunName(savedDisplayName.current);
+  const nameChanged = Boolean(session && sanitizedDraft.length >= 2 && sanitizedDraft !== savedName);
+  const nameQuote = session ? playerNameChangeQuote(session.user.id, loadMetaProgression()) : null;
+  const nameChangeDisabled = !nameChanged || nameChangeBusy || !nameQuote?.affordable;
+  const nameChangeLabel = nameChangeBusy
+    ? (de ? 'SPIELERNAME WIRD GEÄNDERT…' : 'CHANGING PLAYER NAME…')
+    : nameQuote?.free
+      ? (de ? 'KOSTENLOS ÄNDERN' : 'CHANGE FOR FREE')
+      : (de ? `FÜR ${PLAYER_NAME_CHANGE_GOLD_COST.toLocaleString('de-DE')} GOLD ÄNDERN` : `CHANGE FOR ${PLAYER_NAME_CHANGE_GOLD_COST.toLocaleString('en-US')} GOLD`);
+  const nameRuleText = nameQuote?.free
+    ? (de ? 'Deine erste Spielername-Änderung ist kostenlos.' : 'Your first player-name change is free.')
+    : (de ? `Weitere Änderungen kosten ${PLAYER_NAME_CHANGE_GOLD_COST.toLocaleString('de-DE')} Gold. Verfügbar: ${nameQuote?.gold.toLocaleString('de-DE') ?? 0}.` : `Further changes cost ${PLAYER_NAME_CHANGE_GOLD_COST.toLocaleString('en-US')} gold. Available: ${nameQuote?.gold.toLocaleString('en-US') ?? 0}.`);
 
   return <div className="max-h-[78vh] overflow-y-auto rounded-3xl border border-violet-300/18 bg-[#0b0910]/96 p-4 text-white shadow-2xl">
     <div className="mb-4">
@@ -234,7 +269,7 @@ export function OnlinePanel({ language }: Props) {
       <GoogleButton label={busy ? (de ? 'Bitte warten …' : 'Please wait …') : de ? 'Mit Google anmelden' : 'Continue with Google'} onClick={googleLogin} disabled={busy} />
       <div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-[.18em] text-white/25"><span className="h-px flex-1 bg-white/10" />{de ? 'oder mit E-Mail' : 'or use email'}<span className="h-px flex-1 bg-white/10" /></div>
       <div className="grid grid-cols-2 gap-2"><ActionButton label={de ? 'Anmelden' : 'Sign in'} onClick={() => setMode('login')} primary={mode === 'login'} /><ActionButton label={de ? 'Registrieren' : 'Register'} onClick={() => setMode('register')} primary={mode === 'register'} /></div>
-      {mode === 'register' && <Field value={displayName} onChange={setDisplayName} placeholder={de ? 'Spielername' : 'Player name'} maxLength={24} />}
+      {mode === 'register' && <Field value={displayName} onChange={setDisplayName} placeholder={de ? 'Spielername' : 'Player name'} maxLength={18} />}
       <Field value={email} onChange={setEmail} placeholder="E-Mail" type="email" />
       <Field value={password} onChange={setPassword} placeholder={de ? 'Passwort · mindestens 8 Zeichen' : 'Password · at least 8 characters'} type="password" />
       <ActionButton label={busy ? (de ? 'Bitte warten …' : 'Please wait …') : mode === 'register' ? (de ? 'Konto erstellen' : 'Create account') : (de ? 'Anmelden' : 'Sign in')} onClick={authenticate} disabled={busy} primary />
@@ -256,14 +291,20 @@ export function OnlinePanel({ language }: Props) {
         </div>
       </section>
 
+      <section data-testid="player-name-change" className="space-y-2 rounded-2xl border border-amber-300/14 bg-amber-400/[.035] p-3">
+        <div className="text-[8px] font-black uppercase tracking-[.2em] text-amber-100/62">{de ? 'SPIELERNAME ÄNDERN' : 'CHANGE PLAYER NAME'}</div>
+        <div className="text-[8px] leading-relaxed text-white/42">{de ? 'Ändert deinen Namen im Onlineprofil, im vorhandenen Solo-Spielstand und in allen folgenden Solo- und Duo-Runs.' : 'Changes your name in the online profile, existing solo save and all future solo and Duo runs.'}</div>
+        <Field value={displayName} onChange={setDisplayName} placeholder={de ? 'Neuer Spielername' : 'New player name'} maxLength={18} />
+        <div data-testid="player-name-change-cost" className={`rounded-xl border px-3 py-2 text-[8px] leading-relaxed ${nameQuote?.affordable ? 'border-amber-300/14 bg-black/20 text-amber-100/68' : 'border-red-300/18 bg-red-400/[.05] text-red-100/72'}`}>{nameRuleText}</div>
+        <button data-testid="player-name-change-submit" type="button" disabled={nameChangeDisabled} onClick={() => void changePlayerName()} className="w-full rounded-xl border border-amber-300/28 bg-amber-500/14 px-3 py-3 text-[8px] font-black uppercase tracking-[.13em] text-amber-100 active:scale-[.98] disabled:pointer-events-none disabled:opacity-35">{nameChangeLabel}</button>
+      </section>
+
       <section className="space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3">
-        <div className="text-[8px] font-black uppercase tracking-[.2em] text-white/35">{de ? 'PROFIL & CLOUD' : 'PROFILE & CLOUD'}</div>
-        <Field value={displayName} onChange={setDisplayName} placeholder={de ? 'Spielername' : 'Player name'} maxLength={24} />
-        <div data-testid="profile-autosave-status" className={`rounded-xl border px-3 py-2 text-[8px] leading-relaxed ${profileSaveError ? 'border-red-300/18 bg-red-400/[.05] text-red-100/72' : 'border-emerald-300/14 bg-emerald-400/[.04] text-emerald-100/62'}`}>{profileStatusText}</div>
+        <div className="text-[8px] font-black uppercase tracking-[.2em] text-white/35">{de ? 'CLOUD-SPEICHERUNG' : 'CLOUD SAVE'}</div>
         <div data-testid="cloud-autosync-status" className="rounded-xl border border-cyan-300/12 bg-cyan-400/[.035] px-3 py-2 text-[8px] leading-relaxed text-cyan-50/58">{de ? 'Der Spielstand wird im Hintergrund gesichert und beim Öffnen, Zurückkehren und Browserwechsel automatisch abgeglichen.' : 'Your save is backed up in the background and reconciled automatically when opening, returning, or switching browsers.'}</div>
       </section>
 
-      <ActionButton label={de ? 'Abmelden' : 'Sign out'} onClick={logout} disabled={busy} />
+      <ActionButton label={de ? 'Abmelden' : 'Sign out'} onClick={logout} disabled={busy || nameChangeBusy} />
     </div>}
   </div>;
 }
