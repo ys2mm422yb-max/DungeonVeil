@@ -78,15 +78,17 @@ export async function createOrLoadCoopSharedLoot(
   return loadCoopSharedLoot(runSeed, chapter, room);
 }
 
-export async function submitCoopLootChoice(dropId: string, choice: CoopLootChoice): Promise<CoopSharedLootSnapshot | null> {
+export async function submitCoopLootChoice(
+  dropId: string,
+  choice: CoopLootChoice,
+  runSeed: number,
+  chapter: number,
+  room: number,
+): Promise<CoopSharedLootSnapshot | null> {
   requireOnline();
   await authenticatedSupabaseRest<boolean>('rpc/submit_coop_loot_choice', {
     method: 'POST',
     body: JSON.stringify({ p_drop_id: dropId, p_choice: choice }),
   });
-  const row = await authenticatedSupabaseRest<CoopLootDropRow[]>(`coop_loot_drops?id=eq.${encodeURIComponent(dropId)}&select=run_seed,chapter,room`, {
-    method: 'GET',
-  });
-  const drop = row[0];
-  return drop ? loadCoopSharedLoot(drop.run_seed, drop.chapter, drop.room) : null;
+  return loadCoopSharedLoot(runSeed, chapter, room);
 }
