@@ -177,7 +177,7 @@ export function CoopSharedLootOverlay() {
   return <div data-testid="coop-shared-loot" data-status={loot.status} data-drop-key={loot.drop_key} className="pointer-events-auto fixed inset-0 z-[88] flex items-center justify-center bg-black/58 px-4 backdrop-blur-[2px]">
     <div className="w-[min(92vw,430px)] overflow-hidden rounded-3xl border border-amber-200/28 bg-[linear-gradient(150deg,rgba(35,22,10,.98),rgba(8,9,12,.98))] p-5 text-white shadow-[0_24px_90px_rgba(0,0,0,.72)]">
       <div className="text-center text-[7px] font-black uppercase tracking-[.28em] text-amber-100/48">{de ? 'GEMEINSAME BEUTE' : 'SHARED LOOT'} · {loot.chapter}-{loot.room}</div>
-      <div className="mx-auto mt-4 grid h-20 w-20 place-items-center rounded-2xl border border-white/12 bg-black/45 text-4xl shadow-inner" style={{ color: item.accent }}>{item.icon}</div>
+      <div className="mx-auto mt-4 grid h-20 w-20 place-items-center rounded-2xl border border-white/12 bg-black/45 text-4xl shadow-inner" style={{ color: item.accent }}>◆</div>
       <div className="mt-3 text-center font-serif text-2xl" style={{ color: item.accent }}>{de ? item.nameDe : item.nameEn}</div>
       <div className="mt-1 text-center text-[8px] font-black uppercase tracking-[.16em] text-white/38">{item.rarity} · {item.dropSource}</div>
 
