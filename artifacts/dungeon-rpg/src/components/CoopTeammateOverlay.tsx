@@ -18,7 +18,7 @@ function clamp(value: number, min: number, max: number) {
 
 function responsiveFrame(width: number, height: number): CameraFrame {
   const aspect = width / Math.max(1, height);
-  const coarse = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || window.matchMedia?.('(pointer: coarse)').matches);
+  const coarse = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || Boolean(window.matchMedia?.('(pointer: coarse)')?.matches));
   if (coarse && aspect >= 1.15 && width > height && Math.min(width, height) >= 650) return { height: 15.9, distance: 19, lookAhead: 2.15 };
   if (aspect < 0.55) return { height: 20.2, distance: 21.7, lookAhead: 2.35 };
   if (aspect < 0.68) return { height: 19.6, distance: 22.4, lookAhead: 2.55 };
