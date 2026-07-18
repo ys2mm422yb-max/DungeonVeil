@@ -1,0 +1,61 @@
+name: Coop Typecheck Diagnostics
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: coop-typecheck-diagnostics-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Capture typecheck diagnostics
+        id: typecheck
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg typecheck -- --pretty false > coop-typecheck.txt 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Publish diagnostics
+        uses: actions/github-script@v7
+        env:
+          TYPECHECK_STATUS: ${{ steps.typecheck.outputs.status }}
+        with:
+          script: |
+            const fs = require('fs');
+            const text = fs.readFileSync('coop-typecheck.txt', 'utf8').trim();
+            const marker = '<!-- coop-typecheck-diagnostics -->';
+            const body = `${marker}\n### Koop TypeScript-Diagnose\n\nStatus: **${process.env.TYPECHECK_STATUS === '0' ? 'grün' : 'rot'}**\n\n\`\`\`text\n${text.slice(0, 60000) || 'Keine TypeScript-Diagnosen.'}\n\`\`\``;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(comment => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+            }
+      - name: Fail after diagnostics
+        if: steps.typecheck.outputs.status != '0'
+        run: exit 1
