@@ -25,8 +25,15 @@ const [menu, villageHub, menuSceneProxy, villageScene, villagePlayer, mailbox, i
 
 const renderStart = villageScene.lastIndexOf('raf = requestAnimationFrame(loop);');
 const assetStart = villageScene.indexOf('void loadVillageAssets(');
+const playOverlayStart = menu.indexOf("{overlay === 'play'");
+const moreOverlayStart = menu.indexOf("{overlay === 'more'");
+const overlayCloseStart = menu.indexOf("{overlay !== 'guild'");
+const playOverlay = playOverlayStart >= 0 && moreOverlayStart > playOverlayStart ? menu.slice(playOverlayStart, moreOverlayStart) : '';
+const moreOverlay = moreOverlayStart >= 0 && overlayCloseStart > moreOverlayStart ? menu.slice(moreOverlayStart, overlayCloseStart) : '';
 const checks = [
   [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
+  [menu.includes("setOverlay('play')") && playOverlay.includes('Solo-Run') && playOverlay.includes('Duo-Run') && playOverlay.includes('Weltboss') && playOverlay.includes("setOverlay('coop')") && playOverlay.includes("setOverlay('worldBoss')"), 'play mode chooser does not group solo, duo and world boss'],
+  [moreOverlay.length > 0 && !moreOverlay.includes('Duo-Run') && !moreOverlay.includes('Duo Run'), 'duo run is still hidden in more options'],
   [!menu.includes('WeeklyRiftPanel') && !menu.includes("overlay === 'rift'") && !menu.includes("setOverlay('rift')"), 'weekly-rift shortcut or panel is still mounted in the main menu'],
   [!menu.includes('<GuildInviteLinkCard') && menu.includes('onClose={() => setOverlay(null)}') && inviteCard.includes('createGuildInviteLinkOnline') && inviteCard.includes('navigator.share'), 'guild invite link is not isolated inside the closable guild panel'],
   [guildClient.includes('captureGuildInviteTokenFromUrl') && guildClient.includes('claimPendingGuildInviteLink') && guildClient.includes('rpc/claim_guild_invite_link'), 'guild invitation link claim flow is incomplete'],
@@ -51,8 +58,9 @@ const checks = [
   [villageScene.includes('async function loadVillageAssets(') && renderStart >= 0 && assetStart > renderStart, 'village renderer does not start before asynchronous asset loading'],
   [villageScene.includes('Promise.allSettled') && villageScene.includes("result.status === 'rejected'") && villageScene.includes('Village asset failed to load'), 'individual village asset failures are not isolated'],
   [villageScene.includes('new ResizeObserver(resize)') && villageScene.includes("window.visualViewport?.addEventListener('resize', resize)") && villageScene.includes("renderer.domElement.style.width = '100%'") && villageScene.includes("renderer.domElement.style.height = '100%'"), 'mobile village viewport or canvas sizing is missing'],
-  [villageHub.includes('grid grid-cols-5') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock still contains the redundant prompt or floating labels'],
+  [villageHub.includes('grid grid-cols-4') && !villageHub.includes("testId: 'npc-worldkeeper'") && !villageHub.includes('onWorldBoss') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock still mixes gameplay modes into the social routes'],
   [menu.includes('grid-cols-2') && menu.includes('min-h-[250px] flex-1') && !menu.includes('h-[41vh]'), 'main-menu action layout is not separated from the village scene'],
+  [menu.includes("props.saveData ? 'gold' : 'dark'") && menu.includes("props.saveData ? 'dark' : 'gold'"), 'continue and play do not switch primary emphasis with save availability'],
   [!menuSceneProxy.includes('VeilWorldOrb') && !villageScene.includes('VeilWorldGlobe'), 'legacy world-globe menu markers returned'],
   [stageWrapper.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && aggressiveStage.includes('<WorldBossPerspectiveStage') && perspectiveStage.includes("root.name = 'AshKingLowCostKayKitHall'") && perspectiveStage.includes("floor.name = 'AshKingDetailedSingleFloor'") && !perspectiveStage.includes('buildKayKitDungeonRoom'), 'single-floor low-call Ash King hall or aggressive controller is missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or stage route is missing'],
@@ -65,4 +73,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: exact email return path, one focused equipped Ranger, closable guild invites, compact social routes and the current world-boss pipeline remain active.');
+console.log('Social/navigation audit passed: gameplay modes share one Play entry, social routes stay compact, and the current world-boss pipeline remains active.');
+// Keeps the reviewed Play-menu contract tied to the current PR head.

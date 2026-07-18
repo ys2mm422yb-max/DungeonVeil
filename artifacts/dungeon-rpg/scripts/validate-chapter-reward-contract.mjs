@@ -21,12 +21,14 @@ const checks = [
   [contract.includes('chapterBoss ? 105 + safeChapter * 15 : boss ? 55 + safeChapter * 10'), 'Veil Dust reward tiers are not separated between room 50 and normal bosses'],
   [contract.includes('chapterBoss ? 900 + safeChapter * 140 : boss ? 350 + safeChapter * 70'), 'gold reward tiers are not separated between room 50 and normal bosses'],
   [bridge.includes("import { rewardChapterRoomClear } from '../game/chapterRewardContract';"), 'active run bridge does not import the chapter reward contract'],
-  [bridge.includes('const reward = rewardChapterRoomClear(engine.state.chapter, engine.state.floor);'), 'active room clear does not use the chapter reward contract'],
+  [bridge.includes('const reward = rewardChapterRoomClear(') && bridge.includes('engine.state.chapter') && bridge.includes('engine.state.floor'), 'active room clear does not use the chapter reward contract'],
   [!bridge.includes('rewardMetaRoomClear'), 'active run bridge still uses the legacy room-20 reward path'],
   [nextRoom.includes('const completedChapter = this.state.floor >= CHAPTER_ROOMS;'), 'chapter completion is not tied to the 50-room boundary'],
   [nextRoom.includes('this.state.floor = completedChapter ? 1 : this.state.floor + 1;') && nextRoom.includes('if (completedChapter) this.state.chapter++;'), 'room 50 does not continue into the next chapter'],
   [!nextRoom.includes('this.state.runSkills = {}') && !nextRoom.includes('this.state = this.makeState'), 'chapter transition resets the active run build'],
-  [contract.includes('const rewardKey = `${meta.currentRunId}:${safeChapter}:${safeFloor}`;') && contract.includes('meta.rewardLedger.push(rewardKey);'), 'chapter rewards are not protected against duplicate room-clear grants'],
+  [contract.includes('const ledgerRunId = normalized.rewardRunId || meta.currentRunId;') && contract.includes('const rewardKey = `${ledgerRunId}:${safeChapter}:${safeFloor}`;') && contract.includes('meta.rewardLedger.push(rewardKey);'), 'chapter rewards are not protected against duplicate room-clear grants'],
+  [contract.includes('xp: baseAmounts.xp') && contract.includes('dust: Math.round(baseAmounts.dust * normalized.multiplier)') && contract.includes('gold: Math.round(baseAmounts.gold * normalized.multiplier)'), 'optional duo currency scaling changes rank XP or skips gold/dust'],
+  [contract.includes('const multiplier = Math.max(1, Math.min(2') && contract.includes('rewardRunId?: string'), 'optional duo reward parameters are not bounded and explicit'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -36,4 +38,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Chapter reward contract audit passed: room 50 owns the chapter reward and the uninterrupted run continues into the next chapter.');
+console.log('Chapter reward contract audit passed: room 50 owns the chapter reward, solo remains unchanged, and optional duo currency uses an isolated ledger.');

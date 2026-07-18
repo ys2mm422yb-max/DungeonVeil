@@ -60,7 +60,7 @@ const checks = [
   [tutorial.includes('data-testid="tutorial-overlay"') && tutorial.includes('lastDodgeTime') && tutorial.includes('Math.hypot(player.x') && tutorial.includes('KAPITEL 7 · WELTENHÜTER'), 'seven-part interactive tutorial is incomplete'],
   [tutorialState.includes('requestTutorialReplay') && tutorialState.includes('completeTutorial') && bridge.includes('<TutorialOverlay'), 'tutorial persistence or gameplay bridge is missing'],
   [menu.includes('Tutorial wiederholen') && menu.includes('requestTutorialReplay') && menu.includes('syncSocialProfileProgress'), 'main-menu tutorial replay or social progress sync is missing'],
-  [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-guildmaster') && villageHub.includes('npc-worldkeeper'), 'interactive village NPC navigation is missing'],
+  [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-questmaster') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-scout') && villageHub.includes('npc-guildmaster') && !villageHub.includes('npc-worldkeeper'), 'interactive village social navigation is missing or still contains the world-boss route'],
   [menu.includes('<VillageNpcHub') && menuScene.includes('ModernVillageSquareScene') && villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)'), 'village NPC navigation is not backed by the focused equipped Ranger scene'],
   [main.includes("qaMode === 'tutorial'") && main.includes('<TutorialVisualQa'), 'tutorial visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'village menu visual QA route is missing'],
@@ -74,3 +74,4 @@ if (failures.length) {
 }
 
 console.log('Social progression audit passed: public career profiles, cosmetic social cards, friend-only live viewing, server boss gates and focused Ranger remain integrated.');
+// User-authored rerun marker after the scoped Play-overlay browser selector fix.

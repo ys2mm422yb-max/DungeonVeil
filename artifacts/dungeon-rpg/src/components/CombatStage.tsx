@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
+import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { GameCanvas } from './GameCanvas';
+import { CoopTeammateOverlay } from './CoopTeammateOverlay';
 
 const ROOM_NAMES = [
   'VERSORGUNGSPOSTEN', 'WACHSTUBE', 'SÄULENHALLE', 'BERGARBEITERLAGER', 'WERKSTATT',
@@ -10,6 +12,11 @@ const ROOM_NAMES = [
 ] as const;
 
 type ViewportBox = { width: number; height: number; left: number; top: number };
+
+type Props = {
+  gameState: GameState;
+  remotePlayer?: CoopPlayerPresence | null;
+};
 
 function readViewport(): ViewportBox {
   const viewport = window.visualViewport;
@@ -21,7 +28,7 @@ function readViewport(): ViewportBox {
   };
 }
 
-export function CombatStage({ gameState }: { gameState: GameState }) {
+export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const previousHpRef = useRef(gameState.player.hp);
   const previousFloorRef = useRef(gameState.floor);
   const lastDamageIdRef = useRef('');
@@ -119,6 +126,7 @@ export function CombatStage({ gameState }: { gameState: GameState }) {
     >
       <div className={`absolute inset-0 ${shakeClass}`}>
         <GameCanvas gameState={gameState} />
+        {remotePlayer && <CoopTeammateOverlay gameState={gameState} remotePlayer={remotePlayer} />}
       </div>
       <div className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-200 ${hurtFlash ? 'opacity-100' : 'opacity-0'}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_38%,rgba(185,22,27,.48)_100%)]" />

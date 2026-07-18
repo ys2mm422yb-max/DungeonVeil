@@ -10,7 +10,8 @@ async function clickAnimatedUi(locator) {
 async function startNamedRun(page, name) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
-  await clickAnimatedUi(page.getByRole('button', { name: /Neuer Run|New Run/i }));
+  await clickAnimatedUi(page.getByRole('button', { name: /Spielen|Play/i }));
+  await clickAnimatedUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }));
 
   const nameInput = page.getByRole('textbox').first();
   await expect(nameInput).toBeVisible();
