@@ -7,12 +7,15 @@ import {
   heartbeatCoopLobby,
   joinCoopLobby,
   leaveCoopLobby,
+  listCoopInviteCandidates,
   listMyCoopLobbyMembers,
   makeCoopInviteUrl,
   normalizeCoopInviteCode,
   pendingCoopInviteCode,
+  sendCoopLobbyInvite,
   setCoopLobbyReady,
   startCoopLobby,
+  type CoopInviteCandidate,
   type CoopLobbyMember,
   type CoopLobbySnapshot,
 } from '../game/coopLobbyOnline';
@@ -34,7 +37,23 @@ function errorText(error: unknown, de: boolean): string {
   if (/not found/i.test(raw)) return de ? 'Keine aktive Duo-Lobby mit diesem Code gefunden.' : 'No active duo lobby was found for that code.';
   if (/full/i.test(raw)) return de ? 'Diese Duo-Lobby ist bereits voll.' : 'This duo lobby is already full.';
   if (/another coop lobby/i.test(raw)) return de ? 'Du bist bereits in einer anderen Duo-Lobby.' : 'You are already in another duo lobby.';
+  if (/already in a duo lobby/i.test(raw)) return de ? 'Dieser Spieler ist bereits in einer Duo-Lobby.' : 'This player is already in a duo lobby.';
+  if (/offline/i.test(raw)) return de ? 'Dieser Spieler ist inzwischen offline.' : 'This player is now offline.';
+  if (/busy/i.test(raw)) return de ? 'Dieser Spieler befindet sich gerade in einem Run.' : 'This player is currently in a run.';
+  if (/friendship or shared guild/i.test(raw)) return de ? 'Du kannst nur Freunde oder Mitglieder deiner Gilde einladen.' : 'You can only invite friends or members of your guild.';
   return raw || (de ? 'Duo-Lobby konnte nicht geladen werden.' : 'The duo lobby could not be loaded.');
+}
+
+function relationLabel(candidate: CoopInviteCandidate, de: boolean): string {
+  if (candidate.relation === 'friend_guild') return de ? 'Freund · Gilde' : 'Friend · Guild';
+  if (candidate.relation === 'friend') return de ? 'Freund' : 'Friend';
+  return de ? 'Gildenmitglied' : 'Guild member';
+}
+
+function activityLabel(candidate: CoopInviteCandidate, de: boolean): string {
+  if (candidate.activity_state === 'menu') return de ? 'ONLINE · IM MENÜ' : 'ONLINE · IN MENU';
+  if (candidate.activity_state === 'paused') return de ? 'ONLINE · PAUSIERT' : 'ONLINE · PAUSED';
+  return de ? 'ONLINE · IM RUN' : 'ONLINE · IN RUN';
 }
 
 export function CoopLobbyPanel({ language, onOpenOnline, onStartRun }: Props) {
@@ -43,6 +62,8 @@ export function CoopLobbyPanel({ language, onOpenOnline, onStartRun }: Props) {
   const [signedIn, setSignedIn] = useState(() => Boolean(currentOnlineSession()));
   const [lobby, setLobby] = useState<CoopLobbySnapshot | null>(null);
   const [members, setMembers] = useState<CoopLobbyMember[]>([]);
+  const [candidates, setCandidates] = useState<CoopInviteCandidate[]>([]);
+  const [invitedIds, setInvitedIds] = useState<Record<string, true>>({});
   const [code, setCode] = useState(() => pendingCoopInviteCode());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -54,13 +75,26 @@ export function CoopLobbyPanel({ language, onOpenOnline, onStartRun }: Props) {
     if (!online) {
       setLobby(null);
       setMembers([]);
+      setCandidates([]);
       startedLobbyRef.current = '';
       return;
     }
     try {
       const next = await getMyCoopLobby();
       setLobby(next);
-      setMembers(next ? await listMyCoopLobbyMembers() : []);
+      if (next) {
+        const [nextMembers, nextCandidates] = await Promise.all([
+          listMyCoopLobbyMembers(),
+          next.role === 'host' && (next.status === 'waiting' || next.status === 'ready')
+            ? listCoopInviteCandidates()
+            : Promise.resolve([]),
+        ]);
+        setMembers(nextMembers);
+        setCandidates(nextCandidates);
+      } else {
+        setMembers([]);
+        setCandidates([]);
+      }
       setError('');
       if (!next) startedLobbyRef.current = '';
       else if (next.status === 'in_run' && startedLobbyRef.current !== next.lobby_id) {
@@ -133,29 +167,36 @@ export function CoopLobbyPanel({ language, onOpenOnline, onStartRun }: Props) {
     await copyInvite();
   };
 
+  const inviteCandidate = (candidate: CoopInviteCandidate) => runAction(async () => {
+    await sendCoopLobbyInvite(candidate.user_id);
+    setInvitedIds(current => ({ ...current, [candidate.user_id]: true }));
+    setNotice(de ? `${candidate.display_name} wurde eingeladen.` : `${candidate.display_name} was invited.`);
+  });
+
   if (!signedIn) {
     return <section data-testid="coop-lobby-panel" className="rounded-3xl border border-violet-200/16 bg-[#15111d]/96 p-4 text-white shadow-2xl">
       <div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-100/52">{de ? 'DUO-RUN · ZWEI SPIELER' : 'DUO RUN · TWO PLAYERS'}</div>
       <h2 className="mt-2 font-serif text-xl font-black text-violet-50">{de ? 'Gemeinsam durch den Schleier' : 'Enter the veil together'}</h2>
-      <p className="mt-2 text-[9px] leading-relaxed text-white/48">{de ? 'Für private Duo-Lobbys, gemeinsame Seeds und die spätere sichere Loot-Verteilung wird ein Online-Konto benötigt.' : 'Private duo lobbies, shared seeds and secure loot distribution require an online account.'}</p>
+      <p className="mt-2 text-[9px] leading-relaxed text-white/48">{de ? 'Für private Duo-Lobbys, gemeinsame Seeds und sichere Einladungen wird ein Online-Konto benötigt.' : 'Private duo lobbies, shared seeds and secure invitations require an online account.'}</p>
       <button type="button" onPointerDown={event => { event.preventDefault(); onOpenOnline(); }} className="mt-4 w-full rounded-2xl border border-violet-200/22 bg-violet-300/10 py-3 text-[9px] font-black uppercase tracking-[.18em] text-violet-50 active:scale-[.98]">Online & Cloud</button>
     </section>;
   }
 
   return <section data-testid="coop-lobby-panel" className="max-h-[76dvh] overflow-y-auto rounded-3xl border border-violet-200/16 bg-[#15111d]/96 p-4 text-white shadow-2xl">
-    <div className="flex items-start justify-between gap-3">
-      <div><div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-100/52">{de ? 'DUO-RUN · ECHTZEIT' : 'DUO RUN · REALTIME'}</div><h2 className="mt-1 font-serif text-xl font-black text-violet-50">{lobby ? (de ? 'Private Duo-Lobby' : 'Private duo lobby') : (de ? 'Duo-Lobby erstellen' : 'Create a duo lobby')}</h2></div>
-      <div className="rounded-full border border-emerald-200/18 bg-emerald-300/8 px-2 py-1 text-[6px] font-black uppercase tracking-[.13em] text-emerald-100/70">{de ? 'Solo unverändert' : 'Solo unchanged'}</div>
+    <div>
+      <div className="text-[8px] font-black uppercase tracking-[.28em] text-violet-100/52">{de ? 'DUO-RUN · ECHTZEIT' : 'DUO RUN · REALTIME'}</div>
+      <h2 className="mt-1 font-serif text-xl font-black text-violet-50">{de ? 'Duo-Lobby' : 'Duo lobby'}</h2>
     </div>
 
     {!lobby && <>
-      <p className="mt-3 text-[9px] leading-relaxed text-white/46">{de ? 'Erstelle eine private Gruppe oder tritt mit einem sechsstelligen Code bei. Die Lobby ist auf genau zwei Spieler begrenzt.' : 'Create a private party or join with a six-character code. The lobby is limited to exactly two players.'}</p>
+      <p className="mt-3 text-[9px] leading-relaxed text-white/46">{de ? 'Erstelle eine private Gruppe oder tritt einer bestehenden Lobby mit ihrem sechsstelligen Gruppencode bei.' : 'Create a private party or join an existing lobby with its six-character party code.'}</p>
       <button data-testid="coop-create-lobby" type="button" disabled={busy} onPointerDown={event => { event.preventDefault(); void runAction(createCoopLobby); }} className="mt-4 w-full rounded-2xl border border-violet-200/24 bg-violet-300/12 py-3 text-[9px] font-black uppercase tracking-[.18em] text-violet-50 active:scale-[.98] disabled:opacity-40">{busy ? (de ? 'WIRD ERSTELLT…' : 'CREATING…') : (de ? 'PRIVATE DUO-LOBBY ERSTELLEN' : 'CREATE PRIVATE DUO LOBBY')}</button>
-      <div className="my-4 flex items-center gap-3 text-[6px] font-black uppercase tracking-[.2em] text-white/24"><span className="h-px flex-1 bg-white/8" />{de ? 'ODER BEITRETEN' : 'OR JOIN'}<span className="h-px flex-1 bg-white/8" /></div>
+      <div className="my-4 flex items-center gap-3 text-[6px] font-black uppercase tracking-[.2em] text-white/24"><span className="h-px flex-1 bg-white/8" />{de ? 'ODER MIT CODE BEITRETEN' : 'OR JOIN WITH CODE'}<span className="h-px flex-1 bg-white/8" /></div>
       <div className="flex gap-2">
         <input data-testid="coop-invite-code-input" value={code} onChange={event => setCode(normalizeCoopInviteCode(event.target.value))} inputMode="text" autoCapitalize="characters" maxLength={6} placeholder="ABC123" className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-center font-mono text-base font-black tracking-[.28em] text-white outline-none focus:border-violet-200/34" />
         <button data-testid="coop-join-lobby" type="button" disabled={busy || code.length !== 6} onPointerDown={event => { event.preventDefault(); void runAction(() => joinCoopLobby(code)); }} className="rounded-2xl border border-white/12 bg-white/7 px-4 text-[8px] font-black uppercase tracking-[.12em] text-white/72 active:scale-[.98] disabled:opacity-30">{de ? 'BEITRETEN' : 'JOIN'}</button>
       </div>
+      <div data-testid="coop-code-help" className="mt-2 text-[7px] leading-relaxed text-white/30">{code.length === 6 ? (de ? 'Code vollständig. Du kannst der Lobby jetzt beitreten.' : 'Code complete. You can join the lobby now.') : (de ? 'Gib den vollständigen sechsstelligen Gruppencode ein.' : 'Enter the complete six-character party code.')}</div>
     </>}
 
     {lobby && <>
@@ -175,11 +216,28 @@ export function CoopLobbyPanel({ language, onOpenOnline, onStartRun }: Props) {
         })}
       </div>
 
+      {lobby.role === 'host' && !bothPresent && <section data-testid="coop-direct-invites" className="mt-3 rounded-2xl border border-violet-200/12 bg-violet-300/[.035] p-3">
+        <div className="text-[7px] font-black uppercase tracking-[.18em] text-violet-100/62">{de ? 'ONLINE DIREKT EINLADEN' : 'INVITE ONLINE PLAYERS'}</div>
+        <p className="mt-1 text-[8px] leading-relaxed text-white/36">{de ? 'Freunde und Gildenmitglieder im Menü können die Einladung direkt im Postfach annehmen.' : 'Friends and guild members in the menu can accept the invitation directly from their mailbox.'}</p>
+        <div className="mt-3 space-y-2">
+          {candidates.map(candidate => {
+            const available = candidate.activity_state === 'menu';
+            const invited = Boolean(invitedIds[candidate.user_id]);
+            return <div key={candidate.user_id} className="flex min-h-12 items-center gap-2 rounded-xl border border-white/8 bg-black/24 px-2.5 py-2">
+              <div className={`h-2 w-2 shrink-0 rounded-full ${available ? 'bg-emerald-300' : 'bg-amber-300/70'}`} />
+              <div className="min-w-0 flex-1"><div className="truncate text-[9px] font-black text-white/82">{candidate.display_name}</div><div className="mt-0.5 truncate text-[6px] font-black uppercase tracking-[.1em] text-white/30">{relationLabel(candidate, de)} · {activityLabel(candidate, de)}</div></div>
+              <button type="button" disabled={busy || !available || invited} onPointerDown={event => { event.preventDefault(); void inviteCandidate(candidate); }} className="min-h-8 rounded-lg border border-violet-200/16 bg-violet-300/8 px-2 text-[6px] font-black uppercase tracking-[.11em] text-violet-50 active:scale-[.97] disabled:opacity-30">{invited ? (de ? 'GESENDET' : 'SENT') : available ? (de ? 'EINLADEN' : 'INVITE') : (de ? 'IM RUN' : 'IN RUN')}</button>
+            </div>;
+          })}
+          {!candidates.length && <div className="rounded-xl border border-white/7 bg-black/18 px-3 py-3 text-[8px] leading-relaxed text-white/34">{de ? 'Gerade ist kein Freund oder Gildenmitglied online.' : 'No friend or guild member is online right now.'}</div>}
+        </div>
+      </section>}
+
       <button data-testid="coop-ready-toggle" type="button" disabled={busy} onPointerDown={event => { event.preventDefault(); void runAction(() => setCoopLobbyReady(!(me?.ready ?? lobby.ready))); }} className={`mt-3 w-full rounded-2xl border py-3 text-[9px] font-black uppercase tracking-[.18em] active:scale-[.98] disabled:opacity-40 ${(me?.ready ?? lobby.ready) ? 'border-emerald-200/22 bg-emerald-300/10 text-emerald-50' : 'border-violet-200/22 bg-violet-300/10 text-violet-50'}`}>{(me?.ready ?? lobby.ready) ? (de ? 'NICHT BEREIT' : 'NOT READY') : (de ? 'ICH BIN BEREIT' : 'I AM READY')}</button>
 
       <div className="mt-3 rounded-2xl border border-sky-200/10 bg-sky-300/[.035] p-3 text-[8px] leading-relaxed text-sky-50/48">
         <div className="font-black uppercase tracking-[.14em] text-sky-100/68">{bothReady ? (de ? 'LOBBY BEREIT' : 'LOBBY READY') : (de ? 'VORBEREITUNG' : 'PREPARATION')}</div>
-        <p className="mt-1">{bothReady ? (lobby.role === 'host' ? (de ? 'Beide Spieler sind bereit. Starte den gemeinsamen Run für euch beide.' : 'Both players are ready. Start the shared run for both players.') : (de ? 'Beide Spieler sind bereit. Warte, bis der Host den Run startet.' : 'Both players are ready. Wait for the host to start the run.')) : (de ? 'Beide Spieler müssen anwesend und bereit sein. Die Solo-Balance bleibt dabei vollständig getrennt.' : 'Both players must be present and ready. Solo balance remains completely separate.')}</p>
+        <p className="mt-1">{bothReady ? (lobby.role === 'host' ? (de ? 'Beide Spieler sind bereit. Starte den gemeinsamen Run für euch beide.' : 'Both players are ready. Start the shared run for both players.') : (de ? 'Beide Spieler sind bereit. Warte, bis der Host den Run startet.' : 'Both players are ready. Wait for the host to start the run.')) : (de ? 'Beide Spieler müssen anwesend und bereit sein.' : 'Both players must be present and ready.')}</p>
       </div>
 
       {lobby.role === 'host' && <button data-testid="coop-start-run" type="button" disabled={busy || !bothReady} onPointerDown={event => { event.preventDefault(); void runAction(startCoopLobby); }} className="mt-3 w-full rounded-2xl border border-cyan-100/28 bg-[linear-gradient(135deg,#26556b,#173348)] py-3 text-[9px] font-black uppercase tracking-[.18em] text-cyan-50 shadow-[0_12px_26px_rgba(10,80,105,.22)] active:scale-[.98] disabled:opacity-30">{busy ? (de ? 'RUN STARTET…' : 'STARTING RUN…') : (de ? 'GEMEINSAMEN RUN STARTEN' : 'START SHARED RUN')}</button>}

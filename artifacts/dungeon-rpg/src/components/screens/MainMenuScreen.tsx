@@ -6,7 +6,7 @@ import { recordReachedChapter } from '../../game/equipmentChapterGates';
 import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
 import { loadRetentionProfile, type RetentionProfile } from '../../game/runRetention';
 import { captureGuildInviteTokenFromUrl, mailboxUnreadCount, MAILBOX_EVENT } from '../../game/guildMailboxOnline';
-import { captureCoopInviteCodeFromUrl, type CoopLobbySnapshot } from '../../game/coopLobbyOnline';
+import { captureCoopInviteCodeFromUrl, COOP_LOBBY_OPEN_EVENT, type CoopLobbySnapshot } from '../../game/coopLobbyOnline';
 import { currentOnlineSession, onlineSessionEventName } from '../../game/supabaseOnline';
 import { syncSocialProfileProgress } from '../../game/socialProgressOnline';
 import { requestTutorialReplay } from '../../game/tutorialState';
@@ -72,12 +72,17 @@ export function MainMenuScreen(props: Props) {
     if (capturedGuild) setOverlay('mailbox');
     else if (capturedCoop) setOverlay('coop');
     const refreshUnread = () => { void mailboxUnreadCount().then(setMailUnread).catch(() => setMailUnread(0)); };
+    const openCoopLobby = () => setOverlay('coop');
     window.addEventListener(MAILBOX_EVENT, refreshUnread);
     window.addEventListener(onlineSessionEventName(), refreshUnread);
+    window.addEventListener(COOP_LOBBY_OPEN_EVENT, openCoopLobby);
+    const mailboxPoll = window.setInterval(refreshUnread, 5_000);
     refreshUnread();
     return () => {
+      window.clearInterval(mailboxPoll);
       window.removeEventListener(MAILBOX_EVENT, refreshUnread);
       window.removeEventListener(onlineSessionEventName(), refreshUnread);
+      window.removeEventListener(COOP_LOBBY_OPEN_EVENT, openCoopLobby);
     };
   }, []);
 
