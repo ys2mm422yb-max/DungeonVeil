@@ -176,7 +176,7 @@ export function applyCoopSharedLootResolution(state: CoopSharedLootState): boole
     const existing = meta.owned[state.item_id];
     const duplicate = Boolean(existing);
     let convertedDust = 0;
-    if (existing?.level >= 5) {
+    if ((existing?.level ?? 0) >= 5) {
       convertedDust = MAX_LEVEL_DUPLICATE_DUST[EQUIPMENT[state.item_id].rarity];
       meta.dust += convertedDust;
     } else if (existing) {
@@ -185,7 +185,7 @@ export function applyCoopSharedLootResolution(state: CoopSharedLootState): boole
       meta.owned[state.item_id] = { level: 1, copies: 0 };
     }
     const progress = meta.owned[state.item_id]!;
-    pickup = { duplicate, convertedDust, copies: progress.copies, level: progress.level };
+    pickup = { duplicate, convertedDust, copies: progress.copies, level: progress.level ?? 1 };
   } else if (state.loser_user_id === userId && state.compensation_dust > 0) {
     meta.dust += state.compensation_dust;
   }
