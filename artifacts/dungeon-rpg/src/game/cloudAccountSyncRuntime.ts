@@ -1,6 +1,11 @@
 import { pushCloudSave, readCloudSave, restoreCloudSave } from './cloudSave';
+import {
+  bundleHasCoreProgress,
+  recoveryBundleForThinRemote,
+  shouldRestoreRemoteBundleSafely,
+} from './cloudSaveSafety';
 import { syncOnlineProfileCosmetics } from './onlineProfileCosmetics';
-import { clearCloudRevision, exportSaveBundle, shouldRestoreRemoteBundle, type DungeonVeilSaveBundle } from './persistentSaveBundle';
+import { clearCloudRevision, exportSaveBundle, type DungeonVeilSaveBundle } from './persistentSaveBundle';
 import { loadPlayerProfile, PLAYER_PROFILE_EVENT } from './playerProfile';
 import { SAVE_EVENT } from './saveManager';
 import { SETTINGS_PERSISTENCE_EVENT } from './settingsPersistence';
@@ -10,6 +15,7 @@ import { WEEKLY_ELITE_EVENT } from './weeklyElite';
 const CLOUD_USER_KEY = 'dungeon-veil-cloud-user-v1';
 const CLOUD_PUSH_DELAY_MS = 700;
 const CLOUD_RECONCILE_MS = 10_000;
+const shouldRestoreRemoteBundle = shouldRestoreRemoteBundleSafely;
 const SYNC_EVENTS = [
   SAVE_EVENT,
   PLAYER_PROFILE_EVENT,
@@ -25,6 +31,8 @@ let installed = false;
 let syncPromise: Promise<void> | null = null;
 let pushTimer = 0;
 let lastSyncedDataSignature = '';
+let hydratedUserId = '';
+let pendingPush = false;
 
 function storedCloudUser(): string {
   try { return localStorage.getItem(CLOUD_USER_KEY) ?? ''; } catch { return ''; }
@@ -38,9 +46,19 @@ function bundleDataSignature(bundle: DungeonVeilSaveBundle): string {
   return JSON.stringify(bundle.data);
 }
 
-async function pushCurrentAccountState(force = false): Promise<void> {
-  if (!currentOnlineSession()) return;
-  const bundle = exportSaveBundle();
+export function cloudAccountHydrated(): boolean {
+  const session = currentOnlineSession();
+  return Boolean(session && hydratedUserId === session.user.id);
+}
+
+async function pushCurrentAccountState(force = false, bundle = exportSaveBundle()): Promise<void> {
+  const session = currentOnlineSession();
+  if (!session || hydratedUserId !== session.user.id) {
+    pendingPush = true;
+    return;
+  }
+  if (!bundleHasCoreProgress(bundle)) return;
+
   const signature = bundleDataSignature(bundle);
   const saveTask = force || signature !== lastSyncedDataSignature
     ? pushCloudSave(bundle)
@@ -54,6 +72,11 @@ async function pushCurrentAccountState(force = false): Promise<void> {
 
 function schedulePush(): void {
   if (!currentOnlineSession()) return;
+  if (!cloudAccountHydrated()) {
+    pendingPush = true;
+    runAccountSync();
+    return;
+  }
   window.clearTimeout(pushTimer);
   pushTimer = window.setTimeout(() => { void pushCurrentAccountState(); }, CLOUD_PUSH_DELAY_MS);
 }
@@ -62,6 +85,8 @@ async function synchronizeSignedInAccount(): Promise<void> {
   const session = currentOnlineSession();
   if (!session) {
     lastSyncedDataSignature = '';
+    hydratedUserId = '';
+    pendingPush = false;
     return;
   }
 
@@ -69,30 +94,42 @@ async function synchronizeSignedInAccount(): Promise<void> {
   if (previousUser !== session.user.id) {
     clearCloudRevision();
     lastSyncedDataSignature = '';
+    hydratedUserId = '';
   }
   rememberCloudUser(session.user.id);
 
   const local = exportSaveBundle();
   const localSignature = bundleDataSignature(local);
   const remote = await readCloudSave();
+
   if (!remote) {
-    await pushCurrentAccountState(true);
+    hydratedUserId = session.user.id;
+    if (bundleHasCoreProgress(local)) await pushCurrentAccountState(true);
+    pendingPush = false;
     return;
   }
 
   const remoteSignature = bundleDataSignature(remote);
   if (shouldRestoreRemoteBundle(local, remote)) {
     lastSyncedDataSignature = remoteSignature;
+    hydratedUserId = session.user.id;
+    pendingPush = false;
     restoreCloudSave(remote);
     return;
   }
 
-  if (localSignature !== remoteSignature) {
-    await pushCurrentAccountState(true);
-    return;
+  hydratedUserId = session.user.id;
+  if (localSignature !== remoteSignature && bundleHasCoreProgress(local)) {
+    const upload = recoveryBundleForThinRemote(local, remote);
+    await pushCurrentAccountState(true, upload);
+  } else {
+    lastSyncedDataSignature = localSignature;
   }
 
-  lastSyncedDataSignature = localSignature;
+  if (pendingPush) {
+    pendingPush = false;
+    await pushCurrentAccountState();
+  }
 }
 
 function runAccountSync(): void {
@@ -120,7 +157,9 @@ export function installCloudAccountSyncRuntime(): void {
   window.addEventListener('online', runAccountSync);
   window.addEventListener('storage', runAccountSync);
   document.addEventListener('visibilitychange', reconcileVisibleAccount);
-  window.addEventListener('pagehide', () => { void pushCurrentAccountState(true); });
+  window.addEventListener('pagehide', () => {
+    if (cloudAccountHydrated()) void pushCurrentAccountState(true);
+  });
   window.setInterval(runAccountSync, CLOUD_RECONCILE_MS);
 
   runAccountSync();

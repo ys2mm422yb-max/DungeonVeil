@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { pullCloudSave, pushCloudSave } from '../game/cloudSave';
+import { cloudAccountHydrated } from '../game/cloudAccountSyncRuntime';
 import { currentOnlineSession, onlineSessionEventName } from '../game/supabaseOnline';
 
 const CLOUD_POLL_MS = 15_000;
@@ -15,33 +16,34 @@ export function MainMenuUpdateGate({ language }: { language: 'de' | 'en' }) {
   const [nextCommit, setNextCommit] = useState('');
   const currentCommit = String(import.meta.env.VITE_BUILD_SHA ?? '').trim();
 
-  const safeReload = useCallback(async () => {
+  const safeReload = useCallback(async (saveFirst = true) => {
     if (reloadingRef.current) return;
     reloadingRef.current = true;
-    try { await pushCloudSave(); } catch {}
+    if (saveFirst && cloudAccountHydrated()) {
+      try { await pushCloudSave(); } catch {}
+    }
     window.location.reload();
   }, []);
 
   useEffect(() => {
     let stopped = false;
     let busy = false;
-    const pull = async (pushFirst = false) => {
+    const pull = async () => {
       if (stopped || busy || !currentOnlineSession()) return;
       busy = true;
       try {
-        if (pushFirst) await pushCloudSave();
         const restored = await pullCloudSave();
-        if (restored && !stopped) await safeReload();
+        if (restored && !stopped) await safeReload(false);
       } catch {}
       finally { busy = false; }
     };
     const sessionEvent = onlineSessionEventName();
-    const onSession = () => { void pull(true); };
-    const onRestore = () => { if (!stopped) void safeReload(); };
+    const onSession = () => { void pull(); };
+    const onRestore = () => { if (!stopped) void safeReload(false); };
     window.addEventListener(sessionEvent, onSession);
     window.addEventListener('dungeon-veil-cloud-save-restored', onRestore);
-    void pull(true);
-    const interval = window.setInterval(() => void pull(false), CLOUD_POLL_MS);
+    void pull();
+    const interval = window.setInterval(() => void pull(), CLOUD_POLL_MS);
     return () => {
       stopped = true;
       window.clearInterval(interval);
@@ -72,7 +74,7 @@ export function MainMenuUpdateGate({ language }: { language: 'de' | 'en' }) {
 
   useEffect(() => {
     if (!nextCommit) return;
-    const timer = window.setTimeout(() => void safeReload(), UPDATE_DELAY_MS);
+    const timer = window.setTimeout(() => void safeReload(true), UPDATE_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [nextCommit, safeReload]);
 
@@ -82,7 +84,7 @@ export function MainMenuUpdateGate({ language }: { language: 'de' | 'en' }) {
       <div className="text-[8px] font-black uppercase tracking-[.16em] text-emerald-100">{de ? 'NEUE VERSION BEREIT' : 'NEW VERSION READY'}</div>
       <div className="mt-1 text-[6px] uppercase tracking-[.1em] text-white/45">{de ? 'Cloud wird gesichert · Aktualisierung startet automatisch' : 'Cloud is saved · update starts automatically'}</div>
     </div>
-    <button type="button" onPointerDown={event => { event.preventDefault(); void safeReload(); }} className="rounded-xl border border-emerald-200/20 bg-emerald-400/12 px-3 py-2 text-[7px] font-black uppercase tracking-[.1em] text-emerald-50">{de ? 'JETZT' : 'NOW'}</button>
+    <button type="button" onPointerDown={event => { event.preventDefault(); void safeReload(true); }} className="rounded-xl border border-emerald-200/20 bg-emerald-400/12 px-3 py-2 text-[7px] font-black uppercase tracking-[.1em] text-emerald-50">{de ? 'JETZT' : 'NOW'}</button>
     <button type="button" aria-label={de ? 'Später aktualisieren' : 'Update later'} onPointerDown={event => { event.preventDefault(); sessionStorage.setItem(`${UPDATE_SKIP_PREFIX}${nextCommit}`, '1'); setNextCommit(''); }} className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-sm text-white/55">×</button>
   </div>;
 }
