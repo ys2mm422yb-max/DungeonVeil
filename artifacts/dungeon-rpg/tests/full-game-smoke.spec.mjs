@@ -200,7 +200,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   await test.step('world boss route through Play', async () => {
     await reloadMenu(page, testInfo.project.name);
     await openPlayMenu(page);
-    await openMenuButton(page, /Weltboss|World Boss/i);
+    await clickAnimatedUi(page.getByRole('button', { name: /Weltboss|World Boss/i }).last());
     await expect(page.getByText(/Das nächste Weltereignis|The next world event/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /Online & Cloud/i })).toBeVisible();
   });
