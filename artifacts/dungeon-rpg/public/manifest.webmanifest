@@ -3,10 +3,10 @@
   "name": "Dungeon Veil",
   "short_name": "Dungeon Veil",
   "description": "A stylized 3D room-run action roguelite.",
-  "start_url": "./?installed=3",
+  "start_url": "./?installed=4",
   "scope": "./",
   "display": "standalone",
-  "orientation": "landscape",
+  "orientation": "portrait-primary",
   "background_color": "#070706",
   "theme_color": "#100b1f",
   "icons": [
