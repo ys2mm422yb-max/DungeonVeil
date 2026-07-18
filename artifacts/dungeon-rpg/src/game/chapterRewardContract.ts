@@ -47,6 +47,12 @@ function normalizedOptions(options: ChapterRoomRewardOptions | undefined) {
   return { multiplier, rewardRunId };
 }
 
+function shouldRollEquipmentLocally(): boolean {
+  if (typeof document === 'undefined') return true;
+  if (document.documentElement.dataset.dungeonVeilRunMode !== 'duo') return true;
+  return document.documentElement.dataset.dungeonVeilCoopRole === 'host';
+}
+
 export function rewardChapterRoomClear(
   chapter: number,
   floor: number,
@@ -76,7 +82,11 @@ export function rewardChapterRoomClear(
   meta.gold += amounts.gold;
   saveMetaProgression(meta);
 
-  const drop = isBossRoom(safeFloor) ? rollBossEquipmentReward(safeChapter, safeFloor) : null;
+  // Currency stays individual in Duo. Only the host rolls the single shared
+  // boss item; the guest waits for the server-authoritative claim/pass result.
+  const drop = isBossRoom(safeFloor) && shouldRollEquipmentLocally()
+    ? rollBossEquipmentReward(safeChapter, safeFloor)
+    : null;
 
   return {
     ...amounts,
