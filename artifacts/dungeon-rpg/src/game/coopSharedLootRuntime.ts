@@ -9,7 +9,7 @@ import {
   type CoopLootChoice,
   type CoopSharedLootSnapshot,
 } from './coopSharedLootOnline';
-import { collectBalancedEquipmentDropOnce, grantMetaDustOnce } from './equipmentCollection';
+import { collectBalancedEquipmentDropOnce, grantMetaDustOnce } from './coopSharedLootPayout';
 import { grantEquipmentSourceMarkOnce } from './equipmentTargeting';
 import { currentOnlineSession } from './supabaseOnline';
 import { pushCloudSave } from './cloudSave';
