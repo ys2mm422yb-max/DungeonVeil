@@ -11,6 +11,11 @@ import {
 
 export type ChapterRoomRewardAmounts = Pick<MetaReward, 'xp' | 'dust' | 'gold'>;
 
+export type ChapterRoomRewardOptions = {
+  currencyMultiplier?: number;
+  rewardRunId?: string;
+};
+
 export function chapterRoomRewardAmounts(chapter: number, floor: number): ChapterRoomRewardAmounts {
   const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
   const safeFloor = Math.max(1, Math.min(FINAL_BOSS_ROOM, Math.floor(Number(floor) || 1)));
@@ -36,18 +41,35 @@ function ensureRunId(meta: MetaProgression): void {
   meta.currentRunId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function rewardChapterRoomClear(chapter: number, floor: number): MetaReward | null {
+function normalizedOptions(options: ChapterRoomRewardOptions | undefined) {
+  const multiplier = Math.max(1, Math.min(2, Number(options?.currencyMultiplier) || 1));
+  const rewardRunId = String(options?.rewardRunId ?? '').trim().slice(0, 120);
+  return { multiplier, rewardRunId };
+}
+
+export function rewardChapterRoomClear(
+  chapter: number,
+  floor: number,
+  options?: ChapterRoomRewardOptions,
+): MetaReward | null {
   const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
   const safeFloor = Math.max(1, Math.min(FINAL_BOSS_ROOM, Math.floor(Number(floor) || 1)));
   recordReachedChapter(safeChapter);
 
   const meta = loadMetaProgression();
   ensureRunId(meta);
-  const rewardKey = `${meta.currentRunId}:${safeChapter}:${safeFloor}`;
+  const normalized = normalizedOptions(options);
+  const ledgerRunId = normalized.rewardRunId || meta.currentRunId;
+  const rewardKey = `${ledgerRunId}:${safeChapter}:${safeFloor}`;
   if (meta.rewardLedger.includes(rewardKey)) return null;
   meta.rewardLedger.push(rewardKey);
 
-  const amounts = chapterRoomRewardAmounts(safeChapter, safeFloor);
+  const baseAmounts = chapterRoomRewardAmounts(safeChapter, safeFloor);
+  const amounts: ChapterRoomRewardAmounts = {
+    xp: baseAmounts.xp,
+    dust: Math.round(baseAmounts.dust * normalized.multiplier),
+    gold: Math.round(baseAmounts.gold * normalized.multiplier),
+  };
   const rankBefore = meta.rank;
   addRankXp(meta, amounts.xp);
   meta.dust += amounts.dust;
