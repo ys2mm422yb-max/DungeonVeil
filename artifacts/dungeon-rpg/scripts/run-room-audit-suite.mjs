@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+// validate-all-rooms.mjs targeted retired map, encounter and collider APIs.
+// Its maintained coverage now lives in the focused production-room, spawn,
+// collision, telegraph, visibility and mobile-combat audits below.
 const scripts = [
-  'validate-all-rooms.mjs',
   'validate-production-rooms.mjs',
   'validate-spawn-hitboxes.mjs',
   'validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs',
