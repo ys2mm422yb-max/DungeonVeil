@@ -42,19 +42,19 @@ const checks = [
   [client.includes("rpcRows<GuildJoinRequest>('list_guild_join_requests'")
     && client.includes("rpcRows<{ request_status: GuildJoinRequestStatus }>('review_guild_join_request'")
     && client.includes("rpcRows<{ join_policy: GuildJoinPolicy }>('set_guild_join_policy'"), 'guild officer client contract is incomplete'],
-  [overlay.includes('data-testid="guild-search-open"')
+  [overlay.includes("'guild-search-open'")
     && overlay.includes('data-testid="guild-search-input"')
     && overlay.includes('data-testid="guild-search-result"')
-    && overlay.includes('data-testid="guild-search-empty"'), 'guild discovery UI lacks search, results or an empty state'],
+    && overlay.includes('data-testid="guild-search-empty"'), 'guild discovery UI lacks its dynamic trigger, search, results or empty state'],
   [overlay.includes('DIREKT BEITRETEN')
     && overlay.includes('BEITRITT ANFRAGEN')
     && overlay.includes('ANFRAGE ZURÜCKZIEHEN')
     && overlay.includes('BEITRITT GESCHLOSSEN'), 'guild cards do not expose all join and pending states'],
-  [overlay.includes('data-testid="guild-join-requests-open"')
+  [overlay.includes("'guild-join-requests-open'")
     && overlay.includes('data-testid="guild-join-request"')
     && overlay.includes('data-testid="guild-join-policy"')
     && overlay.includes('AUFNEHMEN')
-    && overlay.includes('ABLEHNEN'), 'guild officers lack request review or policy controls'],
+    && overlay.includes('ABLEHNEN'), 'guild officers lack the dynamic request trigger, review or policy controls'],
   [socialPanel.includes("import { GuildAccessOverlay }")
     && socialPanel.includes('<GuildAccessOverlay language={language} />')
     && socialPanel.includes('<GuildPanelMobile'), 'guild discovery is not mounted beside the existing mobile guild panel'],
