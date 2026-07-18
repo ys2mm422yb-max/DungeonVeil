@@ -1,4 +1,12 @@
 import type { DuoRunContext } from './coopRunMode';
+import {
+  normalizeCoopEnemyHitIntent,
+  normalizeCoopEnemySnapshot,
+  normalizeCoopPlayerDamageEvent,
+  type CoopEnemyHitIntent,
+  type CoopEnemySnapshot,
+  type CoopPlayerDamageEvent,
+} from './coopEnemyAuthority';
 import { currentOnlineSession } from './supabaseOnline';
 
 const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL ?? 'https://hfndwqfghyomwapqsked.supabase.co').replace(/\/$/, '');
@@ -22,6 +30,9 @@ export type CoopPlayerPresence = {
   facingX: number;
   facingY: number;
   state: 'idle' | 'moving' | 'attack' | 'dodging';
+  hp: number;
+  maxHp: number;
+  defense: number;
   lastAttackTime: number;
   lastDodgeTime: number;
   sequence: number;
@@ -30,6 +41,9 @@ export type CoopPlayerPresence = {
 };
 
 type OutgoingPresence = Omit<CoopPlayerPresence, 'version' | 'lobbyId' | 'runSeed' | 'userId' | 'sequence' | 'sentAt' | 'receivedAt'>;
+type OutgoingEnemySnapshot = Omit<CoopEnemySnapshot, 'version' | 'lobbyId' | 'runSeed' | 'userId' | 'sequence' | 'sentAt'>;
+type OutgoingEnemyHitIntent = Omit<CoopEnemyHitIntent, 'version' | 'lobbyId' | 'runSeed' | 'userId' | 'sequence' | 'sentAt'>;
+type OutgoingPlayerDamage = Omit<CoopPlayerDamageEvent, 'version' | 'lobbyId' | 'runSeed' | 'userId' | 'sequence' | 'sentAt'>;
 
 type PhoenixMessage = {
   topic?: string;
@@ -43,6 +57,9 @@ type RealtimeOptions = {
   onRemotePresence: (presence: CoopPlayerPresence) => void;
   onPeerLeft: (userId: string) => void;
   onStatus: (status: CoopRealtimeStatus) => void;
+  onEnemySnapshot?: (snapshot: CoopEnemySnapshot) => void;
+  onEnemyHitIntent?: (intent: CoopEnemyHitIntent) => void;
+  onPlayerDamage?: (event: CoopPlayerDamageEvent) => void;
 };
 
 function finite(value: unknown, fallback = 0): number {
@@ -71,6 +88,7 @@ export function normalizeCoopPlayerPresence(
   if (!lobbyId || lobbyId !== expected.lobbyId || runSeed !== expected.runSeed || !userId || userId === localUserId) return null;
   const sequence = Math.max(0, Math.floor(finite(raw.sequence)));
   const sentAt = Math.max(0, Math.floor(finite(raw.sentAt)));
+  const maxHp = Math.max(1, finite(raw.maxHp, 100));
   return {
     version: 1,
     lobbyId,
@@ -84,6 +102,9 @@ export function normalizeCoopPlayerPresence(
     facingX: clamp(finite(raw.facingX), -1, 1),
     facingY: clamp(finite(raw.facingY, -1), -1, 1),
     state: normalizeState(raw.state),
+    hp: clamp(finite(raw.hp, maxHp), 0, maxHp),
+    maxHp,
+    defense: clamp(finite(raw.defense), 0, 100_000),
     lastAttackTime: Math.max(0, finite(raw.lastAttackTime)),
     lastDodgeTime: Math.max(0, finite(raw.lastDodgeTime)),
     sequence,
@@ -124,9 +145,15 @@ export class CoopRealtimePresenceClient {
   private joined = false;
   private reference = 0;
   private joinRef = '';
-  private sequence = 0;
+  private presenceSequence = 0;
+  private enemySequence = 0;
+  private hitIntentSequence = 0;
+  private playerDamageSequence = 0;
   private latestOutgoing: OutgoingPresence | null = null;
-  private latestRemoteSequence = new Map<string, number>();
+  private latestRemotePresenceSequence = new Map<string, number>();
+  private latestRemoteEnemySequence = new Map<string, number>();
+  private latestRemoteHitSequence = new Map<string, number>();
+  private latestRemoteDamageSequence = new Map<string, number>();
   private status: CoopRealtimeStatus = 'offline';
   private readonly userId: string;
   private readonly topic: string;
@@ -136,6 +163,10 @@ export class CoopRealtimePresenceClient {
     if (!session?.user?.id) throw new Error('Für den Duo-Run fehlt eine Online-Sitzung.');
     this.userId = session.user.id;
     this.topic = `realtime:duo-run:${options.context.lobbyId}`;
+  }
+
+  get localUserId(): string {
+    return this.userId;
   }
 
   connect(): void {
@@ -154,6 +185,45 @@ export class CoopRealtimePresenceClient {
     this.latestOutgoing = presence;
     if (!this.joined) return;
     this.sendPresence(presence);
+  }
+
+  publishEnemySnapshot(snapshot: OutgoingEnemySnapshot): void {
+    if (!this.joined || this.options.context.role !== 'host') return;
+    this.sendBroadcast('enemy_snapshot', {
+      version: 1,
+      lobbyId: this.options.context.lobbyId,
+      runSeed: this.options.context.runSeed,
+      userId: this.userId,
+      ...snapshot,
+      sequence: ++this.enemySequence,
+      sentAt: Date.now(),
+    });
+  }
+
+  publishEnemyHitIntent(intent: OutgoingEnemyHitIntent): void {
+    if (!this.joined || this.options.context.role !== 'guest') return;
+    this.sendBroadcast('enemy_hit_intent', {
+      version: 1,
+      lobbyId: this.options.context.lobbyId,
+      runSeed: this.options.context.runSeed,
+      userId: this.userId,
+      ...intent,
+      sequence: ++this.hitIntentSequence,
+      sentAt: Date.now(),
+    });
+  }
+
+  publishPlayerDamage(event: OutgoingPlayerDamage): void {
+    if (!this.joined || this.options.context.role !== 'host') return;
+    this.sendBroadcast('player_damage', {
+      version: 1,
+      lobbyId: this.options.context.lobbyId,
+      runSeed: this.options.context.runSeed,
+      userId: this.userId,
+      ...event,
+      sequence: ++this.playerDamageSequence,
+      sentAt: Date.now(),
+    });
   }
 
   close(): void {
@@ -222,17 +292,51 @@ export class CoopRealtimePresenceClient {
     if (event === 'player_left' && payload && typeof payload === 'object') {
       const userId = String((payload as Record<string, unknown>).userId ?? '');
       if (userId && userId !== this.userId) {
-        this.latestRemoteSequence.delete(userId);
+        this.latestRemotePresenceSequence.delete(userId);
+        this.latestRemoteEnemySequence.delete(userId);
+        this.latestRemoteHitSequence.delete(userId);
+        this.latestRemoteDamageSequence.delete(userId);
         this.options.onPeerLeft(userId);
       }
       return;
     }
+
+    if (event === 'enemy_snapshot' && this.options.context.role === 'guest') {
+      const normalized = normalizeCoopEnemySnapshot(payload, this.options.context, this.userId);
+      if (!normalized) return;
+      const previous = this.latestRemoteEnemySequence.get(normalized.userId) ?? -1;
+      if (normalized.sequence <= previous) return;
+      this.latestRemoteEnemySequence.set(normalized.userId, normalized.sequence);
+      this.options.onEnemySnapshot?.(normalized);
+      return;
+    }
+
+    if (event === 'enemy_hit_intent' && this.options.context.role === 'host') {
+      const normalized = normalizeCoopEnemyHitIntent(payload, this.options.context, this.userId);
+      if (!normalized) return;
+      const previous = this.latestRemoteHitSequence.get(normalized.userId) ?? -1;
+      if (normalized.sequence <= previous) return;
+      this.latestRemoteHitSequence.set(normalized.userId, normalized.sequence);
+      this.options.onEnemyHitIntent?.(normalized);
+      return;
+    }
+
+    if (event === 'player_damage' && this.options.context.role === 'guest') {
+      const normalized = normalizeCoopPlayerDamageEvent(payload, this.options.context, this.userId);
+      if (!normalized) return;
+      const previous = this.latestRemoteDamageSequence.get(normalized.userId) ?? -1;
+      if (normalized.sequence <= previous) return;
+      this.latestRemoteDamageSequence.set(normalized.userId, normalized.sequence);
+      this.options.onPlayerDamage?.(normalized);
+      return;
+    }
+
     if (event !== 'player_state') return;
     const normalized = normalizeCoopPlayerPresence(payload, this.options.context, this.userId);
     if (!normalized) return;
-    const previousSequence = this.latestRemoteSequence.get(normalized.userId) ?? -1;
+    const previousSequence = this.latestRemotePresenceSequence.get(normalized.userId) ?? -1;
     if (normalized.sequence <= previousSequence) return;
-    this.latestRemoteSequence.set(normalized.userId, normalized.sequence);
+    this.latestRemotePresenceSequence.set(normalized.userId, normalized.sequence);
     this.options.onRemotePresence(normalized);
   }
 
@@ -250,9 +354,12 @@ export class CoopRealtimePresenceClient {
       facingX: presence.facingX,
       facingY: presence.facingY,
       state: presence.state,
+      hp: presence.hp,
+      maxHp: presence.maxHp,
+      defense: presence.defense,
       lastAttackTime: presence.lastAttackTime,
       lastDodgeTime: presence.lastDodgeTime,
-      sequence: ++this.sequence,
+      sequence: ++this.presenceSequence,
       sentAt: Date.now(),
     };
     this.sendBroadcast('player_state', payload);
