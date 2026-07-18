@@ -1,4 +1,5 @@
-import { exportSaveBundle, importSaveBundle, markCloudRevision, persistentPlayerId, shouldRestoreRemoteBundle, type DungeonVeilSaveBundle } from './persistentSaveBundle';
+import { exportSaveBundle, importSaveBundle, markCloudRevision, persistentPlayerId, type DungeonVeilSaveBundle } from './persistentSaveBundle';
+import { bundleHasCoreProgress, shouldRestoreRemoteBundleSafely } from './cloudSaveSafety';
 import { authenticatedSupabaseRest, currentOnlineSession, pullSupabaseSave } from './supabaseOnline';
 
 const CLOUD_URL = String(import.meta.env.VITE_DUNGEON_CLOUD_URL ?? '').replace(/\/$/, '');
@@ -50,6 +51,10 @@ export async function readCloudSave(): Promise<DungeonVeilSaveBundle | null> {
 export async function pushCloudSave(bundle = exportSaveBundle()): Promise<boolean> {
   try {
     if (currentOnlineSession()) {
+      // The online profile is stored separately. A bundle without a real run or
+      // meta/inventory state must never become the authoritative game save.
+      if (!bundleHasCoreProgress(bundle)) return false;
+
       const result = await authenticatedSupabaseRest<GuardedCloudSaveResult>('rpc/upsert_guarded_game_save', {
         method: 'POST',
         body: JSON.stringify({
@@ -63,7 +68,7 @@ export async function pushCloudSave(bundle = exportSaveBundle()): Promise<boolea
         markCloudRevision(bundle.updatedAt);
         return true;
       }
-      if (result.payload?.version === 1 && shouldRestoreRemoteBundle(bundle, result.payload)) importSaveBundle(result.payload);
+      if (result.payload?.version === 1 && shouldRestoreRemoteBundleSafely(bundle, result.payload)) importSaveBundle(result.payload);
       return false;
     }
     return pushLegacyCloud(bundle);
@@ -80,6 +85,6 @@ export async function pullCloudSave(): Promise<boolean> {
   const remote = await readCloudSave();
   if (!remote) return false;
   const local = exportSaveBundle();
-  if (!shouldRestoreRemoteBundle(local, remote)) return false;
+  if (!shouldRestoreRemoteBundleSafely(local, remote)) return false;
   return restoreCloudSave(remote);
 }
