@@ -15,6 +15,7 @@ import { WEEKLY_ELITE_EVENT } from './weeklyElite';
 const CLOUD_USER_KEY = 'dungeon-veil-cloud-user-v1';
 const CLOUD_PUSH_DELAY_MS = 700;
 const CLOUD_RECONCILE_MS = 10_000;
+const shouldRestoreRemoteBundle = shouldRestoreRemoteBundleSafely;
 const SYNC_EVENTS = [
   SAVE_EVENT,
   PLAYER_PROFILE_EVENT,
@@ -103,13 +104,13 @@ async function synchronizeSignedInAccount(): Promise<void> {
 
   if (!remote) {
     hydratedUserId = session.user.id;
-    if (bundleHasCoreProgress(local)) await pushCurrentAccountState(true, local);
+    if (bundleHasCoreProgress(local)) await pushCurrentAccountState(true);
     pendingPush = false;
     return;
   }
 
   const remoteSignature = bundleDataSignature(remote);
-  if (shouldRestoreRemoteBundleSafely(local, remote)) {
+  if (shouldRestoreRemoteBundle(local, remote)) {
     lastSyncedDataSignature = remoteSignature;
     hydratedUserId = session.user.id;
     pendingPush = false;
