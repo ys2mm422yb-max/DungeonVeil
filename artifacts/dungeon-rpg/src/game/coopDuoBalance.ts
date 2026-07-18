@@ -25,6 +25,15 @@ type EnemyStats = {
   color: string;
 };
 
+type DuoBalanceMemory = {
+  roomKey: string;
+  spawnedSupport: boolean;
+  scaledEnemyIds: Set<string>;
+  originalEnemyCount: number;
+};
+
+const balanceMemory = new WeakMap<RunGameState, DuoBalanceMemory>();
+
 const SUPPORT_STATS: Record<Exclude<EnemyType, 'boss'>, EnemyStats> = {
   slime: { hp: 24, attack: 4, defense: 0, speed: 42, size: 32, color: '#43c968' },
   goblin: { hp: 34, attack: 6, defense: 1, speed: 68, size: 30, color: '#89a94b' },
@@ -42,6 +51,7 @@ export type DuoRoomBalanceResult = {
   finalEnemyCount: number;
   addedEnemyCount: number;
   bossRoom: boolean;
+  newlyScaledEnemyCount: number;
 };
 
 function roomScale(chapter: number, floor: number): number {
@@ -54,7 +64,7 @@ function hpMultiplier(enemy: Enemy): number {
   return DUO_NORMAL_HP_MULTIPLIER;
 }
 
-function scaleExistingEnemy(enemy: Enemy): void {
+function scaleEnemy(enemy: Enemy): void {
   const ratio = enemy.maxHp > 0 ? Math.max(0, Math.min(1, enemy.hp / enemy.maxHp)) : 1;
   enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * hpMultiplier(enemy)));
   enemy.hp = Math.max(1, Math.round(enemy.maxHp * ratio));
@@ -88,8 +98,7 @@ function createSupportEnemy(
 
   const scale = roomScale(state.chapter, state.floor);
   const attackScale = 1 + Math.max(0, scale - 1) * 0.62;
-  const baseHp = Math.max(1, Math.round(base.hp * scale));
-  const hp = Math.max(1, Math.round(baseHp * DUO_NORMAL_HP_MULTIPLIER));
+  const hp = Math.max(1, Math.round(base.hp * scale));
   const now = performance.now();
   return {
     id: `duo-${runSeed}-${state.chapter}-${state.floor}-${index}`,
@@ -103,7 +112,7 @@ function createSupportEnemy(
     vy: 0,
     hp,
     maxHp: hp,
-    attack: Math.max(1, Math.round(base.attack * attackScale * DUO_ENEMY_ATTACK_MULTIPLIER)),
+    attack: Math.max(1, Math.round(base.attack * attackScale)),
     defense: base.defense,
     speed: base.speed,
     color: base.color,
@@ -133,28 +142,55 @@ function desiredEnemyCount(state: RunGameState, originalCount: number): number {
   return Math.min(DUO_MOBILE_ENEMY_CAP, Math.max(originalCount, Math.ceil(originalCount * DUO_ENEMY_COUNT_MULTIPLIER)));
 }
 
-export function applyDuoRoomBalance(state: RunGameState, runSeed: number): DuoRoomBalanceResult {
+function memoryFor(state: RunGameState, runSeed: number): DuoBalanceMemory {
   const roomKey = `${runSeed}:${state.chapter}:${state.floor}`;
-  const originalEnemyCount = state.enemies.length;
+  const existing = balanceMemory.get(state);
+  if (existing?.roomKey === roomKey) return existing;
+  const created: DuoBalanceMemory = {
+    roomKey,
+    spawnedSupport: false,
+    scaledEnemyIds: new Set<string>(),
+    originalEnemyCount: state.enemies.length,
+  };
+  balanceMemory.set(state, created);
+  return created;
+}
+
+export function ensureDuoRoomBalance(state: RunGameState, runSeed = 0): DuoRoomBalanceResult {
+  const memory = memoryFor(state, runSeed);
   const bossRoom = isBossRoom(state.floor);
+  let newlyScaledEnemyCount = 0;
 
-  state.enemies.forEach(scaleExistingEnemy);
+  for (const enemy of state.enemies) {
+    if (memory.scaledEnemyIds.has(enemy.id)) continue;
+    scaleEnemy(enemy);
+    memory.scaledEnemyIds.add(enemy.id);
+    newlyScaledEnemyCount++;
+  }
 
-  const targetCount = desiredEnemyCount(state, originalEnemyCount);
-  const addCount = Math.max(0, targetCount - originalEnemyCount);
-  for (let index = 0; index < addCount; index++) {
-    const spawnPointIndex = bossRoom ? index + 1 : originalEnemyCount + index;
-    const enemy = createSupportEnemy(state, runSeed, index, spawnPointIndex);
-    if (enemy) state.enemies.push(enemy);
+  if (!memory.spawnedSupport) {
+    memory.spawnedSupport = true;
+    const targetCount = desiredEnemyCount(state, memory.originalEnemyCount);
+    const addCount = Math.max(0, targetCount - memory.originalEnemyCount);
+    for (let index = 0; index < addCount; index++) {
+      const spawnPointIndex = bossRoom ? index + 1 : memory.originalEnemyCount + index;
+      const enemy = createSupportEnemy(state, runSeed, index, spawnPointIndex);
+      if (enemy) state.enemies.push(enemy);
+    }
   }
 
   return {
-    roomKey,
-    originalEnemyCount,
+    roomKey: memory.roomKey,
+    originalEnemyCount: memory.originalEnemyCount,
     finalEnemyCount: state.enemies.length,
-    addedEnemyCount: Math.max(0, state.enemies.length - originalEnemyCount),
+    addedEnemyCount: Math.max(0, state.enemies.length - memory.originalEnemyCount),
     bossRoom,
+    newlyScaledEnemyCount,
   };
+}
+
+export function applyDuoRoomBalance(state: RunGameState, runSeed = 0): DuoRoomBalanceResult {
+  return ensureDuoRoomBalance(state, runSeed);
 }
 
 export function duoCurrencyReward(amount: number): number {
