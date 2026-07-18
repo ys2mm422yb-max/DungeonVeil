@@ -9,7 +9,8 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
-const overlay = read('src/components/CoopTeammateOverlay.tsx');
+const teammateScene = read('src/components/CoopTeammateScene3D.tsx');
+const teammateUi = read('src/components/CoopTeammateUI.tsx');
 const lobby = read('src/components/CoopLobbyPanel.tsx');
 const menu = read('src/components/screens/MainMenuScreen.tsx');
 const page = read('src/pages/game.tsx');
@@ -22,9 +23,21 @@ assert(realtime.includes('acceptSequence(') && realtime.includes('sequence <= pr
 assert(realtime.includes("this.setStatus('reconnecting')") && realtime.includes('MAX_RECONNECT_MS'), 'Short connection interruptions do not enter bounded reconnect mode.');
 assert(bridge.includes('const PUBLISH_MS = 100'), 'Local player state is not published at the intended 10 Hz rate.');
 assert(bridge.includes('remotePresenceIsFresh') && bridge.includes('onRemotePlayerRef.current(null)'), 'Stale or departed teammates are not removed.');
-assert(overlay.includes('interpolateCoopPresence') && overlay.includes('requestAnimationFrame(tick)'), 'Remote movement is not smoothly interpolated.');
-assert(overlay.includes('data-testid="coop-remote-player"') && overlay.includes('lastAttackTime') && overlay.includes('lastDodgeTime'), 'Remote player movement/action presentation is incomplete.');
-assert(combat.includes('{remotePlayer && <CoopTeammateOverlay gameState={gameState} remotePlayer={remotePlayer} />}'), 'Combat stage mounts the teammate overlay without a real remote player.');
+
+assert(teammateScene.includes('loadKayKitRanger') && teammateScene.includes("rig.root.name = 'KayKitCoopTeammate'"), 'Remote teammate is not rendered with the real KayKit ranger.');
+assert(teammateScene.includes('THREE.Object3D.prototype.add') && teammateScene.includes('captureRunScene(this)'), 'Remote teammate does not capture the already active run scene.');
+assert(teammateScene.includes('originalAdd!.call(requestedScene, rig.root, ring)'), 'Remote teammate is not attached to the captured run scene.');
+assert(!teammateScene.includes('new THREE.WebGLRenderer') && !teammateScene.includes('WebGLRenderer.prototype.render'), 'Remote teammate creates or hooks a competing WebGL renderer.');
+assert(teammateScene.includes('remotePresenceIsFresh') && teammateScene.includes('remote.lastAttackTime') && teammateScene.includes('remote.lastDodgeTime'), 'Remote 3D movement and action state is incomplete.');
+assert(teammateScene.includes('data-testid="coop-remote-three-scene"'), 'Remote 3D scene integration lacks a regression marker.');
+
+assert(teammateUi.includes('interpolateCoopPresence') && teammateUi.includes('requestAnimationFrame(tick)'), 'Remote nameplate movement is not smoothly interpolated.');
+assert(teammateUi.includes('data-testid="coop-team-health-panel"') && teammateUi.includes('remotePlayer.hp') && teammateUi.includes('remotePlayer.maxHp'), 'Persistent teammate health presentation is missing.');
+assert(teammateUi.includes('data-testid="coop-remote-player"') && teammateUi.includes('data-life-state={remotePlayer.lifeState}'), 'Remote player nameplate or life state is missing.');
+assert(combat.includes('<CoopTeammateScene3D gameState={gameState} remotePlayer={remotePlayer} />'), 'Combat stage does not mount the real teammate scene.');
+assert(combat.includes('<CoopTeammateUI gameState={gameState} remotePlayer={remotePlayer} />'), 'Combat stage does not mount teammate health and nameplate UI.');
+assert(!combat.includes('<CoopTeammateOverlay'), 'The obsolete CSS capsule teammate is still mounted.');
+
 assert(lobby.includes('startCoopLobby') && lobby.includes('data-testid="coop-start-run"'), 'Host cannot start the ready duo lobby.');
 assert(lobby.includes("next.status === 'in_run'") && lobby.includes('onStartRun(next)'), 'Guest does not automatically enter the host-started run.');
 assert(menu.includes('onStartCoop') && menu.includes('onStartRun={lobby =>'), 'Main menu does not forward the started lobby into the game.');
@@ -62,4 +75,4 @@ try {
   await server.close();
 }
 
-console.log('Duo presence remains lobby-isolated, ordered and reconnectable while carrying the bounded player lifecycle state.');
+console.log('Duo presence remains lobby-isolated and reconnectable while the teammate uses the active 3D scene with persistent health and life-state UI.');

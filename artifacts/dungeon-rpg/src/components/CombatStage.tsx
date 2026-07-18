@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { GameCanvas } from './GameCanvas';
-import { CoopTeammateOverlay } from './CoopTeammateOverlay';
+import { CoopTeammateScene3D } from './CoopTeammateScene3D';
+import { CoopTeammateUI } from './CoopTeammateUI';
 
 const ROOM_NAMES = [
   'VERSORGUNGSPOSTEN', 'WACHSTUBE', 'SÄULENHALLE', 'BERGARBEITERLAGER', 'WERKSTATT',
@@ -126,8 +127,9 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     >
       <div className={`absolute inset-0 ${shakeClass}`}>
         <GameCanvas gameState={gameState} />
-        {remotePlayer && <CoopTeammateOverlay gameState={gameState} remotePlayer={remotePlayer} />}
+        {remotePlayer && <CoopTeammateScene3D gameState={gameState} remotePlayer={remotePlayer} />}
       </div>
+      {remotePlayer && <CoopTeammateUI gameState={gameState} remotePlayer={remotePlayer} />}
       <div className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-200 ${hurtFlash ? 'opacity-100' : 'opacity-0'}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_38%,rgba(185,22,27,.48)_100%)]" />
       </div>

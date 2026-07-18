@@ -10,6 +10,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const lifecycle = read('src/game/coopLifeCycle.ts');
 const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
+const teammateUi = read('src/components/CoopTeammateUI.tsx');
 const page = read('src/pages/game.tsx');
 const engine = read('src/game/runEngine.ts');
 
@@ -49,6 +50,12 @@ assert(bridge.includes('playerAtExit(engine.state, remote.x, remote.y)'), 'Host 
 assert(bridge.includes('advanceGuestForSnapshot') && bridge.includes('coopNextRoom'), 'Guest does not follow the host into the next room.');
 assert(bridge.includes('clearEngineInput(engine)') && bridge.includes("localLifeRef.current !== 'alive'"), 'Downed/fallen players can still fight or move.');
 
+assert(teammateUi.includes('COOP_REVIVE_RANGE') && teammateUi.includes('distance <= COOP_REVIVE_RANGE'), 'Revive proximity UI does not use the authoritative revive range.');
+assert(teammateUi.includes('data-testid="coop-revive-proximity"') && teammateUi.includes("data-in-range={inRange ? 'true' : 'false'}"), 'Revive proximity state is not visibly exposed.');
+assert(teammateUi.includes('3 SEKUNDEN HALTEN') && teammateUi.includes('NÄHER ZU'), 'Players are not told whether to hold revive or move closer.');
+assert(teammateUi.includes('WIEDERBELEBUNG FÜR DIESEN RAUM VERBRAUCHT'), 'Spent room revive is not explained.');
+assert(teammateUi.includes('NIEDERGESCHLAGEN') && teammateUi.includes('GEFALLEN · NÄCHSTER RAUM'), 'Remote downed and fallen states are not clearly labelled.');
+
 assert(page.includes("active={uiState === 'game' && Boolean(duoContext)}"), 'Lifecycle bridge can activate outside a duo run.');
 assert(engine.includes("status: 'playing' | 'gameover' | 'levelup' | 'paused'"), 'Solo engine status contract was modified for duo lifecycle.');
 assert(!engine.includes('COOP_DOWNED_DURATION_MS') && !engine.includes('COOP_REVIVE_HOLD_MS'), 'Duo lifecycle leaked into the solo engine.');
@@ -86,4 +93,4 @@ try {
   await server.close();
 }
 
-console.log('Coop block 5 provides one bounded revive per room, fallen recovery, shared defeat, host retry and authoritative room progression without changing solo or rewards.');
+console.log('Coop lifecycle keeps its bounded revive contract and now explains range, hold timing, downed state and spent room revives.');
