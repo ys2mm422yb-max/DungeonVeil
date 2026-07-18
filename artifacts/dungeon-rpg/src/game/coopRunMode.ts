@@ -22,13 +22,41 @@ export type DuoRunContext = {
 
 export type RunContext = SoloRunContext | DuoRunContext;
 
+function exposeRunContext(context: DuoRunContext | null): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (!context) {
+    delete root.dataset.dungeonVeilCoopLobby;
+    delete root.dataset.dungeonVeilCoopSeed;
+    delete root.dataset.dungeonVeilCoopRole;
+    delete root.dataset.dungeonVeilCoopLootPending;
+    return;
+  }
+  root.dataset.dungeonVeilCoopLobby = context.lobbyId;
+  root.dataset.dungeonVeilCoopSeed = String(context.runSeed);
+  root.dataset.dungeonVeilCoopRole = context.role;
+}
+
 export function createSoloRunContext(): SoloRunContext {
+  exposeRunContext(null);
   return { mode: SOLO_RUN_MODE, balancePolicy: SOLO_BALANCE_POLICY };
 }
 
 export function createDuoRunContext(lobbyId: string, runSeed: number, role: CoopRole): DuoRunContext {
   if (!lobbyId.trim()) throw new Error('Co-op-Lobby fehlt');
   if (!Number.isSafeInteger(runSeed) || runSeed < 0) throw new Error('Ungültiger Co-op-Seed');
+  const context: DuoRunContext = { mode: DUO_RUN_MODE, lobbyId, runSeed, role, playerLimit: COOP_PLAYER_LIMIT };
+  exposeRunContext(context);
+  return context;
+}
+
+export function currentDuoRunContext(): DuoRunContext | null {
+  if (typeof document === 'undefined') return null;
+  const root = document.documentElement;
+  const lobbyId = String(root.dataset.dungeonVeilCoopLobby ?? '').trim();
+  const runSeed = Number(root.dataset.dungeonVeilCoopSeed);
+  const role = root.dataset.dungeonVeilCoopRole;
+  if (!lobbyId || !Number.isSafeInteger(runSeed) || runSeed < 0 || (role !== 'host' && role !== 'guest')) return null;
   return { mode: DUO_RUN_MODE, lobbyId, runSeed, role, playerLimit: COOP_PLAYER_LIMIT };
 }
 
