@@ -150,7 +150,7 @@ try {
 
       const displayScale = presentation.roomPropDisplayScale(piece);
       if (!Number.isFinite(displayScale) || displayScale <= 0) error(room, 'invalid display scale for ' + piece.model);
-      const propClass = presentation.roomPropClass(piece);
+      const propClass = presentation.roomPropScaleClass(piece);
       classCounts.set(propClass, (classCounts.get(propClass) || 0) + 1);
     }
 
@@ -184,7 +184,7 @@ try {
     if (outdoor && plan.arena !== 'outdoor') error(room, 'outdoor room uses non-outdoor encounter arena');
   }
 
-  if ((classCounts.get('large-structure') || 0) < 50) error(null, 'room compositions do not contain enough large structures');
+  if ((classCounts.get('architecture') || 0) < 50) error(null, 'room compositions do not contain enough architecture-class structures');
   if ((classCounts.get('wall-decoration') || 0) < 20) warning(null, 'room compositions contain few wall decorations');
   if ((classCounts.get('foliage') || 0) < 20) warning(null, 'room compositions contain few foliage props');
   if (NON_BLOCKING_CLASSES.size !== 5) error(null, 'non-blocking class contract changed unexpectedly');
