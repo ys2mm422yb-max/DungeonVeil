@@ -47,21 +47,6 @@ jobs:
       - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck Dungeon Veil
-        shell: bash
-        run: |
-          set +e
-          pnpm --filter @workspace/dungeon-rpg typecheck 2>&1 | tee guild-typecheck.txt
-          code=${PIPESTATUS[0]}
-          echo "$code" > guild-typecheck-exit.txt
-          exit "$code"
-      - name: Upload typecheck diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: guild-typecheck-diagnostics
-          path: |
-            guild-typecheck.txt
-            guild-typecheck-exit.txt
-          if-no-files-found: ignore
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg build
