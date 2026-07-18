@@ -251,7 +251,10 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
             const reward = rewardChapterRoomClear(
               engine.state.chapter,
               engine.state.floor,
-              duo ? { currencyMultiplier: DUO_CURRENCY_MULTIPLIER, rewardRunId: duoRewardRunIdRef.current } : undefined,
+              duo ? {
+                currencyMultiplier: DUO_CURRENCY_MULTIPLIER,
+                rewardRunId: `${duoRewardRunIdRef.current}:${engine.state.player.spawnTime}`,
+              } : undefined,
             );
             if (reward) {
               recordPlayerProfileRoomClear(engine.state.chapter, engine.state.floor, isBossRoom(engine.state.floor));
