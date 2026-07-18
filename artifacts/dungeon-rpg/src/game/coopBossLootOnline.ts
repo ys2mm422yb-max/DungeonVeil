@@ -1,5 +1,5 @@
 import { authenticatedSupabaseRest, currentOnlineSession } from './supabaseOnline';
-import type { EquipmentDropSource, EquipmentId, EquipmentRarity, PendingEquipmentDrop } from './metaProgression';
+import type { EquipmentDropSource, EquipmentId, EquipmentRarity } from './metaProgression';
 
 export const COOP_BOSS_LOOT_OPEN_EVENT = 'dungeon-veil-coop-boss-loot-open';
 export const COOP_BOSS_LOOT_PENDING_DATASET = 'dungeonVeilCoopLootPending';
@@ -56,16 +56,12 @@ export async function openCoopBossLoot(
   runSeed: number,
   chapter: number,
   room: number,
-  drop: PendingEquipmentDrop,
 ): Promise<CoopBossLootSnapshot> {
   return firstRow(await rpcRows<CoopBossLootSnapshot>('open_coop_boss_loot', {
     p_lobby_id: lobbyId,
     p_run_seed: runSeed,
     p_chapter: chapter,
     p_room: room,
-    p_item_id: drop.item,
-    p_rarity: drop.rarity,
-    p_source: drop.source,
   }), 'Gemeinsame Bossbeute konnte nicht geöffnet werden.');
 }
 
