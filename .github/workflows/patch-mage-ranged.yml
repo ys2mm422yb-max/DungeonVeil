@@ -1,0 +1,673 @@
+name: Apply mage ranged combat patch
+
+on:
+  push:
+    branches:
+      - fix/mage-ranged-projectiles
+    paths:
+      - artifacts/dungeon-rpg/.mage-ranged-trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mage-ranged-combat-patch
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mage-ranged-projectiles
+          fetch-depth: 0
+
+      - name: Apply focused mage ranged combat changes
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import re
+
+          root = Path('artifacts/dungeon-rpg')
+
+          def replace_once(path, old, new):
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:100]!r}')
+              path.write_text(text.replace(old, new, 1))
+
+          regional = root / 'src/game/enemyRegionalIdentity.ts'
+          replace_once(
+              regional,
+              "\nexport function bossCombatProfile(room: number) {",
+              """
+export function enemyUsesMageProjectile(room: number, type: EnemyType, index = 0) {
+  const profile = enemyVisualProfile(room, type, index);
+  return type !== 'boss' && profile.family === 'adventurer' && profile.role === 'mage';
+}
+
+export function bossCombatProfile(room: number) {""",
+          )
+
+          ai = root / 'src/game/enemyRunAI.ts'
+          replace_once(
+              ai,
+              "import { bossCombatProfile } from './enemyRegionalIdentity';",
+              "import { bossCombatProfile, enemyUsesMageProjectile } from './enemyRegionalIdentity';",
+          )
+          replace_once(
+              ai,
+              """function roomFromEnemyId(enemy: Enemy) {
+  const match = enemy.id.match(/^\\d+-(\\d+)-\\d+/);
+  const parsed = Number(match?.[1]);
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(50, parsed)) : 1;
+}
+""",
+              """function roomFromEnemyId(enemy: Enemy) {
+  const match = enemy.id.match(/^\\d+-(\\d+)-\\d+/);
+  const parsed = Number(match?.[1]);
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(50, parsed)) : 1;
+}
+
+function spawnIndexFromEnemyId(enemy: Enemy) {
+  const parsed = Number(enemy.id.split('-').at(-1));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+""",
+          )
+          replace_once(
+              ai,
+              """  const room = roomFromEnemyId(enemy);
+  const movePressure = 1 + Math.min(0.34, (room - 1) * 0.019);""",
+              """  const room = roomFromEnemyId(enemy);
+  const mageProjectile = enemyUsesMageProjectile(room, enemy.enemyType, spawnIndexFromEnemyId(enemy));
+  const movePressure = 1 + Math.min(0.34, (room - 1) * 0.019);""",
+          )
+          replace_once(
+              ai,
+              """  const finish = (value: EnemyMovePlan) => obstacleAwareMove(enemy, player, room, time, value);
+
+  const baseAttackRange = bossProfile?.attackRange ?? (archetype === 'guardian' ? 58 + enemy.width / 2 : archetype === 'skirmisher' ? 48 + enemy.width / 2 : 42 + enemy.width / 2);""",
+              """  const finish = (value: EnemyMovePlan) => obstacleAwareMove(enemy, player, room, time, value);
+
+  if (mageProjectile) {
+    const side = laneBias(enemy, time);
+    const toward = dist > 215 ? 0.86 : dist < 122 ? -0.82 : 0.02;
+    const strafe = dist < 105 ? 0.18 : 0.46;
+    const move = normalizedMove(nx * toward - ny * side * strafe, ny * toward + nx * side * strafe);
+    return finish(plan(move.x * speed * 0.94, move.y * speed * 0.94, 214, 1280));
+  }
+
+  const baseAttackRange = bossProfile?.attackRange ?? (archetype === 'guardian' ? 58 + enemy.width / 2 : archetype === 'skirmisher' ? 48 + enemy.width / 2 : 42 + enemy.width / 2);""",
+          )
+
+          engine = root / 'src/game/runEngine.ts'
+          replace_once(
+              engine,
+              "import { bossCombatProfile } from './enemyRegionalIdentity';",
+              "import { bossCombatProfile, enemyUsesMageProjectile } from './enemyRegionalIdentity';",
+          )
+          replace_once(
+              engine,
+              """type EnemyWindup = {
+  hitAt: number;
+  range: number;
+  archetype: ReturnType<typeof enemyArchetype>;
+  index: number;
+};
+""",
+              """type EnemyWindup = {
+  hitAt: number;
+  range: number;
+  archetype: ReturnType<typeof enemyArchetype>;
+  index: number;
+  mageProjectile: boolean;
+};
+
+type EnemyProjectile = {
+  id: string;
+  effectId: string;
+  sourceEnemyId: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  attack: number;
+  expiresAt: number;
+  color: string;
+};
+""",
+          )
+          replace_once(
+              engine,
+              """const UNSTUCK_MS = 7000;
+const UI_EMIT_MS = 125;""",
+              """const UNSTUCK_MS = 7000;
+const UI_EMIT_MS = 125;
+const MAGE_PROJECTILE_SPEED = 245;
+const MAGE_PROJECTILE_RADIUS = 11;""",
+          )
+          replace_once(
+              engine,
+              """  private roomEntrySnapshot: RoomEntrySnapshot | null = null;
+  private enemyWindups = new Map<string, EnemyWindup>();""",
+              """  private roomEntrySnapshot: RoomEntrySnapshot | null = null;
+  private enemyWindups = new Map<string, EnemyWindup>();
+  private enemyProjectiles: EnemyProjectile[] = [];""",
+          )
+
+          text = engine.read_text()
+          old = """    this.lastUiEmitTime = 0;
+    this.enemyWindups.clear();
+    this.spawnRoom();"""
+          if text.count(old) != 2:
+              raise SystemExit(f'runEngine start/continue reset contract changed: {text.count(old)} matches')
+          text = text.replace(old, """    this.lastUiEmitTime = 0;
+    this.enemyWindups.clear();
+    this.enemyProjectiles = [];
+    this.spawnRoom();""", 2)
+          engine.write_text(text)
+
+          replace_once(
+              engine,
+              """    this.roomAnnouncedClear = false;
+    this.enemyWindups.clear();
+    this.lastTime = performance.now();""",
+              """    this.roomAnnouncedClear = false;
+    this.enemyWindups.clear();
+    this.enemyProjectiles = [];
+    this.lastTime = performance.now();""",
+          )
+          replace_once(
+              engine,
+              """    this.updatePlayer(dt, timestamp);
+    this.updateEnemies(dt, timestamp);
+    this.updateEffects(dt);""",
+              """    this.updatePlayer(dt, timestamp);
+    this.updateEnemies(dt, timestamp);
+    this.updateEnemyProjectiles(dt, timestamp);
+    this.updateEffects(dt);""",
+          )
+          replace_once(
+              engine,
+              """  private attackWindupMs(archetype: ReturnType<typeof enemyArchetype>) {
+    if (archetype === 'skirmisher') return 165;""",
+              """  private enemyUsesMageProjectile(enemy: Enemy) {
+    const index = Number(enemy.id.split('-').at(-1));
+    return enemyUsesMageProjectile(this.state.floor, enemy.enemyType, Number.isFinite(index) ? index : 0);
+  }
+
+  private attackWindupMs(enemy: Enemy, archetype: ReturnType<typeof enemyArchetype>) {
+    if (this.enemyUsesMageProjectile(enemy)) return 420;
+    if (archetype === 'skirmisher') return 165;""",
+          )
+          replace_once(
+              engine,
+              """    if (this.shotPathBlocked(attackFromX, attackFromY, attackTargetX, attackTargetY, 0.08)) return;
+
+    if (windup.archetype === 'dragon') {""",
+              """    if (this.shotPathBlocked(attackFromX, attackFromY, attackTargetX, attackTargetY, 0.08)) return;
+
+    if (windup.mageProjectile) {
+      this.launchMageProjectile(enemy, time, attackFromX, attackFromY, attackTargetX, attackTargetY);
+      return;
+    }
+
+    if (windup.archetype === 'dragon') {""",
+          )
+
+          projectile_methods = r'''
+
+  private launchMageProjectile(enemy: Enemy, time: number, fromX: number, fromY: number, targetX: number, targetY: number) {
+    const angle = Math.atan2(targetY - fromY, targetX - fromX);
+    const aimedDistance = Math.max(96, Math.hypot(targetX - fromX, targetY - fromY));
+    const travel = Math.min(280, aimedDistance + 58);
+    const duration = Math.max(420, Math.round(travel / MAGE_PROJECTILE_SPEED * 1000));
+    const effectId = `enemy-mage-shot-${time}-${enemy.id}`;
+    const color = '#b995ff';
+    this.state.effects.push({
+      id: effectId,
+      x: fromX,
+      y: fromY,
+      radius: MAGE_PROJECTILE_RADIUS,
+      maxRadius: travel,
+      color,
+      lifeTime: 0,
+      maxLifeTime: duration,
+      type: 'beam',
+      angle,
+      width: 7,
+      element: 'arcane',
+      fromEnemyId: enemy.id,
+    });
+    this.enemyProjectiles.push({
+      id: `mage-projectile-${time}-${enemy.id}`,
+      effectId,
+      sourceEnemyId: enemy.id,
+      x: fromX,
+      y: fromY,
+      vx: Math.cos(angle) * MAGE_PROJECTILE_SPEED,
+      vy: Math.sin(angle) * MAGE_PROJECTILE_SPEED,
+      radius: MAGE_PROJECTILE_RADIUS,
+      attack: enemy.attack,
+      expiresAt: time + duration,
+      color,
+    });
+  }
+
+  private removeEnemyProjectile(index: number, impactX?: number, impactY?: number) {
+    const [projectile] = this.enemyProjectiles.splice(index, 1);
+    if (!projectile) return;
+    this.state.effects = this.state.effects.filter(effect => effect.id !== projectile.effectId);
+    if (impactX === undefined || impactY === undefined) return;
+    this.state.effects.push({
+      id: `mage-impact-${projectile.id}`,
+      x: impactX,
+      y: impactY,
+      radius: 4,
+      maxRadius: 30,
+      color: projectile.color,
+      lifeTime: 0,
+      maxLifeTime: 260,
+      type: 'circle',
+      element: 'arcane',
+    });
+    this.state.particles.push(...makeHitSpark(impactX, impactY, projectile.color, 8));
+  }
+
+  private clearEnemyProjectiles(sourceEnemyId?: string) {
+    const removed = new Set(
+      this.enemyProjectiles
+        .filter(projectile => !sourceEnemyId || projectile.sourceEnemyId === sourceEnemyId)
+        .map(projectile => projectile.effectId),
+    );
+    if (!removed.size) return;
+    this.enemyProjectiles = sourceEnemyId
+      ? this.enemyProjectiles.filter(projectile => projectile.sourceEnemyId !== sourceEnemyId)
+      : [];
+    this.state.effects = this.state.effects.filter(effect => !removed.has(effect.id));
+  }
+
+  private updateEnemyProjectiles(dt: number, time: number) {
+    const player = this.state.player;
+    const playerX = player.x + player.width / 2;
+    const playerY = player.y + player.height / 2;
+    for (let index = this.enemyProjectiles.length - 1; index >= 0; index--) {
+      const projectile = this.enemyProjectiles[index];
+      const previousX = projectile.x;
+      const previousY = projectile.y;
+      projectile.x += projectile.vx * dt / 1000;
+      projectile.y += projectile.vy * dt / 1000;
+
+      if (this.shotPathBlocked(previousX, previousY, projectile.x, projectile.y, 0.025)) {
+        this.removeEnemyProjectile(index, previousX, previousY);
+        continue;
+      }
+
+      const hitRadius = projectile.radius + Math.min(player.width, player.height) * 0.38;
+      if (Math.hypot(playerX - projectile.x, playerY - projectile.y) <= hitRadius) {
+        if (time > player.invincibleUntil) {
+          const raw = projectile.attack - player.defense + Math.floor(Math.random() * 3);
+          const damage = Math.max(1, raw);
+          player.hp -= damage;
+          player.lastHitTime = time;
+          if (skillRank(this.state.runSkills, 'defense') > 0) player.lastGuardTime = time;
+          this.state.damageNumbers.push({
+            id: `mage-hit-${time}-${projectile.id}`,
+            x: playerX + (Math.random() - 0.5) * 14,
+            y: player.y - 8,
+            value: `-${damage}`,
+            color: '#c8a8ff',
+            lifeTime: 0,
+            maxLifeTime: 800,
+            scale: 1.12,
+          });
+        }
+        this.removeEnemyProjectile(index, projectile.x, projectile.y);
+        continue;
+      }
+
+      if (time >= projectile.expiresAt) this.removeEnemyProjectile(index);
+    }
+  }
+'''
+          replace_once(
+              engine,
+              """    this.state.particles.push(...makeHitSpark(p.x + 16, p.y + 16, skillRank(this.state.runSkills, 'defense') >= 2 ? '#83d6af' : '#ff453f', windup.archetype === 'dragon' ? 12 : 7));
+  }
+
+  private updateEnemies(dt: number, time: number): void {""",
+              """    this.state.particles.push(...makeHitSpark(p.x + 16, p.y + 16, skillRank(this.state.runSkills, 'defense') >= 2 ? '#83d6af' : '#ff453f', windup.archetype === 'dragon' ? 12 : 7));
+  }""" + projectile_methods + """
+
+  private updateEnemies(dt: number, time: number): void {""",
+          )
+          replace_once(
+              engine,
+              """      const plan = planEnemyMove(enemy, p, dt, time);
+      const hasLineOfSight = !this.shotPathBlocked(enemyCenterX, enemyCenterY, playerCenterX, playerCenterY, 0.08);""",
+              """      const plan = planEnemyMove(enemy, p, dt, time);
+      const mageProjectile = this.enemyUsesMageProjectile(enemy);
+      const hasLineOfSight = !this.shotPathBlocked(enemyCenterX, enemyCenterY, playerCenterX, playerCenterY, 0.08);""",
+          )
+          replace_once(
+              engine,
+              """        const archetype = enemyArchetype(enemy.enemyType);
+        const windupMs = this.attackWindupMs(archetype);
+        enemy.nextAttackTime = time + plan.attackDelay + windupMs;
+        enemy.lastAttackTime = time;
+        enemy.state = 'attack';
+        this.enemyWindups.set(enemy.id, { hitAt: time + windupMs, range: plan.attackRange, archetype, index: i });
+        const ex = enemy.x + enemy.width / 2;
+        const ey = enemy.y + enemy.height / 2;
+        const warningColor = archetype === 'dragon' ? (this.state.floor === 50 ? '#765cff' : '#ff633d') : archetype === 'guardian' ? '#e8a45d' : '#e6c987';
+        this.state.effects.push({
+          id: `telegraph-${time}-${enemy.id}`,
+          x: ex,
+          y: ey,
+          radius: 0,
+          maxRadius: Math.max(30, plan.attackRange * 0.58),
+          color: warningColor,
+          lifeTime: 0,
+          maxLifeTime: windupMs,
+          type: 'circle',
+          element: archetype === 'dragon' ? (this.state.floor === 50 ? 'arcane' : 'fire') : 'normal',
+        });""",
+              """        const archetype = enemyArchetype(enemy.enemyType);
+        const windupMs = this.attackWindupMs(enemy, archetype);
+        enemy.nextAttackTime = time + plan.attackDelay + windupMs;
+        enemy.lastAttackTime = time;
+        enemy.state = 'attack';
+        this.enemyWindups.set(enemy.id, { hitAt: time + windupMs, range: plan.attackRange, archetype, index: i, mageProjectile });
+        const ex = enemy.x + enemy.width / 2;
+        const ey = enemy.y + enemy.height / 2;
+        const warningColor = mageProjectile ? '#b995ff' : archetype === 'dragon' ? (this.state.floor === 50 ? '#765cff' : '#ff633d') : archetype === 'guardian' ? '#e8a45d' : '#e6c987';
+        this.state.effects.push({
+          id: `telegraph-${time}-${enemy.id}`,
+          x: ex,
+          y: ey,
+          radius: 0,
+          maxRadius: mageProjectile ? 38 : Math.max(30, plan.attackRange * 0.58),
+          color: warningColor,
+          lifeTime: 0,
+          maxLifeTime: windupMs,
+          type: 'circle',
+          element: mageProjectile ? 'arcane' : archetype === 'dragon' ? (this.state.floor === 50 ? 'arcane' : 'fire') : 'normal',
+        });""",
+          )
+          replace_once(
+              engine,
+              """  private beginEnemyDeath(enemy: Enemy, time: number) {
+    enemy.isDead = true;""",
+              """  private beginEnemyDeath(enemy: Enemy, time: number) {
+    this.clearEnemyProjectiles(enemy.id);
+    enemy.isDead = true;""",
+          )
+          replace_once(
+              engine,
+              """    this.roomAnnouncedClear = false;
+    this.enemyWindups.clear();
+    this.spawnRoom();
+    this.generateUpgradeChoices();""",
+              """    this.roomAnnouncedClear = false;
+    this.enemyWindups.clear();
+    this.enemyProjectiles = [];
+    this.spawnRoom();
+    this.generateUpgradeChoices();""",
+          )
+
+          canvas = root / 'src/components/GameCanvasKayKit3D.tsx'
+          canvas_text = canvas.read_text()
+          pattern = re.compile(r"    const syncArrows = \(state: GameState, wallNow: number\) => \{.*?\n    \};\n\n    const syncCircleEffects", re.S)
+          if len(pattern.findall(canvas_text)) != 1:
+              raise SystemExit('GameCanvas mage projectile renderer insertion point changed')
+          replacement = r'''    const createMageProjectileVisual = (color: string) => {
+      const orb = new THREE.Group();
+      orb.userData.mageProjectile = true;
+      const core = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, IS_ANDROID ? 8 : 12, IS_ANDROID ? 6 : 10),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.96, depthWrite: false }),
+      );
+      orb.add(core);
+      const halo = new THREE.Mesh(
+        new THREE.TorusGeometry(0.21, 0.035, 7, IS_ANDROID ? 14 : 22),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.74, depthWrite: false, blending: THREE.AdditiveBlending }),
+      );
+      halo.rotation.x = Math.PI / 2;
+      orb.add(halo);
+      const crossHalo = halo.clone();
+      crossHalo.material = halo.material.clone();
+      crossHalo.rotation.set(0, Math.PI / 2, 0);
+      orb.add(crossHalo);
+      orb.userData.core = core;
+      orb.userData.halo = halo;
+      orb.userData.crossHalo = crossHalo;
+      if (!IS_MOBILE) {
+        const light = new THREE.PointLight(color, 3.8, 3.2, 2);
+        orb.add(light);
+        orb.userData.elementLight = light;
+      }
+      return orb;
+    };
+
+    const syncArrows = (state: GameState, wallNow: number) => {
+      const shots = state.effects.filter(effect => effect.type === 'beam' && (
+        effect.id.startsWith('shot-')
+        || effect.id.startsWith('pierce-')
+        || effect.id.startsWith('rico-')
+        || effect.id.startsWith('enemy-mage-shot-')
+      )).slice(-MAX_ARROW_VISUALS);
+      const active = new Set(shots.map(effect => effect.id));
+      for (const [id, mesh] of arrowVisuals) {
+        if (active.has(id)) continue;
+        scene.remove(mesh);
+        disposeObject(mesh);
+        arrowVisuals.delete(id);
+      }
+
+      for (const shot of shots) {
+        const mageProjectile = shot.id.startsWith('enemy-mage-shot-');
+        let arrow = arrowVisuals.get(shot.id);
+        if (!arrow) {
+          if (mageProjectile) {
+            arrow = createMageProjectileVisual(shot.color);
+          } else if (arrowPrototype) {
+            arrow = arrowPrototype.clone(true);
+            arrow.scale.setScalar(shot.element === 'piercing' ? 1.32 : 1.2);
+            const lineMaterials: any[] = [];
+            arrow.traverse((node: any) => {
+              if (node.isLine && node.material) {
+                node.material = node.material.clone();
+                lineMaterials.push(node.material);
+              }
+              if (!node.isMesh && !node.isLine) return;
+              node.castShadow = false;
+              node.frustumCulled = true;
+            });
+            arrow.userData.lineMaterials = lineMaterials;
+            addElementVisual(arrow, shot.element, shot.color);
+          }
+          if (arrow) {
+            scene.add(arrow);
+            arrowVisuals.set(shot.id, arrow);
+          }
+        }
+        if (!arrow) continue;
+
+        const progress = Math.max(0, Math.min(1, shot.lifeTime / shot.maxLifeTime));
+        const angle = shot.angle ?? 0;
+        const travel = shot.maxRadius / TILE;
+        arrow.position.set(
+          mapX(state, shot.x) + Math.cos(angle) * travel * progress,
+          mageProjectile ? 0.82 : 0.88,
+          mapZ(state, shot.y) + Math.sin(angle) * travel * progress,
+        );
+
+        const pulse = 0.82 + Math.sin(wallNow * 0.025 + progress * 8) * 0.18;
+        if (mageProjectile) {
+          arrow.rotation.y = -angle;
+          arrow.userData.halo.rotation.z = wallNow * 0.004;
+          arrow.userData.crossHalo.rotation.x = wallNow * -0.0035;
+          arrow.userData.core.scale.setScalar(0.9 + pulse * 0.18);
+          arrow.userData.core.material.opacity = 0.78 + pulse * 0.18;
+          arrow.userData.halo.material.opacity = 0.48 + pulse * 0.3;
+          arrow.userData.crossHalo.material.opacity = 0.34 + pulse * 0.24;
+          if (arrow.userData.elementLight) arrow.userData.elementLight.intensity = 2.4 + pulse * 2.2;
+          continue;
+        }
+
+        arrow.rotation.set(Math.PI / 2, -angle - Math.PI / 2, 0);
+        (arrow.userData.lineMaterials as any[] | undefined)?.forEach(material => {
+          material.color?.set?.(shot.color);
+          material.opacity = Math.max(0.3, 0.96 * (1 - progress * 0.32));
+        });
+        const glows = arrow.userData.elementGlows as any[] | undefined;
+        glows?.forEach((glow, index) => {
+          glow.material.opacity = Math.max(0.25, pulse - index * 0.12);
+          glow.scale.setScalar((glow.userData.baseScale ?? 0.04) * (0.92 + pulse * 0.12));
+        });
+        if (arrow.userData.elementLight) arrow.userData.elementLight.intensity = 3.1 + pulse * 1.9;
+      }
+    };
+
+    const syncCircleEffects'''
+          canvas.write_text(pattern.sub(replacement, canvas_text))
+
+          audit = root / 'scripts/validate-mage-ranged-combat.mjs'
+          audit.write_text(r'''import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createServer } from 'vite';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+
+const regionalSource = read('src/game/enemyRegionalIdentity.ts');
+const aiSource = read('src/game/enemyRunAI.ts');
+const engineSource = read('src/game/runEngine.ts');
+const canvasSource = read('src/components/GameCanvasKayKit3D.tsx');
+
+assert(regionalSource.includes("profile.family === 'adventurer' && profile.role === 'mage'"), 'Only visible hat-mage models may receive ranged magic.');
+assert(aiSource.includes('dist > 215') && aiSource.includes('dist < 122') && aiSource.includes('214, 1280'), 'Hat mages need explicit ranged spacing and a measured cadence.');
+assert(engineSource.includes('type EnemyProjectile =') && engineSource.includes('updateEnemyProjectiles(dt, timestamp)'), 'Mage projectiles need a real runtime lifecycle.');
+assert(engineSource.includes('if (windup.mageProjectile)') && engineSource.includes('launchMageProjectile'), 'Mage attacks still resolve as immediate melee hits.');
+assert(engineSource.includes('Math.hypot(playerX - projectile.x, playerY - projectile.y) <= hitRadius'), 'Mage damage is not tied to projectile collision.');
+assert(engineSource.includes('time > player.invincibleUntil'), 'Dash invulnerability no longer protects against mage projectiles.');
+assert(canvasSource.includes("effect.id.startsWith('enemy-mage-shot-')") && canvasSource.includes('createMageProjectileVisual'), 'The travelling spell orb is not rendered.');
+assert(canvasSource.includes('SphereGeometry(0.14') && canvasSource.includes('TorusGeometry(0.21'), 'The mage projectile lacks a distinct orb visual.');
+
+const server = await createServer({
+  root,
+  logLevel: 'silent',
+  server: { middlewareMode: true },
+  appType: 'custom',
+});
+
+try {
+  const regional = await server.ssrLoadModule('/src/game/enemyRegionalIdentity.ts');
+  const ai = await server.ssrLoadModule('/src/game/enemyRunAI.ts');
+  const runtime = await server.ssrLoadModule('/src/game/runEngine.ts');
+
+  assert(regional.enemyUsesMageProjectile(11, 'skeleton', 0) === true, 'Room 11 hat mage is not ranged.');
+  assert(regional.enemyUsesMageProjectile(11, 'skeleton', 1) === false, 'Room 11 rogue was incorrectly converted to a mage.');
+  assert(regional.enemyUsesMageProjectile(1, 'vampire', 0) === false, 'A creature/bat role was incorrectly treated as a hat mage.');
+  assert(regional.enemyUsesMageProjectile(20, 'boss', 0) === false, 'The existing room-20 boss contract was overridden.');
+  assert(regional.enemyUsesMageProjectile(35, 'skeleton', 0) === true, 'Later hat mages are not ranged.');
+
+  const enemy = {
+    id: '123-11-0', type: 'enemy', enemyType: 'skeleton', x: 100, y: 100, width: 26, height: 26,
+    vx: 0, vy: 0, hp: 50, maxHp: 50, attack: 8, defense: 2, speed: 72, color: '#fff',
+    state: 'chase', isDead: false, targetX: 0, targetY: 0, nextAttackTime: 0, flashUntil: 0,
+    spawnTime: 0, lastAttackTime: 0, deathTime: 0,
+  };
+  const player = {
+    id: 'player', type: 'player', playerName: 'Audit', playerClass: 'archer', x: 260, y: 100,
+    width: 32, height: 32, vx: 0, vy: 0, hp: 100, maxHp: 100, attack: 10, defense: 0, speed: 120,
+    attackRange: 520, skillRange: 100, level: 1, xp: 0, color: '#fff', state: 'idle', facing: { x: 1, y: 0 },
+    invincibleUntil: 0, skillCooldown: 0, dodgeCooldown: 0, lastDodgeTime: 0, attackCooldown: 0,
+    spawnTime: 0, lastAttackTime: 0,
+  };
+  const rangedPlan = ai.planEnemyMove(enemy, player, 16, 1000);
+  assert(rangedPlan.attackRange === 214, `Hat mage attack range drifted: ${rangedPlan.attackRange}`);
+  assert(rangedPlan.attackDelay >= 900, `Hat mage cadence became too fast: ${rangedPlan.attackDelay}`);
+
+  player.x = 108;
+  const retreatPlan = ai.planEnemyMove(enemy, player, 16, 1000);
+  assert(retreatPlan.dx < 0, 'A nearby hat mage no longer retreats from the player.');
+
+  const engine = new runtime.GameEngine();
+  const gamePlayer = engine.state.player;
+  gamePlayer.hp = 100;
+  gamePlayer.defense = 0;
+  gamePlayer.invincibleUntil = 0;
+  const px = gamePlayer.x + gamePlayer.width / 2;
+  const py = gamePlayer.y + gamePlayer.height / 2;
+  engine.launchMageProjectile(enemy, 1000, px - 60, py, px, py);
+  assert(gamePlayer.hp === 100, 'Mage projectile dealt damage at cast time instead of impact time.');
+  assert(engine.enemyProjectiles.length === 1, 'Mage projectile was not registered.');
+  engine.enemyProjectiles[0].x = px - 1;
+  engine.enemyProjectiles[0].y = py;
+  engine.enemyProjectiles[0].vx = 0;
+  engine.enemyProjectiles[0].vy = 0;
+  engine.updateEnemyProjectiles(16, 1016);
+  assert(gamePlayer.hp < 100, 'Mage projectile collision did not damage the player.');
+  assert(engine.enemyProjectiles.length === 0, 'Mage projectile survived its impact.');
+
+  const hpAfterHit = gamePlayer.hp;
+  gamePlayer.invincibleUntil = 2000;
+  engine.launchMageProjectile(enemy, 1100, px - 60, py, px, py);
+  engine.enemyProjectiles[0].x = px;
+  engine.enemyProjectiles[0].y = py;
+  engine.enemyProjectiles[0].vx = 0;
+  engine.enemyProjectiles[0].vy = 0;
+  engine.updateEnemyProjectiles(16, 1116);
+  assert(gamePlayer.hp === hpAfterHit, 'Dash invulnerability did not avoid the mage projectile.');
+} finally {
+  await server.close();
+}
+
+console.log('Hat mages keep range, cast visible travelling projectiles, damage only on collision, and respect dash invulnerability.');
+''')
+
+          package_path = root / 'package.json'
+          package = json.loads(package_path.read_text())
+          rooms = package['scripts']['audit:rooms']
+          marker = 'node scripts/validate-coop-lobby-foundation.mjs && '
+          if marker not in rooms:
+              raise SystemExit('package audit:rooms contract changed')
+          package['scripts']['audit:rooms'] = rooms.replace(marker, marker + 'node scripts/validate-mage-ranged-combat.mjs && ', 1)
+          package_path.write_text(json.dumps(package, indent=2) + '\n')
+
+          run_bytes = engine.read_bytes()
+          run_blob = hashlib.sha1(b'blob ' + str(len(run_bytes)).encode() + b'\0' + run_bytes).hexdigest()
+          variety = root / 'scripts/validate-enemy-visual-variety.mjs'
+          variety_text = variety.read_text()
+          variety_text, count = re.subn(
+              r"\['\.\./src/game/runEngine\.ts', '[0-9a-f]{40}'\]",
+              f"['../src/game/runEngine.ts', '{run_blob}']",
+              variety_text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit('runEngine protected hash contract changed')
+          variety.write_text(variety_text)
+
+          Path('.github/workflows/patch-mage-ranged.yml').unlink()
+          Path('artifacts/dungeon-rpg/.mage-ranged-trigger').unlink(missing_ok=True)
+          PY
+
+      - name: Commit focused patch
+        shell: bash
+        run: |
+          git config user.name "Dungeon Veil Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: give hat mages dodgeable ranged attacks [mage-patch]"
+          git push origin HEAD:fix/mage-ranged-projectiles
