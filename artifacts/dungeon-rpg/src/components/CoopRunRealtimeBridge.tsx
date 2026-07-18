@@ -131,11 +131,14 @@ function installHostRemoteTargeting(
     const remote = remoteRef.current;
     const local = engine.state.player;
     const living = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead);
-    const remoteUsable = remotePresenceIsFresh(remote)
-      && remote?.chapter === engine.state.chapter
+    const remoteUsable = Boolean(
+      remote
+      && remotePresenceIsFresh(remote)
+      && remote.chapter === engine.state.chapter
       && remote.room === engine.state.floor
       && remote.hp > 0
-      && living.length > 0;
+      && living.length > 0,
+    );
     if (!remoteUsable || !remote) {
       originalUpdateEnemies.call(engine, dt, time);
       return;
