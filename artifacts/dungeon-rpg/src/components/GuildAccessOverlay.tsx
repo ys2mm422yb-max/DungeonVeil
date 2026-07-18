@@ -67,8 +67,8 @@ export function GuildAccessOverlay({ language }: Props) {
     }
 
     const [incoming, matchingGuilds] = await Promise.all([
-      listGuildJoinRequestsOnline(next.guild.id).catch(() => []),
-      searchGuildsOnline(next.guild.tag).catch(() => []),
+      listGuildJoinRequestsOnline(next.guild.id).catch((): GuildJoinRequest[] => []),
+      searchGuildsOnline(next.guild.tag).catch((): GuildSearchResult[] => []),
     ]);
     setRequests(incoming);
     setJoinPolicy(matchingGuilds.find(guild => guild.guild_id === next.guild.id)?.join_policy ?? 'request');
