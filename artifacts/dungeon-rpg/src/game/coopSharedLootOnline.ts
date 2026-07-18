@@ -1,5 +1,5 @@
 import type { DuoRunContext } from './coopRunMode';
-import { collectBalancedEquipmentDrop } from './equipmentCollection';
+import { MAX_LEVEL_DUPLICATE_DUST } from './equipmentCollection';
 import {
   EQUIPMENT,
   loadMetaProgression,
@@ -19,6 +19,7 @@ export type CoopSharedLootState = {
   run_seed: number;
   chapter: number;
   room: number;
+  drop_key: string;
   item_id: EquipmentId;
   source: EquipmentDropSource;
   rarity: EquipmentRarity;
@@ -33,7 +34,9 @@ export type CoopSharedLootState = {
   server_now: string;
 };
 
-const RPC_FIELDS = 'lobby_id,run_seed,chapter,room,item_id,source,rarity,status,choices,winner_user_id,loser_user_id,compensation_dust,created_at,resolve_after,resolved_at,server_now';
+function cleanDropKey(value: unknown): string {
+  return String(value ?? '').replace(/[^A-Za-z0-9:_-]/g, '').slice(0, 96);
+}
 
 function firstRow(value: unknown): CoopSharedLootState | null {
   const rows = Array.isArray(value) ? value : [];
@@ -41,7 +44,8 @@ function firstRow(value: unknown): CoopSharedLootState | null {
   if (!raw || typeof raw !== 'object') return null;
   const row = raw as Record<string, unknown>;
   const item = String(row.item_id ?? '') as EquipmentId;
-  if (!EQUIPMENT[item]) return null;
+  const dropKey = cleanDropKey(row.drop_key);
+  if (!dropKey || !EQUIPMENT[item]) return null;
   const status = row.status === 'resolved' ? 'resolved' : 'open';
   const rawChoices = row.choices && typeof row.choices === 'object' && !Array.isArray(row.choices)
     ? row.choices as Record<string, unknown>
@@ -55,6 +59,7 @@ function firstRow(value: unknown): CoopSharedLootState | null {
     run_seed: Math.max(0, Math.floor(Number(row.run_seed) || 0)),
     chapter: Math.max(1, Math.floor(Number(row.chapter) || 1)),
     room: Math.max(1, Math.min(50, Math.floor(Number(row.room) || 1))),
+    drop_key: dropKey,
     item_id: item,
     source: String(row.source ?? EQUIPMENT[item].dropSource) as EquipmentDropSource,
     rarity: String(row.rarity ?? EQUIPMENT[item].rarity) as EquipmentRarity,
@@ -80,18 +85,21 @@ export async function openCoopSharedLoot(
   context: DuoRunContext,
   chapter: number,
   room: number,
+  dropKey: string,
   drop: PendingEquipmentDrop,
 ): Promise<CoopSharedLootState> {
   requireSessionUser();
   if (context.role !== 'host') throw new Error('Nur der Host darf gemeinsame Beute eröffnen.');
+  const safeDropKey = cleanDropKey(dropKey);
+  if (!safeDropKey) throw new Error('Ungültige Beute-ID.');
   const rows = await authenticatedSupabaseRest<unknown>('rpc/open_coop_shared_loot', {
     method: 'POST',
-    headers: { Prefer: `params=single-object,return=representation;fields=${RPC_FIELDS}` },
     body: JSON.stringify({
       p_lobby_id: context.lobbyId,
       p_run_seed: context.runSeed,
       p_chapter: chapter,
       p_room: room,
+      p_drop_key: safeDropKey,
       p_item_id: drop.item,
       p_source: drop.source,
       p_rarity: drop.rarity,
@@ -122,8 +130,7 @@ export async function loadCoopSharedLoot(
 
 export async function chooseCoopSharedLoot(
   context: DuoRunContext,
-  chapter: number,
-  room: number,
+  state: Pick<CoopSharedLootState, 'chapter' | 'room' | 'drop_key'>,
   choice: CoopLootChoice,
 ): Promise<CoopSharedLootState> {
   requireSessionUser();
@@ -132,14 +139,15 @@ export async function chooseCoopSharedLoot(
     body: JSON.stringify({
       p_lobby_id: context.lobbyId,
       p_run_seed: context.runSeed,
-      p_chapter: chapter,
-      p_room: room,
+      p_chapter: state.chapter,
+      p_room: state.room,
+      p_drop_key: state.drop_key,
       p_choice: choice,
     }),
   });
-  const state = firstRow(rows);
-  if (!state) throw new Error('Die Beuteentscheidung konnte nicht gespeichert werden.');
-  return state;
+  const next = firstRow(rows);
+  if (!next) throw new Error('Die Beuteentscheidung konnte nicht gespeichert werden.');
+  return next;
 }
 
 export function localCoopLootChoice(state: CoopSharedLootState): CoopLootChoice | null {
@@ -151,25 +159,37 @@ export function applyCoopSharedLootResolution(state: CoopSharedLootState): boole
   if (state.status !== 'resolved') return false;
   const userId = currentOnlineSession()?.user?.id;
   if (!userId) return false;
-  const ledgerKey = `coop-loot:${state.lobby_id}:${state.run_seed}:${state.chapter}:${state.room}`;
-  const before = loadMetaProgression();
-  if (before.rewardLedger.includes(ledgerKey)) return false;
+  const ledgerKey = `coop-loot:${state.lobby_id}:${state.run_seed}:${state.chapter}:${state.room}:${state.drop_key}`;
+  const meta = loadMetaProgression();
+  if (meta.rewardLedger.includes(ledgerKey)) return false;
 
+  let pickup: { duplicate: boolean; convertedDust: number; copies: number; level: number } | null = null;
   if (state.winner_user_id === userId) {
-    const result = collectBalancedEquipmentDrop(state.item_id);
+    const existing = meta.owned[state.item_id];
+    const duplicate = Boolean(existing);
+    let convertedDust = 0;
+    if (existing?.level >= 5) {
+      convertedDust = MAX_LEVEL_DUPLICATE_DUST[EQUIPMENT[state.item_id].rarity];
+      meta.dust += convertedDust;
+    } else if (existing) {
+      existing.copies += 1;
+    } else {
+      meta.owned[state.item_id] = { level: 1, copies: 0 };
+    }
+    const progress = meta.owned[state.item_id]!;
+    pickup = { duplicate, convertedDust, copies: progress.copies, level: progress.level };
+  } else if (state.loser_user_id === userId && state.compensation_dust > 0) {
+    meta.dust += state.compensation_dust;
+  }
+
+  meta.rewardLedger.push(ledgerKey);
+  saveMetaProgression(meta);
+
+  if (pickup) {
     window.dispatchEvent(new CustomEvent('dungeon-veil-equipment-picked', {
-      detail: {
-        item: state.item_id,
-        duplicate: result.duplicate,
-        copies: result.progress.copies,
-        level: result.progress.level,
-        convertedDust: result.convertedDust,
-      },
+      detail: { item: state.item_id, ...pickup },
     }));
   } else if (state.loser_user_id === userId && state.compensation_dust > 0) {
-    const meta = loadMetaProgression();
-    meta.dust += state.compensation_dust;
-    saveMetaProgression(meta);
     window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', {
       detail: {
         title: 'WÜRFELRUNDE VERLOREN',
@@ -178,9 +198,5 @@ export function applyCoopSharedLootResolution(state: CoopSharedLootState): boole
       },
     }));
   }
-
-  const after = loadMetaProgression();
-  if (!after.rewardLedger.includes(ledgerKey)) after.rewardLedger.push(ledgerKey);
-  saveMetaProgression(after);
   return true;
 }
