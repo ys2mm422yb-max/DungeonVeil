@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [online, overlay, session, reward, migration] = await Promise.all([
+const [online, overlay, session, reward, migration, ambiguityFix] = await Promise.all([
   read('../src/game/coopBossLootOnline.ts'),
   read('../src/components/CoopBossLootOverlay.tsx'),
   read('../src/components/GameSessionBridge.tsx'),
   read('../src/game/chapterRewardContract.ts'),
   read('../../../supabase/migrations/20260719013000_add_coop_boss_loot_claims.sql'),
+  read('../../../supabase/migrations/20260719014500_fix_coop_boss_loot_rpc_ambiguity.sql'),
 ]);
 
 const checks = [
@@ -20,6 +21,7 @@ const checks = [
   [migration.includes("private.resolve_coop_boss_loot") && migration.includes("hashtextextended") && migration.includes("consolation_dust = 60"), 'atomic contested resolution or fixed consolation dust is missing'],
   [migration.includes("private.is_coop_lobby_member") && migration.includes("member.role = 'host'") && migration.includes("revoke all on table"), 'membership, host authority or direct-write protection is incomplete'],
   [migration.includes("clock_timestamp() >= v_roll.expires_at") && migration.includes("'pass'"), 'missing choices are not safely converted to pass after timeout'],
+  [ambiguityFix.includes('on conflict on constraint coop_boss_loot_rolls_lobby_id_run_seed_chapter_room_key') && ambiguityFix.includes('on conflict on constraint coop_boss_loot_choices_pkey'), 'Duo loot RPCs can regress to ambiguous RETURNS TABLE conflict targets'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -28,4 +30,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Shared Duo boss loot claim/pass flow, atomic winner selection, 60-dust contested fallback, timeout and room-exit guard validated.');
+console.log('Shared Duo boss loot claim/pass flow, atomic winner selection, unambiguous conflict targets, 60-dust contested fallback, timeout and room-exit guard validated.');
