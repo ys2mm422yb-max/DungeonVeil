@@ -33,7 +33,23 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm run typecheck
+        shell: bash
+        run: |
+          set +e
+          pnpm run typecheck 2>&1 | tee shared-loot-typecheck.txt
+          code=${PIPESTATUS[0]}
+          echo "$code" > shared-loot-typecheck-exit.txt
+          exit "$code"
+
+      - name: Upload temporary typecheck diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-loot-typecheck-diagnostics
+          path: |
+            shared-loot-typecheck.txt
+            shared-loot-typecheck-exit.txt
+          if-no-files-found: ignore
 
       - name: Build dungeon RPG
         run: pnpm --dir artifacts/dungeon-rpg run build
