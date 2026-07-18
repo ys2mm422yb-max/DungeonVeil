@@ -10,6 +10,7 @@ function MenuQaContent() {
     saveData={null}
     onNewGame={() => {}}
     onContinue={() => {}}
+    onStartCoop={() => {}}
     onVeilChamber={() => {}}
     onCodex={() => {}}
     onSettings={() => {}}
