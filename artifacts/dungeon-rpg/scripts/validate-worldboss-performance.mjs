@@ -9,6 +9,7 @@ const files = {
   aggressiveStage: await readFile(new URL('../src/components/WorldBossAggressiveStage.tsx', import.meta.url), 'utf8'),
   stage: await readFile(new URL('../src/components/WorldBossPerspectiveStage.tsx', import.meta.url), 'utf8'),
   bossRig: await readFile(new URL('../src/components/worldBossMobileVisual3D.ts', import.meta.url), 'utf8'),
+  fallbackDragon: await readFile(new URL('../src/components/worldBossFallbackDragon3D.ts', import.meta.url), 'utf8'),
   engine: await readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
 };
 
@@ -28,9 +29,14 @@ const checks = [
   [files.stage.includes('fps < 24 ? 2 : fps < 44') && files.stage.includes('IS_MOBILE ? 60 : 0'), 'adaptive 60-fps-first ladder is missing'],
   [files.stage.includes('camera.fov = phonePortrait ? 58') && files.stage.includes('cameraDistance = phonePortrait ? 23.6') && files.stage.includes('playerX * (phonePortrait ? 0.045 : 0.12)') && files.stage.includes('data-camera="calm-perspective-camera"'), 'calm phone-safe camera is missing'],
   [files.stage.includes('new THREE.CircleGeometry(1, 24)') && !files.stage.includes('new THREE.RingGeometry'), 'neon ring telegraphs remain'],
-  [files.bossRig.includes("const DRAGON_URL = `${NORMALIZED_BASE}assets/3d/Dragon.fbx`") && files.bossRig.includes("root.name = 'VeilDragonWorldBoss'") && files.bossRig.includes("visual.name = 'DungeonVeilDragon'"), 'imported dragon world-boss model is missing'],
-  [files.bossRig.includes('FBXLoader') && files.bossRig.includes('loadDragon(FBXLoader') && files.bossRig.includes('attempt <= attempts'), 'dragon model is not protected by retry loading'],
-  [files.bossRig.includes('leftWing') && files.bossRig.includes('rightWing') && files.bossRig.includes('tailNodes') && files.bossRig.includes('attackRemaining'), 'dragon procedural motion is incomplete'],
+  [files.bossRig.includes("const DRAGON_ASSET_PATH = 'assets/3d/Dragon.fbx'") && files.bossRig.includes("root.name = 'VeilDragonWorldBoss'") && files.bossRig.includes("visual.name = 'DungeonVeilDragon'"), 'imported dragon world-boss model is missing'],
+  [files.bossRig.includes("cache: 'no-store'") && files.bossRig.includes('validatedFbxBuffer') && files.bossRig.includes('new FBXLoader().parse(buffer, basePath)') && files.bossRig.includes('DRAGON_ASSET_REVISION'), 'dragon asset loading is not protected from stale PWA cache, HTML fallbacks or wrong paths'],
+  [files.bossRig.includes('attempt <= attempts') && files.bossRig.includes('dragonUrlCandidates()') && files.bossRig.includes('for (const url of urls)'), 'dragon model loading lacks bounded retries across safe URL candidates'],
+  [files.bossRig.includes("import { createWorldBossFallbackDragonRig }") && files.bossRig.includes("dungeonVeilBossVisual = 'procedural-dragon-fallback'") && files.bossRig.includes('return fallback;'), 'FBX failure does not resolve to the procedural dragon rig'],
+  [files.fallbackDragon.includes("root.name = 'VeilDragonFallbackWorldBoss'") && files.fallbackDragon.includes("visual.name = 'ProceduralAshDragon'") && files.fallbackDragon.includes('FallbackDragonLeftWing') && files.fallbackDragon.includes('FallbackDragonRightWing'), 'fallback world boss lacks a clear dragon body and wings'],
+  [files.fallbackDragon.includes('FallbackDragonNeck') && files.fallbackDragon.includes('FallbackDragonSnout') && files.fallbackDragon.includes('FallbackDragonHorn_') && files.fallbackDragon.includes('FallbackDragonTailSegment_'), 'fallback world boss lacks dragon head, horns, neck or segmented tail'],
+  [files.fallbackDragon.includes('triggerAttack()') && files.fallbackDragon.includes('attackWave') && files.fallbackDragon.includes('leftWing.rotation.z') && files.fallbackDragon.includes('tailSegments.forEach'), 'fallback dragon is not visibly animated'],
+  [files.bossRig.includes('leftWing') && files.bossRig.includes('rightWing') && files.bossRig.includes('tailNodes') && files.bossRig.includes('attackRemaining'), 'imported dragon procedural motion is incomplete'],
   [!files.bossRig.includes('AshShoulderBar') && !files.bossRig.includes('SimplifiedAshCrown') && !files.bossRig.includes('AshWardenSkeleton'), 'legacy humanoid Ash King visual remains active'],
   [files.stage.includes("shadow.name = 'AshKingGroundShadow'") && files.stage.includes('bossRig.root.scale.setScalar(2.0'), 'dominant boss presentation is missing'],
   [files.stage.includes('antialias: !IS_MOBILE') && files.stage.includes('renderer.shadowMap.enabled = !IS_MOBILE'), 'mobile-safe renderer policy is missing'],
@@ -50,4 +56,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: phone-safe framing and arena bounds, imported FBX dragon, distinct attacks, low-call hall and stable mobile rendering are active.');
+console.log('World-boss performance audit passed: imported FBX dragon uses cache-safe validated loading and every failure falls back to an animated dragon silhouette.');
