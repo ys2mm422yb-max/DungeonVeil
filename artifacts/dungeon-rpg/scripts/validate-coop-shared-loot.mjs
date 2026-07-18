@@ -11,7 +11,7 @@ const runMode = read('src/game/coopRunMode.ts');
 const client = read('src/game/coopSharedLootOnline.ts');
 const runtime = read('src/game/coopSharedLootRuntime.ts');
 const roomGuard = read('src/game/coopSharedLootRoomGuard.ts');
-const collection = read('src/game/equipmentCollection.ts');
+const payout = read('src/game/coopSharedLootPayout.ts');
 const targeting = read('src/game/equipmentTargeting.ts');
 const worldLoot = read('src/game/equipmentWorldLoot.ts');
 const drops = read('src/game/equipmentDropContract.ts');
@@ -34,15 +34,17 @@ assert(client.includes('p_lobby_id: context.lobbyId')
   && client.includes("rpc/submit_coop_loot_choice"), 'The client does not bind RPCs to the exact lobby or validate returned equipment.');
 assert(runtime.includes('loadCoopSharedLoot(context, activeChapter, activeRoom)')
   && runtime.indexOf('loadCoopSharedLoot(context, activeChapter, activeRoom)') < runtime.indexOf('planSharedBossEquipmentReward(activeChapter, activeRoom)'), 'Host reconnect can reroll before checking the existing drop.');
-assert(runtime.includes('collectBalancedEquipmentDropOnce')
+assert(runtime.includes("from './coopSharedLootPayout'")
+  && runtime.includes('collectBalancedEquipmentDropOnce')
   && runtime.includes('grantMetaDustOnce')
-  && runtime.includes('grantEquipmentSourceMarkOnce'), 'Shared item, compensation, salvage or source-mark payouts are not idempotent.');
+  && runtime.includes('grantEquipmentSourceMarkOnce'), 'Shared item, compensation, salvage or source-mark payouts are not idempotent or isolated.');
 assert(runtime.includes("submitCoopLootChoice(context, snapshot.drop_id")
   && runtime.includes('MAX_CONSECUTIVE_ERRORS')
   && runtime.includes('OHNE BEUTE FORTFAHREN'), 'Claim/pass or the bounded backend-failure escape is incomplete.');
-assert(collection.includes('meta.rewardLedger.includes(key)')
-  && collection.includes('collectBalancedEquipmentDropOnce')
-  && collection.includes('grantMetaDustOnce'), 'Local reconnect payout protection is incomplete.');
+assert(payout.includes('meta.rewardLedger.includes(key)')
+  && payout.includes('collectBalancedEquipmentDropOnce')
+  && payout.includes('grantMetaDustOnce')
+  && payout.includes('MAX_LEVEL_DUPLICATE_DUST'), 'Local reconnect payout protection is incomplete.');
 assert(targeting.includes('grantEquipmentSourceMarkOnce')
   && targeting.includes('equipment-source-mark:'), 'Both players cannot receive one idempotent source mark.');
 assert(worldLoot.includes("dataset.dungeonVeilCoopLootPending === '1'")
@@ -68,4 +70,4 @@ assert(migration.includes('security definer')
   && migration.includes('grant execute on function public.get_my_coop_loot_drop')
   && migration.includes('grant execute on function public.submit_coop_loot_choice'), 'Authenticated RPC permissions are incomplete.');
 
-console.log('Shared Duo loot validated: one boss drop, claim/pass, immutable choices, server roll, timeout pass, reconnect-safe payout, source marks and both normal/direct exit guards.');
+console.log('Shared Duo loot validated: one boss drop, claim/pass, immutable choices, server roll, timeout pass, isolated reconnect-safe payouts, source marks and both normal/direct exit guards.');
