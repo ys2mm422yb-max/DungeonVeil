@@ -276,7 +276,7 @@ test('settings persist contrast, storage and joystick with standard UI size', as
   await reloadMenu(page, testInfo.project.name);
   const persisted = await page.evaluate(() => ({
     contrast: document.documentElement.dataset.contrast,
-    textSize: document.documentElement.datasetTextSize,
+    textSize: document.documentElement.dataset.textSize,
   }));
   expect(persisted).toEqual({ contrast: 'high', textSize: 'standard' });
   expect(issues, issues.join('\n')).toEqual([]);
