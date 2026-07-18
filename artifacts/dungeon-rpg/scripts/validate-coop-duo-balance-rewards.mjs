@@ -16,7 +16,7 @@ const engine = read('src/game/runEngine.ts');
 const sharedLoot = read('src/game/coopSharedLootOnline.ts');
 const sharedOverlay = read('src/components/CoopSharedLootOverlay.tsx');
 const worldLoot = read('src/game/equipmentWorldLoot.ts');
-const sharedMigration = read('../../../supabase/migrations/20260719002000_add_server_authoritative_coop_shared_loot.sql');
+const sharedMigration = read('../../supabase/migrations/20260719002000_add_server_authoritative_coop_shared_loot.sql');
 
 assert(duo.includes('DUO_NORMAL_HP_MULTIPLIER = 1.65'), 'Normal duo enemy HP multiplier is not 1.65.');
 assert(duo.includes('DUO_ELITE_HP_MULTIPLIER = 1.8'), 'Elite duo enemy HP multiplier is not 1.8.');
