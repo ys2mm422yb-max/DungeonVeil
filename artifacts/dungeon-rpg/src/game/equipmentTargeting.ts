@@ -3,6 +3,7 @@ import { collectBalancedEquipmentDrop } from './equipmentCollection';
 import {
   EQUIPMENT,
   loadMetaProgression,
+  saveMetaProgression,
   type EquipmentDropSource,
   type EquipmentId,
   type MetaProgression,
@@ -122,6 +123,20 @@ export function grantEquipmentSourceMark(source: EquipmentDropSource, amount = 1
   const profile = loadEquipmentTargeting();
   profile.sourceMarks[source] += safeNumber(amount);
   return saveEquipmentTargeting(profile);
+}
+
+export function grantEquipmentSourceMarkOnce(
+  source: EquipmentDropSource,
+  ledgerKey: string,
+): { profile: EquipmentTargetingProfile; granted: boolean } {
+  const normalizedKey = `equipment-source-mark:${String(ledgerKey).trim().slice(0, 150)}`;
+  const meta = loadMetaProgression();
+  const profile = loadEquipmentTargeting();
+  if (!ledgerKey.trim() || meta.rewardLedger.includes(normalizedKey)) return { profile, granted: false };
+  meta.rewardLedger.push(normalizedKey);
+  saveMetaProgression(meta);
+  profile.sourceMarks[source] += 1;
+  return { profile: saveEquipmentTargeting(profile), granted: true };
 }
 
 export function grantHuntEquipmentSourceMark(chapter: number): { profile: EquipmentTargetingProfile; granted: boolean } {
