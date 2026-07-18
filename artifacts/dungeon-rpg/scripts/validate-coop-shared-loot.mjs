@@ -15,7 +15,7 @@ const collection = read('src/game/equipmentCollection.ts');
 const targeting = read('src/game/equipmentTargeting.ts');
 const worldLoot = read('src/game/equipmentWorldLoot.ts');
 const drops = read('src/game/equipmentDropContract.ts');
-const migration = read('../../../supabase/migrations/20260719023000_add_authoritative_coop_shared_loot.sql');
+const migration = read('../../supabase/migrations/20260719023000_add_authoritative_coop_shared_loot.sql');
 
 assert(rewards.includes("dataset.dungeonVeilRunMode === 'duo'")
   && rewards.includes('requestCoopSharedLoot(safeChapter, safeFloor)')
