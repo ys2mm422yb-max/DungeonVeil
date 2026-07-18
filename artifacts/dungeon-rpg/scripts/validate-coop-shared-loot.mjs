@@ -10,6 +10,7 @@ const rewards = read('src/game/chapterRewardContract.ts');
 const runMode = read('src/game/coopRunMode.ts');
 const client = read('src/game/coopSharedLootOnline.ts');
 const runtime = read('src/game/coopSharedLootRuntime.ts');
+const roomGuard = read('src/game/coopSharedLootRoomGuard.ts');
 const collection = read('src/game/equipmentCollection.ts');
 const targeting = read('src/game/equipmentTargeting.ts');
 const worldLoot = read('src/game/equipmentWorldLoot.ts');
@@ -19,6 +20,10 @@ const migration = read('../../../supabase/migrations/20260719023000_add_authorit
 assert(rewards.includes("dataset.dungeonVeilRunMode === 'duo'")
   && rewards.includes('requestCoopSharedLoot(safeChapter, safeFloor)')
   && rewards.includes('options?.equipmentReward ?? !duoMode'), 'Duo boss rooms can still create separate local equipment drops.');
+assert(rewards.includes('installCoopSharedLootRoomGuard();')
+  && roomGuard.includes('GameEngine.prototype')
+  && roomGuard.includes("dataset.dungeonVeilCoopLootPending === '1'")
+  && roomGuard.includes('originalNextRoom.call(this)'), 'Direct host or guest nextRoom calls can bypass the shared-loot decision.');
 assert(runMode.includes('currentDuoRunContext')
   && runMode.includes('dungeonVeilCoopLobby')
   && runMode.includes('dungeonVeilCoopRole'), 'The exact active Duo context is not recoverable.');
@@ -41,7 +46,7 @@ assert(collection.includes('meta.rewardLedger.includes(key)')
 assert(targeting.includes('grantEquipmentSourceMarkOnce')
   && targeting.includes('equipment-source-mark:'), 'Both players cannot receive one idempotent source mark.');
 assert(worldLoot.includes("dataset.dungeonVeilCoopLootPending === '1'")
-  && runtime.includes("dataset.dungeonVeilCoopLootPending = '1'"), 'Room exit is not blocked while the decision is open.');
+  && runtime.includes("dataset.dungeonVeilCoopLootPending = '1'"), 'Normal room exit is not blocked while the decision is open.');
 
 assert(migration.includes('create table if not exists public.coop_loot_drops')
   && migration.includes('create table if not exists public.coop_loot_choices'), 'Shared loot persistence is missing.');
@@ -63,4 +68,4 @@ assert(migration.includes('security definer')
   && migration.includes('grant execute on function public.get_my_coop_loot_drop')
   && migration.includes('grant execute on function public.submit_coop_loot_choice'), 'Authenticated RPC permissions are incomplete.');
 
-console.log('Shared Duo loot validated: one boss drop, claim/pass, immutable choices, server roll, timeout pass, reconnect-safe payout, source marks and exit guard.');
+console.log('Shared Duo loot validated: one boss drop, claim/pass, immutable choices, server roll, timeout pass, reconnect-safe payout, source marks and both normal/direct exit guards.');
