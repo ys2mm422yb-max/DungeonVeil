@@ -38,9 +38,7 @@ function cleanDropKey(value: unknown): string {
   return String(value ?? '').replace(/[^A-Za-z0-9:_-]/g, '').slice(0, 96);
 }
 
-function firstRow(value: unknown): CoopSharedLootState | null {
-  const rows = Array.isArray(value) ? value : [];
-  const raw = rows[0];
+function normalizeRow(raw: unknown): CoopSharedLootState | null {
   if (!raw || typeof raw !== 'object') return null;
   const row = raw as Record<string, unknown>;
   const item = String(row.item_id ?? '') as EquipmentId;
@@ -73,6 +71,16 @@ function firstRow(value: unknown): CoopSharedLootState | null {
     resolved_at: row.resolved_at ? String(row.resolved_at) : null,
     server_now: String(row.server_now ?? new Date().toISOString()),
   };
+}
+
+function normalizeRows(value: unknown): CoopSharedLootState[] {
+  return (Array.isArray(value) ? value : [])
+    .map(normalizeRow)
+    .filter((row): row is CoopSharedLootState => Boolean(row));
+}
+
+function firstRow(value: unknown): CoopSharedLootState | null {
+  return normalizeRows(value)[0] ?? null;
 }
 
 function requireSessionUser(): string {
@@ -114,7 +122,7 @@ export async function loadCoopSharedLoot(
   context: DuoRunContext,
   chapter: number,
   room: number,
-): Promise<CoopSharedLootState | null> {
+): Promise<CoopSharedLootState[]> {
   requireSessionUser();
   const rows = await authenticatedSupabaseRest<unknown>('rpc/get_coop_shared_loot', {
     method: 'POST',
@@ -125,7 +133,7 @@ export async function loadCoopSharedLoot(
       p_room: room,
     }),
   });
-  return firstRow(rows);
+  return normalizeRows(rows);
 }
 
 export async function chooseCoopSharedLoot(
