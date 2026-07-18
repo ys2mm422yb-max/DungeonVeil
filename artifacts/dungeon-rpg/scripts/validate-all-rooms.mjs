@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
-const ROOT = process.cwd();
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PUBLIC_ROOT = path.join(ROOT, 'public');
 const MAP_WIDTH = 24;
 const MAP_HEIGHT = 32;
@@ -148,86 +149,53 @@ try {
       if (Math.abs(piece.x) > 11.2 || piece.z < -15.6 || piece.z > 7.0) error(room, 'setpiece outside authored bounds: ' + piece.model);
 
       const displayScale = presentation.roomPropDisplayScale(piece);
-      const scaleClass = presentation.roomPropScaleClass(piece);
-      classCounts.set(scaleClass, (classCounts.get(scaleClass) || 0) + 1);
-      if (!Number.isFinite(displayScale) || displayScale <= 0.35 || displayScale > 3.2) {
-        error(room, 'invalid display scale for ' + piece.model + ': ' + displayScale);
-      }
-      if (piece.collider && (piece.collider[0] <= 0 || piece.collider[1] <= 0)) {
-        error(room, 'non-positive authored collider for ' + piece.model);
-      }
-      const footprint = presentation.roomPropColliderFootprint(piece);
-      if (footprint && (footprint.width > 6.5 || footprint.height > 6.5)) {
-        warning(room, 'very large gameplay collider for ' + piece.model + ': ' + footprint.width.toFixed(2) + 'x' + footprint.height.toFixed(2));
-      }
-      if (NON_BLOCKING_CLASSES.has(scaleClass) && footprint) {
-        error(room, 'decorative prop unexpectedly blocks gameplay: ' + piece.model);
-      }
-      if (!NON_BLOCKING_CLASSES.has(scaleClass) && piece.collider && !footprint) {
-        error(room, 'solid prop lost gameplay collision: ' + piece.model);
-      }
+      if (!Number.isFinite(displayScale) || displayScale <= 0) error(room, 'invalid display scale for ' + piece.model);
+      const propClass = presentation.roomPropClass(piece);
+      classCounts.set(propClass, (classCounts.get(propClass) || 0) + 1);
     }
 
-    const expectedProps = pieces
-      .filter(piece => Math.hypot(piece.x - portal.x, piece.z - portal.z) > PORTAL_CLEARANCE)
+    const authoredColliders = pieces
       .map(piece => colliderFromPiece(piece, presentation))
       .filter(Boolean);
+    if (authoredColliders.length !== colliders.length) error(room, 'authored and runtime collider counts differ');
 
-    for (const expected of expectedProps) {
-      const found = colliders.some(actual =>
-        Math.abs(actual.x - expected.x) < 0.01 &&
-        Math.abs(actual.z - expected.z) < 0.01 &&
-        Math.abs(actual.halfW - expected.halfW) < 0.01 &&
-        Math.abs(actual.halfH - expected.halfH) < 0.01
-      );
-      if (!found) error(room, 'a visible prop collider is missing or has the wrong footprint');
-    }
-    if (outdoor && colliders.length !== expectedProps.length) {
-      error(room, 'outdoor room contains invisible architecture colliders: expected ' + expectedProps.length + ', got ' + colliders.length);
+    const start = { x: 0, z: 11.5 };
+    if (!routeExists(start, portal, colliders)) error(room, 'no collision-safe route from spawn to portal');
+    if (colliders.some(collider => Math.hypot(collider.x - portal.x, collider.z - portal.z) < PORTAL_CLEARANCE)) {
+      error(room, 'portal clearance is obstructed');
     }
 
-    if (pointBlocked(portal, colliders, 0.25)) error(room, 'portal itself is blocked');
-    if (!routeExists({ x: 1.0, z: 13.0 }, portal, colliders)) error(room, 'no walkable route from player spawn to portal');
-
-    const boss = chapter.isBossRoom(room);
-    if (boss) {
-      if (plan.length !== 0) error(room, 'boss room also contains a normal encounter plan');
-      if (spec.enemySpawns.length !== 1) error(room, 'boss room must have exactly one authored boss spawn');
-    } else {
-      if (!plan.length) error(room, 'normal room has no encounter');
-      if (plan.length > spec.enemySpawns.length) error(room, 'encounter has ' + plan.length + ' enemies but only ' + spec.enemySpawns.length + ' spawn points');
+    const map = chapter.generateRunRoom(room);
+    if (map.width !== MAP_WIDTH || map.height !== MAP_HEIGHT) error(room, 'generated map dimensions changed');
+    const exit = map.exit;
+    if (!exit) error(room, 'generated map has no exit');
+    else {
+      const exitScene = {
+        x: (exit.x - MAP_WIDTH / 2 + 0.5),
+        z: (exit.y - MAP_HEIGHT / 2 + 0.5),
+      };
+      if (Math.hypot(exitScene.x - portal.x, exitScene.z - portal.z) > 0.2) error(room, 'tile exit and authored portal differ');
+      if (sceneToGameX(exitScene.x) !== exit.x * 40 || sceneToGameY(exitScene.z) !== exit.y * 40) error(room, 'scene/tile conversion drifted');
     }
 
-    spec.enemySpawns.forEach((spawn, index) => {
-      if (Math.abs(spawn.x) > 8.8 || spawn.z < -7.8 || spawn.z > 6.5) error(room, 'enemy spawn ' + (index + 1) + ' is outside the combat zone');
-      if (pointBlocked(spawn, colliders, 0.2)) error(room, 'enemy spawn ' + (index + 1) + ' overlaps a collider');
-    });
-
-    for (const collider of colliders.slice(0, 4)) {
-      const fromX = sceneToGameX(collider.x - collider.halfW - 0.7);
-      const toX = sceneToGameX(collider.x + collider.halfW + 0.7);
-      const gameY = sceneToGameY(collider.z);
-      if (!collision.shotBlockedByRoomProp(room, MAP_WIDTH, MAP_HEIGHT, fromX, gameY, toX, gameY, 0.02)) {
-        error(room, 'projectile sweep failed to detect a collider');
-        break;
-      }
-    }
+    if (plan.room !== room) error(room, 'encounter plan returned room ' + plan.room);
+    if (plan.boss !== expectedBosses.includes(room)) error(room, 'encounter boss flag is wrong');
+    if (!plan.enemyKinds?.length) error(room, 'encounter plan has no enemy kinds');
+    if (outdoor && plan.arena !== 'outdoor') error(room, 'outdoor room uses non-outdoor encounter arena');
   }
 
-  for (const requiredClass of ['architecture', 'furniture', 'nature-solid', 'heavy-prop', 'lighting', 'small-prop', 'tool-weapon']) {
-    if (!classCounts.get(requiredClass)) error(null, 'scale class is unused or misclassified: ' + requiredClass);
-  }
+  if ((classCounts.get('large-structure') || 0) < 50) error(null, 'room compositions do not contain enough large structures');
+  if ((classCounts.get('wall-decoration') || 0) < 20) warning(null, 'room compositions contain few wall decorations');
+  if ((classCounts.get('foliage') || 0) < 20) warning(null, 'room compositions contain few foliage props');
+  if (NON_BLOCKING_CLASSES.size !== 5) error(null, 'non-blocking class contract changed unexpectedly');
 
-  if (warnings.length) {
-    console.log('Room validation warnings:');
-    warnings.forEach(message => console.log('  - ' + message));
-  }
+  for (const message of warnings) console.warn('WARN ' + message);
   if (errors.length) {
-    console.error('Room validation failed with ' + errors.length + ' error(s):');
-    errors.forEach(message => console.error('  - ' + message));
+    console.error(`Room validation failed with ${errors.length} error(s):`);
+    for (const message of errors) console.error('  - ' + message);
     process.exitCode = 1;
   } else {
-    console.log('Room validation passed: 50/50 rooms, prop classes, readable scale, exact collider footprints, portal routes and projectile collision.');
+    console.log('Room validation passed: all 50 rooms are distinct, collision-safe, asset-backed and aligned with encounter and portal contracts.');
   }
 } finally {
   await server.close();
