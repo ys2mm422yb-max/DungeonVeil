@@ -40,6 +40,16 @@ function roomClearKey(engine: GameEngine) {
   return `${roomKey(engine)}:${engine.state.roomClearAt}`;
 }
 
+function isDuoMode() {
+  return typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilRunMode === 'duo';
+}
+
+function publishDuoRoom(engine: GameEngine) {
+  if (!isDuoMode() || typeof document === 'undefined') return;
+  document.documentElement.dataset.dungeonVeilCoopChapter = String(engine.state.chapter);
+  document.documentElement.dataset.dungeonVeilCoopRoom = String(engine.state.floor);
+}
+
 function installExitGuard(engine: GameEngine, state: EquipmentWorldLootState) {
   if (state.originalCanExitRoom) return;
   const original = engine.canExitRoom;
@@ -55,6 +65,11 @@ export function disposeEquipmentWorldLoot(engine: GameEngine, state: EquipmentWo
   state.exitBlocked = false;
   state.auditedClearKey = '';
   state.warningRoomKey = '';
+  if (typeof document !== 'undefined') {
+    delete document.documentElement.dataset.dungeonVeilCoopChapter;
+    delete document.documentElement.dataset.dungeonVeilCoopRoom;
+    delete document.documentElement.dataset.dungeonVeilCoopLootPending;
+  }
   if (!state.originalCanExitRoom) return;
   engine.canExitRoom = state.originalCanExitRoom;
   state.originalCanExitRoom = null;
@@ -145,7 +160,9 @@ function playerNearExit(engine: GameEngine) {
 function applyPortalLootGuard(engine: GameEngine, state: EquipmentWorldLootState, time: number) {
   const key = roomKey(engine);
   const importantLoot = warningLoot(engine);
-  state.exitBlocked = engine.state.roomClearReady && importantLoot.length > 0;
+  const sharedLootPending = typeof document !== 'undefined'
+    && document.documentElement.dataset.dungeonVeilCoopLootPending === '1';
+  state.exitBlocked = engine.state.roomClearReady && (importantLoot.length > 0 || sharedLootPending);
   state.auditedClearKey = engine.state.roomClearReady ? roomClearKey(engine) : '';
 
   if (!state.exitBlocked) {
@@ -160,7 +177,7 @@ function applyPortalLootGuard(engine: GameEngine, state: EquipmentWorldLootState
     id: `unclaimed-loot-${time}`,
     x: engine.state.player.x + engine.state.player.width / 2,
     y: engine.state.player.y - 28,
-    value: 'UNAUFGEHOBENE BEUTE',
+    value: sharedLootPending ? 'BEUTEENTSCHEIDUNG AUSSTEHEND' : 'UNAUFGEHOBENE BEUTE',
     color: '#f4c86c',
     lifeTime: 0,
     maxLifeTime: 1250,
@@ -169,12 +186,19 @@ function applyPortalLootGuard(engine: GameEngine, state: EquipmentWorldLootState
 }
 
 export function spawnRoomEquipmentReward(engine: GameEngine, drop: PendingEquipmentDrop) {
+  if (isDuoMode()) {
+    window.dispatchEvent(new CustomEvent('dungeon-veil-duo-loot-proposal', {
+      detail: { drop, chapter: engine.state.chapter, room: engine.state.floor },
+    }));
+    return null;
+  }
   const x = engine.state.map.width * TILE_SIZE / 2;
   const y = engine.state.map.height * TILE_SIZE / 2;
   return spawnEquipmentDrop(engine, drop, x, y);
 }
 
 export function updateEquipmentWorldLoot(engine: GameEngine, state: EquipmentWorldLootState, time: number) {
+  publishDuoRoom(engine);
   installExitGuard(engine, state);
   spawnHuntEquipment(engine, state);
   trackLiveEquipment(engine, state);
