@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { SaveData } from '../../game/saveManager';
+import { loadGame, SAVE_EVENT, type SaveData } from '../../game/saveManager';
 import { loadMetaProgression } from '../../game/metaProgression';
 import { recordReachedChapter } from '../../game/equipmentChapterGates';
 import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
@@ -11,6 +11,7 @@ import { currentOnlineSession, onlineSessionEventName } from '../../game/supabas
 import { syncSocialProfileProgress } from '../../game/socialProgressOnline';
 import { requestTutorialReplay } from '../../game/tutorialState';
 import { loadPlayerProfile, PLAYER_PROFILE_EVENT, recordPlayerProfileProgress, type PlayerProfileProgress } from '../../game/playerProfile';
+import { PLAYER_NAME_CHANGE_EVENT } from '../../game/playerNameChange';
 import { MainMenuDungeonScene } from '../MainMenuDungeonScene';
 import { MainMenuUpdateGate } from '../MainMenuUpdateGate';
 import { DailyQuestPanel } from '../DailyQuestPanel';
@@ -44,27 +45,34 @@ export function MainMenuScreen(props: Props) {
   const [profile, setProfile] = useState<PlayerProfileProgress>(loadPlayerProfile);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [mailUnread, setMailUnread] = useState(0);
-  const gifts = props.saveData ? Object.entries(props.saveData.runSkills ?? {}).reduce((sum, [key, value]) => key === 'heal' ? sum : sum + (value ?? 0), 0) : 0;
-  const profileName = props.saveData?.playerName?.trim() || (language === 'de' ? 'Waldläufer' : 'Ranger');
+  const [, setSaveRevision] = useState(0);
+  const currentSaveData = loadGame() ?? props.saveData;
+  const gifts = currentSaveData ? Object.entries(currentSaveData.runSkills ?? {}).reduce((sum, [key, value]) => key === 'heal' ? sum : sum + (value ?? 0), 0) : 0;
+  const profileName = currentSaveData?.playerName?.trim() || (language === 'de' ? 'Waldläufer' : 'Ranger');
 
   useEffect(() => {
     const refreshMeta = () => setMeta(loadMetaProgression());
     const refreshRetention = (event?: Event) => setRetention((event as CustomEvent<RetentionProfile> | undefined)?.detail ?? loadRetentionProfile());
     const refreshProfile = (event?: Event) => setProfile((event as CustomEvent<PlayerProfileProgress> | undefined)?.detail ?? loadPlayerProfile());
+    const refreshSave = () => setSaveRevision(value => value + 1);
     window.addEventListener('dungeon-veil-meta-changed', refreshMeta);
     window.addEventListener('dungeon-veil-retention-update', refreshRetention as EventListener);
     window.addEventListener(PLAYER_PROFILE_EVENT, refreshProfile as EventListener);
+    window.addEventListener(SAVE_EVENT, refreshSave);
+    window.addEventListener(PLAYER_NAME_CHANGE_EVENT, refreshSave);
     return () => {
       window.removeEventListener('dungeon-veil-meta-changed', refreshMeta);
       window.removeEventListener('dungeon-veil-retention-update', refreshRetention as EventListener);
       window.removeEventListener(PLAYER_PROFILE_EVENT, refreshProfile as EventListener);
+      window.removeEventListener(SAVE_EVENT, refreshSave);
+      window.removeEventListener(PLAYER_NAME_CHANGE_EVENT, refreshSave);
     };
   }, []);
 
   useEffect(() => {
-    recordReachedChapter(props.saveData?.chapter ?? 1);
-    setProfile(recordPlayerProfileProgress(props.saveData?.chapter ?? 1, props.saveData?.floor ?? 1));
-  }, [props.saveData?.chapter, props.saveData?.floor]);
+    recordReachedChapter(currentSaveData?.chapter ?? 1);
+    setProfile(recordPlayerProfileProgress(currentSaveData?.chapter ?? 1, currentSaveData?.floor ?? 1));
+  }, [currentSaveData?.chapter, currentSaveData?.floor]);
 
   useEffect(() => {
     const capturedGuild = captureGuildInviteTokenFromUrl();
@@ -89,22 +97,22 @@ export function MainMenuScreen(props: Props) {
   useEffect(() => {
     const sync = () => {
       if (!currentOnlineSession()) return;
-      void syncSocialProfileProgress(props.saveData?.chapter ?? 1, meta.rank, 'archer').catch(() => {});
+      void syncSocialProfileProgress(currentSaveData?.chapter ?? 1, meta.rank, 'archer').catch(() => {});
     };
     window.addEventListener(onlineSessionEventName(), sync);
     sync();
     return () => window.removeEventListener(onlineSessionEventName(), sync);
-  }, [meta.rank, props.saveData?.chapter]);
+  }, [meta.rank, currentSaveData?.chapter]);
 
   const startNormalRun = () => { clearWeeklyRiftRun(); props.onNewGame(); };
   const replayTutorial = () => {
     requestTutorialReplay();
     setOverlay(null);
-    if (props.saveData) props.onContinue();
+    if (currentSaveData) props.onContinue();
     else props.onNewGame();
   };
-  const continueText = props.saveData
-    ? language === 'de' ? `Kapitel ${props.saveData.chapter ?? 1} · Raum ${props.saveData.floor} · ${gifts} Gaben` : `Chapter ${props.saveData.chapter ?? 1} · Room ${props.saveData.floor} · ${gifts} gifts`
+  const continueText = currentSaveData
+    ? language === 'de' ? `Kapitel ${currentSaveData.chapter ?? 1} · Raum ${currentSaveData.floor} · ${gifts} Gaben` : `Chapter ${currentSaveData.chapter ?? 1} · Room ${currentSaveData.floor} · ${gifts} gifts`
     : t.noSave;
 
   const action = (label: string, detail: string, onClick: () => void, tone: 'gold' | 'dark' | 'violet' | 'blue', disabled = false) => {
@@ -149,14 +157,14 @@ export function MainMenuScreen(props: Props) {
       />
 
       <div className="mx-auto mt-2 grid w-full max-w-md grid-cols-2 gap-2 px-4">
-        {action(t.continueGame, continueText, props.onContinue, props.saveData ? 'gold' : 'dark', !props.saveData)}
-        {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · WELTBOSS' : 'SOLO · DUO · WORLD BOSS', () => setOverlay('play'), props.saveData ? 'dark' : 'gold')}
+        {action(t.continueGame, continueText, props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}
+        {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · WELTBOSS' : 'SOLO · DUO · WORLD BOSS', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
         {action(language === 'de' ? 'Inventar' : 'Inventory', language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Staub` : `Rank ${meta.rank} · ${meta.dust} dust`, props.onVeilChamber, 'violet')}
         {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · JAGD · RELIKTE' : 'BEASTS · HUNTS · RELICS', props.onCodex, 'blue')}
       </div>
     </div>
 
-    {overlay === 'profile' && <PlayerProfilePanel profile={profile} saveData={props.saveData} meta={meta} retention={retention} language={language} onProfileChange={setProfile} onClose={() => setOverlay(null)} />}
+    {overlay === 'profile' && <PlayerProfilePanel profile={profile} saveData={currentSaveData} meta={meta} retention={retention} language={language} onProfileChange={setProfile} onClose={() => setOverlay(null)} />}
 
     {overlay && overlay !== 'profile' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
@@ -165,7 +173,7 @@ export function MainMenuScreen(props: Props) {
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'play' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'SPIELMODUS WÄHLEN' : 'CHOOSE GAME MODE'}</div><div className="space-y-2">{action(language === 'de' ? 'Solo-Run' : 'Solo Run', language === 'de' ? 'NEUES ABENTEUER · ALLEINE' : 'NEW ADVENTURE · SOLO', () => { setOverlay(null); startNormalRun(); }, 'gold')}{action(language === 'de' ? 'Duo-Run' : 'Duo Run', language === 'de' ? 'PRIVATE LOBBY · 2 SPIELER · VORSCHAU' : 'PRIVATE LOBBY · 2 PLAYERS · PREVIEW', () => setOverlay('coop'), 'violet')}{action(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'GEMEINSAMER BOSSKAMPF' : 'SHARED BOSS FIGHT', () => setOverlay('worldBoss'), 'blue')}</div></div>}
-      {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} onOpenOnline={() => setOverlay('online')} />}
+      {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={currentSaveData} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'coop' && <CoopLobbyPanel language={language} onOpenOnline={() => setOverlay('online')} onStartRun={lobby => { setOverlay(null); props.onStartCoop(lobby); }} />}
       {overlay === 'more' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', replayTutorial, 'dark')}{action(t.settings, '', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div></div>}
       {overlay !== 'guild' && <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-amber-50/14 bg-[#11100f]/88 py-3 text-[9px] font-black uppercase tracking-[.2em] text-amber-50/58">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>}

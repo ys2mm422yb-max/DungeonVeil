@@ -6,6 +6,11 @@ const files = {
   storageSettings: await readFile(new URL('../src/components/ProfileStorageSettings.tsx', import.meta.url), 'utf8'),
   badge: await readFile(new URL('../src/components/ProfileBadge.tsx', import.meta.url), 'utf8'),
   panel: await readFile(new URL('../src/components/PlayerProfilePanel.tsx', import.meta.url), 'utf8'),
+  online: await readFile(new URL('../src/components/OnlinePanel.tsx', import.meta.url), 'utf8'),
+  nameChange: await readFile(new URL('../src/game/playerNameChange.ts', import.meta.url), 'utf8'),
+  saveManager: await readFile(new URL('../src/game/saveManager.ts', import.meta.url), 'utf8'),
+  runIdentity: await readFile(new URL('../src/game/runIdentity.ts', import.meta.url), 'utf8'),
+  cloud: await readFile(new URL('../src/game/cloudSave.ts', import.meta.url), 'utf8'),
   settings: await readFile(new URL('../src/components/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
   menu: await readFile(new URL('../src/components/screens/MainMenuScreen.tsx', import.meta.url), 'utf8'),
   main: await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
@@ -31,6 +36,15 @@ const checks = [
   [files.session.includes('recordPlayerProfileRoomClear') && files.session.includes('recordPlayerProfileSession'), 'real run activity is not connected to profile statistics'],
   [files.game.includes('beginPlayerProfileRun'), 'new runs are not counted in profile statistics'],
   [files.retention.includes('recordPlayerProfileQuestCompleted'), 'completed daily quests are not counted in profile statistics'],
+  [files.nameChange.includes('PLAYER_NAME_CHANGE_GOLD_COST = 5_000') && files.nameChange.includes('completedChanges === 0 ? 0'), 'first player-name change is not free or later changes do not cost the fixed gold price'],
+  [files.nameChange.includes('users: Record<string, PlayerNameChangeEntry>') && files.nameChange.includes('state.users[id]'), 'player-name change allowance is not isolated per online account'],
+  [files.nameChange.includes("STORAGE_KEY = 'dungeon-veil-player-name-change-v1'") && files.cloud.includes('exportSaveBundle()'), 'player-name change allowance is not cloud-save compatible'],
+  [files.online.includes('data-testid="player-name-change"') && files.online.includes('SPIELERNAME ÄNDERN') && files.online.includes('CHANGE PLAYER NAME'), 'player-name change UI is not labelled explicitly'],
+  [files.online.includes('data-testid="player-name-change-cost"') && files.online.includes('KOSTENLOS ÄNDERN') && files.online.includes('PLAYER_NAME_CHANGE_GOLD_COST'), 'player-name change UI does not disclose free or paid state before confirmation'],
+  [files.online.includes('updateOnlineProfile(nextName)') && files.online.includes('commitPlayerNameChange(session.user.id)') && files.online.includes('rememberRunName(nextName)') && files.online.includes('renameSavedPlayerName(nextName)'), 'confirmed player-name changes do not synchronize profile, remembered run and existing save'],
+  [files.online.includes('void pushCloudSave()') && files.saveManager.includes("saveReason: 'player-name-change'"), 'renamed local save is not pushed through the guarded cloud path'],
+  [!files.online.includes('window.setTimeout(() => {\n      setProfileSaveState') && !files.online.includes("type ProfileSaveState ="), 'player name still changes automatically while typing'],
+  [files.menu.includes('PLAYER_NAME_CHANGE_EVENT') && files.menu.includes('const currentSaveData = loadGame() ?? props.saveData'), 'main-menu badge and profile do not refresh immediately after a name change'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -40,4 +54,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Player profile audit passed: complete statistics, rolling backup, startup repair, visible storage health and real run tracking are active.');
+console.log('Player profile audit passed: identity, statistics and storage are persistent; the first explicit player-name change is free and later changes cost disclosed gold.');

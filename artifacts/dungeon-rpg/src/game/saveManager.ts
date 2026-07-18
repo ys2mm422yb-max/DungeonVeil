@@ -100,6 +100,20 @@ export function loadGame(): SaveData | null {
   }
 }
 
+export function renameSavedPlayerName(playerName: string): SaveData | null {
+  const name = String(playerName ?? '').trim().replace(/\s+/g, ' ').slice(0, 18);
+  if (name.length < 2) return null;
+  const current = loadGame();
+  if (!current) return null;
+  const next: SaveData = {
+    ...current,
+    playerName: name,
+    saveReason: 'player-name-change',
+    savedAt: Date.now(),
+  };
+  return saveGame(next) ? next : null;
+}
+
 export function hasSave(): boolean {
   return loadGame() !== null;
 }
