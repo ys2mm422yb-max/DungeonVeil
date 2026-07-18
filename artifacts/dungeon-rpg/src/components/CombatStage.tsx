@@ -126,7 +126,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     >
       <div className={`absolute inset-0 ${shakeClass}`}>
         <GameCanvas gameState={gameState} />
-        <CoopTeammateOverlay gameState={gameState} remotePlayer={remotePlayer} />
+        {remotePlayer && <CoopTeammateOverlay gameState={gameState} remotePlayer={remotePlayer} />}
       </div>
       <div className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-200 ${hurtFlash ? 'opacity-100' : 'opacity-0'}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_38%,rgba(185,22,27,.48)_100%)]" />

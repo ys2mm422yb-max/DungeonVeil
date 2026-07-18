@@ -24,7 +24,7 @@ assert(bridge.includes('const PUBLISH_MS = 100'), 'Local player state is not pub
 assert(bridge.includes('remotePresenceIsFresh') && bridge.includes('onRemotePlayerRef.current(null)'), 'Stale or departed teammates are not removed.');
 assert(overlay.includes('interpolateCoopPresence') && overlay.includes('requestAnimationFrame(tick)'), 'Remote movement is not smoothly interpolated.');
 assert(overlay.includes('data-testid="coop-remote-player"') && overlay.includes('lastAttackTime') && overlay.includes('lastDodgeTime'), 'Remote player movement/action presentation is incomplete.');
-assert(combat.includes('<CoopTeammateOverlay gameState={gameState} remotePlayer={remotePlayer} />'), 'Combat stage does not display the synced teammate.');
+assert(combat.includes('{remotePlayer && <CoopTeammateOverlay gameState={gameState} remotePlayer={remotePlayer} />}'), 'Combat stage mounts the teammate overlay without a real remote player.');
 assert(lobby.includes('startCoopLobby') && lobby.includes('data-testid="coop-start-run"'), 'Host cannot start the ready duo lobby.');
 assert(lobby.includes("next.status === 'in_run'") && lobby.includes('onStartRun(next)'), 'Guest does not automatically enter the host-started run.');
 assert(menu.includes('onStartCoop') && menu.includes('onStartRun={lobby =>'), 'Main menu does not forward the started lobby into the game.');
