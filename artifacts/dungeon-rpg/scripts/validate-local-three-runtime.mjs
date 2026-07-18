@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+await import('./validate-pwa-portrait-orientation.mjs');
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const vite = fs.readFileSync(path.join(root, 'vite.config.ts'), 'utf8');
