@@ -32,23 +32,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Capture room audit
-        shell: bash
-        run: |
-          set +e
-          pnpm --filter @workspace/dungeon-rpg audit:rooms > room-audit.txt 2>&1
-          echo "$?" > room-audit-exit.txt
-          exit 0
-
-      - name: Upload room audit
-        uses: actions/upload-artifact@v4
-        with:
-          name: room-audit-diagnostics
-          path: |
-            room-audit.txt
-            room-audit-exit.txt
-          if-no-files-found: error
-
       - name: Typecheck
         run: pnpm run typecheck
 
