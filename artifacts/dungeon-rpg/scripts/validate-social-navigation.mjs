@@ -74,3 +74,4 @@ if (failures.length) {
 }
 
 console.log('Social/navigation audit passed: gameplay modes share one Play entry, social routes stay compact, and the current world-boss pipeline remains active.');
+// Test deployment touch for PR #217 menu verification.
