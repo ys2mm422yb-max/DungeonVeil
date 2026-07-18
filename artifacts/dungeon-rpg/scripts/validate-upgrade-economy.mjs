@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 
-const [economy, meta, targeting, dropContract, inventory, cloud] = await Promise.all([
+const [economy, preview, meta, targeting, dropContract, inventory, cloud] = await Promise.all([
   readFile(new URL('../src/game/equipmentUpgradeEconomy.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/equipmentUpgradePreview.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/metaProgression.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/equipmentTargeting.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/equipmentDropContract.ts', import.meta.url), 'utf8'),
@@ -32,6 +33,15 @@ const checks = [
   [inventory.includes('meta.dust}/{cost.dust}'), 'inventory does not display the available and required veil dust'],
   [inventory.includes('data-testid="equipment-source-marks"') && inventory.includes('data-testid="equipment-wish-item"') && inventory.includes('data-testid="equipment-craft-copy"'), 'inventory omits mark, wish or copy-crafting controls'],
   [inventory.includes('setEquipmentWishItem(wishActive ? null : selected)') && inventory.includes('craftEquipmentCopy(selected)'), 'inventory targeting buttons are not wired to real actions'],
+  [preview.includes('equipmentCombatModifiers(cloneMetaAtLevel(meta, id, level))') && preview.includes('equipmentCombatModifiers(cloneMetaAtLevel(meta, id, level + 1))'), 'upgrade preview is not derived from the real current and next equipment modifiers'],
+  [preview.includes("key: 'attackFlat'") && preview.includes("key: 'attackPercent'") && preview.includes("key: 'maxHp'") && preview.includes("key: 'defense'") && preview.includes("key: 'attackRange'") && preview.includes("key: 'attackSpeedPercent'"), 'upgrade preview omits important combat stats'],
+  [preview.includes('.filter(row => Math.abs(row.delta) >= 0.05)'), 'upgrade preview shows unchanged stats'],
+  [inventory.includes('data-testid="equipment-upgrade-preview"') && inventory.includes('LVL {selectedLevel} → {selectedLevel + 1}') && inventory.includes('formatUpgradeValue(row.delta'), 'inventory lacks a visible current-to-next stat comparison'],
+  [inventory.includes('data-testid="equipment-upgrade-disabled-reason"') && inventory.includes('ZU WENIG GOLD') && inventory.includes('ZU WENIGE ITEMKOPIEN') && inventory.includes('ZU WENIG SCHLEIERSTAUB'), 'disabled upgrade button does not explain its missing requirement'],
+  [inventory.includes('data-testid="equipment-upgrade-button"') && inventory.includes('onClick={event =>') && inventory.includes('event.stopPropagation(); upgradeSelectedItem();'), 'upgrade action is not isolated from parent pointer navigation'],
+  [inventory.includes('upgradingRef.current') && inventory.includes('setUpgrading(true)') && inventory.includes('WIRD VERBESSERT'), 'upgrade action lacks a repeated-tap guard or visible pending state'],
+  [!inventory.includes('startNewGame(') && !inventory.includes('setUiState(') && !inventory.includes("markActiveRun("), 'inventory upgrade UI can directly start, restore or navigate into a run'],
+  [inventory.includes('ITEM VERBESSERT') && inventory.includes('levelAfter > levelBefore'), 'successful upgrade does not confirm the actual changed item level'],
   [cloud.includes("'dungeon-veil-equipment-targeting-v1'"), 'targeted equipment progression is missing from cloud saves'],
   [cloud.includes('sourceMarkWeight(targeting.sourceMarks)') && cloud.includes('targeting.wishItem'), 'cloud conflict weight ignores targeted equipment progress'],
 ];
@@ -43,4 +53,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Upgrade economy audit passed: the sole three-resource upgrade path remains active, while three source marks, safe duplicate conversion and bounded wish pity provide controlled copies.');
+console.log('Upgrade economy audit passed: upgrades stay inside inventory, resist repeated taps, explain missing resources and preview every real next-level stat gain.');

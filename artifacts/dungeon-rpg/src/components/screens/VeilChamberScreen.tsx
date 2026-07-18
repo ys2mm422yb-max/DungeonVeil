@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { equipmentPresentation } from '../../game/equipmentPresentation';
 import {
@@ -11,6 +11,7 @@ import {
   xpForNextRank,
 } from '../../game/metaProgression';
 import { balancedEquipmentUpgradeCost, upgradeMetaItemBalanced } from '../../game/equipmentUpgradeEconomy';
+import { equipmentUpgradePreview, type EquipmentUpgradePreviewKey } from '../../game/equipmentUpgradePreview';
 import { equipmentUnlockChapter, highestReachedChapter } from '../../game/equipmentChapterGates';
 import {
   EQUIPMENT_SOURCE_MARK_COST,
@@ -45,8 +46,24 @@ const SOURCE_LABELS: Record<EquipmentDropSource, { de: string; en: string }> = {
   depth: { de: 'TIEFE', en: 'DEPTH' },
 };
 
+const UPGRADE_LABELS: Record<EquipmentUpgradePreviewKey, { de: string; en: string }> = {
+  attackFlat: { de: 'ANGRIFF', en: 'ATTACK' },
+  attackPercent: { de: 'ANGRIFF', en: 'ATTACK' },
+  maxHp: { de: 'LEBEN', en: 'HEALTH' },
+  defense: { de: 'VERTEIDIGUNG', en: 'DEFENSE' },
+  speedPercent: { de: 'BEWEGUNG', en: 'MOVEMENT' },
+  attackRange: { de: 'REICHWEITE', en: 'RANGE' },
+  attackSpeedPercent: { de: 'ANGRIFFSTEMPO', en: 'ATTACK SPEED' },
+  dodgeSpeedPercent: { de: 'DASH-TEMPO', en: 'DODGE SPEED' },
+};
+
 type ChamberTab = EquipmentSlot | 'relic';
 const CHAMBER_TABS: ChamberTab[] = ['bow', 'quiver', 'talisman', 'armor', 'relic'];
+
+function formatUpgradeValue(value: number, percent: boolean) {
+  const formatted = Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+  return percent ? `${formatted} %` : formatted;
+}
 
 export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const { language } = useLanguage();
@@ -56,6 +73,8 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<ChamberTab>('bow');
   const [selected, setSelected] = useState<EquipmentId>(meta.equipped.bow);
   const [selectedRelic, setSelectedRelic] = useState<VeilRelicId | null>(relicProfile.equipped ?? relicProfile.owned[0] ?? null);
+  const [upgrading, setUpgrading] = useState(false);
+  const upgradingRef = useRef(false);
   const [, setMarkerRevision] = useState(0);
   const de = language === 'de';
   const highestChapter = highestReachedChapter();
@@ -108,7 +127,8 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const selectedCopies = selectedProgress?.copies ?? 0;
   const equipped = selectedItem ? meta.equipped[selectedItem.slot] === selected : false;
   const cost = selectedItem ? balancedEquipmentUpgradeCost(selected, meta) : null;
-  const canUpgrade = Boolean(cost && meta.gold >= cost.gold && meta.dust >= cost.dust && selectedCopies >= cost.copies);
+  const canUpgrade = Boolean(cost && meta.gold >= cost.gold && meta.dust >= cost.dust && selectedCopies >= cost.copies && !upgrading);
+  const preview = useMemo(() => selectedItem ? equipmentUpgradePreview(selected, meta) : [], [meta, selected, selectedItem]);
   const xpTarget = xpForNextRank(meta.rank);
   const xpPercent = Math.max(0, Math.min(100, meta.xp / xpTarget * 100));
   const relicTier = selectedItem?.rarity === 'epic';
@@ -118,6 +138,15 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const sourceMarks = selectedItem ? targeting.sourceMarks[selectedItem.dropSource] : 0;
   const wishActive = selectedItem ? targeting.wishItem === selected : false;
   const canCraft = Boolean(selectedItem && targetable && sourceMarks >= EQUIPMENT_SOURCE_MARK_COST);
+  const upgradeBlockedReason = !cost
+    ? (de ? 'MAXIMALLEVEL ERREICHT' : 'MAXIMUM LEVEL REACHED')
+    : meta.gold < cost.gold
+      ? (de ? 'ZU WENIG GOLD' : 'NOT ENOUGH GOLD')
+      : selectedCopies < cost.copies
+        ? (de ? 'ZU WENIGE ITEMKOPIEN' : 'NOT ENOUGH ITEM COPIES')
+        : meta.dust < cost.dust
+          ? (de ? 'ZU WENIG SCHLEIERSTAUB' : 'NOT ENOUGH VEIL DUST')
+          : '';
 
   const lockedLabel = (item: (typeof EQUIPMENT)[EquipmentId]) => {
     const chapter = equipmentUnlockChapter(item.id);
@@ -164,6 +193,32 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
     }
     refreshTargeting();
   };
+  const upgradeSelectedItem = () => {
+    if (!selectedItem || !selectedPresentation || !canUpgrade || upgradingRef.current) return;
+    const levelBefore = meta.owned[selected]?.level ?? 0;
+    upgradingRef.current = true;
+    setUpgrading(true);
+    try {
+      const next = upgradeMetaItemBalanced(selected);
+      const levelAfter = next.owned[selected]?.level ?? levelBefore;
+      refresh(next);
+      refreshTargeting();
+      if (levelAfter > levelBefore) {
+        window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', {
+          detail: {
+            title: de ? 'ITEM VERBESSERT' : 'ITEM UPGRADED',
+            text: `${de ? selectedPresentation.nameDe : selectedPresentation.nameEn} · LEVEL ${levelAfter}/5`,
+            tone: 'relic',
+          },
+        }));
+      }
+    } finally {
+      window.setTimeout(() => {
+        upgradingRef.current = false;
+        setUpgrading(false);
+      }, 220);
+    }
+  };
 
   return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#080706] text-white">
     <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(105,73,170,.22),transparent_42%),linear-gradient(180deg,#0e0b0a_0%,#080706_72%)]" />
@@ -204,8 +259,14 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
               <div className="mt-2 text-[7px] leading-relaxed text-white/28">{de ? 'Ausrüstungslevel ist dauerhaft. Verbesserungen benötigen Gold, Itemkopien und Schleierstaub.' : 'Equipment level is permanent. Upgrades require gold, item copies and Veil Dust.'}</div>
               <div className="flex-1" />
               {selectedLevel > 0 ? <div className="mt-4 grid gap-2">
-                <div className="grid grid-cols-2 gap-2"><button type="button" onPointerDown={event => { event.preventDefault(); refresh(equipMetaItem(selected)); }} disabled={equipped} className={`rounded-xl border px-2 py-3 text-[9px] font-black tracking-[.12em] active:scale-[.98] ${equipped ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200/55' : 'border-violet-300/25 bg-violet-500/14 text-violet-100'}`}>{equipped ? (de ? 'AKTIV' : 'EQUIPPED') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button type="button" onPointerDown={event => { event.preventDefault(); refresh(upgradeMetaItemBalanced(selected)); refreshTargeting(); }} disabled={!canUpgrade} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-2 py-3 text-[9px] font-black tracking-[.08em] text-amber-100 disabled:opacity-30 active:scale-[.98]">{cost ? (de ? 'VERBESSERN' : 'UPGRADE') : 'MAX'}</button></div>
+                {cost && <div data-testid="equipment-upgrade-preview" className="rounded-xl border border-amber-300/14 bg-amber-300/[.055] p-2.5">
+                  <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-[.13em] text-amber-100/55"><span>{de ? 'NÄCHSTES UPGRADE' : 'NEXT UPGRADE'}</span><span>LVL {selectedLevel} → {selectedLevel + 1}</span></div>
+                  <div className="mt-2 grid gap-1.5">{preview.map(row => <div key={row.key} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg border border-white/7 bg-black/24 px-2 py-1.5 text-[8px]"><span className="font-black tracking-[.08em] text-white/55">{UPGRADE_LABELS[row.key][de ? 'de' : 'en']}</span><span className="font-black text-amber-100">{formatUpgradeValue(row.current, row.format === 'percent')} → {formatUpgradeValue(row.next, row.format === 'percent')} <span className="text-emerald-200">(+{formatUpgradeValue(row.delta, row.format === 'percent')})</span></span></div>)}</div>
+                </div>}
+                {!cost && <div data-testid="equipment-upgrade-max" className="rounded-xl border border-emerald-300/14 bg-emerald-400/[.055] px-3 py-2.5 text-center text-[8px] font-black tracking-[.13em] text-emerald-200/70">{de ? 'MAXIMALLEVEL · KEIN WEITERES UPGRADE' : 'MAXIMUM LEVEL · NO FURTHER UPGRADE'}</div>}
+                <div className="grid grid-cols-2 gap-2"><button type="button" onPointerDown={event => { event.preventDefault(); refresh(equipMetaItem(selected)); }} disabled={equipped} className={`rounded-xl border px-2 py-3 text-[9px] font-black tracking-[.12em] active:scale-[.98] ${equipped ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200/55' : 'border-violet-300/25 bg-violet-500/14 text-violet-100'}`}>{equipped ? (de ? 'AKTIV' : 'EQUIPPED') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button data-testid="equipment-upgrade-button" type="button" onPointerDown={event => { event.stopPropagation(); }} onClick={event => { event.preventDefault(); event.stopPropagation(); upgradeSelectedItem(); }} disabled={!canUpgrade} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-2 py-3 text-[9px] font-black tracking-[.08em] text-amber-100 disabled:opacity-30 active:scale-[.98]">{upgrading ? (de ? 'WIRD VERBESSERT…' : 'UPGRADING…') : cost ? (de ? 'VERBESSERN' : 'UPGRADE') : 'MAX'}</button></div>
                 {cost && <div data-testid="equipment-upgrade-costs" className="grid grid-cols-3 gap-1.5 text-center text-[7px] font-black tracking-[.06em]"><div className={`rounded-lg border border-white/7 bg-black/24 px-1 py-2 ${meta.gold >= cost.gold ? 'text-yellow-200' : 'text-red-300'}`}>GOLD<br />{meta.gold}/{cost.gold}</div><div className={`rounded-lg border border-white/7 bg-black/24 px-1 py-2 ${selectedCopies >= cost.copies ? 'text-violet-200' : 'text-red-300'}`}>{de ? 'KOPIEN' : 'COPIES'}<br />{selectedCopies}/{cost.copies}</div><div className={`rounded-lg border border-white/7 bg-black/24 px-1 py-2 ${meta.dust >= cost.dust ? 'text-amber-200' : 'text-red-300'}`}>{de ? 'STAUB' : 'DUST'}<br />{meta.dust}/{cost.dust}</div></div>}
+                {!canUpgrade && upgradeBlockedReason && <div data-testid="equipment-upgrade-disabled-reason" className="text-center text-[7px] font-black uppercase tracking-[.11em] text-red-200/65">{upgradeBlockedReason}</div>}
               </div> : <div className="mt-4 rounded-xl border border-white/8 bg-white/[.03] px-3 py-3 text-center text-[8px] font-black tracking-[.14em] text-white/30">{`${lockedLabel(selectedItem)} · DROP: ${sourceLabel}`}</div>}
               {targetable && <div className="mt-3 grid gap-2 border-t border-white/8 pt-3">
                 <div data-testid="equipment-source-marks" className="flex items-center justify-between rounded-xl border border-violet-300/12 bg-violet-500/[.06] px-3 py-2 text-[8px] font-black tracking-[.12em]"><span className="text-violet-100/55">{sourceLabel}-{de ? 'MARKEN' : 'MARKS'}</span><span className={sourceMarks >= EQUIPMENT_SOURCE_MARK_COST ? 'text-emerald-200' : 'text-violet-100'}>{sourceMarks}/{EQUIPMENT_SOURCE_MARK_COST}</span></div>
