@@ -1,5 +1,6 @@
 import type { Enemy, EnemyType, VisualEffect } from './entities';
 import type { DuoRunContext } from './coopRunMode';
+import { ensureDuoRoomBalance } from './coopDuoBalance';
 import type { RunGameState } from './runEngine';
 
 const MAX_ENEMY_SNAPSHOT_COUNT = 32;
@@ -222,6 +223,7 @@ function serializeEnemy(enemy: Enemy): CoopEnemySnapshotEntry {
 }
 
 export function createCoopEnemySnapshot(context: DuoRunContext, userId: string, state: RunGameState, sequence: number): CoopEnemySnapshot {
+  ensureDuoRoomBalance(state, context.runSeed);
   return {
     version: 1,
     lobbyId: context.lobbyId,
