@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [bundle, cloud, runtime, saveManager, onlinePanel, updateGate, spectator, spectatorScreen, hud, themes, migration] = await Promise.all([
+const [bundle, safety, cloud, runtime, saveManager, onlinePanel, updateGate, spectator, spectatorScreen, hud, themes, migration] = await Promise.all([
   read('../src/game/persistentSaveBundle.ts'),
+  read('../src/game/cloudSaveSafety.ts'),
   read('../src/game/cloudSave.ts'),
   read('../src/game/cloudAccountSyncRuntime.ts'),
   read('../src/game/saveManager.ts'),
@@ -17,13 +18,17 @@ const [bundle, cloud, runtime, saveManager, onlinePanel, updateGate, spectator, 
 
 const checks = [
   [bundle.includes('managedBundleKeys') && bundle.includes('localStorage.length') && bundle.includes('isCloudManagedKey'), 'cloud export does not dynamically include persistent Dungeon Veil keys'],
-  [bundle.includes('activityAt?: number') && bundle.includes('progressWeight?: number') && bundle.includes('shouldRestoreRemoteBundle'), 'cloud bundles lack conflict metadata or restore ordering'],
-  [cloud.includes("rpc/upsert_guarded_game_save") && cloud.includes('shouldRestoreRemoteBundle(bundle, result.payload)'), 'cloud pushes are not protected from stale-device overwrite'],
+  [bundle.includes('activityAt?: number') && bundle.includes('progressWeight?: number') && bundle.includes('shouldRestoreRemoteBundle'), 'cloud bundles lack conflict metadata or legacy restore ordering'],
+  [safety.includes('bundleHasCoreProgress') && safety.includes('shouldRestoreRemoteBundleSafely') && safety.includes('recoveryBundleForThinRemote') && safety.includes('STARTER_EQUIPMENT_IDS'), 'new-device core progress detection, safe ordering or recovery repair is incomplete'],
+  [cloud.includes("rpc/upsert_guarded_game_save") && cloud.includes('bundleHasCoreProgress') && cloud.includes('shouldRestoreRemoteBundleSafely'), 'cloud pushes can still upload or restore a profile-only game bundle'],
   [migration.includes('for update') && migration.includes("jsonb_build_object('accepted', false") && migration.includes('upsert_guarded_game_save'), 'server-side cloud conflict guard is incomplete'],
   [saveManager.includes("SAVE_EVENT = 'dungeon-veil-save-changed'") && saveManager.includes('emitSaveChange();'), 'normal run saves do not notify the cloud sync runtime'],
   [runtime.includes('CLOUD_RECONCILE_MS = 10_000') && runtime.includes('bundleDataSignature') && runtime.includes('visibilitychange') && runtime.includes("window.addEventListener('focus'") && runtime.includes('SAVE_EVENT'), 'global cloud reconciliation is not frequent or browser-switch aware'],
+  [runtime.includes('hydratedUserId') && runtime.includes('cloudAccountHydrated') && runtime.includes('pendingPush') && runtime.includes('readCloudSave') && runtime.includes('recoveryBundleForThinRemote'), 'account uploads are not gated behind pull-first hydration and thin-remote recovery'],
+  [runtime.includes("window.addEventListener('pagehide'") && runtime.includes('cloudAccountHydrated()'), 'pagehide can upload before account hydration'],
   [onlinePanel.includes('data-testid="player-name-change-submit"') && onlinePanel.includes('updateOnlineProfile(nextName)') && onlinePanel.includes('void pushCloudSave()') && onlinePanel.includes('cloud-autosync-status') && !onlinePanel.includes('Spielstand hochladen') && !onlinePanel.includes('Spielstand herunterladen') && !onlinePanel.includes('Profil speichern'), 'online panel does not combine explicit player-name confirmation with automatic cloud synchronization'],
   [updateGate.includes('CLOUD_POLL_MS = 15_000') && updateGate.includes('pullCloudSave') && updateGate.includes('window.location.reload'), 'main-menu multi-device refresh is missing'],
+  [updateGate.includes('cloudAccountHydrated') && updateGate.includes('safeReload(false)') && !updateGate.includes('pull(true)'), 'main menu can still push a fresh device before its first pull'],
   [updateGate.includes('deployment.json') && updateGate.includes('UPDATE_DELAY_MS') && updateGate.includes('pushCloudSave'), 'safe automatic main-menu deployment update is missing'],
   [spectator.includes('SPECTATOR_REFRESH_MS = 100') && spectator.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not ten-hertz and gift-aware'],
   [spectatorScreen.includes('INTERPOLATION_MS = 120') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator smoothing, gifts or heartbeat are missing'],
@@ -40,4 +45,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Explicit player-name confirmation, automatic ten-second cloud reconciliation, safe updates, 10Hz spectating, viewer presence, gifts, ring cleanup and room 15 performance validated.');
+console.log('Explicit player-name confirmation, pull-first account hydration, thin-bundle protection, recovery repair, automatic cloud reconciliation, safe updates, spectating and mobile performance validated.');
