@@ -6,6 +6,13 @@ import {
 
 type JsonRecord = Record<string, unknown>;
 
+const STARTER_EQUIPMENT_IDS = new Set([
+  'ash-bow',
+  'ranger-quiver',
+  'veil-key',
+  'ranger-cloak',
+]);
+
 function record(value: unknown): JsonRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
 }
@@ -20,8 +27,13 @@ function number(value: unknown): number {
   return Math.max(0, Number(value) || 0);
 }
 
-function hasRecordEntries(value: unknown): boolean {
-  return Object.keys(record(value)).length > 0;
+function hasPermanentEquipmentProgress(value: unknown): boolean {
+  const owned = record(value);
+  return Object.entries(owned).some(([id, raw]) => {
+    if (!STARTER_EQUIPMENT_IDS.has(id)) return true;
+    const item = record(raw);
+    return number(item.level) > 1 || number(item.copies) > 0;
+  });
 }
 
 export function bundleHasCoreProgress(bundle: DungeonVeilSaveBundle): boolean {
@@ -34,10 +46,13 @@ export function bundleHasCoreProgress(bundle: DungeonVeilSaveBundle): boolean {
     || number(save.floor) > 0
   );
   const hasMetaProgress = Object.keys(meta).length > 0 && (
-    number(meta.rank) > 0
+    number(meta.rank) > 1
+    || number(meta.xp) > 0
     || number(meta.dust) > 0
-    || hasRecordEntries(meta.owned)
-    || hasRecordEntries(meta.equipped)
+    || number(meta.gold) > 0
+    || (Array.isArray(meta.rewardLedger) && meta.rewardLedger.length > 0)
+    || (typeof meta.currentRunId === 'string' && meta.currentRunId.length > 0)
+    || hasPermanentEquipmentProgress(meta.owned)
   );
   return hasRunSave || hasMetaProgress;
 }
