@@ -90,4 +90,5 @@ try {
   await server.close();
 }
 
+// Revalidated after retargeting the projectile-only PR onto the current integration branch.
 console.log('Duo presence remains isolated and reconnectable while real teammate health and visual-only normal, elemental, piercing and ricochet arrows render without changing combat authority.');
