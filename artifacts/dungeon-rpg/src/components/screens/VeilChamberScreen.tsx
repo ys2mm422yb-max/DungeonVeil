@@ -194,7 +194,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
     refreshTargeting();
   };
   const upgradeSelectedItem = () => {
-    if (!selectedItem || !canUpgrade || upgradingRef.current) return;
+    if (!selectedItem || !selectedPresentation || !canUpgrade || upgradingRef.current) return;
     const levelBefore = meta.owned[selected]?.level ?? 0;
     upgradingRef.current = true;
     setUpgrading(true);
@@ -207,7 +207,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
         window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', {
           detail: {
             title: de ? 'ITEM VERBESSERT' : 'ITEM UPGRADED',
-            text: `${de ? selectedPresentation.nameDe : selectedPresentation.nameEn} · ${de ? 'LEVEL' : 'LEVEL'} ${levelAfter}/5`,
+            text: `${de ? selectedPresentation.nameDe : selectedPresentation.nameEn} · LEVEL ${levelAfter}/5`,
             tone: 'relic',
           },
         }));
