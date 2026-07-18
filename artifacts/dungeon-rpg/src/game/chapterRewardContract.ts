@@ -45,7 +45,8 @@ function ensureRunId(meta: MetaProgression): void {
 function normalizedOptions(options: ChapterRoomRewardOptions | undefined) {
   const multiplier = Math.max(1, Math.min(2, Number(options?.currencyMultiplier) || 1));
   const rewardRunId = String(options?.rewardRunId ?? '').trim().slice(0, 120);
-  const equipmentReward = options?.equipmentReward !== false;
+  const duoMode = typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilRunMode === 'duo';
+  const equipmentReward = options?.equipmentReward ?? !duoMode;
   return { multiplier, rewardRunId, equipmentReward };
 }
 
