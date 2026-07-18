@@ -42,21 +42,6 @@ jobs:
           cache: pnpm
       - name: Install workspace
         run: pnpm install --frozen-lockfile
-      - name: Capture cloud audit
-        shell: bash
-        run: |
-          set +e
-          node artifacts/dungeon-rpg/scripts/validate-cloud-realtime-performance.mjs > cloud-audit.txt 2>&1
-          echo "$?" > cloud-audit-exit.txt
-          exit 0
-      - name: Upload cloud audit
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloud-audit-diagnostics
-          path: |
-            cloud-audit.txt
-            cloud-audit-exit.txt
-          if-no-files-found: error
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Room and collision audit
