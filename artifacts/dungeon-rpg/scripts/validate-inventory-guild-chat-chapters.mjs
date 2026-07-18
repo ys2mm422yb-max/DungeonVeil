@@ -19,9 +19,11 @@ const [menu, main, inventory, markers, unlockLayer, hub, guildPanel, chatPanel, 
 
 const unlockChapters = [...gates.matchAll(/'[^']+':\s*(\d+),/g)].map(match => Number(match[1]));
 const representedUnlockChapters = new Set(unlockChapters);
+const recordsChapterFromProps = menu.includes('recordReachedChapter(props.saveData?.chapter ?? 1)');
+const recordsChapterFromRefreshedSave = menu.includes('recordReachedChapter(currentSaveData?.chapter ?? 1)');
 
 const checks = [
-  [menu.includes("language === 'de' ? 'Inventar' : 'Inventory'") && !menu.includes("'Schleierkammer' : 'Veil Chamber'") && menu.includes('recordReachedChapter(props.saveData?.chapter ?? 1)'), 'main-menu inventory label or saved chapter migration is missing'],
+  [menu.includes("language === 'de' ? 'Inventar' : 'Inventory'") && !menu.includes("'Schleierkammer' : 'Veil Chamber'") && (recordsChapterFromProps || recordsChapterFromRefreshedSave), 'main-menu inventory label or saved chapter migration is missing'],
   [inventory.includes("'INVENTAR' : 'INVENTORY'") && inventory.includes('equipmentUnlockChapter') && inventory.includes("'AB KAPITEL' : 'FROM CHAPTER'"), 'inventory heading or chapter requirement is missing'],
   [markers.includes('initialized: boolean') && markers.includes('initializeSeenUnlocks') && markers.includes('unseenEquipmentIds') && markers.includes('unseenRelicIds'), 'persistent unseen-unlock tracking is incomplete'],
   [inventory.includes('inventory-tab-new-badge') && inventory.includes('inventory-item-new-badge') && inventory.includes('markEquipmentSeen') && inventory.includes('markRelicSeen'), 'inventory NEW markers or seen actions are missing'],
