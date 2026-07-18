@@ -9,6 +9,7 @@ import {
   type FriendSpectatorFeed,
 } from '../game/socialSpectatorOnline';
 import { CombatStage } from './CombatStage';
+import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
 
 const INTERPOLATION_MS = 120;
 const lerp = (from: number, to: number, amount: number) => from + (to - from) * amount;
@@ -17,7 +18,7 @@ const GIFT_LABELS: Record<string, readonly [string, string]> = {
   multishot: ['Mehrfachpfeil', 'Multishot'],
   ricochet: ['Abpraller', 'Ricochet'],
   fireArrow: ['Feuerpfeil', 'Fire Arrow'],
-  iceArrow: ['Frostpfeil', 'Frost Arrow'],
+  iceArrow: ['Frostpfeil', 'Ice Arrow'],
   attackSpeed: ['Schnellzug', 'Quick Draw'],
   piercing: ['Durchbohren', 'Piercing'],
   elementalStorm: ['Elementsturm', 'Elemental Storm'],
@@ -65,11 +66,23 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   const [feed, setFeed] = useState<FriendSpectatorFeed | null>(null);
   const [displayState, setDisplayState] = useState<RunGameState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [rendererReady, setRendererReady] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     document.documentElement.dataset.dungeonVeilSpectating = '1';
-    return () => { delete document.documentElement.dataset.dungeonVeilSpectating; };
+    window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: true } }));
+    let firstFrame = 0;
+    let secondFrame = 0;
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => setRendererReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+      window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: false } }));
+      delete document.documentElement.dataset.dungeonVeilSpectating;
+    };
   }, []);
 
   useEffect(() => {
@@ -166,10 +179,11 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
           : unavailable
             ? (de ? 'ZUSCHAUEN NICHT VERFÜGBAR' : 'SPECTATING UNAVAILABLE')
             : '';
+  const preparingRenderer = !rendererReady;
 
   return <div data-testid="spectator-screen" className="fixed inset-0 z-[220] overflow-hidden bg-black text-white">
-    {gameState && <CombatStage gameState={gameState} />}
-    {!gameState && <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(67,41,102,.3),#050507_56%)]" />}
+    {rendererReady && gameState && <CombatStage gameState={gameState} />}
+    {(!rendererReady || !gameState) && <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(67,41,102,.3),#050507_56%)]" />}
 
     <header className="pointer-events-none absolute inset-x-0 top-0 z-[240] flex items-start justify-between gap-2 bg-gradient-to-b from-black/92 via-black/58 to-transparent px-3 pb-12 pt-[max(10px,calc(env(safe-area-inset-top)+6px))]">
       <div className="min-w-0 max-w-[calc(100vw-68px)] rounded-2xl border border-violet-300/18 bg-black/72 px-3 py-2 backdrop-blur-lg">
@@ -188,8 +202,8 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
       <button type="button" aria-label={de ? 'Zuschauen beenden' : 'Stop spectating'} onClick={onClose} className="pointer-events-auto grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/16 bg-black/76 text-xl font-black text-white/80 backdrop-blur-lg active:scale-90">×</button>
     </header>
 
-    {(loading || status || error) && <div className="absolute inset-x-3 bottom-[max(14px,env(safe-area-inset-bottom))] z-[240] rounded-2xl border border-white/12 bg-black/82 p-4 text-center backdrop-blur-xl">
-      <div data-testid="spectator-status-message" className="text-[9px] font-black uppercase tracking-[.17em] text-violet-100">{loading ? (de ? 'LIVE-RUN WIRD GELADEN …' : 'LOADING LIVE RUN …') : status || (de ? 'VERBINDUNG WIRD WIEDERHERGESTELLT' : 'RECONNECTING')}</div>
+    {(preparingRenderer || loading || status || error) && <div className="absolute inset-x-3 bottom-[max(14px,env(safe-area-inset-bottom))] z-[240] rounded-2xl border border-white/12 bg-black/82 p-4 text-center backdrop-blur-xl">
+      <div data-testid="spectator-status-message" className="text-[9px] font-black uppercase tracking-[.17em] text-violet-100">{preparingRenderer || loading ? (de ? 'LIVE-RUN WIRD GELADEN …' : 'LOADING LIVE RUN …') : status || (de ? 'VERBINDUNG WIRD WIEDERHERGESTELLT' : 'RECONNECTING')}</div>
       {error && <div className="mt-2 text-[8px] leading-relaxed text-red-200/70">{error}</div>}
       {(dead || inMenu || unavailable) && <button type="button" onClick={onClose} className="mt-3 rounded-xl border border-violet-300/20 bg-violet-500/12 px-5 py-2.5 text-[8px] font-black uppercase tracking-[.14em] text-violet-100 active:scale-[.98]">{de ? 'ZURÜCK' : 'BACK'}</button>}
     </div>}
