@@ -45,22 +45,7 @@ jobs:
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Room and collision audit
-        shell: bash
-        run: |
-          set +e
-          pnpm --filter @workspace/dungeon-rpg audit:rooms 2>&1 | tee shared-loot-room-audit.txt
-          code=${PIPESTATUS[0]}
-          echo "$code" > shared-loot-room-audit-exit.txt
-          exit "$code"
-      - name: Upload shared loot audit diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: shared-loot-room-audit-diagnostics
-          path: |
-            shared-loot-room-audit.txt
-            shared-loot-room-audit-exit.txt
-          if-no-files-found: ignore
+        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
