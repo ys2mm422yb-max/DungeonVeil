@@ -36,19 +36,27 @@ export function CoopTeammateScene3D({ gameState, remotePlayer }: Props) {
 
   useEffect(() => {
     let disposed = false;
+    let raf = 0;
     let THREE: any = null;
     let GLTFLoaderCtor: any = null;
-    let originalRender: ((scene: any, camera: any) => unknown) | null = null;
-    let patchedRender: ((this: any, scene: any, camera: any) => unknown) | null = null;
+    let originalAdd: ((...objects: any[]) => any) | null = null;
+    let patchedAdd: ((this: any, ...objects: any[]) => any) | null = null;
     let binding: SceneBinding | null = null;
     let loading = false;
     let desiredScene: any = null;
+
+    const disposeObject = (object: any) => object?.traverse?.((node: any) => {
+      node.geometry?.dispose?.();
+      if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
+      else node.material?.dispose?.();
+    });
 
     const removeBinding = () => {
       if (!binding) return;
       binding.rig.stop();
       binding.scene.remove(binding.rig.root);
       binding.scene.remove(binding.ring);
+      disposeObject(binding.rig.root);
       binding.ring.geometry?.dispose?.();
       binding.ring.material?.dispose?.();
       binding = null;
@@ -80,6 +88,7 @@ export function CoopTeammateScene3D({ gameState, remotePlayer }: Props) {
         const rig = await loadKayKitRanger(THREE, GLTFLoaderCtor);
         if (disposed || desiredScene !== requestedScene) {
           rig.stop();
+          disposeObject(rig.root);
           return;
         }
         rig.root.name = 'KayKitCoopTeammate';
@@ -88,8 +97,7 @@ export function CoopTeammateScene3D({ gameState, remotePlayer }: Props) {
         rig.root.visible = false;
         const ring = createRing();
         ring.visible = false;
-        requestedScene.add(rig.root);
-        requestedScene.add(ring);
+        originalAdd!.call(requestedScene, rig.root, ring);
         binding = {
           scene: requestedScene,
           rig,
@@ -108,18 +116,17 @@ export function CoopTeammateScene3D({ gameState, remotePlayer }: Props) {
       }
     };
 
-    const updateBinding = (scene: any, camera: any, now: number) => {
-      const isRunScene = Number.isFinite(camera?.userData?.dungeonPlayerX)
-        && Boolean(scene?.getObjectByName?.('KayKitRangerPlayer'));
-      if (!isRunScene) return;
-
-      desiredScene = scene;
-      if (binding && binding.scene !== scene) removeBinding();
-      if (!binding) {
-        void ensureBinding(scene);
-        return;
+    const captureRunScene = (scene: any) => {
+      if (!scene?.isScene || !scene.getObjectByName?.('KayKitRangerPlayer')) return;
+      if (desiredScene !== scene) {
+        desiredScene = scene;
+        if (binding && binding.scene !== scene) removeBinding();
       }
+      if (!binding) void ensureBinding(scene);
+    };
 
+    const updateBinding = (now: number) => {
+      if (!binding) return;
       const state = stateRef.current;
       const remote = remoteRef.current;
       const visible = remotePresenceIsFresh(remote)
@@ -127,7 +134,10 @@ export function CoopTeammateScene3D({ gameState, remotePlayer }: Props) {
         && remote.room === state.floor;
       binding.rig.root.visible = visible;
       binding.ring.visible = visible;
-      if (!visible) return;
+      if (!visible) {
+        binding.lastFrame = now;
+        return;
+      }
 
       const delta = Math.min(0.05, Math.max(0, now - binding.lastFrame) / 1000);
       binding.lastFrame = now;
@@ -170,27 +180,38 @@ export function CoopTeammateScene3D({ gameState, remotePlayer }: Props) {
       binding.ring.scale.setScalar(alive ? 1 : 1.08);
     };
 
+    const tick = (now: number) => {
+      if (disposed) return;
+      updateBinding(now);
+      raf = requestAnimationFrame(tick);
+    };
+
     const install = async () => {
       THREE = await import(/* @vite-ignore */ THREE_URL);
       const loaderModule = await import(/* @vite-ignore */ GLTF_URL) as any;
       GLTFLoaderCtor = loaderModule.GLTFLoader;
       if (disposed) return;
 
-      originalRender = THREE.WebGLRenderer.prototype.render;
-      patchedRender = function patchedCoopRender(this: any, scene: any, camera: any) {
-        updateBinding(scene, camera, performance.now());
-        return originalRender!.call(this, scene, camera);
+      originalAdd = THREE.Object3D.prototype.add;
+      patchedAdd = function patchedCoopSceneAdd(this: any, ...objects: any[]) {
+        const result = originalAdd!.apply(this, objects);
+        if (this?.isScene && (objects.some(object => object?.name === 'KayKitRangerPlayer') || this.getObjectByName?.('KayKitRangerPlayer'))) {
+          captureRunScene(this);
+        }
+        return result;
       };
-      THREE.WebGLRenderer.prototype.render = patchedRender;
+      THREE.Object3D.prototype.add = patchedAdd;
+      raf = requestAnimationFrame(tick);
     };
 
     void install().catch(error => console.error('Coop teammate scene bridge could not start', error));
 
     return () => {
       disposed = true;
+      cancelAnimationFrame(raf);
       removeBinding();
-      if (THREE && originalRender && patchedRender && THREE.WebGLRenderer.prototype.render === patchedRender) {
-        THREE.WebGLRenderer.prototype.render = originalRender;
+      if (THREE && originalAdd && patchedAdd && THREE.Object3D.prototype.add === patchedAdd) {
+        THREE.Object3D.prototype.add = originalAdd;
       }
     };
   }, []);
