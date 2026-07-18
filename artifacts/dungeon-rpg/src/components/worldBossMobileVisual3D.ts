@@ -1,3 +1,5 @@
+import { createWorldBossFallbackDragonRig } from './worldBossFallbackDragon3D';
+
 const APP_BASE = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_BASE = APP_BASE.endsWith('/') ? APP_BASE : `${APP_BASE}/`;
 const DRAGON_ASSET_PATH = 'assets/3d/Dragon.fbx';
@@ -151,7 +153,7 @@ async function loadDragon(FBXLoader: any, attempts = 2) {
   throw lastError instanceof Error ? lastError : new Error('Dragon model could not be loaded');
 }
 
-export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Promise<WorldBossMobileRig> {
+async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobileRig> {
   const { FBXLoader } = await import(/* @vite-ignore */ FBX_LOADER_URL) as any;
   const visual = await loadDragon(FBXLoader);
   visual.name = 'DungeonVeilDragon';
@@ -250,4 +252,15 @@ export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Prom
       });
     },
   };
+}
+
+export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Promise<WorldBossMobileRig> {
+  try {
+    return await loadImportedWorldBossMobileRig(THREE);
+  } catch (error) {
+    console.warn('Imported Ash King dragon unavailable; using procedural dragon fallback', error);
+    const fallback = createWorldBossFallbackDragonRig(THREE);
+    fallback.root.userData.dungeonVeilBossVisual = 'procedural-dragon-fallback';
+    return fallback;
+  }
 }
