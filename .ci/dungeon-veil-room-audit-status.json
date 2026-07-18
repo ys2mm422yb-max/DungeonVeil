@@ -1,9 +1,9 @@
 {
   "branch": "fix/play-mode-menu-deploy-status",
   "status": "failure",
-  "attemptedCommit": "8486e74f6e058743cac83611ec4e1e627cc1dfdc",
-  "failingScript": "validate-social-progression.mjs",
+  "attemptedCommit": "954ac095c62e8c31bdefc27e1a1122495ac3fccd",
+  "failingScript": "validate-main-menu-equipped-ranger.mjs",
   "exitStatus": 1,
-  "output": "✓ validate-production-rooms.mjs\n✓ validate-spawn-hitboxes.mjs\n✓ validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs\n✓ validate-enemy-visibility.mjs\n✓ validate-mobile-combat.mjs\n✓ validate-combat-telegraphs-late-balance.mjs\n✓ validate-mobile-zoom-guard.mjs\n✓ validate-ipad-run-layout.mjs\n✓ validate-worldboss-performance.mjs\n✓ validate-social-navigation.mjs\n\nROOM AUDIT FAILED: validate-social-progression.mjs\nSocial progression audit failed with 1 error(s):\n  - interactive village NPC navigation is missing",
-  "completedAt": "2026-07-18T10:22:52.141Z"
+  "output": "✓ validate-production-rooms.mjs\n✓ validate-spawn-hitboxes.mjs\n✓ validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs\n✓ validate-enemy-visibility.mjs\n✓ validate-mobile-combat.mjs\n✓ validate-combat-telegraphs-late-balance.mjs\n✓ validate-mobile-zoom-guard.mjs\n✓ validate-ipad-run-layout.mjs\n✓ validate-worldboss-performance.mjs\n✓ validate-social-navigation.mjs\n✓ validate-social-progression.mjs\n✓ validate-run-identity-social-spectator.mjs\n✓ validate-gift-fusions.mjs\n✓ validate-dust-avatar-overhaul.mjs\n✓ validate-rooms-4-5-composition.mjs\n✓ validate-room-quality-6-50.mjs\n✓ validate-guild-mobile-layout.mjs\n✓ validate-blocks-1-8-integration.mjs\n\nROOM AUDIT FAILED: validate-main-menu-equipped-ranger.mjs\nMain-menu equipped ranger audit failed with 1 error(s):\n  - redundant village place prompt remains",
+  "completedAt": "2026-07-18T10:26:25.083Z"
 }
