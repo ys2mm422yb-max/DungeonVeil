@@ -18,6 +18,7 @@ const RESOLVED_VISIBLE_MS = 4_500;
 
 type ProposalDetail = {
   drop: PendingEquipmentDrop;
+  dropKey: string;
   chapter: number;
   room: number;
 };
@@ -25,9 +26,10 @@ type ProposalDetail = {
 function activeRoom(): { chapter: number; room: number } | null {
   if (typeof document === 'undefined') return null;
   const root = document.documentElement;
-  const chapter = Math.max(1, Math.floor(Number(root.dataset.dungeonVeilCoopChapter) || 0));
-  const room = Math.max(1, Math.min(50, Math.floor(Number(root.dataset.dungeonVeilCoopRoom) || 0)));
-  return chapter > 0 && room > 0 ? { chapter, room } : null;
+  const rawChapter = Math.floor(Number(root.dataset.dungeonVeilCoopChapter));
+  const rawRoom = Math.floor(Number(root.dataset.dungeonVeilCoopRoom));
+  if (!Number.isFinite(rawChapter) || rawChapter < 1 || !Number.isFinite(rawRoom) || rawRoom < 1) return null;
+  return { chapter: rawChapter, room: Math.min(50, rawRoom) };
 }
 
 function remainingSeconds(state: CoopSharedLootState): number {
@@ -38,6 +40,10 @@ function remainingSeconds(state: CoopSharedLootState): number {
   return Math.max(0, Math.ceil((resolveAt - (Date.now() - offset)) / 1000));
 }
 
+function lootKey(state: CoopSharedLootState): string {
+  return `${state.lobby_id}:${state.run_seed}:${state.chapter}:${state.room}:${state.drop_key}:${state.status}`;
+}
+
 export function CoopSharedLootOverlay() {
   const { language } = useLanguage();
   const de = language === 'de';
@@ -45,13 +51,11 @@ export function CoopSharedLootOverlay() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [seconds, setSeconds] = useState(0);
-  const appliedKeyRef = useRef('');
-  const hiddenKeyRef = useRef('');
+  const appliedKeysRef = useRef(new Set<string>());
+  const hiddenKeysRef = useRef(new Set<string>());
   const localUserId = currentOnlineSession()?.user?.id ?? '';
 
-  const stateKey = loot
-    ? `${loot.lobby_id}:${loot.run_seed}:${loot.chapter}:${loot.room}:${loot.status}`
-    : '';
+  const stateKey = loot ? lootKey(loot) : '';
   const item = loot ? EQUIPMENT[loot.item_id] : null;
   const myChoice = loot ? localCoopLootChoice(loot) : null;
   const claimCount = loot ? Object.values(loot.choices).filter(choice => choice === 'claim').length : 0;
@@ -69,12 +73,12 @@ export function CoopSharedLootOverlay() {
     const onProposal = (event: Event) => {
       const context = currentDuoRunContext();
       const detail = (event as CustomEvent<ProposalDetail>).detail;
-      if (!context || context.role !== 'host' || !detail?.drop?.item) return;
+      if (!context || context.role !== 'host' || !detail?.drop?.item || !detail.dropKey) return;
       setError('');
-      void openCoopSharedLoot(context, detail.chapter, detail.room, detail.drop)
+      void openCoopSharedLoot(context, detail.chapter, detail.room, detail.dropKey, detail.drop)
         .then(next => {
-          hiddenKeyRef.current = '';
-          setLoot(next);
+          hiddenKeysRef.current.delete(lootKey(next));
+          setLoot(current => current?.status === 'open' ? current : next);
         })
         .catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
     };
@@ -93,8 +97,8 @@ export function CoopSharedLootOverlay() {
       try {
         const next = await loadCoopSharedLoot(context, room.chapter, room.room);
         if (!stopped && next) {
-          const key = `${next.lobby_id}:${next.run_seed}:${next.chapter}:${next.room}:${next.status}`;
-          if (hiddenKeyRef.current !== key) setLoot(next);
+          const key = lootKey(next);
+          if (!hiddenKeysRef.current.has(key)) setLoot(next);
         }
       } catch {
         // A short network interruption must not dismiss an already visible vote.
@@ -115,7 +119,7 @@ export function CoopSharedLootOverlay() {
     if (loot?.status === 'open') document.documentElement.dataset.dungeonVeilCoopLootPending = '1';
     else delete document.documentElement.dataset.dungeonVeilCoopLootPending;
     return () => { delete document.documentElement.dataset.dungeonVeilCoopLootPending; };
-  }, [loot?.status, loot?.chapter, loot?.room]);
+  }, [loot?.status, loot?.chapter, loot?.room, loot?.drop_key]);
 
   useEffect(() => {
     if (!loot) return;
@@ -126,13 +130,13 @@ export function CoopSharedLootOverlay() {
 
   useEffect(() => {
     if (!loot || loot.status !== 'resolved') return;
-    const resolutionKey = `${loot.lobby_id}:${loot.run_seed}:${loot.chapter}:${loot.room}`;
-    if (appliedKeyRef.current !== resolutionKey) {
-      appliedKeyRef.current = resolutionKey;
+    const resolutionKey = `${loot.lobby_id}:${loot.run_seed}:${loot.chapter}:${loot.room}:${loot.drop_key}`;
+    if (!appliedKeysRef.current.has(resolutionKey)) {
+      appliedKeysRef.current.add(resolutionKey);
       applyCoopSharedLootResolution(loot);
     }
     const timer = window.setTimeout(() => {
-      hiddenKeyRef.current = stateKey;
+      hiddenKeysRef.current.add(stateKey);
       setLoot(current => current === loot ? null : current);
     }, RESOLVED_VISIBLE_MS);
     return () => window.clearTimeout(timer);
@@ -144,7 +148,7 @@ export function CoopSharedLootOverlay() {
     setBusy(true);
     setError('');
     try {
-      setLoot(await chooseCoopSharedLoot(context, loot.chapter, loot.room, choice));
+      setLoot(await chooseCoopSharedLoot(context, loot, choice));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -154,7 +158,7 @@ export function CoopSharedLootOverlay() {
 
   if (!loot || !item) return error ? <div data-testid="coop-loot-error" className="pointer-events-none fixed left-1/2 top-[18%] z-[85] w-[min(88vw,390px)] -translate-x-1/2 rounded-xl border border-red-300/20 bg-black/88 px-4 py-3 text-center text-[8px] font-black uppercase tracking-[.12em] text-red-100">{error}</div> : null;
 
-  return <div data-testid="coop-shared-loot" data-status={loot.status} className="pointer-events-auto fixed inset-0 z-[88] flex items-center justify-center bg-black/58 px-4 backdrop-blur-[2px]">
+  return <div data-testid="coop-shared-loot" data-status={loot.status} data-drop-key={loot.drop_key} className="pointer-events-auto fixed inset-0 z-[88] flex items-center justify-center bg-black/58 px-4 backdrop-blur-[2px]">
     <div className="w-[min(92vw,430px)] overflow-hidden rounded-3xl border border-amber-200/28 bg-[linear-gradient(150deg,rgba(35,22,10,.98),rgba(8,9,12,.98))] p-5 text-white shadow-[0_24px_90px_rgba(0,0,0,.72)]">
       <div className="text-center text-[7px] font-black uppercase tracking-[.28em] text-amber-100/48">{de ? 'GEMEINSAME BEUTE' : 'SHARED LOOT'} · {loot.chapter}-{loot.room}</div>
       <div className="mx-auto mt-4 grid h-20 w-20 place-items-center rounded-2xl border border-white/12 bg-black/45 text-4xl shadow-inner" style={{ color: item.accent }}>{item.icon}</div>
