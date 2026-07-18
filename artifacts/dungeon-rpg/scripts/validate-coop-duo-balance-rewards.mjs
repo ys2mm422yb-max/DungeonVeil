@@ -13,6 +13,10 @@ const rewards = read('src/game/chapterRewardContract.ts');
 const session = read('src/components/GameSessionBridge.tsx');
 const spawns = read('src/game/roomSpawn3D.ts');
 const engine = read('src/game/runEngine.ts');
+const sharedLoot = read('src/game/coopSharedLootOnline.ts');
+const sharedOverlay = read('src/components/CoopSharedLootOverlay.tsx');
+const worldLoot = read('src/game/equipmentWorldLoot.ts');
+const sharedMigration = read('../../../supabase/migrations/20260719002000_add_server_authoritative_coop_shared_loot.sql');
 
 assert(duo.includes('DUO_NORMAL_HP_MULTIPLIER = 1.65'), 'Normal duo enemy HP multiplier is not 1.65.');
 assert(duo.includes('DUO_ELITE_HP_MULTIPLIER = 1.8'), 'Elite duo enemy HP multiplier is not 1.8.');
@@ -31,7 +35,14 @@ assert(rewards.includes('currencyMultiplier?: number') && rewards.includes('rewa
 assert(rewards.includes('const multiplier = Math.max(1, Math.min(2') && rewards.includes('normalized.rewardRunId || meta.currentRunId'), 'Reward options are not bounded or ledger-isolated.');
 assert(rewards.includes('xp: baseAmounts.xp') && rewards.includes('dust: Math.round(baseAmounts.dust * normalized.multiplier)') && rewards.includes('gold: Math.round(baseAmounts.gold * normalized.multiplier)'), 'Duo reward scaling changes XP or fails to scale currency.');
 assert(session.includes("dataset.dungeonVeilRunMode === 'duo'") && session.includes('currencyMultiplier: DUO_CURRENCY_MULTIPLIER'), 'Game session does not select duo rewards only in duo mode.');
-assert(session.includes('rewardRunId: `${duoRewardRunIdRef.current}:${engine.state.player.spawnTime}`') && session.includes('spawnRoomEquipmentReward'), 'Duo rewards do not use a retry-safe isolated ledger or individual equipment delivery.');
+assert(session.includes('rewardRunId: `${duoRewardRunIdRef.current}:${engine.state.player.spawnTime}`') && session.includes('spawnRoomEquipmentReward'), 'Duo rewards do not use a retry-safe isolated ledger or route boss equipment.');
+
+assert(rewards.includes("dataset.dungeonVeilCoopRole === 'host'") && rewards.includes('shouldRollEquipmentLocally'), 'Guest still rolls a second Duo boss item.');
+assert(worldLoot.includes("'dungeon-veil-duo-loot-proposal'") && worldLoot.includes('BEUTEENTSCHEIDUNG AUSSTEHEND'), 'Duo boss loot does not enter a blocking shared decision.');
+assert(sharedOverlay.includes('data-testid="coop-loot-claim"') && sharedOverlay.includes('data-testid="coop-loot-pass"'), 'Shared loot claim/pass controls are missing.');
+assert(sharedLoot.includes("'rpc/choose_coop_shared_loot'") && sharedLoot.includes("state.winner_user_id === userId") && sharedLoot.includes("state.loser_user_id === userId"), 'Server result does not deliver one winner and loser compensation.');
+assert(sharedMigration.includes('floor(random() * 2)') && sharedMigration.includes('compensation_dust integer not null default 60'), 'Two claims lack a server-side random winner or compensation.');
+assert(sharedMigration.includes('enable row level security') && sharedMigration.includes('active coop membership required'), 'Shared loot is not lobby-isolated and access-controlled.');
 
 assert(!engine.includes('DUO_NORMAL_HP_MULTIPLIER') && !engine.includes('DUO_CURRENCY_MULTIPLIER'), 'Duo balance leaked into the solo engine.');
 assert(!duo.includes('player.attack *=') && !duo.includes('player.maxHp *='), 'Duo balance changes player or solo stats.');
@@ -91,4 +102,4 @@ try {
   await server.close();
 }
 
-console.log('Coop block 6 applies bounded host-authoritative HP, attack, count and boss pressure with retry-safe +25% currency and individual equipment rewards while solo stays unchanged.');
+console.log('Duo balance remains bounded while currency is individual and boss equipment uses one host-authored server-resolved claim/pass drop.');
