@@ -25,8 +25,9 @@ assert(bridge.includes('const PUBLISH_MS = 100'), 'Local player state is not pub
 assert(bridge.includes('remotePresenceIsFresh') && bridge.includes('onRemotePlayerRef.current(null)'), 'Stale or departed teammates are not removed.');
 
 assert(teammateScene.includes('loadKayKitRanger') && teammateScene.includes("rig.root.name = 'KayKitCoopTeammate'"), 'Remote teammate is not rendered with the real KayKit ranger.');
-assert(teammateScene.includes('WebGLRenderer.prototype.render') && teammateScene.includes('originalRender!.call(this, scene, camera)'), 'Remote teammate does not reuse the active run renderer.');
-assert(!teammateScene.includes('new THREE.WebGLRenderer'), 'Remote teammate creates a competing WebGL renderer.');
+assert(teammateScene.includes('THREE.Object3D.prototype.add') && teammateScene.includes('captureRunScene(this)'), 'Remote teammate does not capture the already active run scene.');
+assert(teammateScene.includes('originalAdd!.call(requestedScene, rig.root, ring)'), 'Remote teammate is not attached to the captured run scene.');
+assert(!teammateScene.includes('new THREE.WebGLRenderer') && !teammateScene.includes('WebGLRenderer.prototype.render'), 'Remote teammate creates or hooks a competing WebGL renderer.');
 assert(teammateScene.includes('remotePresenceIsFresh') && teammateScene.includes('remote.lastAttackTime') && teammateScene.includes('remote.lastDodgeTime'), 'Remote 3D movement and action state is incomplete.');
 assert(teammateScene.includes('data-testid="coop-remote-three-scene"'), 'Remote 3D scene integration lacks a regression marker.');
 
