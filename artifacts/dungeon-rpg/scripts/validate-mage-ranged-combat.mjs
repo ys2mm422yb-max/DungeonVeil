@@ -8,6 +8,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 
 const mageSource = read('src/game/mageRangedCombat.ts');
+const navigationSource = read('src/game/mageObstacleNavigation.ts');
 const normalSource = read('src/game/normalEnemyAttackTelegraphs.ts');
 const engineSource = read('src/game/runEngine.ts');
 const canvasSource = read('src/components/GameCanvasKayKit3D.tsx');
@@ -19,6 +20,8 @@ assert(mageSource.includes('shot-mage-') && mageSource.includes("type: 'beam'") 
 assert(mageSource.includes('Math.hypot(target.x - projectile.x, target.y - projectile.y) <= hitRadius'), 'Mage damage is not tied to projectile collision.');
 assert(mageSource.includes('time > player.invincibleUntil'), 'Dash invulnerability does not protect against mage projectiles.');
 assert(mageSource.includes('runtime.shotPathBlocked(previousX, previousY, projectile.x, projectile.y'), 'Mage projectiles can pass through room geometry.');
+assert(mageSource.includes('resolveMageObstacleDirection') && mageSource.includes('movementPathBlockedByRoomProp') && mageSource.includes('roomPropDetourWaypoints'), 'Hat mages bypass obstacle-aware movement.');
+assert(navigationSource.includes('forcedAlternateUntil') && navigationSource.includes('MAGE_STUCK_THRESHOLD_MS'), 'Mage navigation lacks stuck recovery.');
 assert(normalSource.includes('installMageRangedCombat(engine)') && normalSource.includes('disposeMageRangedCombat()'), 'Mage runtime is not installed and disposed with normal enemy combat.');
 assert(canvasSource.includes("effect.id.startsWith('shot-')"), 'The established projectile renderer no longer accepts shot-mage effects.');
 assert(!engineSource.includes('MAGE_PROJECTILE_SPEED'), 'Core runEngine was modified instead of keeping mage combat isolated.');
@@ -33,6 +36,7 @@ const server = await createServer({
 
 try {
   const mage = await server.ssrLoadModule('/src/game/mageRangedCombat.ts');
+  const navigation = await server.ssrLoadModule('/src/game/mageObstacleNavigation.ts');
   const runtime = await server.ssrLoadModule('/src/game/runEngine.ts');
 
   const enemy = (room, index, enemyType = 'skeleton') => ({
@@ -74,6 +78,38 @@ try {
   assert(near.x < 0, 'A nearby hat mage no longer retreats from the player.');
   assert(mage.mageAttackDelay(1) === mage.MAGE_ATTACK_DELAY_MS, 'Room 1 mage cadence changed unexpectedly.');
   assert(mage.mageAttackDelay(50) >= 1040, 'Late mage cadence became too fast.');
+
+  const navigationEnemy = { x: 0, y: 0, width: 26, height: 26 };
+  const detourState = navigation.createMageNavigationState(0, 0, 0);
+  const detourDirection = navigation.resolveMageObstacleDirection({
+    enemy: navigationEnemy,
+    playerX: 180,
+    playerY: 0,
+    desired: { x: 1, y: 0 },
+    alternate: { x: 0, y: -1 },
+    side: 1,
+    time: 100,
+    pathBlocked: (_fromX, _fromY, toX, toY) => toX > 45 && Math.abs(toY) < 24,
+    detourWaypoints: () => [{ x: 0, y: 82 }, { x: 0, y: -82 }],
+    collides: () => false,
+  }, detourState);
+  assert(Math.abs(detourDirection.y) > 0.8, 'A blocked mage does not choose a clear corner detour.');
+  assert(Number.isFinite(detourState.waypointX) && Number.isFinite(detourState.waypointY), 'Mage detour waypoint was not retained across frames.');
+
+  const stuckState = navigation.createMageNavigationState(0, 0, 0);
+  const recoveredDirection = navigation.resolveMageObstacleDirection({
+    enemy: navigationEnemy,
+    playerX: 180,
+    playerY: 0,
+    desired: { x: 1, y: 0 },
+    alternate: { x: 0, y: -1 },
+    side: 1,
+    time: navigation.MAGE_STUCK_THRESHOLD_MS + 20,
+    pathBlocked: () => false,
+    detourWaypoints: () => [],
+    collides: () => false,
+  }, stuckState);
+  assert(recoveredDirection.y < -0.8, 'A stationary mage does not switch away from the blocked movement side.');
 
   const game = new runtime.GameEngine();
   game.state.floor = 11;
@@ -118,4 +154,4 @@ try {
   await server.close();
 }
 
-console.log('Hat mages keep range, cast visible travelling projectiles, damage only on collision, and respect dash invulnerability.');
+console.log('Hat mages keep range, route around props, recover from stalls, cast travelling projectiles, and respect dash invulnerability.');
