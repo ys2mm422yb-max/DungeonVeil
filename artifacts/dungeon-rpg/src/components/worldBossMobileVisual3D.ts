@@ -1,6 +1,8 @@
 const APP_BASE = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_BASE = APP_BASE.endsWith('/') ? APP_BASE : `${APP_BASE}/`;
-const DRAGON_URL = `${NORMALIZED_BASE}assets/3d/Dragon.fbx`;
+const DRAGON_ASSET_PATH = 'assets/3d/Dragon.fbx';
+const DRAGON_ASSET_REVISION = '4696a576';
+const DRAGON_URL = `${NORMALIZED_BASE}${DRAGON_ASSET_PATH}?asset=${DRAGON_ASSET_REVISION}`;
 const FBX_LOADER_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/FBXLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
@@ -48,8 +50,8 @@ function prepareDragonMaterials(THREE: any, root: any) {
     node.frustumCulled = false;
     if (!node.material) return;
     const materials = Array.isArray(node.material) ? node.material : [node.material];
-    const prepared = materials.map((material: any) => {
-      const clone = material.clone();
+    const prepared = materials.map((sourceMaterial: any) => {
+      const clone = sourceMaterial.clone();
       if (clone.color) clone.color.lerp(new THREE.Color(0x6f3b2c), 0.16);
       if ('roughness' in clone) clone.roughness = Math.max(0.56, clone.roughness ?? 0.72);
       if ('metalness' in clone) clone.metalness = Math.min(0.18, clone.metalness ?? 0.04);
@@ -87,16 +89,64 @@ function normalizeDragon(THREE: any, visual: any) {
   visual.updateMatrixWorld(true);
 }
 
-async function loadDragon(FBXLoader: any, attempts = 3) {
+function dragonUrlCandidates(): string[] {
+  const candidates: string[] = [];
+  const add = (value: string) => {
+    if (value && !candidates.includes(value)) candidates.push(value);
+  };
+
+  if (typeof document !== 'undefined') {
+    try { add(new URL(`${DRAGON_ASSET_PATH}?asset=${DRAGON_ASSET_REVISION}`, document.baseURI).href); } catch {}
+  }
+  if (typeof window !== 'undefined') {
+    try { add(new URL(`${NORMALIZED_BASE}${DRAGON_ASSET_PATH}?asset=${DRAGON_ASSET_REVISION}`, window.location.origin).href); } catch {}
+    try {
+      const pathBase = window.location.pathname.endsWith('/')
+        ? window.location.pathname
+        : window.location.pathname.replace(/[^/]*$/, '');
+      add(new URL(`${DRAGON_ASSET_PATH}?asset=${DRAGON_ASSET_REVISION}`, `${window.location.origin}${pathBase}`).href);
+    } catch {}
+  }
+  add(DRAGON_URL);
+  return candidates;
+}
+
+function validatedFbxBuffer(buffer: ArrayBuffer, contentType: string, url: string): ArrayBuffer {
+  if (contentType.toLowerCase().includes('text/html')) throw new Error(`Dragon asset resolved to HTML instead of FBX: ${url}`);
+  if (buffer.byteLength < 2048) throw new Error(`Dragon asset is unexpectedly small (${buffer.byteLength} bytes): ${url}`);
+  const prefix = new TextDecoder().decode(buffer.slice(0, 64));
+  if (!prefix.includes('Kaydara FBX Binary') && !prefix.includes('FBX')) {
+    throw new Error(`Dragon asset does not contain an FBX header: ${url}`);
+  }
+  return buffer;
+}
+
+async function fetchDragonBuffer(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url, {
+    cache: 'no-store',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/octet-stream, model/fbx, */*' },
+  });
+  if (!response.ok) throw new Error(`Dragon asset request failed with ${response.status}: ${url}`);
+  return validatedFbxBuffer(await response.arrayBuffer(), response.headers.get('content-type') ?? '', url);
+}
+
+async function loadDragon(FBXLoader: any, attempts = 2) {
+  const urls = dragonUrlCandidates();
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      return await new FBXLoader().loadAsync(DRAGON_URL);
-    } catch (error) {
-      lastError = error;
-      console.warn(`Dragon model load attempt ${attempt}/${attempts} failed`, error);
-      if (attempt < attempts) await wait(220 * attempt);
+    for (const url of urls) {
+      try {
+        const absoluteUrl = typeof document !== 'undefined' ? new URL(url, document.baseURI).href : url;
+        const buffer = await fetchDragonBuffer(absoluteUrl);
+        const basePath = absoluteUrl.slice(0, absoluteUrl.lastIndexOf('/') + 1);
+        return new FBXLoader().parse(buffer, basePath);
+      } catch (error) {
+        lastError = error;
+        console.warn(`Dragon model load attempt ${attempt}/${attempts} failed for ${url}`, error);
+      }
     }
+    if (attempt < attempts) await wait(260 * attempt);
   }
   throw lastError instanceof Error ? lastError : new Error('Dragon model could not be loaded');
 }
@@ -113,6 +163,7 @@ export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Prom
 
   const root = new THREE.Group();
   root.name = 'VeilDragonWorldBoss';
+  root.userData.dungeonVeilBossVisual = 'imported-fbx-dragon';
   root.add(visual);
 
   const mixer = new THREE.AnimationMixer(visual);
@@ -194,8 +245,8 @@ export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Prom
       mixer.stopAllAction();
       visual.traverse((node: any) => {
         if (!node.material) return;
-        const materials = Array.isArray(node.material) ? node.material : [node.material];
-        materials.forEach((material: any) => material?.dispose?.());
+        const nodeMaterials = Array.isArray(node.material) ? node.material : [node.material];
+        nodeMaterials.forEach((nodeMaterial: any) => nodeMaterial?.dispose?.());
       });
     },
   };
