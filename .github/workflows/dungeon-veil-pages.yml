@@ -99,8 +99,23 @@ jobs:
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
 
-      - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - name: Coop solo balance isolation audit
+        run: node artifacts/dungeon-rpg/scripts/validate-coop-solo-balance-isolation.mjs
+
+      - name: Coop lobby foundation audit
+        run: node artifacts/dungeon-rpg/scripts/validate-coop-lobby-foundation.mjs
+
+      - name: Coop realtime presence audit
+        run: node artifacts/dungeon-rpg/scripts/validate-coop-realtime-presence.mjs
+
+      - name: Mage ranged combat audit
+        run: node artifacts/dungeon-rpg/scripts/validate-mage-ranged-combat.mjs
+
+      - name: Core room audit suite
+        run: node artifacts/dungeon-rpg/scripts/run-room-audit-suite.mjs
+
+      - name: Boss room telegraphs and meadow audit
+        run: node artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs
 
       - name: Typecheck
         run: pnpm run typecheck
