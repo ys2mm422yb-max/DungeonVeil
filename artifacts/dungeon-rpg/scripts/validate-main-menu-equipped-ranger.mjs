@@ -27,7 +27,7 @@ const checks = [
   [showcase.includes('bow: meta.equipped.bow') && showcase.includes('quiver: meta.equipped.quiver') && showcase.includes('talisman: meta.equipped.talisman'), 'village showcase does not preserve the currently visible loadout'],
   [showcase.includes('for (let index = 0; index < 3; index++)') && showcase.includes('VillageVisibleQuiverArrow'), 'quiver arrows are not visibly represented'],
   [showcase.includes('root.position.z = -1.82') && showcase.includes('root.scale.setScalar(0.72)'), 'player is not large and forward enough to dominate the menu composition'],
-  [villageHub.includes('grid grid-cols-5') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place'), 'redundant village place prompt remains'],
+  [villageHub.includes('grid grid-cols-4') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place'), 'redundant village place prompt remains or social routes are not compact'],
   [village.includes('villageRoot.userData.clearPlayerSilhouette = true') && village.includes('skinnedKeepersUseOriginalScenes = true'), 'village NPCs can still overlap the central player silhouette'],
   [!village.includes("{ key: 'table'") && !village.includes('QuestTable') && !village.includes('PostTable'), 'lamp-table assets can still appear as white cones in front of the NPCs'],
   [village.includes("mira: [[-4.05") && village.includes("orin: [[4.05") && village.includes("tala: [[-4.28") && village.includes("brom: [[4.28"), 'village keepers are not pushed to the side lanes'],
