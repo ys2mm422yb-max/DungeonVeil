@@ -11,6 +11,7 @@ import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 import { createEquipmentRuntimeBalanceState, updateEquipmentRuntimeBalance } from '../game/equipmentRuntimeBalance';
 import { rewardChapterRoomClear } from '../game/chapterRewardContract';
 import { createDuoRewardRunId, DUO_CURRENCY_MULTIPLIER } from '../game/coopDuoBalance';
+import { dispatchCoopBossLootOpen } from '../game/coopBossLootOnline';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
@@ -29,6 +30,7 @@ import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 import { FirstWardenOverlay } from './FirstWardenOverlay';
 import { TutorialOverlay } from './TutorialOverlay';
+import { CoopBossLootOverlay } from './CoopBossLootOverlay';
 
 const PROFILE_FLUSH_MS = 5_000;
 const PUBLIC_PROFILE_SYNC_MS = 15_000;
@@ -247,6 +249,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           if (checkedClearKey !== clearKey) {
             checkedClearKey = clearKey;
             const duo = isActiveDuoRun();
+            const bossRoom = isBossRoom(engine.state.floor);
             if (duo && !duoRewardRunIdRef.current) duoRewardRunIdRef.current = createDuoRewardRunId();
             const reward = rewardChapterRoomClear(
               engine.state.chapter,
@@ -254,16 +257,18 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
               duo ? {
                 currencyMultiplier: DUO_CURRENCY_MULTIPLIER,
                 rewardRunId: `${duoRewardRunIdRef.current}:${engine.state.player.spawnTime}`,
+                skipEquipmentDrop: true,
               } : undefined,
             );
             if (reward) {
-              recordPlayerProfileRoomClear(engine.state.chapter, engine.state.floor, isBossRoom(engine.state.floor));
+              recordPlayerProfileRoomClear(engine.state.chapter, engine.state.floor, bossRoom);
               if (reward.item) recordPlayerProfileItemFound();
               if (reward.item && reward.source && reward.rarity) {
                 spawnRoomEquipmentReward(engine, { item: reward.item, duplicate: Boolean(reward.duplicate), source: reward.source, rarity: reward.rarity });
               }
               window.dispatchEvent(new CustomEvent('dungeon-veil-meta-reward', { detail: reward }));
             }
+            if (duo && bossRoom) dispatchCoopBossLootOpen(engine.state.chapter, engine.state.floor);
             syncPublicProfile(time, true);
             void pushCloudSave();
           }
@@ -294,6 +299,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     <MetaRewardBanner />
     <RunRetentionOverlay />
     <FirstWardenOverlay />
+    <CoopBossLootOverlay active={active} language={language} getEngine={() => getEngineRef.current()} />
     <TutorialOverlay getEngine={() => getEngineRef.current()} language={language} />
   </> : null;
 }
