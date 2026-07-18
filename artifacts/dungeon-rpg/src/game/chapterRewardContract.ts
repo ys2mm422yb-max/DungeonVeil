@@ -2,6 +2,7 @@ import { FINAL_BOSS_ROOM, isBossRoom } from './chapterRun';
 import { recordReachedChapter } from './equipmentChapterGates';
 import { rollBossEquipmentReward } from './equipmentDropContract';
 import { requestCoopSharedLoot } from './coopSharedLootRuntime';
+import { installCoopSharedLootRoomGuard } from './coopSharedLootRoomGuard';
 import {
   loadMetaProgression,
   saveMetaProgression,
@@ -9,6 +10,8 @@ import {
   type MetaReward,
   type MetaProgression,
 } from './metaProgression';
+
+installCoopSharedLootRoomGuard();
 
 export type ChapterRoomRewardAmounts = Pick<MetaReward, 'xp' | 'dust' | 'gold'>;
 
