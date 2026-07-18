@@ -49,7 +49,7 @@ async function waitForReadyMenu(page) {
   const boot = page.getByTestId('app-boot-loading-screen');
   await expect(boot).toHaveAttribute('data-boot-presentation', 'veil-gate', { timeout: 20_000 });
   await expect(boot).toBeHidden({ timeout: 60_000 });
-  await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
 }
 
@@ -102,6 +102,11 @@ async function openMenuButton(page, name) {
 
 async function openOverflow(page) {
   await clickAnimatedUi(page.getByRole('button', { name: /Mehr|More/i }).first());
+}
+
+async function openPlayMenu(page) {
+  await clickAnimatedUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible();
 }
 
 test('main menu, profile and every hub panel open without fatal errors', async ({ page }, testInfo) => {
@@ -192,16 +197,17 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await expect(page.getByRole('button', { name: /Online & Cloud/i })).toBeVisible();
   });
 
-  await test.step('world boss direct sign-in route', async () => {
+  await test.step('world boss route through Play', async () => {
     await reloadMenu(page, testInfo.project.name);
+    await openPlayMenu(page);
     await openMenuButton(page, /Weltboss|World Boss/i);
     await expect(page.getByText(/Das nächste Weltereignis|The next world event/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /Online & Cloud/i })).toBeVisible();
   });
 
-  await test.step('duo lobby direct sign-in route', async () => {
+  await test.step('duo lobby route through Play', async () => {
     await reloadMenu(page, testInfo.project.name);
-    await openOverflow(page);
+    await openPlayMenu(page);
     await openMenuButton(page, /Duo-Run|Duo Run/i);
     await expect(page.getByTestId('coop-lobby-panel')).toBeVisible();
     await expect(page.getByRole('button', { name: /Online & Cloud/i })).toBeVisible();
@@ -270,7 +276,7 @@ test('settings persist contrast, storage and joystick with standard UI size', as
   await reloadMenu(page, testInfo.project.name);
   const persisted = await page.evaluate(() => ({
     contrast: document.documentElement.dataset.contrast,
-    textSize: document.documentElement.dataset.textSize,
+    textSize: document.documentElement.datasetTextSize,
   }));
   expect(persisted).toEqual({ contrast: 'high', textSize: 'standard' });
   expect(issues, issues.join('\n')).toEqual([]);
@@ -284,7 +290,8 @@ test('new run renders responsive combat controls and stays stable', async ({ pag
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
 
-  await clickAnimatedUi(page.getByRole('button', { name: /Neuer Run|New Run/i }));
+  await openPlayMenu(page);
+  await openMenuButton(page, /Solo-Run|Solo Run/i);
   const nameInput = page.getByRole('textbox').first();
   await expect(nameInput).toBeVisible();
   await nameInput.fill('Test Ranger');
