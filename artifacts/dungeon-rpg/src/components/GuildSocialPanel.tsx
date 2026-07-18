@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { GuildAccessOverlay } from './GuildAccessOverlay';
 import { GuildPanelMobile } from './GuildPanelMobile';
 import { PlayerProfileCard } from './PlayerProfileCard';
 
@@ -14,6 +15,7 @@ export function GuildSocialPanel({ language, onClose, onOpenOnline }: Props) {
       onOpenOnline={onOpenOnline}
       onOpenMemberProfile={setSelectedProfileId}
     />
+    <GuildAccessOverlay language={language} />
     {selectedProfileId && <PlayerProfileCard userId={selectedProfileId} language={language} onClose={() => setSelectedProfileId('')} />}
   </div>;
 }
