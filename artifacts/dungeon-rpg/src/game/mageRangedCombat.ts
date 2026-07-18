@@ -2,6 +2,8 @@ import type { Enemy } from './entities';
 import type { GameEngine } from './runEngine';
 import { makeHitSpark } from './combat';
 import { enemyVisualProfile } from './enemyRegionalIdentity';
+import { collidesWithRoomProp, movementPathBlockedByRoomProp, roomPropDetourWaypoints } from './roomCollision3D';
+import { createMageNavigationState, resolveMageObstacleDirection, type MageNavigationState } from './mageObstacleNavigation';
 
 export const MAGE_ATTACK_RANGE = 214;
 export const MAGE_RETREAT_RANGE = 122;
@@ -34,6 +36,7 @@ type MageCast = {
 type MageState = {
   nextCastAt: number;
   cast: MageCast | null;
+  navigation: MageNavigationState;
 };
 
 type MageProjectile = {
@@ -97,6 +100,12 @@ function enemyCenter(enemy: Enemy) {
 function playerCenter(engine: GameEngine) {
   const player = engine.state.player;
   return { x: player.x + player.width / 2, y: player.y + player.height / 2 };
+}
+
+function resetNavigationProgress(state: MageState, enemy: Enemy, time: number): void {
+  state.navigation.progressX = enemy.x;
+  state.navigation.progressY = enemy.y;
+  state.navigation.progressAt = time;
 }
 
 export function installMageRangedCombat(engine: GameEngine): () => void {
@@ -254,7 +263,11 @@ export function installMageRangedCombat(engine: GameEngine): () => void {
       enemy.speed = snapshot.speed;
       enemy.nextAttackTime = snapshot.nextAttackTime;
 
-      const state = mageStates.get(enemy.id) ?? { nextCastAt: time + 460, cast: null };
+      const state = mageStates.get(enemy.id) ?? {
+        nextCastAt: time + 460,
+        cast: null,
+        navigation: createMageNavigationState(enemy.x, enemy.y, time),
+      };
       mageStates.set(enemy.id, state);
       const source = enemyCenter(enemy);
       const currentTarget = playerCenter(engine);
@@ -265,6 +278,7 @@ export function installMageRangedCombat(engine: GameEngine): () => void {
         enemy.state = 'attack';
         enemy.vx = 0;
         enemy.vy = 0;
+        resetNavigationProgress(state, enemy, time);
         if (time >= state.cast.hitAt) {
           launchProjectile(enemy, time);
           state.cast = null;
@@ -274,6 +288,7 @@ export function installMageRangedCombat(engine: GameEngine): () => void {
 
       if (!hasLineOfSight) {
         enemy.state = 'chase';
+        resetNavigationProgress(state, enemy, time);
         continue;
       }
 
@@ -284,6 +299,7 @@ export function installMageRangedCombat(engine: GameEngine): () => void {
         enemy.state = 'attack';
         enemy.vx = 0;
         enemy.vy = 0;
+        resetNavigationProgress(state, enemy, time);
         engine.state.effects.push({
           id: `mage-cast-${time}-${enemy.id}`,
           x: source.x,
@@ -300,7 +316,51 @@ export function installMageRangedCombat(engine: GameEngine): () => void {
       }
 
       if (!snapshot.customMovement) continue;
-      const direction = mageMovementVector(source.x, source.y, currentTarget.x, currentTarget.y, mageSide(enemy, time));
+      const side = mageSide(enemy, time);
+      const desired = mageMovementVector(source.x, source.y, currentTarget.x, currentTarget.y, side);
+      const alternate = mageMovementVector(source.x, source.y, currentTarget.x, currentTarget.y, -side);
+      const direction = resolveMageObstacleDirection({
+        enemy,
+        playerX: currentTarget.x,
+        playerY: currentTarget.y,
+        desired,
+        alternate,
+        side,
+        time,
+        pathBlocked: (fromX, fromY, toX, toY, padding = 0.12) => movementPathBlockedByRoomProp(
+          engine.state.floor,
+          engine.state.map.width,
+          engine.state.map.height,
+          fromX,
+          fromY,
+          toX,
+          toY,
+          enemy.width,
+          enemy.height,
+          padding,
+        ),
+        detourWaypoints: (fromX, fromY, toX, toY) => roomPropDetourWaypoints(
+          engine.state.floor,
+          engine.state.map.width,
+          engine.state.map.height,
+          fromX,
+          fromY,
+          toX,
+          toY,
+          enemy.width,
+          enemy.height,
+        ),
+        collides: (x, y, padding = 0.025) => collidesWithRoomProp(
+          engine.state.floor,
+          engine.state.map.width,
+          engine.state.map.height,
+          x,
+          y,
+          enemy.width,
+          enemy.height,
+          padding,
+        ),
+      }, state.navigation);
       const roomPressure = 1 + Math.min(0.28, Math.max(0, engine.state.floor - 1) * 0.014);
       const moveDistance = enemy.speed * roomPressure * 0.94 * dt / 1000;
       const beforeX = enemy.x;
