@@ -31,7 +31,7 @@ assert(rewards.includes('currencyMultiplier?: number') && rewards.includes('rewa
 assert(rewards.includes('const multiplier = Math.max(1, Math.min(2') && rewards.includes('normalized.rewardRunId || meta.currentRunId'), 'Reward options are not bounded or ledger-isolated.');
 assert(rewards.includes('xp: baseAmounts.xp') && rewards.includes('dust: Math.round(baseAmounts.dust * normalized.multiplier)') && rewards.includes('gold: Math.round(baseAmounts.gold * normalized.multiplier)'), 'Duo reward scaling changes XP or fails to scale currency.');
 assert(session.includes("dataset.dungeonVeilRunMode === 'duo'") && session.includes('currencyMultiplier: DUO_CURRENCY_MULTIPLIER'), 'Game session does not select duo rewards only in duo mode.');
-assert(session.includes('rewardRunId: duoRewardRunIdRef.current') && session.includes('spawnRoomEquipmentReward'), 'Duo rewards do not use an isolated ledger or individual equipment delivery.');
+assert(session.includes('rewardRunId: `${duoRewardRunIdRef.current}:${engine.state.player.spawnTime}`') && session.includes('spawnRoomEquipmentReward'), 'Duo rewards do not use a retry-safe isolated ledger or individual equipment delivery.');
 
 assert(!engine.includes('DUO_NORMAL_HP_MULTIPLIER') && !engine.includes('DUO_CURRENCY_MULTIPLIER'), 'Duo balance leaked into the solo engine.');
 assert(!duo.includes('player.attack *=') && !duo.includes('player.maxHp *='), 'Duo balance changes player or solo stats.');
@@ -91,4 +91,4 @@ try {
   await server.close();
 }
 
-console.log('Coop block 6 applies bounded host-authoritative HP, attack, count and boss pressure with isolated +25% currency and individual equipment rewards while solo stays unchanged.');
+console.log('Coop block 6 applies bounded host-authoritative HP, attack, count and boss pressure with retry-safe +25% currency and individual equipment rewards while solo stays unchanged.');
