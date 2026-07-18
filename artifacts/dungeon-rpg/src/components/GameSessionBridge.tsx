@@ -10,6 +10,7 @@ import { createRunEffectSystemState, updateRunEffectSystems } from '../game/runE
 import { createRunBalanceState, updateRunBalance } from '../game/runBalance';
 import { createEquipmentRuntimeBalanceState, updateEquipmentRuntimeBalance } from '../game/equipmentRuntimeBalance';
 import { rewardChapterRoomClear } from '../game/chapterRewardContract';
+import { createDuoRewardRunId, DUO_CURRENCY_MULTIPLIER } from '../game/coopDuoBalance';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
@@ -31,6 +32,7 @@ import { TutorialOverlay } from './TutorialOverlay';
 
 const PROFILE_FLUSH_MS = 5_000;
 const PUBLIC_PROFILE_SYNC_MS = 15_000;
+const DUO_RUN_RESET_EVENT = 'dungeon-veil-duo-run-reset';
 
 function restorePendingRoomGift(engine: GameEngine): void {
   const save = loadGame();
@@ -41,10 +43,31 @@ function restorePendingRoomGift(engine: GameEngine): void {
   engine.onStateChange({ ...engine.state });
 }
 
+function isActiveDuoRun(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilRunMode === 'duo';
+}
+
 export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {
   const { language } = useLanguage();
   const getEngineRef = useRef(getEngine);
+  const duoRewardRunIdRef = useRef('');
   getEngineRef.current = getEngine;
+
+  useEffect(() => {
+    const resetDuoRewardRun = () => {
+      duoRewardRunIdRef.current = createDuoRewardRunId();
+    };
+    window.addEventListener(DUO_RUN_RESET_EVENT, resetDuoRewardRun);
+    return () => window.removeEventListener(DUO_RUN_RESET_EVENT, resetDuoRewardRun);
+  }, []);
+
+  useEffect(() => {
+    if (!active || !isActiveDuoRun()) {
+      duoRewardRunIdRef.current = '';
+      return;
+    }
+    if (!duoRewardRunIdRef.current) duoRewardRunIdRef.current = createDuoRewardRunId();
+  }, [active]);
 
   useEffect(() => {
     const stopInput = () => {
@@ -223,7 +246,16 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           const clearKey = `${engine.state.chapter}:${engine.state.floor}:${engine.state.roomClearAt}`;
           if (checkedClearKey !== clearKey) {
             checkedClearKey = clearKey;
-            const reward = rewardChapterRoomClear(engine.state.chapter, engine.state.floor);
+            const duo = isActiveDuoRun();
+            if (duo && !duoRewardRunIdRef.current) duoRewardRunIdRef.current = createDuoRewardRunId();
+            const reward = rewardChapterRoomClear(
+              engine.state.chapter,
+              engine.state.floor,
+              duo ? {
+                currencyMultiplier: DUO_CURRENCY_MULTIPLIER,
+                rewardRunId: `${duoRewardRunIdRef.current}:${engine.state.player.spawnTime}`,
+              } : undefined,
+            );
             if (reward) {
               recordPlayerProfileRoomClear(engine.state.chapter, engine.state.floor, isBossRoom(engine.state.floor));
               if (reward.item) recordPlayerProfileItemFound();

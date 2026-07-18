@@ -17,10 +17,10 @@ const BOSS_CANDIDATES: readonly RoomSpawnPoint[] = [
   { x: 4.5, z: 4.2 },
 ];
 
-function runtimeSafeSpawnPoints(room: number): RoomSpawnPoint[] {
+function runtimeSafeSpawnPoints(room: number, requestedCount?: number): RoomSpawnPoint[] {
   const spec = roomBibleSpec(room);
   const boss = isBossRoom(room);
-  const targetCount = boss ? 1 : 8;
+  const targetCount = requestedCount ?? (boss ? 1 : 8);
   const clearance = boss ? 1.18 : 0.72;
   const portalClearance = boss ? 1.8 : 3.1;
   const maxX = boss ? 7.2 : 4.25;
@@ -67,6 +67,15 @@ function runtimeSafeSpawnPoints(room: number): RoomSpawnPoint[] {
  */
 export function getRoomSpawnPoints(room: number): RoomSpawnPoint[] {
   return runtimeSafeSpawnPoints(room);
+}
+
+/**
+ * Duo may request extra mobile-safe points without changing the solo formation.
+ */
+export function getDuoRoomSpawnPoints(room: number, requestedCount: number): RoomSpawnPoint[] {
+  const minimum = isBossRoom(room) ? 1 : 8;
+  const maximum = isBossRoom(room) ? 4 : 12;
+  return runtimeSafeSpawnPoints(room, Math.max(minimum, Math.min(maximum, Math.floor(requestedCount))));
 }
 
 export function sceneSpawnToGame(point: RoomSpawnPoint, mapWidth: number, mapHeight: number, size: number) {
