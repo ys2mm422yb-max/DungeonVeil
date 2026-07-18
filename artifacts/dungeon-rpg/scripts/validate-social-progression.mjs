@@ -74,3 +74,4 @@ if (failures.length) {
 }
 
 console.log('Social progression audit passed: public career profiles, cosmetic social cards, friend-only live viewing, server boss gates and focused Ranger remain integrated.');
+// User-authored rerun marker after the scoped Play-overlay browser selector fix.
