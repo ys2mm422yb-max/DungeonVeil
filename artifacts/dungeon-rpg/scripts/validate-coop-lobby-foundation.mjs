@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [foundation, hardening, joinFix, invites, client, panel, mailbox, menu, mode, packageJson] = await Promise.all([
+const [foundation, hardening, joinFix, rpcFix, invites, client, panel, mailbox, menu, mode, packageJson] = await Promise.all([
   read('../../../supabase/migrations/20260717180000_add_coop_lobby_foundation.sql'),
   read('../../../supabase/migrations/20260717183000_harden_coop_lobby_helper.sql'),
   read('../../../supabase/migrations/20260718180000_fix_coop_join_invite_code_ambiguity.sql'),
+  read('../../../supabase/migrations/20260718223000_fix_coop_lobby_rpc_output_column_ambiguity.sql'),
   read('../../../supabase/migrations/20260718190000_add_coop_direct_social_invites.sql'),
   read('../src/game/coopLobbyOnline.ts'),
   read('../src/components/CoopLobbyPanel.tsx'),
@@ -18,7 +19,11 @@ const checks = [
   [foundation.includes('create table if not exists public.coop_lobbies') && foundation.includes('create table if not exists public.coop_lobby_members'), 'co-op lobby tables are missing'],
   [foundation.includes('max_players smallint not null default 2 check (max_players = 2)') && foundation.includes('coop_lobby_members_one_active_lobby_uidx'), 'two-player or one-active-lobby limits are missing'],
   [foundation.includes('alter table public.coop_lobbies enable row level security') && hardening.includes('private.is_coop_lobby_member'), 'co-op table protection is incomplete'],
-  [joinFix.includes('where lobby.invite_code = v_code') && joinFix.includes("lobby.status in ('waiting', 'ready')") && joinFix.includes('for update of lobby'), 'join RPC still has ambiguous or unlocked lookup fields'],
+  [joinFix.includes('where lobby.invite_code = v_code') && joinFix.includes("lobby.status in ('waiting', 'ready')") && joinFix.includes('for update of lobby'), 'join lookup fields are not qualified or locked'],
+  [rpcFix.includes('on conflict on constraint coop_lobby_members_pkey') && !rpcFix.includes('on conflict (lobby_id, user_id)'), 'join RPC still uses an ambiguous conflict target'],
+  [rpcFix.includes('bool_and(active_member.ready)') && rpcFix.includes('target_member.lobby_id') && rpcFix.includes('target_lobby.status'), 'ready RPC still contains ambiguous output-column references'],
+  [rpcFix.includes('target_lobby.host_user_id') && rpcFix.includes('target_lobby.expires_at') && rpcFix.includes('for update of target_lobby'), 'start RPC still contains ambiguous or unlocked lobby fields'],
+  [rpcFix.includes('grant execute on function public.join_coop_lobby(text) to authenticated') && rpcFix.includes('grant execute on function public.start_coop_lobby() to authenticated'), 'corrected coop RPC permissions are incomplete'],
   [invites.includes('list_coop_invite_candidates') && invites.includes('send_coop_lobby_invite'), 'direct invite RPCs are missing'],
   [invites.includes('friendship or shared guild required') && invites.includes("activity_state <> 'menu'") && invites.includes("interval '2 minutes'"), 'invite availability checks are incomplete'],
   [invites.includes("'kind', 'coop_invite'") && invites.includes("'coop-invite:'") && invites.includes('player_mailbox'), 'personal mailbox delivery is missing'],
@@ -38,4 +43,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Co-op lobby foundation passed: private two-player lobbies, fixed code joins and direct online social invitations are integrated.');
+console.log('Co-op lobby foundation passed: private two-player lobbies, unambiguous join/ready/start RPCs and direct online social invitations are integrated.');
