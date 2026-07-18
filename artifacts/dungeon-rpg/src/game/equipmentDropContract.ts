@@ -120,6 +120,17 @@ export function bossEquipmentSource(chapter: number, floor: number): EquipmentDr
   return safeFloor === 40 ? 'depth' : null;
 }
 
+export function planSharedBossEquipmentReward(
+  chapter: number,
+  floor: number,
+  random: () => number = Math.random,
+): PendingEquipmentDrop | null {
+  const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
+  const safeFloor = Math.max(1, Math.min(FINAL_BOSS_ROOM, Math.floor(Number(floor) || 1)));
+  if (!isBossRoom(safeFloor)) return null;
+  return chooseEquipment(loadMetaProgression(), safeChapter, bossEquipmentSource(safeChapter, safeFloor), random);
+}
+
 export function rollBossEquipmentReward(
   chapter: number,
   floor: number,
