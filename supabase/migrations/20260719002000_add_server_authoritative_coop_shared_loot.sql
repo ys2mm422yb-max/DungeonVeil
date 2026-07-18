@@ -3,6 +3,7 @@ create table if not exists public.coop_shared_loot (
   run_seed bigint not null,
   chapter integer not null check (chapter >= 1),
   room integer not null check (room between 1 and 50),
+  drop_key text not null check (drop_key ~ '^[A-Za-z0-9:_-]{1,96}$'),
   item_id text not null check (char_length(item_id) between 1 and 80),
   source text not null check (source in ('forge', 'ritual', 'warden', 'depth', 'hunt')),
   rarity text not null check (rarity in ('common', 'rare', 'epic')),
@@ -15,11 +16,11 @@ create table if not exists public.coop_shared_loot (
   resolve_after timestamptz not null default (clock_timestamp() + interval '20 seconds'),
   resolved_at timestamptz,
   updated_at timestamptz not null default clock_timestamp(),
-  primary key (lobby_id, run_seed, chapter, room)
+  primary key (lobby_id, run_seed, chapter, room, drop_key)
 );
 
 create index if not exists coop_shared_loot_open_idx
-  on public.coop_shared_loot (lobby_id, run_seed, status, resolve_after desc);
+  on public.coop_shared_loot (lobby_id, run_seed, chapter, room, status, created_at);
 
 alter table public.coop_shared_loot enable row level security;
 revoke all on table public.coop_shared_loot from public, anon, authenticated;
@@ -29,7 +30,7 @@ create or replace function public.resolve_coop_shared_loot_locked(
   p_run_seed bigint,
   p_chapter integer,
   p_room integer,
-  p_force boolean default false
+  p_drop_key text
 )
 returns void
 language plpgsql
@@ -51,27 +52,23 @@ begin
     and target.run_seed = p_run_seed
     and target.chapter = p_chapter
     and target.room = p_room
+    and target.drop_key = p_drop_key
   for update of target;
 
   if v_loot.lobby_id is null or v_loot.status = 'resolved' then return; end if;
-  if not p_force
-    and jsonb_object_length(v_loot.choices) < 2
-    and v_loot.resolve_after > v_now then
-    return;
-  end if;
+  if jsonb_object_length(v_loot.choices) < 2 and v_loot.resolve_after > v_now then return; end if;
 
   select array_agg(member.user_id order by member.user_id)
   into v_members
   from public.coop_lobby_members as member
-  where member.lobby_id = p_lobby_id
-    and member.left_at is null;
+  where member.lobby_id = p_lobby_id;
 
   if coalesce(array_length(v_members, 1), 0) <> 2 then return; end if;
 
-  select coalesce(array_agg(member_id order by member_id), array[]::uuid[])
+  select coalesce(array_agg(claimant.user_id order by claimant.user_id), array[]::uuid[])
   into v_claimers
-  from unnest(v_members) as member_id
-  where coalesce(v_loot.choices ->> member_id::text, 'pass') = 'claim';
+  from unnest(v_members) as claimant(user_id)
+  where coalesce(v_loot.choices ->> claimant.user_id::text, 'pass') = 'claim';
 
   v_claim_count := coalesce(array_length(v_claimers, 1), 0);
   if v_claim_count = 1 then
@@ -90,17 +87,19 @@ begin
   where target.lobby_id = p_lobby_id
     and target.run_seed = p_run_seed
     and target.chapter = p_chapter
-    and target.room = p_room;
+    and target.room = p_room
+    and target.drop_key = p_drop_key;
 end;
 $$;
 
-revoke all on function public.resolve_coop_shared_loot_locked(uuid, bigint, integer, integer, boolean) from public, anon, authenticated;
+revoke all on function public.resolve_coop_shared_loot_locked(uuid, bigint, integer, integer, text) from public, anon, authenticated;
 
 create or replace function public.open_coop_shared_loot(
   p_lobby_id uuid,
   p_run_seed bigint,
   p_chapter integer,
   p_room integer,
+  p_drop_key text,
   p_item_id text,
   p_source text,
   p_rarity text
@@ -110,6 +109,7 @@ returns table (
   run_seed bigint,
   chapter integer,
   room integer,
+  drop_key text,
   item_id text,
   source text,
   rarity text,
@@ -135,11 +135,12 @@ declare
 begin
   if v_user_id is null then raise exception 'not authenticated'; end if;
   if p_chapter < 1 or p_room < 1 or p_room > 50 then raise exception 'invalid coop loot room'; end if;
+  if coalesce(p_drop_key, '') !~ '^[A-Za-z0-9:_-]{1,96}$' then raise exception 'invalid coop loot key'; end if;
   if char_length(trim(coalesce(p_item_id, ''))) not between 1 and 80 then raise exception 'invalid equipment id'; end if;
   if p_source not in ('forge', 'ritual', 'warden', 'depth', 'hunt') then raise exception 'invalid equipment source'; end if;
   if p_rarity not in ('common', 'rare', 'epic') then raise exception 'invalid equipment rarity'; end if;
 
-  perform pg_advisory_xact_lock(hashtextextended(p_lobby_id::text || ':' || p_run_seed::text || ':' || p_chapter::text || ':' || p_room::text, 2311));
+  perform pg_advisory_xact_lock(hashtextextended(p_lobby_id::text || ':' || p_run_seed::text || ':' || p_chapter::text || ':' || p_room::text || ':' || p_drop_key, 2311));
 
   select target.* into v_lobby
   from public.coop_lobbies as target
@@ -158,23 +159,24 @@ begin
   if v_members <> 2 then raise exception 'two active coop players required'; end if;
 
   insert into public.coop_shared_loot (
-    lobby_id, run_seed, chapter, room, item_id, source, rarity,
+    lobby_id, run_seed, chapter, room, drop_key, item_id, source, rarity,
     status, choices, compensation_dust, created_at, resolve_after, updated_at
   ) values (
-    p_lobby_id, p_run_seed, p_chapter, p_room, trim(p_item_id), p_source, p_rarity,
+    p_lobby_id, p_run_seed, p_chapter, p_room, p_drop_key, trim(p_item_id), p_source, p_rarity,
     'open', '{}'::jsonb, 60, v_now, v_now + interval '20 seconds', v_now
   ) on conflict on constraint coop_shared_loot_pkey do nothing;
 
   return query
-  select loot.lobby_id, loot.run_seed, loot.chapter, loot.room, loot.item_id,
-         loot.source, loot.rarity, loot.status, loot.choices, loot.winner_user_id,
-         loot.loser_user_id, loot.compensation_dust, loot.created_at,
-         loot.resolve_after, loot.resolved_at, v_now
+  select loot.lobby_id, loot.run_seed, loot.chapter, loot.room, loot.drop_key,
+         loot.item_id, loot.source, loot.rarity, loot.status, loot.choices,
+         loot.winner_user_id, loot.loser_user_id, loot.compensation_dust,
+         loot.created_at, loot.resolve_after, loot.resolved_at, v_now
   from public.coop_shared_loot as loot
   where loot.lobby_id = p_lobby_id
     and loot.run_seed = p_run_seed
     and loot.chapter = p_chapter
-    and loot.room = p_room;
+    and loot.room = p_room
+    and loot.drop_key = p_drop_key;
 end;
 $$;
 
@@ -189,6 +191,7 @@ returns table (
   run_seed bigint,
   chapter integer,
   room integer,
+  drop_key text,
   item_id text,
   source text,
   rarity text,
@@ -209,67 +212,12 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_now timestamptz := clock_timestamp();
+  v_drop_key text;
 begin
   if v_user_id is null then raise exception 'not authenticated'; end if;
   if not exists (
-    select 1 from public.coop_lobby_members as member
-    where member.lobby_id = p_lobby_id
-      and member.user_id = v_user_id
-      and member.left_at is null
-  ) then raise exception 'active coop membership required'; end if;
-
-  perform public.resolve_coop_shared_loot_locked(p_lobby_id, p_run_seed, p_chapter, p_room, false);
-
-  return query
-  select loot.lobby_id, loot.run_seed, loot.chapter, loot.room, loot.item_id,
-         loot.source, loot.rarity, loot.status, loot.choices, loot.winner_user_id,
-         loot.loser_user_id, loot.compensation_dust, loot.created_at,
-         loot.resolve_after, loot.resolved_at, v_now
-  from public.coop_shared_loot as loot
-  where loot.lobby_id = p_lobby_id
-    and loot.run_seed = p_run_seed
-    and loot.chapter = p_chapter
-    and loot.room = p_room;
-end;
-$$;
-
-create or replace function public.choose_coop_shared_loot(
-  p_lobby_id uuid,
-  p_run_seed bigint,
-  p_chapter integer,
-  p_room integer,
-  p_choice text
-)
-returns table (
-  lobby_id uuid,
-  run_seed bigint,
-  chapter integer,
-  room integer,
-  item_id text,
-  source text,
-  rarity text,
-  status text,
-  choices jsonb,
-  winner_user_id uuid,
-  loser_user_id uuid,
-  compensation_dust integer,
-  created_at timestamptz,
-  resolve_after timestamptz,
-  resolved_at timestamptz,
-  server_now timestamptz
-)
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_user_id uuid := auth.uid();
-  v_now timestamptz := clock_timestamp();
-begin
-  if v_user_id is null then raise exception 'not authenticated'; end if;
-  if p_choice not in ('claim', 'pass') then raise exception 'invalid coop loot choice'; end if;
-  if not exists (
-    select 1 from public.coop_lobby_members as member
+    select 1
+    from public.coop_lobby_members as member
     join public.coop_lobbies as lobby on lobby.id = member.lobby_id
     where member.lobby_id = p_lobby_id
       and member.user_id = v_user_id
@@ -278,7 +226,86 @@ begin
       and lobby.status = 'in_run'
   ) then raise exception 'active coop membership required'; end if;
 
-  perform pg_advisory_xact_lock(hashtextextended(p_lobby_id::text || ':' || p_run_seed::text || ':' || p_chapter::text || ':' || p_room::text, 2312));
+  for v_drop_key in
+    select loot.drop_key
+    from public.coop_shared_loot as loot
+    where loot.lobby_id = p_lobby_id
+      and loot.run_seed = p_run_seed
+      and loot.chapter = p_chapter
+      and loot.room = p_room
+      and loot.status = 'open'
+    order by loot.created_at
+  loop
+    perform public.resolve_coop_shared_loot_locked(p_lobby_id, p_run_seed, p_chapter, p_room, v_drop_key);
+  end loop;
+
+  return query
+  select loot.lobby_id, loot.run_seed, loot.chapter, loot.room, loot.drop_key,
+         loot.item_id, loot.source, loot.rarity, loot.status, loot.choices,
+         loot.winner_user_id, loot.loser_user_id, loot.compensation_dust,
+         loot.created_at, loot.resolve_after, loot.resolved_at, v_now
+  from public.coop_shared_loot as loot
+  where loot.lobby_id = p_lobby_id
+    and loot.run_seed = p_run_seed
+    and loot.chapter = p_chapter
+    and loot.room = p_room
+  order by case when loot.status = 'open' then 0 else 1 end,
+           case when loot.status = 'open' then loot.created_at end asc nulls last,
+           loot.resolved_at desc nulls last,
+           loot.created_at desc;
+end;
+$$;
+
+create or replace function public.choose_coop_shared_loot(
+  p_lobby_id uuid,
+  p_run_seed bigint,
+  p_chapter integer,
+  p_room integer,
+  p_drop_key text,
+  p_choice text
+)
+returns table (
+  lobby_id uuid,
+  run_seed bigint,
+  chapter integer,
+  room integer,
+  drop_key text,
+  item_id text,
+  source text,
+  rarity text,
+  status text,
+  choices jsonb,
+  winner_user_id uuid,
+  loser_user_id uuid,
+  compensation_dust integer,
+  created_at timestamptz,
+  resolve_after timestamptz,
+  resolved_at timestamptz,
+  server_now timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_now timestamptz := clock_timestamp();
+begin
+  if v_user_id is null then raise exception 'not authenticated'; end if;
+  if coalesce(p_drop_key, '') !~ '^[A-Za-z0-9:_-]{1,96}$' then raise exception 'invalid coop loot key'; end if;
+  if p_choice not in ('claim', 'pass') then raise exception 'invalid coop loot choice'; end if;
+  if not exists (
+    select 1
+    from public.coop_lobby_members as member
+    join public.coop_lobbies as lobby on lobby.id = member.lobby_id
+    where member.lobby_id = p_lobby_id
+      and member.user_id = v_user_id
+      and member.left_at is null
+      and lobby.run_seed = p_run_seed
+      and lobby.status = 'in_run'
+  ) then raise exception 'active coop membership required'; end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_lobby_id::text || ':' || p_run_seed::text || ':' || p_chapter::text || ':' || p_room::text || ':' || p_drop_key, 2312));
 
   update public.coop_shared_loot as loot
   set choices = case
@@ -290,37 +317,41 @@ begin
     and loot.run_seed = p_run_seed
     and loot.chapter = p_chapter
     and loot.room = p_room
+    and loot.drop_key = p_drop_key
     and loot.status = 'open';
 
   if not found and not exists (
-    select 1 from public.coop_shared_loot as loot
+    select 1
+    from public.coop_shared_loot as loot
     where loot.lobby_id = p_lobby_id
       and loot.run_seed = p_run_seed
       and loot.chapter = p_chapter
       and loot.room = p_room
+      and loot.drop_key = p_drop_key
   ) then raise exception 'coop loot not found'; end if;
 
-  perform public.resolve_coop_shared_loot_locked(p_lobby_id, p_run_seed, p_chapter, p_room, false);
+  perform public.resolve_coop_shared_loot_locked(p_lobby_id, p_run_seed, p_chapter, p_room, p_drop_key);
 
   return query
-  select loot.lobby_id, loot.run_seed, loot.chapter, loot.room, loot.item_id,
-         loot.source, loot.rarity, loot.status, loot.choices, loot.winner_user_id,
-         loot.loser_user_id, loot.compensation_dust, loot.created_at,
-         loot.resolve_after, loot.resolved_at, v_now
+  select loot.lobby_id, loot.run_seed, loot.chapter, loot.room, loot.drop_key,
+         loot.item_id, loot.source, loot.rarity, loot.status, loot.choices,
+         loot.winner_user_id, loot.loser_user_id, loot.compensation_dust,
+         loot.created_at, loot.resolve_after, loot.resolved_at, v_now
   from public.coop_shared_loot as loot
   where loot.lobby_id = p_lobby_id
     and loot.run_seed = p_run_seed
     and loot.chapter = p_chapter
-    and loot.room = p_room;
+    and loot.room = p_room
+    and loot.drop_key = p_drop_key;
 end;
 $$;
 
-revoke all on function public.open_coop_shared_loot(uuid, bigint, integer, integer, text, text, text) from public, anon;
+revoke all on function public.open_coop_shared_loot(uuid, bigint, integer, integer, text, text, text, text) from public, anon;
 revoke all on function public.get_coop_shared_loot(uuid, bigint, integer, integer) from public, anon;
-revoke all on function public.choose_coop_shared_loot(uuid, bigint, integer, integer, text) from public, anon;
+revoke all on function public.choose_coop_shared_loot(uuid, bigint, integer, integer, text, text) from public, anon;
 
-grant execute on function public.open_coop_shared_loot(uuid, bigint, integer, integer, text, text, text) to authenticated;
+grant execute on function public.open_coop_shared_loot(uuid, bigint, integer, integer, text, text, text, text) to authenticated;
 grant execute on function public.get_coop_shared_loot(uuid, bigint, integer, integer) to authenticated;
-grant execute on function public.choose_coop_shared_loot(uuid, bigint, integer, integer, text) to authenticated;
+grant execute on function public.choose_coop_shared_loot(uuid, bigint, integer, integer, text, text) to authenticated;
 
 select pg_notify('pgrst', 'reload schema');
