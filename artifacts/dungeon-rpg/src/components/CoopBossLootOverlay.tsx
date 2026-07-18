@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameEngine } from '../game/runEngine';
 import { getMyCoopLobby } from '../game/coopLobbyOnline';
-import { rollBossEquipmentReward } from '../game/equipmentDropContract';
 import { collectBalancedEquipmentDrop } from '../game/equipmentCollection';
 import { EQUIPMENT, loadMetaProgression, saveMetaProgression } from '../game/metaProgression';
 import { recordPlayerProfileItemFound } from '../game/playerProfile';
@@ -64,6 +63,7 @@ export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [now, setNow] = useState(Date.now());
+  const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [retryNonce, setRetryNonce] = useState(0);
   getEngineRef.current = getEngine;
 
@@ -92,6 +92,11 @@ export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
     engine.input.dodge = false;
     engine.input.interact = false;
     if (typeof document !== 'undefined') document.documentElement.dataset[COOP_BOSS_LOOT_PENDING_DATASET] = '1';
+  };
+
+  const acceptSnapshot = (result: CoopBossLootSnapshot) => {
+    setSnapshot(result);
+    setServerOffsetMs(Date.parse(result.server_now) - Date.now());
   };
 
   useEffect(() => {
@@ -177,12 +182,10 @@ export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
         if (!lobby || lobby.status !== 'in_run') throw new Error('Aktive Duo-Lobby nicht gefunden.');
         let result = await getCoopBossLoot(lobby.lobby_id, lobby.run_seed, trigger.chapter, trigger.room);
         if (!result && lobby.role === 'host') {
-          const drop = rollBossEquipmentReward(trigger.chapter, trigger.room);
-          if (!drop) throw new Error('Für diesen Boss konnte keine gemeinsame Ausrüstung bestimmt werden.');
-          result = await openCoopBossLoot(lobby.lobby_id, lobby.run_seed, trigger.chapter, trigger.room, drop);
+          result = await openCoopBossLoot(lobby.lobby_id, lobby.run_seed, trigger.chapter, trigger.room);
         }
         if (!stopped && result) {
-          setSnapshot(result);
+          acceptSnapshot(result);
           setError('');
           await applyOutcome(result);
         }
@@ -204,7 +207,7 @@ export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
 
   const de = language === 'de';
   const definition = snapshot ? EQUIPMENT[snapshot.item_id] : null;
-  const remainingMs = snapshot ? Math.max(0, Date.parse(snapshot.expires_at) - Date.parse(snapshot.server_now) - (now - Date.now())) : 0;
+  const remainingMs = snapshot ? Math.max(0, Date.parse(snapshot.expires_at) - (now + serverOffsetMs)) : 0;
   const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
   const resolved = snapshot?.status === 'resolved';
   const myChoice = snapshot?.my_choice ?? null;
@@ -216,7 +219,7 @@ export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
     setError('');
     try {
       const result = await chooseCoopBossLoot(snapshot.roll_id, choice);
-      setSnapshot(result);
+      acceptSnapshot(result);
     } catch (choiceError) {
       setError(choiceError instanceof Error ? choiceError.message : 'Auswahl konnte nicht gespeichert werden.');
     } finally {
@@ -246,7 +249,7 @@ export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
       <div className="mt-2 font-serif text-2xl text-amber-50">{definition ? (de ? definition.nameDe : definition.nameEn) : (de ? 'BEUTE WIRD BESTIMMT' : 'PREPARING LOOT')}</div>
       {definition && <div className="mt-2 text-[9px] leading-relaxed text-white/58">{de ? definition.descriptionDe : definition.descriptionEn}</div>}
 
-      {!snapshot && !error && <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-[9px] font-black uppercase tracking-[.16em] text-white/60">{de ? 'HOST BEREITET DEN GEMEINSAMEN DROP VOR…' : 'HOST IS PREPARING THE SHARED DROP…'}</div>}
+      {!snapshot && !error && <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-[9px] font-black uppercase tracking-[.16em] text-white/60">{de ? 'SERVER BESTIMMT DEN GEMEINSAMEN DROP…' : 'SERVER IS SELECTING THE SHARED DROP…'}</div>}
 
       {snapshot && !resolved && <>
         <div className="mt-5 grid grid-cols-2 gap-3 text-left">
