@@ -9,8 +9,10 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
+const projectileBridge = read('src/components/CoopProjectileRealtimeBridge.tsx');
 const teammateScene = read('src/components/CoopTeammateScene3D.tsx');
 const teammateUi = read('src/components/CoopTeammateUI.tsx');
+const canvas = read('src/components/GameCanvasKayKit3D.tsx');
 const lobby = read('src/components/CoopLobbyPanel.tsx');
 const menu = read('src/components/screens/MainMenuScreen.tsx');
 const page = read('src/pages/game.tsx');
@@ -38,6 +40,19 @@ assert(combat.includes('<CoopTeammateScene3D gameState={gameState} remotePlayer=
 assert(combat.includes('<CoopTeammateUI gameState={gameState} remotePlayer={remotePlayer} />'), 'Combat stage does not mount teammate health and nameplate UI.');
 assert(!combat.includes('<CoopTeammateOverlay'), 'The obsolete CSS capsule teammate is still mounted.');
 
+assert(combat.includes('<CoopProjectileRealtimeBridge gameState={gameState} remotePlayer={remotePlayer} />'), 'Combat stage does not mount remote projectile visuals.');
+assert(projectileBridge.includes("const PROJECTILE_ID = /^(shot|pierce|rico)-/") && projectileBridge.includes("broadcast('projectile_visual'"), 'Local normal, piercing and ricochet arrows are not broadcast as visual events.');
+assert(projectileBridge.includes("event: 'phx_join'") && projectileBridge.includes("event: 'heartbeat'") && projectileBridge.includes('MAX_RECONNECT_MS'), 'Projectile visual transport is not reconnectable.');
+assert(projectileBridge.includes("String(message.payload.event ?? '') !== 'projectile_visual'") && projectileBridge.includes('projectile.sequence <= latestRemoteSequence'), 'Remote projectile events lack event isolation or sequence rejection.');
+assert(projectileBridge.includes('normalizeProjectile(message.payload.payload') && projectileBridge.includes('lobbyId !== expected.lobbyId') && projectileBridge.includes('runSeed !== expected.runSeed'), 'Remote projectile events are not normalized and lobby/seed isolated.');
+assert(projectileBridge.includes("type: 'beam'") && projectileBridge.includes("id: remoteId") && projectileBridge.includes('lifeTime: projectile.lifeTime + latency') === false, 'Remote visual injection contract unexpectedly bypasses bounded latency handling.');
+assert(projectileBridge.includes('const latency = clamp(Date.now() - projectile.sentAt') && projectileBridge.includes('projectile.lifeTime + latency'), 'Remote projectile travel does not account for network delay.');
+assert(projectileBridge.includes('MAX_REMOTE_VISUALS = 18') && projectileBridge.includes('MAX_LOCAL_IDS = 96'), 'Projectile visual memory or mobile rendering is unbounded.');
+assert(projectileBridge.includes('Damage remains owned by the') && !projectileBridge.includes('damageEnemy(') && !projectileBridge.includes('publishEnemyHitIntent'), 'Projectile visual transport can modify combat authority.');
+assert(canvas.includes("effect.id.startsWith('shot-')") && canvas.includes("effect.id.startsWith('pierce-')") && canvas.includes("effect.id.startsWith('rico-')"), 'The active 3D canvas cannot render synchronized projectile prefixes.');
+assert(projectileBridge.includes("element: effect.element ?? 'normal'") && projectileBridge.includes('color: effect.color'), 'Element colors are not preserved for remote projectiles.');
+assert(projectileBridge.includes('removeRemoteVisuals(stateRef.current)') && projectileBridge.includes('nextRoomKey !== roomKey'), 'Remote projectile visuals survive disconnect or room changes.');
+
 assert(lobby.includes('startCoopLobby') && lobby.includes('data-testid="coop-start-run"'), 'Host cannot start the ready duo lobby.');
 assert(lobby.includes("next.status === 'in_run'") && lobby.includes('onStartRun(next)'), 'Guest does not automatically enter the host-started run.');
 assert(menu.includes('onStartCoop') && menu.includes('onStartRun={lobby =>'), 'Main menu does not forward the started lobby into the game.');
@@ -45,7 +60,7 @@ assert(page.includes('createDuoRunContext') && page.includes('runSeed'), 'Game p
 assert(page.includes('engine.saveNow = () => false'), 'Duo mode can overwrite the existing solo save.');
 assert(page.includes('markActiveRun(false)') && page.includes("dataset.dungeonVeilRunMode = 'duo'"), 'Duo run is not isolated from solo session restoration.');
 assert(page.includes('<CoopRunRealtimeBridge') && page.includes('remotePlayer={duoContext ? remotePlayer : null}'), 'Realtime bridge is not connected to the visible run.');
-assert(!realtime.includes("sendBroadcast('loot"), 'Player presence and lifecycle must not synchronize loot.');
+assert(!realtime.includes("sendBroadcast('loot") && !projectileBridge.includes("broadcast('loot"), 'Presence or projectile transport must not synchronize loot.');
 
 const server = await createServer({ root, logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' });
 try {
@@ -75,4 +90,4 @@ try {
   await server.close();
 }
 
-console.log('Duo presence remains lobby-isolated and reconnectable while the teammate uses the active 3D scene with persistent health and life-state UI.');
+console.log('Duo presence remains isolated and reconnectable while real teammate health and visual-only normal, elemental, piercing and ricochet arrows render without changing combat authority.');
