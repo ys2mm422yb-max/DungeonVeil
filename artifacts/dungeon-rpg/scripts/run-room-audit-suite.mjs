@@ -8,6 +8,7 @@ process.chdir(gameRoot);
 // Its maintained coverage now lives in the focused production-room, spawn,
 // collision, telegraph, visibility and mobile-combat audits below.
 const scripts = [
+  'validate-cloud-realtime-performance.mjs',
   'validate-production-rooms.mjs',
   'validate-spawn-hitboxes.mjs',
   'validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs',
