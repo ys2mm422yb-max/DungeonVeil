@@ -20,7 +20,7 @@ assert(authority.includes('remote.userId !== intent.userId') && authority.includ
 assert(authority.includes('candidate.id === intent.targetId') && authority.includes('candidate.hp > 0') && authority.includes('!candidate.isDead'), 'Guest hit target validation accepts absent or dead enemies.');
 assert(authority.includes('applyCoopEnemySnapshot') && authority.includes('snapshot.chapter !== state.chapter'), 'Guest enemy snapshots are not room-scoped.');
 
-assert(realtime.includes("sendBroadcast('enemy_snapshot'") && realtime.includes("sendBroadcast('enemy_hit_intent'") && realtime.includes("sendBroadcast('player_damage'"), 'Realtime transport lacks the block 4 enemy messages.');
+assert(realtime.includes("sendBroadcast('enemy_snapshot'") && realtime.includes("sendBroadcast('enemy_hit_intent'") && realtime.includes("sendBroadcast('player_damage'"), 'Realtime transport lacks the enemy authority messages.');
 assert(realtime.includes("this.options.context.role !== 'host'") && realtime.includes("this.options.context.role !== 'guest'"), 'Enemy messages are not role-gated.');
 assert(realtime.includes('latestRemoteEnemySequence') && realtime.includes('latestRemoteHitSequence') && realtime.includes('latestRemoteDamageSequence'), 'Enemy messages lack independent sequence protection.');
 assert(realtime.includes("event === 'enemy_snapshot'") && realtime.includes("event === 'enemy_hit_intent'") && realtime.includes("event === 'player_damage'"), 'Enemy messages are not consumed by the realtime client.');
@@ -31,13 +31,14 @@ assert(bridge.includes('internals.updateEnemies = () => {}') && bridge.includes(
 assert(bridge.includes('enemy.hp = hp') && bridge.includes('publishEnemyHitIntent'), 'Guest attacks can still mutate local enemy HP.');
 assert(bridge.includes('restoreAuthority()') && bridge.includes('internals.updateEnemies = originalUpdateEnemies'), 'Private engine overrides are not fully restored when leaving duo.');
 assert(bridge.includes('installHostRemoteTargeting') && bridge.includes('remotePlayerProxy'), 'Host does not include the remote player in enemy target selection.');
+assert(bridge.includes("remote.lifeState === 'alive'"), 'Host can target a downed or fallen remote player.');
 assert(bridge.includes('publishPlayerDamage') && bridge.includes('applyGuestDamage'), 'Host-authoritative attacks cannot damage the selected guest.');
 assert(bridge.includes('validateCoopEnemyHitIntent') && bridge.includes('internals.damageEnemy.call'), 'Host does not validate and apply guest hit intents.');
 assert(bridge.includes('createCoopEnemySnapshot') && bridge.includes('applyCoopEnemySnapshot'), 'Host snapshots are not created and applied.');
 
 assert(page.includes("active={uiState === 'game' && Boolean(duoContext)}"), 'Enemy authority bridge can activate outside a duo run.');
-assert(engine.includes('const ENEMY_STATS') && !authority.includes('ENEMY_STATS') && !bridge.includes('chapterScale') && !bridge.includes('roomScale'), 'Block 4 changes solo enemy balance instead of only authority.');
-assert(!realtime.includes("sendBroadcast('loot") && !realtime.includes("sendBroadcast('revive"), 'Block 4 must not synchronize loot or revives.');
+assert(engine.includes('const ENEMY_STATS') && !authority.includes('ENEMY_STATS') && !bridge.includes('chapterScale') && !bridge.includes('roomScale'), 'Coop authority changes solo enemy balance instead of only authority.');
+assert(!realtime.includes("sendBroadcast('loot"), 'Enemy/lifecycle transport must not synchronize loot.');
 
 const server = await createServer({ root, logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' });
 try {
@@ -73,4 +74,4 @@ try {
   await server.close();
 }
 
-console.log('Coop block 4 makes the host authoritative for enemy positions, HP, deaths, guest hits and selected-player damage without changing solo balance or syncing loot.');
+console.log('The host remains authoritative for duo enemies while the separate lifecycle block owns player defeat and revival.');

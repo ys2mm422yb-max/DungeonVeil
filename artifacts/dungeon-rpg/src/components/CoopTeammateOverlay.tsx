@@ -155,12 +155,18 @@ export function CoopTeammateOverlay({ gameState, remotePlayer }: Props) {
       const onScreen = screenX > -70 && screenX < width + 70 && screenY > -100 && screenY < height + 80;
       avatar.style.opacity = onScreen ? '1' : '0';
       avatar.style.transform = `translate3d(${screenX - 24}px, ${screenY - 52}px, 0)`;
-      avatar.dataset.moving = smoothed.state === 'moving' ? '1' : '0';
-      avatar.dataset.attacking = now < actionRef.current.attackUntil ? '1' : '0';
-      avatar.dataset.dodging = now < actionRef.current.dodgeUntil ? '1' : '0';
+      avatar.dataset.lifeState = smoothed.lifeState;
+      avatar.dataset.moving = smoothed.lifeState === 'alive' && smoothed.state === 'moving' ? '1' : '0';
+      avatar.dataset.attacking = smoothed.lifeState === 'alive' && now < actionRef.current.attackUntil ? '1' : '0';
+      avatar.dataset.dodging = smoothed.lifeState === 'alive' && now < actionRef.current.dodgeUntil ? '1' : '0';
       const facingAngle = Math.atan2(smoothed.facingY, smoothed.facingX) * 180 / Math.PI;
       arrow.style.transform = `rotate(${facingAngle}deg)`;
-      label.textContent = smoothed.displayName || 'Mitspieler';
+      arrow.style.opacity = smoothed.lifeState === 'alive' ? '1' : '0';
+      label.textContent = smoothed.lifeState === 'downed'
+        ? 'NIEDERGESCHLAGEN'
+        : smoothed.lifeState === 'fallen'
+          ? 'GEFALLEN'
+          : smoothed.displayName || 'Mitspieler';
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -176,7 +182,7 @@ export function CoopTeammateOverlay({ gameState, remotePlayer }: Props) {
         <div className="absolute left-1/2 top-[5px] h-[2px] w-[9px] -translate-x-1/2 rounded-full bg-cyan-100/80 shadow-[0_0_7px_rgba(165,243,252,.9)]" />
       </div>
       <div ref={arrowRef} className="absolute bottom-[29px] left-1/2 h-[2px] w-[25px] origin-left bg-gradient-to-r from-cyan-100/85 to-transparent" />
-      <div ref={labelRef} className="absolute -top-[12px] left-1/2 max-w-[110px] -translate-x-1/2 truncate rounded-full border border-cyan-100/20 bg-black/65 px-2 py-1 text-[6px] font-black uppercase tracking-[.12em] text-cyan-50/90 backdrop-blur-sm">MITSTREITER</div>
+      <div ref={labelRef} className="absolute -top-[12px] left-1/2 max-w-[130px] -translate-x-1/2 truncate rounded-full border border-cyan-100/20 bg-black/65 px-2 py-1 text-[6px] font-black uppercase tracking-[.12em] text-cyan-50/90 backdrop-blur-sm">MITSTREITER</div>
     </div>
     <style>{`
       .dv-coop-avatar[data-moving="1"] .dv-coop-body { animation: dvCoopRun .34s ease-in-out infinite alternate; }
@@ -185,8 +191,15 @@ export function CoopTeammateOverlay({ gameState, remotePlayer }: Props) {
       .dv-coop-avatar[data-attacking="1"] .dv-coop-ring { box-shadow: 0 0 24px rgba(165,243,252,.82); }
       .dv-coop-avatar[data-dodging="1"] { filter: drop-shadow(-13px 0 7px rgba(103,232,249,.38)); }
       .dv-coop-avatar[data-dodging="1"] .dv-coop-body { opacity: .72; transform: translateX(-50%) skewX(-8deg); }
+      .dv-coop-avatar[data-life-state="downed"] .dv-coop-body { transform: translate(-50%,14px) rotate(74deg); filter: grayscale(.3) brightness(.82); }
+      .dv-coop-avatar[data-life-state="downed"] .dv-coop-ring { border-color: rgba(252,165,165,.82); background: rgba(127,29,29,.24); box-shadow: 0 0 20px rgba(248,113,113,.46); animation: dvCoopDowned 1s ease-in-out infinite alternate; }
+      .dv-coop-avatar[data-life-state="downed"] > div:last-of-type { color: rgb(254 202 202 / .95); border-color: rgb(254 202 202 / .3); }
+      .dv-coop-avatar[data-life-state="fallen"] .dv-coop-body { transform: translate(-50%,16px) rotate(88deg); filter: grayscale(1) brightness(.5); opacity:.72; }
+      .dv-coop-avatar[data-life-state="fallen"] .dv-coop-ring { border-color: rgba(148,163,184,.42); background: rgba(15,23,42,.42); box-shadow: none; }
+      .dv-coop-avatar[data-life-state="fallen"] > div:last-of-type { color: rgb(203 213 225 / .72); border-color: rgb(203 213 225 / .18); }
       @keyframes dvCoopRun { from { transform: translate(-50%,0) rotate(-2deg); } to { transform: translate(-50%,-4px) rotate(2deg); } }
       @keyframes dvCoopShadow { from { transform: translateX(-50%) scaleX(1); opacity:.72; } to { transform: translateX(-50%) scaleX(.78); opacity:.42; } }
+      @keyframes dvCoopDowned { from { opacity:.45; transform:translateX(-50%) scale(.9); } to { opacity:1; transform:translateX(-50%) scale(1.08); } }
     `}</style>
   </div>;
 }
