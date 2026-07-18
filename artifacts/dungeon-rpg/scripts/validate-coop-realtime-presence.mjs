@@ -18,7 +18,7 @@ const combat = read('src/components/CombatStage.tsx');
 assert(realtime.includes("realtime:duo-run:${options.context.lobbyId}"), 'Duo realtime channel is not isolated by lobby id.');
 assert(realtime.includes("event: 'phx_join'") && realtime.includes("event: 'heartbeat'"), 'Duo transport lacks Phoenix join or heartbeat.');
 assert(realtime.includes("sendBroadcast('player_state'") && realtime.includes("sendBroadcast('player_left'"), 'Duo transport lacks player state or clean leave messages.');
-assert(realtime.includes('normalized.sequence <= previousSequence'), 'Out-of-order duo presence packets are not rejected.');
+assert(realtime.includes('acceptSequence(') && realtime.includes('sequence <= previous'), 'Out-of-order duo packets are not rejected.');
 assert(realtime.includes("this.setStatus('reconnecting')") && realtime.includes('MAX_RECONNECT_MS'), 'Short connection interruptions do not enter bounded reconnect mode.');
 assert(bridge.includes('const PUBLISH_MS = 100'), 'Local player state is not published at the intended 10 Hz rate.');
 assert(bridge.includes('remotePresenceIsFresh') && bridge.includes('onRemotePlayerRef.current(null)'), 'Stale or departed teammates are not removed.');
@@ -32,7 +32,7 @@ assert(page.includes('createDuoRunContext') && page.includes('runSeed'), 'Game p
 assert(page.includes('engine.saveNow = () => false'), 'Duo mode can overwrite the existing solo save.');
 assert(page.includes('markActiveRun(false)') && page.includes("dataset.dungeonVeilRunMode = 'duo'"), 'Duo run is not isolated from solo session restoration.');
 assert(page.includes('<CoopRunRealtimeBridge') && page.includes('remotePlayer={duoContext ? remotePlayer : null}'), 'Realtime bridge is not connected to the visible run.');
-assert(!realtime.includes("sendBroadcast('loot") && !realtime.includes("sendBroadcast('revive"), 'Enemy authority block must not synchronize loot or revives yet.');
+assert(!realtime.includes("sendBroadcast('loot"), 'Player presence and lifecycle must not synchronize loot.');
 
 const server = await createServer({ root, logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' });
 try {
@@ -40,13 +40,16 @@ try {
   const expected = { lobbyId: 'lobby-a', runSeed: 42 };
   const valid = module.normalizeCoopPlayerPresence({
     lobbyId: 'lobby-a', runSeed: 42, userId: 'guest', displayName: 'Gast', chapter: 1, room: 1,
-    x: 120, y: 80, facingX: 1, facingY: 0, state: 'moving', hp: 72, maxHp: 100, defense: 3,
-    lastAttackTime: 10, lastDodgeTime: 20, sequence: 7, sentAt: 1000,
+    x: 120, y: 80, facingX: 1, facingY: 0, state: 'moving', lifeState: 'alive', revivesUsed: 0,
+    downedUntil: 0, hp: 72, maxHp: 100, defense: 3, lastAttackTime: 10, lastDodgeTime: 20,
+    sequence: 7, sentAt: 1000,
   }, expected, 'host');
-  assert(valid?.userId === 'guest' && valid.sequence === 7 && valid.hp === 72 && valid.defense === 3, 'Valid teammate presence was rejected.');
+  assert(valid?.userId === 'guest' && valid.sequence === 7 && valid.hp === 72 && valid.lifeState === 'alive', 'Valid teammate presence was rejected.');
   assert(module.normalizeCoopPlayerPresence({ ...valid, lobbyId: 'other' }, expected, 'host') === null, 'Foreign lobby packet was accepted.');
   assert(module.normalizeCoopPlayerPresence({ ...valid, runSeed: 99 }, expected, 'host') === null, 'Foreign seed packet was accepted.');
   assert(module.normalizeCoopPlayerPresence({ ...valid, userId: 'host' }, expected, 'host') === null, 'Local echo packet was accepted.');
+  const downed = module.normalizeCoopPlayerPresence({ ...valid, lifeState: 'downed', hp: 72, downedUntil: 30_000 }, expected, 'host');
+  assert(downed?.lifeState === 'downed' && downed.hp === 0 && downed.downedUntil === 30_000, 'Downed presence is not normalized safely.');
   const interpolated = module.interpolateCoopPresence(
     { x: 0, y: 0, facingX: 0, facingY: -1 },
     { x: 100, y: 50, facingX: 1, facingY: 0 },
@@ -59,4 +62,4 @@ try {
   await server.close();
 }
 
-console.log('Coop block 3 keeps the shared run isolated, synchronizes player presence and reconnects while later blocks own enemy, death and reward rules.');
+console.log('Duo presence remains lobby-isolated, ordered and reconnectable while carrying the bounded player lifecycle state.');
