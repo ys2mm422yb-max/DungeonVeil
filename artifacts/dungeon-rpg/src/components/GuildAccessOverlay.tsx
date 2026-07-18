@@ -18,9 +18,7 @@ import {
 } from '../game/supabaseOnline';
 import { SocialIdentityCard } from './SocialIdentityCard';
 
-type Props = {
-  language: 'de' | 'en';
-};
+type Props = { language: 'de' | 'en' };
 
 function policyLabel(policy: GuildJoinPolicy, de: boolean) {
   if (policy === 'open') return de ? 'Offen' : 'Open';
@@ -32,10 +30,7 @@ function formatDate(value: string, language: 'de' | 'en') {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-US', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
   }).format(date);
 }
 
@@ -59,29 +54,33 @@ export function GuildAccessOverlay({ language }: Props) {
       setMembership(null);
       setResults([]);
       setRequests([]);
+      setJoinPolicy('request');
       return;
     }
+
     const next = await getMyGuildMembership();
     setMembership(next);
-    if (next && (next.role === 'owner' || next.role === 'officer')) {
-      const incoming = await listGuildJoinRequestsOnline(next.guild.id).catch(() => []);
-      setRequests(incoming);
-    } else {
+    if (!next || (next.role !== 'owner' && next.role !== 'officer')) {
       setRequests([]);
+      setJoinPolicy('request');
+      return;
     }
+
+    const [incoming, matchingGuilds] = await Promise.all([
+      listGuildJoinRequestsOnline(next.guild.id).catch(() => []),
+      searchGuildsOnline(next.guild.tag).catch(() => []),
+    ]);
+    setRequests(incoming);
+    setJoinPolicy(matchingGuilds.find(guild => guild.guild_id === next.guild.id)?.join_policy ?? 'request');
   }, []);
 
   const runSearch = useCallback(async (nextQuery = query) => {
     if (!currentOnlineSession()) return;
     setLoading(true);
     setError('');
-    try {
-      setResults(await searchGuildsOnline(nextQuery));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      setLoading(false);
-    }
+    try { setResults(await searchGuildsOnline(nextQuery)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setLoading(false); }
   }, [query]);
 
   useEffect(() => {
@@ -101,6 +100,7 @@ export function GuildAccessOverlay({ language }: Props) {
   const triggerLabel = membership
     ? de ? `BEITRITTSANFRAGEN${pendingCount ? ` · ${pendingCount}` : ''}` : `JOIN REQUESTS${pendingCount ? ` · ${pendingCount}` : ''}`
     : de ? 'GILDEN SUCHEN' : 'SEARCH GUILDS';
+  const visibleResults = useMemo(() => results, [results]);
 
   const updateResult = (guildId: string, patch: Partial<GuildSearchResult>) => {
     setResults(current => current.map(result => result.guild_id === guildId ? { ...result, ...patch } : result));
@@ -123,9 +123,7 @@ export function GuildAccessOverlay({ language }: Props) {
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      setBusyId('');
-    }
+    } finally { setBusyId(''); }
   };
 
   const cancelRequest = async (guild: GuildSearchResult) => {
@@ -137,9 +135,7 @@ export function GuildAccessOverlay({ language }: Props) {
       setMessage(de ? 'Beitrittsanfrage zurückgezogen.' : 'Join request withdrawn.');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      setBusyId('');
-    }
+    } finally { setBusyId(''); }
   };
 
   const reviewRequest = async (request: GuildJoinRequest, accept: boolean) => {
@@ -155,9 +151,7 @@ export function GuildAccessOverlay({ language }: Props) {
       window.dispatchEvent(new Event(onlineSessionEventName()));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      setBusyId('');
-    }
+    } finally { setBusyId(''); }
   };
 
   const savePolicy = async (policy: GuildJoinPolicy) => {
@@ -170,12 +164,9 @@ export function GuildAccessOverlay({ language }: Props) {
       setMessage(de ? `Beitritt steht jetzt auf „${policyLabel(saved, true)}“.` : `Joining is now set to “${policyLabel(saved, false)}”.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      setBusyId('');
-    }
+    } finally { setBusyId(''); }
   };
 
-  const visibleResults = useMemo(() => results.filter(result => result.member_count <= result.max_members), [results]);
   if (!signedIn || (membership && !canReview)) return null;
 
   return <>
@@ -200,7 +191,6 @@ export function GuildAccessOverlay({ language }: Props) {
           <input data-testid="guild-search-input" value={query} maxLength={40} onChange={event => setQuery(event.target.value)} placeholder={de ? 'Name oder Kürzel suchen' : 'Search name or tag'} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/55 px-3 py-2.5 text-[11px] text-white outline-none placeholder:text-white/25 focus:border-amber-300/35" />
           <button type="button" onClick={() => void runSearch(query)} disabled={loading} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-3 text-[8px] font-black text-amber-100 disabled:opacity-35">{de ? 'SUCHEN' : 'SEARCH'}</button>
         </div>
-
         <div className="space-y-2">
           {visibleResults.map(guild => {
             const full = guild.member_count >= guild.max_members;
@@ -208,10 +198,7 @@ export function GuildAccessOverlay({ language }: Props) {
             const closed = guild.join_policy === 'closed';
             return <article key={guild.guild_id} data-testid="guild-search-result" className="rounded-2xl border border-white/8 bg-white/[.025] p-3">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] font-black text-white/85">[{guild.tag}] {guild.name}</div>
-                  <div className="mt-1 text-[7px] font-black uppercase tracking-[.12em] text-amber-100/45">{guild.member_count}/{guild.max_members} {de ? 'Mitglieder' : 'members'} · {policyLabel(guild.join_policy, de)}</div>
-                </div>
+                <div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black text-white/85">[{guild.tag}] {guild.name}</div><div className="mt-1 text-[7px] font-black uppercase tracking-[.12em] text-amber-100/45">{guild.member_count}/{guild.max_members} {de ? 'Mitglieder' : 'members'} · {policyLabel(guild.join_policy, de)}</div></div>
                 <span className={`rounded-full border px-2 py-1 text-[6px] font-black uppercase ${guild.join_policy === 'open' ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200' : guild.join_policy === 'request' ? 'border-amber-300/20 bg-amber-400/10 text-amber-100' : 'border-white/10 bg-white/[.04] text-white/35'}`}>{policyLabel(guild.join_policy, de)}</span>
               </div>
               <p className="mt-2 line-clamp-3 text-[9px] leading-relaxed text-white/40">{guild.description || (de ? 'Keine Beschreibung vorhanden.' : 'No description available.')}</p>
@@ -230,7 +217,6 @@ export function GuildAccessOverlay({ language }: Props) {
           <div className="mt-2 grid grid-cols-3 gap-2">{(['open', 'request', 'closed'] as GuildJoinPolicy[]).map(policy => <button key={policy} type="button" onClick={() => void savePolicy(policy)} disabled={busyId === 'policy'} className={`rounded-xl border px-2 py-2.5 text-[7px] font-black uppercase ${joinPolicy === policy ? 'border-amber-300/35 bg-amber-500/15 text-amber-100' : 'border-white/8 bg-black/30 text-white/42'}`}>{policyLabel(policy, de)}</button>)}</div>
           <p className="mt-2 text-[8px] leading-relaxed text-white/32">{de ? 'Offen nimmt Spieler sofort auf. Anfrage benötigt eine Bestätigung. Geschlossen verhindert neue Beitritte.' : 'Open joins immediately. Request needs approval. Closed blocks new joins.'}</p>
         </section>
-
         <section className="mt-3 space-y-2">
           <div className="px-1 text-[7px] font-black uppercase tracking-[.18em] text-white/35">{de ? `${requests.length} OFFENE ANFRAGEN` : `${requests.length} OPEN REQUESTS`}</div>
           {requests.map(request => <article key={request.request_id} data-testid="guild-join-request" className="rounded-2xl border border-white/8 bg-white/[.025] p-2.5">
