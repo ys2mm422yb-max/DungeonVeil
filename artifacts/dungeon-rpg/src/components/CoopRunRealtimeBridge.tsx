@@ -62,6 +62,11 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
       const engine = getEngineRef.current();
       if (!engine || engine.state.status === 'gameover') return;
       const player = engine.state.player;
+      const networkState: CoopPlayerPresence['state'] = player.state === 'attacking'
+        ? 'attack'
+        : player.state === 'moving' || player.state === 'dodging'
+          ? player.state
+          : 'idle';
       client.publish({
         displayName: player.playerName || 'Mitspieler',
         chapter: engine.state.chapter,
@@ -70,7 +75,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
         y: player.y,
         facingX: player.facing.x,
         facingY: player.facing.y,
-        state: player.state === 'moving' || player.state === 'attack' || player.state === 'dodging' ? player.state : 'idle',
+        state: networkState,
         lastAttackTime: player.lastAttackTime,
         lastDodgeTime: player.lastDodgeTime,
       });
