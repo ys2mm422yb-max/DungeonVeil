@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { EnemyType } from '../game/entities';
 import type { GameState } from '../game/runEngine';
-import { CHAPTER_ROOMS } from '../game/chapterRun';
+import { CHAPTER_ROOMS, isBossRoom } from '../game/chapterRun';
+import { getEncounterPlan } from '../game/encounterPlan';
 import { reportProductionAudit } from '../game/productionAudit';
 import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
 import { CombatFeedbackOverlay } from './CombatFeedbackOverlay';
@@ -25,6 +27,22 @@ const DOUBLE_TAP_ZOOM_DISTANCE_PX = 44;
 
 function roomKey(state: GameState) {
   return `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
+}
+
+function uniqueEnemyTypes(types: readonly EnemyType[]) {
+  return [...new Set(types)];
+}
+
+function currentRoomEnemyTypes(state: GameState) {
+  return uniqueEnemyTypes(state.enemies.map(enemy => enemy.enemyType));
+}
+
+function plannedRoomEnemyTypes(floor: number): EnemyType[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyTypes(getEncounterPlan(floor));
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
 }
 
 function updateDiagnostics(event: string, patch: Partial<RuntimeDiagnostics> = {}) {
@@ -108,32 +126,47 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   }, [gameState, liveRoomKey]);
 
   useEffect(() => {
-    if (liveRoomKey === renderedRoomKeyRef.current) return;
+    if (liveRoomKey === renderedRoomKeyRef.current) return undefined;
     const token = ++transitionTokenRef.current;
-    window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { key: liveRoomKey, floor: gameState.floor } }));
+    let cancelled = false;
+    const requiredEnemyTypes = currentRoomEnemyTypes(gameState);
+    window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', {
+      detail: { key: liveRoomKey, floor: gameState.floor, enemyTypes: requiredEnemyTypes },
+    }));
 
-    void Promise.all([
-      preloadKayKitDungeonRoom(gameState.floor),
-      preloadKayKitRoomTheme(gameState.floor),
-      preloadKayKitEnemyVisuals(),
-    ]).then(() => {
-      if (token !== transitionTokenRef.current) return;
-      const latest = latestStateRef.current;
-      if (roomKey(latest) !== liveRoomKey) return;
-      renderedRoomKeyRef.current = liveRoomKey;
-      setRenderState(latest);
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (token !== transitionTokenRef.current) return;
-        window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key: liveRoomKey, floor: latest.floor } }));
-      }));
-    }).catch(error => {
-      console.error('Dungeon Veil room staging failed', error);
-      if (token !== transitionTokenRef.current) return;
-      const latest = latestStateRef.current;
-      renderedRoomKeyRef.current = roomKey(latest);
-      setRenderState(latest);
-      window.setTimeout(() => window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key: liveRoomKey, floor: latest.floor, failed: true } })), 420);
-    });
+    const stageRoom = async () => {
+      let attempt = 0;
+      while (!cancelled && token === transitionTokenRef.current) {
+        try {
+          await Promise.all([
+            preloadKayKitDungeonRoom(gameState.floor),
+            preloadKayKitRoomTheme(gameState.floor),
+            preloadKayKitEnemyVisuals(requiredEnemyTypes),
+          ]);
+          if (cancelled || token !== transitionTokenRef.current) return;
+          const latest = latestStateRef.current;
+          if (roomKey(latest) !== liveRoomKey) return;
+          renderedRoomKeyRef.current = liveRoomKey;
+          setRenderState(latest);
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (cancelled || token !== transitionTokenRef.current) return;
+            window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', {
+              detail: { key: liveRoomKey, floor: latest.floor, enemyTypes: requiredEnemyTypes },
+            }));
+          }));
+          return;
+        } catch (error) {
+          attempt += 1;
+          console.error(`Dungeon Veil room staging attempt ${attempt} failed; keeping previous room visible`, error);
+          await wait(Math.min(4_000, 500 * attempt));
+        }
+      }
+    };
+
+    void stageRoom();
+    return () => {
+      cancelled = true;
+    };
   }, [liveRoomKey, gameState.floor]);
 
   useEffect(() => {
@@ -146,7 +179,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     void Promise.all([
       preloadKayKitDungeonRoom(nextFloor),
       preloadKayKitRoomTheme(nextFloor),
-      preloadKayKitEnemyVisuals(),
+      preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor)),
     ]).catch(error => {
       preloadKeyRef.current = '';
       console.error('Dungeon Veil next room preload failed', error);

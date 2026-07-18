@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GameEngine, GameState } from '../game/runEngine';
+import type { EnemyType } from '../game/entities';
 import { hasSave, loadGame, SaveData } from '../game/saveManager';
 import { saveEngineSession } from '../game/sessionStore';
+import { isBossRoom } from '../game/chapterRun';
+import { getEncounterPlan } from '../game/encounterPlan';
 import { UpgradeKey, Language } from '../i18n/translations';
 import { useLanguage } from '../i18n/LanguageContext';
 import { CombatStage } from '../components/CombatStage';
@@ -32,6 +35,7 @@ import { rememberRunName, resolvePreferredRunName, sanitizeRunName } from '../ga
 import { applyGiftUpgrade, prepareGiftChoices } from '../game/giftUpgradeController';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
+const RUN_ENTRY_PRELOAD_ATTEMPTS = 4;
 
 type UiState = 'lang_select' | 'main_menu' | 'run_name' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
 type MoveVector = { x: number; y: number };
@@ -40,6 +44,41 @@ type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
 function normalizeMove({ x, y }: MoveVector): MoveVector {
   const length = Math.hypot(x, y);
   return length <= 1 ? { x, y } : { x: x / length, y: y / length };
+}
+
+function uniqueEnemyTypes(types: readonly EnemyType[]) {
+  return [...new Set(types)];
+}
+
+function plannedRoomEnemyTypes(floor: number): EnemyType[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyTypes(getEncounterPlan(floor));
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
+}
+
+async function preloadRequiredRunRoom(floor: number) {
+  const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
+  const enemyTypes = plannedRoomEnemyTypes(safeFloor);
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= RUN_ENTRY_PRELOAD_ATTEMPTS; attempt++) {
+    try {
+      await Promise.all([
+        preloadKayKitDungeonRoom(safeFloor),
+        preloadKayKitRoomTheme(safeFloor),
+        preloadKayKitEnemyVisuals(enemyTypes),
+      ]);
+      return;
+    } catch (error) {
+      lastError = error;
+      console.error(`Run room ${safeFloor} preload attempt ${attempt} failed`, error);
+      if (attempt < RUN_ENTRY_PRELOAD_ATTEMPTS) await wait(attempt * 500);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`Run room ${safeFloor} could not be prepared`);
 }
 
 function hasActiveRunSession(): boolean {
@@ -104,6 +143,7 @@ export default function Game() {
 
   useEffect(() => {
     const engine = new GameEngine();
+    let cancelled = false;
     engineRef.current = engine;
     engine.onStateChange = state => {
       const live = engine.state;
@@ -124,11 +164,27 @@ export default function Game() {
 
     const sessionSave = resumeSessionOnBootRef.current ? loadGame() : null;
     if (sessionSave && hasChosen) {
-      engine.continueGame(sessionSave);
-      setSaveData(sessionSave);
-      setGameState({ ...engine.state });
-      setUiState('game');
-      markActiveRun(true);
+      setStartingRun(true);
+      void (async () => {
+        try {
+          await preloadRequiredRunRoom(sessionSave.floor);
+          if (cancelled) return;
+          engine.continueGame(sessionSave);
+          setSaveData(sessionSave);
+          setGameState({ ...engine.state });
+          setUiState('game');
+          markActiveRun(true);
+        } catch (error) {
+          console.error('Saved run could not be prepared', error);
+          if (cancelled) return;
+          markActiveRun(false);
+          setSaveData(sessionSave);
+          setGameState(engine.state);
+          setUiState('main_menu');
+        } finally {
+          if (!cancelled) setStartingRun(false);
+        }
+      })();
     } else {
       setGameState(engine.state);
     }
@@ -140,7 +196,10 @@ export default function Game() {
       animationId = requestAnimationFrame(loop);
     };
     animationId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animationId);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(animationId);
+    };
   }, [hasChosen]);
 
   useEffect(() => {
@@ -181,14 +240,13 @@ export default function Game() {
     const engine = engineRef.current;
     if (!engine || name.length < 2) return;
     setStartingRun(true);
+    const optionalPreload = Promise.allSettled([
+      preloadKayKitHealingPotion(),
+      preloadKayKitOuterWorld(),
+    ]);
     try {
-      await Promise.allSettled([
-        preloadKayKitDungeonRoom(1),
-        preloadKayKitRoomTheme(1),
-        preloadKayKitEnemyVisuals(),
-        preloadKayKitHealingPotion(),
-        preloadKayKitOuterWorld(),
-      ]);
+      await preloadRequiredRunRoom(1);
+      await optionalPreload;
       beginMetaRun();
       engine.startNewGame(name, 'archer');
       beginPlayerProfileRun(engine.state.chapter, engine.state.floor);
@@ -197,6 +255,8 @@ export default function Game() {
       setGameState({ ...engine.state });
       markActiveRun(true);
       setUiState('game');
+    } catch (error) {
+      console.error('New run could not be prepared', error);
     } finally {
       setStartingRun(false);
     }
@@ -223,10 +283,23 @@ export default function Game() {
 
   const handleContinue = useCallback(() => {
     const save = loadGame();
-    if (!save) return;
-    engineRef.current?.continueGame(save);
-    markActiveRun(true);
-    setUiState('game');
+    const engine = engineRef.current;
+    if (!save || !engine) return;
+    setStartingRun(true);
+    void (async () => {
+      try {
+        await preloadRequiredRunRoom(save.floor);
+        engine.continueGame(save);
+        setSaveData(save);
+        setGameState({ ...engine.state });
+        markActiveRun(true);
+        setUiState('game');
+      } catch (error) {
+        console.error('Continued run could not be prepared', error);
+      } finally {
+        setStartingRun(false);
+      }
+    })();
   }, []);
 
   const handleRetry = useCallback(() => {
