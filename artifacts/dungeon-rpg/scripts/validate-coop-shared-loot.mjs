@@ -12,7 +12,7 @@ const context = read('src/game/coopRunMode.ts');
 const client = read('src/game/coopSharedLootOnline.ts');
 const overlay = read('src/components/CoopSharedLootOverlay.tsx');
 const banner = read('src/components/MetaRewardBanner.tsx');
-const migration = read('../../../supabase/migrations/20260719002000_add_server_authoritative_coop_shared_loot.sql');
+const migration = read('../../supabase/migrations/20260719002000_add_server_authoritative_coop_shared_loot.sql');
 
 assert(reward.includes("dataset.dungeonVeilCoopRole === 'host'") && reward.includes('shouldRollEquipmentLocally'), 'Duo guests can still roll a second local boss item.');
 assert(reward.includes('dust: Math.round(baseAmounts.dust * normalized.multiplier)') && reward.includes('gold: Math.round(baseAmounts.gold * normalized.multiplier)'), 'Individual Duo currency rewards were removed or changed.');
