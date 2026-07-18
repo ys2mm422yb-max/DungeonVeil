@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
+await import('./validate-guild-search-and-join.mjs');
+
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, spectatorMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, guildPanel, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, villageScene, villagePlayer, main] = await Promise.all([
   read('../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql'),
