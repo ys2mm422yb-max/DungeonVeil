@@ -14,6 +14,7 @@ export type ChapterRoomRewardAmounts = Pick<MetaReward, 'xp' | 'dust' | 'gold'>;
 export type ChapterRoomRewardOptions = {
   currencyMultiplier?: number;
   rewardRunId?: string;
+  skipEquipmentDrop?: boolean;
 };
 
 export function chapterRoomRewardAmounts(chapter: number, floor: number): ChapterRoomRewardAmounts {
@@ -44,7 +45,8 @@ function ensureRunId(meta: MetaProgression): void {
 function normalizedOptions(options: ChapterRoomRewardOptions | undefined) {
   const multiplier = Math.max(1, Math.min(2, Number(options?.currencyMultiplier) || 1));
   const rewardRunId = String(options?.rewardRunId ?? '').trim().slice(0, 120);
-  return { multiplier, rewardRunId };
+  const skipEquipmentDrop = Boolean(options?.skipEquipmentDrop);
+  return { multiplier, rewardRunId, skipEquipmentDrop };
 }
 
 export function rewardChapterRoomClear(
@@ -76,7 +78,9 @@ export function rewardChapterRoomClear(
   meta.gold += amounts.gold;
   saveMetaProgression(meta);
 
-  const drop = isBossRoom(safeFloor) ? rollBossEquipmentReward(safeChapter, safeFloor) : null;
+  const drop = !normalized.skipEquipmentDrop && isBossRoom(safeFloor)
+    ? rollBossEquipmentReward(safeChapter, safeFloor)
+    : null;
 
   return {
     ...amounts,
