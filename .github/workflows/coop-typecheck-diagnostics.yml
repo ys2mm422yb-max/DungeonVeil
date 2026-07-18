@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          pnpm --filter @workspace/dungeon-rpg typecheck -- --pretty false > coop-typecheck.txt 2>&1
+          pnpm exec tsc -p artifacts/dungeon-rpg/tsconfig.json --noEmit --pretty false > coop-typecheck.txt 2>&1
           status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
