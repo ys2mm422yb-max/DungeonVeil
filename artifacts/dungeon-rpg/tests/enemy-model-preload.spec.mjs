@@ -25,5 +25,5 @@ test('boot preloads every real creature and the actual Mage model', async ({ pag
 
   const boot = page.getByTestId('app-boot-loading-screen');
   await expect(boot).toBeHidden({ timeout: 120_000 });
-  await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
 });

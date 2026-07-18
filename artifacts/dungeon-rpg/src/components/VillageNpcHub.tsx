@@ -8,7 +8,6 @@ type Props = {
   onMailbox: () => void;
   onFriends: () => void;
   onGuild: () => void;
-  onWorldBoss: () => void;
 };
 
 type Place = {
@@ -20,18 +19,17 @@ type Place = {
   action: () => void;
 };
 
-export function VillageNpcHub({ language, dailyProgress, mailUnread, onQuests, onMailbox, onFriends, onGuild, onWorldBoss }: Props) {
+export function VillageNpcHub({ language, dailyProgress, mailUnread, onQuests, onMailbox, onFriends, onGuild }: Props) {
   const de = language === 'de';
   const places: Place[] = [
     { testId: 'npc-questmaster', icon: '✦', labelDe: 'Aufträge', labelEn: 'Quests', badge: dailyProgress, action: onQuests },
     { testId: 'npc-postmaster', icon: '✉', labelDe: 'Post', labelEn: 'Mail', badge: mailUnread > 0 ? String(Math.min(99, mailUnread)) : undefined, action: onMailbox },
     { testId: 'npc-scout', icon: '♡', labelDe: 'Freunde', labelEn: 'Friends', action: onFriends },
     { testId: 'npc-guildmaster', icon: '♜', labelDe: 'Gilde', labelEn: 'Guild', action: onGuild },
-    { testId: 'npc-worldkeeper', icon: '◉', labelDe: 'Weltboss', labelEn: 'World Boss', action: onWorldBoss },
   ];
 
   return <section data-testid="veil-village-npc-hub" className="relative z-20 mx-auto w-full max-w-md px-4">
-    <div className="grid grid-cols-5 gap-1.5 rounded-2xl border border-amber-50/10 bg-[#100e0c]/88 p-2 shadow-[0_14px_34px_rgba(0,0,0,.34)] backdrop-blur-xl">
+    <div className="grid grid-cols-4 gap-1.5 rounded-2xl border border-amber-50/10 bg-[#100e0c]/88 p-2 shadow-[0_14px_34px_rgba(0,0,0,.34)] backdrop-blur-xl">
       {places.map(place => <button
         key={place.testId}
         data-testid={place.testId}

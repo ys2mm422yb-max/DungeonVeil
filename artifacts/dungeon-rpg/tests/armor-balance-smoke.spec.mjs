@@ -25,7 +25,7 @@ async function openInventoryArmor(page, projectName) {
 
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
-  await expect(page.getByRole('button', { name: /Neuer Run|New Run/i })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: /Inventar|Inventory/i }).first().click({ force: true });
   await expect(page.getByRole('heading', { name: /Inventar|Inventory/i })).toBeVisible();
   await page.getByTestId('inventory-tab-armor').click();

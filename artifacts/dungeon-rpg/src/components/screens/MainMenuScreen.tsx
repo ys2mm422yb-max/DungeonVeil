@@ -35,7 +35,7 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'online' | 'guild' | 'worldBoss' | 'coop' | null;
+type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'play' | 'online' | 'guild' | 'worldBoss' | 'coop' | null;
 
 export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
@@ -141,12 +141,11 @@ export function MainMenuScreen(props: Props) {
         onMailbox={() => setOverlay('mailbox')}
         onFriends={() => setOverlay('friends')}
         onGuild={() => setOverlay('guild')}
-        onWorldBoss={() => setOverlay('worldBoss')}
       />
 
       <div className="mx-auto mt-2 grid w-full max-w-md grid-cols-2 gap-2 px-4">
-        {action(t.newGame, language === 'de' ? 'NEUES ABENTEUER' : 'NEW ADVENTURE', startNormalRun, 'gold')}
-        {action(t.continueGame, continueText, props.onContinue, 'dark', !props.saveData)}
+        {action(t.continueGame, continueText, props.onContinue, props.saveData ? 'gold' : 'dark', !props.saveData)}
+        {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · WELTBOSS' : 'SOLO · DUO · WORLD BOSS', () => setOverlay('play'), props.saveData ? 'dark' : 'gold')}
         {action(language === 'de' ? 'Inventar' : 'Inventory', language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Staub` : `Rank ${meta.rank} · ${meta.dust} dust`, props.onVeilChamber, 'violet')}
         {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · JAGD · RELIKTE' : 'BEASTS · HUNTS · RELICS', props.onCodex, 'blue')}
       </div>
@@ -160,9 +159,10 @@ export function MainMenuScreen(props: Props) {
       {overlay === 'friends' && <FriendsPanel language={language} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} onOpenOnline={() => setOverlay('online')} />}
+      {overlay === 'play' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'SPIELMODUS WÄHLEN' : 'CHOOSE GAME MODE'}</div><div className="space-y-2">{action(language === 'de' ? 'Solo-Run' : 'Solo Run', language === 'de' ? 'NEUES ABENTEUER · ALLEINE' : 'NEW ADVENTURE · SOLO', () => { setOverlay(null); startNormalRun(); }, 'gold')}{action(language === 'de' ? 'Duo-Run' : 'Duo Run', language === 'de' ? 'PRIVATE LOBBY · 2 SPIELER · VORSCHAU' : 'PRIVATE LOBBY · 2 PLAYERS · PREVIEW', () => setOverlay('coop'), 'violet')}{action(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'GEMEINSAMER BOSSKAMPF' : 'SHARED BOSS FIGHT', () => setOverlay('worldBoss'), 'blue')}</div></div>}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={props.saveData} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'coop' && <CoopLobbyPanel language={language} onOpenOnline={() => setOverlay('online')} onStartRun={lobby => { setOverlay(null); props.onStartCoop(lobby); }} />}
-      {overlay === 'more' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{action(language === 'de' ? 'Duo-Run' : 'Duo Run', language === 'de' ? 'PRIVATE LOBBY · 2 SPIELER · ECHTZEIT' : 'PRIVATE LOBBY · 2 PLAYERS · REALTIME', () => setOverlay('coop'), 'violet')}{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', replayTutorial, 'dark')}{action(t.settings, '', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div></div>}
+      {overlay === 'more' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', replayTutorial, 'dark')}{action(t.settings, '', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div></div>}
       {overlay !== 'guild' && <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-amber-50/14 bg-[#11100f]/88 py-3 text-[9px] font-black uppercase tracking-[.2em] text-amber-50/58">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>}
     </div></div>}
   </div>;
