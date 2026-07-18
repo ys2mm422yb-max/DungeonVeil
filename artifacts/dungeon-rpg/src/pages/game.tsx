@@ -12,6 +12,7 @@ import { VirtualJoystick } from '../components/VirtualJoystick';
 import { ActionButtons } from '../components/ActionButtons';
 import { HUD } from '../components/HUD';
 import { GameSessionBridge } from '../components/GameSessionBridge';
+import { CoopRunRealtimeBridge } from '../components/CoopRunRealtimeBridge';
 import { GamePausePanel } from '../components/GamePausePanel';
 import { GameOverScreen } from '../components/screens/GameOverScreen';
 import { LevelUpScreen } from '../components/screens/LevelUpScreen';
@@ -33,6 +34,9 @@ import { applyMetaLoadoutToNewRun, beginMetaRun } from '../game/metaProgression'
 import { beginPlayerProfileRun } from '../game/playerProfile';
 import { rememberRunName, resolvePreferredRunName, sanitizeRunName } from '../game/runIdentity';
 import { applyGiftUpgrade, prepareGiftChoices } from '../game/giftUpgradeController';
+import { leaveCoopLobby, type CoopLobbySnapshot } from '../game/coopLobbyOnline';
+import { createDuoRunContext, createSoloRunContext, isDuoRun, type RunContext } from '../game/coopRunMode';
+import type { CoopPlayerPresence, CoopRealtimeStatus } from '../game/coopRealtimePresence';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 const RUN_ENTRY_PRELOAD_ATTEMPTS = 4;
@@ -92,9 +96,18 @@ function markActiveRun(active: boolean): void {
   } catch {}
 }
 
+function connectionLabel(status: CoopRealtimeStatus, language: string, remote: CoopPlayerPresence | null) {
+  const de = language === 'de';
+  if (status === 'connected') return remote ? (de ? 'MITSTREITER VERBUNDEN' : 'TEAMMATE CONNECTED') : (de ? 'WARTE AUF MITSTREITER' : 'WAITING FOR TEAMMATE');
+  if (status === 'reconnecting') return de ? 'VERBINDUNG WIRD WIEDERHERGESTELLT…' : 'RECONNECTING…';
+  if (status === 'connecting') return de ? 'DUO WIRD VERBUNDEN…' : 'CONNECTING DUO…';
+  return de ? 'DUO OFFLINE' : 'DUO OFFLINE';
+}
+
 export default function Game() {
   const { t, language, setLanguage, hasChosen } = useLanguage();
   const engineRef = useRef<GameEngine | null>(null);
+  const originalSaveNowRef = useRef<((reason?: string) => boolean) | null>(null);
   const touchMoveRef = useRef<MoveVector>({ x: 0, y: 0 });
   const keyMoveRef = useRef<MoveVector>({ x: 0, y: 0 });
   const keyStateRef = useRef<KeyState>({ up: false, down: false, left: false, right: false });
@@ -107,6 +120,16 @@ export default function Game() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [uiState, setUiState] = useState<UiState>(() => !hasChosen ? 'lang_select' : 'main_menu');
+  const [runContext, setRunContext] = useState<RunContext>(() => createSoloRunContext());
+  const [activeCoopLobby, setActiveCoopLobby] = useState<CoopLobbySnapshot | null>(null);
+  const [remotePlayer, setRemotePlayer] = useState<CoopPlayerPresence | null>(null);
+  const [coopStatus, setCoopStatus] = useState<CoopRealtimeStatus>('offline');
+
+  const setSoloPersistence = useCallback((engine: GameEngine, enabled: boolean) => {
+    const original = originalSaveNowRef.current;
+    if (enabled && original) engine.saveNow = original;
+    else if (!enabled) engine.saveNow = () => false;
+  }, []);
 
   const saveCurrentGame = useCallback((): boolean => {
     const engine = engineRef.current;
@@ -145,6 +168,7 @@ export default function Game() {
     const engine = new GameEngine();
     let cancelled = false;
     engineRef.current = engine;
+    originalSaveNowRef.current = engine.saveNow.bind(engine);
     engine.onStateChange = state => {
       const live = engine.state;
       prepareGiftChoices(live);
@@ -169,7 +193,12 @@ export default function Game() {
         try {
           await preloadRequiredRunRoom(sessionSave.floor);
           if (cancelled) return;
+          setSoloPersistence(engine, true);
           engine.continueGame(sessionSave);
+          setRunContext(createSoloRunContext());
+          setActiveCoopLobby(null);
+          setRemotePlayer(null);
+          setCoopStatus('offline');
           setSaveData(sessionSave);
           setGameState({ ...engine.state });
           setUiState('game');
@@ -200,11 +229,11 @@ export default function Game() {
       cancelled = true;
       cancelAnimationFrame(animationId);
     };
-  }, [hasChosen]);
+  }, [hasChosen, setSoloPersistence]);
 
   useEffect(() => {
     const handleRendererLost = () => {
-      markActiveRun(true);
+      if (!isDuoRun(runContext)) markActiveRun(true);
       roomVisualReadyRef.current = false;
       setRoomPreparing(true);
       resetMovement();
@@ -212,7 +241,7 @@ export default function Game() {
     };
     window.addEventListener('dungeon-veil-renderer-lost', handleRendererLost);
     return () => window.removeEventListener('dungeon-veil-renderer-lost', handleRendererLost);
-  }, [resetMovement, saveCurrentGame]);
+  }, [resetMovement, runContext, saveCurrentGame]);
 
   useEffect(() => {
     const handleRoomPreparing = () => {
@@ -240,6 +269,12 @@ export default function Game() {
     const engine = engineRef.current;
     if (!engine || name.length < 2) return;
     setStartingRun(true);
+    setSoloPersistence(engine, true);
+    setRunContext(createSoloRunContext());
+    setActiveCoopLobby(null);
+    setRemotePlayer(null);
+    setCoopStatus('offline');
+    document.documentElement.dataset.dungeonVeilRunMode = 'solo';
     const optionalPreload = Promise.allSettled([
       preloadKayKitHealingPotion(),
       preloadKayKitOuterWorld(),
@@ -260,7 +295,34 @@ export default function Game() {
     } finally {
       setStartingRun(false);
     }
-  }, []);
+  }, [setSoloPersistence]);
+
+  const beginDuoRun = useCallback(async (lobby: CoopLobbySnapshot, force = false) => {
+    const engine = engineRef.current;
+    if (!engine || lobby.status !== 'in_run') return;
+    const context = createDuoRunContext(lobby.lobby_id, lobby.run_seed, lobby.role);
+    if (!force && isDuoRun(runContext) && runContext.lobbyId === context.lobbyId && uiState === 'game') return;
+    setStartingRun(true);
+    try {
+      await preloadRequiredRunRoom(1);
+      const preferred = await resolvePreferredRunName(saveData);
+      const name = sanitizeRunName(preferred || saveData?.playerName) || (language === 'de' ? 'Waldläufer' : 'Ranger');
+      setSoloPersistence(engine, false);
+      markActiveRun(false);
+      document.documentElement.dataset.dungeonVeilRunMode = 'duo';
+      engine.startNewGame(name, 'archer');
+      setRunContext(context);
+      setActiveCoopLobby(lobby);
+      setRemotePlayer(null);
+      setCoopStatus('connecting');
+      setGameState({ ...engine.state });
+      setUiState('game');
+    } catch (error) {
+      console.error('Duo run could not be prepared', error);
+    } finally {
+      setStartingRun(false);
+    }
+  }, [language, runContext, saveData, setSoloPersistence, uiState]);
 
   const continueNewRunFlow = useCallback(async () => {
     setConfirmingNewRun(false);
@@ -286,6 +348,12 @@ export default function Game() {
     const engine = engineRef.current;
     if (!save || !engine) return;
     setStartingRun(true);
+    setSoloPersistence(engine, true);
+    setRunContext(createSoloRunContext());
+    setActiveCoopLobby(null);
+    setRemotePlayer(null);
+    setCoopStatus('offline');
+    document.documentElement.dataset.dungeonVeilRunMode = 'solo';
     void (async () => {
       try {
         await preloadRequiredRunRoom(save.floor);
@@ -300,20 +368,31 @@ export default function Game() {
         setStartingRun(false);
       }
     })();
-  }, []);
+  }, [setSoloPersistence]);
 
   const handleRetry = useCallback(() => {
     const name = sanitizeRunName(engineRef.current?.state.player.playerName || saveData?.playerName) || (language === 'de' ? 'Waldläufer' : 'Ranger');
     markActiveRun(false);
+    if (isDuoRun(runContext) && activeCoopLobby) {
+      void beginDuoRun(activeCoopLobby, true);
+      return;
+    }
     void beginFreshRun(name);
-  }, [beginFreshRun, language, saveData?.playerName]);
+  }, [activeCoopLobby, beginDuoRun, beginFreshRun, language, runContext, saveData?.playerName]);
 
   const handleMainMenu = useCallback(() => {
+    const leavingDuo = isDuoRun(runContext);
     saveCurrentGame();
     resetMovement();
     markActiveRun(false);
     setUiState('main_menu');
-  }, [resetMovement, saveCurrentGame]);
+    setRemotePlayer(null);
+    setCoopStatus('offline');
+    setRunContext(createSoloRunContext());
+    setActiveCoopLobby(null);
+    document.documentElement.dataset.dungeonVeilRunMode = 'solo';
+    if (leavingDuo) void leaveCoopLobby().catch(error => console.error('Duo lobby leave failed', error));
+  }, [resetMovement, runContext, saveCurrentGame]);
 
   const handleSettingsBack = useCallback(() => {
     const returnTo = settingsReturnRef.current;
@@ -387,18 +466,28 @@ export default function Game() {
     };
   }, [uiState, refreshKeyboardMove, handleAttack, handleDodge, handlePause, handleResume, resetMovement]);
 
+  const duoContext = isDuoRun(runContext) ? runContext : null;
+
   return (
     <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none overscroll-none">
       <GameSessionBridge getEngine={() => engineRef.current} active={uiState === 'game'} />
+      <CoopRunRealtimeBridge
+        active={uiState === 'game' && Boolean(duoContext)}
+        context={duoContext}
+        getEngine={() => engineRef.current}
+        onRemotePlayer={setRemotePlayer}
+        onStatus={setCoopStatus}
+      />
       {uiState === 'lang_select' && <LanguageSelectScreen />}
-      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={handleNewGame} onContinue={handleContinue} onVeilChamber={() => setUiState('veil_chamber')} onCodex={() => setUiState('codex')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
+      {uiState === 'main_menu' && <MainMenuScreen saveData={saveData} onNewGame={handleNewGame} onContinue={handleContinue} onStartCoop={lobby => void beginDuoRun(lobby)} onVeilChamber={() => setUiState('veil_chamber')} onCodex={() => setUiState('codex')} onSettings={() => goSettings('main_menu')} onCredits={() => setUiState('credits')} />}
       {uiState === 'run_name' && <RunNamePromptScreen onConfirm={beginFreshRun} onBack={() => setUiState('main_menu')} />}
       {uiState === 'settings' && <SettingsScreen onBack={handleSettingsBack} onSaveDeleted={handleSaveDeleted} />}
       {uiState === 'credits' && <CreditsScreen onBack={handleMainMenu} />}
       {uiState === 'veil_chamber' && <VeilChamberScreen onBack={() => setUiState('main_menu')} />}
       {uiState === 'codex' && <CodexScreen onBack={() => setUiState('main_menu')} />}
       {uiState === 'game' && gameState && <>
-        <CombatStage gameState={gameState} />
+        <CombatStage gameState={gameState} remotePlayer={duoContext ? remotePlayer : null} />
+        {duoContext && <div data-testid="coop-run-connection" data-status={coopStatus} className={`pointer-events-none absolute left-1/2 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-40 -translate-x-1/2 rounded-full border px-3 py-1.5 text-[6px] font-black uppercase tracking-[.16em] backdrop-blur-md ${coopStatus === 'connected' ? 'border-cyan-200/22 bg-cyan-950/55 text-cyan-50/86' : 'border-amber-200/20 bg-black/68 text-amber-100/76'}`}>{connectionLabel(coopStatus, language, remotePlayer)} · SEED {duoContext.runSeed}</div>}
         {roomPreparing && <div className="pointer-events-none absolute left-1/2 top-[31%] z-40 -translate-x-1/2 rounded-full border border-violet-300/25 bg-black/72 px-4 py-2 text-[9px] font-black tracking-[.28em] text-violet-100/80 backdrop-blur-md">RAUM WIRD AUFGEBAUT…</div>}
         {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />}
         {gameState.status === 'levelup' && <LevelUpScreen choices={gameState.upgradeChoices} runSkills={gameState.runSkills} onSelect={handleLevelUpSelect} />}
@@ -416,7 +505,7 @@ export default function Game() {
         onCancel={() => setConfirmingNewRun(false)}
         onConfirm={() => void continueNewRunFlow()}
       />}
-      {startingRun && <LoadingScreen variant="run" language={language} testId="new-run-loading-screen" title={language === 'de' ? 'DEIN RUN WIRD VORBEREITET' : 'PREPARING YOUR RUN'} subtitle={language === 'de' ? 'Bewegen = ausweichen · stehen = automatisch schießen.' : 'Move to dodge · stop to shoot automatically.'} />}
+      {startingRun && <LoadingScreen variant="run" language={language} testId="new-run-loading-screen" title={duoContext ? (language === 'de' ? 'DUO-RUN WIRD VERBUNDEN' : 'CONNECTING DUO RUN') : (language === 'de' ? 'DEIN RUN WIRD VORBEREITET' : 'PREPARING YOUR RUN')} subtitle={language === 'de' ? 'Bewegen = ausweichen · stehen = automatisch schießen.' : 'Move to dodge · stop to shoot automatically.'} />}
     </div>
   );
 }
