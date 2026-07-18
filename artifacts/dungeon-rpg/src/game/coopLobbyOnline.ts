@@ -2,6 +2,7 @@ import { authenticatedSupabaseRest, currentOnlineSession } from './supabaseOnlin
 import type { CoopLobbyStatus, CoopRole } from './coopRunMode';
 
 export const COOP_LOBBY_EVENT = 'dungeon-veil-coop-lobby-changed';
+export const COOP_LOBBY_OPEN_EVENT = 'dungeon-veil-open-coop-lobby';
 export const PENDING_COOP_INVITE_KEY = 'dungeon-veil-pending-coop-invite-v1';
 
 export type CoopLobbySnapshot = {
@@ -28,8 +29,21 @@ export type CoopLobbyMember = {
   last_seen_at: string;
 };
 
+export type CoopInviteCandidate = {
+  user_id: string;
+  display_name: string;
+  avatar_key: string | null;
+  relation: 'friend' | 'guild' | 'friend_guild';
+  activity_state: 'menu' | 'run' | 'paused';
+  last_active_at: string;
+};
+
 function emitLobbyChanged(): void {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(COOP_LOBBY_EVENT));
+}
+
+export function openCoopLobbyPanel(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(COOP_LOBBY_OPEN_EVENT));
 }
 
 function requireOnline(): void {
@@ -130,4 +144,17 @@ export async function heartbeatCoopLobby(): Promise<boolean> {
 export async function listMyCoopLobbyMembers(): Promise<CoopLobbyMember[]> {
   if (!currentOnlineSession()) return [];
   return rpcRows<CoopLobbyMember>('list_my_coop_lobby_members');
+}
+
+export async function listCoopInviteCandidates(): Promise<CoopInviteCandidate[]> {
+  if (!currentOnlineSession()) return [];
+  return rpcRows<CoopInviteCandidate>('list_coop_invite_candidates');
+}
+
+export async function sendCoopLobbyInvite(targetUserId: string): Promise<boolean> {
+  requireOnline();
+  return authenticatedSupabaseRest<boolean>('rpc/send_coop_lobby_invite', {
+    method: 'POST',
+    body: JSON.stringify({ p_target_user_id: targetUserId }),
+  });
 }
