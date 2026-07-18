@@ -40,14 +40,27 @@ function roomClearKey(engine: GameEngine) {
   return `${roomKey(engine)}:${engine.state.roomClearAt}`;
 }
 
-function isDuoMode() {
-  return typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilRunMode === 'duo';
+function duoRole(): 'host' | 'guest' | null {
+  if (typeof document === 'undefined' || document.documentElement.dataset.dungeonVeilRunMode !== 'duo') return null;
+  const role = document.documentElement.dataset.dungeonVeilCoopRole;
+  return role === 'host' || role === 'guest' ? role : null;
 }
 
 function publishDuoRoom(engine: GameEngine) {
-  if (!isDuoMode() || typeof document === 'undefined') return;
+  if (!duoRole() || typeof document === 'undefined') return;
   document.documentElement.dataset.dungeonVeilCoopChapter = String(engine.state.chapter);
   document.documentElement.dataset.dungeonVeilCoopRoom = String(engine.state.floor);
+}
+
+function proposeSharedEquipment(engine: GameEngine, dropKey: string, drop: PendingEquipmentDrop) {
+  window.dispatchEvent(new CustomEvent('dungeon-veil-duo-loot-proposal', {
+    detail: {
+      drop,
+      dropKey,
+      chapter: engine.state.chapter,
+      room: engine.state.floor,
+    },
+  }));
 }
 
 function installExitGuard(engine: GameEngine, state: EquipmentWorldLootState) {
@@ -124,6 +137,7 @@ function processCollectedEquipment(engine: GameEngine, state: EquipmentWorldLoot
 }
 
 function spawnHuntEquipment(engine: GameEngine, state: EquipmentWorldLootState) {
+  const role = duoRole();
   for (const enemy of engine.state.enemies) {
     if (!enemy.isDead || !enemy.isHuntTarget || state.processedHuntDeaths.has(enemy.id)) continue;
     state.processedHuntDeaths.add(enemy.id);
@@ -133,8 +147,16 @@ function spawnHuntEquipment(engine: GameEngine, state: EquipmentWorldLootState) 
         detail: { title: 'JAGDMARKE GEBORGEN', text: '+1 Jagdmarke · 3 Marken ergeben eine gewünschte Kopie', tone: 'hunt' },
       }));
     }
+
+    // Source marks remain individual. The actual equipment roll is authored
+    // once by the host and then distributed through the shared server vote.
+    if (role === 'guest') continue;
     const drop = rollHuntEquipmentReward(engine.state.chapter);
     if (!drop) continue;
+    if (role === 'host') {
+      proposeSharedEquipment(engine, `hunt:${enemy.id}`, drop);
+      continue;
+    }
     spawnEquipmentDrop(engine, drop, enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
   }
 }
@@ -186,12 +208,12 @@ function applyPortalLootGuard(engine: GameEngine, state: EquipmentWorldLootState
 }
 
 export function spawnRoomEquipmentReward(engine: GameEngine, drop: PendingEquipmentDrop) {
-  if (isDuoMode()) {
-    window.dispatchEvent(new CustomEvent('dungeon-veil-duo-loot-proposal', {
-      detail: { drop, chapter: engine.state.chapter, room: engine.state.floor },
-    }));
+  const role = duoRole();
+  if (role === 'host') {
+    proposeSharedEquipment(engine, 'boss', drop);
     return null;
   }
+  if (role === 'guest') return null;
   const x = engine.state.map.width * TILE_SIZE / 2;
   const y = engine.state.map.height * TILE_SIZE / 2;
   return spawnEquipmentDrop(engine, drop, x, y);
