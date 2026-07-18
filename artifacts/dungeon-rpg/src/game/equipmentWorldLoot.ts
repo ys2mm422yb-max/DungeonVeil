@@ -46,6 +46,7 @@ function installExitGuard(engine: GameEngine, state: EquipmentWorldLootState) {
   state.originalCanExitRoom = original;
   engine.canExitRoom = () => {
     if (!original.call(engine)) return false;
+    if (document.documentElement.dataset.dungeonVeilCoopLootPending === '1') return false;
     if (engine.state.roomClearReady && state.auditedClearKey !== roomClearKey(engine)) return false;
     return !state.exitBlocked;
   };
