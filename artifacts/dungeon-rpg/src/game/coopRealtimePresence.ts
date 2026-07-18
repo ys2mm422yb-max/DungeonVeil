@@ -7,6 +7,19 @@ import {
   type CoopEnemySnapshot,
   type CoopPlayerDamageEvent,
 } from './coopEnemyAuthority';
+import {
+  normalizeCoopReviveConfirm,
+  normalizeCoopReviveRequest,
+  normalizeCoopRoomAdvanceRequest,
+  normalizeCoopTeamGameOverEvent,
+  normalizeCoopTeamRetryEvent,
+  type CoopLifeState,
+  type CoopReviveConfirm,
+  type CoopReviveRequest,
+  type CoopRoomAdvanceRequest,
+  type CoopTeamGameOverEvent,
+  type CoopTeamRetryEvent,
+} from './coopLifeCycle';
 import { currentOnlineSession } from './supabaseOnline';
 
 const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL ?? 'https://hfndwqfghyomwapqsked.supabase.co').replace(/\/$/, '');
@@ -30,6 +43,9 @@ export type CoopPlayerPresence = {
   facingX: number;
   facingY: number;
   state: 'idle' | 'moving' | 'attack' | 'dodging';
+  lifeState: CoopLifeState;
+  revivesUsed: number;
+  downedUntil: number;
   hp: number;
   maxHp: number;
   defense: number;
@@ -60,6 +76,11 @@ type RealtimeOptions = {
   onEnemySnapshot?: (snapshot: CoopEnemySnapshot) => void;
   onEnemyHitIntent?: (intent: CoopEnemyHitIntent) => void;
   onPlayerDamage?: (event: CoopPlayerDamageEvent) => void;
+  onReviveRequest?: (event: CoopReviveRequest) => void;
+  onReviveConfirm?: (event: CoopReviveConfirm) => void;
+  onTeamGameOver?: (event: CoopTeamGameOverEvent) => void;
+  onTeamRetry?: (event: CoopTeamRetryEvent) => void;
+  onRoomAdvanceRequest?: (event: CoopRoomAdvanceRequest) => void;
 };
 
 function finite(value: unknown, fallback = 0): number {
@@ -73,6 +94,10 @@ function clamp(value: number, min: number, max: number): number {
 
 function normalizeState(value: unknown): CoopPlayerPresence['state'] {
   return value === 'moving' || value === 'attack' || value === 'dodging' ? value : 'idle';
+}
+
+function normalizeLifeState(value: unknown): CoopLifeState {
+  return value === 'downed' || value === 'fallen' ? value : 'alive';
 }
 
 export function normalizeCoopPlayerPresence(
@@ -89,6 +114,7 @@ export function normalizeCoopPlayerPresence(
   const sequence = Math.max(0, Math.floor(finite(raw.sequence)));
   const sentAt = Math.max(0, Math.floor(finite(raw.sentAt)));
   const maxHp = Math.max(1, finite(raw.maxHp, 100));
+  const lifeState = normalizeLifeState(raw.lifeState);
   return {
     version: 1,
     lobbyId,
@@ -102,7 +128,10 @@ export function normalizeCoopPlayerPresence(
     facingX: clamp(finite(raw.facingX), -1, 1),
     facingY: clamp(finite(raw.facingY, -1), -1, 1),
     state: normalizeState(raw.state),
-    hp: clamp(finite(raw.hp, maxHp), 0, maxHp),
+    lifeState,
+    revivesUsed: clamp(Math.floor(finite(raw.revivesUsed)), 0, 1),
+    downedUntil: lifeState === 'downed' ? Math.max(0, finite(raw.downedUntil)) : 0,
+    hp: lifeState === 'alive' ? clamp(finite(raw.hp, maxHp), 0, maxHp) : 0,
     maxHp,
     defense: clamp(finite(raw.defense), 0, 100_000),
     lastAttackTime: Math.max(0, finite(raw.lastAttackTime)),
@@ -149,11 +178,21 @@ export class CoopRealtimePresenceClient {
   private enemySequence = 0;
   private hitIntentSequence = 0;
   private playerDamageSequence = 0;
+  private reviveRequestSequence = 0;
+  private reviveConfirmSequence = 0;
+  private teamGameOverSequence = 0;
+  private teamRetrySequence = 0;
+  private roomAdvanceSequence = 0;
   private latestOutgoing: OutgoingPresence | null = null;
   private latestRemotePresenceSequence = new Map<string, number>();
   private latestRemoteEnemySequence = new Map<string, number>();
   private latestRemoteHitSequence = new Map<string, number>();
   private latestRemoteDamageSequence = new Map<string, number>();
+  private latestRemoteReviveRequestSequence = new Map<string, number>();
+  private latestRemoteReviveConfirmSequence = new Map<string, number>();
+  private latestRemoteTeamGameOverSequence = new Map<string, number>();
+  private latestRemoteTeamRetrySequence = new Map<string, number>();
+  private latestRemoteRoomAdvanceSequence = new Map<string, number>();
   private status: CoopRealtimeStatus = 'offline';
   private readonly userId: string;
   private readonly topic: string;
@@ -226,6 +265,31 @@ export class CoopRealtimePresenceClient {
     });
   }
 
+  publishReviveRequest(targetUserId: string, chapter: number, room: number): void {
+    if (!this.joined || this.options.context.role !== 'guest') return;
+    this.sendBroadcast('revive_request', this.runEvent(++this.reviveRequestSequence, chapter, room, { targetUserId }));
+  }
+
+  publishReviveConfirm(targetUserId: string, chapter: number, room: number): void {
+    if (!this.joined || this.options.context.role !== 'host') return;
+    this.sendBroadcast('revive_confirm', this.runEvent(++this.reviveConfirmSequence, chapter, room, { targetUserId }));
+  }
+
+  publishTeamGameOver(chapter: number, room: number): void {
+    if (!this.joined || this.options.context.role !== 'host') return;
+    this.sendBroadcast('team_game_over', this.runEvent(++this.teamGameOverSequence, chapter, room));
+  }
+
+  publishTeamRetry(chapter: number, room: number): void {
+    if (!this.joined || this.options.context.role !== 'host') return;
+    this.sendBroadcast('team_retry', this.runEvent(++this.teamRetrySequence, chapter, room));
+  }
+
+  publishRoomAdvanceRequest(chapter: number, room: number): void {
+    if (!this.joined || this.options.context.role !== 'guest') return;
+    this.sendBroadcast('room_advance_request', this.runEvent(++this.roomAdvanceSequence, chapter, room));
+  }
+
   close(): void {
     if (this.closed) return;
     this.closed = true;
@@ -238,6 +302,20 @@ export class CoopRealtimePresenceClient {
     this.socket = null;
     this.joined = false;
     this.setStatus('offline');
+  }
+
+  private runEvent(sequence: number, chapter: number, room: number, extra: Record<string, unknown> = {}) {
+    return {
+      version: 1,
+      lobbyId: this.options.context.lobbyId,
+      runSeed: this.options.context.runSeed,
+      userId: this.userId,
+      chapter,
+      room,
+      ...extra,
+      sequence,
+      sentAt: Date.now(),
+    };
   }
 
   private joinChannel(): void {
@@ -292,10 +370,7 @@ export class CoopRealtimePresenceClient {
     if (event === 'player_left' && payload && typeof payload === 'object') {
       const userId = String((payload as Record<string, unknown>).userId ?? '');
       if (userId && userId !== this.userId) {
-        this.latestRemotePresenceSequence.delete(userId);
-        this.latestRemoteEnemySequence.delete(userId);
-        this.latestRemoteHitSequence.delete(userId);
-        this.latestRemoteDamageSequence.delete(userId);
+        this.clearRemoteSequences(userId);
         this.options.onPeerLeft(userId);
       }
       return;
@@ -303,41 +378,83 @@ export class CoopRealtimePresenceClient {
 
     if (event === 'enemy_snapshot' && this.options.context.role === 'guest') {
       const normalized = normalizeCoopEnemySnapshot(payload, this.options.context, this.userId);
-      if (!normalized) return;
-      const previous = this.latestRemoteEnemySequence.get(normalized.userId) ?? -1;
-      if (normalized.sequence <= previous) return;
-      this.latestRemoteEnemySequence.set(normalized.userId, normalized.sequence);
+      if (!normalized || !this.acceptSequence(this.latestRemoteEnemySequence, normalized.userId, normalized.sequence)) return;
       this.options.onEnemySnapshot?.(normalized);
       return;
     }
 
     if (event === 'enemy_hit_intent' && this.options.context.role === 'host') {
       const normalized = normalizeCoopEnemyHitIntent(payload, this.options.context, this.userId);
-      if (!normalized) return;
-      const previous = this.latestRemoteHitSequence.get(normalized.userId) ?? -1;
-      if (normalized.sequence <= previous) return;
-      this.latestRemoteHitSequence.set(normalized.userId, normalized.sequence);
+      if (!normalized || !this.acceptSequence(this.latestRemoteHitSequence, normalized.userId, normalized.sequence)) return;
       this.options.onEnemyHitIntent?.(normalized);
       return;
     }
 
     if (event === 'player_damage' && this.options.context.role === 'guest') {
       const normalized = normalizeCoopPlayerDamageEvent(payload, this.options.context, this.userId);
-      if (!normalized) return;
-      const previous = this.latestRemoteDamageSequence.get(normalized.userId) ?? -1;
-      if (normalized.sequence <= previous) return;
-      this.latestRemoteDamageSequence.set(normalized.userId, normalized.sequence);
+      if (!normalized || !this.acceptSequence(this.latestRemoteDamageSequence, normalized.userId, normalized.sequence)) return;
       this.options.onPlayerDamage?.(normalized);
+      return;
+    }
+
+    if (event === 'revive_request' && this.options.context.role === 'host') {
+      const normalized = normalizeCoopReviveRequest(payload, this.options.context, this.userId);
+      if (!normalized || !this.acceptSequence(this.latestRemoteReviveRequestSequence, normalized.userId, normalized.sequence)) return;
+      this.options.onReviveRequest?.(normalized);
+      return;
+    }
+
+    if (event === 'revive_confirm' && this.options.context.role === 'guest') {
+      const normalized = normalizeCoopReviveConfirm(payload, this.options.context, this.userId);
+      if (!normalized || !this.acceptSequence(this.latestRemoteReviveConfirmSequence, normalized.userId, normalized.sequence)) return;
+      this.options.onReviveConfirm?.(normalized);
+      return;
+    }
+
+    if (event === 'team_game_over' && this.options.context.role === 'guest') {
+      const normalized = normalizeCoopTeamGameOverEvent(payload, this.options.context, this.userId);
+      if (!normalized || !this.acceptSequence(this.latestRemoteTeamGameOverSequence, normalized.userId, normalized.sequence)) return;
+      this.options.onTeamGameOver?.(normalized);
+      return;
+    }
+
+    if (event === 'team_retry' && this.options.context.role === 'guest') {
+      const normalized = normalizeCoopTeamRetryEvent(payload, this.options.context, this.userId);
+      if (!normalized || !this.acceptSequence(this.latestRemoteTeamRetrySequence, normalized.userId, normalized.sequence)) return;
+      this.options.onTeamRetry?.(normalized);
+      return;
+    }
+
+    if (event === 'room_advance_request' && this.options.context.role === 'host') {
+      const normalized = normalizeCoopRoomAdvanceRequest(payload, this.options.context, this.userId);
+      if (!normalized || !this.acceptSequence(this.latestRemoteRoomAdvanceSequence, normalized.userId, normalized.sequence)) return;
+      this.options.onRoomAdvanceRequest?.(normalized);
       return;
     }
 
     if (event !== 'player_state') return;
     const normalized = normalizeCoopPlayerPresence(payload, this.options.context, this.userId);
-    if (!normalized) return;
-    const previousSequence = this.latestRemotePresenceSequence.get(normalized.userId) ?? -1;
-    if (normalized.sequence <= previousSequence) return;
-    this.latestRemotePresenceSequence.set(normalized.userId, normalized.sequence);
+    if (!normalized || !this.acceptSequence(this.latestRemotePresenceSequence, normalized.userId, normalized.sequence)) return;
     this.options.onRemotePresence(normalized);
+  }
+
+  private acceptSequence(store: Map<string, number>, userId: string, sequence: number): boolean {
+    const previous = store.get(userId) ?? -1;
+    if (sequence <= previous) return false;
+    store.set(userId, sequence);
+    return true;
+  }
+
+  private clearRemoteSequences(userId: string): void {
+    this.latestRemotePresenceSequence.delete(userId);
+    this.latestRemoteEnemySequence.delete(userId);
+    this.latestRemoteHitSequence.delete(userId);
+    this.latestRemoteDamageSequence.delete(userId);
+    this.latestRemoteReviveRequestSequence.delete(userId);
+    this.latestRemoteReviveConfirmSequence.delete(userId);
+    this.latestRemoteTeamGameOverSequence.delete(userId);
+    this.latestRemoteTeamRetrySequence.delete(userId);
+    this.latestRemoteRoomAdvanceSequence.delete(userId);
   }
 
   private sendPresence(presence: OutgoingPresence): void {
@@ -354,6 +471,9 @@ export class CoopRealtimePresenceClient {
       facingX: presence.facingX,
       facingY: presence.facingY,
       state: presence.state,
+      lifeState: presence.lifeState,
+      revivesUsed: presence.revivesUsed,
+      downedUntil: presence.downedUntil,
       hp: presence.hp,
       maxHp: presence.maxHp,
       defense: presence.defense,
