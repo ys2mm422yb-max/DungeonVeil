@@ -1,6 +1,7 @@
 import { FINAL_BOSS_ROOM, isBossRoom } from './chapterRun';
 import { recordReachedChapter } from './equipmentChapterGates';
 import { rollBossEquipmentReward } from './equipmentDropContract';
+import { requestCoopSharedLoot } from './coopSharedLootRuntime';
 import {
   loadMetaProgression,
   saveMetaProgression,
@@ -47,7 +48,7 @@ function normalizedOptions(options: ChapterRoomRewardOptions | undefined) {
   const rewardRunId = String(options?.rewardRunId ?? '').trim().slice(0, 120);
   const duoMode = typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilRunMode === 'duo';
   const equipmentReward = options?.equipmentReward ?? !duoMode;
-  return { multiplier, rewardRunId, equipmentReward };
+  return { multiplier, rewardRunId, equipmentReward, duoMode };
 }
 
 export function rewardChapterRoomClear(
@@ -59,9 +60,11 @@ export function rewardChapterRoomClear(
   const safeFloor = Math.max(1, Math.min(FINAL_BOSS_ROOM, Math.floor(Number(floor) || 1)));
   recordReachedChapter(safeChapter);
 
+  const normalized = normalizedOptions(options);
+  if (normalized.duoMode && isBossRoom(safeFloor)) requestCoopSharedLoot(safeChapter, safeFloor);
+
   const meta = loadMetaProgression();
   ensureRunId(meta);
-  const normalized = normalizedOptions(options);
   const ledgerRunId = normalized.rewardRunId || meta.currentRunId;
   const rewardKey = `${ledgerRunId}:${safeChapter}:${safeFloor}`;
   if (meta.rewardLedger.includes(rewardKey)) return null;
