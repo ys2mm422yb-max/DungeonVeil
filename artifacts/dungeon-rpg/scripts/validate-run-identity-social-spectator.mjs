@@ -15,6 +15,7 @@ const [
   identityCard,
   profileCard,
   socialClient,
+  menuScene,
   migration,
   expansionMigration,
   presenceMigration,
@@ -33,6 +34,7 @@ const [
   read('../src/components/SocialIdentityCard.tsx'),
   read('../src/components/PlayerProfileCard.tsx'),
   read('../src/game/socialProgressOnline.ts'),
+  read('../src/components/MainMenuDungeonScene.tsx'),
   read('../../../supabase/migrations/20260716001000_add_friend_spectating_and_public_career_stats.sql'),
   read('../../../supabase/migrations/20260716230000_expand_spectating_and_public_equipment.sql'),
   read('../../../supabase/migrations/20260716235500_cloud_conflict_guard_and_spectator_presence.sql'),
@@ -54,6 +56,8 @@ const checks = [
   [spectatorScreen.includes('<CombatStage') && !spectatorScreen.includes('VirtualJoystick') && !spectatorScreen.includes('ActionButtons'), 'spectator screen is not a read-only combat view'],
   [spectatorScreen.includes('INTERPOLATION_MS = 120') && spectatorScreen.includes('spectator-health') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator view lacks fast smoothing, health, gifts or viewer presence'],
   [spectatorScreen.includes('SPIELER BESIEGT') && spectatorScreen.includes('SPIEL PAUSIERT') && spectatorScreen.includes('SPIELER IM MENÜ') && spectatorScreen.includes('VERBINDUNG UNTERBROCHEN'), 'spectator lifecycle messages are incomplete'],
+  [spectatorScreen.includes('SPECTATOR_RENDERER_EVENT') && spectatorScreen.includes('rendererReady') && spectatorScreen.includes('requestAnimationFrame') && spectatorScreen.includes('active: true') && spectatorScreen.includes('active: false'), 'spectator renderer does not wait for the menu WebGL scene to be released'],
+  [menuScene.includes('SPECTATOR_RENDERER_EVENT') && menuScene.includes('setSuspended') && menuScene.includes('if (suspended) return null'), 'main-menu WebGL scene is not suspended while a live run is watched'],
   [spectatorClient.includes('SPECTATOR_REFRESH_MS = 100') && spectatorClient.includes('SPECTATOR_STALE_MS = 5_000') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('effects.slice(-20)') && spectatorClient.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not compact, ten-hertz, identity-sanitized and gift-aware'],
   [bridge.includes('publishSpectatorState') && bridge.includes('publishMenuActivity') && bridge.includes('syncPublicProfileStats'), 'run bridge does not broadcast activity and public career progress'],
   [onlinePanel.includes('spectating-privacy-setting') && onlinePanel.includes('setSpectatingAllowed'), 'spectating privacy control is missing from Online & Cloud'],
@@ -78,4 +82,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Run identity/social spectator audit passed: account names, friend-or-guild 10Hz viewing, viewer counts, gifts, lifecycle status and public equipment are integrated.');
+console.log('Run identity/social spectator audit passed: account names, friend-or-guild 10Hz viewing, exclusive mobile WebGL handoff, viewer counts, gifts, lifecycle status and public equipment are integrated.');
