@@ -38,7 +38,7 @@ assert(targeting.includes('collectBalancedEquipmentDrop(id)'), 'crafted copies d
 
 assert(dropContract.includes('HUNT_EQUIPMENT_DROP_CHANCE = 0.08'), 'runtime hunt equipment chance is not 8%');
 assert(dropContract.includes('50: 0.42'), 'room-50 milestone chance is missing');
-assert(dropContract.includes('unowned.length > 0 && random() < 0.35 ? unowned : pool'), 'bounded unowned-item preference missing');
+assert(dropContract.includes('UNOWNED_ITEM_PREFERENCE = 0.35') && dropContract.includes('random() < UNOWNED_ITEM_PREFERENCE'), 'bounded unowned-item preference missing');
 assert(dropContract.includes('receivedWish ? 0 : Math.min(pity, misses + 1)'), 'wish misses do not advance/reset correctly');
 assert(dropContract.includes("`${runId}:${safeChapter}:hunt-wish`"), 'hunt wish attempt is not chapter-bounded');
 assert(dropContract.includes('(meta.owned[item.id]?.level ?? 0) < 5'), 'level-five items remain in active drop pools');
@@ -49,7 +49,7 @@ assert(worldLoot.includes('grantHuntEquipmentSourceMark(engine.state.chapter)') 
 assert(inventory.includes('data-testid="equipment-wish-item"') && inventory.includes('data-testid="equipment-craft-copy"') && inventory.includes('data-testid="equipment-source-marks"'), 'V4 inventory lacks wish, craft or source-mark controls');
 assert(inventory.includes('setEquipmentWishItem') && inventory.includes('craftEquipmentCopy') && inventory.includes('equipmentSourceMarkCost'), 'V4 inventory controls are not wired');
 assert(inventory.includes("'dungeon-veil-cloud-save-restored'") && inventory.includes("'dungeon-veil-equipment-targeting-changed'"), 'V4 inventory does not refresh after cloud/targeting changes');
-assert(cloud.includes("'dungeon-veil-equipment-targeting-v1'") && cloud.includes("'dungeon-veil-meta'"), 'equipment or targeting progress is missing from cloud bundles');
+assert(cloud.includes("'dungeon-veil-equipment-targeting-v2'") && cloud.includes("'dungeon-veil-equipment-targeting-v1'") && cloud.includes("'dungeon-veil-meta'"), 'equipment, targeting progress or V1 migration fallback is missing from cloud bundles');
 assert(cloud.includes('sourceMarkWeight(targeting.sourceMarks)') && cloud.includes("typeof targeting.wishItem === 'string'"), 'cloud conflict weighting ignores marks or wish item');
 
 assert(gifts.currentRules.firstChapterGiftSelections === 11 && gifts.currentRules.laterChapterGiftSelections === 5, 'bounded 11/5 gift schedule regressed');
