@@ -639,7 +639,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         innerRing.scale.y = 1.35;
         portal.add(innerRing);
 
-        const vortexLayers = [];
+        const vortexLayers: any[] = [];
         [0x160b39, 0x3b1681, 0x7c3aed].forEach((color, index) => {
           const layer = new THREE.Mesh(
             new THREE.CircleGeometry(0.7 - index * 0.07, IS_ANDROID ? 28 : 52),
@@ -653,7 +653,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           vortexLayers.push(layer);
         });
 
-        const energyRibbons = [];
+        const energyRibbons: any[] = [];
         for (let index = 0; index < 2; index++) {
           const ribbon = new THREE.Mesh(
             new THREE.TorusGeometry(0.82 - index * 0.11, 0.018 + index * 0.004, 5, IS_ANDROID ? 34 : 64, Math.PI * 1.52),
@@ -667,7 +667,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         }
 
         const runeMaterial = new THREE.MeshStandardMaterial({ color: 0xc4b5fd, metalness: 0.52, roughness: 0.34, emissive: 0x7c3aed, emissiveIntensity: 0.9 });
-        const runeDiamonds = [];
+        const runeDiamonds: any[] = [];
         [[0, 2.48, 0.05], [0, -0.2, 0.05], [-1.08, 1.13, 0.05], [1.08, 1.13, 0.05]].forEach(([x, y, z], index) => {
           const rune = new THREE.Mesh(new THREE.OctahedronGeometry(index < 2 ? 0.13 : 0.11, 0), runeMaterial.clone());
           rune.position.set(x, y, z);
@@ -676,7 +676,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           runeDiamonds.push(rune);
         });
 
-        const motes = [];
+        const motes: any[] = [];
         const moteCount = IS_ANDROID ? 6 : IS_MOBILE ? 9 : 14;
         for (let index = 0; index < moteCount; index++) {
           const mote = new THREE.Mesh(
