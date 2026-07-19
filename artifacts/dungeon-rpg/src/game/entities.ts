@@ -24,8 +24,8 @@ export interface Player extends Entity {
   speed: number;
   attackRange: number;
   skillRange: number;
-  critChance: number;
-  critDamage: number;
+  critChance?: number;
+  critDamage?: number;
   level: number;
   xp: number;
   color: string;
