@@ -92,4 +92,4 @@ console.log(JSON.stringify({
   minimumMobileControlScore: Math.min(...report.rows.map(row => row.mobileControlScore)),
   references: { starterOpening, maximumFinalBoss, maximumDisconnect, tankFinalBoss },
 }, null, 2));
-console.log('Duo combat matrix V4 passed: all build pairings, relic/gift orientations, normal/elite/boss checkpoints, disconnect survivors and server-authoritative rewards remain bounded.');
+console.log('Duo combat matrix V4 passed: all build pairings, relic/gift orientations, normal/elite/boss checkpoints, disconnect survivors and server-authoritative 1.25 currency rewards remain bounded.');
