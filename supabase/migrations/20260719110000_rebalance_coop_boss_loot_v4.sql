@@ -44,6 +44,7 @@ set search_path = public, private, pg_temp
 as $$
 declare
   v_user_id uuid := auth.uid();
+  v_run_attempt integer;
   v_roll_id uuid;
   v_drop_basis integer;
   v_drop_available boolean;
@@ -54,33 +55,38 @@ declare
   v_item_index integer;
 begin
   if v_user_id is null then raise exception 'authentication required'; end if;
+  if p_lobby_id is null then raise exception 'lobby required'; end if;
   if p_room not in (10, 20, 30, 40, 50) then raise exception 'boss room required'; end if;
-  if p_chapter < 1 or p_run_seed < 0 then raise exception 'invalid run context'; end if;
+  if p_chapter is null or p_chapter < 1 or p_run_seed is null or p_run_seed < 0 then
+    raise exception 'invalid run context';
+  end if;
 
-  perform pg_advisory_xact_lock(hashtextextended(
-    p_lobby_id::text || ':' || p_run_seed::text || ':' || p_chapter::text || ':' || p_room::text,
-    7321
-  ));
+  select lobby.run_attempt into v_run_attempt
+  from public.coop_lobbies lobby
+  join public.coop_lobby_members member
+    on member.lobby_id = lobby.id
+   and member.user_id = v_user_id
+   and member.role = 'host'
+   and member.left_at is null
+  where lobby.id = p_lobby_id
+    and lobby.status = 'in_run'
+    and lobby.run_seed = p_run_seed
+  for update of lobby;
 
-  if not exists (
-    select 1
-    from public.coop_lobbies lobby
-    join public.coop_lobby_members member
-      on member.lobby_id = lobby.id
-     and member.user_id = v_user_id
-     and member.role = 'host'
-     and member.left_at is null
-    where lobby.id = p_lobby_id
-      and lobby.status = 'in_run'
-      and lobby.run_seed = p_run_seed
-  ) then
+  if v_run_attempt is null then
     raise exception 'active host lobby required';
   end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(
+    p_lobby_id::text || ':' || p_run_seed::text || ':' || v_run_attempt::text || ':' || p_chapter::text || ':' || p_room::text,
+    7321
+  ));
 
   select roll.id into v_roll_id
   from public.coop_boss_loot_rolls roll
   where roll.lobby_id = p_lobby_id
     and roll.run_seed = p_run_seed
+    and roll.run_attempt = v_run_attempt
     and roll.chapter = p_chapter
     and roll.room = p_room;
 
@@ -95,7 +101,7 @@ begin
     end;
     v_drop_available := mod(
       (hashtextextended(
-        p_lobby_id::text || ':' || p_run_seed::text || ':' || p_chapter::text || ':' || p_room::text || ':drop-v4',
+        p_lobby_id::text || ':' || p_run_seed::text || ':' || v_run_attempt::text || ':' || p_chapter::text || ':' || p_room::text || ':drop-v4',
         9419
       ) & 9223372036854775807),
       10000
@@ -103,14 +109,14 @@ begin
 
     if not v_drop_available then
       insert into public.coop_boss_loot_rolls (
-        lobby_id, run_seed, chapter, room, item_id, rarity, source,
+        lobby_id, run_seed, run_attempt, chapter, room, item_id, rarity, source,
         status, drop_available, opened_at, expires_at, resolved_at
       ) values (
-        p_lobby_id, p_run_seed, p_chapter, p_room,
+        p_lobby_id, p_run_seed, v_run_attempt, p_chapter, p_room,
         'ash-bow', 'common', 'forge',
         'resolved', false, clock_timestamp(), clock_timestamp(), clock_timestamp()
       )
-      on conflict (lobby_id, run_seed, chapter, room) do nothing;
+      on conflict on constraint coop_boss_loot_rolls_lobby_attempt_room_key do nothing;
     else
       with catalog(item_id, rarity, source, unlock_chapter) as (
         values
@@ -140,18 +146,18 @@ begin
 
       if v_item_count < 1 then
         insert into public.coop_boss_loot_rolls (
-          lobby_id, run_seed, chapter, room, item_id, rarity, source,
+          lobby_id, run_seed, run_attempt, chapter, room, item_id, rarity, source,
           status, drop_available, opened_at, expires_at, resolved_at
         ) values (
-          p_lobby_id, p_run_seed, p_chapter, p_room,
+          p_lobby_id, p_run_seed, v_run_attempt, p_chapter, p_room,
           'ash-bow', 'common', 'forge',
           'resolved', false, clock_timestamp(), clock_timestamp(), clock_timestamp()
         )
-        on conflict (lobby_id, run_seed, chapter, room) do nothing;
+        on conflict on constraint coop_boss_loot_rolls_lobby_attempt_room_key do nothing;
       else
         v_item_index := mod(
           (hashtextextended(
-            p_lobby_id::text || ':' || p_run_seed::text || ':' || p_chapter::text || ':' || p_room::text || ':item-v4',
+            p_lobby_id::text || ':' || p_run_seed::text || ':' || v_run_attempt::text || ':' || p_chapter::text || ':' || p_room::text || ':item-v4',
             9421
           ) & 9223372036854775807),
           v_item_count
@@ -189,12 +195,12 @@ begin
         limit 1;
 
         insert into public.coop_boss_loot_rolls (
-          lobby_id, run_seed, chapter, room, item_id, rarity, source, drop_available
+          lobby_id, run_seed, run_attempt, chapter, room, item_id, rarity, source, drop_available
         ) values (
-          p_lobby_id, p_run_seed, p_chapter, p_room,
+          p_lobby_id, p_run_seed, v_run_attempt, p_chapter, p_room,
           v_item_id, v_rarity, v_source, true
         )
-        on conflict (lobby_id, run_seed, chapter, room) do nothing;
+        on conflict on constraint coop_boss_loot_rolls_lobby_attempt_room_key do nothing;
       end if;
     end if;
 
@@ -202,6 +208,7 @@ begin
     from public.coop_boss_loot_rolls roll
     where roll.lobby_id = p_lobby_id
       and roll.run_seed = p_run_seed
+      and roll.run_attempt = v_run_attempt
       and roll.chapter = p_chapter
       and roll.room = p_room;
   end if;
@@ -215,4 +222,4 @@ revoke all on function public.open_coop_boss_loot(uuid, bigint, integer, integer
 grant execute on function public.open_coop_boss_loot(uuid, bigint, integer, integer) to authenticated;
 
 comment on column public.coop_boss_loot_rolls.drop_available is
-  'False marks a server-authoritative no-equipment outcome. The resolved row keeps room rewards idempotent without opening a claim/pass decision.';
+  'False marks a server-authoritative no-equipment outcome. The resolved row keeps each retry attempt and boss-room reward idempotent without opening a claim/pass decision.';
