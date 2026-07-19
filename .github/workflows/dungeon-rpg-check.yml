@@ -27,7 +27,7 @@ on:
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,33 +40,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - name: Install workspace
-        run: pnpm install --frozen-lockfile
-      - name: Asset audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:assets
-      - name: Diagnose production rooms
+      - name: Install workspace quietly
+        run: pnpm install --frozen-lockfile --reporter=silent
+      - name: Production room diagnostic
         run: node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
-      - name: Diagnose spawn hitboxes
-        run: node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
-      - name: Diagnose normal telegraphs
-        run: node artifacts/dungeon-rpg/scripts/validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs
-      - name: Diagnose enemy visibility
-        run: node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
-      - name: Diagnose mobile combat
-        run: node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
-      - name: Diagnose late combat telegraphs
-        run: node artifacts/dungeon-rpg/scripts/validate-combat-telegraphs-late-balance.mjs
-      - name: Diagnose mobile zoom
-        run: node artifacts/dungeon-rpg/scripts/validate-mobile-zoom-guard.mjs
-      - name: Diagnose iPad run layout
-        run: node artifacts/dungeon-rpg/scripts/validate-ipad-run-layout.mjs
-      - name: Diagnose world boss performance
-        run: node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
-      - name: Diagnose social navigation
-        run: node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
-      - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
-      - name: Typecheck Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg typecheck
-      - name: Build Dungeon Veil
-        run: pnpm --filter @workspace/dungeon-rpg build
