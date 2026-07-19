@@ -42,6 +42,13 @@ const REGION_POOLS: Record<number, EnemyType[]> = {
   5: ['orc', 'golem', 'vampire', 'skeleton', 'demon', 'spider', 'slime'],
 };
 
+function ensureLateRoomRolePressure(plan: EnemyType[], region: number): EnemyType[] {
+  if (region !== 5) return plan;
+  const hasFrontliner = plan.some(type => type === 'orc' || type === 'golem');
+  if (!hasFrontliner && plan.length > 0) plan[0] = 'golem';
+  return plan;
+}
+
 export function getEncounterPlan(room: number): EnemyType[] {
   const safeRoom = Math.max(1, Math.min(50, room));
   if (ENCOUNTERS[safeRoom]) return [...ENCOUNTERS[safeRoom]];
@@ -50,7 +57,8 @@ export function getEncounterPlan(room: number): EnemyType[] {
   const pool = REGION_POOLS[region] ?? REGION_POOLS[3];
   const local = (safeRoom - 1) % 10;
   const count = Math.min(8, 5 + Math.floor(local / 2));
-  return Array.from({ length: count }, (_, index) => pool[(index + local * 2) % pool.length]);
+  const plan = Array.from({ length: count }, (_, index) => pool[(index + local * 2) % pool.length]);
+  return ensureLateRoomRolePressure(plan, region);
 }
 
 export function getChapterEncounterPlan(room: number, chapter: number): EnemyType[] {
