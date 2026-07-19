@@ -12,7 +12,6 @@ import {
   activeEquipmentLevelStats,
   isActiveEquipmentId,
 } from './equipmentRedesign';
-import { ensureEquipmentRedesignMigration } from './equipmentMigrationV4';
 
 export type RedesignedEquipmentCombatModifiers = {
   attackFlat: number;
@@ -35,12 +34,7 @@ export type CriticalDamageResult = {
   multiplier: number;
 };
 
-function activeMeta(meta?: MetaProgression): MetaProgression {
-  return meta ?? ensureEquipmentRedesignMigration().meta ?? loadMetaProgression();
-}
-
-export function redesignedEquipmentCombatModifiers(meta?: MetaProgression): RedesignedEquipmentCombatModifiers {
-  const live = activeMeta(meta);
+export function redesignedEquipmentCombatModifiers(meta: MetaProgression = loadMetaProgression()): RedesignedEquipmentCombatModifiers {
   const result: RedesignedEquipmentCombatModifiers = {
     attackFlat: 0,
     attackPercent: 0,
@@ -58,9 +52,9 @@ export function redesignedEquipmentCombatModifiers(meta?: MetaProgression): Rede
 
   let critDamageBonus = 0;
   for (const slot of ACTIVE_EQUIPMENT_SLOTS) {
-    const id = live.equipped[slot];
+    const id = meta.equipped[slot];
     if (!isActiveEquipmentId(id) || ACTIVE_EQUIPMENT[id].slot !== slot) continue;
-    const level = Math.max(1, Math.min(5, live.owned[id]?.level ?? 1));
+    const level = Math.max(1, Math.min(5, meta.owned[id]?.level ?? 1));
     const stats = activeEquipmentLevelStats(id, level);
     result.attackFlat += stats.attackFlat ?? 0;
     result.maxHp += stats.maxHp ?? 0;
