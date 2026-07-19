@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import type { GameEngine } from '../game/runEngine';
+import { createWorldBossRelicRuntimeStateV4, updateWorldBossRelicRuntimeV4 } from '../game/worldBossRelicRuntimeV4';
 import { WorldBossPerspectiveStage } from './WorldBossPerspectiveStage';
 
 type Props = {
@@ -48,6 +49,7 @@ export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
   const pendingRef = useRef<PendingAttack | null>(null);
   const activeBreathRef = useRef<ActiveBreath | null>(null);
   const lastAttackRef = useRef<AttackKind>('slam');
+  const relicRuntimeRef = useRef(createWorldBossRelicRuntimeStateV4());
 
   const handleReady = useCallback(() => {
     const now = performance.now();
@@ -176,6 +178,7 @@ export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
     const enforceBossPressure = (now: number) => {
       if (disposed) return;
       const engine = engineRef.current;
+      if (engine) updateWorldBossRelicRuntimeV4(engine, relicRuntimeRef.current, now);
       const boss = engine?.state.enemies.find(enemy => enemy.enemyType === 'boss' && enemy.hp > 0);
 
       if (engine && boss && releasedAtRef.current > 0 && now >= releasedAtRef.current) {
