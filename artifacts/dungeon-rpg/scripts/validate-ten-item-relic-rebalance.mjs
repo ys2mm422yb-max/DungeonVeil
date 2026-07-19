@@ -34,7 +34,8 @@ assert(migration.includes('migrationCompensation'), 'migration compensation miss
 assert(migration.includes('legacyReplacementFor'), 'legacy replacement table not used');
 assert(playerRuntime.includes('Math.floor(kills / 7)'), 'Marked Claw seven-kill trigger missing');
 assert(playerRuntime.includes('Math.min(1.75'), 'shared attack-speed cap missing');
-assert(playerRuntime.includes('1.03 / 1.04'), 'legacy crown correction missing');
+assert(playerRuntime.includes('previousMultiplier') && playerRuntime.includes('nextMultiplier') && playerRuntime.includes('* 0.03'), 'exact additive three-percent crown runtime missing');
+assert(playerRuntime.includes('state.crownRunId !== runId') && playerRuntime.includes('state.crownStack = stack'), 'crown resume protection missing');
 assert(runtime.includes('installCriticalHitRuntime'), 'critical runtime is not wired');
 assert(combat.includes('MAX_CRIT_CHANCE'), 'critical chance cap missing');
 assert(combat.includes('KRIT -'), 'visible critical damage text missing');
