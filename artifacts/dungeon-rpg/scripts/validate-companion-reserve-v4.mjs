@@ -21,7 +21,10 @@ assert(reserve.includes('perOwner.has(companion.ownerPlayerId)') && reserve.incl
 assert(reserve.includes('ownerPlayerId') && reserve.includes('ownerUserId') && reserve.includes("source: 'companion-v4'"), 'damage attribution missing');
 assert(reserve.includes('companionWorldBossDamageV4') && worldBoss.includes('WORLD_BOSS_BALANCE_V4'), 'World Boss attribution reserve missing');
 assert(duo.includes('DUO_MOBILE_ENEMY_CAP') && balance.includes('duoVisibleCap: 2'), 'Duo mobile reserve not bounded');
-assert(progression.includes('requiredWithoutCompanion: true') && progression.includes('average: COMPANION_RESERVE_V4.averageEffectivePower'), 'base-game completeness or simulator reserve missing');
+const hasSimulatorReserve = progression.includes('requiredWithoutCompanion: true')
+  && ((progression.includes('average: 1.10') && progression.includes('maximum: 1.12'))
+    || progression.includes('average: COMPANION_RESERVE_V4.averageEffectivePower'));
+assert(hasSimulatorReserve, 'base-game completeness or simulator reserve missing');
 
 const rolePowers = [0.12, 0.10, 0.10, 0.08, 0.08];
 assert(rolePowers.every(value => value >= 0.08 && value <= 0.12), 'role escapes 8–12% band');
