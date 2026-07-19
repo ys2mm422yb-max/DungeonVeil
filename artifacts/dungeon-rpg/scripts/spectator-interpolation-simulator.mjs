@@ -33,7 +33,7 @@ let interpolationFrames = 0;
 let extrapolationFrames = 0;
 let heldFrames = 0;
 
-for (let localNow = BASE_TIME; localNow <= BASE_TIME + DURATION_MS + 500; localNow += FRAME_MS) {
+for (let localNow = BASE_TIME; localNow <= BASE_TIME + DURATION_MS; localNow += FRAME_MS) {
   while (deliveryIndex < deliveries.length && deliveries[deliveryIndex].receivedAt <= localNow) {
     const packet = deliveries[deliveryIndex++];
     packets.push(packet);
