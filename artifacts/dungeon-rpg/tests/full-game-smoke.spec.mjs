@@ -171,7 +171,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
         starterArmorLevel: meta.owned?.['ranger-cloak']?.level,
       };
     });
-    expect(armorMeta).toEqual({ version: 3, equippedArmor: 'ranger-cloak', starterArmorLevel: 1 });
+    expect(armorMeta).toEqual({ version: 4, equippedArmor: 'ranger-cloak', starterArmorLevel: 1 });
     await assertNoHorizontalOverflow(page);
   });
 
