@@ -13,6 +13,11 @@ import { rewardChapterRoomClear } from '../game/chapterRewardContract';
 import { dispatchCoopRoomClear } from '../game/coopRunPersistenceOnline';
 import { createRunRetentionState, updateRunRetentionSystems } from '../game/runRetention';
 import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRelicEffects';
+import {
+  createRelicRuntimeCorrectionStateV4,
+  finalizeRelicRuntimeCorrectionV4,
+  prepareRelicRuntimeCorrectionV4,
+} from '../game/relicRuntimeCorrectionV4';
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
 import { installNormalEnemyAttackTelegraphs } from '../game/normalEnemyAttackTelegraphs';
 import { installBossAttackTelegraphs } from '../game/bossAttackTelegraphs';
@@ -149,6 +154,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const firstWarden = createFirstWardenFinaleState();
     const worldLoot = createEquipmentWorldLootState();
     const initialEngine = getEngineRef.current();
+    const relicCorrection = createRelicRuntimeCorrectionStateV4(initialEngine);
     const disposeGiftProgression = initialEngine ? installBoundedRunGiftProgression(initialEngine) : () => {};
     const disposeFusionEffects = initialEngine ? installRunFusionEffects(initialEngine) : () => {};
     const disposeNormalAttacks = initialEngine ? installNormalEnemyAttackTelegraphs(initialEngine) : () => {};
@@ -213,6 +219,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           const systemDt = Math.min(100, Math.max(dt, time - lastSystemTick));
           lastSystemTick = time;
           if (engine.state.status === 'playing') {
+            prepareRelicRuntimeCorrectionV4(engine, relicCorrection);
             updateRunBalance(engine, balance);
             updateRunEffectSystems(engine, effects, time);
             updateRunRetentionSystems(engine, retention, time);
@@ -222,6 +229,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           }
           updateEquipmentRuntimeBalance(engine, equipmentRuntime);
           updateRunRelicEffects(engine, relicEffects, time);
+          finalizeRelicRuntimeCorrectionV4(engine, relicCorrection, time);
           updateEquipmentWorldLoot(engine, worldLoot, time);
         }
         if (engine.state.status === 'playing' && time - lastProfileFlush >= PROFILE_FLUSH_MS) flushProfile(time, engine);
