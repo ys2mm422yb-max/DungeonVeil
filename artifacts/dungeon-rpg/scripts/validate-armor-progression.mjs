@@ -31,17 +31,18 @@ for (const id of activeArmorIds) {
   assert(armorVisuals.includes(`'${id}': { id: '${id}', slot: 'armor'`), `${id} has no retained armor visual`);
 }
 
+const armorSection = redesign.match(/'ranger-cloak':[\s\S]*?'warden-armor':[\s\S]*?\n\s*},/m)?.[0] ?? '';
 assert(redesign.includes("'ranger-cloak':") && redesign.includes('levels: [{ maxHp: 18 }'), 'Ranger Cloak health progression is missing');
 assert(redesign.includes("'ash-armor':") && redesign.includes('{ maxHp: 65, defense: 5 }'), 'Ash Armor hybrid level-five values are missing');
 assert(redesign.includes("'warden-armor':") && redesign.includes('{ maxHp: 40, defense: 11 }'), 'Warden Armor tank level-five values are missing');
-assert(!/descriptionDe:[^\n]+(?:Angriff|Beweg)/.test(redesign.match(/'ranger-cloak':[\s\S]*?'warden-armor':[\s\S]*?\n\s*},/m)?.[0] ?? ''), 'active armor descriptions expose offensive or movement roles');
-assert(redesign.includes("unlockChapter: 8") && redesign.includes("unlockRank: 14"), 'full-tank armor is not a late unlock');
+assert(!/attackFlat|attackPercent|critChance|critDamageBonus|speedPercent|attackSpeedPercent|attackRange/.test(armorSection), 'active armor exposes offensive, movement, speed or range stats');
+assert(redesign.includes('unlockChapter: 8') && redesign.includes('unlockRank: 14'), 'full-tank armor is not a late unlock');
 
 assert(definitions.includes('active: Boolean(active)'), 'active-versus-cosmetic definition flag is missing');
 assert(definitions.includes('Legacy-Skin ohne aktive Kampfwerte'), 'legacy armor models are not retained as statless cosmetics');
 assert(migration.includes('cosmeticUnlocks') && migration.includes('legacyReplacementFor'), 'legacy armor migration or cosmetic unlocks are missing');
 assert(store.includes('version: 4') && store.includes("armor: 'ranger-cloak'"), 'V4 store does not provide the starter armor');
-assert(store.includes("ACTIVE_EQUIPMENT_SLOTS") && !store.includes("['bow', 'quiver', 'talisman', 'armor']"), 'active store still treats talismans as a gameplay slot');
+assert(store.includes('ACTIVE_EQUIPMENT_SLOTS') && !store.includes("['bow', 'quiver', 'talisman', 'armor']"), 'active store still treats talismans as a gameplay slot');
 
 assert(combat.includes('defense / (safeDefense + 32)') || combat.includes('safeDefense / (safeDefense + 32)'), 'defense diminishing returns formula is missing');
 assert(combat.includes('Math.max(1, Math.round(raw * (1 - defenseMitigation'), 'defense can reduce normal damage to zero');
