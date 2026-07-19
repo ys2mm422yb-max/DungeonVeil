@@ -13,7 +13,7 @@ permissions:
 jobs:
   duo-matrix-diagnostics:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -24,20 +24,20 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Capture complete Duo matrix audit
+      - name: Capture complete room audit chain
         shell: bash
         run: |
           set +e
-          node artifacts/dungeon-rpg/scripts/validate-coop-duo-balance-rewards.mjs > duo-matrix.log 2>&1
-          echo $? > duo-matrix.exit
+          pnpm --filter @workspace/dungeon-rpg audit:rooms > duo-room-audit.log 2>&1
+          echo $? > duo-room-audit.exit
           exit 0
       - uses: actions/upload-artifact@v4
         with:
-          name: duo-matrix-diagnostics
+          name: duo-room-audit-diagnostics
           path: |
-            duo-matrix.log
-            duo-matrix.exit
+            duo-room-audit.log
+            duo-room-audit.exit
           if-no-files-found: error
-      - name: Enforce Duo matrix audit
+      - name: Enforce room audit chain
         shell: bash
-        run: test "$(cat duo-matrix.exit)" = "0"
+        run: test "$(cat duo-room-audit.exit)" = "0"
