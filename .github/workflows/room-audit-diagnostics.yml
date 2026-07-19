@@ -1,0 +1,43 @@
+name: Room Audit Diagnostics
+
+on:
+  pull_request:
+    branches: ['fix/validation-final-boss-ttk-base']
+    paths:
+      - '.github/workflows/room-audit-diagnostics.yml'
+      - 'artifacts/dungeon-rpg/**'
+
+permissions:
+  contents: read
+
+jobs:
+  room-audit-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture complete room audit
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg audit:rooms > room-audit.log 2>&1
+          echo $? > room-audit.exit
+          tail -n 250 room-audit.log
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: room-audit-diagnostics
+          path: |
+            room-audit.log
+            room-audit.exit
+          if-no-files-found: error
+      - name: Enforce room audit
+        run: test "$(cat room-audit.exit)" = "0"
