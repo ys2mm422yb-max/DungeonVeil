@@ -9,6 +9,7 @@ const [
   friends,
   spectatorScreen,
   spectatorClient,
+  spectatorPlayback,
   bridge,
   onlinePanel,
   guildPanel,
@@ -28,6 +29,7 @@ const [
   read('../src/components/FriendsPanel.tsx'),
   read('../src/components/SpectatorScreen.tsx'),
   read('../src/game/socialSpectatorOnline.ts'),
+  read('../src/game/spectatorPlayback.ts'),
   read('../src/components/GameSessionBridge.tsx'),
   read('../src/components/OnlinePanel.tsx'),
   read('../src/components/GuildPanelMobile.tsx'),
@@ -54,11 +56,13 @@ const checks = [
   [guildPanel.includes('<SocialIdentityCard') && guildPanel.includes('member.profile?.avatar_key') && guildPanel.includes('guild-member-profile-button'), 'guild members do not show their equipped avatar, title and calling card'],
   [guildPanel.includes('<SpectatorScreen') && guildPanel.includes("'Live zuschauen'") && guildPanel.includes('spectatingMember'), 'guild members cannot be opened in the live spectator view'],
   [spectatorScreen.includes('<CombatStage') && !spectatorScreen.includes('VirtualJoystick') && !spectatorScreen.includes('ActionButtons'), 'spectator screen is not a read-only combat view'],
-  [spectatorScreen.includes('INTERPOLATION_MS = 120') && spectatorScreen.includes('spectator-health') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator view lacks fast smoothing, health, gifts or viewer presence'],
+  [spectatorScreen.includes('SpectatorPlaybackBuffer') && spectatorScreen.includes('buffered-stable-scene-v2') && spectatorScreen.includes('spectator-health') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator view lacks buffered smoothing, health, gifts or viewer presence'],
+  [!spectatorScreen.includes('setDisplayState') && spectatorScreen.includes('const SpectatorScene = memo') && spectatorPlayback.includes('SPECTATOR_INTERPOLATION_DELAY_MS = 240'), 'spectator positions still trigger React renders instead of local scene interpolation'],
   [spectatorScreen.includes('SPIELER BESIEGT') && spectatorScreen.includes('SPIEL PAUSIERT') && spectatorScreen.includes('SPIELER IM MENÜ') && spectatorScreen.includes('VERBINDUNG UNTERBROCHEN'), 'spectator lifecycle messages are incomplete'],
   [spectatorScreen.includes('SPECTATOR_RENDERER_EVENT') && spectatorScreen.includes('rendererReady') && spectatorScreen.includes('requestAnimationFrame') && spectatorScreen.includes('active: true') && spectatorScreen.includes('active: false'), 'spectator renderer does not wait for the menu WebGL scene to be released'],
   [menuScene.includes('SPECTATOR_RENDERER_EVENT') && menuScene.includes('setSuspended') && menuScene.includes('if (suspended) return null'), 'main-menu WebGL scene is not suspended while a live run is watched'],
-  [spectatorClient.includes('SPECTATOR_REFRESH_MS = 100') && spectatorClient.includes('SPECTATOR_STALE_MS = 5_000') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('effects.slice(-20)') && spectatorClient.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not compact, ten-hertz, identity-sanitized and gift-aware'],
+  [spectatorClient.includes('SPECTATOR_REFRESH_MS = 200') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('SPECTATOR_EFFECT_LIMIT = 12') && spectatorClient.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not compact, five-hertz, identity-sanitized and gift-aware'],
+  [spectatorPlayback.includes('SPECTATOR_BUFFER_LIMIT = 8') && spectatorPlayback.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 110') && spectatorPlayback.includes("this.mode = 'frozen'"), 'spectator buffer, extrapolation cap or packet-loss behavior is incomplete'],
   [bridge.includes('publishSpectatorState') && bridge.includes('publishMenuActivity') && bridge.includes('syncPublicProfileStats'), 'run bridge does not broadcast activity and public career progress'],
   [onlinePanel.includes('spectating-privacy-setting') && onlinePanel.includes('setSpectatingAllowed'), 'spectating privacy control is missing from Online & Cloud'],
   [migration.includes('spectator_snapshots') && migration.includes('octet_length(p_snapshot::text) > 300000'), 'spectator snapshots are not size-limited'],
@@ -82,4 +86,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Run identity/social spectator audit passed: account names, friend-or-guild 10Hz viewing, exclusive mobile WebGL handoff, viewer counts, gifts, lifecycle status and public equipment are integrated.');
+console.log('Run identity/social spectator audit passed: account names, friend-or-guild buffered 5Hz viewing, exclusive mobile WebGL handoff, viewer counts, gifts, lifecycle status and public equipment are integrated.');
