@@ -30,8 +30,18 @@ jobs:
       - name: Apply focused continuity patch
         run: node .github/scripts/apply-loading-portal-continuity.mjs
       - name: Validate focused continuity contract
-        run: node artifacts/dungeon-rpg/scripts/validate-loading-portal-continuity.mjs
+        id: audit
+        run: node artifacts/dungeon-rpg/scripts/validate-loading-portal-continuity.mjs > /tmp/loading-continuity-audit.log 2>&1
+      - name: Upload audit diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: loading-continuity-audit-error
+          path: /tmp/loading-continuity-audit.log
+          if-no-files-found: error
+          retention-days: 1
       - name: Commit game changes
+        if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
