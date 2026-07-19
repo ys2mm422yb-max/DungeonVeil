@@ -18,7 +18,7 @@ assert(screen.includes('CODEX_BEASTS') && screen.includes('CODEX_HUNTS') && scre
 assert(screen.includes('EnemyArtwork') && screen.includes('RelicArtwork') && screen.includes('EquipmentArtwork'), 'Codex still lacks shared visual artwork.');
 assert(inventory.includes("import { EquipmentArtwork, RelicArtwork } from '../CodexArtwork';") && inventory.includes('<RelicArtwork relicId={activeRelic.id}') && inventory.includes('<EquipmentArtwork itemId={entry.id}'), 'Inventory and codex do not share the same relic and equipment artwork.');
 assert(!inventory.includes("activeRelic.source === 'hunt' ? '◈'") && !inventory.includes("relic.source === 'hunt' ? '◈'"), 'Generic source glyphs still replace individual relic artwork.');
-assert(screen.includes('CodexModelPreview') && screen.includes('codex-shared-model-preview'), 'Selected beasts and wardens have no real shared model preview.');
+assert(screen.includes('CodexModelPreview') && preview.includes('codex-shared-model-preview'), 'Selected beasts and wardens have no real shared model preview.');
 assert(screen.includes('md:grid-cols-[minmax(0,1.15fr)_minmax(300px,.85fr)]') && screen.includes('codex-detail-panel') && screen.includes('codex-card-grid'), 'Tablet codex does not use a card grid beside a detail panel.');
 assert(screen.includes('data-known={known') && screen.includes('SILHOUETTE · FUNDHINWEIS') && screen.includes('locked={!known}'), 'Locked entries do not remain spoiler-safe silhouettes with hints.');
 assert(!screen.includes("known ? '◆' : '?'") && !screen.includes('max-w-md'), 'Legacy single-column diamond placeholder codex is still present.');
