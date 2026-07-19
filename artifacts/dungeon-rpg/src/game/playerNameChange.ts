@@ -57,17 +57,30 @@ function emitChange(): void {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(PLAYER_NAME_CHANGE_EVENT));
 }
 
+function quoteFromValues(completedChanges: number, cost: number, meta: MetaProgression): PlayerNameChangeQuote {
+  const normalizedCost = cost > 0 ? PLAYER_NAME_CHANGE_GOLD_COST : 0;
+  return {
+    completedChanges: Math.max(0, Math.floor(completedChanges)),
+    cost: normalizedCost,
+    free: normalizedCost === 0,
+    affordable: meta.gold >= normalizedCost,
+    gold: meta.gold,
+  };
+}
+
 export function playerNameChangeQuote(userId: string, meta: MetaProgression = loadMetaProgression()): PlayerNameChangeQuote {
   const id = normalizeUserId(userId);
   const completedChanges = id ? loadState().users[id]?.completedChanges ?? 0 : 0;
   const cost = completedChanges === 0 ? 0 : PLAYER_NAME_CHANGE_GOLD_COST;
-  return {
-    completedChanges,
-    cost,
-    free: cost === 0,
-    affordable: meta.gold >= cost,
-    gold: meta.gold,
-  };
+  return quoteFromValues(completedChanges, cost, meta);
+}
+
+export function playerNameChangeQuoteFromServer(
+  completedChanges: number,
+  nextChangeCost: number,
+  meta: MetaProgression = loadMetaProgression(),
+): PlayerNameChangeQuote {
+  return quoteFromValues(completedChanges, nextChangeCost, meta);
 }
 
 export function commitPlayerNameChange(userId: string): PlayerNameChangeQuote {
@@ -90,6 +103,48 @@ export function commitPlayerNameChange(userId: string): PlayerNameChangeQuote {
     }
     emitChange();
     return playerNameChangeQuote(id, meta);
+  } catch (error) {
+    try {
+      if (previousStateRaw === null) localStorage.removeItem(STORAGE_KEY);
+      else localStorage.setItem(STORAGE_KEY, previousStateRaw);
+      if (meta.gold !== previousGold) {
+        meta.gold = previousGold;
+        saveMetaProgression(meta);
+      }
+    } catch {}
+    throw error;
+  }
+}
+
+export function commitServerPlayerNameChange(
+  userId: string,
+  completedChanges: number,
+  chargedGold: number,
+): PlayerNameChangeQuote {
+  const id = normalizeUserId(userId);
+  if (!id) throw new Error('Ungültiges Online-Konto');
+  const targetCompleted = Math.max(0, Math.floor(Number(completedChanges) || 0));
+  const charge = Number(chargedGold) === PLAYER_NAME_CHANGE_GOLD_COST ? PLAYER_NAME_CHANGE_GOLD_COST : 0;
+  const previousStateRaw = localStorage.getItem(STORAGE_KEY);
+  const state = loadState();
+  const currentCompleted = state.users[id]?.completedChanges ?? 0;
+  const meta = loadMetaProgression();
+
+  if (currentCompleted >= targetCompleted) {
+    return playerNameChangeQuoteFromServer(currentCompleted, currentCompleted === 0 ? 0 : PLAYER_NAME_CHANGE_GOLD_COST, meta);
+  }
+  if (meta.gold < charge) throw new Error(`Nicht genug Gold. Benötigt: ${charge}`);
+
+  const previousGold = meta.gold;
+  state.users[id] = { completedChanges: targetCompleted };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (charge > 0) {
+      meta.gold -= charge;
+      saveMetaProgression(meta);
+    }
+    emitChange();
+    return playerNameChangeQuoteFromServer(targetCompleted, targetCompleted === 0 ? 0 : PLAYER_NAME_CHANGE_GOLD_COST, meta);
   } catch (error) {
     try {
       if (previousStateRaw === null) localStorage.removeItem(STORAGE_KEY);
