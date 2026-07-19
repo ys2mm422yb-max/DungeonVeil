@@ -7,6 +7,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 
 const screen = read('src/components/screens/CodexScreen.tsx');
+const inventory = read('src/components/screens/VeilChamberScreenV4.tsx');
 const definitions = read('src/game/codexDefinitions.ts');
 const artwork = read('src/components/CodexArtwork.tsx');
 const preview = read('src/components/CodexModelPreview.tsx');
@@ -15,6 +16,8 @@ const test = read('tests/codex-visual-library.spec.mjs');
 
 assert(screen.includes('CODEX_BEASTS') && screen.includes('CODEX_HUNTS') && screen.includes('CODEX_WARDENS'), 'Codex does not use canonical entry definitions.');
 assert(screen.includes('EnemyArtwork') && screen.includes('RelicArtwork') && screen.includes('EquipmentArtwork'), 'Codex still lacks shared visual artwork.');
+assert(inventory.includes("import { EquipmentArtwork, RelicArtwork } from '../CodexArtwork';") && inventory.includes('<RelicArtwork relicId={activeRelic.id}') && inventory.includes('<EquipmentArtwork itemId={entry.id}'), 'Inventory and codex do not share the same relic and equipment artwork.');
+assert(!inventory.includes("activeRelic.source === 'hunt' ? '◈'") && !inventory.includes("relic.source === 'hunt' ? '◈'"), 'Generic source glyphs still replace individual relic artwork.');
 assert(screen.includes('CodexModelPreview') && screen.includes('codex-shared-model-preview'), 'Selected beasts and wardens have no real shared model preview.');
 assert(screen.includes('md:grid-cols-[minmax(0,1.15fr)_minmax(300px,.85fr)]') && screen.includes('codex-detail-panel') && screen.includes('codex-card-grid'), 'Tablet codex does not use a card grid beside a detail panel.');
 assert(screen.includes('data-known={known') && screen.includes('SILHOUETTE · FUNDHINWEIS') && screen.includes('locked={!known}'), 'Locked entries do not remain spoiler-safe silhouettes with hints.');
@@ -26,4 +29,4 @@ assert(preview.includes('data-preview-renderers="1"') && preview.includes('creat
 assert(!preview.includes('Object.values(CODEX_BEASTS).map') && screen.includes('<CodexModelPreview enemyType={entry.enemyType}'), 'Codex preview contract regressed.');
 assert(config.includes('codex-visual-library') && test.includes('toHaveCount(8)') && test.includes('toHaveCount(5)') && test.includes('toHaveCount(7)') && test.includes('toHaveCount(10)'), 'Four-device codex browser coverage is incomplete.');
 
-console.log('Codex visual library passed: canonical entries, unique shared artwork, spoiler-safe silhouettes, one model renderer and responsive tablet detail layout.');
+console.log('Codex visual library passed: canonical entries, shared individual artwork, spoiler-safe silhouettes, one model renderer and responsive tablet detail layout.');
