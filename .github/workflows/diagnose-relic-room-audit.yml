@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - fix/mobile-telegraphs-room-21-50-balance
+      - fix/loading-continuity-violet-portals-final
     types: [opened, synchronize]
     paths:
       - .github/workflows/diagnose-relic-room-audit.yml
