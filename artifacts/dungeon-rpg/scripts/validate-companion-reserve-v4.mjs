@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 
-const [balance, reserve, selection, runtime, scene, chip, stage, duo, worldBoss, progression] = await Promise.all([
+const [balance, reserve, selection, runtime, scene, chip, management, profileSummary, stage, menu, ownProfile, publicProfile, spectatorStage, duo, worldBoss, progression] = await Promise.all([
   readFile(new URL('../src/game/buildBalanceV4.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/companionReserveV4.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/companionSelectionV4.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/CompanionRuntimeBridge.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/CompanionScene3D.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/CompanionStatusChip.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/CompanionManagementPanel.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/CompanionProfileSummary.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/CombatStage.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/screens/MainMenuScreen.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/PlayerProfilePanel.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/PlayerProfileCard.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/SpectatorPlaybackStage.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/coopDuoBalanceV4.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/WorldBossBattleScreenV4.tsx', import.meta.url), 'utf8'),
   readFile(new URL('./ten-item-relic-grind-simulator.mjs', import.meta.url), 'utf8'),
@@ -28,24 +34,35 @@ assert(reserve.includes('companionWorldBossDamageV4') && worldBoss.includes('WOR
 assert(duo.includes('DUO_MOBILE_ENEMY_CAP') && balance.includes('duoVisibleCap: 2'), 'Duo mobile reserve not bounded');
 
 assert(selection.includes('COMPANION_ROLE_ORDER_V4') && selection.includes('COMPANION_SELECTION_STORAGE_KEY'), 'role selection or persistence missing');
-assert(chip.includes('run-companion-chip') && chip.includes('nextCompanionRoleV4'), 'visible role control missing');
+assert(selection.includes('saveCompanionRoleV4') && selection.includes('localStorage.setItem'), 'selected companion is not persisted');
+assert(chip.includes('run-companion-chip') && chip.includes('nextCompanionRoleV4'), 'visible in-run role control missing');
 assert(stage.includes('<CompanionRuntimeBridge') && stage.includes('<CompanionScene3D') && stage.includes('<CompanionStatusChip'), 'runtime, renderer or status integration missing');
+assert(scene.includes('data-scene-hook="object3d-add"') && scene.includes('THREE.Object3D.prototype.add'), 'active Three scene hook is missing');
+assert(!scene.includes('WebGLRenderer.prototype.render'), 'broken renderer prototype hook returned');
 assert(scene.includes("data-model-source=\"kaykit-adventurers\"") && scene.includes('findKayKitModels') && scene.includes('KayKitCompanion_'), 'supplied KayKit companion models are not used');
 assert(scene.includes('rig_medium_general') && scene.includes('rig_medium_movementbasic') && scene.includes('rig_medium_combat'), 'KayKit idle, movement or combat animation loading missing');
 assert(scene.includes('normalizeCompanionRosterV4') && scene.includes("remote:${remote.userId}"), 'one visible companion per Solo/Duo owner is not enforced in the renderer');
-assert(scene.includes('WebGLRenderer.prototype.render') && scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"'), 'companion renderer must reuse the active run WebGL scene');
+assert(scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"'), 'companion renderer must reuse the active run WebGL scene');
 assert(runtime.includes('window.setInterval(tick, 100)') && runtime.includes('reservation.projectileBudget'), '10 Hz AI or projectile budget missing at runtime');
 assert(runtime.includes("authorityRef.current === 'host'") && runtime.includes("modeRef.current === 'solo'"), 'Duo enemy authority gate missing');
 assert(runtime.includes("activeRole === 'single-target'") && runtime.includes("activeRole === 'critical-support'") && runtime.includes("activeRole === 'shield'") && runtime.includes("activeRole === 'loot-comfort'") && runtime.includes("activeRole === 'distraction'"), 'not all five role bonuses are implemented');
 assert(runtime.includes('data-revive-target="false"') && runtime.includes('data-blocks-players="false"') && runtime.includes('data-blocks-enemies="false"'), 'runtime collision or revive diagnostics unsafe');
 
+assert(menu.includes("'companions'") && menu.includes('main-menu-companion-navigation') && menu.includes('<CompanionManagementPanel'), 'main-menu navigation or management integration missing');
+assert(management.includes('companion-management-panel') && management.includes('companion-active-role') && management.includes('companion-reserve-grid'), 'management UI diagnostics missing');
+assert(management.includes('reserve.length') && management.includes('4/4') === false, 'reserve must be calculated rather than hard-coded as a fake list');
+assert(management.includes('saveCompanionRoleV4') && management.includes('COMPANION_ROLE_ORDER_V4.filter'), 'active/reserve switching is not persistent');
+assert(profileSummary.includes('AKTIVER BEGLEITER') && profileSummary.includes('Reserve'), 'profile companion summary incomplete');
+assert(ownProfile.includes('own-player-profile-companion') && ownProfile.includes('<CompanionProfileSummary'), 'own profile companion missing');
+assert(publicProfile.includes('public-player-profile-companion') && publicProfile.includes('companionRoleForOwnerV4'), 'public profile companion fallback missing');
+assert(spectatorStage.includes('<CompanionScene3D') && spectatorStage.includes('spectator-companion-contract') && spectatorStage.includes('single-stable-three-state-with-companion'), 'spectator companion integration missing');
+
 const hasSimulatorReserve = progression.includes('requiredWithoutCompanion: true')
   && ((progression.includes('average: 1.10') && progression.includes('maximum: 1.12'))
     || progression.includes('average: COMPANION_RESERVE_V4.averageEffectivePower'));
 assert(hasSimulatorReserve, 'base-game completeness or simulator reserve missing');
-
 const rolePowers = [0.12, 0.10, 0.10, 0.08, 0.08];
 assert(rolePowers.every(value => value >= 0.08 && value <= 0.12), 'role escapes 8–12% band');
 assert(Math.max(...rolePowers) - Math.min(...rolePowers) <= 0.04, 'companion roles are excessively unequal');
-console.log(JSON.stringify({ roles: 5, soloCap: 1, duoCap: 2, projectileBudget: 2, particleBudget: 12, aiHz: 10, sharedRunRenderer: true, rolePowers }, null, 2));
-console.log('Companion reserve V4 passed: visible KayKit companions are animated, optional, owner-attributed, nonblocking and mobile-safe.');
+console.log(JSON.stringify({ roles: 5, active: 1, reserve: 4, soloCap: 1, duoCap: 2, projectileBudget: 2, particleBudget: 12, aiHz: 10, sharedRunRenderer: true, navigation: true, profiles: true, spectator: true, rolePowers }, null, 2));
+console.log('Companion reserve V4 passed: navigation, management, profiles, run and spectator use bounded visible KayKit companions.');

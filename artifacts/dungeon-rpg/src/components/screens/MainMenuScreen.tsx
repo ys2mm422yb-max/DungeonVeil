@@ -24,6 +24,7 @@ import { WorldBossPanel } from '../WorldBossPanel';
 import { ProfileBadge } from '../ProfileBadge';
 import { PlayerProfilePanel } from '../PlayerProfilePanel';
 import { CoopLobbyPanel } from '../CoopLobbyPanel';
+import { CompanionManagementPanel } from '../CompanionManagementPanel';
 
 interface Props {
   saveData: SaveData | null;
@@ -36,7 +37,7 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'play' | 'online' | 'guild' | 'worldBoss' | 'coop' | null;
+type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'play' | 'online' | 'guild' | 'worldBoss' | 'coop' | 'companions' | null;
 
 export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
@@ -123,7 +124,7 @@ export function MainMenuScreen(props: Props) {
         : tone === 'blue'
           ? 'border-sky-100/14 bg-[linear-gradient(135deg,#17252c,#10161a)] text-sky-50/82'
           : 'border-white/10 bg-[#151210]/92 text-[#f2e7da]';
-    return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`min-h-[62px] rounded-2xl border px-4 py-3 text-left shadow-[0_12px_26px_rgba(0,0,0,.25)] active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
+    return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`min-h-[62px] w-full rounded-2xl border px-4 py-3 text-left shadow-[0_12px_26px_rgba(0,0,0,.25)] active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
       <div className="flex items-center gap-2"><div className="min-w-0 flex-1"><div className="text-[12px] font-black tracking-[.08em]">{label}</div><div className="mt-1 truncate text-[6px] uppercase tracking-[.11em] text-white/42">{detail}</div></div>{!disabled && <span className="text-base text-white/32">›</span>}</div>
     </button>;
   };
@@ -138,40 +139,27 @@ export function MainMenuScreen(props: Props) {
     <button type="button" aria-label="Mehr" onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="absolute right-4 top-[max(14px,calc(env(safe-area-inset-top)+6px))] z-30 grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-black/42 text-base text-white/72 backdrop-blur-lg active:scale-95">•••</button>
 
     <div className="relative z-10 flex h-full flex-col pb-[max(12px,calc(env(safe-area-inset-bottom)+4px))] pt-[max(22px,calc(env(safe-area-inset-top)+10px))]">
-      <header className="mt-12 px-5 text-center sm:mt-0">
-        <div className="text-[6px] font-black uppercase tracking-[.46em] text-amber-100/52">{language === 'de' ? 'BETRITT DEN SCHLEIER' : 'ENTER THE VEIL'}</div>
-        <h1 className="mt-1 bg-gradient-to-b from-[#f5dfae] via-[#d8a252] to-[#9e622d] bg-clip-text font-serif text-[clamp(2rem,8.5vw,3rem)] font-black leading-[.88] tracking-[.06em] text-transparent drop-shadow-[0_5px_18px_rgba(104,61,16,.24)]">DUNGEON VEIL</h1>
-        <p className="mt-2 text-[6px] uppercase tracking-[.24em] text-amber-50/34">{t.subtitle}</p>
-      </header>
-
-      <div className="min-h-[250px] flex-1" />
-
-      <VillageNpcHub
-        language={language}
-        dailyProgress={`${retention.daily.claimed.length}/3`}
-        mailUnread={mailUnread}
-        onQuests={() => setOverlay('daily')}
-        onMailbox={() => setOverlay('mailbox')}
-        onFriends={() => setOverlay('friends')}
-        onGuild={() => setOverlay('guild')}
-      />
-
+      <header className="mt-12 px-5 text-center sm:mt-0"><div className="text-[6px] font-black uppercase tracking-[.46em] text-amber-100/52">{language === 'de' ? 'BETRITT DEN SCHLEIER' : 'ENTER THE VEIL'}</div><h1 className="mt-1 bg-gradient-to-b from-[#f5dfae] via-[#d8a252] to-[#9e622d] bg-clip-text font-serif text-[clamp(2rem,8.5vw,3rem)] font-black leading-[.88] tracking-[.06em] text-transparent drop-shadow-[0_5px_18px_rgba(104,61,16,.24)]">DUNGEON VEIL</h1><p className="mt-2 text-[6px] uppercase tracking-[.24em] text-amber-50/34">{t.subtitle}</p></header>
+      <div className="min-h-[220px] flex-1" />
+      <VillageNpcHub language={language} dailyProgress={`${retention.daily.claimed.length}/3`} mailUnread={mailUnread} onQuests={() => setOverlay('daily')} onMailbox={() => setOverlay('mailbox')} onFriends={() => setOverlay('friends')} onGuild={() => setOverlay('guild')} />
       <div className="mx-auto mt-2 grid w-full max-w-md grid-cols-2 gap-2 px-4">
         {action(t.continueGame, continueText, props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}
         {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · WELTBOSS' : 'SOLO · DUO · WORLD BOSS', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
         {action(language === 'de' ? 'Inventar' : 'Inventory', language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Staub` : `Rank ${meta.rank} · ${meta.dust} dust`, props.onVeilChamber, 'violet')}
         {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · JAGD · RELIKTE' : 'BEASTS · HUNTS · RELICS', props.onCodex, 'blue')}
+        <div className="col-span-2" data-testid="main-menu-companion-navigation">{action(language === 'de' ? 'Begleiter' : 'Companions', language === 'de' ? '1 AKTIV · 4 RESERVE · ROLLEN & BONI' : '1 ACTIVE · 4 RESERVE · ROLES & BONUSES', () => setOverlay('companions'), 'violet')}</div>
       </div>
     </div>
 
     {overlay === 'profile' && <PlayerProfilePanel profile={profile} saveData={currentSaveData} meta={meta} retention={retention} language={language} onProfileChange={setProfile} onClose={() => setOverlay(null)} />}
 
-    {overlay && overlay !== 'profile' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-5 backdrop-blur-md" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
+    {overlay && overlay !== 'profile' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onPointerDown={() => setOverlay(null)}><div className={overlay === 'companions' ? 'w-full max-w-4xl' : 'w-full max-w-sm'} onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
       {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
       {overlay === 'friends' && <FriendsPanel language={language} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} onOpenOnline={() => setOverlay('online')} />}
+      {overlay === 'companions' && <CompanionManagementPanel language={language} />}
       {overlay === 'play' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'SPIELMODUS WÄHLEN' : 'CHOOSE GAME MODE'}</div><div className="space-y-2">{action(language === 'de' ? 'Solo-Run' : 'Solo Run', language === 'de' ? 'NEUES ABENTEUER · ALLEINE' : 'NEW ADVENTURE · SOLO', () => { setOverlay(null); startNormalRun(); }, 'gold')}{action(language === 'de' ? 'Duo-Run' : 'Duo Run', language === 'de' ? 'PRIVATE LOBBY · 2 SPIELER · VORSCHAU' : 'PRIVATE LOBBY · 2 PLAYERS · PREVIEW', () => setOverlay('coop'), 'violet')}{action(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'GEMEINSAMER BOSSKAMPF' : 'SHARED BOSS FIGHT', () => setOverlay('worldBoss'), 'blue')}</div></div>}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={currentSaveData} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'coop' && <CoopLobbyPanel language={language} onOpenOnline={() => setOverlay('online')} onStartRun={lobby => { setOverlay(null); props.onStartCoop(lobby); }} />}

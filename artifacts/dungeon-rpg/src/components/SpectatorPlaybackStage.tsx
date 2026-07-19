@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { RunGameState } from '../game/runEngine';
 import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
+import { CompanionScene3D } from './CompanionScene3D';
 
 type ViewportBox = { width: number; height: number; left: number; top: number };
 
@@ -38,10 +39,12 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
 
   return <div
     data-testid="spectator-playback-stage"
-    data-render-contract="single-stable-three-state"
+    data-render-contract="single-stable-three-state-with-companion"
     className="fixed overflow-hidden bg-black"
     style={{ left: viewport.left, top: viewport.top, width: viewport.width, height: viewport.height }}
   >
     <GameCanvasKayKit3D gameState={stableState} />
+    <CompanionScene3D gameState={stableState} localRole="single-target" />
+    <span className="hidden" aria-hidden="true" data-testid="spectator-companion-contract" data-visible-cap="1" data-shared-renderer="true" />
   </div>;
 }

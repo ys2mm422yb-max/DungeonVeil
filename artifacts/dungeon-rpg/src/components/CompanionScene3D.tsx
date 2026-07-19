@@ -41,7 +41,6 @@ type Props = {
 
 type CompanionRig = {
   root: any;
-  mixer: any;
   setMoving: (moving: boolean) => void;
   triggerAction: () => void;
   update: (delta: number) => void;
@@ -163,7 +162,6 @@ async function loadCompanionRig(THREE: any, GLTFLoaderCtor: any, role: Companion
 
   return {
     root,
-    mixer,
     setMoving(value: boolean) {
       moving = value;
       if (actionRemaining <= 0) playBase();
@@ -182,9 +180,7 @@ async function loadCompanionRig(THREE: any, GLTFLoaderCtor: any, role: Companion
         if (actionRemaining === 0) playBase();
       }
     },
-    stop() {
-      mixer.stopAllAction();
-    },
+    stop() { mixer.stopAllAction(); },
   };
 }
 
@@ -227,8 +223,8 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
     let THREE: any = null;
     let GLTFLoaderCtor: any = null;
     let desiredScene: any = null;
-    let originalRender: ((scene: any, camera: any) => void) | null = null;
-    let patchedRender: ((this: any, scene: any, camera: any) => void) | null = null;
+    let originalAdd: ((...objects: any[]) => any) | null = null;
+    let patchedAdd: ((this: any, ...objects: any[]) => any) | null = null;
     const bindings = new Map<string, CompanionBinding>();
     const loading = new Set<string>();
     let lastVisibleCount = -1;
@@ -246,6 +242,7 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
         lastLoadedCount = bindings.size;
       }
       marker.dataset.localRole = localRole;
+      marker.dataset.sceneCaptured = desiredScene ? 'true' : 'false';
     };
 
     const removeBinding = (ownerPlayerId: string) => {
@@ -264,22 +261,21 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
       for (const ownerId of [...bindings.keys()]) removeBinding(ownerId);
     };
 
-    const captureScene = (scene: any) => {
-      if (!scene?.isScene || !scene.getObjectByName?.('KayKitRangerPlayer')) return;
-      if (desiredScene === scene) return;
-      desiredScene = scene;
+    const captureScene = (candidate: any) => {
+      if (!candidate?.isScene || !candidate.getObjectByName?.('KayKitRangerPlayer')) return;
+      if (desiredScene === candidate) return;
+      desiredScene = candidate;
       clearBindings();
+      updateMarker();
     };
 
     const desiredRoster = () => {
       const remote = remoteRef.current;
-      const candidates = [
-        createCompanionReservationV4({
-          id: `companion-v4-local-${localRole}`,
-          ownerPlayerId: 'player',
-          role: localRole,
-        }),
-      ];
+      const candidates = [createCompanionReservationV4({
+        id: `companion-v4-local-${localRole}`,
+        ownerPlayerId: 'player',
+        role: localRole,
+      })];
       if (remote && remotePresenceIsFresh(remote)) {
         const remoteRole = companionRoleForOwnerV4(remote.userId);
         candidates.push(createCompanionReservationV4({
@@ -298,7 +294,8 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
       loading.add(ownerId);
       try {
         const rig = await loadCompanionRig(THREE, GLTFLoaderCtor, reservation.role);
-        if (disposed || desiredScene !== scene || !desiredRoster().some(entry => entry.ownerPlayerId === ownerId && entry.role === reservation.role)) {
+        const stillWanted = desiredRoster().some(entry => entry.ownerPlayerId === ownerId && entry.role === reservation.role);
+        if (disposed || desiredScene !== scene || !stillWanted) {
           rig.stop();
           disposeObject(rig.root);
           return;
@@ -377,8 +374,7 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
       const movementZ = binding.z - previousZ;
       const moving = Math.hypot(movementX, movementZ) > 0.0005;
       binding.rig.root.position.set(binding.x, 0.02 + Math.sin(now * 0.004 + binding.reservation.id.length) * 0.025, binding.z);
-      if (moving) binding.rig.root.rotation.y = Math.atan2(movementX, movementZ);
-      else binding.rig.root.rotation.y = Math.atan2(facingX, facingY);
+      binding.rig.root.rotation.y = moving ? Math.atan2(movementX, movementZ) : Math.atan2(facingX, facingY);
       binding.rig.setMoving(moving);
       if (isRemote && remote && remote.lastAttackTime > binding.lastRemoteAttack) {
         binding.lastRemoteAttack = remote.lastAttackTime;
@@ -392,8 +388,7 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
     };
 
     const actionHandler = (event: Event) => {
-      const detail = (event as CustomEvent<{ ownerPlayerId?: string }>).detail;
-      const ownerId = detail?.ownerPlayerId ?? '';
+      const ownerId = (event as CustomEvent<{ ownerPlayerId?: string }>).detail?.ownerPlayerId ?? '';
       bindings.get(ownerId)?.rig.triggerAction();
     };
 
@@ -411,12 +406,13 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
       const loaderModule = await import(/* @vite-ignore */ GLTF_URL) as any;
       GLTFLoaderCtor = loaderModule.GLTFLoader;
       if (disposed) return;
-      originalRender = THREE.WebGLRenderer.prototype.render;
-      patchedRender = function patchedCompanionSceneRender(this: any, scene: any, camera: any) {
-        captureScene(scene);
-        return originalRender!.call(this, scene, camera);
+      originalAdd = THREE.Object3D.prototype.add;
+      patchedAdd = function patchedCompanionObjectAdd(this: any, ...objects: any[]) {
+        const result = originalAdd!.apply(this, objects);
+        captureScene(this);
+        return result;
       };
-      THREE.WebGLRenderer.prototype.render = patchedRender;
+      THREE.Object3D.prototype.add = patchedAdd;
       window.addEventListener(COMPANION_ACTION_EVENT_V4, actionHandler);
       updateMarker(0);
       raf = requestAnimationFrame(tick);
@@ -428,25 +424,25 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
       cancelAnimationFrame(raf);
       window.removeEventListener(COMPANION_ACTION_EVENT_V4, actionHandler);
       clearBindings();
-      if (THREE && originalRender && patchedRender && THREE.WebGLRenderer.prototype.render === patchedRender) {
-        THREE.WebGLRenderer.prototype.render = originalRender;
+      if (THREE && originalAdd && patchedAdd && THREE.Object3D.prototype.add === patchedAdd) {
+        THREE.Object3D.prototype.add = originalAdd;
       }
     };
   }, [localRole]);
 
-  return (
-    <span
-      ref={markerRef}
-      className="hidden"
-      aria-hidden="true"
-      data-testid="run-companion-scene"
-      data-visible-count="0"
-      data-loaded-count="0"
-      data-local-role={localRole}
-      data-model-source="kaykit-adventurers"
-      data-animation-source="kaykit-character-animations"
-      data-shared-renderer="true"
-      data-extra-canvas="false"
-    />
-  );
+  return <span
+    ref={markerRef}
+    className="hidden"
+    aria-hidden="true"
+    data-testid="run-companion-scene"
+    data-visible-count="0"
+    data-loaded-count="0"
+    data-local-role={localRole}
+    data-scene-captured="false"
+    data-scene-hook="object3d-add"
+    data-model-source="kaykit-adventurers"
+    data-animation-source="kaykit-character-animations"
+    data-shared-renderer="true"
+    data-extra-canvas="false"
+  />;
 }
