@@ -45,9 +45,10 @@ const REGION_POOLS: Record<number, EnemyType[]> = {
 function enforceLateRoomRoleMix(plan: EnemyType[], local: number): EnemyType[] {
   if (plan.length < 3) return plan;
   const result = [...plan];
-  result[0] = local % 2 === 0 ? 'golem' : 'orc';
-  result[1] = local % 3 === 0 ? 'vampire' : 'demon';
-  result[2] = local % 2 === 0 ? 'spider' : 'slime';
+  result[0] = 'golem';
+  result[1] = 'demon';
+  result[2] = 'spider';
+  if (result.length >= 4) result[3] = local % 2 === 0 ? 'vampire' : 'golem';
   return result;
 }
 
