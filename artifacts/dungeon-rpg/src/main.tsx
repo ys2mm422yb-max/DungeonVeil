@@ -6,6 +6,7 @@ import './game/onlinePresenceRuntime';
 import App from './App';
 import { GlobalLoadingLayer } from './components/GlobalLoadingLayer';
 import { MainMenuVisualQa } from './components/MainMenuVisualQa';
+import { ProfileLayoutQa } from './components/ProfileLayoutQa';
 import { SpectatorPerformanceQa } from './components/SpectatorPerformanceQa';
 import { TutorialVisualQa } from './components/TutorialVisualQa';
 import { UnlockPresentationLayer } from './components/UnlockPresentationLayer';
@@ -39,10 +40,12 @@ const qaView = qaMode === 'worldboss'
   ? <WorldBossVisualQa />
   : qaMode === 'spectator'
     ? <SpectatorPerformanceQa />
-    : qaMode === 'tutorial'
-      ? <TutorialVisualQa />
-      : qaMode === 'menu'
-        ? <MainMenuVisualQa />
-        : null;
+    : qaMode === 'profiles'
+      ? <ProfileLayoutQa />
+      : qaMode === 'tutorial'
+        ? <TutorialVisualQa />
+        : qaMode === 'menu'
+          ? <MainMenuVisualQa />
+          : null;
 const appView = qaView ?? <><App /><GlobalLoadingLayer /><UnlockPresentationLayer /></>;
 createRoot(document.getElementById('root')!).render(appView);
