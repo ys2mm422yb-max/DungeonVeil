@@ -1,4 +1,5 @@
 import type { EnemyType } from './entities';
+import { applyChapterMechanicsV4 } from './chapterMechanicsV4';
 
 /**
  * Deliberate room compositions. Order matters because it is paired with the
@@ -50,4 +51,8 @@ export function getEncounterPlan(room: number): EnemyType[] {
   const local = (safeRoom - 1) % 10;
   const count = Math.min(8, 5 + Math.floor(local / 2));
   return Array.from({ length: count }, (_, index) => pool[(index + local * 2) % pool.length]);
+}
+
+export function getChapterEncounterPlan(room: number, chapter: number): EnemyType[] {
+  return applyChapterMechanicsV4(getEncounterPlan(room), room, chapter);
 }
