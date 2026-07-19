@@ -33,7 +33,24 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm run typecheck
+        id: typecheck
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm run typecheck 2>&1 | tee /tmp/dungeon-veil-typecheck.log
+
+      - name: Upload TypeScript failure diagnostics
+        if: steps.typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-veil-typecheck-failure
+          retention-days: 7
+          path: /tmp/dungeon-veil-typecheck.log
+
+      - name: Fail after TypeScript diagnostics
+        if: steps.typecheck.outcome == 'failure'
+        run: exit 1
 
       - name: Build dungeon RPG
         run: pnpm --dir artifacts/dungeon-rpg run build
