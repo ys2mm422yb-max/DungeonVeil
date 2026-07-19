@@ -586,6 +586,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const syncPortal = (state: GameState, gameNow: number, wallNow: number) => {
       const clear = state.roomClearReady && state.status === 'playing';
       if (!clear) {
+        host.removeAttribute('data-portal-contract');
         if (portal) {
           scene.remove(portal);
           disposeObject(portal);
@@ -595,70 +596,123 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       }
 
       if (!portal) {
+        const presentationContract = 'dungeon-veil-violet-arch-v2';
         portal = new THREE.Group();
-        portal.name = 'RunExitEffect';
+        portal.name = 'DungeonVeilVioletArch';
+        portal.userData.presentationContract = presentationContract;
+        host.setAttribute('data-portal-contract', presentationContract);
 
-        const groundRing = new THREE.Mesh(
-          new THREE.RingGeometry(0.6, 1.02, IS_ANDROID ? 28 : 48),
-          new THREE.MeshBasicMaterial({ color: 0x9f78ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+        const stone = new THREE.MeshStandardMaterial({
+          color: 0x24202f,
+          metalness: 0.34,
+          roughness: 0.72,
+          emissive: 0x35156f,
+          emissiveIntensity: IS_MOBILE ? 0.1 : 0.16,
+        });
+        const stoneEdge = stone.clone();
+        stoneEdge.color.setHex(0x4d445d);
+        stoneEdge.emissive.setHex(0x5b21b6);
+        stoneEdge.emissiveIntensity = IS_MOBILE ? 0.13 : 0.22;
+
+        const stoneArch = new THREE.Group();
+        stoneArch.name = 'stoneArch';
+        for (const side of [-1, 1]) {
+          const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.42, 0.22), stone.clone());
+          pillar.position.set(side * 0.79, 0.76, 0);
+          pillar.rotation.z = side * -0.035;
+          stoneArch.add(pillar);
+          const foot = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.34), stoneEdge.clone());
+          foot.position.set(side * 0.79, 0.08, 0);
+          stoneArch.add(foot);
+        }
+        const crown = new THREE.Mesh(
+          new THREE.TorusGeometry(0.79, 0.125, IS_ANDROID ? 7 : 9, IS_ANDROID ? 24 : 40, Math.PI),
+          stoneEdge.clone(),
         );
-        groundRing.rotation.x = -Math.PI / 2;
-        groundRing.position.y = 0.035;
-        portal.add(groundRing);
+        crown.position.y = 1.45;
+        stoneArch.add(crown);
+        portal.add(stoneArch);
 
-        const outerRing = new THREE.Mesh(
-          new THREE.TorusGeometry(0.92, 0.065, IS_ANDROID ? 7 : 10, IS_ANDROID ? 36 : 64),
-          new THREE.MeshBasicMaterial({ color: 0xb99bff, transparent: true, opacity: 0.92, depthWrite: false, blending: THREE.AdditiveBlending }),
+        const groundSigil = new THREE.Mesh(
+          new THREE.RingGeometry(0.62, 1.08, IS_ANDROID ? 28 : 48),
+          new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
         );
-        outerRing.position.y = 1.12;
-        outerRing.scale.y = 1.28;
-        portal.add(outerRing);
+        groundSigil.rotation.x = -Math.PI / 2;
+        groundSigil.position.y = 0.035;
+        portal.add(groundSigil);
 
-        const innerRing = new THREE.Mesh(
-          new THREE.TorusGeometry(0.69, 0.035, IS_ANDROID ? 6 : 8, IS_ANDROID ? 30 : 56),
-          new THREE.MeshBasicMaterial({ color: 0x7d4dff, transparent: true, opacity: 0.76, depthWrite: false, blending: THREE.AdditiveBlending }),
+        const voidDisc = new THREE.Mesh(
+          new THREE.CircleGeometry(0.67, IS_ANDROID ? 28 : 48),
+          new THREE.MeshBasicMaterial({ color: 0x090316, transparent: true, opacity: 0.92, side: THREE.DoubleSide, depthWrite: false }),
         );
-        innerRing.position.y = 1.12;
-        innerRing.scale.y = 1.32;
-        portal.add(innerRing);
+        voidDisc.position.set(0, 1.02, -0.045);
+        voidDisc.scale.y = 1.22;
+        portal.add(voidDisc);
 
-        const veil = new THREE.Mesh(
-          new THREE.PlaneGeometry(1.58, 2.25, 1, 1),
-          new THREE.MeshBasicMaterial({ color: 0x7244d8, transparent: true, opacity: 0.34, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
-        );
-        veil.position.y = 1.12;
-        portal.add(veil);
+        const vortexLayers: any[] = [];
+        const vortexColors = [0x2e1065, 0x6d28d9, 0xc4b5fd];
+        for (let index = 0; index < 3; index++) {
+          const layer = new THREE.Mesh(
+            new THREE.CircleGeometry(0.61 - index * 0.07, IS_ANDROID ? 24 : 40),
+            new THREE.MeshBasicMaterial({ color: vortexColors[index], transparent: true, opacity: 0.18 + index * 0.08, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+          );
+          layer.position.set(0, 1.02, -0.025 + index * 0.012);
+          layer.scale.y = 1.22;
+          layer.rotation.z = index * 0.7;
+          portal.add(layer);
+          vortexLayers.push(layer);
+        }
 
-        const innerVeil = new THREE.Mesh(
-          new THREE.CircleGeometry(0.68, IS_ANDROID ? 28 : 48),
-          new THREE.MeshBasicMaterial({ color: 0x321b68, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
-        );
-        innerVeil.position.set(0, 1.12, -0.02);
-        innerVeil.scale.y = 1.35;
-        portal.add(innerVeil);
+        const energyRibbons: any[] = [];
+        const ribbonCount = IS_MOBILE ? 2 : 4;
+        for (let index = 0; index < ribbonCount; index++) {
+          const ribbon = new THREE.Mesh(
+            new THREE.TorusGeometry(0.53 + index * 0.075, 0.018 + index * 0.004, 5, IS_ANDROID ? 28 : 44),
+            new THREE.MeshBasicMaterial({ color: index % 2 ? 0xddd6fe : 0x8b5cf6, transparent: true, opacity: 0.48, depthWrite: false, blending: THREE.AdditiveBlending }),
+          );
+          ribbon.position.set(0, 1.02, 0.015 + index * 0.008);
+          ribbon.scale.y = 1.22;
+          ribbon.rotation.z = index * 0.92;
+          portal.add(ribbon);
+          energyRibbons.push(ribbon);
+        }
 
-        const moteCount = IS_ANDROID ? 5 : IS_MOBILE ? 8 : 12;
+        const runeDiamonds: any[] = [];
+        const runePositions = [[0, 2.25], [-0.95, 1.02], [0.95, 1.02], [0, -0.02]];
+        for (let index = 0; index < runePositions.length; index++) {
+          const rune = new THREE.Mesh(
+            new THREE.BoxGeometry(0.16, 0.16, 0.07),
+            new THREE.MeshBasicMaterial({ color: index === 0 ? 0xede9fe : 0xa78bfa, transparent: true, opacity: 0.82, depthWrite: false, blending: THREE.AdditiveBlending }),
+          );
+          rune.position.set(runePositions[index][0], runePositions[index][1], 0.08);
+          rune.rotation.z = Math.PI / 4;
+          portal.add(rune);
+          runeDiamonds.push(rune);
+        }
+
+        const moteCount = IS_ANDROID ? 5 : IS_MOBILE ? 8 : 13;
         const motes: any[] = [];
         for (let index = 0; index < moteCount; index++) {
           const mote = new THREE.Mesh(
-            new THREE.SphereGeometry(0.045 + (index % 3) * 0.012, 6, 6),
-            new THREE.MeshBasicMaterial({ color: index % 2 ? 0xd3c2ff : 0x8d66ff, transparent: true, opacity: 0.82, depthWrite: false, blending: THREE.AdditiveBlending }),
+            new THREE.SphereGeometry(0.035 + (index % 3) * 0.012, 5, 5),
+            new THREE.MeshBasicMaterial({ color: index % 2 ? 0xede9fe : 0x8b5cf6, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }),
           );
           mote.userData.phase = index / moteCount * Math.PI * 2;
           portal.add(mote);
           motes.push(mote);
         }
 
-        const core: any = IS_MOBILE ? new THREE.Object3D() : new THREE.PointLight(0x9d76ff, 8.8, 8.5, 2);
+        const core: any = IS_MOBILE ? new THREE.Object3D() : new THREE.PointLight(0x9d76ff, 8.4, 8.5, 2);
         core.intensity = IS_MOBILE ? 0 : core.intensity;
-        core.position.y = 1.05;
+        core.position.y = 1.02;
         portal.add(core);
 
-        portal.userData.groundRing = groundRing;
-        portal.userData.outerRing = outerRing;
-        portal.userData.innerRing = innerRing;
-        portal.userData.veil = veil;
-        portal.userData.innerVeil = innerVeil;
+        portal.userData.stoneArch = stoneArch;
+        portal.userData.groundSigil = groundSigil;
+        portal.userData.voidDisc = voidDisc;
+        portal.userData.vortexLayers = vortexLayers;
+        portal.userData.energyRibbons = energyRibbons;
+        portal.userData.runeDiamonds = runeDiamonds;
         portal.userData.motes = motes;
         portal.userData.core = core;
         scene.add(portal);
@@ -672,25 +726,40 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       }
 
       portal.position.set(exitX + 0.5 - state.map.width / 2, 0.02, exitY + 0.5 - state.map.height / 2);
-      const activateProgress = Math.min(1, Math.max(0, (gameNow - state.roomClearAt) / 620));
-      const pulse = 0.5 + Math.sin(wallNow * 0.005) * 0.5;
-      portal.scale.setScalar(0.12 + activateProgress * 0.88);
-      portal.userData.outerRing.rotation.z = wallNow * 0.00065;
-      portal.userData.innerRing.rotation.z = -wallNow * 0.00115;
-      portal.userData.groundRing.rotation.z = wallNow * 0.0008;
-      portal.userData.groundRing.material.opacity = (0.48 + pulse * 0.24) * activateProgress;
-      portal.userData.veil.material.opacity = (0.24 + pulse * 0.16) * activateProgress;
-      portal.userData.innerVeil.material.opacity = (0.38 + pulse * 0.18) * activateProgress;
-      portal.userData.veil.scale.x = 0.94 + pulse * 0.08;
-      portal.userData.innerVeil.scale.x = 0.9 + pulse * 0.12;
-      if (!IS_MOBILE) portal.userData.core.intensity = (8.8 + pulse * 2.2) * activateProgress;
+      const activateProgress = Math.min(1, Math.max(0, (gameNow - state.roomClearAt) / 700));
+      const pulse = 0.5 + Math.sin(wallNow * 0.0048) * 0.5;
+      portal.scale.setScalar(0.1 + activateProgress * 0.9);
+      portal.userData.stoneArch.position.y = Math.sin(wallNow * 0.0028) * 0.025;
+      portal.userData.groundSigil.rotation.z = wallNow * 0.00072;
+      portal.userData.groundSigil.material.opacity = (0.42 + pulse * 0.28) * activateProgress;
+      portal.userData.voidDisc.material.opacity = (0.82 + pulse * 0.1) * activateProgress;
+      (portal.userData.vortexLayers as any[]).forEach((layer, index) => {
+        const direction = index % 2 === 0 ? 1 : -1;
+        layer.rotation.z = direction * wallNow * (0.00042 + index * 0.00019);
+        layer.scale.x = 0.92 + pulse * (0.06 + index * 0.015);
+        layer.scale.y = 1.18 + Math.sin(wallNow * 0.0032 + index) * 0.08;
+        layer.material.opacity = (0.14 + index * 0.07 + pulse * 0.08) * activateProgress;
+      });
+      (portal.userData.energyRibbons as any[]).forEach((ribbon, index) => {
+        const direction = index % 2 === 0 ? 1 : -1;
+        ribbon.rotation.z = index * 0.92 + direction * wallNow * (0.0008 + index * 0.00016);
+        ribbon.scale.x = 0.94 + Math.sin(wallNow * 0.004 + index * 1.7) * 0.08;
+        ribbon.scale.y = 1.2 + Math.cos(wallNow * 0.0036 + index) * 0.09;
+        ribbon.material.opacity = (0.3 + pulse * 0.3 - index * 0.035) * activateProgress;
+      });
+      (portal.userData.runeDiamonds as any[]).forEach((rune, index) => {
+        const runePulse = 0.86 + Math.sin(wallNow * 0.006 + index * 1.45) * 0.18;
+        rune.scale.setScalar(runePulse);
+        rune.material.opacity = (0.5 + runePulse * 0.3) * activateProgress;
+      });
+      if (!IS_MOBILE) portal.userData.core.intensity = (7.8 + pulse * 3.1) * activateProgress;
       (portal.userData.motes as any[]).forEach((mote, index) => {
-        const phase = mote.userData.phase + wallNow * (0.0011 + index * 0.000025);
-        const radius = 0.65 + (index % 3) * 0.13;
+        const phase = mote.userData.phase + wallNow * (0.001 + index * 0.000022);
+        const radius = 0.58 + (index % 4) * 0.12;
         mote.position.x = Math.sin(phase) * radius;
-        mote.position.y = 0.22 + ((wallNow * 0.00042 + index / Math.max(1, portal.userData.motes.length - 1)) % 1) * 2.0;
-        mote.position.z = 0.08 + Math.cos(phase) * 0.11;
-        mote.material.opacity = (0.42 + Math.sin(phase * 2) * 0.3) * activateProgress;
+        mote.position.y = 0.1 + ((wallNow * 0.00038 + index / Math.max(1, portal.userData.motes.length - 1)) % 1) * 2.15;
+        mote.position.z = 0.08 + Math.cos(phase) * 0.12;
+        mote.material.opacity = (0.35 + Math.sin(phase * 2) * 0.28) * activateProgress;
       });
     };
 

@@ -40,3 +40,5 @@ requireText(worldBoss, "ready && !loadError && phase === 'fighting'", 'World-bos
 requireText(worldBoss, "loadError ? (de ? 'FEHLER' : 'ERROR') : ready ? `${seconds}s`", 'World-boss status no longer distinguishes loading, ready and failed states');
 
 console.log('Loading transitions verified: boot is session-scoped, fast room swaps remain seamless, slow swaps use the violet veil, and world-boss loading stays bounded.');
+
+await import('./validate-loading-portal-continuity.mjs');
