@@ -4,6 +4,7 @@ import { getWorldBossLoadFailure } from './worldBossMobileVisual3D';
 import { WorldBossCohesiveStage } from './WorldBossCohesiveStage';
 import { WorldBossMobileArenaGuard } from './WorldBossMobileArenaGuard';
 import { WorldBossBalanceBridgeV4 } from './WorldBossBalanceBridgeV4';
+import { WorldBossRuntimeDiagnostics } from './WorldBossRuntimeDiagnostics';
 
 type Props = {
   engineRef: React.RefObject<GameEngine | null>;
@@ -32,6 +33,7 @@ export function WorldBossCombatBandStage({ engineRef, onReady, onLoadError }: Pr
     <WorldBossCohesiveStage engineRef={engineRef} onReady={onReady} />
     <WorldBossMobileArenaGuard engineRef={engineRef} />
     <WorldBossBalanceBridgeV4 engineRef={engineRef} />
+    <WorldBossRuntimeDiagnostics engineRef={engineRef} />
     <div className="absolute inset-x-0 bottom-0 h-[8vh] bg-gradient-to-t from-[#09070a] via-[#09070a]/20 to-transparent" />
     <span data-testid="ritual-arena-meaning" className="sr-only">Perspektivisches KayKit-Bossheiligtum mit erhöhter Aschenkönig-Plattform, Schleiertor, Säulen, Thron und räumlicher Dungeon-Architektur</span>
   </div>;
