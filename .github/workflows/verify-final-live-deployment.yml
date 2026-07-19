@@ -1,0 +1,77 @@
+name: Final Live Deployment Verification
+
+on:
+  pull_request:
+    branches: ['fix/**']
+    paths:
+      - '.github/workflows/verify-final-live-deployment.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Wait for exact deployed commit
+        env:
+          EXPECTED_COMMIT: 189406c6d87623926b4059c4b1c3ac2c5332fe7d
+          TEST_URL: https://ys2mm422yb-max.github.io/DungeonVeil/
+        run: |
+          node <<'NODE'
+          const expected = process.env.EXPECTED_COMMIT;
+          const baseUrl = process.env.TEST_URL;
+          const markerUrl = new URL('deployment.json', baseUrl);
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+          let last = 'not fetched';
+          for (let attempt = 1; attempt <= 80; attempt++) {
+            try {
+              const response = await fetch(markerUrl, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
+              const body = await response.text();
+              last = `${response.status} ${body.slice(0, 300)}`;
+              if (response.ok) {
+                const marker = JSON.parse(body);
+                if (marker.commit === expected) {
+                  console.log(`Exact deployment confirmed: ${marker.commit} at ${marker.deployedAt}`);
+                  const page = await fetch(baseUrl, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
+                  const html = await page.text();
+                  if (!page.ok) throw new Error(`test page returned ${page.status}`);
+                  if (!html.includes('/DungeonVeil/')) throw new Error('GitHub Pages base path missing from HTML');
+                  process.exit(0);
+                }
+              }
+            } catch (error) {
+              last = String(error);
+            }
+            console.log(`Deployment not exact yet (${attempt}/80): ${last}`);
+            await sleep(15_000);
+          }
+          throw new Error(`Timed out waiting for deployed commit ${expected}; last response: ${last}`);
+          NODE
+
+      - name: Install isolated browser test runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+
+      - name: Install Chromium and WebKit
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium webkit
+
+      - name: Test live site on iPhone, Android, iPad and desktop
+        env:
+          DUNGEON_VEIL_URL: https://ys2mm422yb-max.github.io/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+        run: timeout --signal=TERM --kill-after=30s 30m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
