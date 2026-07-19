@@ -1,0 +1,69 @@
+name: Diagnose block 2 room audit
+
+on:
+  push:
+    branches: [ops/cancel-obsolete-spectator-checks]
+    paths:
+      - '.github/workflows/diagnose-block2-room-audit.yml'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact product head
+        uses: actions/checkout@v4
+        with:
+          ref: 91c11c3dcb2ed551488ca061be20ac6ba771cb9a
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Run exact room audit and retain output
+        id: audit
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @workspace/dungeon-rpg audit:rooms > room-audit.log 2>&1
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          tail -n 160 room-audit.log
+          exit 0
+      - name: Publish exact failure block
+        uses: actions/github-script@v7
+        env:
+          EXIT_CODE: ${{ steps.audit.outputs.exit_code }}
+        with:
+          script: |
+            const fs = require('fs');
+            const raw = fs.readFileSync('room-audit.log', 'utf8');
+            const tail = raw.slice(-12000);
+            const body = [
+              '<!-- block2-room-audit-diagnostic -->',
+              '## Exact Block-2 room-audit diagnostic',
+              '',
+              'Checked product head: `91c11c3dcb2ed551488ca061be20ac6ba771cb9a`.',
+              `Exit code: **${process.env.EXIT_CODE}**.`,
+              '',
+              '```text',
+              tail,
+              '```',
+              '',
+              'Validation-only workflow on the closed operations branch; no product file was changed.',
+            ].join('\n');
+            await github.rest.issues.createComment({ ...context.repo, issue_number: 274, body });
+      - name: Reflect audit result
+        if: steps.audit.outputs.exit_code != '0'
+        run: exit 1
