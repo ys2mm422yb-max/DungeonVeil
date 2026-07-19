@@ -26,6 +26,10 @@ const checks = [
   [files.badge.includes('data-testid="main-menu-profile-badge"'), 'main-menu profile badge is missing'],
   [files.menu.includes("setOverlay('profile')") && files.menu.includes('<PlayerProfilePanel'), 'profile menu cannot be opened from the main menu'],
   [files.panel.includes('data-testid="player-profile-panel"'), 'full-screen player profile panel is missing'],
+  [files.panel.includes('data-testid="player-profile-responsive-shell"') && files.panel.includes('max-w-6xl') && files.panel.includes('md:grid-cols-2'), 'player profile still collapses into a narrow phone column on tablets'],
+  [files.panel.includes('data-testid="player-profile-tabs"') && files.panel.includes('md:grid-cols-5') && files.panel.includes('md:w-full'), 'player profile tabs do not use tablet width'],
+  [files.panel.includes('data-testid="profile-distinct-equipment-count"') && files.panel.includes('Verschiedene Ausrüstungsteile') && files.panel.includes('EQUIPMENT[id]?.active'), 'distinct owned equipment count is unclear or includes legacy cosmetics'],
+  [files.panel.includes('data-testid="profile-lifetime-equipment-rewards"') && files.panel.includes('Ausrüstungsbelohnungen insgesamt'), 'lifetime equipment rewards are not distinguished from unique owned items'],
   [files.panel.includes("'Höchstes Kapitel'") && files.panel.includes("'Höchster Raum'"), 'highest chapter and highest room are not shown as separate statistics'],
   [files.profile.includes('selectedTitle') && files.profile.includes('selectedCard') && files.profile.includes('selectedAvatar'), 'profile cosmetic selections are not persistent'],
   [files.profile.includes('PROFILE_TITLES') && files.profile.includes('PROFILE_CARDS') && files.profile.includes('PROFILE_AVATARS'), 'title, calling-card or avatar definitions are missing'],
@@ -65,4 +69,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Player profile audit passed: identity, registration, Google confirmation, unique server validation, local/cloud propagation and gold-bound idempotent changes share one contract.');
+console.log('Player profile audit passed: responsive tablet identity, explicit equipment statistics, registration, server validation, local/cloud propagation and storage integrity share one contract.');
