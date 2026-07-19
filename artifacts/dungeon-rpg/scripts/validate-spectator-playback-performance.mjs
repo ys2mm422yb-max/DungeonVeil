@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [screen, playback, buffer, online, bridge, menu, simulator, qa, browserTest, browserConfig] = await Promise.all([
+const [screen, playback, buffer, online, bridge, menu, simulator, qa, browserTest, browserConfig, spectatorConfig, regressionWorkflow] = await Promise.all([
   read('../src/components/SpectatorScreen.tsx'),
   read('../src/components/SpectatorPlaybackStage.tsx'),
   read('../src/game/spectatorInterpolation.ts'),
@@ -12,6 +12,8 @@ const [screen, playback, buffer, online, bridge, menu, simulator, qa, browserTes
   read('../src/components/SpectatorPerformanceQa.tsx'),
   read('../tests/spectator-performance.spec.mjs'),
   read('../playwright.regression.config.mjs'),
+  read('../playwright.spectator.config.mjs'),
+  read('../../../.github/workflows/full-game-regression.yml'),
 ]);
 
 const checks = [
@@ -34,7 +36,9 @@ const checks = [
   [simulator.includes('JITTER') && simulator.includes('MAX_EXTRAPOLATION_MS') && simulator.includes('plannedOutageMs') && simulator.includes('maxFrameStep') && simulator.includes('maxFrozenMs'), 'deterministic jitter, long-outage and packet-loss simulation is incomplete'],
   [qa.includes('jitter-loss-layout-long-run-v5') && qa.includes('spectator-qa-layout-enemy') && qa.includes('layoutChanges += 1') && qa.includes('maxExcessStepPx') && qa.includes('metrics.maxCorrectionPx'), 'browser QA does not exercise enemy additions/removals or post-warmup discontinuity budgets'],
   [browserTest.includes("data-contract', 'jitter-loss-layout-long-run-v5'") && browserTest.includes('data-layout-changes') && browserTest.includes('data-max-excess-step-px') && browserTest.includes('data-max-correction-px'), 'four-device browser regression does not verify layout-change continuity and explicit correction limits'],
-  [browserConfig.includes('workers: process.env.CI ? 2 : undefined'), 'browser regression still overloads the runner with four simultaneous WebGL-heavy workers'],
+  [browserConfig.includes('workers: process.env.CI ? 4 : undefined') && !browserConfig.includes('spectator-performance'), 'standard final device regression no longer keeps its four isolated workers'],
+  [spectatorConfig.includes('spectator-performance') && spectatorConfig.includes('workers: process.env.CI ? 2 : undefined') && spectatorConfig.includes("name: 'iphone-webkit'") && spectatorConfig.includes("name: 'android-chromium'") && spectatorConfig.includes("name: 'ipad-landscape-webkit'") && spectatorConfig.includes("name: 'desktop-chromium'"), 'heavy spectator long-run regression is not isolated across all four device profiles with bounded concurrency'],
+  [regressionWorkflow.includes('--config=playwright.regression.config.mjs') && regressionWorkflow.includes('--config=playwright.spectator.config.mjs'), 'full-game workflow does not execute both standard and isolated spectator device suites'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -44,4 +48,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Spectator playback performance audit passed: map-free deltas, buffered playback, enemy-layout continuity, bounded extrapolation-to-hold, stable Three.js rendering, two-worker device validation and diagnostics are protected.');
+console.log('Spectator playback performance audit passed: map-free deltas, enemy-layout continuity, bounded extrapolation-to-hold, stable Three.js rendering, four-worker standard validation and isolated two-worker spectator diagnostics are protected.');
