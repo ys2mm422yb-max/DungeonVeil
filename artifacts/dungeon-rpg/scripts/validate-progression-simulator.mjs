@@ -29,7 +29,7 @@ assert(economy.includes('clearEquipmentWishItemIfMatches(id)') && economy.includ
 assert(redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']"), 'three-slot active equipment contract missing');
 assert([...redesign.matchAll(/^\s{2}'([^']+)': \{/gm)].length === 10, 'active equipment catalog is not exactly ten items');
 
-assert(targeting.includes("const TARGETING_KEY = 'dungeon-veil-equipment-targeting-v1';"), 'targeting profile lost its isolated persistent key');
+assert(targeting.includes("const TARGETING_KEY = 'dungeon-veil-equipment-targeting-v2';") && targeting.includes("localStorage.getItem('dungeon-veil-equipment-targeting-v1')"), 'targeting profile key or V1 migration fallback is missing');
 assert(targeting.includes('SOURCE_WISH_CHANCE = 0.18') && targeting.includes('CHAPTER_WISH_CHANCE = 0.24'), 'V4 wish chances differ from the approved long-term curve');
 assert(targeting.includes('WISH_PITY_MISSES = 7') && targeting.includes('CHAPTER_WISH_PITY_MISSES = 9'), 'V4 source/global pity thresholds are missing');
 assert(targeting.includes("rarity === 'common' ? 8 : rarity === 'rare' ? 11 : 15"), 'rarity-specific mark costs missing');
