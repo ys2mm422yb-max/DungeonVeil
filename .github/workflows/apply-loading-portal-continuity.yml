@@ -6,6 +6,12 @@ on:
       - fix/loading-continuity-violet-portals
     paths:
       - .github/workflows/apply-loading-portal-continuity.yml
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    types: [opened, synchronize]
+    paths:
+      - .github/workflows/apply-loading-portal-continuity.yml
 
 permissions:
   contents: write
