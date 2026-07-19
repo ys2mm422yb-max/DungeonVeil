@@ -5,6 +5,10 @@ on:
     branches: [ops/cancel-obsolete-spectator-checks]
     paths:
       - '.github/workflows/diagnose-block2-room-audit.yml'
+  pull_request:
+    branches: [fix/mobile-telegraphs-room-21-50-balance]
+    paths:
+      - '.github/workflows/diagnose-block2-room-audit.yml'
 
 permissions:
   contents: read
@@ -61,7 +65,7 @@ jobs:
               tail,
               '```',
               '',
-              'Validation-only workflow on the closed operations branch; no product file was changed.',
+              'Validation-only workflow on the operations branch; no product file was changed.',
             ].join('\n');
             await github.rest.issues.createComment({ ...context.repo, issue_number: 274, body });
       - name: Reflect audit result
