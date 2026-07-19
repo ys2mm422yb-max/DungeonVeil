@@ -8,6 +8,9 @@ const files = {
   panel: await readFile(new URL('../src/components/PlayerProfilePanel.tsx', import.meta.url), 'utf8'),
   online: await readFile(new URL('../src/components/OnlinePanel.tsx', import.meta.url), 'utf8'),
   nameChange: await readFile(new URL('../src/game/playerNameChange.ts', import.meta.url), 'utf8'),
+  nameOnline: await readFile(new URL('../src/game/playerNameOnline.ts', import.meta.url), 'utf8'),
+  nameMigration: await readFile(new URL('../../../supabase/migrations/20260718222000_add_confirmed_player_names.sql', import.meta.url), 'utf8'),
+  nameHardening: await readFile(new URL('../../../supabase/migrations/20260719153000_harden_player_name_confirmation_v2.sql', import.meta.url), 'utf8'),
   saveManager: await readFile(new URL('../src/game/saveManager.ts', import.meta.url), 'utf8'),
   runIdentity: await readFile(new URL('../src/game/runIdentity.ts', import.meta.url), 'utf8'),
   cloud: await readFile(new URL('../src/game/cloudSave.ts', import.meta.url), 'utf8'),
@@ -37,13 +40,21 @@ const checks = [
   [files.game.includes('beginPlayerProfileRun'), 'new runs are not counted in profile statistics'],
   [files.retention.includes('recordPlayerProfileQuestCompleted'), 'completed daily quests are not counted in profile statistics'],
   [files.nameChange.includes('PLAYER_NAME_CHANGE_GOLD_COST = 5_000') && files.nameChange.includes('completedChanges === 0 ? 0'), 'first player-name change is not free or later changes do not cost the fixed gold price'],
+  [files.nameChange.includes('commitServerPlayerNameChange') && files.nameChange.includes('currentCompleted >= targetCompleted'), 'server/local player-name charge is not idempotent'],
   [files.nameChange.includes('users: Record<string, PlayerNameChangeEntry>') && files.nameChange.includes('state.users[id]'), 'player-name change allowance is not isolated per online account'],
   [files.nameChange.includes("STORAGE_KEY = 'dungeon-veil-player-name-change-v1'") && files.cloud.includes('exportSaveBundle()'), 'player-name change allowance is not cloud-save compatible'],
-  [files.online.includes('data-testid="player-name-change"') && files.online.includes('SPIELERNAME ÄNDERN') && files.online.includes('CHANGE PLAYER NAME'), 'player-name change UI is not labelled explicitly'],
-  [files.online.includes('data-testid="player-name-change-cost"') && files.online.includes('KOSTENLOS ÄNDERN') && files.online.includes('PLAYER_NAME_CHANGE_GOLD_COST'), 'player-name change UI does not disclose free or paid state before confirmation'],
-  [files.online.includes('updateOnlineProfile(nextName)') && files.online.includes('commitPlayerNameChange(session.user.id)') && files.online.includes('rememberRunName(nextName)') && files.online.includes('renameSavedPlayerName(nextName)'), 'confirmed player-name changes do not synchronize profile, remembered run and existing save'],
-  [files.online.includes('void pushCloudSave()') && files.saveManager.includes("saveReason: 'player-name-change'"), 'renamed local save is not pushed through the guarded cloud path'],
-  [!files.online.includes('window.setTimeout(() => {\n      setProfileSaveState') && !files.online.includes("type ProfileSaveState ="), 'player name still changes automatically while typing'],
+  [files.nameOnline.includes("'rpc/get_my_player_name_state'") && files.nameOnline.includes("'rpc/set_my_player_name'"), 'player-name UI does not use authoritative RPCs'],
+  [files.nameOnline.includes('normalized.length < 3 || normalized.length > 20') && files.nameOnline.includes('RESERVED_PLAYER_NAMES') && files.nameOnline.includes('ÄÖÜäöüß _-'), 'client name validation does not match server length, characters or reserved-name policy'],
+  [files.nameMigration.includes('profiles_confirmed_display_name_lower_uidx') && files.nameMigration.includes('private.validate_player_name'), 'confirmed player names are not unique and server validated'],
+  [files.nameMigration.includes('profiles_guard_confirmed_player_name') && files.nameMigration.includes('player_name_changes_read_own'), 'direct profile changes or name history are not protected'],
+  [files.nameMigration.includes('pg_advisory_xact_lock') && files.nameMigration.includes('p_change_id'), 'name changes are not race-safe and idempotent'],
+  [files.nameHardening.includes('v_previous_name := coalesce(v_profile.display_name') && files.nameHardening.includes('v_previous_name, v_name, v_charge'), 'player-name history does not retain the previous name'],
+  [files.online.includes('data-testid="player-name-confirmation-required"') && files.online.includes('Der Google-Anzeigename wird nicht automatisch übernommen'), 'Google and legacy accounts are not explicitly prompted to confirm a player name'],
+  [files.online.includes('setMyPlayerNameOnline') && files.online.includes('commitServerPlayerNameChange') && !files.online.includes('updateOnlineProfile(nextName)'), 'confirmed player-name changes still bypass the server contract'],
+  [files.online.includes('rememberRunName(result.display_name)') || files.online.includes('applyConfirmedNameLocally(result.display_name)'), 'confirmed name is not propagated to future runs'],
+  [files.online.includes('renameSavedPlayerName(name)') && files.online.includes('void pushCloudSave()'), 'confirmed name is not propagated to the existing save and cloud'],
+  [files.online.includes('playerNameState?.confirmed && <section data-testid="social-profile-summary"') && files.online.includes('playerNameState?.confirmed && <section data-testid="spectating-privacy-setting"'), 'unconfirmed placeholder names can leak into social surfaces'],
+  [!files.online.includes('window.setTimeout(() => {\n      setProfileSaveState') && !files.online.includes('type ProfileSaveState ='), 'player name still changes automatically while typing'],
   [files.menu.includes('PLAYER_NAME_CHANGE_EVENT') && files.menu.includes('const currentSaveData = loadGame() ?? props.saveData'), 'main-menu badge and profile do not refresh immediately after a name change'],
 ];
 
@@ -54,4 +65,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Player profile audit passed: identity, statistics and storage are persistent; the first explicit player-name change is free and later changes cost disclosed gold.');
+console.log('Player profile audit passed: identity, registration, Google confirmation, unique server validation, local/cloud propagation and gold-bound idempotent changes share one contract.');
