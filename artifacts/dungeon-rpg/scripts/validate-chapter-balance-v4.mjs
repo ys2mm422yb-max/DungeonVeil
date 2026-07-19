@@ -35,7 +35,10 @@ assert(encounters.includes('getChapterEncounterPlan') && encounters.includes('ap
 assert(runtime.includes('getChapterEncounterPlan(room, chapter)') && runtime.includes('transformedEnemyIds'), 'chapter encounter transformations are not idempotent per enemy');
 assert(runtime.includes("if (room % 10 === 0") && runtime.includes("enemy.enemyType === 'boss'"), 'boss rooms are not protected from normal-role replacement');
 assert(runtime.includes('enemy.maxHp * target.hp / current.hp') && runtime.includes('enemy.attack * target.attack'), 'role replacement does not preserve chapter/room scaling ratios');
-assert(equipmentRuntime.indexOf('applyChapterEncounterRuntimeV4') < equipmentRuntime.indexOf('applyCombatBalanceV4Overlay'), 'chapter roles are applied after combat scaling');
+assert(
+  equipmentRuntime.indexOf('applyChapterEncounterRuntimeV4(engine') < equipmentRuntime.indexOf('applyCombatBalanceV4Overlay(engine'),
+  'chapter roles are applied after combat scaling',
+);
 assert(curve.includes('const CHAPTERS: readonly ChapterCombatProfileV4[]') && curve.includes('const damped = Math.log2(overflow + 1)'), 'chapter 1–10 or damped endless numerical curve is missing');
 assert(relicRuntime.includes('Math.max(0, Math.min(4') && relicRuntime.includes('crownRunStacks[runId]'), 'guardian crown is not capped and run-scoped in endless chapters');
 
