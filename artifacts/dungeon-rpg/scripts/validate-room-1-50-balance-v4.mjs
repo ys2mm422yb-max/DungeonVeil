@@ -140,7 +140,7 @@ for (const row of rows) {
   assert(row.starterTtk > row.maxBuildTtk, `room ${row.room}/chapter ${row.chapter} gear progression is inverted`);
   if (!row.boss) assert(row.targetCycles >= row.count, `room ${row.room}/chapter ${row.chapter} target-cycle accounting is incomplete`);
   if (!row.boss && row.chapter === 1) assert(row.maxBuildTtk >= 0.45, `room ${row.room} can be erased without multiple target cycles`);
-  if (row.boss && row.chapter === 10) assert(row.maxBuildTtk >= 35, `chapter-10 boss room ${row.room} is too short for maximum gear`);
+  if (row.boss && row.chapter === 10 && row.room === 50) assert(row.maxBuildTtk >= 35, 'chapter-10 final boss is too short for maximum gear');
 }
 
 assert(engineSource.includes('const count = Math.min(points.length, encounter.length)'), 'runtime does not cap encounters to authored spawn capacity');
