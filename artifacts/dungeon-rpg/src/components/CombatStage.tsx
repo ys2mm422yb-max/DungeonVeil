@@ -1,10 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
+import type { CompanionRoleV4 } from '../game/companionReserveV4';
+import { loadCompanionRoleV4, saveCompanionRoleV4 } from '../game/companionSelectionV4';
 import { GameCanvas } from './GameCanvas';
 import { CoopProjectileRealtimeBridge } from './CoopProjectileRealtimeBridge';
 import { CoopTeammateScene3D } from './CoopTeammateScene3D';
 import { CoopTeammateUI } from './CoopTeammateUI';
+import { CompanionRuntimeBridge } from './CompanionRuntimeBridge';
+import { CompanionScene3D } from './CompanionScene3D';
+import { CompanionStatusChip } from './CompanionStatusChip';
 
 const ROOM_NAMES = [
   'VERSORGUNGSPOSTEN', 'WACHSTUBE', 'SÄULENHALLE', 'BERGARBEITERLAGER', 'WERKSTATT',
@@ -30,6 +35,15 @@ function readViewport(): ViewportBox {
   };
 }
 
+function readRunMode(): 'solo' | 'duo' {
+  return document.documentElement.dataset.dungeonVeilRunMode === 'duo' ? 'duo' : 'solo';
+}
+
+function readLanguage(): string {
+  try { return localStorage.getItem('dungeon-veil-language') ?? 'de'; }
+  catch { return 'de'; }
+}
+
 export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const previousHpRef = useRef(gameState.player.hp);
   const previousFloorRef = useRef(gameState.floor);
@@ -41,6 +55,9 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const [roomTitle, setRoomTitle] = useState(() => ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
   const [showRoomTitle, setShowRoomTitle] = useState(true);
   const [viewport, setViewport] = useState<ViewportBox>(() => readViewport());
+  const [companionRole, setCompanionRole] = useState<CompanionRoleV4>(() => loadCompanionRoleV4());
+  const runMode = readRunMode();
+  const language = readLanguage();
 
   const triggerShake = (heavy: boolean) => {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
@@ -49,6 +66,10 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       setShakeClass(heavy ? 'dv-heavy-impact' : 'dv-light-impact');
       shakeTimerRef.current = window.setTimeout(() => setShakeClass(''), heavy ? 200 : 110);
     });
+  };
+
+  const changeCompanionRole = (role: CompanionRoleV4) => {
+    setCompanionRole(saveCompanionRoleV4(role));
   };
 
   useEffect(() => {
@@ -126,12 +147,15 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       data-viewport-width={viewport.width}
       data-viewport-height={viewport.height}
     >
+      <CompanionRuntimeBridge gameState={gameState} role={companionRole} mode={runMode} />
       <div className={`absolute inset-0 ${shakeClass}`}>
         <GameCanvas gameState={gameState} />
         {remotePlayer && <CoopTeammateScene3D gameState={gameState} remotePlayer={remotePlayer} />}
+        <CompanionScene3D gameState={gameState} localRole={companionRole} remotePlayer={remotePlayer} />
         {remotePlayer && <CoopProjectileRealtimeBridge gameState={gameState} remotePlayer={remotePlayer} />}
       </div>
       {remotePlayer && <CoopTeammateUI gameState={gameState} remotePlayer={remotePlayer} />}
+      <CompanionStatusChip role={companionRole} language={language} onRoleChange={changeCompanionRole} />
       <div className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-200 ${hurtFlash ? 'opacity-100' : 'opacity-0'}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_38%,rgba(185,22,27,.48)_100%)]" />
       </div>
