@@ -2,9 +2,9 @@ name: Redesign Diagnostics
 
 on:
   push:
-    branches: ['agent/ten-item-relic-grind-rebalance']
+    branches: ['agent/**', 'work/**']
   pull_request:
-    branches: ['fix/duo-final-integration-regression']
+    branches: ['fix/**']
 
 permissions:
   contents: read
