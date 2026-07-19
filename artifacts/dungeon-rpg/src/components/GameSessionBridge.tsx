@@ -24,7 +24,7 @@ import { isBossRoom } from '../game/chapterRun';
 import { loadPlayerProfile, recordPlayerProfileItemFound, recordPlayerProfileRoomClear, recordPlayerProfileSession } from '../game/playerProfile';
 import { syncPublicProfileStats } from '../game/socialProgressOnline';
 import { currentOnlineSession, onlineSessionEventName } from '../game/supabaseOnline';
-import { publishMenuActivity, publishSpectatorState, SPECTATOR_REFRESH_MS } from '../game/socialSpectatorOnline';
+import { publishMenuActivity, publishSpectatorState, SPECTATOR_PUBLISH_MS } from '../game/socialSpectatorOnline';
 import { MetaRewardBanner } from './MetaRewardBanner';
 import { RunRetentionOverlay } from './RunRetentionOverlay';
 import { FirstWardenOverlay } from './FirstWardenOverlay';
@@ -128,7 +128,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       finally { publishing = false; }
     };
     void publish();
-    const interval = window.setInterval(() => void publish(), SPECTATOR_REFRESH_MS);
+    const interval = window.setInterval(() => void publish(), SPECTATOR_PUBLISH_MS);
     return () => {
       stopped = true;
       window.clearInterval(interval);

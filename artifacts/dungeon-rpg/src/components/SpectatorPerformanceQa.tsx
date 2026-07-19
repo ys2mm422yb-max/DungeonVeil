@@ -1,0 +1,235 @@
+import { useEffect, useRef, useState } from 'react';
+import { GameEngine, type RunGameState } from '../game/runEngine';
+import { buildSpectatorSnapshot } from '../game/socialSpectatorOnline';
+import { SpectatorSnapshotBuffer } from '../game/spectatorInterpolation';
+import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
+import { SpectatorPlaybackStage } from './SpectatorPlaybackStage';
+
+const PACKET_MS = 125;
+const JITTER_MS = [0, 22, -8, 54, 8, 88, 0, 34, -4, 118, 12, 0];
+const OUTAGE_CYCLE_PACKETS = 32;
+const OUTAGE_START_PACKET = 20;
+const OUTAGE_PACKET_COUNT = 4;
+const MEASUREMENT_WARMUP_MS = 2_500;
+const SOURCE_SPEED_PX_PER_MS = 0.13;
+
+function cloneState(state: RunGameState): RunGameState {
+  return structuredClone(state);
+}
+
+function createQaState(): RunGameState {
+  const engine = new GameEngine();
+  const state = cloneState(engine.state);
+  const centerX = state.map.startX * 40 + 4;
+  const centerY = state.map.startY * 40 + 4;
+  state.status = 'playing';
+  state.player.playerName = '';
+  state.player.x = centerX;
+  state.player.y = centerY;
+  state.player.state = 'moving';
+  state.runSkills = { multishot: 2, speed: 1, fireArrow: 1 };
+  state.enemies = [{
+    id: 'spectator-qa-goblin', type: 'enemy', enemyType: 'goblin',
+    x: centerX + 180, y: centerY - 120, width: 30, height: 30, vx: 0, vy: 0,
+    hp: 34, maxHp: 34, attack: 6, defense: 1, speed: 68, color: '#89a94b',
+    state: 'chase', isDead: false, targetX: centerX, targetY: centerY,
+    nextAttackTime: 0, flashUntil: 0, spawnTime: performance.now(), lastAttackTime: 0, deathTime: 0,
+  }];
+  return state;
+}
+
+export function SpectatorPerformanceQa() {
+  const sourceRef = useRef<RunGameState>(createQaState());
+  const bufferRef = useRef(new SpectatorSnapshotBuffer());
+  const diagnosticsRef = useRef<HTMLSpanElement>(null);
+  const initialAt = useRef(Date.now());
+  const renderCountRef = useRef(0);
+  const packetContractRef = useRef<{ keyframeBytes: number; deltaBytes: number; deltaHasMap: boolean } | null>(null);
+  renderCountRef.current += 1;
+
+  if (!packetContractRef.current) {
+    const keyframe = buildSpectatorSnapshot(cloneState(sourceRef.current), initialAt.current);
+    const deltaSource = cloneState(sourceRef.current);
+    deltaSource.player.x += 12;
+    const delta = buildSpectatorSnapshot(deltaSource, initialAt.current + PACKET_MS);
+    packetContractRef.current = {
+      keyframeBytes: JSON.stringify(keyframe).length,
+      deltaBytes: JSON.stringify(delta).length,
+      deltaHasMap: Object.prototype.hasOwnProperty.call(delta.state, 'map'),
+    };
+  }
+
+  if (bufferRef.current.getMetrics().receivedSnapshots === 0) {
+    const first = cloneState(sourceRef.current);
+    const second = cloneState(sourceRef.current);
+    second.player.x += 18;
+    second.enemies[0].x -= 9;
+    bufferRef.current.push(initialAt.current - 250, first, initialAt.current - 170);
+    bufferRef.current.push(initialAt.current - 125, second, initialAt.current - 35);
+  }
+  const [stableState] = useState<RunGameState>(() => bufferRef.current.sample(initialAt.current) ?? cloneState(sourceRef.current));
+
+  useEffect(() => {
+    document.documentElement.dataset.dungeonVeilSpectating = '1';
+    window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: true } }));
+    const startedAt = Date.now();
+    const startedPerformanceAt = performance.now();
+    let packetIndex = 0;
+    let frame = 0;
+    let lastX = stableState.player.x;
+    let lastFrameAt = startedPerformanceAt;
+    let maxFrameStep = 0;
+    let maxExcessStepPx = 0;
+    let maxFrameIntervalMs = 0;
+    let stagnantSince = startedPerformanceAt;
+    let maxStagnantMs = 0;
+    let frameCount = 0;
+    let measuredFrameCount = 0;
+    let measurementStarted = false;
+    let outagePackets = 0;
+    let layoutChanges = 0;
+    let lastExtraEnemyActive = false;
+    const pendingTimers = new Set<number>();
+
+    const emitPacket = () => {
+      packetIndex += 1;
+      const outagePhase = packetIndex % OUTAGE_CYCLE_PACKETS;
+      const plannedOutage = outagePhase >= OUTAGE_START_PACKET && outagePhase < OUTAGE_START_PACKET + OUTAGE_PACKET_COUNT;
+      const isolatedLoss = packetIndex % 11 === 0 || packetIndex % 17 === 0;
+      if (plannedOutage || isolatedLoss) {
+        outagePackets += 1;
+        return;
+      }
+      const emittedAt = Date.now();
+      const elapsed = emittedAt - startedAt;
+      const source = sourceRef.current;
+      source.player.x = source.map.startX * 40 + 4 + elapsed * SOURCE_SPEED_PX_PER_MS;
+      source.player.y = source.map.startY * 40 + 4 + Math.sin(elapsed * 0.0022) * 55;
+      source.player.facing = { x: 1, y: Math.cos(elapsed * 0.0022) * 0.25 };
+      source.player.state = 'moving';
+      source.camera.x = source.player.x;
+      source.camera.y = source.player.y;
+
+      const baseEnemy = source.enemies.find(enemy => enemy.id === 'spectator-qa-goblin') ?? source.enemies[0];
+      baseEnemy.x = source.player.x + 150 + Math.sin(elapsed * 0.0017) * 42;
+      baseEnemy.y = source.player.y - 110 + Math.cos(elapsed * 0.0014) * 36;
+      baseEnemy.targetX = source.player.x;
+      baseEnemy.targetY = source.player.y;
+
+      const layoutPhase = packetIndex % 24;
+      const extraEnemyActive = layoutPhase >= 8 && layoutPhase < 16;
+      if (extraEnemyActive !== lastExtraEnemyActive) {
+        lastExtraEnemyActive = extraEnemyActive;
+        layoutChanges += 1;
+      }
+      const extraEnemyIndex = source.enemies.findIndex(enemy => enemy.id === 'spectator-qa-layout-enemy');
+      if (extraEnemyActive && extraEnemyIndex < 0) {
+        source.enemies.push({
+          ...baseEnemy,
+          id: 'spectator-qa-layout-enemy',
+          x: source.player.x - 135,
+          y: source.player.y + 105,
+          spawnTime: performance.now(),
+        });
+      } else if (!extraEnemyActive && extraEnemyIndex >= 0) {
+        source.enemies.splice(extraEnemyIndex, 1);
+      }
+      const extraEnemy = source.enemies.find(enemy => enemy.id === 'spectator-qa-layout-enemy');
+      if (extraEnemy) {
+        extraEnemy.x = source.player.x - 135 + Math.cos(elapsed * 0.0015) * 30;
+        extraEnemy.y = source.player.y + 105 + Math.sin(elapsed * 0.0018) * 28;
+        extraEnemy.targetX = source.player.x;
+        extraEnemy.targetY = source.player.y;
+      }
+
+      source.effects = packetIndex % 3 === 0 ? [{
+        id: `shot-qa-${packetIndex}`, x: source.player.x, y: source.player.y, radius: 0, maxRadius: 210,
+        color: '#f7d48a', lifeTime: 0.3, maxLifeTime: 1, type: 'beam', angle: 0, element: 'fire',
+      }] : [];
+      source.damageNumbers = packetIndex % 5 === 0 ? [{
+        id: `dmg-qa-${packetIndex}`, x: baseEnemy.x, y: baseEnemy.y, value: '12', color: '#ffd37c', lifeTime: 0.2, maxLifeTime: 1,
+      }] : [];
+      source.particles = [];
+      const snapshot = cloneState(source);
+      const jitter = JITTER_MS[packetIndex % JITTER_MS.length];
+      const timer = window.setTimeout(() => {
+        pendingTimers.delete(timer);
+        bufferRef.current.push(emittedAt, snapshot, Date.now());
+      }, Math.max(0, 72 + jitter));
+      pendingTimers.add(timer);
+    };
+
+    const packetTimer = window.setInterval(emitPacket, PACKET_MS);
+    const animate = (time: number) => {
+      const frameIntervalMs = Math.max(1, time - lastFrameAt);
+      lastFrameAt = time;
+      const current = bufferRef.current.sample(Date.now());
+      const measuring = time - startedPerformanceAt >= MEASUREMENT_WARMUP_MS;
+      if (current) {
+        if (measuring && !measurementStarted) {
+          measurementStarted = true;
+          lastX = current.player.x;
+          stagnantSince = time;
+        } else if (measuring) {
+          const step = Math.abs(current.player.x - lastX);
+          maxFrameStep = Math.max(maxFrameStep, step);
+          maxFrameIntervalMs = Math.max(maxFrameIntervalMs, frameIntervalMs);
+          const expectedMotion = SOURCE_SPEED_PX_PER_MS * frameIntervalMs;
+          maxExcessStepPx = Math.max(maxExcessStepPx, Math.max(0, step - expectedMotion - 24));
+          if (step > 0.015) stagnantSince = time;
+          maxStagnantMs = Math.max(maxStagnantMs, time - stagnantSince);
+          measuredFrameCount += 1;
+          lastX = current.player.x;
+        } else {
+          lastX = current.player.x;
+        }
+      }
+      frameCount += 1;
+      const metrics = bufferRef.current.getMetrics();
+      const packetContract = packetContractRef.current;
+      const host = diagnosticsRef.current;
+      if (host) {
+        host.dataset.playerX = stableState.player.x.toFixed(3);
+        host.dataset.playerY = stableState.player.y.toFixed(3);
+        host.dataset.frames = String(frameCount);
+        host.dataset.measuredFrames = String(measuredFrameCount);
+        host.dataset.maxFrameStep = maxFrameStep.toFixed(3);
+        host.dataset.maxExcessStepPx = maxExcessStepPx.toFixed(3);
+        host.dataset.maxCorrectionPx = metrics.maxCorrectionPx.toFixed(3);
+        host.dataset.maxFrameIntervalMs = maxFrameIntervalMs.toFixed(1);
+        host.dataset.maxStagnantMs = maxStagnantMs.toFixed(1);
+        host.dataset.bufferDepth = String(metrics.bufferDepth);
+        host.dataset.interpolationFrames = String(metrics.interpolationFrames);
+        host.dataset.extrapolationFrames = String(metrics.extrapolationFrames);
+        host.dataset.heldFrames = String(metrics.heldFrames);
+        host.dataset.mode = metrics.mode;
+        host.dataset.reactRenders = String(renderCountRef.current);
+        host.dataset.elapsedMs = String(Date.now() - startedAt);
+        host.dataset.outagePackets = String(outagePackets);
+        host.dataset.layoutChanges = String(layoutChanges);
+        host.dataset.enemyCount = String(stableState.enemies.length);
+        host.dataset.canvasCount = String(document.querySelectorAll('canvas').length);
+        host.dataset.menuCanvasCount = String(document.querySelectorAll('[data-testid="main-menu-dungeon-scene"] canvas').length);
+        host.dataset.keyframeBytes = String(packetContract?.keyframeBytes ?? 0);
+        host.dataset.deltaBytes = String(packetContract?.deltaBytes ?? 0);
+        host.dataset.deltaHasMap = packetContract?.deltaHasMap ? 'true' : 'false';
+      }
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+
+    return () => {
+      window.clearInterval(packetTimer);
+      pendingTimers.forEach(timer => window.clearTimeout(timer));
+      cancelAnimationFrame(frame);
+      window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: false } }));
+      delete document.documentElement.dataset.dungeonVeilSpectating;
+    };
+  }, [stableState]);
+
+  return <div data-testid="spectator-performance-qa" className="fixed inset-0 overflow-hidden bg-black">
+    <SpectatorPlaybackStage stableState={stableState} />
+    <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-contract="jitter-loss-layout-long-run-v5" className="sr-only" />
+    <span data-testid="visual-qa-ready" className="pointer-events-none fixed bottom-1 right-1 z-[999] h-1 w-1 opacity-0" />
+  </div>;
+}

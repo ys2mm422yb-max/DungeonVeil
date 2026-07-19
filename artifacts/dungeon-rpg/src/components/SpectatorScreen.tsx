@@ -1,18 +1,35 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { RunGameState } from '../game/runEngine';
+import { SpectatorSnapshotBuffer, type SpectatorInterpolationMetrics } from '../game/spectatorInterpolation';
 import {
   heartbeatSpectatorViewer,
   leaveSpectatorViewer,
   loadFriendSpectatorFeed,
-  SPECTATOR_REFRESH_MS,
+  SPECTATOR_POLL_MS,
   SPECTATOR_VIEWER_HEARTBEAT_MS,
   type FriendSpectatorFeed,
+  type OnlineActivityState,
 } from '../game/socialSpectatorOnline';
-import { CombatStage } from './CombatStage';
+import { SpectatorPlaybackStage } from './SpectatorPlaybackStage';
 import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
 
-const INTERPOLATION_MS = 120;
-const lerp = (from: number, to: number, amount: number) => from + (to - from) * amount;
+const HUD_PAINT_MS = 250;
+const PERFORMANCE_KEY = 'dungeon-veil-spectator-performance';
+
+const EMPTY_METRICS: SpectatorInterpolationMetrics = {
+  receivedSnapshots: 0,
+  duplicateSnapshots: 0,
+  outOfOrderSnapshots: 0,
+  bufferDepth: 0,
+  interpolationFrames: 0,
+  extrapolationFrames: 0,
+  heldFrames: 0,
+  roomResets: 0,
+  maxCorrectionPx: 0,
+  clockOffsetMs: 0,
+  latestPacketAgeMs: 0,
+  mode: 'waiting',
+};
 
 const GIFT_LABELS: Record<string, readonly [string, string]> = {
   multishot: ['Mehrfachpfeil', 'Multishot'],
@@ -32,26 +49,33 @@ const GIFT_LABELS: Record<string, readonly [string, string]> = {
   vitalSpark: ['Lebensfunke', 'Vital Spark'],
 };
 
-function interpolateState(previous: RunGameState, target: RunGameState, amount: number): RunGameState {
-  if (previous.chapter !== target.chapter || previous.floor !== target.floor) return target;
-  const oldEnemies = new Map(previous.enemies.map(enemy => [enemy.id, enemy]));
-  return {
-    ...target,
-    player: {
-      ...target.player,
-      x: lerp(previous.player.x, target.player.x, amount),
-      y: lerp(previous.player.y, target.player.y, amount),
-    },
-    camera: {
-      x: lerp(previous.camera.x, target.camera.x, amount),
-      y: lerp(previous.camera.y, target.camera.y, amount),
-    },
-    enemies: target.enemies.map(enemy => {
-      const old = oldEnemies.get(enemy.id);
-      return old ? { ...enemy, x: lerp(old.x, enemy.x, amount), y: lerp(old.y, enemy.y, amount) } : enemy;
-    }),
-  };
-}
+type SpectatorHud = {
+  feedPresent: boolean;
+  hasSnapshot: boolean;
+  activity: OnlineActivityState | null;
+  chapter: number;
+  room: number;
+  hp: number;
+  maxHp: number;
+  status: RunGameState['status'] | null;
+  runSkills: RunGameState['runSkills'];
+  delayMs: number;
+  metrics: SpectatorInterpolationMetrics;
+};
+
+const EMPTY_HUD: SpectatorHud = {
+  feedPresent: false,
+  hasSnapshot: false,
+  activity: null,
+  chapter: 1,
+  room: 1,
+  hp: 0,
+  maxHp: 1,
+  status: null,
+  runSkills: {},
+  delayMs: 0,
+  metrics: EMPTY_METRICS,
+};
 
 export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   friendId: string;
@@ -61,10 +85,13 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
 }) {
   const de = language === 'de';
   const hadFeedRef = useRef(false);
-  const animationRef = useRef<number | null>(null);
-  const displayRef = useRef<RunGameState | null>(null);
-  const [feed, setFeed] = useState<FriendSpectatorFeed | null>(null);
-  const [displayState, setDisplayState] = useState<RunGameState | null>(null);
+  const feedRef = useRef<FriendSpectatorFeed | null>(null);
+  const bufferRef = useRef(new SpectatorSnapshotBuffer());
+  const stableStateRef = useRef<RunGameState | null>(null);
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  const [stageState, setStageState] = useState<RunGameState | null>(null);
+  const [hud, setHud] = useState<SpectatorHud>(EMPTY_HUD);
   const [loading, setLoading] = useState(true);
   const [rendererReady, setRendererReady] = useState(false);
   const [error, setError] = useState('');
@@ -86,14 +113,11 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
     const heartbeat = () => { void heartbeatSpectatorViewer(friendId).catch(() => {}); };
     heartbeat();
     const interval = window.setInterval(heartbeat, SPECTATOR_VIEWER_HEARTBEAT_MS);
     return () => {
-      cancelled = true;
       window.clearInterval(interval);
-      if (!cancelled) return;
       void leaveSpectatorViewer(friendId).catch(() => {});
     };
   }, [friendId]);
@@ -101,18 +125,25 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   useEffect(() => {
     let cancelled = false;
     let busy = false;
+    bufferRef.current.clear();
+    feedRef.current = null;
+    stableStateRef.current = null;
+    setStageState(null);
+    setHud(EMPTY_HUD);
+    setLoading(true);
+
     const refresh = async () => {
       if (cancelled || busy) return;
       busy = true;
       try {
         const next = await loadFriendSpectatorFeed(friendId);
+        const receivedAt = Date.now();
         if (cancelled) return;
-        if (next) {
+        feedRef.current = next;
+        if (next?.snapshot) {
           hadFeedRef.current = true;
-          setFeed(next);
+          bufferRef.current.push(next.snapshot.emittedAt, next.snapshot.state, receivedAt);
           setError('');
-        } else {
-          setFeed(null);
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
@@ -121,50 +152,69 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
         busy = false;
       }
     };
+
     void refresh();
-    const interval = window.setInterval(() => void refresh(), SPECTATOR_REFRESH_MS);
-    return () => { cancelled = true; window.clearInterval(interval); };
+    const interval = window.setInterval(() => void refresh(), SPECTATOR_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [friendId]);
 
-  const targetState = feed?.snapshot?.state ?? null;
   useEffect(() => {
-    if (!targetState) return;
-    if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
-    const from = displayRef.current ?? targetState;
-    if (from.chapter !== targetState.chapter || from.floor !== targetState.floor) {
-      displayRef.current = targetState;
-      setDisplayState(targetState);
-      return;
-    }
-    const startedAt = performance.now();
-    const animate = (now: number) => {
-      const amount = Math.min(1, Math.max(0, (now - startedAt) / INTERPOLATION_MS));
-      const eased = 1 - Math.pow(1 - amount, 3);
-      const next = interpolateState(from, targetState, eased);
-      displayRef.current = next;
-      setDisplayState(next);
-      if (amount < 1) animationRef.current = requestAnimationFrame(animate);
-      else animationRef.current = null;
-    };
-    animationRef.current = requestAnimationFrame(animate);
-    return () => {
-      if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    };
-  }, [targetState]);
+    let frame = 0;
+    let lastHudPaint = 0;
+    const animate = (time: number) => {
+      const now = Date.now();
+      const sampled = bufferRef.current.sample(now);
+      if (sampled && !stableStateRef.current) {
+        stableStateRef.current = sampled;
+        setStageState(sampled);
+      }
 
-  const gameState = displayState ?? targetState;
-  const activity = feed?.activity_state;
-  const dead = Boolean(targetState && (targetState.status === 'gameover' || targetState.player.hp <= 0));
-  const paused = activity === 'paused' || targetState?.status === 'paused';
-  const inMenu = activity === 'menu';
-  const disconnected = !loading && activity === 'run' && !targetState;
-  const unavailable = !loading && !feed && !hadFeedRef.current;
-  const hp = Math.max(0, Math.round(targetState?.player.hp ?? gameState?.player.hp ?? 0));
-  const maxHp = Math.max(1, Math.round(targetState?.player.maxHp ?? gameState?.player.maxHp ?? 1));
-  const hpPercent = Math.max(0, Math.min(100, hp / maxHp * 100));
-  const delayMs = feed?.snapshot ? Math.max(0, Date.now() - feed.snapshot.emittedAt) : 0;
-  const gifts = Object.entries(gameState?.runSkills ?? {})
+      if (time - lastHudPaint >= HUD_PAINT_MS) {
+        lastHudPaint = time;
+        const feed = feedRef.current;
+        const state = stableStateRef.current;
+        const metrics = bufferRef.current.getMetrics();
+        const nextHud: SpectatorHud = {
+          feedPresent: Boolean(feed),
+          hasSnapshot: Boolean(feed?.snapshot),
+          activity: feed?.activity_state ?? null,
+          chapter: feed?.chapter ?? state?.chapter ?? 1,
+          room: feed?.room ?? state?.floor ?? 1,
+          hp: Math.max(0, Math.round(state?.player.hp ?? 0)),
+          maxHp: Math.max(1, Math.round(state?.player.maxHp ?? 1)),
+          status: state?.status ?? null,
+          runSkills: state?.runSkills ?? {},
+          delayMs: feed?.snapshot ? Math.max(0, now - feed.snapshot.emittedAt) : 0,
+          metrics,
+        };
+        setHud(nextHud);
+        try {
+          localStorage.setItem(PERFORMANCE_KEY, JSON.stringify({
+            ...metrics,
+            reactRenders: renderCountRef.current,
+            hudPaintMs: HUD_PAINT_MS,
+            pollMs: SPECTATOR_POLL_MS,
+            rendererHandoff: document.documentElement.dataset.dungeonVeilSpectating === '1',
+            at: now,
+          }));
+        } catch {}
+      }
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const dead = Boolean(hud.status === 'gameover' || hud.hp <= 0 && hud.hasSnapshot);
+  const paused = hud.activity === 'paused' || hud.status === 'paused';
+  const inMenu = hud.activity === 'menu';
+  const disconnected = !loading && hud.activity === 'run' && !hud.hasSnapshot;
+  const unavailable = !loading && !hud.feedPresent && !hadFeedRef.current;
+  const hpPercent = Math.max(0, Math.min(100, hud.hp / hud.maxHp * 100));
+  const gifts = Object.entries(hud.runSkills)
     .filter(([key, rank]) => key !== 'heal' && Number(rank) > 0)
     .map(([key, rank]) => ({ key, rank: Number(rank), label: GIFT_LABELS[key]?.[de ? 0 : 1] ?? key }))
     .slice(0, 12);
@@ -181,18 +231,27 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
             : '';
   const preparingRenderer = !rendererReady;
 
-  return <div data-testid="spectator-screen" className="fixed inset-0 z-[220] overflow-hidden bg-black text-white">
-    {rendererReady && gameState && <CombatStage gameState={gameState} />}
-    {(!rendererReady || !gameState) && <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(67,41,102,.3),#050507_56%)]" />}
+  return <div
+    data-testid="spectator-screen"
+    data-playback-mode={hud.metrics.mode}
+    data-buffer-depth={hud.metrics.bufferDepth}
+    data-react-renders={renderCountRef.current}
+    data-interpolation-frames={hud.metrics.interpolationFrames}
+    data-extrapolation-frames={hud.metrics.extrapolationFrames}
+    data-renderer-handoff="exclusive"
+    className="fixed inset-0 z-[220] overflow-hidden bg-black text-white"
+  >
+    {rendererReady && stageState && <SpectatorPlaybackStage stableState={stageState} />}
+    {(!rendererReady || !stageState) && <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(67,41,102,.3),#050507_56%)]" />}
 
     <header className="pointer-events-none absolute inset-x-0 top-0 z-[240] flex items-start justify-between gap-2 bg-gradient-to-b from-black/92 via-black/58 to-transparent px-3 pb-12 pt-[max(10px,calc(env(safe-area-inset-top)+6px))]">
       <div className="min-w-0 max-w-[calc(100vw-68px)] rounded-2xl border border-violet-300/18 bg-black/72 px-3 py-2 backdrop-blur-lg">
         <div className="text-[7px] font-black uppercase tracking-[.24em] text-violet-200/55">{de ? 'LIVE ZUSCHAUEN' : 'LIVE SPECTATING'}</div>
         <div className="mt-1 truncate text-[13px] font-black text-white/90">{friendName}</div>
-        <div className="mt-1 text-[7px] uppercase tracking-[.12em] text-white/42">{feed ? `${de ? 'Kapitel' : 'Chapter'} ${feed.chapter} · ${de ? 'Raum' : 'Room'} ${feed.room} · ${(delayMs / 1000).toFixed(1)} s` : (de ? 'Verbindung wird aufgebaut' : 'Connecting')}</div>
-        {gameState && <div data-testid="spectator-health" className="mt-2">
-          <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-[.12em]"><span className="text-white/38">{de ? 'LEBEN' : 'HEALTH'}</span><span className="text-white/72">{hp}/{maxHp}</span></div>
-          <div className="mt-1 h-2 overflow-hidden rounded-full border border-white/10 bg-black/70"><div className="h-full rounded-full bg-red-500 transition-[width] duration-100" style={{ width: `${hpPercent}%` }} /></div>
+        <div className="mt-1 text-[7px] uppercase tracking-[.12em] text-white/42">{hud.feedPresent ? `${de ? 'Kapitel' : 'Chapter'} ${hud.chapter} · ${de ? 'Raum' : 'Room'} ${hud.room} · ${(hud.delayMs / 1000).toFixed(1)} s` : (de ? 'Verbindung wird aufgebaut' : 'Connecting')}</div>
+        {stageState && <div data-testid="spectator-health" className="mt-2">
+          <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-[.12em]"><span className="text-white/38">{de ? 'LEBEN' : 'HEALTH'}</span><span className="text-white/72">{hud.hp}/{hud.maxHp}</span></div>
+          <div className="mt-1 h-2 overflow-hidden rounded-full border border-white/10 bg-black/70"><div className="h-full rounded-full bg-red-500 transition-[width] duration-200" style={{ width: `${hpPercent}%` }} /></div>
         </div>}
         {gifts.length > 0 && <div data-testid="spectator-gifts" className="mt-2 border-t border-white/8 pt-2">
           <div className="mb-1 text-[6px] font-black uppercase tracking-[.16em] text-violet-100/45">{de ? 'GABEN' : 'GIFTS'}</div>

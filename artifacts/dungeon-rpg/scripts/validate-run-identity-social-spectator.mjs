@@ -8,6 +8,8 @@ const [
   newRunConfirm,
   friends,
   spectatorScreen,
+  spectatorPlayback,
+  spectatorBuffer,
   spectatorClient,
   bridge,
   onlinePanel,
@@ -27,6 +29,8 @@ const [
   read('../src/components/NewRunConfirmDialog.tsx'),
   read('../src/components/FriendsPanel.tsx'),
   read('../src/components/SpectatorScreen.tsx'),
+  read('../src/components/SpectatorPlaybackStage.tsx'),
+  read('../src/game/spectatorInterpolation.ts'),
   read('../src/game/socialSpectatorOnline.ts'),
   read('../src/components/GameSessionBridge.tsx'),
   read('../src/components/OnlinePanel.tsx'),
@@ -53,13 +57,13 @@ const checks = [
   [identityCard.includes('resolveOnlineAvatar') && identityCard.includes('resolveOnlineTitle') && identityCard.includes('resolveOnlineCard'), 'shared social identity card does not resolve all equipped cosmetics'],
   [guildPanel.includes('<SocialIdentityCard') && guildPanel.includes('member.profile?.avatar_key') && guildPanel.includes('guild-member-profile-button'), 'guild members do not show their equipped avatar, title and calling card'],
   [guildPanel.includes('<SpectatorScreen') && guildPanel.includes("'Live zuschauen'") && guildPanel.includes('spectatingMember'), 'guild members cannot be opened in the live spectator view'],
-  [spectatorScreen.includes('<CombatStage') && !spectatorScreen.includes('VirtualJoystick') && !spectatorScreen.includes('ActionButtons'), 'spectator screen is not a read-only combat view'],
-  [spectatorScreen.includes('INTERPOLATION_MS = 120') && spectatorScreen.includes('spectator-health') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator view lacks fast smoothing, health, gifts or viewer presence'],
+  [spectatorScreen.includes('<SpectatorPlaybackStage') && spectatorPlayback.includes('<GameCanvasKayKit3D') && !spectatorScreen.includes('VirtualJoystick') && !spectatorScreen.includes('ActionButtons'), 'spectator screen is not a read-only stable Three.js combat view'],
+  [spectatorBuffer.includes('SPECTATOR_INTERPOLATION_DELAY_MS = 165') && spectatorBuffer.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 120') && spectatorScreen.includes('HUD_PAINT_MS = 250') && spectatorScreen.includes('spectator-health') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator view lacks buffered smoothing, health, gifts or viewer presence'],
   [spectatorScreen.includes('SPIELER BESIEGT') && spectatorScreen.includes('SPIEL PAUSIERT') && spectatorScreen.includes('SPIELER IM MENÜ') && spectatorScreen.includes('VERBINDUNG UNTERBROCHEN'), 'spectator lifecycle messages are incomplete'],
   [spectatorScreen.includes('SPECTATOR_RENDERER_EVENT') && spectatorScreen.includes('rendererReady') && spectatorScreen.includes('requestAnimationFrame') && spectatorScreen.includes('active: true') && spectatorScreen.includes('active: false'), 'spectator renderer does not wait for the menu WebGL scene to be released'],
   [menuScene.includes('SPECTATOR_RENDERER_EVENT') && menuScene.includes('setSuspended') && menuScene.includes('if (suspended) return null'), 'main-menu WebGL scene is not suspended while a live run is watched'],
-  [spectatorClient.includes('SPECTATOR_REFRESH_MS = 100') && spectatorClient.includes('SPECTATOR_STALE_MS = 5_000') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('effects.slice(-20)') && spectatorClient.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not compact, ten-hertz, identity-sanitized and gift-aware'],
-  [bridge.includes('publishSpectatorState') && bridge.includes('publishMenuActivity') && bridge.includes('syncPublicProfileStats'), 'run bridge does not broadcast activity and public career progress'],
+  [spectatorClient.includes('SPECTATOR_PUBLISH_MS = 125') && spectatorClient.includes('SPECTATOR_POLL_MS = 125') && spectatorClient.includes('SPECTATOR_KEYFRAME_MS = 1_000') && spectatorClient.includes('version: 2') && spectatorClient.includes("playerName: ''") && spectatorClient.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not compact, keyframed, identity-sanitized and gift-aware'],
+  [bridge.includes('publishSpectatorState') && bridge.includes('publishMenuActivity') && bridge.includes('SPECTATOR_PUBLISH_MS') && bridge.includes('syncPublicProfileStats'), 'run bridge does not broadcast bounded spectator activity and public career progress'],
   [onlinePanel.includes('spectating-privacy-setting') && onlinePanel.includes('setSpectatingAllowed'), 'spectating privacy control is missing from Online & Cloud'],
   [migration.includes('spectator_snapshots') && migration.includes('octet_length(p_snapshot::text) > 300000'), 'spectator snapshots are not size-limited'],
   [expansionMigration.includes("next_state in ('run', 'paused')") && expansionMigration.includes("interval '12 seconds'") && expansionMigration.includes('shared guild required'), 'paused snapshots, twelve-second staleness or shared-guild access are missing'],
@@ -82,4 +86,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Run identity/social spectator audit passed: account names, friend-or-guild 10Hz viewing, exclusive mobile WebGL handoff, viewer counts, gifts, lifecycle status and public equipment are integrated.');
+console.log('Run identity/social spectator audit passed: account names, friend-or-guild buffered viewing, exclusive mobile WebGL handoff, viewer counts, gifts, lifecycle status and public equipment are integrated.');

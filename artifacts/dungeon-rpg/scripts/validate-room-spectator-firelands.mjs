@@ -5,6 +5,8 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const loading = read('src/components/GlobalLoadingLayer.tsx');
 const spectator = read('src/components/SpectatorScreen.tsx');
+const spectatorPlayback = read('src/components/SpectatorPlaybackStage.tsx');
+const spectatorBuffer = read('src/game/spectatorInterpolation.ts');
 const spectatorOnline = read('src/game/socialSpectatorOnline.ts');
 const guild = read('src/components/GuildPanelMobile.tsx');
 const camera = read('src/components/RunCameraRig.ts');
@@ -21,7 +23,9 @@ assert(renderer.includes('ring.visible = false'), 'Permanent enemy safety rings 
 assert(spectator.includes('spectator-health'), 'Spectator HUD must show player health.');
 assert(spectator.includes('spectator-gifts') && spectator.includes('heartbeatSpectatorViewer'), 'Spectator gifts or viewer presence are missing.');
 assert(spectator.includes('SPIELER BESIEGT') && spectator.includes('SPIEL PAUSIERT') && spectator.includes('SPIELER IM MENÜ'), 'Spectator terminal and activity states are missing.');
-assert(spectatorOnline.includes('SPECTATOR_REFRESH_MS = 100'), 'Spectator refresh must run at ten updates per second.');
+assert(spectator.includes('<SpectatorPlaybackStage') && spectatorPlayback.includes('single-stable-three-state'), 'Spectator playback must keep one stable Three.js renderer.');
+assert(spectatorBuffer.includes('SPECTATOR_INTERPOLATION_DELAY_MS = 165') && spectatorBuffer.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 120'), 'Spectator buffering or bounded extrapolation is missing.');
+assert(spectatorOnline.includes('SPECTATOR_PUBLISH_MS = 125') && spectatorOnline.includes('SPECTATOR_POLL_MS = 125') && spectatorOnline.includes('SPECTATOR_KEYFRAME_MS = 1_000'), 'Spectator network and room-keyframe cadences are not protected.');
 assert(guild.includes('GUILD_CREATION_COST = 10000'), 'Guild creation must cost 10,000 gold.');
 assert(guild.includes('Live zuschauen') && guild.includes('<SpectatorScreen'), 'Guild members need a live spectate action.');
 assert(camera.includes('dungeonVeilSpectating') && camera.includes('distance: 28.6'), 'Portrait spectator framing must pull back on iPhone.');
@@ -31,4 +35,4 @@ assert(profile.includes('public-player-profile-equipment') && social.includes('e
 assert(migration.includes("next_state in ('run', 'paused')") && migration.includes('shared guild required'), 'Supabase spectator RPC must retain paused snapshots and allow guild members.');
 assert(migration.includes('equipped_items jsonb'), 'Supabase profile RPC must expose current equipment.');
 
-console.log('Requested room, spectator, guild and firelands pass validated.');
+console.log('Requested room, buffered spectator, guild and firelands pass validated.');
