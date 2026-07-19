@@ -27,7 +27,7 @@ const checks = [
   [(byPath.get('./validate-coop-realtime-presence.mjs') ?? '').toLowerCase().includes('presence'), 'presence coverage missing'],
   [(byPath.get('./validate-coop-host-enemy-state.mjs') ?? '').toLowerCase().includes('host'), 'host authority coverage missing'],
   [(byPath.get('./validate-coop-downed-revive.mjs') ?? '').toLowerCase().includes('revive'), 'revive coverage missing'],
-  [duo.includes('normalHp: 1.72') && duo.includes('mobileEnemyCap: 12') && duo.includes('server-authoritative 1.25 currency rewards'), 'V4 Duo balance or rewards coverage missing'],
+  [duo.includes('simulateDuoCombatMatrixV4') && duo.includes('report.scenarioCount === 7392') && duo.includes('normalHp: 1.72') && duo.includes('mobileEnemyCap: 12') && duo.includes('DUO_CURRENCY_MULTIPLIER = 1.25'), 'V4 Duo matrix, balance or rewards coverage missing'],
   [duo.includes('applyDuoDisconnectFallback') && duo.includes('disconnectHpFactor: 0.78'), 'disconnect fallback coverage missing'],
   [loot.includes('consolation_dust = 60') && loot.includes('server-authoritative item selection'), 'shared boss loot coverage missing'],
   [persistence.includes('COOP_CHECKPOINT_MS = 5_000') && persistence.includes('authoritative_room_clear') && persistence.includes('run_attempt'), 'persistence or retry isolation coverage missing'],
