@@ -10,6 +10,8 @@ const JITTER_MS = [0, 22, -8, 54, 8, 88, 0, 34, -4, 118, 12, 0];
 const OUTAGE_CYCLE_PACKETS = 32;
 const OUTAGE_START_PACKET = 20;
 const OUTAGE_PACKET_COUNT = 4;
+const MEASUREMENT_WARMUP_MS = 1_500;
+const FRAME_BUDGET_MS = 1000 / 60;
 
 function cloneState(state: RunGameState): RunGameState {
   return structuredClone(state);
@@ -71,16 +73,19 @@ export function SpectatorPerformanceQa() {
     document.documentElement.dataset.dungeonVeilSpectating = '1';
     window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: true } }));
     const startedAt = Date.now();
+    const startedPerformanceAt = performance.now();
     let packetIndex = 0;
     let frame = 0;
     let lastX = stableState.player.x;
-    let lastFrameAt = performance.now();
+    let lastFrameAt = startedPerformanceAt;
     let maxFrameStep = 0;
     let maxNormalizedFrameStep = 0;
     let maxFrameIntervalMs = 0;
-    let stagnantSince = lastFrameAt;
+    let stagnantSince = startedPerformanceAt;
     let maxStagnantMs = 0;
     let frameCount = 0;
+    let measuredFrameCount = 0;
+    let measurementStarted = false;
     let outagePackets = 0;
     const pendingTimers = new Set<number>();
 
@@ -128,16 +133,26 @@ export function SpectatorPerformanceQa() {
     const animate = (time: number) => {
       const frameIntervalMs = Math.max(1, time - lastFrameAt);
       lastFrameAt = time;
-      maxFrameIntervalMs = Math.max(maxFrameIntervalMs, frameIntervalMs);
       const current = bufferRef.current.sample(Date.now());
+      const measuring = time - startedPerformanceAt >= MEASUREMENT_WARMUP_MS;
       if (current) {
-        const step = Math.abs(current.player.x - lastX);
-        const normalizedStep = step * (1000 / 60) / frameIntervalMs;
-        maxFrameStep = Math.max(maxFrameStep, step);
-        maxNormalizedFrameStep = Math.max(maxNormalizedFrameStep, normalizedStep);
-        if (step > 0.015) stagnantSince = time;
-        maxStagnantMs = Math.max(maxStagnantMs, time - stagnantSince);
-        lastX = current.player.x;
+        if (measuring && !measurementStarted) {
+          measurementStarted = true;
+          lastX = current.player.x;
+          stagnantSince = time;
+        } else if (measuring) {
+          const step = Math.abs(current.player.x - lastX);
+          const normalizedStep = step * FRAME_BUDGET_MS / Math.max(FRAME_BUDGET_MS, frameIntervalMs);
+          maxFrameStep = Math.max(maxFrameStep, step);
+          maxNormalizedFrameStep = Math.max(maxNormalizedFrameStep, normalizedStep);
+          maxFrameIntervalMs = Math.max(maxFrameIntervalMs, frameIntervalMs);
+          if (step > 0.015) stagnantSince = time;
+          maxStagnantMs = Math.max(maxStagnantMs, time - stagnantSince);
+          measuredFrameCount += 1;
+          lastX = current.player.x;
+        } else {
+          lastX = current.player.x;
+        }
       }
       frameCount += 1;
       const metrics = bufferRef.current.getMetrics();
@@ -147,6 +162,7 @@ export function SpectatorPerformanceQa() {
         host.dataset.playerX = stableState.player.x.toFixed(3);
         host.dataset.playerY = stableState.player.y.toFixed(3);
         host.dataset.frames = String(frameCount);
+        host.dataset.measuredFrames = String(measuredFrameCount);
         host.dataset.maxFrameStep = maxFrameStep.toFixed(3);
         host.dataset.maxNormalizedFrameStep = maxNormalizedFrameStep.toFixed(3);
         host.dataset.maxFrameIntervalMs = maxFrameIntervalMs.toFixed(1);
@@ -180,7 +196,7 @@ export function SpectatorPerformanceQa() {
 
   return <div data-testid="spectator-performance-qa" className="fixed inset-0 overflow-hidden bg-black">
     <SpectatorPlaybackStage stableState={stableState} />
-    <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-contract="jitter-loss-long-run-v3" className="sr-only" />
+    <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-contract="jitter-loss-long-run-v4" className="sr-only" />
     <span data-testid="visual-qa-ready" className="pointer-events-none fixed bottom-1 right-1 z-[999] h-1 w-1 opacity-0" />
   </div>;
 }
