@@ -4,6 +4,7 @@ import type { EquipmentId, EquipmentSlot, MetaProgression } from './metaProgress
 
 const META_KEY = 'dungeon-veil-meta';
 export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ACTIVE_EQUIPMENT_SLOTS;
+const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId;
 
 const DEFAULT_META: MetaProgression = {
   version: 4,
@@ -16,7 +17,12 @@ const DEFAULT_META: MetaProgression = {
     'ranger-quiver': { level: 1, copies: 0 },
     'ranger-cloak': { level: 1, copies: 0 },
   },
-  equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' },
+  equipped: {
+    bow: 'ash-bow',
+    quiver: 'ranger-quiver',
+    armor: 'ranger-cloak',
+    talisman: RETIRED_TALISMAN_COMPAT,
+  },
   cosmeticUnlocks: [],
   migrationCompensation: { gold: 0, dust: 0, copies: 0 },
   rewardLedger: [],
@@ -41,6 +47,7 @@ function normalizeV4(parsed: any): MetaProgression {
     bow: DEFAULT_META.equipped.bow,
     quiver: DEFAULT_META.equipped.quiver,
     armor: DEFAULT_META.equipped.armor,
+    talisman: RETIRED_TALISMAN_COMPAT,
   };
   for (const slot of ACTIVE_EQUIPMENT_SLOTS) {
     const id = parsed?.equipped?.[slot];
