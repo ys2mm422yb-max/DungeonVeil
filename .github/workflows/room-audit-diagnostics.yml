@@ -1,7 +1,7 @@
 name: Room Audit Diagnostics
 
 on:
-  push:
+  pull_request:
     branches: ['fix/diagnose-room-audit-after-final-boss-scope']
 
 permissions:
