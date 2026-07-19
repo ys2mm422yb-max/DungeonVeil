@@ -21,6 +21,7 @@ export type SpectatorInterpolationMetrics = {
   roomResets: number;
   bufferDepth: number;
   networkHz: number;
+  effectiveNetworkHz: number;
   packetAgeMs: number;
   lastPacketGapMs: number;
   maxPacketGapMs: number;
@@ -232,6 +233,13 @@ function advanceLifeTime<T extends { lifeTime: number; maxLifeTime: number }>(ta
   target.lifeTime = Math.min(target.maxLifeTime, source.lifeTime + extraMs);
 }
 
+function median(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
 export class SpectatorInterpolationBuffer {
   private frames: BufferedFrame[] = [];
   private display: RunGameState | null = null;
@@ -251,6 +259,7 @@ export class SpectatorInterpolationBuffer {
   private maxCorrectionStepPx = 0;
   private mode: SpectatorSampleMode = 'empty';
   private readonly motion: MotionAccumulator = { prediction: 0, correction: 0 };
+  private readonly recentPacketGapsMs: number[] = [];
 
   push(snapshot: SpectatorStateSnapshot, receivedAt = Date.now()): RunGameState | null {
     if (!snapshot || !Number.isFinite(snapshot.emittedAt) || !snapshot.state) return this.display;
@@ -271,6 +280,7 @@ export class SpectatorInterpolationBuffer {
     if (!this.display || nextRoomKey !== this.activeRoomKey) {
       if (this.display) this.roomResets += 1;
       this.frames = [];
+      this.recentPacketGapsMs.length = 0;
       this.activeRoomKey = nextRoomKey;
       this.display = cloneState(snapshot.state);
       this.estimatedClockOffsetMs = receivedAt - snapshot.emittedAt;
@@ -288,6 +298,8 @@ export class SpectatorInterpolationBuffer {
     if (previous) {
       this.lastPacketGapMs = Math.max(0, snapshot.emittedAt - previous.emittedAt);
       this.maxPacketGapMs = Math.max(this.maxPacketGapMs, this.lastPacketGapMs);
+      this.recentPacketGapsMs.push(this.lastPacketGapMs);
+      if (this.recentPacketGapsMs.length > 16) this.recentPacketGapsMs.splice(0, this.recentPacketGapsMs.length - 16);
     }
 
     this.frames.push({
@@ -387,7 +399,10 @@ export class SpectatorInterpolationBuffer {
     const first = this.frames[0];
     const latest = this.frames[this.frames.length - 1];
     const span = first && latest ? latest.emittedAt - first.emittedAt : 0;
-    const networkHz = this.frames.length > 1 && span > 0 ? (this.frames.length - 1) * 1000 / span : 0;
+    const effectiveNetworkHz = this.frames.length > 1 && span > 0 ? (this.frames.length - 1) * 1000 / span : 0;
+    const nominalGaps = this.recentPacketGapsMs.filter(gap => gap > 0 && gap <= 250);
+    const nominalGapMs = median(nominalGaps);
+    const networkHz = nominalGapMs > 0 ? 1000 / nominalGapMs : effectiveNetworkHz;
     return {
       acceptedSnapshots: this.acceptedSnapshots,
       duplicateSnapshots: this.duplicateSnapshots,
@@ -395,6 +410,7 @@ export class SpectatorInterpolationBuffer {
       roomResets: this.roomResets,
       bufferDepth: this.frames.length,
       networkHz: Number(networkHz.toFixed(2)),
+      effectiveNetworkHz: Number(effectiveNetworkHz.toFixed(2)),
       packetAgeMs: latest ? Math.max(0, now - latest.receivedAt) : 0,
       lastPacketGapMs: this.lastPacketGapMs,
       maxPacketGapMs: this.maxPacketGapMs,
