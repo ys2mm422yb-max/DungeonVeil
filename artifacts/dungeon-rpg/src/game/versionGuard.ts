@@ -140,6 +140,6 @@ export function startVersionGuard(): () => void {
     window.removeEventListener('pageshow', handlePageShow);
     window.removeEventListener(RUN_ACTIVE_EVENT, handleRunState);
     window.removeEventListener(APP_BOOT_READY_EVENT, ensureBootDiagnosticSentinel);
-    document.addEventListener('visibilitychange', handleVisibility);
+    document.removeEventListener('visibilitychange', handleVisibility);
   };
 }
