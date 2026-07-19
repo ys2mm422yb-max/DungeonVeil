@@ -39,3 +39,5 @@ console.log(JSON.stringify({
   maximumFinalBoss,
 }, null, 2));
 console.log('Duo combat matrix V4 passed: all build pairs, orientations, checkpoints and disconnect survivors remain bounded.');
+
+// This file is intentionally part of the mandatory final audit chain.
