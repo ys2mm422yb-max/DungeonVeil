@@ -3,6 +3,7 @@ import { GameEngine, type RunGameState } from '../game/runEngine';
 import { buildSpectatorSnapshot, SPECTATOR_PAYLOAD_LIMITS, SPECTATOR_REFRESH_MS } from '../game/socialSpectatorOnline';
 import {
   SPECTATOR_BUFFER_CAPACITY,
+  SPECTATOR_MAX_CORRECTION_STEP_PX,
   SPECTATOR_MAX_EXTRAPOLATION_MS,
   SPECTATOR_UI_PAINT_MS,
   SpectatorInterpolationBuffer,
@@ -140,6 +141,7 @@ export function SpectatorPerformanceQa() {
           host.dataset.extrapolatedFrames = String(metrics.extrapolatedFrames);
           host.dataset.heldFrames = String(metrics.heldFrames);
           host.dataset.maxExtrapolatedDistancePx = metrics.maxExtrapolatedDistancePx.toFixed(2);
+          host.dataset.maxCorrectionStepPx = metrics.maxCorrectionStepPx.toFixed(2);
           host.dataset.reactPaintHz = reactPaintHz.toFixed(2);
           host.dataset.renderFps = renderFps.toFixed(2);
           host.dataset.effects = String(state?.effects.length ?? 0);
@@ -165,6 +167,7 @@ export function SpectatorPerformanceQa() {
       data-contract="timestamp-buffer-direct-render-v1"
       data-buffer-capacity={SPECTATOR_BUFFER_CAPACITY}
       data-max-extrapolation-ms={SPECTATOR_MAX_EXTRAPOLATION_MS}
+      data-max-correction-step-px={SPECTATOR_MAX_CORRECTION_STEP_PX}
       data-long-run-window-ms={QA_DURATION_WINDOW_MS}
       className="sr-only"
     />
