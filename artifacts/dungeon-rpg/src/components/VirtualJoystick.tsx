@@ -14,6 +14,10 @@ function clampStick(x: number, y: number, radius: number) {
   return { x: x / distance * radius, y: y / distance * radius };
 }
 
+function knobTransform(x: number, y: number) {
+  return `translate3d(calc(-50% + ${x}px), calc(-50% + ${y}px), 0px)`;
+}
+
 export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
   const baseRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
@@ -41,7 +45,7 @@ export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
   const reset = useCallback(() => {
     pointerIdRef.current = null;
     latestMoveRef.current = { x: 0, y: 0 };
-    if (knobRef.current) knobRef.current.style.transform = 'translate3d(0px, 0px, 0px)';
+    if (knobRef.current) knobRef.current.style.transform = knobTransform(0, 0);
     emitMove(0, 0);
   }, [emitMove]);
 
@@ -66,9 +70,9 @@ export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
     const rect = base.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-    const radius = rect.width * 0.34;
+    const radius = Math.max(1, rect.width * 0.34);
     const next = clampStick(clientX - centerX, clientY - centerY, radius);
-    if (knobRef.current) knobRef.current.style.transform = `translate3d(${next.x}px, ${next.y}px, 0px)`;
+    if (knobRef.current) knobRef.current.style.transform = knobTransform(next.x, next.y);
     const normalizedX = next.x / radius;
     const normalizedY = next.y / radius;
     emitMove(Math.abs(normalizedX) < DEAD_ZONE ? 0 : normalizedX, Math.abs(normalizedY) < DEAD_ZONE ? 0 : normalizedY);
@@ -81,8 +85,23 @@ export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
     pointerIdRef.current = event.pointerId;
     if (floating) positionFloatingBase(event.clientX, event.clientY);
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
-    window.requestAnimationFrame(() => updateFromPointer(event.clientX, event.clientY));
+    updateFromPointer(event.clientX, event.clientY);
   }, [floating, positionFloatingBase, updateFromPointer]);
+
+  const moveCapturedPointer = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerId !== pointerIdRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    updateFromPointer(event.clientX, event.clientY);
+  }, [updateFromPointer]);
+
+  const endCapturedPointer = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerId !== pointerIdRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+    reset();
+  }, [reset]);
 
   useEffect(() => {
     const move = (event: PointerEvent) => {
@@ -142,15 +161,20 @@ export function VirtualJoystick({ onMove, variant = 'default' }: Props) {
     data-ui-control
     data-testid="run-joystick"
     data-joystick-mode={floating ? 'floating' : 'fixed'}
+    data-pointer-contract="captured-local-and-window"
     onPointerDown={floating ? undefined : beginPointer}
+    onPointerMove={floating ? undefined : moveCapturedPointer}
+    onPointerUp={floating ? undefined : endCapturedPointer}
+    onPointerCancel={floating ? undefined : endCapturedPointer}
+    onLostPointerCapture={reset}
     className={`${floating ? 'pointer-events-none' : 'pointer-events-auto'} fixed z-50 touch-none rounded-full border border-[#d7bc78]/35 bg-[radial-gradient(circle,rgba(224,198,132,.12),rgba(8,7,10,.58)_68%)] shadow-[0_14px_38px_rgba(0,0,0,.5),inset_0_0_30px_rgba(255,225,157,.05)] backdrop-blur-sm select-none ${floating ? sizeClass : placementClass}`}
-    style={{ WebkitTapHighlightColor: 'transparent' }}
+    style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'none', overscrollBehavior: 'contain' }}
   >
     <div className="pointer-events-none absolute inset-[18%] rounded-full border border-white/8" />
     <div className="pointer-events-none absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f3dca4]/30" />
-    <div ref={knobRef} className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f4dfaa]/55 bg-[radial-gradient(circle_at_35%_30%,rgba(255,239,195,.45),rgba(154,121,61,.38))] shadow-[0_8px_22px_rgba(0,0,0,.55),inset_0_0_14px_rgba(255,241,201,.18)] will-change-transform ${worldBoss ? 'h-[40px] w-[40px]' : tabletLandscape ? 'h-[50px] w-[50px]' : 'h-[44px] w-[44px]'}`} />
+    <div ref={knobRef} className={`pointer-events-none absolute left-1/2 top-1/2 rounded-full border border-[#f4dfaa]/55 bg-[radial-gradient(circle_at_35%_30%,rgba(255,239,195,.45),rgba(154,121,61,.38))] shadow-[0_8px_22px_rgba(0,0,0,.55),inset_0_0_14px_rgba(255,241,201,.18)] will-change-transform ${worldBoss ? 'h-[40px] w-[40px]' : tabletLandscape ? 'h-[50px] w-[50px]' : 'h-[44px] w-[44px]'}`} style={{ transform: knobTransform(0, 0) }} />
   </div>;
 
   if (!floating) return base;
-  return <><div data-testid="run-joystick-floating-zone" data-ui-control onPointerDown={beginPointer} className="pointer-events-auto fixed bottom-0 left-0 z-40 h-[62vh] w-[56vw] touch-none" style={{ WebkitTapHighlightColor: 'transparent' }} />{base}</>;
+  return <><div data-testid="run-joystick-floating-zone" data-ui-control onPointerDown={beginPointer} onPointerMove={moveCapturedPointer} onPointerUp={endCapturedPointer} onPointerCancel={endCapturedPointer} className="pointer-events-auto fixed bottom-0 left-0 z-40 h-[62vh] w-[56vw] touch-none" style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'none', overscrollBehavior: 'contain' }} />{base}</>;
 }

@@ -30,8 +30,10 @@ requireText(characterCreation, 'new-run-loading-screen', 'New-run full-screen lo
 requireText(characterCreation, 'RUN_PRELOAD_MAX_MS', 'New-run asset loading has no hard deadline');
 requireText(characterCreation, 'Promise.race([preloadRun(), delay(RUN_PRELOAD_MAX_MS)])', 'A stalled optional model can still block a new run indefinitely');
 requireText(characterCreation, 'let runPreloadPromise', 'New-run preloading can still be started repeatedly');
-requireText(worldBoss, '<WorldBossLiteStage engineRef={engineRef} onReady={handleReady} />', 'World-boss stage readiness bridge was removed');
-requireText(worldBoss, "ready ? `${seconds}s` : (de ? 'LÄDT' : 'LOAD')", 'World-boss arena loading state was removed');
-requireText(worldBoss, "ready && phase === 'fighting'", 'World-boss controls can appear before the arena is ready');
+requireText(worldBoss, '<WorldBossLiteStage engineRef={engineRef} onReady={handleReady} onLoadError={handleLoadError} />', 'World-boss readiness and load-error bridge was removed');
+requireText(worldBoss, 'worldboss-dragon-loading', 'Neutral original-dragon loading state was removed');
+requireText(worldBoss, 'worldboss-dragon-load-error', 'Bounded world-boss load failure state was removed');
+requireText(worldBoss, "ready && !loadError && phase === 'fighting'", 'World-boss controls can appear before the original dragon is ready');
+requireText(worldBoss, "loadError ? (de ? 'FEHLER' : 'ERROR') : ready ? `${seconds}s`", 'World-boss status no longer distinguishes loading, ready and failed states');
 
-console.log('Loading transitions verified: boot and new-run loading have hard deadlines; room entry and world-boss V4 readiness remain covered.');
+console.log('Loading transitions verified: boot and new-run loading have hard deadlines; world-boss readiness, bounded original-dragon loading and safe failure UX remain covered.');

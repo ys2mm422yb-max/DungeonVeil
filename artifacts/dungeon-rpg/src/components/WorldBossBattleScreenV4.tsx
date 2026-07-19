@@ -8,6 +8,7 @@ import { createEquipmentRuntimeBalanceState, updateEquipmentRuntimeBalance } fro
 import { VirtualJoystick } from './VirtualJoystick';
 import { ActionButtons } from './ActionButtons';
 import { WorldBossLiteStage } from './WorldBossLiteStage';
+import { clearWorldBossLoadFailure, getWorldBossLoadFailure } from './worldBossMobileVisual3D';
 
 const ATTEMPT_DURATION_MS = WORLD_BOSS_BALANCE_V4.timeLimitSeconds * 1000;
 const TIMER_PAINT_MS = 250;
@@ -118,11 +119,14 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
   const engineRef = useRef<GameEngine | null>(null);
   const finishedRef = useRef(false);
   const readyRef = useRef(false);
+  const phaseRef = useRef<BattlePhase>('fighting');
+  const loadErrorRef = useRef('');
   const startRef = useRef(0);
   const releaseRef = useRef(0);
   const initialBossHpRef = useRef<number>(WORLD_BOSS_BALANCE_V4.health);
   const [state, setState] = useState<GameState | null>(null);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [remainingMs, setRemainingMs] = useState<number>(ATTEMPT_DURATION_MS);
   const [phase, setPhase] = useState<BattlePhase>('fighting');
   const [finishReason, setFinishReason] = useState<FinishReason>('time');
@@ -130,8 +134,30 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
   const [remainingGlobalHp, setRemainingGlobalHp] = useState(event.current_hp);
   const [submitError, setSubmitError] = useState('');
 
+  const handleLoadError = useCallback((message: string) => {
+    if (loadErrorRef.current) return;
+    const nextMessage = message || (de ? 'Der schwarze Drache konnte nicht sicher geladen werden.' : 'The black dragon could not be loaded safely.');
+    loadErrorRef.current = nextMessage;
+    readyRef.current = false;
+    setReady(false);
+    setLoadError(nextMessage);
+    const engine = engineRef.current;
+    if (engine) {
+      engine.input.joyX = 0;
+      engine.input.joyY = 0;
+      engine.input.dodge = false;
+      engine.state.status = 'paused';
+      setState(snapshot(engine.state));
+    }
+  }, [de]);
+
   const handleReady = useCallback(() => {
-    if (readyRef.current) return;
+    const failure = getWorldBossLoadFailure();
+    if (failure) {
+      handleLoadError(de ? failure.message : 'The black dragon could not be loaded safely.');
+      return;
+    }
+    if (readyRef.current || loadErrorRef.current) return;
     readyRef.current = true;
     startRef.current = 0;
     const engine = engineRef.current;
@@ -148,7 +174,11 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       setState(snapshot(engine.state));
     }
     setReady(true);
-  }, []);
+  }, [de, handleLoadError]);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   useEffect(() => {
     let disposed = false;
@@ -157,6 +187,9 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     let lastStep = 0;
     const engine = new GameEngine();
     const equipmentRuntime = createEquipmentRuntimeBalanceState();
+    clearWorldBossLoadFailure();
+    loadErrorRef.current = '';
+    phaseRef.current = 'fighting';
     engine.ignoreRoomPropCollisions = true;
     engineRef.current = engine;
     finishedRef.current = false;
@@ -175,11 +208,12 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     setState(snapshot(engine.state));
 
     const finish = async (reason: FinishReason) => {
-      if (finishedRef.current || disposed) return;
+      if (finishedRef.current || disposed || loadErrorRef.current) return;
       finishedRef.current = true;
       engine.state.status = 'paused';
       engine.input.joyX = 0;
       engine.input.joyY = 0;
+      engine.input.dodge = false;
       setState(snapshot(engine.state));
       setFinishReason(reason);
       if (reason === 'time') setRemainingMs(0);
@@ -187,24 +221,27 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       const localDamage = Math.max(0, initialBossHpRef.current - Math.max(0, liveBoss?.hp ?? 0));
       const raidDamage = Math.max(1, Math.min(WORLD_BOSS_BALANCE_V4.health, Math.round(localDamage)));
       setSubmittedDamage(raidDamage);
+      phaseRef.current = 'submitting';
       setPhase('submitting');
       try {
         const result = await submitWorldBossHit(event.id, raidDamage);
         if (disposed) return;
         const nextHp = Math.max(0, Number(result.remainingHp ?? event.current_hp));
         setRemainingGlobalHp(nextHp);
+        phaseRef.current = 'result';
         setPhase('result');
         onBossUpdated(nextHp, result.defeated);
       } catch (caught) {
         if (disposed) return;
         setSubmitError(caught instanceof Error ? caught.message : String(caught));
+        phaseRef.current = 'result';
         setPhase('result');
       }
     };
 
     const tick = (time: number) => {
       if (disposed || finishedRef.current) return;
-      if (!readyRef.current) {
+      if (!readyRef.current || loadErrorRef.current) {
         engine.lastTime = time;
         frame = requestAnimationFrame(tick);
         return;
@@ -243,11 +280,13 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       equipmentRuntime.criticalDisposer?.();
       engine.input.joyX = 0;
       engine.input.joyY = 0;
+      engine.input.dodge = false;
       engine.state.status = 'paused';
       engine.state.effects.length = 0;
       engine.state.particles.length = 0;
       engine.state.damageNumbers.length = 0;
       engineRef.current = null;
+      clearWorldBossLoadFailure();
     };
   }, [event.current_hp, event.id, onBossUpdated, saveData]);
 
@@ -262,37 +301,48 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
 
   const move = useCallback((x: number, y: number) => {
     const engine = engineRef.current;
-    if (!engine || !ready || phase !== 'fighting') return;
-    engine.input.joyX = x;
-    engine.input.joyY = y;
-  }, [phase, ready]);
+    if (!engine || !readyRef.current || phaseRef.current !== 'fighting' || loadErrorRef.current) return;
+    engine.state.status = 'playing';
+    engine.input.joyX = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
+    engine.input.joyY = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+  }, []);
+
   const dodge = useCallback(() => {
     const engine = engineRef.current;
-    if (engine && ready && phase === 'fighting') engine.input.dodge = true;
-  }, [phase, ready]);
+    if (!engine || !readyRef.current || phaseRef.current !== 'fighting' || loadErrorRef.current) return;
+    engine.state.status = 'playing';
+    engine.input.dodge = true;
+  }, []);
+
   const close = useCallback(() => {
     readyRef.current = false;
     const engine = engineRef.current;
     if (engine) {
       engine.input.joyX = 0;
       engine.input.joyY = 0;
+      engine.input.dodge = false;
       engine.state.status = 'paused';
     }
     onClose();
   }, [onClose]);
 
-  return <div className="fixed inset-0 z-[120] overflow-hidden bg-[#080401] text-white">
+  return <div data-testid="worldboss-battle-root" data-input-contract="stable-ref-v2" className="fixed inset-0 z-[120] overflow-hidden bg-[#080401] text-white" style={{ touchAction: 'none', overscrollBehavior: 'none' }}>
     {state && <>
-      <WorldBossLiteStage engineRef={engineRef} onReady={handleReady} />
+      <WorldBossLiteStage engineRef={engineRef} onReady={handleReady} onLoadError={handleLoadError} />
       <div data-testid="worldboss-compact-status" className="pointer-events-none absolute inset-x-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-50">
         <div className="mx-auto max-w-md rounded-xl border border-orange-300/22 bg-black/84 px-3 py-2 shadow-xl backdrop-blur-sm">
-          <div className="flex items-center justify-between gap-2"><div><div className="text-[6px] font-black tracking-[.25em] text-orange-200/48">{de ? 'WELTBOSS-ANGRIFF' : 'WORLD BOSS ATTACK'} · {WORLD_BOSS_BALANCE_V4.balanceSeason}</div><div className="text-[13px] font-black text-orange-50">{event.name}</div></div><div className="flex items-center gap-1.5"><div className="rounded-full border border-amber-300/22 bg-amber-400/10 px-2.5 py-1 text-[10px] font-black text-amber-100">{ready ? `${seconds}s` : (de ? 'LÄDT' : 'LOAD')}</div><button type="button" onPointerDown={e => { e.preventDefault(); close(); }} className="pointer-events-auto grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-black/70 text-white/55">×</button></div></div>
+          <div className="flex items-center justify-between gap-2"><div><div className="text-[6px] font-black tracking-[.25em] text-orange-200/48">{de ? 'WELTBOSS-ANGRIFF' : 'WORLD BOSS ATTACK'} · {WORLD_BOSS_BALANCE_V4.balanceSeason}</div><div className="text-[13px] font-black text-orange-50">{event.name}</div></div><div className="flex items-center gap-1.5"><div className="rounded-full border border-amber-300/22 bg-amber-400/10 px-2.5 py-1 text-[10px] font-black text-amber-100">{loadError ? (de ? 'FEHLER' : 'ERROR') : ready ? `${seconds}s` : (de ? 'LÄDT' : 'LOAD')}</div><button type="button" onPointerDown={e => { e.preventDefault(); close(); }} className="pointer-events-auto grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-black/70 text-white/55">×</button></div></div>
           <div className="mt-1.5 flex items-center gap-2"><span className="w-8 text-[6px] font-black text-white/38">BOSS</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-black/70"><div className="h-full bg-gradient-to-r from-red-700 via-orange-500 to-amber-300" style={{ width: `${bossPercent}%` }} /></div><span className="w-[70px] text-right text-[7px] text-white/42">{Math.max(0, Math.ceil(boss?.hp ?? 0))}</span></div>
           <div className="mt-1 flex items-center gap-2"><span className="w-8 text-[6px] font-black text-white/28">{de ? 'DU' : 'YOU'}</span><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/70"><div className="h-full bg-emerald-400" style={{ width: `${playerPercent}%` }} /></div><span className="w-[70px] text-right text-[7px] text-white/32">{Math.max(0, Math.ceil(state.player.hp))}/{Math.ceil(state.player.maxHp)}</span></div>
         </div>
       </div>
-      {ready && phase === 'fighting' && <><VirtualJoystick onMove={move} variant="worldBoss" /><ActionButtons gameState={state} onDodge={dodge} variant="worldBoss" /></>}
+      {ready && !loadError && phase === 'fighting' && <><VirtualJoystick onMove={move} variant="worldBoss" /><ActionButtons gameState={state} onDodge={dodge} variant="worldBoss" /></>}
     </>}
+
+    {!ready && !loadError && phase === 'fighting' && <div data-testid="worldboss-dragon-loading" className="pointer-events-none absolute inset-0 z-[80] flex items-center justify-center bg-black/28 px-6"><div className="rounded-2xl border border-white/10 bg-black/72 px-5 py-4 text-center shadow-2xl backdrop-blur-sm"><div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-white/15 border-t-amber-200/80" /><div className="mt-3 text-[10px] font-black tracking-[.18em] text-amber-50/80">{de ? 'SCHWARZER DRACHE WIRD GELADEN' : 'LOADING BLACK DRAGON'}</div></div></div>}
+
+    {loadError && <div data-testid="worldboss-dragon-load-error" className="absolute inset-0 z-[160] flex items-center justify-center bg-black/92 px-5"><div className="w-full max-w-sm rounded-3xl border border-red-300/22 bg-[#100a0b]/96 p-5 text-center"><div className="text-[8px] font-black tracking-[.28em] text-red-200/55">{de ? 'WELTBOSS NICHT GELADEN' : 'WORLD BOSS NOT LOADED'}</div><div className="mt-2 text-xl font-black text-orange-50">{loadError}</div><div className="mt-3 text-[9px] leading-relaxed text-white/45">{de ? 'Es wird kein Ersatzmodell angezeigt. Kehre sicher zurück und starte den Kampf erneut.' : 'No substitute model is shown. Return safely and start the fight again.'}</div><button type="button" onPointerDown={e => { e.preventDefault(); close(); }} className="mt-5 w-full rounded-2xl border border-orange-300/28 bg-orange-500/12 py-3 text-[10px] font-black text-orange-100">{de ? 'SICHER ZURÜCK' : 'RETURN SAFELY'}</button></div></div>}
+
     {phase !== 'fighting' && <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/88 px-5"><div className="w-full max-w-sm rounded-3xl border border-orange-300/22 bg-[#100a07]/96 p-5 text-center"><div className="text-[8px] font-black tracking-[.28em] text-orange-200/48">{phase === 'submitting' ? (de ? 'SCHADEN WIRD ÜBERTRAGEN' : 'SUBMITTING DAMAGE') : (de ? 'ERGEBNIS' : 'RESULT')}</div><div className="mt-2 text-xl font-black text-orange-50">{phase === 'submitting' ? (de ? 'Bitte kurz warten …' : 'Please wait …') : resultTitle}</div>{phase === 'result' && <><div className="mt-4 rounded-2xl border border-white/8 bg-white/[.035] p-4"><div className="text-[8px] text-white/35">{de ? 'ANGERICHTETER WELTBOSS-SCHADEN' : 'WORLD BOSS DAMAGE'}</div><div className="mt-1 text-3xl font-black text-amber-300">{formatNumber(submittedDamage)}</div>{!submitError && <div className="mt-3 text-[9px] text-white/45">{de ? 'Verbleibende Weltboss-HP' : 'Remaining world boss HP'}: {formatNumber(remainingGlobalHp)}</div>}{submitError && <div className="mt-3 text-[9px] text-red-200">{submitError}</div>}</div><button type="button" onPointerDown={e => { e.preventDefault(); close(); }} className="mt-4 w-full rounded-2xl border border-orange-300/28 bg-orange-500/12 py-3 text-[10px] font-black text-orange-100">{de ? 'ZURÜCK ZUM WELTBOSS' : 'BACK TO WORLD BOSS'}</button></>}</div></div>}
   </div>;
 }
