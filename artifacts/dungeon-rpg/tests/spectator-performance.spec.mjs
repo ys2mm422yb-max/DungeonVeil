@@ -47,6 +47,7 @@ test('spectator playback stays smooth and bounded through jitter and packet loss
   const bufferDepth = await numberAttr(diagnostics, 'data-buffer-depth');
   const interpolationFrames = await numberAttr(diagnostics, 'data-interpolation-frames');
   const extrapolationFrames = await numberAttr(diagnostics, 'data-extrapolation-frames');
+  const heldFrames = await numberAttr(diagnostics, 'data-held-frames');
   const reactRenders = await numberAttr(diagnostics, 'data-react-renders');
   const canvasCount = await numberAttr(diagnostics, 'data-canvas-count');
   const menuCanvasCount = await numberAttr(diagnostics, 'data-menu-canvas-count');
@@ -55,7 +56,8 @@ test('spectator playback stays smooth and bounded through jitter and packet loss
   expect(finalX - startX, 'spectator player did not continue moving locally between packets').toBeGreaterThan(120);
   expect(frames).toBeGreaterThan(450);
   expect(interpolationFrames, 'buffer never entered timestamp interpolation').toBeGreaterThan(100);
-  expect(extrapolationFrames, 'bounded packet gaps were not exercised').toBeGreaterThan(0);
+  expect(extrapolationFrames, 'short packet gaps were not handled by bounded extrapolation').toBeGreaterThan(0);
+  expect(heldFrames, 'long packet gaps never stopped extrapolating and entered hold').toBeGreaterThan(0);
   expect(bufferDepth).toBeLessThanOrEqual(8);
   expect(maxFrameStep, 'a network correction produced a visible hard jump').toBeLessThan(9);
   expect(maxStagnantMs, 'playback froze too long during packet loss').toBeLessThan(520);
