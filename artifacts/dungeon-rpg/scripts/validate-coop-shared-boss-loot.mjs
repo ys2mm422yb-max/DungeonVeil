@@ -13,13 +13,16 @@ const [online, overlay, session, persistence, reward, migration, ambiguityFix, a
   read('../../../supabase/migrations/20260719021500_index_coop_boss_loot_winner.sql'),
 ]);
 
+const rewardAckCall = persistence.indexOf('await acknowledgeCoopRoomReward(reward.entitlement_id)');
+const bossLootOpenCall = persistence.indexOf('if (isBossRoom(reward.room)) dispatchCoopBossLootOpen');
+
 const checks = [
   [online.includes("COOP_BOSS_LOOT_OPEN_EVENT") && online.includes("chooseCoopBossLoot") && online.includes("open_coop_boss_loot"), 'Duo boss loot client does not use the secured RPC contract'],
   [overlay.includes("getMyCoopLobby") && overlay.includes("collectBalancedEquipmentDrop") && !overlay.includes("rollBossEquipmentReward"), 'lobby lookup, local entitlement application or server-only item selection is missing'],
   [overlay.includes("my_consolation_dust") && overlay.includes("BEANSPRUCHEN") && overlay.includes("PASSEN"), 'claim/pass UI or consolation outcome is missing'],
   [overlay.includes("engine.canExitRoom = () => false") && overlay.includes("COOP_BOSS_LOOT_PENDING_DATASET"), 'room exit is not blocked while shared loot is unresolved'],
   [session.includes("dispatchCoopRoomClear") && persistence.includes("skipEquipmentDrop: true") && persistence.includes("dispatchCoopBossLootOpen"), 'Duo currency and shared boss equipment are not separated behind the secured room reward'],
-  [persistence.indexOf("acknowledgeCoopRoomReward") < persistence.indexOf("dispatchCoopBossLootOpen"), 'Boss loot can open before the room reward is acknowledged'],
+  [rewardAckCall >= 0 && bossLootOpenCall > rewardAckCall, 'Boss loot can open before the room reward is acknowledged'],
   [reward.includes("skipEquipmentDrop?: boolean") && reward.includes("!normalized.skipEquipmentDrop"), 'chapter reward contract cannot suppress the local Duo equipment roll'],
   [migration.includes("coop_boss_loot_rolls") && migration.includes("coop_boss_loot_choices"), 'server loot tables are missing'],
   [migration.includes("private.resolve_coop_boss_loot") && migration.includes("hashtextextended") && migration.includes("consolation_dust = 60"), 'atomic contested resolution or fixed consolation dust is missing'],
