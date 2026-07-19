@@ -5,6 +5,13 @@ const SPECTATING_ALLOWED_KEY = 'dungeon-veil-spectating-allowed-v1';
 export const SPECTATOR_REFRESH_MS = 100;
 export const SPECTATOR_STALE_MS = 5_000;
 export const SPECTATOR_VIEWER_HEARTBEAT_MS = 3_000;
+export const SPECTATOR_PAYLOAD_LIMITS = Object.freeze({
+  items: 12,
+  chests: 4,
+  damageNumbers: 6,
+  particles: 12,
+  effects: 16,
+});
 
 export type OnlineActivityState = 'menu' | 'run' | 'paused';
 
@@ -45,24 +52,23 @@ export async function refreshSpectatingAllowed(): Promise<boolean> {
   return allowed;
 }
 
-function cloneForNetwork<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
 export function buildSpectatorSnapshot(state: RunGameState): SpectatorSnapshot {
   const safeState: RunGameState = {
     ...state,
-    player: { ...state.player, playerName: '' },
+    player: { ...state.player, playerName: '', facing: { ...state.player.facing } },
+    camera: { ...state.camera },
     enemies: state.enemies.map(enemy => ({ ...enemy })),
-    items: state.items.slice(-20).map(item => ({ ...item })),
-    chests: state.chests.slice(-8).map(chest => ({ ...chest })),
-    damageNumbers: state.damageNumbers.slice(-12).map(number => ({ ...number })),
-    particles: state.particles.slice(-24).map(particle => ({ ...particle })),
-    effects: state.effects.slice(-20).map(effect => ({ ...effect })),
+    items: state.items.slice(-SPECTATOR_PAYLOAD_LIMITS.items).map(item => ({ ...item })),
+    chests: state.chests.slice(-SPECTATOR_PAYLOAD_LIMITS.chests).map(chest => ({ ...chest })),
+    damageNumbers: state.damageNumbers.slice(-SPECTATOR_PAYLOAD_LIMITS.damageNumbers).map(number => ({ ...number })),
+    particles: state.particles.slice(-SPECTATOR_PAYLOAD_LIMITS.particles).map(particle => ({ ...particle })),
+    effects: state.effects.slice(-SPECTATOR_PAYLOAD_LIMITS.effects).map(effect => ({ ...effect })),
     upgradeChoices: [],
     runSkills: { ...state.runSkills },
   };
-  return { version: 1, emittedAt: Date.now(), state: cloneForNetwork(safeState) };
+  // authenticatedSupabaseRest serializes the RPC body once. Avoiding an extra
+  // JSON stringify/parse here cuts a full snapshot-sized allocation every 100 ms.
+  return { version: 1, emittedAt: Date.now(), state: safeState };
 }
 
 export async function publishSpectatorState(state: RunGameState): Promise<boolean> {
