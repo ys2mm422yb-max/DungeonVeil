@@ -30,11 +30,17 @@ test('spectator playback stays smooth and bounded through jitter and packet loss
   await page.goto(qaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('spectator-performance-qa')).toBeVisible();
   await expect(page.getByTestId('spectator-playback-stage')).toHaveAttribute('data-render-contract', 'single-stable-three-state');
-  await expect(page.getByTestId('spectator-performance-diagnostics')).toHaveAttribute('data-contract', 'jitter-loss-long-run-v1');
+  await expect(page.getByTestId('spectator-performance-diagnostics')).toHaveAttribute('data-contract', 'jitter-loss-long-run-v2');
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
 
   const diagnostics = page.getByTestId('spectator-performance-diagnostics');
   await expect.poll(() => numberAttr(diagnostics, 'data-frames'), { timeout: 30_000 }).toBeGreaterThan(120);
+  await expect(diagnostics).toHaveAttribute('data-delta-has-map', 'false');
+  const keyframeBytes = await numberAttr(diagnostics, 'data-keyframe-bytes');
+  const deltaBytes = await numberAttr(diagnostics, 'data-delta-bytes');
+  expect(keyframeBytes).toBeGreaterThan(1_000);
+  expect(deltaBytes, 'spectator delta packet was not smaller than its room keyframe').toBeLessThan(keyframeBytes * 0.85);
+
   const startX = await numberAttr(diagnostics, 'data-player-x');
   const earlyRenderer = await rendererMetrics(page);
 
