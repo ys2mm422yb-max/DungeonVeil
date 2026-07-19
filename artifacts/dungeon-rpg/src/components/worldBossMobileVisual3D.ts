@@ -22,14 +22,31 @@ export type WorldBossLoadFailure = {
   at: number;
 };
 
+export type WorldBossLoadedVisual = {
+  identity: 'original-black-fbx-dragon';
+  assetRevision: string;
+  width: number;
+  height: number;
+  depth: number;
+  minY: number;
+  maxY: number;
+  at: number;
+};
+
 let activeLoadFailure: WorldBossLoadFailure | null = null;
+let activeLoadedVisual: WorldBossLoadedVisual | null = null;
 
 export function getWorldBossLoadFailure(): WorldBossLoadFailure | null {
   return activeLoadFailure;
 }
 
+export function getWorldBossLoadedVisual(): WorldBossLoadedVisual | null {
+  return activeLoadedVisual;
+}
+
 export function clearWorldBossLoadFailure(): void {
   activeLoadFailure = null;
+  activeLoadedVisual = null;
 }
 
 const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -110,6 +127,13 @@ function normalizeDragon(THREE: any, visual: any) {
   visual.position.y -= scaled.bounds.min.y;
   const final = assertFiniteBounds(THREE, visual, 'final placement');
   if (final.bounds.min.y < -0.02 || final.bounds.min.y > 0.08) throw new Error('Dragon model is not aligned to the arena floor');
+  return {
+    width: final.size.x,
+    height: final.size.y,
+    depth: final.size.z,
+    minY: final.bounds.min.y,
+    maxY: final.bounds.max.y,
+  };
 }
 
 function dragonUrlCandidates(): string[] {
@@ -180,7 +204,7 @@ async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobi
   const visual = await loadDragon(FBXLoader);
   visual.name = 'DungeonVeilBlackDragon';
   prepareDragonMaterials(THREE, visual);
-  normalizeDragon(THREE, visual);
+  const normalized = normalizeDragon(THREE, visual);
   const visualBasePosition = visual.position.clone();
   const visualBaseRotationY = visual.rotation.y;
 
@@ -188,7 +212,14 @@ async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobi
   root.name = 'VeilDragonWorldBoss';
   root.userData.dungeonVeilBossVisual = 'original-black-fbx-dragon';
   root.userData.dungeonVeilDragonAssetRevision = DRAGON_ASSET_REVISION;
+  root.userData.dungeonVeilDragonBounds = normalized;
   root.add(visual);
+  activeLoadedVisual = {
+    identity: 'original-black-fbx-dragon',
+    assetRevision: DRAGON_ASSET_REVISION,
+    ...normalized,
+    at: Date.now(),
+  };
 
   const mixer = new THREE.AnimationMixer(visual);
   const importedClips = Array.isArray(visual.animations) ? visual.animations : [];
@@ -283,6 +314,7 @@ async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobi
 
 function createNeutralLoadFailureRig(THREE: any, error: unknown): WorldBossMobileRig {
   const technicalMessage = error instanceof Error ? error.message : String(error);
+  activeLoadedVisual = null;
   activeLoadFailure = {
     code: 'dragon-load-failed',
     message: 'Der schwarze Drache konnte nicht sicher geladen werden.',
