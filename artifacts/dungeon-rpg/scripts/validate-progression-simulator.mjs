@@ -24,7 +24,7 @@ const report = simulateTenItemRelicGrind();
 
 assert(meta.includes("export * from './metaStoreV4'") && meta.includes("export * from './metaRuntimeV4'"), 'V4 meta store/runtime are not canonical');
 assert(economy.includes('export type BalancedEquipmentUpgradeCost = { gold: number; copies: number; dust: number };'), 'three-resource upgrade contract missing');
-assert(economy.includes("rarity === 'common'") && economy.includes("rarity === 'epic'"), 'rarity-specific upgrade curves missing');
+assert(economy.includes('COMMON_COSTS') && economy.includes('RARE_COSTS') && economy.includes('EPIC_COSTS') && economy.includes("rarity === 'common' ? COMMON_COSTS : rarity === 'rare' ? RARE_COSTS : EPIC_COSTS"), 'rarity-specific upgrade curves missing');
 assert(economy.includes('clearEquipmentWishItemIfMatches(id)') && economy.includes('progress.level >= 5'), 'completed wish items are not cleared');
 assert(redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']"), 'three-slot active equipment contract missing');
 assert([...redesign.matchAll(/^\s{2}'([^']+)': \{/gm)].length === 10, 'active equipment catalog is not exactly ten items');
