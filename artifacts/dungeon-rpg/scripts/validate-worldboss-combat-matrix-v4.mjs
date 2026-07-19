@@ -18,7 +18,7 @@ assert(balance.includes('armorMitigationCap: 0.40') && balance.includes("balance
 assert(screen.includes('updateEquipmentRuntimeBalance(engine, equipmentRuntime)'), 'V4 equipment runtime missing');
 assert(screen.includes('RAID_PARTICLE_LIMIT') && screen.includes('RAID_EFFECT_LIMIT') && screen.includes('RAID_DAMAGE_LIMIT'), 'mobile budgets missing');
 assert(stage.includes('dragon') || stage.includes('Dragon') || performance.includes('dragon'), 'dragon model/fallback missing');
-assert(performance.includes('fireBreath') && performance.includes('claw') && performance.includes('slam'), 'attack audit incomplete');
+assert(performance.includes("type AttackKind = 'breath' | 'claw' | 'slam'") && performance.includes('BREATH_HIT_RADIUS') && performance.includes('CLAW_RANGE') && performance.includes('SLAM_RANGE'), 'attack audit incomplete');
 assert(edge.includes('damage > 50000') && edge.includes('record_world_boss_hit'), 'server cap or RPC missing');
 assert(migration.includes('balance_season text') && migration.includes("'equipment-v4-s1'"), 'season migration missing');
 assert(migration.includes("set status = 'expired'") && migration.includes("balance_season <> 'equipment-v4-s1'"), 'legacy event separation missing');
