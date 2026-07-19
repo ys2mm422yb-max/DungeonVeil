@@ -44,74 +44,26 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
-      - name: Diagnose core room balance audits
-        run: |
-          node artifacts/dungeon-rpg/scripts/validate-solo-combat-matrix-v4.mjs
-          node artifacts/dungeon-rpg/scripts/validate-room-1-50-balance-v4.mjs
-          node artifacts/dungeon-rpg/scripts/validate-chapter-balance-v4.mjs
-          node artifacts/dungeon-rpg/scripts/validate-coop-solo-balance-isolation.mjs
-      - name: Diagnose coop room lifecycle audits
-        run: |
-          node artifacts/dungeon-rpg/scripts/validate-coop-lobby-foundation.mjs
-          node artifacts/dungeon-rpg/scripts/validate-coop-realtime-presence.mjs
-          node artifacts/dungeon-rpg/scripts/validate-coop-host-enemy-state.mjs
-          node artifacts/dungeon-rpg/scripts/validate-coop-downed-revive.mjs
-          node artifacts/dungeon-rpg/scripts/validate-coop-run-persistence.mjs
-          node artifacts/dungeon-rpg/scripts/validate-coop-shared-boss-loot.mjs
-          node artifacts/dungeon-rpg/scripts/validate-coop-duo-balance-rewards.mjs
-          node artifacts/dungeon-rpg/scripts/validate-coop-final-integration.mjs
-      - name: Diagnose room suite foundations
-        run: |
-          node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
-          node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
-          node artifacts/dungeon-rpg/scripts/validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs
-          node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
-          node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
-          node artifacts/dungeon-rpg/scripts/validate-combat-telegraphs-late-balance.mjs
-          node artifacts/dungeon-rpg/scripts/validate-mobile-zoom-guard.mjs
-          node artifacts/dungeon-rpg/scripts/validate-ipad-run-layout.mjs
-          node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
-          node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
-      - name: Diagnose room suite social and composition
-        run: |
-          node artifacts/dungeon-rpg/scripts/validate-social-progression.mjs
-          node artifacts/dungeon-rpg/scripts/validate-run-identity-social-spectator.mjs
-          node artifacts/dungeon-rpg/scripts/validate-gift-fusions.mjs
-          node artifacts/dungeon-rpg/scripts/validate-dust-avatar-overhaul.mjs
-          node artifacts/dungeon-rpg/scripts/validate-rooms-4-5-composition.mjs
-          node artifacts/dungeon-rpg/scripts/validate-room-quality-6-50.mjs
-          node artifacts/dungeon-rpg/scripts/validate-guild-mobile-layout.mjs
-          node artifacts/dungeon-rpg/scripts/validate-blocks-1-8-integration.mjs
-          node artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs
-          node artifacts/dungeon-rpg/scripts/validate-inventory-guild-chat-chapters.mjs
-      - name: Diagnose room suite profile and economy
-        run: |
-          node artifacts/dungeon-rpg/scripts/validate-player-profile.mjs
-          node artifacts/dungeon-rpg/scripts/validate-public-player-profile.mjs
-          node artifacts/dungeon-rpg/scripts/validate-friends-public-profiles.mjs
-          node artifacts/dungeon-rpg/scripts/validate-online-presence.mjs
-          node artifacts/dungeon-rpg/scripts/validate-elite-outside-profile.mjs
-          node artifacts/dungeon-rpg/scripts/validate-menu-copy-relic-progression.mjs
-          node artifacts/dungeon-rpg/scripts/validate-profile-badge-compact.mjs
-          node artifacts/dungeon-rpg/scripts/validate-upgrade-economy.mjs
-          node artifacts/dungeon-rpg/scripts/validate-armor-progression.mjs
-          node artifacts/dungeon-rpg/scripts/validate-chapter-reward-contract.mjs
-          node artifacts/dungeon-rpg/scripts/validate-final-balance-integration.mjs
-          node artifacts/dungeon-rpg/scripts/validate-final-balance-curve.mjs
-      - name: Diagnose mage ranged combat
-        run: node artifacts/dungeon-rpg/scripts/validate-mage-ranged-combat.mjs
-      - name: Diagnose room audit suite
-        run: node artifacts/dungeon-rpg/scripts/run-room-audit-suite.mjs
-      - name: Diagnose boss telegraphs
-        run: node artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs
-      - name: Diagnose visibility loot and duo
-        run: node artifacts/dungeon-rpg/scripts/validate-run-visibility-mage-loot-duo.mjs
-      - name: Diagnose relic runtime audit
-        run: node artifacts/dungeon-rpg/scripts/validate-relic-runtime-ui-v4.mjs
-      - name: Diagnose codex visual audit
-        run: node artifacts/dungeon-rpg/scripts/validate-codex-visual-library.mjs
-      - name: Diagnose Hall menu audit
-        run: node artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs
+      - name: Diagnose production rooms
+        run: node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs
+      - name: Diagnose spawn hitboxes
+        run: node artifacts/dungeon-rpg/scripts/validate-spawn-hitboxes.mjs
+      - name: Diagnose normal telegraphs
+        run: node artifacts/dungeon-rpg/scripts/validate-normal-enemy-telegraphs-and-prop-hitboxes.mjs
+      - name: Diagnose enemy visibility
+        run: node artifacts/dungeon-rpg/scripts/validate-enemy-visibility.mjs
+      - name: Diagnose mobile combat
+        run: node artifacts/dungeon-rpg/scripts/validate-mobile-combat.mjs
+      - name: Diagnose late combat telegraphs
+        run: node artifacts/dungeon-rpg/scripts/validate-combat-telegraphs-late-balance.mjs
+      - name: Diagnose mobile zoom
+        run: node artifacts/dungeon-rpg/scripts/validate-mobile-zoom-guard.mjs
+      - name: Diagnose iPad run layout
+        run: node artifacts/dungeon-rpg/scripts/validate-ipad-run-layout.mjs
+      - name: Diagnose world boss performance
+        run: node artifacts/dungeon-rpg/scripts/validate-worldboss-performance.mjs
+      - name: Diagnose social navigation
+        run: node artifacts/dungeon-rpg/scripts/validate-social-navigation.mjs
       - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck Dungeon Veil
