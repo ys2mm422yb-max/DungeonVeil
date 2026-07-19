@@ -109,9 +109,10 @@ export function buildSpectatorSnapshot(state: RunGameState, now = Date.now()): S
   }
   publishSequence += 1;
 
+  const { map, ...stateWithoutMap } = state;
   const safeState: SpectatorNetworkState = {
-    ...state,
-    ...(keyframe ? { map: compactMap(state.map) } : {}),
+    ...stateWithoutMap,
+    ...(keyframe ? { map: compactMap(map) } : {}),
     player: { ...state.player, playerName: '', facing: { ...state.player.facing } },
     enemies: state.enemies
       .filter(enemy => enemy.enemyType === 'boss' || nearPlayer(state, enemy.x, enemy.y, 1_250))
