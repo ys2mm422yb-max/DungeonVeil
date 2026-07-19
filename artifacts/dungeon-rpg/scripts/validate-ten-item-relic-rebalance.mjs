@@ -54,26 +54,52 @@ assert(relics.includes('hunt: 9, boss: 11'), 'later relic pity missing');
 assert(relics.includes('maximal vier Stapel'), 'bounded crown description missing');
 
 const simulation = simulateTenItemRelicGrind();
-assert(simulation.samples >= 4096, 'simulator must use at least 4096 deterministic samples');
+assert(simulation.samplesPerCoreConfiguration >= 4096, 'core simulator must use at least 4096 deterministic samples per configuration');
+assert(simulation.samplesPerMigrationConfiguration >= 2048, 'migration cohorts must use at least 2048 deterministic samples');
+assert(JSON.stringify(simulation.wishPolicies) === JSON.stringify(['none', 'persistent', 'switching']), 'wish policy matrix is incomplete');
+assert(Object.keys(simulation.playerProfiles).sort().join(',') === 'average,strong,weak', 'weak, average and strong player profiles are required');
+
 for (const mode of ['solo', 'duo']) {
-  const rows = simulation.modes[mode];
-  assert(Object.keys(rows).length === 10, `${mode} simulation does not cover all ten items`);
-  for (const [id, row] of Object.entries(rows)) {
-    assert(Number.isFinite(row.firstFindChapter.p99) && row.firstFindChapter.p99 <= simulation.maxChapters, `${mode}/${id} first-find P99 is not finite`);
-    assert(Number.isFinite(row.level5Chapter.p99) && row.level5Chapter.p99 <= simulation.maxChapters, `${mode}/${id} level-5 P99 is not finite`);
-    assert(row.level5Chapter.median >= row.firstFindChapter.median, `${mode}/${id} reaches level 5 before first find`);
+  assert(Object.keys(simulation.modes[mode]).length === 10, `${mode} baseline does not cover all ten items`);
+  for (const policy of simulation.wishPolicies) {
+    const rows = simulation.scenarioMatrix[mode][policy];
+    assert(Object.keys(rows).length === 10, `${mode}/${policy} does not cover all ten items`);
+    for (const [id, row] of Object.entries(rows)) {
+      assert(Number.isFinite(row.firstFindChapter.p99) && row.firstFindChapter.p99 <= simulation.maxChapters, `${mode}/${policy}/${id} first-find P99 is not finite`);
+      assert(Number.isFinite(row.level5Chapter.p99) && row.level5Chapter.p99 <= simulation.maxChapters, `${mode}/${policy}/${id} level-five P99 is not finite`);
+      assert(row.level5Chapter.median >= row.firstFindChapter.median, `${mode}/${policy}/${id} reaches level five before first find`);
+      assert(row.goldRequirement > 0 && row.dustRequirement > 0 && row.copyRequirement > 0 && row.markCostPerCopy > 0, `${mode}/${policy}/${id} resource requirements are incomplete`);
+      assert(row.luckCases.extremeLuckLevel5Chapter <= row.luckCases.extremeBadLuckLevel5Chapter, `${mode}/${policy}/${id} luck bounds are inverted`);
+      assert(['weak', 'average', 'strong'].every(profile => row.playerProfiles[profile]?.medianRunsToLevel5 > 0 && row.playerProfiles[profile]?.medianHoursToLevel5 > 0), `${mode}/${policy}/${id} player profile timing is incomplete`);
+    }
   }
 }
-assert(simulation.relics.sixCoreRelicsChapter.p99 <= simulation.maxChapters, 'relic collection P99 is not finite');
+
+for (const fixture of ['legacyMidProgress', 'legacyAdvanced']) {
+  assert(Object.keys(simulation.migratedSaves[fixture]).length === 10, `${fixture} does not cover all ten migrated items`);
+  for (const row of Object.values(simulation.migratedSaves[fixture])) {
+    assert(row.level5Chapter.p99 <= simulation.maxChapters, `${fixture} level-five P99 is not finite`);
+  }
+}
+
+for (const mode of ['solo', 'duo']) {
+  const relicReport = simulation.relics.modes[mode];
+  assert(relicReport.sixCoreRelicsChapter.p99 <= simulation.maxChapters, `${mode} six-core relic P99 is not finite`);
+  assert(relicReport.allSevenRelicsChapter.p99 <= simulation.maxChapters, `${mode} seven-relic P99 is not finite`);
+  assert(relicReport.duplicateDustBeforeCollection.mean >= 0, `${mode} relic duplicate compensation is invalid`);
+}
+assert(simulation.duoParity.grindNotHalved === true && simulation.duoParity.duoToSoloRatio >= 0.75, 'Duo materially halves the long-term grind');
 assert(simulation.companionReserve.average >= 1.08 && simulation.companionReserve.maximum <= 1.12, 'companion reserve must stay between 8% and 12%');
 assert(simulation.companionReserve.requiredWithoutCompanion === true, 'base game must remain complete without companions');
+assert(simulation.companionReserve.changesDropChapters === false, 'companions must not accelerate drop chapters');
 
 console.log(JSON.stringify({
   activeItems: activeIds,
-  samples: simulation.samples,
-  solo: simulation.modes.solo,
-  duo: simulation.modes.duo,
+  samplesPerCoreConfiguration: simulation.samplesPerCoreConfiguration,
+  samplesPerMigrationConfiguration: simulation.samplesPerMigrationConfiguration,
+  wishPolicies: simulation.wishPolicies,
+  duoParity: simulation.duoParity,
   relics: simulation.relics,
   companionReserve: simulation.companionReserve,
 }, null, 2));
-console.log('Ten-item equipment, migration, relic and grind audit passed.');
+console.log('Ten-item equipment, migration, full wish matrix, player profiles, relics, Solo/Duo parity and companion reserve audit passed.');
