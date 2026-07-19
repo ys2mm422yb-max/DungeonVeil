@@ -123,7 +123,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
   const initialBossHpRef = useRef(WORLD_BOSS_BALANCE_V4.health);
   const [state, setState] = useState<GameState | null>(null);
   const [ready, setReady] = useState(false);
-  const [remainingMs, setRemainingMs] = useState(ATTEMPT_DURATION_MS);
+  const [remainingMs, setRemainingMs] = useState<number>(ATTEMPT_DURATION_MS);
   const [phase, setPhase] = useState<BattlePhase>('fighting');
   const [finishReason, setFinishReason] = useState<FinishReason>('time');
   const [submittedDamage, setSubmittedDamage] = useState(0);
