@@ -17,8 +17,9 @@ const profile = read('src/components/PlayerProfileCard.tsx');
 const social = read('src/game/socialProgressOnline.ts');
 const migration = fs.readFileSync(new URL('../../../supabase/migrations/20260716230000_expand_spectating_and_public_equipment.sql', import.meta.url), 'utf8');
 
-assert(loading.includes('ROOM_LOADING_MIN_MS = 680'), 'Room transitions need a visible minimum loading gate.');
-assert(loading.includes('Geometrie, Gegner, Kollisionen und Effekte'), 'Loading copy must describe complete room readiness.');
+assert(loading.includes('ROOM_LOADING_SHOW_AFTER_MS = 760'), 'Fast room transitions must stay seamless without an immediate full-screen loader.');
+assert(loading.includes('ROOM_LOADING_MIN_VISIBLE_MS = 240') && loading.includes('ROOM_LOADING_MAX_MS = 6_500'), 'Slow room transitions need a bounded lightweight visibility gate.');
+assert(loading.includes('data-transition-presentation="seamless-violet-veil"'), 'Slow room loading must use the lightweight Dungeon Veil transition.');
 assert(renderer.includes('ring.visible = false'), 'Permanent enemy safety rings must be hidden.');
 assert(spectator.includes('spectator-health'), 'Spectator HUD must show player health.');
 assert(spectator.includes('spectator-gifts') && spectator.includes('heartbeatSpectatorViewer'), 'Spectator gifts or viewer presence are missing.');
@@ -35,4 +36,4 @@ assert(profile.includes('public-player-profile-equipment') && social.includes('e
 assert(migration.includes("next_state in ('run', 'paused')") && migration.includes('shared guild required'), 'Supabase spectator RPC must retain paused snapshots and allow guild members.');
 assert(migration.includes('equipped_items jsonb'), 'Supabase profile RPC must expose current equipment.');
 
-console.log('Requested room, buffered spectator, guild and firelands pass validated.');
+console.log('Requested room, seamless loading, buffered spectator, guild and firelands pass validated.');
