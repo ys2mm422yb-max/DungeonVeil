@@ -7,11 +7,19 @@ const DURATION_MS = 12_000;
 const SPEED_PX_PER_MS = 0.16;
 const BASE_TIME = 1_000_000;
 const JITTER = [0, 18, -12, 46, 8, 72, -6, 24, 0, 95, 12, -10];
+const OUTAGE_CYCLE_PACKETS = 32;
+const OUTAGE_START_PACKET = 20;
+const OUTAGE_PACKET_COUNT = 4;
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
 const deliveries = [];
+let generatedPackets = 0;
 for (let index = 0, elapsed = 0; elapsed <= DURATION_MS; index += 1, elapsed += PUBLISH_MS) {
-  if (index > 0 && (index % 11 === 0 || index % 17 === 0)) continue;
+  generatedPackets += 1;
+  const outagePhase = index % OUTAGE_CYCLE_PACKETS;
+  const plannedOutage = outagePhase >= OUTAGE_START_PACKET && outagePhase < OUTAGE_START_PACKET + OUTAGE_PACKET_COUNT;
+  const isolatedLoss = index > 0 && (index % 11 === 0 || index % 17 === 0);
+  if (plannedOutage || isolatedLoss) continue;
   const emittedAt = BASE_TIME + elapsed;
   const latency = 78 + JITTER[index % JITTER.length];
   deliveries.push({ emittedAt, receivedAt: emittedAt + latency, x: elapsed * SPEED_PX_PER_MS });
@@ -107,8 +115,10 @@ for (let localNow = BASE_TIME; localNow <= BASE_TIME + DURATION_MS; localNow += 
 
 const velocityRmse = Math.sqrt(squaredVelocityError / Math.max(1, velocitySamples));
 const summary = {
-  generatedPackets: deliveries.length,
-  droppedPackets: Math.floor(DURATION_MS / PUBLISH_MS) + 1 - deliveries.length,
+  generatedPackets,
+  deliveredPackets: deliveries.length,
+  droppedPackets: generatedPackets - deliveries.length,
+  plannedOutageMs: OUTAGE_PACKET_COUNT * PUBLISH_MS,
   maxBufferDepth: BUFFER_LIMIT,
   interpolationFrames,
   extrapolationFrames,
@@ -124,7 +134,7 @@ if (interpolationFrames <= extrapolationFrames) failures.push('normal playback i
 if (extrapolationFrames <= 0) failures.push('short packet gaps never entered bounded extrapolation');
 if (heldFrames <= 0) failures.push('long packet gaps never stopped in the hold state');
 if (maxFrameStep > 6) failures.push(`frame correction jumped ${maxFrameStep.toFixed(2)} px`);
-if (maxFrozenMs > 360) failures.push(`playback froze for ${maxFrozenMs.toFixed(0)} ms under bounded packet loss`);
+if (maxFrozenMs > 650) failures.push(`playback froze for ${maxFrozenMs.toFixed(0)} ms during the planned 500ms outage`);
 if (velocityRmse > 0.11) failures.push(`smoothed velocity RMSE is too high (${velocityRmse.toFixed(3)})`);
 
 if (failures.length) {
