@@ -41,7 +41,8 @@ test('management, persistence and one animated KayKit companion share the run re
   await expect(page.getByTestId('companion-reserve-grid').locator('button')).toHaveCount(4);
   await page.getByTestId('companion-role-shield').click({ force: true });
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'shield');
-  await page.getByRole('button', { name: /Schließen|Close/i }).last().click({ force: true });
+  await page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).last().click({ force: true });
+  await expect(management).toBeHidden();
 
   await startFreshRun(page);
   const chip = page.getByTestId('run-companion-chip');
