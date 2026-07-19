@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import type { GameEngine } from '../game/runEngine';
+import { WORLD_BOSS_BALANCE_V4 } from '../game/buildBalanceV4';
+import { mitigatedIncomingDamage } from '../game/equipmentCombatV4';
+import { markIncomingDamageResolvedV4 } from '../game/equipmentPlayerRuntimeV4';
 import { WorldBossPerspectiveStage } from './WorldBossPerspectiveStage';
 
 type Props = {
@@ -40,6 +43,12 @@ const CLAW_ARC_DOT = 0.12;
 const SLAM_WINDUP_MS = 620;
 const SLAM_RANGE = 205;
 
+function configuredAttackDamage(kind: AttackKind): number {
+  if (kind === 'breath') return WORLD_BOSS_BALANCE_V4.fireBreathDamage;
+  if (kind === 'slam') return WORLD_BOSS_BALANCE_V4.slamDamage;
+  return WORLD_BOSS_BALANCE_V4.clawDamage;
+}
+
 export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
   const releasedAtRef = useRef(0);
   const frameRef = useRef(0);
@@ -59,15 +68,17 @@ export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
   useEffect(() => {
     let disposed = false;
 
-    const applyHit = (engine: GameEngine, boss: any, now: number, multiplier: number, id: string, color: string, scale: number) => {
+    const applyHit = (engine: GameEngine, now: number, kind: AttackKind, color: string, scale: number) => {
       const player = engine.state.player;
       if (now < player.invincibleUntil) return;
-      const damage = Math.max(8, Math.round(boss.attack * multiplier - player.defense * 0.42));
+      const rawDamage = configuredAttackDamage(kind);
+      const damage = mitigatedIncomingDamage(rawDamage, player.defense, WORLD_BOSS_BALANCE_V4.armorMitigationCap);
       player.hp = Math.max(0, player.hp - damage);
+      markIncomingDamageResolvedV4(engine);
       player.invincibleUntil = now + 720;
       player.lastHitTime = now;
       engine.state.damageNumbers.push({
-        id: `${id}-${Math.round(now)}`,
+        id: `worldboss-hit-${kind}-${Math.round(now)}`,
         x: player.x,
         y: player.y - 10,
         value: `-${damage}`,
@@ -148,7 +159,7 @@ export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
           element: 'fire',
           fromEnemyId: boss.id,
         });
-        if (distance <= CLAW_RANGE && dot >= CLAW_ARC_DOT) applyHit(engine, boss, now, 1.08, 'hit-claw', '#ffb04a', 1.34);
+        if (distance <= CLAW_RANGE && dot >= CLAW_ARC_DOT) applyHit(engine, now, 'claw', '#ffb04a', 1.34);
         nextAttackAtRef.current = now + ATTACK_GAP_MS;
       } else {
         engine.state.effects.push({
@@ -164,7 +175,7 @@ export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
           element: 'fire',
           fromEnemyId: boss.id,
         });
-        if (distance <= SLAM_RANGE) applyHit(engine, boss, now, 0.82, 'hit-slam', '#e44825', 1.42);
+        if (distance <= SLAM_RANGE) applyHit(engine, now, 'slam', '#e44825', 1.42);
         nextAttackAtRef.current = now + 1420;
       }
       lastAttackRef.current = pending.kind;
@@ -206,7 +217,7 @@ export function WorldBossAggressiveStage({ engineRef, onReady }: Props) {
             const projectileX = active.originX + Math.cos(active.angle) * active.maxRadius * progress;
             const projectileY = active.originY + Math.sin(active.angle) * active.maxRadius * progress;
             if (now >= player.invincibleUntil && Math.hypot(projectileX - playerCenterX, projectileY - playerCenterY) <= BREATH_HIT_RADIUS) {
-              applyHit(engine, boss, now, 0.96, 'hit-breath', '#ff6a2b', 1.38);
+              applyHit(engine, now, 'breath', '#ff6a2b', 1.38);
               effect.lifeTime = effect.maxLifeTime;
               activeBreathRef.current = null;
             }
