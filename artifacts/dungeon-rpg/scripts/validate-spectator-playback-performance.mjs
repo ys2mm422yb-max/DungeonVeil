@@ -22,6 +22,7 @@ const checks = [
   [screen.includes('SPECTATOR_RENDERER_EVENT') && screen.includes('active: true') && screen.includes('active: false') && screen.includes('data-renderer-handoff="exclusive"'), 'exclusive menu/spectator renderer handoff was removed'],
   [menu.includes('SPECTATOR_RENDERER_EVENT') && menu.includes('if (suspended) return null'), 'menu renderer does not release its WebGL context while spectating'],
   [online.includes('SPECTATOR_PUBLISH_MS = 125') && online.includes('SPECTATOR_POLL_MS = 125') && online.includes('SPECTATOR_KEYFRAME_MS = 1_000'), 'network, polling and room-keyframe cadences are not explicit'],
+  [online.includes('const { map, ...stateWithoutMap } = state;') && online.includes('...stateWithoutMap') && online.includes("...(keyframe ? { map: compactMap(map) } : {})") && !online.includes('const safeState: SpectatorNetworkState = {\n    ...state,'), 'spectator delta packets still include the full room map outside keyframes'],
   [online.includes('version: 2') && online.includes('keyframe') && online.includes('spectatorMapCache') && online.includes('raw.state.map ??'), 'compact snapshot v2 cannot recover room maps for late joiners'],
   [online.includes('SPECTATOR_DAMAGE_LIMIT = 8') && online.includes('SPECTATOR_PARTICLE_LIMIT = 12') && online.includes('SPECTATOR_EFFECT_LIMIT = 14') && online.includes('nearPlayer'), 'spectator transient objects are not spatially and numerically bounded'],
   [bridge.includes('SPECTATOR_PUBLISH_MS') && bridge.includes('window.setInterval(() => void publish(), SPECTATOR_PUBLISH_MS)'), 'host publish loop does not use the dedicated spectator cadence'],
@@ -36,4 +37,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Spectator playback performance audit passed: compact keyframes, buffered timestamp interpolation, bounded extrapolation-to-hold, stable Three.js playback, exclusive renderer handoff and diagnostics are protected.');
+console.log('Spectator playback performance audit passed: map-free delta packets, compact keyframes, buffered timestamp interpolation, bounded extrapolation-to-hold, stable Three.js playback, exclusive renderer handoff and diagnostics are protected.');
