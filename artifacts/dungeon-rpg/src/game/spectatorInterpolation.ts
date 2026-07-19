@@ -83,8 +83,8 @@ export class SpectatorSnapshotBuffer {
   private outputRoomKey = '';
   private lastSampleAt = 0;
   private cachedClockOffsetMs = 0;
-  private previousEnemyX: number[] = [];
-  private previousEnemyY: number[] = [];
+  private previousEnemyXById = new Map<string, number>();
+  private previousEnemyYById = new Map<string, number>();
   private metrics: SpectatorInterpolationMetrics = {
     receivedSnapshots: 0,
     duplicateSnapshots: 0,
@@ -132,8 +132,8 @@ export class SpectatorSnapshotBuffer {
     this.outputRoomKey = '';
     this.lastSampleAt = 0;
     this.cachedClockOffsetMs = 0;
-    this.previousEnemyX.length = 0;
-    this.previousEnemyY.length = 0;
+    this.previousEnemyXById.clear();
+    this.previousEnemyYById.clear();
     this.metrics.bufferDepth = 0;
     this.metrics.mode = 'waiting';
   }
@@ -162,8 +162,8 @@ export class SpectatorSnapshotBuffer {
       this.output.runSkills = replacement.runSkills;
       this.outputRoomKey = key;
       this.lastSampleAt = 0;
-      this.previousEnemyX.length = 0;
-      this.previousEnemyY.length = 0;
+      this.previousEnemyXById.clear();
+      this.previousEnemyYById.clear();
       this.metrics.roomResets += 1;
     }
     return this.output;
@@ -231,17 +231,17 @@ export class SpectatorSnapshotBuffer {
 
     const output = this.ensureOutput(target.state);
     const frameMs = this.lastSampleAt > 0 ? clamp(now - this.lastSampleAt, 1, 100) : 16;
-    const preserveSpatial = this.lastSampleAt > 0 && roomKey(output) === roomKey(target.state) && sameEnemyLayout(output, target.state);
+    const preserveSpatial = this.lastSampleAt > 0 && roomKey(output) === roomKey(target.state);
     const previousPlayerX = output.player.x;
     const previousPlayerY = output.player.y;
     const previousCameraX = output.camera.x;
     const previousCameraY = output.camera.y;
     if (preserveSpatial) {
-      this.previousEnemyX.length = output.enemies.length;
-      this.previousEnemyY.length = output.enemies.length;
-      for (let index = 0; index < output.enemies.length; index++) {
-        this.previousEnemyX[index] = output.enemies[index].x;
-        this.previousEnemyY[index] = output.enemies[index].y;
+      this.previousEnemyXById.clear();
+      this.previousEnemyYById.clear();
+      for (const enemy of output.enemies) {
+        this.previousEnemyXById.set(enemy.id, enemy.x);
+        this.previousEnemyYById.set(enemy.id, enemy.y);
       }
     }
 
@@ -251,9 +251,11 @@ export class SpectatorSnapshotBuffer {
       output.player.y = previousPlayerY;
       output.camera.x = previousCameraX;
       output.camera.y = previousCameraY;
-      for (let index = 0; index < output.enemies.length; index++) {
-        output.enemies[index].x = this.previousEnemyX[index];
-        output.enemies[index].y = this.previousEnemyY[index];
+      for (const enemy of output.enemies) {
+        const previousX = this.previousEnemyXById.get(enemy.id);
+        const previousY = this.previousEnemyYById.get(enemy.id);
+        if (previousX !== undefined) enemy.x = previousX;
+        if (previousY !== undefined) enemy.y = previousY;
       }
     }
 
