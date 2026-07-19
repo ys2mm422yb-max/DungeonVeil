@@ -43,6 +43,10 @@ function normalizeV4(parsed: any): MetaProgression {
     if (!isActiveEquipmentId(id) || ACTIVE_EQUIPMENT[id].slot !== slot || !owned[id]) equipped[slot] = DEFAULT_META.equipped[slot];
   }
 
+  const cosmeticUnlocks: EquipmentId[] = Array.isArray(parsed?.cosmeticUnlocks)
+    ? parsed.cosmeticUnlocks.filter((value: unknown): value is EquipmentId => knownEquipmentId(value))
+    : [];
+
   return {
     version: 4,
     rank: Math.max(1, Math.floor(numericProgressValue(parsed?.rank) || 1)),
@@ -51,7 +55,7 @@ function normalizeV4(parsed: any): MetaProgression {
     gold: numericProgressValue(parsed?.gold),
     owned,
     equipped,
-    cosmeticUnlocks: Array.isArray(parsed?.cosmeticUnlocks) ? [...new Set(parsed.cosmeticUnlocks.filter(knownEquipmentId))] : [],
+    cosmeticUnlocks: [...new Set(cosmeticUnlocks)],
     migrationCompensation: {
       gold: numericProgressValue(parsed?.migrationCompensation?.gold),
       dust: numericProgressValue(parsed?.migrationCompensation?.dust),
