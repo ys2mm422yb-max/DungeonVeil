@@ -1,35 +1,40 @@
 import type { EquipmentId } from './metaProgression';
+import { EQUIPMENT_UNLOCK_CHAPTER, isActiveEquipmentId } from './equipmentCore';
 
 const CHAPTER_KEY = 'dungeon-veil-highest-chapter-v1';
 
-export const EQUIPMENT_UNLOCK_CHAPTER: Record<EquipmentId, number> = {
+export const EQUIPMENT_CHAPTER_GATES: Record<EquipmentId, number> = {
   'ash-bow': 1,
   'ember-bow': 2,
-  'hunter-bow': 3,
-  'frost-bow': 4,
-  'splinter-bow': 5,
-  'veil-bow': 8,
-  'warden-bow': 10,
+  'veil-bow': 5,
+  'warden-bow': 9,
   'ranger-quiver': 1,
-  'black-quiver': 2,
-  'rune-quiver': 7,
-  'frost-quiver': 4,
-  'splinter-quiver': 5,
-  'warden-quiver': 9,
-  'veil-key': 1,
-  'guardian-sigil': 4,
-  'frost-grimoire': 7,
-  'ritual-shard': 6,
-  'ash-amulet': 3,
-  'depth-seal': 6,
-  'veil-eye': 10,
+  'black-quiver': 3,
+  'rune-quiver': 6,
   'ranger-cloak': 1,
   'ash-armor': 3,
-  'frost-armor': 5,
-  'warden-armor': 6,
-  'veil-mantle': 8,
-  'depth-armor': 9,
+  'warden-armor': 7,
+  'hunter-bow': 99,
+  'frost-bow': 99,
+  'splinter-bow': 99,
+  'frost-quiver': 99,
+  'splinter-quiver': 99,
+  'warden-quiver': 99,
+  'veil-key': 99,
+  'guardian-sigil': 99,
+  'frost-grimoire': 99,
+  'ritual-shard': 99,
+  'ash-amulet': 99,
+  'depth-seal': 99,
+  'veil-eye': 99,
+  'frost-armor': 99,
+  'veil-mantle': 99,
+  'depth-armor': 99,
 };
+
+for (const [id, chapter] of Object.entries(EQUIPMENT_UNLOCK_CHAPTER)) {
+  EQUIPMENT_CHAPTER_GATES[id as EquipmentId] = chapter;
+}
 
 export function highestReachedChapter(): number {
   try {
@@ -47,9 +52,9 @@ export function recordReachedChapter(chapter: number): number {
 }
 
 export function equipmentUnlockChapter(id: EquipmentId): number {
-  return EQUIPMENT_UNLOCK_CHAPTER[id] ?? 1;
+  return EQUIPMENT_CHAPTER_GATES[id] ?? 99;
 }
 
 export function equipmentUnlockedForCurrentProgress(id: EquipmentId): boolean {
-  return highestReachedChapter() >= equipmentUnlockChapter(id);
+  return isActiveEquipmentId(id) && highestReachedChapter() >= equipmentUnlockChapter(id);
 }
