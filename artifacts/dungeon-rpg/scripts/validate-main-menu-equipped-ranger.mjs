@@ -39,7 +39,7 @@ const checks = [
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],
   [manifest.includes('import.meta.env.BASE_URL') && manifest.includes('appAssetUrl'), 'Pages-safe application asset resolver is missing'],
-  [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes("equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' }") && metaStore.includes("hasOwnProperty.call(parsed?.equipped ?? {}, 'talisman')"), 'current three-slot defaults or safe legacy-Talisman rewrite are not represented in saved meta progression'],
+  [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes("const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId") && metaStore.includes("talisman: RETIRED_TALISMAN_COMPAT") && !metaStore.includes("talisman: 'veil-key'") && metaStore.includes("hasOwnProperty.call(parsed?.equipped ?? {}, 'talisman')"), 'current three-slot defaults, omitted compatibility value or safe legacy-Talisman rewrite are not represented in saved meta progression'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -49,4 +49,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the prompt is gone, current bow/quiver/armor data stays coherent and the retired Talisman is absent from menu presentation and normalized saves.');
+console.log('Main-menu equipped ranger audit passed: the prompt is gone, current bow/quiver/armor data stays coherent and the retired Talisman is absent from menu presentation and serialized saves.');
