@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises';
 
 const files = {
   profile: await readFile(new URL('../src/game/playerProfile.ts', import.meta.url), 'utf8'),
+  profileEquipment: await readFile(new URL('../src/game/profileEquipment.ts', import.meta.url), 'utf8'),
+  loadout: await readFile(new URL('../src/components/ProfileEquipmentLoadout.tsx', import.meta.url), 'utf8'),
   integrity: await readFile(new URL('../src/game/profileStorageIntegrity.ts', import.meta.url), 'utf8'),
   storageSettings: await readFile(new URL('../src/components/ProfileStorageSettings.tsx', import.meta.url), 'utf8'),
   badge: await readFile(new URL('../src/components/ProfileBadge.tsx', import.meta.url), 'utf8'),
@@ -28,8 +30,10 @@ const checks = [
   [files.panel.includes('data-testid="player-profile-panel"'), 'full-screen player profile panel is missing'],
   [files.panel.includes('data-testid="player-profile-responsive-shell"') && files.panel.includes('max-w-6xl') && files.panel.includes('md:grid-cols-2'), 'player profile still collapses into a narrow phone column on tablets'],
   [files.panel.includes('data-testid="player-profile-tabs"') && files.panel.includes('md:grid-cols-5') && files.panel.includes('md:w-full'), 'player profile tabs do not use tablet width'],
-  [files.panel.includes('data-testid="profile-distinct-equipment-count"') && files.panel.includes('Verschiedene Ausrüstungsteile') && files.panel.includes('EQUIPMENT[id]?.active'), 'distinct owned equipment count is unclear or includes legacy cosmetics'],
+  [files.panel.includes('data-testid="profile-distinct-equipment-count"') && files.panel.includes('Verschiedene Ausrüstungsteile') && files.panel.includes('activeOwnedEquipmentCount(meta)'), 'distinct owned equipment count is unclear or includes retired equipment'],
   [files.panel.includes('data-testid="profile-lifetime-equipment-rewards"') && files.panel.includes('Ausrüstungsbelohnungen insgesamt'), 'lifetime equipment rewards are not distinguished from unique owned items'],
+  [files.panel.includes('<ProfileEquipmentLoadout') && files.panel.includes('testId="own-player-profile-equipment"') && files.profileEquipment.includes('currentProfileEquipmentFromMeta'), 'own profile does not use the canonical current equipment loadout'],
+  [files.loadout.includes('ACTIVE_EQUIPMENT_SLOTS.map') && files.loadout.includes('<KayKitEquipmentPreview') && (files.loadout.match(/<KayKitEquipmentPreview\b/g) ?? []).length === 1, 'profile equipment loadout does not use three canonical slots and one controlled item renderer'],
   [files.panel.includes("'Höchstes Kapitel'") && files.panel.includes("'Höchster Raum'"), 'highest chapter and highest room are not shown as separate statistics'],
   [files.profile.includes('selectedTitle') && files.profile.includes('selectedCard') && files.profile.includes('selectedAvatar'), 'profile cosmetic selections are not persistent'],
   [files.profile.includes('PROFILE_TITLES') && files.profile.includes('PROFILE_CARDS') && files.profile.includes('PROFILE_AVATARS'), 'title, calling-card or avatar definitions are missing'],
@@ -69,4 +73,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Player profile audit passed: responsive tablet identity, explicit equipment statistics, registration, server validation, local/cloud propagation and storage integrity share one contract.');
+console.log('Player profile audit passed: responsive tablet identity, explicit equipment statistics, canonical current loadout, registration, server validation, local/cloud propagation and storage integrity share one contract.');
