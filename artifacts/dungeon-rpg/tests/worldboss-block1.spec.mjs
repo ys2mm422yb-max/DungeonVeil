@@ -1,0 +1,103 @@
+import { test, expect } from '@playwright/test';
+
+const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+
+function worldBossQaUrl() {
+  const url = new URL(APP_URL);
+  url.searchParams.set('qa', 'worldboss');
+  return url.toString();
+}
+
+function numericAttribute(locator, name) {
+  return locator.getAttribute(name).then(value => Number(value || 0));
+}
+
+test('world boss loads the original FBX and accepts movement plus dash', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  if (testInfo.project.name.includes('ipad')) await page.setViewportSize({ width: 820, height: 1180 });
+
+  const runtimeErrors = [];
+  const responses = [];
+  page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
+  page.on('console', message => {
+    if (message.type() === 'error') runtimeErrors.push(`console: ${message.text()}`);
+  });
+  page.on('response', response => {
+    const url = response.url();
+    if (/Dragon\.fbx|FBXLoader\.js|fflate\.module\.js|NURBSCurve\.js|NURBSUtils\.js/.test(url)) {
+      responses.push({ url, status: response.status(), contentType: response.headers()['content-type'] || '' });
+    }
+  });
+
+  await page.goto(worldBossQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(page.getByTestId('worldboss-visual-qa')).toBeVisible();
+  await expect(page.getByTestId('worldboss-combat-band')).toBeVisible();
+  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
+  await expect(page.getByTestId('worldboss-dragon-loading')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('run-joystick')).toBeVisible();
+  await expect(page.getByTestId('run-dash-button')).toBeVisible();
+
+  const diagnostics = page.getByTestId('worldboss-runtime-diagnostics');
+  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-v1');
+  await expect(diagnostics).toHaveAttribute('data-engine-status', 'playing', { timeout: 20_000 });
+  await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ok-or-loading');
+
+  for (const required of ['Dragon.fbx', 'FBXLoader.js', 'fflate.module.js', 'NURBSCurve.js', 'NURBSUtils.js']) {
+    const response = responses.find(item => item.url.includes(required));
+    expect(response, `${required} was not requested by the live world-boss scene`).toBeTruthy();
+    expect(response.status, `${required} returned ${response.status}`).toBeLessThan(400);
+    expect(response.url, `${required} escaped the same-origin GitHub Pages runtime`).not.toMatch(/^https:\/\/cdn\.jsdelivr\.net/i);
+  }
+  const dragonResponse = responses.find(item => item.url.includes('Dragon.fbx'));
+  expect(dragonResponse.contentType.toLowerCase()).not.toContain('text/html');
+
+  const startX = await numericAttribute(diagnostics, 'data-player-x');
+  const startY = await numericAttribute(diagnostics, 'data-player-y');
+  const joystick = page.getByTestId('run-joystick');
+  const box = await joystick.boundingBox();
+  expect(box).toBeTruthy();
+
+  await page.evaluate(({ centerX, centerY, targetX, targetY }) => {
+    const control = document.querySelector('[data-testid="run-joystick"]');
+    control.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, cancelable: true, pointerId: 41, pointerType: 'touch', isPrimary: true,
+      clientX: centerX, clientY: centerY,
+    }));
+    window.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true, cancelable: true, pointerId: 41, pointerType: 'touch', isPrimary: true,
+      clientX: targetX, clientY: targetY,
+    }));
+  }, {
+    centerX: box.x + box.width / 2,
+    centerY: box.y + box.height / 2,
+    targetX: box.x + box.width * 0.82,
+    targetY: box.y + box.height * 0.38,
+  });
+
+  await expect.poll(async () => {
+    const x = await numericAttribute(diagnostics, 'data-player-x');
+    const y = await numericAttribute(diagnostics, 'data-player-y');
+    return Math.hypot(x - startX, y - startY);
+  }, { timeout: 10_000, intervals: [100, 200, 400] }).toBeGreaterThan(4);
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, cancelable: true, pointerId: 41, pointerType: 'touch', isPrimary: true,
+    }));
+  });
+  await expect.poll(() => numericAttribute(diagnostics, 'data-joy-x')).toBe(0);
+  await expect.poll(() => numericAttribute(diagnostics, 'data-joy-y')).toBe(0);
+
+  const dodgeBefore = await numericAttribute(diagnostics, 'data-player-last-dodge');
+  await page.getByTestId('run-dash-button').dispatchEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 42, pointerType: 'touch', isPrimary: true,
+  });
+  await expect.poll(() => numericAttribute(diagnostics, 'data-player-last-dodge'), {
+    timeout: 10_000,
+    intervals: [100, 200, 400],
+  }).toBeGreaterThan(dodgeBefore);
+
+  await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
+  expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+});
