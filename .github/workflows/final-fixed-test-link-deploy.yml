@@ -1,0 +1,118 @@
+name: Final Fixed Test Link Deploy
+
+on:
+  push:
+    branches: [tmp-unused-do-not-create]
+    paths:
+      - '.github/workflows/final-fixed-test-link-deploy.yml'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: dungeon-veil-final-fixed-test-link
+  cancel-in-progress: false
+
+jobs:
+  validate-build-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 189406c6d87623926b4059c4b1c3ac2c5332fe7d
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify final application
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:social
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm run typecheck
+      - name: Build fixed test application
+        env:
+          BASE_PATH: /DungeonVeil/
+          NODE_ENV: production
+          VITE_BUILD_SHA: 189406c6d87623926b4059c4b1c3ac2c5332fe7d
+        run: pnpm --dir artifacts/dungeon-rpg run build
+      - name: Verify Pages artifact
+        env:
+          EXPECTED_BASE_PATH: /DungeonVeil/
+        run: pnpm --filter @workspace/dungeon-rpg audit:pages
+      - name: Write exact deployment marker
+        run: |
+          printf '{"commit":"%s","deployedAt":"%s","source":"fixed-target-final"}\n' '189406c6d87623926b4059c4b1c3ac2c5332fe7d' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          touch artifacts/dungeon-rpg/dist/public/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: artifacts/dungeon-rpg/dist/public
+
+  deploy:
+    needs: validate-build-upload
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy exact target commit
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  verify-fixed-link:
+    needs: [validate-build-upload, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp-unused-do-not-create
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify fixed public link and record proof
+        env:
+          EXPECTED_COMMIT: 189406c6d87623926b4059c4b1c3ac2c5332fe7d
+        run: |
+          set -euo pipefail
+          verified=0
+          for attempt in $(seq 1 40); do
+            if curl -fsSL --retry 2 --retry-delay 2 "https://ys2mm422yb-max.github.io/DungeonVeil/deployment.json?verify=${GITHUB_RUN_ID}-${attempt}" -o live-response.json; then
+              if python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads(Path('live-response.json').read_text())
+          assert data.get('source') == 'fixed-target-final', data
+          assert data.get('commit') == os.environ['EXPECTED_COMMIT'], data
+          PY
+              then
+                verified=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test "$verified" = 1
+          mkdir -p .ci
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads(Path('live-response.json').read_text())
+          data['verifiedUrl'] = 'https://ys2mm422yb-max.github.io/DungeonVeil/'
+          data['workflowRunId'] = os.environ['GITHUB_RUN_ID']
+          Path('.ci/final-pages-verified.json').write_text(json.dumps(data, indent=2) + '\n')
+          PY
+          rm -f live-response.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .ci/final-pages-verified.json
+          git commit -m 'Record final fixed-link deployment verification'
+          git push origin HEAD:tmp-unused-do-not-create
