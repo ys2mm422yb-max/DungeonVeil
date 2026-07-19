@@ -42,7 +42,8 @@ create table if not exists public.coop_room_reward_entitlements (
   gold integer not null check (gold >= 0),
   created_at timestamptz not null default clock_timestamp(),
   claimed_at timestamptz,
-  unique (lobby_id, run_attempt, chapter, room, user_id)
+  constraint coop_room_reward_entitlements_unique
+    unique (lobby_id, run_attempt, chapter, room, user_id)
 );
 
 create index if not exists coop_run_checkpoints_user_updated_idx
@@ -290,7 +291,7 @@ begin
   from public.coop_lobby_members member
   where member.lobby_id = v_lobby.id
     and member.left_at is null
-  on conflict on constraint coop_room_reward_entitlements_lobby_id_run_attempt_chapter_room_user_id_key do nothing;
+  on conflict on constraint coop_room_reward_entitlements_unique do nothing;
 
   get diagnostics v_inserted = row_count;
   return v_inserted;
@@ -413,7 +414,7 @@ declare
 begin
   if v_user_id is null then raise exception 'not authenticated'; end if;
 
-  select member.*, lobby.status into v_member, v_status
+  select member.* into v_member
   from public.coop_lobby_members member
   join public.coop_lobbies lobby on lobby.id = member.lobby_id
   where member.user_id = v_user_id
@@ -423,6 +424,10 @@ begin
   limit 1;
 
   if v_member.lobby_id is null then return false; end if;
+
+  select lobby.status into v_status
+  from public.coop_lobbies lobby
+  where lobby.id = v_member.lobby_id;
 
   if v_member.role = 'host' or v_status = 'in_run' then
     update public.coop_lobbies lobby
