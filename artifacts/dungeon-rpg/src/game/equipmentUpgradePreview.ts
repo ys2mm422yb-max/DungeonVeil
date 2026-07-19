@@ -1,20 +1,14 @@
-import {
-  EQUIPMENT,
-  equipmentCombatModifiers,
-  type EquipmentCombatModifiers,
-  type EquipmentId,
-  type MetaProgression,
-} from './metaProgression';
+import { isActiveEquipmentId, equipmentStatsAtLevel } from './equipmentCore';
+import type { EquipmentId, MetaProgression } from './metaProgression';
 
 export type EquipmentUpgradePreviewKey =
   | 'attackFlat'
-  | 'attackPercent'
   | 'maxHp'
   | 'defense'
-  | 'speedPercent'
   | 'attackRange'
   | 'attackSpeedPercent'
-  | 'dodgeSpeedPercent';
+  | 'critChance'
+  | 'critDamage';
 
 export type EquipmentUpgradePreviewRow = {
   key: EquipmentUpgradePreviewKey;
@@ -24,27 +18,8 @@ export type EquipmentUpgradePreviewRow = {
   format: 'flat' | 'percent';
 };
 
-function cloneMetaAtLevel(meta: MetaProgression, id: EquipmentId, level: number): MetaProgression {
-  const copy = structuredClone(meta);
-  const item = EQUIPMENT[id];
-  copy.equipped[item.slot] = id;
-  copy.owned[id] = {
-    level: Math.max(1, Math.min(5, Math.floor(level))),
-    copies: copy.owned[id]?.copies ?? 0,
-  };
-  return copy;
-}
-
 function percent(value: number) {
   return Math.round(value * 1000) / 10;
-}
-
-function attackSpeedPercent(modifiers: EquipmentCombatModifiers) {
-  return percent(1 - modifiers.attackCooldownMultiplier);
-}
-
-function dodgeSpeedPercent(modifiers: EquipmentCombatModifiers) {
-  return percent(1 - modifiers.dodgeCooldownMultiplier);
 }
 
 function rounded(value: number) {
@@ -55,20 +30,20 @@ export function equipmentUpgradePreview(
   id: EquipmentId,
   meta: MetaProgression,
 ): EquipmentUpgradePreviewRow[] {
+  if (!isActiveEquipmentId(id)) return [];
   const level = meta.owned[id]?.level ?? 0;
   if (level <= 0 || level >= 5) return [];
 
-  const current = equipmentCombatModifiers(cloneMetaAtLevel(meta, id, level));
-  const next = equipmentCombatModifiers(cloneMetaAtLevel(meta, id, level + 1));
+  const current = equipmentStatsAtLevel(id, level);
+  const next = equipmentStatsAtLevel(id, level + 1);
   const candidates: EquipmentUpgradePreviewRow[] = [
     { key: 'attackFlat', current: current.attackFlat, next: next.attackFlat, delta: next.attackFlat - current.attackFlat, format: 'flat' },
-    { key: 'attackPercent', current: percent(current.attackPercent), next: percent(next.attackPercent), delta: percent(next.attackPercent - current.attackPercent), format: 'percent' },
     { key: 'maxHp', current: current.maxHp, next: next.maxHp, delta: next.maxHp - current.maxHp, format: 'flat' },
     { key: 'defense', current: current.defense, next: next.defense, delta: next.defense - current.defense, format: 'flat' },
-    { key: 'speedPercent', current: percent(current.speedPercent), next: percent(next.speedPercent), delta: percent(next.speedPercent - current.speedPercent), format: 'percent' },
     { key: 'attackRange', current: current.attackRange, next: next.attackRange, delta: next.attackRange - current.attackRange, format: 'flat' },
-    { key: 'attackSpeedPercent', current: attackSpeedPercent(current), next: attackSpeedPercent(next), delta: attackSpeedPercent(next) - attackSpeedPercent(current), format: 'percent' },
-    { key: 'dodgeSpeedPercent', current: dodgeSpeedPercent(current), next: dodgeSpeedPercent(next), delta: dodgeSpeedPercent(next) - dodgeSpeedPercent(current), format: 'percent' },
+    { key: 'attackSpeedPercent', current: percent(current.attackSpeedPercent), next: percent(next.attackSpeedPercent), delta: percent(next.attackSpeedPercent - current.attackSpeedPercent), format: 'percent' },
+    { key: 'critChance', current: percent(current.critChance), next: percent(next.critChance), delta: percent(next.critChance - current.critChance), format: 'percent' },
+    { key: 'critDamage', current: percent(current.critDamage), next: percent(next.critDamage), delta: percent(next.critDamage - current.critDamage), format: 'percent' },
   ];
 
   return candidates
