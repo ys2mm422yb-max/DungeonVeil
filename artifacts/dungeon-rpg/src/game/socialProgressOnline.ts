@@ -1,6 +1,10 @@
-import { ACTIVE_EQUIPMENT, ACTIVE_EQUIPMENT_SLOTS, isActiveEquipmentId, type ActiveEquipmentId, type ActiveEquipmentSlot } from './equipmentRedesign';
-import { loadMetaProgression, type EquipmentRarity } from './metaProgression';
+import { loadMetaProgression } from './metaProgression';
 import type { PlayerProfileProgress } from './playerProfile';
+import {
+  currentProfileEquipmentFromMeta,
+  normalizeProfileEquipmentItems,
+  type CurrentProfileEquipmentItem,
+} from './profileEquipment';
 import { authenticatedSupabaseRest, currentOnlineSession, type WorldBossEvent } from './supabaseOnline';
 
 export type SocialProfile = {
@@ -14,7 +18,7 @@ export type SocialProfile = {
   last_active_at: string;
 };
 
-export type PublicEquipmentItem = { slot: ActiveEquipmentSlot; id: ActiveEquipmentId; level: number; rarity: EquipmentRarity };
+export type PublicEquipmentItem = CurrentProfileEquipmentItem;
 
 export type SocialProfileCardData = SocialProfile & {
   guild_name: string | null;
@@ -39,6 +43,8 @@ export type SocialProfileCardData = SocialProfile & {
   items_found: number;
   equipped_items: PublicEquipmentItem[];
 };
+
+type RawSocialProfileCardData = Omit<SocialProfileCardData, 'equipped_items'> & { equipped_items: unknown };
 
 export type WorldBossPlayerRow = {
   rank?: number | null;
@@ -83,35 +89,6 @@ export type WorldBossRewardPayload = {
   boss_defeated: boolean;
 };
 
-type RawPublicEquipmentItem = {
-  slot?: unknown;
-  id?: unknown;
-  level?: unknown;
-  rarity?: unknown;
-};
-
-const clampEquipmentLevel = (value: unknown) => Math.max(1, Math.min(5, Math.floor(Number(value) || 1)));
-
-/**
- * Public profiles deliberately accept legacy JSON but expose only the canonical
- * active bow, quiver and armor slots. Retired Talisman data stays stored for
- * forward compatibility and is simply ignored until the next normal profile sync.
- */
-export function normalizePublicEquipmentItems(value: unknown): PublicEquipmentItem[] {
-  const source = Array.isArray(value) ? value as RawPublicEquipmentItem[] : [];
-  return ACTIVE_EQUIPMENT_SLOTS.flatMap(slot => {
-    const raw = source.find(item => item?.slot === slot);
-    const id = raw?.id;
-    if (!isActiveEquipmentId(id) || ACTIVE_EQUIPMENT[id].slot !== slot) return [];
-    return [{
-      slot,
-      id,
-      level: clampEquipmentLevel(raw?.level),
-      rarity: ACTIVE_EQUIPMENT[id].rarity,
-    }];
-  });
-}
-
 async function rpc<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
   if (!currentOnlineSession()) throw new Error('Nicht angemeldet');
   return authenticatedSupabaseRest<T>(`rpc/${name}`, {
@@ -138,11 +115,7 @@ export async function syncSocialProfileProgress(chapter: number, rank: number, c
 
 export async function syncPublicProfileStats(profile: PlayerProfileProgress): Promise<boolean> {
   if (!currentOnlineSession()) return false;
-  const meta = loadMetaProgression();
-  const equippedItems = normalizePublicEquipmentItems(ACTIVE_EQUIPMENT_SLOTS.map(slot => {
-    const id = meta.equipped[slot];
-    return { slot, id, level: meta.owned[id]?.level ?? 1 };
-  }));
+  const equippedItems = currentProfileEquipmentFromMeta(loadMetaProgression());
   await rpc<Record<string, unknown>>('sync_public_profile_stats', {
     p_stats: {
       highestChapter: profile.stats.highestChapter,
@@ -168,10 +141,10 @@ export async function findSocialProfile(query: string): Promise<SocialProfile | 
 }
 
 export async function getSocialProfileCard(userId: string): Promise<SocialProfileCardData | null> {
-  const rows = await rpc<SocialProfileCardData[]>('get_social_profile_card', { p_user_id: userId });
+  const rows = await rpc<RawSocialProfileCardData[]>('get_social_profile_card', { p_user_id: userId });
   const profile = rows[0];
   if (!profile) return null;
-  return { ...profile, equipped_items: normalizePublicEquipmentItems(profile.equipped_items) };
+  return { ...profile, equipped_items: normalizeProfileEquipmentItems(profile.equipped_items) };
 }
 
 export async function getCurrentOrRecentWorldBoss(): Promise<WorldBossEvent | null> {
