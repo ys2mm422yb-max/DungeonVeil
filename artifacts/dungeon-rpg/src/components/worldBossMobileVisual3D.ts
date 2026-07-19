@@ -1,5 +1,3 @@
-import { createWorldBossFallbackDragonRig } from './worldBossFallbackDragon3D';
-
 const APP_BASE = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_BASE = APP_BASE.endsWith('/') ? APP_BASE : `${APP_BASE}/`;
 const DRAGON_ASSET_PATH = 'assets/3d/Dragon.fbx';
@@ -16,6 +14,23 @@ export type WorldBossMobileRig = {
   update: (delta: number, now: number) => void;
   stop: () => void;
 };
+
+export type WorldBossLoadFailure = {
+  code: 'dragon-load-failed';
+  message: string;
+  technicalMessage: string;
+  at: number;
+};
+
+let activeLoadFailure: WorldBossLoadFailure | null = null;
+
+export function getWorldBossLoadFailure(): WorldBossLoadFailure | null {
+  return activeLoadFailure;
+}
+
+export function clearWorldBossLoadFailure(): void {
+  activeLoadFailure = null;
+}
 
 const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
@@ -54,11 +69,8 @@ function prepareDragonMaterials(THREE: any, root: any) {
     const materials = Array.isArray(node.material) ? node.material : [node.material];
     const prepared = materials.map((sourceMaterial: any) => {
       const clone = sourceMaterial.clone();
-      if (clone.color) clone.color.lerp(new THREE.Color(0x6f3b2c), 0.16);
-      if ('roughness' in clone) clone.roughness = Math.max(0.56, clone.roughness ?? 0.72);
-      if ('metalness' in clone) clone.metalness = Math.min(0.18, clone.metalness ?? 0.04);
-      if ('emissive' in clone) clone.emissive.set(0x120302);
-      if ('emissiveIntensity' in clone) clone.emissiveIntensity = 0.08;
+      if ('roughness' in clone && !Number.isFinite(clone.roughness)) clone.roughness = 0.72;
+      if ('metalness' in clone && !Number.isFinite(clone.metalness)) clone.metalness = 0.04;
       clone.transparent = false;
       clone.opacity = 1;
       clone.depthWrite = true;
@@ -71,24 +83,33 @@ function prepareDragonMaterials(THREE: any, root: any) {
   });
 }
 
+function assertFiniteBounds(THREE: any, visual: any, stage: string) {
+  visual.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(visual);
+  if (bounds.isEmpty()) throw new Error(`Dragon model has empty bounds during ${stage}`);
+  const size = bounds.getSize(new THREE.Vector3());
+  if (![size.x, size.y, size.z].every(Number.isFinite)) throw new Error(`Dragon model has invalid bounds during ${stage}`);
+  if (Math.max(size.x, size.y, size.z) < 0.01) throw new Error(`Dragon model is too small during ${stage}`);
+  return { bounds, size };
+}
+
 function normalizeDragon(THREE: any, visual: any) {
   visual.scale.setScalar(1);
   visual.position.set(0, 0, 0);
   visual.rotation.set(0, 0, 0);
-  visual.updateMatrixWorld(true);
 
-  const initialBounds = new THREE.Box3().setFromObject(visual);
-  const initialSize = initialBounds.getSize(new THREE.Vector3());
-  const largest = Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001);
+  const initial = assertFiniteBounds(THREE, visual, 'normalization');
+  const largest = Math.max(initial.size.x, initial.size.y, initial.size.z);
   visual.scale.setScalar(3.25 / largest);
   visual.updateMatrixWorld(true);
 
-  const scaledBounds = new THREE.Box3().setFromObject(visual);
-  const scaledCenter = scaledBounds.getCenter(new THREE.Vector3());
-  visual.position.x -= scaledCenter.x;
-  visual.position.z -= scaledCenter.z;
-  visual.position.y -= scaledBounds.min.y;
-  visual.updateMatrixWorld(true);
+  const scaled = assertFiniteBounds(THREE, visual, 'ground alignment');
+  const center = scaled.bounds.getCenter(new THREE.Vector3());
+  visual.position.x -= center.x;
+  visual.position.z -= center.z;
+  visual.position.y -= scaled.bounds.min.y;
+  const final = assertFiniteBounds(THREE, visual, 'final placement');
+  if (final.bounds.min.y < -0.02 || final.bounds.min.y > 0.08) throw new Error('Dragon model is not aligned to the arena floor');
 }
 
 function dragonUrlCandidates(): string[] {
@@ -133,7 +154,7 @@ async function fetchDragonBuffer(url: string): Promise<ArrayBuffer> {
   return validatedFbxBuffer(await response.arrayBuffer(), response.headers.get('content-type') ?? '', url);
 }
 
-async function loadDragon(FBXLoader: any, attempts = 2) {
+async function loadDragon(FBXLoader: any, attempts = 3) {
   const urls = dragonUrlCandidates();
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -145,19 +166,19 @@ async function loadDragon(FBXLoader: any, attempts = 2) {
         return new FBXLoader().parse(buffer, basePath);
       } catch (error) {
         lastError = error;
-        console.warn(`Dragon model load attempt ${attempt}/${attempts} failed for ${url}`, error);
+        console.warn(`Original dragon load attempt ${attempt}/${attempts} failed for ${url}`, error);
       }
     }
-    if (attempt < attempts) await wait(260 * attempt);
+    if (attempt < attempts) await wait(320 * attempt);
   }
-  throw lastError instanceof Error ? lastError : new Error('Dragon model could not be loaded');
+  throw lastError instanceof Error ? lastError : new Error('Original dragon model could not be loaded');
 }
 
 async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobileRig> {
   const { FBXLoader } = await import(/* @vite-ignore */ FBX_LOADER_URL) as any;
+  if (typeof FBXLoader !== 'function') throw new Error('Pinned local FBXLoader is unavailable');
   const visual = await loadDragon(FBXLoader);
-  visual.name = 'DungeonVeilDragon';
-  visual.animations = [];
+  visual.name = 'DungeonVeilBlackDragon';
   prepareDragonMaterials(THREE, visual);
   normalizeDragon(THREE, visual);
   const visualBasePosition = visual.position.clone();
@@ -165,10 +186,14 @@ async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobi
 
   const root = new THREE.Group();
   root.name = 'VeilDragonWorldBoss';
-  root.userData.dungeonVeilBossVisual = 'imported-fbx-dragon';
+  root.userData.dungeonVeilBossVisual = 'original-black-fbx-dragon';
+  root.userData.dungeonVeilDragonAssetRevision = DRAGON_ASSET_REVISION;
   root.add(visual);
 
   const mixer = new THREE.AnimationMixer(visual);
+  const importedClips = Array.isArray(visual.animations) ? visual.animations : [];
+  const importedAction = importedClips.length ? mixer.clipAction(importedClips[0]) : null;
+  importedAction?.play?.();
   const head = findNode(visual, [/head/, /neck/]);
   const jaw = findNode(visual, [/jaw/, /mouth/]);
   const leftWing = findNode(visual, [/wingleft/, /leftwing/, /wingl$/]);
@@ -198,6 +223,7 @@ async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobi
     },
     update(delta: number, now: number) {
       if (stopped) return;
+      mixer.update(delta);
       attackRemaining = Math.max(0, attackRemaining - delta);
 
       const seconds = now * 0.001;
@@ -244,6 +270,7 @@ async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobi
     },
     stop() {
       stopped = true;
+      importedAction?.stop?.();
       mixer.stopAllAction();
       visual.traverse((node: any) => {
         if (!node.material) return;
@@ -254,13 +281,36 @@ async function loadImportedWorldBossMobileRig(THREE: any): Promise<WorldBossMobi
   };
 }
 
+function createNeutralLoadFailureRig(THREE: any, error: unknown): WorldBossMobileRig {
+  const technicalMessage = error instanceof Error ? error.message : String(error);
+  activeLoadFailure = {
+    code: 'dragon-load-failed',
+    message: 'Der schwarze Drache konnte nicht sicher geladen werden.',
+    technicalMessage,
+    at: Date.now(),
+  };
+  const root = new THREE.Group();
+  root.name = 'VeilDragonLoadFailure';
+  root.visible = false;
+  root.userData.dungeonVeilBossVisual = 'load-error-no-fallback';
+  root.userData.dungeonVeilBossLoadError = technicalMessage;
+  const mixer = new THREE.AnimationMixer(root);
+  return {
+    root,
+    mixer,
+    setMoving() {},
+    triggerAttack() {},
+    update() {},
+    stop() { mixer.stopAllAction(); },
+  };
+}
+
 export async function loadWorldBossMobileRig(THREE: any, _GLTFLoader: any): Promise<WorldBossMobileRig> {
+  clearWorldBossLoadFailure();
   try {
     return await loadImportedWorldBossMobileRig(THREE);
   } catch (error) {
-    console.warn('Imported Ash King dragon unavailable; using procedural dragon fallback', error);
-    const fallback = createWorldBossFallbackDragonRig(THREE);
-    fallback.root.userData.dungeonVeilBossVisual = 'procedural-dragon-fallback';
-    return fallback;
+    console.error('Original black world-boss dragon failed after bounded retries; no alternate boss model will be shown', error);
+    return createNeutralLoadFailureRig(THREE, error);
   }
 }
