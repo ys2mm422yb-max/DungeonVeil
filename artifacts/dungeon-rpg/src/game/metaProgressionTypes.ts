@@ -42,7 +42,12 @@ export type EquipmentCombatModifiers = {
 };
 
 export type EquipmentProgress = { level: number; copies: number };
-export type EquippedEquipment = Record<CurrentEquipmentSlot, EquipmentId> & { talisman?: EquipmentId };
+/**
+ * `talisman` is retained only as a compile-time bridge for old render adapters.
+ * Normalized runtime objects set it to `undefined` and JSON serialization omits it,
+ * while every current gameplay/profile path uses bow, quiver and armor only.
+ */
+export type EquippedEquipment = Record<CurrentEquipmentSlot, EquipmentId> & { talisman: EquipmentId };
 export type MetaProgression = {
   version: 4;
   rank: number;
@@ -57,7 +62,7 @@ export type MetaProgression = {
   currentRunId: string;
 };
 export type MetaReward = { xp: number; dust: number; gold: number; rankBefore: number; rankAfter: number; item?: EquipmentId; duplicate?: boolean; source?: EquipmentDropSource; rarity?: EquipmentRarity };
-export type PendingEquipmentDrop = { item: EquipmentId; duplicate: boolean; source: EquipmentDropSource; rarity: EquipmentRarity };
+export type PendingEquipmentDrop = { item: EquipmentId; duplicate: boolean; source?: EquipmentDropSource; rarity: EquipmentRarity };
 
 export type MetaProgressionRuntime = {
   spawnEquipmentDrop(engine: GameEngine, drop: PendingEquipmentDrop, x: number, y: number): string;
