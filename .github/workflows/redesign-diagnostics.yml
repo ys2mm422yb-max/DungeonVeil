@@ -1,0 +1,53 @@
+name: Redesign Diagnostics
+
+on:
+  push:
+    branches: ['agent/ten-item-relic-grind-rebalance']
+  pull_request:
+    branches: ['fix/duo-final-integration-regression']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture diagnostics
+        shell: bash
+        run: |
+          set +e
+          pnpm run typecheck > typecheck.log 2>&1
+          echo $? > typecheck.exit
+          pnpm --dir artifacts/dungeon-rpg run build > build.log 2>&1
+          echo $? > build.exit
+          pnpm --dir artifacts/dungeon-rpg run audit:final > audit-final.log 2>&1
+          echo $? > audit-final.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: redesign-diagnostics
+          path: |
+            typecheck.log
+            typecheck.exit
+            build.log
+            build.exit
+            audit-final.log
+            audit-final.exit
+          if-no-files-found: error
+      - name: Enforce diagnostics
+        shell: bash
+        run: |
+          test "$(cat typecheck.exit)" = "0"
+          test "$(cat build.exit)" = "0"
+          test "$(cat audit-final.exit)" = "0"
