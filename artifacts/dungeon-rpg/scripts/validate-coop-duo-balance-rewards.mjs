@@ -22,7 +22,7 @@ const sourceChecks = [
   [targets.includes('disconnectHpFactor: 0.78') && targets.includes('disconnectAttackFactor: 0.92'), 'disconnect fallback targets are missing'],
   [balance.includes('DUO_BOSS_SUPPORT_COUNT = 2') && balance.includes('applyDuoDisconnectFallback'), 'bounded boss support or disconnect fallback runtime is missing'],
   [balance.includes('Math.min(DUO_MOBILE_ENEMY_CAP') && balance.includes('Math.ceil(originalCount * DUO_ENEMY_COUNT_MULTIPLIER)'), 'runtime enemy count does not use the canonical bounded scaling'],
-  [authority.includes('ensureDuoRoomBalance') && authority.includes('serializeCoopEnemySnapshot'), 'host-authoritative Duo room scaling is not wired into enemy publication'],
+  [authority.includes('ensureDuoRoomBalance') && authority.includes('createCoopEnemySnapshot'), 'host-authoritative Duo room scaling is not wired into enemy publication'],
   [balance.includes('DUO_CURRENCY_MULTIPLIER = 1.25'), 'Duo currency multiplier changed'],
   [reward.includes('currencyMultiplier?: number') && reward.includes('skipEquipmentDrop?: boolean'), 'chapter reward contract cannot separate currency and shared equipment'],
   [session.includes('dispatchCoopRoomClear') && session.includes('if (duo)') && session.includes('rewardChapterRoomClear(engine.state.chapter, engine.state.floor)'), 'Duo room rewards are not server-routed or Solo flow changed'],
