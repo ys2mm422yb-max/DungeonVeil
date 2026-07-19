@@ -22,10 +22,10 @@ const checks = [
   [showcase.includes("clipKey(clip).includes('idle_b')") && showcase.includes('new THREE.AnimationMixer(visual)'), 'calm Ranger Idle_B is not driving the menu body'],
   [showcase.includes("equipmentRoot.name = 'VillageReadableLoadout'") && !showcase.includes('loadKayKitRanger(THREE'), 'menu still reuses duplicate combat attachments'],
   [showcase.includes('material.depthTest = true') && showcase.includes('material.depthWrite = true') && !showcase.includes('material.depthTest = false'), 'menu equipment can still draw through the Ranger body'],
-  [showcase.includes("'VillageVisibleEquippedBow'") && showcase.includes("'VillageVisibleEquippedQuiver'") && showcase.includes("'VillageVisibleEquippedTalisman'"), 'clean visible equipment anchors are incomplete'],
+  [showcase.includes("'VillageVisibleEquippedBow'") && showcase.includes("'VillageVisibleEquippedQuiver'") && !showcase.includes('VillageVisibleEquippedTalisman'), 'clean visible current-equipment anchors are incomplete or the retired Talisman remains'],
   [showcase.includes('[-0.54, 0.78, 0.2]') && showcase.includes('[Math.PI / 2, -0.05, -0.38]'), 'bow is not positioned beside the left hand'],
   [showcase.includes('[0.46, 1.3, -0.1]') && showcase.includes('[0.06, 0.48, 0.14]'), 'quiver is not positioned behind the right shoulder'],
-  [showcase.includes('bow: meta.equipped.bow') && showcase.includes('quiver: meta.equipped.quiver') && showcase.includes('talisman: meta.equipped.talisman'), 'village showcase does not preserve the currently visible loadout and legacy cosmetic anchor'],
+  [showcase.includes('bow: meta.equipped.bow') && showcase.includes('quiver: meta.equipped.quiver') && showcase.includes('armor: meta.equipped.armor') && !showcase.includes('talisman: meta.equipped.talisman'), 'village showcase does not preserve only the current three-slot loadout'],
   [showcase.includes('for (let index = 0; index < 3; index++)') && showcase.includes('VillageVisibleQuiverArrow'), 'quiver arrows are not visibly represented'],
   [showcase.includes('root.position.z = -1.82') && showcase.includes('root.scale.setScalar(0.72)'), 'player is not large and forward enough to dominate the menu composition'],
   [villageHub.includes('grid grid-cols-4') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place'), 'redundant village place prompt remains or social routes are not compact'],
@@ -39,7 +39,7 @@ const checks = [
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],
   [manifest.includes('import.meta.env.BASE_URL') && manifest.includes('appAssetUrl'), 'Pages-safe application asset resolver is missing'],
-  [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes("equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', talisman: 'veil-key', armor: 'ranger-cloak' }"), 'three active gameplay slots plus the retained statless legacy cosmetic anchor are not represented in saved meta progression'],
+  [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes("const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId") && metaStore.includes("talisman: RETIRED_TALISMAN_COMPAT") && !metaStore.includes("talisman: 'veil-key'") && metaStore.includes("hasOwnProperty.call(parsed?.equipped ?? {}, 'talisman')"), 'current three-slot defaults, omitted compatibility value or safe legacy-Talisman rewrite are not represented in saved meta progression'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -49,4 +49,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the prompt is gone, visible equipment stays readable and the three active V4 slots remain protected while the legacy cosmetic anchor stays statless.');
+console.log('Main-menu equipped ranger audit passed: the prompt is gone, current bow/quiver/armor data stays coherent and the retired Talisman is absent from menu presentation and serialized saves.');

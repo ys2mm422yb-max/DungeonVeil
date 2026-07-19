@@ -1,6 +1,7 @@
 import type { GameEngine } from './runEngine';
 
 export type EquipmentSlot = 'bow' | 'quiver' | 'talisman' | 'armor';
+export type CurrentEquipmentSlot = Exclude<EquipmentSlot, 'talisman'>;
 export type EquipmentRarity = 'common' | 'rare' | 'epic';
 export type EquipmentDropSource = 'forge' | 'hunt' | 'warden' | 'ritual' | 'depth';
 export type EquipmentId =
@@ -41,6 +42,13 @@ export type EquipmentCombatModifiers = {
 };
 
 export type EquipmentProgress = { level: number; copies: number };
+/**
+ * `talisman` is retained only as a compile-time bridge for old render adapters.
+ * Normalized runtime objects assign `undefined` through a compatibility cast, so
+ * JSON serialization omits the key and all current gameplay/profile paths use
+ * bow, quiver and armor only.
+ */
+export type EquippedEquipment = Record<CurrentEquipmentSlot, EquipmentId> & { talisman: EquipmentId };
 export type MetaProgression = {
   version: 4;
   rank: number;
@@ -48,7 +56,7 @@ export type MetaProgression = {
   dust: number;
   gold: number;
   owned: Partial<Record<EquipmentId, EquipmentProgress>>;
-  equipped: Record<EquipmentSlot, EquipmentId>;
+  equipped: EquippedEquipment;
   cosmeticUnlocks: EquipmentId[];
   migrationCompensation: { gold: number; dust: number; copies: number };
   rewardLedger: string[];

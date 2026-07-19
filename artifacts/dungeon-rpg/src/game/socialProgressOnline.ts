@@ -1,6 +1,11 @@
-import { authenticatedSupabaseRest, currentOnlineSession, type WorldBossEvent } from './supabaseOnline';
+import { loadMetaProgression } from './metaProgression';
 import type { PlayerProfileProgress } from './playerProfile';
-import { EQUIPMENT, EQUIPMENT_SLOTS, loadMetaProgression, type EquipmentId, type EquipmentRarity, type EquipmentSlot } from './metaProgression';
+import {
+  currentProfileEquipmentFromMeta,
+  normalizeProfileEquipmentItems,
+  type CurrentProfileEquipmentItem,
+} from './profileEquipment';
+import { authenticatedSupabaseRest, currentOnlineSession, type WorldBossEvent } from './supabaseOnline';
 
 export type SocialProfile = {
   id: string;
@@ -13,7 +18,7 @@ export type SocialProfile = {
   last_active_at: string;
 };
 
-export type PublicEquipmentItem = { slot: EquipmentSlot; id: EquipmentId; level: number; rarity: EquipmentRarity };
+export type PublicEquipmentItem = CurrentProfileEquipmentItem;
 
 export type SocialProfileCardData = SocialProfile & {
   guild_name: string | null;
@@ -38,6 +43,8 @@ export type SocialProfileCardData = SocialProfile & {
   items_found: number;
   equipped_items: PublicEquipmentItem[];
 };
+
+type RawSocialProfileCardData = Omit<SocialProfileCardData, 'equipped_items'> & { equipped_items: unknown };
 
 export type WorldBossPlayerRow = {
   rank?: number | null;
@@ -108,11 +115,7 @@ export async function syncSocialProfileProgress(chapter: number, rank: number, c
 
 export async function syncPublicProfileStats(profile: PlayerProfileProgress): Promise<boolean> {
   if (!currentOnlineSession()) return false;
-  const meta = loadMetaProgression();
-  const equippedItems = EQUIPMENT_SLOTS.map(slot => {
-    const id = meta.equipped[slot];
-    return { slot, id, level: Math.max(1, Math.min(5, meta.owned[id]?.level ?? 1)), rarity: EQUIPMENT[id].rarity };
-  });
+  const equippedItems = currentProfileEquipmentFromMeta(loadMetaProgression());
   await rpc<Record<string, unknown>>('sync_public_profile_stats', {
     p_stats: {
       highestChapter: profile.stats.highestChapter,
@@ -138,8 +141,10 @@ export async function findSocialProfile(query: string): Promise<SocialProfile | 
 }
 
 export async function getSocialProfileCard(userId: string): Promise<SocialProfileCardData | null> {
-  const rows = await rpc<SocialProfileCardData[]>('get_social_profile_card', { p_user_id: userId });
-  return rows[0] ?? null;
+  const rows = await rpc<RawSocialProfileCardData[]>('get_social_profile_card', { p_user_id: userId });
+  const profile = rows[0];
+  if (!profile) return null;
+  return { ...profile, equipped_items: normalizeProfileEquipmentItems(profile.equipped_items) };
 }
 
 export async function getCurrentOrRecentWorldBoss(): Promise<WorldBossEvent | null> {

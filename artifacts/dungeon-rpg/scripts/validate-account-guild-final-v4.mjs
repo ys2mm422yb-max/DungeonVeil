@@ -24,7 +24,12 @@ assert(nameHardening.includes('v_previous_name') && nameHardening.includes('pg_a
 assert(online.includes('player-name-confirmation-required') && online.includes('Google-Anzeigename wird nicht automatisch übernommen'), 'Google/legacy confirmation prompt missing');
 assert(online.includes('setMyPlayerNameOnline') && online.includes('commitServerPlayerNameChange') && online.includes('applyConfirmedNameLocally'), 'server name result is not propagated locally/cloud');
 assert(online.includes('Profil, bei Freunden, Gilde, Duo, Zuschauern und Ranglisten') || online.includes('profiles, friends, guilds, Duo, spectating and leaderboards'), 'cross-surface name contract is not disclosed');
-assert(playerAudit.includes('Google confirmation') && playerAudit.includes('unique server validation'), 'player-name final audit is stale');
+assert(
+  playerAudit.includes('confirmed player names are not unique and server validated')
+    && playerAudit.includes('Google and legacy accounts are not explicitly prompted')
+    && playerAudit.includes('registration, server validation, local/cloud propagation'),
+  'player-name final audit is stale',
+);
 
 assert(guildClient.includes('searchGuildsOnline') && guildClient.includes('requestOrJoinGuildOnline') && guildClient.includes('cancelGuildJoinRequestOnline'), 'guild search/join/cancel client missing');
 assert(guildClient.includes('listGuildJoinRequestsOnline') && guildClient.includes('reviewGuildJoinRequestOnline') && guildClient.includes('setGuildJoinPolicyOnline'), 'officer review/policy client missing');

@@ -4,6 +4,7 @@ import type { EquipmentId, EquipmentSlot, MetaProgression } from './metaProgress
 
 const META_KEY = 'dungeon-veil-meta';
 export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ACTIVE_EQUIPMENT_SLOTS;
+const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId;
 
 const DEFAULT_META: MetaProgression = {
   version: 4,
@@ -16,7 +17,12 @@ const DEFAULT_META: MetaProgression = {
     'ranger-quiver': { level: 1, copies: 0 },
     'ranger-cloak': { level: 1, copies: 0 },
   },
-  equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', talisman: 'veil-key', armor: 'ranger-cloak' },
+  equipped: {
+    bow: 'ash-bow',
+    quiver: 'ranger-quiver',
+    armor: 'ranger-cloak',
+    talisman: RETIRED_TALISMAN_COMPAT,
+  },
   cosmeticUnlocks: [],
   migrationCompensation: { gold: 0, dust: 0, copies: 0 },
   rewardLedger: [],
@@ -37,10 +43,15 @@ function normalizeV4(parsed: any): MetaProgression {
   owned['ranger-quiver'] ??= { level: 1, copies: 0 };
   owned['ranger-cloak'] ??= { level: 1, copies: 0 };
 
-  const equipped = { ...DEFAULT_META.equipped, ...(parsed?.equipped ?? {}) } as Record<EquipmentSlot, EquipmentId>;
+  const equipped: MetaProgression['equipped'] = {
+    bow: DEFAULT_META.equipped.bow,
+    quiver: DEFAULT_META.equipped.quiver,
+    armor: DEFAULT_META.equipped.armor,
+    talisman: RETIRED_TALISMAN_COMPAT,
+  };
   for (const slot of ACTIVE_EQUIPMENT_SLOTS) {
-    const id = equipped[slot];
-    if (!isActiveEquipmentId(id) || ACTIVE_EQUIPMENT[id].slot !== slot || !owned[id]) equipped[slot] = DEFAULT_META.equipped[slot];
+    const id = parsed?.equipped?.[slot];
+    if (isActiveEquipmentId(id) && ACTIVE_EQUIPMENT[id].slot === slot && owned[id]) equipped[slot] = id;
   }
 
   const cosmeticUnlocks: EquipmentId[] = Array.isArray(parsed?.cosmeticUnlocks)
@@ -72,7 +83,8 @@ export function loadMetaProgression(): MetaProgression {
     if (!raw) return structuredClone(DEFAULT_META);
     const parsed = JSON.parse(raw) as any;
     const result = parsed?.version === 4 ? normalizeV4(parsed) : migrateLegacyMetaToV4(parsed);
-    if (parsed?.version !== 4) saveMetaProgression(result);
+    const shouldRewrite = parsed?.version !== 4 || Object.prototype.hasOwnProperty.call(parsed?.equipped ?? {}, 'talisman');
+    if (shouldRewrite) saveMetaProgression(result);
     return result;
   } catch {
     return structuredClone(DEFAULT_META);

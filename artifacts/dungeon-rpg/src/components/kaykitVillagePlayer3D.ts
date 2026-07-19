@@ -90,14 +90,12 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const Loader = pagesSafeLoader(GLTFLoader);
   const loader = new Loader();
   const quiverDefinition = EQUIPMENT[meta.equipped.quiver];
-  const talismanDefinition = EQUIPMENT[meta.equipped.talisman];
 
-  const [rangerGltf, idleGltf, weapons, quiverGltf, talismanGltf] = await Promise.all([
+  const [rangerGltf, idleGltf, weapons, quiverGltf] = await Promise.all([
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
     loadKayKitRangerWeapons(),
     quiverDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverDefinition.assetPath}`) : Promise.resolve(null),
-    talismanDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${talismanDefinition.assetPath}`) : Promise.resolve(null),
   ]);
 
   if (!weapons?.bow) throw new Error('Equipped village bow could not be loaded');
@@ -110,7 +108,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
     quiver: meta.equipped.quiver,
-    talisman: meta.equipped.talisman,
+    armor: meta.equipped.armor,
   };
 
   const visual = rangerGltf.scene;
@@ -152,15 +150,6 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     [0.46, 1.3, -0.1],
     [0.06, 0.48, 0.14],
   );
-  const talismanHolder = addPresentationModel(
-    THREE,
-    equipmentRoot,
-    talismanGltf?.scene ?? null,
-    'VillageVisibleEquippedTalisman',
-    meta.equipped.talisman === 'frost-grimoire' ? 0.28 : 0.2,
-    [0.02, 1.08, 0.38],
-    [Math.PI / 2, 0, 0],
-  );
 
   let arrowCount = 0;
   if (quiverHolder && weapons.arrow) {
@@ -182,7 +171,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   root.userData.visibleEquipment = {
     bow: Boolean(bowHolder),
     quiver: Boolean(quiverHolder),
-    talisman: Boolean(talismanHolder),
+    armor: true,
     arrows: arrowCount,
   };
 

@@ -16,6 +16,8 @@ const [
   guildPanel,
   identityCard,
   profileCard,
+  profileLoadout,
+  profileEquipment,
   socialClient,
   menuScene,
   migration,
@@ -37,6 +39,8 @@ const [
   read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/SocialIdentityCard.tsx'),
   read('../src/components/PlayerProfileCard.tsx'),
+  read('../src/components/ProfileEquipmentLoadout.tsx'),
+  read('../src/game/profileEquipment.ts'),
   read('../src/game/socialProgressOnline.ts'),
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../../../supabase/migrations/20260716001000_add_friend_spectating_and_public_career_stats.sql'),
@@ -74,7 +78,7 @@ const checks = [
   [profileCard.includes('public-player-profile-best-progress') && profileCard.includes('public-player-profile-career-stats') && !profileCard.includes('public-player-profile-progress'), 'friend public profile still uses the duplicate Level/Rank/Chapter layout'],
   [profileCard.includes('rooms_cleared') && profileCard.includes('enemies_defeated') && profileCard.includes('bosses_defeated') && profileCard.includes('quests_completed') && profileCard.includes('play_time_ms'), 'meaningful public career statistics are incomplete'],
   [profileCard.includes('public-player-profile-cosmetics') && profileCard.includes('PROFIL-AUSSTATTUNG') && profileCard.includes('public-player-profile-title-cosmetic') && profileCard.includes('public-player-profile-calling-card-cosmetic') && !profileCard.includes('public-player-profile-avatar-cosmetic') && !profileCard.includes('AUSGEWÄHLTE SAMMLUNG') && profileCard.includes('rarityLabel') && profileCard.includes('public-player-profile-worldboss'), 'friend profile must show only selectable title/calling-card cosmetics and keep rarity/world-boss details'],
-  [profileCard.includes('public-player-profile-equipment') && profileCard.includes('AKTUELLE AUSRÜSTUNG') && profileCard.includes('profile.equipped_items'), 'friend profile does not show the current four-slot equipment loadout'],
+  [profileCard.includes('<ProfileEquipmentLoadout') && profileCard.includes('testId="public-player-profile-equipment"') && profileLoadout.includes('ACTIVE_EQUIPMENT_SLOTS.map') && profileEquipment.includes('normalizeProfileEquipmentItems') && !profileLoadout.toLowerCase().includes('talisman'), 'friend profile does not show the canonical current bow, quiver and armor loadout'],
   [socialClient.includes('syncPublicProfileStats') && socialClient.includes('highest_chapter') && socialClient.includes('highest_room') && socialClient.includes('rooms_cleared') && socialClient.includes('equippedItems'), 'public career profile client fields or equipment publication are incomplete'],
   [expansionMigration.includes('greatest(coalesce((current_stats') && expansionMigration.includes("'highestChapter'") && expansionMigration.includes("'playTimeMs'") && expansionMigration.includes("'equippedItems'"), 'server-side public career values or equipped items are not protected and persisted'],
 ];
@@ -86,4 +90,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Run identity/social spectator audit passed: account names, friend-or-guild buffered viewing, exclusive mobile WebGL handoff, viewer counts, gifts, lifecycle status and public equipment are integrated.');
+console.log('Run identity/social spectator audit passed: account names, friend-or-guild buffered viewing, exclusive mobile WebGL handoff, viewer counts, gifts, lifecycle status and canonical public equipment are integrated.');
