@@ -6,6 +6,7 @@ const files = {
   balance: await readFile(new URL('../src/game/buildBalanceV4.ts', import.meta.url), 'utf8'),
   proxyStage: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
   combatBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
+  diagnostics: await readFile(new URL('../src/components/WorldBossRuntimeDiagnostics.tsx', import.meta.url), 'utf8'),
   arenaGuard: await readFile(new URL('../src/components/WorldBossMobileArenaGuard.tsx', import.meta.url), 'utf8'),
   cohesiveStage: await readFile(new URL('../src/components/WorldBossCohesiveStage.tsx', import.meta.url), 'utf8'),
   aggressiveStage: await readFile(new URL('../src/components/WorldBossAggressiveStage.tsx', import.meta.url), 'utf8'),
@@ -15,6 +16,8 @@ const files = {
   engine: await readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
   vite: await readFile(new URL('../vite.config.ts', import.meta.url), 'utf8'),
   localThreeAudit: await readFile(new URL('./validate-local-three-runtime.mjs', import.meta.url), 'utf8'),
+  browserConfig: await readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
+  browserTest: await readFile(new URL('../tests/worldboss-block1.spec.mjs', import.meta.url), 'utf8'),
 };
 const dragon = await readFile(new URL('../public/assets/3d/Dragon.fbx', import.meta.url));
 const dragonHeader = dragon.subarray(0, 64).toString('utf8');
@@ -46,6 +49,7 @@ const checks = [
   [!files.bossRig.includes('worldBossFallbackDragon3D') && !files.bossRig.includes('procedural-dragon-fallback') && !files.bossRig.includes('createWorldBossFallbackDragonRig'), 'red procedural dragon fallback remains active'],
   [!files.bossRig.includes('0x6f3b2c') && !files.bossRig.includes("emissive.set(0x120302)") && !files.bossRig.includes('.color.lerp('), 'original dragon materials are still being recolored red or brown'],
   [files.bossRig.includes('createNeutralLoadFailureRig') && files.bossRig.includes("dungeonVeilBossVisual = 'load-error-no-fallback'") && files.bossRig.includes('return createNeutralLoadFailureRig(THREE, error);'), 'permanent dragon loading failure still replaces the boss with another figure'],
+  [files.bossRig.includes('getWorldBossLoadedVisual') && files.bossRig.includes('dungeonVeilDragonBounds') && files.bossRig.includes('width: final.size.x') && files.bossRig.includes('minY: final.bounds.min.y'), 'original dragon runtime identity or normalized bounds are not measurable'],
   [files.battle.includes('worldboss-dragon-loading') && files.battle.includes('worldboss-dragon-load-error') && files.battle.includes('SICHER ZURÜCK') && files.combatBand.includes('getWorldBossLoadFailure'), 'neutral dragon loading and safe failure UI are missing'],
   [files.vite.includes("'examples/jsm/loaders/FBXLoader.js'") && files.vite.includes("'examples/jsm/libs/fflate.module.js'") && files.vite.includes("'examples/jsm/curves/NURBSCurve.js'") && files.vite.includes("'examples/jsm/curves/NURBSUtils.js'"), 'local Three.js runtime does not ship the FBX loader dependency graph'],
   [files.localThreeAudit.includes("'assets/vendor/three/examples/jsm/loaders/FBXLoader.js', 100_000") && files.localThreeAudit.includes("'assets/vendor/three/examples/jsm/libs/fflate.module.js', 20_000"), 'built FBX runtime files are not size-validated'],
@@ -54,12 +58,14 @@ const checks = [
   [files.stage.includes('antialias: !IS_MOBILE') && files.stage.includes('renderer.shadowMap.enabled = !IS_MOBILE'), 'mobile-safe renderer policy is missing'],
   [files.battle.includes('const TIMER_PAINT_MS = 250;') && files.battle.includes('if (!readyRef.current || loadErrorRef.current)'), 'timer throttling or ready/load gate is missing'],
   [files.battle.includes('function prepareArena') && files.battle.includes('edge ? TileType.WALL : TileType.FLOOR') && files.battle.includes('engine.ignoreRoomPropCollisions = true;'), 'world-boss arena still uses invisible room-50 collision props'],
-  [files.battle.includes("data-input-contract=\"stable-ref-v2\"") && files.battle.includes("phaseRef.current !== 'fighting'") && files.battle.includes("engine.state.status = 'playing';") && files.battle.includes('const move = useCallback') && files.battle.includes('}, []);'), 'world-boss input bridge still depends on stale React render state'],
+  [files.battle.includes('data-input-contract="stable-ref-v2"') && files.battle.includes("phaseRef.current !== 'fighting'") && files.battle.includes("engine.state.status = 'playing';") && files.battle.includes('const move = useCallback') && files.battle.includes('}, []);'), 'world-boss input bridge still depends on stale React render state'],
   [files.joystick.includes('onPointerMove={floating ? undefined : moveCapturedPointer}') && files.joystick.includes('onPointerUp={floating ? undefined : endCapturedPointer}') && files.joystick.includes('onPointerCancel={floating ? undefined : endCapturedPointer}') && files.joystick.includes('data-pointer-contract="captured-local-and-window"'), 'joystick lacks direct captured pointer handling for iPad WebKit'],
   [files.joystick.includes('knobTransform(next.x, next.y)') && files.joystick.includes("touchAction: 'none'") && files.joystick.includes("overscrollBehavior: 'contain'"), 'joystick transform or touch-scroll isolation is not stable'],
   [files.engine.includes('ignoreRoomPropCollisions = false;') && files.engine.includes('!this.ignoreRoomPropCollisions && shotBlockedByRoomProp') && files.engine.includes('return !this.ignoreRoomPropCollisions && collidesWithRoomProp'), 'engine collision bypass is missing or affects normal rooms'],
   [files.stage.includes("slot.material.color.set('#d8b77a')") && files.stage.includes('const breathGeometry') && files.stage.includes("const breathShot = effect.id.startsWith('boss-shot-breath-')") && files.stage.includes('slot.breath.visible = true'), 'dedicated directional dragon breath or neutral player arrows are missing'],
   [files.stage.includes('ownedTextures.forEach') && files.stage.includes('renderer?.forceContextLoss?.()'), 'renderer or texture cleanup is incomplete'],
+  [files.combatBand.includes('<WorldBossRuntimeDiagnostics') && files.diagnostics.includes('getWorldBossLoadedVisual') && files.diagnostics.includes('dataset.bossVisual') && files.diagnostics.includes('movement-dash-dragon-v2'), 'world-boss runtime diagnostics do not expose movement, dash and original-dragon geometry'],
+  [files.browserConfig.includes('worldboss-block1') && files.browserTest.includes("data-boss-visual', 'original-black-fbx-dragon'") && files.browserTest.includes('data-boss-ground-y') && files.browserTest.includes('data-player-last-dodge') && files.browserTest.includes('toBeGreaterThan(4)') && files.browserTest.includes('FBXLoader.js'), 'four-device browser regression does not prove original-dragon loading, floor alignment, movement and dash'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -69,4 +75,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss V4 audit passed: stable iPad input, pinned local FBX loading, original black dragon-only rendering, bounded retries and safe failure UX are protected.');
+console.log('World-boss V4 audit passed: stable iPad input, pinned same-origin FBX loading, original black dragon geometry, bounded failure UX and four-device movement/dash regression are protected.');
