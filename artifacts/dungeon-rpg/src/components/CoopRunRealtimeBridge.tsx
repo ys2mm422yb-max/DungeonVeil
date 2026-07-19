@@ -31,6 +31,7 @@ import {
   type CoopPlayerPresence,
   type CoopRealtimeStatus,
 } from '../game/coopRealtimePresence';
+import { COOP_RUN_RESTART_EVENT, restartCoopRunAttempt } from '../game/coopRunPersistenceOnline';
 
 const PUBLISH_MS = 100;
 const ENEMY_PUBLISH_MS = 100;
@@ -339,6 +340,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
   const [downedRemainingMs, setDownedRemainingMs] = useState(0);
   const [teamGameOver, setTeamGameOver] = useState(false);
   const [reviveProgress, setReviveProgress] = useState(0);
+  const [restartBusy, setRestartBusy] = useState(false);
   getEngineRef.current = getEngine;
   onRemotePlayerRef.current = onRemotePlayer;
   onStatusRef.current = onStatus;
@@ -416,13 +418,22 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
     }, 50);
   };
 
-  const restartTeam = () => {
-    if (!context || context.role !== 'host' || !teamGameOverRef.current) return;
+  const restartTeam = async () => {
+    if (!context || context.role !== 'host' || !teamGameOverRef.current || restartBusy) return;
     const engine = getEngineRef.current();
     const client = clientRef.current;
     if (!engine || !client) return;
-    resetTeamRun(engine);
-    client.publishTeamRetry(engine.state.chapter, engine.state.floor);
+    setRestartBusy(true);
+    try {
+      await restartCoopRunAttempt();
+      resetTeamRun(engine);
+      window.dispatchEvent(new Event(COOP_RUN_RESTART_EVENT));
+      client.publishTeamRetry(engine.state.chapter, engine.state.floor);
+    } catch (error) {
+      console.error('Duo run attempt could not restart', error);
+    } finally {
+      setRestartBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -544,6 +555,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
           const engine = getEngineRef.current();
           if (!engine || context.role !== 'guest') return;
           resetTeamRun(engine);
+          window.dispatchEvent(new Event(COOP_RUN_RESTART_EVENT));
         },
         onRoomAdvanceRequest: event => {
           const engine = getEngineRef.current();
@@ -702,7 +714,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
         <div className="text-[9px] font-black uppercase tracking-[.28em] text-red-200/55">DUO-RUN</div>
         <div className="mt-2 font-serif text-3xl text-red-50">BEIDE GEFALLEN</div>
         <div className="mt-3 text-[10px] leading-relaxed text-red-100/62">Der gemeinsame Run ist beendet. Nur der Host kann beide Spieler zusammen neu starten.</div>
-        {context.role === 'host' ? <button type="button" data-testid="coop-team-retry" onClick={restartTeam} className="mt-6 min-h-12 w-full rounded-xl border border-amber-200/35 bg-amber-300/16 px-4 py-3 text-[10px] font-black uppercase tracking-[.2em] text-amber-50">GEMEINSAM NEU STARTEN</button> : <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[9px] font-black uppercase tracking-[.18em] text-white/55">WARTE AUF DEN HOST</div>}
+        {context.role === 'host' ? <button type="button" data-testid="coop-team-retry" disabled={restartBusy} onClick={() => void restartTeam()} className="mt-6 min-h-12 w-full rounded-xl border border-amber-200/35 bg-amber-300/16 px-4 py-3 text-[10px] font-black uppercase tracking-[.2em] text-amber-50 disabled:opacity-45">{restartBusy ? 'NEUER VERSUCH WIRD GESICHERT…' : 'GEMEINSAM NEU STARTEN'}</button> : <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[9px] font-black uppercase tracking-[.18em] text-white/55">WARTE AUF DEN HOST</div>}
       </div>
     </div>}
   </>;
