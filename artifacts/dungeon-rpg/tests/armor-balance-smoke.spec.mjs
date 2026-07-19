@@ -51,7 +51,7 @@ test('armor preview uses a male KayKit model and animated ready stance', async (
   await expect(preview.locator('canvas')).toBeVisible({ timeout: 30_000 });
 
   const meta = await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}'));
-  expect(meta.version).toBe(3);
+  expect(meta.version).toBe(4);
   expect(meta.equipped?.armor).toBe('ranger-cloak');
   expect(meta.owned?.['ranger-cloak']?.level).toBe(1);
   expect(errors, errors.join('\n')).toEqual([]);
