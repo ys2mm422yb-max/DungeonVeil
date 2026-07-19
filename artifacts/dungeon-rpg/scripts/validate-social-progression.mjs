@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 await import('./validate-guild-search-and-join.mjs');
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, spectatorMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, guildPanel, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, villageScene, villagePlayer, main] = await Promise.all([
+const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, spectatorMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, guildPanel, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, villageSceneProxy, hallScene, villagePlayer, main] = await Promise.all([
   read('../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql'),
   read('../../../supabase/migrations/20260713034500_social_acceptance_mailbox_notices.sql'),
   read('../../../supabase/migrations/20260713035500_prepare_recent_world_boss_rewards.sql'),
@@ -28,6 +28,7 @@ const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigrat
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/ModernVillageSquareScene.tsx'),
+  read('../src/components/HallOfVeilScene.tsx'),
   read('../src/components/kaykitVillagePlayer3D.ts'),
   read('../src/main.tsx'),
 ]);
@@ -62,10 +63,10 @@ const checks = [
   [tutorial.includes('data-testid="tutorial-overlay"') && tutorial.includes('lastDodgeTime') && tutorial.includes('Math.hypot(player.x') && tutorial.includes('KAPITEL 7 · WELTENHÜTER'), 'seven-part interactive tutorial is incomplete'],
   [tutorialState.includes('requestTutorialReplay') && tutorialState.includes('completeTutorial') && bridge.includes('<TutorialOverlay'), 'tutorial persistence or gameplay bridge is missing'],
   [menu.includes('Tutorial wiederholen') && menu.includes('requestTutorialReplay') && menu.includes('syncSocialProfileProgress'), 'main-menu tutorial replay or social progress sync is missing'],
-  [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-questmaster') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-scout') && villageHub.includes('npc-guildmaster') && !villageHub.includes('npc-worldkeeper'), 'interactive village social navigation is missing or still contains the world-boss route'],
-  [menu.includes('<VillageNpcHub') && menuScene.includes('ModernVillageSquareScene') && villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)'), 'village NPC navigation is not backed by the focused equipped Ranger scene'],
+  [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-questmaster') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-scout') && villageHub.includes('npc-guildmaster') && !villageHub.includes('npc-worldkeeper'), 'interactive social navigation is missing or still contains the world-boss route'],
+  [menu.includes('<VillageNpcHub') && menuScene.includes('ModernVillageSquareScene') && menuScene.includes('SPECTATOR_RENDERER_EVENT') && villageSceneProxy.includes('HallOfVeilScene') && hallScene.includes("hallRoot.userData.sceneContract = 'hall-of-the-veil-v4'") && hallScene.includes('loadKayKitVillageArcher') && hallScene.includes('marketStalls: 0') && hallScene.includes('decorativeNpcs: 0') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)'), 'social navigation is not backed by the focused equipped Ranger in the Hall of the Veil'],
   [main.includes("qaMode === 'tutorial'") && main.includes('<TutorialVisualQa'), 'tutorial visual QA route is missing'],
-  [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'village menu visual QA route is missing'],
+  [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Hall menu visual QA route is missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -75,5 +76,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: public career profiles, cosmetic social cards, friend-only live viewing, server boss gates and focused Ranger remain integrated.');
+console.log('Social progression audit passed: public career profiles, friend-only live viewing, server boss gates and the focused Hall Ranger remain integrated.');
 // User-authored rerun marker after the scoped Play-overlay browser selector fix.
