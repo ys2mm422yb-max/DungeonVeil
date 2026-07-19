@@ -38,8 +38,8 @@ assert(targeting.includes('collectBalancedEquipmentDrop(id)'), 'crafted copies d
 
 assert(dropContract.includes('HUNT_EQUIPMENT_DROP_CHANCE = 0.08'), 'runtime hunt equipment chance is not 8%');
 assert(dropContract.includes('50: 0.42'), 'room-50 milestone chance is missing');
-assert(dropContract.includes('UNOWNED_ITEM_PREFERENCE = 0.35'), 'bounded unowned-item preference missing');
-assert(dropContract.includes('receivedWish ? 0 : misses + 1'), 'wish misses do not advance/reset correctly');
+assert(dropContract.includes('unowned.length > 0 && random() < 0.35 ? unowned : pool'), 'bounded unowned-item preference missing');
+assert(dropContract.includes('receivedWish ? 0 : Math.min(pity, misses + 1)'), 'wish misses do not advance/reset correctly');
 assert(dropContract.includes("`${runId}:${safeChapter}:hunt-wish`"), 'hunt wish attempt is not chapter-bounded');
 assert(dropContract.includes('(meta.owned[item.id]?.level ?? 0) < 5'), 'level-five items remain in active drop pools');
 assert(rewardContract.includes('rollBossEquipmentReward(safeChapter, safeFloor)'), 'boss equipment contract is not owned by chapter rewards');
