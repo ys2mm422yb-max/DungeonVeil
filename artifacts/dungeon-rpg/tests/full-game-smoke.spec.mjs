@@ -151,6 +151,15 @@ test('main menu, profile and every hub panel open without fatal errors', async (
         rewardLedger: [],
         currentRunId: '',
       }));
+      const ownedRelics = ['ash-eye', 'marked-claw', 'veil-heart'];
+      localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
+        version: 2, owned: ownedRelics, equipped: 'marked-claw',
+        consumedHeartRuns: [], activatedWorldCoreRuns: [], relicMisses: { hunt: 0, boss: 0 }, crownRunStacks: {},
+      }));
+      const markers = JSON.parse(localStorage.getItem('dungeon-veil-seen-unlocks-v1') || '{}');
+      localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
+        ...markers, version: 2, initialized: true, relics: ownedRelics, announcedRelics: ownedRelics,
+      }));
     });
     await reloadMenu(page, testInfo.project.name);
     await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0);
@@ -172,6 +181,16 @@ test('main menu, profile and every hub panel open without fatal errors', async (
       };
     });
     expect(armorMeta).toEqual({ version: 4, equippedArmor: 'ranger-cloak', starterArmorLevel: 1 });
+
+    await page.getByTestId('inventory-tab-relic').click();
+    await expect(page.getByTestId('relic-library-layout')).toBeVisible();
+    await expect(page.locator('[data-relic-card="true"]')).toHaveCount(7);
+    await expect(page.getByTestId('relic-card-marked-claw')).toHaveAttribute('data-active', 'true');
+    await expect(page.getByTestId('relic-card-world-core')).toHaveAttribute('data-owned', 'false');
+    await expect(page.getByTestId('relic-detail-panel')).toContainText(/Jeder siebte Kill|Every seventh kill/i);
+    await expect(page.getByTestId('relic-collection-count')).toContainText('3 / 7');
+    const relicColumns = await page.getByTestId('relic-card-grid').evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+    expect(relicColumns).toBe((page.viewportSize()?.width ?? 390) >= 640 ? 2 : 1);
     await assertNoHorizontalOverflow(page);
   });
 
