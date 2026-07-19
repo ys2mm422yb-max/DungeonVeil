@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [online, overlay, session, reward, migration, ambiguityFix, authority, winnerIndex] = await Promise.all([
+const [online, overlay, session, persistence, reward, migration, ambiguityFix, authority, winnerIndex] = await Promise.all([
   read('../src/game/coopBossLootOnline.ts'),
   read('../src/components/CoopBossLootOverlay.tsx'),
   read('../src/components/GameSessionBridge.tsx'),
+  read('../src/components/CoopRunPersistenceBridge.tsx'),
   read('../src/game/chapterRewardContract.ts'),
   read('../../../supabase/migrations/20260719013000_add_coop_boss_loot_claims.sql'),
   read('../../../supabase/migrations/20260719014500_fix_coop_boss_loot_rpc_ambiguity.sql'),
@@ -17,7 +18,8 @@ const checks = [
   [overlay.includes("getMyCoopLobby") && overlay.includes("collectBalancedEquipmentDrop") && !overlay.includes("rollBossEquipmentReward"), 'lobby lookup, local entitlement application or server-only item selection is missing'],
   [overlay.includes("my_consolation_dust") && overlay.includes("BEANSPRUCHEN") && overlay.includes("PASSEN"), 'claim/pass UI or consolation outcome is missing'],
   [overlay.includes("engine.canExitRoom = () => false") && overlay.includes("COOP_BOSS_LOOT_PENDING_DATASET"), 'room exit is not blocked while shared loot is unresolved'],
-  [session.includes("skipEquipmentDrop: true") && session.includes("dispatchCoopBossLootOpen"), 'Duo currency and shared boss equipment are not separated'],
+  [session.includes("dispatchCoopRoomClear") && persistence.includes("skipEquipmentDrop: true") && persistence.includes("dispatchCoopBossLootOpen"), 'Duo currency and shared boss equipment are not separated behind the secured room reward'],
+  [persistence.indexOf("acknowledgeCoopRoomReward") < persistence.indexOf("dispatchCoopBossLootOpen"), 'Boss loot can open before the room reward is acknowledged'],
   [reward.includes("skipEquipmentDrop?: boolean") && reward.includes("!normalized.skipEquipmentDrop"), 'chapter reward contract cannot suppress the local Duo equipment roll'],
   [migration.includes("coop_boss_loot_rolls") && migration.includes("coop_boss_loot_choices"), 'server loot tables are missing'],
   [migration.includes("private.resolve_coop_boss_loot") && migration.includes("hashtextextended") && migration.includes("consolation_dust = 60"), 'atomic contested resolution or fixed consolation dust is missing'],
@@ -35,4 +37,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Shared Duo boss loot claim/pass flow, server-authoritative item selection, atomic winner selection, unambiguous conflict targets, indexed winner lookup, 60-dust contested fallback, timeout and room-exit guard validated.');
+console.log('Shared Duo boss loot claim/pass flow, server-authoritative item selection, reward-ack gating, atomic winner selection, unambiguous conflict targets, indexed winner lookup, 60-dust contested fallback, timeout and room-exit guard validated.');
