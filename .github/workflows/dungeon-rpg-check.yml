@@ -60,12 +60,14 @@ jobs:
           node artifacts/dungeon-rpg/scripts/validate-coop-shared-boss-loot.mjs
           node artifacts/dungeon-rpg/scripts/validate-coop-duo-balance-rewards.mjs
           node artifacts/dungeon-rpg/scripts/validate-coop-final-integration.mjs
-      - name: Diagnose combat presentation audits
-        run: |
-          node artifacts/dungeon-rpg/scripts/validate-mage-ranged-combat.mjs
-          node artifacts/dungeon-rpg/scripts/run-room-audit-suite.mjs
-          node artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs
-          node artifacts/dungeon-rpg/scripts/validate-run-visibility-mage-loot-duo.mjs
+      - name: Diagnose mage ranged combat
+        run: node artifacts/dungeon-rpg/scripts/validate-mage-ranged-combat.mjs
+      - name: Diagnose room audit suite
+        run: node artifacts/dungeon-rpg/scripts/run-room-audit-suite.mjs
+      - name: Diagnose boss telegraphs
+        run: node artifacts/dungeon-rpg/scripts/validate-boss-room-telegraphs-and-meadow.mjs
+      - name: Diagnose visibility loot and duo
+        run: node artifacts/dungeon-rpg/scripts/validate-run-visibility-mage-loot-duo.mjs
       - name: Diagnose relic runtime audit
         run: node artifacts/dungeon-rpg/scripts/validate-relic-runtime-ui-v4.mjs
       - name: Diagnose codex visual audit
