@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [bundle, safety, cloud, runtime, saveManager, onlinePanel, updateGate, spectator, spectatorScreen, hud, themes, migration] = await Promise.all([
+const [bundle, safety, cloud, runtime, saveManager, onlinePanel, updateGate, spectator, spectatorPlayback, spectatorScreen, hud, themes, migration] = await Promise.all([
   read('../src/game/persistentSaveBundle.ts'),
   read('../src/game/cloudSaveSafety.ts'),
   read('../src/game/cloudSave.ts'),
@@ -10,6 +10,7 @@ const [bundle, safety, cloud, runtime, saveManager, onlinePanel, updateGate, spe
   read('../src/components/OnlinePanel.tsx'),
   read('../src/components/MainMenuUpdateGate.tsx'),
   read('../src/game/socialSpectatorOnline.ts'),
+  read('../src/game/spectatorPlayback.ts'),
   read('../src/components/SpectatorScreen.tsx'),
   read('../src/components/HUD.tsx'),
   read('../src/components/kaykitRoomThemes3D.ts'),
@@ -30,8 +31,10 @@ const checks = [
   [updateGate.includes('CLOUD_POLL_MS = 15_000') && updateGate.includes('pullCloudSave') && updateGate.includes('window.location.reload'), 'main-menu multi-device refresh is missing'],
   [updateGate.includes('cloudAccountHydrated') && updateGate.includes('safeReload(false)') && !updateGate.includes('pull(true)'), 'main menu can still push a fresh device before its first pull'],
   [updateGate.includes('deployment.json') && updateGate.includes('UPDATE_DELAY_MS') && updateGate.includes('pushCloudSave'), 'safe automatic main-menu deployment update is missing'],
-  [spectator.includes('SPECTATOR_REFRESH_MS = 100') && spectator.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not ten-hertz and gift-aware'],
-  [spectatorScreen.includes('INTERPOLATION_MS = 120') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator smoothing, gifts or heartbeat are missing'],
+  [spectator.includes('SPECTATOR_REFRESH_MS = 200') && spectator.includes('SPECTATOR_EFFECT_LIMIT = 12') && spectator.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not compact five-hertz and gift-aware'],
+  [spectatorPlayback.includes('SPECTATOR_BUFFER_LIMIT = 8') && spectatorPlayback.includes('SPECTATOR_INTERPOLATION_DELAY_MS = 240') && spectatorPlayback.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 110'), 'spectator buffer, timestamp interpolation or extrapolation cap is missing'],
+  [spectatorScreen.includes('SpectatorPlaybackBuffer') && spectatorScreen.includes('const SpectatorScene = memo') && !spectatorScreen.includes('setDisplayState') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator smoothing, stable scene rendering, gifts or heartbeat are missing'],
+  [spectatorScreen.includes('spectator-performance-diagnostics') && spectatorScreen.includes('canvasCount') && spectatorScreen.includes('reactCommits'), 'spectator runtime diagnostics do not measure renderer exclusivity or React churn'],
   [hud.includes('spectator-viewer-count') && hud.includes('loadMySpectatorViewerCount'), 'the watched player cannot see the current viewer count'],
   [migration.includes('spectator_viewers') && migration.includes('heartbeat_spectator_viewer') && migration.includes('get_my_spectator_viewer_count'), 'spectator presence storage or RPCs are missing'],
   [themes.includes("node.geometry?.type === 'RingGeometry'") && themes.includes('node.visible = false'), 'decorative static room rings are not removed'],
@@ -45,4 +48,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Explicit player-name confirmation, pull-first account hydration, thin-bundle protection, recovery repair, automatic cloud reconciliation, safe updates, spectating and mobile performance validated.');
+console.log('Explicit player-name confirmation, pull-first account hydration, thin-bundle protection, recovery repair, automatic cloud reconciliation, safe updates, buffered spectating and mobile performance validated.');
