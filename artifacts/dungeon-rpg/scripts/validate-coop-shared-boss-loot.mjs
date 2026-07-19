@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [online, overlay, session, persistence, reward, migration, ambiguityFix, authority, winnerIndex] = await Promise.all([
+const [online, overlay, session, persistence, reward, migration, ambiguityFix, authority, winnerIndex, rebalanceV4] = await Promise.all([
   read('../src/game/coopBossLootOnline.ts'),
   read('../src/components/CoopBossLootOverlay.tsx'),
   read('../src/components/GameSessionBridge.tsx'),
@@ -11,10 +11,12 @@ const [online, overlay, session, persistence, reward, migration, ambiguityFix, a
   read('../../../supabase/migrations/20260719014500_fix_coop_boss_loot_rpc_ambiguity.sql'),
   read('../../../supabase/migrations/20260719020000_make_coop_boss_loot_server_authoritative.sql'),
   read('../../../supabase/migrations/20260719021500_index_coop_boss_loot_winner.sql'),
+  read('../../../supabase/migrations/20260719110000_rebalance_coop_boss_loot_v4.sql'),
 ]);
 
 const rewardAckCall = persistence.indexOf('await acknowledgeCoopRoomReward(reward.entitlement_id)');
 const bossLootOpenCall = persistence.indexOf('if (isBossRoom(reward.room)) dispatchCoopBossLootOpen');
+const retryIdentity = "p_lobby_id::text || ':' || p_run_seed::text || ':' || v_run_attempt::text";
 
 const checks = [
   [online.includes("COOP_BOSS_LOOT_OPEN_EVENT") && online.includes("chooseCoopBossLoot") && online.includes("open_coop_boss_loot"), 'Duo boss loot client does not use the secured RPC contract'],
@@ -32,6 +34,10 @@ const checks = [
   [authority.includes('private.coop_boss_loot_catalog') && authority.includes('min(profile.current_rank)') && authority.includes('v_candidate_index'), 'server-side catalog, lower-team-rank gate or deterministic item selection is missing'],
   [authority.includes('drop function public.open_coop_boss_loot(uuid, bigint, integer, integer, text, text, text)') && !online.includes('p_item_id') && !online.includes('p_rarity') && !online.includes('p_source'), 'clients can still submit or force the shared equipment identity'],
   [winnerIndex.includes('coop_boss_loot_rolls_winner_user_idx') && winnerIndex.includes('where winner_user_id is not null'), 'resolved loot winner foreign key lacks a focused covering index'],
+  [rebalanceV4.includes('drop_available boolean not null default true') && rebalanceV4.includes("'resolved', false"), 'V4 no-equipment outcomes are not persisted as resolved idempotent rolls'],
+  [rebalanceV4.includes('select lobby.run_attempt into v_run_attempt') && rebalanceV4.includes(retryIdentity), 'V4 boss loot does not derive or hash the active retry attempt'],
+  [rebalanceV4.includes('lobby_id, run_seed, run_attempt, chapter, room') && rebalanceV4.includes('roll.run_attempt = v_run_attempt'), 'V4 boss loot inserts or lookups can collapse separate retry attempts'],
+  [rebalanceV4.includes('on conflict on constraint coop_boss_loot_rolls_lobby_attempt_room_key') && !rebalanceV4.includes('on conflict (lobby_id, run_seed, chapter, room)'), 'V4 boss loot does not use the existing retry-aware unique constraint'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -40,4 +46,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Shared Duo boss loot claim/pass flow, server-authoritative item selection, reward-ack gating, atomic winner selection, unambiguous conflict targets, indexed winner lookup, 60-dust contested fallback, timeout and room-exit guard validated.');
+console.log('Shared Duo boss loot claim/pass flow, V4 retry isolation, server-authoritative item selection, reward-ack gating, atomic winner selection, unambiguous conflict targets, indexed winner lookup, 60-dust contested fallback, timeout and room-exit guard validated.');

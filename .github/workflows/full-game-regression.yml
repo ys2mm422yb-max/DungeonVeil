@@ -88,7 +88,7 @@ jobs:
             sleep 1
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+          timeout --signal=TERM --kill-after=30s 30m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
       - name: Build compact Playwright failure summary
         if: steps.browser-tests.outcome == 'failure'
         shell: bash

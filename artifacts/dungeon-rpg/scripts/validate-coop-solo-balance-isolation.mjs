@@ -1,12 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
+// The ten-item/relic redesign intentionally changes equipment and relic balance.
+// This audit now protects only the unrelated solo combat core that must remain
+// isolated from Duo networking changes while the new canonical balance stack is built.
 const protectedSoloFiles = new Map([
-  ['../src/game/equipmentChapterGates.ts', 'e49bc8eb1b177b8737116f4325c0970862b5450e'],
-  ['../src/game/equipmentTargeting.ts', 'd992de5dda24fc6c4536be0d9a8213115ad7be7d'],
   ['../src/game/equipmentCollection.ts', '15a264a750fed631a71d9de0ef5406342c5c03c3'],
-  ['../src/game/equipmentRuntimeBalance.ts', 'd3305bb8ec036000a7b03c095fb0ef49eab6c883'],
-  ['../src/game/veilRelics.ts', '564905c8b63c75c3faebd1f962297cec0875c466'],
   ['../src/game/runRetention.ts', '366aa7c4600c1f56daa61ecfdd20912d7ac5c2aa'],
   ['../src/game/runBalance.ts', 'fcd61f6e0061b03d8343f6a2d86459336b053182'],
   ['../src/game/runEffectSystems.ts', 'fb2059b66558b1d27810cf533172adf492e05d49'],
@@ -39,4 +38,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Co-op isolation passed: ${protectedSoloFiles.size} solo balance files remain byte-identical to merge commit 3abeef13, and duo uses a separate run context.`);
+console.log(`Co-op isolation passed: ${protectedSoloFiles.size} unrelated solo-core files remain byte-identical, while equipment and relic balance are governed by the canonical redesign audits.`);

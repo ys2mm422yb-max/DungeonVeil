@@ -4,7 +4,10 @@ const PRE_RESTORE_BACKUP_KEY = 'dungeon-veil-pre-cloud-restore-v1';
 const CORE_BUNDLE_KEYS = [
   'dungeon-veil-save',
   'dungeon-veil-meta',
+  'dungeon-veil-equipment-targeting-v2',
   'dungeon-veil-equipment-targeting-v1',
+  'dungeon-veil-equipment-redesign-v1',
+  'dungeon-veil-relics-v2',
   'dungeon-veil-relics-v1',
   'dungeon-veil-retention-v2',
   'dungeon-veil-weekly-rift-records-v1',
@@ -44,32 +47,33 @@ function createPlayerId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `veil-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
-
 function record(value: unknown): JsonRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
 }
-
 function parseBundleValue(bundle: DungeonVeilSaveBundle, key: string): JsonRecord {
   const raw = bundle.data[key];
   if (typeof raw !== 'string') return {};
   try { return record(JSON.parse(raw)); } catch { return {}; }
 }
-
+function parseFirstBundleValue(bundle: DungeonVeilSaveBundle, keys: readonly string[]): JsonRecord {
+  for (const key of keys) {
+    const value = parseBundleValue(bundle, key);
+    if (Object.keys(value).length > 0) return value;
+  }
+  return {};
+}
 function number(value: unknown): number {
   return Math.max(0, Number(value) || 0);
 }
-
 function stringArrayLength(value: unknown): number {
   return Array.isArray(value) ? value.filter(item => typeof item === 'string').length : 0;
 }
-
 function isCloudManagedKey(key: string): boolean {
   if (DEVICE_ONLY_KEYS.has(key)) return false;
   if (key === 'dungeon-veil-language') return true;
   if (!key.startsWith('dungeon-veil-')) return false;
   return !/(?:session|cloud-revision|pre-cloud-restore|performance|low-gpu|spectating-allowed|update-dismissed|debug|asset-cache)/i.test(key);
 }
-
 function managedBundleKeys(bundle?: DungeonVeilSaveBundle): string[] {
   const keys = new Set<string>(CORE_BUNDLE_KEYS);
   try {
@@ -83,7 +87,6 @@ function managedBundleKeys(bundle?: DungeonVeilSaveBundle): string[] {
   }
   return [...keys].sort();
 }
-
 function equipmentProgressWeight(value: unknown): number {
   return Object.values(record(value)).reduce<number>((total, raw) => {
     if (typeof raw === 'number') return total + Math.max(1, Math.floor(number(raw))) * 2_500;
@@ -93,7 +96,6 @@ function equipmentProgressWeight(value: unknown): number {
     return total + level * 2_500 + copies * 300;
   }, 0);
 }
-
 function sourceMarkWeight(value: unknown): number {
   return Object.values(record(value)).reduce<number>((total, raw) => total + Math.floor(number(raw)) * 3_000, 0);
 }
@@ -109,15 +111,12 @@ export function persistentPlayerId(): string {
     return createPlayerId();
   }
 }
-
 export function cloudRevision(): string {
   try { return localStorage.getItem(CLOUD_REVISION_KEY) ?? ''; } catch { return ''; }
 }
-
 export function markCloudRevision(updatedAt: string): void {
   try { localStorage.setItem(CLOUD_REVISION_KEY, updatedAt); } catch {}
 }
-
 export function clearCloudRevision(): void {
   try { localStorage.removeItem(CLOUD_REVISION_KEY); } catch {}
 }
@@ -148,11 +147,12 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   const stats = record(profile.stats);
   const meta = parseBundleValue(bundle, 'dungeon-veil-meta');
   const owned = record(meta.owned);
-  const targeting = parseBundleValue(bundle, 'dungeon-veil-equipment-targeting-v1');
+  const targeting = parseFirstBundleValue(bundle, ['dungeon-veil-equipment-targeting-v2', 'dungeon-veil-equipment-targeting-v1']);
+  const migration = parseBundleValue(bundle, 'dungeon-veil-equipment-redesign-v1');
   const retention = parseBundleValue(bundle, 'dungeon-veil-retention-v2');
   const codex = record(retention.codex);
   const elite = parseBundleValue(bundle, 'dungeon-veil-weekly-elite-v1');
-  const relics = parseBundleValue(bundle, 'dungeon-veil-relics-v1');
+  const relics = parseFirstBundleValue(bundle, ['dungeon-veil-relics-v2', 'dungeon-veil-relics-v1']);
 
   let weight = 0;
   if (typeof save.playerName === 'string' && save.playerName.trim()) {
@@ -179,11 +179,15 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   weight += equipmentProgressWeight(owned);
   weight += sourceMarkWeight(targeting.sourceMarks);
   if (typeof targeting.wishItem === 'string' && targeting.wishItem) weight += 2_000;
+  weight += stringArrayLength(meta.cosmeticUnlocks) * 1_000;
+  weight += stringArrayLength(migration.cosmeticUnlocks) * 1_000;
+  weight += number(record(migration.compensation).gold) / 10 + number(record(migration.compensation).dust) * 100;
   weight += number(retention.sigils) * 100;
   weight += stringArrayLength(codex.enemies) * 500 + stringArrayLength(codex.bosses) * 2_000;
   weight += stringArrayLength(codex.hunts) * 1_000 + stringArrayLength(codex.relics) * 3_000;
   weight += number(elite.eliteMarks) * 20_000 + stringArrayLength(elite.ownedRewardIds) * 25_000;
   weight += stringArrayLength(relics.owned) * 8_000;
+  weight += number(record(relics.relicMisses).hunt) * 500 + number(record(relics.relicMisses).boss) * 500;
   return Math.floor(weight);
 }
 
@@ -194,13 +198,11 @@ export function bundleActivityTimestamp(bundle: DungeonVeilSaveBundle): number {
   if (!hasProgress) return 0;
   return Math.max(number(bundle.activityAt), number(save.savedAt), number(profile.updatedAt));
 }
-
 export function shouldRestoreRemoteBundle(local: DungeonVeilSaveBundle, remote: DungeonVeilSaveBundle): boolean {
   const localWeight = Math.max(bundleProgressWeight(local), number(local.progressWeight));
   const remoteWeight = Math.max(bundleProgressWeight(remote), number(remote.progressWeight));
   if (localWeight <= 0) return remoteWeight > 0;
   if (remoteWeight <= 0) return false;
-
   const localActivity = bundleActivityTimestamp(local);
   const remoteActivity = bundleActivityTimestamp(remote);
   if (remoteActivity > localActivity) return true;
@@ -208,13 +210,11 @@ export function shouldRestoreRemoteBundle(local: DungeonVeilSaveBundle, remote: 
   if (remoteWeight !== localWeight) return remoteWeight > localWeight;
   return Date.parse(remote.updatedAt) > Date.parse(local.updatedAt);
 }
-
 function preserveLocalBeforeRestore(): void {
   const local = exportSaveBundle();
   if (bundleProgressWeight(local) <= 0) return;
   try { localStorage.setItem(PRE_RESTORE_BACKUP_KEY, JSON.stringify(local)); } catch {}
 }
-
 export function importSaveBundle(bundle: DungeonVeilSaveBundle): boolean {
   if (!bundle || bundle.version !== 1 || typeof bundle.playerId !== 'string' || !bundle.data) return false;
   try {

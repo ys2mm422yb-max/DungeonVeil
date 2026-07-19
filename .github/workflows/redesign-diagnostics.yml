@@ -1,0 +1,58 @@
+name: Redesign Diagnostics
+
+on:
+  push:
+    branches: ['agent/**', 'work/**']
+  pull_request:
+    branches: ['fix/**']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture diagnostics
+        shell: bash
+        run: |
+          set +e
+          run_check() {
+            name="$1"
+            shift
+            "$@" > "${name}.log" 2>&1
+            echo $? > "${name}.exit"
+          }
+          run_check typecheck pnpm run typecheck
+          run_check build pnpm --dir artifacts/dungeon-rpg run build
+          run_check audit-final pnpm --dir artifacts/dungeon-rpg run audit:final
+          run_check audit-assets pnpm --dir artifacts/dungeon-rpg run audit:assets
+          run_check audit-social pnpm --dir artifacts/dungeon-rpg run audit:social
+          run_check audit-rooms pnpm --dir artifacts/dungeon-rpg run audit:rooms
+          run_check audit-economy pnpm --dir artifacts/dungeon-rpg run audit:economy
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: redesign-diagnostics
+          path: |
+            *.log
+            *.exit
+          if-no-files-found: error
+      - name: Enforce diagnostics
+        shell: bash
+        run: |
+          failed=0
+          for file in *.exit; do
+            test "$(cat "$file")" = "0" || { echo "$file failed"; failed=1; }
+          done
+          exit "$failed"

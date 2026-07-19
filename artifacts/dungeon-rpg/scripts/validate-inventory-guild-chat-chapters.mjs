@@ -1,23 +1,24 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, main, inventory, markers, unlockLayer, hub, guildPanel, chatPanel, chatClient, meta, gates, migration, invitePermissionFix] = await Promise.all([
+const [menu, main, inventory, markers, unlockLayer, hub, guildPanel, chatPanel, chatClient, rewards, gates, equipment, migration, invitePermissionFix] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/main.tsx'),
-  read('../src/components/screens/VeilChamberScreen.tsx'),
+  read('../src/components/screens/VeilChamberScreenV4.tsx'),
   read('../src/game/newContentMarkers.ts'),
   read('../src/components/UnlockPresentationLayer.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/GuildPanelMobile.tsx'),
   read('../src/components/GuildChatPanel.tsx'),
   read('../src/game/guildChatOnline.ts'),
-  read('../src/game/metaProgression.ts'),
+  read('../src/game/metaRewardsV4.ts'),
   read('../src/game/equipmentChapterGates.ts'),
+  read('../src/game/equipmentRedesign.ts'),
   read('../../../supabase/migrations/20260714183000_guild_text_chat.sql'),
   read('../../../supabase/migrations/20260714194500_fix_guild_invite_mailbox_permission.sql'),
 ]);
 
-const unlockChapters = [...gates.matchAll(/'[^']+':\s*(\d+),/g)].map(match => Number(match[1]));
+const unlockChapters = [...equipment.matchAll(/unlockChapter:\s*(\d+)/g)].map(match => Number(match[1]));
 const representedUnlockChapters = new Set(unlockChapters);
 const recordsChapterFromProps = menu.includes('recordReachedChapter(props.saveData?.chapter ?? 1)');
 const recordsChapterFromRefreshedSave = menu.includes('recordReachedChapter(currentSaveData?.chapter ?? 1)');
@@ -34,8 +35,8 @@ const checks = [
   [guildPanel.includes("type GuildTab = 'overview' | 'chat' | 'members' | 'invite'") && guildPanel.includes("tabButton('chat', 'Chat')") && guildPanel.includes('<GuildChatPanel guildId={membership.guild.id}'), 'guild chat tab is not mounted'],
   [chatPanel.includes('window.setInterval') && chatPanel.includes('5000') && chatPanel.includes('maxLength={400}') && chatPanel.includes('guild-chat-send'), 'guild chat polling, input limit or send control is missing'],
   [chatClient.includes("authenticatedSupabaseRest('guild_messages'") && chatClient.includes('listGuildChatMessages') && chatClient.includes('sendGuildChatMessage'), 'authenticated guild chat client is incomplete'],
-  [meta.includes('equipmentUnlockedForCurrentProgress(item.id)') && meta.includes('recordReachedChapter(chapter)'), 'equipment drops are not chapter gated'],
-  [unlockChapters.length === 26 && Math.min(...unlockChapters) === 1 && Math.max(...unlockChapters) === 10 && [...Array(10)].every((_, index) => representedUnlockChapters.has(index + 1)), 'equipment unlocks must span chapters 1 through 10 without exceeding chapter 10'],
+  [rewards.includes('const reachedChapter = highestReachedChapter()') && rewards.includes('item.unlockChapter > reachedChapter') && rewards.includes('recordReachedChapter(safeChapter)'), 'equipment drops are not chapter gated'],
+  [gates.includes('ACTIVE_EQUIPMENT[id].unlockChapter') && unlockChapters.length === 10 && Math.min(...unlockChapters) === 1 && Math.max(...unlockChapters) === 10 && unlockChapters.every(chapter => chapter >= 1 && chapter <= 10) && representedUnlockChapters.size >= 7, 'the ten active equipment unlocks must be distributed from chapter 1 through chapter 10'],
   [migration.includes('alter table public.guild_messages enable row level security') && migration.includes('guild_messages_read_members') && migration.includes('guild_messages_send_members') && migration.includes('user_id = (select auth.uid())') && migration.includes('guild_messages_user_idx'), 'guild chat RLS or required indexes are incomplete'],
   [invitePermissionFix.includes('create or replace function public.accept_guild_invite') && invitePermissionFix.includes('update public.guild_invites') && !invitePermissionFix.includes('update public.player_mailbox') && invitePermissionFix.includes('grant execute on function public.accept_guild_invite(uuid) to authenticated'), 'guild invite acceptance still writes directly to the protected mailbox table'],
 ];
@@ -46,4 +47,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Inventory/guild-chat/chapter audit passed: persistent NEW markers, visible unlock presentations, chapter 1-10 gates and guild systems remain coherent.');
+console.log('Inventory/guild-chat/chapter audit passed: persistent NEW markers, visible unlock presentations, ten-item chapter gates and guild systems remain coherent.');

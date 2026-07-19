@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
 const files = {
-  battle: await readFile(new URL('../src/components/WorldBossBattleScreen.tsx', import.meta.url), 'utf8'),
+  entry: await readFile(new URL('../src/components/WorldBossBattleScreen.tsx', import.meta.url), 'utf8'),
+  battle: await readFile(new URL('../src/components/WorldBossBattleScreenV4.tsx', import.meta.url), 'utf8'),
+  balance: await readFile(new URL('../src/game/buildBalanceV4.ts', import.meta.url), 'utf8'),
   proxyStage: await readFile(new URL('../src/components/WorldBossLiteStage.tsx', import.meta.url), 'utf8'),
   combatBand: await readFile(new URL('../src/components/WorldBossCombatBandStage.tsx', import.meta.url), 'utf8'),
   arenaGuard: await readFile(new URL('../src/components/WorldBossMobileArenaGuard.tsx', import.meta.url), 'utf8'),
@@ -14,7 +16,13 @@ const files = {
 };
 
 const checks = [
-  [files.battle.includes("import { WorldBossLiteStage }") && files.battle.includes('<WorldBossLiteStage'), 'battle screen is not using the dedicated world-boss stage'],
+  [files.entry.includes("export { WorldBossBattleScreen } from './WorldBossBattleScreenV4';"), 'public battle entry is not routed through the canonical V4 controller'],
+  [files.battle.includes("import { WorldBossLiteStage }") && files.battle.includes('<WorldBossLiteStage'), 'V4 battle screen is not using the dedicated world-boss stage'],
+  [files.battle.includes('WORLD_BOSS_BALANCE_V4.timeLimitSeconds * 1000') && files.balance.includes('timeLimitSeconds: 150'), '150-second V4 attempt contract is missing'],
+  [files.battle.includes('boss.maxHp = WORLD_BOSS_BALANCE_V4.health') && files.balance.includes('health: 118000'), '118,000 HP V4 boss contract is missing'],
+  [files.battle.includes('createEquipmentRuntimeBalanceState') && files.battle.includes('updateEquipmentRuntimeBalance(engine, equipmentRuntime)'), 'world boss does not apply current equipment, critical, speed and defense runtime'],
+  [files.battle.includes('Math.round(localDamage)') && !files.battle.includes('localDamage * 6'), 'world-boss submission still distorts confirmed local damage'],
+  [files.battle.includes('WORLD_BOSS_BALANCE_V4.balanceSeason') && files.balance.includes("balanceSeason: 'equipment-v4-s1'"), 'world-boss balance season is not visible/versioned'],
   [files.proxyStage.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.combatBand.includes('<WorldBossCohesiveStage') && files.combatBand.includes('<WorldBossMobileArenaGuard'), 'world-boss stage routing or phone arena guard is broken'],
   [files.arenaGuard.includes('PHONE_ARENA_HALF_WIDTH_TILES = 5.25') && files.arenaGuard.includes('PHONE_ARENA_HALF_HEIGHT_TILES = 7.65') && files.arenaGuard.includes('enforceWorldBossVisibleArena') && files.arenaGuard.includes('clampEntity(player') && files.arenaGuard.includes('clampEntity(boss'), 'phone fighters can still escape beyond the visible world-boss arena'],
   [files.cohesiveStage.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && files.aggressiveStage.includes('<WorldBossPerspectiveStage'), 'cohesive stage does not route through the aggressive controller'],
@@ -41,9 +49,9 @@ const checks = [
   [files.stage.includes("shadow.name = 'AshKingGroundShadow'") && files.stage.includes('bossRig.root.scale.setScalar(2.0'), 'dominant boss presentation is missing'],
   [files.stage.includes('antialias: !IS_MOBILE') && files.stage.includes('renderer.shadowMap.enabled = !IS_MOBILE'), 'mobile-safe renderer policy is missing'],
   [files.stage.includes("arena: 'single-floor-low-call-kaykit-hall'") && files.stage.includes("camera: 'calm-perspective-camera'") && files.stage.includes('phoneSafeFraming'), 'performance telemetry identity is missing'],
-  [files.battle.includes('const TIMER_PAINT_MS = 250;') && files.battle.includes('if (!arenaReadyRef.current)'), 'timer throttling or ready gate is missing'],
-  [files.battle.includes('function prepareRaidArenaMap') && files.battle.includes('boundary ? TileType.WALL : TileType.FLOOR') && files.battle.includes('engine.ignoreRoomPropCollisions = true;') && files.battle.includes('ignoreRoomProps: true'), 'world-boss arena still uses invisible room-50 collision props'],
-  [files.battle.includes('const handleMove = useCallback') && files.battle.includes('}, [arenaReady, phase]);'), 'world-boss joystick callback is unstable across HUD rerenders'],
+  [files.battle.includes('const TIMER_PAINT_MS = 250;') && files.battle.includes('if (!readyRef.current)'), 'timer throttling or ready gate is missing'],
+  [files.battle.includes('function prepareArena') && files.battle.includes('edge ? TileType.WALL : TileType.FLOOR') && files.battle.includes('engine.ignoreRoomPropCollisions = true;'), 'world-boss arena still uses invisible room-50 collision props'],
+  [files.battle.includes('const move = useCallback') && files.battle.includes('}, [phase, ready]);'), 'world-boss joystick callback is unstable across HUD rerenders'],
   [files.engine.includes('ignoreRoomPropCollisions = false;') && files.engine.includes('!this.ignoreRoomPropCollisions && shotBlockedByRoomProp') && files.engine.includes('return !this.ignoreRoomPropCollisions && collidesWithRoomProp'), 'engine collision bypass is missing or affects normal rooms'],
   [files.stage.includes("slot.material.color.set('#d8b77a')") && files.stage.includes('const breathGeometry') && files.stage.includes("const breathShot = effect.id.startsWith('boss-shot-breath-')") && files.stage.includes('slot.breath.visible = true') && files.stage.includes('slot.breath.scale.set(1.18 * pulse, 1.55, 1.18 * pulse)'), 'dedicated directional dragon breath or neutral player arrows are missing'],
   [files.stage.includes('ownedTextures.forEach') && files.stage.includes('renderer?.forceContextLoss?.()'), 'renderer or texture cleanup is incomplete'],
@@ -56,4 +64,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss performance audit passed: imported FBX dragon uses cache-safe validated loading and every failure falls back to an animated dragon silhouette.');
+console.log('World-boss V4 audit passed: canonical 150-second equipment-aware combat, seasonal damage accounting and mobile-safe dragon presentation are protected.');

@@ -11,7 +11,7 @@ const loadingScreen = read('src/components/LoadingScreen.tsx');
 const globalLayer = read('src/components/GlobalLoadingLayer.tsx');
 const main = read('src/main.tsx');
 const characterCreation = read('src/components/screens/CharacterCreationModern.tsx');
-const worldBoss = read('src/components/WorldBossBattleScreen.tsx');
+const worldBoss = read('src/components/WorldBossBattleScreenV4.tsx');
 
 for (const variant of ["'boot'", "'run'", "'worldBoss'"]) {
   requireText(loadingScreen, variant, `LoadingScreen is missing ${variant}`);
@@ -30,6 +30,8 @@ requireText(characterCreation, 'new-run-loading-screen', 'New-run full-screen lo
 requireText(characterCreation, 'RUN_PRELOAD_MAX_MS', 'New-run asset loading has no hard deadline');
 requireText(characterCreation, 'Promise.race([preloadRun(), delay(RUN_PRELOAD_MAX_MS)])', 'A stalled optional model can still block a new run indefinitely');
 requireText(characterCreation, 'let runPreloadPromise', 'New-run preloading can still be started repeatedly');
-requireText(worldBoss, 'BOSSARENA WIRD GELADEN', 'World-boss arena loader was removed');
+requireText(worldBoss, '<WorldBossLiteStage engineRef={engineRef} onReady={handleReady} />', 'World-boss stage readiness bridge was removed');
+requireText(worldBoss, "ready ? `${seconds}s` : (de ? 'LÄDT' : 'LOAD')", 'World-boss arena loading state was removed');
+requireText(worldBoss, "ready && phase === 'fighting'", 'World-boss controls can appear before the arena is ready');
 
-console.log('Loading transitions verified: boot and new-run loading have hard deadlines; room entry and world boss remain covered.');
+console.log('Loading transitions verified: boot and new-run loading have hard deadlines; room entry and world-boss V4 readiness remain covered.');

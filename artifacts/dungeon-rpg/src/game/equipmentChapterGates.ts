@@ -1,35 +1,7 @@
+import { ACTIVE_EQUIPMENT, isActiveEquipmentId } from './equipmentRedesign';
 import type { EquipmentId } from './metaProgression';
 
 const CHAPTER_KEY = 'dungeon-veil-highest-chapter-v1';
-
-export const EQUIPMENT_UNLOCK_CHAPTER: Record<EquipmentId, number> = {
-  'ash-bow': 1,
-  'ember-bow': 2,
-  'hunter-bow': 3,
-  'frost-bow': 4,
-  'splinter-bow': 5,
-  'veil-bow': 8,
-  'warden-bow': 10,
-  'ranger-quiver': 1,
-  'black-quiver': 2,
-  'rune-quiver': 7,
-  'frost-quiver': 4,
-  'splinter-quiver': 5,
-  'warden-quiver': 9,
-  'veil-key': 1,
-  'guardian-sigil': 4,
-  'frost-grimoire': 7,
-  'ritual-shard': 6,
-  'ash-amulet': 3,
-  'depth-seal': 6,
-  'veil-eye': 10,
-  'ranger-cloak': 1,
-  'ash-armor': 3,
-  'frost-armor': 5,
-  'warden-armor': 6,
-  'veil-mantle': 8,
-  'depth-armor': 9,
-};
 
 export function highestReachedChapter(): number {
   try {
@@ -47,9 +19,13 @@ export function recordReachedChapter(chapter: number): number {
 }
 
 export function equipmentUnlockChapter(id: EquipmentId): number {
-  return EQUIPMENT_UNLOCK_CHAPTER[id] ?? 1;
+  return isActiveEquipmentId(id) ? ACTIVE_EQUIPMENT[id].unlockChapter : 99;
 }
 
 export function equipmentUnlockedForCurrentProgress(id: EquipmentId): boolean {
-  return highestReachedChapter() >= equipmentUnlockChapter(id);
+  return isActiveEquipmentId(id) && highestReachedChapter() >= equipmentUnlockChapter(id);
 }
+
+export const EQUIPMENT_UNLOCK_CHAPTER = Object.freeze(Object.fromEntries(
+  Object.entries(ACTIVE_EQUIPMENT).map(([id, item]) => [id, item.unlockChapter]),
+) as Partial<Record<EquipmentId, number>>);

@@ -1,5 +1,6 @@
 import { equipmentUnlockedForCurrentProgress } from './equipmentChapterGates';
 import { collectBalancedEquipmentDrop } from './equipmentCollection';
+import { ACTIVE_EQUIPMENT, isActiveEquipmentId } from './equipmentRedesign';
 import {
   EQUIPMENT,
   loadMetaProgression,
@@ -8,16 +9,17 @@ import {
   type MetaProgression,
 } from './metaProgression';
 
-const TARGETING_KEY = 'dungeon-veil-equipment-targeting-v1';
-export const EQUIPMENT_SOURCE_MARK_COST = 3;
-export const SOURCE_WISH_CHANCE = 0.35;
-export const CHAPTER_WISH_CHANCE = 0.5;
-export const WISH_PITY_MISSES = 2;
+const TARGETING_KEY = 'dungeon-veil-equipment-targeting-v2';
+export const EQUIPMENT_SOURCE_MARK_COST = 8;
+export const SOURCE_WISH_CHANCE = 0.18;
+export const CHAPTER_WISH_CHANCE = 0.24;
+export const WISH_PITY_MISSES = 7;
+export const CHAPTER_WISH_PITY_MISSES = 9;
 
 export const EQUIPMENT_DROP_SOURCES: readonly EquipmentDropSource[] = ['forge', 'hunt', 'warden', 'ritual', 'depth'];
 
 export type EquipmentTargetingProfile = {
-  version: 1;
+  version: 2;
   wishItem: EquipmentId | null;
   sourceMarks: Record<EquipmentDropSource, number>;
   chapterWishMisses: number;
@@ -31,7 +33,7 @@ function emptySourceRecord(): Record<EquipmentDropSource, number> {
 }
 
 const DEFAULT_TARGETING: EquipmentTargetingProfile = {
-  version: 1,
+  version: 2,
   wishItem: null,
   sourceMarks: emptySourceRecord(),
   chapterWishMisses: 0,
@@ -41,11 +43,11 @@ const DEFAULT_TARGETING: EquipmentTargetingProfile = {
 };
 
 function safeNumber(value: unknown): number {
-  return Math.max(0, Math.floor(Number(value) || 0));
+  return Math.max(0, Math.min(999, Math.floor(Number(value) || 0)));
 }
 
-function isEquipmentId(value: unknown): value is EquipmentId {
-  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(EQUIPMENT, value);
+function isTargetableEquipmentId(value: unknown): value is EquipmentId {
+  return isActiveEquipmentId(value) && Object.prototype.hasOwnProperty.call(EQUIPMENT, value);
 }
 
 function sourceRecord(value: unknown): Record<EquipmentDropSource, number> {
@@ -54,31 +56,40 @@ function sourceRecord(value: unknown): Record<EquipmentDropSource, number> {
 }
 
 function stringLedger(value: unknown): string[] {
-  return Array.isArray(value) ? [...new Set(value.filter((key): key is string => typeof key === 'string'))].slice(-80) : [];
+  return Array.isArray(value) ? [...new Set(value.filter((key): key is string => typeof key === 'string'))].slice(-120) : [];
+}
+
+export function equipmentSourceMarkCost(id: EquipmentId): number {
+  if (!isActiveEquipmentId(id)) return Number.POSITIVE_INFINITY;
+  const rarity = ACTIVE_EQUIPMENT[id].rarity;
+  return rarity === 'common' ? 8 : rarity === 'rare' ? 11 : 15;
 }
 
 export function equipmentCanBeTargeted(id: EquipmentId, meta: MetaProgression = loadMetaProgression()): boolean {
-  const item = EQUIPMENT[id];
+  if (!isActiveEquipmentId(id)) return false;
+  const item = ACTIVE_EQUIPMENT[id];
   const level = meta.owned[id]?.level ?? 0;
   return item.unlockRank <= meta.rank && equipmentUnlockedForCurrentProgress(id) && level < 5;
 }
 
 export function loadEquipmentTargeting(): EquipmentTargetingProfile {
   try {
-    const raw = localStorage.getItem(TARGETING_KEY);
+    const raw = localStorage.getItem(TARGETING_KEY) ?? localStorage.getItem('dungeon-veil-equipment-targeting-v1');
     if (!raw) return structuredClone(DEFAULT_TARGETING);
     const parsed = JSON.parse(raw) as Partial<EquipmentTargetingProfile>;
     const meta = loadMetaProgression();
-    const wishItem = isEquipmentId(parsed.wishItem) && equipmentCanBeTargeted(parsed.wishItem, meta) ? parsed.wishItem : null;
-    return {
-      version: 1,
+    const wishItem = isTargetableEquipmentId(parsed.wishItem) && equipmentCanBeTargeted(parsed.wishItem, meta) ? parsed.wishItem : null;
+    const normalized: EquipmentTargetingProfile = {
+      version: 2,
       wishItem,
       sourceMarks: sourceRecord(parsed.sourceMarks),
-      chapterWishMisses: safeNumber(parsed.chapterWishMisses),
+      chapterWishMisses: Math.min(CHAPTER_WISH_PITY_MISSES, safeNumber(parsed.chapterWishMisses)),
       sourceWishMisses: sourceRecord(parsed.sourceWishMisses),
       huntMarkLedger: stringLedger(parsed.huntMarkLedger),
       huntWishLedger: stringLedger(parsed.huntWishLedger),
     };
+    if (parsed.version !== 2) saveEquipmentTargeting(normalized);
+    return normalized;
   } catch {
     return structuredClone(DEFAULT_TARGETING);
   }
@@ -86,10 +97,10 @@ export function loadEquipmentTargeting(): EquipmentTargetingProfile {
 
 export function saveEquipmentTargeting(profile: EquipmentTargetingProfile): EquipmentTargetingProfile {
   const normalized: EquipmentTargetingProfile = {
-    version: 1,
-    wishItem: profile.wishItem,
+    version: 2,
+    wishItem: isTargetableEquipmentId(profile.wishItem) ? profile.wishItem : null,
     sourceMarks: sourceRecord(profile.sourceMarks),
-    chapterWishMisses: safeNumber(profile.chapterWishMisses),
+    chapterWishMisses: Math.min(CHAPTER_WISH_PITY_MISSES, safeNumber(profile.chapterWishMisses)),
     sourceWishMisses: sourceRecord(profile.sourceWishMisses),
     huntMarkLedger: stringLedger(profile.huntMarkLedger),
     huntWishLedger: stringLedger(profile.huntWishLedger),
@@ -129,34 +140,25 @@ export function grantHuntEquipmentSourceMark(chapter: number): { profile: Equipm
   const profile = loadEquipmentTargeting();
   const runId = meta.currentRunId;
   if (!runId) return { profile, granted: false };
-  const key = `${runId}:${Math.max(1, Math.floor(Number(chapter) || 1))}:hunt`;
+  const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
+  const key = `${runId}:${safeChapter}:hunt`;
   if (profile.huntMarkLedger.includes(key)) return { profile, granted: false };
   profile.huntMarkLedger.push(key);
-  profile.sourceMarks.hunt += 1;
-  return { profile: saveEquipmentTargeting(profile), granted: true };
+  if (safeChapter % 2 === 0) profile.sourceMarks.hunt += 1;
+  return { profile: saveEquipmentTargeting(profile), granted: safeChapter % 2 === 0 };
 }
 
-export function craftEquipmentCopy(id: EquipmentId): {
-  profile: EquipmentTargetingProfile;
-  crafted: boolean;
-  newUnlock: boolean;
-  copies: number;
-  convertedDust: number;
-} {
+export function craftEquipmentCopy(id: EquipmentId) {
   const meta = loadMetaProgression();
   const profile = loadEquipmentTargeting();
-  const source = EQUIPMENT[id].dropSource;
-  if (!equipmentCanBeTargeted(id, meta) || profile.sourceMarks[source] < EQUIPMENT_SOURCE_MARK_COST) {
+  if (!isActiveEquipmentId(id)) return { profile, crafted: false, newUnlock: false, copies: 0, convertedDust: 0 };
+  const source = ACTIVE_EQUIPMENT[id].dropSource;
+  const cost = equipmentSourceMarkCost(id);
+  if (!equipmentCanBeTargeted(id, meta) || profile.sourceMarks[source] < cost) {
     return { profile, crafted: false, newUnlock: false, copies: meta.owned[id]?.copies ?? 0, convertedDust: 0 };
   }
-  profile.sourceMarks[source] -= EQUIPMENT_SOURCE_MARK_COST;
+  profile.sourceMarks[source] -= cost;
   saveEquipmentTargeting(profile);
   const result = collectBalancedEquipmentDrop(id);
-  return {
-    profile: loadEquipmentTargeting(),
-    crafted: true,
-    newUnlock: !result.duplicate,
-    copies: result.progress.copies,
-    convertedDust: result.convertedDust,
-  };
+  return { profile: loadEquipmentTargeting(), crafted: true, newUnlock: !result.duplicate, copies: result.progress.copies, convertedDust: result.convertedDust };
 }
