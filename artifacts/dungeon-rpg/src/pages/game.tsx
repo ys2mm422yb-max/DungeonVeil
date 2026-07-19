@@ -167,6 +167,18 @@ export default function Game() {
   useEffect(() => { if (uiState === 'main_menu') setSaveData(hasSave() ? loadGame() : null); }, [uiState]);
 
   useEffect(() => {
+    const active = uiState === 'game';
+    if (active) document.documentElement.dataset.dungeonVeilActiveRun = '1';
+    else delete document.documentElement.dataset.dungeonVeilActiveRun;
+    window.dispatchEvent(new CustomEvent('dungeon-veil-run-active-changed', { detail: { active } }));
+    return () => {
+      if (!active) return;
+      delete document.documentElement.dataset.dungeonVeilActiveRun;
+      window.dispatchEvent(new CustomEvent('dungeon-veil-run-active-changed', { detail: { active: false } }));
+    };
+  }, [uiState]);
+
+  useEffect(() => {
     const engine = new GameEngine();
     let cancelled = false;
     engineRef.current = engine;
