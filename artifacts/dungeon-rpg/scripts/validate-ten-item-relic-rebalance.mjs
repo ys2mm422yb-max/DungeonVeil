@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './validate-combat-balance-v4.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
