@@ -51,7 +51,7 @@ export function cloneSpectatorPlaybackState(state: RunGameState): RunGameState {
     damageNumbers: cloneObjects(state.damageNumbers),
     particles: cloneObjects(state.particles),
     effects: cloneObjects(state.effects),
-    upgradeChoices: cloneObjects(state.upgradeChoices),
+    upgradeChoices: [...state.upgradeChoices],
     runSkills: { ...state.runSkills },
   };
 }
