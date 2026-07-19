@@ -39,6 +39,8 @@ const CHECKPOINTS = Object.freeze([
 const DUO = Object.freeze({ normalHp: 1.72, eliteHp: 1.92, bossHp: 2.18, enemyAttack: 1.16, spawnFactor: 1.20, mobileEnemyCap: 12, disconnectHpFactor: 0.78, disconnectAttackFactor: 0.92 });
 const BASE_COOLDOWN = 270;
 const MIN_COOLDOWN = 125;
+const BOSS_HIT_UPTIME = 0.025;
+const DISCONNECT_HIT_UPTIME = 0.018;
 
 function mitigation(defense, cap = 0.44) {
   return Math.min(cap, Math.max(0, defense) / (Math.max(0, defense) + 32));
@@ -67,7 +69,7 @@ function simulate(teamName, relicA, relicB, checkpoint) {
   const ttk = duoHp / teamDps;
   const averageMitigation = (a.mitigation + b.mitigation) / 2;
   const averageReduction = (a.reduction + b.reduction) / 2;
-  const incomingPerSecond = checkpoint.attack * DUO.enemyAttack * (1 - averageMitigation) * (1 - averageReduction * 0.4) * 0.34;
+  const incomingPerSecond = checkpoint.attack * DUO.enemyAttack * (1 - averageMitigation) * (1 - averageReduction * 0.4) * BOSS_HIT_UPTIME;
   const sharedEffectiveHp = a.hp + b.hp;
   const damageTaken = incomingPerSecond * ttk;
   const reviveAllowance = Math.min(sharedEffectiveHp * 0.55, Math.max(a.hp, b.hp) * 0.8);
@@ -75,7 +77,7 @@ function simulate(teamName, relicA, relicB, checkpoint) {
   const disconnectHp = duoHp * DUO.disconnectHpFactor;
   const survivor = a.dps >= b.dps ? a : b;
   const disconnectTtk = disconnectHp / Math.max(1, survivor.dps * 0.88);
-  const disconnectIncoming = checkpoint.attack * DUO.enemyAttack * DUO.disconnectAttackFactor * (1 - survivor.mitigation) * (1 - survivor.reduction * 0.4) * 0.27;
+  const disconnectIncoming = checkpoint.attack * DUO.enemyAttack * DUO.disconnectAttackFactor * (1 - survivor.mitigation) * (1 - survivor.reduction * 0.4) * DISCONNECT_HIT_UPTIME;
   return {
     team: teamName, builds: [buildA, buildB], relics: [relicA, relicB], chapter: checkpoint.chapter, room: checkpoint.room,
     teamDps, ttk, damageTaken, effectiveTeamHealth, survives: damageTaken < effectiveTeamHealth * 1.35,
@@ -92,7 +94,7 @@ export function simulateDuoCombatMatrixV4() {
       for (const checkpoint of CHECKPOINTS) rows.push(simulate(team, relicA, relicB, checkpoint));
     }
   }
-  return { teams: Object.keys(TEAMS), checkpoints: CHECKPOINTS, relicPairs, scenarioCount: rows.length, rows, constants: DUO };
+  return { teams: Object.keys(TEAMS), checkpoints: CHECKPOINTS, relicPairs, scenarioCount: rows.length, rows, constants: DUO, hitUptime: { boss: BOSS_HIT_UPTIME, disconnect: DISCONNECT_HIT_UPTIME } };
 }
 
 if (import.meta.url === new URL(`file://${process.argv[1]}`).href) console.log(JSON.stringify(simulateDuoCombatMatrixV4(), null, 2));
