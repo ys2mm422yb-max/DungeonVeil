@@ -70,10 +70,11 @@ for (let localNow = BASE_TIME; localNow <= BASE_TIME + DURATION_MS; localNow += 
   } else if (renderAt > latest.emittedAt && packets.length >= 2) {
     left = packets[packets.length - 2];
     right = latest;
-    const extra = clamp(renderAt - latest.emittedAt, 0, MAX_EXTRAPOLATION_MS);
+    const requestedExtra = Math.max(0, renderAt - latest.emittedAt);
+    const extra = clamp(requestedExtra, 0, MAX_EXTRAPOLATION_MS);
     const interval = Math.max(1, right.emittedAt - left.emittedAt);
     desiredX = right.x + clamp((right.x - left.x) / interval * extra, -32, 32);
-    mode = extra > 0 ? 'extrapolate' : 'hold';
+    mode = requestedExtra > 0 && requestedExtra <= MAX_EXTRAPOLATION_MS ? 'extrapolate' : 'hold';
     if (mode === 'extrapolate') extrapolationFrames += 1;
     else heldFrames += 1;
   } else {
@@ -120,6 +121,8 @@ const summary = {
 const failures = [];
 if (packets.length > BUFFER_LIMIT) failures.push('snapshot buffer grew beyond its hard limit');
 if (interpolationFrames <= extrapolationFrames) failures.push('normal playback is not predominantly interpolated');
+if (extrapolationFrames <= 0) failures.push('short packet gaps never entered bounded extrapolation');
+if (heldFrames <= 0) failures.push('long packet gaps never stopped in the hold state');
 if (maxFrameStep > 6) failures.push(`frame correction jumped ${maxFrameStep.toFixed(2)} px`);
 if (maxFrozenMs > 360) failures.push(`playback froze for ${maxFrozenMs.toFixed(0)} ms under bounded packet loss`);
 if (velocityRmse > 0.11) failures.push(`smoothed velocity RMSE is too high (${velocityRmse.toFixed(3)})`);
