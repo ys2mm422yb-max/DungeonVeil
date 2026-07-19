@@ -10,8 +10,8 @@ const JITTER_MS = [0, 22, -8, 54, 8, 88, 0, 34, -4, 118, 12, 0];
 const OUTAGE_CYCLE_PACKETS = 32;
 const OUTAGE_START_PACKET = 20;
 const OUTAGE_PACKET_COUNT = 4;
-const MEASUREMENT_WARMUP_MS = 1_500;
-const FRAME_BUDGET_MS = 1000 / 60;
+const MEASUREMENT_WARMUP_MS = 2_500;
+const SOURCE_SPEED_PX_PER_MS = 0.13;
 
 function cloneState(state: RunGameState): RunGameState {
   return structuredClone(state);
@@ -79,7 +79,7 @@ export function SpectatorPerformanceQa() {
     let lastX = stableState.player.x;
     let lastFrameAt = startedPerformanceAt;
     let maxFrameStep = 0;
-    let maxNormalizedFrameStep = 0;
+    let maxExcessStepPx = 0;
     let maxFrameIntervalMs = 0;
     let stagnantSince = startedPerformanceAt;
     let maxStagnantMs = 0;
@@ -87,6 +87,8 @@ export function SpectatorPerformanceQa() {
     let measuredFrameCount = 0;
     let measurementStarted = false;
     let outagePackets = 0;
+    let layoutChanges = 0;
+    let lastExtraEnemyActive = false;
     const pendingTimers = new Set<number>();
 
     const emitPacket = () => {
@@ -101,23 +103,51 @@ export function SpectatorPerformanceQa() {
       const emittedAt = Date.now();
       const elapsed = emittedAt - startedAt;
       const source = sourceRef.current;
-      source.player.x = source.map.startX * 40 + 4 + elapsed * 0.13;
+      source.player.x = source.map.startX * 40 + 4 + elapsed * SOURCE_SPEED_PX_PER_MS;
       source.player.y = source.map.startY * 40 + 4 + Math.sin(elapsed * 0.0022) * 55;
       source.player.facing = { x: 1, y: Math.cos(elapsed * 0.0022) * 0.25 };
       source.player.state = 'moving';
       source.camera.x = source.player.x;
       source.camera.y = source.player.y;
-      const enemy = source.enemies[0];
-      enemy.x = source.player.x + 150 + Math.sin(elapsed * 0.0017) * 42;
-      enemy.y = source.player.y - 110 + Math.cos(elapsed * 0.0014) * 36;
-      enemy.targetX = source.player.x;
-      enemy.targetY = source.player.y;
+
+      const baseEnemy = source.enemies.find(enemy => enemy.id === 'spectator-qa-goblin') ?? source.enemies[0];
+      baseEnemy.x = source.player.x + 150 + Math.sin(elapsed * 0.0017) * 42;
+      baseEnemy.y = source.player.y - 110 + Math.cos(elapsed * 0.0014) * 36;
+      baseEnemy.targetX = source.player.x;
+      baseEnemy.targetY = source.player.y;
+
+      const layoutPhase = packetIndex % 24;
+      const extraEnemyActive = layoutPhase >= 8 && layoutPhase < 16;
+      if (extraEnemyActive !== lastExtraEnemyActive) {
+        lastExtraEnemyActive = extraEnemyActive;
+        layoutChanges += 1;
+      }
+      const extraEnemyIndex = source.enemies.findIndex(enemy => enemy.id === 'spectator-qa-layout-enemy');
+      if (extraEnemyActive && extraEnemyIndex < 0) {
+        source.enemies.push({
+          ...baseEnemy,
+          id: 'spectator-qa-layout-enemy',
+          x: source.player.x - 135,
+          y: source.player.y + 105,
+          spawnTime: performance.now(),
+        });
+      } else if (!extraEnemyActive && extraEnemyIndex >= 0) {
+        source.enemies.splice(extraEnemyIndex, 1);
+      }
+      const extraEnemy = source.enemies.find(enemy => enemy.id === 'spectator-qa-layout-enemy');
+      if (extraEnemy) {
+        extraEnemy.x = source.player.x - 135 + Math.cos(elapsed * 0.0015) * 30;
+        extraEnemy.y = source.player.y + 105 + Math.sin(elapsed * 0.0018) * 28;
+        extraEnemy.targetX = source.player.x;
+        extraEnemy.targetY = source.player.y;
+      }
+
       source.effects = packetIndex % 3 === 0 ? [{
         id: `shot-qa-${packetIndex}`, x: source.player.x, y: source.player.y, radius: 0, maxRadius: 210,
         color: '#f7d48a', lifeTime: 0.3, maxLifeTime: 1, type: 'beam', angle: 0, element: 'fire',
       }] : [];
       source.damageNumbers = packetIndex % 5 === 0 ? [{
-        id: `dmg-qa-${packetIndex}`, x: enemy.x, y: enemy.y, value: '12', color: '#ffd37c', lifeTime: 0.2, maxLifeTime: 1,
+        id: `dmg-qa-${packetIndex}`, x: baseEnemy.x, y: baseEnemy.y, value: '12', color: '#ffd37c', lifeTime: 0.2, maxLifeTime: 1,
       }] : [];
       source.particles = [];
       const snapshot = cloneState(source);
@@ -142,10 +172,10 @@ export function SpectatorPerformanceQa() {
           stagnantSince = time;
         } else if (measuring) {
           const step = Math.abs(current.player.x - lastX);
-          const normalizedStep = step * FRAME_BUDGET_MS / Math.max(FRAME_BUDGET_MS, frameIntervalMs);
           maxFrameStep = Math.max(maxFrameStep, step);
-          maxNormalizedFrameStep = Math.max(maxNormalizedFrameStep, normalizedStep);
           maxFrameIntervalMs = Math.max(maxFrameIntervalMs, frameIntervalMs);
+          const expectedMotion = SOURCE_SPEED_PX_PER_MS * frameIntervalMs;
+          maxExcessStepPx = Math.max(maxExcessStepPx, Math.max(0, step - expectedMotion - 24));
           if (step > 0.015) stagnantSince = time;
           maxStagnantMs = Math.max(maxStagnantMs, time - stagnantSince);
           measuredFrameCount += 1;
@@ -164,7 +194,8 @@ export function SpectatorPerformanceQa() {
         host.dataset.frames = String(frameCount);
         host.dataset.measuredFrames = String(measuredFrameCount);
         host.dataset.maxFrameStep = maxFrameStep.toFixed(3);
-        host.dataset.maxNormalizedFrameStep = maxNormalizedFrameStep.toFixed(3);
+        host.dataset.maxExcessStepPx = maxExcessStepPx.toFixed(3);
+        host.dataset.maxCorrectionPx = metrics.maxCorrectionPx.toFixed(3);
         host.dataset.maxFrameIntervalMs = maxFrameIntervalMs.toFixed(1);
         host.dataset.maxStagnantMs = maxStagnantMs.toFixed(1);
         host.dataset.bufferDepth = String(metrics.bufferDepth);
@@ -175,6 +206,8 @@ export function SpectatorPerformanceQa() {
         host.dataset.reactRenders = String(renderCountRef.current);
         host.dataset.elapsedMs = String(Date.now() - startedAt);
         host.dataset.outagePackets = String(outagePackets);
+        host.dataset.layoutChanges = String(layoutChanges);
+        host.dataset.enemyCount = String(stableState.enemies.length);
         host.dataset.canvasCount = String(document.querySelectorAll('canvas').length);
         host.dataset.menuCanvasCount = String(document.querySelectorAll('[data-testid="main-menu-dungeon-scene"] canvas').length);
         host.dataset.keyframeBytes = String(packetContract?.keyframeBytes ?? 0);
@@ -196,7 +229,7 @@ export function SpectatorPerformanceQa() {
 
   return <div data-testid="spectator-performance-qa" className="fixed inset-0 overflow-hidden bg-black">
     <SpectatorPlaybackStage stableState={stableState} />
-    <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-contract="jitter-loss-long-run-v4" className="sr-only" />
+    <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-contract="jitter-loss-layout-long-run-v5" className="sr-only" />
     <span data-testid="visual-qa-ready" className="pointer-events-none fixed bottom-1 right-1 z-[999] h-1 w-1 opacity-0" />
   </div>;
 }
