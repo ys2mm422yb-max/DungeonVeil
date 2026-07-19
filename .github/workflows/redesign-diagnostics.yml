@@ -12,7 +12,7 @@ permissions:
 jobs:
   diagnostics:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,27 +27,32 @@ jobs:
         shell: bash
         run: |
           set +e
-          pnpm run typecheck > typecheck.log 2>&1
-          echo $? > typecheck.exit
-          pnpm --dir artifacts/dungeon-rpg run build > build.log 2>&1
-          echo $? > build.exit
-          pnpm --dir artifacts/dungeon-rpg run audit:final > audit-final.log 2>&1
-          echo $? > audit-final.exit
+          run_check() {
+            name="$1"
+            shift
+            "$@" > "${name}.log" 2>&1
+            echo $? > "${name}.exit"
+          }
+          run_check typecheck pnpm run typecheck
+          run_check build pnpm --dir artifacts/dungeon-rpg run build
+          run_check audit-final pnpm --dir artifacts/dungeon-rpg run audit:final
+          run_check audit-assets pnpm --dir artifacts/dungeon-rpg run audit:assets
+          run_check audit-social pnpm --dir artifacts/dungeon-rpg run audit:social
+          run_check audit-rooms pnpm --dir artifacts/dungeon-rpg run audit:rooms
+          run_check audit-economy pnpm --dir artifacts/dungeon-rpg run audit:economy
           exit 0
       - uses: actions/upload-artifact@v4
         with:
           name: redesign-diagnostics
           path: |
-            typecheck.log
-            typecheck.exit
-            build.log
-            build.exit
-            audit-final.log
-            audit-final.exit
+            *.log
+            *.exit
           if-no-files-found: error
       - name: Enforce diagnostics
         shell: bash
         run: |
-          test "$(cat typecheck.exit)" = "0"
-          test "$(cat build.exit)" = "0"
-          test "$(cat audit-final.exit)" = "0"
+          failed=0
+          for file in *.exit; do
+            test "$(cat "$file")" = "0" || { echo "$file failed"; failed=1; }
+          done
+          exit "$failed"
