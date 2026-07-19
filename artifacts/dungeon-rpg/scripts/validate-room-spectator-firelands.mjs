@@ -29,7 +29,7 @@ assert(!spectator.includes('setDisplayState') && !spectator.includes('INTERPOLAT
 assert(spectator.includes('spectator-performance-diagnostics') && spectator.includes('canvasCount') && spectator.includes('reactCommits'), 'Measurable spectator runtime diagnostics are missing.');
 assert(spectator.includes('SPECTATOR_RENDERER_EVENT') && spectator.includes("dungeonVeilSpectating = '1'"), 'Exclusive spectator/menu renderer handoff was removed.');
 assert(spectatorPlayback.includes('SPECTATOR_INTERPOLATION_DELAY_MS = 240') && spectatorPlayback.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 110'), 'Timestamp interpolation or bounded extrapolation limits are missing.');
-assert(spectatorPlayback.includes('SPECTATOR_PACKET_GAP_MS = 900') && spectatorPlayback.includes("mode: 'frozen'"), 'Packet-loss freeze behavior is not bounded.');
+assert(spectatorPlayback.includes('SPECTATOR_PACKET_GAP_MS = 900') && spectatorPlayback.includes("this.mode = 'frozen'"), 'Packet-loss freeze behavior is not bounded.');
 assert(spectatorPlayback.includes('SPECTATOR_BUFFER_LIMIT = 8') && spectatorPlayback.includes('copySnapshotIntoStableState'), 'Snapshot buffer or stable scene mutation is missing.');
 assert(spectatorPlayback.includes('SPECTATOR_TELEPORT_THRESHOLD = 280') && spectatorPlayback.includes('hardCorrections'), 'Large position corrections are not controlled or measured.');
 
