@@ -136,8 +136,8 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
       if (cancelled || busy) return;
       busy = true;
       try {
-        const receivedAt = Date.now();
         const next = await loadFriendSpectatorFeed(friendId);
+        const receivedAt = Date.now();
         if (cancelled) return;
         feedRef.current = next;
         if (next?.snapshot) {
