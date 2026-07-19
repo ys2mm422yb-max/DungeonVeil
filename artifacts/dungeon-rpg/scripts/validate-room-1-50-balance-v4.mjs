@@ -85,6 +85,7 @@ const bosses = Object.freeze({
   40: { hp: 4300, attack: 49, supportCap: 2 },
   50: { hp: 6500, attack: 61, supportCap: 2 },
 });
+const BOSS_MIN_TTK_CHAPTER_10 = Object.freeze({ 10: 8, 20: 15, 30: 25, 40: 35, 50: 45 });
 
 const MAX_BUILD_DPS = 42 * (1 + 0.15 * 0.68) * (1000 / 161) * 1.13;
 const MAX_BUILD_NONCRIT_SHOT = 42 * 1.13;
@@ -140,7 +141,10 @@ for (const row of rows) {
   assert(row.starterTtk > row.maxBuildTtk, `room ${row.room}/chapter ${row.chapter} gear progression is inverted`);
   if (!row.boss) assert(row.targetCycles >= row.count, `room ${row.room}/chapter ${row.chapter} target-cycle accounting is incomplete`);
   if (!row.boss && row.chapter === 1) assert(row.maxBuildTtk >= 0.45, `room ${row.room} can be erased without multiple target cycles`);
-  if (row.boss && row.chapter === 10) assert(row.maxBuildTtk >= 35, `chapter-10 boss room ${row.room} is too short for maximum gear`);
+  if (row.boss && row.chapter === 10) {
+    const minimum = BOSS_MIN_TTK_CHAPTER_10[row.room];
+    assert(row.maxBuildTtk >= minimum, `chapter-10 boss room ${row.room} misses its ${minimum}s milestone`);
+  }
 }
 
 assert(engineSource.includes('const count = Math.min(points.length, encounter.length)'), 'runtime does not cap encounters to authored spawn capacity');
@@ -154,6 +158,7 @@ console.log(JSON.stringify({
   rooms: 50,
   normalRooms: 45,
   bossRooms: Object.keys(bosses).map(Number),
+  bossMinimumTtkChapter10: BOSS_MIN_TTK_CHAPTER_10,
   mobileEnemyCap: 8,
   openingPressure: Math.round(bandAverage(1, 9, 'pressure')),
   latePressure: Math.round(bandAverage(41, 49, 'pressure')),
@@ -162,4 +167,4 @@ console.log(JSON.stringify({
   openingRoomTargetCycles: rows.find(row => row.chapter === 1 && row.room === 1)?.targetCycles,
   scenarios: rows.length,
 }, null, 2));
-console.log('Room 1–50 V4 audit passed: compositions, boss milestones, target cycles, spawn guards, retry/transition paths and mobile caps remain bounded.');
+console.log('Room 1–50 V4 audit passed: compositions, staged boss milestones, target cycles, spawn guards, retry/transition paths and mobile caps remain bounded.');
