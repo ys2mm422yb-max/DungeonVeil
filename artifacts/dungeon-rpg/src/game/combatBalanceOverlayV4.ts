@@ -7,6 +7,10 @@ import {
   oldRoomCombatScale,
   roomCombatScaleV4,
 } from './combatCurveV4';
+import {
+  applyChapterBossPressureV4,
+  applyChapterEncounterCompositionV4,
+} from './encounterCompositionV4';
 
 export type CombatBalanceOverlayState = {
   roomKey: string;
@@ -42,12 +46,16 @@ export function applyCombatBalanceV4Overlay(engine: GameEngine, state: CombatBal
   const chapterOld = oldChapterCombatProfile(chapter);
   const roomV4 = roomCombatScaleV4(room);
   const roomOld = oldRoomCombatScale(room);
+  const encounterLength = Math.min(8, engine.state.enemies.length);
 
-  for (const enemy of engine.state.enemies) {
+  for (const [index, enemy] of engine.state.enemies.entries()) {
     if (state.balancedEnemyIds.has(enemy.id)) continue;
     state.balancedEnemyIds.add(enemy.id);
 
     const boss = isBoss(enemy);
+    if (boss) applyChapterBossPressureV4(enemy, chapter);
+    else applyChapterEncounterCompositionV4(enemy, room, chapter, index, encounterLength);
+
     const healthRatio = boss
       ? chapterV4.bossHpScale / chapterOld.bossHpScale
       : chapterV4.hpScale / chapterOld.hpScale * roomV4.hp / roomOld.hp;
