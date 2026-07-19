@@ -1,15 +1,18 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [redesign, gates, targeting, collection, runtime, relics, retention, balance, effects] = await Promise.all([
+const [redesign, gates, targeting, collection, runtime, playerRuntime, combat, relics, retention, balance, overlay, effects] = await Promise.all([
   read('../src/game/equipmentRedesign.ts'),
   read('../src/game/equipmentChapterGates.ts'),
   read('../src/game/equipmentTargeting.ts'),
   read('../src/game/equipmentCollection.ts'),
   read('../src/game/equipmentRuntimeBalance.ts'),
+  read('../src/game/equipmentPlayerRuntimeV4.ts'),
+  read('../src/game/equipmentCombatV4.ts'),
   read('../src/game/veilRelics.ts'),
   read('../src/game/runRetention.ts'),
   read('../src/game/runBalance.ts'),
+  read('../src/game/combatBalanceOverlayV4.ts'),
   read('../src/game/runEffectSystems.ts'),
 ]);
 
@@ -25,10 +28,12 @@ const checks = [
   [relics.includes('RELIC_PITY_BY_SOURCE') && relics.includes('RELIC_UNOWNED_PREFERENCE = 0.65'), 'relic pity or bounded unowned preference is missing'],
   [relics.includes('current >= 4') && relics.includes('stack: 4'), 'Guardian Crown is not capped at four stacks'],
   [retention.includes('const maxHunts = Math.min(5, 3 +') && retention.includes('engine.state.floor - state.lastHuntFloor < 7'), 'chapter hunt caps or spacing are missing'],
-  [retention.includes('state.clawKillChain % 7 === 0'), 'Marked Claw trigger cadence is not the redesigned seven-kill contract'],
-  [runtime.includes('mitigatedIncomingDamage') && runtime.includes("equippedVeilRelic() === 'depth-rune-shard'"), 'Rune Shard is not reducing damage before final defense mitigation'],
+  [playerRuntime.includes('Math.floor(kills / 7)') && playerRuntime.includes('state.clawUntil = time + 2500'), 'Marked Claw seven-kill cadence is not active'],
+  [playerRuntime.includes("equippedVeilRelic() === 'depth-rune-shard' ? 0.82 : 1") && playerRuntime.indexOf('rawDamage * runeFactor') < playerRuntime.indexOf('defenseMitigation(player.defense'), 'Rune Shard is not reducing damage before final defense mitigation'],
+  [combat.includes('safeDefense / (safeDefense + 32)') && combat.includes('cap = 0.52'), 'diminishing defense or cap is missing'],
   [balance.includes('legacySpawnScale') && balance.includes('baseHp = Math.max(1, enemy.maxHp / spawnScale)'), 'legacy spawn scaling is not normalized before central balance'],
   [balance.includes('ELITE_AFFIXES') && balance.includes('updateMenders') && balance.includes('queueVolatileDeaths'), 'elite affix mechanics are incomplete'],
+  [overlay.includes('applyCombatBalanceV4Overlay') && overlay.includes('chapterCombatProfileV4') && overlay.includes('roomCombatScaleV4'), 'V4 room and chapter overlay is not active'],
   [effects.includes('engine.state.floor !== 50') && effects.includes('engine.state.floor === 50'), 'final boss phase is not owned by room fifty'],
 ];
 
@@ -39,4 +44,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Final balance integration audit passed: ten-item roles, long-term grind, bounded relics, elite systems and room-50 ownership are active.');
+console.log('Final V4 balance integration audit passed: ten-item roles, grind, bounded relics, criticals, defense, elites and room/chapter ownership are active.');
