@@ -37,6 +37,15 @@ const regionPools = {
   5: ['orc', 'golem', 'vampire', 'skeleton', 'demon', 'spider', 'slime'],
 };
 
+function enforceLateRoomRoleMix(plan, local) {
+  if (plan.length < 3) return plan;
+  const result = [...plan];
+  result[0] = local % 2 === 0 ? 'golem' : 'orc';
+  result[1] = local % 3 === 0 ? 'vampire' : 'demon';
+  result[2] = local % 2 === 0 ? 'spider' : 'slime';
+  return result;
+}
+
 function encounter(room) {
   if (explicit.has(room)) return [...explicit.get(room)];
   if (room % 10 === 0) return [];
@@ -44,7 +53,8 @@ function encounter(room) {
   const pool = regionPools[region] ?? regionPools[3];
   const local = (room - 1) % 10;
   const count = Math.min(8, 5 + Math.floor(local / 2));
-  return Array.from({ length: count }, (_, index) => pool[(index + local * 2) % pool.length]);
+  const generated = Array.from({ length: count }, (_, index) => pool[(index + local * 2) % pool.length]);
+  return room >= 41 ? enforceLateRoomRoleMix(generated, local) : generated;
 }
 
 function chapterScale(chapter) {
@@ -94,6 +104,7 @@ for (const chapter of [1, 5, 10]) {
 }
 
 assert(explicit.size === 20, `expected explicit contracts for rooms 1–20, found ${explicit.size}`);
+assert(encounterSource.includes('enforceLateRoomRoleMix') && encounterSource.includes('safeRoom >= 41'), 'runtime late-room role-mix contract is missing');
 assert([...Array(50)].every((_, index) => encounter(index + 1).every(type => ENEMY[type])), 'unknown enemy type appears in a room plan');
 assert([10, 20, 30, 40, 50].every(room => encounter(room).length === 0), 'boss rooms contain normal encounter spawns');
 
