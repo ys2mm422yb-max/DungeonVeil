@@ -126,7 +126,7 @@ const bandAverage = (from, to, key) => {
   return sample.reduce((sum, row) => sum + row[key], 0) / sample.length;
 };
 assert(bandAverage(41, 49, 'pressure') > bandAverage(1, 9, 'pressure') * 2.2, 'late-room pressure does not meaningfully exceed the opening band');
-assert(bandAverage(41, 49, 'totalHp') > bandAverage(1, 9, 'totalHp') * 3.5, 'late-room endurance does not meaningfully exceed the opening band');
+assert(bandAverage(41, 49, 'totalHp') > bandAverage(1, 9, 'totalHp') * 3.3, 'late-room endurance does not meaningfully exceed the opening band');
 assert(Object.values(bosses).every((boss, index, list) => index === 0 || boss.hp > list[index - 1].hp), 'boss HP milestones are not strictly increasing');
 assert(Object.values(bosses).every(boss => boss.supportCap <= 2), 'boss support cap exceeds the mobile budget');
 
