@@ -42,20 +42,21 @@ jobs:
           cache: pnpm
       - name: Install workspace quietly
         run: pnpm install --frozen-lockfile --reporter=silent
-      - name: Capture production room diagnostic
+      - name: Capture focused room suite diagnostic
         run: |
           set +e
-          node artifacts/dungeon-rpg/scripts/validate-production-rooms.mjs > production-room.log 2>&1
-          echo $? > production-room.status
+          cd artifacts/dungeon-rpg
+          node scripts/run-room-audit-suite.mjs > ../../room-suite.log 2>&1
+          echo $? > ../../room-suite.status
           set -e
-      - name: Upload production room diagnostic
+      - name: Upload focused room suite diagnostic
         uses: actions/upload-artifact@v4
         with:
-          name: production-room-diagnostic
+          name: room-suite-diagnostic
           path: |
-            production-room.log
-            production-room.status
+            room-suite.log
+            room-suite.status
           if-no-files-found: error
           retention-days: 1
-      - name: Fail after production room diagnostic
-        run: test "$(cat production-room.status)" = "0"
+      - name: Fail after focused room suite diagnostic
+        run: test "$(cat room-suite.status)" = "0"
