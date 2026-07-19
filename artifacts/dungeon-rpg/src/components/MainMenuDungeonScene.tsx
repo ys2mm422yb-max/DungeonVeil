@@ -6,7 +6,7 @@ export const SPECTATOR_RENDERER_EVENT = 'dungeon-veil-spectator-renderer';
 
 function equippedKey() {
   const equipped = loadMetaProgression().equipped;
-  return `${equipped.bow}:${equipped.quiver}:${equipped.talisman}`;
+  return `${equipped.bow}:${equipped.quiver}:${equipped.armor}`;
 }
 
 export function MainMenuDungeonScene() {
