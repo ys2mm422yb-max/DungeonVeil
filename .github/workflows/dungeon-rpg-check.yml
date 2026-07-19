@@ -44,6 +44,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Diagnose relic runtime audit
+        run: node artifacts/dungeon-rpg/scripts/validate-relic-runtime-ui-v4.mjs
+      - name: Diagnose codex visual audit
+        run: node artifacts/dungeon-rpg/scripts/validate-codex-visual-library.mjs
+      - name: Diagnose Hall menu audit
+        run: node artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs
       - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck Dungeon Veil
