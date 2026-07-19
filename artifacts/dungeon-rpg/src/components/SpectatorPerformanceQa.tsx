@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameEngine, type RunGameState } from '../game/runEngine';
+import { buildSpectatorSnapshot } from '../game/socialSpectatorOnline';
 import { SpectatorSnapshotBuffer } from '../game/spectatorInterpolation';
 import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
 import { SpectatorPlaybackStage } from './SpectatorPlaybackStage';
@@ -38,7 +39,20 @@ export function SpectatorPerformanceQa() {
   const diagnosticsRef = useRef<HTMLSpanElement>(null);
   const initialAt = useRef(Date.now());
   const renderCountRef = useRef(0);
+  const packetContractRef = useRef<{ keyframeBytes: number; deltaBytes: number; deltaHasMap: boolean } | null>(null);
   renderCountRef.current += 1;
+
+  if (!packetContractRef.current) {
+    const keyframe = buildSpectatorSnapshot(cloneState(sourceRef.current), initialAt.current);
+    const deltaSource = cloneState(sourceRef.current);
+    deltaSource.player.x += 12;
+    const delta = buildSpectatorSnapshot(deltaSource, initialAt.current + PACKET_MS);
+    packetContractRef.current = {
+      keyframeBytes: JSON.stringify(keyframe).length,
+      deltaBytes: JSON.stringify(delta).length,
+      deltaHasMap: Object.prototype.hasOwnProperty.call(delta.state, 'map'),
+    };
+  }
 
   if (bufferRef.current.getMetrics().receivedSnapshots === 0) {
     const first = cloneState(sourceRef.current);
@@ -109,6 +123,7 @@ export function SpectatorPerformanceQa() {
       }
       frameCount += 1;
       const metrics = bufferRef.current.getMetrics();
+      const packetContract = packetContractRef.current;
       const host = diagnosticsRef.current;
       if (host) {
         host.dataset.playerX = stableState.player.x.toFixed(3);
@@ -125,6 +140,9 @@ export function SpectatorPerformanceQa() {
         host.dataset.elapsedMs = String(Date.now() - startedAt);
         host.dataset.canvasCount = String(document.querySelectorAll('canvas').length);
         host.dataset.menuCanvasCount = String(document.querySelectorAll('[data-testid="main-menu-dungeon-scene"] canvas').length);
+        host.dataset.keyframeBytes = String(packetContract?.keyframeBytes ?? 0);
+        host.dataset.deltaBytes = String(packetContract?.deltaBytes ?? 0);
+        host.dataset.deltaHasMap = packetContract?.deltaHasMap ? 'true' : 'false';
       }
       frame = requestAnimationFrame(animate);
     };
@@ -141,7 +159,7 @@ export function SpectatorPerformanceQa() {
 
   return <div data-testid="spectator-performance-qa" className="fixed inset-0 overflow-hidden bg-black">
     <SpectatorPlaybackStage stableState={stableState} />
-    <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-contract="jitter-loss-long-run-v1" className="sr-only" />
+    <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-contract="jitter-loss-long-run-v2" className="sr-only" />
     <span data-testid="visual-qa-ready" className="pointer-events-none fixed bottom-1 right-1 z-[999] h-1 w-1 opacity-0" />
   </div>;
 }
