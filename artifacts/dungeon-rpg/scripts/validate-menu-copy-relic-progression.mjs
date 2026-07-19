@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [credits, inventory, presentation, gates, relics, retention, daily, dailyRuntime, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, settingsPersistence, markers, unlockLayer, globalLoading, loading, sessionBridge, main] = await Promise.all([
+const [credits, inventory, equipment, gates, relics, retention, daily, dailyRuntime, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, settingsPersistence, markers, unlockLayer, globalLoading, loading, sessionBridge, main] = await Promise.all([
   read('../src/components/screens/CreditsScreen.tsx'),
-  read('../src/components/screens/VeilChamberScreen.tsx'),
-  read('../src/game/equipmentPresentation.ts'),
+  read('../src/components/screens/VeilChamberScreenV4.tsx'),
+  read('../src/game/equipmentRedesign.ts'),
   read('../src/game/equipmentChapterGates.ts'),
   read('../src/game/veilRelics.ts'),
   read('../src/game/runRetention.ts'),
@@ -31,15 +31,18 @@ const [credits, inventory, presentation, gates, relics, retention, daily, dailyR
   read('../src/main.tsx'),
 ]);
 
+const unlockChapters = [...equipment.matchAll(/unlockChapter:\s*(\d+)/g)].map(match => Number(match[1]));
+const representedUnlockChapters = new Set(unlockChapters);
+
 const checks = [
   [credits.includes('Ein hobbyloser Typ bei seinem ersten Spielprojekt') && !credits.includes('value="Replit AI"'), 'credits are not the new humorous first-project copy'],
-  [presentation.includes("'je Ausrüstungslevel'") && inventory.includes("'AUSRÜSTUNGSLEVEL'") && inventory.includes('Ausrüstungslevel ist dauerhaft') && inventory.includes('Gold, Itemkopien und Schleierstaub'), 'equipment levels or their permanent three-resource upgrade path remain unclear'],
-  [gates.includes("'splinter-bow': 5") && gates.includes("'rune-quiver': 7") && gates.includes("'veil-mantle': 8") && gates.includes("'warden-quiver': 9") && gates.includes("'warden-bow': 10") && gates.includes("'veil-eye': 10") && !gates.match(/: (?:1[1-9]|[2-9]\d),/), 'equipment is not distributed through chapter 10 as intended'],
-  [retention.includes("if (isBossRoom(engine.state.floor)) spawnRareRelicDrop(engine, state, 'boss'") && retention.includes("engine.state.floor === 50 ? 0.2 : 0.12"), 'boss relics are not available at every boss milestone with the intended room-50 bonus'],
+  [inventory.includes('data-testid="equipment-permanent-progression-copy"') && inventory.includes('Ausrüstungslevel 1–5 sind dauerhaft') && inventory.includes('Gold, Itemkopien und Schleierstaub') && inventory.includes('data-testid="equipment-upgrade-preview"') && inventory.includes('data-testid="equipment-upgrade-costs"'), 'equipment levels or their permanent three-resource upgrade path remain unclear'],
+  [gates.includes('ACTIVE_EQUIPMENT[id].unlockChapter') && unlockChapters.length === 10 && Math.min(...unlockChapters) === 1 && Math.max(...unlockChapters) === 10 && unlockChapters.every(chapter => chapter >= 1 && chapter <= 10) && representedUnlockChapters.size >= 7, 'the ten active equipment items are not distributed through chapter 10 as intended'],
+  [retention.includes("if (isBossRoom(engine.state.floor)) spawnRareRelicDrop(engine, state, 'boss'") && retention.includes('engine.state.floor === 50 ? 0.2 : 0.12'), 'boss relics are not available at every boss milestone with the intended room-50 bonus'],
   [relics.includes("'world-core'") && relics.includes("source: 'worldboss'") && reward.includes("unlockVeilRelic('world-core')"), 'world-boss-exclusive relic is missing'],
   [effects.includes("relic === 'world-core'") && effects.includes('activateWorldCoreForCurrentRun'), 'World Core has no real run effect'],
   [menu.includes("onOpenOnline={() => setOverlay('online')}") && friends.includes('onOpenOnline') && guild.includes('onOpenOnline') && worldboss.includes('onOpenOnline'), 'direct Online & Cloud navigation is missing'],
-  [inventory.includes('Bossräume 10, 20, 30, 40 und 50') && inventory.includes("compact ? 'BOSS-DROP' : 'BOSS-RELIKT'") && !inventory.includes('Bossräume ab Raum 20') && inventory.includes('ausschließlich vom Weltboss'), 'relic source explanation does not match all five boss rooms'],
+  [inventory.includes('data-testid="relic-source-summary"') && inventory.includes('Bossräume 10, 20, 30, 40 und 50') && inventory.includes('ausschließlich vom Weltboss') && !inventory.includes('Bossräume ab Raum 20'), 'relic source explanation does not match all five boss rooms'],
   [quests.includes('data-testid="quest-board-summary"') && quests.includes('data-testid="quest-active-section"') && quests.includes('data-testid="quest-gold-section"') && quests.includes('data-testid="quest-elite-section"') && quests.includes('data-testid="quest-completed-section"'), 'quest board is not separated into daily, gold, weekly elite and completed sections'],
   [quests.includes('Wöchentliche Elite-Aufträge') && quests.includes('weeklyEliteQuests') && quests.includes('claimWeeklyEliteQuest') && quests.includes('weekly-elite-card'), 'real weekly elite contracts are not shown in the quest board'],
   [quests.includes('Gold-Auftrag') && quests.includes("data-quest-kind={task.gold ? 'gold' : 'standard'}"), 'daily gold quests are still mislabeled as weekly elite contracts'],
