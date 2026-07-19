@@ -97,8 +97,7 @@ export class SpectatorSnapshotBuffer {
 
   push(emittedAt: number, state: RunGameState, receivedAt = Date.now()): boolean {
     if (!Number.isFinite(emittedAt) || emittedAt <= 0) return false;
-    const duplicate = this.packets.some(packet => packet.emittedAt === emittedAt);
-    if (duplicate) {
+    if (this.packets.some(packet => packet.emittedAt === emittedAt)) {
       this.metrics.duplicateSnapshots += 1;
       return false;
     }
@@ -137,8 +136,26 @@ export class SpectatorSnapshotBuffer {
 
   private ensureOutput(target: RunGameState): RunGameState {
     const key = roomKey(target);
-    if (!this.output || key !== this.outputRoomKey) {
+    if (!this.output) {
       this.output = cloneState(target);
+      this.outputRoomKey = key;
+      this.lastSampleAt = 0;
+      this.metrics.roomResets += 1;
+      return this.output;
+    }
+    if (key !== this.outputRoomKey) {
+      const replacement = cloneState(target);
+      Object.assign(this.output, replacement);
+      this.output.player = replacement.player;
+      this.output.camera = replacement.camera;
+      this.output.enemies = replacement.enemies;
+      this.output.items = replacement.items;
+      this.output.chests = replacement.chests;
+      this.output.damageNumbers = replacement.damageNumbers;
+      this.output.particles = replacement.particles;
+      this.output.effects = replacement.effects;
+      this.output.upgradeChoices = replacement.upgradeChoices;
+      this.output.runSkills = replacement.runSkills;
       this.outputRoomKey = key;
       this.lastSampleAt = 0;
       this.metrics.roomResets += 1;
@@ -197,13 +214,31 @@ export class SpectatorSnapshotBuffer {
       const earliest = this.packets.find(packet => roomKey(packet.state) === latestRoom) ?? latest;
       previous = earliest;
       target = earliest;
-      amount = 1;
       mode = 'hold';
     }
 
     const output = this.ensureOutput(target.state);
     const frameMs = this.lastSampleAt > 0 ? clamp(now - this.lastSampleAt, 1, 100) : 16;
+    const preserveSpatial = this.lastSampleAt > 0 && roomKey(output) === roomKey(target.state);
+    const previousPlayerX = output.player.x;
+    const previousPlayerY = output.player.y;
+    const previousCameraX = output.camera.x;
+    const previousCameraY = output.camera.y;
+    const previousEnemyPositions = preserveSpatial
+      ? new Map(output.enemies.map(enemy => [enemy.id, { x: enemy.x, y: enemy.y }]))
+      : new Map<string, { x: number; y: number }>();
+
     copyNonSpatialState(output, target.state);
+    if (preserveSpatial) {
+      output.player.x = previousPlayerX;
+      output.player.y = previousPlayerY;
+      output.camera.x = previousCameraX;
+      output.camera.y = previousCameraY;
+      for (const enemy of output.enemies) {
+        const position = previousEnemyPositions.get(enemy.id);
+        if (position) { enemy.x = position.x; enemy.y = position.y; }
+      }
+    }
 
     const intervalMs = Math.max(1, target.emittedAt - previous.emittedAt);
     const spatial = (from: number, to: number) => {
@@ -215,10 +250,8 @@ export class SpectatorSnapshotBuffer {
       return to;
     };
 
-    const desiredPlayerX = spatial(previous.state.player.x, target.state.player.x);
-    const desiredPlayerY = spatial(previous.state.player.y, target.state.player.y);
-    output.player.x = this.smooth(output.player.x, desiredPlayerX, frameMs);
-    output.player.y = this.smooth(output.player.y, desiredPlayerY, frameMs);
+    output.player.x = this.smooth(output.player.x, spatial(previous.state.player.x, target.state.player.x), frameMs);
+    output.player.y = this.smooth(output.player.y, spatial(previous.state.player.y, target.state.player.y), frameMs);
     output.camera.x = this.smooth(output.camera.x, spatial(previous.state.camera.x, target.state.camera.x), frameMs);
     output.camera.y = this.smooth(output.camera.y, spatial(previous.state.camera.y, target.state.camera.y), frameMs);
 
@@ -226,10 +259,8 @@ export class SpectatorSnapshotBuffer {
       const from = matchingEnemy(previous.state, enemy.id);
       const to = matchingEnemy(target.state, enemy.id);
       if (!to) continue;
-      const desiredX = from ? spatial(from.x, to.x) : to.x;
-      const desiredY = from ? spatial(from.y, to.y) : to.y;
-      enemy.x = this.smooth(enemy.x, desiredX, frameMs);
-      enemy.y = this.smooth(enemy.y, desiredY, frameMs);
+      enemy.x = this.smooth(enemy.x, from ? spatial(from.x, to.x) : to.x, frameMs);
+      enemy.y = this.smooth(enemy.y, from ? spatial(from.y, to.y) : to.y, frameMs);
     }
 
     this.lastSampleAt = now;
