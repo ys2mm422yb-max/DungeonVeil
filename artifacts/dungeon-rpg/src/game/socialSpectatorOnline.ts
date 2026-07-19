@@ -2,16 +2,34 @@ import type { RunGameState } from './runEngine';
 import { authenticatedSupabaseRest, currentOnlineSession } from './supabaseOnline';
 
 const SPECTATING_ALLOWED_KEY = 'dungeon-veil-spectating-allowed-v1';
-export const SPECTATOR_REFRESH_MS = 100;
+const SPECTATOR_PUBLISH_DIAGNOSTICS_KEY = 'dungeon-veil-spectator-publisher-performance';
+const SPECTATOR_PACKET_MEASURE_MS = 2_000;
+const SPECTATOR_ITEM_LIMIT = 12;
+const SPECTATOR_CHEST_LIMIT = 6;
+const SPECTATOR_DAMAGE_LIMIT = 6;
+const SPECTATOR_PARTICLE_LIMIT = 12;
+const SPECTATOR_EFFECT_LIMIT = 12;
+
+export const SPECTATOR_REFRESH_MS = 200;
 export const SPECTATOR_STALE_MS = 5_000;
 export const SPECTATOR_VIEWER_HEARTBEAT_MS = 3_000;
 
 export type OnlineActivityState = 'menu' | 'run' | 'paused';
 
+export type SpectatorSnapshotDiagnostics = {
+  estimatedBytes: number;
+  enemies: number;
+  effects: number;
+  particles: number;
+  damageNumbers: number;
+  refreshMs: number;
+};
+
 export type SpectatorSnapshot = {
   version: 1;
   emittedAt: number;
   state: RunGameState;
+  diagnostics?: SpectatorSnapshotDiagnostics;
 };
 
 export type FriendSpectatorFeed = {
@@ -21,6 +39,9 @@ export type FriendSpectatorFeed = {
   updated_at: string;
   snapshot: SpectatorSnapshot | null;
 };
+
+let lastPacketMeasureAt = 0;
+let lastEstimatedBytes = 0;
 
 async function rpc<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
   if (!currentOnlineSession()) throw new Error('Nicht angemeldet');
@@ -45,24 +66,43 @@ export async function refreshSpectatingAllowed(): Promise<boolean> {
   return allowed;
 }
 
-function cloneForNetwork<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+function packetDiagnostics(state: RunGameState, emittedAt: number): SpectatorSnapshotDiagnostics {
+  const now = performance.now();
+  const diagnostics = {
+    estimatedBytes: lastEstimatedBytes,
+    enemies: state.enemies.length,
+    effects: state.effects.length,
+    particles: state.particles.length,
+    damageNumbers: state.damageNumbers.length,
+    refreshMs: SPECTATOR_REFRESH_MS,
+  };
+  if (now - lastPacketMeasureAt >= SPECTATOR_PACKET_MEASURE_MS) {
+    lastPacketMeasureAt = now;
+    try {
+      lastEstimatedBytes = JSON.stringify({ version: 1, emittedAt, state }).length;
+      diagnostics.estimatedBytes = lastEstimatedBytes;
+      localStorage.setItem(SPECTATOR_PUBLISH_DIAGNOSTICS_KEY, JSON.stringify({ ...diagnostics, estimatedBytes: lastEstimatedBytes, at: Date.now() }));
+    } catch {}
+  }
+  return diagnostics;
 }
 
 export function buildSpectatorSnapshot(state: RunGameState): SpectatorSnapshot {
+  const emittedAt = Date.now();
   const safeState: RunGameState = {
     ...state,
     player: { ...state.player, playerName: '' },
+    camera: { ...state.camera },
     enemies: state.enemies.map(enemy => ({ ...enemy })),
-    items: state.items.slice(-20).map(item => ({ ...item })),
-    chests: state.chests.slice(-8).map(chest => ({ ...chest })),
-    damageNumbers: state.damageNumbers.slice(-12).map(number => ({ ...number })),
-    particles: state.particles.slice(-24).map(particle => ({ ...particle })),
-    effects: state.effects.slice(-20).map(effect => ({ ...effect })),
+    items: state.items.slice(-SPECTATOR_ITEM_LIMIT).map(item => ({ ...item })),
+    chests: state.chests.slice(-SPECTATOR_CHEST_LIMIT).map(chest => ({ ...chest })),
+    damageNumbers: state.damageNumbers.slice(-SPECTATOR_DAMAGE_LIMIT).map(number => ({ ...number })),
+    particles: state.particles.slice(-SPECTATOR_PARTICLE_LIMIT).map(particle => ({ ...particle })),
+    effects: state.effects.slice(-SPECTATOR_EFFECT_LIMIT).map(effect => ({ ...effect })),
     upgradeChoices: [],
     runSkills: { ...state.runSkills },
   };
-  return { version: 1, emittedAt: Date.now(), state: cloneForNetwork(safeState) };
+  return { version: 1, emittedAt, state: safeState, diagnostics: packetDiagnostics(safeState, emittedAt) };
 }
 
 export async function publishSpectatorState(state: RunGameState): Promise<boolean> {
