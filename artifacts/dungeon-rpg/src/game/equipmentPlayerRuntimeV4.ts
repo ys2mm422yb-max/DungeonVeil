@@ -6,7 +6,7 @@ import { defenseMitigation } from './equipmentCombatV4';
 import {
   RELIC_COMBAT_V4,
   depthRuneBeforeDefenseV4,
-  guardianCrownLegacyCorrectionV4,
+  guardianCrownAttackMultiplierV4,
   markedClawAttackCooldownV4,
 } from './relicCombatContractV4';
 
@@ -22,12 +22,13 @@ export type EquipmentPlayerRuntimeState = {
   clawUntil: number;
   crownStack: number;
   crownInitialized: boolean;
+  crownBaseAttack: number | null;
 };
 
 export function createEquipmentPlayerRuntimeState(): EquipmentPlayerRuntimeState {
   return {
     roomKey: '', lastAttackTime: 0, lastHp: null, lastHitId: '', lastKillCount: 0,
-    clawUntil: 0, crownStack: 0, crownInitialized: false,
+    clawUntil: 0, crownStack: 0, crownInitialized: false, crownBaseAttack: null,
   };
 }
 
@@ -112,16 +113,16 @@ function updateBoundedRelics(engine: GameEngine, state: EquipmentPlayerRuntimeSt
     ? Math.max(0, Math.min(RELIC_COMBAT_V4.guardianCrown.maxStacks, loadVeilRelicProfile().crownRunStacks[runId] ?? 0))
     : 0;
   if (!state.crownInitialized) {
-    if (stack > 0) player.attack = Math.max(1, Math.round(player.attack * guardianCrownLegacyCorrectionV4(stack)));
+    const legacyMultiplier = Math.pow(1 + RELIC_COMBAT_V4.guardianCrown.legacyAttackPerStack, stack);
+    state.crownBaseAttack = Math.max(1, player.attack / Math.max(1, legacyMultiplier));
+    player.attack = Math.max(1, Math.round(state.crownBaseAttack * guardianCrownAttackMultiplierV4(stack)));
     state.crownInitialized = true;
-  } else if (stack > state.crownStack) {
-    for (let index = state.crownStack; index < stack; index++) {
-      player.attack = Math.max(1, Math.round(
-        player.attack
-          / (1 + RELIC_COMBAT_V4.guardianCrown.legacyAttackPerStack)
-          * (1 + RELIC_COMBAT_V4.guardianCrown.attackPerStack),
-      ));
-    }
+  } else if (stack !== state.crownStack) {
+    const base = state.crownBaseAttack ?? Math.max(1, player.attack / guardianCrownAttackMultiplierV4(state.crownStack));
+    state.crownBaseAttack = base;
+    player.attack = Math.max(1, Math.round(base * guardianCrownAttackMultiplierV4(stack)));
+  } else {
+    state.crownBaseAttack = Math.max(1, player.attack / guardianCrownAttackMultiplierV4(stack));
   }
   state.crownStack = stack;
 }
