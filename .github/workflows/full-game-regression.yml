@@ -40,7 +40,22 @@ jobs:
       - name: Audit every asset
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Audit all social and menu systems
-        run: pnpm --filter @workspace/dungeon-rpg audit:social
+        id: social-audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/dungeon-rpg audit:social 2>&1 | tee /tmp/dungeon-veil-social-audit.log
+      - name: Upload social audit failure diagnostics
+        if: steps.social-audit.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-veil-social-audit-failure
+          retention-days: 7
+          path: /tmp/dungeon-veil-social-audit.log
+      - name: Fail after social audit diagnostics
+        if: steps.social-audit.outcome == 'failure'
+        run: exit 1
       - name: Audit rooms 1-50, collision, enemies and mobile combat
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck full workspace
