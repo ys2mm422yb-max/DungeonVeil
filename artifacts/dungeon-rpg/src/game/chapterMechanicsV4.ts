@@ -5,7 +5,7 @@ export type ChapterPhaseV4 = 'intro' | 'build' | 'midgame' | 'lategame' | 'endga
 export type ChapterMechanicProfileV4 = Readonly<{
   phase: ChapterPhaseV4;
   reinforcementCount: number;
-  supportAdds: number;
+  supportReplacements: number;
   eliteAffixChance: number;
   bossPhaseCount: number;
   replacementPool: readonly EnemyType[];
@@ -19,16 +19,16 @@ const SUPPORT_POOL: readonly EnemyType[] = ['skeleton', 'vampire', 'demon'];
 
 export function chapterMechanicProfileV4(chapter: number): ChapterMechanicProfileV4 {
   const value = Math.max(1, Math.floor(Number(chapter) || 1));
-  if (value === 1) return { phase: 'intro', reinforcementCount: 0, supportAdds: 0, eliteAffixChance: 0, bossPhaseCount: 1, replacementPool: EARLY_POOL, supportPool: SUPPORT_POOL };
-  if (value <= 3) return { phase: 'build', reinforcementCount: 0, supportAdds: 0, eliteAffixChance: 0.04 * (value - 1), bossPhaseCount: 1, replacementPool: EARLY_POOL, supportPool: SUPPORT_POOL };
-  if (value <= 6) return { phase: 'midgame', reinforcementCount: 1, supportAdds: 0, eliteAffixChance: 0.12 + (value - 4) * 0.03, bossPhaseCount: value >= 6 ? 2 : 1, replacementPool: MID_POOL, supportPool: SUPPORT_POOL };
-  if (value <= 9) return { phase: 'lategame', reinforcementCount: 2, supportAdds: value >= 9 ? 1 : 0, eliteAffixChance: Math.min(0.32, 0.22 + (value - 7) * 0.05), bossPhaseCount: 2, replacementPool: LATE_POOL, supportPool: SUPPORT_POOL };
-  if (value === 10) return { phase: 'endgame', reinforcementCount: 2, supportAdds: 1, eliteAffixChance: 0.38, bossPhaseCount: 3, replacementPool: LATE_POOL, supportPool: SUPPORT_POOL };
+  if (value === 1) return { phase: 'intro', reinforcementCount: 0, supportReplacements: 0, eliteAffixChance: 0, bossPhaseCount: 1, replacementPool: EARLY_POOL, supportPool: SUPPORT_POOL };
+  if (value <= 3) return { phase: 'build', reinforcementCount: 0, supportReplacements: 0, eliteAffixChance: 0.04 * (value - 1), bossPhaseCount: 1, replacementPool: EARLY_POOL, supportPool: SUPPORT_POOL };
+  if (value <= 6) return { phase: 'midgame', reinforcementCount: 1, supportReplacements: 0, eliteAffixChance: 0.12 + (value - 4) * 0.03, bossPhaseCount: value >= 6 ? 2 : 1, replacementPool: MID_POOL, supportPool: SUPPORT_POOL };
+  if (value <= 9) return { phase: 'lategame', reinforcementCount: 2, supportReplacements: value >= 9 ? 1 : 0, eliteAffixChance: Math.min(0.32, 0.22 + (value - 7) * 0.05), bossPhaseCount: 2, replacementPool: LATE_POOL, supportPool: SUPPORT_POOL };
+  if (value === 10) return { phase: 'endgame', reinforcementCount: 2, supportReplacements: 1, eliteAffixChance: 0.38, bossPhaseCount: 3, replacementPool: LATE_POOL, supportPool: SUPPORT_POOL };
   const damped = Math.log2(value - 9);
   return {
     phase: 'endless',
     reinforcementCount: 2,
-    supportAdds: 1,
+    supportReplacements: 1,
     eliteAffixChance: Math.min(0.48, 0.38 + damped * 0.025),
     bossPhaseCount: 3,
     replacementPool: LATE_POOL,
@@ -53,9 +53,10 @@ export function applyChapterMechanicsV4(base: readonly EnemyType[], room: number
     result[targetIndex] = replacement;
   }
 
-  if (profile.supportAdds > 0 && room >= 21 && result.length < 8) {
-    const support = profile.supportPool[deterministicIndex(room, chapter, 29, profile.supportPool.length)];
-    result.push(support);
+  for (let index = 0; index < profile.supportReplacements && room >= 21 && result.length > 0; index++) {
+    const targetIndex = deterministicIndex(room, chapter, index + 23, result.length);
+    const support = profile.supportPool[deterministicIndex(room, chapter, index + 29, profile.supportPool.length)];
+    result[targetIndex] = support;
   }
 
   return result.slice(0, 8);
