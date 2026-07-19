@@ -21,6 +21,7 @@ import {
 } from './metaProgression';
 
 export const HUNT_EQUIPMENT_DROP_CHANCE = 0.08;
+export const UNOWNED_ITEM_PREFERENCE = 0.35;
 export const BOSS_EQUIPMENT_DROP_CHANCE: Readonly<Record<number, number>> = Object.freeze({
   10: 0.18,
   20: 0.20,
@@ -67,7 +68,7 @@ function chooseEquipment(
     if (forced) return equipmentDrop(meta, forced);
   }
   const unowned = pool.filter(item => !meta.owned[item.id]);
-  const candidates = unowned.length > 0 && random() < 0.35 ? unowned : pool;
+  const candidates = unowned.length > 0 && random() < UNOWNED_ITEM_PREFERENCE ? unowned : pool;
   const index = Math.min(candidates.length - 1, Math.floor(Math.max(0, random()) * candidates.length));
   return equipmentDrop(meta, candidates[index]);
 }
