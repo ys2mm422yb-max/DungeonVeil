@@ -119,6 +119,7 @@ export function SpectatorPerformanceQa() {
         host.dataset.bufferDepth = String(metrics.bufferDepth);
         host.dataset.interpolationFrames = String(metrics.interpolationFrames);
         host.dataset.extrapolationFrames = String(metrics.extrapolationFrames);
+        host.dataset.heldFrames = String(metrics.heldFrames);
         host.dataset.mode = metrics.mode;
         host.dataset.reactRenders = String(renderCountRef.current);
         host.dataset.elapsedMs = String(Date.now() - startedAt);
