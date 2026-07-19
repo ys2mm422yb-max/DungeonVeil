@@ -80,6 +80,18 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const mapX = (state: GameState, value: number) => value / TILE - state.map.width / 2 + 0.5;
     const mapZ = (state: GameState, value: number) => value / TILE - state.map.height / 2 + 0.5;
 
+    const applyRoomEnvironment = (activeRoom: any) => {
+      const environment = activeRoom?.userData?.theme?.userData?.environment;
+      if (!environment || !scene || !renderer || !THREE) return;
+      const background = Number(environment.background);
+      const fog = Number(environment.fog);
+      if (!scene.background?.isColor) scene.background = new THREE.Color(background);
+      else scene.background.setHex(background);
+      if (!scene.fog?.color) scene.fog = new THREE.Fog(fog, 24, 58);
+      else scene.fog.color.setHex(fog);
+      renderer.toneMappingExposure = Math.max(IS_MOBILE ? 1.12 : 1.04, Number(environment.exposure) || 1.12);
+    };
+
     const createEnemyFallback = (enemy: GameState['enemies'][number]) => {
       const root = new THREE.Group();
       root.name = `EnemyVisibilityFallback_${enemy.id}`;
@@ -172,6 +184,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
         const previous = roomRoot;
         roomRoot = root;
+        applyRoomEnvironment(root);
         scene.add(root);
         lastRoomKey = key;
         pendingRoomKey = '';
@@ -342,7 +355,11 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
 
     const syncArrows = (state: GameState, wallNow: number) => {
-      const shots = state.effects.filter(effect => effect.type === 'beam' && (effect.id.startsWith('shot-') || effect.id.startsWith('pierce-') || effect.id.startsWith('rico-'))).slice(-MAX_ARROW_VISUALS);
+      const projectileEffects = state.effects.filter(effect => effect.type === 'beam' && (effect.id.startsWith('shot-') || effect.id.startsWith('pierce-') || effect.id.startsWith('rico-')));
+      const mageShots = projectileEffects.filter(effect => effect.id.startsWith('shot-mage-'));
+      const normalShots = projectileEffects.filter(effect => !effect.id.startsWith('shot-mage-'));
+      const reservedMageSlots = Math.min(3, mageShots.length);
+      const shots = [...normalShots.slice(-(MAX_ARROW_VISUALS - reservedMageSlots)), ...mageShots.slice(-reservedMageSlots)];
       const active = new Set(shots.map(effect => effect.id));
       for (const [id, mesh] of arrowVisuals) {
         if (active.has(id)) continue;
@@ -775,6 +792,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const playerZ = mapZ(state, state.player.y);
 
       buildRoom(state);
+      applyRoomEnvironment(roomRoot);
       preloadNextRoom(state);
       if (playerRig) {
         playerRig.root.position.set(playerX, 0, playerZ);

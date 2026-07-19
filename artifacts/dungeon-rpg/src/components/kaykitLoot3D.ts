@@ -79,6 +79,60 @@ function tintObject(THREE: any, object: any, accent: string, strength: number) {
   });
 }
 
+function createRelicReliquary(THREE: any, prototype: any, accent: string) {
+  const root = new THREE.Group();
+  const color = new THREE.Color(accent);
+  const dark = color.clone().multiplyScalar(0.24);
+  const metal = new THREE.MeshStandardMaterial({ color: dark, metalness: 0.72, roughness: 0.3, emissive: color, emissiveIntensity: 0.08 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.56, 0.18, IS_MOBILE ? 12 : 18), metal);
+  base.position.y = 0.09;
+  root.add(base);
+  const crystal = prototype.clone(true);
+  crystal.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(crystal);
+  const size = box.getSize(new THREE.Vector3());
+  crystal.scale.setScalar(0.72 / Math.max(size.x, size.y, size.z, 0.001));
+  crystal.position.y = 0.58;
+  crystal.rotation.z = -0.16;
+  root.add(crystal);
+  const arcMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.78, depthWrite: false });
+  for (const rotation of [0, Math.PI / 2]) {
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.035, 7, IS_MOBILE ? 22 : 34), arcMaterial.clone());
+    arc.position.y = 0.63;
+    arc.rotation.set(Math.PI / 2, rotation, 0.18);
+    root.add(arc);
+  }
+  root.userData.presentationKind = 'relic-reliquary';
+  return root;
+}
+
+function createArmorToken(THREE: any, accent: string) {
+  const root = new THREE.Group();
+  const color = new THREE.Color(accent);
+  const material = new THREE.MeshStandardMaterial({ color, metalness: 0.58, roughness: 0.38, emissive: color, emissiveIntensity: 0.06 });
+  const darkMaterial = material.clone();
+  darkMaterial.color.multiplyScalar(0.42);
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.22), material);
+  torso.position.y = 0.52;
+  torso.scale.x = 0.82;
+  root.add(torso);
+  for (const side of [-1, 1]) {
+    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 0.3), material.clone());
+    shoulder.position.set(side * 0.42, 0.76, 0);
+    shoulder.rotation.z = side * -0.22;
+    root.add(shoulder);
+  }
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.055, 7, 18, Math.PI), darkMaterial);
+  collar.position.set(0, 0.86, 0.12);
+  collar.rotation.z = Math.PI;
+  root.add(collar);
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.1, 0.27), darkMaterial.clone());
+  belt.position.y = 0.2;
+  root.add(belt);
+  root.userData.presentationKind = 'armor-token';
+  return root;
+}
+
 function loadEquipment(id: EquipmentId) {
   if (!equipmentPromises.has(id)) {
     equipmentPromises.set(id, (async () => {
@@ -135,8 +189,15 @@ export async function createKayKitLootVisual(item: Item) {
   const root = new THREE.Group();
   root.name = equipment ? `KayKitEquipmentDrop_${equipment.id}_${item.id}` : relic ? `KayKitVeilRelic_${item.id}` : `KayKitHealingPotion_${item.id}`;
 
-  const object = prototype.clone(true);
-  if (equipment) {
+  const object = equipment?.slot === 'armor'
+    ? createArmorToken(THREE, equipment.accent)
+    : relic
+      ? createRelicReliquary(THREE, prototype, item.color || '#a978ff')
+      : prototype.clone(true);
+  if (equipment?.slot === 'armor') {
+    object.scale.setScalar(0.96);
+    object.position.y = 0.04;
+  } else if (equipment) {
     const visual = equipmentVisualProfile(equipment.id);
     object.rotation.set(...visual.rotation);
     object.updateMatrixWorld(true);
@@ -146,8 +207,8 @@ export async function createKayKitLootVisual(item: Item) {
     object.scale.setScalar(1.05 / maxDimension);
     object.position.y = 0.08;
   } else {
-    object.scale.setScalar(relic ? 1.15 : 0.9);
-    object.position.y = relic ? 0.16 : 0.04;
+    object.scale.setScalar(relic ? 0.94 : 0.9);
+    object.position.y = relic ? 0.02 : 0.04;
   }
   object.traverse((node: any) => {
     if (!node.isMesh) return;
@@ -196,5 +257,6 @@ export async function createKayKitLootVisual(item: Item) {
   root.userData.relic = relic;
   root.userData.equipment = Boolean(equipment);
   root.userData.rarity = rarity;
+  root.userData.presentationKind = object.userData.presentationKind ?? (equipment ? 'equipment-model' : relic ? 'relic-reliquary' : 'potion');
   return root;
 }

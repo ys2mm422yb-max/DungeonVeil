@@ -240,6 +240,7 @@ function installDuoLifeCycle(
   engine: GameEngine,
   localLifeRef: { current: CoopLifeState },
   teamGameOverRef: { current: boolean },
+  connectionPausedRef: { current: boolean },
   onDowned: () => void,
 ) {
   const internals = asInternals(engine);
@@ -248,6 +249,11 @@ function installDuoLifeCycle(
   const originalOnStateChange = engine.onStateChange;
 
   internals.updatePlayer = (dt, time) => {
+    if (connectionPausedRef.current) {
+      clearEngineInput(engine);
+      engine.state.player.state = 'idle';
+      return;
+    }
     if (localLifeRef.current !== 'alive' || teamGameOverRef.current) {
       clearEngineInput(engine);
       engine.state.player.state = 'dead';
@@ -271,6 +277,11 @@ function installDuoLifeCycle(
   };
 
   engine.update = timestamp => {
+    if (connectionPausedRef.current) {
+      clearEngineInput(engine);
+      engine.lastTime = timestamp;
+      return;
+    }
     if (localLifeRef.current !== 'alive' || teamGameOverRef.current) {
       const player = engine.state.player;
       player.hp = 1;
@@ -332,6 +343,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
   const revivesUsedRef = useRef(0);
   const downedUntilRef = useRef(0);
   const teamGameOverRef = useRef(false);
+  const connectionPausedRef = useRef(false);
   const roomKeyRef = useRef('');
   const roomAdvanceRequestRef = useRef('');
   const reviveIntervalRef = useRef<number | null>(null);
@@ -339,6 +351,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
   const [localLifeState, setLocalLifeState] = useState<CoopLifeState>('alive');
   const [downedRemainingMs, setDownedRemainingMs] = useState(0);
   const [teamGameOver, setTeamGameOver] = useState(false);
+  const [connectionPaused, setConnectionPausedState] = useState(false);
   const [reviveProgress, setReviveProgress] = useState(0);
   const [restartBusy, setRestartBusy] = useState(false);
   getEngineRef.current = getEngine;
@@ -355,6 +368,13 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
   const setTeamDefeated = (defeated: boolean) => {
     teamGameOverRef.current = defeated;
     setTeamGameOver(defeated);
+  };
+
+  const setConnectionPaused = (paused: boolean) => {
+    connectionPausedRef.current = paused;
+    setConnectionPausedState(paused);
+    const engine = getEngineRef.current();
+    if (paused && engine) clearEngineInput(engine);
   };
 
   const reviveLocal = (engine: GameEngine, fromRoomTransition = false) => {
@@ -448,9 +468,12 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
       roomKeyRef.current = '';
       roomAdvanceRequestRef.current = '';
       setTeamDefeated(false);
+      setConnectionPaused(false);
       setLife('alive');
       return;
     }
+
+    setConnectionPaused(true);
 
     const enterDowned = () => {
       if (localLifeRef.current !== 'alive' || teamGameOverRef.current) return;
@@ -490,6 +513,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
           latestRemoteRef.current = presence;
           setRemotePresence(presence);
           onRemotePlayerRef.current(presence);
+          setConnectionPaused(false);
         },
         onPeerLeft: userId => {
           if (latestRemoteRef.current?.userId !== userId) return;
@@ -497,8 +521,12 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
           setRemotePresence(null);
           onRemotePlayerRef.current(null);
           stopReviveHold();
+          setConnectionPaused(true);
         },
-        onStatus: status => onStatusRef.current(status),
+        onStatus: status => {
+          onStatusRef.current(status);
+          if (status !== 'connected') setConnectionPaused(true);
+        },
         onEnemySnapshot: snapshot => {
           const engine = getEngineRef.current();
           if (!engine || context.role !== 'guest') return;
@@ -582,7 +610,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
         : installHostRemoteTargeting(engine, client, latestRemoteRef, localLifeRef)
       : () => {};
     const restoreLifeCycle = engine
-      ? installDuoLifeCycle(engine, localLifeRef, teamGameOverRef, enterDowned)
+      ? installDuoLifeCycle(engine, localLifeRef, teamGameOverRef, connectionPausedRef, enterDowned)
       : () => {};
 
     client.connect();
@@ -632,9 +660,10 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
       if (!latestRemoteRef.current) return;
       latestRemoteRef.current = null;
       setRemotePresence(null);
-      onRemotePlayerRef.current(null);
-      stopReviveHold();
-    }, STALE_CHECK_MS);
+       onRemotePlayerRef.current(null);
+       stopReviveHold();
+       setConnectionPaused(true);
+     }, STALE_CHECK_MS);
 
     const lifeTick = window.setInterval(() => {
       const liveEngine = getEngineRef.current();
@@ -691,6 +720,14 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
   const downedSeconds = Math.max(0, Math.ceil(downedRemainingMs / 1000));
 
   return <>
+    {active && context && connectionPaused && !teamGameOver && <div data-testid="coop-teammate-disconnected" className="pointer-events-auto absolute inset-0 z-[88] flex items-center justify-center bg-black/72 px-5 backdrop-blur-sm">
+      <div className="w-[min(88vw,420px)] rounded-3xl border border-violet-200/25 bg-[#100d18]/96 p-7 text-center shadow-2xl">
+        <div className="text-[9px] font-black uppercase tracking-[.28em] text-violet-200/55">DUO-RUN PAUSIERT</div>
+        <div className="mt-2 font-serif text-2xl text-violet-50">TEAMMATE GETRENNT</div>
+        <div className="mt-3 text-[10px] leading-relaxed text-violet-100/62">Wiederverbindung läuft. Bewegung, Gegner, Schaden und Raumfortschritt bleiben eingefroren, bis beide Spieler wieder verbunden sind.</div>
+      </div>
+    </div>}
+
     {active && context && localLifeState !== 'alive' && !teamGameOver && <div data-testid="coop-local-life-state" data-life-state={localLifeState} className="pointer-events-none absolute left-1/2 top-[18%] z-[70] w-[min(86vw,360px)] -translate-x-1/2 rounded-2xl border border-red-200/25 bg-black/82 px-5 py-4 text-center shadow-2xl backdrop-blur-md">
       <div className="font-serif text-xl text-red-100">{localLifeState === 'downed' ? 'NIEDERGESCHLAGEN · DOWNED' : 'GEFALLEN · FALLEN'}</div>
       <div className="mt-2 text-[9px] font-black uppercase tracking-[.18em] text-red-100/65">{localLifeState === 'downed' ? `${downedSeconds}s · Mitspieler kann dich wiederbeleben` : 'Mitspieler muss den Raum beenden'}</div>
