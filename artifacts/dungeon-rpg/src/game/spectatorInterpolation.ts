@@ -70,7 +70,9 @@ function copyNonSpatialState(output: RunGameState, target: RunGameState): void {
   }
 }
 
-function matchingEnemy(state: RunGameState, id: string): Enemy | undefined {
+function matchingEnemy(state: RunGameState, id: string, preferredIndex: number): Enemy | undefined {
+  const direct = state.enemies[preferredIndex];
+  if (direct?.id === id) return direct;
   return state.enemies.find(enemy => enemy.id === id);
 }
 
@@ -80,6 +82,9 @@ export class SpectatorSnapshotBuffer {
   private output: RunGameState | null = null;
   private outputRoomKey = '';
   private lastSampleAt = 0;
+  private cachedClockOffsetMs = 0;
+  private previousEnemyX: number[] = [];
+  private previousEnemyY: number[] = [];
   private metrics: SpectatorInterpolationMetrics = {
     receivedSnapshots: 0,
     duplicateSnapshots: 0,
@@ -111,6 +116,9 @@ export class SpectatorSnapshotBuffer {
     if (Number.isFinite(offset)) {
       this.offsetSamples.push(offset);
       if (this.offsetSamples.length > 16) this.offsetSamples.shift();
+      const sorted = [...this.offsetSamples].sort((left, right) => left - right);
+      const sampleCount = Math.min(4, sorted.length);
+      this.cachedClockOffsetMs = sorted.slice(0, sampleCount).reduce((sum, value) => sum + value, 0) / sampleCount;
     }
     this.metrics.receivedSnapshots += 1;
     this.metrics.bufferDepth = this.packets.length;
@@ -123,15 +131,11 @@ export class SpectatorSnapshotBuffer {
     this.output = null;
     this.outputRoomKey = '';
     this.lastSampleAt = 0;
+    this.cachedClockOffsetMs = 0;
+    this.previousEnemyX.length = 0;
+    this.previousEnemyY.length = 0;
     this.metrics.bufferDepth = 0;
     this.metrics.mode = 'waiting';
-  }
-
-  private clockOffset(): number {
-    if (this.offsetSamples.length === 0) return 0;
-    const sorted = [...this.offsetSamples].sort((left, right) => left - right);
-    const sampleCount = Math.min(4, sorted.length);
-    return sorted.slice(0, sampleCount).reduce((sum, value) => sum + value, 0) / sampleCount;
   }
 
   private ensureOutput(target: RunGameState): RunGameState {
@@ -158,6 +162,8 @@ export class SpectatorSnapshotBuffer {
       this.output.runSkills = replacement.runSkills;
       this.outputRoomKey = key;
       this.lastSampleAt = 0;
+      this.previousEnemyX.length = 0;
+      this.previousEnemyY.length = 0;
       this.metrics.roomResets += 1;
     }
     return this.output;
@@ -179,8 +185,7 @@ export class SpectatorSnapshotBuffer {
       return this.output;
     }
 
-    const clockOffset = this.clockOffset();
-    const remoteRenderAt = now - clockOffset - SPECTATOR_INTERPOLATION_DELAY_MS;
+    const remoteRenderAt = now - this.cachedClockOffsetMs - SPECTATOR_INTERPOLATION_DELAY_MS;
     const latest = this.packets[this.packets.length - 1];
     const latestRoom = roomKey(latest.state);
     let previous = latest;
@@ -203,7 +208,10 @@ export class SpectatorSnapshotBuffer {
     }
 
     if (mode !== 'interpolate' && remoteRenderAt > latest.emittedAt) {
-      const compatible = [...this.packets].reverse().find(packet => packet !== latest && roomKey(packet.state) === latestRoom);
+      let compatible: TimedSnapshot | null = null;
+      for (let index = this.packets.length - 2; index >= 0; index--) {
+        if (roomKey(this.packets[index].state) === latestRoom) { compatible = this.packets[index]; break; }
+      }
       if (compatible) {
         previous = compatible;
         target = latest;
@@ -211,7 +219,10 @@ export class SpectatorSnapshotBuffer {
         mode = extrapolationMs > 0 ? 'extrapolate' : 'hold';
       }
     } else if (mode !== 'interpolate') {
-      const earliest = this.packets.find(packet => roomKey(packet.state) === latestRoom) ?? latest;
+      let earliest = latest;
+      for (let index = 0; index < this.packets.length; index++) {
+        if (roomKey(this.packets[index].state) === latestRoom) { earliest = this.packets[index]; break; }
+      }
       previous = earliest;
       target = earliest;
       mode = 'hold';
@@ -219,14 +230,19 @@ export class SpectatorSnapshotBuffer {
 
     const output = this.ensureOutput(target.state);
     const frameMs = this.lastSampleAt > 0 ? clamp(now - this.lastSampleAt, 1, 100) : 16;
-    const preserveSpatial = this.lastSampleAt > 0 && roomKey(output) === roomKey(target.state);
+    const preserveSpatial = this.lastSampleAt > 0 && roomKey(output) === roomKey(target.state) && sameEnemyLayout(output, target.state);
     const previousPlayerX = output.player.x;
     const previousPlayerY = output.player.y;
     const previousCameraX = output.camera.x;
     const previousCameraY = output.camera.y;
-    const previousEnemyPositions = preserveSpatial
-      ? new Map(output.enemies.map(enemy => [enemy.id, { x: enemy.x, y: enemy.y }]))
-      : new Map<string, { x: number; y: number }>();
+    if (preserveSpatial) {
+      this.previousEnemyX.length = output.enemies.length;
+      this.previousEnemyY.length = output.enemies.length;
+      for (let index = 0; index < output.enemies.length; index++) {
+        this.previousEnemyX[index] = output.enemies[index].x;
+        this.previousEnemyY[index] = output.enemies[index].y;
+      }
+    }
 
     copyNonSpatialState(output, target.state);
     if (preserveSpatial) {
@@ -234,9 +250,9 @@ export class SpectatorSnapshotBuffer {
       output.player.y = previousPlayerY;
       output.camera.x = previousCameraX;
       output.camera.y = previousCameraY;
-      for (const enemy of output.enemies) {
-        const position = previousEnemyPositions.get(enemy.id);
-        if (position) { enemy.x = position.x; enemy.y = position.y; }
+      for (let index = 0; index < output.enemies.length; index++) {
+        output.enemies[index].x = this.previousEnemyX[index];
+        output.enemies[index].y = this.previousEnemyY[index];
       }
     }
 
@@ -255,16 +271,17 @@ export class SpectatorSnapshotBuffer {
     output.camera.x = this.smooth(output.camera.x, spatial(previous.state.camera.x, target.state.camera.x), frameMs);
     output.camera.y = this.smooth(output.camera.y, spatial(previous.state.camera.y, target.state.camera.y), frameMs);
 
-    for (const enemy of output.enemies) {
-      const from = matchingEnemy(previous.state, enemy.id);
-      const to = matchingEnemy(target.state, enemy.id);
+    for (let index = 0; index < output.enemies.length; index++) {
+      const enemy = output.enemies[index];
+      const from = matchingEnemy(previous.state, enemy.id, index);
+      const to = matchingEnemy(target.state, enemy.id, index);
       if (!to) continue;
       enemy.x = this.smooth(enemy.x, from ? spatial(from.x, to.x) : to.x, frameMs);
       enemy.y = this.smooth(enemy.y, from ? spatial(from.y, to.y) : to.y, frameMs);
     }
 
     this.lastSampleAt = now;
-    this.metrics.clockOffsetMs = Math.round(clockOffset);
+    this.metrics.clockOffsetMs = Math.round(this.cachedClockOffsetMs);
     this.metrics.latestPacketAgeMs = Math.max(0, now - latest.receivedAt);
     this.metrics.bufferDepth = this.packets.length;
     this.metrics.mode = mode;
