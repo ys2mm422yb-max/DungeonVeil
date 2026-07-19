@@ -8,11 +8,16 @@ import {
   SPECTATOR_VIEWER_HEARTBEAT_MS,
   type FriendSpectatorFeed,
 } from '../game/socialSpectatorOnline';
+import {
+  SPECTATOR_BUFFER_CAPACITY,
+  SPECTATOR_MAX_EXTRAPOLATION_MS,
+  SPECTATOR_UI_PAINT_MS,
+  SpectatorInterpolationBuffer,
+} from '../game/spectatorInterpolation';
 import { CombatStage } from './CombatStage';
 import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
 
-const INTERPOLATION_MS = 120;
-const lerp = (from: number, to: number, amount: number) => from + (to - from) * amount;
+const SPECTATOR_PERFORMANCE_KEY = 'dungeon-veil-spectator-performance';
 
 const GIFT_LABELS: Record<string, readonly [string, string]> = {
   multishot: ['Mehrfachpfeil', 'Multishot'],
@@ -32,26 +37,13 @@ const GIFT_LABELS: Record<string, readonly [string, string]> = {
   vitalSpark: ['Lebensfunke', 'Vital Spark'],
 };
 
-function interpolateState(previous: RunGameState, target: RunGameState, amount: number): RunGameState {
-  if (previous.chapter !== target.chapter || previous.floor !== target.floor) return target;
-  const oldEnemies = new Map(previous.enemies.map(enemy => [enemy.id, enemy]));
-  return {
-    ...target,
-    player: {
-      ...target.player,
-      x: lerp(previous.player.x, target.player.x, amount),
-      y: lerp(previous.player.y, target.player.y, amount),
-    },
-    camera: {
-      x: lerp(previous.camera.x, target.camera.x, amount),
-      y: lerp(previous.camera.y, target.camera.y, amount),
-    },
-    enemies: target.enemies.map(enemy => {
-      const old = oldEnemies.get(enemy.id);
-      return old ? { ...enemy, x: lerp(old.x, enemy.x, amount), y: lerp(old.y, enemy.y, amount) } : enemy;
-    }),
-  };
-}
+type RuntimeCounters = {
+  reactPaints: number;
+  lastReactPaints: number;
+  renderFrames: number;
+  lastRenderFrames: number;
+  lastMetricAt: number;
+};
 
 export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   friendId: string;
@@ -61,13 +53,35 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
 }) {
   const de = language === 'de';
   const hadFeedRef = useRef(false);
-  const animationRef = useRef<number | null>(null);
+  const feedRef = useRef<FriendSpectatorFeed | null>(null);
   const displayRef = useRef<RunGameState | null>(null);
-  const [feed, setFeed] = useState<FriendSpectatorFeed | null>(null);
+  const diagnosticsRef = useRef<HTMLSpanElement>(null);
+  const bufferRef = useRef<SpectatorInterpolationBuffer | null>(null);
+  if (!bufferRef.current) bufferRef.current = new SpectatorInterpolationBuffer();
+  const countersRef = useRef<RuntimeCounters>({
+    reactPaints: 0,
+    lastReactPaints: 0,
+    renderFrames: 0,
+    lastRenderFrames: 0,
+    lastMetricAt: performance.now(),
+  });
+  countersRef.current.reactPaints += 1;
+
   const [displayState, setDisplayState] = useState<RunGameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [rendererReady, setRendererReady] = useState(false);
   const [error, setError] = useState('');
+  const [, setUiVersion] = useState(0);
+
+  useEffect(() => {
+    bufferRef.current = new SpectatorInterpolationBuffer();
+    displayRef.current = null;
+    feedRef.current = null;
+    hadFeedRef.current = false;
+    setDisplayState(null);
+    setLoading(true);
+    setError('');
+  }, [friendId]);
 
   useEffect(() => {
     document.documentElement.dataset.dungeonVeilSpectating = '1';
@@ -86,14 +100,73 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const interval = window.setInterval(() => setUiVersion(version => version + 1), SPECTATOR_UI_PAINT_MS);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let frame = 0;
+    const render = (time: number) => {
+      const buffer = bufferRef.current;
+      const current = buffer?.sample(Date.now()) ?? null;
+      if (current) displayRef.current = current;
+      const counters = countersRef.current;
+      counters.renderFrames += 1;
+      const elapsed = time - counters.lastMetricAt;
+      if (elapsed >= 1_000 && buffer) {
+        const metrics = buffer.metrics(Date.now());
+        const reactPaintHz = (counters.reactPaints - counters.lastReactPaints) * 1_000 / elapsed;
+        const renderFps = (counters.renderFrames - counters.lastRenderFrames) * 1_000 / elapsed;
+        const state = buffer.state();
+        const snapshot = {
+          ...metrics,
+          reactPaintHz: Number(reactPaintHz.toFixed(2)),
+          renderFps: Number(renderFps.toFixed(2)),
+          enemies: state?.enemies.length ?? 0,
+          effects: state?.effects.length ?? 0,
+          particles: state?.particles.length ?? 0,
+          damageNumbers: state?.damageNumbers.length ?? 0,
+          canvases: document.querySelectorAll('[data-testid="spectator-screen"] canvas').length,
+          menuRendererSuspended: document.documentElement.dataset.dungeonVeilSpectating === '1',
+          at: Date.now(),
+        };
+        const host = diagnosticsRef.current;
+        if (host) {
+          host.dataset.bufferDepth = String(snapshot.bufferDepth);
+          host.dataset.networkHz = snapshot.networkHz.toFixed(2);
+          host.dataset.packetAgeMs = String(Math.round(snapshot.packetAgeMs));
+          host.dataset.lastPacketGapMs = String(Math.round(snapshot.lastPacketGapMs));
+          host.dataset.maxPacketGapMs = String(Math.round(snapshot.maxPacketGapMs));
+          host.dataset.reactPaintHz = snapshot.reactPaintHz.toFixed(2);
+          host.dataset.renderFps = snapshot.renderFps.toFixed(2);
+          host.dataset.interpolatedFrames = String(snapshot.interpolatedFrames);
+          host.dataset.extrapolatedFrames = String(snapshot.extrapolatedFrames);
+          host.dataset.heldFrames = String(snapshot.heldFrames);
+          host.dataset.maxExtrapolatedDistancePx = snapshot.maxExtrapolatedDistancePx.toFixed(2);
+          host.dataset.mode = snapshot.mode;
+          host.dataset.effects = String(snapshot.effects);
+          host.dataset.particles = String(snapshot.particles);
+          host.dataset.damageNumbers = String(snapshot.damageNumbers);
+          host.dataset.canvases = String(snapshot.canvases);
+          host.dataset.menuRendererSuspended = snapshot.menuRendererSuspended ? 'true' : 'false';
+        }
+        try { localStorage.setItem(SPECTATOR_PERFORMANCE_KEY, JSON.stringify(snapshot)); } catch {}
+        counters.lastReactPaints = counters.reactPaints;
+        counters.lastRenderFrames = counters.renderFrames;
+        counters.lastMetricAt = time;
+      }
+      frame = requestAnimationFrame(render);
+    };
+    frame = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
     const heartbeat = () => { void heartbeatSpectatorViewer(friendId).catch(() => {}); };
     heartbeat();
     const interval = window.setInterval(heartbeat, SPECTATOR_VIEWER_HEARTBEAT_MS);
     return () => {
-      cancelled = true;
       window.clearInterval(interval);
-      if (!cancelled) return;
       void leaveSpectatorViewer(friendId).catch(() => {});
     };
   }, [friendId]);
@@ -107,12 +180,17 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
       try {
         const next = await loadFriendSpectatorFeed(friendId);
         if (cancelled) return;
+        feedRef.current = next;
         if (next) {
           hadFeedRef.current = true;
-          setFeed(next);
+          if (next.snapshot) {
+            const display = bufferRef.current?.push(next.snapshot, Date.now()) ?? null;
+            if (display && display !== displayRef.current) {
+              displayRef.current = display;
+              setDisplayState(display);
+            }
+          }
           setError('');
-        } else {
-          setFeed(null);
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
@@ -126,34 +204,9 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [friendId]);
 
+  const feed = feedRef.current;
   const targetState = feed?.snapshot?.state ?? null;
-  useEffect(() => {
-    if (!targetState) return;
-    if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
-    const from = displayRef.current ?? targetState;
-    if (from.chapter !== targetState.chapter || from.floor !== targetState.floor) {
-      displayRef.current = targetState;
-      setDisplayState(targetState);
-      return;
-    }
-    const startedAt = performance.now();
-    const animate = (now: number) => {
-      const amount = Math.min(1, Math.max(0, (now - startedAt) / INTERPOLATION_MS));
-      const eased = 1 - Math.pow(1 - amount, 3);
-      const next = interpolateState(from, targetState, eased);
-      displayRef.current = next;
-      setDisplayState(next);
-      if (amount < 1) animationRef.current = requestAnimationFrame(animate);
-      else animationRef.current = null;
-    };
-    animationRef.current = requestAnimationFrame(animate);
-    return () => {
-      if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    };
-  }, [targetState]);
-
-  const gameState = displayState ?? targetState;
+  const gameState = displayState;
   const activity = feed?.activity_state;
   const dead = Boolean(targetState && (targetState.status === 'gameover' || targetState.player.hp <= 0));
   const paused = activity === 'paused' || targetState?.status === 'paused';
@@ -184,6 +237,15 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   return <div data-testid="spectator-screen" className="fixed inset-0 z-[220] overflow-hidden bg-black text-white">
     {rendererReady && gameState && <CombatStage gameState={gameState} />}
     {(!rendererReady || !gameState) && <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(67,41,102,.3),#050507_56%)]" />}
+
+    <span
+      ref={diagnosticsRef}
+      data-testid="spectator-performance-diagnostics"
+      data-contract="timestamp-buffer-direct-render-v1"
+      data-buffer-capacity={SPECTATOR_BUFFER_CAPACITY}
+      data-max-extrapolation-ms={SPECTATOR_MAX_EXTRAPOLATION_MS}
+      className="sr-only"
+    />
 
     <header className="pointer-events-none absolute inset-x-0 top-0 z-[240] flex items-start justify-between gap-2 bg-gradient-to-b from-black/92 via-black/58 to-transparent px-3 pb-12 pt-[max(10px,calc(env(safe-area-inset-top)+6px))]">
       <div className="min-w-0 max-w-[calc(100vw-68px)] rounded-2xl border border-violet-300/18 bg-black/72 px-3 py-2 backdrop-blur-lg">
