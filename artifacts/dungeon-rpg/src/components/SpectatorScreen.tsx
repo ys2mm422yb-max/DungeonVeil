@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import type { RunGameState } from '../game/runEngine';
 import {
   heartbeatSpectatorViewer,
@@ -8,11 +8,13 @@ import {
   SPECTATOR_VIEWER_HEARTBEAT_MS,
   type FriendSpectatorFeed,
 } from '../game/socialSpectatorOnline';
+import { SpectatorPlaybackBuffer } from '../game/spectatorPlayback';
 import { CombatStage } from './CombatStage';
 import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
 
-const INTERPOLATION_MS = 120;
-const lerp = (from: number, to: number, amount: number) => from + (to - from) * amount;
+const SPECTATOR_DIAGNOSTICS_KEY = 'dungeon-veil-spectator-performance';
+const DIAGNOSTICS_PAINT_MS = 500;
+const DIAGNOSTICS_STORE_MS = 2_000;
 
 const GIFT_LABELS: Record<string, readonly [string, string]> = {
   multishot: ['Mehrfachpfeil', 'Multishot'],
@@ -32,26 +34,9 @@ const GIFT_LABELS: Record<string, readonly [string, string]> = {
   vitalSpark: ['Lebensfunke', 'Vital Spark'],
 };
 
-function interpolateState(previous: RunGameState, target: RunGameState, amount: number): RunGameState {
-  if (previous.chapter !== target.chapter || previous.floor !== target.floor) return target;
-  const oldEnemies = new Map(previous.enemies.map(enemy => [enemy.id, enemy]));
-  return {
-    ...target,
-    player: {
-      ...target.player,
-      x: lerp(previous.player.x, target.player.x, amount),
-      y: lerp(previous.player.y, target.player.y, amount),
-    },
-    camera: {
-      x: lerp(previous.camera.x, target.camera.x, amount),
-      y: lerp(previous.camera.y, target.camera.y, amount),
-    },
-    enemies: target.enemies.map(enemy => {
-      const old = oldEnemies.get(enemy.id);
-      return old ? { ...enemy, x: lerp(old.x, enemy.x, amount), y: lerp(old.y, enemy.y, amount) } : enemy;
-    }),
-  };
-}
+const SpectatorScene = memo(function SpectatorScene({ gameState }: { gameState: RunGameState }) {
+  return <CombatStage gameState={gameState} />;
+}, (previous, next) => previous.gameState === next.gameState);
 
 export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   friendId: string;
@@ -61,13 +46,27 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
 }) {
   const de = language === 'de';
   const hadFeedRef = useRef(false);
+  const playbackRef = useRef<SpectatorPlaybackBuffer | null>(null);
   const animationRef = useRef<number | null>(null);
-  const displayRef = useRef<RunGameState | null>(null);
+  const diagnosticsRef = useRef<HTMLSpanElement>(null);
+  const reactCommitsRef = useRef(0);
+  const lastDiagnosticsPaintRef = useRef(0);
+  const lastDiagnosticsStoreRef = useRef(0);
   const [feed, setFeed] = useState<FriendSpectatorFeed | null>(null);
-  const [displayState, setDisplayState] = useState<RunGameState | null>(null);
+  const [sceneState, setSceneState] = useState<RunGameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [rendererReady, setRendererReady] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    reactCommitsRef.current += 1;
+  });
+
+  useEffect(() => {
+    playbackRef.current = null;
+    setSceneState(null);
+    hadFeedRef.current = false;
+  }, [friendId]);
 
   useEffect(() => {
     document.documentElement.dataset.dungeonVeilSpectating = '1';
@@ -86,14 +85,11 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
     const heartbeat = () => { void heartbeatSpectatorViewer(friendId).catch(() => {}); };
     heartbeat();
     const interval = window.setInterval(heartbeat, SPECTATOR_VIEWER_HEARTBEAT_MS);
     return () => {
-      cancelled = true;
       window.clearInterval(interval);
-      if (!cancelled) return;
       void leaveSpectatorViewer(friendId).catch(() => {});
     };
   }, [friendId]);
@@ -128,32 +124,70 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
 
   const targetState = feed?.snapshot?.state ?? null;
   useEffect(() => {
-    if (!targetState) return;
-    if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
-    const from = displayRef.current ?? targetState;
-    if (from.chapter !== targetState.chapter || from.floor !== targetState.floor) {
-      displayRef.current = targetState;
-      setDisplayState(targetState);
+    const snapshot = feed?.snapshot;
+    if (!snapshot) return;
+    const packetBytes = snapshot.diagnostics?.estimatedBytes ?? 0;
+    const current = playbackRef.current;
+    if (!current || !current.accepts(snapshot.state)) {
+      const playback = new SpectatorPlaybackBuffer(snapshot.state, snapshot.emittedAt, packetBytes);
+      playbackRef.current = playback;
+      setSceneState(playback.sceneState);
       return;
     }
-    const startedAt = performance.now();
+    current.push(snapshot.state, snapshot.emittedAt, packetBytes);
+  }, [feed?.snapshot]);
+
+  useEffect(() => {
+    const paintDiagnostics = (now: number) => {
+      const playback = playbackRef.current;
+      const host = diagnosticsRef.current;
+      if (!playback || !host || now - lastDiagnosticsPaintRef.current < DIAGNOSTICS_PAINT_MS) return;
+      lastDiagnosticsPaintRef.current = now;
+      const diagnostics = playback.diagnostics(now);
+      host.dataset.bufferDepth = String(diagnostics.bufferDepth);
+      host.dataset.renderedFrames = String(diagnostics.renderedFrames);
+      host.dataset.receivedSnapshots = String(diagnostics.receivedSnapshots);
+      host.dataset.droppedSnapshots = String(diagnostics.droppedSnapshots);
+      host.dataset.hardCorrections = String(diagnostics.hardCorrections);
+      host.dataset.extrapolationMs = String(diagnostics.extrapolationMs);
+      host.dataset.packetIntervalMs = String(diagnostics.packetIntervalMs);
+      host.dataset.arrivalJitterMs = String(diagnostics.arrivalJitterMs);
+      host.dataset.packetAgeMs = String(diagnostics.packetAgeMs);
+      host.dataset.packetBytes = String(diagnostics.packetBytes);
+      host.dataset.enemies = String(diagnostics.enemies);
+      host.dataset.effects = String(diagnostics.effects);
+      host.dataset.particles = String(diagnostics.particles);
+      host.dataset.damageNumbers = String(diagnostics.damageNumbers);
+      host.dataset.playbackMode = diagnostics.mode;
+      host.dataset.reactCommits = String(reactCommitsRef.current);
+      host.dataset.canvasCount = String(document.querySelectorAll('canvas').length);
+      if (now - lastDiagnosticsStoreRef.current >= DIAGNOSTICS_STORE_MS) {
+        lastDiagnosticsStoreRef.current = now;
+        try {
+          localStorage.setItem(SPECTATOR_DIAGNOSTICS_KEY, JSON.stringify({
+            ...diagnostics,
+            reactCommits: reactCommitsRef.current,
+            canvasCount: document.querySelectorAll('canvas').length,
+            rendererHandoff: document.documentElement.dataset.dungeonVeilSpectating === '1',
+            at: Date.now(),
+          }));
+        } catch {}
+      }
+    };
+
     const animate = (now: number) => {
-      const amount = Math.min(1, Math.max(0, (now - startedAt) / INTERPOLATION_MS));
-      const eased = 1 - Math.pow(1 - amount, 3);
-      const next = interpolateState(from, targetState, eased);
-      displayRef.current = next;
-      setDisplayState(next);
-      if (amount < 1) animationRef.current = requestAnimationFrame(animate);
-      else animationRef.current = null;
+      playbackRef.current?.render(now);
+      paintDiagnostics(now);
+      animationRef.current = requestAnimationFrame(animate);
     };
     animationRef.current = requestAnimationFrame(animate);
     return () => {
       if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     };
-  }, [targetState]);
+  }, []);
 
-  const gameState = displayState ?? targetState;
+  const gameState = sceneState ?? targetState;
   const activity = feed?.activity_state;
   const dead = Boolean(targetState && (targetState.status === 'gameover' || targetState.player.hp <= 0));
   const paused = activity === 'paused' || targetState?.status === 'paused';
@@ -181,9 +215,10 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
             : '';
   const preparingRenderer = !rendererReady;
 
-  return <div data-testid="spectator-screen" className="fixed inset-0 z-[220] overflow-hidden bg-black text-white">
-    {rendererReady && gameState && <CombatStage gameState={gameState} />}
+  return <div data-testid="spectator-screen" data-render-contract="buffered-stable-scene-v2" className="fixed inset-0 z-[220] overflow-hidden bg-black text-white">
+    {rendererReady && gameState && <SpectatorScene gameState={gameState} />}
     {(!rendererReady || !gameState) && <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(67,41,102,.3),#050507_56%)]" />}
+    <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-buffer-depth="0" data-rendered-frames="0" data-react-commits="0" data-canvas-count="0" className="sr-only" />
 
     <header className="pointer-events-none absolute inset-x-0 top-0 z-[240] flex items-start justify-between gap-2 bg-gradient-to-b from-black/92 via-black/58 to-transparent px-3 pb-12 pt-[max(10px,calc(env(safe-area-inset-top)+6px))]">
       <div className="min-w-0 max-w-[calc(100vw-68px)] rounded-2xl border border-violet-300/18 bg-black/72 px-3 py-2 backdrop-blur-lg">
@@ -192,7 +227,7 @@ export function SpectatorScreen({ friendId, friendName, language, onClose }: {
         <div className="mt-1 text-[7px] uppercase tracking-[.12em] text-white/42">{feed ? `${de ? 'Kapitel' : 'Chapter'} ${feed.chapter} · ${de ? 'Raum' : 'Room'} ${feed.room} · ${(delayMs / 1000).toFixed(1)} s` : (de ? 'Verbindung wird aufgebaut' : 'Connecting')}</div>
         {gameState && <div data-testid="spectator-health" className="mt-2">
           <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-[.12em]"><span className="text-white/38">{de ? 'LEBEN' : 'HEALTH'}</span><span className="text-white/72">{hp}/{maxHp}</span></div>
-          <div className="mt-1 h-2 overflow-hidden rounded-full border border-white/10 bg-black/70"><div className="h-full rounded-full bg-red-500 transition-[width] duration-100" style={{ width: `${hpPercent}%` }} /></div>
+          <div className="mt-1 h-2 overflow-hidden rounded-full border border-white/10 bg-black/70"><div className="h-full rounded-full bg-red-500 transition-[width] duration-200" style={{ width: `${hpPercent}%` }} /></div>
         </div>}
         {gifts.length > 0 && <div data-testid="spectator-gifts" className="mt-2 border-t border-white/8 pt-2">
           <div className="mb-1 text-[6px] font-black uppercase tracking-[.16em] text-violet-100/45">{de ? 'GABEN' : 'GIFTS'}</div>
