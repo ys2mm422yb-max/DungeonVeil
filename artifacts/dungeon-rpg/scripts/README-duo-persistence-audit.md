@@ -1,0 +1,1 @@
+The secure Duo persistence stack uses validate-coop-run-persistence.mjs and validate-coop-duo-balance-rewards-v2.mjs. The legacy direct-local-reward validator is superseded because Duo currency rewards now originate from server entitlements while Solo reward routing remains unchanged.

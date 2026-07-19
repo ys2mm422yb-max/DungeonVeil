@@ -13,6 +13,7 @@ import { ActionButtons } from '../components/ActionButtons';
 import { HUD } from '../components/HUD';
 import { GameSessionBridge } from '../components/GameSessionBridge';
 import { CoopRunRealtimeBridge } from '../components/CoopRunRealtimeBridge';
+import { CoopRunPersistenceBridge } from '../components/CoopRunPersistenceBridge';
 import { GamePausePanel } from '../components/GamePausePanel';
 import { GameOverScreen } from '../components/screens/GameOverScreen';
 import { LevelUpScreen } from '../components/screens/LevelUpScreen';
@@ -37,6 +38,7 @@ import { applyGiftUpgrade, prepareGiftChoices } from '../game/giftUpgradeControl
 import { leaveCoopLobby, type CoopLobbySnapshot } from '../game/coopLobbyOnline';
 import { createDuoRunContext, createSoloRunContext, isDuoRun, type RunContext } from '../game/coopRunMode';
 import type { CoopPlayerPresence, CoopRealtimeStatus } from '../game/coopRealtimePresence';
+import { getMyCoopRunCheckpoint } from '../game/coopRunPersistenceOnline';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 const RUN_ENTRY_PRELOAD_ATTEMPTS = 4;
@@ -304,13 +306,30 @@ export default function Game() {
     if (!force && isDuoRun(runContext) && runContext.lobbyId === context.lobbyId && uiState === 'game') return;
     setStartingRun(true);
     try {
-      await preloadRequiredRunRoom(1);
+      const checkpoint = await getMyCoopRunCheckpoint(lobby.lobby_id, lobby.run_seed).catch(() => null);
+      const resumeChapter = checkpoint?.authoritative_chapter ?? checkpoint?.chapter ?? 1;
+      const resumeRoom = checkpoint?.authoritative_room ?? checkpoint?.room ?? 1;
+      await preloadRequiredRunRoom(resumeRoom);
       const preferred = await resolvePreferredRunName(saveData);
       const name = sanitizeRunName(preferred || saveData?.playerName) || (language === 'de' ? 'Waldläufer' : 'Ranger');
       setSoloPersistence(engine, false);
       markActiveRun(false);
       document.documentElement.dataset.dungeonVeilRunMode = 'duo';
-      engine.startNewGame(name, 'archer');
+      if (checkpoint) {
+        const restored: SaveData = {
+          ...checkpoint.snapshot,
+          playerName: name,
+          playerClass: 'archer',
+          chapter: resumeChapter,
+          floor: resumeRoom,
+          hp: Math.max(1, Number(checkpoint.snapshot.hp) || 1),
+          savedAt: Date.now(),
+          saveReason: checkpoint.used_host_fallback ? 'duo-host-rejoin' : 'duo-rejoin',
+        };
+        engine.continueGame(restored);
+      } else {
+        engine.startNewGame(name, 'archer');
+      }
       setRunContext(context);
       setActiveCoopLobby(lobby);
       setRemotePlayer(null);
@@ -471,6 +490,12 @@ export default function Game() {
   return (
     <div className="fixed inset-0 bg-black overflow-hidden touch-none select-none overscroll-none">
       <GameSessionBridge getEngine={() => engineRef.current} active={uiState === 'game'} />
+      <CoopRunPersistenceBridge
+        active={uiState === 'game' && Boolean(duoContext)}
+        context={duoContext}
+        getEngine={() => engineRef.current}
+        language={language}
+      />
       <CoopRunRealtimeBridge
         active={uiState === 'game' && Boolean(duoContext)}
         context={duoContext}
