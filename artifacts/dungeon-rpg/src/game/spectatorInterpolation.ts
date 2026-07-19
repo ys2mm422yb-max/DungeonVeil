@@ -215,8 +215,9 @@ export class SpectatorSnapshotBuffer {
       if (compatible) {
         previous = compatible;
         target = latest;
-        extrapolationMs = clamp(remoteRenderAt - latest.emittedAt, 0, SPECTATOR_MAX_EXTRAPOLATION_MS);
-        mode = extrapolationMs > 0 ? 'extrapolate' : 'hold';
+        const requestedExtrapolationMs = Math.max(0, remoteRenderAt - latest.emittedAt);
+        extrapolationMs = clamp(requestedExtrapolationMs, 0, SPECTATOR_MAX_EXTRAPOLATION_MS);
+        mode = requestedExtrapolationMs > 0 && requestedExtrapolationMs <= SPECTATOR_MAX_EXTRAPOLATION_MS ? 'extrapolate' : 'hold';
       }
     } else if (mode !== 'interpolate') {
       let earliest = latest;
@@ -259,7 +260,7 @@ export class SpectatorSnapshotBuffer {
     const intervalMs = Math.max(1, target.emittedAt - previous.emittedAt);
     const spatial = (from: number, to: number) => {
       if (mode === 'interpolate') return from + (to - from) * amount;
-      if (mode === 'extrapolate') {
+      if (extrapolationMs > 0) {
         const projected = to + (to - from) / intervalMs * extrapolationMs;
         return to + clamp(projected - to, -32, 32);
       }
