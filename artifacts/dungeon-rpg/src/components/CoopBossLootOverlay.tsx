@@ -53,6 +53,14 @@ function grantConsolationDust(amount: number): void {
   saveMetaProgression(meta);
 }
 
+function isNoEquipmentOutcome(result: CoopBossLootSnapshot): boolean {
+  return result.status === 'resolved'
+    && result.choice_count === 0
+    && !result.winner_user_id
+    && !result.my_item_won
+    && result.my_consolation_dust === 0;
+}
+
 export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
   const getEngineRef = useRef(getEngine);
   const originalCanExitRef = useRef<GameEngine['canExitRoom'] | null>(null);
@@ -140,7 +148,7 @@ export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
       applyingRef.current.add(result.roll_id);
       try {
         const definition = EQUIPMENT[result.item_id];
-        if (result.my_item_won && definition) {
+        if (result.my_item_won && definition?.active) {
           const collected = collectBalancedEquipmentDrop(result.item_id);
           recordPlayerProfileItemFound();
           window.dispatchEvent(new CustomEvent('dungeon-veil-equipment-picked', {
@@ -185,6 +193,15 @@ export function CoopBossLootOverlay({ active, language, getEngine }: Props) {
           result = await openCoopBossLoot(lobby.lobby_id, lobby.run_seed, trigger.chapter, trigger.room);
         }
         if (!stopped && result) {
+          if (isNoEquipmentOutcome(result)) {
+            markApplied(result.roll_id);
+            stopped = true;
+            restoreExit();
+            setTrigger(null);
+            setSnapshot(null);
+            setError('');
+            return;
+          }
           acceptSnapshot(result);
           setError('');
           await applyOutcome(result);
