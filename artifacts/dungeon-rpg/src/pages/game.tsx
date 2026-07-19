@@ -92,10 +92,12 @@ function hasActiveRunSession(): boolean {
 }
 
 function markActiveRun(active: boolean): void {
+  document.documentElement.dataset.dungeonVeilActiveRun = active ? '1' : '0';
   try {
     if (active) sessionStorage.setItem(ACTIVE_RUN_SESSION_KEY, '1');
     else sessionStorage.removeItem(ACTIVE_RUN_SESSION_KEY);
   } catch {}
+  window.dispatchEvent(new CustomEvent('dungeon-veil-run-active-changed', { detail: { active } }));
 }
 
 function connectionLabel(status: CoopRealtimeStatus, language: string, remote: CoopPlayerPresence | null) {

@@ -25,6 +25,9 @@ requireText(globalLayer, "dungeon-veil-room-preparing", 'Room loading does not l
 requireText(globalLayer, "dungeon-veil-room-ready", 'Room loading does not wait for the ready event');
 requireText(globalLayer, 'app-boot-loading-screen', 'Boot loading test hook is missing');
 requireText(globalLayer, 'run-room-loading-screen', 'Run loading test hook is missing');
+requireText(globalLayer, 'ROOM_LOADING_SHOW_AFTER_MS', 'Fast room swaps still show a full-screen loader immediately');
+requireText(globalLayer, 'seamless-violet-veil', 'Slow room swaps do not use the lightweight veil transition');
+requireText(globalLayer, 'BOOT_SESSION_KEY', 'The boot presentation can replay repeatedly in one tab session');
 requireText(main, '<GlobalLoadingLayer />', 'Global loading layer is not mounted');
 requireText(characterCreation, 'new-run-loading-screen', 'New-run full-screen loader is missing');
 requireText(characterCreation, 'RUN_PRELOAD_MAX_MS', 'New-run asset loading has no hard deadline');
@@ -36,4 +39,6 @@ requireText(worldBoss, 'worldboss-dragon-load-error', 'Bounded world-boss load f
 requireText(worldBoss, "ready && !loadError && phase === 'fighting'", 'World-boss controls can appear before the original dragon is ready');
 requireText(worldBoss, "loadError ? (de ? 'FEHLER' : 'ERROR') : ready ? `${seconds}s`", 'World-boss status no longer distinguishes loading, ready and failed states');
 
-console.log('Loading transitions verified: boot and new-run loading have hard deadlines; world-boss readiness, bounded original-dragon loading and safe failure UX remain covered.');
+console.log('Loading transitions verified: boot is session-scoped, fast room swaps remain seamless, slow swaps use the violet veil, and world-boss loading stays bounded.');
+
+await import('./validate-loading-portal-continuity.mjs');
