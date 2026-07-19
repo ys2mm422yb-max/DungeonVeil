@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type React from 'react';
 import type { GameEngine } from '../game/runEngine';
-import { getWorldBossLoadFailure } from './worldBossMobileVisual3D';
+import { getWorldBossLoadedVisual, getWorldBossLoadFailure } from './worldBossMobileVisual3D';
 
 export function WorldBossRuntimeDiagnostics({ engineRef }: { engineRef: React.RefObject<GameEngine | null> }) {
   const hostRef = useRef<HTMLSpanElement>(null);
@@ -16,6 +16,8 @@ export function WorldBossRuntimeDiagnostics({ engineRef }: { engineRef: React.Re
         lastPaint = time;
         const player = engine.state.player;
         const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
+        const visual = getWorldBossLoadedVisual();
+        const failure = getWorldBossLoadFailure();
         host.dataset.playerX = player.x.toFixed(3);
         host.dataset.playerY = player.y.toFixed(3);
         host.dataset.playerState = player.state;
@@ -24,7 +26,13 @@ export function WorldBossRuntimeDiagnostics({ engineRef }: { engineRef: React.Re
         host.dataset.joyY = engine.input.joyY.toFixed(3);
         host.dataset.engineStatus = engine.state.status;
         host.dataset.bossHp = String(Math.max(0, boss?.hp ?? 0));
-        host.dataset.dragonLoadState = getWorldBossLoadFailure() ? 'error' : 'ok-or-loading';
+        host.dataset.dragonLoadState = failure ? 'error' : visual ? 'ready' : 'loading';
+        host.dataset.bossVisual = visual?.identity ?? (failure ? 'load-error-no-fallback' : 'loading');
+        host.dataset.bossWidth = Number(visual?.width ?? 0).toFixed(4);
+        host.dataset.bossHeight = Number(visual?.height ?? 0).toFixed(4);
+        host.dataset.bossDepth = Number(visual?.depth ?? 0).toFixed(4);
+        host.dataset.bossGroundY = Number(visual?.minY ?? 0).toFixed(4);
+        host.dataset.bossTopY = Number(visual?.maxY ?? 0).toFixed(4);
       }
       frame = requestAnimationFrame(paint);
     };
@@ -32,5 +40,5 @@ export function WorldBossRuntimeDiagnostics({ engineRef }: { engineRef: React.Re
     return () => cancelAnimationFrame(frame);
   }, [engineRef]);
 
-  return <span ref={hostRef} data-testid="worldboss-runtime-diagnostics" data-contract="movement-dash-v1" className="sr-only" />;
+  return <span ref={hostRef} data-testid="worldboss-runtime-diagnostics" data-contract="movement-dash-dragon-v2" className="sr-only" />;
 }
