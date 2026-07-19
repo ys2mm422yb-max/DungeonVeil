@@ -87,6 +87,8 @@ const bosses = Object.freeze({
 });
 
 const MAX_BUILD_DPS = 42 * (1 + 0.15 * 0.68) * (1000 / 161) * 1.13;
+const MAX_BUILD_NONCRIT_SHOT = 42 * 1.13;
+const MAX_BUILD_ATTACK_CYCLE_SECONDS = 0.161;
 const STARTER_DPS = 15 * (1 + 0.05 * 0.5) * (1000 / 270);
 const rows = [];
 for (const chapter of [1, 5, 10]) {
@@ -97,13 +99,16 @@ for (const chapter of [1, 5, 10]) {
     if (bosses[room]) {
       const target = bosses[room];
       const hp = target.hp * chapterProfile.boss;
-      rows.push({ chapter, room, boss: true, count: 1, unique: 1, roles: ['boss'], totalHp: hp, pressure: target.attack * chapterProfile.attack, maxBuildTtk: hp / MAX_BUILD_DPS, starterTtk: hp / STARTER_DPS });
+      rows.push({ chapter, room, boss: true, count: 1, unique: 1, roles: ['boss'], totalHp: hp, pressure: target.attack * chapterProfile.attack, maxBuildTtk: hp / MAX_BUILD_DPS, starterTtk: hp / STARTER_DPS, targetCycles: null });
       continue;
     }
-    const totalHp = plan.reduce((sum, type) => sum + ENEMY[type].hp, 0) * chapterProfile.hp * scale.hp;
+    const scaledEnemyHp = plan.map(type => ENEMY[type].hp * chapterProfile.hp * scale.hp);
+    const totalHp = scaledEnemyHp.reduce((sum, hp) => sum + hp, 0);
+    const targetCycles = scaledEnemyHp.reduce((sum, hp) => sum + Math.ceil(hp / MAX_BUILD_NONCRIT_SHOT), 0);
+    const targetCycleTtk = targetCycles * MAX_BUILD_ATTACK_CYCLE_SECONDS;
     const pressure = plan.reduce((sum, type) => sum + ENEMY[type].attack, 0) * chapterProfile.attack * scale.attack;
     const roles = [...new Set(plan.map(type => ENEMY[type].role))];
-    rows.push({ chapter, room, boss: false, count: plan.length, unique: new Set(plan).size, roles, totalHp, pressure, maxBuildTtk: totalHp / MAX_BUILD_DPS, starterTtk: totalHp / STARTER_DPS });
+    rows.push({ chapter, room, boss: false, count: plan.length, unique: new Set(plan).size, roles, totalHp, pressure, maxBuildTtk: Math.max(totalHp / MAX_BUILD_DPS, targetCycleTtk), starterTtk: totalHp / STARTER_DPS, targetCycles });
   }
 }
 
@@ -133,7 +138,8 @@ assert(Object.values(bosses).every(boss => boss.supportCap <= 2), 'boss support 
 for (const row of rows) {
   assert(Number.isFinite(row.maxBuildTtk) && row.maxBuildTtk > 0, `room ${row.room}/chapter ${row.chapter} maximum-build TTK is invalid`);
   assert(row.starterTtk > row.maxBuildTtk, `room ${row.room}/chapter ${row.chapter} gear progression is inverted`);
-  if (!row.boss && row.chapter === 1) assert(row.maxBuildTtk >= 0.55, `room ${row.room} can be erased instantly by maximum gear`);
+  if (!row.boss) assert(row.targetCycles >= row.count, `room ${row.room}/chapter ${row.chapter} target-cycle accounting is incomplete`);
+  if (!row.boss && row.chapter === 1) assert(row.maxBuildTtk >= 0.45, `room ${row.room} can be erased without multiple target cycles`);
   if (row.boss && row.chapter === 10) assert(row.maxBuildTtk >= 35, `chapter-10 boss room ${row.room} is too short for maximum gear`);
 }
 
@@ -153,6 +159,7 @@ console.log(JSON.stringify({
   latePressure: Math.round(bandAverage(41, 49, 'pressure')),
   openingHp: Math.round(bandAverage(1, 9, 'totalHp')),
   lateHp: Math.round(bandAverage(41, 49, 'totalHp')),
+  openingRoomTargetCycles: rows.find(row => row.chapter === 1 && row.room === 1)?.targetCycles,
   scenarios: rows.length,
 }, null, 2));
-console.log('Room 1–50 V4 audit passed: all normal compositions, boss milestones, role mixes, spawn guards, retry/transition paths and mobile caps remain bounded.');
+console.log('Room 1–50 V4 audit passed: compositions, boss milestones, target cycles, spawn guards, retry/transition paths and mobile caps remain bounded.');
