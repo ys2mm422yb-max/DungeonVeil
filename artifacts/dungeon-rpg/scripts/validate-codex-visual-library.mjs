@@ -23,7 +23,7 @@ assert(definitions.includes("discoveryKey: '1:10'") && definitions.includes("dis
 assert(definitions.includes("enemyType: 'goblin', room: 1") && definitions.includes("enemyType: 'slime', room: 11"), 'Beast first-sighting metadata is inconsistent with encounter plans.');
 assert(artwork.includes("case 'world-core'") && artwork.includes("case 'broken-guardian-crown'") && artwork.includes("slot === 'bow'") && artwork.includes("slot === 'quiver'"), 'Relic or equipment artwork is not individually defined.');
 assert(preview.includes('data-preview-renderers="1"') && preview.includes('createKayKitEnemyVisual') && preview.includes('preloadKayKitEnemyVisuals') && preview.includes('forceContextLoss'), 'Codex model preview is not a single bounded renderer using current enemy models.');
-assert(!preview.includes('Object.values(CODEX_BEASTS).map') && !screen.includes('<CodexModelPreview enemyType={entry.enemyType}') === false, 'Codex preview contract regressed.');
-assert(config.includes('codex-visual-library') && test.includes("toHaveCount(8)") && test.includes("toHaveCount(5)") && test.includes("toHaveCount(7)") && test.includes("toHaveCount(10)"), 'Four-device codex browser coverage is incomplete.');
+assert(!preview.includes('Object.values(CODEX_BEASTS).map') && screen.includes('<CodexModelPreview enemyType={entry.enemyType}'), 'Codex preview contract regressed.');
+assert(config.includes('codex-visual-library') && test.includes('toHaveCount(8)') && test.includes('toHaveCount(5)') && test.includes('toHaveCount(7)') && test.includes('toHaveCount(10)'), 'Four-device codex browser coverage is incomplete.');
 
 console.log('Codex visual library passed: canonical entries, unique shared artwork, spoiler-safe silhouettes, one model renderer and responsive tablet detail layout.');
