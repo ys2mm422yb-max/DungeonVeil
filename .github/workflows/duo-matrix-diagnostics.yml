@@ -1,0 +1,43 @@
+name: Duo Matrix Diagnostics
+
+on:
+  pull_request:
+    branches: ['fix/**']
+    paths:
+      - 'artifacts/dungeon-rpg/**'
+      - '.github/workflows/duo-matrix-diagnostics.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  duo-matrix-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture complete Duo matrix audit
+        shell: bash
+        run: |
+          set +e
+          node artifacts/dungeon-rpg/scripts/validate-coop-duo-balance-rewards.mjs > duo-matrix.log 2>&1
+          echo $? > duo-matrix.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duo-matrix-diagnostics
+          path: |
+            duo-matrix.log
+            duo-matrix.exit
+          if-no-files-found: error
+      - name: Enforce Duo matrix audit
+        shell: bash
+        run: test "$(cat duo-matrix.exit)" = "0"
