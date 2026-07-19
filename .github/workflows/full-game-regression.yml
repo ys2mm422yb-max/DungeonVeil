@@ -54,7 +54,7 @@ jobs:
   browser-regression:
     needs: static-regression
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -88,24 +88,41 @@ jobs:
             sleep 1
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          timeout --signal=TERM --kill-after=30s 30m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+          standard_status=0
+          spectator_status=0
+          timeout --signal=TERM --kill-after=30s 25m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs || standard_status=$?
+          timeout --signal=TERM --kill-after=30s 15m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.spectator.config.mjs || spectator_status=$?
+          if [ "$standard_status" -ne 0 ] || [ "$spectator_status" -ne 0 ]; then
+            echo "standard_status=$standard_status spectator_status=$spectator_status"
+            exit 1
+          fi
       - name: Build compact Playwright failure summary
         if: steps.browser-tests.outcome == 'failure'
         shell: bash
         run: |
           node <<'NODE'
           const fs = require('node:fs');
-          const path = 'artifacts/dungeon-rpg/test-results/full-game-results.json';
           const marker = '<!-- dungeon-veil-browser-regression -->';
-          let report;
-          try {
-            report = JSON.parse(fs.readFileSync(path, 'utf8'));
-          } catch (error) {
-            fs.writeFileSync('/tmp/playwright-failure.md', `${marker}\n## Browser regression failed\n\nThe JSON report could not be read: \`${String(error.message).replace(/`/g, "'")}\``);
+          const reportPaths = [
+            ['standard', 'artifacts/dungeon-rpg/test-results/full-game-results.json'],
+            ['spectator', 'artifacts/dungeon-rpg/test-results/spectator-results.json'],
+          ];
+          const reports = [];
+          const unreadable = [];
+          for (const [label, path] of reportPaths) {
+            if (!fs.existsSync(path)) continue;
+            try {
+              reports.push([label, JSON.parse(fs.readFileSync(path, 'utf8'))]);
+            } catch (error) {
+              unreadable.push(`${label}: ${String(error.message)}`);
+            }
+          }
+          if (!reports.length) {
+            fs.writeFileSync('/tmp/playwright-failure.md', `${marker}\n## Browser regression failed\n\nNo readable Playwright JSON report was produced.${unreadable.length ? `\n\n${unreadable.join('\n')}` : ''}`);
             process.exit(0);
           }
           const failures = [];
-          const walk = (suite, parents = []) => {
+          const walk = (suite, parents = [], source = '') => {
             const next = suite.title ? [...parents, suite.title] : parents;
             for (const spec of suite.specs || []) {
               for (const test of spec.tests || []) {
@@ -116,6 +133,7 @@ jobs:
                   .filter(Boolean)
                   .join('\n');
                 failures.push({
+                  source,
                   title: [...next, spec.title].filter(Boolean).join(' › '),
                   project: test.projectName || result.projectName || 'unknown project',
                   status: test.status || result.status || 'failed',
@@ -123,12 +141,12 @@ jobs:
                 });
               }
             }
-            for (const child of suite.suites || []) walk(child, next);
+            for (const child of suite.suites || []) walk(child, next, source);
           };
-          for (const suite of report.suites || []) walk(suite);
+          for (const [source, report] of reports) for (const suite of report.suites || []) walk(suite, [], source);
           const lines = [marker, '## Browser regression failed', '', `Commit: \`${process.env.GITHUB_SHA}\``, `Failures: **${failures.length}**`, ''];
-          for (const failure of failures.slice(0, 20)) {
-            lines.push(`### ${failure.project}: ${failure.title}`, `Status: \`${failure.status}\``, '', '```text', (failure.errors || 'No detailed error recorded').slice(0, 5000).replace(/```/g, "'''"), '```', '');
+          for (const failure of failures.slice(0, 24)) {
+            lines.push(`### ${failure.project}: ${failure.title}`, `Suite: \`${failure.source}\` · Status: \`${failure.status}\``, '', '```text', (failure.errors || 'No detailed error recorded').slice(0, 5000).replace(/```/g, "'''"), '```', '');
           }
           fs.writeFileSync('/tmp/playwright-failure.md', lines.join('\n').slice(0, 60000));
           NODE
@@ -161,4 +179,5 @@ jobs:
           retention-days: 14
           path: |
             artifacts/dungeon-rpg/playwright-report
+            artifacts/dungeon-rpg/playwright-spectator-report
             artifacts/dungeon-rpg/test-results
