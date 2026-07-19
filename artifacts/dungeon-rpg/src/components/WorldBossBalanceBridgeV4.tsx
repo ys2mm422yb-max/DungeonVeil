@@ -15,9 +15,14 @@ export function WorldBossBalanceBridgeV4({ engineRef }: { engineRef: React.RefOb
         const ratio = boss.maxHp > 0 ? Math.max(0, Math.min(1, boss.hp / boss.maxHp)) : 1;
         boss.maxHp = WORLD_BOSS_BALANCE_V4.health;
         boss.hp = Math.max(1, Math.round(boss.maxHp * ratio));
-        boss.attack = Math.max(35, boss.attack);
-        (boss as typeof boss & { balanceSeason?: string; armorMitigationCap?: number }).balanceSeason = WORLD_BOSS_BALANCE_V4.balanceSeason;
-        (boss as typeof boss & { balanceSeason?: string; armorMitigationCap?: number }).armorMitigationCap = WORLD_BOSS_BALANCE_V4.armorMitigationCap;
+        boss.attack = WORLD_BOSS_BALANCE_V4.clawDamage;
+        Object.assign(boss, {
+          balanceSeason: WORLD_BOSS_BALANCE_V4.balanceSeason,
+          armorMitigationCap: WORLD_BOSS_BALANCE_V4.armorMitigationCap,
+          fireBreathDamage: WORLD_BOSS_BALANCE_V4.fireBreathDamage,
+          clawDamage: WORLD_BOSS_BALANCE_V4.clawDamage,
+          slamDamage: WORLD_BOSS_BALANCE_V4.slamDamage,
+        });
         window.dispatchEvent(new CustomEvent('dungeon-veil-worldboss-balance-v4', {
           detail: {
             season: WORLD_BOSS_BALANCE_V4.balanceSeason,
