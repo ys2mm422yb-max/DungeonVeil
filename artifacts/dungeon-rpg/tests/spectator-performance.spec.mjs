@@ -40,7 +40,7 @@ test('spectator rendering stays smooth and bounded through packet loss', async (
   }).toBeGreaterThan(10);
 
   // The synthetic feed drops four consecutive ten-hertz packets every cycle.
-  // The client must first extrapolate, then hold instead of jumping or running away.
+  // The client must first extrapolate, then hold and smoothly correct when packets return.
   await expect.poll(() => numberAttribute(diagnostics, 'data-extrapolated-frames'), {
     timeout: 15_000,
     intervals: [250, 500],
@@ -60,6 +60,7 @@ test('spectator rendering stays smooth and bounded through packet loss', async (
     reactPaintHz: await numberAttribute(diagnostics, 'data-react-paint-hz'),
     renderFps: await numberAttribute(diagnostics, 'data-render-fps'),
     maxExtrapolatedDistancePx: await numberAttribute(diagnostics, 'data-max-extrapolated-distance-px'),
+    maxCorrectionStepPx: await numberAttribute(diagnostics, 'data-max-correction-step-px'),
     effects: await numberAttribute(diagnostics, 'data-effects'),
     particles: await numberAttribute(diagnostics, 'data-particles'),
     damageNumbers: await numberAttribute(diagnostics, 'data-damage-numbers'),
@@ -74,6 +75,7 @@ test('spectator rendering stays smooth and bounded through packet loss', async (
   expect(metrics.reactPaintHz).toBeLessThanOrEqual(8);
   expect(metrics.renderFps).toBeGreaterThan(15);
   expect(metrics.maxExtrapolatedDistancePx).toBeLessThanOrEqual(28.1);
+  expect(metrics.maxCorrectionStepPx).toBeLessThanOrEqual(10.1);
   expect(metrics.effects).toBeLessThanOrEqual(16);
   expect(metrics.particles).toBeLessThanOrEqual(12);
   expect(metrics.damageNumbers).toBeLessThanOrEqual(6);
