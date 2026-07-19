@@ -148,10 +148,11 @@ export function installMageRangedCombat(engine: GameEngine): () => void {
   const clearAll = () => {
     mageStates.clear();
     clearProjectiles();
-    engine.state.effects = engine.state.effects.filter(effect => !effect.id.startsWith('mage-cast-'));
+    engine.state.effects = engine.state.effects.filter(effect => !effect.id.startsWith('mage-cast-') && !effect.id.startsWith('mage-impact-') && !effect.id.startsWith('shot-mage-'));
   };
 
   const launchProjectile = (enemy: Enemy, time: number) => {
+    if (engine.state.roomClearReady || enemy.isDead || enemy.hp <= 0) return;
     const source = enemyCenter(enemy);
     const target = playerCenter(engine);
     if (runtime.shotPathBlocked(source.x, source.y, target.x, target.y, 0.08)) return;
@@ -194,6 +195,11 @@ export function installMageRangedCombat(engine: GameEngine): () => void {
     const target = playerCenter(engine);
     for (let index = projectiles.length - 1; index >= 0; index--) {
       const projectile = projectiles[index];
+      const sourceAlive = engine.state.enemies.some(enemy => enemy.id === projectile.sourceEnemyId && !enemy.isDead && enemy.hp > 0);
+      if (engine.state.roomClearReady || !sourceAlive) {
+        removeProjectile(index);
+        continue;
+      }
       const previousX = projectile.x;
       const previousY = projectile.y;
       projectile.x += projectile.vx * dt / 1000;
@@ -236,6 +242,12 @@ export function installMageRangedCombat(engine: GameEngine): () => void {
     if (nextRoomKey !== roomKey) {
       clearAll();
       roomKey = nextRoomKey;
+    }
+    const livingEnemies = engine.state.enemies.some(enemy => !enemy.isDead && enemy.hp > 0);
+    if (engine.state.roomClearReady || !livingEnemies) {
+      clearAll();
+      originalUpdateEnemies(dt, time);
+      return;
     }
 
     const controlled = new Map<string, { speed: number; nextAttackTime: number; customMovement: boolean }>();
