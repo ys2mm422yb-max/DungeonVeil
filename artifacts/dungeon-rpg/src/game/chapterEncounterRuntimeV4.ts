@@ -32,7 +32,7 @@ function transformEnemy(enemy: Enemy, targetType: Exclude<EnemyType, 'boss'>): v
   enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * target.hp / current.hp));
   enemy.hp = Math.max(1, Math.round(enemy.maxHp * hpRatio));
   enemy.attack = Math.max(1, Math.round(enemy.attack * target.attack / Math.max(1, current.attack)));
-  enemy.defense = Math.max(0, Math.round(enemy.defense + target.defense - current.defense));
+  enemy.defense = Math.max(0, Math.round((enemy.defense ?? current.defense) + target.defense - current.defense));
   enemy.speed = Math.max(28, Math.min(96, target.speed));
   enemy.width = target.size;
   enemy.height = target.size;
