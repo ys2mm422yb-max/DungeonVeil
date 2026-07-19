@@ -20,7 +20,7 @@ const [visual, baseVisual, regional, encounters, runEngine, manifest] = await Pr
 
 const protectedFiles = new Map([
   ['../src/game/runEngine.ts', '064d97fc6a3e10358aeabcc765f95bf980d68f60'],
-  ['../src/game/encounterPlan.ts', 'daa636ebdddf45cd757feb1953231074400985d0'],
+  ['../src/game/encounterPlan.ts', '7d1f4572398a61ad45b131c8b472a3d29d9644e2'],
   ['../src/components/kaykitEnemyBase3D.ts', 'ad3dd5041eaf56bcefe0e4385b338c1079171ce5'],
 ]);
 
