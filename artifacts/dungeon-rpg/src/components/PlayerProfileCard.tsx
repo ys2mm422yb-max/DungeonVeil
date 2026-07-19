@@ -1,21 +1,10 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
-import {
-  ACTIVE_EQUIPMENT,
-  ACTIVE_EQUIPMENT_SLOTS,
-  activeEquipmentLevelStats,
-  type ActiveEquipmentSlot,
-} from '../game/equipmentRedesign';
-import { EQUIPMENT } from '../game/metaProgression';
 import { resolveOnlineAvatar, resolveOnlineCard, resolveOnlineTitle } from '../game/onlineProfileCosmetics';
 import type { CosmeticRarity } from '../game/playerProfile';
-import {
-  getSocialProfileCard,
-  normalizePublicEquipmentItems,
-  type PublicEquipmentItem,
-  type SocialProfileCardData,
-} from '../game/socialProgressOnline';
-import { KayKitEquipmentPreview } from './KayKitEquipmentPreview';
+import { normalizeProfileEquipmentItems } from '../game/profileEquipment';
+import { getSocialProfileCard, type SocialProfileCardData } from '../game/socialProgressOnline';
 import { ProfileAvatarPortrait } from './ProfileAvatarPortrait';
+import { ProfileEquipmentLoadout } from './ProfileEquipmentLoadout';
 
 type Props = {
   userId: string;
@@ -50,31 +39,6 @@ function rarityLabel(rarity: CosmeticRarity | undefined, de: boolean) {
   return de ? 'Gewöhnlich' : 'Common';
 }
 
-function equipmentSlotLabel(slot: ActiveEquipmentSlot, de: boolean) {
-  if (slot === 'bow') return de ? 'Bogen' : 'Bow';
-  if (slot === 'quiver') return de ? 'Köcher' : 'Quiver';
-  return de ? 'Rüstung' : 'Armor';
-}
-
-function equipmentSlotIcon(slot: ActiveEquipmentSlot) {
-  if (slot === 'bow') return '➶';
-  if (slot === 'quiver') return '⇶';
-  return '♜';
-}
-
-function equipmentBonusSummary(item: PublicEquipmentItem, de: boolean) {
-  const stats = activeEquipmentLevelStats(item.id, item.level);
-  const values: string[] = [];
-  if (stats.attackFlat) values.push(`+${stats.attackFlat} ${de ? 'Angriff' : 'Attack'}`);
-  if (stats.critChance) values.push(`+${Math.round(stats.critChance * 100)} % ${de ? 'Krit' : 'Crit'}`);
-  if (stats.critDamageBonus) values.push(`+${Math.round(stats.critDamageBonus * 100)} % ${de ? 'Krit-Schaden' : 'Crit damage'}`);
-  if (stats.maxHp) values.push(`+${stats.maxHp} ${de ? 'Leben' : 'Health'}`);
-  if (stats.defense) values.push(`+${stats.defense} ${de ? 'Verteidigung' : 'Defense'}`);
-  if (stats.attackRange) values.push(`+${stats.attackRange} ${de ? 'Reichweite' : 'Range'}`);
-  if (stats.attackSpeedPercent) values.push(`+${Math.round(stats.attackSpeedPercent * 100)} % ${de ? 'Angriffstempo' : 'Attack speed'}`);
-  return values.slice(0, 2).join(' · ') || (de ? 'Keine aktive Wertänderung' : 'No active stat change');
-}
-
 function activityLabel(profile: SocialProfileCardData, de: boolean) {
   const online = Date.now() - new Date(profile.last_active_at).getTime() <= 5 * 60 * 1000;
   if (!online) return 'Offline';
@@ -98,7 +62,6 @@ export function PlayerProfileCard({ userId, language, onClose, profileOverride }
   const [loading, setLoading] = useState(profileOverride === undefined);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<ActiveEquipmentSlot>('bow');
 
   useEffect(() => {
     if (profileOverride !== undefined) {
@@ -124,19 +87,11 @@ export function PlayerProfileCard({ userId, language, onClose, profileOverride }
     return () => window.removeEventListener('keydown', key);
   }, [onClose]);
 
-  const activeEquipment = useMemo(() => normalizePublicEquipmentItems(profile?.equipped_items), [profile?.equipped_items]);
-  const equipmentBySlot = useMemo(() => new Map(activeEquipment.map(item => [item.slot, item])), [activeEquipment]);
-  const selectedEquipment = equipmentBySlot.get(selectedSlot) ?? activeEquipment[0] ?? null;
-
-  useEffect(() => {
-    if (selectedEquipment) setSelectedSlot(selectedEquipment.slot);
-  }, [profile?.id]);
-
+  const activeEquipment = useMemo(() => normalizeProfileEquipmentItems(profile?.equipped_items), [profile?.equipped_items]);
   const achievements = useMemo(() => (profile?.achievement_keys ?? []).map(key => ACHIEVEMENTS[key]).filter((item): item is Achievement => Boolean(item)), [profile?.achievement_keys]);
   const avatar = resolveOnlineAvatar(profile?.avatar_key);
   const title = resolveOnlineTitle(profile?.avatar_key);
   const card = resolveOnlineCard(profile?.avatar_key);
-  const selectedDefinition = selectedEquipment ? EQUIPMENT[selectedEquipment.id] : null;
   const copyCode = async () => {
     if (!profile?.friend_code) return;
     try {
@@ -181,22 +136,7 @@ export function PlayerProfileCard({ userId, language, onClose, profileOverride }
         </div>
 
         <div className="space-y-3">
-          <section data-testid="public-player-profile-equipment" className="rounded-2xl border border-cyan-300/10 bg-cyan-400/[.025] p-3 md:p-4">
-            <div className="flex items-center justify-between gap-3"><div><div className="text-[7px] font-black uppercase tracking-[.18em] text-cyan-100/46">{de ? 'AKTUELLE AUSRÜSTUNG' : 'CURRENT EQUIPMENT'}</div><div className="mt-1 text-[7px] text-white/32">{de ? 'Nur tatsächlich ausgerüstete aktuelle Slots' : 'Only currently equipped active slots'}</div></div><span data-testid="public-equipment-slot-count" className="rounded-full border border-cyan-300/14 bg-cyan-400/[.05] px-2 py-1 text-[7px] font-black text-cyan-100/60">{activeEquipment.length}/{ACTIVE_EQUIPMENT_SLOTS.length}</span></div>
-
-            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(190px,.72fr)_minmax(0,1.28fr)]">
-              <div data-testid="public-equipment-detail" className="min-h-[230px] overflow-hidden rounded-2xl border border-white/10 bg-black/35 p-3">
-                {selectedEquipment && selectedDefinition ? <><div className="h-36 overflow-hidden rounded-xl border border-white/8 bg-[radial-gradient(circle_at_50%_36%,rgba(255,255,255,.08),transparent_65%)]"><KayKitEquipmentPreview assetPath={selectedDefinition.assetPath} accent={selectedDefinition.accent} itemId={selectedEquipment.id} /></div><div className="mt-3"><div className="text-[6px] font-black uppercase tracking-[.15em] text-white/30">{equipmentSlotLabel(selectedEquipment.slot, de)}</div><div className="mt-1 text-sm font-black" style={{ color: selectedDefinition.accent }}>{de ? selectedDefinition.nameDe : selectedDefinition.nameEn}</div><div className="mt-1 text-[7px] uppercase text-white/44">{de ? `Stufe ${selectedEquipment.level}` : `Level ${selectedEquipment.level}`} · {rarityLabel(selectedEquipment.rarity, de)}</div><div className="mt-2 text-[8px] leading-relaxed text-cyan-100/62">{equipmentBonusSummary(selectedEquipment, de)}</div></div></> : <div className="grid h-full min-h-[205px] place-items-center text-center text-[8px] text-white/30">{de ? 'Kein aktuelles Item ausgewählt.' : 'No current item selected.'}</div>}
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">{ACTIVE_EQUIPMENT_SLOTS.map(slot => {
-                const item = equipmentBySlot.get(slot);
-                const definition = item ? EQUIPMENT[item.id] : null;
-                const selected = selectedEquipment?.slot === slot;
-                return <button data-testid={`public-equipment-slot-${slot}`} key={slot} type="button" disabled={!item || !definition} onClick={() => item && setSelectedSlot(slot)} className={`flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[.99] disabled:opacity-55 ${selected ? 'border-cyan-200/35 bg-cyan-400/[.09]' : 'border-white/8 bg-black/25'}`} style={definition ? { borderColor: selected ? `${definition.accent}aa` : `${definition.accent}45` } : undefined}><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/30 text-xl text-white/72">{equipmentSlotIcon(slot)}</span><span className="min-w-0 flex-1"><span className="block text-[6px] font-black uppercase tracking-[.13em] text-white/30">{equipmentSlotLabel(slot, de)}</span>{item && definition ? <><span className="mt-1 block truncate text-[9px] font-black" style={{ color: definition.accent }}>{de ? definition.nameDe : definition.nameEn}</span><span className="mt-1 block truncate text-[6px] uppercase text-white/42">{de ? `Stufe ${item.level}` : `Level ${item.level}`} · {rarityLabel(item.rarity, de)}</span><span className="mt-1 block truncate text-[6px] text-cyan-100/50">{equipmentBonusSummary(item, de)}</span></> : <span className="mt-1 block text-[8px] font-black text-white/34">{de ? 'Leerer Slot' : 'Empty slot'}</span>}</span></button>;
-              })}</div>
-            </div>
-          </section>
+          <ProfileEquipmentLoadout items={activeEquipment} language={language} testId="public-player-profile-equipment" />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <section data-testid="public-player-profile-worldboss" className="rounded-2xl border border-orange-300/12 bg-orange-400/[.025] p-3"><div className="text-[7px] font-black uppercase tracking-[.18em] text-orange-100/46">{de ? 'WELTBOSS' : 'WORLD BOSS'}</div><div className="mt-3 grid grid-cols-2 gap-2 text-center"><div className="rounded-xl border border-white/8 bg-black/25 p-2"><div className="text-[6px] uppercase text-white/28">{de ? 'Gesamtschaden' : 'Lifetime damage'}</div><div className="mt-1 text-sm font-black text-orange-100">{formatNumber(profile.lifetime_world_boss_damage, language)}</div></div><div className="rounded-xl border border-white/8 bg-black/25 p-2"><div className="text-[6px] uppercase text-white/28">{de ? 'Events' : 'Events'}</div><div className="mt-1 text-sm font-black text-amber-100">{formatNumber(profile.world_boss_events, language)}</div></div></div></section>
