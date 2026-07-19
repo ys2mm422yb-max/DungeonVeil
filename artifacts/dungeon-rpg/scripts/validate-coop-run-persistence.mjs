@@ -33,4 +33,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Duo five-second checkpoints, authoritative rejoin, per-account reward entitlements, duplicate guards, isolated retries, abort closure and Solo-save isolation validated.');
+console.log('Exact-head Duo five-second checkpoints, authoritative rejoin, per-account reward entitlements, duplicate guards, isolated retries, abort closure and Solo-save isolation validated.');
