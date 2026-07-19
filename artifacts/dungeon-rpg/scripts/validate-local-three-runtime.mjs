@@ -34,6 +34,10 @@ for (const file of [
   'build/three.module.js',
   'build/three.core.js',
   'examples/jsm/loaders/GLTFLoader.js',
+  'examples/jsm/loaders/FBXLoader.js',
+  'examples/jsm/libs/fflate.module.js',
+  'examples/jsm/curves/NURBSCurve.js',
+  'examples/jsm/curves/NURBSUtils.js',
   'examples/jsm/utils/BufferGeometryUtils.js',
   'examples/jsm/utils/SkeletonUtils.js',
 ]) {
@@ -52,6 +56,10 @@ if (process.argv.includes('--dist')) {
     ['assets/vendor/three/build/three.module.js', 500_000],
     ['assets/vendor/three/build/three.core.js', 500_000],
     ['assets/vendor/three/examples/jsm/loaders/GLTFLoader.js', 50_000],
+    ['assets/vendor/three/examples/jsm/loaders/FBXLoader.js', 100_000],
+    ['assets/vendor/three/examples/jsm/libs/fflate.module.js', 20_000],
+    ['assets/vendor/three/examples/jsm/curves/NURBSCurve.js', 2_000],
+    ['assets/vendor/three/examples/jsm/curves/NURBSUtils.js', 4_000],
     ['assets/vendor/three/examples/jsm/utils/BufferGeometryUtils.js', 5_000],
     ['assets/vendor/three/examples/jsm/utils/SkeletonUtils.js', 2_000],
   ]);
@@ -63,4 +71,4 @@ if (process.argv.includes('--dist')) {
   }
 }
 
-console.log('Local Three.js runtime verified.');
+console.log('Local Three.js runtime verified, including the pinned FBX loader and its dependencies.');
