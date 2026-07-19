@@ -13,10 +13,11 @@ const [screen, playback, buffer, online, bridge, menu, simulator] = await Promis
 
 const checks = [
   [buffer.includes('class SpectatorSnapshotBuffer') && buffer.includes('SPECTATOR_BUFFER_LIMIT = 8') && buffer.includes('SPECTATOR_INTERPOLATION_DELAY_MS = 165'), 'timestamped bounded spectator buffer is missing'],
-  [buffer.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 120') && buffer.includes("mode = extrapolationMs > 0 ? 'extrapolate' : 'hold'") && buffer.includes('clamp(projected - to, -32, 32)'), 'spectator extrapolation is not tightly bounded'],
+  [buffer.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 120') && buffer.includes("requestedExtrapolationMs <= SPECTATOR_MAX_EXTRAPOLATION_MS ? 'extrapolate' : 'hold'") && buffer.includes('if (extrapolationMs > 0)') && buffer.includes('clamp(projected - to, -32, 32)'), 'spectator extrapolation does not stop in a bounded hold state'],
   [buffer.includes('this.output.player = replacement.player') && buffer.includes('Object.assign(this.output, replacement)') && !buffer.includes('this.output = cloneState(target);\n      this.outputRoomKey = key;\n      this.lastSampleAt = 0;\n      this.metrics.roomResets += 1;\n    }\n    return this.output;'), 'stable playback root is replaced on room changes'],
   [screen.includes('<SpectatorPlaybackStage stableState={stageState} />') && !screen.includes('<CombatStage') && !screen.includes('setDisplayState') && !screen.includes('interpolateState'), 'spectator still rerenders the combat tree on animation frames'],
   [screen.includes('HUD_PAINT_MS = 250') && screen.includes('bufferRef.current.sample(now)') && screen.includes('requestAnimationFrame(animate)') && screen.includes('setHud(nextHud)'), 'spectator playback and low-frequency HUD cadences are not separated'],
+  [screen.includes("const next = await loadFriendSpectatorFeed(friendId);\n        const receivedAt = Date.now();") && screen.includes('bufferRef.current.push(next.snapshot.emittedAt, next.snapshot.state, receivedAt)'), 'spectator packet timing is not measured at actual response arrival'],
   [playback.includes('data-render-contract="single-stable-three-state"') && playback.includes('<GameCanvasKayKit3D gameState={stableState} />'), 'spectator does not mount a single stable Three.js state object'],
   [screen.includes('SPECTATOR_RENDERER_EVENT') && screen.includes('active: true') && screen.includes('active: false') && screen.includes('data-renderer-handoff="exclusive"'), 'exclusive menu/spectator renderer handoff was removed'],
   [menu.includes('SPECTATOR_RENDERER_EVENT') && menu.includes('if (suspended) return null'), 'menu renderer does not release its WebGL context while spectating'],
@@ -35,4 +36,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Spectator playback performance audit passed: compact keyframes, buffered timestamp interpolation, bounded extrapolation, stable Three.js playback, exclusive renderer handoff and diagnostics are protected.');
+console.log('Spectator playback performance audit passed: compact keyframes, buffered timestamp interpolation, bounded extrapolation-to-hold, stable Three.js playback, exclusive renderer handoff and diagnostics are protected.');
