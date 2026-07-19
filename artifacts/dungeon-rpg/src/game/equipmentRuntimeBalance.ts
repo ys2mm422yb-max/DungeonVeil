@@ -1,35 +1,27 @@
 import type { GameEngine } from './runEngine';
-import { equipmentCombatModifiers, loadMetaProgression, type EquipmentId } from './metaProgression';
+import { equipmentCombatModifiers } from './metaProgression';
 import { skillRank } from './runSkills';
 import { equippedVeilRelic } from './veilRelics';
+import { defenseMitigation, installCriticalHitRuntime } from './equipmentCombatV4';
 
 const ARCHER_BASE_ATTACK_COOLDOWN_MS = 270;
-const ARCHER_BASE_DODGE_COOLDOWN_MS = 900;
 const QUICK_DRAW_MULTIPLIERS = [1, 1.16, 1.3, 1.42] as const;
-
-const EQUIPMENT_SKILL_SETS = Object.freeze({
-  fireArrow: ['ember-bow', 'ash-amulet', 'ash-armor'] as EquipmentId[],
-  iceArrow: ['frost-bow', 'frost-quiver', 'frost-grimoire', 'frost-armor'] as EquipmentId[],
-  ricochet: ['veil-bow', 'rune-quiver', 'ritual-shard', 'veil-mantle'] as EquipmentId[],
-  piercing: ['splinter-bow', 'splinter-quiver'] as EquipmentId[],
-});
+const MIN_ATTACK_COOLDOWN_MS = 125;
 
 export type EquipmentRuntimeBalanceState = {
   roomKey: string;
   lastAttackTime: number;
-  lastDodgeTime: number;
   lastHp: number | null;
   lastHitId: string;
-  setBonusSignature: string;
+  criticalDisposer: (() => void) | null;
 };
 
 export function createEquipmentRuntimeBalanceState(): EquipmentRuntimeBalanceState {
-  return { roomKey: '', lastAttackTime: 0, lastDodgeTime: 0, lastHp: null, lastHitId: '', setBonusSignature: '' };
+  return { roomKey: '', lastAttackTime: 0, lastHp: null, lastHitId: '', criticalDisposer: null };
 }
 
 export function defenseMitigationForValue(defense: number): number {
-  const safe = Math.max(0, Number(defense) || 0);
-  return Math.min(0.45, safe / (safe + 28));
+  return defenseMitigation(defense, 0.52);
 }
 
 function latestPlayerHit(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
@@ -47,13 +39,33 @@ function enemyAttackForHit(engine: GameEngine, hitId: string): number | null {
   return Number.isFinite(attack) ? Math.max(1, Number(attack)) : null;
 }
 
+function initializeLoadout(engine: GameEngine) {
+  const player = engine.state.player as typeof engine.state.player & {
+    critChance?: number;
+    critDamageMultiplier?: number;
+    attackSpeedPercent?: number;
+    equipmentV4Applied?: boolean;
+  };
+  const equipment = equipmentCombatModifiers();
+  if (!player.equipmentV4Applied) {
+    player.attack = Math.max(1, Math.round(player.attack + equipment.attackFlat));
+    player.defense = Math.max(0, player.defense + equipment.defense);
+    player.attackRange = Math.max(320, player.attackRange + equipment.attackRange);
+    player.maxHp = Math.max(1, player.maxHp + equipment.maxHp);
+    player.hp = Math.min(player.maxHp, player.hp + equipment.maxHp);
+    player.equipmentV4Applied = true;
+  }
+  player.critChance = equipment.critChance;
+  player.critDamageMultiplier = equipment.critDamageMultiplier;
+  player.attackSpeedPercent = equipment.attackSpeedPercent;
+}
+
 function reconcileIncomingDamage(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
   const player = engine.state.player;
   if (state.lastHp === null) {
     state.lastHp = player.hp;
     return;
   }
-
   if (player.hp >= state.lastHp) {
     state.lastHp = player.hp;
     return;
@@ -64,71 +76,42 @@ function reconcileIncomingDamage(engine: GameEngine, state: EquipmentRuntimeBala
   if (number) state.lastHitId = number.id;
   const enemyAttack = number ? enemyAttackForHit(engine, number.id) : null;
   const rawDamage = enemyAttack === null ? observedDamage : enemyAttack + 1;
-  const runeReduced = Boolean(number?.id.startsWith('rune-hit-') && equippedVeilRelic() === 'depth-rune-shard');
-  const unmitigatedDamage = runeReduced ? Math.max(1, Math.round(rawDamage * 0.75)) : rawDamage;
-  const mitigation = defenseMitigationForValue(player.defense);
-  const adjustedDamage = Math.max(1, Math.round(unmitigatedDamage * (1 - mitigation)));
+  const runeHit = Boolean(number?.id.startsWith('rune-hit-'));
+  const runeFactor = runeHit && equippedVeilRelic() === 'depth-rune-shard' ? 0.82 : 1;
+  const beforeDefense = Math.max(1, Math.round(rawDamage * runeFactor));
+  const bossLike = Boolean(number?.id.startsWith('rune-hit-') || number?.id.startsWith('volatile-hit-'));
+  const mitigation = defenseMitigation(player.defense, bossLike ? 0.44 : 0.52);
+  const adjustedDamage = Math.max(1, Math.round(beforeDefense * (1 - mitigation)));
   const previousStatus = engine.state.status;
 
   player.hp = Math.max(0, Math.min(player.maxHp, state.lastHp - adjustedDamage));
   if (number) number.value = `-${adjustedDamage}`;
   engine.state.status = player.hp <= 0 ? 'gameover' : previousStatus === 'gameover' ? 'playing' : previousStatus;
   state.lastHp = player.hp;
-
   if (engine.state.status !== previousStatus) engine.onStateChange({ ...engine.state });
 }
 
-function setRank(engine: GameEngine, key: 'fireArrow' | 'iceArrow' | 'ricochet' | 'piercing', rank: number) {
-  if (rank <= skillRank(engine.state.runSkills, key)) return;
-  engine.state.runSkills[key] = rank;
-}
-
-function applyEquipmentSetSkills(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
-  const meta = loadMetaProgression();
-  const equipped = Object.values(meta.equipped);
-  const signature = [...equipped].sort().join('|');
-  if (state.setBonusSignature === signature) return;
-  state.setBonusSignature = signature;
-
-  for (const [key, pieces] of Object.entries(EQUIPMENT_SKILL_SETS) as Array<['fireArrow' | 'iceArrow' | 'ricochet' | 'piercing', EquipmentId[]]>) {
-    const count = pieces.filter(id => equipped.includes(id)).length;
-    const rank = count >= 3 ? 3 : count >= 2 ? 2 : 0;
-    if (rank > 0) setRank(engine, key, rank);
-  }
-}
-
 function normalizeAttackCooldown(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
-  const player = engine.state.player;
+  const player = engine.state.player as typeof engine.state.player & { attackSpeedPercent?: number };
   if (!player.lastAttackTime || player.lastAttackTime === state.lastAttackTime) return;
   state.lastAttackTime = player.lastAttackTime;
   const quickDrawRank = skillRank(engine.state.runSkills, 'attackSpeed');
-  const equipment = equipmentCombatModifiers();
-  player.attackCooldown = Math.max(
-    90,
-    Math.round(ARCHER_BASE_ATTACK_COOLDOWN_MS * equipment.attackCooldownMultiplier / QUICK_DRAW_MULTIPLIERS[quickDrawRank]),
-  );
-}
-
-function normalizeDodgeCooldown(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
-  const player = engine.state.player;
-  if (!player.lastDodgeTime || player.lastDodgeTime === state.lastDodgeTime) return;
-  state.lastDodgeTime = player.lastDodgeTime;
-  const equipment = equipmentCombatModifiers();
-  player.dodgeCooldown = Math.max(250, Math.round(ARCHER_BASE_DODGE_COOLDOWN_MS * equipment.dodgeCooldownMultiplier));
+  const equipmentSpeed = Math.max(0, Math.min(0.45, player.attackSpeedPercent ?? 0));
+  const clawSpeed = equippedVeilRelic() === 'marked-claw' && (player.relicAttackSpeedUntil ?? 0) > performance.now() ? 0.14 : 0;
+  const totalMultiplier = Math.min(1.75, (1 + equipmentSpeed + clawSpeed) * QUICK_DRAW_MULTIPLIERS[quickDrawRank]);
+  player.attackCooldown = Math.max(MIN_ATTACK_COOLDOWN_MS, Math.round(ARCHER_BASE_ATTACK_COOLDOWN_MS / totalMultiplier));
 }
 
 export function updateEquipmentRuntimeBalance(engine: GameEngine, state: EquipmentRuntimeBalanceState): void {
+  if (!state.criticalDisposer) state.criticalDisposer = installCriticalHitRuntime(engine);
+  initializeLoadout(engine);
   const key = `${engine.state.chapter}:${engine.state.floor}`;
   if (state.roomKey !== key) {
     state.roomKey = key;
     state.lastHp = engine.state.player.hp;
     state.lastAttackTime = engine.state.player.lastAttackTime;
-    state.lastDodgeTime = engine.state.player.lastDodgeTime;
     state.lastHitId = '';
   }
-
-  applyEquipmentSetSkills(engine, state);
   normalizeAttackCooldown(engine, state);
-  normalizeDodgeCooldown(engine, state);
   reconcileIncomingDamage(engine, state);
 }
