@@ -18,6 +18,7 @@ export type CoopCheckpointRecord = {
   room: number;
   authoritative_chapter: number;
   authoritative_room: number;
+  authoritative_room_clear: boolean;
   revision: number;
   updated_at: string;
   used_host_fallback: boolean;
@@ -38,6 +39,12 @@ export type CoopRoomRewardEntitlement = {
   dust: number;
   gold: number;
   created_at: string;
+};
+
+export type CoopRoomRewardState = {
+  entitlement_id: string;
+  claimed: boolean;
+  claimed_at: string | null;
 };
 
 function requireOnline(): void {
@@ -140,6 +147,21 @@ export async function listMyPendingCoopRoomRewards(
     p_lobby_id: lobbyId,
     p_run_seed: runSeed,
   });
+}
+
+export async function getMyCoopRoomRewardState(
+  lobbyId: string,
+  runSeed: number,
+  chapter: number,
+  room: number,
+): Promise<CoopRoomRewardState | null> {
+  const rows = await rpcRows<CoopRoomRewardState>('get_my_coop_room_reward_state', {
+    p_lobby_id: lobbyId,
+    p_run_seed: runSeed,
+    p_chapter: chapter,
+    p_room: room,
+  });
+  return rows[0] ?? null;
 }
 
 export async function acknowledgeCoopRoomReward(entitlementId: string): Promise<boolean> {
