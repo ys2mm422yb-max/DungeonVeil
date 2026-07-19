@@ -14,6 +14,13 @@ const [screen, playback, buffer, online, bridge, menu, simulator, qa, browserTes
   read('../playwright.regression.config.mjs'),
 ]);
 
+const stableThreePlayback = (playback.includes('data-render-contract="single-stable-three-state"')
+  || playback.includes('data-render-contract="single-stable-three-state-with-companion"'))
+  && playback.includes('<GameCanvasKayKit3D gameState={stableState} />');
+const boundedCompanionPlayback = !playback.includes('<CompanionScene3D')
+  || (playback.includes('spectator-companion-contract')
+    && playback.includes('data-shared-renderer="true"')
+    && !playback.includes('<canvas'));
 const checks = [
   [buffer.includes('class SpectatorSnapshotBuffer') && buffer.includes('SPECTATOR_BUFFER_LIMIT = 8') && buffer.includes('SPECTATOR_INTERPOLATION_DELAY_MS = 165'), 'timestamped bounded spectator buffer is missing'],
   [buffer.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 120') && buffer.includes("requestedExtrapolationMs <= SPECTATOR_MAX_EXTRAPOLATION_MS ? 'extrapolate' : 'hold'") && buffer.includes('if (extrapolationMs > 0)') && buffer.includes('clamp(projected - to, -32, 32)'), 'spectator extrapolation does not stop in a bounded hold state'],
@@ -22,11 +29,12 @@ const checks = [
   [screen.includes('<SpectatorPlaybackStage stableState={stageState} />') && !screen.includes('<CombatStage') && !screen.includes('setDisplayState') && !screen.includes('interpolateState'), 'spectator still rerenders the combat tree on animation frames'],
   [screen.includes('HUD_PAINT_MS = 250') && screen.includes('bufferRef.current.sample(now)') && screen.includes('requestAnimationFrame(animate)') && screen.includes('setHud(nextHud)'), 'spectator playback and low-frequency HUD cadences are not separated'],
   [screen.includes("const next = await loadFriendSpectatorFeed(friendId);\n        const receivedAt = Date.now();") && screen.includes('bufferRef.current.push(next.snapshot.emittedAt, next.snapshot.state, receivedAt)'), 'spectator packet timing is not measured at actual response arrival'],
-  [playback.includes('data-render-contract="single-stable-three-state"') && playback.includes('<GameCanvasKayKit3D gameState={stableState} />'), 'spectator does not mount a single stable Three.js state object'],
+  [stableThreePlayback, 'spectator does not mount a single stable Three.js state object'],
+  [boundedCompanionPlayback, 'spectator companion does not reuse the single stable renderer contract'],
   [screen.includes('SPECTATOR_RENDERER_EVENT') && screen.includes('active: true') && screen.includes('active: false') && screen.includes('data-renderer-handoff="exclusive"'), 'exclusive menu/spectator renderer handoff was removed'],
   [menu.includes('SPECTATOR_RENDERER_EVENT') && menu.includes('if (suspended) return null'), 'menu renderer does not release its WebGL context while spectating'],
   [online.includes('SPECTATOR_PUBLISH_MS = 125') && online.includes('SPECTATOR_POLL_MS = 125') && online.includes('SPECTATOR_KEYFRAME_MS = 1_000'), 'network, polling and room-keyframe cadences are not explicit'],
-  [online.includes('const { map, ...stateWithoutMap } = state;') && online.includes('...stateWithoutMap') && online.includes("...(keyframe ? { map: compactMap(map) } : {})") && !online.includes('const safeState: SpectatorNetworkState = {\n    ...state,'), 'spectator delta packets still include the full room map outside keyframes'],
+  [online.includes('const { map, ...stateWithoutMap } = state;') && online.includes('...stateWithoutMap') && online.includes('...(keyframe ? { map: compactMap(map) } : {})') && !online.includes('const safeState: SpectatorNetworkState = {\n    ...state,'), 'spectator delta packets still include the full room map outside keyframes'],
   [online.includes('version: 2') && online.includes('keyframe') && online.includes('spectatorMapCache') && online.includes('raw.state.map ??'), 'compact snapshot v2 cannot recover room maps for late joiners'],
   [online.includes('SPECTATOR_DAMAGE_LIMIT = 8') && online.includes('SPECTATOR_PARTICLE_LIMIT = 12') && online.includes('SPECTATOR_EFFECT_LIMIT = 14') && online.includes('nearPlayer'), 'spectator transient objects are not spatially and numerically bounded'],
   [bridge.includes('SPECTATOR_PUBLISH_MS') && bridge.includes('window.setInterval(() => void publish(), SPECTATOR_PUBLISH_MS)'), 'host publish loop does not use the dedicated spectator cadence'],
@@ -44,4 +52,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Spectator playback performance audit passed: map-free deltas, buffered playback, enemy-layout continuity, bounded extrapolation-to-hold, stable Three.js rendering, two-worker device validation and diagnostics are protected.');
+console.log('Spectator playback performance audit passed: map-free deltas, buffered playback, enemy-layout continuity, bounded extrapolation-to-hold, stable shared Three.js rendering, companion bounds, two-worker device validation and diagnostics are protected.');
