@@ -10,6 +10,7 @@ export function applyMetaLoadoutToNewRun(engine: GameEngine) {
     critChance?: number;
     critDamageMultiplier?: number;
     attackSpeedPercent?: number;
+    equipmentV4Applied?: boolean;
   };
   player.attack = Math.max(1, Math.round(player.attack + stats.attackFlat));
   player.defense = Math.max(0, player.defense + stats.defense);
@@ -19,5 +20,6 @@ export function applyMetaLoadoutToNewRun(engine: GameEngine) {
   player.critChance = stats.critChance;
   player.critDamageMultiplier = stats.critDamageMultiplier;
   player.attackSpeedPercent = stats.attackSpeedPercent;
+  player.equipmentV4Applied = true;
   engine.saveNow('equipment-loadout');
 }
