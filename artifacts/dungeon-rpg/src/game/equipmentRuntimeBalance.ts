@@ -1,30 +1,25 @@
 import type { GameEngine } from './runEngine';
-import { equipmentCombatModifiers, loadMetaProgression, type EquipmentId } from './metaProgression';
 import { skillRank } from './runSkills';
 import { equippedVeilRelic } from './veilRelics';
+import { activeEquipmentLoadoutStats } from './equipmentCoreRuntime';
+import { effectiveAttackCooldown } from './equipmentCore';
+import { installCriticalCombat } from './criticalCombat';
 
 const ARCHER_BASE_ATTACK_COOLDOWN_MS = 270;
-const ARCHER_BASE_DODGE_COOLDOWN_MS = 900;
 const QUICK_DRAW_MULTIPLIERS = [1, 1.16, 1.3, 1.42] as const;
 
-const EQUIPMENT_SKILL_SETS = Object.freeze({
-  fireArrow: ['ember-bow', 'ash-amulet', 'ash-armor'] as EquipmentId[],
-  iceArrow: ['frost-bow', 'frost-quiver', 'frost-grimoire', 'frost-armor'] as EquipmentId[],
-  ricochet: ['veil-bow', 'rune-quiver', 'ritual-shard', 'veil-mantle'] as EquipmentId[],
-  piercing: ['splinter-bow', 'splinter-quiver'] as EquipmentId[],
-});
+installCriticalCombat();
 
 export type EquipmentRuntimeBalanceState = {
   roomKey: string;
   lastAttackTime: number;
-  lastDodgeTime: number;
   lastHp: number | null;
   lastHitId: string;
-  setBonusSignature: string;
+  loadoutSignature: string;
 };
 
 export function createEquipmentRuntimeBalanceState(): EquipmentRuntimeBalanceState {
-  return { roomKey: '', lastAttackTime: 0, lastDodgeTime: 0, lastHp: null, lastHitId: '', setBonusSignature: '' };
+  return { roomKey: '', lastAttackTime: 0, lastHp: null, lastHitId: '', loadoutSignature: '' };
 }
 
 export function defenseMitigationForValue(defense: number): number {
@@ -78,23 +73,12 @@ function reconcileIncomingDamage(engine: GameEngine, state: EquipmentRuntimeBala
   if (engine.state.status !== previousStatus) engine.onStateChange({ ...engine.state });
 }
 
-function setRank(engine: GameEngine, key: 'fireArrow' | 'iceArrow' | 'ricochet' | 'piercing', rank: number) {
-  if (rank <= skillRank(engine.state.runSkills, key)) return;
-  engine.state.runSkills[key] = rank;
-}
-
-function applyEquipmentSetSkills(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
-  const meta = loadMetaProgression();
-  const equipped = Object.values(meta.equipped);
-  const signature = [...equipped].sort().join('|');
-  if (state.setBonusSignature === signature) return;
-  state.setBonusSignature = signature;
-
-  for (const [key, pieces] of Object.entries(EQUIPMENT_SKILL_SETS) as Array<['fireArrow' | 'iceArrow' | 'ricochet' | 'piercing', EquipmentId[]]>) {
-    const count = pieces.filter(id => equipped.includes(id)).length;
-    const rank = count >= 3 ? 3 : count >= 2 ? 2 : 0;
-    if (rank > 0) setRank(engine, key, rank);
-  }
+function synchronizeActiveLoadout(engine: GameEngine, state: EquipmentRuntimeBalanceState): void {
+  const equipment = activeEquipmentLoadoutStats();
+  const signature = equipment.equippedIds.join('|');
+  if (state.loadoutSignature !== signature) state.loadoutSignature = signature;
+  engine.state.player.critChance = equipment.critChanceTotal;
+  engine.state.player.critDamage = equipment.critDamageTotal;
 }
 
 function normalizeAttackCooldown(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
@@ -102,19 +86,9 @@ function normalizeAttackCooldown(engine: GameEngine, state: EquipmentRuntimeBala
   if (!player.lastAttackTime || player.lastAttackTime === state.lastAttackTime) return;
   state.lastAttackTime = player.lastAttackTime;
   const quickDrawRank = skillRank(engine.state.runSkills, 'attackSpeed');
-  const equipment = equipmentCombatModifiers();
-  player.attackCooldown = Math.max(
-    90,
-    Math.round(ARCHER_BASE_ATTACK_COOLDOWN_MS * equipment.attackCooldownMultiplier / QUICK_DRAW_MULTIPLIERS[quickDrawRank]),
-  );
-}
-
-function normalizeDodgeCooldown(engine: GameEngine, state: EquipmentRuntimeBalanceState) {
-  const player = engine.state.player;
-  if (!player.lastDodgeTime || player.lastDodgeTime === state.lastDodgeTime) return;
-  state.lastDodgeTime = player.lastDodgeTime;
-  const equipment = equipmentCombatModifiers();
-  player.dodgeCooldown = Math.max(250, Math.round(ARCHER_BASE_DODGE_COOLDOWN_MS * equipment.dodgeCooldownMultiplier));
+  const quickDrawBase = ARCHER_BASE_ATTACK_COOLDOWN_MS / QUICK_DRAW_MULTIPLIERS[quickDrawRank];
+  const equipment = activeEquipmentLoadoutStats();
+  player.attackCooldown = effectiveAttackCooldown(quickDrawBase, equipment.attackSpeedPercent);
 }
 
 export function updateEquipmentRuntimeBalance(engine: GameEngine, state: EquipmentRuntimeBalanceState): void {
@@ -123,12 +97,10 @@ export function updateEquipmentRuntimeBalance(engine: GameEngine, state: Equipme
     state.roomKey = key;
     state.lastHp = engine.state.player.hp;
     state.lastAttackTime = engine.state.player.lastAttackTime;
-    state.lastDodgeTime = engine.state.player.lastDodgeTime;
     state.lastHitId = '';
   }
 
-  applyEquipmentSetSkills(engine, state);
+  synchronizeActiveLoadout(engine, state);
   normalizeAttackCooldown(engine, state);
-  normalizeDodgeCooldown(engine, state);
   reconcileIncomingDamage(engine, state);
 }
