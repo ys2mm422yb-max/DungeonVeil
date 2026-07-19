@@ -11,6 +11,8 @@ import {
   COOP_CHECKPOINT_MS,
   COOP_ROOM_CLEAR_EVENT,
   COOP_RUN_RESTART_EVENT,
+  getMyCoopRoomRewardState,
+  getMyCoopRunCheckpoint,
   listMyPendingCoopRoomRewards,
   prepareCoopRoomRewards,
   saveMyCoopRunCheckpoint,
@@ -155,6 +157,40 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
     }
   };
 
+  const recoverClearedRoom = async () => {
+    if (!context) return;
+    const engine = getEngineRef.current();
+    if (!engine) return;
+    const checkpoint = await getMyCoopRunCheckpoint(context.lobbyId, context.runSeed);
+    if (!checkpoint?.authoritative_room_clear) return;
+    if (engine.state.chapter !== checkpoint.authoritative_chapter || engine.state.floor !== checkpoint.authoritative_room) return;
+
+    engine.state.enemies = [];
+    engine.state.items = [];
+    engine.state.roomClearReady = true;
+    engine.state.roomClearAt = performance.now();
+    engine.state.status = 'playing';
+    clearRef.current = {
+      chapter: checkpoint.authoritative_chapter,
+      room: checkpoint.authoritative_room,
+    };
+    engine.onStateChange({ ...engine.state, player: { ...engine.state.player } });
+  };
+
+  const settlePreviouslyClaimedClear = async () => {
+    if (!context || !clearRef.current) return;
+    const clear = clearRef.current;
+    const rewardState = await getMyCoopRoomRewardState(
+      context.lobbyId,
+      context.runSeed,
+      clear.chapter,
+      clear.room,
+    );
+    if (!rewardState?.claimed) return;
+    clearRef.current = null;
+    if (isBossRoom(clear.room)) dispatchCoopBossLootOpen(clear.chapter, clear.room);
+  };
+
   useEffect(() => {
     if (!active || !context) {
       clearRef.current = null;
@@ -199,7 +235,13 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
     const checkpointInterval = window.setInterval(() => { void saveCheckpoint().catch(() => {}); }, COOP_CHECKPOINT_MS);
     const pageHide = () => { void saveCheckpoint().catch(() => {}); };
     window.addEventListener('pagehide', pageHide);
-    void saveCheckpoint().catch(() => {});
+    void (async () => {
+      try {
+        await recoverClearedRoom();
+        if (clearRef.current) await prepareCurrentReward();
+        else await saveCheckpoint();
+      } catch {}
+    })();
 
     return () => {
       window.clearInterval(checkpointInterval);
@@ -225,7 +267,10 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
           if (stopped) break;
           await applyEntitlement(reward);
         }
-        if (!stopped) setPendingRewards(0);
+        if (!stopped) {
+          setPendingRewards(0);
+          await settlePreviouslyClaimedClear();
+        }
       } catch (pollError) {
         if (!stopped) setError(pollError instanceof Error ? pollError.message : 'Duo-Fortschritt konnte nicht abgeglichen werden.');
       } finally {
