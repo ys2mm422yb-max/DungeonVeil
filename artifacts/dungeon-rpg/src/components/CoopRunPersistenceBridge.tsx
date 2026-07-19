@@ -10,6 +10,7 @@ import {
   acknowledgeCoopRoomReward,
   COOP_CHECKPOINT_MS,
   COOP_ROOM_CLEAR_EVENT,
+  COOP_RUN_RESTART_EVENT,
   listMyPendingCoopRoomRewards,
   prepareCoopRoomRewards,
   saveMyCoopRunCheckpoint,
@@ -157,6 +158,7 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
   useEffect(() => {
     if (!active || !context) {
       clearRef.current = null;
+      preparingRef.current = false;
       applyingRef.current.clear();
       setPendingRewards(0);
       setState('idle');
@@ -183,8 +185,17 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
       }
       void prepareCurrentReward();
     };
+    const onRestart = () => {
+      clearRef.current = null;
+      preparingRef.current = false;
+      applyingRef.current.clear();
+      setPendingRewards(0);
+      setError('');
+      void saveCheckpoint(false).catch(() => {});
+    };
 
     window.addEventListener(COOP_ROOM_CLEAR_EVENT, onClear);
+    window.addEventListener(COOP_RUN_RESTART_EVENT, onRestart);
     const checkpointInterval = window.setInterval(() => { void saveCheckpoint().catch(() => {}); }, COOP_CHECKPOINT_MS);
     const pageHide = () => { void saveCheckpoint().catch(() => {}); };
     window.addEventListener('pagehide', pageHide);
@@ -194,6 +205,7 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
       window.clearInterval(checkpointInterval);
       window.removeEventListener('pagehide', pageHide);
       window.removeEventListener(COOP_ROOM_CLEAR_EVENT, onClear);
+      window.removeEventListener(COOP_RUN_RESTART_EVENT, onRestart);
       restoreExit();
     };
   }, [active, context?.lobbyId, context?.runSeed]);
