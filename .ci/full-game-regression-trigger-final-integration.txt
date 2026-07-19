@@ -1,0 +1,5 @@
+Final canonical integration validation.
+Base: fix/mobile-telegraphs-room-21-50-balance
+Previous validated product head: d0a770b888a60cc53d685491e1eb81ac1d4896ae
+Browser workflow runtime bound at 30 minutes.
+Redesign Diagnostics aligned to fix/** pull requests.
