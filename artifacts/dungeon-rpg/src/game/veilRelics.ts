@@ -1,3 +1,5 @@
+import { RELIC_COMBAT_V4 } from './relicCombatContractV4';
+
 export type VeilRelicId = 'ash-eye' | 'marked-claw' | 'night-hunt-sigil' | 'veil-heart' | 'broken-guardian-crown' | 'depth-rune-shard' | 'world-core';
 
 export type VeilRelicDefinition = {
@@ -10,14 +12,72 @@ export type VeilRelicDefinition = {
   accent: string;
 };
 
+const percent = (value: number) => Math.round(value * 100);
+
 export const VEIL_RELICS: Record<VeilRelicId, VeilRelicDefinition> = {
-  'ash-eye': { id: 'ash-eye', nameDe: 'Auge des Aschenjägers', nameEn: "Ash Hunter's Eye", descriptionDe: 'Spürt Jagd-Gegner früher auf und ermöglicht höchstens eine zusätzliche Jagd pro Kapitel.', descriptionEn: 'Detects hunt enemies earlier and allows at most one additional hunt per chapter.', source: 'hunt', accent: '#e6a94a' },
-  'marked-claw': { id: 'marked-claw', nameDe: 'Gezeichnete Kralle', nameEn: 'Marked Claw', descriptionDe: 'Jeder siebte Kill gewährt 2,5 Sekunden lang 14 % schnelleres Schießen. Das gemeinsame Angriffstempo-Cap bleibt bestehen.', descriptionEn: 'Every seventh kill grants 14% faster shooting for 2.5 seconds. The shared attack-speed cap still applies.', source: 'hunt', accent: '#e15e4e' },
-  'night-hunt-sigil': { id: 'night-hunt-sigil', nameDe: 'Siegel der Nachtjagd', nameEn: 'Night Hunt Sigil', descriptionDe: 'Jagd-Gegner gewähren 50 % mehr Schleierstaub.', descriptionEn: 'Hunt enemies grant 50% more Veil Dust.', source: 'hunt', accent: '#9c74e8' },
-  'veil-heart': { id: 'veil-heart', nameDe: 'Herz des Schleiers', nameEn: 'Heart of the Veil', descriptionDe: 'Verhindert einmal pro Run tödlichen Schaden und stellt 25 % Leben wieder her.', descriptionEn: 'Prevents lethal damage once per run and restores 25% health.', source: 'boss', accent: '#c786ff' },
-  'broken-guardian-crown': { id: 'broken-guardian-crown', nameDe: 'Krone des gebrochenen Wächters', nameEn: 'Crown of the Broken Guardian', descriptionDe: 'Boss-Kills gewähren je 3 % Angriff, maximal vier Stapel beziehungsweise 12 % pro Run.', descriptionEn: 'Boss kills grant 3% attack each, up to four stacks or 12% per run.', source: 'boss', accent: '#e6c16f' },
-  'depth-rune-shard': { id: 'depth-rune-shard', nameDe: 'Runensplitter der Tiefe', nameEn: 'Depth Rune Shard', descriptionDe: 'Runensturm-Schaden wird vor Rüstungsberechnung um 18 % reduziert.', descriptionEn: 'Rune storm damage is reduced by 18% before armor mitigation.', source: 'boss', accent: '#7dbfff' },
-  'world-core': { id: 'world-core', nameDe: 'Weltenkern', nameEn: 'World Core', descriptionDe: 'Zu Beginn jedes Runs: +4 % Angriff und +7 % maximales Leben.', descriptionEn: 'At the start of every run: +4% attack and +7% maximum health.', source: 'worldboss', accent: '#ff8b4a' },
+  'ash-eye': {
+    id: 'ash-eye',
+    nameDe: 'Auge des Aschenjägers',
+    nameEn: "Ash Hunter's Eye",
+    descriptionDe: `Spürt Jagd-Gegner ${RELIC_COMBAT_V4.ashEye.earlierFloorOffset} Räume früher auf und ermöglicht höchstens ${RELIC_COMBAT_V4.ashEye.chapterHuntBonusCap} zusätzliche Jagd pro Kapitel.`,
+    descriptionEn: `Detects hunt enemies ${RELIC_COMBAT_V4.ashEye.earlierFloorOffset} rooms earlier and allows at most ${RELIC_COMBAT_V4.ashEye.chapterHuntBonusCap} additional hunt per chapter.`,
+    source: 'hunt',
+    accent: '#e6a94a',
+  },
+  'marked-claw': {
+    id: 'marked-claw',
+    nameDe: 'Gezeichnete Kralle',
+    nameEn: 'Marked Claw',
+    descriptionDe: `Jeder ${RELIC_COMBAT_V4.markedClaw.killsPerProc}. Kill gewährt ${RELIC_COMBAT_V4.markedClaw.durationMs / 1000} Sekunden lang ${percent(RELIC_COMBAT_V4.markedClaw.attackSpeedBonus)} % schnelleres Schießen. Das gemeinsame Angriffstempo-Cap bleibt bestehen.`,
+    descriptionEn: `Every ${RELIC_COMBAT_V4.markedClaw.killsPerProc}th kill grants ${percent(RELIC_COMBAT_V4.markedClaw.attackSpeedBonus)}% faster shooting for ${RELIC_COMBAT_V4.markedClaw.durationMs / 1000} seconds. The shared attack-speed cap still applies.`,
+    source: 'hunt',
+    accent: '#e15e4e',
+  },
+  'night-hunt-sigil': {
+    id: 'night-hunt-sigil',
+    nameDe: 'Siegel der Nachtjagd',
+    nameEn: 'Night Hunt Sigil',
+    descriptionDe: `Jagd-Gegner gewähren ${percent(RELIC_COMBAT_V4.nightHuntSigil.dustMultiplier - 1)} % mehr Schleierstaub.`,
+    descriptionEn: `Hunt enemies grant ${percent(RELIC_COMBAT_V4.nightHuntSigil.dustMultiplier - 1)}% more Veil Dust.`,
+    source: 'hunt',
+    accent: '#9c74e8',
+  },
+  'veil-heart': {
+    id: 'veil-heart',
+    nameDe: 'Herz des Schleiers',
+    nameEn: 'Heart of the Veil',
+    descriptionDe: `Verhindert einmal pro Run tödlichen Schaden und stellt ${percent(RELIC_COMBAT_V4.veilHeart.restoreHealthFraction)} % Leben wieder her.`,
+    descriptionEn: `Prevents lethal damage once per run and restores ${percent(RELIC_COMBAT_V4.veilHeart.restoreHealthFraction)}% health.`,
+    source: 'boss',
+    accent: '#c786ff',
+  },
+  'broken-guardian-crown': {
+    id: 'broken-guardian-crown',
+    nameDe: 'Krone des gebrochenen Wächters',
+    nameEn: 'Crown of the Broken Guardian',
+    descriptionDe: `Boss-Kills gewähren je ${percent(RELIC_COMBAT_V4.guardianCrown.attackPerStack)} % Angriff, maximal ${RELIC_COMBAT_V4.guardianCrown.maxStacks} Stapel beziehungsweise ${percent(RELIC_COMBAT_V4.guardianCrown.maximumAttackBonus)} % pro Run.`,
+    descriptionEn: `Boss kills grant ${percent(RELIC_COMBAT_V4.guardianCrown.attackPerStack)}% attack each, up to ${RELIC_COMBAT_V4.guardianCrown.maxStacks} stacks or ${percent(RELIC_COMBAT_V4.guardianCrown.maximumAttackBonus)}% per run.`,
+    source: 'boss',
+    accent: '#e6c16f',
+  },
+  'depth-rune-shard': {
+    id: 'depth-rune-shard',
+    nameDe: 'Runensplitter der Tiefe',
+    nameEn: 'Depth Rune Shard',
+    descriptionDe: `Runensturm-Schaden wird vor Rüstungsberechnung um ${percent(RELIC_COMBAT_V4.depthRuneShard.runeDamageReduction)} % reduziert.`,
+    descriptionEn: `Rune storm damage is reduced by ${percent(RELIC_COMBAT_V4.depthRuneShard.runeDamageReduction)}% before armor mitigation.`,
+    source: 'boss',
+    accent: '#7dbfff',
+  },
+  'world-core': {
+    id: 'world-core',
+    nameDe: 'Weltenkern',
+    nameEn: 'World Core',
+    descriptionDe: `Zu Beginn jedes Runs: +${percent(RELIC_COMBAT_V4.worldCore.attackBonus)} % Angriff und +${percent(RELIC_COMBAT_V4.worldCore.maximumHealthBonus)} % maximales Leben.`,
+    descriptionEn: `At the start of every run: +${percent(RELIC_COMBAT_V4.worldCore.attackBonus)}% attack and +${percent(RELIC_COMBAT_V4.worldCore.maximumHealthBonus)}% maximum health.`,
+    source: 'worldboss',
+    accent: '#ff8b4a',
+  },
 };
 
 const RELIC_KEY = 'dungeon-veil-relics-v2';
@@ -53,7 +113,7 @@ function safeCount(value: unknown, cap = 999): number {
 function normalizeCrownStacks(value: unknown): Record<string, number> {
   if (!value || typeof value !== 'object') return {};
   return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .filter(([key]) => key.length > 0).slice(-30).map(([key, stack]) => [key, safeCount(stack, 4)]));
+    .filter(([key]) => key.length > 0).slice(-30).map(([key, stack]) => [key, safeCount(stack, RELIC_COMBAT_V4.guardianCrown.maxStacks)]));
 }
 
 export function loadVeilRelicProfile(): VeilRelicProfile {
@@ -137,8 +197,8 @@ export function advanceGuardianCrownForCurrentRun() {
   if (!hasEquippedVeilRelic('broken-guardian-crown')) return { stack: 0, gained: false };
   const runId = currentRunId(); if (!runId) return { stack: 0, gained: false };
   const profile = loadVeilRelicProfile();
-  const current = safeCount(profile.crownRunStacks[runId], 4);
-  if (current >= 4) return { stack: 4, gained: false };
+  const current = safeCount(profile.crownRunStacks[runId], RELIC_COMBAT_V4.guardianCrown.maxStacks);
+  if (current >= RELIC_COMBAT_V4.guardianCrown.maxStacks) return { stack: RELIC_COMBAT_V4.guardianCrown.maxStacks, gained: false };
   profile.crownRunStacks[runId] = current + 1;
   saveVeilRelicProfile(profile);
   return { stack: current + 1, gained: true };
