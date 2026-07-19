@@ -716,24 +716,24 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       portal.userData.groundRing.material.opacity = (0.38 + pulse * 0.28) * eased;
       portal.userData.groundInner.material.opacity = (0.2 + pulse * 0.18) * eased;
       portal.userData.stoneArch.material.emissiveIntensity = (0.18 + pulse * 0.2) * eased;
-      portal.userData.vortexLayers.forEach((layer, index) => {
+      portal.userData.vortexLayers.forEach((layer: any, index: number) => {
         const direction = index % 2 === 0 ? 1 : -1;
         layer.rotation.z = direction * wallNow * (0.00055 + index * 0.00038);
         layer.material.opacity = (layer.userData.baseOpacity + pulse * 0.08) * eased;
         const scale = layer.userData.baseScale * (0.94 + pulse * (0.07 + index * 0.01));
         layer.scale.set(scale, scale * 1.36, 1);
       });
-      portal.userData.energyRibbons.forEach((ribbon, index) => {
+      portal.userData.energyRibbons.forEach((ribbon: any, index: number) => {
         ribbon.rotation.z = (index ? -1 : 1) * wallNow * (0.00115 + index * 0.00045) + index * Math.PI;
         ribbon.material.opacity = (0.5 + pulse * 0.28 - index * 0.08) * eased;
       });
-      portal.userData.runeDiamonds.forEach((rune, index) => {
+      portal.userData.runeDiamonds.forEach((rune: any, index: number) => {
         rune.rotation.y = wallNow * (0.001 + index * 0.00018);
         rune.scale.setScalar((0.88 + pulse * 0.22) * eased);
         rune.material.emissiveIntensity = (0.62 + pulse * 0.65) * eased;
       });
       if (!IS_MOBILE) portal.userData.core.intensity = (8.4 + pulse * 3.4) * eased;
-      portal.userData.motes.forEach((mote, index) => {
+      portal.userData.motes.forEach((mote: any, index: number) => {
         const phase = mote.userData.phase + wallNow * (0.001 + index * 0.000022);
         const radius = 0.66 + (index % 4) * 0.11;
         mote.position.x = Math.sin(phase) * radius;
