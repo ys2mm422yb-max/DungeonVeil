@@ -13,7 +13,7 @@ export type VeilRelicDefinition = {
 export const VEIL_RELICS: Record<VeilRelicId, VeilRelicDefinition> = {
   'ash-eye': { id: 'ash-eye', nameDe: 'Auge des Aschenjägers', nameEn: "Ash Hunter's Eye", descriptionDe: 'Spürt Jagd-Gegner früher auf und ermöglicht höchstens eine zusätzliche Jagd pro Kapitel.', descriptionEn: 'Detects hunt enemies earlier and allows at most one additional hunt per chapter.', source: 'hunt', accent: '#e6a94a' },
   'marked-claw': { id: 'marked-claw', nameDe: 'Gezeichnete Kralle', nameEn: 'Marked Claw', descriptionDe: 'Jeder siebte Kill gewährt 2,5 Sekunden lang 14 % schnelleres Schießen. Das gemeinsame Angriffstempo-Cap bleibt bestehen.', descriptionEn: 'Every seventh kill grants 14% faster shooting for 2.5 seconds. The shared attack-speed cap still applies.', source: 'hunt', accent: '#e15e4e' },
-  'night-hunt-sigil': { id: 'night-hunt-sigil', nameDe: 'Siegel der Nachtjagd', nameEn: 'Night Hunt Sigil', descriptionDe: 'Jagd-Gegner gewähren 30 % mehr Schleierstaub.', descriptionEn: 'Hunt enemies grant 30% more Veil Dust.', source: 'hunt', accent: '#9c74e8' },
+  'night-hunt-sigil': { id: 'night-hunt-sigil', nameDe: 'Siegel der Nachtjagd', nameEn: 'Night Hunt Sigil', descriptionDe: 'Jagd-Gegner gewähren 50 % mehr Schleierstaub.', descriptionEn: 'Hunt enemies grant 50% more Veil Dust.', source: 'hunt', accent: '#9c74e8' },
   'veil-heart': { id: 'veil-heart', nameDe: 'Herz des Schleiers', nameEn: 'Heart of the Veil', descriptionDe: 'Verhindert einmal pro Run tödlichen Schaden und stellt 25 % Leben wieder her.', descriptionEn: 'Prevents lethal damage once per run and restores 25% health.', source: 'boss', accent: '#c786ff' },
   'broken-guardian-crown': { id: 'broken-guardian-crown', nameDe: 'Krone des gebrochenen Wächters', nameEn: 'Crown of the Broken Guardian', descriptionDe: 'Boss-Kills gewähren je 3 % Angriff, maximal vier Stapel beziehungsweise 12 % pro Run.', descriptionEn: 'Boss kills grant 3% attack each, up to four stacks or 12% per run.', source: 'boss', accent: '#e6c16f' },
   'depth-rune-shard': { id: 'depth-rune-shard', nameDe: 'Runensplitter der Tiefe', nameEn: 'Depth Rune Shard', descriptionDe: 'Runensturm-Schaden wird vor Rüstungsberechnung um 18 % reduziert.', descriptionEn: 'Rune storm damage is reduced by 18% before armor mitigation.', source: 'boss', accent: '#7dbfff' },
@@ -26,6 +26,7 @@ const META_KEY = 'dungeon-veil-meta';
 export const RELIC_PITY_MISSES = 10;
 export const RELIC_PITY_BY_SOURCE = Object.freeze({ hunt: 9, boss: 11 });
 export const RELIC_UNOWNED_PREFERENCE = 0.65;
+export const RELIC_DROP_CHANCE_BY_SOURCE = Object.freeze({ hunt: 0.06, boss: 0.08 });
 
 export type VeilRelicProfile = {
   version: 2;
@@ -150,7 +151,8 @@ export function rollVeilRelicDrop(source: 'hunt' | 'boss', chance: number, rando
   const profile = loadVeilRelicProfile();
   const pity = RELIC_PITY_BY_SOURCE[source];
   const forced = profile.relicMisses[source] >= pity;
-  if (!forced && random() > Math.max(0, Math.min(1, Number(chance) || 0))) {
+  const effectiveChance = Math.min(RELIC_DROP_CHANCE_BY_SOURCE[source], Math.max(0, Math.min(1, Number(chance) || 0)));
+  if (!forced && random() > effectiveChance) {
     profile.relicMisses[source]++;
     saveVeilRelicProfile(profile);
     return null;
