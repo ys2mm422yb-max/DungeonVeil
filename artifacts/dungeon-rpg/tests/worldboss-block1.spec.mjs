@@ -39,9 +39,24 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await expect(page.getByTestId('run-dash-button')).toBeVisible();
 
   const diagnostics = page.getByTestId('worldboss-runtime-diagnostics');
-  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-v1');
+  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-dragon-v2');
   await expect(diagnostics).toHaveAttribute('data-engine-status', 'playing', { timeout: 20_000 });
-  await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ok-or-loading');
+  await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ready', { timeout: 20_000 });
+  await expect(diagnostics).toHaveAttribute('data-boss-visual', 'original-black-fbx-dragon');
+
+  const width = await numericAttribute(diagnostics, 'data-boss-width');
+  const height = await numericAttribute(diagnostics, 'data-boss-height');
+  const depth = await numericAttribute(diagnostics, 'data-boss-depth');
+  const groundY = await numericAttribute(diagnostics, 'data-boss-ground-y');
+  const topY = await numericAttribute(diagnostics, 'data-boss-top-y');
+  expect(width).toBeGreaterThan(0.2);
+  expect(height).toBeGreaterThan(0.2);
+  expect(depth).toBeGreaterThan(0.2);
+  expect(Math.max(width, height, depth)).toBeGreaterThan(3.15);
+  expect(Math.max(width, height, depth)).toBeLessThan(3.35);
+  expect(groundY).toBeGreaterThanOrEqual(-0.03);
+  expect(groundY).toBeLessThanOrEqual(0.09);
+  expect(topY).toBeGreaterThan(0.5);
 
   for (const required of ['Dragon.fbx', 'FBXLoader.js', 'fflate.module.js', 'NURBSCurve.js', 'NURBSUtils.js']) {
     const response = responses.find(item => item.url.includes(required));
@@ -99,5 +114,9 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   }).toBeGreaterThan(dodgeBefore);
 
   await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
+  await testInfo.attach('worldboss-block1-ready.png', {
+    body: await page.screenshot({ fullPage: false }),
+    contentType: 'image/png',
+  });
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
 });
