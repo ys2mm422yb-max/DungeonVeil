@@ -23,8 +23,12 @@ const ENEMY = Object.freeze({
   golem: { hp: 190, attack: 20, role: 'heavy' },
 });
 
+const encounterTableSource = encounterSource.slice(
+  encounterSource.indexOf('const ENCOUNTERS'),
+  encounterSource.indexOf('const REGION_POOLS'),
+);
 const explicit = new Map();
-for (const match of encounterSource.matchAll(/^\s*(\d+):\s*\[([^\]]*)\],?$/gm)) {
+for (const match of encounterTableSource.matchAll(/^\s*(\d+):\s*\[([^\]]*)\],?$/gm)) {
   const room = Number(match[1]);
   if (room > 20) continue;
   const types = [...match[2].matchAll(/'([^']+)'/g)].map(entry => entry[1]);
