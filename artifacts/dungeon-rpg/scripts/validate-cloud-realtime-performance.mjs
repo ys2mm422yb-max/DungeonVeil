@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [bundle, safety, cloud, runtime, saveManager, onlinePanel, updateGate, spectator, spectatorScreen, hud, themes, migration] = await Promise.all([
+const [bundle, safety, cloud, runtime, saveManager, onlinePanel, updateGate, spectator, spectatorScreen, spectatorBuffer, spectatorPlayback, hud, themes, migration] = await Promise.all([
   read('../src/game/persistentSaveBundle.ts'),
   read('../src/game/cloudSaveSafety.ts'),
   read('../src/game/cloudSave.ts'),
@@ -11,6 +11,8 @@ const [bundle, safety, cloud, runtime, saveManager, onlinePanel, updateGate, spe
   read('../src/components/MainMenuUpdateGate.tsx'),
   read('../src/game/socialSpectatorOnline.ts'),
   read('../src/components/SpectatorScreen.tsx'),
+  read('../src/game/spectatorInterpolation.ts'),
+  read('../src/components/SpectatorPlaybackStage.tsx'),
   read('../src/components/HUD.tsx'),
   read('../src/components/kaykitRoomThemes3D.ts'),
   read('../../../supabase/migrations/20260716235500_cloud_conflict_guard_and_spectator_presence.sql'),
@@ -30,8 +32,9 @@ const checks = [
   [updateGate.includes('CLOUD_POLL_MS = 15_000') && updateGate.includes('pullCloudSave') && updateGate.includes('window.location.reload'), 'main-menu multi-device refresh is missing'],
   [updateGate.includes('cloudAccountHydrated') && updateGate.includes('safeReload(false)') && !updateGate.includes('pull(true)'), 'main menu can still push a fresh device before its first pull'],
   [updateGate.includes('deployment.json') && updateGate.includes('UPDATE_DELAY_MS') && updateGate.includes('pushCloudSave'), 'safe automatic main-menu deployment update is missing'],
-  [spectator.includes('SPECTATOR_REFRESH_MS = 100') && spectator.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not ten-hertz and gift-aware'],
-  [spectatorScreen.includes('INTERPOLATION_MS = 120') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator smoothing, gifts or heartbeat are missing'],
+  [spectator.includes('SPECTATOR_PUBLISH_MS = 125') && spectator.includes('SPECTATOR_POLL_MS = 125') && spectator.includes('SPECTATOR_KEYFRAME_MS = 1_000') && spectator.includes('runSkills: { ...state.runSkills }'), 'spectator feed is not compact, keyframed and gift-aware'],
+  [spectatorBuffer.includes('SPECTATOR_INTERPOLATION_DELAY_MS = 165') && spectatorBuffer.includes('SPECTATOR_MAX_EXTRAPOLATION_MS = 120') && spectatorScreen.includes('HUD_PAINT_MS = 250') && spectatorScreen.includes('spectator-gifts') && spectatorScreen.includes('heartbeatSpectatorViewer'), 'spectator buffered smoothing, bounded gap handling, gifts or heartbeat are missing'],
+  [spectatorPlayback.includes('single-stable-three-state') && !spectatorScreen.includes('setDisplayState') && !spectatorScreen.includes('<CombatStage'), 'spectator playback still causes full React combat rerenders'],
   [hud.includes('spectator-viewer-count') && hud.includes('loadMySpectatorViewerCount'), 'the watched player cannot see the current viewer count'],
   [migration.includes('spectator_viewers') && migration.includes('heartbeat_spectator_viewer') && migration.includes('get_my_spectator_viewer_count'), 'spectator presence storage or RPCs are missing'],
   [themes.includes("node.geometry?.type === 'RingGeometry'") && themes.includes('node.visible = false'), 'decorative static room rings are not removed'],
@@ -45,4 +48,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Explicit player-name confirmation, pull-first account hydration, thin-bundle protection, recovery repair, automatic cloud reconciliation, safe updates, spectating and mobile performance validated.');
+console.log('Explicit player-name confirmation, pull-first account hydration, thin-bundle protection, recovery repair, automatic cloud reconciliation, safe updates, buffered spectating and mobile performance validated.');
