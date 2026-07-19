@@ -4,7 +4,7 @@ const paths = {
   retention: '../src/game/runRetention.ts',
   currency: '../src/game/metaCurrency.ts',
   economy: '../src/game/equipmentUpgradeEconomy.ts',
-  inventory: '../src/components/screens/VeilChamberScreen.tsx',
+  inventory: '../src/components/screens/VeilChamberScreenV4.tsx',
   quests: '../src/components/DailyQuestPanel.tsx',
   relics: '../src/game/veilRelics.ts',
   bundle: '../src/game/persistentSaveBundle.ts',
@@ -35,8 +35,8 @@ const checks = [
   [files.quests.includes('loadMetaProgression().dust') && files.quests.includes("'Schleierstaub'") && files.quests.includes("'Veil Dust'"), 'quest board does not display Veil Dust'],
   [files.retention.includes('grantMetaDust(task.reward)') && files.retention.includes('grantMetaDust(huntReward)') && files.retention.includes('grantMetaDust(dustReward)'), 'daily, hunt or relic rewards do not all grant dust'],
   [files.worldBossMigration.includes('v_dust integer') && files.worldBossMigration.includes("'dust', v_dust") && files.worldBossReward.includes('meta.dust += dust'), 'world-boss rewards are not connected to Veil Dust'],
-  [files.relics.includes('50 % mehr Schleierstaub') && files.relics.includes('50% more Veil Dust'), 'Night Hunt relic still describes a sigil bonus'],
-  [files.economy.includes('dust: 75') && files.economy.includes('dust: 250') && files.economy.includes('dust: 700') && files.economy.includes('dust: 1800'), 'equipment upgrades do not contain all agreed dust costs'],
+  [files.relics.includes('30 % mehr Schleierstaub') && files.relics.includes('30% more Veil Dust'), 'Night Hunt relic does not describe the redesigned dust bonus'],
+  [files.economy.includes('dust: 120') && files.economy.includes('dust: 4200') && files.economy.includes('dust: 7200') && files.economy.includes('dust: 12500'), 'equipment upgrades do not contain the V4 rarity-based dust costs'],
   [files.inventory.includes('data-testid="equipment-upgrade-costs"') && files.inventory.includes('grid-cols-3'), 'inventory does not visibly separate all three upgrade resources'],
   [expandedAvatarIds.every(id => files.expansion.includes(`id: '${id}'`)), 'expanded cosmetic collection contains an unaccounted avatar'],
   [avatarIds.every(id => files.portrait.includes(`${id}:`) || files.portrait.includes(`'${id}':`)), 'portrait theme map does not cover every base and expanded avatar id'],
@@ -55,4 +55,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Dust/avatar overhaul audit passed: migration preserves cloud weight, all rewards feed Veil Dust, upgrades consume three resources and all 17 profile avatars use safe vector portraits.');
+console.log('Dust/avatar overhaul audit passed: migration preserves cloud weight, all rewards feed Veil Dust, V4 upgrades consume three resources and all 17 profile avatars use safe vector portraits.');
