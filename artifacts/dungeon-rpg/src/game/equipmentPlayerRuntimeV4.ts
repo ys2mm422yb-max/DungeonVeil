@@ -3,10 +3,15 @@ import { equipmentCombatModifiers, loadMetaProgression } from './metaProgression
 import { skillRank } from './runSkills';
 import { equippedVeilRelic, loadVeilRelicProfile } from './veilRelics';
 import { defenseMitigation } from './equipmentCombatV4';
+import {
+  RELIC_COMBAT_V4,
+  depthRuneBeforeDefenseV4,
+  guardianCrownLegacyCorrectionV4,
+  markedClawAttackCooldownV4,
+} from './relicCombatContractV4';
 
 const ARCHER_BASE_ATTACK_COOLDOWN_MS = 270;
 const QUICK_DRAW_MULTIPLIERS = [1, 1.16, 1.3, 1.42] as const;
-const MIN_ATTACK_COOLDOWN_MS = 125;
 
 export type EquipmentPlayerRuntimeState = {
   roomKey: string;
@@ -72,8 +77,10 @@ function reconcileIncomingDamage(engine: GameEngine, state: EquipmentPlayerRunti
   const enemyAttack = number ? enemyAttackForHit(engine, number.id) : null;
   const rawDamage = enemyAttack === null ? observedDamage : enemyAttack + 1;
   const runeHit = Boolean(number?.id.startsWith('rune-hit-'));
-  const runeFactor = runeHit && equippedVeilRelic() === 'depth-rune-shard' ? 0.82 : 1;
-  const beforeDefense = Math.max(1, Math.round(rawDamage * runeFactor));
+  const beforeDefense = depthRuneBeforeDefenseV4(
+    rawDamage,
+    runeHit && equippedVeilRelic() === 'depth-rune-shard',
+  );
   const bossLike = Boolean(number?.id.startsWith('rune-hit-') || number?.id.startsWith('volatile-hit-'));
   const mitigation = defenseMitigation(player.defense, bossLike ? 0.44 : 0.52);
   const adjustedDamage = Math.max(1, Math.round(beforeDefense * (1 - mitigation)));
@@ -90,7 +97,9 @@ function updateBoundedRelics(engine: GameEngine, state: EquipmentPlayerRuntimeSt
   const player = engine.state.player;
   const kills = Math.max(0, engine.state.killCount ?? 0);
   if (relic === 'marked-claw') {
-    if (Math.floor(kills / 7) > Math.floor(state.lastKillCount / 7)) state.clawUntil = time + 2500;
+    if (Math.floor(kills / RELIC_COMBAT_V4.markedClaw.killsPerProc) > Math.floor(state.lastKillCount / RELIC_COMBAT_V4.markedClaw.killsPerProc)) {
+      state.clawUntil = time + RELIC_COMBAT_V4.markedClaw.durationMs;
+    }
     player.relicAttackSpeedUntil = state.clawUntil;
   } else {
     state.clawUntil = 0;
@@ -100,14 +109,18 @@ function updateBoundedRelics(engine: GameEngine, state: EquipmentPlayerRuntimeSt
 
   const runId = loadMetaProgression().currentRunId;
   const stack = relic === 'broken-guardian-crown' && runId
-    ? Math.max(0, Math.min(4, loadVeilRelicProfile().crownRunStacks[runId] ?? 0))
+    ? Math.max(0, Math.min(RELIC_COMBAT_V4.guardianCrown.maxStacks, loadVeilRelicProfile().crownRunStacks[runId] ?? 0))
     : 0;
   if (!state.crownInitialized) {
-    if (stack > 0) player.attack = Math.max(1, Math.round(player.attack * Math.pow(1.03 / 1.04, stack)));
+    if (stack > 0) player.attack = Math.max(1, Math.round(player.attack * guardianCrownLegacyCorrectionV4(stack)));
     state.crownInitialized = true;
   } else if (stack > state.crownStack) {
     for (let index = state.crownStack; index < stack; index++) {
-      player.attack = Math.max(1, Math.round(player.attack / 1.04 * 1.03));
+      player.attack = Math.max(1, Math.round(
+        player.attack
+          / (1 + RELIC_COMBAT_V4.guardianCrown.legacyAttackPerStack)
+          * (1 + RELIC_COMBAT_V4.guardianCrown.attackPerStack),
+      ));
     }
   }
   state.crownStack = stack;
@@ -118,10 +131,12 @@ function normalizeAttackCooldown(engine: GameEngine, state: EquipmentPlayerRunti
   if (!player.lastAttackTime || player.lastAttackTime === state.lastAttackTime) return;
   state.lastAttackTime = player.lastAttackTime;
   const quickDrawRank = skillRank(engine.state.runSkills, 'attackSpeed');
-  const equipmentSpeed = Math.max(0, Math.min(0.45, player.attackSpeedPercent ?? 0));
-  const clawSpeed = equippedVeilRelic() === 'marked-claw' && (player.relicAttackSpeedUntil ?? 0) > time ? 0.14 : 0;
-  const totalMultiplier = Math.min(1.75, (1 + equipmentSpeed + clawSpeed) * QUICK_DRAW_MULTIPLIERS[quickDrawRank]);
-  player.attackCooldown = Math.max(MIN_ATTACK_COOLDOWN_MS, Math.round(ARCHER_BASE_ATTACK_COOLDOWN_MS / totalMultiplier));
+  player.attackCooldown = markedClawAttackCooldownV4(
+    ARCHER_BASE_ATTACK_COOLDOWN_MS,
+    player.attackSpeedPercent ?? 0,
+    QUICK_DRAW_MULTIPLIERS[quickDrawRank],
+    equippedVeilRelic() === 'marked-claw' && (player.relicAttackSpeedUntil ?? 0) > time,
+  );
 }
 
 export function updateEquipmentPlayerRuntimeV4(

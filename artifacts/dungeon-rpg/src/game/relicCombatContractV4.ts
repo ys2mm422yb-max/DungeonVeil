@@ -4,10 +4,21 @@ export type RelicCombatModeV4 = 'solo' | 'duo' | 'worldboss';
 
 export const RELIC_COMBAT_V4 = Object.freeze({
   ashEye: Object.freeze({ earlierFloorOffset: 2, chapterHuntBonusCap: 1 }),
-  markedClaw: Object.freeze({ killsPerProc: 7, attackSpeedBonus: 0.14, durationMs: 2_500 }),
+  markedClaw: Object.freeze({
+    killsPerProc: 7,
+    attackSpeedBonus: 0.14,
+    durationMs: 2_500,
+    minimumAttackCooldownMs: 125,
+    totalAttackSpeedCap: 1.75,
+  }),
   nightHuntSigil: Object.freeze({ dustMultiplier: 1.5 }),
   veilHeart: Object.freeze({ restoreHealthFraction: 0.25, invincibilityMs: 1_000, usesPerRun: 1 }),
-  guardianCrown: Object.freeze({ attackPerStack: 0.03, maxStacks: 4, maximumAttackBonus: 0.12 }),
+  guardianCrown: Object.freeze({
+    attackPerStack: 0.03,
+    legacyAttackPerStack: 0.04,
+    maxStacks: 4,
+    maximumAttackBonus: 0.12,
+  }),
   depthRuneShard: Object.freeze({ runeDamageReduction: 0.18 }),
   worldCore: Object.freeze({ attackBonus: 0.04, maximumHealthBonus: 0.07 }),
 });
@@ -22,9 +33,22 @@ export const RELIC_MODE_POLICY_V4: Readonly<Record<VeilRelicId, Readonly<Record<
   'world-core': Object.freeze({ solo: true, duo: true, worldboss: true }),
 });
 
-export function markedClawAttackCooldownV4(baseCooldownMs: number, active: boolean): number {
-  if (!active) return Math.max(120, baseCooldownMs);
-  return Math.max(120, baseCooldownMs / (1 + RELIC_COMBAT_V4.markedClaw.attackSpeedBonus));
+export function markedClawAttackCooldownV4(
+  baseCooldownMs: number,
+  equipmentSpeed: number,
+  quickDrawMultiplier: number,
+  active: boolean,
+): number {
+  const equipment = Math.max(0, Math.min(0.45, equipmentSpeed));
+  const claw = active ? RELIC_COMBAT_V4.markedClaw.attackSpeedBonus : 0;
+  const totalMultiplier = Math.min(
+    RELIC_COMBAT_V4.markedClaw.totalAttackSpeedCap,
+    (1 + equipment + claw) * Math.max(1, quickDrawMultiplier),
+  );
+  return Math.max(
+    RELIC_COMBAT_V4.markedClaw.minimumAttackCooldownMs,
+    Math.round(Math.max(1, baseCooldownMs) / totalMultiplier),
+  );
 }
 
 export function guardianCrownAttackMultiplierV4(stacks: number): number {
@@ -32,9 +56,18 @@ export function guardianCrownAttackMultiplierV4(stacks: number): number {
   return 1 + normalized * RELIC_COMBAT_V4.guardianCrown.attackPerStack;
 }
 
-export function depthRuneDamageV4(rawDamage: number, defense: number, equipped: boolean): number {
-  const reduced = Math.max(0, rawDamage) * (equipped ? 1 - RELIC_COMBAT_V4.depthRuneShard.runeDamageReduction : 1);
-  return Math.max(1, Math.round(reduced - Math.max(0, defense) * 0.5));
+export function guardianCrownLegacyCorrectionV4(stacks: number): number {
+  const normalized = Math.max(0, Math.min(RELIC_COMBAT_V4.guardianCrown.maxStacks, Math.floor(Number(stacks) || 0)));
+  return Math.pow(
+    (1 + RELIC_COMBAT_V4.guardianCrown.attackPerStack)
+      / (1 + RELIC_COMBAT_V4.guardianCrown.legacyAttackPerStack),
+    normalized,
+  );
+}
+
+export function depthRuneBeforeDefenseV4(rawDamage: number, equipped: boolean): number {
+  const factor = equipped ? 1 - RELIC_COMBAT_V4.depthRuneShard.runeDamageReduction : 1;
+  return Math.max(1, Math.round(Math.max(0, rawDamage) * factor));
 }
 
 export function worldCoreRunStatsV4(attack: number, maximumHealth: number) {
