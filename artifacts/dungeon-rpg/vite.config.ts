@@ -13,6 +13,10 @@ const THREE_VENDOR_FILES = [
   'build/three.module.js',
   'build/three.core.js',
   'examples/jsm/loaders/GLTFLoader.js',
+  'examples/jsm/loaders/FBXLoader.js',
+  'examples/jsm/libs/fflate.module.js',
+  'examples/jsm/curves/NURBSCurve.js',
+  'examples/jsm/curves/NURBSUtils.js',
   'examples/jsm/utils/BufferGeometryUtils.js',
   'examples/jsm/utils/SkeletonUtils.js',
 ] as const;
