@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { loadMetaProgression, type MetaProgression } from '../game/metaProgression';
 import { loadPlayerProfile, type PlayerProfileProgress } from '../game/playerProfile';
+import { normalizeProfileEquipmentItems } from '../game/profileEquipment';
 import { loadRetentionProfile, type RetentionProfile } from '../game/runRetention';
-import { normalizePublicEquipmentItems, type SocialProfileCardData } from '../game/socialProgressOnline';
+import type { SocialProfileCardData } from '../game/socialProgressOnline';
 import { PlayerProfileCard } from './PlayerProfileCard';
 import { PlayerProfilePanel } from './PlayerProfilePanel';
 
@@ -57,7 +58,7 @@ function qaRetention(): RetentionProfile {
 }
 
 function qaPublicProfile(): SocialProfileCardData {
-  const equippedItems = normalizePublicEquipmentItems([
+  const equippedItems = normalizeProfileEquipmentItems([
     { slot: 'bow', id: 'ember-bow', level: 3, rarity: 'rare' },
     { slot: 'quiver', id: 'black-quiver', level: 2, rarity: 'rare' },
     { slot: 'talisman', id: 'veil-key', level: 5, rarity: 'epic' },
@@ -103,7 +104,7 @@ export function ProfileLayoutQa() {
   const retention = useMemo(qaRetention, []);
   const publicProfile = useMemo(qaPublicProfile, []);
 
-  return <div data-testid="profile-layout-qa" className="fixed inset-0 bg-[#07080b]">
+  return <div data-testid="profile-layout-qa" data-contract="profile-tablet-current-equipment-v1" className="fixed inset-0 bg-[#07080b]">
     {view === 'own'
       ? <PlayerProfilePanel profile={profile} saveData={null} meta={meta} retention={retention} language="de" onProfileChange={() => {}} onClose={() => {}} />
       : <PlayerProfileCard userId="profile-layout-qa" language="de" onClose={() => {}} profileOverride={publicProfile} />}
