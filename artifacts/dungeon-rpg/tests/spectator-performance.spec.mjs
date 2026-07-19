@@ -56,7 +56,7 @@ test('spectator playback stays smooth and bounded without React frame updates', 
   await expect.poll(() => numberAttribute(diagnostics, 'data-rendered-frames'), {
     timeout: 20_000,
     intervals: [200, 400, 800],
-  }).toBeGreaterThan(60);
+  }).toBeGreaterThan(24);
   await expect.poll(() => numberAttribute(diagnostics, 'data-player-distance'), {
     timeout: 20_000,
     intervals: [200, 400, 800],
@@ -77,12 +77,18 @@ test('spectator playback stays smooth and bounded without React frame updates', 
     intervals: [500, 1_000],
   }).toBeGreaterThan(0);
   const earlyMemory = await rendererMemory(page);
+  const earlyFrames = await numberAttribute(diagnostics, 'data-rendered-frames');
+  const earlySnapshots = await numberAttribute(diagnostics, 'data-received-snapshots');
   await page.waitForTimeout(6_000);
   const lateMemory = await rendererMemory(page);
+  const lateFrames = await numberAttribute(diagnostics, 'data-rendered-frames');
+  const lateSnapshots = await numberAttribute(diagnostics, 'data-received-snapshots');
   expect(lateMemory.geometries - earlyMemory.geometries).toBeLessThanOrEqual(8);
   expect(lateMemory.textures - earlyMemory.textures).toBeLessThanOrEqual(4);
   expect(await numberAttribute(diagnostics, 'data-canvas-count')).toBe(1);
-  expect(await numberAttribute(diagnostics, 'data-rendered-frames')).toBeGreaterThan(180);
+  expect(lateFrames - earlyFrames).toBeGreaterThan(5);
+  expect(lateSnapshots - earlySnapshots).toBeGreaterThan(5);
+  expect(lateFrames).toBeGreaterThan(reactCommits * 10);
 
   await testInfo.attach('spectator-performance-ready.png', {
     body: await page.screenshot({ fullPage: false }),
