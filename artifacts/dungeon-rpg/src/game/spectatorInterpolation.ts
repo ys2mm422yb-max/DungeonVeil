@@ -4,6 +4,7 @@ export const SPECTATOR_BUFFER_CAPACITY = 8;
 export const SPECTATOR_INTERPOLATION_DELAY_MS = 140;
 export const SPECTATOR_MAX_EXTRAPOLATION_MS = 80;
 export const SPECTATOR_MAX_EXTRAPOLATION_PX = 28;
+export const SPECTATOR_MAX_CORRECTION_STEP_PX = 10;
 export const SPECTATOR_UI_PAINT_MS = 250;
 
 export type SpectatorStateSnapshot = {
@@ -28,11 +29,13 @@ export type SpectatorInterpolationMetrics = {
   extrapolatedFrames: number;
   heldFrames: number;
   maxExtrapolatedDistancePx: number;
+  maxCorrectionStepPx: number;
   mode: SpectatorSampleMode;
 };
 
 type Positioned = { id: string; x: number; y: number };
 type TimedVisual = Positioned & { lifeTime: number; maxLifeTime: number };
+type MotionAccumulator = { prediction: number; correction: number };
 
 type BufferedFrame = {
   emittedAt: number;
@@ -75,15 +78,17 @@ function cloneState(state: RunGameState): RunGameState {
 function reconcileStableArray<T extends { id: string }>(
   current: readonly T[],
   incoming: readonly T[],
-  preserve: readonly (keyof T)[] = [],
+  preserve: readonly string[] = [],
 ): T[] {
   const existing = indexById(current);
   return incoming.map(item => {
     const stable = existing.get(item.id);
     if (!stable) return { ...item };
-    const preserved = preserve.map(key => [key, stable[key]] as const);
+    const stableRecord = stable as unknown as Record<string, unknown>;
+    const preserved: Record<string, unknown> = {};
+    for (const key of preserve) preserved[key] = stableRecord[key];
     Object.assign(stable, item);
-    for (const [key, value] of preserved) stable[key] = value;
+    for (const key of preserve) stableRecord[key] = preserved[key];
     return stable;
   });
 }
@@ -122,32 +127,48 @@ function reconcileDisplayState(display: RunGameState, incoming: RunGameState): v
   display.chests = reconcileStableArray(display.chests, incoming.chests, ['x', 'y']);
 }
 
-function interpolatePosition(target: { x: number; y: number }, from: { x: number; y: number }, to: { x: number; y: number }, amount: number): void {
-  target.x = lerp(from.x, to.x, amount);
-  target.y = lerp(from.y, to.y, amount);
+function moveTowardPosition(
+  target: { x: number; y: number },
+  desiredX: number,
+  desiredY: number,
+  accumulator: MotionAccumulator,
+): void {
+  let dx = desiredX - target.x;
+  let dy = desiredY - target.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance > SPECTATOR_MAX_CORRECTION_STEP_PX && distance > 0) {
+    const scale = SPECTATOR_MAX_CORRECTION_STEP_PX / distance;
+    dx *= scale;
+    dy *= scale;
+  }
+  target.x += dx;
+  target.y += dy;
+  accumulator.correction = Math.max(accumulator.correction, Math.hypot(dx, dy));
 }
 
-function interpolateTimedVisual(target: TimedVisual, from: TimedVisual, to: TimedVisual, amount: number): void {
-  interpolatePosition(target, from, to, amount);
-  target.lifeTime = lerp(from.lifeTime, to.lifeTime, amount);
+function interpolatePosition(
+  target: { x: number; y: number },
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  amount: number,
+  accumulator: MotionAccumulator,
+): void {
+  moveTowardPosition(target, lerp(from.x, to.x, amount), lerp(from.y, to.y, amount), accumulator);
 }
 
 function interpolateCollection<T extends Positioned>(
   display: readonly T[],
   from: Map<string, T>,
   to: Map<string, T>,
-): (amount: number) => void {
-  return amount => {
-    for (const target of display) {
-      const lower = from.get(target.id);
-      const upper = to.get(target.id);
-      if (lower && upper) interpolatePosition(target, lower, upper, amount);
-      else if (upper) {
-        target.x = upper.x;
-        target.y = upper.y;
-      }
-    }
-  };
+  amount: number,
+  accumulator: MotionAccumulator,
+): void {
+  for (const target of display) {
+    const lower = from.get(target.id);
+    const upper = to.get(target.id);
+    if (lower && upper) interpolatePosition(target, lower, upper, amount, accumulator);
+    else if (upper) moveTowardPosition(target, upper.x, upper.y, accumulator);
+  }
 }
 
 function interpolateTimedCollection<T extends TimedVisual>(
@@ -155,14 +176,16 @@ function interpolateTimedCollection<T extends TimedVisual>(
   from: Map<string, T>,
   to: Map<string, T>,
   amount: number,
+  accumulator: MotionAccumulator,
 ): void {
   for (const target of display) {
     const lower = from.get(target.id);
     const upper = to.get(target.id);
-    if (lower && upper) interpolateTimedVisual(target, lower, upper, amount);
-    else if (upper) {
-      target.x = upper.x;
-      target.y = upper.y;
+    if (lower && upper) {
+      interpolatePosition(target, lower, upper, amount, accumulator);
+      target.lifeTime = lerp(lower.lifeTime, upper.lifeTime, amount);
+    } else if (upper) {
+      moveTowardPosition(target, upper.x, upper.y, accumulator);
       target.lifeTime = upper.lifeTime;
     }
   }
@@ -174,20 +197,19 @@ function extrapolatePosition(
   latest: { x: number; y: number },
   sampleSpanMs: number,
   extrapolateMs: number,
-  maximumDistance: number,
-): number {
+  accumulator: MotionAccumulator,
+): void {
   const ratio = sampleSpanMs > 0 ? extrapolateMs / sampleSpanMs : 0;
   let dx = (latest.x - previous.x) * ratio;
   let dy = (latest.y - previous.y) * ratio;
-  const distance = Math.hypot(dx, dy);
-  if (distance > maximumDistance && distance > 0) {
-    const scale = maximumDistance / distance;
+  const prediction = Math.hypot(dx, dy);
+  if (prediction > SPECTATOR_MAX_EXTRAPOLATION_PX && prediction > 0) {
+    const scale = SPECTATOR_MAX_EXTRAPOLATION_PX / prediction;
     dx *= scale;
     dy *= scale;
   }
-  target.x = latest.x + dx;
-  target.y = latest.y + dy;
-  return Math.hypot(dx, dy);
+  accumulator.prediction = Math.max(accumulator.prediction, Math.hypot(dx, dy));
+  moveTowardPosition(target, latest.x + dx, latest.y + dy, accumulator);
 }
 
 function extrapolateCollection<T extends Positioned>(
@@ -196,20 +218,18 @@ function extrapolateCollection<T extends Positioned>(
   latest: Map<string, T>,
   sampleSpanMs: number,
   extrapolateMs: number,
-  maximumDistance: number,
-): number {
-  let greatest = 0;
+  accumulator: MotionAccumulator,
+): void {
   for (const target of display) {
     const lower = previous.get(target.id);
     const upper = latest.get(target.id);
-    if (lower && upper) {
-      greatest = Math.max(greatest, extrapolatePosition(target, lower, upper, sampleSpanMs, extrapolateMs, maximumDistance));
-    } else if (upper) {
-      target.x = upper.x;
-      target.y = upper.y;
-    }
+    if (lower && upper) extrapolatePosition(target, lower, upper, sampleSpanMs, extrapolateMs, accumulator);
+    else if (upper) moveTowardPosition(target, upper.x, upper.y, accumulator);
   }
-  return greatest;
+}
+
+function advanceLifeTime<T extends { lifeTime: number; maxLifeTime: number }>(target: T, source: T, extraMs: number): void {
+  target.lifeTime = Math.min(target.maxLifeTime, source.lifeTime + extraMs);
 }
 
 export class SpectatorInterpolationBuffer {
@@ -228,7 +248,9 @@ export class SpectatorInterpolationBuffer {
   private lastPacketGapMs = 0;
   private maxPacketGapMs = 0;
   private maxExtrapolatedDistancePx = 0;
+  private maxCorrectionStepPx = 0;
   private mode: SpectatorSampleMode = 'empty';
+  private readonly motion: MotionAccumulator = { prediction: 0, correction: 0 };
 
   push(snapshot: SpectatorStateSnapshot, receivedAt = Date.now()): RunGameState | null {
     if (!snapshot || !Number.isFinite(snapshot.emittedAt) || !snapshot.state) return this.display;
@@ -290,6 +312,8 @@ export class SpectatorInterpolationBuffer {
       return null;
     }
 
+    this.motion.prediction = 0;
+    this.motion.correction = 0;
     this.sampledFrames += 1;
     const renderAt = now - SPECTATOR_INTERPOLATION_DELAY_MS;
     const first = this.frames[0];
@@ -308,74 +332,50 @@ export class SpectatorInterpolationBuffer {
 
     if (upper) {
       const amount = clamp01((renderAt - lower.localAt) / Math.max(1, upper.localAt - lower.localAt));
-      interpolatePosition(display.player, lower.state.player, upper.state.player, amount);
-      interpolatePosition(display.camera, lower.state.camera, upper.state.camera, amount);
-      interpolateCollection(display.enemies, lower.enemies, upper.enemies)(amount);
-      interpolateTimedCollection(display.effects, lower.effects, upper.effects, amount);
-      interpolateTimedCollection(display.particles, lower.particles, upper.particles, amount);
-      interpolateTimedCollection(display.damageNumbers, lower.damageNumbers, upper.damageNumbers, amount);
+      interpolatePosition(display.player, lower.state.player, upper.state.player, amount, this.motion);
+      interpolatePosition(display.camera, lower.state.camera, upper.state.camera, amount, this.motion);
+      interpolateCollection(display.enemies, lower.enemies, upper.enemies, amount, this.motion);
+      interpolateTimedCollection(display.effects, lower.effects, upper.effects, amount, this.motion);
+      interpolateTimedCollection(display.particles, lower.particles, upper.particles, amount, this.motion);
+      interpolateTimedCollection(display.damageNumbers, lower.damageNumbers, upper.damageNumbers, amount, this.motion);
       this.interpolatedFrames += 1;
       this.mode = 'interpolated';
-      return display;
-    }
-
-    if (renderAt <= first.localAt || this.frames.length < 2) {
-      interpolatePosition(display.player, first.state.player, first.state.player, 0);
-      interpolatePosition(display.camera, first.state.camera, first.state.camera, 0);
+    } else if (renderAt <= first.localAt || this.frames.length < 2) {
+      interpolatePosition(display.player, first.state.player, first.state.player, 0, this.motion);
+      interpolatePosition(display.camera, first.state.camera, first.state.camera, 0, this.motion);
       this.heldFrames += 1;
       this.mode = 'held';
-      return display;
-    }
-
-    const previous = this.frames[this.frames.length - 2];
-    const sampleSpanMs = Math.max(1, latest.localAt - previous.localAt);
-    const requestedExtraMs = Math.max(0, renderAt - latest.localAt);
-    const extrapolateMs = Math.min(SPECTATOR_MAX_EXTRAPOLATION_MS, requestedExtraMs);
-    let greatest = extrapolatePosition(
-      display.player,
-      previous.state.player,
-      latest.state.player,
-      sampleSpanMs,
-      extrapolateMs,
-      SPECTATOR_MAX_EXTRAPOLATION_PX,
-    );
-    greatest = Math.max(greatest, extrapolatePosition(
-      display.camera,
-      previous.state.camera,
-      latest.state.camera,
-      sampleSpanMs,
-      extrapolateMs,
-      SPECTATOR_MAX_EXTRAPOLATION_PX,
-    ));
-    greatest = Math.max(greatest, extrapolateCollection(
-      display.enemies,
-      previous.enemies,
-      latest.enemies,
-      sampleSpanMs,
-      extrapolateMs,
-      SPECTATOR_MAX_EXTRAPOLATION_PX,
-    ));
-    for (const effect of display.effects) {
-      const source = latest.effects.get(effect.id);
-      if (source) effect.lifeTime = Math.min(effect.maxLifeTime, source.lifeTime + extrapolateMs);
-    }
-    for (const particle of display.particles) {
-      const source = latest.particles.get(particle.id);
-      if (source) effectTime(particle, source, extrapolateMs);
-    }
-    for (const number of display.damageNumbers) {
-      const source = latest.damageNumbers.get(number.id);
-      if (source) effectTime(number, source, extrapolateMs);
-    }
-    this.maxExtrapolatedDistancePx = Math.max(this.maxExtrapolatedDistancePx, greatest);
-
-    if (requestedExtraMs <= SPECTATOR_MAX_EXTRAPOLATION_MS) {
-      this.extrapolatedFrames += 1;
-      this.mode = 'extrapolated';
     } else {
-      this.heldFrames += 1;
-      this.mode = 'held';
+      const previous = this.frames[this.frames.length - 2];
+      const sampleSpanMs = Math.max(1, latest.localAt - previous.localAt);
+      const requestedExtraMs = Math.max(0, renderAt - latest.localAt);
+      const extrapolateMs = Math.min(SPECTATOR_MAX_EXTRAPOLATION_MS, requestedExtraMs);
+      extrapolatePosition(display.player, previous.state.player, latest.state.player, sampleSpanMs, extrapolateMs, this.motion);
+      extrapolatePosition(display.camera, previous.state.camera, latest.state.camera, sampleSpanMs, extrapolateMs, this.motion);
+      extrapolateCollection(display.enemies, previous.enemies, latest.enemies, sampleSpanMs, extrapolateMs, this.motion);
+      for (const effect of display.effects) {
+        const source = latest.effects.get(effect.id);
+        if (source) advanceLifeTime(effect, source, extrapolateMs);
+      }
+      for (const particle of display.particles) {
+        const source = latest.particles.get(particle.id);
+        if (source) advanceLifeTime(particle, source, extrapolateMs);
+      }
+      for (const number of display.damageNumbers) {
+        const source = latest.damageNumbers.get(number.id);
+        if (source) advanceLifeTime(number, source, extrapolateMs);
+      }
+      if (requestedExtraMs <= SPECTATOR_MAX_EXTRAPOLATION_MS) {
+        this.extrapolatedFrames += 1;
+        this.mode = 'extrapolated';
+      } else {
+        this.heldFrames += 1;
+        this.mode = 'held';
+      }
     }
+
+    this.maxExtrapolatedDistancePx = Math.max(this.maxExtrapolatedDistancePx, this.motion.prediction);
+    this.maxCorrectionStepPx = Math.max(this.maxCorrectionStepPx, this.motion.correction);
     return display;
   }
 
@@ -403,11 +403,8 @@ export class SpectatorInterpolationBuffer {
       extrapolatedFrames: this.extrapolatedFrames,
       heldFrames: this.heldFrames,
       maxExtrapolatedDistancePx: Number(this.maxExtrapolatedDistancePx.toFixed(2)),
+      maxCorrectionStepPx: Number(this.maxCorrectionStepPx.toFixed(2)),
       mode: this.mode,
     };
   }
-}
-
-function effectTime<T extends { lifeTime: number; maxLifeTime: number }>(target: T, source: T, extraMs: number): void {
-  target.lifeTime = Math.min(target.maxLifeTime, source.lifeTime + extraMs);
 }
