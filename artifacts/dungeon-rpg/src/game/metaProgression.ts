@@ -1,9 +1,21 @@
 import type { GameEngine } from './runEngine';
-import { skillRank } from './runSkills';
 import { isBossRoom } from './chapterRun';
 import { equipmentUnlockedForCurrentProgress, recordReachedChapter } from './equipmentChapterGates';
+import {
+  ACTIVE_EQUIPMENT_IDS,
+  LEGACY_EQUIPMENT_MIGRATION,
+  REMOVED_ITEM_COMPENSATION_DUST_PER_COPY,
+  REMOVED_ITEM_COMPENSATION_DUST_PER_LEVEL,
+  addEquipmentStats,
+  equipmentStatsAtLevel,
+  isActiveEquipmentId,
+  totalCritChance,
+  totalCritDamage,
+  type ActiveEquipmentId,
+} from './equipmentCore';
 
 export type EquipmentSlot = 'bow' | 'quiver' | 'talisman' | 'armor';
+export type ActiveEquipmentSlot = Exclude<EquipmentSlot, 'talisman'>;
 export type EquipmentRarity = 'common' | 'rare' | 'epic';
 export type EquipmentDropSource = 'forge' | 'hunt' | 'warden' | 'ritual' | 'depth';
 export type EquipmentId =
@@ -27,6 +39,7 @@ export type EquipmentDefinition = {
   accent: string;
   rarity: EquipmentRarity;
   dropSource: EquipmentDropSource;
+  active: boolean;
 };
 
 export type EquipmentCombatModifiers = {
@@ -38,6 +51,8 @@ export type EquipmentCombatModifiers = {
   attackRange: number;
   attackCooldownMultiplier: number;
   dodgeCooldownMultiplier: number;
+  critChance: number;
+  critDamage: number;
   grantedSkills: Partial<Record<GrantedSkill, number>>;
 };
 
@@ -46,41 +61,55 @@ const ADVENTURER_CHARACTERS = 'adventurers/KayKit_Adventurers_2.0_FREE/Character
 const WEAPON_ASSETS = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 const DUNGEON_ASSETS = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 
+function activeDefinition(definition: Omit<EquipmentDefinition, 'active'>): EquipmentDefinition {
+  return { ...definition, active: true };
+}
+
+function legacyDefinition(definition: Omit<EquipmentDefinition, 'active' | 'descriptionDe' | 'descriptionEn'>): EquipmentDefinition {
+  return {
+    ...definition,
+    active: false,
+    descriptionDe: 'Kosmetisches Altmodell · keine Gameplay-Werte',
+    descriptionEn: 'Legacy cosmetic model · no gameplay stats',
+  };
+}
+
 export const EQUIPMENT: Record<EquipmentId, EquipmentDefinition> = {
-  'ash-bow': { id: 'ash-bow', slot: 'bow', nameDe: 'Aschenbogen', nameEn: 'Ash Bow', descriptionDe: '+4 % Angriff je Ausrüstungslevel', descriptionEn: '+4% attack per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/bow_withString.gltf`, unlockRank: 1, accent: '#d59b45', rarity: 'common', dropSource: 'forge' },
-  'ember-bow': { id: 'ember-bow', slot: 'bow', nameDe: 'Glutbogen', nameEn: 'Ember Bow', descriptionDe: 'Feuerpfeil I und +2 % Angriff je Ausrüstungslevel', descriptionEn: 'Fire Arrow I and +2% attack per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_A_withString.gltf`, unlockRank: 2, accent: '#ff673d', rarity: 'common', dropSource: 'forge' },
-  'hunter-bow': { id: 'hunter-bow', slot: 'bow', nameDe: 'Bogen des Jägers', nameEn: "Hunter's Bow", descriptionDe: '+1 Angriff und +1 % Bewegung je Ausrüstungslevel', descriptionEn: '+1 attack and +1% movement per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_B_withString.gltf`, unlockRank: 4, accent: '#a8d381', rarity: 'rare', dropSource: 'hunt' },
-  'frost-bow': { id: 'frost-bow', slot: 'bow', nameDe: 'Frostbogen', nameEn: 'Frost Bow', descriptionDe: 'Frostpfeil I und +8 Angriffsreichweite je Ausrüstungslevel', descriptionEn: 'Ice Arrow I and +8 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/crossbow_1handed.gltf`, unlockRank: 5, accent: '#79ddff', rarity: 'rare', dropSource: 'depth' },
-  'splinter-bow': { id: 'splinter-bow', slot: 'bow', nameDe: 'Splitterbogen', nameEn: 'Splinter Bow', descriptionDe: 'Durchschlag I und +1 Angriff je Ausrüstungslevel', descriptionEn: 'Piercing I and +1 attack per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/crossbow_2handed.gltf`, unlockRank: 6, accent: '#e0c089', rarity: 'rare', dropSource: 'forge' },
-  'veil-bow': { id: 'veil-bow', slot: 'bow', nameDe: 'Schleierbogen', nameEn: 'Veil Bow', descriptionDe: 'Abpraller I und +2 % Bewegung je Ausrüstungslevel', descriptionEn: 'Ricochet I and +2% movement per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_A.gltf`, unlockRank: 8, accent: '#a88cff', rarity: 'epic', dropSource: 'ritual' },
-  'warden-bow': { id: 'warden-bow', slot: 'bow', nameDe: 'Wächterbogen', nameEn: 'Warden Bow', descriptionDe: '+2 Angriff je Ausrüstungslevel und jede zweite Stufe +1 Verteidigung', descriptionEn: '+2 attack per equipment level and +1 defense every two levels', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_B.gltf`, unlockRank: 10, accent: '#f1c66c', rarity: 'epic', dropSource: 'warden' },
+  'ash-bow': activeDefinition({ id: 'ash-bow', slot: 'bow', nameDe: 'Aschenbogen', nameEn: 'Ash Bow', descriptionDe: 'Reiner Angriffsbogen', descriptionEn: 'Pure attack bow', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/bow_withString.gltf`, unlockRank: 1, accent: '#d59b45', rarity: 'common', dropSource: 'forge' }),
+  'ember-bow': activeDefinition({ id: 'ember-bow', slot: 'bow', nameDe: 'Glutbogen', nameEn: 'Ember Bow', descriptionDe: 'Höchste Krit-Chance', descriptionEn: 'Highest critical chance', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_A_withString.gltf`, unlockRank: 3, accent: '#ff673d', rarity: 'rare', dropSource: 'forge' }),
+  'veil-bow': activeDefinition({ id: 'veil-bow', slot: 'bow', nameDe: 'Schleierbogen', nameEn: 'Veil Bow', descriptionDe: 'Angriff und Krit-Chance', descriptionEn: 'Attack and critical chance', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_A.gltf`, unlockRank: 7, accent: '#a88cff', rarity: 'epic', dropSource: 'ritual' }),
+  'warden-bow': activeDefinition({ id: 'warden-bow', slot: 'bow', nameDe: 'Wächterbogen', nameEn: 'Warden Bow', descriptionDe: 'Angriff, Krit-Chance und Krit-Schaden', descriptionEn: 'Attack, critical chance and critical damage', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_B.gltf`, unlockRank: 10, accent: '#f1c66c', rarity: 'epic', dropSource: 'warden' }),
 
-  'ranger-quiver': { id: 'ranger-quiver', slot: 'quiver', nameDe: 'Waldläuferköcher', nameEn: 'Ranger Quiver', descriptionDe: '+2 % Bewegung je Ausrüstungslevel', descriptionEn: '+2% movement per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/quiver.gltf`, unlockRank: 1, accent: '#63c8d8', rarity: 'common', dropSource: 'hunt' },
-  'black-quiver': { id: 'black-quiver', slot: 'quiver', nameDe: 'Schwarzer Köcher', nameEn: 'Black Quiver', descriptionDe: 'Mehrfachpfeil I und -2 % Angriffsabklingzeit je Ausrüstungslevel', descriptionEn: 'Multishot I and -2% attack cooldown per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_bow_bundle.gltf`, unlockRank: 3, accent: '#8b78ba', rarity: 'common', dropSource: 'hunt' },
-  'rune-quiver': { id: 'rune-quiver', slot: 'quiver', nameDe: 'Runenköcher', nameEn: 'Rune Quiver', descriptionDe: 'Abpraller I und +8 Angriffsreichweite je Ausrüstungslevel', descriptionEn: 'Ricochet I and +8 attack range per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/arrow_B.gltf`, unlockRank: 6, accent: '#b184ff', rarity: 'epic', dropSource: 'ritual' },
-  'frost-quiver': { id: 'frost-quiver', slot: 'quiver', nameDe: 'Frostköcher', nameEn: 'Frost Quiver', descriptionDe: 'Frostpfeil I und +1 Angriff je Ausrüstungslevel', descriptionEn: 'Ice Arrow I and +1 attack per equipment level', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/arrow_A.gltf`, unlockRank: 4, accent: '#6fd8ff', rarity: 'rare', dropSource: 'depth' },
-  'splinter-quiver': { id: 'splinter-quiver', slot: 'quiver', nameDe: 'Splitterköcher', nameEn: 'Splinter Quiver', descriptionDe: 'Durchschlag I und +8 Angriffsreichweite je Ausrüstungslevel', descriptionEn: 'Piercing I and +8 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_crossbow_bundle.gltf`, unlockRank: 6, accent: '#d8bd82', rarity: 'rare', dropSource: 'forge' },
-  'warden-quiver': { id: 'warden-quiver', slot: 'quiver', nameDe: 'Wächterköcher', nameEn: 'Warden Quiver', descriptionDe: '-3 % Angriffsabklingzeit und +3 Leben je Ausrüstungslevel', descriptionEn: '-3% attack cooldown and +3 health per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_crossbow.gltf`, unlockRank: 8, accent: '#e6c46d', rarity: 'epic', dropSource: 'warden' },
+  'ranger-quiver': activeDefinition({ id: 'ranger-quiver', slot: 'quiver', nameDe: 'Weitblickköcher', nameEn: 'Farshot Quiver', descriptionDe: 'Maximale Angriffsreichweite', descriptionEn: 'Maximum attack range', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/quiver.gltf`, unlockRank: 1, accent: '#63c8d8', rarity: 'common', dropSource: 'hunt' }),
+  'black-quiver': activeDefinition({ id: 'black-quiver', slot: 'quiver', nameDe: 'Schnellzugköcher', nameEn: 'Quickdraw Quiver', descriptionDe: 'Maximales Angriffstempo', descriptionEn: 'Maximum attack speed', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_bow_bundle.gltf`, unlockRank: 4, accent: '#8b78ba', rarity: 'rare', dropSource: 'hunt' }),
+  'rune-quiver': activeDefinition({ id: 'rune-quiver', slot: 'quiver', nameDe: 'Runenköcher', nameEn: 'Rune Quiver', descriptionDe: 'Reichweite und Angriffstempo', descriptionEn: 'Range and attack speed', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/arrow_B.gltf`, unlockRank: 7, accent: '#b184ff', rarity: 'epic', dropSource: 'ritual' }),
 
-  'veil-key': { id: 'veil-key', slot: 'talisman', nameDe: 'Schleierschlüssel', nameEn: 'Veil Key', descriptionDe: '+2 % Bewegung und +3 Leben je Ausrüstungslevel', descriptionEn: '+2% movement and +3 health per equipment level', pack: 'dungeon', assetPath: `${DUNGEON_ASSETS}/key.gltf`, unlockRank: 1, accent: '#a58aff', rarity: 'common', dropSource: 'depth' },
-  'guardian-sigil': { id: 'guardian-sigil', slot: 'talisman', nameDe: 'Wächtersiegel', nameEn: 'Guardian Sigil', descriptionDe: '+6 Leben je Ausrüstungslevel und jede zweite Stufe +1 Verteidigung', descriptionEn: '+6 health per equipment level and +1 defense every two levels', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/shield_spikes_color.gltf`, unlockRank: 5, accent: '#79d69d', rarity: 'rare', dropSource: 'warden' },
-  'frost-grimoire': { id: 'frost-grimoire', slot: 'talisman', nameDe: 'Frostgrimoire', nameEn: 'Frost Grimoire', descriptionDe: 'Frostpfeil I und -2 % Dash-Abklingzeit je Ausrüstungslevel', descriptionEn: 'Ice Arrow I and -2% dash cooldown per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/spellbook_closed.gltf`, unlockRank: 8, accent: '#78ddff', rarity: 'epic', dropSource: 'depth' },
-  'ritual-shard': { id: 'ritual-shard', slot: 'talisman', nameDe: 'Ritualsplitter', nameEn: 'Ritual Shard', descriptionDe: 'Abpraller I und +8 Angriffsreichweite je Ausrüstungslevel', descriptionEn: 'Ricochet I and +8 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/spellbook_open.gltf`, unlockRank: 5, accent: '#d684ff', rarity: 'epic', dropSource: 'ritual' },
-  'ash-amulet': { id: 'ash-amulet', slot: 'talisman', nameDe: 'Aschenamulett', nameEn: 'Ash Amulet', descriptionDe: '+2 Angriff und +3 Leben je Ausrüstungslevel', descriptionEn: '+2 attack and +3 health per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/smokebomb.gltf`, unlockRank: 4, accent: '#e7804f', rarity: 'rare', dropSource: 'forge' },
-  'depth-seal': { id: 'depth-seal', slot: 'talisman', nameDe: 'Tiefensiegel', nameEn: 'Depth Seal', descriptionDe: '+5 Leben und +6 Angriffsreichweite je Ausrüstungslevel', descriptionEn: '+5 health and +6 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/shield_badge.gltf`, unlockRank: 7, accent: '#5db2b8', rarity: 'rare', dropSource: 'depth' },
-  'veil-eye': { id: 'veil-eye', slot: 'talisman', nameDe: 'Auge des Schleiers', nameEn: 'Veil Eye', descriptionDe: '+3 % Angriff und -2 % Dash-Abklingzeit je Ausrüstungslevel', descriptionEn: '+3% attack and -2% dash cooldown per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/wand.gltf`, unlockRank: 10, accent: '#c375ff', rarity: 'epic', dropSource: 'ritual' },
+  'ranger-cloak': activeDefinition({ id: 'ranger-cloak', slot: 'armor', nameDe: 'Waldläufermantel', nameEn: 'Ranger Cloak', descriptionDe: 'Maximales Leben', descriptionEn: 'Maximum health', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Ranger.glb`, unlockRank: 1, accent: '#78caa0', rarity: 'common', dropSource: 'hunt' }),
+  'ash-armor': activeDefinition({ id: 'ash-armor', slot: 'armor', nameDe: 'Aschenpanzer', nameEn: 'Ash Armor', descriptionDe: 'Leben und Verteidigung', descriptionEn: 'Health and defense', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Barbarian.glb`, unlockRank: 5, accent: '#db754b', rarity: 'rare', dropSource: 'forge' }),
+  'warden-armor': activeDefinition({ id: 'warden-armor', slot: 'armor', nameDe: 'Wächterrüstung', nameEn: 'Warden Armor', descriptionDe: 'Höchste Verteidigung', descriptionEn: 'Highest defense', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Knight.glb`, unlockRank: 8, accent: '#e5c36b', rarity: 'epic', dropSource: 'warden' }),
 
-  'ranger-cloak': { id: 'ranger-cloak', slot: 'armor', nameDe: 'Waldläufermantel', nameEn: 'Ranger Cloak', descriptionDe: '+4 Leben und +1 % Bewegung je Ausrüstungslevel', descriptionEn: '+4 health and +1% movement per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Ranger.glb`, unlockRank: 1, accent: '#78caa0', rarity: 'common', dropSource: 'hunt' },
-  'ash-armor': { id: 'ash-armor', slot: 'armor', nameDe: 'Aschenpanzer', nameEn: 'Ash Armor', descriptionDe: '+1 Angriff und +4 Leben je Ausrüstungslevel', descriptionEn: '+1 attack and +4 health per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Barbarian.glb`, unlockRank: 4, accent: '#db754b', rarity: 'rare', dropSource: 'forge' },
-  'frost-armor': { id: 'frost-armor', slot: 'armor', nameDe: 'Frostharnisch', nameEn: 'Frost Harness', descriptionDe: '+5 Leben und +6 Angriffsreichweite je Ausrüstungslevel', descriptionEn: '+5 health and +6 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Knight.glb`, unlockRank: 5, accent: '#72d8ff', rarity: 'rare', dropSource: 'depth' },
-  'warden-armor': { id: 'warden-armor', slot: 'armor', nameDe: 'Wächterrüstung', nameEn: 'Warden Armor', descriptionDe: '+5 Leben je Ausrüstungslevel und jede zweite Stufe +1 Verteidigung', descriptionEn: '+5 health per equipment level and +1 defense every two levels', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Knight.glb`, unlockRank: 7, accent: '#e5c36b', rarity: 'epic', dropSource: 'warden' },
-  'veil-mantle': { id: 'veil-mantle', slot: 'armor', nameDe: 'Schleiergewand', nameEn: 'Veil Mantle', descriptionDe: '+2 % Bewegung und +6 Angriffsreichweite je Ausrüstungslevel', descriptionEn: '+2% movement and +6 attack range per equipment level', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Ranger.glb`, unlockRank: 8, accent: '#a786ff', rarity: 'epic', dropSource: 'ritual' },
-  'depth-armor': { id: 'depth-armor', slot: 'armor', nameDe: 'Rüstung der Tiefe', nameEn: 'Depth Armor', descriptionDe: '+7 Leben je Ausrüstungslevel und jede zweite Stufe +1 Verteidigung', descriptionEn: '+7 health per equipment level and +1 defense every two levels', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Barbarian.glb`, unlockRank: 10, accent: '#5fb4ba', rarity: 'epic', dropSource: 'depth' },
+  'hunter-bow': legacyDefinition({ id: 'hunter-bow', slot: 'bow', nameDe: 'Bogen des Jägers', nameEn: "Hunter's Bow", pack: 'weapons', assetPath: `${WEAPON_ASSETS}/bow_B_withString.gltf`, unlockRank: 99, accent: '#a8d381', rarity: 'rare', dropSource: 'hunt' }),
+  'frost-bow': legacyDefinition({ id: 'frost-bow', slot: 'bow', nameDe: 'Frostbogen', nameEn: 'Frost Bow', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/crossbow_1handed.gltf`, unlockRank: 99, accent: '#79ddff', rarity: 'rare', dropSource: 'depth' }),
+  'splinter-bow': legacyDefinition({ id: 'splinter-bow', slot: 'bow', nameDe: 'Splitterbogen', nameEn: 'Splinter Bow', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/crossbow_2handed.gltf`, unlockRank: 99, accent: '#e0c089', rarity: 'rare', dropSource: 'forge' }),
+  'frost-quiver': legacyDefinition({ id: 'frost-quiver', slot: 'quiver', nameDe: 'Frostköcher', nameEn: 'Frost Quiver', pack: 'weapons', assetPath: `${WEAPON_ASSETS}/arrow_A.gltf`, unlockRank: 99, accent: '#6fd8ff', rarity: 'rare', dropSource: 'depth' }),
+  'splinter-quiver': legacyDefinition({ id: 'splinter-quiver', slot: 'quiver', nameDe: 'Splitterköcher', nameEn: 'Splinter Quiver', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_crossbow_bundle.gltf`, unlockRank: 99, accent: '#d8bd82', rarity: 'rare', dropSource: 'forge' }),
+  'warden-quiver': legacyDefinition({ id: 'warden-quiver', slot: 'quiver', nameDe: 'Wächterköcher', nameEn: 'Warden Quiver', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/arrow_crossbow.gltf`, unlockRank: 99, accent: '#e6c46d', rarity: 'epic', dropSource: 'warden' }),
+  'veil-key': legacyDefinition({ id: 'veil-key', slot: 'talisman', nameDe: 'Schleierschlüssel', nameEn: 'Veil Key', pack: 'dungeon', assetPath: `${DUNGEON_ASSETS}/key.gltf`, unlockRank: 99, accent: '#a58aff', rarity: 'common', dropSource: 'depth' }),
+  'guardian-sigil': legacyDefinition({ id: 'guardian-sigil', slot: 'talisman', nameDe: 'Wächtersiegel', nameEn: 'Guardian Sigil', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/shield_spikes_color.gltf`, unlockRank: 99, accent: '#79d69d', rarity: 'rare', dropSource: 'warden' }),
+  'frost-grimoire': legacyDefinition({ id: 'frost-grimoire', slot: 'talisman', nameDe: 'Frostgrimoire', nameEn: 'Frost Grimoire', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/spellbook_closed.gltf`, unlockRank: 99, accent: '#78ddff', rarity: 'epic', dropSource: 'depth' }),
+  'ritual-shard': legacyDefinition({ id: 'ritual-shard', slot: 'talisman', nameDe: 'Ritualsplitter', nameEn: 'Ritual Shard', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/spellbook_open.gltf`, unlockRank: 99, accent: '#d684ff', rarity: 'epic', dropSource: 'ritual' }),
+  'ash-amulet': legacyDefinition({ id: 'ash-amulet', slot: 'talisman', nameDe: 'Aschenamulett', nameEn: 'Ash Amulet', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/smokebomb.gltf`, unlockRank: 99, accent: '#e7804f', rarity: 'rare', dropSource: 'forge' }),
+  'depth-seal': legacyDefinition({ id: 'depth-seal', slot: 'talisman', nameDe: 'Tiefensiegel', nameEn: 'Depth Seal', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/shield_badge.gltf`, unlockRank: 99, accent: '#5db2b8', rarity: 'rare', dropSource: 'depth' }),
+  'veil-eye': legacyDefinition({ id: 'veil-eye', slot: 'talisman', nameDe: 'Auge des Schleiers', nameEn: 'Veil Eye', pack: 'adventurers', assetPath: `${ADVENTURER_ASSETS}/wand.gltf`, unlockRank: 99, accent: '#c375ff', rarity: 'epic', dropSource: 'ritual' }),
+  'frost-armor': legacyDefinition({ id: 'frost-armor', slot: 'armor', nameDe: 'Frostharnisch', nameEn: 'Frost Harness', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Knight.glb`, unlockRank: 99, accent: '#72d8ff', rarity: 'rare', dropSource: 'depth' }),
+  'veil-mantle': legacyDefinition({ id: 'veil-mantle', slot: 'armor', nameDe: 'Schleiergewand', nameEn: 'Veil Mantle', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Ranger.glb`, unlockRank: 99, accent: '#a786ff', rarity: 'epic', dropSource: 'ritual' }),
+  'depth-armor': legacyDefinition({ id: 'depth-armor', slot: 'armor', nameDe: 'Rüstung der Tiefe', nameEn: 'Depth Armor', pack: 'adventurers', assetPath: `${ADVENTURER_CHARACTERS}/Barbarian.glb`, unlockRank: 99, accent: '#5fb4ba', rarity: 'epic', dropSource: 'depth' }),
 };
 
+export const ACTIVE_EQUIPMENT: readonly EquipmentDefinition[] = ACTIVE_EQUIPMENT_IDS.map(id => EQUIPMENT[id]);
 export type EquipmentProgress = { level: number; copies: number };
 export type MetaProgression = {
-  version: 3;
+  version: 4;
   rank: number;
   xp: number;
   dust: number;
@@ -93,16 +122,15 @@ export type MetaProgression = {
 export type MetaReward = { xp: number; dust: number; gold: number; rankBefore: number; rankAfter: number; item?: EquipmentId; duplicate?: boolean; source?: EquipmentDropSource; rarity?: EquipmentRarity };
 export type PendingEquipmentDrop = { item: EquipmentId; duplicate: boolean; source: EquipmentDropSource; rarity: EquipmentRarity };
 
-export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ['bow', 'quiver', 'talisman', 'armor'];
+export const EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor'];
 const META_KEY = 'dungeon-veil-meta';
 const STARTER_OWNED: Partial<Record<EquipmentId, EquipmentProgress>> = {
   'ash-bow': { level: 1, copies: 0 },
   'ranger-quiver': { level: 1, copies: 0 },
-  'veil-key': { level: 1, copies: 0 },
   'ranger-cloak': { level: 1, copies: 0 },
 };
 const DEFAULT_META: MetaProgression = {
-  version: 3,
+  version: 4,
   rank: 1,
   xp: 0,
   dust: 0,
@@ -116,50 +144,72 @@ const DEFAULT_META: MetaProgression = {
 export function xpForNextRank(rank: number) { return 100 + Math.max(0, rank - 1) * 65; }
 function safeNumber(value: unknown) { return Math.max(0, Number(value ?? 0) || 0); }
 
-function normalizeOwned(value: unknown): MetaProgression['owned'] {
-  const source = value && typeof value === 'object' ? value as Partial<Record<EquipmentId, unknown>> : {};
-  const owned: MetaProgression['owned'] = structuredClone(STARTER_OWNED);
-  for (const id of Object.keys(EQUIPMENT) as EquipmentId[]) {
-    const raw = source[id];
-    if (typeof raw === 'number' && raw > 0) {
-      owned[id] = { level: Math.max(1, Math.min(5, Math.floor(raw))), copies: 0 };
-      continue;
-    }
-    if (!raw || typeof raw !== 'object') continue;
-    const item = raw as Partial<EquipmentProgress>;
-    const level = Math.floor(safeNumber(item.level));
-    if (level <= 0) continue;
-    owned[id] = { level: Math.max(1, Math.min(5, level)), copies: Math.floor(safeNumber(item.copies)) };
-  }
-  return owned;
+function progressFrom(value: unknown): EquipmentProgress | null {
+  if (typeof value === 'number' && value > 0) return { level: Math.max(1, Math.min(5, Math.floor(value))), copies: 0 };
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Partial<EquipmentProgress>;
+  const level = Math.floor(safeNumber(item.level));
+  if (level <= 0) return null;
+  return { level: Math.max(1, Math.min(5, level)), copies: Math.floor(safeNumber(item.copies)) };
 }
 
-function ownedShapeNeedsMigration(value: unknown) {
-  if (!value || typeof value !== 'object') return false;
-  return Object.values(value as Record<string, unknown>).some(item => typeof item === 'number');
+function normalizeOwned(value: unknown): { owned: MetaProgression['owned']; compensationDust: number } {
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const owned: MetaProgression['owned'] = structuredClone(STARTER_OWNED);
+  let compensationDust = 0;
+
+  for (const [legacyId, raw] of Object.entries(source)) {
+    const progress = progressFrom(raw);
+    if (!progress) continue;
+    const target = LEGACY_EQUIPMENT_MIGRATION[legacyId];
+    if (!target) {
+      const paidLevels = legacyId === 'veil-key' ? Math.max(0, progress.level - 1) : progress.level;
+      compensationDust += paidLevels * REMOVED_ITEM_COMPENSATION_DUST_PER_LEVEL;
+      compensationDust += progress.copies * REMOVED_ITEM_COMPENSATION_DUST_PER_COPY;
+      continue;
+    }
+    const current = owned[target];
+    if (!current) owned[target] = { ...progress };
+    else {
+      current.level = Math.max(current.level, progress.level);
+      current.copies = Math.min(999, current.copies + progress.copies);
+    }
+  }
+  return { owned, compensationDust };
+}
+
+function migratedEquipped(value: unknown, owned: MetaProgression['owned']): MetaProgression['equipped'] {
+  const raw = value && typeof value === 'object' ? value as Partial<Record<EquipmentSlot, string>> : {};
+  const resolve = (slot: ActiveEquipmentSlot, fallback: ActiveEquipmentId): EquipmentId => {
+    const mapped = LEGACY_EQUIPMENT_MIGRATION[String(raw[slot] ?? '')];
+    return mapped && EQUIPMENT[mapped].slot === slot && owned[mapped] ? mapped : fallback;
+  };
+  return {
+    bow: resolve('bow', 'ash-bow'),
+    quiver: resolve('quiver', 'ranger-quiver'),
+    talisman: 'veil-key',
+    armor: resolve('armor', 'ranger-cloak'),
+  };
 }
 
 export function loadMetaProgression(): MetaProgression {
   try {
     const raw = localStorage.getItem(META_KEY);
     if (!raw) return structuredClone(DEFAULT_META);
-    const parsed = JSON.parse(raw) as any;
+    const parsed = JSON.parse(raw) as Partial<MetaProgression> & { version?: number };
+    const normalized = normalizeOwned(parsed.owned);
     const migrated: MetaProgression = {
-      version: 3,
+      version: 4,
       rank: Math.max(1, Math.floor(safeNumber(parsed.rank) || 1)),
       xp: safeNumber(parsed.xp),
-      dust: safeNumber(parsed.dust),
+      dust: safeNumber(parsed.dust) + (parsed.version === 4 ? 0 : normalized.compensationDust),
       gold: safeNumber(parsed.gold),
-      owned: normalizeOwned(parsed.owned),
-      equipped: { ...DEFAULT_META.equipped, ...(parsed.equipped ?? {}) },
-      rewardLedger: Array.isArray(parsed.rewardLedger) ? parsed.rewardLedger.filter((key: unknown): key is string => typeof key === 'string').slice(-240) : [],
+      owned: normalized.owned,
+      equipped: migratedEquipped(parsed.equipped, normalized.owned),
+      rewardLedger: Array.isArray(parsed.rewardLedger) ? parsed.rewardLedger.filter((key): key is string => typeof key === 'string').slice(-240) : [],
       currentRunId: typeof parsed.currentRunId === 'string' ? parsed.currentRunId : '',
     };
-    for (const slot of EQUIPMENT_SLOTS) {
-      const id = migrated.equipped[slot];
-      if (!migrated.owned[id] || EQUIPMENT[id]?.slot !== slot) migrated.equipped[slot] = DEFAULT_META.equipped[slot];
-    }
-    if (parsed.version !== 3 || ownedShapeNeedsMigration(parsed.owned) || !parsed.equipped?.armor || !parsed.owned?.['ranger-cloak']) saveMetaProgression(migrated);
+    if (parsed.version !== 4 || Object.keys(parsed.owned ?? {}).some(id => !isActiveEquipmentId(id))) saveMetaProgression(migrated);
     return migrated;
   } catch {
     return structuredClone(DEFAULT_META);
@@ -167,9 +217,17 @@ export function loadMetaProgression(): MetaProgression {
 }
 
 export function saveMetaProgression(meta: MetaProgression) {
-  localStorage.setItem(META_KEY, JSON.stringify({ ...meta, version: 3, rewardLedger: meta.rewardLedger.slice(-240) }));
+  const normalized = normalizeOwned(meta.owned).owned;
+  const next: MetaProgression = {
+    ...meta,
+    version: 4,
+    owned: normalized,
+    equipped: migratedEquipped(meta.equipped, normalized),
+    rewardLedger: meta.rewardLedger.slice(-240),
+  };
+  localStorage.setItem(META_KEY, JSON.stringify(next));
   window.dispatchEvent(new Event('dungeon-veil-meta-changed'));
-  return meta;
+  return next;
 }
 
 export function beginMetaRun() {
@@ -188,10 +246,10 @@ function addRankXp(meta: MetaProgression, xp: number) {
 }
 
 function isStarterItem(id: EquipmentId) {
-  return id === 'ash-bow' || id === 'ranger-quiver' || id === 'veil-key' || id === 'ranger-cloak';
+  return id === 'ash-bow' || id === 'ranger-quiver' || id === 'ranger-cloak';
 }
 function availableDrops(meta: MetaProgression, source: EquipmentDropSource) {
-  return Object.values(EQUIPMENT).filter(item => item.unlockRank <= meta.rank && equipmentUnlockedForCurrentProgress(item.id) && item.dropSource === source && !isStarterItem(item.id));
+  return ACTIVE_EQUIPMENT.filter(item => item.unlockRank <= meta.rank && equipmentUnlockedForCurrentProgress(item.id) && item.dropSource === source && !isStarterItem(item.id));
 }
 function chooseDrop(meta: MetaProgression, source: EquipmentDropSource): PendingEquipmentDrop | null {
   const pool = availableDrops(meta, source);
@@ -241,6 +299,7 @@ export function rewardMetaRoomClear(chapter: number, floor: number): MetaReward 
 
 export function spawnEquipmentDrop(engine: GameEngine, drop: PendingEquipmentDrop, x: number, y: number) {
   const definition = EQUIPMENT[drop.item];
+  if (!definition.active) return '';
   const itemId = `equipment-drop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   engine.state.items.push({
     id: itemId, type: 'item', itemType: 'equipment', equipmentId: drop.item, equipmentRarity: drop.rarity,
@@ -252,92 +311,53 @@ export function spawnEquipmentDrop(engine: GameEngine, drop: PendingEquipmentDro
 
 export function collectMetaEquipmentDrop(id: EquipmentId) {
   const meta = loadMetaProgression();
+  if (!isActiveEquipmentId(id)) return { meta, duplicate: false, progress: { level: 0, copies: 0 } };
   const existing = meta.owned[id];
   const duplicate = Boolean(existing);
   if (existing) existing.copies += 1;
   else meta.owned[id] = { level: 1, copies: 0 };
-  saveMetaProgression(meta);
-  return { meta, duplicate, progress: meta.owned[id]! };
+  const saved = saveMetaProgression(meta);
+  return { meta: saved, duplicate, progress: saved.owned[id]! };
 }
 export function equipMetaItem(id: EquipmentId) {
   const meta = loadMetaProgression();
-  if (!meta.owned[id]) return meta;
-  meta.equipped[EQUIPMENT[id].slot] = id;
+  const definition = EQUIPMENT[id];
+  if (!definition.active || definition.slot === 'talisman' || !meta.owned[id]) return meta;
+  meta.equipped[definition.slot] = id;
   return saveMetaProgression(meta);
 }
 
-function levelOf(meta: MetaProgression, id: EquipmentId) {
+function levelOf(meta: MetaProgression, id: ActiveEquipmentId) {
   return Math.max(1, Math.min(5, meta.owned[id]?.level ?? 1));
 }
 
-function grant(modifiers: EquipmentCombatModifiers, key: GrantedSkill, rank = 1) {
-  modifiers.grantedSkills[key] = Math.max(modifiers.grantedSkills[key] ?? 0, rank);
-}
-
 export function equipmentCombatModifiers(meta = loadMetaProgression()): EquipmentCombatModifiers {
-  const modifiers: EquipmentCombatModifiers = {
-    attackFlat: 0,
+  const ids = [meta.equipped.bow, meta.equipped.quiver, meta.equipped.armor].filter(isActiveEquipmentId);
+  const stats = addEquipmentStats(...ids.map(id => equipmentStatsAtLevel(id, levelOf(meta, id))));
+  return {
+    attackFlat: stats.attackFlat,
     attackPercent: 0,
-    maxHp: 0,
-    defense: 0,
+    maxHp: stats.maxHp,
+    defense: stats.defense,
     speedPercent: 0,
-    attackRange: 0,
-    attackCooldownMultiplier: 1,
+    attackRange: stats.attackRange,
+    attackCooldownMultiplier: 1 / (1 + stats.attackSpeedPercent),
     dodgeCooldownMultiplier: 1,
+    critChance: totalCritChance(stats.critChance),
+    critDamage: totalCritDamage(stats.critDamage),
     grantedSkills: {},
   };
-
-  for (const slot of EQUIPMENT_SLOTS) {
-    const id = meta.equipped[slot];
-    const level = levelOf(meta, id);
-    if (id === 'ash-bow') modifiers.attackPercent += 0.04 * level;
-    else if (id === 'ember-bow') { grant(modifiers, 'fireArrow'); modifiers.attackPercent += 0.02 * level; }
-    else if (id === 'hunter-bow') { modifiers.attackFlat += level; modifiers.speedPercent += 0.01 * level; }
-    else if (id === 'frost-bow') { grant(modifiers, 'iceArrow'); modifiers.attackRange += 8 * level; }
-    else if (id === 'splinter-bow') { grant(modifiers, 'piercing'); modifiers.attackFlat += level; }
-    else if (id === 'veil-bow') { grant(modifiers, 'ricochet'); modifiers.speedPercent += 0.02 * level; }
-    else if (id === 'warden-bow') { modifiers.attackFlat += 2 * level; modifiers.defense += Math.floor(level / 2); }
-    else if (id === 'ranger-quiver') modifiers.speedPercent += 0.02 * level;
-    else if (id === 'black-quiver') { grant(modifiers, 'multishot'); modifiers.attackCooldownMultiplier *= 1 - 0.02 * level; }
-    else if (id === 'rune-quiver') { grant(modifiers, 'ricochet'); modifiers.attackRange += 8 * level; }
-    else if (id === 'frost-quiver') { grant(modifiers, 'iceArrow'); modifiers.attackFlat += level; }
-    else if (id === 'splinter-quiver') { grant(modifiers, 'piercing'); modifiers.attackRange += 8 * level; }
-    else if (id === 'warden-quiver') { modifiers.attackCooldownMultiplier *= 1 - 0.03 * level; modifiers.maxHp += 3 * level; }
-    else if (id === 'veil-key') { modifiers.speedPercent += 0.02 * level; modifiers.maxHp += 3 * level; }
-    else if (id === 'guardian-sigil') { modifiers.maxHp += 6 * level; modifiers.defense += Math.floor(level / 2); }
-    else if (id === 'frost-grimoire') { grant(modifiers, 'iceArrow'); modifiers.dodgeCooldownMultiplier *= 1 - 0.02 * level; }
-    else if (id === 'ritual-shard') { grant(modifiers, 'ricochet'); modifiers.attackRange += 8 * level; }
-    else if (id === 'ash-amulet') { modifiers.attackFlat += 2 * level; modifiers.maxHp += 3 * level; }
-    else if (id === 'depth-seal') { modifiers.maxHp += 5 * level; modifiers.attackRange += 6 * level; }
-    else if (id === 'veil-eye') { modifiers.attackPercent += 0.03 * level; modifiers.dodgeCooldownMultiplier *= 1 - 0.02 * level; }
-    else if (id === 'ranger-cloak') { modifiers.maxHp += 4 * level; modifiers.speedPercent += 0.01 * level; }
-    else if (id === 'ash-armor') { modifiers.attackFlat += level; modifiers.maxHp += 4 * level; }
-    else if (id === 'frost-armor') { modifiers.maxHp += 5 * level; modifiers.attackRange += 6 * level; }
-    else if (id === 'warden-armor') { modifiers.maxHp += 5 * level; modifiers.defense += Math.floor(level / 2); }
-    else if (id === 'veil-mantle') { modifiers.speedPercent += 0.02 * level; modifiers.attackRange += 6 * level; }
-    else if (id === 'depth-armor') { modifiers.maxHp += 7 * level; modifiers.defense += Math.floor(level / 2); }
-  }
-
-  modifiers.attackPercent = Math.min(0.3, modifiers.attackPercent);
-  modifiers.speedPercent = Math.min(0.28, modifiers.speedPercent);
-  modifiers.attackCooldownMultiplier = Math.max(0.78, modifiers.attackCooldownMultiplier);
-  modifiers.dodgeCooldownMultiplier = Math.max(0.82, modifiers.dodgeCooldownMultiplier);
-  return modifiers;
-}
-
-function ensureSkill(engine: GameEngine, key: GrantedSkill, rank = 1) {
-  engine.state.runSkills[key] = Math.max(skillRank(engine.state.runSkills, key), rank);
 }
 
 export function applyMetaLoadoutToNewRun(engine: GameEngine) {
   const modifiers = equipmentCombatModifiers();
   const p = engine.state.player;
-  for (const [key, rank] of Object.entries(modifiers.grantedSkills) as Array<[GrantedSkill, number]>) ensureSkill(engine, key, rank);
-  p.attack = Math.max(1, Math.round((p.attack + modifiers.attackFlat) * (1 + modifiers.attackPercent)));
+  p.attack = Math.max(1, Math.round(p.attack + modifiers.attackFlat));
   p.defense += modifiers.defense;
-  p.speed = Math.round(p.speed * (1 + modifiers.speedPercent));
   p.attackRange += modifiers.attackRange;
   p.maxHp += modifiers.maxHp;
   p.hp += modifiers.maxHp;
+  p.critChance = modifiers.critChance;
+  p.critDamage = modifiers.critDamage;
   engine.saveNow('meta-loadout');
 }
