@@ -7,6 +7,7 @@ import { defenseMitigation } from './equipmentCombatV4';
 const ARCHER_BASE_ATTACK_COOLDOWN_MS = 270;
 const QUICK_DRAW_MULTIPLIERS = [1, 1.16, 1.3, 1.42] as const;
 const MIN_ATTACK_COOLDOWN_MS = 125;
+const resolvedIncomingHp = new WeakMap<object, number>();
 
 export type EquipmentPlayerRuntimeState = {
   roomKey: string;
@@ -24,6 +25,10 @@ export function createEquipmentPlayerRuntimeState(): EquipmentPlayerRuntimeState
     roomKey: '', lastAttackTime: 0, lastHp: null, lastHitId: '', lastKillCount: 0,
     clawUntil: 0, crownStack: 0, crownInitialized: false,
   };
+}
+
+export function markIncomingDamageResolvedV4(engine: GameEngine): void {
+  resolvedIncomingHp.set(engine.state.player, engine.state.player.hp);
 }
 
 function latestPlayerHit(engine: GameEngine, state: EquipmentPlayerRuntimeState) {
@@ -64,6 +69,14 @@ function initializeLoadout(engine: GameEngine) {
 
 function reconcileIncomingDamage(engine: GameEngine, state: EquipmentPlayerRuntimeState) {
   const player = engine.state.player;
+  const resolvedHp = resolvedIncomingHp.get(player);
+  if (resolvedHp !== undefined) {
+    resolvedIncomingHp.delete(player);
+    if (Math.abs(player.hp - resolvedHp) < 0.001) {
+      state.lastHp = player.hp;
+      return;
+    }
+  }
   if (state.lastHp === null) { state.lastHp = player.hp; return; }
   if (player.hp >= state.lastHp) { state.lastHp = player.hp; return; }
   const observedDamage = Math.max(1, Math.round(state.lastHp - player.hp));
