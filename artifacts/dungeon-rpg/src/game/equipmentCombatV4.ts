@@ -34,7 +34,12 @@ export type CriticalDamageResult = {
   multiplier: number;
 };
 
-export function redesignedEquipmentCombatModifiers(meta: MetaProgression = loadMetaProgression()): RedesignedEquipmentCombatModifiers {
+function activeMeta(meta?: MetaProgression): MetaProgression {
+  return meta ?? loadMetaProgression();
+}
+
+export function redesignedEquipmentCombatModifiers(meta?: MetaProgression): RedesignedEquipmentCombatModifiers {
+  const live = activeMeta(meta);
   const result: RedesignedEquipmentCombatModifiers = {
     attackFlat: 0,
     attackPercent: 0,
@@ -52,9 +57,9 @@ export function redesignedEquipmentCombatModifiers(meta: MetaProgression = loadM
 
   let critDamageBonus = 0;
   for (const slot of ACTIVE_EQUIPMENT_SLOTS) {
-    const id = meta.equipped[slot];
+    const id = live.equipped[slot];
     if (!isActiveEquipmentId(id) || ACTIVE_EQUIPMENT[id].slot !== slot) continue;
-    const level = Math.max(1, Math.min(5, meta.owned[id]?.level ?? 1));
+    const level = Math.max(1, Math.min(5, live.owned[id]?.level ?? 1));
     const stats = activeEquipmentLevelStats(id, level);
     result.attackFlat += stats.attackFlat ?? 0;
     result.maxHp += stats.maxHp ?? 0;
@@ -95,7 +100,7 @@ export function mitigatedIncomingDamage(rawDamage: number, defense: number, cap 
 }
 
 export function installCriticalHitRuntime(engine: GameEngine): () => void {
-  const runtime = engine as GameEngine & { damageEnemy?: (...args: any[]) => void };
+  const runtime = engine as unknown as { damageEnemy?: (...args: any[]) => void };
   const original = runtime.damageEnemy;
   if (typeof original !== 'function') return () => {};
   const bound = original.bind(engine);
