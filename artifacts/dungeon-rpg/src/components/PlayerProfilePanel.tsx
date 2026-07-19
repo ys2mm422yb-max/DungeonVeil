@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { EQUIPMENT, type EquipmentId, type MetaProgression } from '../game/metaProgression';
+import type { MetaProgression } from '../game/metaProgression';
 import {
   PROFILE_AVATARS,
   PROFILE_CARDS,
@@ -17,11 +17,13 @@ import {
   type ProfileCardDefinition,
   type ProfileTitleDefinition,
 } from '../game/playerProfile';
+import { activeOwnedEquipmentCount, currentProfileEquipmentFromMeta } from '../game/profileEquipment';
 import type { RetentionProfile } from '../game/runRetention';
 import type { SaveData } from '../game/saveManager';
 import { getMySocialProfile, type SocialProfile } from '../game/socialProgressOnline';
 import { currentOnlineSession, getMyGuildMembership, type OnlineGuildMembership } from '../game/supabaseOnline';
 import { ProfileAvatarPortrait } from './ProfileAvatarPortrait';
+import { ProfileEquipmentLoadout } from './ProfileEquipmentLoadout';
 
 type Tab = 'overview' | 'stats' | 'titles' | 'cards' | 'avatars';
 type Props = {
@@ -88,7 +90,8 @@ export function PlayerProfilePanel({ profile, saveData, meta, retention, languag
   const card = selectedProfileCard(profile);
   const avatar = selectedProfileAvatar(profile);
   const playerName = saveData?.playerName?.trim() || onlineProfile?.display_name || (de ? 'Waldläufer' : 'Ranger');
-  const ownedItems = (Object.keys(meta.owned) as EquipmentId[]).filter(id => EQUIPMENT[id]?.active).length;
+  const ownedItems = activeOwnedEquipmentCount(meta);
+  const currentEquipment = useMemo(() => currentProfileEquipmentFromMeta(meta), [meta]);
   const codexEntries = retention.codex.enemies.length + retention.codex.bosses.length + retention.codex.hunts.length + retention.codex.relics.length;
 
   useEffect(() => {
@@ -167,6 +170,7 @@ export function PlayerProfilePanel({ profile, saveData, meta, retention, languag
             <div className="grid grid-cols-3 gap-2"><Stat label={de ? 'Rang' : 'Rank'} value={meta.rank} tone="text-amber-100" /><Stat testId="profile-distinct-equipment-count" label={de ? 'Verschiedene Ausrüstungsteile' : 'Distinct equipment pieces'} value={ownedItems} tone="text-emerald-100" /><Stat label={de ? 'Kodex' : 'Codex'} value={codexEntries} tone="text-sky-100" /></div>
             <section className="rounded-2xl border border-white/8 bg-white/[.025] p-4"><div className="text-[7px] font-black uppercase tracking-[.2em] text-white/30">{de ? 'AUSGERÜSTETE IDENTITÄT' : 'EQUIPPED IDENTITY'}</div><div className="mt-3 space-y-2 text-[9px]"><div className="flex items-center justify-between gap-3"><span className="text-white/34">{de ? 'Titel' : 'Title'}</span><span className="truncate font-black text-amber-100/78">{title.icon} {de ? title.nameDe : title.nameEn}</span></div><div className="flex items-center justify-between gap-3"><span className="text-white/34">{de ? 'Visitenkarte' : 'Calling card'}</span><span className="truncate font-black text-white/72">{card.icon} {de ? card.nameDe : card.nameEn}</span></div><div className="flex items-center justify-between gap-3"><span className="text-white/34">{de ? 'Profilbild' : 'Avatar'}</span><span className="truncate font-black text-white/72">{de ? avatar.nameDe : avatar.nameEn}</span></div></div></section>
           </div>
+          <div className="md:col-span-2"><ProfileEquipmentLoadout items={currentEquipment} language={language} testId="own-player-profile-equipment" /></div>
         </div>}
 
         {tab === 'stats' && <div data-testid="player-profile-statistics-grid" className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5"><Stat label={de ? 'Höchstes Kapitel' : 'Highest chapter'} value={profile.stats.highestChapter} tone="text-violet-100" /><Stat label={de ? 'Höchster Raum' : 'Highest room'} value={profile.stats.highestRoom} tone="text-cyan-100" /><Stat label={de ? 'Gestartete Runs' : 'Runs started'} value={formatNumber(profile.stats.runsStarted)} /><Stat label={de ? 'Räume abgeschlossen' : 'Rooms cleared'} value={formatNumber(profile.stats.roomsCleared)} /><Stat label={de ? 'Gegner besiegt' : 'Enemies defeated'} value={formatNumber(profile.stats.enemiesDefeated)} /><Stat label={de ? 'Bosse besiegt' : 'Bosses defeated'} value={formatNumber(profile.stats.bossesDefeated)} tone="text-amber-100" /><Stat label={de ? 'Gesamtschaden' : 'Total damage'} value={formatNumber(profile.stats.totalDamage)} tone="text-orange-100" /><Stat testId="profile-lifetime-equipment-rewards" label={de ? 'Ausrüstungsbelohnungen insgesamt' : 'Equipment rewards total'} value={formatNumber(profile.stats.itemsFound)} tone="text-emerald-100" /><Stat label={de ? 'Aufträge abgeschlossen' : 'Quests completed'} value={formatNumber(profile.stats.questsCompleted)} tone="text-violet-100" /><Stat label={de ? 'Spielzeit' : 'Play time'} value={formatTime(profile.stats.playTimeMs, de)} tone="text-sky-100" /></div>}
