@@ -1,11 +1,11 @@
-import type { EquipmentDropSource, EquipmentId, EquipmentRarity, EquipmentSlot } from './metaProgression';
+import type { CurrentEquipmentSlot, EquipmentDropSource, EquipmentId, EquipmentRarity } from './metaProgression';
 
 export type ActiveEquipmentId =
   | 'ash-bow' | 'ember-bow' | 'veil-bow' | 'warden-bow'
   | 'ranger-quiver' | 'black-quiver' | 'warden-quiver'
   | 'ranger-cloak' | 'ash-armor' | 'warden-armor';
 
-export type ActiveEquipmentSlot = Exclude<EquipmentSlot, 'talisman'>;
+export type ActiveEquipmentSlot = CurrentEquipmentSlot;
 export type EquipmentLevelStats = Readonly<{
   attackFlat?: number;
   critChance?: number;
