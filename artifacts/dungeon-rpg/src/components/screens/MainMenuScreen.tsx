@@ -135,63 +135,61 @@ export function MainMenuScreen(props: Props) {
     else props.onNewGame();
   };
   const continueText = currentSaveData
-    ? language === 'de' ? `Kapitel ${chapter} · Raum ${room}` : `Chapter ${chapter} · Room ${room}`
+    ? language === 'de' ? `Kap. ${chapter} · Raum ${room}` : `Ch. ${chapter} · Room ${room}`
     : t.noSave;
 
   const action = (label: string, detail: string, icon: IconName, onClick: () => void, tone: 'gold' | 'violet' | 'dark' | 'blue', disabled = false) => {
     const toneClass = tone === 'gold'
-      ? 'border-amber-100/30 bg-[linear-gradient(135deg,rgba(141,80,28,.98),rgba(63,31,18,.98))] shadow-[0_14px_30px_rgba(80,42,13,.3)]'
+      ? 'border-amber-100/28 bg-[linear-gradient(135deg,rgba(126,70,25,.96),rgba(52,25,15,.98))] shadow-[0_10px_22px_rgba(80,42,13,.28)]'
       : tone === 'violet'
-        ? 'border-violet-300/20 bg-[linear-gradient(135deg,rgba(48,30,75,.96),rgba(16,13,27,.98))]'
+        ? 'border-violet-300/18 bg-[linear-gradient(135deg,rgba(43,27,67,.96),rgba(15,12,24,.98))]'
         : tone === 'blue'
-          ? 'border-cyan-200/12 bg-[linear-gradient(135deg,rgba(18,31,38,.96),rgba(9,14,18,.98))]'
-          : 'border-white/10 bg-[linear-gradient(135deg,rgba(24,21,27,.96),rgba(9,9,12,.98))]';
-    return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`group min-h-[64px] w-full rounded-[20px] border px-3 py-2.5 text-left shadow-[0_14px_28px_rgba(0,0,0,.32)] backdrop-blur-md transition active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
-      <div className="flex items-center gap-2.5">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-100/12 bg-black/28 text-amber-100/75 shadow-inner"><MenuIcon name={icon} className="h-6 w-6" /></div>
-        <div className="min-w-0 flex-1"><div className="text-[14px] font-black uppercase tracking-[.055em] text-[#f4ebdf]">{label}</div><div className="mt-1 truncate text-[7px] uppercase tracking-[.08em] text-white/44">{detail}</div></div>
-        {!disabled && <span className="text-lg text-white/30 group-active:translate-x-0.5">›</span>}
+          ? 'border-cyan-200/10 bg-[linear-gradient(135deg,rgba(17,29,35,.96),rgba(8,13,17,.98))]'
+          : 'border-white/[.09] bg-[linear-gradient(135deg,rgba(22,19,25,.96),rgba(8,8,11,.98))]';
+    return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`group min-h-[54px] w-full rounded-[16px] border px-2.5 py-2 text-left shadow-[0_10px_22px_rgba(0,0,0,.3)] backdrop-blur-md transition active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
+      <div className="flex items-center gap-2">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] border border-amber-100/10 bg-black/28 text-amber-100/72 shadow-inner"><MenuIcon name={icon} className="h-5 w-5" /></div>
+        <div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black uppercase tracking-[.045em] text-[#f4ebdf]">{label}</div><div className="mt-0.5 truncate text-[6.5px] uppercase tracking-[.065em] text-white/44">{detail}</div></div>
+        {!disabled && <span className="text-base text-white/28 group-active:translate-x-0.5">›</span>}
       </div>
     </button>;
   };
 
-  const statusCard = (title: string, detail: string, icon: IconName, tone: string, onClick: () => void) => <button type="button" onPointerDown={event => { event.preventDefault(); onClick(); }} className="flex min-h-[46px] w-full items-center gap-2 rounded-xl border border-white/10 bg-black/58 px-2.5 py-1.5 text-left shadow-[0_9px_20px_rgba(0,0,0,.3)] backdrop-blur-md active:scale-[.98]">
-    <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 ${tone}`}><MenuIcon name={icon} className="h-5 w-5" /></div>
-    <div className="min-w-0"><div className="truncate text-[7px] font-black uppercase tracking-[.08em] text-white/78">{title}</div><div className="mt-0.5 truncate text-[7px] font-bold text-violet-300/90">{detail}</div></div>
+  const statusCard = (title: string, detail: string, icon: IconName, tone: string, onClick: () => void, ariaLabel = title) => <button type="button" aria-label={ariaLabel} onPointerDown={event => { event.preventDefault(); onClick(); }} className="flex min-h-[42px] min-w-0 items-center gap-1.5 rounded-[13px] border border-white/[.09] bg-black/58 px-2 py-1.5 text-left shadow-[0_8px_18px_rgba(0,0,0,.28)] backdrop-blur-md active:scale-[.98]">
+    <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-[9px] border border-white/[.08] ${tone}`}><MenuIcon name={icon} className="h-4 w-4" /></div>
+    <div className="min-w-0"><div className="truncate text-[6.5px] font-black uppercase tracking-[.065em] text-white/78">{title}</div><div className="mt-0.5 truncate text-[6.5px] font-bold text-violet-300/90">{detail}</div></div>
   </button>;
 
   return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#050308] text-white">
     {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
-    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(109,40,217,.08),transparent_32%),linear-gradient(to_bottom,rgba(2,1,5,.32),rgba(4,2,7,.04)_42%,rgba(5,3,8,.32)_62%,#050307_79%)]" />
-    <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/65 to-transparent" />
+    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_49%,rgba(126,54,216,.15),transparent_38%),linear-gradient(to_bottom,rgba(2,1,5,.4),rgba(4,2,7,.02)_42%,rgba(5,3,8,.18)_70%,#050307_94%)]" />
+    <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/66 to-transparent" />
     <MainMenuUpdateGate language={language} />
 
     <ProfileBadge profile={profile} playerName={profileName} rank={meta.rank} language={language} onOpen={() => setOverlay('profile')} />
-    <div className="absolute right-3 top-[max(12px,calc(env(safe-area-inset-top)+5px))] z-30 flex items-start gap-1.5">
+    <div className="absolute right-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-30 flex items-start gap-1.5">
       <div className="space-y-1">
-        <button type="button" onPointerDown={event => { event.preventDefault(); props.onVeilChamber(); }} className="flex h-8 min-w-[104px] items-center rounded-xl border border-violet-300/16 bg-black/58 px-2 text-[10px] font-black text-white/74 backdrop-blur-xl active:scale-95"><MenuIcon name="dust" className="mr-1.5 h-4 w-4 text-violet-400" /><span className="flex-1 text-left">{Number(meta.dust ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US')}</span><span className="text-base text-white/35">＋</span></button>
-        <button type="button" aria-label={language === 'de' ? 'Mehr' : 'More'} onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="flex h-8 min-w-[104px] items-center rounded-xl border border-amber-200/14 bg-black/58 px-2 text-[10px] font-black text-white/74 backdrop-blur-xl active:scale-95"><MenuIcon name="coin" className="mr-1.5 h-4 w-4 text-amber-400" /><span className="flex-1 text-left">{gold}</span><span className="text-base text-white/35">＋</span></button>
+        <button type="button" onPointerDown={event => { event.preventDefault(); props.onVeilChamber(); }} className="flex h-7 min-w-[92px] items-center rounded-[11px] border border-violet-300/14 bg-black/58 px-2 text-[9px] font-black text-white/72 backdrop-blur-xl active:scale-95"><MenuIcon name="dust" className="mr-1.5 h-3.5 w-3.5 text-violet-400" /><span className="flex-1 text-left">{Number(meta.dust ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US')}</span><span className="text-sm text-white/32">＋</span></button>
+        <button type="button" aria-label={language === 'de' ? 'Mehr' : 'More'} onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="flex h-7 min-w-[92px] items-center rounded-[11px] border border-amber-200/12 bg-black/58 px-2 text-[9px] font-black text-white/72 backdrop-blur-xl active:scale-95"><MenuIcon name="coin" className="mr-1.5 h-3.5 w-3.5 text-amber-400" /><span className="flex-1 text-left">{gold}</span><span className="text-sm text-white/32">＋</span></button>
       </div>
-      <button type="button" aria-label={language === 'de' ? 'Optionen' : 'Options'} onPointerDown={event => { event.preventDefault(); props.onSettings(); }} className="grid h-[68px] w-11 place-items-center rounded-2xl border border-white/10 bg-black/58 text-white/62 backdrop-blur-xl active:scale-95"><MenuIcon name="settings" className="h-6 w-6" /></button>
+      <button type="button" aria-label={language === 'de' ? 'Optionen' : 'Options'} onPointerDown={event => { event.preventDefault(); props.onSettings(); }} className="grid h-[60px] w-10 place-items-center rounded-[15px] border border-white/[.09] bg-black/58 text-white/60 backdrop-blur-xl active:scale-95"><MenuIcon name="settings" className="h-5 w-5" /></button>
     </div>
 
-    <div className="relative z-10 flex h-full flex-col pb-[max(10px,calc(env(safe-area-inset-bottom)+3px))] pt-[max(18px,calc(env(safe-area-inset-top)+6px))]">
-      <header className="mt-[100px] px-5 text-center sm:mt-20">
-        <div className="mx-auto flex max-w-md items-center gap-3"><span className="h-px flex-1 bg-gradient-to-r from-transparent to-amber-200/35"/><span className="h-3 w-3 rotate-45 border border-violet-300/70 bg-violet-600 shadow-[0_0_16px_rgba(139,92,246,.9)]"/><span className="h-px flex-1 bg-gradient-to-l from-transparent to-amber-200/35"/></div>
-        <h1 className="mt-1 bg-gradient-to-b from-[#fff0c9] via-[#d7a85e] to-[#875022] bg-clip-text font-serif text-[clamp(2.05rem,9vw,3.05rem)] font-black leading-[.9] tracking-[.025em] text-transparent drop-shadow-[0_5px_18px_rgba(0,0,0,.55)]">DUNGEON VEIL</h1>
-        <p className="mt-1.5 text-[7px] uppercase tracking-[.25em] text-amber-50/40">{t.subtitle}</p>
+    <div className="relative z-10 flex h-full min-h-0 flex-col pb-[max(8px,calc(env(safe-area-inset-bottom)+2px))] pt-[max(16px,calc(env(safe-area-inset-top)+5px))]">
+      <header className="mt-[78px] shrink-0 px-5 text-center sm:mt-[70px]">
+        <div className="mx-auto flex max-w-sm items-center gap-2.5"><span className="h-px flex-1 bg-gradient-to-r from-transparent to-amber-200/28"/><span className="h-2.5 w-2.5 rotate-45 border border-violet-300/65 bg-violet-600 shadow-[0_0_14px_rgba(139,92,246,.8)]"/><span className="h-px flex-1 bg-gradient-to-l from-transparent to-amber-200/28"/></div>
+        <h1 className="mt-1 bg-gradient-to-b from-[#fff0c9] via-[#d7a85e] to-[#875022] bg-clip-text font-serif text-[clamp(1.9rem,8.2vw,2.75rem)] font-black leading-[.92] tracking-[.02em] text-transparent drop-shadow-[0_5px_18px_rgba(0,0,0,.55)]">DUNGEON VEIL</h1>
+        <p className="mt-1 text-[6.5px] uppercase tracking-[.22em] text-amber-50/38">{t.subtitle}</p>
       </header>
 
-      <div className="relative min-h-[250px] flex-1 px-4">
-        <div className="absolute bottom-2 left-4 w-[124px] space-y-1.5">
-          {statusCard(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'AKTIV · 12:57' : 'ACTIVE · 12:57', 'boss', 'bg-violet-950/80 text-violet-300', () => setOverlay('worldBoss'))}
-          {statusCard(language === 'de' ? 'Tagesbelohnung' : 'Daily Reward', retention.daily.claimed.length >= 3 ? (language === 'de' ? 'Abgeholt' : 'Claimed') : (language === 'de' ? 'Bereit' : 'Ready'), 'gift', 'bg-amber-950/70 text-amber-300', () => setOverlay('daily'))}
-        </div>
-        <button type="button" onPointerDown={event => { event.preventDefault(); if (currentSaveData) props.onContinue(); }} className="absolute bottom-2 right-4 w-[124px] rounded-2xl border border-white/10 bg-black/62 p-2.5 text-left shadow-[0_11px_24px_rgba(0,0,0,.36)] backdrop-blur-md active:scale-[.98]">
-          <div className="flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-full border border-violet-300/20 bg-violet-950/75 text-[11px] font-black text-white/80">{chapter}</div><div className="min-w-0"><div className="truncate text-[7px] font-black uppercase tracking-[.08em] text-white/78">{language === 'de' ? `Kapitel ${chapter}` : `Chapter ${chapter}`}</div><div className="mt-0.5 truncate text-[6px] uppercase tracking-[.06em] text-white/42">{language === 'de' ? 'Schleierwacht' : 'Veil Watch'}</div></div></div>
-          <div className="mt-2.5 text-[6px] font-black uppercase tracking-[.08em] text-white/44">{language === 'de' ? `Fortschritt ${chapterProgress}%` : `Progress ${chapterProgress}%`}</div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500" style={{ width: `${chapterProgress}%` }} /></div>
-          <div className="mt-2 flex items-center gap-1.5 text-[7px] font-bold text-white/52"><MenuIcon name="gift" className="h-3.5 w-3.5" />{language === 'de' ? 'Belohnungen' : 'Rewards'}</div>
+      <div data-testid="main-menu-scene-focus" className="relative min-h-[224px] flex-1" />
+
+      <div data-testid="main-menu-status-strip" className="mx-auto grid w-full max-w-md shrink-0 grid-cols-[1fr_1fr_1.16fr] gap-1.5 px-4">
+        {statusCard(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'AKTIV · 12:57' : 'ACTIVE · 12:57', 'boss', 'bg-violet-950/80 text-violet-300', () => setOverlay('worldBoss'))}
+        {statusCard(language === 'de' ? 'Tagesbonus' : 'Daily Bonus', retention.daily.claimed.length >= 3 ? (language === 'de' ? 'Abgeholt' : 'Claimed') : (language === 'de' ? 'Bereit' : 'Ready'), 'gift', 'bg-amber-950/70 text-amber-300', () => setOverlay('daily'), language === 'de' ? 'Tagesbelohnung' : 'Daily Reward')}
+        <button type="button" aria-label={language === 'de' ? `Kapitel ${chapter}` : `Chapter ${chapter}`} onPointerDown={event => { event.preventDefault(); if (currentSaveData) props.onContinue(); }} className="min-h-[42px] min-w-0 rounded-[13px] border border-white/[.09] bg-black/58 px-2 py-1.5 text-left shadow-[0_8px_18px_rgba(0,0,0,.28)] backdrop-blur-md active:scale-[.98]">
+          <div className="flex items-center gap-1.5"><div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-violet-300/18 bg-violet-950/72 text-[9px] font-black text-white/80">{chapter}</div><div className="min-w-0 flex-1"><div className="truncate text-[6.5px] font-black uppercase tracking-[.065em] text-white/78">{language === 'de' ? `Kapitel ${chapter}` : `Chapter ${chapter}`}</div><div className="mt-0.5 truncate text-[6px] uppercase tracking-[.045em] text-white/40">{language === 'de' ? `Raum ${room}` : `Room ${room}`}</div></div></div>
+          <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/[.07]"><div className="h-full rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500" style={{ width: `${chapterProgress}%` }} /></div>
         </button>
       </div>
 
@@ -205,10 +203,10 @@ export function MainMenuScreen(props: Props) {
         onGuild={() => setOverlay('guild')}
       />
 
-      <div className="mx-auto mt-2 grid w-full max-w-md grid-cols-2 gap-2 px-4">
+      <div className="mx-auto mt-1.5 grid w-full max-w-md shrink-0 grid-cols-2 gap-1.5 px-4">
         {action(t.continueGame, continueText, 'portal', props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}
-        {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · BOSS' : 'SOLO · DUO · BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
-        <div data-testid="main-menu-equipment-navigation">{action(language === 'de' ? 'Ausrüstung' : 'Equipment', language === 'de' ? 'BOGEN · RÜSTUNG · BEGLEITER' : 'BOW · ARMOR · COMPANION', 'bag', props.onVeilChamber, 'violet')}</div>
+        {action(language === 'de' ? 'Spielen' : 'Play', 'SOLO · DUO · BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
+        <div data-testid="main-menu-equipment-navigation">{action(language === 'de' ? 'Ausrüstung' : 'Equipment', language === 'de' ? 'BOGEN · RÜSTUNG · WOLF' : 'BOW · ARMOR · WOLF', 'bag', props.onVeilChamber, 'violet')}</div>
         {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · RELIKTE' : 'BEASTS · RELICS', 'book', props.onCodex, 'blue')}
       </div>
     </div>
