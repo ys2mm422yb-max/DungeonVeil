@@ -62,7 +62,7 @@ for marker in \
   main-menu-equipment-navigation \
   equipment-companion-section \
   equipment-category-tabs \
-  inventory-tab-companion; do
+  inventory-tab-; do
   count="$(grep -Foc "$marker" "$workdir/combined.js" || true)"
   echo "MARKER_${marker}=$count"
   if [[ "$count" -lt 1 ]]; then
