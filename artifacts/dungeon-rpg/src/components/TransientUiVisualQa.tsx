@@ -45,11 +45,11 @@ function qaGameState(): GameState {
   } as unknown as GameState;
 }
 
-function QaBackdrop({ label }: { label: string }) {
+function QaBackdrop() {
   return <div className="fixed inset-0 overflow-hidden bg-[radial-gradient(circle_at_50%_34%,rgba(93,52,139,.32),transparent_30%),linear-gradient(180deg,#17101f,#09080c_58%,#030304)] text-white">
-    <div className="absolute inset-x-4 top-[max(14px,env(safe-area-inset-top))] flex items-center justify-between rounded-2xl border border-white/10 bg-black/48 px-4 py-3 backdrop-blur-md">
-      <div><div className="text-[7px] font-black uppercase tracking-[.24em] text-violet-200/55">VISUAL QA</div><div className="mt-1 text-[11px] font-black text-white/78">{label}</div></div>
-      <div className="text-right text-[8px] font-black uppercase tracking-[.14em] text-white/38">Kapitel 3 · Raum 24</div>
+    <div className="absolute inset-x-4 top-[max(14px,env(safe-area-inset-top))] rounded-2xl border border-white/10 bg-black/48 px-4 py-3 backdrop-blur-md">
+      <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-[.15em] text-white/55"><span>Kapitel 3 · Raum 24</span><span>87 Gegner</span></div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/70"><div className="h-full w-[74%] bg-gradient-to-r from-red-700 to-red-300" /></div>
     </div>
     <div className="absolute left-1/2 top-[48%] h-52 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full border border-violet-300/16 bg-violet-500/[.07] shadow-[0_0_100px_rgba(139,92,246,.2)]" />
     <div className="absolute bottom-[max(36px,env(safe-area-inset-bottom))] left-5 h-24 w-24 rounded-full border border-white/10 bg-black/28" />
@@ -109,7 +109,7 @@ export function TransientUiVisualQa() {
 
   return <LanguageProvider>
     <div data-testid="transient-ui-visual-qa" data-qa-state={view} className="fixed inset-0 overflow-hidden">
-      <QaBackdrop label={view} />
+      <QaBackdrop />
       {view === 'pause' && <GamePausePanel
         gameState={gameState}
         language="de"
