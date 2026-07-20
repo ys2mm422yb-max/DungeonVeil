@@ -12,8 +12,13 @@ async function waitForStableRun(page, expectedRoom) {
   const skipIntro = page.getByRole('button', { name: /ÜBERSPRINGEN|SKIP/i });
   if (await skipIntro.isVisible({ timeout: 8_000 }).catch(() => false)) await skipIntro.click({ force: true });
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
-  await expect(page.getByText(new RegExp(`RAUM\\s+${expectedRoom}|ROOM\\s+${expectedRoom}`, 'i')).first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
+  await expect.poll(() => page.evaluate(room => {
+    const saved = JSON.parse(localStorage.getItem('dungeon-veil-save') || '{}');
+    return Number(saved.floor) === room && Number(saved.chapter) === 1 && saved.inDungeon === true;
+  }, expectedRoom), { timeout: 30_000 }).toBe(true);
+  // The title overlay lasts roughly one second. Waiting here proves the captured frame
+  // is the stable room composition, not the transition card.
   await page.waitForTimeout(10_000);
 }
 
@@ -25,7 +30,6 @@ async function startFreshRun(page) {
   await name.fill('Early Veil Visual Proof');
   await page.getByRole('button', { name: /Run starten|Start Game/i }).first().click({ force: true });
   await waitForStableRun(page, 1);
-  await expect.poll(() => page.evaluate(() => Boolean(localStorage.getItem('dungeon-veil-save'))), { timeout: 20_000 }).toBe(true);
 }
 
 async function loadSavedRoom(page, room) {
