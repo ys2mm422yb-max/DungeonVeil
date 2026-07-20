@@ -80,6 +80,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   const authorityRef = useRef<CompanionAuthority>(mode === 'solo' ? 'solo' : 'unknown');
   const previousHpRef = useRef(gameState.player.hp);
   const lastBasicAttackRef = useRef(0);
+  const basicAttackCountRef = useRef(0);
   const lastSpecialActionRef = useRef(0);
   const lastPlayerAttackRef = useRef(gameState.player.lastAttackTime);
   stateRef.current = gameState;
@@ -90,6 +91,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   useEffect(() => {
     previousHpRef.current = gameState.player.hp;
     lastBasicAttackRef.current = 0;
+    basicAttackCountRef.current = 0;
     lastSpecialActionRef.current = 0;
     lastPlayerAttackRef.current = gameState.player.lastAttackTime;
   }, [role, level]);
@@ -178,6 +180,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           toEnemyId: target.id,
         });
         emitCompanionAction(activeRole, activeLevel, 'attack', target.id);
+        basicAttackCountRef.current += 1;
         lastBasicAttackRef.current = now;
       }
 
@@ -276,6 +279,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         markerRef.current.dataset.species = definition.species;
         markerRef.current.dataset.mode = modeRef.current;
         markerRef.current.dataset.enemyAuthority = String(canWriteEnemies);
+        markerRef.current.dataset.basicAttackCount = String(basicAttackCountRef.current);
       }
     };
 
@@ -297,6 +301,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       data-authority={mode === 'solo' ? 'solo' : 'unknown'}
       data-ai-hz="10"
       data-basic-attacks="true"
+      data-basic-attack-count="0"
       data-selection="pre-run-frozen"
       data-revive-target="false"
       data-blocks-players="false"
