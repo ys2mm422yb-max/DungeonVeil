@@ -36,7 +36,7 @@ assert(duo.includes('DUO_MOBILE_ENEMY_CAP') && balance.includes('duoVisibleCap: 
 
 assert(selection.includes('COMPANION_ROLE_ORDER_V4') && selection.includes('COMPANION_SELECTION_STORAGE_KEY'), 'role selection or persistence missing');
 assert(selection.includes('saveCompanionRoleV4') && selection.includes('localStorage.setItem'), 'selected companion is not persisted');
-assert(chip.includes('run-companion-chip') && chip.includes('nextCompanionRoleV4') && chip.includes('compact-wolf-orb') && chip.includes('WolfMark'), 'compact in-run wolf tactic control missing');
+assert(chip.includes('run-companion-chip') && chip.includes('nextCompanionRoleV4') && chip.includes('compact-wolf-orb') && chip.includes('WolfMark') && chip.includes('pointer-events-auto'), 'compact tappable in-run wolf tactic control missing');
 assert(stage.includes('<CompanionRuntimeBridge') && stage.includes('<CompanionScene3D') && stage.includes('<CompanionStatusChip'), 'runtime, renderer or status integration missing');
 assert(scene.includes('data-scene-hook="object3d-add"') && scene.includes('THREE.Object3D.prototype.add'), 'active Three scene hook is missing');
 assert(!scene.includes('WebGLRenderer.prototype.render'), 'broken renderer prototype hook returned');
@@ -52,7 +52,8 @@ assert(runtime.includes('data-revive-target="false"') && runtime.includes('data-
 assert(menu.includes('main-menu-equipment-navigation') && !menu.includes('main-menu-companion-navigation') && !menu.includes("'companions'"), 'standalone companion main-menu navigation still exists');
 assert(equipment.includes("type ChamberTab = EquipmentTab | 'relic' | 'companion'") && equipment.includes("'companion'") && equipment.includes('inventory-tab-${key}') && equipment.includes('equipment-companion-section') && equipment.includes('<CompanionManagementPanel'), 'companion management is not consolidated inside equipment');
 assert(management.includes('companion-management-panel') && management.includes('companion-active-role') && management.includes('companion-reserve-grid'), 'management UI diagnostics missing');
-assert(management.includes('data-companion-species="veil-wolf"') && management.includes('VeilWolfPortrait') && management.includes('Ein Gefährte. Fünf Taktiken.'), 'management does not present one coherent Veil Wolf identity');
+assert(management.includes('data-companion-species="veil-wolf"') && management.includes('VeilWolfPortrait') && management.includes('Dein Schleierwolf'), 'management does not present one coherent Veil Wolf identity');
+assert(management.includes('useLayoutEffect') && management.includes('equipment-permanent-progression-copy') && management.includes("progressionSummary.style.display = 'none'"), 'companion tab still carries the unrelated equipment progression summary');
 assert(management.includes('embedded?: boolean') && management.includes("data-embedded={embedded ? 'true' : 'false'}"), 'embedded equipment presentation is missing');
 assert(management.includes('reserve.length') && management.includes('4/4') === false, 'reserve must be calculated rather than hard-coded as a fake list');
 assert(management.includes('saveCompanionRoleV4') && management.includes('COMPANION_ROLE_ORDER_V4.filter'), 'active/reserve switching is not persistent');
