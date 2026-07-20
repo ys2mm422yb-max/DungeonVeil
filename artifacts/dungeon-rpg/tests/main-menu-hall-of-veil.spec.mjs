@@ -31,8 +31,9 @@ test('main menu uses crisp premium Hall artwork with full-body player and compan
   await expect(hall).toHaveAttribute('data-player-full-body', 'true');
   await expect(hall).toHaveAttribute('data-active-companion', 'true');
   await expect(hall).toHaveAttribute('data-companion-full-body', 'true');
-  await expect(page.locator('[data-hall-hybrid-background="true"]')).toBeVisible();
-  await expect(page.locator('[data-background-artwork="premium-gothic-v3"]')).toBeVisible();
+  const background = page.locator('[data-hall-hybrid-background="true"][data-background-artwork="premium-gothic-v3"]');
+  await expect(background).toHaveCount(1);
+  await expect(background).toBeVisible();
   await expect(hall.locator('canvas[data-menu-renderer="hall-of-the-veil"]')).toHaveCount(1, { timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => Boolean(window.__DUNGEON_VEIL_MENU_RANGER__?.visibleEquipment?.bow))).toBe(true);
 
