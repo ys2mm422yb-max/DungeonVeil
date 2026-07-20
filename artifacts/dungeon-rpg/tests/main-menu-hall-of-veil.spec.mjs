@@ -53,3 +53,5 @@ test('main menu is the Hall of the Veil with one exclusive renderer', async ({ p
   expect(overflow).toBeLessThanOrEqual(4);
   expect(runtimeErrors).toEqual([]);
 });
+
+// Final validation is executed against the fixed test branch after the relic and codex merges.
