@@ -1,9 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [wrapper, hall, mainMenu, villageHub, showcase, player, weapons, manifest, metaStore, redesign] = await Promise.all([
+const [wrapper, hall, background, menuCompanion, mainMenu, villageHub, showcase, player, weapons, manifest, metaStore, redesign] = await Promise.all([
   read('../src/components/ModernVillageSquareScene.tsx'),
   read('../src/components/HallOfVeilScene.tsx'),
+  read('../src/components/HallOfVeilHybridBackground.tsx'),
+  read('../src/components/kaykitMenuCompanion3D.ts'),
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/kaykitVillagePlayer3D.ts'),
@@ -16,18 +18,19 @@ const [wrapper, hall, mainMenu, villageHub, showcase, player, weapons, manifest,
 
 const rendererCount = hall.match(/new THREE\.WebGLRenderer/g)?.length ?? 0;
 const checks = [
-  [wrapper.includes("import { HallOfVeilScene } from './HallOfVeilScene';") && wrapper.includes('<HallOfVeilScene />'), 'legacy menu wrapper is not routed exclusively through the Hall of the Veil'],
+  [wrapper.includes("import { HallOfVeilHybridBackground } from './HallOfVeilHybridBackground';") && wrapper.includes('<HallOfVeilHybridBackground />') && wrapper.includes('<HallOfVeilScene />'), 'legacy menu wrapper is not routed through the premium hybrid Hall'],
   [hall.includes("import { loadKayKitVillageArcher } from './kaykitVillagePlayer3D';") && hall.includes('loadKayKitVillageArcher(THREE, GLTFLoader)'), 'Hall of the Veil is not routed through the equipped player adapter'],
-  [hall.includes("hallRoot.userData.sceneContract = 'hall-of-the-veil-v4'") && hall.includes('data-hall-of-the-veil="true"'), 'Hall of the Veil scene contract is missing'],
+  [hall.includes("import { loadKayKitMenuCompanion") && hall.includes('loadKayKitMenuCompanion(THREE, GLTFLoader, loadCompanionRoleV4())') && menuCompanion.includes('HallActiveCompanion_'), 'active companion is not rendered beside the equipped player'],
+  [hall.includes("hallRoot.userData.sceneContract = 'hall-of-the-veil-v5-hybrid'") && hall.includes('data-hall-of-the-veil="true"') && hall.includes('data-background-mode="premium-2d-artwork"'), 'premium hybrid Hall scene contract is missing'],
+  [background.includes('hall-background-v1.svg') && background.includes('data-background-artwork="premium-gothic-v2"'), 'premium 2D Hall artwork is missing'],
   [hall.includes('marketStalls: 0') && hall.includes('decorativeNpcs: 0') && hall.includes('data-market-stalls="0"') && hall.includes('data-decorative-npcs="0"'), 'market stalls or decorative NPCs can still be represented'],
   [!hall.includes('buildMarketStall') && !hall.includes('MiraQuestKeeper') && !hall.includes('OrinPostKeeper') && !hall.includes('TalaScoutKeeper') && !hall.includes('BromGuildKeeper'), 'legacy stalls or keeper NPCs remain in the Hall of the Veil'],
-  [hall.includes("root.name = 'MonumentalVeilGate'") && hall.includes('gateRings') && hall.includes('vortexLayers') && hall.includes('runeDiamonds'), 'monumental layered veil gate is missing'],
-  [hall.includes("{ key: 'pillar'") && hall.includes("{ key: 'banner'") && hall.includes("{ key: 'torch'"), 'pillars, banners or torch assets are missing'],
+  [hall.includes('alpha: true') && hall.includes('renderer.setClearColor(0x000000, 0)') && hall.includes('scene.background = null') && !hall.includes('createArchitecture('), 'character renderer is not transparent or still builds the Hall in 3D'],
   [hall.includes('mistLayers') && hall.includes('HALL_PARTICLE_COUNT = IS_MOBILE ? 14 : 26') && hall.includes("particles.name = 'HallBoundedVeilParticles'"), 'bounded mobile mist and particle atmosphere is missing'],
   [rendererCount === 1 && hall.includes("renderer.domElement.setAttribute('data-menu-renderer', 'hall-of-the-veil')"), 'Hall menu does not own exactly one renderer'],
   [hall.includes('if (IS_MOBILE && now - lastFrame < 33) return') && hall.includes('renderer.setPixelRatio(Math.min'), 'mobile renderer throttling or pixel-ratio cap is missing'],
-  [hall.includes('camera.position.set(0, 5.28, 13.35)') && hall.includes('camera.fov = camera.aspect < 0.72 ? 42 : 36'), 'portrait camera does not prioritize the centered character'],
-  [hall.includes('const playerKey = new THREE.PointLight') && hall.includes('const playerRim = new THREE.PointLight') && hall.includes('const gateLight = new THREE.PointLight'), 'player and veil-gate lighting are incomplete'],
+  [hall.includes('camera.position.set(0, portrait ? 4.18 : 4.0, portrait ? 10.15 : 10.8)') && hall.includes('camera.fov = portrait ? 38 : 33'), 'responsive camera does not prioritize player and companion'],
+  [hall.includes('const playerKey = new THREE.PointLight') && hall.includes('const playerRim = new THREE.PointLight') && hall.includes('const portalBounce = new THREE.PointLight'), 'player and portal bounce lighting are incomplete'],
   [mainMenu.includes('`${equipped.bow}:${equipped.quiver}:${equipped.armor}`') && !mainMenu.includes('equipped.talisman'), 'menu scene key still depends on the retired Talisman instead of current armor'],
   [mainMenu.includes('SPECTATOR_RENDERER_EVENT') && mainMenu.includes('if (suspended) return null'), 'exclusive spectator renderer handoff is missing'],
   [showcase.includes("root.userData.presentation = 'village-showcase-v14-player-focus'") && showcase.includes("root.userData.showcasePose = 'v14-idle-b-readable-loadout'"), 'focused Ranger presentation mode is missing'],
@@ -55,4 +58,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Hall of the Veil menu audit passed: no market NPC clutter, one mobile renderer, centered equipped Ranger, current armor key and exclusive spectator handoff.');
+console.log('Hall of the Veil menu audit passed: premium 2D artwork, one transparent renderer, equipped Ranger, active companion, current armor key and exclusive spectator handoff.');
