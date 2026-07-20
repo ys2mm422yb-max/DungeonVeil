@@ -86,6 +86,7 @@ for (const marker of requiredEquipmentMarkers) {
 }
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
 if (!config.includes('equipment-responsive')) failures.push('responsive equipment regression is not part of the browser matrix');
+if (!config.includes('reduced-motion-menu')) failures.push('reduced-motion menu regression is not part of the browser matrix');
 for (const command of ['audit:assets', 'audit:social', 'audit:rooms', 'typecheck', 'build']) {
   if (!packageJson.includes(`"${command}"`)) failures.push(`missing package command: ${command}`);
 }
