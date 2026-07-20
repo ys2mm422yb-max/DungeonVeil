@@ -2,13 +2,14 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [balance, reserve, collection, selection, runtime, scene, chip, management, profileSummary, stage, equipment, ownProfile, publicProfile, spectatorStage, duo, worldBoss, progression] = await Promise.all([
+const [balance, reserve, collection, selection, runtime, scene, readability, chip, management, profileSummary, stage, equipment, ownProfile, publicProfile, spectatorStage, duo, worldBoss, progression] = await Promise.all([
   read('../src/game/buildBalanceV4.ts'),
   read('../src/game/companionReserveV4.ts'),
   read('../src/game/companionCollectionV5.ts'),
   read('../src/game/companionSelectionV4.ts'),
   read('../src/components/CompanionRuntimeBridge.tsx'),
   read('../src/components/CompanionScene3D.tsx'),
+  read('../src/components/companionVisualReadability3D.ts'),
   read('../src/components/CompanionStatusChip.tsx'),
   read('../src/components/CompanionManagementPanel.tsx'),
   read('../src/components/CompanionProfileSummary.tsx'),
@@ -42,7 +43,7 @@ assert(collection.includes('companionEffectivePowerV5') && collection.includes('
 
 assert(selection.includes('COMPANION_COLLECTION_STORAGE_KEY') && selection.includes('selectCompanionV5'), 'legacy selection compatibility is not routed through the collection');
 assert(stage.includes('activeCompanionV5') && stage.includes('captured once') && !stage.includes('saveCompanionRoleV4') && !stage.includes('changeCompanionRole'), 'run companion is not frozen before combat');
-assert(chip.includes('read-only-companion-status') && chip.includes('pointer-events-none') && !chip.includes('nextCompanionRoleV4') && !chip.includes('onRoleChange'), 'in-run companion switching still exists');
+assert(chip.includes("import './companionVisualReadability3D'") && chip.includes('read-only-companion-status') && chip.includes('pointer-events-none') && !chip.includes('nextCompanionRoleV4') && !chip.includes('onRoleChange'), 'readability install or read-only in-run status is missing');
 
 assert(runtime.includes('data-basic-attacks="true"') && runtime.includes('data-basic-attack-count="0"') && runtime.includes('basicAttackCountRef.current += 1') && runtime.includes('companionAttackIntervalV5') && runtime.includes('localCompanionOrigin'), 'every companion does not produce measurable visible paced basic attacks');
 assert(runtime.includes('data-selection="pre-run-frozen"') && runtime.includes('data-level={level}') && runtime.includes('companionEffectivePowerV5'), 'runtime level or frozen selection diagnostics missing');
@@ -56,6 +57,8 @@ for (const part of ['VeilLynxLeg', 'EmberRavenWing', 'RuneSentinelLeg', 'Lantern
 assert(scene.includes('CompanionV5AttackTrail') && scene.includes('CompanionV5AttackRing') && scene.includes('triggerAction(detail?.kind'), 'visible attack trail or action event binding missing');
 assert(scene.includes('maxStep = (5.8 + binding.level * 0.42) * delta') && scene.includes('speed > 0.025'), 'bounded locomotion still slides by positional interpolation');
 assert(scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"') && scene.includes('THREE.Object3D.prototype.add'), 'companion renderer must reuse the active run scene');
+assert(readability.includes('root.scale.multiplyScalar(IS_MOBILE ? 1.34 : 1.2)') && readability.includes("light.name = 'CompanionReadabilityLightV5'") && readability.includes("core.name = 'CompanionReadabilityCoreV5'"), 'dark-room companion scale, local light or readable core is missing');
+assert(readability.includes('companionOnlyLight = true') && readability.includes('material.emissiveIntensity') && readability.includes('node.frustumCulled = false'), 'bounded companion-only readability treatment is incomplete');
 
 assert(management.includes('BEGLEITER-SAMMLUNG') && management.includes('FUND BEANSPRUCHEN') && management.includes('upgradeCompanionV5'), 'collection UI lacks finds or upgrades');
 assert(management.includes('data-selection-surface="pre-run-only"') && management.includes('COMPANION_MAX_LEVEL_V5') && management.includes('SCHLEIERSTAUB'), 'pre-run-only level UI missing');
@@ -69,5 +72,5 @@ const hasSimulatorReserve = progression.includes('requiredWithoutCompanion: true
   && ((progression.includes('average: 1.10') && progression.includes('maximum: 1.12'))
     || progression.includes('average: COMPANION_RESERVE_V4.averageEffectivePower'));
 assert(hasSimulatorReserve, 'base-game completeness reserve missing');
-console.log(JSON.stringify({ companions: 5, firstFindChapter: 2, maxLevel: 5, preRunSelection: true, inRunSwitching: false, basicAttacks: true, articulatedMotion: true, soloCap: 1, duoCap: 2, aiHz: 10, sharedRunRenderer: true }, null, 2));
-console.log('Companion collection V5 passed: rare unlocks, dust upgrades, fixed run selection and five distinct animated allies are present.');
+console.log(JSON.stringify({ companions: 5, firstFindChapter: 2, maxLevel: 5, preRunSelection: true, inRunSwitching: false, basicAttacks: true, articulatedMotion: true, readableInDarkRooms: true, soloCap: 1, duoCap: 2, aiHz: 10, sharedRunRenderer: true }, null, 2));
+console.log('Companion collection V5 passed: rare unlocks, dust upgrades, fixed run selection and five distinct readable animated allies are present.');
