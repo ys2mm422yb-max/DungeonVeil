@@ -10,15 +10,39 @@ test('reduced motion replaces and unmounts the moving menu canvas with a static 
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.addInitScript(({ ipad }) => {
+    const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
-    localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({ version: 2, initialized: true, equipment: [], relics: [], announcedEquipment: [], announcedRelics: [] }));
+    localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
+      version: 2,
+      initialized: true,
+      equipment: knownEquipment,
+      relics: [],
+      announcedEquipment: knownEquipment,
+      announcedRelics: [],
+    }));
+    localStorage.setItem('dungeon-veil-meta', JSON.stringify({
+      version: 4,
+      rank: 1,
+      xp: 0,
+      dust: 0,
+      gold: 0,
+      owned: {
+        'ash-bow': { level: 1, copies: 0 },
+        'ranger-quiver': { level: 1, copies: 0 },
+        'ranger-cloak': { level: 1, copies: 0 },
+      },
+      equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' },
+      rewardLedger: [],
+      currentRunId: '',
+    }));
     if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
   }, { ipad: testInfo.project.name.includes('ipad') });
 
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   const presentation = page.getByTestId('main-menu-scene-presentation');
   await expect(presentation).toHaveAttribute('data-reduced-motion-contract', 'static-ranger-and-portal-fallback');
   await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'true');
