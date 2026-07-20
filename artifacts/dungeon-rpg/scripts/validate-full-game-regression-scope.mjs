@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, visualAudit, reducedMotionAudit, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
+const [config, smoke, visualAudit, reducedMotionAudit, equipmentResponsive, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-audit.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/reduced-motion-menu.spec.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../tests/equipment-responsive.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../package.json', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/dungeon-rpg-check.yml', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/dungeon-rpg-ci.yml', import.meta.url), 'utf8'),
@@ -58,6 +59,14 @@ const requiredReducedMotionMarkers = [
   'visual-main-menu-reduced-motion-',
   'static-ranger-and-portal-fallback',
 ];
+const requiredEquipmentMarkers = [
+  'equipment-category-tabs',
+  'data-equipment-preview-kind="bow"',
+  'shellWidth',
+  'previewWidth',
+  'toBeGreaterThanOrEqual(700)',
+  'equipment-responsive-',
+];
 
 const failures = [];
 for (const project of requiredProjects) {
@@ -72,7 +81,11 @@ for (const marker of requiredVisualMarkers) {
 for (const marker of requiredReducedMotionMarkers) {
   if (!reducedMotionAudit.includes(marker)) failures.push(`missing reduced-motion audit marker: ${marker}`);
 }
+for (const marker of requiredEquipmentMarkers) {
+  if (!equipmentResponsive.includes(marker)) failures.push(`missing responsive equipment marker: ${marker}`);
+}
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
+if (!config.includes('equipment-responsive')) failures.push('responsive equipment regression is not part of the browser matrix');
 for (const command of ['audit:assets', 'audit:social', 'audit:rooms', 'typecheck', 'build']) {
   if (!packageJson.includes(`"${command}"`)) failures.push(`missing package command: ${command}`);
 }
@@ -88,4 +101,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, explicit reduced motion, 50 desktop and mobile rooms, critical cross-device rooms, UI screenshot evidence, combat startup, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, explicit reduced motion, responsive equipment, 50 desktop and mobile rooms, critical cross-device rooms, UI screenshot evidence, combat startup, runtime errors, assets and production build are covered.');
