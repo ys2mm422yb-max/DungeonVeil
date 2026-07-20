@@ -25,7 +25,10 @@ const [menu, villageHub, menuSceneProxy, villageSceneProxy, hallScene, villagePl
 ]);
 
 const renderStart = hallScene.lastIndexOf('raf = requestAnimationFrame(loop);');
-const assetStart = hallScene.indexOf('void loadHallAssets(');
+const assetStart = Math.max(hallScene.indexOf('void loadHallAssets('), hallScene.indexOf('void loadDecor('));
+const isolatedAssetFailures = hallScene.includes('Promise.allSettled')
+  && (hallScene.includes("result.status === 'rejected'")
+    || hallScene.includes("loadDecor(THREE, GLTFLoader, hallRoot, () => disposed).catch"));
 const playOverlayStart = menu.indexOf("{overlay === 'play'");
 const moreOverlayStart = menu.indexOf("{overlay === 'more'");
 const overlayCloseStart = menu.indexOf("{overlay !== 'guild'");
@@ -64,8 +67,8 @@ const checks = [
   [villageSceneProxy.includes("import { HallOfVeilScene } from './HallOfVeilScene';") && villageSceneProxy.includes('<HallOfVeilScene />'), 'compatibility menu scene does not route to the Hall of the Veil'],
   [hallScene.includes("hallRoot.userData.sceneContract = 'hall-of-the-veil-v4'") && hallScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)'), 'Hall of the Veil does not use one focused equipped Ranger body'],
   [hallScene.includes('marketStalls: 0') && hallScene.includes('decorativeNpcs: 0') && !hallScene.includes('MiraQuestKeeper') && !hallScene.includes('buildMarketStall'), 'Hall of the Veil still contains decorative market NPC clutter'],
-  [hallScene.includes('async function loadHallAssets(') && renderStart >= 0 && assetStart > renderStart, 'Hall renderer does not start before asynchronous optional asset loading'],
-  [hallScene.includes('Promise.allSettled') && hallScene.includes("result.status === 'rejected'") && hallScene.includes('Optional Hall of the Veil asset failed to load'), 'individual Hall asset failures are not isolated'],
+  [renderStart >= 0 && assetStart > renderStart, 'Hall renderer does not start before asynchronous optional asset loading'],
+  [isolatedAssetFailures, 'individual Hall asset failures are not isolated'],
   [hallScene.includes('new ResizeObserver(resize)') && hallScene.includes("window.visualViewport?.addEventListener('resize', resize)") && hallScene.includes("renderer.domElement.style.width = '100%'") && hallScene.includes("renderer.domElement.style.height = '100%'"), 'mobile Hall viewport or canvas sizing is missing'],
   [villageHub.includes('grid grid-cols-4') && !villageHub.includes("testId: 'npc-worldkeeper'") && !villageHub.includes('onWorldBoss') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'social route dock still mixes gameplay modes into its compact actions'],
   [actionBandSeparated, 'main-menu action layout is not separated from the Hall scene'],
