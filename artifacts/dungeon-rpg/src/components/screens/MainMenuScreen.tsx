@@ -70,7 +70,6 @@ export function MainMenuScreen(props: Props) {
   const profileName = currentSaveData?.playerName?.trim() || (language === 'de' ? 'Waldläufer' : 'Ranger');
   const chapter = currentSaveData?.chapter ?? 1;
   const room = currentSaveData?.floor ?? 1;
-  const chapterProgress = Math.max(4, Math.min(100, ((room - 1) % 10 + 1) * 10));
   const gold = Number(meta.gold ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US');
 
   useEffect(() => {
@@ -135,7 +134,7 @@ export function MainMenuScreen(props: Props) {
     else props.onNewGame();
   };
   const continueText = currentSaveData
-    ? language === 'de' ? `Kap. ${chapter} · Raum ${room}` : `Ch. ${chapter} · Room ${room}`
+    ? language === 'de' ? `KAP. ${chapter} · RAUM ${room}` : `CH. ${chapter} · ROOM ${room}`
     : t.noSave;
 
   const action = (label: string, detail: string, icon: IconName, onClick: () => void, tone: 'gold' | 'violet' | 'dark' | 'blue', disabled = false) => {
@@ -149,20 +148,15 @@ export function MainMenuScreen(props: Props) {
     return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`group min-h-[54px] w-full rounded-[16px] border px-2.5 py-2 text-left shadow-[0_10px_22px_rgba(0,0,0,.3)] backdrop-blur-md transition active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
       <div className="flex items-center gap-2">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] border border-amber-100/10 bg-black/28 text-amber-100/72 shadow-inner"><MenuIcon name={icon} className="h-5 w-5" /></div>
-        <div className="min-w-0 flex-1"><div className="truncate text-[12px] font-black uppercase tracking-[.045em] text-[#f4ebdf]">{label}</div><div className="mt-0.5 truncate text-[6.5px] uppercase tracking-[.065em] text-white/44">{detail}</div></div>
+        <div className="min-w-0 flex-1"><div className="whitespace-nowrap text-[11px] font-black uppercase tracking-[.025em] text-[#f4ebdf]">{label}</div><div className="mt-0.5 whitespace-nowrap text-[6.2px] uppercase tracking-[.045em] text-white/44">{detail}</div></div>
         {!disabled && <span className="text-base text-white/28 group-active:translate-x-0.5">›</span>}
       </div>
     </button>;
   };
 
-  const statusCard = (title: string, detail: string, icon: IconName, tone: string, onClick: () => void, ariaLabel = title) => <button type="button" aria-label={ariaLabel} onPointerDown={event => { event.preventDefault(); onClick(); }} className="flex min-h-[42px] min-w-0 items-center gap-1.5 rounded-[13px] border border-white/[.09] bg-black/58 px-2 py-1.5 text-left shadow-[0_8px_18px_rgba(0,0,0,.28)] backdrop-blur-md active:scale-[.98]">
-    <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-[9px] border border-white/[.08] ${tone}`}><MenuIcon name={icon} className="h-4 w-4" /></div>
-    <div className="min-w-0"><div className="truncate text-[6.5px] font-black uppercase tracking-[.065em] text-white/78">{title}</div><div className="mt-0.5 truncate text-[6.5px] font-bold text-violet-300/90">{detail}</div></div>
-  </button>;
-
   return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#050308] text-white">
     {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
-    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_49%,rgba(126,54,216,.15),transparent_38%),linear-gradient(to_bottom,rgba(2,1,5,.4),rgba(4,2,7,.02)_42%,rgba(5,3,8,.18)_70%,#050307_94%)]" />
+    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_49%,rgba(126,54,216,.15),transparent_38%),linear-gradient(to_bottom,rgba(2,1,5,.4),rgba(4,2,7,.02)_42%,rgba(5,3,8,.18)_74%,#050307_96%)]" />
     <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/66 to-transparent" />
     <MainMenuUpdateGate language={language} />
 
@@ -182,32 +176,25 @@ export function MainMenuScreen(props: Props) {
         <p className="mt-1 text-[6.5px] uppercase tracking-[.22em] text-amber-50/38">{t.subtitle}</p>
       </header>
 
-      <div data-testid="main-menu-scene-focus" className="relative min-h-[224px] flex-1" />
+      <div data-testid="main-menu-scene-focus" className="relative min-h-[300px] flex-1" />
 
-      <div data-testid="main-menu-status-strip" className="mx-auto grid w-full max-w-md shrink-0 grid-cols-[1fr_1fr_1.16fr] gap-1.5 px-4">
-        {statusCard(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'AKTIV · 12:57' : 'ACTIVE · 12:57', 'boss', 'bg-violet-950/80 text-violet-300', () => setOverlay('worldBoss'))}
-        {statusCard(language === 'de' ? 'Tagesbonus' : 'Daily Bonus', retention.daily.claimed.length >= 3 ? (language === 'de' ? 'Abgeholt' : 'Claimed') : (language === 'de' ? 'Bereit' : 'Ready'), 'gift', 'bg-amber-950/70 text-amber-300', () => setOverlay('daily'), language === 'de' ? 'Tagesbelohnung' : 'Daily Reward')}
-        <button type="button" aria-label={language === 'de' ? `Kapitel ${chapter}` : `Chapter ${chapter}`} onPointerDown={event => { event.preventDefault(); if (currentSaveData) props.onContinue(); }} className="min-h-[42px] min-w-0 rounded-[13px] border border-white/[.09] bg-black/58 px-2 py-1.5 text-left shadow-[0_8px_18px_rgba(0,0,0,.28)] backdrop-blur-md active:scale-[.98]">
-          <div className="flex items-center gap-1.5"><div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-violet-300/18 bg-violet-950/72 text-[9px] font-black text-white/80">{chapter}</div><div className="min-w-0 flex-1"><div className="truncate text-[6.5px] font-black uppercase tracking-[.065em] text-white/78">{language === 'de' ? `Kapitel ${chapter}` : `Chapter ${chapter}`}</div><div className="mt-0.5 truncate text-[6px] uppercase tracking-[.045em] text-white/40">{language === 'de' ? `Raum ${room}` : `Room ${room}`}</div></div></div>
-          <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/[.07]"><div className="h-full rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500" style={{ width: `${chapterProgress}%` }} /></div>
-        </button>
-      </div>
+      <div data-testid="main-menu-control-stack" className="relative z-20 shrink-0">
+        <VillageNpcHub
+          language={language}
+          dailyProgress={`${retention.daily.claimed.length}/3`}
+          mailUnread={mailUnread}
+          onQuests={() => setOverlay('daily')}
+          onMailbox={() => setOverlay('mailbox')}
+          onFriends={() => setOverlay('friends')}
+          onGuild={() => setOverlay('guild')}
+        />
 
-      <VillageNpcHub
-        language={language}
-        dailyProgress={`${retention.daily.claimed.length}/3`}
-        mailUnread={mailUnread}
-        onQuests={() => setOverlay('daily')}
-        onMailbox={() => setOverlay('mailbox')}
-        onFriends={() => setOverlay('friends')}
-        onGuild={() => setOverlay('guild')}
-      />
-
-      <div className="mx-auto mt-1.5 grid w-full max-w-md shrink-0 grid-cols-2 gap-1.5 px-4">
-        {action(t.continueGame, continueText, 'portal', props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}
-        {action(language === 'de' ? 'Spielen' : 'Play', 'SOLO · DUO · BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
-        <div data-testid="main-menu-equipment-navigation">{action(language === 'de' ? 'Ausrüstung' : 'Equipment', language === 'de' ? 'BOGEN · RÜSTUNG · WOLF' : 'BOW · ARMOR · WOLF', 'bag', props.onVeilChamber, 'violet')}</div>
-        {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · RELIKTE' : 'BEASTS · RELICS', 'book', props.onCodex, 'blue')}
+        <div className="mx-auto mt-1.5 grid w-full max-w-md grid-cols-2 gap-1.5 px-4">
+          {action(t.continueGame, continueText, 'portal', props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}
+          {action(language === 'de' ? 'Spielen' : 'Play', 'SOLO · DUO · BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
+          <div data-testid="main-menu-equipment-navigation">{action(language === 'de' ? 'Ausrüstung' : 'Equipment', language === 'de' ? 'BOGEN · RÜSTUNG' : 'BOW · ARMOR', 'bag', props.onVeilChamber, 'violet')}</div>
+          {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · RELIKTE' : 'BEASTS · RELICS', 'book', props.onCodex, 'blue')}
+        </div>
       </div>
     </div>
 
