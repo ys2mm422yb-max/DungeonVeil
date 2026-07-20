@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { RunGameState } from '../game/runEngine';
+import { companionForOwnerV5 } from '../game/companionCollectionV5';
 import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
 import { CompanionScene3D } from './CompanionScene3D';
 
 type ViewportBox = { width: number; height: number; left: number; top: number };
+const SPECTATOR_FALLBACK_COMPANION = companionForOwnerV5('spectator-playback-fallback');
 
 function readViewport(): ViewportBox {
   const viewport = window.visualViewport;
@@ -44,7 +46,7 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
     style={{ left: viewport.left, top: viewport.top, width: viewport.width, height: viewport.height }}
   >
     <GameCanvasKayKit3D gameState={stableState} />
-    <CompanionScene3D gameState={stableState} localRole="single-target" />
-    <span className="hidden" aria-hidden="true" data-testid="spectator-companion-contract" data-visible-cap="1" data-shared-renderer="true" />
+    <CompanionScene3D gameState={stableState} localCompanion={{ role: SPECTATOR_FALLBACK_COMPANION.id, level: SPECTATOR_FALLBACK_COMPANION.level }} />
+    <span className="hidden" aria-hidden="true" data-testid="spectator-companion-contract" data-visible-cap="1" data-shared-renderer="true" data-model-source="procedural-distinct-companion-v5" />
   </div>;
 }
