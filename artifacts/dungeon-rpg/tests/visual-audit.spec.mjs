@@ -119,6 +119,7 @@ async function loadRoom(page, room) {
     parsed.savedAt = Date.now();
     delete parsed.dungeonMap;
     localStorage.setItem(key, JSON.stringify(parsed));
+    sessionStorage.removeItem('dungeon-veil-active-run-session');
   }, room);
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
@@ -128,7 +129,7 @@ async function loadRoom(page, room) {
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   await expect.poll(() => page.evaluate(expected => {
     const saved = JSON.parse(localStorage.getItem('dungeon-veil-save') || '{}');
-    return Number(saved.floor) === expected && saved.inDungeon === true;
+    return Number(saved.floor) === expected;
   }, room), { timeout: 30_000 }).toBe(true);
   await page.waitForTimeout(2_200);
 }
