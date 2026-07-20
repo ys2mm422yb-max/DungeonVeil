@@ -63,6 +63,7 @@ test('one Veil Wolf identity spans equipment management and the shared run rende
   expect(managementGeometry.firstRowDelta).toBeLessThanOrEqual(2);
   expect(managementGeometry.thirdRowDelta).toBeLessThanOrEqual(2);
   expect(managementGeometry.secondRowStartsBelowFirst).toBe(true);
+  await page.screenshot({ path: `test-results/companion-management-${testInfo.project.name}.png`, fullPage: false });
   await page.getByTestId('companion-role-shield').click({ force: true });
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'shield');
   await page.getByRole('button', { name: /Zurück|Back/i }).click({ force: true });
@@ -98,6 +99,7 @@ test('one Veil Wolf identity spans equipment management and the shared run rende
   expect(chipGeometry.height).toBeLessThanOrEqual(52);
   expect(chipGeometry.left).toBeGreaterThanOrEqual(0);
   expect(chipGeometry.right).toBeLessThanOrEqual(chipGeometry.viewportWidth + 1);
+  await page.screenshot({ path: `test-results/companion-run-${testInfo.project.name}.png`, fullPage: false });
 
   await chip.click({ force: true });
   await expect(chip).toHaveAttribute('data-companion-role', 'loot-comfort');
