@@ -42,26 +42,28 @@ export function MainMenuHeroFocusBridge() {
       const runeFrame = hallScene.getObjectByName('HallPortalRuneFrame');
 
       if (wolf) {
-        wolf.position.x = 1.12;
-        wolf.position.z = -3.08;
-        wolf.rotation.y = -0.5;
-        wolf.scale.setScalar(IS_MOBILE ? 0.58 : 0.55);
+        wolf.position.x = 1.06;
+        wolf.position.z = -2.86;
+        wolf.rotation.y = -0.56;
+        wolf.scale.setScalar(IS_MOBILE ? 0.62 : 0.58);
         wolf.userData.heroPairFocus = true;
       }
       if (portal) {
-        portal.position.z = -10.15;
-        portal.scale.setScalar(IS_MOBILE ? 0.88 : 0.92);
+        portal.position.z = -10.68;
+        portal.scale.setScalar(IS_MOBILE ? 0.75 : 0.83);
         portal.userData.backgroundArchitecture = true;
       }
-      if (portalCore?.material) portalCore.material.opacity = IS_MOBILE ? 0.68 : 0.74;
-      if (portalGlow?.material) portalGlow.material.opacity = IS_MOBILE ? 0.1 : 0.13;
-      if (runeFrame?.material) runeFrame.material.emissiveIntensity = IS_MOBILE ? 0.7 : 0.82;
+      if (portalCore?.material) portalCore.material.opacity = IS_MOBILE ? 0.55 : 0.62;
+      if (portalGlow?.material) portalGlow.material.opacity = IS_MOBILE ? 0.055 : 0.085;
+      if (runeFrame?.material) runeFrame.material.emissiveIntensity = IS_MOBILE ? 0.48 : 0.62;
 
       if (marker) {
         marker.dataset.sceneCaptured = 'true';
         marker.dataset.rangerFocused = ranger ? 'true' : 'false';
         marker.dataset.wolfFocused = wolf ? 'true' : 'false';
         marker.dataset.portalRecessed = portal ? 'true' : 'false';
+        marker.dataset.wolfScale = wolf ? (IS_MOBILE ? '0.62' : '0.58') : '0';
+        marker.dataset.portalScale = portal ? (IS_MOBILE ? '0.75' : '0.83') : '0';
       }
     };
 
@@ -104,5 +106,7 @@ export function MainMenuHeroFocusBridge() {
     data-ranger-focused="false"
     data-wolf-focused="false"
     data-portal-recessed="false"
+    data-wolf-scale="0"
+    data-portal-scale="0"
   />;
 }
