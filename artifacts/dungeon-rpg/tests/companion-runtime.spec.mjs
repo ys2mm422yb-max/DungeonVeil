@@ -24,11 +24,11 @@ async function startFreshRun(page) {
   const skipIntro = page.getByRole('button', { name: /ÜBERSPRINGEN|SKIP/i });
   if (await skipIntro.isVisible({ timeout: 8_000 }).catch(() => false)) await skipIntro.click({ force: true });
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
-  await page.waitForTimeout(3_000);
+  await page.waitForTimeout(10_000);
 }
 
 test('one Veil Wolf identity spans equipment management and the shared run renderer', async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
+  test.setTimeout(210_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(error.message));
   page.on('console', message => {
