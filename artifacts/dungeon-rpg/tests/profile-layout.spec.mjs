@@ -22,8 +22,13 @@ test('own and public profiles use responsive equipment and companion layouts', a
   const ownOverview = page.getByTestId('player-profile-tablet-overview');
   await expect(ownShell).toBeVisible();
   await expect(ownOverview).toBeVisible();
-  await expect(page.getByTestId('own-player-profile-companion')).toBeVisible();
-  await expect(page.getByTestId('own-player-profile-companion')).toHaveAttribute('data-companion-role', 'single-target');
+  const ownCompanion = page.getByTestId('own-player-profile-companion');
+  await expect(ownCompanion).toBeVisible();
+  await expect(ownCompanion).toHaveAttribute('data-companion-role', 'none');
+  await expect(ownCompanion).toHaveAttribute('data-companion-species', 'none');
+  await expect(ownCompanion).toHaveAttribute('data-companion-level', '0');
+  await expect(ownCompanion).toContainText('Noch kein Begleiter gefunden');
+  await expect(ownCompanion).toContainText('ab Kapitel 2');
   await expect(page.getByTestId('profile-distinct-equipment-count')).toContainText('6');
   await expect(page.getByTestId('own-player-profile-equipment')).toBeVisible();
   await expect(page.getByTestId('own-player-profile-equipment-slot-bow')).toHaveAttribute('data-equipped', 'true');
