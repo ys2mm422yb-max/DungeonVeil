@@ -343,8 +343,8 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
       const centerDistance = Math.hypot(centerDeltaX, centerDeltaY);
       const inwardX = centerDistance > 80 ? centerDeltaX / centerDistance : facingX;
       const inwardY = centerDistance > 80 ? centerDeltaY / centerDistance : facingY;
-      const followX = ownerX + inwardX * 46 - inwardY * 26 * side;
-      const followY = ownerY + inwardY * 46 + inwardX * 26 * side;
+      const followX = ownerX + inwardX * 64 - inwardY * 40 * side;
+      const followY = ownerY + inwardY * 64 + inwardX * 40 * side;
       const targetX = followX / TILE - state.map.width / 2 + 0.5;
       const targetZ = followY / TILE - state.map.height / 2 + 0.5;
       if (!binding.initialized) {
