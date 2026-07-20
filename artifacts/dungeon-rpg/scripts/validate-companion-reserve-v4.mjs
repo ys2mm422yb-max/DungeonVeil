@@ -41,7 +41,9 @@ assert(stage.includes('<CompanionRuntimeBridge') && stage.includes('<CompanionSc
 assert(scene.includes('data-scene-hook="object3d-add"') && scene.includes('THREE.Object3D.prototype.add'), 'active Three scene hook is missing');
 assert(!scene.includes('WebGLRenderer.prototype.render'), 'broken renderer prototype hook returned');
 assert(scene.includes('data-model-source="procedural-veil-wolf"') && scene.includes('VeilWolfCompanion_') && scene.includes("companionSpecies = 'veil-wolf'"), 'one coherent Veil Wolf model is not used');
+assert(scene.includes('root.scale.setScalar(IS_MOBILE ? 0.72 : 0.7)') && scene.includes('emissiveIntensity: 0.68') && scene.includes('auraMaterial.opacity = 0.32'), 'run wolf is too small or dark to remain readable');
 assert(scene.includes('data-animation-source="procedural-wolf-motion"') && scene.includes('VeilWolfTailPivot') && scene.includes('triggerAction()'), 'wolf idle, movement or action motion is missing');
+assert(scene.includes('data-follow-placement="inward-side"') && scene.includes('centerDeltaX') && scene.includes('centerDistance > 80') && scene.includes('inwardX * 46') && scene.includes('inwardY * 26 * side'), 'wolf can still fall behind the player or under the lower HUD');
 assert(scene.includes('normalizeCompanionRosterV4') && scene.includes("remote:${remote.userId}"), 'one visible companion per Solo/Duo owner is not enforced in the renderer');
 assert(scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"'), 'companion renderer must reuse the active run WebGL scene');
 assert(runtime.includes('window.setInterval(tick, 100)') && runtime.includes('reservation.projectileBudget'), '10 Hz AI or projectile budget missing at runtime');
@@ -70,5 +72,5 @@ assert(hasSimulatorReserve, 'base-game completeness or simulator reserve missing
 const rolePowers = [0.12, 0.10, 0.10, 0.08, 0.08];
 assert(rolePowers.every(value => value >= 0.08 && value <= 0.12), 'role escapes 8–12% band');
 assert(Math.max(...rolePowers) - Math.min(...rolePowers) <= 0.04, 'companion roles are excessively unequal');
-console.log(JSON.stringify({ roles: 5, species: 'veil-wolf', active: 1, reserve: 4, soloCap: 1, duoCap: 2, projectileBudget: 2, particleBudget: 12, aiHz: 10, sharedRunRenderer: true, equipmentManagement: true, profiles: true, spectator: true, rolePowers }, null, 2));
+console.log(JSON.stringify({ roles: 5, species: 'veil-wolf', active: 1, reserve: 4, soloCap: 1, duoCap: 2, projectileBudget: 2, particleBudget: 12, aiHz: 10, sharedRunRenderer: true, equipmentManagement: true, profiles: true, spectator: true, followPlacement: 'inward-side', rolePowers }, null, 2));
 console.log('Companion reserve V4 passed: equipment management, profiles, run and spectator use one bounded visible Veil Wolf per owner.');
