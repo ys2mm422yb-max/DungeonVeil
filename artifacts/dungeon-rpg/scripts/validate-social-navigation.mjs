@@ -34,7 +34,8 @@ const saveEmphasisUsesProps = menu.includes("props.saveData ? 'gold' : 'dark'") 
 const saveEmphasisUsesRefreshedSave = menu.includes("currentSaveData ? 'gold' : 'dark'") && menu.includes("currentSaveData ? 'dark' : 'gold'");
 const actionBandSeparated = menu.includes('grid-cols-2')
   && (menu.includes('min-h-[250px] flex-1')
-    || (menu.includes('min-h-[220px] flex-1') && menu.includes('main-menu-companion-navigation')))
+    || (menu.includes('min-h-[220px] flex-1') && menu.includes('main-menu-companion-navigation'))
+    || (menu.includes('data-testid="main-menu-scene-focus"') && menu.includes('min-h-[224px] flex-1') && menu.includes('data-testid="main-menu-status-strip"')))
   && !menu.includes('h-[41vh]');
 const checks = [
   [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
