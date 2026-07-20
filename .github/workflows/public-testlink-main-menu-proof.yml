@@ -14,8 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout validation script
-        uses: actions/checkout@v4
       - name: Verify deployed main-menu bundle
         shell: bash
-        run: bash .github/scripts/verify-public-testlink-main-menu.sh
+        run: curl --fail --silent --show-error --location https://raw.githubusercontent.com/ys2mm422yb-max/DungeonVeil/455d4aeb0cfe5f1170a76a3b84695804927f4ba8/.github/scripts/verify-public-testlink-main-menu.sh | bash
