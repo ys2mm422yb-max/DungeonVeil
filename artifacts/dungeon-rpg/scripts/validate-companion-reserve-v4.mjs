@@ -43,7 +43,7 @@ assert(!scene.includes('WebGLRenderer.prototype.render'), 'broken renderer proto
 assert(scene.includes('data-model-source="procedural-veil-wolf"') && scene.includes('VeilWolfCompanion_') && scene.includes("companionSpecies = 'veil-wolf'"), 'one coherent Veil Wolf model is not used');
 assert(scene.includes('root.scale.setScalar(IS_MOBILE ? 0.72 : 0.7)') && scene.includes('emissiveIntensity: 0.68') && scene.includes('auraMaterial.opacity = 0.32'), 'run wolf is too small or dark to remain readable');
 assert(scene.includes('data-animation-source="procedural-wolf-motion"') && scene.includes('VeilWolfTailPivot') && scene.includes('triggerAction()'), 'wolf idle, movement or action motion is missing');
-assert(scene.includes('data-follow-placement="inward-side"') && scene.includes('centerDeltaX') && scene.includes('centerDistance > 80') && scene.includes('inwardX * 46') && scene.includes('inwardY * 26 * side'), 'wolf can still fall behind the player or under the lower HUD');
+assert(scene.includes('data-follow-placement="inward-side"') && scene.includes('centerDeltaX') && scene.includes('centerDistance > 80') && scene.includes('inwardX * 64') && scene.includes('inwardY * 40 * side'), 'wolf can still overlap its owner or fall under the lower HUD');
 assert(scene.includes('normalizeCompanionRosterV4') && scene.includes("remote:${remote.userId}"), 'one visible companion per Solo/Duo owner is not enforced in the renderer');
 assert(scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"'), 'companion renderer must reuse the active run WebGL scene');
 assert(runtime.includes('window.setInterval(tick, 100)') && runtime.includes('reservation.projectileBudget'), '10 Hz AI or projectile budget missing at runtime');
