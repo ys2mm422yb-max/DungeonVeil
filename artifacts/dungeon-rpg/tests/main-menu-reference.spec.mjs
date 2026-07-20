@@ -12,7 +12,8 @@ async function openReferenceMenu(page) {
   await expect(presentation).toHaveAttribute('data-image-loaded', 'true', { timeout: 60_000 });
   await expect(presentation).toHaveAttribute('data-image-failed', 'false');
   await expect(page.getByTestId('main-menu-hd-key-art')).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole('heading', { name: 'DUNGEON VEIL' })).toBeVisible();
+  const menuBanner = page.getByRole('banner');
+  await expect(menuBanner.getByRole('heading', { name: 'DUNGEON VEIL', exact: true })).toBeVisible();
   await expect(page.locator('canvas')).toHaveCount(0, { timeout: 60_000 });
   await page.waitForTimeout(1_000);
 }
