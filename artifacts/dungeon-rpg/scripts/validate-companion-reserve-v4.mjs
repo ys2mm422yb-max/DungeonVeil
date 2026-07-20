@@ -61,7 +61,7 @@ assert(management.includes('BEGLEITER-SAMMLUNG') && management.includes('FUND BE
 assert(management.includes('data-selection-surface="pre-run-only"') && management.includes('COMPANION_MAX_LEVEL_V5') && management.includes('SCHLEIERSTAUB'), 'pre-run-only level UI missing');
 assert(management.includes('companionCanBeFoundV5') && management.includes('selectCompanionV5') && management.includes('unlockCompanionV5'), 'locked find and selection controls missing');
 assert(equipment.includes("type ChamberTab = EquipmentTab | 'relic' | 'companion'") && equipment.includes('equipment-companion-section') && equipment.includes('<CompanionManagementPanel'), 'companion collection is not consolidated inside equipment');
-assert(profileSummary.includes('COMPANION_DEFINITIONS_V5') && profileSummary.includes('data-companion-level') && !profileSummary.includes('Reserve'), 'profiles still show fake tactic reserves');
+assert(profileSummary.includes('COMPANION_DEFINITIONS_V5') && profileSummary.includes('data-companion-level') && !profileSummary.includes('companion-reserve-count') && !profileSummary.includes('4 / 4'), 'profiles still show fake tactic reserves');
 assert(ownProfile.includes('own-player-profile-companion') && publicProfile.includes('public-player-profile-companion'), 'profile companion surfaces missing');
 assert(spectatorStage.includes('<CompanionScene3D') || spectatorStage.includes('spectator-companion-contract'), 'spectator companion integration missing');
 
