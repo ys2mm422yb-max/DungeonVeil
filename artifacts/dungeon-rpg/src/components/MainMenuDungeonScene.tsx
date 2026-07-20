@@ -27,7 +27,12 @@ export function MainMenuDungeonScene() {
   }, []);
 
   if (suspended) return null;
-  return <div data-testid="main-menu-scene-presentation" className="pointer-events-none absolute inset-0 origin-[50%_66%] scale-[1.14] brightness-110">
+  return <div
+    data-testid="main-menu-scene-presentation"
+    data-composition="raised-mobile-hero"
+    className="pointer-events-none absolute inset-0"
+    style={{ transform: 'translate3d(0,-8%,0) scale(1.08)', transformOrigin: '50% 66%', filter: 'brightness(1.12)' }}
+  >
     <ModernVillageSquareScene key={loadoutKey} />
   </div>;
 }
