@@ -31,7 +31,14 @@ test('reference main menu keeps one renderer, four primary actions and companion
   await expect(hall).toHaveAttribute('data-companion-role', 'shield');
   await expect(page.locator('canvas')).toHaveCount(1);
 
-  await expect(page.getByTestId('main-menu-scene-presentation')).toHaveAttribute('data-composition', 'raised-mobile-hero');
+  const presentation = page.getByTestId('main-menu-scene-presentation');
+  await expect(presentation).toHaveAttribute('data-composition', 'raised-mobile-hero');
+  await expect(presentation).toHaveAttribute('data-hero-pair', 'ranger-and-veil-wolf');
+  const focusBridge = page.getByTestId('main-menu-hero-focus-bridge');
+  await expect(focusBridge).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
+  await expect(focusBridge).toHaveAttribute('data-ranger-focused', 'true');
+  await expect(focusBridge).toHaveAttribute('data-wolf-focused', 'true');
+  await expect(focusBridge).toHaveAttribute('data-portal-recessed', 'true');
   await expect(page.getByTestId('main-menu-scene-focus')).toBeVisible();
   await expect(page.getByTestId('main-menu-control-stack')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mehr' })).toBeVisible();
@@ -117,5 +124,6 @@ test('reference main menu keeps one renderer, four primary actions and companion
   await expect(restored).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   await expect(restored).toHaveAttribute('data-active-companion', 'veil-wolf');
+  await expect(page.getByTestId('main-menu-hero-focus-bridge')).toHaveAttribute('data-wolf-focused', 'true', { timeout: 60_000 });
   expect(runtimeErrors).toEqual([]);
 });
