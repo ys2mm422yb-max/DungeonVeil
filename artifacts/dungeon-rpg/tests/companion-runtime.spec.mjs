@@ -45,7 +45,24 @@ test('one Veil Wolf identity spans equipment management and the shared run rende
   await expect(page.getByRole('heading', { name: /Ein Gefährte\. Fünf Taktiken\.|One companion\. Five tactics\./i })).toBeVisible();
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'single-target');
   await expect(page.getByTestId('companion-reserve-count')).toContainText('4');
-  await expect(page.getByTestId('companion-reserve-grid').locator('button')).toHaveCount(4);
+  const reserveButtons = page.getByTestId('companion-reserve-grid').locator('button');
+  await expect(reserveButtons).toHaveCount(4);
+  const managementGeometry = await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="companion-management-panel"]');
+    const buttons = [...document.querySelectorAll('[data-testid="companion-reserve-grid"] button')];
+    const panelBox = panel?.getBoundingClientRect();
+    const boxes = buttons.map(button => button.getBoundingClientRect());
+    return {
+      height: panelBox?.height ?? 9999,
+      firstRowDelta: boxes.length >= 2 ? Math.abs(boxes[0].top - boxes[1].top) : 9999,
+      thirdRowDelta: boxes.length >= 4 ? Math.abs(boxes[2].top - boxes[3].top) : 9999,
+      secondRowStartsBelowFirst: boxes.length >= 3 ? boxes[2].top > boxes[0].bottom - 1 : false,
+    };
+  });
+  expect(managementGeometry.height).toBeLessThanOrEqual(620);
+  expect(managementGeometry.firstRowDelta).toBeLessThanOrEqual(2);
+  expect(managementGeometry.thirdRowDelta).toBeLessThanOrEqual(2);
+  expect(managementGeometry.secondRowStartsBelowFirst).toBe(true);
   await page.getByTestId('companion-role-shield').click({ force: true });
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'shield');
   await page.getByRole('button', { name: /Zurück|Back/i }).click({ force: true });
