@@ -64,7 +64,7 @@ const requiredTransientMarkers = [
   "qa: 'tutorial'",
   "qa: 'profiles'",
   "profile, capture: '1'",
-  'visual-profile-public-qa-',
+  'visual-profile-${profile}-qa-',
 ];
 const requiredReducedMotionMarkers = [
   "emulateMedia({ reducedMotion: 'reduce' })",
