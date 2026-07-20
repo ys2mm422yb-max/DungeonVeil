@@ -19,6 +19,7 @@ import { OnlinePanel } from '../OnlinePanel';
 import { GuildSocialPanel } from '../GuildSocialPanel';
 import { MailboxPanel } from '../MailboxPanel';
 import { FriendsPanel } from '../FriendsPanel';
+import { VillageNpcHub } from '../VillageNpcHub';
 import { WorldBossPanel } from '../WorldBossPanel';
 import { ProfileBadge } from '../ProfileBadge';
 import { PlayerProfilePanel } from '../PlayerProfilePanel';
@@ -141,12 +142,14 @@ export function MainMenuScreen(props: Props) {
     ? language === 'de' ? `Kapitel ${chapter} · Raum ${room} · ${gifts} Gaben` : `Chapter ${chapter} · Room ${room} · ${gifts} gifts`
     : t.noSave;
 
-  const action = (label: string, detail: string, icon: IconName, onClick: () => void, tone: 'violet' | 'dark' | 'blue', disabled = false, wide = false) => {
-    const toneClass = tone === 'violet'
-      ? 'border-violet-300/20 bg-[linear-gradient(135deg,rgba(48,30,75,.96),rgba(16,13,27,.98))]'
-      : tone === 'blue'
-        ? 'border-cyan-200/12 bg-[linear-gradient(135deg,rgba(18,31,38,.96),rgba(9,14,18,.98))]'
-        : 'border-white/10 bg-[linear-gradient(135deg,rgba(24,21,27,.96),rgba(9,9,12,.98))]';
+  const action = (label: string, detail: string, icon: IconName, onClick: () => void, tone: 'gold' | 'violet' | 'dark' | 'blue', disabled = false, wide = false) => {
+    const toneClass = tone === 'gold'
+      ? 'border-amber-100/30 bg-[linear-gradient(135deg,rgba(141,80,28,.98),rgba(63,31,18,.98))] shadow-[0_16px_38px_rgba(80,42,13,.34)]'
+      : tone === 'violet'
+        ? 'border-violet-300/20 bg-[linear-gradient(135deg,rgba(48,30,75,.96),rgba(16,13,27,.98))]'
+        : tone === 'blue'
+          ? 'border-cyan-200/12 bg-[linear-gradient(135deg,rgba(18,31,38,.96),rgba(9,14,18,.98))]'
+          : 'border-white/10 bg-[linear-gradient(135deg,rgba(24,21,27,.96),rgba(9,9,12,.98))]';
     return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`${wide ? 'col-span-2' : ''} group min-h-[70px] w-full rounded-[22px] border px-4 py-3 text-left shadow-[0_16px_34px_rgba(0,0,0,.34)] backdrop-blur-md transition active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
       <div className="flex items-center gap-3">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-100/12 bg-black/28 text-amber-100/75 shadow-inner"><MenuIcon name={icon} className="h-7 w-7" /></div>
@@ -155,12 +158,6 @@ export function MainMenuScreen(props: Props) {
       </div>
     </button>;
   };
-
-  const socialButton = (label: string, icon: IconName, onClick: () => void, badge?: string) => <button type="button" onPointerDown={event => { event.preventDefault(); onClick(); }} className="relative grid min-h-[78px] place-items-center rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(27,23,31,.94),rgba(10,9,13,.98))] px-2 py-3 shadow-[0_12px_26px_rgba(0,0,0,.34)] active:scale-95">
-    {badge && <span className="absolute right-2 top-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[8px] font-black text-black">{badge}</span>}
-    <MenuIcon name={icon} className="h-8 w-8 text-amber-100/78" />
-    <span className="text-[8px] font-black uppercase tracking-[.13em] text-white/68">{label}</span>
-  </button>;
 
   const statusCard = (title: string, detail: string, icon: IconName, tone: string, onClick: () => void) => <button type="button" onPointerDown={event => { event.preventDefault(); onClick(); }} className="flex min-h-[52px] w-full items-center gap-2 rounded-2xl border border-white/10 bg-black/54 px-3 py-2 text-left shadow-[0_10px_24px_rgba(0,0,0,.28)] backdrop-blur-md active:scale-[.98]">
     <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 ${tone}`}><MenuIcon name={icon} className="h-6 w-6" /></div>
@@ -189,7 +186,7 @@ export function MainMenuScreen(props: Props) {
         <p className="mt-2 text-[7px] uppercase tracking-[.32em] text-amber-50/40">{t.subtitle}</p>
       </header>
 
-      <div className="relative min-h-[280px] flex-1 px-4">
+      <div className="relative min-h-[250px] flex-1 px-4">
         <div className="absolute bottom-3 left-4 w-[132px] space-y-2">
           {statusCard(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'AKTIV · 12:57:23' : 'ACTIVE · 12:57:23', 'boss', 'bg-violet-950/80 text-violet-300', () => setOverlay('worldBoss'))}
           {statusCard(language === 'de' ? 'Tägliche Belohnung' : 'Daily Reward', retention.daily.claimed.length >= 3 ? (language === 'de' ? 'Abgeholt' : 'Claimed') : (language === 'de' ? 'Bereit!' : 'Ready!'), 'gift', 'bg-amber-950/70 text-amber-300', () => setOverlay('daily'))}
@@ -203,16 +200,19 @@ export function MainMenuScreen(props: Props) {
         </button>
       </div>
 
-      <div className="mx-auto grid w-full max-w-md grid-cols-4 gap-2 px-4" data-testid="main-menu-social-navigation">
-        {socialButton(language === 'de' ? 'Aufträge' : 'Quests', 'scroll', () => setOverlay('daily'), `${retention.daily.claimed.length}/3`)}
-        {socialButton(language === 'de' ? 'Post' : 'Mail', 'mail', () => setOverlay('mailbox'), mailUnread ? String(mailUnread) : undefined)}
-        {socialButton(language === 'de' ? 'Freunde' : 'Friends', 'friends', () => setOverlay('friends'))}
-        {socialButton(language === 'de' ? 'Gilde' : 'Guild', 'guild', () => setOverlay('guild'))}
-      </div>
+      <VillageNpcHub
+        language={language}
+        dailyProgress={`${retention.daily.claimed.length}/3`}
+        mailUnread={mailUnread}
+        onQuests={() => setOverlay('daily')}
+        onMailbox={() => setOverlay('mailbox')}
+        onFriends={() => setOverlay('friends')}
+        onGuild={() => setOverlay('guild')}
+      />
 
       <div className="mx-auto mt-3 grid w-full max-w-md grid-cols-2 gap-2 px-4">
-        {action(t.continueGame, continueText, 'portal', props.onContinue, currentSaveData ? 'violet' : 'dark', !currentSaveData)}
-        {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · WELTBOSS' : 'SOLO · DUO · WORLD BOSS', 'swords', () => setOverlay('play'), 'blue')}
+        {action(t.continueGame, continueText, 'portal', props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}
+        {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · WELTBOSS' : 'SOLO · DUO · WORLD BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
         {action(language === 'de' ? 'Inventar' : 'Inventory', language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Staub` : `Rank ${meta.rank} · ${meta.dust} dust`, 'bag', props.onVeilChamber, 'violet')}
         {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · JAGD · RELIKTE' : 'BEASTS · HUNTS · RELICS', 'book', props.onCodex, 'blue')}
         <div className="col-span-2" data-testid="main-menu-companion-navigation">{action(language === 'de' ? 'Begleiter' : 'Companions', language === 'de' ? '1 AKTIV · 4 RESERVE · ROLLEN & BONI' : '1 ACTIVE · 4 RESERVE · ROLES & BONUSES', 'paw', () => setOverlay('companions'), 'violet', false, true)}</div>
