@@ -88,7 +88,7 @@ test('reference main menu keeps one renderer, four primary actions and companion
 
   await page.getByRole('button', { name: /Spielen/i }).click({ force: true });
   await expect(page.getByRole('button', { name: /Weltboss/i })).toBeVisible();
-  await page.getByRole('button', { name: /Schließen/i }).click({ force: true });
+  await page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).click({ force: true });
 
   await page.getByTestId('main-menu-equipment-navigation').getByRole('button').click({ force: true });
   await expect(page.getByRole('heading', { name: 'AUSRÜSTUNG' })).toBeVisible();
