@@ -33,7 +33,7 @@ export function MainMenuDungeonScene() {
 
   return <div
     data-testid="main-menu-scene-presentation"
-    data-composition={reducedMotion ? 'static-reduced-motion-scene' : 'live-hybrid-scene'}
+    data-composition="live-hybrid-scene"
     data-static-role="portal-atmosphere-only"
     data-static-hero-embedded="false"
     data-key-art="ambient-gothic-portal-v1"
