@@ -16,49 +16,53 @@ function attachRuntimeMonitor(page) {
 
 async function initVisualState(page, projectName) {
   await page.addInitScript(({ ipad }) => {
-    localStorage.clear();
-    localStorage.setItem('dungeon-veil-language', 'de');
-    localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
-      version: 2,
-      initialized: true,
-      equipment: [],
-      relics: [],
-      announcedEquipment: [],
-      announcedRelics: [],
-    }));
-    localStorage.setItem('dungeon-veil-meta', JSON.stringify({
-      version: 4,
-      rank: 14,
-      xp: 0,
-      dust: 2542,
-      gold: 15914,
-      owned: {
-        'ash-bow': { level: 3, copies: 2 },
-        'ranger-quiver': { level: 2, copies: 1 },
-        'ranger-cloak': { level: 2, copies: 1 },
-      },
-      equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' },
-      rewardLedger: [],
-      currentRunId: '',
-    }));
-    localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
-      version: 1,
-      activeId: 'single-target',
-      companions: {
-        'single-target': { level: 3, unlockedAt: Date.now() },
-        shield: { level: 2, unlockedAt: Date.now() },
-      },
-      updatedAt: Date.now(),
-    }));
-    localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
-      version: 2,
-      owned: ['ash-eye', 'marked-claw', 'veil-heart'],
-      equipped: 'marked-claw',
-      consumedHeartRuns: [],
-      activatedWorldCoreRuns: [],
-      relicMisses: { hunt: 0, boss: 0 },
-      crownRunStacks: {},
-    }));
+    const marker = 'dungeon-veil-visual-audit-seeded';
+    if (sessionStorage.getItem(marker) !== 'true') {
+      localStorage.clear();
+      localStorage.setItem('dungeon-veil-language', 'de');
+      localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
+        version: 2,
+        initialized: true,
+        equipment: [],
+        relics: [],
+        announcedEquipment: [],
+        announcedRelics: [],
+      }));
+      localStorage.setItem('dungeon-veil-meta', JSON.stringify({
+        version: 4,
+        rank: 14,
+        xp: 0,
+        dust: 2542,
+        gold: 15914,
+        owned: {
+          'ash-bow': { level: 3, copies: 2 },
+          'ranger-quiver': { level: 2, copies: 1 },
+          'ranger-cloak': { level: 2, copies: 1 },
+        },
+        equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' },
+        rewardLedger: [],
+        currentRunId: '',
+      }));
+      localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
+        version: 1,
+        activeId: 'single-target',
+        companions: {
+          'single-target': { level: 3, unlockedAt: Date.now() },
+          shield: { level: 2, unlockedAt: Date.now() },
+        },
+        updatedAt: Date.now(),
+      }));
+      localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
+        version: 2,
+        owned: ['ash-eye', 'marked-claw', 'veil-heart'],
+        equipped: 'marked-claw',
+        consumedHeartRuns: [],
+        activatedWorldCoreRuns: [],
+        relicMisses: { hunt: 0, boss: 0 },
+        crownRunStacks: {},
+      }));
+      sessionStorage.setItem(marker, 'true');
+    }
     if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
   }, { ipad: projectName.includes('ipad') });
 }
@@ -108,7 +112,6 @@ async function loadRoom(page, room) {
     const key = 'dungeon-veil-save';
     const parsed = JSON.parse(localStorage.getItem(key) || '{}');
     parsed.floor = nextRoom;
-    parsed.chapter = Math.max(1, Math.ceil(nextRoom / 5));
     parsed.inDungeon = true;
     parsed.hp = 9999;
     parsed.maxHp = 9999;
