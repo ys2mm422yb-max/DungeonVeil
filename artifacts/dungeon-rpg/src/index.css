@@ -215,3 +215,10 @@
 [data-testid='guild-social-panel'] input {
   background-color: rgba(12, 15, 18, 0.66) !important;
 }
+
+/* Equipment stays full-width on phones, but no longer collapses into a narrow phone column on larger screens. */
+@media (min-width: 768px) {
+  div.fixed.inset-0:has([data-testid='equipment-category-tabs']) > div.max-w-md {
+    max-width: 64rem;
+  }
+}
