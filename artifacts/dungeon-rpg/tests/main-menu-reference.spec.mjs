@@ -31,6 +31,9 @@ test('reference main menu keeps one renderer, four primary actions and companion
   await expect(hall).toHaveAttribute('data-companion-role', 'shield');
   await expect(page.locator('canvas')).toHaveCount(1);
 
+  await expect(page.getByTestId('main-menu-scene-presentation')).toBeVisible();
+  await expect(page.getByTestId('main-menu-scene-focus')).toBeVisible();
+  await expect(page.getByTestId('main-menu-status-strip')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mehr' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Weltboss/i }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: /Tagesbelohnung/i })).toBeVisible();
@@ -48,18 +51,38 @@ test('reference main menu keeps one renderer, four primary actions and companion
   await expect(page.getByRole('button', { name: /Kodex/i })).toBeVisible();
   await expect(page.getByTestId('main-menu-companion-navigation')).toHaveCount(0);
 
-  const actionGeometry = await page.evaluate(() => {
-    const equipment = document.querySelector('[data-testid="main-menu-equipment-navigation"]');
-    const codex = [...document.querySelectorAll('button')].find(button => /KODEX/i.test(button.textContent || ''));
-    const equipmentBox = equipment?.getBoundingClientRect();
-    const codexBox = codex?.getBoundingClientRect();
+  const layout = await page.evaluate(() => {
+    const sceneFocus = document.querySelector('[data-testid="main-menu-scene-focus"]');
+    const statusStrip = document.querySelector('[data-testid="main-menu-status-strip"]');
+    const socialDock = document.querySelector('[data-testid="veil-village-npc-hub"]');
+    const scenePresentation = document.querySelector('[data-testid="main-menu-scene-presentation"]');
+    const actionNames = ['FORTSETZEN', 'SPIELEN', 'AUSRÜSTUNG', 'KODEX'];
+    const actionButtons = [...document.querySelectorAll('button')].filter(button => actionNames.some(name => (button.textContent || '').toUpperCase().includes(name)));
+    const visibleTextRoots = [statusStrip, socialDock, ...actionButtons].filter(Boolean);
+    const clippedLabels = visibleTextRoots.flatMap(root => [...root.querySelectorAll('.truncate')])
+      .filter(element => element.scrollWidth > element.clientWidth + 1)
+      .map(element => element.textContent?.trim() || 'unknown');
+    const sceneBox = sceneFocus?.getBoundingClientRect();
+    const statusBox = statusStrip?.getBoundingClientRect();
+    const socialBox = socialDock?.getBoundingClientRect();
     return {
       viewportHeight: innerHeight,
-      equipmentBottom: equipmentBox?.bottom ?? 0,
-      codexBottom: codexBox?.bottom ?? 0,
+      sceneBottom: sceneBox?.bottom ?? 0,
+      statusTop: statusBox?.top ?? 0,
+      socialHeight: socialBox?.height ?? 999,
+      actionHeights: actionButtons.map(button => button.getBoundingClientRect().height),
+      actionBottom: Math.max(0, ...actionButtons.map(button => button.getBoundingClientRect().bottom)),
+      clippedLabels,
+      sceneTransform: scenePresentation ? getComputedStyle(scenePresentation).transform : 'none',
     };
   });
-  expect(Math.max(actionGeometry.equipmentBottom, actionGeometry.codexBottom)).toBeLessThanOrEqual(actionGeometry.viewportHeight + 1);
+
+  expect(layout.statusTop).toBeGreaterThanOrEqual(layout.sceneBottom - 1);
+  expect(layout.socialHeight).toBeLessThanOrEqual(64);
+  expect(Math.max(...layout.actionHeights)).toBeLessThanOrEqual(60);
+  expect(layout.actionBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.clippedLabels).toEqual([]);
+  expect(layout.sceneTransform).not.toBe('none');
 
   await page.getByTestId('main-menu-equipment-navigation').getByRole('button').click({ force: true });
   await expect(page.getByRole('heading', { name: 'AUSRÜSTUNG' })).toBeVisible();
