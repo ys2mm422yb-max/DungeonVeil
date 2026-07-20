@@ -11,7 +11,7 @@ async function openMenu(page) {
   await expect(page.locator('[data-hall-of-the-veil="true"]')).toBeVisible({ timeout: 60_000 });
 }
 
-test('main menu uses premium 2D Hall artwork with one transparent character renderer', async ({ page }) => {
+test('main menu uses crisp premium Hall artwork with full-body player and companion', async ({ page }) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(error.message));
@@ -21,30 +21,36 @@ test('main menu uses premium 2D Hall artwork with one transparent character rend
 
   await openMenu(page);
   const hall = page.locator('[data-hall-of-the-veil="true"]');
-  await expect(hall).toHaveAttribute('data-scene-contract', 'hall-of-the-veil-v5-hybrid');
+  await expect(hall).toHaveAttribute('data-scene-contract', 'hall-of-the-veil-v6-premium');
   await expect(hall).toHaveAttribute('data-renderer-count', '1');
   await expect(hall).toHaveAttribute('data-background-mode', 'premium-2d-artwork');
+  await expect(hall).toHaveAttribute('data-background-artwork', 'premium-gothic-v3');
   await expect(hall).toHaveAttribute('data-market-stalls', '0');
   await expect(hall).toHaveAttribute('data-decorative-npcs', '0');
   await expect(hall).toHaveAttribute('data-player-anchor', 'center');
+  await expect(hall).toHaveAttribute('data-player-full-body', 'true');
   await expect(hall).toHaveAttribute('data-active-companion', 'true');
+  await expect(hall).toHaveAttribute('data-companion-full-body', 'true');
   await expect(page.locator('[data-hall-hybrid-background="true"]')).toBeVisible();
-  await expect(page.locator('[data-background-artwork="premium-gothic-v2"]')).toBeVisible();
+  await expect(page.locator('[data-background-artwork="premium-gothic-v3"]')).toBeVisible();
   await expect(hall.locator('canvas[data-menu-renderer="hall-of-the-veil"]')).toHaveCount(1, { timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => Boolean(window.__DUNGEON_VEIL_MENU_RANGER__?.visibleEquipment?.bow))).toBe(true);
 
   const diagnostics = await page.evaluate(() => window.__DUNGEON_VEIL_MENU_HALL__);
   expect(diagnostics).toMatchObject({
-    contract: 'hall-of-the-veil-v5-hybrid',
+    contract: 'hall-of-the-veil-v6-premium',
     rendererCount: 1,
     backgroundMode: 'premium-2d-artwork',
+    artwork: 'premium-gothic-v3',
     marketStalls: 0,
     decorativeNpcs: 0,
     characterCentered: true,
+    playerFullBody: true,
     activeCompanionVisible: true,
+    companionFullBody: true,
     spectatorHandoff: 'exclusive',
   });
-  expect(diagnostics.particleCount).toBeLessThanOrEqual(26);
+  expect(diagnostics.particleCount).toBeLessThanOrEqual(22);
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('dungeon-veil-spectator-renderer', { detail: { active: true } })));
   await expect(page.locator('[data-hall-of-the-veil="true"]')).toHaveCount(0, { timeout: 20_000 });
