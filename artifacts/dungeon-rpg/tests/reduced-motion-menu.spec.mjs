@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
-test('reduced motion replaces the moving menu canvas with a static Ranger composition', async ({ page }, testInfo) => {
+test('reduced motion replaces and unmounts the moving menu canvas with a static Ranger composition', async ({ page }, testInfo) => {
   const runtimeIssues = [];
   page.on('pageerror', error => runtimeIssues.push(`pageerror: ${error.message}`));
   page.on('console', message => {
@@ -19,14 +19,22 @@ test('reduced motion replaces the moving menu canvas with a static Ranger compos
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('main-menu-scene-presentation')).toHaveAttribute('data-reduced-motion-contract', 'static-ranger-and-portal-fallback');
+  const presentation = page.getByTestId('main-menu-scene-presentation');
+  await expect(presentation).toHaveAttribute('data-reduced-motion-contract', 'static-ranger-and-portal-fallback');
+  await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'true');
+  await expect(presentation).toHaveAttribute('data-composition', 'static-reduced-motion-scene');
   await expect(page.getByTestId('main-menu-reduced-motion-fallback')).toBeVisible();
-  await expect(page.getByTestId('live-hybrid-main-menu-frame')).toBeHidden();
+  await expect(page.getByTestId('live-hybrid-main-menu-frame')).toHaveCount(0);
+  await expect(page.getByTestId('live-hybrid-main-menu-scene')).toHaveCount(0);
+  await expect(page.locator('canvas')).toHaveCount(0);
   await page.screenshot({ path: `test-results/visual-main-menu-reduced-motion-${testInfo.project.name}.png`, fullPage: false });
 
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await expect(page.getByTestId('main-menu-reduced-motion-fallback')).toBeHidden();
+  await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'false', { timeout: 20_000 });
+  await expect(presentation).toHaveAttribute('data-composition', 'live-hybrid-scene');
+  await expect(page.getByTestId('main-menu-reduced-motion-fallback')).toHaveCount(0);
   await expect(page.getByTestId('live-hybrid-main-menu-frame')).toBeVisible();
   await expect(page.getByTestId('live-hybrid-main-menu-scene')).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
+  await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
 });
