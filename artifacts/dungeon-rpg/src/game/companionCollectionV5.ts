@@ -85,7 +85,8 @@ function normalizeState(raw: any): CompanionCollectionStateV5 {
       unlockedAt: Math.max(0, Number(entry.unlockedAt) || Date.now()),
     });
   }
-  const activeId = validRole(raw?.activeId) && companions[raw.activeId] ? raw.activeId : null;
+  const requestedActiveId: CompanionRoleV4 | null = validRole(raw?.activeId) ? raw.activeId : null;
+  const activeId = requestedActiveId && companions[requestedActiveId] ? requestedActiveId : null;
   return Object.freeze({
     version: 1,
     activeId,
