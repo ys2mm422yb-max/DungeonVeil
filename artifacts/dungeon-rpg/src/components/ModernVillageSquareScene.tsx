@@ -9,7 +9,7 @@ import { HallOfVeilScene } from './HallOfVeilScene';
 export function ModernVillageSquareScene() {
   return <div className="pointer-events-none absolute inset-0 overflow-hidden" data-hall-hybrid-composition="true">
     <HallOfVeilHybridBackground />
-    <div className="absolute inset-0 opacity-[0.88] mix-blend-screen">
+    <div className="absolute inset-0">
       <HallOfVeilScene />
     </div>
   </div>;
