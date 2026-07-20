@@ -14,6 +14,32 @@ function disposeScene(scene: any) {
   });
 }
 
+async function loadVillageAssets(
+  THREE: any,
+  GLTFLoader: any,
+  villageRoot: any,
+  setPlayerRig: (rig: KayKitPlayerRig) => void,
+  isDisposed: () => boolean,
+) {
+  const results = await Promise.allSettled([
+    (async () => {
+      const rig = await loadKayKitVillageArcher(THREE, GLTFLoader);
+      if (isDisposed()) {
+        rig.stop();
+        return;
+      }
+      rig.root.position.set(0, 0.02, -1.15);
+      rig.root.scale.multiplyScalar(0.84);
+      villageRoot.add(rig.root);
+      setPlayerRig(rig);
+    })(),
+  ]);
+
+  results.forEach(result => {
+    if (result.status === 'rejected') console.error('Village asset failed to load', result.reason);
+  });
+}
+
 export function ModernVillageSquareScene() {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -53,32 +79,39 @@ export function ModernVillageSquareScene() {
       camera.position.set(0, 4.8, 12.7);
       camera.lookAt(0, 1.35, -3.6);
 
+      const villageRoot = new THREE.Group();
+      villageRoot.name = 'ModernKayKitVillageSquare';
+      villageRoot.userData.sceneRole = 'HallOfTheVeilReference';
+      villageRoot.userData.clearPlayerSilhouette = true;
+      scene.add(villageRoot);
+
       const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x120d18, roughness: 0.8, metalness: 0.08 });
       const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 28, 1, 1), floorMaterial);
       floor.rotation.x = -Math.PI / 2;
       floor.position.set(0, -0.03, -5.1);
-      scene.add(floor);
+      villageRoot.add(floor);
 
       const aisleMaterial = new THREE.MeshStandardMaterial({ color: 0x21142d, roughness: 0.68, metalness: 0.15 });
       const aisle = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 22), aisleMaterial);
       aisle.rotation.x = -Math.PI / 2;
       aisle.position.set(0, 0.005, -4.2);
-      scene.add(aisle);
+      villageRoot.add(aisle);
 
       const stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x17111f, roughness: 0.9 });
       const trimMaterial = new THREE.MeshStandardMaterial({ color: 0x463255, roughness: 0.72, metalness: 0.15 });
       for (const x of [-4.2, 4.2]) {
         const column = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.62, 7.8, IS_MOBILE ? 10 : 14), stoneMaterial);
         column.position.set(x, 3.8, -5.4);
-        scene.add(column);
+        villageRoot.add(column);
         const capital = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.62, 0.42, IS_MOBILE ? 10 : 14), trimMaterial);
         capital.position.set(x, 7.55, -5.4);
-        scene.add(capital);
+        villageRoot.add(capital);
       }
 
       const portalRoot = new THREE.Group();
+      portalRoot.name = 'HallOfTheVeilPortal';
       portalRoot.position.set(0, 0.15, -8.7);
-      scene.add(portalRoot);
+      villageRoot.add(portalRoot);
 
       const portalGlow = new THREE.Mesh(
         new THREE.PlaneGeometry(4.7, 7.2),
@@ -112,7 +145,7 @@ export function ModernVillageSquareScene() {
       for (const x of [-3.15, 3.15]) {
         const banner = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 3.1), bannerMaterial);
         banner.position.set(x, 4.65, -7.95);
-        scene.add(banner);
+        villageRoot.add(banner);
       }
 
       scene.add(new THREE.HemisphereLight(0x7f5fa5, 0x08050b, 1.15));
@@ -161,16 +194,7 @@ export function ModernVillageSquareScene() {
       };
       raf = requestAnimationFrame(loop);
 
-      void loadKayKitVillageArcher(THREE, GLTFLoader).then(rig => {
-        if (disposed) {
-          rig.stop();
-          return;
-        }
-        playerRig = rig;
-        rig.root.position.set(0, 0.02, -1.15);
-        rig.root.scale.multiplyScalar(0.84);
-        scene.add(rig.root);
-      }).catch(error => console.error('Equipped hall player failed to load', error));
+      void loadVillageAssets(THREE, GLTFLoader, villageRoot, rig => { playerRig = rig; }, () => disposed);
     };
 
     boot().catch(error => console.error('Hall of the Veil failed to initialize', error));
