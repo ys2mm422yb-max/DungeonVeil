@@ -35,7 +35,7 @@ const saveEmphasisUsesRefreshedSave = menu.includes("currentSaveData ? 'gold' : 
 const actionBandSeparated = menu.includes('grid-cols-2')
   && (menu.includes('min-h-[250px] flex-1')
     || (menu.includes('min-h-[220px] flex-1') && menu.includes('main-menu-companion-navigation'))
-    || (menu.includes('data-testid="main-menu-scene-focus"') && menu.includes('min-h-[224px] flex-1') && menu.includes('data-testid="main-menu-status-strip"')))
+    || (menu.includes('data-testid="main-menu-scene-focus"') && menu.includes('min-h-[300px] flex-1') && menu.includes('data-testid="main-menu-control-stack"')))
   && !menu.includes('h-[41vh]');
 const checks = [
   [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
@@ -61,6 +61,7 @@ const checks = [
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
   [menuSceneProxy.includes('ModernVillageSquareScene') && menuSceneProxy.includes('dungeon-veil-meta-changed') && !menuSceneProxy.includes('VeilWorldOrb'), 'main menu scene proxy is not routed to the equipped modern village renderer'],
+  [menuSceneProxy.includes('data-composition="raised-mobile-hero"') && menuSceneProxy.includes("translate3d(0,-8%,0) scale(1.08)"), 'mobile Ranger and wolf presentation is not raised into the hero area'],
   [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)') && !villageScene.includes('AelricWorldKeeper'), 'main menu does not use one focused equipped Ranger body'],
   [villageScene.includes('async function loadVillageAssets(') && renderStart >= 0 && assetStart > renderStart, 'village renderer does not start before asynchronous asset loading'],
   [villageScene.includes('Promise.allSettled') && villageScene.includes("result.status === 'rejected'") && villageScene.includes('Village asset failed to load'), 'individual village asset failures are not isolated'],
