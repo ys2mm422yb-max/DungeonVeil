@@ -19,14 +19,17 @@ async function initVisualState(page, projectName) {
     const marker = 'dungeon-veil-visual-audit-seeded';
     if (sessionStorage.getItem(marker) !== 'true') {
       localStorage.clear();
+      const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
+      const knownRelics = ['ash-eye', 'marked-claw', 'veil-heart'];
       localStorage.setItem('dungeon-veil-language', 'de');
+      localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
       localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
         version: 2,
         initialized: true,
-        equipment: [],
-        relics: [],
-        announcedEquipment: [],
-        announcedRelics: [],
+        equipment: knownEquipment,
+        relics: knownRelics,
+        announcedEquipment: knownEquipment,
+        announcedRelics: knownRelics,
       }));
       localStorage.setItem('dungeon-veil-meta', JSON.stringify({
         version: 4,
@@ -54,7 +57,7 @@ async function initVisualState(page, projectName) {
       }));
       localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
         version: 2,
-        owned: ['ash-eye', 'marked-claw', 'veil-heart'],
+        owned: knownRelics,
         equipped: 'marked-claw',
         consumedHeartRuns: [],
         activatedWorldCoreRuns: [],
@@ -72,6 +75,7 @@ async function gotoMenu(page) {
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
 }
 
 async function assertNoHorizontalOverflow(page) {
@@ -100,8 +104,8 @@ async function startFreshRun(page) {
   await expect(name).toBeVisible({ timeout: 30_000 });
   await name.fill('Visual Audit Ranger');
   await page.getByRole('button', { name: /Run starten|Start Game/i }).first().click({ force: true });
-  const skipIntro = page.getByRole('button', { name: /ÜBERSPRINGEN|SKIP/i });
-  if (await skipIntro.isVisible({ timeout: 8_000 }).catch(() => false)) await skipIntro.click({ force: true });
+  await expect(page.getByTestId('tutorial-overlay')).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   await page.waitForTimeout(2_000);
@@ -125,6 +129,8 @@ async function loadRoom(page, room) {
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Fortsetzen|Continue/i }).first()).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: /Fortsetzen|Continue/i }).first().click({ force: true });
+  await expect(page.getByTestId('tutorial-overlay')).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   await expect.poll(() => page.evaluate(expected => {
