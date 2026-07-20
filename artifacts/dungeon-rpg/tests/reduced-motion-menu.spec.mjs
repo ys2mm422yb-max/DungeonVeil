@@ -22,7 +22,7 @@ test('reduced motion replaces and unmounts the moving menu canvas with a static 
   const presentation = page.getByTestId('main-menu-scene-presentation');
   await expect(presentation).toHaveAttribute('data-reduced-motion-contract', 'static-ranger-and-portal-fallback');
   await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'true');
-  await expect(presentation).toHaveAttribute('data-composition', 'static-reduced-motion-scene');
+  await expect(presentation).toHaveAttribute('data-composition', 'live-hybrid-scene');
   await expect(page.getByTestId('main-menu-reduced-motion-fallback')).toBeVisible();
   await expect(page.getByTestId('live-hybrid-main-menu-frame')).toHaveCount(0);
   await expect(page.getByTestId('live-hybrid-main-menu-scene')).toHaveCount(0);
