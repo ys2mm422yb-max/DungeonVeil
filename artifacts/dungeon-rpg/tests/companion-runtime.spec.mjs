@@ -111,6 +111,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(runtime).toHaveAttribute('data-selection', 'pre-run-frozen');
   await expect(runtime).toHaveAttribute('data-ai-hz', '10');
   await expect(runtime).toHaveAttribute('data-revive-target', 'false');
+  await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
 
   await expect(scene).toHaveAttribute('data-scene-hook', 'object3d-add');
   await expect(scene).toHaveAttribute('data-model-source', 'procedural-distinct-companion-v5');
