@@ -1,10 +1,164 @@
 import React, { useEffect, useRef } from 'react';
+import type { CompanionRoleV4 } from '../game/companionReserveV4';
+import { COMPANION_SELECTION_EVENT, loadCompanionRoleV4 } from '../game/companionSelectionV4';
 import { type KayKitPlayerRig } from './kaykitPlayer3D';
 import { loadKayKitVillageArcher } from './kaykitVillagePlayer3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+
+const COMPANION_ROLE_COLOR: Readonly<Record<CompanionRoleV4, number>> = Object.freeze({
+  'single-target': 0x86e9ff,
+  'critical-support': 0xffcf70,
+  shield: 0x72e5a3,
+  'loot-comfort': 0xd9b36c,
+  distraction: 0xb995ff,
+});
+
+type VeilWolfRig = {
+  root: any;
+  applyRole: (role: CompanionRoleV4) => void;
+  update: (now: number) => void;
+};
+
+function createVeilWolf(THREE: any, initialRole: CompanionRoleV4): VeilWolfRig {
+  const root = new THREE.Group();
+  root.name = 'HallActiveCompanionVeilWolf';
+  root.userData.activeCompanion = true;
+  root.userData.companionSpecies = 'veil-wolf';
+  root.position.set(1.52, 0.04, -0.72);
+  root.rotation.y = -0.22;
+  root.scale.setScalar(IS_MOBILE ? 0.78 : 0.84);
+
+  const bodyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x86e9ff,
+    emissive: 0x163d54,
+    emissiveIntensity: 0.72,
+    roughness: 0.58,
+    metalness: 0.08,
+  });
+  const shadowMaterial = new THREE.MeshStandardMaterial({
+    color: 0x100f1c,
+    emissive: 0x090716,
+    emissiveIntensity: 0.25,
+    roughness: 0.82,
+  });
+  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xf4e5ff });
+  const auraMaterial = new THREE.MeshBasicMaterial({
+    color: 0x86e9ff,
+    transparent: true,
+    opacity: 0.32,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+
+  const sphereGeometry = new THREE.SphereGeometry(0.5, IS_MOBILE ? 10 : 14, IS_MOBILE ? 8 : 10);
+  const smallSphereGeometry = new THREE.SphereGeometry(0.18, IS_MOBILE ? 8 : 10, IS_MOBILE ? 6 : 8);
+  const legGeometry = new THREE.CylinderGeometry(0.11, 0.14, 0.78, IS_MOBILE ? 7 : 9);
+  const earGeometry = new THREE.ConeGeometry(0.2, 0.52, IS_MOBILE ? 6 : 8);
+  const tailGeometry = new THREE.CylinderGeometry(0.09, 0.18, 1.18, IS_MOBILE ? 7 : 9);
+
+  const body = new THREE.Mesh(sphereGeometry, bodyMaterial);
+  body.name = 'VeilWolfBody';
+  body.scale.set(1.42, 0.72, 0.72);
+  body.position.set(0, 0.96, 0);
+  root.add(body);
+
+  const chest = new THREE.Mesh(sphereGeometry, shadowMaterial);
+  chest.name = 'VeilWolfChest';
+  chest.scale.set(0.74, 0.9, 0.68);
+  chest.position.set(0.34, 1.03, 0);
+  root.add(chest);
+
+  const headPivot = new THREE.Group();
+  headPivot.name = 'VeilWolfHeadPivot';
+  headPivot.position.set(0.68, 1.46, 0);
+  root.add(headPivot);
+
+  const head = new THREE.Mesh(sphereGeometry, bodyMaterial);
+  head.name = 'VeilWolfHead';
+  head.scale.set(0.78, 0.72, 0.7);
+  headPivot.add(head);
+
+  const muzzle = new THREE.Mesh(smallSphereGeometry, shadowMaterial);
+  muzzle.name = 'VeilWolfMuzzle';
+  muzzle.scale.set(1.32, 0.76, 0.88);
+  muzzle.position.set(0.37, -0.08, 0);
+  headPivot.add(muzzle);
+
+  for (const z of [-0.24, 0.24]) {
+    const ear = new THREE.Mesh(earGeometry, bodyMaterial);
+    ear.name = z < 0 ? 'VeilWolfEarNear' : 'VeilWolfEarFar';
+    ear.position.set(-0.08, 0.5, z);
+    ear.rotation.z = z < 0 ? -0.12 : 0.12;
+    headPivot.add(ear);
+
+    const eye = new THREE.Mesh(smallSphereGeometry, eyeMaterial);
+    eye.name = z < 0 ? 'VeilWolfEyeNear' : 'VeilWolfEyeFar';
+    eye.scale.setScalar(0.22);
+    eye.position.set(0.32, 0.1, z * 1.18);
+    headPivot.add(eye);
+  }
+
+  const legPositions: Array<[number, number]> = [[0.42, -0.31], [0.42, 0.31], [-0.5, -0.31], [-0.5, 0.31]];
+  for (const [x, z] of legPositions) {
+    const leg = new THREE.Mesh(legGeometry, shadowMaterial);
+    leg.name = `VeilWolfLeg_${x}_${z}`;
+    leg.position.set(x, 0.46, z);
+    root.add(leg);
+    const paw = new THREE.Mesh(smallSphereGeometry, bodyMaterial);
+    paw.scale.set(0.78, 0.38, 0.92);
+    paw.position.set(x + 0.06, 0.08, z);
+    root.add(paw);
+  }
+
+  const tailPivot = new THREE.Group();
+  tailPivot.name = 'VeilWolfTailPivot';
+  tailPivot.position.set(-0.72, 1.12, 0);
+  tailPivot.rotation.z = -1.02;
+  root.add(tailPivot);
+  const tail = new THREE.Mesh(tailGeometry, bodyMaterial);
+  tail.name = 'VeilWolfTail';
+  tail.position.y = 0.48;
+  tail.rotation.z = -0.18;
+  tailPivot.add(tail);
+
+  const aura = new THREE.Mesh(new THREE.RingGeometry(0.72, 1.02, IS_MOBILE ? 24 : 36), auraMaterial);
+  aura.name = 'VeilWolfRoleAura';
+  aura.rotation.x = -Math.PI / 2;
+  aura.position.y = 0.025;
+  root.add(aura);
+
+  const roleCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), bodyMaterial);
+  roleCrystal.name = 'VeilWolfRoleCrystal';
+  roleCrystal.position.set(0.08, 1.52, -0.52);
+  root.add(roleCrystal);
+
+  const applyRole = (role: CompanionRoleV4) => {
+    const color = COMPANION_ROLE_COLOR[role];
+    root.userData.companionRole = role;
+    bodyMaterial.color.setHex(color);
+    bodyMaterial.emissive.setHex(color);
+    bodyMaterial.emissiveIntensity = 0.22;
+    auraMaterial.color.setHex(color);
+  };
+  applyRole(initialRole);
+
+  return {
+    root,
+    applyRole,
+    update(now: number) {
+      const breath = Math.sin(now * 0.0021);
+      root.position.y = 0.04 + breath * 0.025;
+      body.scale.y = 0.72 + breath * 0.012;
+      headPivot.rotation.z = Math.sin(now * 0.00125) * 0.035;
+      tailPivot.rotation.z = -1.02 + Math.sin(now * 0.0032) * 0.2;
+      auraMaterial.opacity = 0.26 + Math.sin(now * 0.0024) * 0.07;
+      roleCrystal.rotation.y = now * 0.001;
+    },
+  };
+}
 
 function disposeScene(scene: any) {
   scene?.traverse?.((node: any) => {
@@ -51,9 +205,19 @@ export function ModernVillageSquareScene() {
     let renderer: any = null;
     let scene: any = null;
     let playerRig: KayKitPlayerRig | null = null;
+    let companionRig: VeilWolfRig | null = null;
+    let activeCompanionRole = loadCompanionRoleV4();
     let removeResize = () => {};
     let lastFrame = 0;
     let lastRigFrame = 0;
+
+    const handleCompanionSelection = (event: Event) => {
+      const detailRole = (event as CustomEvent<{ role?: CompanionRoleV4 }>).detail?.role;
+      activeCompanionRole = detailRole ?? loadCompanionRoleV4();
+      companionRig?.applyRole(activeCompanionRole);
+      host.dataset.companionRole = activeCompanionRole;
+    };
+    window.addEventListener(COMPANION_SELECTION_EVENT, handleCompanionSelection as EventListener);
 
     const boot = async () => {
       const THREE = await import(/* @vite-ignore */ THREE_URL);
@@ -148,6 +312,11 @@ export function ModernVillageSquareScene() {
         villageRoot.add(banner);
       }
 
+      companionRig = createVeilWolf(THREE, activeCompanionRole);
+      villageRoot.add(companionRig.root);
+      host.dataset.activeCompanion = 'veil-wolf';
+      host.dataset.companionRole = activeCompanionRole;
+
       scene.add(new THREE.HemisphereLight(0x7f5fa5, 0x08050b, 1.15));
       scene.add(new THREE.AmbientLight(0x5b3b72, 0.42));
       const portalLight = new THREE.PointLight(0x8b5cf6, IS_MOBILE ? 5.5 : 6.5, 15, 2);
@@ -189,6 +358,7 @@ export function ModernVillageSquareScene() {
         lastRigFrame = now;
         portalGlow.material.opacity = 0.4 + Math.sin(now * 0.0017) * 0.08;
         portalLight.intensity = (IS_MOBILE ? 5.2 : 6.2) + Math.sin(now * 0.0014) * 0.35;
+        companionRig?.update(now);
         playerRig?.update(delta);
         renderer.render(scene, camera);
       };
@@ -202,6 +372,7 @@ export function ModernVillageSquareScene() {
       disposed = true;
       cancelAnimationFrame(raf);
       removeResize();
+      window.removeEventListener(COMPANION_SELECTION_EVENT, handleCompanionSelection as EventListener);
       playerRig?.stop();
       disposeScene(scene);
       renderer?.renderLists?.dispose?.();
@@ -211,5 +382,5 @@ export function ModernVillageSquareScene() {
     };
   }, []);
 
-  return <div ref={hostRef} data-testid="modern-village-square-scene" data-scene="hall-of-the-veil-reference" className="pointer-events-none absolute inset-0" />;
+  return <div ref={hostRef} data-testid="modern-village-square-scene" data-scene="hall-of-the-veil-reference" data-active-companion="veil-wolf" data-companion-full-body="true" className="pointer-events-none absolute inset-0" />;
 }
