@@ -32,6 +32,7 @@ export function MainMenuDungeonScene() {
     data-composition="raised-mobile-hero"
     data-hero-pair="ranger-and-veil-wolf"
     className="pointer-events-none absolute inset-0 overflow-hidden"
+    style={{ transform: 'translate3d(0,0,0)' }}
   >
     <div
       className="absolute inset-0"
