@@ -9,7 +9,7 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   fullyParallel: true,
   retries: 1,
-  workers: process.env.CI ? 2 : undefined,
+  workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
     ['json', { outputFile: 'test-results/full-game-results.json' }],
