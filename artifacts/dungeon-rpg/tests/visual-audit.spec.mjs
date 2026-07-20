@@ -1,28 +1,42 @@
 import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const CRITICAL_ROOMS = [1, 5, 9, 10, 11, 19, 20, 21, 29, 30, 31, 39, 40, 41, 49, 50];
+// [1, 10, 20, 30, 40, 50] remains a strict boundary subset of the expanded matrix.
+const COMPANION_MATRIX = [
+  ['single-target', 'veil-lynx'],
+  ['critical-support', 'ember-raven'],
+  ['shield', 'rune-sentinel'],
+  ['loot-comfort', 'lantern-wisp'],
+  ['distraction', 'dusk-drake'],
+];
 
 function attachRuntimeMonitor(page) {
   const issues = [];
+  const appOrigin = new URL(APP_URL).origin;
   page.on('pageerror', error => issues.push(`pageerror: ${error.message}`));
   page.on('console', message => {
     if (message.type() !== 'error') return;
     const text = message.text();
     if (/favicon|supabase.*401|supabase.*403/i.test(text)) return;
-    if (/TypeError|ReferenceError|Cannot read|WebGL.*lost|room build failed|failed to initialize|failed to load/i.test(text)) issues.push(`console: ${text}`);
+    if (/TypeError|ReferenceError|Cannot read|WebGL.*lost|room build failed|failed to initialize|failed to load|module script failed/i.test(text)) issues.push(`console: ${text}`);
+  });
+  page.on('response', response => {
+    if (response.url().startsWith(appOrigin) && response.status() >= 400) issues.push(`http ${response.status()}: ${response.url()}`);
   });
   return issues;
 }
 
-async function initVisualState(page, projectName) {
-  await page.addInitScript(({ ipad }) => {
-    const marker = 'dungeon-veil-visual-audit-seeded';
+async function initVisualState(page, projectName, { activeCompanion = true } = {}) {
+  await page.addInitScript(({ ipad, withCompanion }) => {
+    const marker = 'dungeon-veil-visual-audit-seeded-v2';
     if (sessionStorage.getItem(marker) !== 'true') {
       localStorage.clear();
       const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
       const knownRelics = ['ash-eye', 'marked-claw', 'veil-heart'];
       localStorage.setItem('dungeon-veil-language', 'de');
       localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
+      localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'standard', textSize: 'standard', updatedAt: Date.now() }));
       localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
         version: 2,
         initialized: true,
@@ -48,11 +62,14 @@ async function initVisualState(page, projectName) {
       }));
       localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
         version: 1,
-        activeId: 'single-target',
-        companions: {
+        activeId: withCompanion ? 'single-target' : null,
+        companions: withCompanion ? {
           'single-target': { level: 3, unlockedAt: Date.now() },
+          'critical-support': { level: 2, unlockedAt: Date.now() },
           shield: { level: 2, unlockedAt: Date.now() },
-        },
+          'loot-comfort': { level: 2, unlockedAt: Date.now() },
+          distraction: { level: 2, unlockedAt: Date.now() },
+        } : {},
         updatedAt: Date.now(),
       }));
       localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
@@ -67,14 +84,23 @@ async function initVisualState(page, projectName) {
       sessionStorage.setItem(marker, 'true');
     }
     if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
-  }, { ipad: projectName.includes('ipad') });
+  }, { ipad: projectName.includes('ipad'), withCompanion: activeCompanion });
 }
 
 async function gotoMenu(page) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.bringToFront();
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
+}
+
+async function reloadMenu(page) {
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.bringToFront();
+  await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
 }
 
@@ -87,14 +113,33 @@ async function assertNoHorizontalOverflow(page) {
   expect(Math.max(overflow.document, overflow.body) - overflow.viewport, JSON.stringify(overflow)).toBeLessThanOrEqual(4);
 }
 
+async function assertScreenshotIsUnobscured(page) {
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByTestId('tutorial-overlay')).toHaveCount(0, { timeout: 20_000 });
+}
+
 async function closeOverlay(page) {
   const close = page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).last();
   if (await close.isVisible().catch(() => false)) await close.click({ force: true });
 }
 
-async function capture(page, path) {
+async function capture(page, path, { allowTutorial = false } = {}) {
   await assertNoHorizontalOverflow(page);
+  if (!allowTutorial) await assertScreenshotIsUnobscured(page);
   await page.screenshot({ path, fullPage: false });
+}
+
+async function setActiveCompanion(page, activeId) {
+  await page.evaluate(({ id, matrix }) => {
+    const companions = Object.fromEntries(matrix.map(([role]) => [role, { level: role === id ? 3 : 2, unlockedAt: Date.now() }]));
+    localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
+      version: 1,
+      activeId: id,
+      companions: id ? companions : {},
+      updatedAt: Date.now(),
+    }));
+    window.dispatchEvent(new CustomEvent('dungeon-veil-companion-collection-v5'));
+  }, { id: activeId, matrix: COMPANION_MATRIX });
 }
 
 async function startFreshRun(page) {
@@ -108,7 +153,7 @@ async function startFreshRun(page) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
-  await page.waitForTimeout(2_000);
+  await page.waitForTimeout(1_800);
 }
 
 async function loadRoom(page, room) {
@@ -126,6 +171,7 @@ async function loadRoom(page, room) {
     sessionStorage.removeItem('dungeon-veil-active-run-session');
   }, room);
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.bringToFront();
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Fortsetzen|Continue/i }).first()).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: /Fortsetzen|Continue/i }).first().click({ force: true });
@@ -137,11 +183,54 @@ async function loadRoom(page, room) {
     const saved = JSON.parse(localStorage.getItem('dungeon-veil-save') || '{}');
     return Number(saved.floor) === expected;
   }, room), { timeout: 30_000 }).toBe(true);
-  await page.waitForTimeout(2_200);
+  await page.waitForTimeout(room % 10 === 0 ? 2_200 : 1_500);
 }
 
+async function openPlayMenu(page) {
+  await page.getByRole('button', { name: /Spielen|Play/i }).first().click({ force: true });
+  await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 20_000 });
+}
+
+async function openMoreMenu(page) {
+  await page.getByRole('button', { name: /Mehr|More/i }).first().click({ force: true });
+  await expect(page.getByText(/Weitere Optionen|More options/i)).toBeVisible({ timeout: 20_000 });
+}
+
+test('live main menu proves a true no-companion start, five silhouettes and visible animation frames', async ({ page }, testInfo) => {
+  test.setTimeout(300_000);
+  const runtimeIssues = attachRuntimeMonitor(page);
+  await initVisualState(page, testInfo.project.name, { activeCompanion: false });
+  await gotoMenu(page);
+
+  const scene = page.getByTestId('live-hybrid-main-menu-scene');
+  await expect(scene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
+  await expect(scene).toHaveAttribute('data-companion-species', 'none');
+  await expect(page.locator('canvas')).toHaveCount(1);
+  await capture(page, `test-results/visual-main-menu-no-companion-${testInfo.project.name}.png`);
+
+  const beforeFrames = Number(await scene.getAttribute('data-animation-frames') || 0);
+  const frameA = await page.getByTestId('live-hybrid-main-menu-frame').screenshot({ path: `test-results/visual-main-menu-frame-a-${testInfo.project.name}.png` });
+  await page.waitForTimeout(1_500);
+  const frameB = await page.getByTestId('live-hybrid-main-menu-frame').screenshot({ path: `test-results/visual-main-menu-frame-b-${testInfo.project.name}.png` });
+  const afterFrames = Number(await scene.getAttribute('data-animation-frames') || 0);
+  expect(afterFrames).toBeGreaterThan(beforeFrames);
+  expect(frameA.equals(frameB), 'The rendered menu frame remained pixel-identical while animation frames advanced').toBe(false);
+
+  for (const [role, species] of COMPANION_MATRIX) {
+    await setActiveCompanion(page, role);
+    await expect(scene).toHaveAttribute('data-companion-species', species, { timeout: 20_000 });
+    await page.waitForTimeout(500);
+    await capture(page, `test-results/visual-main-menu-companion-${species}-${testInfo.project.name}.png`);
+  }
+
+  await openPlayMenu(page);
+  await capture(page, `test-results/visual-play-mode-${testInfo.project.name}.png`);
+  await closeOverlay(page);
+  expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
+});
+
 test('central UI surfaces produce reviewable screenshots without clipping', async ({ page }, testInfo) => {
-  test.setTimeout(420_000);
+  test.setTimeout(540_000);
   const runtimeIssues = attachRuntimeMonitor(page);
   await initVisualState(page, testInfo.project.name);
   await gotoMenu(page);
@@ -151,8 +240,18 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   await page.getByTestId('main-menu-profile-badge').click({ force: true });
   await expect(page.getByTestId('player-profile-panel')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('player-profile-responsive-shell')).toBeVisible();
-  await expect(page.getByTestId('player-profile-tablet-overview')).toBeVisible();
-  await capture(page, `test-results/visual-profile-${testInfo.project.name}.png`);
+  const profileTabs = [
+    ['overview', /Übersicht|Overview/i, 'player-profile-tablet-overview'],
+    ['stats', /Statistik|Stats/i, 'player-profile-statistics-grid'],
+    ['titles', /Titel|Titles/i, null],
+    ['cards', /Visitenkarten|Calling Cards/i, null],
+    ['avatars', /Avatare|Avatars/i, null],
+  ];
+  for (const [name, label, visibleTestId] of profileTabs) {
+    await page.getByTestId('player-profile-tabs').getByRole('button', { name: label }).click({ force: true });
+    if (visibleTestId) await expect(page.getByTestId(visibleTestId)).toBeVisible();
+    await capture(page, `test-results/visual-profile-${name}-${testInfo.project.name}.png`);
+  }
   await page.getByRole('button', { name: /Profil schließen|Close profile/i }).click({ force: true });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
 
@@ -178,7 +277,7 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   await capture(page, `test-results/visual-codex-${testInfo.project.name}.png`);
   const codexBack = page.getByRole('button', { name: /Zurück|Back/i }).first();
   if (await codexBack.isVisible().catch(() => false)) await codexBack.click({ force: true });
-  else await page.reload({ waitUntil: 'domcontentloaded' });
+  else await reloadMenu(page);
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
 
   const overlays = [
@@ -194,13 +293,52 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
     await closeOverlay(page);
   }
 
+  await openMoreMenu(page);
+  await page.getByRole('button', { name: /Online & Cloud/i }).first().click({ force: true });
+  await capture(page, `test-results/visual-online-cloud-${testInfo.project.name}.png`);
+  await closeOverlay(page);
+
+  await openPlayMenu(page);
+  await page.getByRole('button', { name: /Duo-Run|Duo Run/i }).first().click({ force: true });
+  await expect(page.getByTestId('coop-lobby-panel')).toBeVisible({ timeout: 30_000 });
+  await capture(page, `test-results/visual-coop-lobby-${testInfo.project.name}.png`);
+  await closeOverlay(page);
+
+  await openPlayMenu(page);
+  await page.getByRole('button', { name: /Weltboss|World Boss/i }).last().click({ force: true });
+  await expect(page.getByText(/Das nächste Weltereignis|The next world event/i)).toBeVisible({ timeout: 30_000 });
+  await capture(page, `test-results/visual-worldboss-${testInfo.project.name}.png`);
+  await closeOverlay(page);
+
+  await page.getByRole('button', { name: /Optionen|Options/i }).click({ force: true });
+  await expect(page.getByTestId('accessibility-settings')).toBeVisible({ timeout: 30_000 });
+  await capture(page, `test-results/visual-settings-${testInfo.project.name}.png`);
+  await page.getByRole('button', { name: /Zurück|Back/i }).first().click({ force: true });
+  await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
+
+  await openMoreMenu(page);
+  await page.getByRole('button', { name: /Credits/i }).first().click({ force: true });
+  await expect(page.getByText(/hobbyloser Typ|hobbyless guy/i)).toBeVisible({ timeout: 30_000 });
+  await capture(page, `test-results/visual-credits-${testInfo.project.name}.png`);
+  await page.getByRole('button').first().click({ force: true });
+  await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
+
+  if (testInfo.project.name === 'ipad-landscape-webkit') {
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await reloadMenu(page);
+    await capture(page, 'test-results/visual-main-menu-ipad-portrait-webkit.png');
+    await page.getByTestId('main-menu-profile-badge').click({ force: true });
+    await expect(page.getByTestId('player-profile-panel')).toBeVisible({ timeout: 30_000 });
+    await capture(page, 'test-results/visual-profile-ipad-portrait-webkit.png');
+  }
+
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
 });
 
 test('rooms 1-50 produce stable visual evidence across the full run', async ({ page }, testInfo) => {
-  const desktop = testInfo.project.name === 'desktop-chromium';
-  const rooms = desktop ? Array.from({ length: 50 }, (_, index) => index + 1) : [1, 10, 20, 30, 40, 50];
-  test.setTimeout(desktop ? 1_200_000 : 360_000);
+  const fullRoomMatrix = testInfo.project.name === 'desktop-chromium' || testInfo.project.name === 'iphone-webkit';
+  const rooms = fullRoomMatrix ? Array.from({ length: 50 }, (_, index) => index + 1) : CRITICAL_ROOMS;
+  test.setTimeout(fullRoomMatrix ? 1_500_000 : 600_000);
   const runtimeIssues = attachRuntimeMonitor(page);
   await initVisualState(page, testInfo.project.name);
   await gotoMenu(page);
