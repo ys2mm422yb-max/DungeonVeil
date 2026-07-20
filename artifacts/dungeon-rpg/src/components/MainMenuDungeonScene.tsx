@@ -3,8 +3,13 @@ import { LiveHybridMainMenuScene } from './LiveHybridMainMenuScene';
 
 export const SPECTATOR_RENDERER_EVENT = 'dungeon-veil-spectator-renderer';
 
+function prefersReducedMotion() {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
 export function MainMenuDungeonScene() {
   const [suspended, setSuspended] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
   const [ambientLoaded, setAmbientLoaded] = useState(false);
   const [ambientFailed, setAmbientFailed] = useState(false);
 
@@ -12,8 +17,15 @@ export function MainMenuDungeonScene() {
     const handleSpectatorRenderer = (event: Event) => {
       setSuspended(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
     };
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handleMotionPreference = () => setReducedMotion(media.matches);
+    handleMotionPreference();
     window.addEventListener(SPECTATOR_RENDERER_EVENT, handleSpectatorRenderer);
-    return () => window.removeEventListener(SPECTATOR_RENDERER_EVENT, handleSpectatorRenderer);
+    media.addEventListener?.('change', handleMotionPreference);
+    return () => {
+      window.removeEventListener(SPECTATOR_RENDERER_EVENT, handleSpectatorRenderer);
+      media.removeEventListener?.('change', handleMotionPreference);
+    };
   }, []);
 
   if (suspended) return null;
@@ -21,11 +33,12 @@ export function MainMenuDungeonScene() {
 
   return <div
     data-testid="main-menu-scene-presentation"
-    data-composition="live-hybrid-scene"
+    data-composition={reducedMotion ? 'static-reduced-motion-scene' : 'live-hybrid-scene'}
     data-static-role="portal-atmosphere-only"
     data-static-hero-embedded="false"
     data-key-art="ambient-gothic-portal-v1"
     data-reduced-motion-contract="static-ranger-and-portal-fallback"
+    data-reduced-motion-active={reducedMotion ? 'true' : 'false'}
     data-image-loaded={ambientLoaded ? 'true' : 'false'}
     data-image-failed={ambientFailed ? 'true' : 'false'}
     className="pointer-events-none absolute inset-0 overflow-hidden bg-[#050208]"
@@ -59,10 +72,10 @@ export function MainMenuDungeonScene() {
       }}
     />
     <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,1,6,.5)_0%,rgba(8,3,14,.02)_28%,rgba(9,4,15,.08)_58%,rgba(3,1,6,.62)_100%)]" />
-    <div data-testid="live-hybrid-main-menu-frame" className="absolute -inset-[15%] origin-center translate-y-[6%] scale-[.78] motion-reduce:hidden md:-inset-[11%] md:translate-y-[5%] md:scale-[.82]">
+    {!reducedMotion && <div data-testid="live-hybrid-main-menu-frame" className="absolute -inset-[15%] origin-center translate-y-[6%] scale-[.78] md:-inset-[11%] md:translate-y-[5%] md:scale-[.82]">
       <LiveHybridMainMenuScene />
-    </div>
-    <div data-testid="main-menu-reduced-motion-fallback" aria-hidden="true" className="absolute inset-[12%_8%_22%] hidden items-end justify-center motion-reduce:flex">
+    </div>}
+    {reducedMotion && <div data-testid="main-menu-reduced-motion-fallback" aria-hidden="true" className="absolute inset-[12%_8%_22%] flex items-end justify-center">
       <svg viewBox="0 0 520 620" className="h-full max-h-[620px] w-full max-w-[520px] overflow-visible drop-shadow-[0_28px_38px_rgba(0,0,0,.65)]" role="presentation">
         <defs>
           <radialGradient id="reducedPortal" cx="50%" cy="44%" r="58%">
@@ -94,7 +107,7 @@ export function MainMenuDungeonScene() {
         <path d="M344 186l39 132M358 181l39 119M371 181l37 103" stroke="#d8bd88" strokeWidth="4" strokeLinecap="round" />
         <path d="M208 478h104l19 52H188z" fill="#0a0710" opacity=".72" />
       </svg>
-    </div>
+    </div>}
     <div aria-hidden="true" className="absolute inset-x-[5%] top-[25%] h-[38%] rounded-full bg-violet-500/[.065] blur-[72px] mix-blend-screen" />
     <div aria-hidden="true" className="absolute inset-x-[-10%] bottom-[10%] h-[35%] bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,.095),rgba(24,12,40,.035)_43%,transparent_74%)] blur-2xl" />
     <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_56%,transparent_0%,transparent_48%,rgba(2,1,4,.16)_78%,rgba(2,1,4,.55)_100%)]" />
