@@ -24,7 +24,6 @@ import { WorldBossPanel } from '../WorldBossPanel';
 import { ProfileBadge } from '../ProfileBadge';
 import { PlayerProfilePanel } from '../PlayerProfilePanel';
 import { CoopLobbyPanel } from '../CoopLobbyPanel';
-import { CompanionManagementPanel } from '../CompanionManagementPanel';
 
 interface Props {
   saveData: SaveData | null;
@@ -37,8 +36,8 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'play' | 'online' | 'guild' | 'worldBoss' | 'coop' | 'companions' | null;
-type IconName = 'scroll' | 'mail' | 'friends' | 'guild' | 'portal' | 'swords' | 'bag' | 'book' | 'paw' | 'gift' | 'boss' | 'coin' | 'dust' | 'settings';
+type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'play' | 'online' | 'guild' | 'worldBoss' | 'coop' | null;
+type IconName = 'scroll' | 'mail' | 'friends' | 'guild' | 'portal' | 'swords' | 'bag' | 'book' | 'gift' | 'boss' | 'coin' | 'dust' | 'settings';
 
 function MenuIcon({ name, className = '' }: { name: IconName; className?: string }) {
   const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -51,7 +50,6 @@ function MenuIcon({ name, className = '' }: { name: IconName; className?: string
     {name === 'swords' && <><path {...common} d="m5 4 12 12M19 4 7 16M4 19l4-4M20 19l-4-4"/><path {...common} d="m3 3 5 1-4 4ZM21 3l-5 1 4 4Z"/></>}
     {name === 'bag' && <><path {...common} d="M7 8h10l2 12H5Z"/><path {...common} d="M9 8V6a3 3 0 0 1 6 0v2M8 12h8"/></>}
     {name === 'book' && <><path {...common} d="M4 5c3-1 5-.4 8 2v13c-3-2.4-5-3-8-2ZM20 5c-3-1-5-.4-8 2v13c3-2.4 5-3 8-2Z"/></>}
-    {name === 'paw' && <><ellipse {...common} cx="12" cy="15" rx="4.2" ry="3.6"/><circle {...common} cx="6.5" cy="10" r="1.7"/><circle {...common} cx="10" cy="7" r="1.7"/><circle {...common} cx="14" cy="7" r="1.7"/><circle {...common} cx="17.5" cy="10" r="1.7"/></>}
     {name === 'gift' && <><rect {...common} x="4" y="10" width="16" height="10" rx="1"/><path {...common} d="M3 7h18v4H3ZM12 7v13M12 7c-4 0-5-1-5-3 3-1 5 0 5 3ZM12 7c4 0 5-1 5-3-3-1-5 0-5 3Z"/></>}
     {name === 'boss' && <><path {...common} d="m12 3 3 4 5 1-3 4 1 6-6-2-6 2 1-6-3-4 5-1Z"/><circle cx="12" cy="11" r="2" fill="currentColor"/></>}
     {name === 'coin' && <><circle {...common} cx="12" cy="12" r="8"/><path {...common} d="M10 8h4M10 16h4M12 8v8"/></>}
@@ -69,13 +67,11 @@ export function MainMenuScreen(props: Props) {
   const [mailUnread, setMailUnread] = useState(0);
   const [, setSaveRevision] = useState(0);
   const currentSaveData = loadGame() ?? props.saveData;
-  const saveAny = currentSaveData as any;
-  const gifts = currentSaveData ? Object.entries(currentSaveData.runSkills ?? {}).reduce((sum, [key, value]) => key === 'heal' ? sum : sum + (value ?? 0), 0) : 0;
   const profileName = currentSaveData?.playerName?.trim() || (language === 'de' ? 'Waldläufer' : 'Ranger');
   const chapter = currentSaveData?.chapter ?? 1;
   const room = currentSaveData?.floor ?? 1;
   const chapterProgress = Math.max(4, Math.min(100, ((room - 1) % 10 + 1) * 10));
-  const gold = Number(saveAny?.gold ?? saveAny?.coins ?? saveAny?.currency ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US');
+  const gold = Number(meta.gold ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US');
 
   useEffect(() => {
     const refreshMeta = () => setMeta(loadMetaProgression());
@@ -139,64 +135,63 @@ export function MainMenuScreen(props: Props) {
     else props.onNewGame();
   };
   const continueText = currentSaveData
-    ? language === 'de' ? `Kapitel ${chapter} · Raum ${room} · ${gifts} Gaben` : `Chapter ${chapter} · Room ${room} · ${gifts} gifts`
+    ? language === 'de' ? `Kapitel ${chapter} · Raum ${room}` : `Chapter ${chapter} · Room ${room}`
     : t.noSave;
 
-  const action = (label: string, detail: string, icon: IconName, onClick: () => void, tone: 'gold' | 'violet' | 'dark' | 'blue', disabled = false, wide = false) => {
+  const action = (label: string, detail: string, icon: IconName, onClick: () => void, tone: 'gold' | 'violet' | 'dark' | 'blue', disabled = false) => {
     const toneClass = tone === 'gold'
-      ? 'border-amber-100/30 bg-[linear-gradient(135deg,rgba(141,80,28,.98),rgba(63,31,18,.98))] shadow-[0_16px_38px_rgba(80,42,13,.34)]'
+      ? 'border-amber-100/30 bg-[linear-gradient(135deg,rgba(141,80,28,.98),rgba(63,31,18,.98))] shadow-[0_14px_30px_rgba(80,42,13,.3)]'
       : tone === 'violet'
         ? 'border-violet-300/20 bg-[linear-gradient(135deg,rgba(48,30,75,.96),rgba(16,13,27,.98))]'
         : tone === 'blue'
           ? 'border-cyan-200/12 bg-[linear-gradient(135deg,rgba(18,31,38,.96),rgba(9,14,18,.98))]'
           : 'border-white/10 bg-[linear-gradient(135deg,rgba(24,21,27,.96),rgba(9,9,12,.98))]';
-    return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`${wide ? 'col-span-2' : ''} group min-h-[70px] w-full rounded-[22px] border px-4 py-3 text-left shadow-[0_16px_34px_rgba(0,0,0,.34)] backdrop-blur-md transition active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
-      <div className="flex items-center gap-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-100/12 bg-black/28 text-amber-100/75 shadow-inner"><MenuIcon name={icon} className="h-7 w-7" /></div>
-        <div className="min-w-0 flex-1"><div className="text-[15px] font-black uppercase tracking-[.08em] text-[#f4ebdf]">{label}</div><div className="mt-1 truncate text-[7px] uppercase tracking-[.12em] text-white/42">{detail}</div></div>
-        {!disabled && <span className="text-xl text-white/30 group-active:translate-x-0.5">›</span>}
+    return <button type="button" disabled={disabled} onPointerDown={event => { event.preventDefault(); if (!disabled) onClick(); }} className={`group min-h-[64px] w-full rounded-[20px] border px-3 py-2.5 text-left shadow-[0_14px_28px_rgba(0,0,0,.32)] backdrop-blur-md transition active:scale-[.975] ${toneClass} ${disabled ? 'opacity-35' : ''}`}>
+      <div className="flex items-center gap-2.5">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-100/12 bg-black/28 text-amber-100/75 shadow-inner"><MenuIcon name={icon} className="h-6 w-6" /></div>
+        <div className="min-w-0 flex-1"><div className="text-[14px] font-black uppercase tracking-[.055em] text-[#f4ebdf]">{label}</div><div className="mt-1 truncate text-[7px] uppercase tracking-[.08em] text-white/44">{detail}</div></div>
+        {!disabled && <span className="text-lg text-white/30 group-active:translate-x-0.5">›</span>}
       </div>
     </button>;
   };
 
-  const statusCard = (title: string, detail: string, icon: IconName, tone: string, onClick: () => void) => <button type="button" onPointerDown={event => { event.preventDefault(); onClick(); }} className="flex min-h-[52px] w-full items-center gap-2 rounded-2xl border border-white/10 bg-black/54 px-3 py-2 text-left shadow-[0_10px_24px_rgba(0,0,0,.28)] backdrop-blur-md active:scale-[.98]">
-    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 ${tone}`}><MenuIcon name={icon} className="h-6 w-6" /></div>
-    <div className="min-w-0"><div className="text-[8px] font-black uppercase tracking-[.12em] text-white/75">{title}</div><div className="mt-0.5 truncate text-[8px] font-bold text-violet-300/90">{detail}</div></div>
+  const statusCard = (title: string, detail: string, icon: IconName, tone: string, onClick: () => void) => <button type="button" onPointerDown={event => { event.preventDefault(); onClick(); }} className="flex min-h-[46px] w-full items-center gap-2 rounded-xl border border-white/10 bg-black/58 px-2.5 py-1.5 text-left shadow-[0_9px_20px_rgba(0,0,0,.3)] backdrop-blur-md active:scale-[.98]">
+    <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 ${tone}`}><MenuIcon name={icon} className="h-5 w-5" /></div>
+    <div className="min-w-0"><div className="truncate text-[7px] font-black uppercase tracking-[.08em] text-white/78">{title}</div><div className="mt-0.5 truncate text-[7px] font-bold text-violet-300/90">{detail}</div></div>
   </button>;
 
   return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#050308] text-white">
     {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(109,40,217,.08),transparent_32%),linear-gradient(to_bottom,rgba(2,1,5,.32),rgba(4,2,7,.04)_42%,rgba(5,3,8,.32)_62%,#050307_79%)]" />
-    <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-black/65 to-transparent" />
+    <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/65 to-transparent" />
     <MainMenuUpdateGate language={language} />
 
     <ProfileBadge profile={profile} playerName={profileName} rank={meta.rank} language={language} onOpen={() => setOverlay('profile')} />
-    <div className="absolute right-4 top-[max(14px,calc(env(safe-area-inset-top)+6px))] z-30 flex items-start gap-2">
-      <div className="space-y-1.5">
-        <button type="button" onPointerDown={event => { event.preventDefault(); props.onVeilChamber(); }} className="flex h-9 min-w-[116px] items-center rounded-xl border border-violet-300/16 bg-black/55 px-2.5 text-[11px] font-black text-white/72 backdrop-blur-xl active:scale-95"><MenuIcon name="dust" className="mr-2 h-5 w-5 text-violet-400" /><span className="flex-1 text-left">{Number(meta.dust ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US')}</span><span className="text-lg text-white/35">＋</span></button>
-        <button type="button" aria-label={language === 'de' ? 'Mehr' : 'More'} onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="flex h-9 min-w-[116px] items-center rounded-xl border border-amber-200/14 bg-black/55 px-2.5 text-[11px] font-black text-white/72 backdrop-blur-xl active:scale-95"><MenuIcon name="coin" className="mr-2 h-5 w-5 text-amber-400" /><span className="flex-1 text-left">{gold}</span><span className="text-lg text-white/35">＋</span></button>
+    <div className="absolute right-3 top-[max(12px,calc(env(safe-area-inset-top)+5px))] z-30 flex items-start gap-1.5">
+      <div className="space-y-1">
+        <button type="button" onPointerDown={event => { event.preventDefault(); props.onVeilChamber(); }} className="flex h-8 min-w-[104px] items-center rounded-xl border border-violet-300/16 bg-black/58 px-2 text-[10px] font-black text-white/74 backdrop-blur-xl active:scale-95"><MenuIcon name="dust" className="mr-1.5 h-4 w-4 text-violet-400" /><span className="flex-1 text-left">{Number(meta.dust ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US')}</span><span className="text-base text-white/35">＋</span></button>
+        <button type="button" aria-label={language === 'de' ? 'Mehr' : 'More'} onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="flex h-8 min-w-[104px] items-center rounded-xl border border-amber-200/14 bg-black/58 px-2 text-[10px] font-black text-white/74 backdrop-blur-xl active:scale-95"><MenuIcon name="coin" className="mr-1.5 h-4 w-4 text-amber-400" /><span className="flex-1 text-left">{gold}</span><span className="text-base text-white/35">＋</span></button>
       </div>
-      <button type="button" aria-label={language === 'de' ? 'Optionen' : 'Options'} onPointerDown={event => { event.preventDefault(); props.onSettings(); }} className="grid h-[78px] w-12 place-items-center rounded-2xl border border-white/10 bg-black/55 text-white/62 backdrop-blur-xl active:scale-95"><MenuIcon name="settings" className="h-7 w-7" /></button>
+      <button type="button" aria-label={language === 'de' ? 'Optionen' : 'Options'} onPointerDown={event => { event.preventDefault(); props.onSettings(); }} className="grid h-[68px] w-11 place-items-center rounded-2xl border border-white/10 bg-black/58 text-white/62 backdrop-blur-xl active:scale-95"><MenuIcon name="settings" className="h-6 w-6" /></button>
     </div>
 
-    <div className="relative z-10 flex h-full flex-col pb-[max(12px,calc(env(safe-area-inset-bottom)+4px))] pt-[max(20px,calc(env(safe-area-inset-top)+8px))]">
-      <header className="mt-[112px] px-5 text-center sm:mt-24">
+    <div className="relative z-10 flex h-full flex-col pb-[max(10px,calc(env(safe-area-inset-bottom)+3px))] pt-[max(18px,calc(env(safe-area-inset-top)+6px))]">
+      <header className="mt-[100px] px-5 text-center sm:mt-20">
         <div className="mx-auto flex max-w-md items-center gap-3"><span className="h-px flex-1 bg-gradient-to-r from-transparent to-amber-200/35"/><span className="h-3 w-3 rotate-45 border border-violet-300/70 bg-violet-600 shadow-[0_0_16px_rgba(139,92,246,.9)]"/><span className="h-px flex-1 bg-gradient-to-l from-transparent to-amber-200/35"/></div>
-        <h1 className="mt-1 bg-gradient-to-b from-[#fff0c9] via-[#d7a85e] to-[#875022] bg-clip-text font-serif text-[clamp(2.2rem,10vw,3.4rem)] font-black leading-[.9] tracking-[.035em] text-transparent drop-shadow-[0_5px_18px_rgba(0,0,0,.55)]">DUNGEON VEIL</h1>
-        <p className="mt-2 text-[7px] uppercase tracking-[.32em] text-amber-50/40">{t.subtitle}</p>
+        <h1 className="mt-1 bg-gradient-to-b from-[#fff0c9] via-[#d7a85e] to-[#875022] bg-clip-text font-serif text-[clamp(2.05rem,9vw,3.05rem)] font-black leading-[.9] tracking-[.025em] text-transparent drop-shadow-[0_5px_18px_rgba(0,0,0,.55)]">DUNGEON VEIL</h1>
+        <p className="mt-1.5 text-[7px] uppercase tracking-[.25em] text-amber-50/40">{t.subtitle}</p>
       </header>
 
       <div className="relative min-h-[250px] flex-1 px-4">
-        <div className="absolute bottom-3 left-4 w-[132px] space-y-2">
-          {statusCard(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'AKTIV · 12:57:23' : 'ACTIVE · 12:57:23', 'boss', 'bg-violet-950/80 text-violet-300', () => setOverlay('worldBoss'))}
-          {statusCard(language === 'de' ? 'Tägliche Belohnung' : 'Daily Reward', retention.daily.claimed.length >= 3 ? (language === 'de' ? 'Abgeholt' : 'Claimed') : (language === 'de' ? 'Bereit!' : 'Ready!'), 'gift', 'bg-amber-950/70 text-amber-300', () => setOverlay('daily'))}
-          {statusCard(language === 'de' ? 'Gildenkiste' : 'Guild Chest', language === 'de' ? 'Online ansehen' : 'View online', 'guild', 'bg-violet-950/70 text-violet-300', () => setOverlay('guild'))}
+        <div className="absolute bottom-2 left-4 w-[124px] space-y-1.5">
+          {statusCard(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'AKTIV · 12:57' : 'ACTIVE · 12:57', 'boss', 'bg-violet-950/80 text-violet-300', () => setOverlay('worldBoss'))}
+          {statusCard(language === 'de' ? 'Tagesbelohnung' : 'Daily Reward', retention.daily.claimed.length >= 3 ? (language === 'de' ? 'Abgeholt' : 'Claimed') : (language === 'de' ? 'Bereit' : 'Ready'), 'gift', 'bg-amber-950/70 text-amber-300', () => setOverlay('daily'))}
         </div>
-        <button type="button" onPointerDown={event => { event.preventDefault(); if (currentSaveData) props.onContinue(); }} className="absolute bottom-3 right-4 w-[132px] rounded-2xl border border-white/10 bg-black/58 p-3 text-left shadow-[0_12px_28px_rgba(0,0,0,.35)] backdrop-blur-md active:scale-[.98]">
-          <div className="flex items-center gap-2"><div className="grid h-9 w-9 place-items-center rounded-full border border-violet-300/20 bg-violet-950/75 text-[12px] font-black text-white/80">{chapter}</div><div><div className="text-[8px] font-black uppercase tracking-[.12em] text-white/75">{language === 'de' ? `Kapitel ${chapter}` : `Chapter ${chapter}`}</div><div className="mt-0.5 text-[7px] uppercase tracking-[.1em] text-white/40">{language === 'de' ? 'Schleierwacht' : 'Veil Watch'}</div></div></div>
-          <div className="mt-4 text-[7px] font-black uppercase tracking-[.12em] text-white/42">{language === 'de' ? `Fortschritt ${chapterProgress}%` : `Progress ${chapterProgress}%`}</div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500" style={{ width: `${chapterProgress}%` }} /></div>
-          <div className="mt-3 flex items-center gap-2 text-[8px] font-bold text-white/52"><MenuIcon name="gift" className="h-4 w-4" />{language === 'de' ? 'Belohnungen' : 'Rewards'}</div>
+        <button type="button" onPointerDown={event => { event.preventDefault(); if (currentSaveData) props.onContinue(); }} className="absolute bottom-2 right-4 w-[124px] rounded-2xl border border-white/10 bg-black/62 p-2.5 text-left shadow-[0_11px_24px_rgba(0,0,0,.36)] backdrop-blur-md active:scale-[.98]">
+          <div className="flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-full border border-violet-300/20 bg-violet-950/75 text-[11px] font-black text-white/80">{chapter}</div><div className="min-w-0"><div className="truncate text-[7px] font-black uppercase tracking-[.08em] text-white/78">{language === 'de' ? `Kapitel ${chapter}` : `Chapter ${chapter}`}</div><div className="mt-0.5 truncate text-[6px] uppercase tracking-[.06em] text-white/42">{language === 'de' ? 'Schleierwacht' : 'Veil Watch'}</div></div></div>
+          <div className="mt-2.5 text-[6px] font-black uppercase tracking-[.08em] text-white/44">{language === 'de' ? `Fortschritt ${chapterProgress}%` : `Progress ${chapterProgress}%`}</div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500" style={{ width: `${chapterProgress}%` }} /></div>
+          <div className="mt-2 flex items-center gap-1.5 text-[7px] font-bold text-white/52"><MenuIcon name="gift" className="h-3.5 w-3.5" />{language === 'de' ? 'Belohnungen' : 'Rewards'}</div>
         </button>
       </div>
 
@@ -210,24 +205,22 @@ export function MainMenuScreen(props: Props) {
         onGuild={() => setOverlay('guild')}
       />
 
-      <div className="mx-auto mt-3 grid w-full max-w-md grid-cols-2 gap-2 px-4">
+      <div className="mx-auto mt-2 grid w-full max-w-md grid-cols-2 gap-2 px-4">
         {action(t.continueGame, continueText, 'portal', props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}
-        {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · WELTBOSS' : 'SOLO · DUO · WORLD BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
-        {action(language === 'de' ? 'Inventar' : 'Inventory', language === 'de' ? `Rang ${meta.rank} · ${meta.dust} Staub` : `Rank ${meta.rank} · ${meta.dust} dust`, 'bag', props.onVeilChamber, 'violet')}
-        {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · JAGD · RELIKTE' : 'BEASTS · HUNTS · RELICS', 'book', props.onCodex, 'blue')}
-        <div className="col-span-2" data-testid="main-menu-companion-navigation">{action(language === 'de' ? 'Begleiter' : 'Companions', language === 'de' ? '1 AKTIV · 4 RESERVE · ROLLEN & BONI' : '1 ACTIVE · 4 RESERVE · ROLES & BONUSES', 'paw', () => setOverlay('companions'), 'violet', false, true)}</div>
+        {action(language === 'de' ? 'Spielen' : 'Play', language === 'de' ? 'SOLO · DUO · BOSS' : 'SOLO · DUO · BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
+        <div data-testid="main-menu-equipment-navigation">{action(language === 'de' ? 'Ausrüstung' : 'Equipment', language === 'de' ? 'BOGEN · RÜSTUNG · BEGLEITER' : 'BOW · ARMOR · COMPANION', 'bag', props.onVeilChamber, 'violet')}</div>
+        {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · RELIKTE' : 'BEASTS · RELICS', 'book', props.onCodex, 'blue')}
       </div>
     </div>
 
     {overlay === 'profile' && <PlayerProfilePanel profile={profile} saveData={currentSaveData} meta={meta} retention={retention} language={language} onProfileChange={setProfile} onClose={() => setOverlay(null)} />}
 
-    {overlay && overlay !== 'profile' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onPointerDown={() => setOverlay(null)}><div className={overlay === 'companions' ? 'w-full max-w-4xl' : 'w-full max-w-sm'} onPointerDown={event => event.stopPropagation()}>
+    {overlay && overlay !== 'profile' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
       {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
       {overlay === 'friends' && <FriendsPanel language={language} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} onOpenOnline={() => setOverlay('online')} />}
-      {overlay === 'companions' && <CompanionManagementPanel language={language} />}
       {overlay === 'play' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'SPIELMODUS WÄHLEN' : 'CHOOSE GAME MODE'}</div><div className="space-y-2">{action(language === 'de' ? 'Solo-Run' : 'Solo Run', language === 'de' ? 'NEUES ABENTEUER · ALLEINE' : 'NEW ADVENTURE · SOLO', 'swords', () => { setOverlay(null); startNormalRun(); }, 'violet')}{action(language === 'de' ? 'Duo-Run' : 'Duo Run', language === 'de' ? 'PRIVATE LOBBY · 2 SPIELER' : 'PRIVATE LOBBY · 2 PLAYERS', 'friends', () => setOverlay('coop'), 'violet')}{action(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'GEMEINSAMER BOSSKAMPF' : 'SHARED BOSS FIGHT', 'boss', () => setOverlay('worldBoss'), 'blue')}</div></div>}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={currentSaveData} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'coop' && <CoopLobbyPanel language={language} onOpenOnline={() => setOverlay('online')} onStartRun={lobby => { setOverlay(null); props.onStartCoop(lobby); }} />}

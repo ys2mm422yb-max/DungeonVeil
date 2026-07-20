@@ -130,7 +130,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await expect(page.getByText(/Höchster Raum|Highest Room/i).first()).toBeVisible();
   });
 
-  await test.step('inventory and armor migration', async () => {
+  await test.step('equipment and armor migration', async () => {
     await page.evaluate(() => {
       localStorage.setItem('dungeon-veil-meta', JSON.stringify({
         version: 2,
@@ -163,13 +163,16 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     });
     await reloadMenu(page, testInfo.project.name);
     await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0);
-    await openMenuButton(page, /Inventar|Inventory/i);
-    await expect(page.getByRole('heading', { name: /Inventar|Inventory/i })).toBeVisible();
+    await expect(page.getByTestId('main-menu-companion-navigation')).toHaveCount(0);
+    await openMenuButton(page, /Ausrüstung|Equipment/i);
+    await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
     await expect(page.getByText(/Ausrüstungslevel|Equipment Level/i).first()).toBeVisible();
+    await expect(page.getByTestId('equipment-category-tabs').locator('button')).toHaveCount(5);
     await expect(page.getByTestId('inventory-tab-bow')).toBeVisible();
     const armorTab = page.getByTestId('inventory-tab-armor');
     await expect(armorTab).toBeVisible();
     await expect(page.getByTestId('inventory-tab-relic')).toBeVisible();
+    await expect(page.getByTestId('inventory-tab-companion')).toBeVisible();
     await armorTab.click();
     await expect(page.getByText(/Waldläufermantel|Ranger Cloak/i).first()).toBeVisible();
     const armorMeta = await page.evaluate(() => {

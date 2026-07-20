@@ -23,7 +23,7 @@ async function startFreshRun(page) {
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
 }
 
-test('management, persistence and one animated KayKit companion share the run renderer', async ({ page }, testInfo) => {
+test('equipment management, persistence and one animated KayKit companion share the run renderer', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(error.message));
@@ -32,17 +32,23 @@ test('management, persistence and one animated KayKit companion share the run re
   });
 
   await openMenu(page, testInfo.project.name);
-  await expect(page.getByTestId('main-menu-companion-navigation')).toBeVisible();
-  await page.getByRole('button', { name: /Begleiter|Companions/i }).click({ force: true });
+  await expect(page.getByTestId('main-menu-companion-navigation')).toHaveCount(0);
+  const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
+  await expect(equipmentEntry).toBeVisible();
+  await equipmentEntry.getByRole('button').click({ force: true });
+  await expect(page.getByRole('heading', { name: /AUSRÜSTUNG|EQUIPMENT/i })).toBeVisible();
+  await page.getByTestId('inventory-tab-companion').click({ force: true });
   const management = page.getByTestId('companion-management-panel');
   await expect(management).toBeVisible();
+  await expect(management).toHaveAttribute('data-embedded', 'true');
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'single-target');
   await expect(page.getByTestId('companion-reserve-count')).toContainText('4/4');
   await expect(page.getByTestId('companion-reserve-grid').locator('button')).toHaveCount(4);
   await page.getByTestId('companion-role-shield').click({ force: true });
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'shield');
-  await page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).last().click({ force: true });
+  await page.getByRole('button', { name: /Zurück|Back/i }).click({ force: true });
   await expect(management).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'DUNGEON VEIL' })).toBeVisible({ timeout: 60_000 });
 
   await startFreshRun(page);
   const chip = page.getByTestId('run-companion-chip');

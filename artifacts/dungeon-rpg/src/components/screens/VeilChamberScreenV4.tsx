@@ -22,11 +22,13 @@ import { equipVeilRelic, loadVeilRelicProfile, VEIL_RELICS, type VeilRelicId } f
 import { initializeSeenUnlocks, markEquipmentSeen, markRelicSeen, NEW_CONTENT_EVENT, unseenEquipmentIds, unseenRelicIds } from '../../game/newContentMarkers';
 import { KayKitEquipmentPreview } from '../KayKitEquipmentPreview';
 import { EquipmentArtwork, RelicArtwork } from '../CodexArtwork';
+import { CompanionManagementPanel } from '../CompanionManagementPanel';
 
-type ChamberTab = 'bow' | 'quiver' | 'armor' | 'relic';
-const TABS: ChamberTab[] = ['bow', 'quiver', 'armor', 'relic'];
-const SLOT_LABELS = {
-  bow: { de: 'FERNWAFFE', en: 'RANGED' },
+type EquipmentTab = 'bow' | 'quiver' | 'armor';
+type ChamberTab = EquipmentTab | 'relic' | 'companion';
+const TABS: ChamberTab[] = ['bow', 'quiver', 'armor', 'relic', 'companion'];
+const SLOT_LABELS: Record<EquipmentTab, { de: string; en: string }> = {
+  bow: { de: 'BOGEN', en: 'BOW' },
   quiver: { de: 'KÖCHER', en: 'QUIVER' },
   armor: { de: 'RÜSTUNG', en: 'ARMOR' },
 };
@@ -48,6 +50,10 @@ const VALUE_LABELS: Record<EquipmentUpgradePreviewKey, { de: string; en: string 
   attackRange: { de: 'REICHWEITE', en: 'RANGE' },
   attackSpeedPercent: { de: 'ANGRIFFSTEMPO', en: 'ATTACK SPEED' },
 };
+
+function isEquipmentTab(value: ChamberTab): value is EquipmentTab {
+  return value === 'bow' || value === 'quiver' || value === 'armor';
+}
 
 function shown(value: number, percent: boolean) {
   const text = Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
@@ -91,13 +97,13 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
 
   const newEquipment = new Set(unseenEquipmentIds(Object.keys(meta.owned) as EquipmentId[]).filter(id => EQUIPMENT[id]?.active));
   const newRelics = new Set(unseenRelicIds(relics.owned));
-  const items = useMemo(() => tab === 'relic' ? [] : Object.values(EQUIPMENT)
+  const items = useMemo(() => !isEquipmentTab(tab) ? [] : Object.values(EQUIPMENT)
     .filter(item => item.active && item.slot === tab)
     .sort((a, b) => Number(meta.equipped[a.slot] === b.id) - Number(meta.equipped[b.slot] === a.id)
       || Number(Boolean(meta.owned[b.id])) - Number(Boolean(meta.owned[a.id]))
       || equipmentUnlockChapter(a.id) - equipmentUnlockChapter(b.id)), [meta, tab]);
 
-  const item = tab === 'relic' ? null : EQUIPMENT[selected]?.active ? EQUIPMENT[selected] : items[0] ?? null;
+  const item = isEquipmentTab(tab) ? (EQUIPMENT[selected]?.active ? EQUIPMENT[selected] : items[0] ?? null) : null;
   const progress = item ? meta.owned[item.id] : undefined;
   const level = progress?.level ?? 0;
   const copies = progress?.copies ?? 0;
@@ -120,12 +126,13 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const changeTab = (next: ChamberTab) => {
     setTab(next);
     if (next === 'relic') setSelectedRelic(relics.equipped ?? relics.owned[0] ?? null);
-    else setSelected(meta.equipped[next]);
+    else if (isEquipmentTab(next)) setSelected(meta.equipped[next]);
   };
   const selectItem = (id: EquipmentId) => { setSelected(id); markEquipmentSeen(id); };
   const upgrade = () => {
     if (!item || !canUpgrade || upgradingRef.current) return;
-    upgradingRef.current = true; setUpgrading(true);
+    upgradingRef.current = true;
+    setUpgrading(true);
     const before = meta.owned[item.id]?.level ?? 0;
     const next = upgradeMetaItemBalanced(item.id);
     setMeta({ ...next });
@@ -139,13 +146,20 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
     if (result.crafted) window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title: result.newUnlock ? (de ? 'ITEM HERGESTELLT' : 'ITEM CRAFTED') : (de ? 'KOPIE HERGESTELLT' : 'COPY CRAFTED'), text: de ? item.nameDe : item.nameEn, tone: 'relic' } }));
   };
 
-  return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#080706] text-white">
-    <div className={'relative mx-auto min-h-full px-4 pb-8 pt-[max(24px,calc(env(safe-area-inset-top)+10px))] ' + (tab === 'relic' ? 'max-w-5xl' : 'max-w-md')}>
-      <header className="flex gap-3"><button type="button" onPointerDown={event => { event.preventDefault(); onBack(); }} className="h-12 w-12 rounded-xl border border-white/12 bg-black/45 text-2xl">‹</button><div><div className="text-[8px] font-black tracking-[.42em] text-violet-200/45">DUNGEON VEIL</div><h1 className="font-serif text-3xl text-[#e7c37a]">{de ? 'INVENTAR' : 'INVENTORY'}</h1><p className="text-[8px] tracking-[.16em] text-white/35">{de ? '10 GAMEPLAY-ITEMS · RELIKTE SEPARAT' : '10 GAMEPLAY ITEMS · RELICS SEPARATE'}</p></div></header>
-      <section className="mt-5 rounded-3xl border border-violet-300/15 bg-black/52 p-4"><div className="grid grid-cols-3 gap-3 text-center"><div><div className="text-[8px] text-violet-200/45">{de ? 'RANG' : 'RANK'}</div><div className="text-3xl">{meta.rank}</div></div><div><div className="text-[8px] text-yellow-200/45">GOLD</div><div className="text-lg text-yellow-200">{meta.gold}</div></div><div><div className="text-[8px] text-amber-200/45">{de ? 'STAUB' : 'DUST'}</div><div className="text-lg text-amber-200">✦ {meta.dust}</div></div></div><div className="mt-3 h-2 rounded-full bg-white/7"><div className="h-full rounded-full bg-violet-400" style={{ width: `${xpPercent}%` }} /></div><p data-testid="equipment-permanent-progression-copy" className="mt-3 text-center text-[8px] leading-relaxed text-white/38">{de ? 'Ausrüstungslevel 1–5 sind dauerhaft. Verbesserungen kosten Gold, Itemkopien und Schleierstaub.' : 'Equipment levels 1–5 are permanent. Upgrades cost Gold, item copies and Veil Dust.'}</p></section>
-      <div className="mt-4 grid grid-cols-4 gap-1.5">{TABS.map(key => { const count = key === 'relic' ? newRelics.size : [...newEquipment].filter(id => EQUIPMENT[id].slot === key).length; return <button data-testid={`inventory-tab-${key}`} key={key} type="button" onPointerDown={event => { event.preventDefault(); changeTab(key); }} className={`relative rounded-xl border py-3 text-[7px] font-black ${tab === key ? 'border-amber-300/45 bg-amber-400/12 text-amber-100' : 'border-white/9 bg-black/42 text-white/38'}`}>{key === 'relic' ? (de ? 'RELIKT' : 'RELIC') : SLOT_LABELS[key][de ? 'de' : 'en']}{count > 0 && <span data-testid="inventory-tab-new-badge" className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[6px] text-white">{de ? 'NEU' : 'NEW'} {count}</span>}</button>; })}</div>
+  const wideContent = tab === 'relic' || tab === 'companion';
 
-      {tab === 'relic' ? <>
+  return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#080706] text-white">
+    <div className={'relative mx-auto min-h-full px-4 pb-8 pt-[max(24px,calc(env(safe-area-inset-top)+10px))] ' + (wideContent ? 'max-w-5xl' : 'max-w-md')}>
+      <header className="flex gap-3"><button type="button" aria-label={de ? 'Zurück' : 'Back'} onPointerDown={event => { event.preventDefault(); onBack(); }} className="h-12 w-12 shrink-0 rounded-xl border border-white/12 bg-black/45 text-2xl">‹</button><div><div className="text-[8px] font-black tracking-[.42em] text-violet-200/45">DUNGEON VEIL</div><h1 className="font-serif text-3xl text-[#e7c37a]">{de ? 'AUSRÜSTUNG' : 'EQUIPMENT'}</h1><p className="text-[8px] tracking-[.1em] text-white/35">{de ? 'BOGEN · KÖCHER · RÜSTUNG · RELIKTE · BEGLEITER' : 'BOW · QUIVER · ARMOR · RELICS · COMPANIONS'}</p></div></header>
+      <section className="mt-5 rounded-3xl border border-violet-300/15 bg-black/52 p-4"><div className="grid grid-cols-3 gap-3 text-center"><div><div className="text-[8px] text-violet-200/45">{de ? 'RANG' : 'RANK'}</div><div className="text-3xl">{meta.rank}</div></div><div><div className="text-[8px] text-yellow-200/45">GOLD</div><div className="text-lg text-yellow-200">{meta.gold}</div></div><div><div className="text-[8px] text-amber-200/45">{de ? 'STAUB' : 'DUST'}</div><div className="text-lg text-amber-200">✦ {meta.dust}</div></div></div><div className="mt-3 h-2 rounded-full bg-white/7"><div className="h-full rounded-full bg-violet-400" style={{ width: `${xpPercent}%` }} /></div><p data-testid="equipment-permanent-progression-copy" className="mt-3 text-center text-[8px] leading-relaxed text-white/38">{de ? 'Ausrüstungslevel 1–5 sind dauerhaft. Verbesserungen kosten Gold, Itemkopien und Schleierstaub.' : 'Equipment levels 1–5 are permanent. Upgrades cost Gold, item copies and Veil Dust.'}</p></section>
+      <div data-testid="equipment-category-tabs" className="mt-4 grid grid-cols-5 gap-1">{TABS.map(key => {
+        const count = key === 'relic' ? newRelics.size : isEquipmentTab(key) ? [...newEquipment].filter(id => EQUIPMENT[id].slot === key).length : 0;
+        const label = key === 'relic' ? (de ? 'RELIKT' : 'RELIC') : key === 'companion' ? (de ? 'BEGLEITER' : 'COMPANION') : SLOT_LABELS[key][de ? 'de' : 'en'];
+        return <button data-testid={`inventory-tab-${key}`} key={key} type="button" onPointerDown={event => { event.preventDefault(); changeTab(key); }} className={`relative min-w-0 rounded-xl border px-1 py-3 text-[6px] font-black sm:text-[7px] ${tab === key ? 'border-amber-300/45 bg-amber-400/12 text-amber-100' : 'border-white/9 bg-black/42 text-white/38'}`}>{label}{count > 0 && <span data-testid="inventory-tab-new-badge" className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[6px] text-white">{de ? 'NEU' : 'NEW'} {count}</span>}</button>;
+      })}</div>
+
+      {tab === 'companion' ? <section data-testid="equipment-companion-section" className="mt-4"><CompanionManagementPanel language={language} embedded /></section>
+      : tab === 'relic' ? <>
         <section data-testid="relic-source-summary" className="mt-4 rounded-2xl border border-violet-300/15 bg-violet-500/[.06] p-3 text-violet-100/55">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[8px] leading-relaxed">{de ? 'Jagd-Relikte kommen aus Jagden. Boss-Relikte können in den Bossräumen 10, 20, 30, 40 und 50 fallen. Der Weltenkern kommt ausschließlich vom Weltboss.' : 'Hunt relics come from hunts. Boss relics can drop in boss rooms 10, 20, 30, 40 and 50. The World Core is exclusive to the world boss.'}</p>
@@ -207,9 +221,29 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
           </section>
         </div>
       </>
-      : item ? <><section className="mt-4 overflow-hidden rounded-3xl border border-white/10 bg-black/52"><div className="grid min-h-[245px] grid-cols-[42%_58%]"><div className="border-r border-white/8"><KayKitEquipmentPreview assetPath={item.assetPath} accent={item.accent} itemId={item.id} /></div><div className="flex flex-col p-4"><div className="text-[8px] font-black" style={{ color: item.accent }}>{SLOT_LABELS[item.slot as 'bow' | 'quiver' | 'armor'][de ? 'de' : 'en']}</div><h2 className="mt-2 text-xl font-black">{de ? item.nameDe : item.nameEn}</h2><p className="mt-3 text-[12px] text-white/62">{de ? item.descriptionDe : item.descriptionEn}</p><div className="mt-2 text-[8px] text-white/35">{level ? `LEVEL ${level}/5 · ${copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${de ? 'AB KAPITEL' : 'FROM CHAPTER'} ${equipmentUnlockChapter(item.id)} · ${de ? 'RANG' : 'RANK'} ${item.unlockRank}`}</div><div className="flex-1" />{level > 0 && <div className="mt-4 grid gap-2">{cost ? <div data-testid="equipment-upgrade-preview" className="rounded-xl border border-amber-300/14 bg-amber-300/[.05] p-2.5"><div className="text-[7px] font-black text-amber-100/60">LEVEL {level} → {level + 1}</div><div className="mt-2 grid gap-1">{preview.map(row => <div key={row.key} className="flex justify-between rounded-lg bg-black/25 px-2 py-1.5 text-[8px]"><span>{VALUE_LABELS[row.key][de ? 'de' : 'en']}</span><span>{shown(row.current, row.format === 'percent')} → {shown(row.next, row.format === 'percent')} <b className="text-emerald-200">(+{shown(row.delta, row.format === 'percent')})</b></span></div>)}</div></div> : <div data-testid="equipment-upgrade-max" className="rounded-xl border border-emerald-300/14 p-3 text-center text-[8px] text-emerald-200">MAXIMALLEVEL</div>}<div className="grid grid-cols-2 gap-2"><button type="button" disabled={meta.equipped[item.slot] === item.id} onPointerDown={event => { event.preventDefault(); setMeta({ ...equipMetaItem(item.id) }); }} className="rounded-xl border border-violet-300/25 bg-violet-500/14 py-3 text-[9px] font-black disabled:opacity-35">{meta.equipped[item.slot] === item.id ? (de ? 'AKTIV' : 'ACTIVE') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button data-testid="equipment-upgrade-button" type="button" disabled={!canUpgrade} onClick={event => { event.preventDefault(); event.stopPropagation(); upgrade(); }} className="rounded-xl border border-amber-300/25 bg-amber-500/12 py-3 text-[9px] font-black disabled:opacity-30">{upgrading ? '…' : cost ? (de ? 'VERBESSERN' : 'UPGRADE') : 'MAX'}</button></div>{cost && <div data-testid="equipment-upgrade-costs" className="grid grid-cols-3 gap-1 text-center text-[7px]"><span>GOLD<br />{meta.gold}/{cost.gold}</span><span>{de ? 'KOPIEN' : 'COPIES'}<br />{copies}/{cost.copies}</span><span>{de ? 'STAUB' : 'DUST'}<br />{meta.dust}/{cost.dust}</span></div>}{!canUpgrade && blockedReason && <div data-testid="equipment-upgrade-disabled-reason" className="text-center text-[7px] text-red-200/70">{blockedReason}</div>}</div>}</div></div></section>
+      : item ? <>
+        <section className="mt-4 overflow-hidden rounded-3xl border border-white/10 bg-black/52">
+          <div className="grid min-h-[245px] grid-cols-[42%_58%]">
+            <div className="border-r border-white/8"><KayKitEquipmentPreview assetPath={item.assetPath} accent={item.accent} itemId={item.id} /></div>
+            <div className="flex flex-col p-4">
+              <div className="text-[8px] font-black" style={{ color: item.accent }}>{SLOT_LABELS[item.slot as EquipmentTab][de ? 'de' : 'en']}</div>
+              <h2 className="mt-2 text-xl font-black">{de ? item.nameDe : item.nameEn}</h2>
+              <p className="mt-3 text-[12px] text-white/62">{de ? item.descriptionDe : item.descriptionEn}</p>
+              <div className="mt-2 text-[8px] text-white/35">{level ? `LEVEL ${level}/5 · ${copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${de ? 'AB KAPITEL' : 'FROM CHAPTER'} ${equipmentUnlockChapter(item.id)} · ${de ? 'RANG' : 'RANK'} ${item.unlockRank}`}</div>
+              <div className="flex-1" />
+              {level > 0 && <div className="mt-4 grid gap-2">
+                {cost ? <div data-testid="equipment-upgrade-preview" className="rounded-xl border border-amber-300/14 bg-amber-300/[.05] p-2.5"><div className="text-[7px] font-black text-amber-100/60">LEVEL {level} → {level + 1}</div><div className="mt-2 grid gap-1">{preview.map(row => <div key={row.key} className="flex justify-between rounded-lg bg-black/25 px-2 py-1.5 text-[8px]"><span>{VALUE_LABELS[row.key][de ? 'de' : 'en']}</span><span>{shown(row.current, row.format === 'percent')} → {shown(row.next, row.format === 'percent')} <b className="text-emerald-200">(+{shown(row.delta, row.format === 'percent')})</b></span></div>)}</div></div> : <div data-testid="equipment-upgrade-max" className="rounded-xl border border-emerald-300/14 p-3 text-center text-[8px] text-emerald-200">{de ? 'MAXIMALLEVEL' : 'MAXIMUM LEVEL'}</div>}
+                <div className="grid grid-cols-2 gap-2"><button type="button" disabled={meta.equipped[item.slot] === item.id} onPointerDown={event => { event.preventDefault(); setMeta({ ...equipMetaItem(item.id) }); }} className="rounded-xl border border-violet-300/25 bg-violet-500/14 py-3 text-[9px] font-black disabled:opacity-35">{meta.equipped[item.slot] === item.id ? (de ? 'AKTIV' : 'ACTIVE') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button data-testid="equipment-upgrade-button" type="button" disabled={!canUpgrade} onClick={event => { event.preventDefault(); event.stopPropagation(); upgrade(); }} className="rounded-xl border border-amber-300/25 bg-amber-500/12 py-3 text-[9px] font-black disabled:opacity-30">{upgrading ? '…' : cost ? (de ? 'VERBESSERN' : 'UPGRADE') : 'MAX'}</button></div>
+                {cost && <div data-testid="equipment-upgrade-costs" className="grid grid-cols-3 gap-1 text-center text-[7px]"><span>GOLD<br />{meta.gold}/{cost.gold}</span><span>{de ? 'KOPIEN' : 'COPIES'}<br />{copies}/{cost.copies}</span><span>{de ? 'STAUB' : 'DUST'}<br />{meta.dust}/{cost.dust}</span></div>}
+                {!canUpgrade && blockedReason && <div data-testid="equipment-upgrade-disabled-reason" className="text-center text-[7px] text-red-200/70">{blockedReason}</div>}
+              </div>}
+            </div>
+          </div>
+        </section>
         {targetable && <section className="mt-3 rounded-2xl border border-violet-300/12 bg-black/42 p-3"><div data-testid="equipment-source-marks" className="flex justify-between text-[8px]"><span>{SOURCE_LABELS[item.dropSource][de ? 'de' : 'en']}-{de ? 'MARKEN' : 'MARKS'}</span><span>{sourceMarks}/{markCost}</span></div><div className="mt-2 grid grid-cols-2 gap-2"><button data-testid="equipment-wish-item" type="button" onPointerDown={event => { event.preventDefault(); setTargeting({ ...setEquipmentWishItem(targeting.wishItem === item.id ? null : item.id) }); }} className="rounded-xl border border-fuchsia-300/25 py-3 text-[8px] font-black">{targeting.wishItem === item.id ? (de ? '◎ WUNSCH AKTIV' : '◎ WISH ACTIVE') : (de ? '◎ ALS WUNSCH' : '◎ SET WISH')}</button><button data-testid="equipment-craft-copy" type="button" disabled={!canCraft} onPointerDown={event => { event.preventDefault(); craft(); }} className="rounded-xl border border-emerald-300/25 py-3 text-[8px] font-black disabled:opacity-30">{level ? (de ? '⚒ KOPIE BAUEN' : '⚒ CRAFT COPY') : (de ? '⚒ ITEM BAUEN' : '⚒ CRAFT ITEM')}</button></div><p className="mt-2 text-center text-[7px] text-white/30">{de ? 'Wunschchance 18–24 % · Hard-Pity nach 7–9 passenden Fehlschlägen.' : 'Wish chance 18–24% · hard pity after 7–9 matching misses.'}</p></section>}
-        <section className="mt-3 grid gap-2">{items.map(entry => { const owned = meta.owned[entry.id]; return <button key={entry.id} type="button" onPointerDown={event => { event.preventDefault(); selectItem(entry.id); }} className={`flex items-center gap-3 rounded-2xl border p-3 text-left ${selected === entry.id ? 'border-white/22 bg-white/[.075]' : 'border-white/8 bg-black/38'}`}><EquipmentArtwork itemId={entry.id} accent={entry.accent} locked={!owned} className="h-11 w-11 shrink-0" /><span className="min-w-0 flex-1"><b className="block truncate text-[12px]">{de ? entry.nameDe : entry.nameEn}</b><small className="text-[8px] text-white/30">{owned ? `LEVEL ${owned.level} · ${owned.copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${de ? 'KAPITEL' : 'CHAPTER'} ${equipmentUnlockChapter(entry.id)} · ${SOURCE_LABELS[entry.dropSource][de ? 'de' : 'en']}`}</small></span>{newEquipment.has(entry.id) && <span data-testid="inventory-item-new-badge" className="rounded-full bg-red-500 px-2 py-1 text-[6px]">{de ? 'NEU' : 'NEW'}</span>}</button>; })}</section></> : null}
+        <section className="mt-3 grid gap-2">{items.map(entry => { const owned = meta.owned[entry.id]; return <button key={entry.id} type="button" onPointerDown={event => { event.preventDefault(); selectItem(entry.id); }} className={`flex items-center gap-3 rounded-2xl border p-3 text-left ${selected === entry.id ? 'border-white/22 bg-white/[.075]' : 'border-white/8 bg-black/38'}`}><EquipmentArtwork itemId={entry.id} accent={entry.accent} locked={!owned} className="h-11 w-11 shrink-0" /><span className="min-w-0 flex-1"><b className="block truncate text-[12px]">{de ? entry.nameDe : entry.nameEn}</b><small className="text-[8px] text-white/30">{owned ? `LEVEL ${owned.level} · ${owned.copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${de ? 'KAPITEL' : 'CHAPTER'} ${equipmentUnlockChapter(entry.id)} · ${SOURCE_LABELS[entry.dropSource][de ? 'de' : 'en']}`}</small></span>{newEquipment.has(entry.id) && <span data-testid="inventory-item-new-badge" className="rounded-full bg-red-500 px-2 py-1 text-[6px]">{de ? 'NEU' : 'NEW'}</span>}</button>; })}</section>
+      </> : null}
+      <span className="sr-only" data-testid="equipment-highest-chapter">{highestChapter}</span>
     </div>
   </div>;
 }

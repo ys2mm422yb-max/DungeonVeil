@@ -50,7 +50,7 @@ assert(playerRuntime.includes('bossLike ? 0.44 : 0.52'), 'boss-like damage does 
 assert(runtime.includes('defenseMitigationForValue') && runtime.includes('defenseMitigation(defense, 0.52)'), 'shared defense audit entry point is missing');
 assert(bridge.includes('createEquipmentRuntimeBalanceState') && bridge.includes('updateEquipmentRuntimeBalance(engine, equipmentRuntime)'), 'runtime armor balance is not wired into active runs');
 
-assert(inventory.includes("const TABS: ChamberTab[] = ['bow', 'quiver', 'armor', 'relic']"), 'four-tab inventory contract is missing');
+assert(inventory.includes("const TABS: ChamberTab[] = ['bow', 'quiver', 'armor', 'relic', 'companion']"), 'five-tab equipment contract is missing');
 assert(inventory.includes("armor: { de: 'RÜSTUNG', en: 'ARMOR' }"), 'armor tab label is missing');
 assert(!inventory.includes('inventory-tab-talisman'), 'removed artifact slot is still visible');
 assert(inventory.includes('equipment-upgrade-preview') && inventory.includes('equipment-upgrade-costs'), 'armor upgrade preview or costs are missing');
@@ -69,4 +69,4 @@ const requiredModels = [
 ];
 for (const model of requiredModels) assert(exists(model), `required armor preview asset is missing: ${model}`);
 
-console.log('Armor progression audit passed: exactly three active armor roles, diminishing defense, V4 migration, statless legacy cosmetics, cloud weighting and mobile inventory previews are coherent.');
+console.log('Armor progression audit passed: exactly three active armor roles, diminishing defense, V4 migration, statless legacy cosmetics, cloud weighting and mobile equipment previews are coherent.');
