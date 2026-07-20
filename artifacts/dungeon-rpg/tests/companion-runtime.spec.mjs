@@ -21,6 +21,10 @@ async function startFreshRun(page) {
   await name.fill('Veil Wolf Runtime');
   await page.getByRole('button', { name: /Run starten|Start Game/i }).first().click({ force: true });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
+  const skipIntro = page.getByRole('button', { name: /ÜBERSPRINGEN|SKIP/i });
+  if (await skipIntro.isVisible({ timeout: 8_000 }).catch(() => false)) await skipIntro.click({ force: true });
+  await expect(skipIntro).toBeHidden({ timeout: 20_000 });
+  await page.waitForTimeout(3_000);
 }
 
 test('one Veil Wolf identity spans equipment management and the shared run renderer', async ({ page }, testInfo) => {
@@ -42,7 +46,8 @@ test('one Veil Wolf identity spans equipment management and the shared run rende
   await expect(management).toBeVisible();
   await expect(management).toHaveAttribute('data-embedded', 'true');
   await expect(management).toHaveAttribute('data-companion-species', 'veil-wolf');
-  await expect(page.getByRole('heading', { name: /Ein Gefährte\. Fünf Taktiken\.|One companion\. Five tactics\./i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Dein Schleierwolf|Your Veil Wolf/i })).toBeVisible();
+  await expect(page.getByTestId('equipment-permanent-progression-copy')).toBeHidden();
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'single-target');
   await expect(page.getByTestId('companion-reserve-count')).toContainText('4');
   const reserveButtons = page.getByTestId('companion-reserve-grid').locator('button');
@@ -59,7 +64,7 @@ test('one Veil Wolf identity spans equipment management and the shared run rende
       secondRowStartsBelowFirst: boxes.length >= 3 ? boxes[2].top > boxes[0].bottom - 1 : false,
     };
   });
-  expect(managementGeometry.height).toBeLessThanOrEqual(620);
+  expect(managementGeometry.height).toBeLessThanOrEqual(520);
   expect(managementGeometry.firstRowDelta).toBeLessThanOrEqual(2);
   expect(managementGeometry.thirdRowDelta).toBeLessThanOrEqual(2);
   expect(managementGeometry.secondRowStartsBelowFirst).toBe(true);
