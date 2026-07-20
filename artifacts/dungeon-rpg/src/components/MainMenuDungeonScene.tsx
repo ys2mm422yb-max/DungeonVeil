@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { loadMetaProgression } from '../game/metaProgression';
+import { MainMenuHeroFocusBridge } from './MainMenuHeroFocusBridge';
 import { ModernVillageSquareScene } from './ModernVillageSquareScene';
 
 export const SPECTATOR_RENDERER_EVENT = 'dungeon-veil-spectator-renderer';
@@ -34,6 +35,7 @@ export function MainMenuDungeonScene() {
     className="pointer-events-none absolute inset-0 overflow-hidden"
     style={{ transform: 'translate3d(0,0,0)' }}
   >
+    <MainMenuHeroFocusBridge />
     <div
       className="absolute inset-0"
       style={{ transform: 'translate3d(0,1%,0) scale(1.3)', transformOrigin: '50% 84%', filter: 'brightness(1.18) contrast(1.04)' }}
