@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuSceneProxy, menuHeroFocus, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, band] = await Promise.all([
+const [menu, villageHub, menuSceneProxy, menuHeroFocus, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, earlyAtmosphere, roomThemes, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
@@ -21,6 +21,8 @@ const [menu, villageHub, menuSceneProxy, menuHeroFocus, villageScene, villagePla
   read('../src/components/WorldBossCohesiveStage.tsx'),
   read('../src/components/WorldBossAggressiveStage.tsx'),
   read('../src/components/WorldBossPerspectiveStage.tsx'),
+  read('../src/components/earlyVeilRoomAtmosphere3D.ts'),
+  read('../src/components/kaykitRoomThemes3D.ts'),
   read('../src/components/WorldBossCombatBandStage.tsx'),
 ]);
 
@@ -61,12 +63,15 @@ const checks = [
   [emailRedirect.includes('url.origin === supabaseOrigin()') && emailRedirect.includes('PATCH_MARKER'), 'email redirect guard is not narrowly scoped or idempotent'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuSceneProxy.includes('ModernVillageSquareScene') && menuSceneProxy.includes('MainMenuHeroFocusBridge') && menuSceneProxy.includes('dungeon-veil-meta-changed') && !menuSceneProxy.includes('VeilWorldOrb'), 'main menu scene proxy is not routed through the equipped focused village renderer'],
-  [menuSceneProxy.includes('data-composition="raised-mobile-hero"') && menuSceneProxy.includes('data-hero-pair="ranger-and-veil-wolf"') && menuSceneProxy.includes("translate3d(0,10%,0) scale(1.3)"), 'mobile Ranger and wolf presentation does not close the empty hero gap'],
-  [menuHeroFocus.includes('HallActiveCompanionVeilWolf') && menuHeroFocus.includes('VillageEquippedPlayer') && menuHeroFocus.includes('HallOfTheVeilPortal') && menuHeroFocus.includes('wolf.scale.setScalar(IS_MOBILE ? 0.62 : 0.58)') && menuHeroFocus.includes('portal.scale.setScalar(IS_MOBILE ? 0.75 : 0.83)'), 'live Three.js focus does not make the wolf readable and the portal secondary'],
-  [menuHeroFocus.includes('portal.position.z = -10.68') && menuHeroFocus.includes('portalCore.material.opacity = IS_MOBILE ? 0.55 : 0.62') && menuHeroFocus.includes('portalGlow.material.opacity = IS_MOBILE ? 0.055 : 0.085'), 'portal light or depth is still visually dominant'],
-  [menuHeroFocus.includes('data-wolf-focused="false"') && menuHeroFocus.includes('data-portal-recessed="false"') && menuHeroFocus.includes('data-wolf-scale="0"') && menuHeroFocus.includes('data-portal-scale="0"') && menuHeroFocus.includes('THREE.Object3D.prototype.add'), 'hero focus runtime diagnostics or scene hook missing'],
-  [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)') && !villageScene.includes('AelricWorldKeeper'), 'main menu does not use one focused equipped Ranger body'],
+  [menuSceneProxy.includes('assets/hall/veil-hall-hero.svg') && menuSceneProxy.includes('import.meta.env.BASE_URL') && !menuSceneProxy.includes('ModernVillageSquareScene') && !menuSceneProxy.includes('MainMenuHeroFocusBridge'), 'main menu does not use the approved HD key art as its single hero source'],
+  [menuSceneProxy.includes('data-composition="hd-key-art-overlay"') && menuSceneProxy.includes('data-hero-pair="ranger-and-veil-wolf"') && menuSceneProxy.includes('data-key-art="approved-gothic-portal-v1"'), 'approved Ranger, wolf and gothic portal composition markers are missing'],
+  [menuSceneProxy.includes('SPECTATOR_RENDERER_EVENT') && menuSceneProxy.includes('setSuspended') && menuSceneProxy.includes('if (suspended) return null'), 'HD menu art does not preserve the exclusive spectator handoff'],
+  [menuSceneProxy.includes('object-cover object-[center_38%]') && menuSceneProxy.includes('md:object-contain') && menuSceneProxy.includes('blur-2xl saturate-125'), 'HD menu art lacks responsive crop or wide-screen depth treatment'],
+  [!menuSceneProxy.includes('loadMetaProgression') && !menuSceneProxy.includes('loadKayKit') && !menuSceneProxy.includes('<canvas'), 'main menu still mounts a duplicate live Ranger or renderer over baked key art'],
+  [earlyAtmosphere.includes('first: 1, last: 9') && earlyAtmosphere.includes('background: 0x08050e') && earlyAtmosphere.includes('fog: 0x140b21') && earlyAtmosphere.includes("group.userData.noCollision = true"), 'rooms 1-9 do not have a bounded collision-free Veil environment contract'],
+  [earlyAtmosphere.includes("name = 'EarlyVeilFloorRune'") && earlyAtmosphere.includes("name = 'EarlyVeilWarmTorchLight'") && earlyAtmosphere.includes("name = 'EarlyVeilCentralLight'") && earlyAtmosphere.includes('THREE.Fog(EARLY_VEIL_ENVIRONMENT.fog, 23, 54)'), 'early rooms are missing readable runes, warm contrast lights or atmospheric depth'],
+  [roomThemes.includes("from './earlyVeilRoomAtmosphere3D'") && roomThemes.includes('buildEarlyVeilRoomAtmosphere(THREE, root, room)') && roomThemes.includes('if (earlyVeilAtmosphere) additions.push(earlyVeilAtmosphere)'), 'early Veil atmosphere is not integrated through the existing room-theme lifecycle'],
+  [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)') && !villageScene.includes('AelricWorldKeeper'), 'standalone village renderer does not retain one focused equipped Ranger body'],
   [villageScene.includes('async function loadVillageAssets(') && renderStart >= 0 && assetStart > renderStart, 'village renderer does not start before asynchronous asset loading'],
   [villageScene.includes('Promise.allSettled') && villageScene.includes("result.status === 'rejected'") && villageScene.includes('Village asset failed to load'), 'individual village asset failures are not isolated'],
   [villageScene.includes('new ResizeObserver(resize)') && villageScene.includes("window.visualViewport?.addEventListener('resize', resize)") && villageScene.includes("renderer.domElement.style.width = '100%'") && villageScene.includes("renderer.domElement.style.height = '100%'"), 'mobile village viewport or canvas sizing is missing'],
@@ -85,5 +90,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: gameplay modes share one Play entry, social routes stay compact, and the current world-boss pipeline remains active.');
-// Keeps the reviewed Play-menu contract tied to the current PR head.
+console.log('Social/navigation audit passed: approved HD key art, compact routes and the rooms 1-9 Veil atmosphere remain active without duplicate renderers.');
