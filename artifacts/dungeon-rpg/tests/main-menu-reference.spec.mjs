@@ -4,7 +4,18 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 
 async function openReferenceMenu(page) {
   await page.addInitScript(() => {
+    const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
+    const knownRelics = ['ash-eye', 'marked-claw', 'veil-heart'];
     localStorage.setItem('dungeon-veil-language', 'de');
+    localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
+    localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
+      version: 2,
+      initialized: true,
+      equipment: knownEquipment,
+      relics: knownRelics,
+      announcedEquipment: knownEquipment,
+      announcedRelics: knownRelics,
+    }));
     localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
       version: 1,
       activeId: 'single-target',
@@ -13,12 +24,16 @@ async function openReferenceMenu(page) {
     }));
   });
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.bringToFront();
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
   const presentation = page.getByTestId('main-menu-scene-presentation');
   await expect(presentation).toHaveAttribute('data-composition', 'live-hybrid-scene', { timeout: 60_000 });
   await expect(presentation).toHaveAttribute('data-static-hero-embedded', 'false');
+  await expect(presentation).toHaveAttribute('data-image-loaded', 'true', { timeout: 60_000 });
   await expect(presentation).toHaveAttribute('data-image-failed', 'false');
   await expect(page.getByTestId('main-menu-ambient-portal-art')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('live-hybrid-main-menu-frame')).toBeVisible();
   const liveScene = page.getByTestId('live-hybrid-main-menu-scene');
   await expect(liveScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
   await expect(liveScene).toHaveAttribute('data-animation-state', 'running');
@@ -123,6 +138,7 @@ test('live hybrid menu keeps four primary actions with an animated equipped Rang
   await expect(page.getByTestId('equipment-companion-section')).toBeVisible();
   await expect(page.getByTestId('companion-management-panel')).toHaveAttribute('data-embedded', 'true');
   await page.getByRole('button', { name: 'Zurück' }).click({ force: true });
+  await page.bringToFront();
   await expect(liveScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 30_000 });
   await expect(page.getByTestId('live-hybrid-main-menu-canvas')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
