@@ -27,6 +27,11 @@ function attachRuntimeMonitor(page) {
   return issues;
 }
 
+async function pressPointerUi(locator) {
+  await expect(locator).toBeVisible();
+  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+}
+
 async function initVisualState(page, projectName, { activeCompanion = true } = {}) {
   await page.addInitScript(({ ipad, withCompanion }) => {
     const marker = 'dungeon-veil-visual-audit-seeded-v2';
@@ -120,7 +125,7 @@ async function assertScreenshotIsUnobscured(page) {
 
 async function closeOverlay(page) {
   const close = page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).last();
-  if (await close.isVisible().catch(() => false)) await close.click({ force: true });
+  if (await close.isVisible().catch(() => false)) await pressPointerUi(close);
 }
 
 async function capture(page, path, { allowTutorial = false } = {}) {
@@ -143,8 +148,8 @@ async function setActiveCompanion(page, activeId) {
 }
 
 async function startFreshRun(page) {
-  await page.getByRole('button', { name: /Spielen|Play/i }).first().click({ force: true });
-  await page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await pressPointerUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
   const name = page.getByRole('textbox').first();
   await expect(name).toBeVisible({ timeout: 30_000 });
   await name.fill('Visual Audit Ranger');
@@ -173,26 +178,24 @@ async function loadRoom(page, room) {
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.bringToFront();
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
-  await expect(page.getByRole('button', { name: /Fortsetzen|Continue/i }).first()).toBeVisible({ timeout: 60_000 });
-  await page.getByRole('button', { name: /Fortsetzen|Continue/i }).first().click({ force: true });
+  const continueButton = page.getByRole('button', { name: /Fortsetzen|Continue/i }).first();
+  await expect(continueButton).toBeVisible({ timeout: 60_000 });
+  await pressPointerUi(continueButton);
   await expect(page.getByTestId('tutorial-overlay')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
-  await expect.poll(() => page.evaluate(expected => {
-    const saved = JSON.parse(localStorage.getItem('dungeon-veil-save') || '{}');
-    return Number(saved.floor) === expected;
-  }, room), { timeout: 30_000 }).toBe(true);
+  await expect(page.getByText(new RegExp(`RAUM\\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(room % 10 === 0 ? 2_200 : 1_500);
 }
 
 async function openPlayMenu(page) {
-  await page.getByRole('button', { name: /Spielen|Play/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
   await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 20_000 });
 }
 
 async function openMoreMenu(page) {
-  await page.getByRole('button', { name: /Mehr|More/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Mehr|More/i }).first());
   await expect(page.getByText(/Weitere Optionen|More options/i)).toBeVisible({ timeout: 20_000 });
 }
 
@@ -237,7 +240,7 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   await expect(page.getByTestId('live-hybrid-main-menu-scene')).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
   await capture(page, `test-results/visual-main-menu-${testInfo.project.name}.png`);
 
-  await page.getByTestId('main-menu-profile-badge').click({ force: true });
+  await pressPointerUi(page.getByTestId('main-menu-profile-badge'));
   await expect(page.getByTestId('player-profile-panel')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('player-profile-responsive-shell')).toBeVisible();
   const profileTabs = [
@@ -255,7 +258,7 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   await page.getByRole('button', { name: /Profil schließen|Close profile/i }).click({ force: true });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first());
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible({ timeout: 60_000 });
   const tabs = [
     ['bow', 'inventory-tab-bow'],
@@ -272,7 +275,7 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   await page.getByRole('button', { name: /Zurück|Back/i }).first().click({ force: true });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole('button', { name: /Kodex|Codex/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Kodex|Codex/i }).first());
   await expect(page.getByText(/Kodex|Codex/i).first()).toBeVisible({ timeout: 30_000 });
   await capture(page, `test-results/visual-codex-${testInfo.project.name}.png`);
   const codexBack = page.getByRole('button', { name: /Zurück|Back/i }).first();
@@ -287,37 +290,37 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
     ['guild', /Gilde|Guild/i, /Gilde gründen|Create Guild/i],
   ];
   for (const [name, buttonName, visibleText] of overlays) {
-    await page.getByRole('button', { name: buttonName }).first().click({ force: true });
+    await pressPointerUi(page.getByRole('button', { name: buttonName }).first());
     await expect(page.getByText(visibleText).first()).toBeVisible({ timeout: 30_000 });
     await capture(page, `test-results/visual-${name}-${testInfo.project.name}.png`);
     await closeOverlay(page);
   }
 
   await openMoreMenu(page);
-  await page.getByRole('button', { name: /Online & Cloud/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Online & Cloud/i }).first());
   await capture(page, `test-results/visual-online-cloud-${testInfo.project.name}.png`);
   await closeOverlay(page);
 
   await openPlayMenu(page);
-  await page.getByRole('button', { name: /Duo-Run|Duo Run/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Duo-Run|Duo Run/i }).first());
   await expect(page.getByTestId('coop-lobby-panel')).toBeVisible({ timeout: 30_000 });
   await capture(page, `test-results/visual-coop-lobby-${testInfo.project.name}.png`);
   await closeOverlay(page);
 
   await openPlayMenu(page);
-  await page.getByRole('button', { name: /Weltboss|World Boss/i }).last().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Weltboss|World Boss/i }).last());
   await expect(page.getByText(/Das nächste Weltereignis|The next world event/i)).toBeVisible({ timeout: 30_000 });
   await capture(page, `test-results/visual-worldboss-${testInfo.project.name}.png`);
   await closeOverlay(page);
 
-  await page.getByRole('button', { name: /Optionen|Options/i }).click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Optionen|Options/i }));
   await expect(page.getByTestId('accessibility-settings')).toBeVisible({ timeout: 30_000 });
   await capture(page, `test-results/visual-settings-${testInfo.project.name}.png`);
   await page.getByRole('button', { name: /Zurück|Back/i }).first().click({ force: true });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
 
   await openMoreMenu(page);
-  await page.getByRole('button', { name: /Credits/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Credits/i }).first());
   await expect(page.getByText(/hobbyloser Typ|hobbyless guy/i)).toBeVisible({ timeout: 30_000 });
   await capture(page, `test-results/visual-credits-${testInfo.project.name}.png`);
   await page.getByRole('button').first().click({ force: true });
@@ -327,7 +330,7 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
     await page.setViewportSize({ width: 820, height: 1180 });
     await reloadMenu(page);
     await capture(page, 'test-results/visual-main-menu-ipad-portrait-webkit.png');
-    await page.getByTestId('main-menu-profile-badge').click({ force: true });
+    await pressPointerUi(page.getByTestId('main-menu-profile-badge'));
     await expect(page.getByTestId('player-profile-panel')).toBeVisible({ timeout: 30_000 });
     await capture(page, 'test-results/visual-profile-ipad-portrait-webkit.png');
   }
