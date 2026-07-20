@@ -43,10 +43,10 @@ export function CompanionStatusChip({ role, language = 'de', onRoleChange }: Pro
       aria-label={de ? `Wolf-Taktik wechseln: ${copy.de}` : `Change wolf tactic: ${copy.en}`}
       title={de ? `${copy.de} · ${copy.bonusDe}` : `${copy.en} · ${copy.bonusEn}`}
       onClick={() => onRoleChange(nextCompanionRoleV4(role))}
-      className={`absolute right-[max(14px,env(safe-area-inset-right))] top-[max(196px,calc(env(safe-area-inset-top)+154px))] z-40 grid h-12 w-12 place-items-center rounded-2xl border backdrop-blur-md transition active:scale-[.94] ${ROLE_TONE[role]}`}
+      className={`pointer-events-auto absolute right-[max(14px,env(safe-area-inset-right))] top-[max(196px,calc(env(safe-area-inset-top)+154px))] z-40 grid h-12 w-12 touch-manipulation place-items-center rounded-2xl border backdrop-blur-md transition active:scale-[.94] ${ROLE_TONE[role]}`}
     >
       <WolfMark />
-      <span aria-hidden="true" className="absolute -bottom-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full border border-black/70 bg-[#08070c] px-1 text-[9px] font-black leading-none text-white/80">{ROLE_GLYPHS[role]}</span>
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full border border-black/70 bg-[#08070c] px-1 text-[9px] font-black leading-none text-white/80">{ROLE_GLYPHS[role]}</span>
       <span className="sr-only">{de ? copy.de : copy.en}</span>
     </button>
   );
