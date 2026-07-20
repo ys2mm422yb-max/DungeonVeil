@@ -8,6 +8,7 @@ import { GlobalLoadingLayer } from './components/GlobalLoadingLayer';
 import { MainMenuVisualQa } from './components/MainMenuVisualQa';
 import { ProfileLayoutQa } from './components/ProfileLayoutQa';
 import { SpectatorPerformanceQa } from './components/SpectatorPerformanceQa';
+import { TransientUiVisualQa } from './components/TransientUiVisualQa';
 import { TutorialVisualQa } from './components/TutorialVisualQa';
 import { UnlockPresentationLayer } from './components/UnlockPresentationLayer';
 import { WorldBossVisualQa } from './components/WorldBossVisualQa';
@@ -44,8 +45,10 @@ const qaView = qaMode === 'worldboss'
       ? <ProfileLayoutQa />
       : qaMode === 'tutorial'
         ? <TutorialVisualQa />
-        : qaMode === 'menu'
-          ? <MainMenuVisualQa />
-          : null;
+        : qaMode === 'states'
+          ? <TransientUiVisualQa />
+          : qaMode === 'menu'
+            ? <MainMenuVisualQa />
+            : null;
 const appView = qaView ?? <><App /><GlobalLoadingLayer /><UnlockPresentationLayer /></>;
 createRoot(document.getElementById('root')!).render(appView);
