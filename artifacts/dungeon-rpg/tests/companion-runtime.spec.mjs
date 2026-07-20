@@ -18,17 +18,17 @@ async function startFreshRun(page) {
   await page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first().click({ force: true });
   const name = page.getByRole('textbox').first();
   await expect(name).toBeVisible();
-  await name.fill('Companion Ranger');
+  await name.fill('Veil Wolf Runtime');
   await page.getByRole('button', { name: /Run starten|Start Game/i }).first().click({ force: true });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
 }
 
-test('equipment management, persistence and one animated KayKit companion share the run renderer', async ({ page }, testInfo) => {
+test('one Veil Wolf identity spans equipment management and the shared run renderer', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(error.message));
   page.on('console', message => {
-    if (message.type() === 'error' && /companion|TypeError|ReferenceError|Cannot read/i.test(message.text())) runtimeErrors.push(message.text());
+    if (message.type() === 'error' && /companion|wolf|TypeError|ReferenceError|Cannot read/i.test(message.text())) runtimeErrors.push(message.text());
   });
 
   await openMenu(page, testInfo.project.name);
@@ -41,8 +41,10 @@ test('equipment management, persistence and one animated KayKit companion share 
   const management = page.getByTestId('companion-management-panel');
   await expect(management).toBeVisible();
   await expect(management).toHaveAttribute('data-embedded', 'true');
+  await expect(management).toHaveAttribute('data-companion-species', 'veil-wolf');
+  await expect(page.getByRole('heading', { name: /Ein Gefährte\. Fünf Taktiken\.|One companion\. Five tactics\./i })).toBeVisible();
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'single-target');
-  await expect(page.getByTestId('companion-reserve-count')).toContainText('4/4');
+  await expect(page.getByTestId('companion-reserve-count')).toContainText('4');
   await expect(page.getByTestId('companion-reserve-grid').locator('button')).toHaveCount(4);
   await page.getByTestId('companion-role-shield').click({ force: true });
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'shield');
@@ -55,19 +57,30 @@ test('equipment management, persistence and one animated KayKit companion share 
   const runtime = page.getByTestId('companion-runtime-bridge');
   const scene = page.getByTestId('run-companion-scene');
   await expect(chip).toBeVisible();
+  await expect(chip).toHaveAttribute('data-presentation', 'compact-wolf-orb');
   await expect(chip).toHaveAttribute('data-companion-role', 'shield');
   await expect(runtime).toHaveAttribute('data-role', 'shield');
   await expect(runtime).toHaveAttribute('data-ai-hz', '10');
   await expect(runtime).toHaveAttribute('data-revive-target', 'false');
   await expect(scene).toHaveAttribute('data-scene-hook', 'object3d-add');
-  await expect(scene).toHaveAttribute('data-model-source', 'kaykit-adventurers');
-  await expect(scene).toHaveAttribute('data-animation-source', 'kaykit-character-animations');
+  await expect(scene).toHaveAttribute('data-model-source', 'procedural-veil-wolf');
+  await expect(scene).toHaveAttribute('data-animation-source', 'procedural-wolf-motion');
+  await expect(scene).toHaveAttribute('data-companion-species', 'veil-wolf');
   await expect(scene).toHaveAttribute('data-shared-renderer', 'true');
   await expect(scene).toHaveAttribute('data-extra-canvas', 'false');
   await expect(scene).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
   await expect(scene).toHaveAttribute('data-loaded-count', '1', { timeout: 60_000 });
   await expect(scene).toHaveAttribute('data-visible-count', '1', { timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1);
+
+  const chipGeometry = await chip.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return { width: box.width, height: box.height, left: box.left, right: box.right, viewportWidth: innerWidth };
+  });
+  expect(chipGeometry.width).toBeLessThanOrEqual(52);
+  expect(chipGeometry.height).toBeLessThanOrEqual(52);
+  expect(chipGeometry.left).toBeGreaterThanOrEqual(0);
+  expect(chipGeometry.right).toBeLessThanOrEqual(chipGeometry.viewportWidth + 1);
 
   await chip.click({ force: true });
   await expect(chip).toHaveAttribute('data-companion-role', 'loot-comfort');
