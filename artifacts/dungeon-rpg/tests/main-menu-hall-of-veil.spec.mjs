@@ -11,7 +11,7 @@ async function openMenu(page) {
   await expect(page.locator('[data-hall-of-the-veil="true"]')).toBeVisible({ timeout: 60_000 });
 }
 
-test('main menu is the Hall of the Veil with one exclusive renderer', async ({ page }) => {
+test('main menu uses premium 2D Hall artwork with one transparent character renderer', async ({ page }) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(error.message));
@@ -21,21 +21,27 @@ test('main menu is the Hall of the Veil with one exclusive renderer', async ({ p
 
   await openMenu(page);
   const hall = page.locator('[data-hall-of-the-veil="true"]');
-  await expect(hall).toHaveAttribute('data-scene-contract', 'hall-of-the-veil-v4');
+  await expect(hall).toHaveAttribute('data-scene-contract', 'hall-of-the-veil-v5-hybrid');
   await expect(hall).toHaveAttribute('data-renderer-count', '1');
+  await expect(hall).toHaveAttribute('data-background-mode', 'premium-2d-artwork');
   await expect(hall).toHaveAttribute('data-market-stalls', '0');
   await expect(hall).toHaveAttribute('data-decorative-npcs', '0');
   await expect(hall).toHaveAttribute('data-player-anchor', 'center');
+  await expect(hall).toHaveAttribute('data-active-companion', 'true');
+  await expect(page.locator('[data-hall-hybrid-background="true"]')).toBeVisible();
+  await expect(page.locator('[data-background-artwork="premium-gothic-v2"]')).toBeVisible();
   await expect(hall.locator('canvas[data-menu-renderer="hall-of-the-veil"]')).toHaveCount(1, { timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => Boolean(window.__DUNGEON_VEIL_MENU_RANGER__?.visibleEquipment?.bow))).toBe(true);
 
   const diagnostics = await page.evaluate(() => window.__DUNGEON_VEIL_MENU_HALL__);
   expect(diagnostics).toMatchObject({
-    contract: 'hall-of-the-veil-v4',
+    contract: 'hall-of-the-veil-v5-hybrid',
     rendererCount: 1,
+    backgroundMode: 'premium-2d-artwork',
     marketStalls: 0,
     decorativeNpcs: 0,
     characterCentered: true,
+    activeCompanionVisible: true,
     spectatorHandoff: 'exclusive',
   });
   expect(diagnostics.particleCount).toBeLessThanOrEqual(26);
