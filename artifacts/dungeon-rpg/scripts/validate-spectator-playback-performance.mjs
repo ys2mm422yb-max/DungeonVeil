@@ -42,7 +42,7 @@ const checks = [
   [simulator.includes('JITTER') && simulator.includes('MAX_EXTRAPOLATION_MS') && simulator.includes('plannedOutageMs') && simulator.includes('maxFrameStep') && simulator.includes('maxFrozenMs'), 'deterministic jitter, long-outage and packet-loss simulation is incomplete'],
   [qa.includes('jitter-loss-layout-long-run-v5') && qa.includes('spectator-qa-layout-enemy') && qa.includes('layoutChanges += 1') && qa.includes('maxExcessStepPx') && qa.includes('metrics.maxCorrectionPx'), 'browser QA does not exercise enemy additions/removals or post-warmup discontinuity budgets'],
   [browserTest.includes("data-contract', 'jitter-loss-layout-long-run-v5'") && browserTest.includes('data-layout-changes') && browserTest.includes('data-max-excess-step-px') && browserTest.includes('data-max-correction-px'), 'four-device browser regression does not verify layout-change continuity and explicit correction limits'],
-  [browserConfig.includes('workers: process.env.CI ? 2 : undefined'), 'browser regression still overloads the runner with four simultaneous WebGL-heavy workers'],
+  [browserConfig.includes('workers: process.env.CI ? 1 : undefined') && browserConfig.includes('fullyParallel: false'), 'browser regression must serialize WebGL-heavy projects on the shared CI runner'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -52,4 +52,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Spectator playback performance audit passed: map-free deltas, buffered playback, enemy-layout continuity, bounded extrapolation-to-hold, stable shared Three.js rendering, companion bounds, two-worker device validation and diagnostics are protected.');
+console.log('Spectator playback performance audit passed: map-free deltas, buffered playback, enemy-layout continuity, bounded extrapolation-to-hold, stable shared Three.js rendering, companion bounds, serialized four-device validation and diagnostics are protected.');
