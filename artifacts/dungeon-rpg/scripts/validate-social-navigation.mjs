@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuSceneProxy, menuHeroFocus, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, earlyAtmosphere, roomThemes, band] = await Promise.all([
+const [menu, villageHub, menuSceneProxy, liveMenuScene, menuHeroFocus, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, earlyAtmosphere, roomThemes, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
+  read('../src/components/LiveHybridMainMenuScene.tsx'),
   read('../src/components/MainMenuHeroFocusBridge.tsx'),
   read('../src/components/ModernVillageSquareScene.tsx'),
   read('../src/components/kaykitVillagePlayer3D.ts'),
@@ -63,13 +64,15 @@ const checks = [
   [emailRedirect.includes('url.origin === supabaseOrigin()') && emailRedirect.includes('PATCH_MARKER'), 'email redirect guard is not narrowly scoped or idempotent'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuSceneProxy.includes('assets/hall/veil-hall-hero.webp') && menuSceneProxy.includes('import.meta.env.BASE_URL') && !menuSceneProxy.includes('ModernVillageSquareScene') && !menuSceneProxy.includes('MainMenuHeroFocusBridge'), 'main menu does not use the approved direct WebP key art as its single hero source'],
-  [menuSceneProxy.includes('data-composition="hd-key-art-overlay"') && menuSceneProxy.includes('data-hero-pair="ranger-and-veil-wolf"') && menuSceneProxy.includes('data-key-art="approved-gothic-portal-v1"'), 'approved Ranger, wolf and gothic portal composition markers are missing'],
-  [menuSceneProxy.includes('data-image-loaded') && menuSceneProxy.includes('data-image-failed') && menuSceneProxy.includes('naturalWidth > 0'), 'HD menu art does not prove that real pixels loaded'],
-  [menuSceneProxy.includes('SPECTATOR_RENDERER_EVENT') && menuSceneProxy.includes('setSuspended') && menuSceneProxy.includes('if (suspended) return null'), 'HD menu art does not preserve the exclusive spectator handoff'],
-  [menuSceneProxy.includes('object-[center_43%]') && menuSceneProxy.includes('md:object-contain') && menuSceneProxy.includes('blur-2xl saturate-150'), 'HD menu art lacks responsive crop or wide-screen depth treatment'],
-  [!menuSceneProxy.includes('loadMetaProgression') && !menuSceneProxy.includes('loadKayKit') && !menuSceneProxy.includes('<canvas'), 'main menu still mounts a duplicate live Ranger or renderer over baked key art'],
-  [earlyAtmosphere.includes('first: 1, last: 9') && earlyAtmosphere.includes('background: 0x08050e') && earlyAtmosphere.includes('fog: 0x140b21') && earlyAtmosphere.includes("group.userData.noCollision = true"), 'rooms 1-9 do not have a bounded collision-free Veil environment contract'],
+  [menuSceneProxy.includes('assets/hall/veil-hall-hero.webp') && menuSceneProxy.includes('import.meta.env.BASE_URL') && menuSceneProxy.includes('LiveHybridMainMenuScene') && !menuSceneProxy.includes('ModernVillageSquareScene') && !menuSceneProxy.includes('MainMenuHeroFocusBridge'), 'main menu does not combine Pages-safe portal atmosphere with the dedicated live hybrid renderer'],
+  [menuSceneProxy.includes('data-composition="live-hybrid-scene"') && menuSceneProxy.includes('data-static-role="portal-atmosphere-only"') && menuSceneProxy.includes('data-static-hero-embedded="false"') && menuSceneProxy.includes('data-key-art="ambient-gothic-portal-v1"'), 'live hybrid composition or static-hero retirement markers are missing'],
+  [menuSceneProxy.includes('data-image-loaded') && menuSceneProxy.includes('data-image-failed') && menuSceneProxy.includes('naturalWidth > 0'), 'ambient menu art does not prove that real pixels loaded'],
+  [menuSceneProxy.includes('SPECTATOR_RENDERER_EVENT') && menuSceneProxy.includes('setSuspended') && menuSceneProxy.includes('if (suspended) return null'), 'live hybrid menu does not preserve the exclusive spectator handoff'],
+  [menuSceneProxy.includes('h-[43%]') && menuSceneProxy.includes('object-top') && menuSceneProxy.includes('WebkitMaskImage') && menuSceneProxy.includes('maskImage'), 'portal atmosphere is not bounded and masked away from the live hero foreground'],
+  [liveMenuScene.includes('loadKayKitVillageArcher') && liveMenuScene.includes('requestAnimationFrame(loop)') && liveMenuScene.includes('playerRig?.update(delta)') && liveMenuScene.includes('data-animation-frames'), 'equipped Ranger is not continuously animated in the live menu'],
+  [liveMenuScene.includes('activeCompanionV5') && liveMenuScene.includes('COMPANION_COLLECTION_EVENT') && liveMenuScene.includes("host.dataset.companionSpecies = 'none'"), 'V5 companion selection or no-companion start state is not respected by the menu'],
+  [liveMenuScene.includes('data-renderer="single-live-menu-canvas"') && liveMenuScene.includes("renderer.domElement.dataset.testid = 'live-hybrid-main-menu-canvas'"), 'single live menu canvas diagnostics are missing'],
+  [earlyAtmosphere.includes('first: 1, last: 9') && earlyAtmosphere.includes('background: 0x08050e') && earlyAtmosphere.includes('fog: 0x140b21') && earlyAtmosphere.includes('group.userData.noCollision = true'), 'rooms 1-9 do not have a bounded collision-free Veil environment contract'],
   [earlyAtmosphere.includes("name = 'EarlyVeilStoneDarkeningLayer'") && earlyAtmosphere.includes("name = 'EarlyVeilFloorRune'") && earlyAtmosphere.includes("name = 'EarlyVeilWarmTorchLight'") && earlyAtmosphere.includes("name = 'EarlyVeilCentralLight'") && earlyAtmosphere.includes('THREE.Fog(EARLY_VEIL_ENVIRONMENT.fog, 23, 54)'), 'early rooms are missing dark stone, readable runes, warm contrast lights or atmospheric depth'],
   [roomThemes.includes("from './earlyVeilRoomAtmosphere3D'") && roomThemes.includes('buildEarlyVeilRoomAtmosphere(THREE, root, room)') && roomThemes.includes('if (earlyVeilAtmosphere) additions.push(earlyVeilAtmosphere)'), 'early Veil atmosphere is not integrated through the existing room-theme lifecycle'],
   [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)') && !villageScene.includes('AelricWorldKeeper'), 'standalone village renderer does not retain one focused equipped Ranger body'],
@@ -91,4 +94,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: directly loaded HD key art, compact routes and the rooms 1-9 Veil atmosphere remain active without duplicate renderers.');
+console.log('Social/navigation audit passed: live hybrid Ranger, V5 companion state, compact routes and rooms 1-9 Veil atmosphere remain active with one exclusive menu renderer.');
