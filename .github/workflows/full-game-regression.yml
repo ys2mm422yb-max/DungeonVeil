@@ -168,16 +168,64 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
-      - name: Fail browser regression after diagnostics
-        if: steps.browser-tests.outcome == 'failure'
-        run: exit 1
-      - name: Upload browser report and failure evidence
+      - name: Upload iPhone visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-game-regression-evidence
+          name: visual-evidence-iphone-webkit
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
+          path: artifacts/dungeon-rpg/test-results/**/*iphone-webkit*.png
+      - name: Upload Android visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-evidence-android-chromium
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
+          path: artifacts/dungeon-rpg/test-results/**/*android-chromium*.png
+      - name: Upload iPad visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-evidence-ipad-webkit
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
+          path: artifacts/dungeon-rpg/test-results/**/*ipad*.png
+      - name: Upload desktop visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-evidence-desktop-chromium
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
+          path: artifacts/dungeon-rpg/test-results/**/*desktop-chromium*.png
+      - name: Upload browser result manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-game-regression-results
           if-no-files-found: warn
           retention-days: 14
           path: |
-            artifacts/dungeon-rpg/playwright-report
-            artifacts/dungeon-rpg/test-results
+            artifacts/dungeon-rpg/test-results/full-game-results.json
+            /tmp/dungeon-veil-preview.log
+      - name: Upload failure traces by browser
+        if: steps.browser-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-game-regression-failure-traces
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.webm
+            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
+      - name: Fail browser regression after diagnostics
+        if: steps.browser-tests.outcome == 'failure'
+        run: exit 1
