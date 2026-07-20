@@ -24,7 +24,9 @@ const [menu, villageHub, menuSceneProxy, villageScene, villagePlayer, mailbox, i
 ]);
 
 const renderStart = villageScene.lastIndexOf('raf = requestAnimationFrame(loop);');
-const assetStart = villageScene.indexOf('void loadVillageAssets(');
+const hallPlayerLoadStart = villageScene.indexOf('void loadKayKitVillageArcher(');
+const legacyAssetStart = villageScene.indexOf('void loadVillageAssets(');
+const asyncAssetStart = hallPlayerLoadStart >= 0 ? hallPlayerLoadStart : legacyAssetStart;
 const playOverlayStart = menu.indexOf("{overlay === 'play'");
 const moreOverlayStart = menu.indexOf("{overlay === 'more'");
 const overlayCloseStart = menu.indexOf("{overlay !== 'guild'");
@@ -32,12 +34,42 @@ const playOverlay = playOverlayStart >= 0 && moreOverlayStart > playOverlayStart
 const moreOverlay = moreOverlayStart >= 0 && overlayCloseStart > moreOverlayStart ? menu.slice(moreOverlayStart, overlayCloseStart) : '';
 const saveEmphasisUsesProps = menu.includes("props.saveData ? 'gold' : 'dark'") && menu.includes("props.saveData ? 'dark' : 'gold'");
 const saveEmphasisUsesRefreshedSave = menu.includes("currentSaveData ? 'gold' : 'dark'") && menu.includes("currentSaveData ? 'dark' : 'gold'");
+const saveEmphasisUsesReferenceMenu = menu.includes("currentSaveData ? 'violet' : 'dark'")
+  && menu.includes("currentSaveData ? 'blue' : 'violet'");
+const referenceSocialDock = menu.includes('data-testid="main-menu-social-navigation"')
+  && menu.includes("setOverlay('mailbox')")
+  && menu.includes("setOverlay('friends')")
+  && menu.includes("setOverlay('guild')")
+  && menu.includes("setOverlay('daily')");
+const legacySocialDock = menu.includes('<VillageNpcHub');
 const actionBandSeparated = menu.includes('grid-cols-2')
   && (menu.includes('min-h-[250px] flex-1')
-    || (menu.includes('min-h-[220px] flex-1') && menu.includes('main-menu-companion-navigation')))
+    || menu.includes('min-h-[220px] flex-1')
+    || (menu.includes('min-h-[280px] flex-1') && menu.includes('main-menu-social-navigation')))
+  && menu.includes('main-menu-companion-navigation')
   && !menu.includes('h-[41vh]');
+const focusedReferenceRanger = villageScene.includes("data-scene=\"hall-of-the-veil-reference\"")
+  && villageScene.includes('loadKayKitVillageArcher')
+  && villagePlayer.includes("root.name = 'VillageEquippedPlayer'")
+  && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger')
+  && villagePlayer.includes('village-showcase-v14-player-focus')
+  && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'")
+  && !villageScene.includes('AelricWorldKeeper');
+const focusedLegacyRanger = villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'")
+  && villageScene.includes('loadKayKitVillageArcher')
+  && villagePlayer.includes("root.name = 'VillageEquippedPlayer'")
+  && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger')
+  && villagePlayer.includes('village-showcase-v14-player-focus')
+  && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'")
+  && villagePlayer.includes('root.scale.setScalar(0.72)')
+  && !villageScene.includes('AelricWorldKeeper');
+const isolatedHallPlayerFailure = villageScene.includes(".catch(error => console.error('Equipped hall player failed to load', error))");
+const isolatedLegacyAssets = villageScene.includes('Promise.allSettled')
+  && villageScene.includes("result.status === 'rejected'")
+  && villageScene.includes('Village asset failed to load');
+
 const checks = [
-  [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
+  [((legacySocialDock && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox')) || referenceSocialDock) && menu.includes('<MailboxPanel'), 'main-menu mailbox entry is missing'],
   [menu.includes("setOverlay('play')") && playOverlay.includes('Solo-Run') && playOverlay.includes('Duo-Run') && playOverlay.includes('Weltboss') && playOverlay.includes("setOverlay('coop')") && playOverlay.includes("setOverlay('worldBoss')"), 'play mode chooser does not group solo, duo and world boss'],
   [moreOverlay.length > 0 && !moreOverlay.includes('Duo-Run') && !moreOverlay.includes('Duo Run'), 'duo run is still hidden in more options'],
   [!menu.includes('WeeklyRiftPanel') && !menu.includes("overlay === 'rift'") && !menu.includes("setOverlay('rift')"), 'weekly-rift shortcut or panel is still mounted in the main menu'],
@@ -46,7 +78,7 @@ const checks = [
   [mailbox.includes('acceptGuildInvite') && mailbox.includes('declineGuildInvite') && mailbox.includes('markMailboxActioned'), 'mailbox guild invitation actions are incomplete'],
   [guildMigration.includes('create table if not exists public.guild_invite_links') && guildMigration.includes('create table if not exists public.player_mailbox'), 'guild invite link or mailbox table migration is missing'],
   [guildMigration.includes('enable row level security') && guildMigration.includes('security definer') && guildMigration.includes('extensions.digest'), 'mailbox and guild link security controls are incomplete'],
-  [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-scout'") && villageHub.includes('action: onFriends') && menu.includes('<FriendsPanel'), 'village-routed main-menu friends entry is missing'],
+  [((legacySocialDock && villageHub.includes("testId: 'npc-scout'") && villageHub.includes('action: onFriends')) || referenceSocialDock) && menu.includes('<FriendsPanel'), 'main-menu friends entry is missing'],
   [friendsPanel.includes('sendFriendRequestOnline') && friendsPanel.includes('acceptFriendRequestOnline') && friendsPanel.includes('cancelFriendRequestOnline') && friendsPanel.includes('removeFriendOnline'), 'friends panel actions are incomplete'],
   [friendClient.includes("rpc<OnlineFriend[]>('list_friends_v2')") && friendClient.includes("rpc<OnlineFriendRequest[]>('list_friend_requests')") && friendClient.includes("rpc<SentFriendRequest[]>('send_friend_request_by_query'"), 'authenticated friend-code client is incomplete'],
   [mailbox.includes("message.kind === 'friend_request'") && mailbox.includes('answerFriendRequest') && mailbox.includes('acceptFriendRequestOnline'), 'friend requests are not actionable from the mailbox'],
@@ -58,15 +90,15 @@ const checks = [
   [emailRedirect.includes('import.meta.env.BASE_URL') && emailRedirect.includes('window.location.origin') && !emailRedirect.includes("new URL('/', window.location.origin)"), 'email confirmation redirect can fall back to the GitHub Pages domain root'],
   [emailRedirect.includes('url.origin === supabaseOrigin()') && emailRedirect.includes('PATCH_MARKER'), 'email redirect guard is not narrowly scoped or idempotent'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
-  [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuSceneProxy.includes('ModernVillageSquareScene') && menuSceneProxy.includes('dungeon-veil-meta-changed') && !menuSceneProxy.includes('VeilWorldOrb'), 'main menu scene proxy is not routed to the equipped modern village renderer'],
-  [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)') && !villageScene.includes('AelricWorldKeeper'), 'main menu does not use one focused equipped Ranger body'],
-  [villageScene.includes('async function loadVillageAssets(') && renderStart >= 0 && assetStart > renderStart, 'village renderer does not start before asynchronous asset loading'],
-  [villageScene.includes('Promise.allSettled') && villageScene.includes("result.status === 'rejected'") && villageScene.includes('Village asset failed to load'), 'individual village asset failures are not isolated'],
-  [villageScene.includes('new ResizeObserver(resize)') && villageScene.includes("window.visualViewport?.addEventListener('resize', resize)") && villageScene.includes("renderer.domElement.style.width = '100%'") && villageScene.includes("renderer.domElement.style.height = '100%'"), 'mobile village viewport or canvas sizing is missing'],
-  [villageHub.includes('grid grid-cols-4') && !villageHub.includes("testId: 'npc-worldkeeper'") && !villageHub.includes('onWorldBoss') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock still mixes gameplay modes into the social routes'],
-  [actionBandSeparated, 'main-menu action layout is not separated from the village scene'],
-  [saveEmphasisUsesProps || saveEmphasisUsesRefreshedSave, 'continue and play do not switch primary emphasis with save availability'],
+  [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil hall visual QA route is missing'],
+  [menuSceneProxy.includes('ModernVillageSquareScene') && menuSceneProxy.includes('dungeon-veil-meta-changed') && !menuSceneProxy.includes('VeilWorldOrb'), 'main menu scene proxy is not routed to the equipped hall renderer'],
+  [focusedLegacyRanger || focusedReferenceRanger, 'main menu does not use one focused equipped Ranger body'],
+  [renderStart >= 0 && asyncAssetStart > renderStart, 'menu renderer does not start before asynchronous asset loading'],
+  [isolatedLegacyAssets || isolatedHallPlayerFailure, 'individual menu asset failures are not isolated'],
+  [villageScene.includes('new ResizeObserver(resize)') && villageScene.includes("window.visualViewport?.addEventListener('resize', resize)") && villageScene.includes("renderer.domElement.style.width = '100%'") && villageScene.includes("renderer.domElement.style.height = '100%'"), 'mobile menu viewport or canvas sizing is missing'],
+  [referenceSocialDock || (villageHub.includes('grid grid-cols-4') && !villageHub.includes("testId: 'npc-worldkeeper'") && !villageHub.includes('onWorldBoss') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex')), 'social dock still mixes gameplay modes into the social routes'],
+  [actionBandSeparated, 'main-menu action layout is not separated from the hall scene'],
+  [saveEmphasisUsesProps || saveEmphasisUsesRefreshedSave || saveEmphasisUsesReferenceMenu, 'continue and play do not switch primary emphasis with save availability'],
   [!menuSceneProxy.includes('VeilWorldOrb') && !villageScene.includes('VeilWorldGlobe'), 'legacy world-globe menu markers returned'],
   [stageWrapper.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && aggressiveStage.includes('<WorldBossPerspectiveStage') && perspectiveStage.includes("root.name = 'AshKingLowCostKayKitHall'") && perspectiveStage.includes("floor.name = 'AshKingDetailedSingleFloor'") && !perspectiveStage.includes('buildKayKitDungeonRoom'), 'single-floor low-call Ash King hall or aggressive controller is missing'],
   [band.includes('data-testid="worldboss-combat-band"') && band.includes('ritual-arena-meaning') && band.includes('<WorldBossCohesiveStage'), 'world-boss combat band QA markers or stage route is missing'],
@@ -79,5 +111,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: gameplay modes share one Play entry, social routes stay compact, and the current world-boss pipeline remains active.');
-// Keeps the reviewed Play-menu contract tied to the current PR head.
+console.log('Social/navigation audit passed: gameplay modes share one Play entry, social routes stay compact, and the current Hall of the Veil pipeline remains active.');
