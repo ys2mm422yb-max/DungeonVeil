@@ -6,3 +6,4 @@
 - Locked entries reveal only a silhouette and a progression hint.
 - Tablet layouts place the card grid beside the selected detail; phones remain single-column.
 - Warden discovery keys are the real chapter-one boss rooms: 10, 20, 30, 40 and 50.
+- The final validation run targets the current fixed test branch after the relic-runtime merge.
