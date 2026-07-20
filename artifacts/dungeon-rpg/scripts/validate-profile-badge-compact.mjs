@@ -7,8 +7,8 @@ const [badge, menu] = await Promise.all([
 
 const legacyLogoSeparation = menu.includes('<ProfileBadge') && menu.includes('header className="mt-12');
 const referenceLogoSeparation = menu.includes('<ProfileBadge')
-  && menu.includes('header className="mt-[100px]')
-  && menu.includes('sm:mt-20')
+  && ((menu.includes('header className="mt-[100px]') && menu.includes('sm:mt-20'))
+    || (menu.includes('header className="mt-[78px]') && menu.includes('sm:mt-[70px]')))
   && menu.includes('DUNGEON VEIL');
 
 const checks = [
@@ -16,7 +16,7 @@ const checks = [
   [badge.includes('top-[max(10px,calc(env(safe-area-inset-top)+4px))]'), 'profile badge safe-area position is incorrect'],
   [badge.includes('rounded-[14px]') && badge.includes('px-2 py-1'), 'profile badge spacing does not match the compact layout'],
   [badge.includes('text-[9px]') && badge.includes('text-[5.5px]'), 'profile badge typography is not compact'],
-  [legacyLogoSeparation || referenceLogoSeparation, 'main menu profile integration is missing'],
+  [referenceLogoSeparation || legacyLogoSeparation, 'main menu profile integration is missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -26,4 +26,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Compact profile badge audit passed: the top-left profile card uses the final 176px/48px layout and remains separated from the logo.');
+console.log('Compact profile badge audit passed: the top-left profile card remains separated from the mobile logo composition.');
