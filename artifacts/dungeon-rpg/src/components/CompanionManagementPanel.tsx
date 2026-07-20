@@ -24,7 +24,12 @@ const ROLE_POWER: Readonly<Record<CompanionRoleV4, string>> = {
   distraction: '8%',
 };
 
-export function CompanionManagementPanel({ language = 'de' }: { language?: 'de' | 'en' }) {
+type Props = {
+  language?: 'de' | 'en';
+  embedded?: boolean;
+};
+
+export function CompanionManagementPanel({ language = 'de', embedded = false }: Props) {
   const de = language === 'de';
   const [activeRole, setActiveRole] = useState<CompanionRoleV4>(() => loadCompanionRoleV4());
 
@@ -40,10 +45,13 @@ export function CompanionManagementPanel({ language = 'de' }: { language?: 'de' 
   const select = (role: CompanionRoleV4) => setActiveRole(saveCompanionRoleV4(role));
   const reserve = COMPANION_ROLE_ORDER_V4.filter(role => role !== activeRole);
   const activeCopy = COMPANION_ROLE_COPY_V4[activeRole];
+  const shellClass = embedded
+    ? 'rounded-3xl border border-violet-200/16 bg-black/46 p-4 text-white shadow-[0_18px_40px_rgba(0,0,0,.3)] md:p-6'
+    : 'max-h-[min(76vh,760px)] overflow-y-auto overscroll-contain rounded-3xl border border-violet-200/16 bg-[#111019]/98 p-4 text-white shadow-2xl [-webkit-overflow-scrolling:touch] md:p-6';
 
-  return <section data-testid="companion-management-panel" className="max-h-[min(76vh,760px)] overflow-y-auto overscroll-contain rounded-3xl border border-violet-200/16 bg-[#111019]/98 p-4 text-white shadow-2xl [-webkit-overflow-scrolling:touch] md:p-6">
+  return <section data-testid="companion-management-panel" data-embedded={embedded ? 'true' : 'false'} className={shellClass}>
     <header className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-      <div><div className="text-[7px] font-black uppercase tracking-[.3em] text-violet-100/42">{de ? 'BEGLEITER-RESERVE' : 'COMPANION RESERVE'}</div><h2 className="mt-1 text-xl font-black text-violet-50 md:text-2xl">{de ? 'Dein Gefährte im Schleier' : 'Your companion in the Veil'}</h2><p className="mt-2 max-w-2xl text-[9px] leading-relaxed text-white/42 md:text-[10px]">{de ? 'Wähle genau einen aktiven Begleiter. Vier Rollen bleiben in Reserve und können jederzeit vor oder während eines Runs gewechselt werden.' : 'Choose exactly one active companion. Four roles stay in reserve and can be switched before or during a run.'}</p></div>
+      <div><div className="text-[7px] font-black uppercase tracking-[.3em] text-violet-100/42">{embedded ? (de ? 'BEGLEITER' : 'COMPANIONS') : (de ? 'BEGLEITER-RESERVE' : 'COMPANION RESERVE')}</div><h2 className="mt-1 text-xl font-black text-violet-50 md:text-2xl">{de ? 'Dein Gefährte im Schleier' : 'Your companion in the Veil'}</h2><p className="mt-2 max-w-2xl text-[9px] leading-relaxed text-white/42 md:text-[10px]">{de ? 'Wähle genau einen aktiven Begleiter. Vier Rollen bleiben in Reserve und können jederzeit vor oder während eines Runs gewechselt werden.' : 'Choose exactly one active companion. Four roles stay in reserve and can be switched before or during a run.'}</p></div>
       <div className="grid grid-cols-2 gap-2 text-center"><div className="rounded-xl border border-violet-200/12 bg-violet-400/[.05] px-3 py-2"><div className="text-[6px] font-black uppercase tracking-[.14em] text-white/30">Solo</div><div className="mt-1 text-sm font-black text-violet-100">1</div></div><div className="rounded-xl border border-violet-200/12 bg-violet-400/[.05] px-3 py-2"><div className="text-[6px] font-black uppercase tracking-[.14em] text-white/30">Duo</div><div className="mt-1 text-sm font-black text-violet-100">2</div></div></div>
     </header>
 
