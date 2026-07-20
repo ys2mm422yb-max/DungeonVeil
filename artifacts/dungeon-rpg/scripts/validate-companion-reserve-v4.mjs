@@ -44,7 +44,7 @@ assert(selection.includes('COMPANION_COLLECTION_STORAGE_KEY') && selection.inclu
 assert(stage.includes('activeCompanionV5') && stage.includes('captured once') && !stage.includes('saveCompanionRoleV4') && !stage.includes('changeCompanionRole'), 'run companion is not frozen before combat');
 assert(chip.includes('read-only-companion-status') && chip.includes('pointer-events-none') && !chip.includes('nextCompanionRoleV4') && !chip.includes('onRoleChange'), 'in-run companion switching still exists');
 
-assert(runtime.includes('data-basic-attacks="true"') && runtime.includes('companionAttackIntervalV5') && runtime.includes('localCompanionOrigin'), 'every companion does not perform a visible paced basic attack');
+assert(runtime.includes('data-basic-attacks="true"') && runtime.includes('data-basic-attack-count="0"') && runtime.includes('basicAttackCountRef.current += 1') && runtime.includes('companionAttackIntervalV5') && runtime.includes('localCompanionOrigin'), 'every companion does not produce measurable visible paced basic attacks');
 assert(runtime.includes('data-selection="pre-run-frozen"') && runtime.includes('data-level={level}') && runtime.includes('companionEffectivePowerV5'), 'runtime level or frozen selection diagnostics missing');
 assert(runtime.includes("activeRole === 'shield'") && runtime.includes("activeRole === 'loot-comfort'") && runtime.includes("activeRole === 'distraction'"), 'role-specific guard, collection or distraction effects missing');
 assert(runtime.includes('data-revive-target="false"') && runtime.includes('data-blocks-players="false"') && runtime.includes('data-blocks-enemies="false"'), 'runtime collision or revive diagnostics unsafe');
