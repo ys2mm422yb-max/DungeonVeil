@@ -89,6 +89,7 @@ test('one Veil Wolf identity spans equipment management and the shared run rende
   await expect(scene).toHaveAttribute('data-model-source', 'procedural-veil-wolf');
   await expect(scene).toHaveAttribute('data-animation-source', 'procedural-wolf-motion');
   await expect(scene).toHaveAttribute('data-companion-species', 'veil-wolf');
+  await expect(scene).toHaveAttribute('data-follow-placement', 'inward-side');
   await expect(scene).toHaveAttribute('data-shared-renderer', 'true');
   await expect(scene).toHaveAttribute('data-extra-canvas', 'false');
   await expect(scene).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
