@@ -31,6 +31,7 @@ const requiredFlows = [
   'run-dash-control',
 ];
 const requiredVisualMarkers = [
+  "const fullRoomMatrix = testInfo.project.name === 'desktop-chromium';",
   "Array.from({ length: 50 }",
   '[1, 10, 20, 30, 40, 50]',
   'visual-room-',
@@ -100,6 +101,7 @@ for (const marker of requiredReducedMotionMarkers) {
 for (const marker of requiredEquipmentMarkers) {
   if (!equipmentResponsive.includes(marker)) failures.push(`missing responsive equipment marker: ${marker}`);
 }
+if (visualAudit.includes("testInfo.project.name === 'desktop-chromium' || testInfo.project.name === 'iphone-webkit'")) failures.push('full 50-room evidence matrix must not run twice on desktop and iPhone');
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
 if (!config.includes('transient-ui-visual-audit')) failures.push('transient UI visual regression is not part of the browser matrix');
 if (!config.includes('equipment-responsive')) failures.push('responsive equipment regression is not part of the browser matrix');
@@ -120,4 +122,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, 50 desktop and mobile rooms, critical cross-device rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, 50 desktop rooms, critical cross-device rooms, runtime errors, assets and production build are covered.');
