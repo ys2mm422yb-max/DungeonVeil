@@ -1,0 +1,76 @@
+name: Focused Spectator Disposal
+
+on:
+  push:
+    branches: [fix/validate-spectator-disposal-focused]
+    paths:
+      - '.github/workflows/validate-spectator-disposal-focused.yml'
+      - 'artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts'
+      - 'artifacts/dungeon-rpg/tests/spectator-performance.spec.mjs'
+      - 'artifacts/dungeon-rpg/playwright.regression.config.mjs'
+  pull_request:
+    branches: [fix/mobile-telegraphs-room-21-50-balance]
+    paths:
+      - '.github/workflows/validate-spectator-disposal-focused.yml'
+      - 'artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts'
+      - 'artifacts/dungeon-rpg/tests/spectator-performance.spec.mjs'
+      - 'artifacts/dungeon-rpg/playwright.regression.config.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  spectator-disposal:
+    name: ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - iphone-webkit
+          - android-chromium
+          - ipad-landscape-webkit
+          - desktop-chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install isolated browser test runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install Chromium and WebKit
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium webkit
+      - name: Build current branch
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Run focused spectator performance test
+        env:
+          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
+          pnpm --dir artifacts/dungeon-rpg exec playwright test tests/spectator-performance.spec.mjs --config=playwright.regression.config.mjs --project=${{ matrix.project }} --retries=0
+      - name: Upload focused evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spectator-disposal-${{ matrix.project }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            artifacts/dungeon-rpg/playwright-report
+            artifacts/dungeon-rpg/test-results
