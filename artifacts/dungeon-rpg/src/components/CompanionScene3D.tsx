@@ -54,36 +54,36 @@ function createVeilWolfRig(THREE: any, role: CompanionRoleV4): VeilWolfRig {
   root.userData.dungeonVeilCompanionV4 = true;
   root.userData.companionSpecies = 'veil-wolf';
   root.userData.companionRole = role;
-  root.scale.setScalar(IS_MOBILE ? 0.64 : 0.7);
+  root.scale.setScalar(IS_MOBILE ? 0.72 : 0.7);
 
   const visual = new THREE.Group();
   visual.name = 'VeilWolfVisual';
   root.add(visual);
 
   const bodyMaterial = new THREE.MeshStandardMaterial({
-    color: 0x24202f,
-    emissive: 0x24123d,
-    emissiveIntensity: 0.48,
-    roughness: 0.66,
+    color: 0x32283f,
+    emissive: 0x3a1758,
+    emissiveIntensity: 0.68,
+    roughness: 0.64,
     metalness: 0.06,
   });
   const shadowMaterial = new THREE.MeshStandardMaterial({
-    color: 0x090a10,
-    emissive: 0x0f0818,
-    emissiveIntensity: 0.2,
-    roughness: 0.86,
+    color: 0x11121b,
+    emissive: 0x1a0d28,
+    emissiveIntensity: 0.32,
+    roughness: 0.84,
   });
-  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xe4d2ff });
+  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xf3e9ff });
   const roleMaterial = new THREE.MeshStandardMaterial({
     color: roleColor,
     emissive: roleColor,
-    emissiveIntensity: 1.25,
+    emissiveIntensity: 1.35,
     roughness: 0.28,
   });
   const auraMaterial = new THREE.MeshBasicMaterial({
     color: roleColor,
     transparent: true,
-    opacity: 0.34,
+    opacity: 0.42,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
@@ -185,7 +185,7 @@ function createVeilWolfRig(THREE: any, role: CompanionRoleV4): VeilWolfRig {
       body.scale.y = 0.62 + breath * 0.012;
       headPivot.rotation.z = Math.sin(now * 0.00125) * 0.035 + stride * 0.025;
       tailPivot.rotation.z = -1.04 + Math.sin(now * (moving ? 0.006 : 0.0032)) * (moving ? 0.26 : 0.18);
-      auraMaterial.opacity = 0.24 + Math.sin(now * 0.0024) * 0.08;
+      auraMaterial.opacity = 0.32 + Math.sin(now * 0.0024) * 0.09;
       aura.scale.setScalar(0.96 + Math.sin(now * 0.0045) * 0.06);
       roleCrystal.rotation.y = now * 0.001;
     },
@@ -241,6 +241,7 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
       }
       marker.dataset.localRole = localRoleRef.current;
       marker.dataset.sceneCaptured = desiredScene ? 'true' : 'false';
+      marker.dataset.followPlacement = 'inward-side';
     };
 
     const removeBinding = (ownerPlayerId: string) => {
@@ -335,8 +336,15 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
       const facingX = isRemote && remote ? remote.facingX : state.player.facing.x;
       const facingY = isRemote && remote ? remote.facingY : state.player.facing.y;
       const side = isRemote ? -1 : 1;
-      const followX = ownerX - facingX * 42 - facingY * 34 * side;
-      const followY = ownerY - facingY * 42 + facingX * 34 * side;
+      const mapCenterX = state.map.width * TILE / 2;
+      const mapCenterY = state.map.height * TILE / 2;
+      const centerDeltaX = mapCenterX - ownerX;
+      const centerDeltaY = mapCenterY - ownerY;
+      const centerDistance = Math.hypot(centerDeltaX, centerDeltaY);
+      const inwardX = centerDistance > 80 ? centerDeltaX / centerDistance : facingX;
+      const inwardY = centerDistance > 80 ? centerDeltaY / centerDistance : facingY;
+      const followX = ownerX + inwardX * 46 - inwardY * 26 * side;
+      const followY = ownerY + inwardY * 46 + inwardX * 26 * side;
       const targetX = followX / TILE - state.map.width / 2 + 0.5;
       const targetZ = followY / TILE - state.map.height / 2 + 0.5;
       if (!binding.initialized) {
@@ -416,6 +424,7 @@ export function CompanionScene3D({ gameState, localRole, remotePlayer = null }: 
     data-model-source="procedural-veil-wolf"
     data-animation-source="procedural-wolf-motion"
     data-companion-species="veil-wolf"
+    data-follow-placement="inward-side"
     data-shared-renderer="true"
     data-extra-canvas="false"
   />;
