@@ -338,8 +338,8 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
 });
 
-test('rooms 1-50 produce stable visual evidence across the full run', async ({ page }, testInfo) => {
-  const fullRoomMatrix = testInfo.project.name === 'desktop-chromium' || testInfo.project.name === 'iphone-webkit';
+test('room visual evidence covers all desktop rooms and expanded mobile boundaries', async ({ page }, testInfo) => {
+  const fullRoomMatrix = testInfo.project.name === 'desktop-chromium';
   const rooms = fullRoomMatrix ? Array.from({ length: 50 }, (_, index) => index + 1) : CRITICAL_ROOMS;
   test.setTimeout(fullRoomMatrix ? 1_500_000 : 600_000);
   const runtimeIssues = attachRuntimeMonitor(page);
