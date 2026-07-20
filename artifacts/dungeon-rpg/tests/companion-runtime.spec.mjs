@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
+async function pressPointerUi(locator) {
+  await expect(locator).toBeVisible();
+  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+}
+
 async function openMenu(page, projectName) {
   await page.addInitScript(({ ipad }) => {
     localStorage.clear();
@@ -33,8 +38,8 @@ async function openMenu(page, projectName) {
 }
 
 async function startFreshRun(page) {
-  await page.getByRole('button', { name: /Spielen|Play/i }).first().click({ force: true });
-  await page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await pressPointerUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
   const name = page.getByRole('textbox').first();
   await expect(name).toBeVisible();
   await name.fill('Companion Collection Runtime');
@@ -58,7 +63,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(page.getByTestId('main-menu-companion-navigation')).toHaveCount(0);
   const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
   await expect(equipmentEntry).toBeVisible();
-  await equipmentEntry.getByRole('button').click({ force: true });
+  await pressPointerUi(equipmentEntry.getByRole('button'));
   await expect(page.getByRole('heading', { name: /AUSRÜSTUNG|EQUIPMENT/i })).toBeVisible();
   await page.getByTestId('inventory-tab-companion').click({ force: true });
 
