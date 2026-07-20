@@ -1,5 +1,6 @@
 import type { CompanionRoleV4 } from '../game/companionReserveV4';
 import { COMPANION_DEFINITIONS_V5 } from '../game/companionCollectionV5';
+import './companionVisualReadability3D';
 
 const ROLE_TONE: Readonly<Record<CompanionRoleV4, string>> = {
   'single-target': 'border-cyan-200/35 bg-cyan-400/12 text-cyan-100 shadow-[0_0_22px_rgba(103,232,249,.14)]',
