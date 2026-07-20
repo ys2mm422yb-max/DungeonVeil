@@ -9,6 +9,14 @@ import { PlayerProfilePanel } from './PlayerProfilePanel';
 
 type View = 'own' | 'public';
 
+function initialView(): View {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('profile') === 'public' ? 'public' : 'own';
+}
+
+function captureMode() {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('capture') === '1';
+}
+
 function qaMeta(): MetaProgression {
   const meta = loadMetaProgression();
   meta.rank = 12;
@@ -98,20 +106,21 @@ function qaPublicProfile(): SocialProfileCardData {
 }
 
 export function ProfileLayoutQa() {
-  const [view, setView] = useState<View>('own');
+  const [view, setView] = useState<View>(initialView);
+  const capture = useMemo(captureMode, []);
   const profile = useMemo(qaProfile, []);
   const meta = useMemo(qaMeta, []);
   const retention = useMemo(qaRetention, []);
   const publicProfile = useMemo(qaPublicProfile, []);
 
-  return <div data-testid="profile-layout-qa" data-contract="profile-tablet-current-equipment-v1" className="fixed inset-0 bg-[#07080b]">
+  return <div data-testid="profile-layout-qa" data-contract="profile-tablet-current-equipment-v1" data-profile-view={view} className="fixed inset-0 bg-[#07080b]">
     {view === 'own'
       ? <PlayerProfilePanel profile={profile} saveData={null} meta={meta} retention={retention} language="de" onProfileChange={() => {}} onClose={() => {}} />
       : <PlayerProfileCard userId="profile-layout-qa" language="de" onClose={() => {}} profileOverride={publicProfile} />}
-    <div className="fixed left-1/2 top-[max(8px,env(safe-area-inset-top))] z-[999] flex -translate-x-1/2 gap-1 rounded-xl border border-white/12 bg-black/85 p-1 shadow-xl">
+    {!capture && <div className="fixed left-1/2 top-[max(8px,env(safe-area-inset-top))] z-[999] flex -translate-x-1/2 gap-1 rounded-xl border border-white/12 bg-black/85 p-1 shadow-xl">
       <button data-testid="profile-qa-own" type="button" onClick={() => setView('own')} className={`rounded-lg px-3 py-2 text-[7px] font-black uppercase tracking-[.12em] ${view === 'own' ? 'bg-amber-400/18 text-amber-100' : 'text-white/45'}`}>Eigenes Profil</button>
       <button data-testid="profile-qa-public" type="button" onClick={() => setView('public')} className={`rounded-lg px-3 py-2 text-[7px] font-black uppercase tracking-[.12em] ${view === 'public' ? 'bg-cyan-400/18 text-cyan-100' : 'text-white/45'}`}>Freundesprofil</button>
-    </div>
+    </div>}
     <span data-testid="profile-layout-diagnostics" data-active-slots={publicProfile.equipped_items.length} data-legacy-talisman-filtered={publicProfile.equipped_items.some(item => String(item.slot) === 'talisman') ? 'false' : 'true'} className="sr-only" />
   </div>;
 }
