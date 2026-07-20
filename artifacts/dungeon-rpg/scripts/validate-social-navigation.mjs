@@ -63,10 +63,11 @@ const checks = [
   [emailRedirect.includes('url.origin === supabaseOrigin()') && emailRedirect.includes('PATCH_MARKER'), 'email redirect guard is not narrowly scoped or idempotent'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuSceneProxy.includes('assets/hall/veil-hall-hero.svg') && menuSceneProxy.includes('import.meta.env.BASE_URL') && !menuSceneProxy.includes('ModernVillageSquareScene') && !menuSceneProxy.includes('MainMenuHeroFocusBridge'), 'main menu does not use the approved HD key art as its single hero source'],
+  [menuSceneProxy.includes('assets/hall/veil-hall-hero.webp') && menuSceneProxy.includes('import.meta.env.BASE_URL') && !menuSceneProxy.includes('ModernVillageSquareScene') && !menuSceneProxy.includes('MainMenuHeroFocusBridge'), 'main menu does not use the approved direct WebP key art as its single hero source'],
   [menuSceneProxy.includes('data-composition="hd-key-art-overlay"') && menuSceneProxy.includes('data-hero-pair="ranger-and-veil-wolf"') && menuSceneProxy.includes('data-key-art="approved-gothic-portal-v1"'), 'approved Ranger, wolf and gothic portal composition markers are missing'],
+  [menuSceneProxy.includes('data-image-loaded') && menuSceneProxy.includes('data-image-failed') && menuSceneProxy.includes('naturalWidth > 0'), 'HD menu art does not prove that real pixels loaded'],
   [menuSceneProxy.includes('SPECTATOR_RENDERER_EVENT') && menuSceneProxy.includes('setSuspended') && menuSceneProxy.includes('if (suspended) return null'), 'HD menu art does not preserve the exclusive spectator handoff'],
-  [menuSceneProxy.includes('object-cover object-[center_38%]') && menuSceneProxy.includes('md:object-contain') && menuSceneProxy.includes('blur-2xl saturate-125'), 'HD menu art lacks responsive crop or wide-screen depth treatment'],
+  [menuSceneProxy.includes('object-[center_43%]') && menuSceneProxy.includes('md:object-contain') && menuSceneProxy.includes('blur-2xl saturate-150'), 'HD menu art lacks responsive crop or wide-screen depth treatment'],
   [!menuSceneProxy.includes('loadMetaProgression') && !menuSceneProxy.includes('loadKayKit') && !menuSceneProxy.includes('<canvas'), 'main menu still mounts a duplicate live Ranger or renderer over baked key art'],
   [earlyAtmosphere.includes('first: 1, last: 9') && earlyAtmosphere.includes('background: 0x08050e') && earlyAtmosphere.includes('fog: 0x140b21') && earlyAtmosphere.includes("group.userData.noCollision = true"), 'rooms 1-9 do not have a bounded collision-free Veil environment contract'],
   [earlyAtmosphere.includes("name = 'EarlyVeilFloorRune'") && earlyAtmosphere.includes("name = 'EarlyVeilWarmTorchLight'") && earlyAtmosphere.includes("name = 'EarlyVeilCentralLight'") && earlyAtmosphere.includes('THREE.Fog(EARLY_VEIL_ENVIRONMENT.fog, 23, 54)'), 'early rooms are missing readable runes, warm contrast lights or atmospheric depth'],
@@ -90,4 +91,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: approved HD key art, compact routes and the rooms 1-9 Veil atmosphere remain active without duplicate renderers.');
+console.log('Social/navigation audit passed: directly loaded HD key art, compact routes and the rooms 1-9 Veil atmosphere remain active without duplicate renderers.');
