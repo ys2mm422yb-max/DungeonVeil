@@ -2,11 +2,13 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 // The ten-item/relic redesign intentionally changes equipment and relic balance.
-// This audit now protects only the unrelated solo combat core that must remain
-// isolated from Duo networking changes while the new canonical balance stack is built.
+// This audit protects the unrelated solo combat core that must remain isolated
+// from Duo networking changes while canonical balance audits govern approved edits.
 const protectedSoloFiles = new Map([
   ['../src/game/equipmentCollection.ts', '15a264a750fed631a71d9de0ef5406342c5c03c3'],
-  ['../src/game/runRetention.ts', '366aa7c4600c1f56daa61ecfdd20912d7ac5c2aa'],
+  // Block 5 intentionally canonicalizes relic triggers in runRetention.ts.
+  // validate-relic-runtime-ui-v4.mjs verifies its exact caps, trigger isolation and resume safety.
+  ['../src/game/runRetention.ts', '19e9a88963f9ce306df3c305725a5c1898cd9c3d'],
   ['../src/game/runBalance.ts', 'fcd61f6e0061b03d8343f6a2d86459336b053182'],
   ['../src/game/runEffectSystems.ts', 'fb2059b66558b1d27810cf533172adf492e05d49'],
 ]);
@@ -38,4 +40,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Co-op isolation passed: ${protectedSoloFiles.size} unrelated solo-core files remain byte-identical, while equipment and relic balance are governed by the canonical redesign audits.`);
+console.log(`Co-op isolation passed: ${protectedSoloFiles.size} solo-core files match their approved hashes, while equipment and relic behavior is governed by the canonical redesign audits.`);

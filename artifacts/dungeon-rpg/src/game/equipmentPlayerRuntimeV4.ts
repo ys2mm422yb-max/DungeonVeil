@@ -16,13 +16,14 @@ export type EquipmentPlayerRuntimeState = {
   lastKillCount: number;
   clawUntil: number;
   crownStack: number;
+  crownRunId: string;
   crownInitialized: boolean;
 };
 
 export function createEquipmentPlayerRuntimeState(): EquipmentPlayerRuntimeState {
   return {
     roomKey: '', lastAttackTime: 0, lastHp: null, lastHitId: '', lastKillCount: 0,
-    clawUntil: 0, crownStack: 0, crownInitialized: false,
+    clawUntil: 0, crownStack: 0, crownRunId: '', crownInitialized: false,
   };
 }
 
@@ -99,18 +100,23 @@ function updateBoundedRelics(engine: GameEngine, state: EquipmentPlayerRuntimeSt
   state.lastKillCount = kills;
 
   const runId = loadMetaProgression().currentRunId;
-  const stack = relic === 'broken-guardian-crown' && runId
+  const stack = runId
     ? Math.max(0, Math.min(4, loadVeilRelicProfile().crownRunStacks[runId] ?? 0))
     : 0;
-  if (!state.crownInitialized) {
-    if (stack > 0) player.attack = Math.max(1, Math.round(player.attack * Math.pow(1.03 / 1.04, stack)));
+  if (!state.crownInitialized || state.crownRunId !== runId) {
+    // A continued run already persists the attack value that contains earned crown stacks.
+    // Initializing from the saved stack prevents re-installing the runtime from applying them twice.
+    state.crownRunId = runId;
+    state.crownStack = stack;
     state.crownInitialized = true;
-  } else if (stack > state.crownStack) {
-    for (let index = state.crownStack; index < stack; index++) {
-      player.attack = Math.max(1, Math.round(player.attack / 1.04 * 1.03));
-    }
+  } else if (relic === 'broken-guardian-crown' && stack > state.crownStack) {
+    const previousMultiplier = 1 + state.crownStack * 0.03;
+    const nextMultiplier = 1 + stack * 0.03;
+    player.attack = Math.max(1, Math.round(player.attack / previousMultiplier * nextMultiplier));
+    state.crownStack = stack;
+  } else if (stack < state.crownStack) {
+    state.crownStack = stack;
   }
-  state.crownStack = stack;
 }
 
 function normalizeAttackCooldown(engine: GameEngine, state: EquipmentPlayerRuntimeState, time: number) {

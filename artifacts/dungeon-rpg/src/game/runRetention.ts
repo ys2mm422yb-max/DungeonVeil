@@ -35,7 +35,6 @@ export type RunRetentionState = {
   huntChapter: number;
   huntsSpawnedThisChapter: number;
   lastHuntFloor: number;
-  clawKillChain: number;
   lastAuraAt: number;
   pendingRelics: Map<string, PendingRelicDrop>;
 };
@@ -143,7 +142,6 @@ export function createRunRetentionState(): RunRetentionState {
     huntChapter: 0,
     huntsSpawnedThisChapter: 0,
     lastHuntFloor: -99,
-    clawKillChain: 0,
     lastAuraAt: 0,
     pendingRelics: new Map(),
   };
@@ -281,19 +279,12 @@ function processDeaths(engine: GameEngine, state: RunRetentionState, time: numbe
       if (isHunt) { profile.daily.progress.hunts++; grantMetaDust(huntReward); profile.codex.hunts.push(huntName); }
     });
 
-    if (activeRelic === 'marked-claw') {
-      state.clawKillChain++;
-      if (state.clawKillChain % 5 === 0) {
-        engine.state.player.relicAttackSpeedUntil = time + 3000;
-        engine.state.effects.push({ id: `claw-rush-${time}`, x: engine.state.player.x + 16, y: engine.state.player.y + 16, radius: 0, maxRadius: 54, color: '#e15e4e', lifeTime: 0, maxLifeTime: 420, type: 'circle', element: 'fire' });
-      }
-    }
 
     if (enemy.enemyType === 'boss' && activeRelic === 'broken-guardian-crown') {
       const crown = advanceGuardianCrownForCurrentRun();
       if (crown.gained) {
-        engine.state.player.attack += Math.max(1, Math.round(engine.state.player.attack * 0.04));
-        toast('DIE KRONE ERWACHT', `+4 % Angriff · Stapel ${crown.stack}/5`, 'relic');
+        engine.state.effects.push({ id: `guardian-crown-${time}`, x: engine.state.player.x + 16, y: engine.state.player.y + 16, radius: 0, maxRadius: 62, color: '#e6c16f', lifeTime: 0, maxLifeTime: 560, type: 'circle', element: 'arcane' });
+        toast('DIE KRONE ERWACHT', `+3 % Angriff · Stapel ${crown.stack}/4`, 'relic');
       }
     }
 
