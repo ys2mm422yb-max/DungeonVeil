@@ -38,12 +38,12 @@ export function MainMenuDungeonScene() {
     <MainMenuHeroFocusBridge />
     <div
       className="absolute inset-0"
-      style={{ transform: 'translate3d(0,1%,0) scale(1.3)', transformOrigin: '50% 84%', filter: 'brightness(1.18) contrast(1.04)' }}
+      style={{ transform: 'translate3d(0,10%,0) scale(1.3)', transformOrigin: '50% 84%', filter: 'brightness(1.18) contrast(1.04)' }}
     >
       <ModernVillageSquareScene key={loadoutKey} />
     </div>
-    <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(4,2,7,.48)_0%,rgba(4,2,7,.14)_32%,transparent_55%,rgba(3,2,6,.18)_100%)]" />
-    <div aria-hidden="true" className="absolute inset-x-[16%] top-[51%] h-[34%] rounded-full bg-violet-400/[.11] blur-[58px] mix-blend-screen" />
-    <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_69%,transparent_0%,transparent_31%,rgba(2,1,4,.34)_78%,rgba(2,1,4,.66)_100%)]" />
+    <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(4,2,7,.54)_0%,rgba(4,2,7,.2)_34%,transparent_58%,rgba(3,2,6,.12)_100%)]" />
+    <div aria-hidden="true" className="absolute inset-x-[14%] top-[55%] h-[32%] rounded-full bg-violet-400/[.13] blur-[54px] mix-blend-screen" />
+    <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_72%,transparent_0%,transparent_34%,rgba(2,1,4,.3)_78%,rgba(2,1,4,.62)_100%)]" />
   </div>;
 }
