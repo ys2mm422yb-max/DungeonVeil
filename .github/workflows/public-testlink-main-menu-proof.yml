@@ -16,4 +16,4 @@ jobs:
     steps:
       - name: Verify deployed main-menu bundle
         shell: bash
-        run: curl --fail --silent --show-error --location https://raw.githubusercontent.com/ys2mm422yb-max/DungeonVeil/455d4aeb0cfe5f1170a76a3b84695804927f4ba8/.github/scripts/verify-public-testlink-main-menu.sh | bash
+        run: curl --fail --silent --show-error --location https://raw.githubusercontent.com/ys2mm422yb-max/DungeonVeil/a69673a32373ee215968a23a67bbf41950e1124c/.github/scripts/verify-public-testlink-main-menu.sh | bash
