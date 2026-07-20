@@ -35,7 +35,8 @@ const moreOverlay = moreOverlayStart >= 0 && overlayCloseStart > moreOverlayStar
 const saveEmphasisUsesProps = menu.includes("props.saveData ? 'gold' : 'dark'") && menu.includes("props.saveData ? 'dark' : 'gold'");
 const saveEmphasisUsesRefreshedSave = menu.includes("currentSaveData ? 'gold' : 'dark'") && menu.includes("currentSaveData ? 'dark' : 'gold'");
 const saveEmphasisUsesReferenceMenu = menu.includes("currentSaveData ? 'violet' : 'dark'")
-  && menu.includes("currentSaveData ? 'blue' : 'violet'");
+  && menu.includes("!currentSaveData")
+  && menu.includes("'swords', () => setOverlay('play'), 'blue'");
 const referenceSocialDock = menu.includes('data-testid="main-menu-social-navigation"')
   && menu.includes("setOverlay('mailbox')")
   && menu.includes("setOverlay('friends')")
