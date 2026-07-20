@@ -22,50 +22,101 @@ jobs:
           page_url="https://ys2mm422yb-max.github.io/DungeonVeil/"
           origin="https://ys2mm422yb-max.github.io"
 
-          for attempt in $(seq 1 30); do
-            echo "Public testlink probe ${attempt}/30"
-            rm -f /tmp/dungeon-veil-index.html /tmp/dungeon-veil-app.js /tmp/dungeon-veil-headers.txt
+          for attempt in $(seq 1 12); do
+            echo "Public testlink probe ${attempt}/12"
+            rm -rf /tmp/dungeon-veil-public
+            mkdir -p /tmp/dungeon-veil-public/assets
 
-            if curl --fail --silent --show-error --location \
+            if ! curl --fail --silent --show-error --location \
               --max-time 45 \
-              --dump-header /tmp/dungeon-veil-headers.txt \
-              --output /tmp/dungeon-veil-index.html \
+              --dump-header /tmp/dungeon-veil-public/headers.txt \
+              --output /tmp/dungeon-veil-public/index.html \
               "$page_url"; then
-              asset_path="$(grep -oE '<script[^>]+src="[^"]+\.js"' /tmp/dungeon-veil-index.html | head -n 1 | sed -E 's/.*src="([^"]+)".*/\1/' || true)"
-
-              if [[ -n "$asset_path" ]]; then
-                case "$asset_path" in
-                  https://*) asset_url="$asset_path" ;;
-                  /*) asset_url="${origin}${asset_path}" ;;
-                  *) asset_url="${page_url}${asset_path}" ;;
-                esac
-
-                echo "Checking deployed asset: $asset_url"
-                if curl --fail --silent --show-error --location \
-                  --max-time 90 \
-                  --output /tmp/dungeon-veil-app.js \
-                  "$asset_url"; then
-                  if grep -Fq 'main-menu-equipment-navigation' /tmp/dungeon-veil-app.js \
-                    && grep -Fq 'equipment-companion-section' /tmp/dungeon-veil-app.js \
-                    && grep -Fq 'equipment-category-tabs' /tmp/dungeon-veil-app.js \
-                    && grep -Fq 'inventory-tab-companion' /tmp/dungeon-veil-app.js \
-                    && ! grep -Fq 'main-menu-companion-navigation' /tmp/dungeon-veil-app.js; then
-                    echo "PUBLIC_TESTLINK_PROOF=success"
-                    echo "PUBLIC_TESTLINK_URL=$page_url"
-                    echo "PUBLIC_ASSET_URL=$asset_url"
-                    echo "PUBLIC_ASSET_SHA256=$(sha256sum /tmp/dungeon-veil-app.js | awk '{print $1}')"
-                    echo "Verified: equipment navigation, five-tab companion integration and removed standalone companion navigation are deployed."
-                    exit 0
-                  fi
-
-                  echo "The public bundle is reachable but does not yet contain every expected marker."
-                fi
-              else
-                echo "No production JavaScript asset was found in the public index."
-                head -n 40 /tmp/dungeon-veil-index.html || true
-              fi
+              sleep 10
+              continue
             fi
 
+            mapfile -t queue < <(grep -oE '<script[^>]+src="[^"]+\.js"' /tmp/dungeon-veil-public/index.html \
+              | sed -E 's/.*src="([^"]+)".*/\1/' \
+              | sort -u)
+
+            if [[ ${#queue[@]} -eq 0 ]]; then
+              echo "No production JavaScript asset was found in the public index."
+              head -n 40 /tmp/dungeon-veil-public/index.html || true
+              sleep 10
+              continue
+            fi
+
+            declare -A seen=()
+            : > /tmp/dungeon-veil-public/combined.js
+            index=0
+
+            while [[ $index -lt ${#queue[@]} && $index -lt 200 ]]; do
+              asset_path="${queue[$index]}"
+              index=$((index + 1))
+
+              case "$asset_path" in
+                https://*) asset_url="$asset_path" ;;
+                /*) asset_url="${origin}${asset_path}" ;;
+                *) asset_url="${page_url}${asset_path#./}" ;;
+              esac
+
+              if [[ -n "${seen[$asset_url]:-}" ]]; then
+                continue
+              fi
+              seen[$asset_url]=1
+
+              asset_file="/tmp/dungeon-veil-public/assets/$(printf '%s' "$asset_url" | sha256sum | awk '{print $1}').js"
+              echo "Checking deployed asset: $asset_url"
+
+              if ! curl --fail --silent --show-error --location \
+                --max-time 90 \
+                --output "$asset_file" \
+                "$asset_url"; then
+                continue
+              fi
+
+              cat "$asset_file" >> /tmp/dungeon-veil-public/combined.js
+              printf '\n' >> /tmp/dungeon-veil-public/combined.js
+
+              while IFS= read -r dependency; do
+                queue+=("$dependency")
+              done < <(grep -oE 'assets/[A-Za-z0-9._-]+\.js' "$asset_file" | sort -u || true)
+            done
+
+            required_markers=(
+              'main-menu-equipment-navigation'
+              'equipment-companion-section'
+              'equipment-category-tabs'
+              'inventory-tab-companion'
+            )
+
+            missing=0
+            for marker in "${required_markers[@]}"; do
+              count="$(grep -Foc "$marker" /tmp/dungeon-veil-public/combined.js || true)"
+              echo "MARKER ${marker}=${count}"
+              if [[ "$count" -lt 1 ]]; then
+                missing=1
+              fi
+            done
+
+            legacy_count="$(grep -Foc 'main-menu-companion-navigation' /tmp/dungeon-veil-public/combined.js || true)"
+            echo "MARKER main-menu-companion-navigation=${legacy_count}"
+            if [[ "$legacy_count" -ne 0 ]]; then
+              missing=1
+            fi
+
+            echo "PUBLIC_ASSET_COUNT=${#seen[@]}"
+            echo "PUBLIC_COMBINED_SHA256=$(sha256sum /tmp/dungeon-veil-public/combined.js | awk '{print $1}')"
+
+            if [[ "$missing" -eq 0 ]]; then
+              echo "PUBLIC_TESTLINK_PROOF=success"
+              echo "PUBLIC_TESTLINK_URL=$page_url"
+              echo "Verified: equipment navigation, five-tab companion integration and removed standalone companion navigation are deployed."
+              exit 0
+            fi
+
+            echo "The public chunk graph is reachable but does not yet contain every expected marker."
             sleep 10
           done
 
