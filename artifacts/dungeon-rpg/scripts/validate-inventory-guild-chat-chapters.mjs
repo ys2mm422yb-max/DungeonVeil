@@ -22,12 +22,14 @@ const unlockChapters = [...equipment.matchAll(/unlockChapter:\s*(\d+)/g)].map(ma
 const representedUnlockChapters = new Set(unlockChapters);
 const recordsChapterFromProps = menu.includes('recordReachedChapter(props.saveData?.chapter ?? 1)');
 const recordsChapterFromRefreshedSave = menu.includes('recordReachedChapter(currentSaveData?.chapter ?? 1)');
+const recordsChapterFromDerivedSave = menu.includes('const chapter = currentSaveData?.chapter ?? 1')
+  && menu.includes('recordReachedChapter(chapter)');
 
 const checks = [
-  [menu.includes("language === 'de' ? 'Inventar' : 'Inventory'") && !menu.includes("'Schleierkammer' : 'Veil Chamber'") && (recordsChapterFromProps || recordsChapterFromRefreshedSave), 'main-menu inventory label or saved chapter migration is missing'],
-  [inventory.includes("'INVENTAR' : 'INVENTORY'") && inventory.includes('equipmentUnlockChapter') && inventory.includes("'AB KAPITEL' : 'FROM CHAPTER'"), 'inventory heading or chapter requirement is missing'],
+  [menu.includes("language === 'de' ? 'Ausrüstung' : 'Equipment'") && menu.includes('main-menu-equipment-navigation') && !menu.includes('main-menu-companion-navigation') && !menu.includes("'Schleierkammer' : 'Veil Chamber'") && (recordsChapterFromProps || recordsChapterFromRefreshedSave || recordsChapterFromDerivedSave), 'main-menu equipment label, companion consolidation or saved chapter migration is missing'],
+  [inventory.includes("'AUSRÜSTUNG' : 'EQUIPMENT'") && inventory.includes('equipmentUnlockChapter') && inventory.includes("'AB KAPITEL' : 'FROM CHAPTER'"), 'equipment heading or chapter requirement is missing'],
   [markers.includes('initialized: boolean') && markers.includes('initializeSeenUnlocks') && markers.includes('unseenEquipmentIds') && markers.includes('unseenRelicIds'), 'persistent unseen-unlock tracking is incomplete'],
-  [inventory.includes('inventory-tab-new-badge') && inventory.includes('inventory-item-new-badge') && inventory.includes('markEquipmentSeen') && inventory.includes('markRelicSeen'), 'inventory NEW markers or seen actions are missing'],
+  [inventory.includes('inventory-tab-new-badge') && inventory.includes('inventory-item-new-badge') && inventory.includes('markEquipmentSeen') && inventory.includes('markRelicSeen'), 'equipment NEW markers or seen actions are missing'],
   [unlockLayer.includes('unlock-presentation-layer') && unlockLayer.includes('dungeon-veil-meta-changed') && unlockLayer.includes('dungeon-veil-relic-changed'), 'new unlock presentation does not react to equipment and relic changes'],
   [unlockLayer.includes('announcedRef') && !unlockLayer.includes('markEquipmentSeen(') && !unlockLayer.includes('markRelicSeen('), 'unlock presentation incorrectly consumes persistent NEW markers'],
   [main.includes('<UnlockPresentationLayer />'), 'unlock presentation layer is not mounted globally'],
@@ -43,8 +45,8 @@ const checks = [
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
 if (failures.length) {
-  console.error(`Inventory/guild-chat/chapter audit failed with ${failures.length} error(s):`);
+  console.error(`Equipment/guild-chat/chapter audit failed with ${failures.length} error(s):`);
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Inventory/guild-chat/chapter audit passed: persistent NEW markers, visible unlock presentations, ten-item chapter gates and guild systems remain coherent.');
+console.log('Equipment/guild-chat/chapter audit passed: persistent NEW markers, visible unlock presentations, ten-item chapter gates and guild systems remain coherent.');

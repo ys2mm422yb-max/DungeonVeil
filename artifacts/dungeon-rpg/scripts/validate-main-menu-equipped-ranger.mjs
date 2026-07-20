@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 
-// Guards the final reviewed mobile composition against white lamp props, crowded NPCs,
-// redundant labels and unnatural equipment placement after the live V15 deployment.
+// Guards the reviewed mobile composition against crowded props, duplicate bodies,
+// redundant labels and unnatural equipment placement in either the legacy village
+// or the focused Hall of the Veil presentation.
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const [village, villageHub, showcase, player, weapons, manifest, metaStore, redesign] = await Promise.all([
   read('../src/components/ModernVillageSquareScene.tsx'),
@@ -13,6 +14,32 @@ const [village, villageHub, showcase, player, weapons, manifest, metaStore, rede
   read('../src/game/metaStoreV4.ts'),
   read('../src/game/equipmentRedesign.ts'),
 ]);
+
+const legacySilhouetteContract = village.includes('villageRoot.userData.clearPlayerSilhouette = true')
+  && village.includes('skinnedKeepersUseOriginalScenes = true');
+const hallHasNoKeepers = village.includes("villageRoot.userData.sceneRole = 'HallOfTheVeilReference'")
+  && village.includes('villageRoot.userData.clearPlayerSilhouette = true')
+  && !village.includes('MiraQuestKeeper')
+  && !village.includes('OrinPostKeeper')
+  && !village.includes('TalaScoutKeeper')
+  && !village.includes('BromGuildKeeper');
+const legacySideLanes = village.includes("mira: [[-4.05")
+  && village.includes("orin: [[4.05")
+  && village.includes("tala: [[-4.28")
+  && village.includes("brom: [[4.28");
+const hallSideLanes = hallHasNoKeepers
+  && village.includes('for (const x of [-4.2, 4.2])')
+  && village.includes("portalRoot.name = 'HallOfTheVeilPortal'");
+const legacyCamera = village.includes('camera.position.set(0, 5.35, 13.2)')
+  && village.includes('camera.fov = camera.aspect < 0.72 ? 41 : 36');
+const hallCamera = village.includes('camera.position.set(0, 4.8, 12.7)')
+  && village.includes('camera.lookAt(0, 1.35, -3.6)')
+  && village.includes('camera.fov = camera.aspect < 0.72 ? 39 : 34');
+const legacyPlayerLighting = village.includes('const playerKey = new THREE.PointLight')
+  && village.includes('const playerRim = new THREE.PointLight');
+const hallPlayerLighting = village.includes('const playerLight = new THREE.PointLight')
+  && village.includes('const rimLight = new THREE.PointLight')
+  && village.includes('const portalLight = new THREE.PointLight');
 
 const checks = [
   [village.includes("import { loadKayKitVillageArcher } from './kaykitVillagePlayer3D';") && village.includes('loadKayKitVillageArcher(THREE, GLTFLoader)'), 'main menu is not routed through the village player adapter'],
@@ -29,17 +56,17 @@ const checks = [
   [showcase.includes('for (let index = 0; index < 3; index++)') && showcase.includes('VillageVisibleQuiverArrow'), 'quiver arrows are not visibly represented'],
   [showcase.includes('root.position.z = -1.82') && showcase.includes('root.scale.setScalar(0.72)'), 'player is not large and forward enough to dominate the menu composition'],
   [villageHub.includes('grid grid-cols-4') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place'), 'redundant village place prompt remains or social routes are not compact'],
-  [village.includes('villageRoot.userData.clearPlayerSilhouette = true') && village.includes('skinnedKeepersUseOriginalScenes = true'), 'village NPCs can still overlap the central player silhouette'],
-  [!village.includes("{ key: 'table'") && !village.includes('QuestTable') && !village.includes('PostTable'), 'lamp-table assets can still appear as white cones in front of the NPCs'],
-  [village.includes("mira: [[-4.05") && village.includes("orin: [[4.05") && village.includes("tala: [[-4.28") && village.includes("brom: [[4.28"), 'village keepers are not pushed to the side lanes'],
-  [village.includes('camera.position.set(0, 5.35, 13.2)') && village.includes('camera.fov = camera.aspect < 0.72 ? 41 : 36'), 'mobile camera does not prioritize the player'],
-  [village.includes('const playerKey = new THREE.PointLight') && village.includes('const playerRim = new THREE.PointLight'), 'player-focused key and rim lighting are missing'],
+  [legacySilhouetteContract || hallHasNoKeepers, 'decorative characters can still overlap the central player silhouette'],
+  [!village.includes("{ key: 'table'") && !village.includes('QuestTable') && !village.includes('PostTable'), 'lamp-table assets can still appear as white cones in front of the player'],
+  [legacySideLanes || hallSideLanes, 'side composition does not preserve a clear central Ranger lane'],
+  [legacyCamera || hallCamera, 'mobile camera does not prioritize the player'],
+  [legacyPlayerLighting || hallPlayerLighting, 'player-focused key and rim lighting are missing'],
   [showcase.includes('function resolveVillageAssetUrl') && showcase.includes('new URL(NORMALIZED_APP_BASE_URL, window.location.origin)') && showcase.includes('return new URL(relative, appBase).href'), 'menu asset URLs are not resolved against the Pages base exactly once'],
   [player.includes('KAYKIT_PLAYER_ASSETS.ranger') && player.includes('Ranger.glb'), 'shared player rig no longer uses the in-game Ranger body'],
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],
   [manifest.includes('import.meta.env.BASE_URL') && manifest.includes('appAssetUrl'), 'Pages-safe application asset resolver is missing'],
-  [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes("const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId") && metaStore.includes("talisman: RETIRED_TALISMAN_COMPAT") && !metaStore.includes("talisman: 'veil-key'") && metaStore.includes("hasOwnProperty.call(parsed?.equipped ?? {}, 'talisman')"), 'current three-slot defaults, omitted compatibility value or safe legacy-Talisman rewrite are not represented in saved meta progression'],
+  [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes("const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId") && metaStore.includes('talisman: RETIRED_TALISMAN_COMPAT') && !metaStore.includes("talisman: 'veil-key'") && metaStore.includes("hasOwnProperty.call(parsed?.equipped ?? {}, 'talisman')"), 'current three-slot defaults, omitted compatibility value or safe legacy-Talisman rewrite are not represented in saved meta progression'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -49,4 +76,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Main-menu equipped ranger audit passed: the prompt is gone, current bow/quiver/armor data stays coherent and the retired Talisman is absent from menu presentation and serialized saves.');
+console.log('Main-menu equipped ranger audit passed: the Hall of the Veil keeps one focused equipped Ranger, clear side lanes and the current three-slot loadout.');
