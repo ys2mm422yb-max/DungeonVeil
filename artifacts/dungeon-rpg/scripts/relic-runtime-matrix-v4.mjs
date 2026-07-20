@@ -1,3 +1,5 @@
+export const RELIC_RUNTIME_MATRIX_VERSION = 'equipment-v4-s1';
+
 const CONTEXTS = Object.freeze([
   'solo-normal', 'solo-elite', 'solo-boss', 'worldboss-attempt', 'duo-host', 'duo-guest', 'companion-owner',
 ]);
@@ -26,5 +28,5 @@ export function buildRelicRuntimeMatrixV4() {
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
-  console.log(JSON.stringify({ rows: buildRelicRuntimeMatrixV4().length, contexts: CONTEXTS, relics: RELICS }, null, 2));
+  console.log(JSON.stringify({ version: RELIC_RUNTIME_MATRIX_VERSION, rows: buildRelicRuntimeMatrixV4().length, contexts: CONTEXTS, relics: RELICS }, null, 2));
 }
