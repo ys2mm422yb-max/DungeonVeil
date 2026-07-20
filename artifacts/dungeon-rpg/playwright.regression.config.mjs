@@ -7,7 +7,7 @@ export default defineConfig({
   testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|profile-layout|companion-runtime|loading-continuity|codex-visual-library|main-menu-reference|visual-audit|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu)\.spec\.mjs/,
   timeout: 120_000,
   expect: { timeout: 20_000 },
-  fullyParallel: true,
+  fullyParallel: false,
   retries: 1,
   workers: process.env.CI ? 1 : undefined,
   reporter: [
