@@ -18,13 +18,18 @@ function rejectText(source, needle, message) {
 
 const localCore = './assets/vendor/three/build/three.module.js';
 const localAddons = './assets/vendor/three/examples/jsm/';
+const localGltf = './assets/vendor/three/examples/jsm/loaders/GLTFLoader.js';
 const remoteCore = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const remoteAddons = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/';
+const remoteGltf = `${remoteAddons}loaders/GLTFLoader.js`;
 
 requireText(index, `"three": "${localCore}"`, 'Bare Three.js imports are not routed locally');
 requireText(index, `"three/addons/": "${localAddons}"`, 'Three.js addon imports are not routed locally');
 requireText(index, `"${remoteCore}": "${localCore}"`, 'Existing Three.js dynamic imports are not redirected locally');
+requireText(index, `"${remoteGltf}": "${localGltf}"`, 'GLTFLoader dynamic imports do not have an exact WebKit-safe local mapping');
 requireText(index, `"${remoteAddons}": "${localAddons}"`, 'Existing addon dynamic imports are not redirected locally');
+requireText(index, `<link rel="modulepreload" href="${localCore}" />`, 'Local Three.js core is not preloaded before the menu renderer');
+requireText(index, `<link rel="modulepreload" href="${localGltf}" />`, 'Local GLTFLoader is not preloaded before the menu renderer');
 rejectText(index, '<link rel="preconnect" href="https://cdn.jsdelivr.net"', 'The page still preconnects to the removed runtime CDN');
 
 requireText(vite, "const THREE_VENDOR_VERSION = '0.180.0';", 'Three.js runtime is not version-pinned');
@@ -49,6 +54,7 @@ if (process.argv.includes('--dist')) {
   const distRoot = path.join(root, 'dist', 'public');
   const distIndex = fs.readFileSync(path.join(distRoot, 'index.html'), 'utf8');
   requireText(distIndex, 'assets/vendor/three/build/three.module.js', 'Built page does not reference local Three.js');
+  requireText(distIndex, 'assets/vendor/three/examples/jsm/loaders/GLTFLoader.js', 'Built page does not reference the local GLTFLoader');
   requireText(distIndex, 'assets/vendor/three/examples/jsm/', 'Built page does not reference local addons');
 
   const expectedFiles = new Map([
@@ -71,4 +77,4 @@ if (process.argv.includes('--dist')) {
   }
 }
 
-console.log('Local Three.js runtime verified, including the pinned FBX loader and its dependencies.');
+console.log('Local Three.js runtime verified, including exact WebKit mappings, module preloads and the pinned FBX loader dependencies.');
