@@ -11,6 +11,8 @@ async function openReferenceMenu(page) {
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByTestId('modern-village-square-scene')).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('heading', { name: 'DUNGEON VEIL' })).toBeVisible();
+  await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
+  await page.waitForTimeout(4_000);
 }
 
 test('reference main menu keeps one renderer, the full Veil Wolf and the approved UI hierarchy', async ({ page }, testInfo) => {
@@ -38,7 +40,7 @@ test('reference main menu keeps one renderer, the full Veil Wolf and the approve
   await expect(page.getByRole('button', { name: /Aufträge/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /Post/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /Freunde/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Gilde/i })).toBeVisible();
+  await expect(page.getByTestId('npc-guildmaster')).toBeVisible();
   await expect(page.getByRole('button', { name: /Spielen/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /Inventar/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /Kodex/i })).toBeVisible();
