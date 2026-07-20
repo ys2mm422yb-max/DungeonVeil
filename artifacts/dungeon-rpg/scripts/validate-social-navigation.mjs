@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuSceneProxy, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, band] = await Promise.all([
+const [menu, villageHub, menuSceneProxy, menuHeroFocus, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
+  read('../src/components/MainMenuHeroFocusBridge.tsx'),
   read('../src/components/ModernVillageSquareScene.tsx'),
   read('../src/components/kaykitVillagePlayer3D.ts'),
   read('../src/components/MailboxPanel.tsx'),
@@ -60,8 +61,10 @@ const checks = [
   [emailRedirect.includes('url.origin === supabaseOrigin()') && emailRedirect.includes('PATCH_MARKER'), 'email redirect guard is not narrowly scoped or idempotent'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuSceneProxy.includes('ModernVillageSquareScene') && menuSceneProxy.includes('dungeon-veil-meta-changed') && !menuSceneProxy.includes('VeilWorldOrb'), 'main menu scene proxy is not routed to the equipped modern village renderer'],
+  [menuSceneProxy.includes('ModernVillageSquareScene') && menuSceneProxy.includes('MainMenuHeroFocusBridge') && menuSceneProxy.includes('dungeon-veil-meta-changed') && !menuSceneProxy.includes('VeilWorldOrb'), 'main menu scene proxy is not routed through the equipped focused village renderer'],
   [menuSceneProxy.includes('data-composition="raised-mobile-hero"') && menuSceneProxy.includes('data-hero-pair="ranger-and-veil-wolf"') && menuSceneProxy.includes("translate3d(0,1%,0) scale(1.3)"), 'mobile Ranger and wolf presentation does not own the hero area'],
+  [menuHeroFocus.includes('HallActiveCompanionVeilWolf') && menuHeroFocus.includes('VillageEquippedPlayer') && menuHeroFocus.includes('HallOfTheVeilPortal') && menuHeroFocus.includes('wolf.scale.setScalar') && menuHeroFocus.includes('portal.scale.setScalar'), 'live Three.js hero focus does not enlarge the wolf and recess the portal'],
+  [menuHeroFocus.includes('data-wolf-focused="false"') && menuHeroFocus.includes('data-portal-recessed="false"') && menuHeroFocus.includes('THREE.Object3D.prototype.add'), 'hero focus runtime diagnostics or scene hook missing'],
   [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)') && !villageScene.includes('AelricWorldKeeper'), 'main menu does not use one focused equipped Ranger body'],
   [villageScene.includes('async function loadVillageAssets(') && renderStart >= 0 && assetStart > renderStart, 'village renderer does not start before asynchronous asset loading'],
   [villageScene.includes('Promise.allSettled') && villageScene.includes("result.status === 'rejected'") && villageScene.includes('Village asset failed to load'), 'individual village asset failures are not isolated'],
