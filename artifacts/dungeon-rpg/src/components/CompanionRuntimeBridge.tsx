@@ -173,7 +173,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           maxLifeTime: activeRole === 'shield' ? 340 : 280,
           type: activeRole === 'shield' ? 'circle' : 'beam',
           angle: Math.atan2(toY - origin.y, toX - origin.x),
-          width: activeRole === 'dusk-drake' ? 7 : activeRole === 'single-target' ? 6 : 4,
+          width: activeRole === 'distraction' ? 7 : activeRole === 'single-target' ? 6 : 4,
           element: 'arcane',
           toEnemyId: target.id,
         });
