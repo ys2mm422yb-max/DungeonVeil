@@ -5,38 +5,50 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 async function openReferenceMenu(page) {
   await page.addInitScript(() => {
     localStorage.setItem('dungeon-veil-language', 'de');
+    localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
+      version: 1,
+      activeId: 'single-target',
+      companions: { 'single-target': { level: 3, unlockedAt: Date.now() } },
+      updatedAt: Date.now(),
+    }));
   });
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   const presentation = page.getByTestId('main-menu-scene-presentation');
-  await expect(presentation).toHaveAttribute('data-image-loaded', 'true', { timeout: 60_000 });
+  await expect(presentation).toHaveAttribute('data-composition', 'live-hybrid-scene', { timeout: 60_000 });
+  await expect(presentation).toHaveAttribute('data-static-hero-embedded', 'false');
   await expect(presentation).toHaveAttribute('data-image-failed', 'false');
-  await expect(page.getByTestId('main-menu-hd-key-art')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('main-menu-ambient-portal-art')).toBeVisible({ timeout: 60_000 });
+  const liveScene = page.getByTestId('live-hybrid-main-menu-scene');
+  await expect(liveScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
+  await expect(liveScene).toHaveAttribute('data-animation-state', 'running');
+  await expect(liveScene).toHaveAttribute('data-companion-species', 'veil-lynx');
+  await expect(liveScene).toHaveAttribute('data-companion-level', '3');
+  await expect(page.getByTestId('live-hybrid-main-menu-canvas')).toBeVisible({ timeout: 60_000 });
+  const firstFrame = Number(await liveScene.getAttribute('data-animation-frames') || 0);
+  await expect.poll(async () => Number(await liveScene.getAttribute('data-animation-frames') || 0), { timeout: 20_000 }).toBeGreaterThan(firstFrame);
   const menuBanner = page.getByRole('banner');
   await expect(menuBanner.getByRole('heading', { name: 'DUNGEON VEIL', exact: true })).toBeVisible();
-  await expect(page.locator('canvas')).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   await page.waitForTimeout(1_000);
 }
 
-test('approved HD key art keeps four primary actions and companions inside equipment', async ({ page }, testInfo) => {
+test('live hybrid menu keeps four primary actions with an animated equipped Ranger and V5 companion', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(error.message));
   page.on('console', message => {
-    if (message.type() === 'error' && /TypeError|ReferenceError|Cannot read|WebGL.*lost/i.test(message.text())) runtimeErrors.push(message.text());
+    if (message.type() === 'error' && /TypeError|ReferenceError|Cannot read|WebGL.*lost|Live hybrid menu Ranger failed|Live hybrid main menu failed/i.test(message.text())) runtimeErrors.push(message.text());
   });
 
   await openReferenceMenu(page);
   const presentation = page.getByTestId('main-menu-scene-presentation');
-  const keyArt = page.getByTestId('main-menu-hd-key-art');
-  await expect(presentation).toHaveAttribute('data-composition', 'hd-key-art-overlay');
-  await expect(presentation).toHaveAttribute('data-hero-pair', 'ranger-and-veil-wolf');
-  await expect(presentation).toHaveAttribute('data-key-art', 'approved-gothic-portal-v1');
-  await expect(keyArt).toHaveAttribute('src', /assets\/hall\/veil-hall-hero\.webp/);
-  expect(await keyArt.evaluate(image => ({ width: image.naturalWidth, height: image.naturalHeight, complete: image.complete }))).toEqual({ width: 540, height: 960, complete: true });
+  const liveScene = page.getByTestId('live-hybrid-main-menu-scene');
+  await expect(presentation).toHaveAttribute('data-static-role', 'portal-atmosphere-only');
+  await expect(presentation).toHaveAttribute('data-key-art', 'ambient-gothic-portal-v1');
+  await expect(page.getByTestId('main-menu-hd-key-art')).toHaveCount(0);
   await expect(page.getByTestId('modern-village-square-scene')).toHaveCount(0);
   await expect(page.getByTestId('main-menu-hero-focus-bridge')).toHaveCount(0);
-  await expect(page.locator('canvas')).toHaveCount(0);
   await expect(page.getByTestId('main-menu-scene-focus')).toBeVisible();
   await expect(page.getByTestId('main-menu-control-stack')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mehr' })).toBeVisible();
@@ -53,6 +65,15 @@ test('approved HD key art keeps four primary actions and companions inside equip
   await expect(page.getByRole('button', { name: /Ausrüstung/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /Kodex/i })).toBeVisible();
   await expect(page.getByTestId('main-menu-companion-navigation')).toHaveCount(0);
+
+  const diagnostics = await page.evaluate(() => window.__DUNGEON_VEIL_MENU_RANGER__ || null);
+  expect(diagnostics).toMatchObject({
+    cleanSingleBody: true,
+    depthTestedEquipment: true,
+    visibleEquipment: { bow: true, armor: true },
+  });
+  expect(diagnostics.visibleEquipment.quiver).toBe(true);
+  expect(diagnostics.animationDriver).toBeTruthy();
 
   const layout = await page.evaluate(() => {
     const sceneFocus = document.querySelector('[data-testid="main-menu-scene-focus"]');
@@ -102,9 +123,9 @@ test('approved HD key art keeps four primary actions and companions inside equip
   await expect(page.getByTestId('equipment-companion-section')).toBeVisible();
   await expect(page.getByTestId('companion-management-panel')).toHaveAttribute('data-embedded', 'true');
   await page.getByRole('button', { name: 'Zurück' }).click({ force: true });
-  await expect(keyArt).toBeVisible({ timeout: 30_000 });
-  await expect(presentation).toHaveAttribute('data-image-loaded', 'true');
-  await expect(page.locator('canvas')).toHaveCount(0, { timeout: 60_000 });
+  await expect(liveScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 30_000 });
+  await expect(page.getByTestId('live-hybrid-main-menu-canvas')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
 
   const overflow = await page.evaluate(() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - innerWidth);
   expect(overflow).toBeLessThanOrEqual(4);
@@ -116,10 +137,10 @@ test('approved HD key art keeps four primary actions and companions inside equip
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('dungeon-veil-spectator-renderer', { detail: { active: false } })));
   const restoredPresentation = page.getByTestId('main-menu-scene-presentation');
-  const restored = page.getByTestId('main-menu-hd-key-art');
-  await expect(restoredPresentation).toHaveAttribute('data-image-loaded', 'true', { timeout: 30_000 });
-  await expect(restored).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('canvas')).toHaveCount(0, { timeout: 60_000 });
-  await expect(restoredPresentation).toHaveAttribute('data-key-art', 'approved-gothic-portal-v1');
+  const restoredScene = page.getByTestId('live-hybrid-main-menu-scene');
+  await expect(restoredPresentation).toHaveAttribute('data-composition', 'live-hybrid-scene', { timeout: 30_000 });
+  await expect(restoredScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
+  await expect(page.getByTestId('live-hybrid-main-menu-canvas')).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   expect(runtimeErrors).toEqual([]);
 });
