@@ -143,13 +143,12 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   await capture(page, `test-results/visual-main-menu-${testInfo.project.name}.png`);
 
   await page.getByTestId('main-menu-profile-badge').click({ force: true });
-  await expect(page.getByText(/Statistik|Statistics/i).first()).toBeVisible();
+  await expect(page.getByTestId('player-profile-panel')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('player-profile-responsive-shell')).toBeVisible();
+  await expect(page.getByTestId('player-profile-tablet-overview')).toBeVisible();
   await capture(page, `test-results/visual-profile-${testInfo.project.name}.png`);
-  await page.keyboard.press('Escape').catch(() => {});
-  const profileClose = page.getByRole('button', { name: /SCHLIESSEN|CLOSE|Zurück|Back/i }).last();
-  if (await profileClose.isVisible().catch(() => false)) await profileClose.click({ force: true });
-  if (!await page.getByRole('button', { name: /Spielen|Play/i }).first().isVisible().catch(() => false)) await page.reload({ waitUntil: 'domcontentloaded' });
-  await gotoMenu(page);
+  await page.getByRole('button', { name: /Profil schließen|Close profile/i }).click({ force: true });
+  await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first().click({ force: true });
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible({ timeout: 60_000 });
@@ -174,7 +173,7 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   const codexBack = page.getByRole('button', { name: /Zurück|Back/i }).first();
   if (await codexBack.isVisible().catch(() => false)) await codexBack.click({ force: true });
   else await page.reload({ waitUntil: 'domcontentloaded' });
-  await gotoMenu(page);
+  await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
 
   const overlays = [
     ['quests', /Aufträge|Quests/i, /Aktive Aufträge|Active Quests/i],
