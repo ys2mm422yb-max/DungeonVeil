@@ -1,0 +1,73 @@
+name: Public Testlink Main Menu Proof
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-public-testlink:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify deployed main-menu bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          page_url="https://ys2mm422yb-max.github.io/DungeonVeil/"
+          origin="https://ys2mm422yb-max.github.io"
+
+          for attempt in $(seq 1 30); do
+            echo "Public testlink probe ${attempt}/30"
+            rm -f /tmp/dungeon-veil-index.html /tmp/dungeon-veil-app.js /tmp/dungeon-veil-headers.txt
+
+            if curl --fail --silent --show-error --location \
+              --max-time 45 \
+              --dump-header /tmp/dungeon-veil-headers.txt \
+              --output /tmp/dungeon-veil-index.html \
+              "$page_url"; then
+              asset_path="$(grep -oE '<script[^>]+src="[^"]+\.js"' /tmp/dungeon-veil-index.html | head -n 1 | sed -E 's/.*src="([^"]+)".*/\1/' || true)"
+
+              if [[ -n "$asset_path" ]]; then
+                case "$asset_path" in
+                  https://*) asset_url="$asset_path" ;;
+                  /*) asset_url="${origin}${asset_path}" ;;
+                  *) asset_url="${page_url}${asset_path}" ;;
+                esac
+
+                echo "Checking deployed asset: $asset_url"
+                if curl --fail --silent --show-error --location \
+                  --max-time 90 \
+                  --output /tmp/dungeon-veil-app.js \
+                  "$asset_url"; then
+                  if grep -Fq 'main-menu-equipment-navigation' /tmp/dungeon-veil-app.js \
+                    && grep -Fq 'equipment-companion-section' /tmp/dungeon-veil-app.js \
+                    && grep -Fq 'equipment-category-tabs' /tmp/dungeon-veil-app.js \
+                    && grep -Fq 'inventory-tab-companion' /tmp/dungeon-veil-app.js \
+                    && ! grep -Fq 'main-menu-companion-navigation' /tmp/dungeon-veil-app.js; then
+                    echo "PUBLIC_TESTLINK_PROOF=success"
+                    echo "PUBLIC_TESTLINK_URL=$page_url"
+                    echo "PUBLIC_ASSET_URL=$asset_url"
+                    echo "PUBLIC_ASSET_SHA256=$(sha256sum /tmp/dungeon-veil-app.js | awk '{print $1}')"
+                    echo "Verified: equipment navigation, five-tab companion integration and removed standalone companion navigation are deployed."
+                    exit 0
+                  fi
+
+                  echo "The public bundle is reachable but does not yet contain every expected marker."
+                fi
+              else
+                echo "No production JavaScript asset was found in the public index."
+                head -n 40 /tmp/dungeon-veil-index.html || true
+              fi
+            fi
+
+            sleep 10
+          done
+
+          echo "The public testlink did not expose the expected deployed bundle within the retry window." >&2
+          exit 1
