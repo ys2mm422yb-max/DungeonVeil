@@ -27,5 +27,7 @@ export function MainMenuDungeonScene() {
   }, []);
 
   if (suspended) return null;
-  return <ModernVillageSquareScene key={loadoutKey} />;
+  return <div data-testid="main-menu-scene-presentation" className="pointer-events-none absolute inset-0 origin-[50%_66%] scale-[1.14] brightness-110">
+    <ModernVillageSquareScene key={loadoutKey} />
+  </div>;
 }
