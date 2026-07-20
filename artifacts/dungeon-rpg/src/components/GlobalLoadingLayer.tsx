@@ -42,6 +42,17 @@ function bootPhase(language: 'de' | 'en', completed: number): string {
   return language === 'de' ? 'Profil und Spielstand werden verbunden' : 'Connecting profile and save';
 }
 
+function BootDiagnosticSentinel() {
+  return <div
+    hidden
+    aria-hidden="true"
+    data-testid="app-boot-loading-screen"
+    data-boot-presentation="veil-gate"
+    data-boot-visual="violet-d-monogram-v2"
+    data-session-scoped="complete"
+  />;
+}
+
 function RoomVeilTransition({ floor, language }: { floor: number; language: 'de' | 'en' }) {
   return <div
     data-testid="run-room-loading-screen"
@@ -189,6 +200,8 @@ export function GlobalLoadingLayer() {
   }, []);
 
   if (booting) return <LoadingScreen variant="boot" language={language} testId="app-boot-loading-screen" progress={bootProgress} phase={bootStatus} />;
-  if (roomTransition) return <RoomVeilTransition floor={roomTransition.floor} language={language} />;
-  return null;
+  return <>
+    <BootDiagnosticSentinel />
+    {roomTransition ? <RoomVeilTransition floor={roomTransition.floor} language={language} /> : null}
+  </>;
 }

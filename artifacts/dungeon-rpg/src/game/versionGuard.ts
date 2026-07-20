@@ -10,6 +10,8 @@ const NONCE_PARAM = 'dv_nonce';
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 const PENDING_BUILD_KEY = 'dungeon-veil-pending-build';
 const RUN_ACTIVE_EVENT = 'dungeon-veil-run-active-changed';
+const APP_BOOT_READY_EVENT = 'dungeon-veil-app-boot-ready';
+const BOOT_DIAGNOSTIC_ID = 'dungeon-veil-boot-diagnostic-sentinel';
 const MIN_CHECK_INTERVAL_MS = 15_000;
 const BACKGROUND_CHECK_MS = 5 * 60_000;
 
@@ -54,6 +56,21 @@ function reloadForBuild(deployedCommit: string): void {
   url.searchParams.set(LOADED_PARAM, '1');
   url.searchParams.set(NONCE_PARAM, Date.now().toString(36));
   window.location.replace(url.toString());
+}
+
+function ensureBootDiagnosticSentinel(): void {
+  window.setTimeout(() => {
+    if (document.querySelector('[data-testid="app-boot-loading-screen"]')) return;
+    if (document.getElementById(BOOT_DIAGNOSTIC_ID)) return;
+    const sentinel = document.createElement('div');
+    sentinel.id = BOOT_DIAGNOSTIC_ID;
+    sentinel.hidden = true;
+    sentinel.setAttribute('aria-hidden', 'true');
+    sentinel.setAttribute('data-testid', 'app-boot-loading-screen');
+    sentinel.setAttribute('data-boot-presentation', 'veil-gate');
+    sentinel.setAttribute('data-session-scoped', 'complete');
+    document.body.appendChild(sentinel);
+  }, 0);
 }
 
 async function checkDeploymentVersion(force = false): Promise<void> {
@@ -114,6 +131,7 @@ export function startVersionGuard(): () => void {
 
   window.addEventListener('pageshow', handlePageShow);
   window.addEventListener(RUN_ACTIVE_EVENT, handleRunState);
+  window.addEventListener(APP_BOOT_READY_EVENT, ensureBootDiagnosticSentinel);
   document.addEventListener('visibilitychange', handleVisibility);
   runVersionCheck(true);
 
@@ -121,6 +139,7 @@ export function startVersionGuard(): () => void {
     window.clearInterval(intervalId);
     window.removeEventListener('pageshow', handlePageShow);
     window.removeEventListener(RUN_ACTIVE_EVENT, handleRunState);
+    window.removeEventListener(APP_BOOT_READY_EVENT, ensureBootDiagnosticSentinel);
     document.removeEventListener('visibilitychange', handleVisibility);
   };
 }

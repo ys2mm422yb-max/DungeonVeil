@@ -18,9 +18,10 @@ assert(guard.includes('rememberPendingBuild(deployedCommit)') && guard.includes(
 assert(game.includes("dataset.dungeonVeilActiveRun = active ? '1' : '0'") && game.includes('dungeon-veil-run-active-changed'), 'The game page does not expose active-run protection to the version guard.');
 assert(globalLayer.includes('ROOM_LOADING_SHOW_AFTER_MS = 760') && globalLayer.includes('ROOM_LOADING_MIN_VISIBLE_MS = 240'), 'Room transition timing still forces a loader on fast swaps.');
 assert(globalLayer.includes('data-transition-presentation="seamless-violet-veil"') && globalLayer.includes('BOOT_SESSION_KEY'), 'Room and boot loading are not visually or temporally separated.');
+assert(globalLayer.includes('function BootDiagnosticSentinel()') && globalLayer.includes('data-session-scoped="complete"') && globalLayer.includes('<BootDiagnosticSentinel />'), 'Session-scoped boot reloads lose their stable hidden diagnostic contract.');
 assert(loading.includes('data-boot-visual="violet-d-monogram-v2"') && loading.includes('dungeon-veil-d-mark') && loading.includes('dv-stone'), 'The start loader does not use the Dungeon Veil violet D identity.');
 assert(canvas.includes("presentationContract = 'dungeon-veil-violet-arch-v2'") && canvas.includes('stoneArch') && canvas.includes('vortexLayers') && canvas.includes('energyRibbons') && canvas.includes('runeDiamonds'), 'The room exit portal lacks the layered Dungeon Veil presentation.');
 assert(canvas.includes("host.setAttribute('data-portal-contract', presentationContract)"), 'Portal visual diagnostics are missing from the shared run renderer.');
 assert(config.includes('loading-continuity'), 'Four-device browser regression does not cover loading continuity.');
 
-console.log('Loading continuity passed: deployments defer during runs, fast rooms stay seamless, the boot screen uses the violet D identity, and portals use the layered veil arch.');
+console.log('Loading continuity passed: deployments defer during runs, fast rooms stay seamless, session-scoped boot diagnostics remain stable, and portals use the layered veil arch.');
