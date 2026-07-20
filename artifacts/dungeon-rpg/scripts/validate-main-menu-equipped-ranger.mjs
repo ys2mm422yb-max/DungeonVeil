@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, menuScene, liveScene, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection] = await Promise.all([
+const [menu, menuScene, liveScene, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/LiveHybridMainMenuScene.tsx'),
+  read('../src/index.css'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/kaykitVillagePlayer3D.ts'),
   read('../src/components/kaykitPlayer3D.ts'),
@@ -21,6 +22,7 @@ const checks = [
   [menuScene.includes('import.meta.env.BASE_URL') && menuScene.includes('assets/hall/veil-hall-hero.webp'), 'ambient portal art is not resolved safely against the GitHub Pages base'],
   [menuScene.includes('LiveHybridMainMenuScene') && liveScene.includes('loadKayKitVillageArcher'), 'the equipped live Ranger renderer is not mounted'],
   [liveScene.includes('data-testid="live-hybrid-main-menu-scene"') && liveScene.includes('data-renderer="single-live-menu-canvas"'), 'single live menu renderer diagnostics are missing'],
+  [indexCss.includes("[data-testid='live-hybrid-main-menu-scene'] canvas") && indexCss.includes('image-rendering: auto'), 'live menu canvas still inherits the gameplay pixel-art filter'],
   [liveScene.includes('data-animation-frames') && liveScene.includes('playerRig?.update(delta)') && liveScene.includes('requestAnimationFrame(loop)'), 'continuous Ranger idle animation proof is missing'],
   [liveScene.includes('activeCompanionV5') && liveScene.includes('COMPANION_COLLECTION_EVENT') && liveScene.includes("host.dataset.companionSpecies = 'none'"), 'V5 companion state or no-companion start contract is not respected'],
   [liveScene.includes("'veil-lynx'") && liveScene.includes("'ember-raven'") && liveScene.includes("'rune-sentinel'") && liveScene.includes("'lantern-wisp'") && liveScene.includes('MenuDuskDrake'), 'five distinct menu companion silhouettes are incomplete'],
@@ -46,4 +48,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Live hybrid main-menu audit passed: animated equipped Ranger, V5 companion state, one canvas, portal atmosphere and full equipment access remain intact.');
+console.log('Live hybrid main-menu audit passed: animated equipped Ranger, V5 companion state, smooth 3D filtering, one canvas, portal atmosphere and full equipment access remain intact.');
