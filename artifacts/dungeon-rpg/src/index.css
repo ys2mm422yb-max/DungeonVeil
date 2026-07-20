@@ -191,7 +191,8 @@
   clip-path: polygon(50% 50%, 50% 0, 100% 0, 100% 100%, 0 100%, 0 0, 50% 0);
 }
 
-/* The village globe and world-boss hall are smooth 3D presentation scenes, not pixel-art canvases. */
+/* Presentation scenes stay smoothly filtered instead of inheriting the gameplay pixel treatment. */
+[data-testid='live-hybrid-main-menu-scene'] canvas,
 [data-testid='veil-world-orb-scene'] canvas,
 [data-testid='ash-king-cohesive-stage'] canvas {
   image-rendering: auto;
