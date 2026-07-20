@@ -66,8 +66,9 @@ const checks = [
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Hall of the Veil visual QA route is missing'],
   [menuSceneProxy.includes('ModernVillageSquareScene') && menuSceneProxy.includes('dungeon-veil-meta-changed') && menuSceneProxy.includes('SPECTATOR_RENDERER_EVENT') && menuSceneProxy.includes('if (suspended) return null'), 'main menu scene proxy is not routed through the exclusive equipped menu renderer'],
   [villageSceneProxy.includes("import { HallOfVeilScene } from './HallOfVeilScene';") && villageSceneProxy.includes('<HallOfVeilHybridBackground />') && villageSceneProxy.includes('<HallOfVeilScene />'), 'compatibility menu scene does not compose the hybrid Hall'],
-  [hallScene.includes("hallRoot.userData.sceneContract = 'hall-of-the-veil-v5-hybrid'") && hallScene.includes("backgroundMode = 'premium-2d-artwork'") && hallScene.includes('loadKayKitVillageArcher') && hallScene.includes('loadKayKitMenuCompanion') && menuCompanion.includes('HallActiveCompanion_') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'"), 'hybrid Hall does not use one equipped player and one active companion'],
-  [hallBackground.includes('hall-background-v1.svg') && hallBackground.includes('data-background-artwork="premium-gothic-v2"'), 'premium 2D Hall artwork layer is missing'],
+  [!villageSceneProxy.includes('mix-blend-screen') && !villageSceneProxy.includes('opacity-[0.88]'), 'Hall character layer is still washed out'],
+  [hallScene.includes("hallRoot.userData.sceneContract = 'hall-of-the-veil-v6-premium'") && hallScene.includes("hallRoot.userData.backgroundMode = 'premium-2d-artwork'") && hallScene.includes('loadKayKitVillageArcher') && hallScene.includes('loadKayKitMenuCompanion') && hallScene.includes('playerFullBody: true') && hallScene.includes('companionFullBody: true') && menuCompanion.includes('HallActiveCompanion_') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'"), 'premium Hall does not use one full-body equipped player and one full-body active companion'],
+  [hallBackground.includes('hall-background-v3.svg') && hallBackground.includes('data-background-artwork="premium-gothic-v3"'), 'premium 2D Hall artwork layer is missing'],
   [hallScene.includes('marketStalls: 0') && hallScene.includes('decorativeNpcs: 0') && !hallScene.includes('MiraQuestKeeper') && !hallScene.includes('buildMarketStall'), 'Hall of the Veil still contains decorative market NPC clutter'],
   [hallScene.includes('alpha: true') && hallScene.includes('renderer.setClearColor(0x000000, 0)') && !hallScene.includes('createArchitecture('), '3D Hall geometry was not removed from the transparent character renderer'],
   [renderStart >= 0 && assetStart > renderStart, 'Hall renderer does not start before asynchronous player and companion loading'],
@@ -88,4 +89,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: gameplay modes share one Play entry and the premium hybrid Hall keeps one transparent renderer with the equipped player and active companion.');
+console.log('Social/navigation audit passed: gameplay modes share one Play entry and the premium Hall keeps one crisp 2D background with one transparent full-body player and companion renderer.');
