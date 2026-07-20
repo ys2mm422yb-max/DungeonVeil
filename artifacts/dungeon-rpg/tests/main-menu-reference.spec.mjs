@@ -31,14 +31,12 @@ test('reference main menu keeps one renderer, four primary actions and companion
   await expect(hall).toHaveAttribute('data-companion-role', 'shield');
   await expect(page.locator('canvas')).toHaveCount(1);
 
-  await expect(page.getByTestId('main-menu-scene-presentation')).toBeVisible();
+  await expect(page.getByTestId('main-menu-scene-presentation')).toHaveAttribute('data-composition', 'raised-mobile-hero');
   await expect(page.getByTestId('main-menu-scene-focus')).toBeVisible();
-  await expect(page.getByTestId('main-menu-status-strip')).toBeVisible();
+  await expect(page.getByTestId('main-menu-control-stack')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mehr' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Weltboss/i }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: /Tagesbelohnung/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Gildenkiste/i })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Kapitel 1/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Tagesbelohnung/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Kapitel 1/i })).toHaveCount(0);
   await expect(page.getByTestId('veil-village-npc-hub')).toBeVisible();
   await expect(page.getByRole('button', { name: /Aufträge/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /Post/i })).toBeVisible();
@@ -53,36 +51,44 @@ test('reference main menu keeps one renderer, four primary actions and companion
 
   const layout = await page.evaluate(() => {
     const sceneFocus = document.querySelector('[data-testid="main-menu-scene-focus"]');
-    const statusStrip = document.querySelector('[data-testid="main-menu-status-strip"]');
+    const controlStack = document.querySelector('[data-testid="main-menu-control-stack"]');
     const socialDock = document.querySelector('[data-testid="veil-village-npc-hub"]');
     const scenePresentation = document.querySelector('[data-testid="main-menu-scene-presentation"]');
     const actionNames = ['FORTSETZEN', 'SPIELEN', 'AUSRÜSTUNG', 'KODEX'];
     const actionButtons = [...document.querySelectorAll('button')].filter(button => actionNames.some(name => (button.textContent || '').toUpperCase().includes(name)));
-    const visibleTextRoots = [statusStrip, socialDock, ...actionButtons].filter(Boolean);
-    const clippedLabels = visibleTextRoots.flatMap(root => [...root.querySelectorAll('.truncate')])
+    const visibleTextRoots = [socialDock, ...actionButtons].filter(Boolean);
+    const clippedLabels = visibleTextRoots.flatMap(root => [...root.querySelectorAll('*')])
       .filter(element => element.scrollWidth > element.clientWidth + 1)
+      .filter(element => (element.textContent || '').trim().length > 0)
       .map(element => element.textContent?.trim() || 'unknown');
     const sceneBox = sceneFocus?.getBoundingClientRect();
-    const statusBox = statusStrip?.getBoundingClientRect();
+    const controlsBox = controlStack?.getBoundingClientRect();
     const socialBox = socialDock?.getBoundingClientRect();
+    const presentationStyle = scenePresentation ? getComputedStyle(scenePresentation) : null;
     return {
       viewportHeight: innerHeight,
+      sceneHeight: sceneBox?.height ?? 0,
       sceneBottom: sceneBox?.bottom ?? 0,
-      statusTop: statusBox?.top ?? 0,
+      controlsTop: controlsBox?.top ?? 0,
       socialHeight: socialBox?.height ?? 999,
       actionHeights: actionButtons.map(button => button.getBoundingClientRect().height),
       actionBottom: Math.max(0, ...actionButtons.map(button => button.getBoundingClientRect().bottom)),
       clippedLabels,
-      sceneTransform: scenePresentation ? getComputedStyle(scenePresentation).transform : 'none',
+      sceneTransform: presentationStyle?.transform ?? 'none',
     };
   });
 
-  expect(layout.statusTop).toBeGreaterThanOrEqual(layout.sceneBottom - 1);
-  expect(layout.socialHeight).toBeLessThanOrEqual(64);
-  expect(Math.max(...layout.actionHeights)).toBeLessThanOrEqual(60);
+  expect(layout.sceneHeight).toBeGreaterThanOrEqual(300);
+  expect(layout.controlsTop).toBeGreaterThanOrEqual(layout.sceneBottom - 1);
+  expect(layout.socialHeight).toBeLessThanOrEqual(60);
+  expect(Math.max(...layout.actionHeights)).toBeLessThanOrEqual(58);
   expect(layout.actionBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
   expect(layout.clippedLabels).toEqual([]);
   expect(layout.sceneTransform).not.toBe('none');
+
+  await page.getByRole('button', { name: /Spielen/i }).click({ force: true });
+  await expect(page.getByRole('button', { name: /Weltboss/i })).toBeVisible();
+  await page.getByRole('button', { name: /Schließen/i }).click({ force: true });
 
   await page.getByTestId('main-menu-equipment-navigation').getByRole('button').click({ force: true });
   await expect(page.getByRole('heading', { name: 'AUSRÜSTUNG' })).toBeVisible();
