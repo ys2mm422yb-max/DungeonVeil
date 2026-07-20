@@ -19,17 +19,19 @@ const [wrapper, hall, background, menuCompanion, mainMenu, villageHub, showcase,
 const rendererCount = hall.match(/new THREE\.WebGLRenderer/g)?.length ?? 0;
 const checks = [
   [wrapper.includes("import { HallOfVeilHybridBackground } from './HallOfVeilHybridBackground';") && wrapper.includes('<HallOfVeilHybridBackground />') && wrapper.includes('<HallOfVeilScene />'), 'legacy menu wrapper is not routed through the premium hybrid Hall'],
+  [!wrapper.includes('mix-blend-screen') && !wrapper.includes('opacity-[0.88]'), 'Hall character layer is still washed out by blend or opacity'],
   [hall.includes("import { loadKayKitVillageArcher } from './kaykitVillagePlayer3D';") && hall.includes('loadKayKitVillageArcher(THREE, GLTFLoader)'), 'Hall of the Veil is not routed through the equipped player adapter'],
   [hall.includes("import { loadKayKitMenuCompanion") && hall.includes('loadKayKitMenuCompanion(THREE, GLTFLoader, loadCompanionRoleV4())') && menuCompanion.includes('HallActiveCompanion_'), 'active companion is not rendered beside the equipped player'],
-  [hall.includes("hallRoot.userData.sceneContract = 'hall-of-the-veil-v5-hybrid'") && hall.includes('data-hall-of-the-veil="true"') && hall.includes('data-background-mode="premium-2d-artwork"'), 'premium hybrid Hall scene contract is missing'],
-  [background.includes('hall-background-v1.svg') && background.includes('data-background-artwork="premium-gothic-v2"'), 'premium 2D Hall artwork is missing'],
+  [hall.includes("hallRoot.userData.sceneContract = 'hall-of-the-veil-v6-premium'") && hall.includes('data-hall-of-the-veil="true"') && hall.includes('data-background-mode="premium-2d-artwork"'), 'premium Hall scene contract is missing'],
+  [background.includes('hall-background-v3.svg') && background.includes('data-background-artwork="premium-gothic-v3"'), 'premium 2D Hall artwork is missing'],
+  [hall.includes('playerFullBody: true') && hall.includes('companionFullBody: true') && hall.includes('data-player-full-body="true"') && hall.includes('data-companion-full-body="true"'), 'full-body player or companion composition markers are missing'],
+  [hall.includes('rig.root.scale.multiplyScalar(0.82)') && hall.includes('rig.root.scale.multiplyScalar(0.68)') && hall.includes('camera.position.set(0, portrait ? 4.55 : 4.25, portrait ? 13.4 : 13.7)'), 'player or companion are not scaled and framed for full-body mobile presentation'],
   [hall.includes('marketStalls: 0') && hall.includes('decorativeNpcs: 0') && hall.includes('data-market-stalls="0"') && hall.includes('data-decorative-npcs="0"'), 'market stalls or decorative NPCs can still be represented'],
   [!hall.includes('buildMarketStall') && !hall.includes('MiraQuestKeeper') && !hall.includes('OrinPostKeeper') && !hall.includes('TalaScoutKeeper') && !hall.includes('BromGuildKeeper'), 'legacy stalls or keeper NPCs remain in the Hall of the Veil'],
   [hall.includes('alpha: true') && hall.includes('renderer.setClearColor(0x000000, 0)') && hall.includes('scene.background = null') && !hall.includes('createArchitecture('), 'character renderer is not transparent or still builds the Hall in 3D'],
-  [hall.includes('mistLayers') && hall.includes('HALL_PARTICLE_COUNT = IS_MOBILE ? 14 : 26') && hall.includes("particles.name = 'HallBoundedVeilParticles'"), 'bounded mobile mist and particle atmosphere is missing'],
+  [hall.includes('mistLayers') && hall.includes('HALL_PARTICLE_COUNT = IS_MOBILE ? 12 : 22') && hall.includes("particles.name = 'HallBoundedVeilParticles'"), 'bounded mobile mist and particle atmosphere is missing'],
   [rendererCount === 1 && hall.includes("renderer.domElement.setAttribute('data-menu-renderer', 'hall-of-the-veil')"), 'Hall menu does not own exactly one renderer'],
   [hall.includes('if (IS_MOBILE && now - lastFrame < 33) return') && hall.includes('renderer.setPixelRatio(Math.min'), 'mobile renderer throttling or pixel-ratio cap is missing'],
-  [hall.includes('camera.position.set(0, portrait ? 4.18 : 4.0, portrait ? 10.15 : 10.8)') && hall.includes('camera.fov = portrait ? 38 : 33'), 'responsive camera does not prioritize player and companion'],
   [hall.includes('const playerKey = new THREE.PointLight') && hall.includes('const playerRim = new THREE.PointLight') && hall.includes('const portalBounce = new THREE.PointLight'), 'player and portal bounce lighting are incomplete'],
   [mainMenu.includes('`${equipped.bow}:${equipped.quiver}:${equipped.armor}`') && !mainMenu.includes('equipped.talisman'), 'menu scene key still depends on the retired Talisman instead of current armor'],
   [mainMenu.includes('SPECTATOR_RENDERER_EVENT') && mainMenu.includes('if (suspended) return null'), 'exclusive spectator renderer handoff is missing'],
@@ -41,7 +43,6 @@ const checks = [
   [showcase.includes('material.depthTest = true') && showcase.includes('material.depthWrite = true') && !showcase.includes('material.depthTest = false'), 'menu equipment can still draw through the Ranger body'],
   [showcase.includes("'VillageVisibleEquippedBow'") && showcase.includes("'VillageVisibleEquippedQuiver'") && !showcase.includes('VillageVisibleEquippedTalisman'), 'clean visible current-equipment anchors are incomplete or the retired Talisman remains'],
   [showcase.includes('bow: meta.equipped.bow') && showcase.includes('quiver: meta.equipped.quiver') && showcase.includes('armor: meta.equipped.armor') && !showcase.includes('talisman: meta.equipped.talisman'), 'menu showcase does not preserve only the current three-slot loadout'],
-  [showcase.includes('root.position.z = -1.82') && showcase.includes('root.scale.setScalar(0.72)'), 'player is not large and forward enough to dominate the composition'],
   [villageHub.includes('grid grid-cols-4') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place'), 'redundant place prompt remains or social routes are not compact'],
   [showcase.includes('function resolveVillageAssetUrl') && showcase.includes('new URL(NORMALIZED_APP_BASE_URL, window.location.origin)') && showcase.includes('return new URL(relative, appBase).href'), 'menu asset URLs are not resolved against the Pages base exactly once'],
   [player.includes('KAYKIT_PLAYER_ASSETS.ranger') && player.includes('Ranger.glb'), 'shared player rig no longer uses the in-game Ranger body'],
@@ -58,4 +59,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Hall of the Veil menu audit passed: premium 2D artwork, one transparent renderer, equipped Ranger, active companion, current armor key and exclusive spectator handoff.');
+console.log('Hall of the Veil menu audit passed: crisp premium artwork, one transparent renderer, full-body equipped Ranger and companion, current armor key and exclusive spectator handoff.');
