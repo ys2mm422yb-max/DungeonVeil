@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, visualAudit, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
+const [config, smoke, visualAudit, reducedMotionAudit, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-audit.spec.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../tests/reduced-motion-menu.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../package.json', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/dungeon-rpg-check.yml', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/dungeon-rpg-ci.yml', import.meta.url), 'utf8'),
@@ -29,9 +30,11 @@ const requiredFlows = [
 ];
 const requiredVisualMarkers = [
   "Array.from({ length: 50 }",
-  "[1, 10, 20, 30, 40, 50]",
+  '[1, 10, 20, 30, 40, 50]',
   'visual-room-',
   'visual-main-menu-',
+  'visual-main-menu-no-companion-',
+  'visual-main-menu-companion-',
   'visual-profile-',
   'visual-equipment-bow-',
   'visual-equipment-quiver-',
@@ -43,6 +46,17 @@ const requiredVisualMarkers = [
   'visual-mailbox-',
   'visual-friends-',
   'visual-guild-',
+  'visual-online-cloud-',
+  'visual-coop-lobby-',
+  'visual-worldboss-',
+  'visual-settings-',
+  'visual-credits-',
+];
+const requiredReducedMotionMarkers = [
+  "emulateMedia({ reducedMotion: 'reduce' })",
+  'main-menu-reduced-motion-fallback',
+  'visual-main-menu-reduced-motion-',
+  'static-ranger-and-portal-fallback',
 ];
 
 const failures = [];
@@ -54,6 +68,9 @@ for (const flow of requiredFlows) {
 }
 for (const marker of requiredVisualMarkers) {
   if (!visualAudit.includes(marker)) failures.push(`missing visual audit marker: ${marker}`);
+}
+for (const marker of requiredReducedMotionMarkers) {
+  if (!reducedMotionAudit.includes(marker)) failures.push(`missing reduced-motion audit marker: ${marker}`);
 }
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
 for (const command of ['audit:assets', 'audit:social', 'audit:rooms', 'typecheck', 'build']) {
@@ -71,4 +88,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: all major menu flows, 50 rooms, UI screenshot evidence, combat startup, cross-device layouts, runtime errors, assets and build checks are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, explicit reduced motion, 50 desktop and mobile rooms, critical cross-device rooms, UI screenshot evidence, combat startup, runtime errors, assets and production build are covered.');
