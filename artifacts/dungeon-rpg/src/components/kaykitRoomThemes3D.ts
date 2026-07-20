@@ -2,6 +2,7 @@ import {
   buildKayKitRoomTheme as buildBaseKayKitRoomTheme,
   preloadKayKitRoomTheme as preloadBaseKayKitRoomTheme,
 } from './kaykitRoomThemesBase3D';
+import { buildEarlyVeilRoomAtmosphere } from './earlyVeilRoomAtmosphere3D';
 import { buildRoomOneGrandEntrance } from './roomOneGrandEntrance3D';
 import { buildRoomTwoCommandWatch } from './roomTwoCommandWatch3D';
 import { buildFirelandsTheme } from './firelandsTheme3D';
@@ -44,6 +45,8 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   const root = buildBaseKayKitRoomTheme(THREE, room);
   const additions: any[] = [];
 
+  const earlyVeilAtmosphere = buildEarlyVeilRoomAtmosphere(THREE, root, room);
+  if (earlyVeilAtmosphere) additions.push(earlyVeilAtmosphere);
   if (room === 1) additions.push(buildRoomOneGrandEntrance(THREE));
   if (room === 2) additions.push(buildRoomTwoCommandWatch(THREE));
   if (room >= 21 && room <= 30) additions.push(buildMeadowRoomTheme(THREE, room));
