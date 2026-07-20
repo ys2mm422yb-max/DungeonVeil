@@ -30,15 +30,22 @@ export function MainMenuDungeonScene() {
     className="pointer-events-none absolute inset-0 overflow-hidden bg-[#050208]"
     style={{ transform: 'translate3d(0,0,0)' }}
   >
-    <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(117,45,220,.42),rgba(31,13,54,.2)_38%,#050208_78%)]" />
+    <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_38%,rgba(117,45,220,.38),rgba(31,13,54,.18)_42%,#050208_82%)]" />
+    <img
+      aria-hidden="true"
+      src={heroUrl}
+      alt=""
+      className={`absolute -inset-[8%] h-[116%] w-[116%] object-cover object-center blur-[18px] saturate-[1.2] contrast-[1.08] transition-opacity duration-500 ${ambientLoaded ? 'opacity-30' : 'opacity-0'}`}
+      draggable={false}
+    />
     <img
       data-testid="main-menu-ambient-portal-art"
       src={heroUrl}
       alt=""
-      className={`absolute inset-x-0 top-0 h-[43%] w-full object-cover object-top saturate-[1.08] contrast-[1.04] blur-[1px] transition-opacity duration-500 ${ambientLoaded ? 'opacity-55' : 'opacity-0'}`}
+      className={`absolute inset-x-0 top-0 h-[43%] w-full object-cover object-top saturate-[1.08] contrast-[1.04] blur-[1px] transition-opacity duration-500 ${ambientLoaded ? 'opacity-48' : 'opacity-0'}`}
       style={{
-        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 56%, rgba(0,0,0,.72) 72%, transparent 100%)',
-        maskImage: 'linear-gradient(to bottom, black 0%, black 56%, rgba(0,0,0,.72) 72%, transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 52%, rgba(0,0,0,.66) 70%, transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, black 0%, black 52%, rgba(0,0,0,.66) 70%, transparent 100%)',
       }}
       draggable={false}
       onLoad={event => {
@@ -50,10 +57,12 @@ export function MainMenuDungeonScene() {
         setAmbientFailed(true);
       }}
     />
-    <LiveHybridMainMenuScene />
-    <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,1,6,.58)_0%,rgba(4,2,8,.04)_26%,rgba(4,2,8,.02)_64%,rgba(3,1,6,.74)_100%)]" />
-    <div aria-hidden="true" className="absolute inset-x-[6%] top-[26%] h-[35%] rounded-full bg-violet-500/[.08] blur-[64px] mix-blend-screen" />
-    <div aria-hidden="true" className="absolute inset-x-[-8%] bottom-[16%] h-[24%] bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,.11),rgba(24,12,40,.04)_43%,transparent_72%)] blur-2xl" />
-    <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_58%,transparent_0%,transparent_44%,rgba(2,1,4,.18)_77%,rgba(2,1,4,.58)_100%)]" />
+    <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,1,6,.5)_0%,rgba(8,3,14,.02)_28%,rgba(9,4,15,.08)_58%,rgba(3,1,6,.62)_100%)]" />
+    <div data-testid="live-hybrid-main-menu-frame" className="absolute -inset-[15%] origin-center translate-y-[6%] scale-[.78] md:-inset-[11%] md:translate-y-[5%] md:scale-[.82]">
+      <LiveHybridMainMenuScene />
+    </div>
+    <div aria-hidden="true" className="absolute inset-x-[5%] top-[25%] h-[38%] rounded-full bg-violet-500/[.065] blur-[72px] mix-blend-screen" />
+    <div aria-hidden="true" className="absolute inset-x-[-10%] bottom-[10%] h-[35%] bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,.095),rgba(24,12,40,.035)_43%,transparent_74%)] blur-2xl" />
+    <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_56%,transparent_0%,transparent_48%,rgba(2,1,4,.16)_78%,rgba(2,1,4,.55)_100%)]" />
   </div>;
 }
