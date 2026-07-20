@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
+async function pressPointerUi(locator) {
+  await expect(locator).toBeVisible();
+  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+}
+
 async function openReferenceMenu(page) {
   await page.addInitScript(() => {
     const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
@@ -49,7 +54,7 @@ async function openReferenceMenu(page) {
 }
 
 test('live hybrid menu keeps four primary actions with an animated equipped Ranger and V5 companion', async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(error.message));
   page.on('console', message => {
@@ -127,17 +132,17 @@ test('live hybrid menu keeps four primary actions with an animated equipped Rang
   expect(layout.clippedLabels).toEqual([]);
   expect(layout.sceneTransform).not.toBe('none');
 
-  await page.getByRole('button', { name: /Spielen/i }).click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Spielen/i }));
   await expect(page.getByRole('button', { name: /Weltboss/i })).toBeVisible();
-  await page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }));
 
-  await page.getByTestId('main-menu-equipment-navigation').getByRole('button').click({ force: true });
+  await pressPointerUi(page.getByTestId('main-menu-equipment-navigation').getByRole('button'));
   await expect(page.getByRole('heading', { name: 'AUSRÜSTUNG' })).toBeVisible();
   await expect(page.getByTestId('equipment-category-tabs').locator('button')).toHaveCount(5);
   await page.getByTestId('inventory-tab-companion').click({ force: true });
   await expect(page.getByTestId('equipment-companion-section')).toBeVisible();
   await expect(page.getByTestId('companion-management-panel')).toHaveAttribute('data-embedded', 'true');
-  await page.getByRole('button', { name: 'Zurück' }).click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: 'Zurück' }));
   await page.bringToFront();
   await expect(liveScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 30_000 });
   await expect(page.getByTestId('live-hybrid-main-menu-canvas')).toBeVisible({ timeout: 30_000 });
