@@ -42,6 +42,10 @@ for (const room of [13, 16, 19]) {
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 10_000 }).toBe(0);
     await page.waitForTimeout(1_400);
 
+    const viewport = page.getByTestId('run-visual-viewport');
+    await expect(viewport).toHaveAttribute('data-hurt-flash', 'idle');
+    await expect(viewport).toHaveAttribute('data-hit-flash', 'idle');
+
     const settled = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
     expect(settled.hp, JSON.stringify(settled)).toBe(armed.hp);
     expect(settled.effects.filter(id => PLAYER_HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(settled)).toEqual([]);
