@@ -112,7 +112,7 @@ jobs:
             --config=playwright.regression.config.mjs \
             --project=${{ matrix.project }} \
             tests/autopilot-product-journeys.spec.mjs \
-            tests/product-autopilot.spec.mjs \
+            tests/autopilot-outside-guild.spec.mjs \
             tests/guild-mail-equipment-visual.spec.mjs
       - name: Upload automatic screenshots
         if: always()
