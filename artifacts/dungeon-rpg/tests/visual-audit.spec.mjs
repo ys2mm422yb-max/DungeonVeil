@@ -155,6 +155,10 @@ async function waitForMenuAdvance(scene, previousFrames, timeout = 20_000) {
   ).toBeGreaterThan(previousFrames);
 }
 
+async function roomLabel(page, room) {
+  return page.getByText(`RAUM ${room}/50`, { exact: false }).first();
+}
+
 async function startFreshRun(page) {
   await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
   await pressPointerUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
@@ -193,7 +197,7 @@ async function loadRoom(page, room) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
-  await expect(page.getByText(new RegExp(`RAUM\\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
+  await expect(await roomLabel(page, room)).toBeVisible({ timeout: 30_000 });
   await waitForPaintedCanvas(page);
 }
 
@@ -360,7 +364,7 @@ test('rooms 1-50 produce stable visual evidence across the full run', async ({ p
 
   for (const room of rooms) {
     if (room !== 1) await loadRoom(page, room);
-    await expect(page.getByText(new RegExp(`RAUM\\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
+    await expect(await roomLabel(page, room)).toBeVisible({ timeout: 30_000 });
     await waitForPaintedCanvas(page);
     await capture(page, `test-results/visual-room-${String(room).padStart(2, '0')}-${testInfo.project.name}.png`);
   }
