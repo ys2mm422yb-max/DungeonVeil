@@ -25,6 +25,7 @@ import { startVersionGuard } from './game/versionGuard';
 import './index.css';
 import './guild-mobile.css';
 import './readability.css';
+import './equipment-polish.css';
 
 installAccessibilitySettings();
 installControlSettings();
