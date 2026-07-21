@@ -239,10 +239,10 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
       : item ? <>
         <section className="mt-4 overflow-hidden rounded-3xl border border-white/10 bg-black/52">
           <div className="grid min-h-[245px] grid-cols-[42%_58%]">
-            <div className="border-r border-white/8"><KayKitEquipmentPreview assetPath={item.assetPath} accent={item.accent} itemId={item.id} /></div>
-            <div className="flex flex-col p-4">
+            <div className="border-r border-white/8"><KayKitEquipmentPreview key={item.id} assetPath={item.assetPath} accent={item.accent} itemId={item.id} /></div>
+            <div className="min-w-0 flex flex-col p-4">
               <div className="text-[8px] font-black" style={{ color: item.accent }}>{SLOT_LABELS[item.slot as EquipmentTab][de ? 'de' : 'en']}</div>
-              <h2 className="mt-2 text-xl font-black">{de ? item.nameDe : item.nameEn}</h2>
+              <h2 data-testid="equipment-item-name" className="mt-2 max-w-full break-words text-[clamp(1rem,4.2vw,1.25rem)] font-black leading-tight">{de ? item.nameDe : item.nameEn}</h2>
               <p className="mt-3 text-[12px] text-white/62">{de ? item.descriptionDe : item.descriptionEn}</p>
               <div className="mt-2 text-[8px] text-white/35">{level ? `LEVEL ${level}/5 · ${copies} ${de ? 'KOPIEN' : 'COPIES'}` : `${de ? 'AB KAPITEL' : 'FROM CHAPTER'} ${equipmentUnlockChapter(item.id)} · ${de ? 'RANG' : 'RANK'} ${item.unlockRank}`}</div>
               <div className="flex-1" />
