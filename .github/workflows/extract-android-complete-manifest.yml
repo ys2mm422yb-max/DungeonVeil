@@ -7,13 +7,18 @@ on:
 
 permissions:
   actions: read
-  contents: read
+  contents: write
 
 jobs:
   extract-android-manifest:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
       - name: Download exact Android evidence artifact
         uses: actions/download-artifact@v4
         with:
@@ -112,6 +117,22 @@ jobs:
             -name 'worldboss-frame-15.png' \
           \) -exec cp --parents {} proof/images/ \;
           test "$(find proof/images -type f | wc -l)" -ge 11
+
+      - name: Persist compact proof on diagnostic branch
+        shell: bash
+        run: |
+          rm -rf qa-proof/android-complete-27c1012
+          mkdir -p qa-proof/android-complete-27c1012
+          cp -R proof/. qa-proof/android-complete-27c1012/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add qa-proof/android-complete-27c1012
+          if git diff --cached --quiet; then
+            echo 'Proof already persisted.'
+            exit 0
+          fi
+          git commit -m 'Persist Android complete runtime proof for 27c1012'
+          git push origin HEAD:${GITHUB_REF_NAME}
 
       - name: Upload compact Android proof
         uses: actions/upload-artifact@v4
