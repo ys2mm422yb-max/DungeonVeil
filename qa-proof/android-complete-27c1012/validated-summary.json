@@ -1,0 +1,20 @@
+{
+  "sourceRunId": 29872616605,
+  "sourceHead": "27c1012a7811b12165655bd08d485d2c08d66146",
+  "sourceArtifact": "complete-runtime-evidence-android-chromium",
+  "stats": {
+    "startTime": "2026-07-21T22:09:17.877Z",
+    "duration": 2059601.062,
+    "expected": 25,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "testCounts": {
+    "expected": 25
+  },
+  "resultCounts": {
+    "passed": 25
+  },
+  "topLevelErrors": []
+}
