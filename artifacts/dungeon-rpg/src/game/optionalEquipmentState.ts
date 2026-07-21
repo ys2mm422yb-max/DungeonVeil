@@ -3,6 +3,7 @@ export type OptionalEquipmentSlot = 'quiver';
 export type OptionalEquipmentState = Readonly<{
   version: 1;
   equipped: Record<OptionalEquipmentSlot, boolean>;
+  updatedAt: number;
 }>;
 
 const STORAGE_KEY = 'dungeon-veil-optional-equipment-v1';
@@ -11,6 +12,7 @@ export const OPTIONAL_EQUIPMENT_EVENT = 'dungeon-veil-optional-equipment-changed
 const DEFAULT_STATE: OptionalEquipmentState = Object.freeze({
   version: 1,
   equipped: Object.freeze({ quiver: true }),
+  updatedAt: 0,
 });
 
 function normalize(raw: unknown): OptionalEquipmentState {
@@ -20,6 +22,7 @@ function normalize(raw: unknown): OptionalEquipmentState {
     equipped: Object.freeze({
       quiver: value.equipped?.quiver !== false,
     }),
+    updatedAt: Math.max(0, Number(value.updatedAt) || 0),
   });
 }
 
@@ -42,6 +45,7 @@ export function setOptionalEquipmentSlotEquipped(slot: OptionalEquipmentSlot, eq
   const next = normalize({
     ...current,
     equipped: { ...current.equipped, [slot]: Boolean(equipped) },
+    updatedAt: Date.now(),
   });
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(OPTIONAL_EQUIPMENT_EVENT, { detail: next }));
