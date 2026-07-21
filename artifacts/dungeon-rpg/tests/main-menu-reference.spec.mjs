@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForLiveMenuPaint } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
@@ -39,18 +40,12 @@ async function openReferenceMenu(page) {
   await expect(presentation).toHaveAttribute('data-image-failed', 'false');
   await expect(page.getByTestId('main-menu-ambient-portal-art')).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('live-hybrid-main-menu-frame')).toBeVisible();
-  const liveScene = page.getByTestId('live-hybrid-main-menu-scene');
-  await expect(liveScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
-  await expect(liveScene).toHaveAttribute('data-animation-state', 'running');
+  const liveScene = await waitForLiveMenuPaint(page);
   await expect(liveScene).toHaveAttribute('data-companion-species', 'veil-lynx');
   await expect(liveScene).toHaveAttribute('data-companion-level', '3');
-  await expect(page.getByTestId('live-hybrid-main-menu-canvas')).toBeVisible({ timeout: 60_000 });
-  const firstFrame = Number(await liveScene.getAttribute('data-animation-frames') || 0);
-  await expect.poll(async () => Number(await liveScene.getAttribute('data-animation-frames') || 0), { timeout: 20_000 }).toBeGreaterThan(firstFrame);
   const menuBanner = page.getByRole('banner');
   await expect(menuBanner.getByRole('heading', { name: 'DUNGEON VEIL', exact: true })).toBeVisible();
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
-  await page.waitForTimeout(1_000);
 }
 
 test('live hybrid menu keeps four primary actions with an animated equipped Ranger and V5 companion', async ({ page }, testInfo) => {
@@ -144,8 +139,7 @@ test('live hybrid menu keeps four primary actions with an animated equipped Rang
   await expect(page.getByTestId('companion-management-panel')).toHaveAttribute('data-embedded', 'true');
   await pressPointerUi(page.getByRole('button', { name: 'Zurück' }));
   await page.bringToFront();
-  await expect(liveScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 30_000 });
-  await expect(page.getByTestId('live-hybrid-main-menu-canvas')).toBeVisible({ timeout: 30_000 });
+  await waitForLiveMenuPaint(page, 30_000);
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
 
   const overflow = await page.evaluate(() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth) - innerWidth);
@@ -158,10 +152,8 @@ test('live hybrid menu keeps four primary actions with an animated equipped Rang
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('dungeon-veil-spectator-renderer', { detail: { active: false } })));
   const restoredPresentation = page.getByTestId('main-menu-scene-presentation');
-  const restoredScene = page.getByTestId('live-hybrid-main-menu-scene');
   await expect(restoredPresentation).toHaveAttribute('data-composition', 'live-hybrid-scene', { timeout: 30_000 });
-  await expect(restoredScene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
-  await expect(page.getByTestId('live-hybrid-main-menu-canvas')).toBeVisible({ timeout: 60_000 });
+  await waitForLiveMenuPaint(page, 60_000);
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   expect(runtimeErrors).toEqual([]);
 });
