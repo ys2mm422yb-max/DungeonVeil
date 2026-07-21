@@ -26,6 +26,8 @@ requireText(recovery, /WEBGL_lose_context/, 'The run renderer must attempt direc
 requireText(recovery, /dungeon-veil-room-preparing/, 'Renderer loss must use the existing room save and input-freeze lifecycle.');
 requireText(recovery, /dungeon-veil-renderer-lost/, 'Renderer recovery must expose a diagnostic event.');
 requireText(recovery, /dungeon-veil-room-ready/, 'Renderer recovery must resume the engine after the visual context is ready.');
+requireText(recovery, /runRendererIsMounted\(\)/, 'Renderer recovery must depend on the mounted run renderer, not HUD visibility.');
+if (/RUN_HUD_SELECTOR/.test(recovery)) throw new Error('Renderer recovery must not fail when the HUD is hidden during a room transition.');
 requireText(bridge, /127\.0\.0\.1|localhost/, 'Runtime evidence controls must remain localhost-only.');
 requireText(bridge, /dungeon-veil-runtime-evidence-v1/, 'Runtime evidence controls require an explicit session marker.');
 requireText(duoQa, /remotePlayer=\{remotePlayer\}/, 'Duo runtime evidence must render a real second player path.');
@@ -39,6 +41,7 @@ requireText(spec, /\[1, 10\].*\[11, 20\].*\[21, 30\].*\[31, 40\].*\[41, 50\]/s, 
 requireText(spec, /\['solo', 'duo'\]/, 'The evidence suite must cover both Solo and Duo.');
 requireText(spec, /room hazards stop before the final enemy death animation finishes/, 'The ghost-damage regression must be tested.');
 requireText(spec, /lost WebGL context recovers/, 'The black-room recovery must be tested.');
+requireText(spec, /hud\.style\.display = 'none'/, 'The black-room regression must cover a hidden HUD during a room transition.');
 requireText(config, /video: \{ mode: 'on'/, 'Successful evidence runs must always record video.');
 requireText(config, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-landscape-webkit[\s\S]*desktop-chromium/, 'The complete four-device matrix is required.');
 
