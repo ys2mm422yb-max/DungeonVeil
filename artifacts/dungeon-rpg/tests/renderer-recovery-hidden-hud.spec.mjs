@@ -40,8 +40,21 @@ async function startSolo(page) {
   else await page.getByRole('button', { name: /Run starten|Start Game/i }).first().click({ force: true });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
-  await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.loadRoom(13, 'solo'));
+  await page.evaluate(() => {
+    document.documentElement.dataset.dungeonVeilRoomBuildState = '';
+    window.__dvRoom13AtomicReady = false;
+    const handleReady = event => {
+      const detail = event.detail ?? {};
+      if (detail.floor !== 13 || detail.failed || detail.recovered) return;
+      window.__dvRoom13AtomicReady = true;
+      window.removeEventListener('dungeon-veil-room-ready', handleReady);
+    };
+    window.addEventListener('dungeon-veil-room-ready', handleReady);
+    window.__dungeonVeilRuntimeEvidence.loadRoom(13, 'solo');
+  });
   await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(13);
+  await expect.poll(() => page.evaluate(() => Boolean(window.__dvRoom13AtomicReady)), { timeout: 60_000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState), { timeout: 30_000 }).toBe('ready');
   await waitForPaintedCanvas(page);
 }
 
@@ -58,7 +71,11 @@ test('renderer recovery saves and freezes a real Solo run while the transition H
     const pageIdentity = `${Date.now()}-${Math.random()}`;
     const previousSave = JSON.parse(localStorage.getItem('dungeon-veil-save') || '{}');
     window.__dvTransitionRecoveryEvidence = { pageIdentity, preparing: 0, lost: 0, ready: 0 };
-    window.addEventListener('dungeon-veil-room-preparing', () => { window.__dvTransitionRecoveryEvidence.preparing += 1; });
+    window.addEventListener('dungeon-veil-room-preparing', event => {
+      const detail = event.detail ?? {};
+      const recoveryPreparing = detail.rendererRecovery || detail.owner === 'game-canvas-recovery' || detail.reason === 'webglcontextlost';
+      if (recoveryPreparing) window.__dvTransitionRecoveryEvidence.preparing += 1;
+    });
     window.addEventListener('dungeon-veil-renderer-lost', () => { window.__dvTransitionRecoveryEvidence.lost += 1; });
     window.addEventListener('dungeon-veil-room-ready', event => {
       if (event.detail?.recovered) window.__dvTransitionRecoveryEvidence.ready += 1;
