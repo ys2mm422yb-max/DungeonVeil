@@ -7,6 +7,7 @@ on:
     branches: ['fix/mobile-telegraphs-room-21-50-balance']
     paths:
       - '.github/workflows/guild-mail-equipment-ux.yml'
+      - 'artifacts/dungeon-rpg/playwright.regression.config.mjs'
       - 'artifacts/dungeon-rpg/src/components/CompanionManagementPanel.tsx'
       - 'artifacts/dungeon-rpg/src/components/MailboxPanel.tsx'
       - 'artifacts/dungeon-rpg/src/components/PlayerProfilePanel.tsx'
@@ -23,6 +24,8 @@ on:
       - 'artifacts/dungeon-rpg/src/game/profileEquipment.ts'
       - 'artifacts/dungeon-rpg/src/game/veilRelics.ts'
       - 'artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs'
+      - 'artifacts/dungeon-rpg/tests/guild-mail-equipment-visual.spec.mjs'
+      - 'artifacts/dungeon-rpg/tests/visual-render-readiness.mjs'
       - 'supabase/migrations/20260721135000_mailbox_delete_rpc.sql'
 
 concurrency:
@@ -54,3 +57,79 @@ jobs:
         run: |
           pnpm --filter @workspace/dungeon-rpg audit:assets
           pnpm --filter @workspace/dungeon-rpg audit:social
+
+  focused-visual:
+    needs: focused-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+          - project: android-chromium
+            browser: chromium
+          - project: ipad-landscape-webkit
+            browser: webkit
+          - project: desktop-chromium
+            browser: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install deterministic browser runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install browser engine
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Build branch under test
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Run focused visual journeys and screenshots
+        env:
+          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-guild-mail-equipment-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
+          timeout --signal=TERM --kill-after=30s 52m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            --config=playwright.regression.config.mjs \
+            --project=${{ matrix.project }} \
+            tests/guild-mail-equipment-visual.spec.mjs
+      - name: Upload focused visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guild-mail-equipment-visual-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 6
+          path: artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
+      - name: Upload reports and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guild-mail-equipment-results-${{ matrix.project }}
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/full-game-results.json
+            artifacts/dungeon-rpg/playwright-report/**
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.webm
+            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
+            /tmp/dungeon-veil-guild-mail-equipment-preview.log
