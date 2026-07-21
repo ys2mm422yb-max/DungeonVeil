@@ -1,6 +1,11 @@
 const RUN_HOST_SELECTOR = '[data-testid="run-three-host"]';
 const RUN_HUD_SELECTOR = '[data-testid="run-hud"]';
-const INSTALL_KEY = '__dungeonVeilRunRendererRecoveryInstalled';
+
+declare global {
+  interface Window {
+    __dungeonVeilRunRendererRecoveryInstalled?: boolean;
+  }
+}
 
 let boundCanvas: HTMLCanvasElement | null = null;
 let restoreTimer = 0;
@@ -80,9 +85,8 @@ function discoverCanvas(): void {
 
 export function installRunRendererRecovery(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  const globalWindow = window as Window & Record<string, unknown>;
-  if (globalWindow[INSTALL_KEY]) return;
-  globalWindow[INSTALL_KEY] = true;
+  if (window.__dungeonVeilRunRendererRecoveryInstalled) return;
+  window.__dungeonVeilRunRendererRecoveryInstalled = true;
 
   const observer = new MutationObserver(discoverCanvas);
   observer.observe(document.documentElement, { childList: true, subtree: true });
