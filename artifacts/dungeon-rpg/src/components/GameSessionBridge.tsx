@@ -34,6 +34,7 @@ import { CoopBossLootOverlay } from './CoopBossLootOverlay';
 const PROFILE_FLUSH_MS = 5_000;
 const PUBLIC_PROFILE_SYNC_MS = 15_000;
 const PLAYER_HAZARD_EFFECT_PREFIXES = ['rune-warning-', 'rune-impact-', 'forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-'];
+const PLAYER_HAZARD_DAMAGE_PREFIXES = ['rune-hit-', 'forge-text-', 'arc-text-', 'core-text-'];
 
 function restorePendingRoomGift(engine: GameEngine): void {
   const save = loadGame();
@@ -54,6 +55,7 @@ function hasLivingEnemies(engine: GameEngine): boolean {
 
 function clearPostCombatHazards(engine: GameEngine): void {
   engine.state.effects = engine.state.effects.filter(effect => !PLAYER_HAZARD_EFFECT_PREFIXES.some(prefix => effect.id.startsWith(prefix)));
+  engine.state.damageNumbers = engine.state.damageNumbers.filter(number => !PLAYER_HAZARD_DAMAGE_PREFIXES.some(prefix => number.id.startsWith(prefix)));
 }
 
 export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {

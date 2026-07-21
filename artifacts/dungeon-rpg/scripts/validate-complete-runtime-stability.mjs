@@ -60,6 +60,8 @@ if (/const ROOM_NAMES/.test(combatStage)) throw new Error('The obsolete 20-room 
 requireText(sessionBridge, /runtimeSystemsReadyRef/, 'Independent runtime systems must pause with the room renderer.');
 requireText(sessionBridge, /hasLivingEnemies\(engine\) && !engine\.state\.roomClearReady/, 'Player hazards must require a living combat encounter.');
 requireText(sessionBridge, /clearPostCombatHazards/, 'Post-combat player hazard visuals must be removed.');
+requireText(sessionBridge, /PLAYER_HAZARD_DAMAGE_PREFIXES[\s\S]*rune-hit-/, 'Post-combat cleanup must identify lingering rune and room-hazard damage indicators.');
+requireText(sessionBridge, /damageNumbers = engine\.state\.damageNumbers\.filter/, 'Post-combat cleanup must remove lingering hazard damage indicators.');
 requireText(sessionBridge, /suspendPendingHazards/, 'Armed hazards must be cancelled when the renderer becomes unavailable.');
 requireText(sessionBridge, /effects\.runeStrikeAt = 0/, 'Armed rune storms must be cancelled on renderer loss.');
 requireText(sessionBridge, /roomMechanics\.warningAt = 0/, 'Armed room-mechanic warnings must be cancelled on renderer loss.');
