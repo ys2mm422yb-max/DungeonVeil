@@ -58,6 +58,17 @@ export default defineConfig({
       },
     },
     {
+      name: 'ipad-landscape-webkit',
+      use: {
+        browserName: 'webkit',
+        viewport: { width: 1180, height: 820 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+        userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1',
+      },
+    },
+    {
       name: 'desktop-chromium',
       use: {
         browserName: 'chromium',
