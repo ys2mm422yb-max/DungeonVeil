@@ -1,3 +1,4 @@
+import { TileType } from './dungeon';
 import type { GameState } from './runEngine';
 import { GameEngine } from './runEngine';
 
@@ -124,7 +125,7 @@ function attachApi(): void {
       const engine = currentEngine;
       if (!engine) return null;
       for (let y = 0; y < engine.state.map.height; y++) {
-        const x = engine.state.map.tiles[y].findIndex(tile => tile === 3);
+        const x = engine.state.map.tiles[y].findIndex(tile => tile === TileType.STAIRS_DOWN);
         if (x < 0) continue;
         engine.state.player.x = x * 40 + 4;
         engine.state.player.y = y * 40 + 4;
@@ -155,25 +156,25 @@ export function attachRuntimeEvidenceEngine(engine: GameEngine): void {
 export function installRuntimeEvidenceBridge(): void {
   if (!allowed() || installed) return;
   installed = true;
-  const prototype = GameEngine.prototype as GameEngine & Record<string, (...args: any[]) => any>;
+  const prototype = GameEngine.prototype as any;
   const start = prototype.startNewGame;
   const resume = prototype.continueGame;
   const update = prototype.update;
 
-  prototype.startNewGame = function (...args: any[]) {
-    currentEngine = this as unknown as GameEngine;
+  prototype.startNewGame = function (this: GameEngine, ...args: any[]) {
+    currentEngine = this;
     const result = start.apply(this, args);
     attachApi();
     return result;
   };
-  prototype.continueGame = function (...args: any[]) {
-    currentEngine = this as unknown as GameEngine;
+  prototype.continueGame = function (this: GameEngine, ...args: any[]) {
+    currentEngine = this;
     const result = resume.apply(this, args);
     attachApi();
     return result;
   };
-  prototype.update = function (...args: any[]) {
-    currentEngine = this as unknown as GameEngine;
+  prototype.update = function (this: GameEngine, ...args: any[]) {
+    currentEngine = this;
     return update.apply(this, args);
   };
   (window as Window & Record<string, unknown>)[GLOBAL_KEY] = true;
