@@ -110,6 +110,12 @@ export function equipVeilRelic(id: VeilRelicId) {
   profile.equipped = id;
   return saveVeilRelicProfile(profile);
 }
+export function unequipVeilRelic() {
+  const profile = loadVeilRelicProfile();
+  if (!profile.equipped) return profile;
+  profile.equipped = null;
+  return saveVeilRelicProfile(profile);
+}
 export function equippedVeilRelic() { return loadVeilRelicProfile().equipped; }
 export function hasEquippedVeilRelic(id: VeilRelicId) { return equippedVeilRelic() === id; }
 
