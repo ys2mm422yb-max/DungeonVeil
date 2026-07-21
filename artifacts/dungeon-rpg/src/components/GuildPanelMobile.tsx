@@ -28,6 +28,7 @@ import {
   ONLINE_PRESENCE_TICK_EVENT,
   type OnlinePresenceMap,
 } from '../game/onlinePresence';
+import type { OnlineGuildChatMessage } from '../game/guildChatOnline';
 import { GuildInviteLinkCard } from './GuildInviteLinkCard';
 import { GuildChatPanel } from './GuildChatPanel';
 import { SocialIdentityCard } from './SocialIdentityCard';
@@ -41,6 +42,27 @@ type Props = {
 };
 type GuildTab = 'overview' | 'chat' | 'members' | 'invite';
 const GUILD_CREATION_COST = 10000;
+
+const QA_GUILD = { id: 'qa-guild', name: 'Hüter des Schleiers', tag: 'VEIL', description: 'Gemeinsam durchbrechen wir den Schleier. Aktive Runs, faire Beute und Hilfe für neue Waldläufer.', owner_id: 'qa-owner' };
+const QA_SESSION: OnlineSession = { access_token: 'qa', refresh_token: 'qa', expires_at: 4102444800, token_type: 'bearer', user: { id: 'qa-owner', email: 'qa@dungeonveil.invalid' } };
+const QA_MEMBERSHIP: OnlineGuildMembership = { role: 'owner', guild: QA_GUILD };
+const QA_MEMBERS: OnlineGuildMember[] = [
+  { user_id: 'qa-owner', role: 'owner', joined_at: '2026-06-12T18:00:00.000Z', profile: { id: 'qa-owner', display_name: 'Maxi', avatar_key: 'ranger' } },
+  { user_id: 'qa-officer', role: 'officer', joined_at: '2026-06-18T19:30:00.000Z', profile: { id: 'qa-officer', display_name: 'Nyra', avatar_key: 'veil' } },
+  { user_id: 'qa-member', role: 'member', joined_at: '2026-07-02T20:10:00.000Z', profile: { id: 'qa-member', display_name: 'Torven', avatar_key: 'guardian' } },
+  { user_id: 'qa-away', role: 'member', joined_at: '2026-07-08T11:20:00.000Z', profile: { id: 'qa-away', display_name: 'Liora', avatar_key: 'ember' } },
+];
+const QA_PRESENCE: OnlinePresenceMap = {
+  'qa-owner': new Date().toISOString(),
+  'qa-officer': new Date(Date.now() - 90_000).toISOString(),
+  'qa-member': new Date(Date.now() - 22 * 60_000).toISOString(),
+  'qa-away': new Date(Date.now() - 28 * 60 * 60_000).toISOString(),
+};
+const QA_CHAT: OnlineGuildChatMessage[] = [
+  { id: 'qa-chat-1', guild_id: QA_GUILD.id, user_id: 'qa-officer', body: 'Raum 30 ist frei. Wer braucht noch den Wächter?', created_at: '2026-07-21T12:05:00.000Z', profile: { id: 'qa-officer', display_name: 'Nyra', avatar_key: 'veil' } },
+  { id: 'qa-chat-2', guild_id: QA_GUILD.id, user_id: 'qa-owner', body: 'Ich starte danach einen Duo-Run. Einladung kommt gleich.', created_at: '2026-07-21T12:07:00.000Z', profile: { id: 'qa-owner', display_name: 'Maxi', avatar_key: 'ranger' } },
+  { id: 'qa-chat-3', guild_id: QA_GUILD.id, user_id: 'qa-member', body: 'Bin dabei. Meine Rüstung ist jetzt Stufe 4.', created_at: '2026-07-21T12:08:00.000Z', profile: { id: 'qa-member', display_name: 'Torven', avatar_key: 'guardian' } },
+];
 
 function ActionButton({ label, onClick, disabled = false, primary = false, danger = false, compact = false }: {
   label: string;
@@ -74,21 +96,27 @@ function formatGold(value: number, language: 'de' | 'en') {
   return new Intl.NumberFormat(language === 'de' ? 'de-DE' : 'en-US').format(Math.floor(value));
 }
 
+function visualQaEnabled() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('visualQa') === 'filled-social';
+}
+
 export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMemberProfile }: Props) {
   const de = language === 'de';
-  const [session, setSession] = useState<OnlineSession | null>(() => currentOnlineSession());
-  const [membership, setMembership] = useState<OnlineGuildMembership | null>(null);
-  const [members, setMembers] = useState<OnlineGuildMember[]>([]);
-  const [presenceByUserId, setPresenceByUserId] = useState<OnlinePresenceMap>({});
+  const qaMode = visualQaEnabled();
+  const [session, setSession] = useState<OnlineSession | null>(() => qaMode ? QA_SESSION : currentOnlineSession());
+  const [membership, setMembership] = useState<OnlineGuildMembership | null>(() => qaMode ? QA_MEMBERSHIP : null);
+  const [members, setMembers] = useState<OnlineGuildMember[]>(() => qaMode ? QA_MEMBERS : []);
+  const [presenceByUserId, setPresenceByUserId] = useState<OnlinePresenceMap>(() => qaMode ? QA_PRESENCE : {});
   const [presenceNow, setPresenceNow] = useState(() => Date.now());
   const [invites, setInvites] = useState<OnlineGuildInvite[]>([]);
   const [tab, setTab] = useState<GuildTab>('overview');
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(() => qaMode ? QA_GUILD.description : '');
   const [inviteName, setInviteName] = useState('');
   const [guildName, setGuildName] = useState('');
   const [guildTag, setGuildTag] = useState('');
   const [guildDescription, setGuildDescription] = useState('');
-  const [gold, setGold] = useState(() => loadMetaProgression().gold);
+  const [gold, setGold] = useState(() => qaMode ? 24850 : loadMetaProgression().gold);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -104,6 +132,16 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
   }, []);
 
   const refreshGuildData = useCallback(async () => {
+    if (qaMode) {
+      setSession(QA_SESSION);
+      setMembership(current => current ?? QA_MEMBERSHIP);
+      setMembers(current => current.length ? current : QA_MEMBERS);
+      setPresenceByUserId(QA_PRESENCE);
+      setPresenceNow(Date.now());
+      setInvites([]);
+      setGold(24850);
+      return;
+    }
     const active = currentOnlineSession();
     setSession(active);
     setGold(loadMetaProgression().gold);
@@ -127,9 +165,13 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
     }
     try { setPresenceByUserId(await loadPresenceByUserIds(nextMembers.map(member => member.user_id))); }
     catch { setPresenceByUserId({}); }
-  }, []);
+  }, [qaMode]);
 
   useEffect(() => {
+    if (qaMode) {
+      void refreshGuildData();
+      return;
+    }
     const refreshOnline = () => { void run(refreshGuildData); };
     const refreshPresence = () => { void refreshGuildData(); };
     const tickPresence = () => setPresenceNow(Date.now());
@@ -145,7 +187,7 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
       window.removeEventListener(ONLINE_PRESENCE_TICK_EVENT, tickPresence);
       window.removeEventListener('dungeon-veil-meta-changed', refreshGold);
     };
-  }, [refreshGuildData, run]);
+  }, [qaMode, refreshGuildData, run]);
 
   const stats = useMemo(() => ({
     members: members.length,
@@ -158,47 +200,64 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
   const canAffordGuild = gold >= GUILD_CREATION_COST;
 
   const answerInvite = (inviteId: string, accept: boolean) => run(async () => {
-    if (accept) await acceptGuildInvite(inviteId); else await declineGuildInvite(inviteId);
-    await refreshGuildData();
+    if (!qaMode) {
+      if (accept) await acceptGuildInvite(inviteId); else await declineGuildInvite(inviteId);
+      await refreshGuildData();
+    }
+    setInvites(current => current.filter(invite => invite.id !== inviteId));
     setMessage(accept ? (de ? 'Einladung angenommen.' : 'Invite accepted.') : (de ? 'Einladung abgelehnt.' : 'Invite declined.'));
   });
 
   const saveDescription = () => run(async () => {
     if (!membership) return;
-    const guild = await updateGuildDescription(membership.guild.id, description);
-    setMembership({ ...membership, guild });
-    setDescription(guild.description);
+    if (qaMode) {
+      setMembership({ ...membership, guild: { ...membership.guild, description } });
+    } else {
+      const guild = await updateGuildDescription(membership.guild.id, description);
+      setMembership({ ...membership, guild });
+      setDescription(guild.description);
+    }
     setMessage(de ? 'Gildenbeschreibung gespeichert.' : 'Guild description saved.');
   });
 
   const sendInvite = () => run(async () => {
     if (!membership) return;
     if (inviteName.trim().length < 2) throw new Error(de ? 'Spielername eingeben.' : 'Enter a player name.');
-    const player = await inviteGuildMemberByDisplayName(membership.guild.id, inviteName);
+    const displayName = inviteName.trim();
+    if (!qaMode) await inviteGuildMemberByDisplayName(membership.guild.id, displayName);
     setInviteName('');
-    setMessage(de ? `Einladung an ${player.display_name} gesendet.` : `Invitation sent to ${player.display_name}.`);
+    setMessage(de ? `Einladung an ${displayName} gesendet.` : `Invitation sent to ${displayName}.`);
   });
 
   const changeRole = (member: OnlineGuildMember, role: 'officer' | 'member') => run(async () => {
     if (!membership) return;
-    await updateGuildMemberRole(membership.guild.id, member.user_id, role);
-    await refreshGuildData();
+    if (!qaMode) {
+      await updateGuildMemberRole(membership.guild.id, member.user_id, role);
+      await refreshGuildData();
+    } else setMembers(current => current.map(entry => entry.user_id === member.user_id ? { ...entry, role } : entry));
     setMessage(de ? 'Rolle aktualisiert.' : 'Role updated.');
   });
 
   const kickMember = (member: OnlineGuildMember) => run(async () => {
     if (!membership) return;
-    await removeGuildMember(membership.guild.id, member.user_id);
-    await refreshGuildData();
+    if (!qaMode) {
+      await removeGuildMember(membership.guild.id, member.user_id);
+      await refreshGuildData();
+    } else setMembers(current => current.filter(entry => entry.user_id !== member.user_id));
     setMessage(de ? 'Mitglied entfernt.' : 'Member removed.');
   });
 
   const transferLeadership = (member: OnlineGuildMember) => run(async () => {
     if (!membership || !isOwner) return;
     const playerName = member.profile?.display_name ?? (de ? 'dieses Mitglied' : 'this member');
-    if (!window.confirm(de ? `Gildenführung wirklich an ${playerName} übertragen?` : `Really transfer guild leadership to ${playerName}?`)) return;
-    await transferGuildOwnershipOnline(membership.guild.id, member.user_id);
-    await refreshGuildData();
+    if (!qaMode && !window.confirm(de ? `Gildenführung wirklich an ${playerName} übertragen?` : `Really transfer guild leadership to ${playerName}?`)) return;
+    if (!qaMode) {
+      await transferGuildOwnershipOnline(membership.guild.id, member.user_id);
+      await refreshGuildData();
+    } else {
+      setMembership({ ...membership, role: 'member', guild: { ...membership.guild, owner_id: member.user_id } });
+      setMembers(current => current.map(entry => entry.user_id === member.user_id ? { ...entry, role: 'owner' } : entry.user_id === QA_SESSION.user.id ? { ...entry, role: 'member' } : entry));
+    }
     setTab('overview');
     setMessage(de ? `${playerName} ist jetzt Gildenanführer.` : `${playerName} is now the guild leader.`);
   });
@@ -210,9 +269,9 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
       throw new Error(de ? 'Übertrage zuerst die Führung an ein anderes Mitglied.' : 'Transfer leadership to another member first.');
     }
     const disband = isOwner;
-    if (!window.confirm(disband ? (de ? 'Gilde endgültig auflösen? Dieser Schritt kann nicht rückgängig gemacht werden.' : 'Disband the guild permanently? This cannot be undone.') : (de ? 'Gilde wirklich verlassen?' : 'Really leave the guild?'))) return;
-    const result = await leaveGuildOnline();
-    await refreshGuildData();
+    if (!qaMode && !window.confirm(disband ? (de ? 'Gilde endgültig auflösen? Dieser Schritt kann nicht rückgängig gemacht werden.' : 'Disband the guild permanently? This cannot be undone.') : (de ? 'Gilde wirklich verlassen?' : 'Really leave the guild?'))) return;
+    const result = qaMode ? { disbanded: disband } : await leaveGuildOnline();
+    if (qaMode) { setMembership(null); setMembers([]); } else await refreshGuildData();
     setTab('overview');
     setMessage(result.disbanded ? (de ? 'Gilde aufgelöst.' : 'Guild disbanded.') : (de ? 'Gilde verlassen.' : 'Guild left.'));
   });
@@ -223,86 +282,70 @@ export function GuildPanelMobile({ language, onClose, onOpenOnline, onOpenMember
     const nextDescription = guildDescription.trim();
     if (name.length < 3 || name.length > 32) throw new Error(de ? 'Der Gildenname muss 3 bis 32 Zeichen lang sein.' : 'Guild name must be 3 to 32 characters long.');
     if (!/^[A-Z0-9]{2,6}$/.test(tag)) throw new Error(de ? 'Das Kürzel muss 2 bis 6 Buchstaben oder Zahlen enthalten.' : 'The tag must contain 2 to 6 letters or numbers.');
-    const meta = loadMetaProgression();
-    if (meta.gold < GUILD_CREATION_COST) throw new Error(de ? `Dir fehlen ${formatGold(GUILD_CREATION_COST - meta.gold, language)} Gold.` : `You need ${formatGold(GUILD_CREATION_COST - meta.gold, language)} more gold.`);
-    meta.gold -= GUILD_CREATION_COST;
-    saveMetaProgression(meta);
-    setGold(meta.gold);
-    try { await createGuild(name, tag, nextDescription); }
-    catch (reason) {
-      const refund = loadMetaProgression();
-      refund.gold += GUILD_CREATION_COST;
-      saveMetaProgression(refund);
-      setGold(refund.gold);
-      throw reason;
+    if (qaMode) {
+      const guild = { id: 'qa-new-guild', name, tag, description: nextDescription, owner_id: QA_SESSION.user.id };
+      setMembership({ role: 'owner', guild });
+      setMembers([{ user_id: QA_SESSION.user.id, role: 'owner', joined_at: new Date().toISOString(), profile: { id: QA_SESSION.user.id, display_name: 'Maxi', avatar_key: 'ranger' } }]);
+      setGold(current => current - GUILD_CREATION_COST);
+    } else {
+      const meta = loadMetaProgression();
+      if (meta.gold < GUILD_CREATION_COST) throw new Error(de ? `Dir fehlen ${formatGold(GUILD_CREATION_COST - meta.gold, language)} Gold.` : `You need ${formatGold(GUILD_CREATION_COST - meta.gold, language)} more gold.`);
+      meta.gold -= GUILD_CREATION_COST;
+      saveMetaProgression(meta);
+      setGold(meta.gold);
+      try { await createGuild(name, tag, nextDescription); }
+      catch (reason) {
+        const refund = loadMetaProgression();
+        refund.gold += GUILD_CREATION_COST;
+        saveMetaProgression(refund);
+        setGold(refund.gold);
+        throw reason;
+      }
+      await refreshGuildData();
     }
     setGuildName('');
     setGuildTag('');
     setGuildDescription('');
-    await refreshGuildData();
     setMessage(de ? `Gilde gegründet. ${formatGold(GUILD_CREATION_COST, language)} Gold wurden bezahlt.` : `Guild created. ${formatGold(GUILD_CREATION_COST, language)} gold was paid.`);
   });
 
-  const tabButton = (key: GuildTab, label: string) => <button type="button" onClick={() => setTab(key)} className={`min-h-10 rounded-xl border px-2 text-[7px] font-black uppercase tracking-[.12em] active:scale-[.98] ${tab === key ? 'border-amber-300/35 bg-amber-500/15 text-amber-100' : 'border-white/8 bg-black/25 text-white/38'}`}>{label}</button>;
+  const tabButton = (key: GuildTab, label: string, icon: string, note: string) => <button data-testid={`guild-tab-${key}`} type="button" onClick={() => setTab(key)} className={`min-w-0 rounded-xl border px-1 py-2 text-center active:scale-[.98] ${tab === key ? 'border-amber-300/35 bg-amber-500/15 text-amber-100' : 'border-white/8 bg-black/25 text-white/38'}`}><span className="block text-[12px] leading-none">{icon}</span><span className="mt-1 block truncate text-[6px] font-black uppercase tracking-[.08em]">{label}</span><span className="mt-0.5 hidden truncate text-[5px] text-current/45 sm:block">{note}</span></button>;
   const scrollClass = 'min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[max(18px,env(safe-area-inset-bottom))] pt-3 [-webkit-overflow-scrolling:touch]';
 
-  return <>
-  <div data-testid="guild-panel-shell" className="flex h-[min(64dvh,620px)] min-h-[360px] flex-col overflow-hidden rounded-3xl border border-amber-300/18 bg-[#0d0b08]/96 p-3 text-white shadow-2xl">
-    <header data-testid="guild-panel-header" className="relative shrink-0 border-b border-white/8 pb-3 pr-24">
-      <button data-testid="guild-close-button" type="button" aria-label={de ? 'Gilde schließen' : 'Close guild'} onClick={onClose} className="absolute right-0 top-0 z-30 grid h-9 w-9 place-items-center rounded-xl border border-white/12 bg-black/45 text-lg font-black text-white/72 active:scale-90">×</button>
-      <div className="text-[7px] font-black uppercase tracking-[.28em] text-amber-200/48">{de ? 'GILDE' : 'GUILD'}</div>
-      <div className="mt-1 truncate text-[16px] font-black text-amber-100">{membership ? `[${membership.guild.tag}] ${membership.guild.name}` : (de ? 'Gilde gründen' : 'Create a guild')}</div>
-      <div className="mt-1 line-clamp-2 text-[8px] leading-relaxed text-white/36">{membership ? (de ? 'Chat, Mitglieder, Rollen und Einladungen an einem Ort.' : 'Chat, members, roles and invitations in one place.') : (de ? `Gründe eine Gilde für ${formatGold(GUILD_CREATION_COST, language)} Gold oder nimm eine Einladung an.` : `Create a guild for ${formatGold(GUILD_CREATION_COST, language)} gold or accept an invite.`)}</div>
+  if (spectatingMember && membership) return <SpectatorScreen language={language} guildId={membership.guild.id} memberId={spectatingMember.id} memberName={spectatingMember.name} onClose={() => setSpectatingMember(null)} />;
+
+  return <section data-testid="guild-panel" data-qa-filled={qaMode ? 'true' : 'false'} className="flex h-[min(78dvh,780px)] min-h-0 flex-col overflow-hidden rounded-3xl border border-amber-200/18 bg-[#0d0c0b]/[.985] p-3 text-white shadow-2xl sm:p-4">
+    <header className="relative shrink-0 border-b border-white/8 pb-3 pr-12">
+      <button type="button" aria-label={de ? 'Schließen' : 'Close'} onClick={onClose} className="absolute right-0 top-0 grid h-9 w-9 place-items-center rounded-xl border border-white/12 bg-black/45 text-lg text-white/70 active:scale-95">×</button>
+      <div className="text-[7px] font-black uppercase tracking-[.28em] text-amber-200/45">{de ? 'GILDE' : 'GUILD'}</div>
+      <div className="mt-1 flex min-w-0 items-center gap-2"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-300/18 bg-amber-400/[.07] text-lg text-amber-100">♜</div><div className="min-w-0"><div className="truncate text-[16px] font-black text-amber-100">{membership ? `[${membership.guild.tag}] ${membership.guild.name}` : (de ? 'Gemeinsam durch den Schleier' : 'Together through the Veil')}</div><div className="mt-0.5 text-[7px] text-white/32">{membership ? `${roleLabel(membership.role, de)} · ${stats.online}/${stats.members} ${de ? 'online' : 'online'}` : (de ? 'Gründen, suchen oder Einladung annehmen' : 'Create, search or accept an invitation')}</div></div></div>
     </header>
 
     {(message || error) && <div className={`mt-2 shrink-0 rounded-xl border px-3 py-2 text-[9px] ${error ? 'border-red-400/25 bg-red-500/10 text-red-200' : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}
-    {!session && <div className={`${scrollClass} space-y-3 text-[10px] leading-relaxed text-white/45`}><div>{de ? 'Melde dich an, damit Mitgliedschaften und Einladungen hier geladen werden.' : 'Sign in to load memberships and invitations here.'}</div><ActionButton label={de ? 'Zu Online & Cloud' : 'Open Online & Cloud'} onClick={onOpenOnline} primary /></div>}
 
-    {session && membership && <div className="flex min-h-0 flex-1 flex-col">
-      <div data-testid="guild-tabs" className="grid shrink-0 grid-cols-4 gap-1.5 pt-3">{tabButton('overview', de ? 'Übersicht' : 'Overview')}{tabButton('chat', 'Chat')}{tabButton('members', de ? 'Mitglieder' : 'Members')}{tabButton('invite', de ? 'Einladen' : 'Invite')}</div>
-
-      {tab === 'overview' && <div data-testid="guild-overview-tab" className={`${scrollClass} space-y-3`}>
-        <section data-testid="guild-presence-summary" className="grid grid-cols-2 gap-2">{[[stats.members, de ? 'Mitglieder' : 'Members'], [stats.online, de ? 'Online' : 'Online'], [stats.officers, de ? 'Offiziere' : 'Officers'], [roleLabel(membership.role, de), de ? 'Deine Rolle' : 'Your role']].map(([value, label]) => <div key={String(label)} className="rounded-xl border border-amber-300/12 bg-amber-400/[.04] px-2 py-2 text-center"><div className="truncate text-[12px] font-black text-amber-100">{value}</div><div className="mt-1 truncate text-[6px] font-black uppercase tracking-[.12em] text-white/30">{label}</div></div>)}</section>
-        <section className="space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3"><div className="text-[7px] font-black uppercase tracking-[.18em] text-white/35">{de ? 'GILDENBESCHREIBUNG' : 'GUILD DESCRIPTION'}</div>{isOwner ? <><textarea value={description} maxLength={500} rows={3} onChange={event => setDescription(event.target.value)} placeholder={de ? 'Ziele und Spielstil.' : 'Goals and play style.'} className="w-full resize-none rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-[10px] leading-relaxed text-white outline-none placeholder:text-white/24 focus:border-amber-300/35" /><div className="flex items-center justify-between gap-3"><span className="text-[7px] text-white/24">{description.length}/500</span><ActionButton label={de ? 'Speichern' : 'Save'} onClick={saveDescription} disabled={busy} primary compact /></div></> : <div className="text-[9px] leading-relaxed text-white/45">{membership.guild.description || (de ? 'Noch keine Beschreibung vorhanden.' : 'No description yet.')}</div>}</section>
-        <details data-testid="guild-danger-zone" className="group rounded-2xl border border-red-400/14 bg-red-500/[.035]"><summary className="cursor-pointer list-none px-3 py-3 text-[7px] font-black uppercase tracking-[.18em] text-red-200/55"><span className="flex items-center justify-between"><span>{de ? 'MITGLIEDSCHAFT VERWALTEN' : 'MANAGE MEMBERSHIP'}</span><span className="transition-transform group-open:rotate-90">›</span></span></summary><div className="space-y-2 border-t border-red-400/10 px-3 pb-3 pt-2"><div className="text-[9px] leading-relaxed text-white/38">{ownerMustTransfer ? (de ? 'Übertrage zuerst die Führung an ein anderes Mitglied.' : 'Transfer leadership to another member first.') : isOwner ? (de ? 'Beim Verlassen wird die Gilde vollständig aufgelöst.' : 'Leaving will disband the guild.') : (de ? 'Du kannst die Gilde jederzeit verlassen.' : 'You can leave at any time.')}</div><ActionButton label={ownerMustTransfer ? (de ? 'Mitglied auswählen' : 'Choose member') : isOwner ? (de ? 'Gilde auflösen' : 'Disband guild') : (de ? 'Gilde verlassen' : 'Leave guild')} onClick={ownerMustTransfer ? () => setTab('members') : leaveCurrentGuild} disabled={busy} danger /></div></details>
+    {!session ? <div className="grid min-h-0 flex-1 place-items-center py-6 text-center"><div><div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl border border-amber-300/16 bg-amber-400/[.05] text-4xl text-amber-100/70">♜</div><div className="mt-4 text-[13px] font-black text-white/82">{de ? 'Online-Anmeldung erforderlich' : 'Online sign-in required'}</div><p className="mx-auto mt-2 max-w-[280px] text-[9px] leading-relaxed text-white/38">{de ? 'Gilden, Chat, Einladungen und Mitgliederprofile werden mit deinem Online-Konto synchronisiert.' : 'Guilds, chat, invitations and member profiles sync with your online account.'}</p><button type="button" onClick={onOpenOnline} className="mt-4 min-h-11 rounded-xl border border-amber-300/30 bg-amber-500/12 px-5 text-[8px] font-black uppercase tracking-[.14em] text-amber-100">{de ? 'ONLINE & CLOUD ÖFFNEN' : 'OPEN ONLINE & CLOUD'}</button></div></div>
+    : !membership ? <div className={scrollClass}>
+      {invites.length > 0 && <section className="mb-3 space-y-2"><div className="text-[7px] font-black uppercase tracking-[.18em] text-amber-100/48">{de ? 'OFFENE EINLADUNGEN' : 'PENDING INVITATIONS'}</div>{invites.map(invite => <article key={invite.id} className="rounded-2xl border border-amber-300/15 bg-amber-400/[.04] p-3"><div className="text-[11px] font-black text-white/82">[{invite.guild.tag}] {invite.guild.name}</div><div className="mt-2 grid grid-cols-2 gap-2"><ActionButton label={de ? 'Ablehnen' : 'Decline'} onClick={() => void answerInvite(invite.id, false)} disabled={busy} /><ActionButton label={de ? 'Annehmen' : 'Accept'} onClick={() => void answerInvite(invite.id, true)} disabled={busy} primary /></div></article>)}</section>}
+      <section className="rounded-3xl border border-white/9 bg-white/[.025] p-4"><div className="flex items-start justify-between gap-3"><div><div className="text-[8px] font-black uppercase tracking-[.18em] text-amber-100/48">{de ? 'EIGENE GILDE' : 'YOUR OWN GUILD'}</div><div className="mt-1 text-[14px] font-black text-white/82">{de ? 'Eine neue Gemeinschaft gründen' : 'Create a new community'}</div></div><div className="rounded-xl border border-amber-300/16 bg-black/28 px-2 py-1.5 text-right"><div className="text-[6px] text-white/30">{de ? 'KOSTEN' : 'COST'}</div><div className="text-[10px] font-black text-amber-100">{formatGold(GUILD_CREATION_COST, language)} G</div></div></div><div className="mt-3 grid grid-cols-[minmax(0,1fr)_90px] gap-2"><input value={guildName} maxLength={32} onChange={event => setGuildName(event.target.value)} placeholder={de ? 'Gildenname' : 'Guild name'} className="min-w-0 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-[10px] outline-none focus:border-amber-300/30"/><input value={guildTag} maxLength={6} onChange={event => setGuildTag(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="TAG" className="min-w-0 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-center text-[10px] font-black tracking-[.12em] outline-none focus:border-amber-300/30"/></div><textarea value={guildDescription} maxLength={160} rows={3} onChange={event => setGuildDescription(event.target.value)} placeholder={de ? 'Wofür steht eure Gilde?' : 'What does your guild stand for?'} className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-[10px] outline-none focus:border-amber-300/30"/><div className="mt-3 flex items-center justify-between gap-3 text-[7px] text-white/30"><span>{de ? 'Verfügbar' : 'Available'}: {formatGold(gold, language)} G</span><span className={canAffordGuild ? 'text-emerald-200/60' : 'text-red-200/70'}>{canAffordGuild ? (de ? 'Finanzierbar' : 'Affordable') : (de ? 'Zu wenig Gold' : 'Not enough gold')}</span></div><button data-testid="guild-create-button" type="button" onClick={() => void createNewGuild()} disabled={busy || !canAffordGuild || guildName.trim().length < 3 || guildTag.length < 2} className="mt-3 min-h-11 w-full rounded-xl border border-amber-300/30 bg-amber-500/14 text-[8px] font-black uppercase tracking-[.14em] text-amber-100 disabled:opacity-30">{de ? 'GILDE GRÜNDEN' : 'CREATE GUILD'}</button></section>
+    </div>
+    : <>
+      <nav data-testid="guild-tabs" className="mt-2 grid shrink-0 grid-cols-4 gap-1">{tabButton('overview', de ? 'Übersicht' : 'Overview', '◇', de ? 'Status' : 'Status')}{tabButton('chat', 'Chat', '✦', de ? 'Nachrichten' : 'Messages')}{tabButton('members', de ? 'Mitglieder' : 'Members', '♟', `${stats.members}`)}{tabButton('invite', de ? 'Einladen' : 'Invite', '↗', de ? 'Link & Name' : 'Link & name')}</nav>
+      {tab === 'overview' && <div data-testid="guild-overview-tab" className={scrollClass}>
+        <div className="grid grid-cols-3 gap-2"><SocialIdentityCard label={de ? 'Mitglieder' : 'Members'} value={String(stats.members)} hint={de ? 'Gildenstärke' : 'Guild strength'} accent="#f6c56f" /><SocialIdentityCard label="Online" value={String(stats.online)} hint={de ? 'letzte 5 Min.' : 'last 5 min'} accent="#72e8a5" /><SocialIdentityCard label={de ? 'Offiziere' : 'Officers'} value={String(stats.officers)} hint={de ? 'Verwaltung' : 'Management'} accent="#c8a4ff" /></div>
+        <section className="mt-3 rounded-2xl border border-white/8 bg-white/[.025] p-3"><div className="flex items-center justify-between gap-3"><div className="text-[7px] font-black uppercase tracking-[.18em] text-white/35">{de ? 'GILDENBESCHREIBUNG' : 'GUILD DESCRIPTION'}</div><span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-[6px] font-black text-white/36">{description.length}/160</span></div><textarea value={description} maxLength={160} rows={4} disabled={!canInvite} onChange={event => setDescription(event.target.value)} className="mt-2 w-full resize-none rounded-xl border border-white/9 bg-black/35 p-3 text-[10px] leading-relaxed text-white/72 outline-none disabled:text-white/42"/>{canInvite && <button type="button" onClick={() => void saveDescription()} disabled={busy || description === membership.guild.description} className="mt-2 min-h-10 w-full rounded-xl border border-amber-300/20 bg-amber-400/[.07] text-[7px] font-black uppercase tracking-[.14em] text-amber-100 disabled:opacity-30">{de ? 'BESCHREIBUNG SPEICHERN' : 'SAVE DESCRIPTION'}</button>}</section>
+        <section className="mt-3 rounded-2xl border border-white/8 bg-black/25 p-3"><div className="text-[7px] font-black uppercase tracking-[.18em] text-white/34">{de ? 'DEINE ROLLE' : 'YOUR ROLE'}</div><div className="mt-1 text-[13px] font-black text-amber-100">{roleLabel(membership.role, de)}</div><div className="mt-1 text-[8px] leading-relaxed text-white/34">{ownerMustTransfer ? (de ? 'Vor dem Verlassen musst du die Führung an ein anderes Mitglied übertragen.' : 'Transfer leadership before leaving the guild.') : (isOwner ? (de ? 'Als einziges Mitglied würdest du die Gilde auflösen.' : 'As the only member, leaving would disband the guild.') : (de ? 'Du kannst die Gilde jederzeit verlassen.' : 'You can leave the guild at any time.'))}</div><ActionButton label={isOwner ? (de ? 'GILDE AUFLÖSEN' : 'DISBAND GUILD') : (de ? 'GILDE VERLASSEN' : 'LEAVE GUILD')} onClick={() => void leaveCurrentGuild()} disabled={busy} danger /></section>
       </div>}
-
-      {tab === 'chat' && <GuildChatPanel guildId={membership.guild.id} language={language} />}
-
-      {tab === 'members' && <section data-testid="guild-members-tab" className={`${scrollClass} space-y-2`}>
-        <div className="flex items-center justify-between gap-3 px-1"><div className="text-[8px] font-black uppercase tracking-[.18em] text-amber-100/62">{de ? `${members.length} Mitglieder` : `${members.length} members`}</div><div className="text-[7px] text-white/34">{stats.online} online</div></div>
-        {members.map(member => {
-          const ownerEntry = member.role === 'owner';
-          const name = member.profile?.display_name ?? (de ? 'Unbekannter Spieler' : 'Unknown player');
-          const presence = presenceByUserId[member.user_id];
-          const online = isPresenceOnline(presence, presenceNow);
-          const detail = `${roleLabel(member.role, de)}${member.joined_at ? ` · ${de ? 'Seit' : 'Since'} ${formatJoined(member.joined_at, language)}` : ''}`;
-          return <article key={member.user_id} data-testid="guild-member-card" className="rounded-2xl border border-white/8 bg-white/[.025] p-2.5">
-            <SocialIdentityCard
-              testId="guild-member-profile-button"
-              displayName={name}
-              avatarKey={member.profile?.avatar_key}
-              language={language}
-              online={online}
-              statusLabel={formatPresence(presence, language, presenceNow)}
-              detail={detail}
-              compact
-              onClick={onOpenMemberProfile ? () => onOpenMemberProfile(member.user_id) : undefined}
-            />
-            {online && member.user_id !== session?.user.id && <div className="mt-2 flex justify-end border-t border-white/7 pt-2"><ActionButton label={de ? 'Live zuschauen' : 'Watch live'} onClick={() => setSpectatingMember({ id: member.user_id, name })} disabled={busy} primary compact /></div>}
-            <div data-testid="guild-member-presence" className="sr-only">{formatPresence(presence, language, presenceNow)}</div>
-            {isOwner && !ownerEntry && <div data-testid="guild-member-management" className="mt-2 grid grid-cols-3 gap-2 border-t border-white/7 pt-2"><ActionButton label={member.role === 'officer' ? (de ? 'Mitglied' : 'Member') : (de ? 'Offizier' : 'Officer')} onClick={() => changeRole(member, member.role === 'officer' ? 'member' : 'officer')} disabled={busy} compact /><ActionButton label={de ? 'Führung' : 'Leader'} onClick={() => transferLeadership(member)} disabled={busy} primary compact /><ActionButton label={de ? 'Entfernen' : 'Remove'} onClick={() => kickMember(member)} disabled={busy} danger compact /></div>}
-          </article>;
-        })}
-        {!members.length && <div className="rounded-2xl border border-white/8 bg-white/[.025] p-3 text-[9px] text-white/38">{de ? 'Keine Mitglieder gefunden.' : 'No members found.'}</div>}
-      </section>}
-
-      {tab === 'invite' && <section data-testid="guild-invite-tab" className={`${scrollClass} space-y-3`}><GuildInviteLinkCard language={language} /><div className="rounded-2xl border border-white/8 bg-white/[.025] p-3"><div className="text-[7px] font-black uppercase tracking-[.18em] text-white/35">{de ? 'SPIELER EINLADEN' : 'INVITE PLAYER'}</div><div className="mt-1 text-[9px] leading-relaxed text-white/34">{de ? 'Nutze den exakten Spielernamen aus dem Online-Profil.' : 'Use the exact player name from the online profile.'}</div></div>{canInvite ? <div className="space-y-2"><input value={inviteName} maxLength={24} onChange={event => setInviteName(event.target.value)} placeholder={de ? 'Spielername' : 'Player name'} className="w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[11px] text-white outline-none placeholder:text-white/24 focus:border-amber-300/35" /><ActionButton label={de ? 'Einladung senden' : 'Send invitation'} onClick={sendInvite} disabled={busy} primary /></div> : <div className="rounded-xl border border-white/8 bg-black/25 p-3 text-[9px] text-white/38">{de ? 'Nur Anführer und Offiziere können Spieler einladen.' : 'Only leaders and officers can invite players.'}</div>}</section>}
-      <div className="shrink-0 pt-2"><ActionButton label={busy ? (de ? 'Lädt …' : 'Loading …') : (de ? 'Aktualisieren' : 'Refresh')} onClick={() => run(refreshGuildData)} disabled={busy} compact /></div>
-    </div>}
-
-    {session && !membership && <div className={`${scrollClass} space-y-3`}><section className="space-y-3 rounded-2xl border border-amber-300/14 bg-amber-400/[.04] p-3"><div className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/25 px-3 py-2.5"><span className="text-[7px] font-black uppercase text-white/34">{de ? 'DEIN GOLD' : 'YOUR GOLD'}</span><span className={`text-[11px] font-black ${canAffordGuild ? 'text-amber-100' : 'text-red-200'}`}>{formatGold(gold, language)} / {formatGold(GUILD_CREATION_COST, language)}</span></div><input value={guildName} maxLength={32} onChange={event => setGuildName(event.target.value)} placeholder={de ? 'Gildenname' : 'Guild name'} className="w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[11px] text-white outline-none placeholder:text-white/24" /><input value={guildTag} maxLength={6} onChange={event => setGuildTag(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} placeholder={de ? 'Kürzel, z. B. VEIL' : 'Tag, e.g. VEIL'} className="w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[11px] uppercase text-white outline-none placeholder:text-white/24" /><textarea value={guildDescription} maxLength={500} rows={3} onChange={event => setGuildDescription(event.target.value)} placeholder={de ? 'Beschreibung (optional)' : 'Description (optional)'} className="w-full resize-none rounded-xl border border-white/10 bg-black/45 px-3 py-2.5 text-[10px] text-white outline-none placeholder:text-white/24" /><ActionButton label={de ? `Für ${formatGold(GUILD_CREATION_COST, language)} Gold gründen` : `Create for ${formatGold(GUILD_CREATION_COST, language)} gold`} onClick={createNewGuild} disabled={busy || !canAffordGuild} primary /></section>{invites.length > 0 && <section className="space-y-2 rounded-2xl border border-white/8 bg-white/[.025] p-3"><div className="text-[7px] font-black uppercase tracking-[.18em] text-white/35">{de ? 'EINGEHENDE EINLADUNGEN' : 'INCOMING INVITATIONS'}</div>{invites.map(invite => <div key={invite.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/30 p-2.5"><div className="min-w-0 flex-1"><div className="truncate text-[10px] font-bold">[{invite.guild.tag}] {invite.guild.name}</div></div><ActionButton label="✓" onClick={() => answerInvite(invite.id, true)} disabled={busy} primary compact /><ActionButton label="×" onClick={() => answerInvite(invite.id, false)} disabled={busy} compact /></div>)}</section>}<ActionButton label={busy ? (de ? 'Lädt …' : 'Loading …') : (de ? 'Aktualisieren' : 'Refresh')} onClick={() => run(refreshGuildData)} disabled={busy} compact /></div>}
-  </div>
-  {spectatingMember && <SpectatorScreen friendId={spectatingMember.id} friendName={spectatingMember.name} language={language} onClose={() => setSpectatingMember(null)} />}
-  </>;
+      {tab === 'chat' && <GuildChatPanel guildId={membership.guild.id} language={language} qaMessages={qaMode ? QA_CHAT : undefined} />}
+      {tab === 'members' && <div data-testid="guild-members-tab" className={scrollClass}><div className="mb-2 flex items-center justify-between gap-3 px-1"><div className="text-[7px] font-black uppercase tracking-[.18em] text-white/34">{stats.members} {de ? 'MITGLIEDER' : 'MEMBERS'}</div><div className="text-[7px] text-emerald-200/45">● {stats.online} online</div></div><div className="space-y-2">{members.map(member => {
+        const own = member.user_id === session.user.id;
+        const online = isPresenceOnline(presenceByUserId[member.user_id], presenceNow);
+        const displayName = member.profile?.display_name ?? (de ? 'Abenteurer' : 'Adventurer');
+        return <article key={member.user_id} data-testid="guild-member-card" className={`rounded-2xl border p-3 ${own ? 'border-amber-300/17 bg-amber-400/[.04]' : 'border-white/8 bg-white/[.025]'}`}><div className="flex items-start gap-3"><button type="button" onClick={() => onOpenMemberProfile?.(member.user_id)} className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/35 text-lg text-white/58 active:scale-95">{displayName.slice(0, 1).toUpperCase()}<span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0d0c0b] ${online ? 'bg-emerald-400' : 'bg-white/18'}`}/></button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><button type="button" onClick={() => onOpenMemberProfile?.(member.user_id)} className="truncate text-left text-[11px] font-black text-white/82 hover:text-amber-100">{displayName}</button>{own && <span className="rounded-full border border-amber-300/14 bg-amber-400/[.06] px-1.5 py-0.5 text-[5px] font-black text-amber-100/65">{de ? 'DU' : 'YOU'}</span>}</div><div className="mt-1 flex flex-wrap gap-1.5 text-[6px] font-black uppercase tracking-[.1em]"><span className="rounded-full border border-white/8 bg-black/20 px-2 py-1 text-white/42">{roleLabel(member.role, de)}</span><span className={online ? 'rounded-full border border-emerald-300/14 bg-emerald-400/[.05] px-2 py-1 text-emerald-100/60' : 'rounded-full border border-white/8 bg-black/20 px-2 py-1 text-white/30'}>{formatPresence(presenceByUserId[member.user_id], language, presenceNow)}</span></div><div className="mt-1.5 text-[6px] text-white/23">{de ? 'Beigetreten' : 'Joined'} {formatJoined(member.joined_at, language)}</div></div></div>
+          <div className="mt-3 grid grid-cols-2 gap-2"><ActionButton label={de ? 'PROFIL' : 'PROFILE'} onClick={() => onOpenMemberProfile?.(member.user_id)} compact /><ActionButton label={de ? 'ZUSCHAUEN' : 'SPECTATE'} onClick={() => setSpectatingMember({ id: member.user_id, name: displayName })} compact disabled={!online} /></div>
+          {!own && isOwner && member.role !== 'owner' && <div className="mt-2 grid grid-cols-3 gap-1.5"><ActionButton label={member.role === 'officer' ? (de ? 'HERABSTUFEN' : 'DEMOTE') : (de ? 'OFFIZIER' : 'OFFICER')} onClick={() => void changeRole(member, member.role === 'officer' ? 'member' : 'officer')} compact /><ActionButton label={de ? 'FÜHRUNG' : 'LEADER'} onClick={() => void transferLeadership(member)} compact primary /><ActionButton label={de ? 'ENTFERNEN' : 'REMOVE'} onClick={() => void kickMember(member)} compact danger /></div>}
+        </article>;
+      })}</div></div>}
+      {tab === 'invite' && <div data-testid="guild-invite-tab" className={scrollClass}>{canInvite ? <><section className="rounded-2xl border border-white/8 bg-white/[.025] p-3"><div className="text-[7px] font-black uppercase tracking-[.18em] text-white/35">{de ? 'SPIELER DIREKT EINLADEN' : 'INVITE PLAYER DIRECTLY'}</div><p className="mt-1 text-[8px] leading-relaxed text-white/32">{de ? 'Suche exakt nach dem Anzeigenamen. Die Einladung erscheint im Postfach des Spielers.' : 'Search by exact display name. The invitation appears in the player mailbox.'}</p><div className="mt-3 flex gap-2"><input data-testid="guild-invite-name" value={inviteName} maxLength={32} onChange={event => setInviteName(event.target.value)} placeholder={de ? 'Spielername' : 'Player name'} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-[10px] outline-none focus:border-amber-300/30"/><button data-testid="guild-invite-send" type="button" onClick={() => void sendInvite()} disabled={busy || inviteName.trim().length < 2} className="rounded-xl border border-amber-300/25 bg-amber-500/12 px-3 text-[7px] font-black uppercase tracking-[.12em] text-amber-100 disabled:opacity-30">{de ? 'SENDEN' : 'SEND'}</button></div></section><div className="mt-3"><GuildInviteLinkCard language={language} qaMembership={qaMode ? membership : undefined} /></div></> : <div className="grid min-h-44 place-items-center rounded-2xl border border-white/8 bg-white/[.025] p-5 text-center text-[9px] leading-relaxed text-white/35">{de ? 'Nur Anführer und Offiziere können neue Mitglieder einladen.' : 'Only leaders and officers can invite new members.'}</div>}</div>}
+    </>}
+  </section>;
 }
