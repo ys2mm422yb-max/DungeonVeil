@@ -7,6 +7,8 @@ const CORE_BUNDLE_KEYS = [
   'dungeon-veil-equipment-targeting-v2',
   'dungeon-veil-equipment-targeting-v1',
   'dungeon-veil-equipment-redesign-v1',
+  'dungeon-veil-optional-loadout-v1',
+  'dungeon-veil-companion-collection-v5',
   'dungeon-veil-relics-v2',
   'dungeon-veil-relics-v1',
   'dungeon-veil-retention-v2',
@@ -194,9 +196,17 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
 export function bundleActivityTimestamp(bundle: DungeonVeilSaveBundle): number {
   const save = parseBundleValue(bundle, 'dungeon-veil-save');
   const profile = parseBundleValue(bundle, 'dungeon-veil-player-profile-v1');
+  const optionalLoadout = parseBundleValue(bundle, 'dungeon-veil-optional-loadout-v1');
+  const companions = parseBundleValue(bundle, 'dungeon-veil-companion-collection-v5');
   const hasProgress = Math.max(bundleProgressWeight(bundle), number(bundle.progressWeight)) > 0;
   if (!hasProgress) return 0;
-  return Math.max(number(bundle.activityAt), number(save.savedAt), number(profile.updatedAt));
+  return Math.max(
+    number(bundle.activityAt),
+    number(save.savedAt),
+    number(profile.updatedAt),
+    number(optionalLoadout.updatedAt),
+    number(companions.updatedAt),
+  );
 }
 export function shouldRestoreRemoteBundle(local: DungeonVeilSaveBundle, remote: DungeonVeilSaveBundle): boolean {
   const localWeight = Math.max(bundleProgressWeight(local), number(local.progressWeight));
