@@ -28,63 +28,11 @@ on:
       - 'artifacts/dungeon-rpg/tests/visual-render-readiness.mjs'
       - 'supabase/migrations/20260721135000_mailbox_delete_rpc.sql'
 
-permissions:
-  contents: write
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  patch-qa-state:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: fix/guild-mail-equipment-currency-ux-v1
-      - name: Stabilize the filled mailbox QA state
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx')
-          source = path.read_text()
-          stable = 'const FILLED_MAILBOX_QA_STATE = { signedIn: true, messages: FILLED_MAILBOX_QA };'
-          inline = 'qaState={qaMode ? { signedIn: true, messages: FILLED_MAILBOX_QA } : undefined}'
-          if stable not in source:
-              closing = """  },
-];
-
-function filledSocialQaEnabled(): boolean {"""
-              replacement = """  },
-];
-
-const FILLED_MAILBOX_QA_STATE = { signedIn: true, messages: FILLED_MAILBOX_QA };
-
-function filledSocialQaEnabled(): boolean {"""
-              if source.count(closing) != 1:
-                  raise SystemExit('Expected filled mailbox QA array closing exactly once')
-              source = source.replace(closing, replacement, 1)
-          if inline in source:
-              source = source.replace(inline, 'qaState={qaMode ? FILLED_MAILBOX_QA_STATE : undefined}', 1)
-          elif 'qaState={qaMode ? FILLED_MAILBOX_QA_STATE : undefined}' not in source:
-              raise SystemExit('Expected mailbox QA state binding exactly once')
-          path.write_text(source)
-          PY
-      - name: Commit the focused fix when needed
-        shell: bash
-        run: |
-          if git diff --quiet -- artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx; then
-            echo "Mailbox QA state already stable."
-            exit 0
-          fi
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx
-          git commit -m "Stabilize mailbox QA state across renders"
-          git push origin HEAD:fix/guild-mail-equipment-currency-ux-v1
-
   focused-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 25
