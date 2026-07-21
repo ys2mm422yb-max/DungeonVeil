@@ -24,12 +24,18 @@ async function startEvidence(page) {
 test('room title evidence uses distinct room-bible names beyond room 20', async ({ page }) => {
   await startEvidence(page);
   const titles = [];
+  let previousTitle = '';
   for (const room of [20, 21, 30, 40, 50]) {
     await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'duo'), room);
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
+    await expect(page.getByText(new RegExp(`RAUM\\s*${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
+    if (previousTitle) {
+      await expect.poll(() => page.getByTestId('run-visual-viewport').getAttribute('data-room-title'), { timeout: 30_000 }).not.toBe(previousTitle);
+    }
     const title = await page.getByTestId('run-visual-viewport').getAttribute('data-room-title');
     expect(title?.trim(), `missing room title for room ${room}`).toBeTruthy();
     titles.push(title);
+    previousTitle = title ?? '';
   }
   expect(new Set(titles).size, JSON.stringify(titles)).toBe(titles.length);
   expect(titles.slice(1)).not.toContain(titles[0]);
