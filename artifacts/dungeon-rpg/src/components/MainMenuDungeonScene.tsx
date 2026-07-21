@@ -30,7 +30,7 @@ export function MainMenuDungeonScene() {
   }, []);
 
   if (suspended) return null;
-  const heroUrl = `${import.meta.env.BASE_URL}assets/hall/veil-hall-hero.webp`;
+  const heroUrl = `${import.meta.env.BASE_URL}assets/hall/veil-hall-hero.svg`;
 
   return <div
     data-testid="main-menu-scene-presentation"
