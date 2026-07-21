@@ -154,6 +154,14 @@ export function MainMenuScreen(props: Props) {
     </button>;
   };
 
+  const resourceMenu = <div className="rounded-3xl border border-amber-100/16 bg-[linear-gradient(145deg,rgba(31,25,19,.98),rgba(12,10,13,.99))] p-3 shadow-[0_24px_70px_rgba(0,0,0,.64)] backdrop-blur-2xl">
+    <div className="flex items-start justify-between gap-3 px-1 pb-2">
+      <div><div className="text-[7px] font-black uppercase tracking-[.25em] text-amber-100/42">{language === 'de' ? 'GOLD & KONTO' : 'GOLD & ACCOUNT'}</div><div className="mt-1 text-sm font-black text-amber-50">{language === 'de' ? 'Weitere Optionen' : 'More options'}</div></div>
+      <button type="button" aria-label={language === 'de' ? 'Gold-Menü schließen' : 'Close gold menu'} onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="grid h-8 w-8 place-items-center rounded-xl border border-white/9 bg-black/24 text-sm text-white/46 active:scale-90">×</button>
+    </div>
+    <div className="space-y-1.5">{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', 'friends', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', 'scroll', replayTutorial, 'dark')}{action(t.settings, '', 'settings', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', 'book', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div>
+  </div>;
+
   return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#050308] text-white">
     {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_49%,rgba(126,54,216,.15),transparent_38%),linear-gradient(to_bottom,rgba(2,1,5,.4),rgba(4,2,7,.02)_42%,rgba(5,3,8,.18)_74%,#050307_96%)]" />
@@ -163,44 +171,23 @@ export function MainMenuScreen(props: Props) {
     <ProfileBadge profile={profile} playerName={profileName} rank={meta.rank} language={language} onOpen={() => setOverlay('profile')} />
     <div className="absolute right-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-30 flex items-start gap-1.5">
       <div className="space-y-1">
-        <button type="button" onPointerDown={event => { event.preventDefault(); props.onVeilChamber(); }} className="flex h-7 min-w-[92px] items-center rounded-[11px] border border-violet-300/14 bg-black/58 px-2 text-[9px] font-black text-white/72 backdrop-blur-xl active:scale-95"><MenuIcon name="dust" className="mr-1.5 h-3.5 w-3.5 text-violet-400" /><span className="flex-1 text-left">{Number(meta.dust ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US')}</span><span className="text-sm text-white/32">＋</span></button>
-        <button type="button" aria-label={language === 'de' ? 'Mehr' : 'More'} onPointerDown={event => { event.preventDefault(); setOverlay('more'); }} className="flex h-7 min-w-[92px] items-center rounded-[11px] border border-amber-200/12 bg-black/58 px-2 text-[9px] font-black text-white/72 backdrop-blur-xl active:scale-95"><MenuIcon name="coin" className="mr-1.5 h-3.5 w-3.5 text-amber-400" /><span className="flex-1 text-left">{gold}</span><span className="text-sm text-white/32">＋</span></button>
+        <button data-testid="main-menu-dust-button" type="button" onPointerDown={event => { event.preventDefault(); props.onVeilChamber(); }} className="flex h-7 min-w-[92px] items-center rounded-[11px] border border-violet-300/14 bg-black/58 px-2 text-[9px] font-black text-white/72 backdrop-blur-xl active:scale-95"><MenuIcon name="dust" className="mr-1.5 h-3.5 w-3.5 text-violet-400" /><span className="flex-1 text-left">{Number(meta.dust ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US')}</span><span className="text-sm text-white/32">＋</span></button>
+        <button data-testid="main-menu-gold-button" type="button" aria-label={language === 'de' ? 'Gold und weitere Optionen' : 'Gold and more options'} aria-expanded={overlay === 'more'} onPointerDown={event => { event.preventDefault(); setOverlay(current => current === 'more' ? null : 'more'); }} className={`flex h-7 min-w-[92px] items-center rounded-[11px] border px-2 text-[9px] font-black backdrop-blur-xl active:scale-95 ${overlay === 'more' ? 'border-amber-200/30 bg-amber-500/14 text-amber-50' : 'border-amber-200/12 bg-black/58 text-white/72'}`}><MenuIcon name="coin" className="mr-1.5 h-3.5 w-3.5 text-amber-400" /><span className="flex-1 text-left">{gold}</span><span className="text-sm text-white/32">＋</span></button>
       </div>
       <button type="button" aria-label={language === 'de' ? 'Optionen' : 'Options'} onPointerDown={event => { event.preventDefault(); props.onSettings(); }} className="grid h-[60px] w-10 place-items-center rounded-[15px] border border-white/[.09] bg-black/58 text-white/60 backdrop-blur-xl active:scale-95"><MenuIcon name="settings" className="h-5 w-5" /></button>
     </div>
 
     <div className="relative z-10 flex h-full min-h-0 flex-col pb-[max(8px,calc(env(safe-area-inset-bottom)+2px))] pt-[max(16px,calc(env(safe-area-inset-top)+5px))]">
-      <header className="mt-[78px] shrink-0 px-5 text-center sm:mt-[70px]">
-        <div className="mx-auto flex max-w-sm items-center gap-2.5"><span className="h-px flex-1 bg-gradient-to-r from-transparent to-amber-200/28"/><span className="h-2.5 w-2.5 rotate-45 border border-violet-300/65 bg-violet-600 shadow-[0_0_14px_rgba(139,92,246,.8)]"/><span className="h-px flex-1 bg-gradient-to-l from-transparent to-amber-200/28"/></div>
-        <h1 className="mt-1 bg-gradient-to-b from-[#fff0c9] via-[#d7a85e] to-[#875022] bg-clip-text font-serif text-[clamp(1.9rem,8.2vw,2.75rem)] font-black leading-[.92] tracking-[.02em] text-transparent drop-shadow-[0_5px_18px_rgba(0,0,0,.55)]">DUNGEON VEIL</h1>
-        <p className="mt-1 text-[6.5px] uppercase tracking-[.22em] text-amber-50/38">{t.subtitle}</p>
-      </header>
-
+      <header className="mt-[78px] shrink-0 px-5 text-center sm:mt-[70px]"><div className="mx-auto flex max-w-sm items-center gap-2.5"><span className="h-px flex-1 bg-gradient-to-r from-transparent to-amber-200/28"/><span className="h-2.5 w-2.5 rotate-45 border border-violet-300/65 bg-violet-600 shadow-[0_0_14px_rgba(139,92,246,.8)]"/><span className="h-px flex-1 bg-gradient-to-l from-transparent to-amber-200/28"/></div><h1 className="mt-1 bg-gradient-to-b from-[#fff0c9] via-[#d7a85e] to-[#875022] bg-clip-text font-serif text-[clamp(1.9rem,8.2vw,2.75rem)] font-black leading-[.92] tracking-[.02em] text-transparent drop-shadow-[0_5px_18px_rgba(0,0,0,.55)]">DUNGEON VEIL</h1><p className="mt-1 text-[6.5px] uppercase tracking-[.22em] text-amber-50/38">{t.subtitle}</p></header>
       <div data-testid="main-menu-scene-focus" className="relative min-h-[300px] flex-1" />
-
-      <div data-testid="main-menu-control-stack" className="relative z-20 shrink-0">
-        <VillageNpcHub
-          language={language}
-          dailyProgress={`${retention.daily.claimed.length}/3`}
-          mailUnread={mailUnread}
-          onQuests={() => setOverlay('daily')}
-          onMailbox={() => setOverlay('mailbox')}
-          onFriends={() => setOverlay('friends')}
-          onGuild={() => setOverlay('guild')}
-        />
-
-        <div className="mx-auto mt-1.5 grid w-full max-w-md grid-cols-2 gap-1.5 px-4">
-          {action(t.continueGame, continueText, 'portal', props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}
-          {action(language === 'de' ? 'Spielen' : 'Play', 'SOLO · DUO · BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}
-          <div data-testid="main-menu-equipment-navigation">{action(language === 'de' ? 'Ausrüstung' : 'Equipment', language === 'de' ? 'BOGEN · RÜSTUNG' : 'BOW · ARMOR', 'bag', props.onVeilChamber, 'violet')}</div>
-          {action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · RELIKTE' : 'BEASTS · RELICS', 'book', props.onCodex, 'blue')}
-        </div>
-      </div>
+      <div data-testid="main-menu-control-stack" className="relative z-20 shrink-0"><VillageNpcHub language={language} dailyProgress={`${retention.daily.claimed.length}/3`} mailUnread={mailUnread} onQuests={() => setOverlay('daily')} onMailbox={() => setOverlay('mailbox')} onFriends={() => setOverlay('friends')} onGuild={() => setOverlay('guild')} /><div className="mx-auto mt-1.5 grid w-full max-w-md grid-cols-2 gap-1.5 px-4">{action(t.continueGame, continueText, 'portal', props.onContinue, currentSaveData ? 'gold' : 'dark', !currentSaveData)}{action(language === 'de' ? 'Spielen' : 'Play', 'SOLO · DUO · BOSS', 'swords', () => setOverlay('play'), currentSaveData ? 'dark' : 'gold')}<div data-testid="main-menu-equipment-navigation">{action(language === 'de' ? 'Ausrüstung' : 'Equipment', language === 'de' ? 'BOGEN · RÜSTUNG' : 'BOW · ARMOR', 'bag', props.onVeilChamber, 'violet')}</div>{action(language === 'de' ? 'Kodex' : 'Codex', language === 'de' ? 'BESTIEN · RELIKTE' : 'BEASTS · RELICS', 'book', props.onCodex, 'blue')}</div></div>
     </div>
 
     {overlay === 'profile' && <PlayerProfilePanel profile={profile} saveData={currentSaveData} meta={meta} retention={retention} language={language} onProfileChange={setProfile} onClose={() => setOverlay(null)} />}
 
-    {overlay && overlay !== 'profile' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
+    {overlay === 'more' && <div className="absolute inset-0 z-40 bg-black/20" onPointerDown={() => setOverlay(null)}><div data-testid="main-menu-resource-popover" className="absolute right-3 top-[max(76px,calc(env(safe-area-inset-top)+70px))] w-[min(330px,calc(100vw-24px))]" onPointerDown={event => event.stopPropagation()}>{resourceMenu}</div></div>}
+
+    {overlay && overlay !== 'profile' && overlay !== 'more' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
       {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
       {overlay === 'friends' && <FriendsPanel language={language} onOpenOnline={() => setOverlay('online')} />}
@@ -209,7 +196,6 @@ export function MainMenuScreen(props: Props) {
       {overlay === 'play' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'SPIELMODUS WÄHLEN' : 'CHOOSE GAME MODE'}</div><div className="space-y-2">{action(language === 'de' ? 'Solo-Run' : 'Solo Run', language === 'de' ? 'NEUES ABENTEUER · ALLEINE' : 'NEW ADVENTURE · SOLO', 'swords', () => { setOverlay(null); startNormalRun(); }, 'violet')}{action(language === 'de' ? 'Duo-Run' : 'Duo Run', language === 'de' ? 'PRIVATE LOBBY · 2 SPIELER' : 'PRIVATE LOBBY · 2 PLAYERS', 'friends', () => setOverlay('coop'), 'violet')}{action(language === 'de' ? 'Weltboss' : 'World Boss', language === 'de' ? 'GEMEINSAMER BOSSKAMPF' : 'SHARED BOSS FIGHT', 'boss', () => setOverlay('worldBoss'), 'blue')}</div></div>}
       {overlay === 'worldBoss' && <WorldBossPanel language={language} saveData={currentSaveData} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'coop' && <CoopLobbyPanel language={language} onOpenOnline={() => setOverlay('online')} onStartRun={lobby => { setOverlay(null); props.onStartCoop(lobby); }} />}
-      {overlay === 'more' && <div className="rounded-3xl border border-amber-50/14 bg-[#17130f]/96 p-4 shadow-2xl"><div className="mb-3 px-2 text-[8px] font-black uppercase tracking-[.25em] text-amber-50/42">{language === 'de' ? 'WEITERE OPTIONEN' : 'MORE OPTIONS'}</div><div className="space-y-2">{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', 'friends', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', 'scroll', replayTutorial, 'dark')}{action(t.settings, '', 'settings', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', 'book', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div></div>}
       {overlay !== 'guild' && <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay(null); }} className="mt-3 w-full rounded-2xl border border-amber-50/14 bg-[#11100f]/88 py-3 text-[9px] font-black uppercase tracking-[.2em] text-amber-50/58">{language === 'de' ? 'SCHLIESSEN' : 'CLOSE'}</button>}
     </div></div>}
   </div>;
