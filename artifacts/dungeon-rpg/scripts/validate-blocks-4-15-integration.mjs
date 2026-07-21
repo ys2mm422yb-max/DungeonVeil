@@ -34,8 +34,10 @@ const [
   read('../../../.github/workflows/full-game-regression.yml'),
 ]);
 
+const guildProfileRouting = guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}')
+  || guildSocial.includes('onOpenMemberProfile={qaMode ? undefined : setSelectedProfileId}');
 const checks = [
-  [guildPanel.includes('guild-members-tab') && guildPanel.includes('guild-member-profile-button') && guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}') && !guildSocial.includes('guild-profile-list-button'), 'Block 4 guild profiles are not contained in the Members tab'],
+  [guildPanel.includes('guild-members-tab') && guildPanel.includes('guild-member-profile-button') && guildProfileRouting && !guildSocial.includes('guild-profile-list-button'), 'Block 4 guild profiles are not contained in the Members tab'],
   [publicProfile.includes('public-player-profile-dialog') && publicProfile.includes('public-player-profile-loading') && publicProfile.includes('public-player-profile-error') && publicProfile.includes('public-player-profile-empty'), 'Block 5 public profile states are incomplete'],
   [friends.includes('<SocialIdentityCard') && friends.includes('setSelectedProfileId(request.user_id)') && friends.includes('incoming-friend-request-actions') && friends.includes('outgoing-friend-request-card'), 'Block 6 friend requests are not connected safely to cosmetic public profiles'],
   [presence.includes('publishOnlinePresence') && presenceRuntime.includes('ONLINE_PRESENCE_POLL_MS') && guildPanel.includes('guild-member-presence'), 'Block 7 online presence is not active across runtime and guild UI'],
