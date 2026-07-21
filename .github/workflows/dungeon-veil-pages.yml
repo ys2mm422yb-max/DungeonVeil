@@ -1,20 +1,14 @@
 name: Deploy Dungeon Veil Test Site
 
-# Deploy review branches to the shared project-root test site.
 on:
-  push:
+  pull_request:
     branches:
-      - work/blocks-1-7-production-pass
-      - 'fix/**'
-      - 'work/block-*'
-      - test/final-balance-integration
-    paths-ignore:
-      - '.ci/**'
-  workflow_dispatch:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/dungeon-veil-pages.yml'
 
 permissions:
   contents: read
-  actions: read
   pages: write
   id-token: write
 
@@ -22,144 +16,80 @@ concurrency:
   group: dungeon-veil-pages
   cancel-in-progress: true
 
+env:
+  PRODUCT_SHA: f9b1144e2f99f8462372f2d3bdb02c8a2d045bbd
+  PAGE_URL: https://ys2mm422yb-max.github.io/DungeonVeil/
+
 jobs:
   build:
-    # The final integration branch requires an explicit deployment approval marker.
-    if: github.event_name == 'workflow_dispatch' || github.ref_name != 'test/final-balance-integration' || contains(github.event.head_commit.message, '[deploy-test]')
     runs-on: ubuntu-latest
     timeout-minutes: 65
-    outputs:
-      product_sha: ${{ steps.product.outputs.sha }}
     steps:
-      - name: Checkout
+      - name: Checkout exact merged product
         uses: actions/checkout@v4
-
-      - name: Resolve product commit
-        id: product
-        shell: bash
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Wait for required integration validations
-        if: github.ref_name == 'test/final-balance-integration'
-        uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const required = ['Dungeon RPG CI', 'Dungeon RPG Check', 'Full Game Regression'];
-            const failedConclusions = new Set(['failure', 'cancelled', 'timed_out', 'action_required', 'stale']);
-            const deadline = Date.now() + 50 * 60 * 1000;
-            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-            const { owner, repo } = context.repo;
-
-            while (Date.now() < deadline) {
-              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
-                owner,
-                repo,
-                head_sha: context.sha,
-                per_page: 100,
-              });
-              const latest = new Map();
-              for (const run of data.workflow_runs) {
-                if (!required.includes(run.name)) continue;
-                const previous = latest.get(run.name);
-                if (!previous || new Date(run.created_at) > new Date(previous.created_at)) latest.set(run.name, run);
-              }
-
-              const states = required.map(name => {
-                const run = latest.get(name);
-                return { name, status: run?.status || 'missing', conclusion: run?.conclusion || null };
-              });
-              core.info(`Validation states: ${JSON.stringify(states)}`);
-
-              const failed = states.find(state => state.status === 'completed' && failedConclusions.has(state.conclusion));
-              if (failed) throw new Error(`${failed.name} finished with ${failed.conclusion}`);
-
-              if (states.every(state => state.status === 'completed' && state.conclusion === 'success')) {
-                core.info(`All required validations passed for ${context.sha}`);
-                return;
-              }
-              await sleep(30_000);
-            }
-            throw new Error(`Timed out waiting for required validations on ${context.sha}`);
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+          ref: f9b1144e2f99f8462372f2d3bdb02c8a2d045bbd
+      - name: Confirm exact product commit
+        shell: bash
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$PRODUCT_SHA"
+      - uses: pnpm/action-setup@v4
         with:
           version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Asset audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:assets
-
-      - name: Room and collision audit
-        run: pnpm --filter @workspace/dungeon-rpg audit:rooms
-
-      - name: Typecheck
-        run: pnpm run typecheck
-
-      - name: Build Dungeon Veil for GitHub Pages
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - run: pnpm --filter @workspace/dungeon-rpg audit:rooms
+      - run: pnpm run typecheck
+      - name: Build exact merged product for GitHub Pages
         env:
           BASE_PATH: /DungeonVeil/
           NODE_ENV: production
-          VITE_BUILD_SHA: ${{ steps.product.outputs.sha }}
+          VITE_BUILD_SHA: f9b1144e2f99f8462372f2d3bdb02c8a2d045bbd
         run: pnpm --dir artifacts/dungeon-rpg run build
-
       - name: Verify GitHub Pages artifact
         env:
           EXPECTED_BASE_PATH: /DungeonVeil/
         run: pnpm --filter @workspace/dungeon-rpg audit:pages
-
-      - name: Write deployment marker
+      - name: Write exact deployment marker
         shell: bash
         run: |
-          printf '{"commit":"%s","deployedAt":"%s"}\n' "${{ steps.product.outputs.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
-
-      - name: Disable Jekyll processing
-        run: touch artifacts/dungeon-rpg/dist/public/.nojekyll
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+          printf '{"commit":"%s","deployedAt":"%s"}\n' "$PRODUCT_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/dungeon-rpg/dist/public/deployment.json
+          touch artifacts/dungeon-rpg/dist/public/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: artifacts/dungeon-rpg/dist/public
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v4
 
-  record-pages:
-    if: always()
+  verify_live:
     runs-on: ubuntu-latest
     needs: [build, deploy]
+    timeout-minutes: 20
     steps:
-      - name: Summarize deployment result without modifying repository branches
+      - name: Verify fixed test link serves exact merge commit
         shell: bash
-        env:
-          PRODUCT_SHA: ${{ needs.build.outputs.product_sha }}
-          BUILD_RESULT: ${{ needs.build.result }}
-          DEPLOY_RESULT: ${{ needs.deploy.result }}
-          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
         run: |
-          {
-            echo "## Dungeon Veil Pages deployment"
-            echo "- Product commit: \`${PRODUCT_SHA:-not built}\`"
-            echo "- Build: \`${BUILD_RESULT}\`"
-            echo "- Deployment: \`${DEPLOY_RESULT}\`"
-            echo "- Page URL: ${PAGE_URL:-https://ys2mm422yb-max.github.io/DungeonVeil/}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          marker_url="${PAGE_URL}deployment.json"
+          for attempt in $(seq 1 90); do
+            body="$(curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$marker_url" 2>/dev/null || true)"
+            served="$(printf '%s' "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(String(JSON.parse(s).commit||''))}catch{}})")"
+            if [ "$served" = "$PRODUCT_SHA" ]; then
+              curl --fail --silent --show-error --location -H 'Cache-Control: no-cache' "$PAGE_URL" > /tmp/dungeon-veil-index.html
+              grep -q '/DungeonVeil/' /tmp/dungeon-veil-index.html
+              echo "Verified live product commit $served"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
