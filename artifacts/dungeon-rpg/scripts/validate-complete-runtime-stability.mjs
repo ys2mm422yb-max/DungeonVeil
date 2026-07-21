@@ -56,6 +56,12 @@ requireText(main, /installRoomReadyFailureGuard\(\)/, 'The failed room-ready gua
 requireText(combatStage, /roomIdentity\(floor\)/, 'Run room titles must use the complete room bible instead of a 20-room list.');
 requireText(combatStage, /identity\.nameEn.*identity\.nameDe/, 'Room titles must follow the selected language.');
 requireText(combatStage, /data-room-title=\{roomTitle\}/, 'The runtime suite needs an explicit room-title evidence marker.');
+requireText(combatStage, /hurtFlashTimerRef = useRef<number \| null>\(null\)/, 'Hurt flashes must use a stable timer ref.');
+requireText(combatStage, /hitFlashTimerRef = useRef<number \| null>\(null\)/, 'Hit flashes must use a stable timer ref.');
+requireText(combatStage, /if \(!gameState\.roomClearReady && hasLivingEnemies\) return;[\s\S]*setHurtFlash\(false\);[\s\S]*setHitFlash\(false\);/, 'Room completion must explicitly clear both combat flash overlays.');
+requireText(combatStage, /data-hurt-flash=\{hurtFlash \? 'active' : 'idle'\}/, 'The runtime suite needs an explicit hurt-flash evidence marker.');
+requireText(combatStage, /data-hit-flash=\{hitFlash \? 'active' : 'idle'\}/, 'The runtime suite needs an explicit hit-flash evidence marker.');
+requireText(combatStage, /useEffect\(\(\) => \(\) => \{[\s\S]*hurtFlashTimerRef[\s\S]*hitFlashTimerRef[\s\S]*\}, \[\]\);/, 'Combat flash timers must be cleared only during component teardown.');
 if (/const ROOM_NAMES/.test(combatStage)) throw new Error('The obsolete 20-room title list must not return.');
 requireText(sessionBridge, /runtimeSystemsReadyRef/, 'Independent runtime systems must pause with the room renderer.');
 requireText(sessionBridge, /hasLivingEnemies\(engine\) && !engine\.state\.roomClearReady/, 'Player hazards must require a living combat encounter.');
@@ -91,6 +97,8 @@ requireText(postClearSpec, /\[13, 16, 19\]/, 'All rune-storm rooms must be cover
 requireText(postClearSpec, /rune-warning-/, 'The post-clear regression must arm a real rune storm before killing enemies.');
 requireText(postClearSpec, /killLivingEnemies/, 'The post-clear regression must remove the final living enemies.');
 requireText(postClearSpec, /settled\.hp.*armed\.hp/s, 'The post-clear regression must prove player HP cannot change afterward.');
+requireText(postClearSpec, /toHaveAttribute\('data-hurt-flash', 'idle'\)/, 'The post-clear regression must prove the hurt flash returns to idle.');
+requireText(postClearSpec, /toHaveAttribute\('data-hit-flash', 'idle'\)/, 'The post-clear regression must prove the hit flash returns to idle.');
 requireText(atomicReadySpec, /\[13, 14, 21, 41, 50\]/, 'Complex rooms across every later visual phase must be covered by atomic readiness evidence.');
 requireText(atomicReadySpec, /evidence\.ready.*toBe\(1\)/s, 'Each complex room transition must expose exactly one normal room-ready signal.');
 requireText(atomicReadySpec, /failed: true/, 'Atomic readiness evidence must include a failed build attempt.');
