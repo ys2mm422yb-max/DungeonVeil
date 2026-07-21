@@ -71,11 +71,12 @@ const requiredRoomMarkers = [
   'getByText(`RAUM ${room}/50`',
 ];
 const requiredPaintedEvidenceMarkers = [
-  'canvasLitCoverage',
+  'canvasFrameEvidence',
   'MIN_LIT_COVERAGE',
-  'MIN_PNG_BYTES_PER_CANVAS_PIXEL',
-  'canvas.screenshot()',
-  'frame.equals(previousFrame)',
+  'MIN_SAMPLE_PNG_BYTES',
+  'createImageBitmap(element)',
+  "sample.toBlob(blob => resolve(blob?.size || 0), 'image/png')",
+  'frameHash',
   'WebGL canvas remained blank, static or insufficiently painted',
   'waitForPaintedCanvas',
   'waitForLiveMenuPaint',
@@ -166,6 +167,7 @@ if (!mainMenuReference.includes("from './visual-render-readiness.mjs'") || !main
 if (!mainEntry.includes("if (qaMode === 'states') localStorage.setItem('dungeon-veil-language', 'de')")) failures.push('transient QA language is not seeded before the LanguageProvider renders');
 if (!transientAudit.includes('await waitForFiniteAnimations(root)') || !transientAudit.includes('await ready();\n    await capture')) failures.push('transient evidence does not wait for completed animations and painted ancestors before capture');
 if (visualAudit.includes("getByTestId('live-hybrid-main-menu-frame').screenshot")) failures.push('menu animation evidence reverted to clipped element screenshots');
+if (visualReadiness.includes('canvas.screenshot()')) failures.push('painted WebGL readiness reverted to an element screenshot that waits for an animated canvas to become stable');
 if (visualAudit.includes('new RegExp(`RAUM') || roomAudit.includes('new RegExp(`RAUM')) failures.push('room HUD validation reverted to an escape-sensitive dynamic regular expression');
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
 if (!config.includes('visual-room-chunks')) failures.push('chunked room visual regression is not part of the browser matrix');
@@ -189,4 +191,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, animation-settled, actually painted and explicitly German transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, literal room HUD labels, isolated fresh-context desktop room chunks 1-50, full iPhone rooms 1-50, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, animation-settled, actually painted and explicitly German transient game surfaces, tutorial, explicit reduced motion, responsive equipment, direct pixel-sampled painted and changing WebGL evidence, literal room HUD labels, isolated fresh-context desktop room chunks 1-50, full iPhone rooms 1-50, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
