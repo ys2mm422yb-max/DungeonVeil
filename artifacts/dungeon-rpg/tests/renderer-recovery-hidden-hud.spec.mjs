@@ -60,7 +60,9 @@ test('renderer recovery saves and freezes a real Solo run while the transition H
     window.__dvTransitionRecoveryEvidence = { pageIdentity, preparing: 0, lost: 0, ready: 0 };
     window.addEventListener('dungeon-veil-room-preparing', () => { window.__dvTransitionRecoveryEvidence.preparing += 1; });
     window.addEventListener('dungeon-veil-renderer-lost', () => { window.__dvTransitionRecoveryEvidence.lost += 1; });
-    window.addEventListener('dungeon-veil-room-ready', () => { window.__dvTransitionRecoveryEvidence.ready += 1; });
+    window.addEventListener('dungeon-veil-room-ready', event => {
+      if (event.detail?.recovered) window.__dvTransitionRecoveryEvidence.ready += 1;
+    });
     return { pageIdentity, savedAt: Number(previousSave.savedAt || 0) };
   });
 
@@ -82,9 +84,9 @@ test('renderer recovery saves and freezes a real Solo run while the transition H
     save: JSON.parse(localStorage.getItem('dungeon-veil-save') || '{}'),
   }));
   expect(recovered.evidence.pageIdentity).toBe(setup.pageIdentity);
-  expect(recovered.evidence.preparing).toBeGreaterThan(0);
-  expect(recovered.evidence.lost).toBeGreaterThan(0);
-  expect(recovered.evidence.ready).toBeGreaterThan(0);
+  expect(recovered.evidence.preparing, JSON.stringify(recovered.evidence)).toBe(1);
+  expect(recovered.evidence.lost, JSON.stringify(recovered.evidence)).toBe(1);
+  expect(recovered.evidence.ready, JSON.stringify(recovered.evidence)).toBe(1);
   expect(recovered.save.saveReason).toBe('dungeon-session');
   expect(Number(recovered.save.savedAt || 0)).toBeGreaterThanOrEqual(setup.savedAt);
 
