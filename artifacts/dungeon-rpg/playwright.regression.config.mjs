@@ -4,7 +4,7 @@ const baseURL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|profile-layout|companion-runtime|loading-continuity|codex-visual-library|main-menu-reference|visual-audit|visual-room-chunks|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu|guild-mail-equipment-visual|autopilot-product-journeys)\.spec\.mjs/,
+  testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|profile-layout|companion-runtime|loading-continuity|codex-visual-library|main-menu-reference|visual-audit|visual-room-chunks|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu|guild-mail-equipment-visual|autopilot-product-journeys|product-autopilot)\.spec\.mjs/,
   timeout: 120_000,
   expect: { timeout: 20_000 },
   fullyParallel: false,
