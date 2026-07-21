@@ -5,6 +5,7 @@ import { HUD } from './HUD';
 import { GameEngine, type GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { attachRuntimeEvidenceEngine } from '../game/runtimeEvidenceBridge';
+import { LanguageProvider } from '../i18n/LanguageContext';
 
 function cloneState(engine: GameEngine): GameState {
   return {
@@ -18,7 +19,7 @@ function cloneState(engine: GameEngine): GameState {
   };
 }
 
-export function RuntimeDuoEvidenceQa() {
+function RuntimeDuoEvidenceScene() {
   const engineRef = useRef<GameEngine | null>(null);
   if (!engineRef.current) engineRef.current = new GameEngine();
   const [state, setState] = useState<GameState>(() => cloneState(engineRef.current!));
@@ -79,4 +80,10 @@ export function RuntimeDuoEvidenceQa() {
     <HUD gameState={state} onPause={() => {}} />
     <div className="pointer-events-none absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-cyan-200/25 bg-black/72 px-4 py-2 text-[8px] font-black tracking-[.18em] text-cyan-100">DUO RUNTIME EVIDENCE · ROOM {state.floor}/50</div>
   </div>;
+}
+
+export function RuntimeDuoEvidenceQa() {
+  return <LanguageProvider>
+    <RuntimeDuoEvidenceScene />
+  </LanguageProvider>;
 }
