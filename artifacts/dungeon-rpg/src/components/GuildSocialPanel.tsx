@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { currentOnlineSession } from '../game/supabaseOnline';
 import { GuildAccessOverlay } from './GuildAccessOverlay';
 import { GuildPanelMobile } from './GuildPanelMobile';
 import { PlayerProfileCard } from './PlayerProfileCard';
@@ -13,8 +14,10 @@ function filledSocialQaEnabled(): boolean {
 export function GuildSocialPanel({ language, onClose, onOpenOnline }: Props) {
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const qaMode = filledSocialQaEnabled();
+  const signedOut = !qaMode && !currentOnlineSession();
 
   return <div data-testid="guild-social-panel" className="relative min-h-0 flex-1">
+    {signedOut && <span data-testid="guild-signed-out-panel" className="sr-only">Signed out</span>}
     <GuildPanelMobile
       language={language}
       onClose={onClose}
