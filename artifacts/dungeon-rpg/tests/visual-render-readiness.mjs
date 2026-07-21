@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 
 const SAMPLE_SIZE = 48;
 const MIN_LIT_COVERAGE = 0.05;
+const MIN_PNG_BYTES_PER_CANVAS_PIXEL = 0.025;
 
 async function canvasLitCoverage(canvas) {
   return canvas.evaluate((element, sampleSize) => new Promise(resolve => {
@@ -34,14 +35,27 @@ async function canvasLitCoverage(canvas) {
 
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
   await expect(canvas).toBeVisible({ timeout });
+  let previousFrame = null;
   await expect.poll(
-    async () => canvasLitCoverage(canvas),
+    async () => {
+      const [coverage, dimensions, frame] = await Promise.all([
+        canvasLitCoverage(canvas),
+        canvas.evaluate(element => ({ width: element.width, height: element.height })),
+        canvas.screenshot(),
+      ]);
+      const changed = previousFrame !== null && !frame.equals(previousFrame);
+      previousFrame = frame;
+      const minimumBytes = Math.max(12_000, dimensions.width * dimensions.height * MIN_PNG_BYTES_PER_CANVAS_PIXEL);
+      const coverageScore = coverage / MIN_LIT_COVERAGE;
+      const pngScore = frame.length / minimumBytes;
+      return changed ? Math.max(coverageScore, pngScore) : 0;
+    },
     {
       timeout,
       intervals: [100, 200, 350, 500, 750, 1_000],
-      message: 'WebGL canvas remained blank or insufficiently painted',
+      message: 'WebGL canvas remained blank, static or insufficiently painted',
     },
-  ).toBeGreaterThan(MIN_LIT_COVERAGE);
+  ).toBeGreaterThanOrEqual(1);
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
