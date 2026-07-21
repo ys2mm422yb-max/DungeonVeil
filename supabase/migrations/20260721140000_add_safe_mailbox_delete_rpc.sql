@@ -1,6 +1,7 @@
 -- Allow players to remove only their own completed mailbox entries while
 -- keeping direct table DELETE permission disabled for authenticated clients.
-create or replace function public.delete_mailbox_messages(p_ids uuid[])
+-- The p_mail_ids name is retained for compatibility with the already deployed RPC.
+create or replace function public.delete_mailbox_messages(p_mail_ids uuid[])
 returns integer
 language plpgsql
 security definer
@@ -14,19 +15,19 @@ begin
     raise exception 'authentication required';
   end if;
 
-  if coalesce(cardinality(p_ids), 0) = 0 then
+  if coalesce(cardinality(p_mail_ids), 0) = 0 then
     return 0;
   end if;
 
-  delete from public.player_mailbox
-  where user_id = v_user
-    and id = any(p_ids)
+  delete from public.player_mailbox mail
+  where mail.user_id = v_user
+    and mail.id = any(p_mail_ids)
     and (
-      actioned_at is not null
+      mail.actioned_at is not null
       or (
-        read_at is not null
-        and kind in ('system', 'notice')
-        and coalesce(payload ->> 'kind', '') <> 'coop_invite'
+        mail.read_at is not null
+        and mail.kind in ('system', 'notice')
+        and coalesce(mail.payload ->> 'kind', '') <> 'coop_invite'
       )
     );
 
