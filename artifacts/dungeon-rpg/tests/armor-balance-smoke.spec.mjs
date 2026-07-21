@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
+async function pressPointerUi(locator) {
+  await expect(locator).toBeVisible();
+  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+}
+
 async function openEquipmentArmor(page, projectName) {
   await page.addInitScript(({ emulateIpad }) => {
     localStorage.setItem('dungeon-veil-language', 'de');
@@ -26,9 +31,9 @@ async function openEquipmentArmor(page, projectName) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
-  await page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first().click({ force: true });
+  await pressPointerUi(page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first());
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
-  await page.getByTestId('inventory-tab-armor').click();
+  await page.getByTestId('inventory-tab-armor').click({ force: true });
 }
 
 test('armor preview uses a male KayKit model and animated ready stance', async ({ page }, testInfo) => {
