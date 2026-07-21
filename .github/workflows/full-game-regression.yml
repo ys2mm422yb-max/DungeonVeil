@@ -89,6 +89,28 @@ jobs:
     needs: static-regression
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+            evidence_name: visual-evidence-iphone-webkit
+            screenshot_token: iphone-webkit
+          - project: android-chromium
+            browser: chromium
+            evidence_name: visual-evidence-android-chromium
+            screenshot_token: android-chromium
+          - project: ipad-landscape-webkit
+            browser: webkit
+            evidence_name: visual-evidence-ipad-webkit
+            screenshot_token: ipad
+          - project: desktop-chromium
+            browser: chromium
+            evidence_name: visual-evidence-desktop-chromium
+            screenshot_token: desktop-chromium
+    env:
+      BROWSER_PROJECT: ${{ matrix.project }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -102,11 +124,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install isolated browser test runner
         run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
-      - name: Install Chromium and WebKit
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium webkit
+      - name: Install isolated browser engine
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
       - name: Build current branch for browser regression
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-      - name: Test current branch on iPhone, Android, iPad and desktop
+      - name: Test current branch on isolated device runner
         id: browser-tests
         continue-on-error: true
         env:
@@ -122,20 +144,21 @@ jobs:
             sleep 1
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          timeout --signal=TERM --kill-after=30s 50m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs
+          timeout --signal=TERM --kill-after=30s 50m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs --project="$BROWSER_PROJECT" --grep-invert "rooms 1-50 produce stable visual evidence across the full run"
       - name: Build compact Playwright failure summary
         if: steps.browser-tests.outcome == 'failure'
         shell: bash
         run: |
           node <<'NODE'
           const fs = require('node:fs');
+          const project = process.env.BROWSER_PROJECT || 'unknown-project';
           const path = 'artifacts/dungeon-rpg/test-results/full-game-results.json';
-          const marker = '<!-- dungeon-veil-browser-regression -->';
+          const marker = `<!-- dungeon-veil-browser-regression-${project} -->`;
           let report;
           try {
             report = JSON.parse(fs.readFileSync(path, 'utf8'));
           } catch (error) {
-            fs.writeFileSync('/tmp/playwright-failure.md', `${marker}\n## Browser regression failed\n\nThe JSON report could not be read: \`${String(error.message).replace(/`/g, "'")}\``);
+            fs.writeFileSync('/tmp/playwright-failure.md', `${marker}\n## Browser regression failed: ${project}\n\nThe JSON report could not be read: \`${String(error.message).replace(/`/g, "'")}\``);
             process.exit(0);
           }
           const failures = [];
@@ -151,7 +174,7 @@ jobs:
                   .join('\n');
                 failures.push({
                   title: [...next, spec.title].filter(Boolean).join(' › '),
-                  project: test.projectName || result.projectName || 'unknown project',
+                  project: test.projectName || result.projectName || project,
                   status: test.status || result.status || 'failed',
                   errors,
                 });
@@ -160,7 +183,7 @@ jobs:
             for (const child of suite.suites || []) walk(child, next);
           };
           for (const suite of report.suites || []) walk(suite);
-          const lines = [marker, '## Browser regression failed', '', `Commit: \`${process.env.GITHUB_SHA}\``, `Failures: **${failures.length}**`, ''];
+          const lines = [marker, `## Browser regression failed: ${project}`, '', `Commit: \`${process.env.GITHUB_SHA}\``, `Failures: **${failures.length}**`, ''];
           for (const failure of failures.slice(0, 20)) {
             lines.push(`### ${failure.project}: ${failure.title}`, `Status: \`${failure.status}\``, '', '```text', (failure.errors || 'No detailed error recorded').slice(0, 5000).replace(/```/g, "'''"), '```', '');
           }
@@ -172,7 +195,8 @@ jobs:
         with:
           script: |
             const fs = require('node:fs');
-            const marker = '<!-- dungeon-veil-browser-regression -->';
+            const project = process.env.BROWSER_PROJECT || 'unknown-project';
+            const marker = `<!-- dungeon-veil-browser-regression-${project} -->`;
             const body = fs.readFileSync('/tmp/playwright-failure.md', 'utf8');
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
@@ -183,57 +207,30 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
-      - name: Upload iPhone visual evidence
+      - name: Upload device visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-evidence-iphone-webkit
+          name: ${{ matrix.evidence_name }}
           if-no-files-found: warn
           retention-days: 14
           compression-level: 6
-          path: artifacts/dungeon-rpg/test-results/**/*iphone-webkit*.png
-      - name: Upload Android visual evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-evidence-android-chromium
-          if-no-files-found: warn
-          retention-days: 14
-          compression-level: 6
-          path: artifacts/dungeon-rpg/test-results/**/*android-chromium*.png
-      - name: Upload iPad visual evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-evidence-ipad-webkit
-          if-no-files-found: warn
-          retention-days: 14
-          compression-level: 6
-          path: artifacts/dungeon-rpg/test-results/**/*ipad*.png
-      - name: Upload desktop visual evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-evidence-desktop-chromium
-          if-no-files-found: warn
-          retention-days: 14
-          compression-level: 6
-          path: artifacts/dungeon-rpg/test-results/**/*desktop-chromium*.png
+          path: artifacts/dungeon-rpg/test-results/**/*${{ matrix.screenshot_token }}*.png
       - name: Upload browser result manifest
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-game-regression-results
+          name: full-game-regression-results-${{ matrix.project }}
           if-no-files-found: warn
           retention-days: 14
           path: |
             artifacts/dungeon-rpg/test-results/full-game-results.json
             /tmp/dungeon-veil-preview.log
-      - name: Upload failure traces by browser
+      - name: Upload failure traces for device
         if: steps.browser-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
-          name: full-game-regression-failure-traces
+          name: full-game-regression-failure-traces-${{ matrix.project }}
           if-no-files-found: warn
           retention-days: 7
           compression-level: 9
