@@ -196,9 +196,13 @@ test('room hazards stop before the final enemy death animation finishes', async 
     await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'solo'), room);
     await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.setPlayerStats(1, 5000));
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 30_000 }).toBeGreaterThan(0);
-    await page.waitForTimeout(3_650);
+    const warningPrefix = room === 16 ? 'arc-warn-' : 'forge-warn-';
+    await expect.poll(
+      () => page.evaluate(prefix => window.__dungeonVeilRuntimeEvidence.snapshot()?.effects.some(id => id.startsWith(prefix)), warningPrefix),
+      { timeout: 12_000, intervals: [200, 350, 500] },
+    ).toBe(true);
     const armed = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
-    expect(armed.effects.some(id => room === 16 ? id.startsWith('arc-warn-') : id.startsWith('forge-warn-')), JSON.stringify(armed)).toBe(true);
+    expect(armed.effects.some(id => id.startsWith(warningPrefix)), JSON.stringify(armed)).toBe(true);
     await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.killLivingEnemies());
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 10_000 }).toBe(0);
     await page.waitForTimeout(1_850);
