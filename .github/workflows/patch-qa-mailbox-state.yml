@@ -1,0 +1,60 @@
+name: One-shot mailbox QA state patch
+
+on:
+  push:
+    branches:
+      - fix/guild-mail-equipment-currency-ux-v1
+    paths:
+      - '.github/workflows/patch-qa-mailbox-state.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/guild-mail-equipment-currency-ux-v1
+      - name: Stabilize the filled mailbox QA state
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx')
+          source = path.read_text()
+          anchor = """const FILLED_MAILBOX_QA: MailboxMessage[] = ["""
+          if source.count(anchor) != 1:
+              raise SystemExit('Expected filled mailbox QA array exactly once')
+
+          closing = """  },
+];
+
+function filledSocialQaEnabled(): boolean {"""
+          replacement = """  },
+];
+
+const FILLED_MAILBOX_QA_STATE = { signedIn: true, messages: FILLED_MAILBOX_QA };
+
+function filledSocialQaEnabled(): boolean {"""
+          if source.count(closing) != 1:
+              raise SystemExit('Expected filled mailbox QA array closing exactly once')
+          source = source.replace(closing, replacement, 1)
+
+          inline = """qaState={qaMode ? { signedIn: true, messages: FILLED_MAILBOX_QA } : undefined}"""
+          stable = """qaState={qaMode ? FILLED_MAILBOX_QA_STATE : undefined}"""
+          if source.count(inline) != 1:
+              raise SystemExit('Expected inline mailbox QA state exactly once')
+          source = source.replace(inline, stable, 1)
+          path.write_text(source)
+          PY
+      - name: Commit the focused fix
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx
+          git commit -m "Stabilize mailbox QA state across renders"
+          git push origin HEAD:fix/guild-mail-equipment-currency-ux-v1
