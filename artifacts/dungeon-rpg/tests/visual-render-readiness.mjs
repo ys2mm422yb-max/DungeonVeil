@@ -1,54 +1,82 @@
 import { expect } from '@playwright/test';
 
-const SAMPLE_SIZE = 48;
+const SAMPLE_SIZE = 64;
 const MIN_LIT_COVERAGE = 0.05;
-const MIN_PNG_BYTES_PER_CANVAS_PIXEL = 0.025;
+const MIN_SAMPLE_PNG_BYTES = 500;
 
-async function canvasLitCoverage(canvas) {
-  return canvas.evaluate((element, sampleSize) => new Promise(resolve => {
-    requestAnimationFrame(() => {
-      const sample = document.createElement('canvas');
-      sample.width = sampleSize;
-      sample.height = sampleSize;
-      const context = sample.getContext('2d', { willReadFrequently: true });
-      if (!context) {
-        resolve(0);
-        return;
-      }
+async function canvasFrameEvidence(canvas) {
+  return canvas.evaluate(async (element, sampleSize) => {
+    await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    const empty = {
+      coverage: 0,
+      pngBytes: 0,
+      frameHash: 0,
+      width: element.width,
+      height: element.height,
+    };
+    const sample = document.createElement('canvas');
+    sample.width = sampleSize;
+    sample.height = sampleSize;
+    const context = sample.getContext('2d', { willReadFrequently: true });
+    if (!context) return empty;
+
+    let bitmap = null;
+    try {
+      context.clearRect(0, 0, sampleSize, sampleSize);
       try {
-        context.clearRect(0, 0, sampleSize, sampleSize);
-        context.drawImage(element, 0, 0, sampleSize, sampleSize);
-        const pixels = context.getImageData(0, 0, sampleSize, sampleSize).data;
-        let lit = 0;
-        for (let index = 0; index < pixels.length; index += 4) {
-          const alpha = pixels[index + 3];
-          const brightness = pixels[index] + pixels[index + 1] + pixels[index + 2];
-          if (alpha > 16 && brightness > 54) lit += 1;
-        }
-        resolve(lit / (sampleSize * sampleSize));
+        bitmap = await createImageBitmap(element);
+        context.drawImage(bitmap, 0, 0, sampleSize, sampleSize);
       } catch {
-        resolve(0);
+        context.drawImage(element, 0, 0, sampleSize, sampleSize);
       }
-    });
-  }), SAMPLE_SIZE);
+
+      const pixels = context.getImageData(0, 0, sampleSize, sampleSize).data;
+      let lit = 0;
+      let frameHash = 2166136261;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const alpha = pixels[index + 3];
+        const brightness = pixels[index] + pixels[index + 1] + pixels[index + 2];
+        if (alpha > 16 && brightness > 54) lit += 1;
+        frameHash ^= pixels[index];
+        frameHash = Math.imul(frameHash, 16777619);
+        frameHash ^= pixels[index + 1];
+        frameHash = Math.imul(frameHash, 16777619);
+        frameHash ^= pixels[index + 2];
+        frameHash = Math.imul(frameHash, 16777619);
+        frameHash ^= alpha;
+        frameHash = Math.imul(frameHash, 16777619);
+      }
+      const pngBytes = await new Promise(resolve => {
+        sample.toBlob(blob => resolve(blob?.size || 0), 'image/png');
+      });
+      return {
+        coverage: lit / (sampleSize * sampleSize),
+        pngBytes,
+        frameHash: frameHash >>> 0,
+        width: element.width,
+        height: element.height,
+      };
+    } catch {
+      return empty;
+    } finally {
+      bitmap?.close?.();
+    }
+  }, SAMPLE_SIZE);
 }
 
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
   await expect(canvas).toBeVisible({ timeout });
-  let previousFrame = null;
+  let previousFrameHash = null;
   await expect.poll(
     async () => {
-      const [coverage, dimensions, frame] = await Promise.all([
-        canvasLitCoverage(canvas),
-        canvas.evaluate(element => ({ width: element.width, height: element.height })),
-        canvas.screenshot(),
-      ]);
-      const changed = previousFrame !== null && !frame.equals(previousFrame);
-      previousFrame = frame;
-      const minimumBytes = Math.max(12_000, dimensions.width * dimensions.height * MIN_PNG_BYTES_PER_CANVAS_PIXEL);
-      const coverageScore = coverage / MIN_LIT_COVERAGE;
-      const pngScore = frame.length / minimumBytes;
-      return changed ? Math.max(coverageScore, pngScore) : 0;
+      const evidence = await canvasFrameEvidence(canvas);
+      const changed = previousFrameHash !== null && evidence.frameHash !== previousFrameHash;
+      previousFrameHash = evidence.frameHash;
+      const coverageScore = evidence.coverage / MIN_LIT_COVERAGE;
+      const pngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
+      return changed && evidence.width > 0 && evidence.height > 0
+        ? Math.max(coverageScore, pngScore)
+        : 0;
     },
     {
       timeout,
