@@ -5,7 +5,7 @@ import { loadMetaProgression } from '../../game/metaProgression';
 import { recordReachedChapter } from '../../game/equipmentChapterGates';
 import { clearWeeklyRiftRun } from '../../game/weeklyRiftRun';
 import { loadRetentionProfile, type RetentionProfile } from '../../game/runRetention';
-import { captureGuildInviteTokenFromUrl, mailboxUnreadCount, MAILBOX_EVENT } from '../../game/guildMailboxOnline';
+import { captureGuildInviteTokenFromUrl, mailboxUnreadCount, MAILBOX_EVENT, type MailboxMessage } from '../../game/guildMailboxOnline';
 import { captureCoopInviteCodeFromUrl, COOP_LOBBY_OPEN_EVENT, type CoopLobbySnapshot } from '../../game/coopLobbyOnline';
 import { currentOnlineSession, onlineSessionEventName } from '../../game/supabaseOnline';
 import { syncSocialProfileProgress } from '../../game/socialProgressOnline';
@@ -39,6 +39,58 @@ interface Props {
 type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'play' | 'online' | 'guild' | 'worldBoss' | 'coop' | null;
 type IconName = 'scroll' | 'mail' | 'friends' | 'guild' | 'portal' | 'swords' | 'bag' | 'book' | 'gift' | 'boss' | 'coin' | 'dust' | 'settings';
 
+const FILLED_MAILBOX_QA: MailboxMessage[] = [
+  {
+    id: 'qa-guild-invite',
+    kind: 'guild_invite',
+    title: '[VEIL] Hüter des Schleiers',
+    body: 'Nyra lädt dich in die Gilde Hüter des Schleiers ein.',
+    payload: { invite_id: 'qa-invite', guild_id: 'qa-guild' },
+    read_at: null,
+    actioned_at: null,
+    created_at: '2026-07-21T11:45:00.000Z',
+    expires_at: '2026-07-28T11:45:00.000Z',
+  },
+  {
+    id: 'qa-worldboss-reward',
+    kind: 'reward',
+    title: 'Weltboss-Belohnung',
+    body: 'Dein Beitrag gegen den Schleierkoloss wurde ausgewertet.',
+    payload: { event_id: 'qa-worldboss', xp: 240, dust: 85, gold: 1250 },
+    read_at: null,
+    actioned_at: null,
+    created_at: '2026-07-21T10:20:00.000Z',
+    expires_at: null,
+  },
+  {
+    id: 'qa-coop-invite',
+    kind: 'notice',
+    title: 'Duo-Einladung von Torven',
+    body: 'Torven wartet in einer privaten Duo-Lobby.',
+    payload: { kind: 'coop_invite', invite_code: 'VEIL-42' },
+    read_at: null,
+    actioned_at: null,
+    created_at: '2026-07-21T09:58:00.000Z',
+    expires_at: '2026-07-21T15:58:00.000Z',
+  },
+  {
+    id: 'qa-completed-message',
+    kind: 'system',
+    title: 'Kapitelbelohnung erhalten',
+    body: 'Die Belohnung für Kapitel 2 wurde deinem Spielstand gutgeschrieben.',
+    payload: {},
+    read_at: '2026-07-20T19:00:00.000Z',
+    actioned_at: '2026-07-20T19:00:00.000Z',
+    created_at: '2026-07-20T18:55:00.000Z',
+    expires_at: null,
+  },
+];
+
+function filledSocialQaEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('visualQa') === 'filled-social';
+}
+
 function MenuIcon({ name, className = '' }: { name: IconName; className?: string }) {
   const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   return <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
@@ -60,11 +112,12 @@ function MenuIcon({ name, className = '' }: { name: IconName; className?: string
 
 export function MainMenuScreen(props: Props) {
   const { t, language } = useLanguage();
+  const qaMode = filledSocialQaEnabled();
   const [meta, setMeta] = useState(loadMetaProgression);
   const [retention, setRetention] = useState<RetentionProfile>(loadRetentionProfile);
   const [profile, setProfile] = useState<PlayerProfileProgress>(loadPlayerProfile);
   const [overlay, setOverlay] = useState<Overlay>(null);
-  const [mailUnread, setMailUnread] = useState(0);
+  const [mailUnread, setMailUnread] = useState(() => qaMode ? FILLED_MAILBOX_QA.filter(message => !message.read_at).length : 0);
   const [, setSaveRevision] = useState(0);
   const currentSaveData = loadGame() ?? props.saveData;
   const profileName = currentSaveData?.playerName?.trim() || (language === 'de' ? 'Waldläufer' : 'Ranger');
@@ -97,6 +150,10 @@ export function MainMenuScreen(props: Props) {
   }, [chapter, room]);
 
   useEffect(() => {
+    if (qaMode) {
+      setMailUnread(FILLED_MAILBOX_QA.filter(message => !message.read_at).length);
+      return;
+    }
     const capturedGuild = captureGuildInviteTokenFromUrl();
     const capturedCoop = captureCoopInviteCodeFromUrl();
     if (capturedGuild) setOverlay('mailbox');
@@ -114,9 +171,10 @@ export function MainMenuScreen(props: Props) {
       window.removeEventListener(onlineSessionEventName(), refreshUnread);
       window.removeEventListener(COOP_LOBBY_OPEN_EVENT, openCoopLobby);
     };
-  }, []);
+  }, [qaMode]);
 
   useEffect(() => {
+    if (qaMode) return;
     const sync = () => {
       if (!currentOnlineSession()) return;
       void syncSocialProfileProgress(chapter, meta.rank, 'archer').catch(() => {});
@@ -124,7 +182,7 @@ export function MainMenuScreen(props: Props) {
     window.addEventListener(onlineSessionEventName(), sync);
     sync();
     return () => window.removeEventListener(onlineSessionEventName(), sync);
-  }, [meta.rank, chapter]);
+  }, [meta.rank, chapter, qaMode]);
 
   const startNormalRun = () => { clearWeeklyRiftRun(); props.onNewGame(); };
   const replayTutorial = () => {
@@ -189,7 +247,7 @@ export function MainMenuScreen(props: Props) {
 
     {overlay && overlay !== 'profile' && overlay !== 'more' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
-      {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} />}
+      {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} qaState={qaMode ? { signedIn: true, messages: FILLED_MAILBOX_QA } : undefined} />}
       {overlay === 'friends' && <FriendsPanel language={language} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} onOpenOnline={() => setOverlay('online')} />}
