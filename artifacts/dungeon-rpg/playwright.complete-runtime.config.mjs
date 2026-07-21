@@ -47,10 +47,10 @@ export default defineConfig({
       },
     },
     {
-      name: 'ipad-landscape-webkit',
+      name: 'ipad-portrait-webkit',
       use: {
         browserName: 'webkit',
-        viewport: { width: 1180, height: 820 },
+        viewport: { width: 820, height: 1180 },
         deviceScaleFactor: 2,
         isMobile: true,
         hasTouch: true,
