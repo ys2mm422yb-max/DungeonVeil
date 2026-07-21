@@ -33,6 +33,7 @@ import { CoopBossLootOverlay } from './CoopBossLootOverlay';
 
 const PROFILE_FLUSH_MS = 5_000;
 const PUBLIC_PROFILE_SYNC_MS = 15_000;
+const PLAYER_HAZARD_EFFECT_PREFIXES = ['rune-warning-', 'rune-impact-', 'forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-'];
 
 function restorePendingRoomGift(engine: GameEngine): void {
   const save = loadGame();
@@ -47,19 +48,38 @@ function isActiveDuoRun(): boolean {
   return typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilRunMode === 'duo';
 }
 
+function hasLivingEnemies(engine: GameEngine): boolean {
+  return engine.state.enemies.some(enemy => enemy.hp > 0 && !enemy.isDead);
+}
+
+function clearPostCombatHazards(engine: GameEngine): void {
+  engine.state.effects = engine.state.effects.filter(effect => !PLAYER_HAZARD_EFFECT_PREFIXES.some(prefix => effect.id.startsWith(prefix)));
+}
+
 export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {
   const { language } = useLanguage();
   const getEngineRef = useRef(getEngine);
+  const runtimeSystemsReadyRef = useRef(true);
   getEngineRef.current = getEngine;
 
   useEffect(() => {
-    const stopInput = () => {
+    const prepareRuntime = () => {
+      runtimeSystemsReadyRef.current = false;
       const engine = getEngineRef.current();
       if (!engine) return;
       engine.input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
     };
-    window.addEventListener('dungeon-veil-room-preparing', stopInput);
-    return () => window.removeEventListener('dungeon-veil-room-preparing', stopInput);
+    const resumeRuntime = () => {
+      runtimeSystemsReadyRef.current = true;
+      const engine = getEngineRef.current();
+      if (engine) engine.lastTime = performance.now();
+    };
+    window.addEventListener('dungeon-veil-room-preparing', prepareRuntime);
+    window.addEventListener('dungeon-veil-room-ready', resumeRuntime);
+    return () => {
+      window.removeEventListener('dungeon-veil-room-preparing', prepareRuntime);
+      window.removeEventListener('dungeon-veil-room-ready', resumeRuntime);
+    };
   }, []);
 
   useEffect(() => {
@@ -206,16 +226,18 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       const engine = getEngineRef.current();
       const dt = Math.min(100, Math.max(0, time - lastFrame));
       lastFrame = time;
-      if (engine) {
+      if (engine && runtimeSystemsReadyRef.current) {
         collectDamage(engine);
         const interval = mobileTick ? 50 : 33;
         if (time - lastSystemTick >= interval) {
           const systemDt = Math.min(100, Math.max(dt, time - lastSystemTick));
           lastSystemTick = time;
           if (engine.state.status === 'playing') {
+            const combatActive = hasLivingEnemies(engine) && !engine.state.roomClearReady;
             updateRunBalance(engine, balance);
-            updateRunEffectSystems(engine, effects, time);
             updateRunRetentionSystems(engine, retention, time);
+            if (combatActive) updateRunEffectSystems(engine, effects, time);
+            else clearPostCombatHazards(engine);
             updateRoomMechanics(engine, roomMechanics, time, systemDt);
             updateRunSynergies(engine, synergies, time);
             updateFirstWardenFinale(engine, firstWarden, time);
@@ -250,6 +272,8 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
         } else {
           checkedClearKey = '';
         }
+      } else if (engine) {
+        engine.lastTime = time;
       }
       frame = requestAnimationFrame(update);
     };
