@@ -5,6 +5,7 @@ import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVeil/';
 const OUTPUT = 'test-results/complete-runtime-evidence';
 const ROOMS = [13, 14, 21, 41, 50];
+const PLAYER_HAZARD_PREFIXES = ['rune-warning-', 'rune-impact-', 'forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-'];
 
 function qaUrl() {
   const url = new URL(APP_URL);
@@ -36,16 +37,20 @@ async function startEvidence(page) {
   });
 }
 
+function resetEvidence(page) {
+  return page.evaluate(() => {
+    window.__dvAtomicRoomEvidence.preparing = 0;
+    window.__dvAtomicRoomEvidence.ready = 0;
+    window.__dvAtomicRoomEvidence.readyFloors = [];
+  });
+}
+
 test('complex room transitions expose exactly one atomic ready signal', async ({ page }, testInfo) => {
   test.setTimeout(300_000);
   await startEvidence(page);
 
   for (const room of ROOMS) {
-    await page.evaluate(() => {
-      window.__dvAtomicRoomEvidence.preparing = 0;
-      window.__dvAtomicRoomEvidence.ready = 0;
-      window.__dvAtomicRoomEvidence.readyFloors = [];
-    });
+    await resetEvidence(page);
     await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'duo'), room);
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
     await expect.poll(() => page.evaluate(() => window.__dvAtomicRoomEvidence.ready), { timeout: 60_000 }).toBe(1);
@@ -59,4 +64,46 @@ test('complex room transitions expose exactly one atomic ready signal', async ({
     await mkdir(OUTPUT, { recursive: true });
     await page.screenshot({ path: `${OUTPUT}/atomic-ready-room-${room}-${testInfo.project.name}.png`, fullPage: false });
   }
+});
+
+test('a failed atomic build cannot resume hazards before a successful retry', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  await startEvidence(page);
+  await page.evaluate(() => {
+    window.__dungeonVeilRuntimeEvidence.loadRoom(13, 'duo');
+    window.__dungeonVeilRuntimeEvidence.setPlayerStats(1, 5000);
+  });
+  await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(13);
+  await expect.poll(
+    () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.effects.some(id => id.startsWith('rune-warning-'))),
+    { timeout: 8_000 },
+  ).toBe(true);
+  const armed = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
+  await resetEvidence(page);
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { floor: 13, key: 'evidence-failed-build', owner: 'atomic-test' } }));
+    window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { floor: 13, key: 'evidence-failed-build', failed: true, owner: 'atomic-test' } }));
+  });
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState)).toBe('retrying');
+  await page.waitForTimeout(1_500);
+
+  const blocked = await page.evaluate(() => ({
+    runtime: window.__dungeonVeilRuntimeEvidence.snapshot(),
+    evidence: { ...window.__dvAtomicRoomEvidence },
+  }));
+  expect(blocked.evidence.preparing, JSON.stringify(blocked.evidence)).toBe(1);
+  expect(blocked.evidence.ready, JSON.stringify(blocked.evidence)).toBe(0);
+  expect(blocked.runtime.hp, JSON.stringify(blocked.runtime)).toBe(armed.hp);
+  expect(blocked.runtime.effects.filter(id => PLAYER_HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(blocked.runtime)).toEqual([]);
+  expect(blocked.runtime.damageNumbers.filter(id => id.startsWith('rune-hit-')), JSON.stringify(blocked.runtime)).toEqual([]);
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { floor: 13, key: 'evidence-failed-build', owner: 'atomic-test' } }));
+  });
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState)).toBe('ready');
+  await expect.poll(() => page.evaluate(() => window.__dvAtomicRoomEvidence.ready)).toBe(1);
+  await waitForPaintedCanvas(page);
+  await mkdir(OUTPUT, { recursive: true });
+  await page.screenshot({ path: `${OUTPUT}/failed-build-guard-room-13-${testInfo.project.name}.png`, fullPage: false });
 });
