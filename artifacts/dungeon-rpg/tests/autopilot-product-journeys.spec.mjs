@@ -199,6 +199,11 @@ test('signed-out hub, solo run and duo entry remain functional', async ({ page }
   await gotoMenu(page);
   await pointer(page.getByRole('button', { name: /Spielen|Play/i }).first());
   await pointer(page.getByRole('button', { name: /Solo-Run|Solo Run/i }));
+  const nameInput = page.getByRole('textbox').first();
+  if (await nameInput.isVisible().catch(() => false)) {
+    await nameInput.fill('Autopilot Ranger');
+    await pointer(page.getByTestId('run-name-confirm'));
+  }
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 120_000 });
   await expect(page.getByTestId('run-joystick')).toBeVisible();
   await capture(page, 'solo-run-started', testInfo.project.name);
