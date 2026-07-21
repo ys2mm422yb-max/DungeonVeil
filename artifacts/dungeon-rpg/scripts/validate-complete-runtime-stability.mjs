@@ -6,7 +6,7 @@ const requireText = (source, pattern, message) => {
   if (!pattern.test(source)) throw new Error(message);
 };
 
-const [mechanics, recovery, bridge, duoQa, combatStage, sessionBridge, main, spec, hiddenHudSpec, postClearSpec, config] = await Promise.all([
+const [mechanics, recovery, bridge, duoQa, combatStage, sessionBridge, main, spec, hiddenHudSpec, postClearSpec, config, workflow] = await Promise.all([
   read('src/game/roomMechanics.ts'),
   read('src/game/runRendererRecovery.ts'),
   read('src/game/runtimeEvidenceBridge.ts'),
@@ -18,6 +18,7 @@ const [mechanics, recovery, bridge, duoQa, combatStage, sessionBridge, main, spe
   read('tests/renderer-recovery-hidden-hud.spec.mjs'),
   read('tests/post-clear-player-hazards.spec.mjs'),
   read('playwright.complete-runtime.config.mjs'),
+  read('../../.github/workflows/complete-runtime-evidence-qa.yml'),
 ]);
 
 requireText(mechanics, /!hasLivingEnemies\(engine\)/, 'Room mechanics must stop as soon as no living enemy remains.');
@@ -25,11 +26,15 @@ requireText(mechanics, /clearPendingHazards\(engine, state\)/, 'Pending room haz
 requireText(mechanics, /engine\.state\.roomClearReady \|\| !hasLivingEnemies\(engine\)/, 'Room-clear and living-enemy guards must share the final hazard cleanup path.');
 requireText(mechanics, /arc-warn-|forge-warn-/, 'Arc and forge warnings must be explicitly removable.');
 requireText(recovery, /webglcontextlost/, 'The run renderer must listen for WebGL context loss.');
-requireText(recovery, /WEBGL_lose_context/, 'The run renderer must attempt direct context restoration.');
+requireText(recovery, /WEBGL_lose_context/, 'The global renderer fallback must retain direct context restoration.');
 requireText(recovery, /dungeon-veil-room-preparing/, 'Renderer loss must use the existing room save and input-freeze lifecycle.');
 requireText(recovery, /dungeon-veil-renderer-lost/, 'Renderer recovery must expose a diagnostic event.');
 requireText(recovery, /dungeon-veil-room-ready/, 'Renderer recovery must resume the engine after the visual context is ready.');
 requireText(recovery, /runRendererIsMounted\(\)/, 'Renderer recovery must depend on the mounted run renderer, not HUD visibility.');
+requireText(recovery, /primaryRecoverySignal/, 'The global renderer watchdog must observe the primary GameCanvas recovery lifecycle.');
+requireText(recovery, /queueMicrotask/, 'The fallback must wait for the synchronous primary recovery signal before acting.');
+requireText(recovery, /primaryRecoverySignal !== signalBeforePrimaryHandlers/, 'The fallback must not duplicate a primary renderer recovery.');
+requireText(recovery, /fallbackActive/, 'The global renderer recovery must be an idempotent fallback.');
 if (/RUN_HUD_SELECTOR/.test(recovery)) throw new Error('Renderer recovery must not fail when the HUD is hidden during a room transition.');
 requireText(bridge, /127\.0\.0\.1|localhost/, 'Runtime evidence controls must remain localhost-only.');
 requireText(bridge, /dungeon-veil-runtime-evidence-v1/, 'Runtime evidence controls require an explicit session marker.');
@@ -54,11 +59,15 @@ requireText(hiddenHudSpec, /hud\.style\.display = 'none'/, 'The black-room regre
 requireText(hiddenHudSpec, /pageIdentity/, 'The hidden-HUD regression must prove recovery occurred without a fallback page reload.');
 requireText(hiddenHudSpec, /saveReason\)\.toBe\('dungeon-session'\)/, 'The hidden-HUD regression must prove the real Solo run was saved.');
 requireText(hiddenHudSpec, /frozen\.hp.*armed\.hp/s, 'The hidden-HUD regression must prove HP remains frozen while the renderer is unavailable.');
+requireText(hiddenHudSpec, /evidence\.preparing.*toBe\(1\)/s, 'Renderer recovery must emit exactly one preparing lifecycle.');
+requireText(hiddenHudSpec, /evidence\.lost.*toBe\(1\)/s, 'Renderer recovery must emit exactly one loss lifecycle.');
+requireText(hiddenHudSpec, /evidence\.ready.*toBe\(1\)/s, 'Renderer recovery must emit exactly one recovered lifecycle.');
 requireText(postClearSpec, /\[13, 16, 19\]/, 'All rune-storm rooms must be covered by post-clear regression evidence.');
 requireText(postClearSpec, /rune-warning-/, 'The post-clear regression must arm a real rune storm before killing enemies.');
 requireText(postClearSpec, /killLivingEnemies/, 'The post-clear regression must remove the final living enemies.');
 requireText(postClearSpec, /settled\.hp.*armed\.hp/s, 'The post-clear regression must prove player HP cannot change afterward.');
 requireText(config, /post-clear-player-hazards/, 'The complete browser matrix must include post-clear player hazard regressions.');
+requireText(workflow, /tests\/post-clear-player-hazards\.spec\.mjs/, 'The GitHub workflow must execute post-clear player hazard evidence.');
 requireText(config, /video: \{ mode: 'on'/, 'Successful evidence runs must always record video.');
 requireText(config, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-landscape-webkit[\s\S]*desktop-chromium/, 'The complete four-device matrix is required.');
 
