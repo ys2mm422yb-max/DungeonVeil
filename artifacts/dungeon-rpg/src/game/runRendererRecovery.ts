@@ -1,5 +1,5 @@
 const RUN_HOST_SELECTOR = '[data-testid="run-three-host"]';
-const PRIMARY_RECOVERY_GRACE_MS = 1_800;
+const PRIMARY_RECOVERY_GRACE_MS = 5_000;
 
 declare global {
   interface Window {
