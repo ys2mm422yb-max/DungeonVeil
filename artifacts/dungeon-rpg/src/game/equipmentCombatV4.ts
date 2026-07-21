@@ -1,5 +1,6 @@
 import type { GameEngine } from './runEngine';
 import { loadMetaProgression, type MetaProgression } from './metaProgression';
+import { isQuiverEquipped } from './optionalLoadout';
 import {
   ACTIVE_EQUIPMENT,
   ACTIVE_EQUIPMENT_SLOTS,
@@ -57,6 +58,7 @@ export function redesignedEquipmentCombatModifiers(meta?: MetaProgression): Rede
 
   let critDamageBonus = 0;
   for (const slot of ACTIVE_EQUIPMENT_SLOTS) {
+    if (slot === 'quiver' && !isQuiverEquipped()) continue;
     const id = live.equipped[slot];
     if (!isActiveEquipmentId(id) || ACTIVE_EQUIPMENT[id].slot !== slot) continue;
     const level = Math.max(1, Math.min(5, live.owned[id]?.level ?? 1));
