@@ -1,6 +1,7 @@
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 import { attachBowToRanger, type BowRig } from './bowRig';
 import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
+import { isQuiverEquipped } from '../game/optionalLoadout';
 
 const KAYKIT_ROOT = '/assets/kaykit';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
@@ -149,13 +150,14 @@ function buildArrowPrototype(THREE: any) {
 export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
   const meta = loadMetaProgression();
+  const quiverEnabled = isQuiverEquipped();
   const quiverId = meta.equipped.quiver;
   const talismanId = meta.equipped.talisman;
-  const quiverVariant = quiverId === 'ranger-quiver' ? null : EQUIPMENT[quiverId];
+  const quiverVariant = quiverEnabled && quiverId !== 'ranger-quiver' ? EQUIPMENT[quiverId] : null;
   const talismanDefinition = EQUIPMENT[talismanId];
   const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, weapons, quiverVariantGltf, talismanGltf] = await Promise.all([
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver),
+    quiverEnabled && quiverId === 'ranger-quiver' ? loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver) : Promise.resolve(null),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),
@@ -194,11 +196,11 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   }
 
   prepareModel(weapons.bow);
-  prepareModel(quiverGltf.scene);
+  if (quiverGltf?.scene) prepareModel(quiverGltf.scene);
   const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   const chest = findBone(visual, ['spine2', 'chest', 'spine1']);
-  attachQuiver(spine, quiverGltf.scene);
+  if (quiverGltf?.scene) attachQuiver(spine, quiverGltf.scene);
   if (quiverVariantGltf && (quiverId === 'black-quiver' || quiverId === 'rune-quiver')) {
     attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
   }
