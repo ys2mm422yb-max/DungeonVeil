@@ -1,0 +1,60 @@
+name: Extract Complete Android Evidence
+
+on:
+  push:
+    branches:
+      - evidence/extract-complete-29872616605
+    paths:
+      - '.github/workflows/extract-complete-android-evidence.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download exact Android complete-runtime artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: complete-runtime-evidence-android-chromium
+          path: source
+          repository: ys2mm422yb-max/DungeonVeil
+          run-id: 29872616605
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Select manifest and critical visual evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p selected
+          manifest=$(find source -type f -name complete-runtime-results.json -print -quit)
+          test -n "$manifest"
+          cp "$manifest" selected/complete-runtime-results.json
+          for name in \
+            post-clear-rune-room-13-android-chromium.png \
+            post-clear-rune-room-16-android-chromium.png \
+            post-clear-rune-room-19-android-chromium.png \
+            solo-room-21-android-chromium.png \
+            solo-room-41-android-chromium.png \
+            solo-room-50-android-chromium.png \
+            duo-room-21-android-chromium.png \
+            duo-room-41-android-chromium.png \
+            duo-room-50-android-chromium.png \
+            webgl-recovered-hidden-hud-android-chromium.png \
+            webgl-recovered-room-13-android-chromium.png; do
+            file=$(find source -type f -name "$name" -print -quit)
+            test -n "$file"
+            cp "$file" "selected/$name"
+          done
+          printf 'selected files:\n'
+          find selected -maxdepth 1 -type f -printf '%f\n' | sort
+      - name: Upload compact Android evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: compact-complete-runtime-android-29872616605
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+          path: selected
