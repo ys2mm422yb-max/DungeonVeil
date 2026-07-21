@@ -25,6 +25,7 @@ import { installRoomReadyFailureGuard } from './game/roomReadyFailureGuard';
 import { installRunRendererRecovery } from './game/runRendererRecovery';
 import { installRuntimeEvidenceBridge } from './game/runtimeEvidenceBridge';
 import { startVersionGuard } from './game/versionGuard';
+import { LanguageProvider } from './i18n/LanguageContext';
 
 import './index.css';
 import './guild-mobile.css';
@@ -60,5 +61,7 @@ const qaView = qaMode === 'worldboss'
             : qaMode === 'menu'
               ? <MainMenuVisualQa />
               : null;
-const appView = qaView ?? <><App /><GlobalLoadingLayer /><UnlockPresentationLayer /></>;
+const appView = qaView
+  ? <LanguageProvider>{qaView}</LanguageProvider>
+  : <><App /><GlobalLoadingLayer /><UnlockPresentationLayer /></>;
 createRoot(document.getElementById('root')!).render(appView);
