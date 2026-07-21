@@ -3,7 +3,6 @@ import type { GameState } from './runEngine';
 import { GameEngine } from './runEngine';
 
 const MARKER = 'dungeon-veil-runtime-evidence-v1';
-const GLOBAL_KEY = '__dungeonVeilRuntimeEvidence';
 
 type EvidenceMode = 'solo' | 'duo';
 
@@ -188,5 +187,4 @@ export function installRuntimeEvidenceBridge(): void {
     currentEngine = this;
     return update.apply(this, args);
   };
-  (window as Window & Record<string, unknown>)[GLOBAL_KEY] = true;
 }
