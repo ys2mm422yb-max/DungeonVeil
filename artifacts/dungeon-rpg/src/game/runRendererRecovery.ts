@@ -34,6 +34,7 @@ function announceLost(canvas: HTMLCanvasElement, reason: string): void {
   html.dataset.dungeonVeilRendererState = 'recovering';
   html.dataset.dungeonVeilRendererReason = reason;
   lostSince = performance.now();
+  window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { rendererRecovery: true, reason } }));
   window.dispatchEvent(new CustomEvent('dungeon-veil-renderer-lost', { detail: { reason } }));
 
   const gl = contextFor(canvas);
@@ -49,7 +50,7 @@ function announceLost(canvas: HTMLCanvasElement, reason: string): void {
       announceRestored('context-became-available');
       return;
     }
-    // The page-level handler saves/freezes the current run before this fallback.
+    // The existing room-preparing listener has already saved the active run and stopped input.
     // Reloading is reserved for a renderer that did not recover after several seconds.
     window.location.reload();
   }, 5_500);
