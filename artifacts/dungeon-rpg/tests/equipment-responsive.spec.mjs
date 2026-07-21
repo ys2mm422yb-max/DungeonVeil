@@ -30,7 +30,13 @@ async function seedEquipmentState(page) {
       rewardLedger: [],
       currentRunId: '',
     }));
+    localStorage.setItem('dungeon-veil-optional-equipment-v1', JSON.stringify({ version: 1, equipped: { quiver: true }, updatedAt: Date.now() }));
   });
+}
+
+async function pointer(locator) {
+  await expect(locator).toBeVisible();
+  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
 }
 
 test('equipment uses a real tablet and desktop workspace without breaking mobile', async ({ page }, testInfo) => {
@@ -69,6 +75,26 @@ test('equipment uses a real tablet and desktop workspace without breaking mobile
     expect(layout.shellWidth).toBeGreaterThanOrEqual(layout.viewportWidth - 40);
     expect(layout.shellWidth).toBeLessThanOrEqual(layout.viewportWidth);
   }
-
   await page.screenshot({ path: `test-results/equipment-responsive-${testInfo.project.name}.png`, fullPage: false });
+
+  await pointer(page.getByTestId('inventory-tab-quiver'));
+  await expect(page.locator('[data-equipment-preview-kind="quiver"]')).toBeVisible({ timeout: 60_000 });
+  const itemName = page.getByRole('heading', { name: /Reichweitenköcher|Range Quiver/i });
+  await expect(itemName).toBeVisible();
+  const nameLayout = await itemName.evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    const parentRect = node.parentElement?.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      parentLeft: parentRect?.left ?? rect.left,
+      parentRight: parentRect?.right ?? rect.right,
+      scrollWidth: node.scrollWidth,
+      clientWidth: node.clientWidth,
+    };
+  });
+  expect(nameLayout.left).toBeGreaterThanOrEqual(nameLayout.parentLeft - 1);
+  expect(nameLayout.right).toBeLessThanOrEqual(nameLayout.parentRight + 1);
+  expect(nameLayout.scrollWidth).toBeLessThanOrEqual(nameLayout.clientWidth + 1);
+  await page.screenshot({ path: `test-results/equipment-responsive-quiver-${testInfo.project.name}.png`, fullPage: false });
 });
