@@ -1,0 +1,81 @@
+.dv-main-menu-scene {
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(92, 48, 150, 0.24), rgba(24, 14, 37, 0.1) 42%, #050208 82%);
+}
+
+.dv-main-menu-ambient-blur {
+  opacity: 0.14 !important;
+  filter: blur(24px) saturate(0.72) contrast(1.02) brightness(0.7) !important;
+  transform: scale(1.04);
+}
+
+.dv-main-menu-ambient-portal {
+  opacity: 0.24 !important;
+  filter: saturate(0.78) contrast(0.98) brightness(0.72) blur(0.5px) !important;
+}
+
+.dv-main-menu-live-frame {
+  position: absolute;
+  inset: -18%;
+  transform-origin: 50% 86%;
+  transform: translate3d(0, 1.5%, 0) scale(0.66);
+  will-change: transform;
+}
+
+.dv-main-menu-live-frame canvas {
+  filter: saturate(0.82) contrast(1.04) brightness(0.91);
+}
+
+.dv-main-menu-grounding {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: 20%;
+  height: 22%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(8, 5, 12, 0.02) 0%, rgba(3, 2, 5, 0.42) 54%, rgba(2, 1, 4, 0) 76%);
+  filter: blur(18px);
+  pointer-events: none;
+}
+
+@media (max-aspect-ratio: 3 / 4) {
+  .dv-main-menu-live-frame {
+    inset: -25%;
+    transform-origin: 50% 87%;
+    transform: translate3d(0, 2.25%, 0) scale(0.575);
+  }
+
+  .dv-main-menu-grounding {
+    left: 10%;
+    right: 10%;
+    bottom: 19%;
+  }
+}
+
+@media (max-width: 430px) and (max-aspect-ratio: 3 / 4) {
+  .dv-main-menu-live-frame {
+    inset: -27%;
+    transform: translate3d(0, 2.5%, 0) scale(0.555);
+  }
+
+  .dv-main-menu-ambient-portal {
+    opacity: 0.2 !important;
+  }
+}
+
+@media (min-width: 768px) and (min-aspect-ratio: 3 / 4) {
+  .dv-main-menu-live-frame {
+    inset: -13%;
+    transform-origin: 50% 84%;
+    transform: translate3d(0, 1%, 0) scale(0.72);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dv-main-menu-ambient-blur,
+  .dv-main-menu-ambient-portal,
+  .dv-main-menu-live-frame {
+    transition: none !important;
+  }
+}
