@@ -3,7 +3,6 @@ name: Complete Runtime Evidence QA
 on:
   push:
     branches:
-      - fix/rooms-13-50-black-ghost-damage-v1
       - fix/mobile-telegraphs-room-21-50-balance
     paths:
       - '.github/workflows/complete-runtime-evidence-qa.yml'
