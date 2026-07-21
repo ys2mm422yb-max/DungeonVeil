@@ -1,0 +1,6 @@
+@media (min-width: 768px) {
+  .w-full.max-w-sm:has(> [data-testid='guild-social-panel']),
+  .w-full.max-w-sm:has(> [data-testid='mailbox-panel']) {
+    max-width: min(42rem, calc(100vw - 3rem));
+  }
+}
