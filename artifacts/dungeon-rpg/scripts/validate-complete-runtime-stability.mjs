@@ -34,6 +34,9 @@ requireText(recovery, /runRendererIsMounted\(\)/, 'Renderer recovery must depend
 requireText(recovery, /primaryRecoverySignal/, 'The global renderer watchdog must observe the primary GameCanvas recovery lifecycle.');
 requireText(recovery, /queueMicrotask/, 'The fallback must wait for the synchronous primary recovery signal before acting.');
 requireText(recovery, /primaryRecoverySignal !== signalBeforePrimaryHandlers/, 'The fallback must not duplicate a primary renderer recovery.');
+requireText(recovery, /PRIMARY_RECOVERY_GRACE_MS/, 'The primary renderer recovery must receive a bounded grace period.');
+requireText(recovery, /primaryRecoveryStartedAt/, 'The watchdog must track when the primary recovery started.');
+requireText(recovery, /!primaryRecoveryHasGrace/, 'The watchdog must not race the primary renderer remount.');
 requireText(recovery, /fallbackActive/, 'The global renderer recovery must be an idempotent fallback.');
 if (/RUN_HUD_SELECTOR/.test(recovery)) throw new Error('Renderer recovery must not fail when the HUD is hidden during a room transition.');
 requireText(bridge, /127\.0\.0\.1|localhost/, 'Runtime evidence controls must remain localhost-only.');
