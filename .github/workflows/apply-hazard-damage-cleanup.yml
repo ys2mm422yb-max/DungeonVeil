@@ -1,0 +1,73 @@
+name: Apply Hazard Damage Cleanup
+
+on:
+  push:
+    branches:
+      - fix/rooms-13-50-black-ghost-damage-v1
+    paths:
+      - '.github/workflows/apply-hazard-damage-cleanup.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-hazard-damage-cleanup
+  cancel-in-progress: false
+
+jobs:
+  apply-cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/rooms-13-50-black-ghost-damage-v1
+          fetch-depth: 0
+      - name: Apply exact cleanup patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          bridge_path = Path('artifacts/dungeon-rpg/src/components/GameSessionBridge.tsx')
+          bridge = bridge_path.read_text()
+          old_constants = "const PLAYER_HAZARD_EFFECT_PREFIXES = ['rune-warning-', 'rune-impact-', 'forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-'];\n"
+          new_constants = old_constants + "const PLAYER_HAZARD_DAMAGE_PREFIXES = ['rune-hit-', 'forge-text-', 'arc-text-', 'core-text-'];\n"
+          if bridge.count(old_constants) != 1:
+              raise SystemExit('Expected exactly one hazard effect constant marker')
+          bridge = bridge.replace(old_constants, new_constants, 1)
+
+          old_cleanup = "function clearPostCombatHazards(engine: GameEngine): void {\n  engine.state.effects = engine.state.effects.filter(effect => !PLAYER_HAZARD_EFFECT_PREFIXES.some(prefix => effect.id.startsWith(prefix)));\n}\n"
+          new_cleanup = "function clearPostCombatHazards(engine: GameEngine): void {\n  engine.state.effects = engine.state.effects.filter(effect => !PLAYER_HAZARD_EFFECT_PREFIXES.some(prefix => effect.id.startsWith(prefix)));\n  engine.state.damageNumbers = engine.state.damageNumbers.filter(number => !PLAYER_HAZARD_DAMAGE_PREFIXES.some(prefix => number.id.startsWith(prefix)));\n}\n"
+          if bridge.count(old_cleanup) != 1:
+              raise SystemExit('Expected exactly one post-combat cleanup function')
+          bridge_path.write_text(bridge.replace(old_cleanup, new_cleanup, 1))
+
+          validator_path = Path('artifacts/dungeon-rpg/scripts/validate-complete-runtime-stability.mjs')
+          validator = validator_path.read_text()
+          marker = "requireText(sessionBridge, /clearPostCombatHazards/, 'Post-combat player hazard visuals must be removed.');\n"
+          addition = marker + "requireText(sessionBridge, /PLAYER_HAZARD_DAMAGE_PREFIXES[\\s\\S]*rune-hit-/, 'Post-combat cleanup must identify lingering rune and room-hazard damage indicators.');\nrequireText(sessionBridge, /damageNumbers = engine\\.state\\.damageNumbers\\.filter/, 'Post-combat cleanup must remove lingering hazard damage indicators.');\n"
+          if validator.count(marker) != 1:
+              raise SystemExit('Expected exactly one post-combat validator marker')
+          validator_path.write_text(validator.replace(marker, addition, 1))
+          PY
+
+          git diff --check
+          node artifacts/dungeon-rpg/scripts/validate-complete-runtime-stability.mjs
+          git diff -- artifacts/dungeon-rpg/src/components/GameSessionBridge.tsx artifacts/dungeon-rpg/scripts/validate-complete-runtime-stability.mjs
+      - name: Commit exact product fix and remove helper
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/apply-hazard-damage-cleanup.yml
+          git add artifacts/dungeon-rpg/src/components/GameSessionBridge.tsx artifacts/dungeon-rpg/scripts/validate-complete-runtime-stability.mjs
+          mapfile -t changed < <(git diff --cached --name-only)
+          printf '%s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 3
+          printf '%s\n' "${changed[@]}" | grep -Fx '.github/workflows/apply-hazard-damage-cleanup.yml'
+          printf '%s\n' "${changed[@]}" | grep -Fx 'artifacts/dungeon-rpg/src/components/GameSessionBridge.tsx'
+          printf '%s\n' "${changed[@]}" | grep -Fx 'artifacts/dungeon-rpg/scripts/validate-complete-runtime-stability.mjs'
+          git commit -m 'Clear stale hazard damage indicators after combat'
+          git push origin HEAD:fix/rooms-13-50-black-ghost-damage-v1
