@@ -89,6 +89,12 @@ const requiredTransientMarkers = [
   "qa: 'profiles'",
   "profile, capture: '1'",
   'visual-profile-${profile}-qa-',
+  'waitForFiniteAnimations',
+  'getAnimations({ subtree: true })',
+  'Promise.allSettled(animations.map(animation => animation.finished))',
+  'expectActuallyPainted',
+  'Number(style.opacity) < 0.95',
+  'Transient surface existed in the DOM but was not visually painted',
 ];
 const requiredReducedMotionMarkers = [
   "emulateMedia({ reducedMotion: 'reduce' })",
@@ -122,7 +128,7 @@ for (const marker of requiredPaintedEvidenceMarkers) {
   if (!visualReadiness.includes(marker)) failures.push(`missing painted WebGL evidence marker: ${marker}`);
 }
 for (const marker of requiredTransientMarkers) {
-  if (!transientAudit.includes(marker)) failures.push(`missing transient visual audit marker: ${marker}`);
+  if (!transientAudit.includes(marker)) failures.push(`missing painted transient audit marker: ${marker}`);
 }
 for (const marker of requiredReducedMotionMarkers) {
   if (!reducedMotionAudit.includes(marker)) failures.push(`missing reduced-motion audit marker: ${marker}`);
@@ -134,6 +140,7 @@ if (!visualAudit.includes("from './visual-render-readiness.mjs'") || !visualAudi
 if (!visualAudit.includes('getByText(`RAUM ${room}/50`')) failures.push('visual audit does not validate the literal visible room HUD label');
 if (!roomAudit.includes("from './visual-render-readiness.mjs'") || !roomAudit.includes('waitForPaintedCanvas(page)')) failures.push('chunked room audit does not reject blank WebGL frames');
 if (!mainMenuReference.includes("from './visual-render-readiness.mjs'") || !mainMenuReference.includes('waitForLiveMenuPaint(page')) failures.push('main-menu reference does not require a painted live Ranger frame');
+if (!transientAudit.includes('await waitForFiniteAnimations(root)') || !transientAudit.includes('await ready();\n    await capture')) failures.push('transient evidence does not wait for completed animations and painted ancestors before capture');
 if (visualAudit.includes("getByTestId('live-hybrid-main-menu-frame').screenshot")) failures.push('menu animation evidence reverted to clipped element screenshots');
 if (visualAudit.includes('new RegExp(`RAUM') || roomAudit.includes('new RegExp(`RAUM')) failures.push('room HUD validation reverted to an escape-sensitive dynamic regular expression');
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
@@ -158,4 +165,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, literal room HUD labels, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, animation-settled and actually painted transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, literal room HUD labels, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
