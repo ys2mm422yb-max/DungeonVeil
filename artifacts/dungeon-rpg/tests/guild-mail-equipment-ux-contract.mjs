@@ -11,6 +11,8 @@ const migration = read('../../supabase/migrations/20260721135000_mailbox_delete_
 const equipment = read('src/components/screens/VeilChamberScreenV4.tsx');
 const profileEquipment = read('src/components/ProfileEquipmentLoadout.tsx');
 const optionalState = read('src/game/optionalEquipmentState.ts');
+const cloudSync = read('src/game/cloudAccountSyncRuntime.ts');
+const saveBundle = read('src/game/persistentSaveBundle.ts');
 const runPlayer = read('src/components/kaykitPlayer3D.ts');
 const menuPlayer = read('src/components/kaykitVillagePlayer3D.ts');
 const loot = read('src/components/kaykitLoot3D.ts');
@@ -31,6 +33,13 @@ assert.match(migration, /revoke all on function public\.delete_mailbox_messages\
 assert.match(migration, /grant execute on function public\.delete_mailbox_messages\(uuid\[\]\) to authenticated/);
 
 assert.match(optionalState, /quiver: true/);
+assert.match(optionalState, /updatedAt: Date\.now\(\)/);
+assert.match(cloudSync, /OPTIONAL_EQUIPMENT_EVENT/);
+assert.match(cloudSync, /COMPANION_COLLECTION_EVENT/);
+assert.match(saveBundle, /dungeon-veil-optional-equipment-v1/);
+assert.match(saveBundle, /dungeon-veil-companion-collection-v5/);
+assert.match(saveBundle, /number\(optionalEquipment\.updatedAt\)/);
+assert.match(saveBundle, /number\(companions\.updatedAt\)/);
 assert.match(equipment, /equipment-unequip-button/);
 assert.match(equipment, /RELIKT ABLEGEN/);
 assert.match(equipment, /CompanionManagementPanel/);
@@ -47,4 +56,4 @@ assert.match(menu, /top-\[max\(76px/);
 assert.match(profile, /grid-cols-5/);
 assert.match(profile, /aria-label=\{item\.full\}/);
 
-console.log('Guild, mailbox, optional equipment, profile and loot UX contracts passed.');
+console.log('Guild, mailbox, optional equipment, profile, loot and cloud UX contracts passed.');
