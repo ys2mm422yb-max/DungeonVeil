@@ -19,9 +19,15 @@ const profile = read('src/components/PlayerProfilePanel.tsx');
 
 assert.match(mailbox, /mailbox-delete-completed/);
 assert.match(mailbox, /canDeleteMessage/);
+assert.match(mailbox, /message\.actioned_at/);
+assert.match(mailbox, /message\.read_at/);
 assert.match(mailboxClient, /rpc\/delete_mailbox_messages/);
 assert.match(migration, /mail\.user_id = v_user/);
-assert.match(migration, /mail\.kind in \('guild_invite', 'friend_request', 'reward'\)/);
+assert.match(migration, /mail\.actioned_at is not null/);
+assert.match(migration, /mail\.read_at is not null/);
+assert.match(migration, /mail\.kind in \('system', 'notice'\)/);
+assert.match(migration, /coalesce\(mail\.payload ->> 'kind', ''\) <> 'coop_invite'/);
+assert.match(migration, /revoke all on function public\.delete_mailbox_messages\(uuid\[\]\) from public, anon/);
 assert.match(migration, /grant execute on function public\.delete_mailbox_messages\(uuid\[\]\) to authenticated/);
 
 assert.match(optionalState, /quiver: true/);
