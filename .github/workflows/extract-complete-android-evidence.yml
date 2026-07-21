@@ -9,13 +9,16 @@ on:
 
 permissions:
   actions: read
-  contents: read
+  contents: write
 
 jobs:
   extract:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: evidence/extract-complete-29872616605
       - name: Download exact Android complete-runtime artifact
         uses: actions/download-artifact@v4
         with:
@@ -28,10 +31,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p selected
+          selected=diagnostics/android-29872616605
+          rm -rf "$selected"
+          mkdir -p "$selected"
           manifest=$(find source -type f -name complete-runtime-results.json -print -quit)
           test -n "$manifest"
-          cp "$manifest" selected/complete-runtime-results.json
+          cp "$manifest" "$selected/complete-runtime-results.json"
           for name in \
             post-clear-rune-room-13-android-chromium.png \
             post-clear-rune-room-16-android-chromium.png \
@@ -46,10 +51,19 @@ jobs:
             webgl-recovered-room-13-android-chromium.png; do
             file=$(find source -type f -name "$name" -print -quit)
             test -n "$file"
-            cp "$file" "selected/$name"
+            cp "$file" "$selected/$name"
           done
-          printf 'selected files:\n'
-          find selected -maxdepth 1 -type f -printf '%f\n' | sort
+          find "$selected" -maxdepth 1 -type f -printf '%f\n' | sort
+      - name: Record compact evidence on diagnostic branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add diagnostics/android-29872616605
+          git diff --cached --quiet && exit 0
+          git commit -m 'Record compact Android runtime evidence'
+          git push origin HEAD:evidence/extract-complete-29872616605
       - name: Upload compact Android evidence
         uses: actions/upload-artifact@v4
         with:
@@ -57,4 +71,4 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 9
-          path: selected
+          path: diagnostics/android-29872616605
