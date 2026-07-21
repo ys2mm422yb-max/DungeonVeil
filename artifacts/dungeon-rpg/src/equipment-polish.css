@@ -1,0 +1,18 @@
+/* Equipment detail cards must tolerate long German item names on narrow phones. */
+div:has(> [data-testid='equipment-model-preview']) + div {
+  min-width: 0;
+}
+
+div:has(> [data-testid='equipment-model-preview']) + div h2 {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.08;
+}
+
+/* Inventory previews are presentation renders, not gameplay pixel art. */
+[data-testid='equipment-model-preview'] canvas {
+  image-rendering: auto;
+  filter: saturate(1.08) contrast(1.025) brightness(1.07) drop-shadow(0 16px 28px rgba(0, 0, 0, 0.28));
+}
