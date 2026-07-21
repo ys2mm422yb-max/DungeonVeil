@@ -1,5 +1,4 @@
 const RUN_HOST_SELECTOR = '[data-testid="run-three-host"]';
-const RUN_HUD_SELECTOR = '[data-testid="run-hud"]';
 
 declare global {
   interface Window {
@@ -12,8 +11,8 @@ let restoreTimer = 0;
 let reloadTimer = 0;
 let lostSince = 0;
 
-function runIsVisible(): boolean {
-  return Boolean(document.querySelector(RUN_HUD_SELECTOR) && document.querySelector(RUN_HOST_SELECTOR));
+function runRendererIsMounted(): boolean {
+  return Boolean(document.querySelector(RUN_HOST_SELECTOR));
 }
 
 function clearRecoveryTimers(): void {
@@ -28,7 +27,7 @@ function contextFor(canvas: HTMLCanvasElement): WebGLRenderingContext | WebGL2Re
 }
 
 function announceLost(canvas: HTMLCanvasElement, reason: string): void {
-  if (!runIsVisible()) return;
+  if (!runRendererIsMounted()) return;
   const html = document.documentElement;
   if (html.dataset.dungeonVeilRendererState === 'recovering') return;
   html.dataset.dungeonVeilRendererState = 'recovering';
@@ -44,7 +43,7 @@ function announceLost(canvas: HTMLCanvasElement, reason: string): void {
   }, 180);
 
   reloadTimer = window.setTimeout(() => {
-    if (!runIsVisible()) return;
+    if (!runRendererIsMounted()) return;
     const live = contextFor(canvas);
     if (live && !live.isContextLost()) {
       announceRestored('context-became-available');
@@ -82,6 +81,7 @@ function bindCanvas(canvas: HTMLCanvasElement): void {
 function discoverCanvas(): void {
   const canvas = document.querySelector(`${RUN_HOST_SELECTOR} canvas`) as HTMLCanvasElement | null;
   if (canvas) bindCanvas(canvas);
+  else boundCanvas = null;
 }
 
 export function installRunRendererRecovery(): void {
@@ -96,7 +96,7 @@ export function installRunRendererRecovery(): void {
   window.setInterval(() => {
     discoverCanvas();
     const canvas = boundCanvas;
-    if (!canvas || !runIsVisible()) return;
+    if (!canvas || !runRendererIsMounted()) return;
     const gl = contextFor(canvas);
     if (gl?.isContextLost()) announceLost(canvas, 'webgl-context-watchdog');
     else if (lostSince && performance.now() - lostSince > 250) announceRestored('webgl-watchdog-recovered');
