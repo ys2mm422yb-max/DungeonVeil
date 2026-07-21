@@ -1,4 +1,5 @@
 const RUN_HOST_SELECTOR = '[data-testid="run-three-host"]';
+const PRIMARY_RECOVERY_GRACE_MS = 1_800;
 
 declare global {
   interface Window {
@@ -12,6 +13,7 @@ let reloadTimer = 0;
 let lostSince = 0;
 let fallbackActive = false;
 let primaryRecoverySignal = 0;
+let primaryRecoveryStartedAt = 0;
 
 function runRendererIsMounted(): boolean {
   return Boolean(document.querySelector(RUN_HOST_SELECTOR));
@@ -38,6 +40,7 @@ function markRestored(reason: string): void {
   clearRecoveryTimers();
   fallbackActive = false;
   lostSince = 0;
+  primaryRecoveryStartedAt = 0;
   const html = document.documentElement;
   html.dataset.dungeonVeilRendererState = 'ready';
   html.dataset.dungeonVeilRendererReason = reason;
@@ -111,7 +114,8 @@ export function installRunRendererRecovery(): void {
 
   window.addEventListener('dungeon-veil-renderer-lost', event => {
     primaryRecoverySignal += 1;
-    const detail = (event as CustomEvent<{ reason?: string }>).detail;
+    const detail = (event as CustomEvent<{ reason?: string; fallback?: boolean }>).detail;
+    if (!detail?.fallback) primaryRecoveryStartedAt = performance.now();
     markRecovering(detail?.reason ?? 'renderer-lost');
   });
   window.addEventListener('dungeon-veil-room-ready', event => {
@@ -129,8 +133,10 @@ export function installRunRendererRecovery(): void {
     const canvas = boundCanvas;
     if (!canvas || !runRendererIsMounted()) return;
     const gl = contextFor(canvas);
-    if (gl?.isContextLost() && !fallbackActive) announceFallbackLost(canvas, 'webgl-context-watchdog');
-    else if (fallbackActive && lostSince && gl && !gl.isContextLost() && performance.now() - lostSince > 250) announceFallbackRestored('webgl-watchdog-recovered');
+    const now = performance.now();
+    const primaryRecoveryHasGrace = primaryRecoveryStartedAt > 0 && now - primaryRecoveryStartedAt < PRIMARY_RECOVERY_GRACE_MS;
+    if (gl?.isContextLost() && !fallbackActive && !primaryRecoveryHasGrace) announceFallbackLost(canvas, 'webgl-context-watchdog');
+    else if (fallbackActive && lostSince && gl && !gl.isContextLost() && now - lostSince > 250) announceFallbackRestored('webgl-watchdog-recovered');
     const rect = canvas.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) window.dispatchEvent(new Event('resize'));
   }, 1_000);
