@@ -14,6 +14,7 @@ type RuntimeEvidenceApi = {
   moveToExit: () => Record<string, unknown> | null;
   chooseFirstGift: () => Record<string, unknown> | null;
   setMode: (mode: EvidenceMode) => void;
+  setPlayerStats: (attack: number, defense: number) => Record<string, unknown> | null;
 };
 
 declare global {
@@ -144,6 +145,16 @@ function attachApi(): void {
       return stateSnapshot(engine);
     },
     setMode,
+    setPlayerStats: (attack, defense) => {
+      const engine = currentEngine;
+      if (!engine) return null;
+      engine.state.player.attack = Math.max(1, Number(attack) || 1);
+      engine.state.player.defense = Math.max(0, Number(defense) || 0);
+      engine.state.player.hp = Math.max(engine.state.player.hp, 9_999);
+      engine.state.player.maxHp = Math.max(engine.state.player.maxHp, 9_999);
+      emit(engine);
+      return stateSnapshot(engine);
+    },
   };
 }
 
