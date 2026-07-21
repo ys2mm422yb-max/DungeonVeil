@@ -12,18 +12,19 @@ begin
     raise exception 'authentication required';
   end if;
 
-  if p_mail_ids is null or cardinality(p_mail_ids) = 0 then
+  if coalesce(cardinality(p_mail_ids), 0) = 0 then
     return 0;
   end if;
 
   delete from public.player_mailbox mail
   where mail.user_id = v_user
     and mail.id = any(p_mail_ids)
-    and not (
-      mail.actioned_at is null
-      and (
-        mail.kind in ('guild_invite', 'friend_request', 'reward')
-        or (mail.kind = 'notice' and mail.payload ->> 'kind' = 'coop_invite')
+    and (
+      mail.actioned_at is not null
+      or (
+        mail.read_at is not null
+        and mail.kind in ('system', 'notice')
+        and coalesce(mail.payload ->> 'kind', '') <> 'coop_invite'
       )
     );
 
