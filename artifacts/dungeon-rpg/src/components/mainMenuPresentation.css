@@ -4,6 +4,18 @@
     radial-gradient(ellipse at 50% 38%, rgba(82, 45, 132, 0.2), rgba(21, 13, 33, 0.09) 44%, #050208 82%);
 }
 
+.dv-main-menu-scene::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 68%, rgba(255, 190, 132, 0.055), transparent 18%),
+    radial-gradient(ellipse 39% 31% at 50% 57%, transparent 0%, transparent 52%, rgba(3, 1, 6, 0.32) 72%, transparent 86%),
+    linear-gradient(90deg, rgba(2, 1, 5, 0.58) 0%, rgba(2, 1, 5, 0.2) 19%, transparent 32%, transparent 68%, rgba(2, 1, 5, 0.2) 81%, rgba(2, 1, 5, 0.58) 100%),
+    linear-gradient(180deg, transparent 0%, transparent 37%, rgba(3, 1, 6, 0.03) 58%, rgba(3, 1, 6, 0.2) 78%, rgba(3, 1, 6, 0.4) 100%);
+}
+
 .dv-main-menu-ambient-blur {
   opacity: 0.1 !important;
   filter: blur(26px) saturate(0.68) contrast(1.01) brightness(0.64) !important;
@@ -13,21 +25,21 @@
 .dv-main-menu-ambient-portal {
   top: 0 !important;
   height: 70% !important;
-  opacity: 0.42 !important;
+  opacity: 0.5 !important;
   object-position: center top !important;
-  filter: saturate(0.72) contrast(1.04) brightness(0.72) blur(0.25px) !important;
+  filter: saturate(0.76) contrast(1.06) brightness(0.78) blur(0.18px) !important;
 }
 
 .dv-main-menu-live-frame {
   position: absolute;
   inset: 0;
   transform-origin: 50% 75%;
-  transform: translate3d(0, 0, 0) scale(0.66);
+  transform: translate3d(0, -0.75%, 0) scale(0.66);
   will-change: transform;
 }
 
 .dv-main-menu-live-frame canvas {
-  filter: saturate(0.8) contrast(1.06) brightness(0.91);
+  filter: saturate(0.84) contrast(1.07) brightness(0.98);
 }
 
 .dv-main-menu-grounding {
@@ -46,7 +58,7 @@
   .dv-main-menu-live-frame {
     inset: 0;
     transform-origin: 50% 75%;
-    transform: translate3d(0, 0.5%, 0) scale(0.59);
+    transform: translate3d(0, -1%, 0) scale(0.59);
   }
 
   .dv-main-menu-grounding {
@@ -60,12 +72,12 @@
   .dv-main-menu-live-frame {
     inset: 0;
     transform-origin: 50% 75%;
-    transform: translate3d(0, 0.75%, 0) scale(0.56);
+    transform: translate3d(0, -1.25%, 0) scale(0.56);
   }
 
   .dv-main-menu-ambient-portal {
     height: 68% !important;
-    opacity: 0.4 !important;
+    opacity: 0.48 !important;
   }
 }
 
@@ -73,7 +85,7 @@
   .dv-main-menu-live-frame {
     inset: 0;
     transform-origin: 50% 74%;
-    transform: translate3d(0, 0, 0) scale(0.72);
+    transform: translate3d(0, -0.5%, 0) scale(0.72);
   }
 }
 
