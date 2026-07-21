@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
@@ -10,6 +11,7 @@ const FULL_ROOM_CHUNKS = [
   [41, 50],
 ];
 const CRITICAL_ROOMS = [1, 5, 9, 10, 11, 19, 20, 21, 29, 30, 31, 39, 40, 41, 49, 50];
+const ROOM_EVIDENCE_DIRECTORY = 'test-results/room-evidence';
 
 function attachRuntimeMonitor(page) {
   const issues = [];
@@ -160,7 +162,8 @@ async function captureRoom(page, room, projectName) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByTestId('tutorial-overlay')).toHaveCount(0, { timeout: 20_000 });
   await waitForPaintedCanvas(page);
-  await page.screenshot({ path: `test-results/visual-room-${String(room).padStart(2, '0')}-${projectName}.png`, fullPage: false });
+  await mkdir(ROOM_EVIDENCE_DIRECTORY, { recursive: true });
+  await page.screenshot({ path: `${ROOM_EVIDENCE_DIRECTORY}/visual-room-${String(room).padStart(2, '0')}-${projectName}.png`, fullPage: false });
 }
 
 async function captureRooms(page, testInfo, rooms) {
