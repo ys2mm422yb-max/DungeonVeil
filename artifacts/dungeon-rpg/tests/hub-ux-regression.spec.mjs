@@ -147,8 +147,9 @@ test('quiver, relic and companion can be unequipped while bow and armor remain r
   await page.getByTestId('inventory-tab-companion').click({ force: true });
   await expect(page.getByTestId('companion-unequip-button')).toBeVisible();
   await page.getByTestId('companion-unequip-button').click({ force: true });
-  await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'none');
-  await expect(page.getByText(/Kein Begleiter ausgewählt|No companion selected/i)).toBeVisible();
+  const activeCompanion = page.getByTestId('companion-active-role');
+  await expect(activeCompanion).toHaveAttribute('data-companion-role', 'none');
+  await expect(activeCompanion.getByText(/Kein Begleiter ausgewählt|No companion selected/i)).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-companion-collection-v5') || '{}').activeId ?? null)).toBeNull();
   await page.screenshot({ path: `test-results/equipment-companion-unequipped-${testInfo.project.name}.png`, fullPage: false });
 
