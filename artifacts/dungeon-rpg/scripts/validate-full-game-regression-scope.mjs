@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, visualAudit, roomAudit, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
+const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-audit.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-room-chunks.spec.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../tests/visual-render-readiness.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../tests/main-menu-reference.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/transient-ui-visual-audit.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/reduced-motion-menu.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/equipment-responsive.spec.mjs', import.meta.url), 'utf8'),
@@ -65,6 +67,16 @@ const requiredRoomMarkers = [
   'fresh WebGL context',
   'visual-room-',
 ];
+const requiredPaintedEvidenceMarkers = [
+  'canvasLitCoverage',
+  'MIN_LIT_COVERAGE',
+  'MIN_PNG_BYTES_PER_CANVAS_PIXEL',
+  'canvas.screenshot()',
+  'frame.equals(previousFrame)',
+  'WebGL canvas remained blank, static or insufficiently painted',
+  'waitForPaintedCanvas',
+  'waitForLiveMenuPaint',
+];
 const requiredTransientMarkers = [
   "qa: 'states'",
   "['pause'",
@@ -105,6 +117,9 @@ for (const marker of requiredVisualMarkers) {
 for (const marker of requiredRoomMarkers) {
   if (!roomAudit.includes(marker)) failures.push(`missing chunked room audit marker: ${marker}`);
 }
+for (const marker of requiredPaintedEvidenceMarkers) {
+  if (!visualReadiness.includes(marker)) failures.push(`missing painted WebGL evidence marker: ${marker}`);
+}
 for (const marker of requiredTransientMarkers) {
   if (!transientAudit.includes(marker)) failures.push(`missing transient visual audit marker: ${marker}`);
 }
@@ -114,6 +129,10 @@ for (const marker of requiredReducedMotionMarkers) {
 for (const marker of requiredEquipmentMarkers) {
   if (!equipmentResponsive.includes(marker)) failures.push(`missing responsive equipment marker: ${marker}`);
 }
+if (!visualAudit.includes("from './visual-render-readiness.mjs'") || !visualAudit.includes('waitForLiveMenuPaint(page)') || !visualAudit.includes('waitForPaintedCanvas(page)')) failures.push('visual audit does not enforce painted WebGL evidence');
+if (!roomAudit.includes("from './visual-render-readiness.mjs'") || !roomAudit.includes('waitForPaintedCanvas(page)')) failures.push('chunked room audit does not reject blank WebGL frames');
+if (!mainMenuReference.includes("from './visual-render-readiness.mjs'") || !mainMenuReference.includes('waitForLiveMenuPaint(page')) failures.push('main-menu reference does not require a painted live Ranger frame');
+if (visualAudit.includes("getByTestId('live-hybrid-main-menu-frame').screenshot")) failures.push('menu animation evidence reverted to clipped element screenshots');
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
 if (!config.includes('visual-room-chunks')) failures.push('chunked room visual regression is not part of the browser matrix');
 if (!config.includes('transient-ui-visual-audit')) failures.push('transient UI visual regression is not part of the browser matrix');
@@ -136,4 +155,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
