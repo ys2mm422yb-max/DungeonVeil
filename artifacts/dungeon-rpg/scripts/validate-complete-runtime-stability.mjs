@@ -94,6 +94,7 @@ requireText(config, /atomic-room-readiness/, 'The complete browser matrix must i
 requireText(workflow, /tests\/post-clear-player-hazards\.spec\.mjs/, 'The GitHub workflow must execute post-clear player hazard evidence.');
 requireText(workflow, /tests\/atomic-room-readiness\.spec\.mjs/, 'The GitHub workflow must execute atomic room readiness evidence.');
 requireText(config, /video: \{ mode: 'on'/, 'Successful evidence runs must always record video.');
-requireText(config, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-portrait-webkit[\s\S]*desktop-chromium/, 'The complete four-device matrix is required and must use iPad portrait.');
+requireText(config, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-portrait-webkit[\s\S]*ipad-landscape-webkit[\s\S]*desktop-chromium/, 'The complete five-device matrix must include both iPad portrait and landscape.');
+requireText(workflow, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-portrait-webkit[\s\S]*ipad-landscape-webkit[\s\S]*desktop-chromium/, 'The GitHub workflow must execute the complete five-device matrix.');
 
 console.log('Complete runtime stability contract verified.');
