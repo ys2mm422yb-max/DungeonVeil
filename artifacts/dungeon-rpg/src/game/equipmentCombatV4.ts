@@ -12,6 +12,7 @@ import {
   activeEquipmentLevelStats,
   isActiveEquipmentId,
 } from './equipmentRedesign';
+import { isOptionalEquipmentSlotEquipped } from './optionalEquipmentState';
 
 export type RedesignedEquipmentCombatModifiers = {
   attackFlat: number;
@@ -57,6 +58,7 @@ export function redesignedEquipmentCombatModifiers(meta?: MetaProgression): Rede
 
   let critDamageBonus = 0;
   for (const slot of ACTIVE_EQUIPMENT_SLOTS) {
+    if (slot === 'quiver' && !isOptionalEquipmentSlotEquipped('quiver')) continue;
     const id = live.equipped[slot];
     if (!isActiveEquipmentId(id) || ACTIVE_EQUIPMENT[id].slot !== slot) continue;
     const level = Math.max(1, Math.min(5, live.owned[id]?.level ?? 1));
