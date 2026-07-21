@@ -26,6 +26,7 @@ import './index.css';
 import './guild-mobile.css';
 import './readability.css';
 import './equipment-polish.css';
+import './tablet-layout.css';
 
 installAccessibilitySettings();
 installControlSettings();
