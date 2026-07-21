@@ -5,24 +5,30 @@ on:
     branches: ['feat/live-hybrid-main-menu-v3', 'fix/**']
     paths:
       - '.github/workflows/main-menu-visual-regression.yml'
+      - 'artifacts/dungeon-rpg/public/assets/hall/**'
       - 'artifacts/dungeon-rpg/src/components/MainMenuDungeonScene.tsx'
       - 'artifacts/dungeon-rpg/src/components/LiveHybridMainMenuScene.tsx'
       - 'artifacts/dungeon-rpg/src/components/ProfileBadge.tsx'
       - 'artifacts/dungeon-rpg/src/components/mainMenuPresentation.css'
       - 'artifacts/dungeon-rpg/src/components/kaykitVillagePlayer3D.ts'
       - 'artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx'
+      - 'artifacts/dungeon-rpg/src/game/companionCollectionV5.ts'
+      - 'artifacts/dungeon-rpg/src/index.css'
       - 'artifacts/dungeon-rpg/tests/visual-audit.spec.mjs'
       - 'artifacts/dungeon-rpg/tests/visual-render-readiness.mjs'
   pull_request:
     branches: [main, 'fix/**', 'work/block-*']
     paths:
       - '.github/workflows/main-menu-visual-regression.yml'
+      - 'artifacts/dungeon-rpg/public/assets/hall/**'
       - 'artifacts/dungeon-rpg/src/components/MainMenuDungeonScene.tsx'
       - 'artifacts/dungeon-rpg/src/components/LiveHybridMainMenuScene.tsx'
       - 'artifacts/dungeon-rpg/src/components/ProfileBadge.tsx'
       - 'artifacts/dungeon-rpg/src/components/mainMenuPresentation.css'
       - 'artifacts/dungeon-rpg/src/components/kaykitVillagePlayer3D.ts'
       - 'artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx'
+      - 'artifacts/dungeon-rpg/src/game/companionCollectionV5.ts'
+      - 'artifacts/dungeon-rpg/src/index.css'
       - 'artifacts/dungeon-rpg/tests/visual-audit.spec.mjs'
       - 'artifacts/dungeon-rpg/tests/visual-render-readiness.mjs'
 
