@@ -223,10 +223,11 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
 
     const handleContextLost = (event: Event) => {
       event.preventDefault();
+      if (recoveringRef.current) return;
+      recoveringRef.current = true;
       let webglContextLosses = 1;
       try { webglContextLosses = (JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY) || '{}').webglContextLosses || 0) + 1; } catch {}
       updateDiagnostics('webglcontextlost', { webglContextLosses });
-      recoveringRef.current = true;
       window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { reason: 'webglcontextlost', floor: latestStateRef.current.floor, owner: 'game-canvas-recovery' } }));
       try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
       window.dispatchEvent(new CustomEvent('dungeon-veil-renderer-lost', { detail: { webglContextLosses } }));
