@@ -64,7 +64,7 @@ jobs:
   automatic-product-journeys:
     needs: product-contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -95,7 +95,6 @@ jobs:
       - name: Build branch under test
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
       - name: Run automatic journeys and screenshots
-        id: journeys
         env:
           DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
           BASE_PATH: /DungeonVeil/
@@ -109,10 +108,12 @@ jobs:
             sleep 1
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          timeout --signal=TERM --kill-after=30s 42m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+          timeout --signal=TERM --kill-after=30s 52m pnpm --dir artifacts/dungeon-rpg exec playwright test \
             --config=playwright.regression.config.mjs \
             --project=${{ matrix.project }} \
-            tests/autopilot-product-journeys.spec.mjs tests/guild-mail-equipment-visual.spec.mjs
+            tests/autopilot-product-journeys.spec.mjs \
+            tests/product-autopilot.spec.mjs \
+            tests/guild-mail-equipment-visual.spec.mjs
       - name: Upload automatic screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -180,13 +181,18 @@ jobs:
                 '',
                 'Der Fehler muss anhand des konkreten Logs oder Screenshots behoben werden. Tests dürfen nicht abgeschwächt werden.',
               ].join('\n');
-              if (previous) {
+              if (context.eventName === 'pull_request') {
+                const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: context.issue.number, per_page: 100 });
+                const oldComment = comments.find(comment => comment.user?.type === 'Bot' && comment.body?.includes(marker));
+                if (oldComment) await github.rest.issues.updateComment({ owner, repo, comment_id: oldComment.id, body });
+                else await github.rest.issues.createComment({ owner, repo, issue_number: context.issue.number, body });
+              } else if (previous) {
                 await github.rest.issues.update({ owner, repo, issue_number: previous.number, body });
                 await github.rest.issues.createComment({ owner, repo, issue_number: previous.number, body: `Erneut fehlgeschlagen auf \`${context.sha}\`: ${runUrl}` });
               } else {
                 await github.rest.issues.create({ owner, repo, title, body });
               }
-            } else if (previous) {
+            } else if (previous && context.eventName === 'push') {
               await github.rest.issues.createComment({ owner, repo, issue_number: previous.number, body: `Automatische Vollprüfung wieder grün auf \`${context.sha}\`: ${runUrl}` });
               await github.rest.issues.update({ owner, repo, issue_number: previous.number, state: 'closed', state_reason: 'completed' });
             }
