@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const SUPABASE_REST = 'https://hfndwqfghyomwapqsked.supabase.co/rest/v1/';
 
 function qaUrl(mode) {
   const url = new URL(APP_URL);
@@ -25,6 +26,63 @@ function attachRuntimeMonitor(page) {
   return issues;
 }
 
+async function installGuildApiMocks(page) {
+  const guild = {
+    id: 'qa-guild',
+    name: 'Hüter des Schleiers',
+    tag: 'VEIL',
+    description: 'Gemeinsam durchbrechen wir den Schleier. Aktive Runs, faire Beute und Hilfe für neue Waldläufer.',
+    owner_id: 'qa-owner',
+  };
+  const profiles = [
+    { id: 'qa-owner', display_name: 'Maxi', avatar_key: 'ranger', created_at: '2026-06-01T10:00:00.000Z', updated_at: '2026-07-21T12:00:00.000Z', last_active_at: new Date().toISOString() },
+    { id: 'qa-officer', display_name: 'Nyra', avatar_key: 'veil', created_at: '2026-06-02T10:00:00.000Z', updated_at: '2026-07-21T12:00:00.000Z', last_active_at: new Date(Date.now() - 90_000).toISOString() },
+    { id: 'qa-member', display_name: 'Torven', avatar_key: 'guardian', created_at: '2026-06-03T10:00:00.000Z', updated_at: '2026-07-21T12:00:00.000Z', last_active_at: new Date(Date.now() - 22 * 60_000).toISOString() },
+    { id: 'qa-away', display_name: 'Liora', avatar_key: 'ember', created_at: '2026-06-04T10:00:00.000Z', updated_at: '2026-07-21T12:00:00.000Z', last_active_at: new Date(Date.now() - 28 * 60 * 60_000).toISOString() },
+  ];
+  const members = [
+    { user_id: 'qa-owner', role: 'owner', joined_at: '2026-06-12T18:00:00.000Z' },
+    { user_id: 'qa-officer', role: 'officer', joined_at: '2026-06-18T19:30:00.000Z' },
+    { user_id: 'qa-member', role: 'member', joined_at: '2026-07-02T20:10:00.000Z' },
+    { user_id: 'qa-away', role: 'member', joined_at: '2026-07-08T11:20:00.000Z' },
+  ];
+  const messages = [
+    { id: 'qa-chat-3', guild_id: guild.id, user_id: 'qa-member', body: 'Bin dabei. Meine Rüstung ist jetzt Stufe 4.', created_at: '2026-07-21T12:08:00.000Z' },
+    { id: 'qa-chat-2', guild_id: guild.id, user_id: 'qa-owner', body: 'Ich starte danach einen Duo-Run. Einladung kommt gleich.', created_at: '2026-07-21T12:07:00.000Z' },
+    { id: 'qa-chat-1', guild_id: guild.id, user_id: 'qa-officer', body: 'Raum 30 ist frei. Wer braucht noch den Wächter?', created_at: '2026-07-21T12:05:00.000Z' },
+  ];
+
+  await page.route(`${SUPABASE_REST}**`, async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const resource = url.pathname.split('/').pop() || '';
+    const select = url.searchParams.get('select') || '';
+    let body = [];
+
+    if (resource === 'guild_members' && url.searchParams.has('user_id')) {
+      body = [{ role: 'owner', guilds: guild }];
+    } else if (resource === 'guild_members' && url.searchParams.has('guild_id')) {
+      body = members;
+    } else if (resource === 'guild_invites') {
+      body = [];
+    } else if (resource === 'guild_messages') {
+      body = request.method() === 'GET' ? messages : null;
+    } else if (resource === 'profiles' && select.includes('last_active_at')) {
+      body = profiles.map(({ id, last_active_at }) => ({ id, last_active_at }));
+    } else if (resource === 'profiles') {
+      body = profiles;
+    } else if (resource.startsWith('rpc')) {
+      body = [];
+    }
+
+    await route.fulfill({
+      status: request.method() === 'POST' && resource === 'guild_messages' ? 204 : 200,
+      contentType: 'application/json',
+      body: body === null ? '' : JSON.stringify(body),
+    });
+  });
+}
+
 async function seedUxState(page, projectName) {
   await page.addInitScript(({ ipad }) => {
     localStorage.clear();
@@ -33,6 +91,13 @@ async function seedUxState(page, projectName) {
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
     localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'standard', textSize: 'standard', updatedAt: now }));
+    localStorage.setItem('dungeon-veil-supabase-session-v1', JSON.stringify({
+      access_token: 'qa-access-token',
+      refresh_token: 'qa-refresh-token',
+      expires_at: 4102444800,
+      token_type: 'bearer',
+      user: { id: 'qa-owner', email: 'qa@dungeonveil.invalid' },
+    }));
     localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({ version: 2, initialized: true, equipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak'], relics: ['ash-eye', 'marked-claw', 'night-hunt-sigil', 'veil-heart', 'broken-guardian-crown', 'depth-rune-shard', 'world-core'], announcedEquipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak'], announcedRelics: ['ash-eye', 'marked-claw', 'night-hunt-sigil', 'veil-heart', 'broken-guardian-crown', 'depth-rune-shard', 'world-core'] }));
     localStorage.setItem('dungeon-veil-meta', JSON.stringify({
       version: 4,
@@ -84,6 +149,7 @@ async function seedUxState(page, projectName) {
 }
 
 async function gotoMenu(page, projectName) {
+  await installGuildApiMocks(page);
   await seedUxState(page, projectName);
   await page.goto(qaUrl('filled-social'), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.bringToFront();
@@ -135,19 +201,19 @@ test('filled guild, mailbox and anchored resource views are functional and revie
   await closeStandardOverlay(page);
 
   await pointer(page.getByTestId('npc-guildmaster'));
-  await expect(page.getByTestId('guild-panel')).toHaveAttribute('data-qa-filled', 'true');
-  await expect(page.getByTestId('guild-overview-tab')).toBeVisible();
+  await expect(page.getByTestId('guild-panel-shell')).toBeVisible();
+  await expect(page.getByTestId('guild-overview-tab')).toBeVisible({ timeout: 30_000 });
   await capture(page, 'visual-guild-overview-filled', testInfo.project.name);
 
-  await page.getByTestId('guild-tab-chat').click();
-  await expect(page.getByTestId('guild-chat-message')).toHaveCount(3);
+  await page.getByRole('button', { name: /^Chat$/i }).click();
+  await expect(page.getByTestId('guild-chat-message')).toHaveCount(3, { timeout: 30_000 });
   await capture(page, 'visual-guild-chat-filled', testInfo.project.name);
 
-  await page.getByTestId('guild-tab-members').click();
-  await expect(page.getByTestId('guild-member-card')).toHaveCount(4);
+  await page.getByRole('button', { name: /Mitglieder|Members/i }).click();
+  await expect(page.getByTestId('guild-member-card')).toHaveCount(4, { timeout: 30_000 });
   await capture(page, 'visual-guild-members-filled', testInfo.project.name);
 
-  await page.getByTestId('guild-tab-invite').click();
+  await page.getByRole('button', { name: /Einladen|Invite/i }).click();
   await expect(page.getByTestId('guild-invite-link-card')).toBeVisible();
   await capture(page, 'visual-guild-invite-filled', testInfo.project.name);
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
