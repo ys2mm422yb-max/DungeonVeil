@@ -22,8 +22,10 @@ const menu = read('src/components/screens/MainMenuScreen.tsx');
 const profile = read('src/components/PlayerProfilePanel.tsx');
 const autopilotSpec = read('tests/autopilot-product-journeys.spec.mjs');
 const outsideGuildSpec = read('tests/autopilot-outside-guild.spec.mjs');
+const regressionConfig = read('playwright.regression.config.mjs');
 const autopilotWorkflow = read('../../.github/workflows/product-autopilot-qa.yml');
 const focusedWorkflow = read('../../.github/workflows/guild-mail-equipment-ux.yml');
+const ipadPortraitWorkflow = read('../../.github/workflows/ipad-portrait-qa.yml');
 
 assert.match(mailbox, /mailbox-delete-completed/);
 assert.match(mailbox, /canDeleteMessage/);
@@ -106,4 +108,12 @@ assert.doesNotMatch(autopilotWorkflow, /tests\/guild-mail-equipment-visual\.spec
 assert.match(focusedWorkflow, /tests\/guild-mail-equipment-visual\.spec\.mjs/);
 assert.match(focusedWorkflow, /guild-mail-equipment-visual-\$\{\{ matrix\.project \}\}/);
 
-console.log('Guild, mailbox, optional equipment, profile, local Three runtime, signed-in outside-guild, automatic journey and cloud UX contracts passed.');
+assert.match(regressionConfig, /name: 'ipad-portrait-webkit'/);
+assert.match(regressionConfig, /viewport: \{ width: 820, height: 1180 \}/);
+assert.match(ipadPortraitWorkflow, /name: iPad Portrait QA/);
+assert.match(ipadPortraitWorkflow, /--project=ipad-portrait-webkit/);
+assert.match(ipadPortraitWorkflow, /ipad-portrait-visual-evidence/);
+assert.match(ipadPortraitWorkflow, /trace\.zip/);
+assert.match(ipadPortraitWorkflow, /\.webm/);
+
+console.log('Guild, mailbox, optional equipment, profile, local Three runtime, signed-in outside-guild, automatic journey, iPad portrait and cloud UX contracts passed.');
