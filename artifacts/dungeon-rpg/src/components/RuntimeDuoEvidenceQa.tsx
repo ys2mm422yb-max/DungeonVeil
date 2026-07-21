@@ -20,12 +20,12 @@ function cloneState(engine: GameEngine): GameState {
 
 export function RuntimeDuoEvidenceQa() {
   const engineRef = useRef<GameEngine | null>(null);
-  const [state, setState] = useState<GameState>(() => new GameEngine().state);
+  if (!engineRef.current) engineRef.current = new GameEngine();
+  const [state, setState] = useState<GameState>(() => cloneState(engineRef.current!));
 
   useEffect(() => {
     document.documentElement.dataset.dungeonVeilRunMode = 'duo';
-    const engine = new GameEngine();
-    engineRef.current = engine;
+    const engine = engineRef.current!;
     engine.onStateChange = () => setState(cloneState(engine));
     engine.startNewGame('Duo Host', 'archer');
     engine.state.player.hp = 9_999;
@@ -43,7 +43,6 @@ export function RuntimeDuoEvidenceQa() {
     frame = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(frame);
-      engineRef.current = null;
       document.documentElement.dataset.dungeonVeilRunMode = 'solo';
     };
   }, []);
