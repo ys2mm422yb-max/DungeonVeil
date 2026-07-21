@@ -32,10 +32,11 @@ const [menu, villageHub, menuSceneProxy, menuPresentation, liveMenuScene, hallAr
 const renderStart = villageScene.lastIndexOf('raf = requestAnimationFrame(loop);');
 const assetStart = villageScene.indexOf('void loadVillageAssets(');
 const playOverlayStart = menu.indexOf("{overlay === 'play'");
+const playOverlayEnd = playOverlayStart >= 0 ? menu.indexOf("{overlay === 'worldBoss'", playOverlayStart) : -1;
 const moreOverlayStart = menu.indexOf("{overlay === 'more'");
-const overlayCloseStart = menu.indexOf("{overlay !== 'guild'");
-const playOverlay = playOverlayStart >= 0 && moreOverlayStart > playOverlayStart ? menu.slice(playOverlayStart, moreOverlayStart) : '';
-const moreOverlay = moreOverlayStart >= 0 && overlayCloseStart > moreOverlayStart ? menu.slice(moreOverlayStart, overlayCloseStart) : '';
+const moreOverlayEnd = moreOverlayStart >= 0 ? menu.indexOf("{overlay && overlay !== 'profile'", moreOverlayStart) : -1;
+const playOverlay = playOverlayStart >= 0 && playOverlayEnd > playOverlayStart ? menu.slice(playOverlayStart, playOverlayEnd) : '';
+const moreOverlay = moreOverlayStart >= 0 && moreOverlayEnd > moreOverlayStart ? menu.slice(moreOverlayStart, moreOverlayEnd) : '';
 const saveEmphasisUsesProps = menu.includes("props.saveData ? 'gold' : 'dark'") && menu.includes("props.saveData ? 'dark' : 'gold'");
 const saveEmphasisUsesRefreshedSave = menu.includes("currentSaveData ? 'gold' : 'dark'") && menu.includes("currentSaveData ? 'dark' : 'gold'");
 const actionBandSeparated = menu.includes('grid-cols-2')
