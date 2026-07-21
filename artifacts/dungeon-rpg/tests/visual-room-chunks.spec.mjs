@@ -114,6 +114,10 @@ async function startFreshRun(page) {
   await waitForPaintedCanvas(page);
 }
 
+async function roomLabel(page, room) {
+  return page.getByText(`RAUM ${room}/50`, { exact: false }).first();
+}
+
 async function loadRoom(page, room) {
   await page.evaluate(nextRoom => {
     const key = 'dungeon-veil-save';
@@ -138,7 +142,7 @@ async function loadRoom(page, room) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
-  await expect(page.getByText(new RegExp(`RAUM\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
+  await expect(await roomLabel(page, room)).toBeVisible({ timeout: 30_000 });
   await waitForPaintedCanvas(page);
 }
 
@@ -166,7 +170,7 @@ async function captureRooms(page, testInfo, rooms) {
   await startFreshRun(page);
   for (const room of rooms) {
     if (room !== 1) await loadRoom(page, room);
-    await expect(page.getByText(new RegExp(`RAUM\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
+    await expect(await roomLabel(page, room)).toBeVisible({ timeout: 30_000 });
     await captureRoom(page, room, testInfo.project.name);
   }
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
