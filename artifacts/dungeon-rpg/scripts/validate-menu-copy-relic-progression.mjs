@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [credits, inventory, equipment, gates, relics, retention, daily, dailyRuntime, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, settingsPersistence, markers, unlockLayer, globalLoading, loading, sessionBridge, main] = await Promise.all([
+const [credits, inventory, equipment, gates, relics, retention, daily, dailyRuntime, reward, effects, menu, friends, guild, worldboss, quests, profile, publicProfile, weekly, bundle, syncRuntime, settingsPersistence, markers, unlockLayer, globalLoading, loading, sessionBridge, main, companions] = await Promise.all([
   read('../src/components/screens/CreditsScreen.tsx'),
   read('../src/components/screens/VeilChamberScreenV4.tsx'),
   read('../src/game/equipmentRedesign.ts'),
@@ -29,6 +29,7 @@ const [credits, inventory, equipment, gates, relics, retention, daily, dailyRunt
   read('../src/components/LoadingScreen.tsx'),
   read('../src/components/GameSessionBridge.tsx'),
   read('../src/main.tsx'),
+  read('../src/components/CompanionManagementPanel.tsx'),
 ]);
 
 const unlockChapters = [...equipment.matchAll(/unlockChapter:\s*(\d+)/g)].map(match => Number(match[1]));
@@ -40,8 +41,12 @@ const checks = [
     && inventory.includes('Ausrüstungslevel 1–5 sind dauerhaft')
     && inventory.includes('Bogen und Rüstung bleiben Pflicht')
     && inventory.includes('Köcher, Relikt und Begleiter können abgelegt werden')
+    && inventory.includes('data-testid="equipment-primary-action"')
+    && inventory.includes("data-action={item.slot === 'quiver' && itemEquipped ? 'unequip'")
+    && inventory.includes('data-testid="relic-equip-toggle"')
+    && companions.includes('data-testid="companion-unequip-button"')
     && inventory.includes('data-testid="equipment-upgrade-preview"')
-    && inventory.includes('data-testid="equipment-upgrade-costs"'), 'permanent equipment levels, their visible costs or the mandatory/optional loadout contract are unclear'],
+    && inventory.includes('data-testid="equipment-upgrade-costs"'), 'permanent equipment levels, visible upgrade costs or the mandatory/optional loadout contract are unclear'],
   [gates.includes('ACTIVE_EQUIPMENT[id].unlockChapter') && unlockChapters.length === 10 && Math.min(...unlockChapters) === 1 && Math.max(...unlockChapters) === 10 && unlockChapters.every(chapter => chapter >= 1 && chapter <= 10) && representedUnlockChapters.size >= 7, 'the ten active equipment items are not distributed through chapter 10 as intended'],
   [retention.includes("if (isBossRoom(engine.state.floor)) spawnRareRelicDrop(engine, state, 'boss'") && retention.includes('engine.state.floor === 50 ? 0.2 : 0.12'), 'boss relics are not available at every boss milestone with the intended room-50 bonus'],
   [relics.includes("'world-core'") && relics.includes("source: 'worldboss'") && reward.includes("unlockVeilRelic('world-core')"), 'world-boss-exclusive relic is missing'],
