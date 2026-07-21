@@ -18,7 +18,8 @@ import {
   loadEquipmentTargeting,
   setEquipmentWishItem,
 } from '../../game/equipmentTargeting';
-import { equipVeilRelic, loadVeilRelicProfile, VEIL_RELICS, type VeilRelicId } from '../../game/veilRelics';
+import { equipVeilRelic, loadVeilRelicProfile, unequipVeilRelic, VEIL_RELICS, type VeilRelicId } from '../../game/veilRelics';
+import { loadOptionalLoadout, OPTIONAL_LOADOUT_EVENT, setQuiverEquipped } from '../../game/optionalLoadout';
 import { initializeSeenUnlocks, markEquipmentSeen, markRelicSeen, NEW_CONTENT_EVENT, unseenEquipmentIds, unseenRelicIds } from '../../game/newContentMarkers';
 import { KayKitEquipmentPreview } from '../KayKitEquipmentPreview';
 import { EquipmentArtwork, RelicArtwork } from '../CodexArtwork';
@@ -66,6 +67,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const [meta, setMeta] = useState(loadMetaProgression);
   const [targeting, setTargeting] = useState(loadEquipmentTargeting);
   const [relics, setRelics] = useState(loadVeilRelicProfile);
+  const [optionalLoadout, setOptionalLoadout] = useState(loadOptionalLoadout);
   const [tab, setTab] = useState<ChamberTab>('bow');
   const [selected, setSelected] = useState<EquipmentId>(meta.equipped.bow);
   const [selectedRelic, setSelectedRelic] = useState<VeilRelicId | null>(relics.equipped ?? relics.owned[0] ?? null);
@@ -78,6 +80,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
     setMeta({ ...loadMetaProgression() });
     setTargeting({ ...loadEquipmentTargeting() });
     setRelics({ ...loadVeilRelicProfile() });
+    setOptionalLoadout({ ...loadOptionalLoadout() });
   };
 
   useEffect(() => {
@@ -87,11 +90,13 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
     window.addEventListener('dungeon-veil-meta-changed', refresh);
     window.addEventListener('dungeon-veil-equipment-targeting-changed', refresh);
     window.addEventListener('dungeon-veil-cloud-save-restored', refresh);
+    window.addEventListener(OPTIONAL_LOADOUT_EVENT, refresh);
     return () => {
       window.removeEventListener(NEW_CONTENT_EVENT, markers);
       window.removeEventListener('dungeon-veil-meta-changed', refresh);
       window.removeEventListener('dungeon-veil-equipment-targeting-changed', refresh);
       window.removeEventListener('dungeon-veil-cloud-save-restored', refresh);
+      window.removeEventListener(OPTIONAL_LOADOUT_EVENT, refresh);
     };
   }, []);
 
@@ -117,6 +122,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const activeRelic = selectedRelic ? VEIL_RELICS[selectedRelic] : null;
   const xpTarget = xpForNextRank(meta.rank);
   const xpPercent = Math.min(100, meta.xp / Math.max(1, xpTarget) * 100);
+  const itemEquipped = Boolean(item && meta.equipped[item.slot] === item.id && (item.slot !== 'quiver' || optionalLoadout.quiverEquipped));
 
   const blockedReason = !cost ? (de ? 'MAXIMALLEVEL ERREICHT' : 'MAXIMUM LEVEL REACHED')
     : meta.gold < cost.gold ? (de ? 'ZU WENIG GOLD' : 'NOT ENOUGH GOLD')
@@ -145,13 +151,22 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
     refresh();
     if (result.crafted) window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', { detail: { title: result.newUnlock ? (de ? 'ITEM HERGESTELLT' : 'ITEM CRAFTED') : (de ? 'KOPIE HERGESTELLT' : 'COPY CRAFTED'), text: de ? item.nameDe : item.nameEn, tone: 'relic' } }));
   };
+  const toggleEquipment = () => {
+    if (!item || !progress) return;
+    if (item.slot === 'quiver' && itemEquipped) {
+      setOptionalLoadout({ ...setQuiverEquipped(false) });
+      return;
+    }
+    setMeta({ ...equipMetaItem(item.id) });
+    if (item.slot === 'quiver') setOptionalLoadout({ ...setQuiverEquipped(true) });
+  };
 
   const wideContent = tab === 'relic' || tab === 'companion';
 
   return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#080706] text-white">
     <div className={'relative mx-auto min-h-full px-4 pb-8 pt-[max(24px,calc(env(safe-area-inset-top)+10px))] ' + (wideContent ? 'max-w-5xl' : 'max-w-md')}>
       <header className="flex gap-3"><button type="button" aria-label={de ? 'Zurück' : 'Back'} onPointerDown={event => { event.preventDefault(); onBack(); }} className="h-12 w-12 shrink-0 rounded-xl border border-white/12 bg-black/45 text-2xl">‹</button><div><div className="text-[8px] font-black tracking-[.42em] text-violet-200/45">DUNGEON VEIL</div><h1 className="font-serif text-3xl text-[#e7c37a]">{de ? 'AUSRÜSTUNG' : 'EQUIPMENT'}</h1><p className="text-[8px] tracking-[.1em] text-white/35">{de ? 'BOGEN · KÖCHER · RÜSTUNG · RELIKTE · BEGLEITER' : 'BOW · QUIVER · ARMOR · RELICS · COMPANIONS'}</p></div></header>
-      <section className="mt-5 rounded-3xl border border-violet-300/15 bg-black/52 p-4"><div className="grid grid-cols-3 gap-3 text-center"><div><div className="text-[8px] text-violet-200/45">{de ? 'RANG' : 'RANK'}</div><div className="text-3xl">{meta.rank}</div></div><div><div className="text-[8px] text-yellow-200/45">GOLD</div><div className="text-lg text-yellow-200">{meta.gold}</div></div><div><div className="text-[8px] text-amber-200/45">{de ? 'STAUB' : 'DUST'}</div><div className="text-lg text-amber-200">✦ {meta.dust}</div></div></div><div className="mt-3 h-2 rounded-full bg-white/7"><div className="h-full rounded-full bg-violet-400" style={{ width: `${xpPercent}%` }} /></div><p data-testid="equipment-permanent-progression-copy" className="mt-3 text-center text-[8px] leading-relaxed text-white/38">{de ? 'Ausrüstungslevel 1–5 sind dauerhaft. Verbesserungen kosten Gold, Itemkopien und Schleierstaub.' : 'Equipment levels 1–5 are permanent. Upgrades cost Gold, item copies and Veil Dust.'}</p></section>
+      <section className="mt-5 rounded-3xl border border-violet-300/15 bg-black/52 p-4"><div className="grid grid-cols-3 gap-3 text-center"><div><div className="text-[8px] text-violet-200/45">{de ? 'RANG' : 'RANK'}</div><div className="text-3xl">{meta.rank}</div></div><div><div className="text-[8px] text-yellow-200/45">GOLD</div><div className="text-lg text-yellow-200">{meta.gold}</div></div><div><div className="text-[8px] text-amber-200/45">{de ? 'STAUB' : 'DUST'}</div><div className="text-lg text-amber-200">✦ {meta.dust}</div></div></div><div className="mt-3 h-2 rounded-full bg-white/7"><div className="h-full rounded-full bg-violet-400" style={{ width: `${xpPercent}%` }} /></div><p data-testid="equipment-permanent-progression-copy" className="mt-3 text-center text-[8px] leading-relaxed text-white/38">{de ? 'Ausrüstungslevel 1–5 sind dauerhaft. Bogen und Rüstung bleiben Pflicht; Köcher, Relikt und Begleiter können abgelegt werden.' : 'Equipment levels 1–5 are permanent. Bow and armor stay required; quiver, relic and companion can be unequipped.'}</p></section>
       <div data-testid="equipment-category-tabs" className="mt-4 grid grid-cols-5 gap-1">{TABS.map(key => {
         const count = key === 'relic' ? newRelics.size : isEquipmentTab(key) ? [...newEquipment].filter(id => EQUIPMENT[id].slot === key).length : 0;
         const label = key === 'relic' ? (de ? 'RELIKT' : 'RELIC') : key === 'companion' ? (de ? 'BEGLEITER' : 'COMPANION') : SLOT_LABELS[key][de ? 'de' : 'en'];
@@ -177,7 +192,7 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
               <div className="mt-5 text-[7px] font-black tracking-[.2em] text-violet-100/38">{de ? 'EFFEKT IM RUN' : 'IN-RUN EFFECT'}</div>
               <h2 className="mt-2 text-xl font-black">{de ? activeRelic.nameDe : activeRelic.nameEn}</h2>
               <p className="mt-3 min-h-[64px] text-[12px] leading-relaxed text-white/65">{de ? activeRelic.descriptionDe : activeRelic.descriptionEn}</p>
-              <button type="button" disabled={relics.equipped === activeRelic.id} onPointerDown={event => { event.preventDefault(); setRelics({ ...equipVeilRelic(activeRelic.id) }); markRelicSeen(activeRelic.id); }} className="mt-5 w-full rounded-xl border border-violet-300/25 bg-violet-500/14 py-3 text-[9px] font-black disabled:border-emerald-300/15 disabled:bg-emerald-300/[.06] disabled:text-emerald-100/65">{relics.equipped === activeRelic.id ? (de ? 'AKTIV AUSGERÜSTET' : 'ACTIVE RELIC') : (de ? 'RELIKT AUSRÜSTEN' : 'EQUIP RELIC')}</button>
+              <button data-testid="relic-equip-toggle" type="button" onPointerDown={event => { event.preventDefault(); if (relics.equipped === activeRelic.id) setRelics({ ...unequipVeilRelic() }); else { setRelics({ ...equipVeilRelic(activeRelic.id) }); markRelicSeen(activeRelic.id); } }} className={`mt-5 w-full rounded-xl border py-3 text-[9px] font-black ${relics.equipped === activeRelic.id ? 'border-white/14 bg-black/28 text-white/65' : 'border-violet-300/25 bg-violet-500/14 text-violet-50'}`}>{relics.equipped === activeRelic.id ? (de ? 'RELIKT ABLEGEN' : 'UNEQUIP RELIC') : (de ? 'RELIKT AUSRÜSTEN' : 'EQUIP RELIC')}</button>
             </> : <div className="flex min-h-[340px] flex-col items-center justify-center text-center">
               <div className="flex h-24 w-24 items-center justify-center rounded-full border border-dashed border-violet-200/15 bg-violet-400/[.03] text-5xl text-violet-100/14">◆</div>
               <p className="mt-5 text-[10px] font-black tracking-[.16em] text-white/35">{de ? 'NOCH KEIN RELIKT GEBORGEN' : 'NO RELIC RECOVERED YET'}</p>
@@ -233,7 +248,8 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
               <div className="flex-1" />
               {level > 0 && <div className="mt-4 grid gap-2">
                 {cost ? <div data-testid="equipment-upgrade-preview" className="rounded-xl border border-amber-300/14 bg-amber-300/[.05] p-2.5"><div className="text-[7px] font-black text-amber-100/60">LEVEL {level} → {level + 1}</div><div className="mt-2 grid gap-1">{preview.map(row => <div key={row.key} className="flex justify-between rounded-lg bg-black/25 px-2 py-1.5 text-[8px]"><span>{VALUE_LABELS[row.key][de ? 'de' : 'en']}</span><span>{shown(row.current, row.format === 'percent')} → {shown(row.next, row.format === 'percent')} <b className="text-emerald-200">(+{shown(row.delta, row.format === 'percent')})</b></span></div>)}</div></div> : <div data-testid="equipment-upgrade-max" className="rounded-xl border border-emerald-300/14 p-3 text-center text-[8px] text-emerald-200">{de ? 'MAXIMALLEVEL' : 'MAXIMUM LEVEL'}</div>}
-                <div className="grid grid-cols-2 gap-2"><button type="button" disabled={meta.equipped[item.slot] === item.id} onPointerDown={event => { event.preventDefault(); setMeta({ ...equipMetaItem(item.id) }); }} className="rounded-xl border border-violet-300/25 bg-violet-500/14 py-3 text-[9px] font-black disabled:opacity-35">{meta.equipped[item.slot] === item.id ? (de ? 'AKTIV' : 'ACTIVE') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button data-testid="equipment-upgrade-button" type="button" disabled={!canUpgrade} onClick={event => { event.preventDefault(); event.stopPropagation(); upgrade(); }} className="rounded-xl border border-amber-300/25 bg-amber-500/12 py-3 text-[9px] font-black disabled:opacity-30">{upgrading ? '…' : cost ? (de ? 'VERBESSERN' : 'UPGRADE') : 'MAX'}</button></div>
+                <div className="grid grid-cols-2 gap-2"><button data-testid="equipment-primary-action" data-action={item.slot === 'quiver' && itemEquipped ? 'unequip' : itemEquipped ? 'active' : 'equip'} type="button" disabled={item.slot !== 'quiver' && itemEquipped} onPointerDown={event => { event.preventDefault(); toggleEquipment(); }} className={`rounded-xl border py-3 text-[9px] font-black disabled:opacity-35 ${item.slot === 'quiver' && itemEquipped ? 'border-white/14 bg-black/28 text-white/65' : 'border-violet-300/25 bg-violet-500/14'}`}>{item.slot === 'quiver' && itemEquipped ? (de ? 'ABLEGEN' : 'UNEQUIP') : itemEquipped ? (de ? 'AKTIV' : 'ACTIVE') : (de ? 'AUSRÜSTEN' : 'EQUIP')}</button><button data-testid="equipment-upgrade-button" type="button" disabled={!canUpgrade} onClick={event => { event.preventDefault(); event.stopPropagation(); upgrade(); }} className="rounded-xl border border-amber-300/25 bg-amber-500/12 py-3 text-[9px] font-black disabled:opacity-30">{upgrading ? '…' : cost ? (de ? 'VERBESSERN' : 'UPGRADE') : 'MAX'}</button></div>
+                {item.slot === 'quiver' && !optionalLoadout.quiverEquipped && meta.equipped.quiver === item.id && <div data-testid="equipment-optional-state" className="rounded-lg border border-white/8 bg-black/24 px-2 py-1.5 text-center text-[7px] text-white/42">{de ? 'KÖCHER ABGELEGT · KEIN BONUS IM NÄCHSTEN RUN' : 'QUIVER UNEQUIPPED · NO BONUS IN THE NEXT RUN'}</div>}
                 {cost && <div data-testid="equipment-upgrade-costs" className="grid grid-cols-3 gap-1 text-center text-[7px]"><span>GOLD<br />{meta.gold}/{cost.gold}</span><span>{de ? 'KOPIEN' : 'COPIES'}<br />{copies}/{cost.copies}</span><span>{de ? 'STAUB' : 'DUST'}<br />{meta.dust}/{cost.dust}</span></div>}
                 {!canUpgrade && blockedReason && <div data-testid="equipment-upgrade-disabled-reason" className="text-center text-[7px] text-red-200/70">{blockedReason}</div>}
               </div>}
