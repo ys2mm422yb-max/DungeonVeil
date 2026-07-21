@@ -36,7 +36,7 @@ requireText(recovery, /dungeon-veil-renderer-lost/, 'Renderer recovery must expo
 requireText(recovery, /dungeon-veil-room-ready/, 'Renderer recovery must resume the engine after the visual context is ready.');
 requireText(recovery, /runRendererIsMounted\(\)/, 'Renderer recovery must depend on the mounted run renderer, not HUD visibility.');
 requireText(recovery, /only synchronous webglcontextlost owner/, 'The global recovery runtime must explicitly remain watchdog-only.');
-requireText(recovery, /PRIMARY_RECOVERY_GRACE_MS/, 'The primary renderer recovery must receive a bounded grace period.');
+requireText(recovery, /PRIMARY_RECOVERY_GRACE_MS = 5_000/, 'Mobile WebKit primary remounts must receive a five-second grace period before fallback.');
 requireText(recovery, /primaryRecoveryStartedAt/, 'The watchdog must track when the primary recovery started.');
 requireText(recovery, /!primaryRecoveryHasGrace\(now\)/, 'The watchdog must not race the primary renderer remount.');
 requireText(recovery, /fallbackActive/, 'The global renderer recovery must be an idempotent fallback.');
@@ -71,8 +71,13 @@ requireText(spec, /one renderer survives uninterrupted rooms 1-50/, 'Solo and Du
 requireText(spec, /for \(let room = 1; room <= 50; room \+= 1\)/, 'The uninterrupted evidence must visit every room in sequence.');
 requireText(spec, /unexpected page reload/, 'The uninterrupted evidence must reject silent recovery reloads.');
 requireText(spec, /warningPrefix[\s\S]*expect\.poll/s, 'The room hazard regression must wait for a real visible warning instead of assuming a fixed load delay.');
+if (/waitForTimeout\(3_650\)/.test(spec)) throw new Error('Fixed room-hazard timing is not reliable across mobile renderers.');
 requireText(spec, /room hazards stop before the final enemy death animation finishes/, 'The ghost-damage regression must be tested.');
 requireText(spec, /lost WebGL context recovers/, 'The black-room recovery must be tested.');
+requireText(hiddenHudSpec, /dungeonVeilRoomBuildState = ''/, 'Recovery evidence must clear stale room readiness before loading room 13.');
+requireText(hiddenHudSpec, /__dvRoom13AtomicReady/, 'Recovery evidence must wait for room 13 atomic readiness before forcing context loss.');
+requireText(hiddenHudSpec, /dungeonVeilRoomBuildState\).*toBe\('ready'\)/, 'Recovery evidence must observe final room readiness.');
+requireText(hiddenHudSpec, /recoveryPreparing/, 'Recovery lifecycle counts must exclude unrelated normal room transitions.');
 requireText(hiddenHudSpec, /hud\.style\.display = 'none'/, 'The black-room regression must cover a hidden HUD during a room transition.');
 requireText(hiddenHudSpec, /pageIdentity/, 'The hidden-HUD regression must prove recovery occurred without a fallback page reload.');
 requireText(hiddenHudSpec, /saveReason\)\.toBe\('dungeon-session'\)/, 'The hidden-HUD regression must prove the real Solo run was saved.');
