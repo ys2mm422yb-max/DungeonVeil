@@ -6,17 +6,19 @@ const requireText = (source, pattern, message) => {
   if (!pattern.test(source)) throw new Error(message);
 };
 
-const [mechanics, recovery, bridge, duoQa, combatStage, sessionBridge, main, spec, hiddenHudSpec, postClearSpec, config, workflow] = await Promise.all([
+const [mechanics, recovery, bridge, duoQa, gameCanvas, combatStage, sessionBridge, main, spec, hiddenHudSpec, postClearSpec, atomicReadySpec, config, workflow] = await Promise.all([
   read('src/game/roomMechanics.ts'),
   read('src/game/runRendererRecovery.ts'),
   read('src/game/runtimeEvidenceBridge.ts'),
   read('src/components/RuntimeDuoEvidenceQa.tsx'),
+  read('src/components/GameCanvas.tsx'),
   read('src/components/CombatStage.tsx'),
   read('src/components/GameSessionBridge.tsx'),
   read('src/main.tsx'),
   read('tests/complete-runtime-evidence.spec.mjs'),
   read('tests/renderer-recovery-hidden-hud.spec.mjs'),
   read('tests/post-clear-player-hazards.spec.mjs'),
+  read('tests/atomic-room-readiness.spec.mjs'),
   read('playwright.complete-runtime.config.mjs'),
   read('../../.github/workflows/complete-runtime-evidence-qa.yml'),
 ]);
@@ -42,6 +44,9 @@ if (/RUN_HUD_SELECTOR/.test(recovery)) throw new Error('Renderer recovery must n
 requireText(bridge, /127\.0\.0\.1|localhost/, 'Runtime evidence controls must remain localhost-only.');
 requireText(bridge, /dungeon-veil-runtime-evidence-v1/, 'Runtime evidence controls require an explicit session marker.');
 requireText(duoQa, /remotePlayer=\{remotePlayer\}/, 'Duo runtime evidence must render a real second player path.');
+requireText(gameCanvas, /GameCanvasKayKit3D owns the only normal room-ready signal/, 'Only the atomically built Three.js room may release a normal room transition.');
+const stageRoomBody = gameCanvas.match(/const stageRoom = async \(\) => \{([\s\S]*?)\n    \};/)?.[1] ?? '';
+if (/dungeon-veil-room-ready/.test(stageRoomBody)) throw new Error('The preload stage must never emit a premature room-ready signal.');
 requireText(combatStage, /roomIdentity\(floor\)/, 'Run room titles must use the complete room bible instead of a 20-room list.');
 requireText(combatStage, /identity\.nameEn.*identity\.nameDe/, 'Room titles must follow the selected language.');
 requireText(combatStage, /data-room-title=\{roomTitle\}/, 'The runtime suite needs an explicit room-title evidence marker.');
@@ -69,8 +74,13 @@ requireText(postClearSpec, /\[13, 16, 19\]/, 'All rune-storm rooms must be cover
 requireText(postClearSpec, /rune-warning-/, 'The post-clear regression must arm a real rune storm before killing enemies.');
 requireText(postClearSpec, /killLivingEnemies/, 'The post-clear regression must remove the final living enemies.');
 requireText(postClearSpec, /settled\.hp.*armed\.hp/s, 'The post-clear regression must prove player HP cannot change afterward.');
+requireText(atomicReadySpec, /\[13, 14, 21, 41, 50\]/, 'Complex rooms across every later visual phase must be covered by atomic readiness evidence.');
+requireText(atomicReadySpec, /evidence\.ready.*toBe\(1\)/s, 'Each complex room transition must expose exactly one normal room-ready signal.');
+requireText(atomicReadySpec, /waitForPaintedCanvas/, 'Atomic room readiness must finish with a painted Three.js canvas.');
 requireText(config, /post-clear-player-hazards/, 'The complete browser matrix must include post-clear player hazard regressions.');
+requireText(config, /atomic-room-readiness/, 'The complete browser matrix must include atomic room readiness regressions.');
 requireText(workflow, /tests\/post-clear-player-hazards\.spec\.mjs/, 'The GitHub workflow must execute post-clear player hazard evidence.');
+requireText(workflow, /tests\/atomic-room-readiness\.spec\.mjs/, 'The GitHub workflow must execute atomic room readiness evidence.');
 requireText(config, /video: \{ mode: 'on'/, 'Successful evidence runs must always record video.');
 requireText(config, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-landscape-webkit[\s\S]*desktop-chromium/, 'The complete four-device matrix is required.');
 
