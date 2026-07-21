@@ -4,7 +4,7 @@ const baseURL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVe
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /(?:complete-runtime-evidence|complete-runtime-room-titles|renderer-recovery-hidden-hud|worldboss-block1|full-game-smoke)\.spec\.mjs/,
+  testMatch: /(?:complete-runtime-evidence|complete-runtime-room-titles|renderer-recovery-hidden-hud|post-clear-player-hazards|worldboss-block1|full-game-smoke)\.spec\.mjs/,
   timeout: 900_000,
   expect: { timeout: 30_000 },
   fullyParallel: false,
