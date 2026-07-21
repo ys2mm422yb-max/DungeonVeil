@@ -47,6 +47,8 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const previousFloorRef = useRef(gameState.floor);
   const lastDamageIdRef = useRef('');
   const shakeTimerRef = useRef<number | null>(null);
+  const hurtFlashTimerRef = useRef<number | null>(null);
+  const hitFlashTimerRef = useRef<number | null>(null);
   const [shakeClass, setShakeClass] = useState('');
   const [hurtFlash, setHurtFlash] = useState(false);
   const [hitFlash, setHitFlash] = useState(false);
@@ -55,6 +57,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const [runCompanion] = useState(() => activeCompanionV5());
   const runMode = readRunMode();
   const language = readLanguage();
+  const hasLivingEnemies = gameState.enemies.some(enemy => enemy.hp > 0);
   const [roomTitle, setRoomTitle] = useState(() => roomTitleFor(gameState.floor, language));
   const [showRoomTitle, setShowRoomTitle] = useState(true);
 
@@ -101,12 +104,16 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   useEffect(() => {
     const previousHp = previousHpRef.current;
     if (gameState.player.hp < previousHp) {
+      if (hurtFlashTimerRef.current !== null) window.clearTimeout(hurtFlashTimerRef.current);
       setHurtFlash(true);
       triggerShake(true);
       try { navigator.vibrate?.([24, 18, 40]); } catch {}
-      const timer = window.setTimeout(() => setHurtFlash(false), 220);
+      hurtFlashTimerRef.current = window.setTimeout(() => {
+        setHurtFlash(false);
+        hurtFlashTimerRef.current = null;
+      }, 220);
       previousHpRef.current = gameState.player.hp;
-      return () => window.clearTimeout(timer);
+      return undefined;
     }
     previousHpRef.current = gameState.player.hp;
     const latest = gameState.damageNumbers[gameState.damageNumbers.length - 1];
@@ -116,15 +123,32 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     const isHeavy = (latest.scale ?? 1) >= 1.3;
     if (!isPlayerHit) {
       triggerShake(isHeavy);
+      if (hitFlashTimerRef.current !== null) window.clearTimeout(hitFlashTimerRef.current);
       setHitFlash(true);
-      const flashTimer = window.setTimeout(() => setHitFlash(false), isHeavy ? 100 : 55);
+      hitFlashTimerRef.current = window.setTimeout(() => {
+        setHitFlash(false);
+        hitFlashTimerRef.current = null;
+      }, isHeavy ? 100 : 55);
       if (isHeavy) {
         try { navigator.vibrate?.(28); } catch {}
       }
-      return () => window.clearTimeout(flashTimer);
     }
     return undefined;
   }, [gameState.damageNumbers, gameState.player.hp]);
+
+  useEffect(() => {
+    if (!gameState.roomClearReady && hasLivingEnemies) return;
+    if (hurtFlashTimerRef.current !== null) {
+      window.clearTimeout(hurtFlashTimerRef.current);
+      hurtFlashTimerRef.current = null;
+    }
+    if (hitFlashTimerRef.current !== null) {
+      window.clearTimeout(hitFlashTimerRef.current);
+      hitFlashTimerRef.current = null;
+    }
+    setHurtFlash(false);
+    setHitFlash(false);
+  }, [gameState.roomClearReady, hasLivingEnemies]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
@@ -133,6 +157,8 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
 
   useEffect(() => () => {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
+    if (hurtFlashTimerRef.current !== null) window.clearTimeout(hurtFlashTimerRef.current);
+    if (hitFlashTimerRef.current !== null) window.clearTimeout(hitFlashTimerRef.current);
   }, []);
 
   return (
@@ -144,6 +170,8 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       data-viewport-height={viewport.height}
       data-run-companion={runCompanion?.definition.species ?? 'none'}
       data-room-title={roomTitle}
+      data-hurt-flash={hurtFlash ? 'active' : 'idle'}
+      data-hit-flash={hitFlash ? 'active' : 'idle'}
     >
       {runCompanion && <CompanionRuntimeBridge gameState={gameState} role={runCompanion.id} level={runCompanion.level} mode={runMode} />}
       <div className={`absolute inset-0 ${shakeClass}`}>
