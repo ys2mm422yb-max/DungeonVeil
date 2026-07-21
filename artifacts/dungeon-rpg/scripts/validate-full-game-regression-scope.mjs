@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, visualAudit, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
+const [config, smoke, visualAudit, roomAudit, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-audit.spec.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../tests/visual-room-chunks.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/transient-ui-visual-audit.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/reduced-motion-menu.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/equipment-responsive.spec.mjs', import.meta.url), 'utf8'),
@@ -31,9 +32,6 @@ const requiredFlows = [
   'run-dash-control',
 ];
 const requiredVisualMarkers = [
-  "Array.from({ length: 50 }",
-  '[1, 10, 20, 30, 40, 50]',
-  'visual-room-',
   'visual-main-menu-',
   'visual-main-menu-no-companion-',
   'visual-main-menu-companion-',
@@ -53,6 +51,19 @@ const requiredVisualMarkers = [
   'visual-worldboss-',
   'visual-settings-',
   'visual-credits-',
+];
+const requiredRoomMarkers = [
+  'FULL_ROOM_CHUNKS',
+  '[1, 10]',
+  '[11, 20]',
+  '[21, 30]',
+  '[31, 40]',
+  '[41, 50]',
+  '[1, 5, 9, 10, 11, 19, 20, 21, 29, 30, 31, 39, 40, 41, 49, 50]',
+  "['iphone-webkit', 'desktop-chromium']",
+  "['android-chromium', 'ipad-landscape-webkit']",
+  'fresh WebGL context',
+  'visual-room-',
 ];
 const requiredTransientMarkers = [
   "qa: 'states'",
@@ -91,6 +102,9 @@ for (const flow of requiredFlows) {
 for (const marker of requiredVisualMarkers) {
   if (!visualAudit.includes(marker)) failures.push(`missing visual audit marker: ${marker}`);
 }
+for (const marker of requiredRoomMarkers) {
+  if (!roomAudit.includes(marker)) failures.push(`missing chunked room audit marker: ${marker}`);
+}
 for (const marker of requiredTransientMarkers) {
   if (!transientAudit.includes(marker)) failures.push(`missing transient visual audit marker: ${marker}`);
 }
@@ -101,6 +115,7 @@ for (const marker of requiredEquipmentMarkers) {
   if (!equipmentResponsive.includes(marker)) failures.push(`missing responsive equipment marker: ${marker}`);
 }
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
+if (!config.includes('visual-room-chunks')) failures.push('chunked room visual regression is not part of the browser matrix');
 if (!config.includes('transient-ui-visual-audit')) failures.push('transient UI visual regression is not part of the browser matrix');
 if (!config.includes('equipment-responsive')) failures.push('responsive equipment regression is not part of the browser matrix');
 if (!config.includes('reduced-motion-menu')) failures.push('reduced-motion menu regression is not part of the browser matrix');
@@ -112,6 +127,7 @@ if (!ciWorkflow.includes('audit:assets') && !ciWorkflow.includes('Asset')) failu
 if (!smoke.includes('pageerror') || !smoke.includes('response.status() >= 400')) failures.push('runtime crash or HTTP failure monitoring is missing');
 if (!smoke.includes('scrollWidth') || !smoke.includes('horizontal overflow')) failures.push('responsive overflow validation is missing');
 if (!visualAudit.includes('pageerror') || !visualAudit.includes('WebGL.*lost')) failures.push('visual audit runtime monitoring is missing');
+if (!roomAudit.includes('pageerror') || !roomAudit.includes('WebGL.*lost')) failures.push('chunked room audit runtime monitoring is missing');
 if (!transientAudit.includes('pageerror') || !transientAudit.includes('response.status() >= 400')) failures.push('transient audit runtime monitoring is missing');
 
 if (failures.length) {
@@ -120,4 +136,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, 50 desktop and mobile rooms, critical cross-device rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
