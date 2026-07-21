@@ -11,6 +11,8 @@ const migration = read('../../supabase/migrations/20260721135000_mailbox_delete_
 const equipment = read('src/components/screens/VeilChamberScreenV4.tsx');
 const equipmentPreview = read('src/components/KayKitEquipmentPreview.tsx');
 const equipmentPolish = read('src/equipment-polish.css');
+const tabletLayout = read('src/tablet-layout.css');
+const entry = read('src/main.tsx');
 const profileEquipment = read('src/components/ProfileEquipmentLoadout.tsx');
 const optionalState = read('src/game/optionalEquipmentState.ts');
 const cloudSync = read('src/game/cloudAccountSyncRuntime.ts');
@@ -70,6 +72,11 @@ assert.match(menu, /qaState=\{qaMode \? FILLED_MAILBOX_QA_STATE : undefined\}/);
 assert.doesNotMatch(menu, /qaState=\{qaMode \? \{ signedIn: true, messages: FILLED_MAILBOX_QA \}/);
 assert.match(profile, /grid-cols-5/);
 assert.match(profile, /aria-label=\{item\.full\}/);
+assert.match(entry, /import '\.\/tablet-layout\.css';/);
+assert.match(tabletLayout, /min-width: 768px/);
+assert.match(tabletLayout, /guild-social-panel/);
+assert.match(tabletLayout, /mailbox-panel/);
+assert.match(tabletLayout, /max-width: min\(42rem, calc\(100vw - 3rem\)\)/);
 
 for (const marker of [
   'signed-out hub, solo run and duo entry remain functional',
@@ -116,4 +123,4 @@ assert.match(ipadPortraitWorkflow, /ipad-portrait-visual-evidence/);
 assert.match(ipadPortraitWorkflow, /trace\.zip/);
 assert.match(ipadPortraitWorkflow, /\.webm/);
 
-console.log('Guild, mailbox, optional equipment, profile, local Three runtime, signed-in outside-guild, automatic journey, iPad portrait and cloud UX contracts passed.');
+console.log('Guild, mailbox, optional equipment, profile, local Three runtime, signed-in outside-guild, tablet layout, automatic journey, iPad portrait and cloud UX contracts passed.');
