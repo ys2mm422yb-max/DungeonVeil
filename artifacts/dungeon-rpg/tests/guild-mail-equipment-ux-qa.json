@@ -1,9 +1,0 @@
-{
-  "contract": "guild-mail-equipment-ux-v1",
-  "target": "fix/mobile-telegraphs-room-21-50-balance",
-  "mailboxDelete": "owner-scoped-rpc",
-  "requiredEquipment": ["bow", "armor"],
-  "optionalEquipment": ["quiver", "relic", "companion"],
-  "lootModels": "actual-equipment-models",
-  "currencyPopover": "top-right-anchored"
-}
