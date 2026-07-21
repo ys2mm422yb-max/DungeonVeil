@@ -63,6 +63,9 @@ assert.match(equipmentPolish, /overflow-wrap: anywhere/);
 
 assert.match(menu, /main-menu-resource-popover/);
 assert.match(menu, /top-\[max\(76px/);
+assert.match(menu, /const FILLED_MAILBOX_QA_STATE = Object\.freeze/);
+assert.match(menu, /qaState=\{qaMode \? FILLED_MAILBOX_QA_STATE : undefined\}/);
+assert.doesNotMatch(menu, /qaState=\{qaMode \? \{ signedIn: true, messages: FILLED_MAILBOX_QA \}/);
 assert.match(profile, /grid-cols-5/);
 assert.match(profile, /aria-label=\{item\.full\}/);
 
