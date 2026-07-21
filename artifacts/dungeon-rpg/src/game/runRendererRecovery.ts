@@ -10,6 +10,8 @@ let boundCanvas: HTMLCanvasElement | null = null;
 let restoreTimer = 0;
 let reloadTimer = 0;
 let lostSince = 0;
+let fallbackActive = false;
+let primaryRecoverySignal = 0;
 
 function runRendererIsMounted(): boolean {
   return Boolean(document.querySelector(RUN_HOST_SELECTOR));
@@ -26,15 +28,29 @@ function contextFor(canvas: HTMLCanvasElement): WebGLRenderingContext | WebGL2Re
   return canvas.getContext('webgl2') ?? canvas.getContext('webgl') ?? canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
 }
 
-function announceLost(canvas: HTMLCanvasElement, reason: string): void {
-  if (!runRendererIsMounted()) return;
+function markRecovering(reason: string): void {
   const html = document.documentElement;
-  if (html.dataset.dungeonVeilRendererState === 'recovering') return;
   html.dataset.dungeonVeilRendererState = 'recovering';
   html.dataset.dungeonVeilRendererReason = reason;
+}
+
+function markRestored(reason: string): void {
+  clearRecoveryTimers();
+  fallbackActive = false;
+  lostSince = 0;
+  const html = document.documentElement;
+  html.dataset.dungeonVeilRendererState = 'ready';
+  html.dataset.dungeonVeilRendererReason = reason;
+  html.dataset.dungeonVeilRendererRecoveredAt = String(Date.now());
+}
+
+function announceFallbackLost(canvas: HTMLCanvasElement, reason: string): void {
+  if (!runRendererIsMounted() || fallbackActive) return;
+  fallbackActive = true;
   lostSince = performance.now();
-  window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { rendererRecovery: true, reason } }));
-  window.dispatchEvent(new CustomEvent('dungeon-veil-renderer-lost', { detail: { reason } }));
+  markRecovering(reason);
+  window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { rendererRecovery: true, reason, fallback: true } }));
+  window.dispatchEvent(new CustomEvent('dungeon-veil-renderer-lost', { detail: { reason, fallback: true } }));
 
   const gl = contextFor(canvas);
   const extension = gl?.getExtension('WEBGL_lose_context');
@@ -44,27 +60,23 @@ function announceLost(canvas: HTMLCanvasElement, reason: string): void {
 
   reloadTimer = window.setTimeout(() => {
     if (!runRendererIsMounted()) return;
-    const live = contextFor(canvas);
+    const liveCanvas = boundCanvas ?? canvas;
+    const live = contextFor(liveCanvas);
     if (live && !live.isContextLost()) {
-      announceRestored('context-became-available');
+      announceFallbackRestored('context-became-available');
       return;
     }
-    // The existing room-preparing listener has already saved the active run and stopped input.
-    // Reloading is reserved for a renderer that did not recover after several seconds.
+    // The room-preparing and renderer-lost listeners have already saved the active run and stopped input.
+    // Reloading remains the final fallback only when neither remount nor direct restoration succeeded.
     window.location.reload();
   }, 5_500);
 }
 
-function announceRestored(reason: string): void {
-  clearRecoveryTimers();
-  const html = document.documentElement;
-  html.dataset.dungeonVeilRendererState = 'ready';
-  html.dataset.dungeonVeilRendererReason = reason;
-  html.dataset.dungeonVeilRendererRecoveredAt = String(Date.now());
-  lostSince = 0;
+function announceFallbackRestored(reason: string): void {
+  markRestored(reason);
   window.dispatchEvent(new Event('resize'));
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { recovered: true, reason } }));
+    window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { recovered: true, reason, fallback: true } }));
   }));
 }
 
@@ -73,9 +85,17 @@ function bindCanvas(canvas: HTMLCanvasElement): void {
   boundCanvas = canvas;
   canvas.addEventListener('webglcontextlost', event => {
     event.preventDefault();
-    announceLost(canvas, 'webgl-context-lost');
+    const signalBeforePrimaryHandlers = primaryRecoverySignal;
+    queueMicrotask(() => {
+      // GameCanvas is the primary recovery owner. It synchronously emits the renderer-lost event
+      // and remounts the renderer. The global watchdog acts only when that signal never arrived.
+      if (primaryRecoverySignal !== signalBeforePrimaryHandlers) return;
+      announceFallbackLost(canvas, 'webgl-context-fallback');
+    });
   }, { passive: false });
-  canvas.addEventListener('webglcontextrestored', () => announceRestored('webgl-context-restored'));
+  canvas.addEventListener('webglcontextrestored', () => {
+    if (fallbackActive) announceFallbackRestored('webgl-context-restored');
+  });
 }
 
 function discoverCanvas(): void {
@@ -89,6 +109,17 @@ export function installRunRendererRecovery(): void {
   if (window.__dungeonVeilRunRendererRecoveryInstalled) return;
   window.__dungeonVeilRunRendererRecoveryInstalled = true;
 
+  window.addEventListener('dungeon-veil-renderer-lost', event => {
+    primaryRecoverySignal += 1;
+    const detail = (event as CustomEvent<{ reason?: string }>).detail;
+    markRecovering(detail?.reason ?? 'renderer-lost');
+  });
+  window.addEventListener('dungeon-veil-room-ready', event => {
+    const detail = (event as CustomEvent<{ recovered?: boolean; reason?: string }>).detail;
+    if (!detail?.recovered) return;
+    markRestored(detail.reason ?? 'renderer-restored');
+  });
+
   const observer = new MutationObserver(discoverCanvas);
   observer.observe(document.documentElement, { childList: true, subtree: true });
   discoverCanvas();
@@ -98,8 +129,8 @@ export function installRunRendererRecovery(): void {
     const canvas = boundCanvas;
     if (!canvas || !runRendererIsMounted()) return;
     const gl = contextFor(canvas);
-    if (gl?.isContextLost()) announceLost(canvas, 'webgl-context-watchdog');
-    else if (lostSince && performance.now() - lostSince > 250) announceRestored('webgl-watchdog-recovered');
+    if (gl?.isContextLost() && !fallbackActive) announceFallbackLost(canvas, 'webgl-context-watchdog');
+    else if (fallbackActive && lostSince && gl && !gl.isContextLost() && performance.now() - lostSince > 250) announceFallbackRestored('webgl-watchdog-recovered');
     const rect = canvas.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) window.dispatchEvent(new Event('resize'));
   }, 1_000);
