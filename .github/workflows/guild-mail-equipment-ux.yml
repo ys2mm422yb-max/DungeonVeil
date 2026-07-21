@@ -1,0 +1,56 @@
+name: Guild Mail Equipment UX
+
+on:
+  push:
+    branches: ['fix/guild-mail-equipment-currency-ux-v1']
+  pull_request:
+    branches: ['fix/mobile-telegraphs-room-21-50-balance']
+    paths:
+      - '.github/workflows/guild-mail-equipment-ux.yml'
+      - 'artifacts/dungeon-rpg/src/components/CompanionManagementPanel.tsx'
+      - 'artifacts/dungeon-rpg/src/components/MailboxPanel.tsx'
+      - 'artifacts/dungeon-rpg/src/components/PlayerProfilePanel.tsx'
+      - 'artifacts/dungeon-rpg/src/components/ProfileEquipmentLoadout.tsx'
+      - 'artifacts/dungeon-rpg/src/components/kaykitLoot3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/kaykitPlayer3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/kaykitVillagePlayer3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx'
+      - 'artifacts/dungeon-rpg/src/components/screens/VeilChamberScreenV4.tsx'
+      - 'artifacts/dungeon-rpg/src/game/companionOptionalSelection.ts'
+      - 'artifacts/dungeon-rpg/src/game/equipmentCombatV4.ts'
+      - 'artifacts/dungeon-rpg/src/game/guildMailboxOnline.ts'
+      - 'artifacts/dungeon-rpg/src/game/optionalEquipmentState.ts'
+      - 'artifacts/dungeon-rpg/src/game/profileEquipment.ts'
+      - 'artifacts/dungeon-rpg/src/game/veilRelics.ts'
+      - 'artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs'
+      - 'supabase/migrations/20260721135000_mailbox_delete_rpc.sql'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Verify focused static UX contracts
+        run: node artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs
+      - name: Typecheck full workspace
+        run: pnpm run typecheck
+      - name: Build GitHub Pages output
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Verify core audits
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:social
