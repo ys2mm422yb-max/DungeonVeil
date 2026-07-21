@@ -124,7 +124,7 @@ export async function deleteMailboxMessages(ids: string[]): Promise<number> {
   if (!currentOnlineSession() || uniqueIds.length === 0) return 0;
   const deleted = await request<number>('rpc/delete_mailbox_messages', {
     method: 'POST',
-    body: JSON.stringify({ p_ids: uniqueIds }),
+    body: JSON.stringify({ p_mail_ids: uniqueIds }),
   });
   emitMailboxChanged();
   return Math.max(0, Number(deleted) || 0);
