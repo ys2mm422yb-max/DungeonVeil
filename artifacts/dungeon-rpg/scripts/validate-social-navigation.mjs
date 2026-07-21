@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuSceneProxy, menuPresentation, liveMenuScene, menuHeroFocus, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, earlyAtmosphere, roomThemes, band] = await Promise.all([
+const [menu, villageHub, menuSceneProxy, menuPresentation, liveMenuScene, hallArt, menuHeroFocus, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, earlyAtmosphere, roomThemes, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/mainMenuPresentation.css'),
   read('../src/components/LiveHybridMainMenuScene.tsx'),
+  read('../public/assets/hall/veil-hall-hero.svg'),
   read('../src/components/MainMenuHeroFocusBridge.tsx'),
   read('../src/components/ModernVillageSquareScene.tsx'),
   read('../src/components/kaykitVillagePlayer3D.ts'),
@@ -42,20 +43,30 @@ const actionBandSeparated = menu.includes('grid-cols-2')
     || (menu.includes('min-h-[220px] flex-1') && menu.includes('main-menu-companion-navigation'))
     || (menu.includes('data-testid="main-menu-scene-focus"') && menu.includes('min-h-[300px] flex-1') && menu.includes('data-testid="main-menu-control-stack"')))
   && !menu.includes('h-[41vh]');
-const restrainedPortalComposition = menuSceneProxy.includes('dv-main-menu-ambient-portal')
+const separatedCharacterComposition = menuSceneProxy.includes('dv-main-menu-ambient-portal')
+  && menuSceneProxy.includes('assets/hall/veil-hall-hero.svg')
+  && !menuSceneProxy.includes('assets/hall/veil-hall-hero.webp')
   && menuSceneProxy.includes('object-top')
   && menuSceneProxy.includes('WebkitMaskImage')
   && menuSceneProxy.includes('maskImage')
+  && hallArt.includes('data-static-role="portal-atmosphere-only"')
+  && hallArt.includes('data-static-hero-embedded="false"')
+  && !hallArt.includes('<image')
   && menuPresentation.includes('.dv-main-menu-ambient-portal')
-  && menuPresentation.includes('height: 66% !important')
-  && menuPresentation.includes('opacity: 0.36 !important')
-  && menuPresentation.includes('brightness(0.68)')
+  && menuPresentation.includes('height: 73% !important')
+  && menuPresentation.includes('opacity: 0.68 !important')
+  && menuPresentation.includes('brightness(0.9)')
   && menuPresentation.includes('.dv-main-menu-live-frame')
-  && menuPresentation.includes('inset: 0')
-  && menuPresentation.includes('scale(0.49)')
-  && menuPresentation.includes('scale(0.46)')
+  && menuPresentation.includes('scale(0.62)')
+  && menuPresentation.includes('scale(0.6)')
   && menuPresentation.includes('transform-origin: 50% 75%')
-  && !menuPresentation.includes('inset: -');
+  && !menuPresentation.includes('inset: -')
+  && !menuPresentation.includes('mask-image: linear-gradient(to bottom, transparent')
+  && liveMenuScene.includes("renderer.domElement.style.imageRendering = 'auto'")
+  && liveMenuScene.includes("'MainMenuLiveCharacterFloor'")
+  && liveMenuScene.includes("'MainMenuLiveGroundHaze'")
+  && !liveMenuScene.includes('MainMenuLivePortalGlow')
+  && !liveMenuScene.includes('MainMenuLivePortalCore');
 const checks = [
   [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
   [menu.includes("setOverlay('play')") && playOverlay.includes('Solo-Run') && playOverlay.includes('Duo-Run') && playOverlay.includes('Weltboss') && playOverlay.includes("setOverlay('coop')") && playOverlay.includes("setOverlay('worldBoss')"), 'play mode chooser does not group solo, duo and world boss'],
@@ -79,11 +90,11 @@ const checks = [
   [emailRedirect.includes('url.origin === supabaseOrigin()') && emailRedirect.includes('PATCH_MARKER'), 'email redirect guard is not narrowly scoped or idempotent'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuSceneProxy.includes('assets/hall/veil-hall-hero.webp') && menuSceneProxy.includes('import.meta.env.BASE_URL') && menuSceneProxy.includes('LiveHybridMainMenuScene') && !menuSceneProxy.includes('ModernVillageSquareScene') && !menuSceneProxy.includes('MainMenuHeroFocusBridge'), 'main menu does not combine Pages-safe portal atmosphere with the dedicated live hybrid renderer'],
+  [menuSceneProxy.includes('import.meta.env.BASE_URL') && menuSceneProxy.includes('LiveHybridMainMenuScene') && !menuSceneProxy.includes('ModernVillageSquareScene') && !menuSceneProxy.includes('MainMenuHeroFocusBridge'), 'main menu does not combine Pages-safe character-free atmosphere with the dedicated live renderer'],
   [menuSceneProxy.includes('data-composition="live-hybrid-scene"') && menuSceneProxy.includes('data-static-role="portal-atmosphere-only"') && menuSceneProxy.includes('data-static-hero-embedded="false"') && menuSceneProxy.includes('data-key-art="ambient-gothic-portal-v1"'), 'live hybrid composition or static-hero retirement markers are missing'],
   [menuSceneProxy.includes('data-image-loaded') && menuSceneProxy.includes('data-image-failed') && menuSceneProxy.includes('naturalWidth > 0'), 'ambient menu art does not prove that real pixels loaded'],
   [menuSceneProxy.includes('SPECTATOR_RENDERER_EVENT') && menuSceneProxy.includes('setSuspended') && menuSceneProxy.includes('if (suspended) return null'), 'live hybrid menu does not preserve the exclusive spectator handoff'],
-  [restrainedPortalComposition, 'portal atmosphere or mobile hero scale is not bounded, masked and restrained'],
+  [separatedCharacterComposition, 'character-free hall, bounded mobile character scale or separated live renderer contract is missing'],
   [liveMenuScene.includes('loadKayKitVillageArcher') && liveMenuScene.includes('requestAnimationFrame(loop)') && liveMenuScene.includes('playerRig?.update(delta)') && liveMenuScene.includes('data-animation-frames'), 'equipped Ranger is not continuously animated in the live menu'],
   [liveMenuScene.includes('activeCompanionV5') && liveMenuScene.includes('COMPANION_COLLECTION_EVENT') && liveMenuScene.includes("host.dataset.companionSpecies = 'none'"), 'V5 companion selection or no-companion start state is not respected by the menu'],
   [liveMenuScene.includes('data-renderer="single-live-menu-canvas"') && liveMenuScene.includes("renderer.domElement.dataset.testid = 'live-hybrid-main-menu-canvas'"), 'single live menu canvas diagnostics are missing'],
@@ -109,4 +120,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: live hybrid Ranger, true half-scale mobile composition, V5 companion state, compact routes and rooms 1-9 Veil atmosphere remain active with one exclusive menu renderer.');
+console.log('Social/navigation audit passed: character-free hall, independently lit live Ranger, true equipped loadout, V5 companion state, compact routes and rooms 1-9 Veil atmosphere remain active with one exclusive menu renderer.');
