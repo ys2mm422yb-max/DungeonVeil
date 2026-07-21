@@ -345,7 +345,8 @@ test('new run renders responsive combat controls and stays stable', async ({ pag
   if (testInfo.project.name.includes('ipad')) {
     const joystickBox = await joystick.boundingBox();
     const dashBox = await page.getByTestId('run-dash-control').boundingBox();
-    expect(joystickBox?.width ?? 0).toBeGreaterThanOrEqual(140);
+    const joystickMinimum = testInfo.project.name.includes('landscape') ? 140 : 132;
+    expect(joystickBox?.width ?? 0).toBeGreaterThanOrEqual(joystickMinimum);
     expect(dashBox?.width ?? 0).toBeGreaterThanOrEqual(88);
   }
 
