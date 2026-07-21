@@ -36,7 +36,8 @@ const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigrat
 const guildMemberProfileRouting = guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}')
   || guildSocial.includes('onOpenMemberProfile={qaMode ? undefined : setSelectedProfileId}');
 const guildMemberProfileButton = guildPanel.includes('data-testid="guild-member-profile-button"')
-  || guildPanel.includes('testId="guild-member-profile-button"');
+  || guildPanel.includes('testId="guild-member-profile-button"')
+  || guildPanel.includes('onClick={() => onOpenMemberProfile?.(member.user_id)}');
 
 const checks = [
   [migration.includes('friend_code text') && migration.includes('profiles_friend_code_upper_uidx') && migration.includes('generate_friend_code'), 'stable unique friend-code schema is missing'],
