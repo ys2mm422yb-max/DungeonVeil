@@ -113,6 +113,7 @@ jobs:
             tests/complete-runtime-room-titles.spec.mjs \
             tests/renderer-recovery-hidden-hud.spec.mjs \
             tests/post-clear-player-hazards.spec.mjs \
+            tests/atomic-room-readiness.spec.mjs \
             tests/worldboss-block1.spec.mjs \
             tests/full-game-smoke.spec.mjs
       - name: Upload complete screenshots, videos and traces
@@ -148,7 +149,7 @@ jobs:
               '',
               `Head: \`${context.payload.pull_request.head.sha}\``,
               '',
-              'Solo und Duo Räume 1–50, Weltboss, schwarze Frames, Geisterschaden, Runenstürme nach dem letzten Gegner, versteckte Übergangs-HUDs, Raumtitel, Videos und Screenshots wurden geprüft.',
+              'Solo und Duo Räume 1–50, Weltboss, schwarze Frames, Geisterschaden, Runenstürme nach dem letzten Gegner, atomare Raumfreigabe, versteckte Übergangs-HUDs, Raumtitel, Videos und Screenshots wurden geprüft.',
               `Diagnose: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
             ].join('\n');
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
