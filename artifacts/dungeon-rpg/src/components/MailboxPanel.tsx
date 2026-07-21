@@ -61,7 +61,10 @@ function isPendingAction(message: MailboxMessage): boolean {
 }
 
 function canDeleteMessage(message: MailboxMessage): boolean {
-  return !isPendingAction(message);
+  if (message.actioned_at) return true;
+  return Boolean(message.read_at)
+    && (message.kind === 'system' || message.kind === 'notice')
+    && !isCoopInvite(message);
 }
 
 function messageIcon(message: MailboxMessage): string {
@@ -391,7 +394,7 @@ export function MailboxPanel({ language, onUnreadChange, qaState }: Props) {
                     type="button"
                     disabled={!deletable || Boolean(busyId)}
                     aria-label={deletable ? (de ? 'Nachricht löschen' : 'Delete message') : (de ? 'Zuerst bearbeiten' : 'Complete first')}
-                    title={deletable ? (de ? 'Nachricht löschen' : 'Delete message') : (de ? 'Einladung beantworten oder Belohnung einsammeln' : 'Answer the invite or claim the reward')}
+                    title={deletable ? (de ? 'Nachricht löschen' : 'Delete message') : (de ? 'Einladung beantworten, Belohnung einsammeln oder Nachricht zuerst lesen' : 'Answer, claim or read the message first')}
                     onClick={() => void deleteMessages([message.id])}
                     className="grid h-7 w-7 place-items-center rounded-lg border border-red-300/12 bg-red-400/[.04] text-[12px] text-red-100/55 active:scale-90 disabled:border-white/6 disabled:bg-black/15 disabled:text-white/14"
                   >{busyId === `delete-${message.id}` ? '…' : '×'}</button>
@@ -401,7 +404,7 @@ export function MailboxPanel({ language, onUnreadChange, qaState }: Props) {
               {coopActionable && <div className="mt-2 font-mono text-[10px] font-black tracking-[.18em] text-violet-100">{String(message.payload.invite_code)}</div>}
               {message.kind === 'reward' && <div className="mt-2 text-[8px] font-black text-amber-100/66">{Number(message.payload.xp ?? 0)} XP · {Number(message.payload.dust ?? 0)} {de ? 'Staub' : 'dust'} · {Number(message.payload.gold ?? 0)} Gold</div>}
               {message.actioned_at && <div className="mt-2 text-[7px] font-black uppercase tracking-[.16em] text-emerald-200/50">{de ? 'ERLEDIGT' : 'COMPLETED'}</div>}
-              {!deletable && <div className="mt-2 text-[6px] font-black uppercase tracking-[.12em] text-white/22">{de ? 'Vor dem Löschen zuerst bearbeiten' : 'Complete before deleting'}</div>}
+              {!deletable && <div className="mt-2 text-[6px] font-black uppercase tracking-[.12em] text-white/22">{de ? 'Vor dem Löschen zuerst bearbeiten oder lesen' : 'Complete or read before deleting'}</div>}
             </div>
           </div>
           {requestActionable && <div className="mt-3 grid grid-cols-2 gap-2">
