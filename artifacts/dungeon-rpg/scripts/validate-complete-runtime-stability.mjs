@@ -44,6 +44,7 @@ requireText(recovery, /fallbackActive/, 'The global renderer recovery must be an
 if (/RUN_HUD_SELECTOR/.test(recovery)) throw new Error('Renderer recovery must not fail when the HUD is hidden during a room transition.');
 requireText(bridge, /127\.0\.0\.1|localhost/, 'Runtime evidence controls must remain localhost-only.');
 requireText(bridge, /dungeon-veil-runtime-evidence-v1/, 'Runtime evidence controls require an explicit session marker.');
+requireText(duoQa, /<LanguageProvider>[\s\S]*<RuntimeDuoEvidenceScene \/>[\s\S]*<\/LanguageProvider>/, 'Duo runtime evidence must render inside the same language context used by the real game.');
 requireText(duoQa, /remotePlayer=\{remotePlayer\}/, 'Duo runtime evidence must render a real second player path.');
 requireText(gameCanvas, /GameCanvasKayKit3D owns the only normal room-ready signal/, 'Only the atomically built Three.js room may release a normal room transition.');
 const stageRoomBody = gameCanvas.match(/const stageRoom = async \(\) => \{([\s\S]*?)\n    \};/)?.[1] ?? '';
