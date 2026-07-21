@@ -1,0 +1,122 @@
+name: Extract Android Complete Runtime Manifest
+
+on:
+  push:
+    branches:
+      - qa/extract-android-complete-manifest-27c1012
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  extract-android-manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Download exact Android evidence artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: complete-runtime-evidence-android-chromium
+          path: downloaded
+          repository: ys2mm422yb-max/DungeonVeil
+          run-id: 29872616605
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Playwright result manifest
+        shell: bash
+        run: |
+          mkdir -p proof/images
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          function findFiles(root, predicate, results = []) {
+            for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+              const full = path.join(root, entry.name);
+              if (entry.isDirectory()) findFiles(full, predicate, results);
+              else if (predicate(entry.name, full)) results.push(full);
+            }
+            return results;
+          }
+
+          const manifests = findFiles('downloaded', (name) => name === 'complete-runtime-results.json');
+          if (manifests.length !== 1) {
+            throw new Error(`Expected exactly one complete-runtime-results.json, found ${manifests.length}`);
+          }
+
+          const manifestPath = manifests[0];
+          const data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const stats = data.stats ?? {};
+          const resultCounts = {};
+          const testCounts = {};
+
+          function walkSuites(suites = []) {
+            for (const suite of suites) {
+              for (const spec of suite.specs ?? []) {
+                for (const test of spec.tests ?? []) {
+                  testCounts[test.status] = (testCounts[test.status] ?? 0) + 1;
+                  for (const result of test.results ?? []) {
+                    resultCounts[result.status] = (resultCounts[result.status] ?? 0) + 1;
+                  }
+                }
+              }
+              walkSuites(suite.suites ?? []);
+            }
+          }
+          walkSuites(data.suites);
+
+          const summary = {
+            sourceRunId: 29872616605,
+            sourceHead: '27c1012a7811b12165655bd08d485d2c08d66146',
+            sourceArtifact: 'complete-runtime-evidence-android-chromium',
+            stats,
+            testCounts,
+            resultCounts,
+            topLevelErrors: data.errors ?? [],
+          };
+
+          fs.copyFileSync(manifestPath, 'proof/complete-runtime-results.json');
+          fs.writeFileSync('proof/validated-summary.json', JSON.stringify(summary, null, 2));
+          console.log(JSON.stringify(summary, null, 2));
+
+          const forbiddenResults = ['failed', 'timedOut', 'interrupted'];
+          const forbiddenCount = forbiddenResults.reduce((sum, key) => sum + (resultCounts[key] ?? 0), 0);
+          if (
+            stats.expected !== 25 ||
+            stats.unexpected !== 0 ||
+            stats.flaky !== 0 ||
+            (data.errors ?? []).length !== 0 ||
+            forbiddenCount !== 0
+          ) {
+            throw new Error('Android Complete Runtime manifest is not clean.');
+          }
+          NODE
+
+      - name: Collect critical visual evidence
+        shell: bash
+        run: |
+          find downloaded -type f \( \
+            -name 'post-clear-rune-room-13-android-chromium.png' -o \
+            -name 'post-clear-rune-room-16-android-chromium.png' -o \
+            -name 'post-clear-rune-room-19-android-chromium.png' -o \
+            -name 'atomic-ready-room-21-android-chromium.png' -o \
+            -name 'atomic-ready-room-41-android-chromium.png' -o \
+            -name 'atomic-ready-room-50-android-chromium.png' -o \
+            -name 'duo-room-21-android-chromium.png' -o \
+            -name 'duo-room-41-android-chromium.png' -o \
+            -name 'duo-room-50-android-chromium.png' -o \
+            -name 'webgl-recovered-hidden-hud-android-chromium.png' -o \
+            -name 'webgl-recovered-room-13-android-chromium.png' -o \
+            -name 'worldboss-frame-12.png' -o \
+            -name 'worldboss-frame-15.png' \
+          \) -exec cp --parents {} proof/images/ \;
+          test "$(find proof/images -type f | wc -l)" -ge 11
+
+      - name: Upload compact Android proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-complete-runtime-proof-27c1012
+          path: proof/**
+          if-no-files-found: error
+          retention-days: 21
