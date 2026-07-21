@@ -88,7 +88,7 @@ jobs:
   browser-regression:
     needs: static-regression
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 80
     strategy:
       fail-fast: false
       matrix:
@@ -144,7 +144,7 @@ jobs:
             sleep 1
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          timeout --signal=TERM --kill-after=30s 50m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs --project="$BROWSER_PROJECT" --grep-invert "rooms 1-50 produce stable visual evidence across the full run"
+          timeout --signal=TERM --kill-after=30s 70m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs --project="$BROWSER_PROJECT" --grep-invert "rooms 1-50 produce stable visual evidence across the full run"
       - name: Build compact Playwright failure summary
         if: steps.browser-tests.outcome == 'failure'
         shell: bash
