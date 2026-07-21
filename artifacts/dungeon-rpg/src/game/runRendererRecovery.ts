@@ -12,7 +12,6 @@ let restoreTimer = 0;
 let reloadTimer = 0;
 let lostSince = 0;
 let fallbackActive = false;
-let primaryRecoverySignal = 0;
 let primaryRecoveryStartedAt = 0;
 
 function runRendererIsMounted(): boolean {
@@ -73,8 +72,8 @@ function announceFallbackLost(canvas: HTMLCanvasElement, reason: string): void {
       announceFallbackRestored('context-became-available');
       return;
     }
-    // The room-preparing and renderer-lost listeners have already saved the active run and stopped input.
-    // Reloading remains the final fallback only when neither remount nor direct restoration succeeded.
+    // The fallback lifecycle has already saved the run and paused every combat system.
+    // Reloading remains the final option only when remount and direct restoration both fail.
     window.location.reload();
   }, 5_500);
 }
@@ -87,28 +86,8 @@ function announceFallbackRestored(reason: string): void {
   }));
 }
 
-function bindCanvas(canvas: HTMLCanvasElement): void {
-  if (boundCanvas === canvas) return;
-  boundCanvas = canvas;
-  canvas.addEventListener('webglcontextlost', event => {
-    event.preventDefault();
-    const signalBeforePrimaryHandlers = primaryRecoverySignal;
-    queueMicrotask(() => {
-      // GameCanvas is the primary recovery owner. Depending on listener registration
-      // order, its synchronous signal can arrive before or after this listener.
-      if (primaryRecoverySignal !== signalBeforePrimaryHandlers || primaryRecoveryHasGrace()) return;
-      announceFallbackLost(canvas, 'webgl-context-fallback');
-    });
-  }, { passive: false });
-  canvas.addEventListener('webglcontextrestored', () => {
-    if (fallbackActive) announceFallbackRestored('webgl-context-restored');
-  });
-}
-
 function discoverCanvas(): void {
-  const canvas = document.querySelector(`${RUN_HOST_SELECTOR} canvas`) as HTMLCanvasElement | null;
-  if (canvas) bindCanvas(canvas);
-  else boundCanvas = null;
+  boundCanvas = document.querySelector(`${RUN_HOST_SELECTOR} canvas`) as HTMLCanvasElement | null;
 }
 
 export function installRunRendererRecovery(): void {
@@ -116,8 +95,10 @@ export function installRunRendererRecovery(): void {
   if (window.__dungeonVeilRunRendererRecoveryInstalled) return;
   window.__dungeonVeilRunRendererRecoveryInstalled = true;
 
+  // GameCanvas is the only synchronous webglcontextlost owner. This global
+  // runtime observes its custom lifecycle and acts later only as a watchdog.
+  // A second native context listener caused duplicate Preparing/Lost events.
   window.addEventListener('dungeon-veil-renderer-lost', event => {
-    primaryRecoverySignal += 1;
     const detail = (event as CustomEvent<{ reason?: string; fallback?: boolean }>).detail;
     if (!detail?.fallback) primaryRecoveryStartedAt = performance.now();
     markRecovering(detail?.reason ?? 'renderer-lost');
@@ -138,8 +119,11 @@ export function installRunRendererRecovery(): void {
     if (!canvas || !runRendererIsMounted()) return;
     const gl = contextFor(canvas);
     const now = performance.now();
-    if (gl?.isContextLost() && !fallbackActive && !primaryRecoveryHasGrace(now)) announceFallbackLost(canvas, 'webgl-context-watchdog');
-    else if (fallbackActive && lostSince && gl && !gl.isContextLost() && now - lostSince > 250) announceFallbackRestored('webgl-watchdog-recovered');
+    if (gl?.isContextLost() && !fallbackActive && !primaryRecoveryHasGrace(now)) {
+      announceFallbackLost(canvas, 'webgl-context-watchdog');
+    } else if (fallbackActive && lostSince && gl && !gl.isContextLost() && now - lostSince > 250) {
+      announceFallbackRestored('webgl-watchdog-recovered');
+    }
     const rect = canvas.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) window.dispatchEvent(new Event('resize'));
   }, 1_000);
