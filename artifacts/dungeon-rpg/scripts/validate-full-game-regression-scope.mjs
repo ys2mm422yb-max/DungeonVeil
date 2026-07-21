@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
+const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference, mainEntry, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-audit.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-room-chunks.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-render-readiness.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/main-menu-reference.spec.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../tests/transient-ui-visual-audit.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/reduced-motion-menu.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/equipment-responsive.spec.mjs', import.meta.url), 'utf8'),
@@ -95,6 +96,9 @@ const requiredTransientMarkers = [
   'expectActuallyPainted',
   'Number(style.opacity) < 0.95',
   'Transient surface existed in the DOM but was not visually painted',
+  'WÄHLE DEINE GABE',
+  'RUN BEENDET',
+  "toHaveText('NEUER RUN')",
 ];
 const requiredReducedMotionMarkers = [
   "emulateMedia({ reducedMotion: 'reduce' })",
@@ -128,7 +132,7 @@ for (const marker of requiredPaintedEvidenceMarkers) {
   if (!visualReadiness.includes(marker)) failures.push(`missing painted WebGL evidence marker: ${marker}`);
 }
 for (const marker of requiredTransientMarkers) {
-  if (!transientAudit.includes(marker)) failures.push(`missing painted transient audit marker: ${marker}`);
+  if (!transientAudit.includes(marker)) failures.push(`missing painted German transient audit marker: ${marker}`);
 }
 for (const marker of requiredReducedMotionMarkers) {
   if (!reducedMotionAudit.includes(marker)) failures.push(`missing reduced-motion audit marker: ${marker}`);
@@ -140,6 +144,7 @@ if (!visualAudit.includes("from './visual-render-readiness.mjs'") || !visualAudi
 if (!visualAudit.includes('getByText(`RAUM ${room}/50`')) failures.push('visual audit does not validate the literal visible room HUD label');
 if (!roomAudit.includes("from './visual-render-readiness.mjs'") || !roomAudit.includes('waitForPaintedCanvas(page)')) failures.push('chunked room audit does not reject blank WebGL frames');
 if (!mainMenuReference.includes("from './visual-render-readiness.mjs'") || !mainMenuReference.includes('waitForLiveMenuPaint(page')) failures.push('main-menu reference does not require a painted live Ranger frame');
+if (!mainEntry.includes("if (qaMode === 'states') localStorage.setItem('dungeon-veil-language', 'de')")) failures.push('transient QA language is not seeded before the LanguageProvider renders');
 if (!transientAudit.includes('await waitForFiniteAnimations(root)') || !transientAudit.includes('await ready();\n    await capture')) failures.push('transient evidence does not wait for completed animations and painted ancestors before capture');
 if (visualAudit.includes("getByTestId('live-hybrid-main-menu-frame').screenshot")) failures.push('menu animation evidence reverted to clipped element screenshots');
 if (visualAudit.includes('new RegExp(`RAUM') || roomAudit.includes('new RegExp(`RAUM')) failures.push('room HUD validation reverted to an escape-sensitive dynamic regular expression');
@@ -165,4 +170,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, animation-settled and actually painted transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, literal room HUD labels, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, animation-settled, actually painted and explicitly German transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, literal room HUD labels, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
