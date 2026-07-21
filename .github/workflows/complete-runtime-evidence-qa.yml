@@ -70,6 +70,8 @@ jobs:
             browser: chromium
           - project: ipad-portrait-webkit
             browser: webkit
+          - project: ipad-landscape-webkit
+            browser: webkit
           - project: desktop-chromium
             browser: chromium
     steps:
