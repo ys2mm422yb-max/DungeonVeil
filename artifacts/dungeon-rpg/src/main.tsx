@@ -36,6 +36,7 @@ installCloudAccountSyncRuntime();
 installEmailConfirmationRedirect();
 
 const qaMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('qa') : null;
+if (qaMode === 'states') localStorage.setItem('dungeon-veil-language', 'de');
 if (!qaMode) startVersionGuard();
 const qaView = qaMode === 'worldboss'
   ? <WorldBossVisualQa />
