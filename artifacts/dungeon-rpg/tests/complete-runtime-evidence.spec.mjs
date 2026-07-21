@@ -5,6 +5,7 @@ import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVeil/';
 const OUTPUT = 'test-results/complete-runtime-evidence';
 const CHUNKS = [[1, 10], [11, 20], [21, 30], [31, 40], [41, 50]];
+const CONTINUOUS_SCREENSHOT_ROOMS = new Set([1, 10, 13, 20, 30, 40, 50]);
 const HAZARD_PREFIXES = ['forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-', 'core-', 'core-inner-'];
 
 function qaUrl(mode) {
@@ -116,17 +117,26 @@ async function canvasSignal(page) {
   });
 }
 
-async function loadAndCaptureRoom(page, mode, room, projectName) {
-  await page.evaluate(({ nextRoom, nextMode }) => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, nextMode), { nextRoom: room, nextMode: mode });
-  await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
-  await expect(page.getByText(`RAUM ${room}/50`, { exact: false }).first()).toBeVisible({ timeout: 30_000 });
-  await waitForPaintedCanvas(page);
-  await page.waitForTimeout(850);
-  const signal = await canvasSignal(page);
+function assertPaintedSignal(signal, mode, room) {
   expect(signal.width, JSON.stringify(signal)).toBeGreaterThan(10);
   expect(signal.height, JSON.stringify(signal)).toBeGreaterThan(10);
   expect(signal.average, `black canvas in ${mode} room ${room}: ${JSON.stringify(signal)}`).toBeGreaterThan(1.5);
   expect(signal.nonDarkRatio, `black canvas in ${mode} room ${room}: ${JSON.stringify(signal)}`).toBeGreaterThan(0.01);
+}
+
+async function loadAndCheckRoom(page, mode, room, settleMs = 850) {
+  await page.evaluate(({ nextRoom, nextMode }) => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, nextMode), { nextRoom: room, nextMode: mode });
+  await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
+  await expect(page.getByText(`RAUM ${room}/50`, { exact: false }).first()).toBeVisible({ timeout: 30_000 });
+  await waitForPaintedCanvas(page);
+  await page.waitForTimeout(settleMs);
+  const signal = await canvasSignal(page);
+  assertPaintedSignal(signal, mode, room);
+  return signal;
+}
+
+async function loadAndCaptureRoom(page, mode, room, projectName) {
+  await loadAndCheckRoom(page, mode, room);
   await mkdir(OUTPUT, { recursive: true });
   await page.screenshot({ path: `${OUTPUT}/${mode}-room-${String(room).padStart(2, '0')}-${projectName}.png`, fullPage: false });
 }
@@ -146,6 +156,36 @@ for (const mode of ['solo', 'duo']) {
       expect(issues, issues.join('\n')).toEqual([]);
     });
   }
+
+  test(`${mode} one renderer survives uninterrupted rooms 1-50`, async ({ page }, testInfo) => {
+    test.setTimeout(900_000);
+    const issues = runtimeIssues(page);
+    if (mode === 'solo') await startSolo(page);
+    else await startDuo(page);
+    const pageIdentity = await page.evaluate(() => {
+      window.__dvContinuousRoomPageIdentity = `${Date.now()}-${Math.random()}`;
+      return window.__dvContinuousRoomPageIdentity;
+    });
+    const readings = [];
+    await mkdir(OUTPUT, { recursive: true });
+
+    for (let room = 1; room <= 50; room += 1) {
+      const signal = await loadAndCheckRoom(page, mode, room, 260);
+      const liveIdentity = await page.evaluate(() => window.__dvContinuousRoomPageIdentity);
+      expect(liveIdentity, `unexpected page reload in ${mode} room ${room}`).toBe(pageIdentity);
+      readings.push({ room, ...signal });
+      if (CONTINUOUS_SCREENSHOT_ROOMS.has(room)) {
+        await page.screenshot({ path: `${OUTPUT}/continuous-${mode}-room-${String(room).padStart(2, '0')}-${testInfo.project.name}.png`, fullPage: false });
+      }
+    }
+
+    await testInfo.attach(`${mode}-continuous-1-50-canvas-readings.json`, {
+      body: Buffer.from(JSON.stringify({ pageIdentity, readings, issues }, null, 2)),
+      contentType: 'application/json',
+    });
+    expect(readings).toHaveLength(50);
+    expect(issues, issues.join('\n')).toEqual([]);
+  });
 }
 
 test('room hazards stop before the final enemy death animation finishes', async ({ page }, testInfo) => {
