@@ -23,7 +23,8 @@ requireText(mechanics, /engine\.state\.roomClearReady \|\| !hasLivingEnemies\(en
 requireText(mechanics, /arc-warn-|forge-warn-/, 'Arc and forge warnings must be explicitly removable.');
 requireText(recovery, /webglcontextlost/, 'The run renderer must listen for WebGL context loss.');
 requireText(recovery, /WEBGL_lose_context/, 'The run renderer must attempt direct context restoration.');
-requireText(recovery, /dungeon-veil-renderer-lost/, 'Renderer recovery must freeze and save the active run through the page contract.');
+requireText(recovery, /dungeon-veil-room-preparing/, 'Renderer loss must use the existing room save and input-freeze lifecycle.');
+requireText(recovery, /dungeon-veil-renderer-lost/, 'Renderer recovery must expose a diagnostic event.');
 requireText(recovery, /dungeon-veil-room-ready/, 'Renderer recovery must resume the engine after the visual context is ready.');
 requireText(bridge, /127\.0\.0\.1|localhost/, 'Runtime evidence controls must remain localhost-only.');
 requireText(bridge, /dungeon-veil-runtime-evidence-v1/, 'Runtime evidence controls require an explicit session marker.');
