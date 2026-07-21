@@ -21,6 +21,7 @@ import { installEmailConfirmationRedirect } from './game/emailConfirmationRedire
 import { installPortraitOrientationRuntime } from './game/portraitOrientationRuntime';
 import { repairLegacyProfileStats } from './game/profileStatsRepair';
 import { installProfileStorageIntegrity } from './game/profileStorageIntegrity';
+import { installRoomReadyFailureGuard } from './game/roomReadyFailureGuard';
 import { installRunRendererRecovery } from './game/runRendererRecovery';
 import { installRuntimeEvidenceBridge } from './game/runtimeEvidenceBridge';
 import { startVersionGuard } from './game/versionGuard';
@@ -29,6 +30,7 @@ import './index.css';
 import './guild-mobile.css';
 import './readability.css';
 
+installRoomReadyFailureGuard();
 installAccessibilitySettings();
 installControlSettings();
 installDailyQuestRotationRuntime();
