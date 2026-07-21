@@ -77,18 +77,23 @@ async function openQa(page, parameters) {
   await page.bringToFront();
 }
 
-test('pause, level-up, game-over, new-run and unlock surfaces produce unobscured evidence', async ({ page }, testInfo) => {
+test('pause, level-up, game-over, new-run and unlock surfaces produce unobscured German evidence', async ({ page }, testInfo) => {
   test.setTimeout(240_000);
   const runtimeIssues = attachRuntimeMonitor(page);
   const states = [
     ['pause', async () => expectActuallyPainted(page.getByText('PAUSE', { exact: true }))],
     ['levelup', async () => {
+      await expectActuallyPainted(page.getByRole('heading', { name: 'WÄHLE DEINE GABE', exact: true }));
       const cards = page.locator('[data-testid^="gift-choice-"]');
       await expect(cards).toHaveCount(3);
       await expectActuallyPainted(cards.first());
       await expectActuallyPainted(cards.last());
     }],
-    ['gameover', async () => expectActuallyPainted(page.getByTestId('button-retry'))],
+    ['gameover', async () => {
+      await expectActuallyPainted(page.getByRole('heading', { name: 'RUN BEENDET', exact: true }));
+      await expectActuallyPainted(page.getByTestId('button-retry'));
+      await expect(page.getByTestId('button-retry')).toHaveText('NEUER RUN');
+    }],
     ['new-run', async () => expectActuallyPainted(page.getByTestId('new-run-confirm-dialog'))],
     ['unlock', async () => expectActuallyPainted(page.getByTestId('unlock-presentation-layer'))],
   ];
