@@ -30,6 +30,10 @@ function contextFor(canvas: HTMLCanvasElement): WebGLRenderingContext | WebGL2Re
   return canvas.getContext('webgl2') ?? canvas.getContext('webgl') ?? canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
 }
 
+function primaryRecoveryHasGrace(now = performance.now()): boolean {
+  return primaryRecoveryStartedAt > 0 && now - primaryRecoveryStartedAt < PRIMARY_RECOVERY_GRACE_MS;
+}
+
 function markRecovering(reason: string): void {
   const html = document.documentElement;
   html.dataset.dungeonVeilRendererState = 'recovering';
@@ -48,7 +52,7 @@ function markRestored(reason: string): void {
 }
 
 function announceFallbackLost(canvas: HTMLCanvasElement, reason: string): void {
-  if (!runRendererIsMounted() || fallbackActive) return;
+  if (!runRendererIsMounted() || fallbackActive || primaryRecoveryHasGrace()) return;
   fallbackActive = true;
   lostSince = performance.now();
   markRecovering(reason);
@@ -90,9 +94,9 @@ function bindCanvas(canvas: HTMLCanvasElement): void {
     event.preventDefault();
     const signalBeforePrimaryHandlers = primaryRecoverySignal;
     queueMicrotask(() => {
-      // GameCanvas is the primary recovery owner. It synchronously emits the renderer-lost event
-      // and remounts the renderer. The global watchdog acts only when that signal never arrived.
-      if (primaryRecoverySignal !== signalBeforePrimaryHandlers) return;
+      // GameCanvas is the primary recovery owner. Depending on listener registration
+      // order, its synchronous signal can arrive before or after this listener.
+      if (primaryRecoverySignal !== signalBeforePrimaryHandlers || primaryRecoveryHasGrace()) return;
       announceFallbackLost(canvas, 'webgl-context-fallback');
     });
   }, { passive: false });
@@ -134,8 +138,7 @@ export function installRunRendererRecovery(): void {
     if (!canvas || !runRendererIsMounted()) return;
     const gl = contextFor(canvas);
     const now = performance.now();
-    const primaryRecoveryHasGrace = primaryRecoveryStartedAt > 0 && now - primaryRecoveryStartedAt < PRIMARY_RECOVERY_GRACE_MS;
-    if (gl?.isContextLost() && !fallbackActive && !primaryRecoveryHasGrace) announceFallbackLost(canvas, 'webgl-context-watchdog');
+    if (gl?.isContextLost() && !fallbackActive && !primaryRecoveryHasGrace(now)) announceFallbackLost(canvas, 'webgl-context-watchdog');
     else if (fallbackActive && lostSince && gl && !gl.isContextLost() && now - lostSince > 250) announceFallbackRestored('webgl-watchdog-recovered');
     const rect = canvas.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) window.dispatchEvent(new Event('resize'));
