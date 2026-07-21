@@ -6,7 +6,7 @@ const requireText = (source, pattern, message) => {
   if (!pattern.test(source)) throw new Error(message);
 };
 
-const [mechanics, recovery, bridge, duoQa, combatStage, main, spec, config] = await Promise.all([
+const [mechanics, recovery, bridge, duoQa, combatStage, main, spec, hiddenHudSpec, config] = await Promise.all([
   read('src/game/roomMechanics.ts'),
   read('src/game/runRendererRecovery.ts'),
   read('src/game/runtimeEvidenceBridge.ts'),
@@ -14,6 +14,7 @@ const [mechanics, recovery, bridge, duoQa, combatStage, main, spec, config] = aw
   read('src/components/CombatStage.tsx'),
   read('src/main.tsx'),
   read('tests/complete-runtime-evidence.spec.mjs'),
+  read('tests/renderer-recovery-hidden-hud.spec.mjs'),
   read('playwright.complete-runtime.config.mjs'),
 ]);
 
@@ -41,7 +42,9 @@ requireText(spec, /\[1, 10\].*\[11, 20\].*\[21, 30\].*\[31, 40\].*\[41, 50\]/s, 
 requireText(spec, /\['solo', 'duo'\]/, 'The evidence suite must cover both Solo and Duo.');
 requireText(spec, /room hazards stop before the final enemy death animation finishes/, 'The ghost-damage regression must be tested.');
 requireText(spec, /lost WebGL context recovers/, 'The black-room recovery must be tested.');
-requireText(spec, /hud\.style\.display = 'none'/, 'The black-room regression must cover a hidden HUD during a room transition.');
+requireText(hiddenHudSpec, /hud\.style\.display = 'none'/, 'The black-room regression must cover a hidden HUD during a room transition.');
+requireText(hiddenHudSpec, /pageIdentity/, 'The hidden-HUD regression must prove recovery occurred without a fallback page reload.');
+requireText(hiddenHudSpec, /dungeon-veil-room-preparing/, 'The hidden-HUD regression must prove the existing save and freeze lifecycle ran.');
 requireText(config, /video: \{ mode: 'on'/, 'Successful evidence runs must always record video.');
 requireText(config, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-landscape-webkit[\s\S]*desktop-chromium/, 'The complete four-device matrix is required.');
 
