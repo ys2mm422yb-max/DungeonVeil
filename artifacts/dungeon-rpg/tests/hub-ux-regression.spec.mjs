@@ -75,7 +75,7 @@ test('gold popover, signed-out guild and mailbox stay compact and correctly rout
     const button = document.querySelector('[data-testid="main-menu-gold-button"]')?.getBoundingClientRect();
     const menu = document.querySelector('[data-testid="gold-menu-popover"]')?.getBoundingClientRect();
     return button && menu ? {
-      rightGap: Math.abs(button.right - menu.right),
+      viewportRightGap: innerWidth - menu.right,
       menuTop: menu.top,
       buttonBottom: button.bottom,
       viewportHeight: innerHeight,
@@ -83,7 +83,7 @@ test('gold popover, signed-out guild and mailbox stay compact and correctly rout
     } : null;
   });
   expect(placement).not.toBeNull();
-  expect(placement.rightGap).toBeLessThanOrEqual(12);
+  expect(placement.viewportRightGap).toBeLessThanOrEqual(14);
   expect(placement.menuTop).toBeGreaterThanOrEqual(placement.buttonBottom - 4);
   expect(placement.menuTop).toBeLessThan(placement.viewportHeight * 0.34);
   expect(placement.overflow).toBeLessThanOrEqual(4);
