@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference, mainEntry, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, checkWorkflow, ciWorkflow] = await Promise.all([
+const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference, mainEntry, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, fullGameWorkflow, checkWorkflow, ciWorkflow] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-audit.spec.mjs', import.meta.url), 'utf8'),
@@ -12,6 +12,7 @@ const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference
   readFile(new URL('../tests/reduced-motion-menu.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/equipment-responsive.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  readFile(new URL('../../../.github/workflows/full-game-regression.yml', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/dungeon-rpg-check.yml', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/dungeon-rpg-ci.yml', import.meta.url), 'utf8'),
 ]);
@@ -114,6 +115,21 @@ const requiredEquipmentMarkers = [
   'toBeGreaterThanOrEqual(700)',
   'equipment-responsive-',
 ];
+const requiredDesktopRoomWorkflowMarkers = [
+  'desktop-room-regression:',
+  "if [[ \"$BROWSER_PROJECT\" == 'desktop-chromium' ]]",
+  'GREP_INVERT="$GREP_INVERT|full room visual evidence"',
+  "grep: 'full room visual evidence 1-10 uses a fresh WebGL context'",
+  "grep: 'full room visual evidence 11-20 uses a fresh WebGL context'",
+  "grep: 'full room visual evidence 21-30 uses a fresh WebGL context'",
+  "grep: 'full room visual evidence 31-40 uses a fresh WebGL context'",
+  "grep: 'full room visual evidence 41-50 uses a fresh WebGL context'",
+  '--project=desktop-chromium --grep="${{ matrix.grep }}"',
+  'visual-evidence-desktop-room-${{ matrix.label }}',
+  'full-game-regression-results-desktop-room-${{ matrix.label }}',
+  'if-no-files-found: error',
+  'timeout --signal=TERM --kill-after=30s 25m',
+];
 
 const failures = [];
 for (const project of requiredProjects) {
@@ -139,6 +155,9 @@ for (const marker of requiredReducedMotionMarkers) {
 }
 for (const marker of requiredEquipmentMarkers) {
   if (!equipmentResponsive.includes(marker)) failures.push(`missing responsive equipment marker: ${marker}`);
+}
+for (const marker of requiredDesktopRoomWorkflowMarkers) {
+  if (!fullGameWorkflow.includes(marker)) failures.push(`missing isolated desktop room workflow marker: ${marker}`);
 }
 if (!visualAudit.includes("from './visual-render-readiness.mjs'") || !visualAudit.includes('waitForLiveMenuPaint(page)') || !visualAudit.includes('waitForPaintedCanvas(page)')) failures.push('visual audit does not enforce painted WebGL evidence');
 if (!visualAudit.includes('getByText(`RAUM ${room}/50`')) failures.push('visual audit does not validate the literal visible room HUD label');
@@ -170,4 +189,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, animation-settled, actually painted and explicitly German transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, literal room HUD labels, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, animation-settled, actually painted and explicitly German transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, literal room HUD labels, isolated fresh-context desktop room chunks 1-50, full iPhone rooms 1-50, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
