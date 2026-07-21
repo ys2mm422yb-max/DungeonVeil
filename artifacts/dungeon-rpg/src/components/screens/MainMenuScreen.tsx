@@ -124,6 +124,7 @@ export function MainMenuScreen(props: Props) {
   const chapter = currentSaveData?.chapter ?? 1;
   const room = currentSaveData?.floor ?? 1;
   const gold = Number(meta.gold ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US');
+  const onlineSignedIn = qaMode || Boolean(currentOnlineSession());
 
   useEffect(() => {
     const refreshMeta = () => setMeta(loadMetaProgression());
@@ -247,7 +248,7 @@ export function MainMenuScreen(props: Props) {
 
     {overlay && overlay !== 'profile' && overlay !== 'more' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onPointerDown={() => setOverlay(null)}><div className="w-full max-w-sm" onPointerDown={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
-      {overlay === 'mailbox' && <MailboxPanel language={language} onUnreadChange={setMailUnread} qaState={qaMode ? { signedIn: true, messages: FILLED_MAILBOX_QA } : undefined} />}
+      {overlay === 'mailbox' && <><MailboxPanel language={language} onUnreadChange={setMailUnread} qaState={qaMode ? { signedIn: true, messages: FILLED_MAILBOX_QA } : undefined} />{!onlineSignedIn && <button type="button" onPointerDown={event => { event.preventDefault(); setOverlay('online'); }} className="mt-3 w-full rounded-2xl border border-violet-200/20 bg-violet-400/10 py-3 text-[9px] font-black uppercase tracking-[.18em] text-violet-50 active:scale-[.98]">ONLINE & CLOUD ÖFFNEN</button>}</>}
       {overlay === 'friends' && <FriendsPanel language={language} onOpenOnline={() => setOverlay('online')} />}
       {overlay === 'online' && <OnlinePanel language={language} />}
       {overlay === 'guild' && <GuildSocialPanel language={language} onClose={() => setOverlay(null)} onOpenOnline={() => setOverlay('online')} />}
