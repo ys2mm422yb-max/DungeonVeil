@@ -9,6 +9,8 @@ const mailbox = read('src/components/MailboxPanel.tsx');
 const mailboxClient = read('src/game/guildMailboxOnline.ts');
 const migration = read('../../supabase/migrations/20260721135000_mailbox_delete_rpc.sql');
 const equipment = read('src/components/screens/VeilChamberScreenV4.tsx');
+const equipmentPreview = read('src/components/KayKitEquipmentPreview.tsx');
+const equipmentPolish = read('src/equipment-polish.css');
 const profileEquipment = read('src/components/ProfileEquipmentLoadout.tsx');
 const optionalState = read('src/game/optionalEquipmentState.ts');
 const cloudSync = read('src/game/cloudAccountSyncRuntime.ts');
@@ -18,6 +20,8 @@ const menuPlayer = read('src/components/kaykitVillagePlayer3D.ts');
 const loot = read('src/components/kaykitLoot3D.ts');
 const menu = read('src/components/screens/MainMenuScreen.tsx');
 const profile = read('src/components/PlayerProfilePanel.tsx');
+const autopilotSpec = read('tests/autopilot-product-journeys.spec.mjs');
+const autopilotWorkflow = read('../../.github/workflows/product-autopilot-qa.yml');
 
 assert.match(mailbox, /mailbox-delete-completed/);
 assert.match(mailbox, /canDeleteMessage/);
@@ -50,10 +54,30 @@ assert.match(profileEquipment, /EquipmentArtwork/);
 assert.doesNotMatch(loot, /cdn\.jsdelivr\.net/);
 assert.match(loot, /usesActualEquipmentModel = true/);
 assert.match(loot, /equipment-model-/);
+assert.doesNotMatch(equipmentPreview, /cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com/);
+assert.match(equipmentPreview, /assets\/vendor\/three\/build\/three\.module\.js/);
+assert.match(equipmentPreview, /data-three-runtime="local-pinned"/);
+assert.match(equipmentPolish, /overflow-wrap: anywhere/);
 
 assert.match(menu, /main-menu-resource-popover/);
 assert.match(menu, /top-\[max\(76px/);
 assert.match(profile, /grid-cols-5/);
 assert.match(profile, /aria-label=\{item\.full\}/);
 
-console.log('Guild, mailbox, optional equipment, profile, loot and cloud UX contracts passed.');
+for (const marker of [
+  'signed-out hub, solo run and duo entry remain functional',
+  'equipment, relic and companion upgrades and optional slots persist',
+  'signed-in guild, mailbox and duo controls are reviewable',
+  'external runtime request',
+  'solo-run-started',
+  'companion-upgraded',
+]) assert.match(autopilotSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+for (const marker of [
+  'Product Autopilot QA',
+  'automatic-product-journeys',
+  'autopilot-visual-evidence-',
+  'Automatische Produktregression erkannt',
+  'issues: write',
+]) assert.match(autopilotWorkflow, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
+console.log('Guild, mailbox, optional equipment, profile, local Three runtime, automatic journey and cloud UX contracts passed.');
