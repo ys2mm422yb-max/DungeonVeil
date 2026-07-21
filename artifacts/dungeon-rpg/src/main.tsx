@@ -7,6 +7,7 @@ import App from './App';
 import { GlobalLoadingLayer } from './components/GlobalLoadingLayer';
 import { MainMenuVisualQa } from './components/MainMenuVisualQa';
 import { ProfileLayoutQa } from './components/ProfileLayoutQa';
+import { RuntimeDuoEvidenceQa } from './components/RuntimeDuoEvidenceQa';
 import { SpectatorPerformanceQa } from './components/SpectatorPerformanceQa';
 import { TransientUiVisualQa } from './components/TransientUiVisualQa';
 import { TutorialVisualQa } from './components/TutorialVisualQa';
@@ -20,6 +21,8 @@ import { installEmailConfirmationRedirect } from './game/emailConfirmationRedire
 import { installPortraitOrientationRuntime } from './game/portraitOrientationRuntime';
 import { repairLegacyProfileStats } from './game/profileStatsRepair';
 import { installProfileStorageIntegrity } from './game/profileStorageIntegrity';
+import { installRunRendererRecovery } from './game/runRendererRecovery';
+import { installRuntimeEvidenceBridge } from './game/runtimeEvidenceBridge';
 import { startVersionGuard } from './game/versionGuard';
 
 import './index.css';
@@ -34,22 +37,26 @@ installPortraitOrientationRuntime();
 repairLegacyProfileStats();
 installCloudAccountSyncRuntime();
 installEmailConfirmationRedirect();
+installRunRendererRecovery();
+installRuntimeEvidenceBridge();
 
 const qaMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('qa') : null;
 if (qaMode === 'states') localStorage.setItem('dungeon-veil-language', 'de');
 if (!qaMode) startVersionGuard();
 const qaView = qaMode === 'worldboss'
   ? <WorldBossVisualQa />
-  : qaMode === 'spectator'
-    ? <SpectatorPerformanceQa />
-    : qaMode === 'profiles'
-      ? <ProfileLayoutQa />
-      : qaMode === 'tutorial'
-        ? <TutorialVisualQa />
-        : qaMode === 'states'
-          ? <TransientUiVisualQa />
-          : qaMode === 'menu'
-            ? <MainMenuVisualQa />
-            : null;
+  : qaMode === 'runtime-duo'
+    ? <RuntimeDuoEvidenceQa />
+    : qaMode === 'spectator'
+      ? <SpectatorPerformanceQa />
+      : qaMode === 'profiles'
+        ? <ProfileLayoutQa />
+        : qaMode === 'tutorial'
+          ? <TutorialVisualQa />
+          : qaMode === 'states'
+            ? <TransientUiVisualQa />
+            : qaMode === 'menu'
+              ? <MainMenuVisualQa />
+              : null;
 const appView = qaView ?? <><App /><GlobalLoadingLayer /><UnlockPresentationLayer /></>;
 createRoot(document.getElementById('root')!).render(appView);
