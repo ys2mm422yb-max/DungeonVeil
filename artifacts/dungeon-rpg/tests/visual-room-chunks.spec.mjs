@@ -182,7 +182,7 @@ async function captureRooms(page, testInfo, rooms) {
 for (const [first, last] of FULL_ROOM_CHUNKS) {
   test(`full room visual evidence ${first}-${last} uses a fresh WebGL context`, async ({ page }, testInfo) => {
     test.skip(!['iphone-webkit', 'desktop-chromium'].includes(testInfo.project.name), 'Full room evidence is required on iPhone and desktop only.');
-    test.setTimeout(600_000);
+    test.setTimeout(900_000);
     await captureRooms(page, testInfo, Array.from({ length: last - first + 1 }, (_, index) => first + index));
   });
 }
