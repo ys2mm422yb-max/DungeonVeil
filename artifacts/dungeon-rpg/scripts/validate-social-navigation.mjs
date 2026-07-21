@@ -47,12 +47,15 @@ const restrainedPortalComposition = menuSceneProxy.includes('dv-main-menu-ambien
   && menuSceneProxy.includes('WebkitMaskImage')
   && menuSceneProxy.includes('maskImage')
   && menuPresentation.includes('.dv-main-menu-ambient-portal')
-  && menuPresentation.includes('opacity: 0.24 !important')
-  && menuPresentation.includes('brightness(0.72)')
+  && menuPresentation.includes('height: 66% !important')
+  && menuPresentation.includes('opacity: 0.36 !important')
+  && menuPresentation.includes('brightness(0.68)')
   && menuPresentation.includes('.dv-main-menu-live-frame')
-  && menuPresentation.includes('scale(0.575)')
-  && menuPresentation.includes('scale(0.555)')
-  && menuPresentation.includes('transform-origin: 50% 87%');
+  && menuPresentation.includes('inset: 0')
+  && menuPresentation.includes('scale(0.49)')
+  && menuPresentation.includes('scale(0.46)')
+  && menuPresentation.includes('transform-origin: 50% 75%')
+  && !menuPresentation.includes('inset: -');
 const checks = [
   [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
   [menu.includes("setOverlay('play')") && playOverlay.includes('Solo-Run') && playOverlay.includes('Duo-Run') && playOverlay.includes('Weltboss') && playOverlay.includes("setOverlay('coop')") && playOverlay.includes("setOverlay('worldBoss')"), 'play mode chooser does not group solo, duo and world boss'],
@@ -106,4 +109,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: live hybrid Ranger, restrained mobile composition, V5 companion state, compact routes and rooms 1-9 Veil atmosphere remain active with one exclusive menu renderer.');
+console.log('Social/navigation audit passed: live hybrid Ranger, true half-scale mobile composition, V5 companion state, compact routes and rooms 1-9 Veil atmosphere remain active with one exclusive menu renderer.');
