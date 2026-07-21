@@ -33,6 +33,40 @@ async function assertNoHorizontalOverflow(page) {
   expect(Math.max(geometry.document, geometry.body) - geometry.viewport, JSON.stringify(geometry)).toBeLessThanOrEqual(4);
 }
 
+async function waitForFiniteAnimations(root) {
+  await root.evaluate(async element => {
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const animations = element.getAnimations({ subtree: true }).filter(animation => {
+      const endTime = animation.effect?.getComputedTiming().endTime;
+      return typeof endTime === 'number' && Number.isFinite(endTime) && endTime > 0;
+    });
+    await Promise.allSettled(animations.map(animation => animation.finished));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+}
+
+async function expectActuallyPainted(locator, timeout = 30_000) {
+  await expect(locator).toBeVisible({ timeout });
+  await expect.poll(
+    async () => locator.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 10 || rect.height < 10) return false;
+      let current = element;
+      while (current) {
+        const style = getComputedStyle(current);
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) < 0.95) return false;
+        current = current.parentElement;
+      }
+      return true;
+    }),
+    {
+      timeout,
+      intervals: [50, 100, 200, 350, 500],
+      message: 'Transient surface existed in the DOM but was not visually painted',
+    },
+  ).toBe(true);
+}
+
 async function capture(page, path) {
   await assertNoHorizontalOverflow(page);
   await page.screenshot({ path, fullPage: false });
@@ -47,16 +81,24 @@ test('pause, level-up, game-over, new-run and unlock surfaces produce unobscured
   test.setTimeout(240_000);
   const runtimeIssues = attachRuntimeMonitor(page);
   const states = [
-    ['pause', async () => expect(page.getByText('PAUSE', { exact: true })).toBeVisible()],
-    ['levelup', async () => expect(page.locator('[data-testid^="gift-choice-"]')).toHaveCount(3)],
-    ['gameover', async () => expect(page.getByTestId('button-retry')).toBeVisible()],
-    ['new-run', async () => expect(page.getByTestId('new-run-confirm-dialog')).toBeVisible()],
-    ['unlock', async () => expect(page.getByTestId('unlock-presentation-layer')).toBeVisible({ timeout: 30_000 })],
+    ['pause', async () => expectActuallyPainted(page.getByText('PAUSE', { exact: true }))],
+    ['levelup', async () => {
+      const cards = page.locator('[data-testid^="gift-choice-"]');
+      await expect(cards).toHaveCount(3);
+      await expectActuallyPainted(cards.first());
+      await expectActuallyPainted(cards.last());
+    }],
+    ['gameover', async () => expectActuallyPainted(page.getByTestId('button-retry'))],
+    ['new-run', async () => expectActuallyPainted(page.getByTestId('new-run-confirm-dialog'))],
+    ['unlock', async () => expectActuallyPainted(page.getByTestId('unlock-presentation-layer'))],
   ];
 
   for (const [state, ready] of states) {
     await openQa(page, { qa: 'states', state });
-    await expect(page.getByTestId('transient-ui-visual-qa')).toHaveAttribute('data-qa-state', state);
+    const root = page.getByTestId('transient-ui-visual-qa');
+    await expect(root).toHaveAttribute('data-qa-state', state);
+    await ready();
+    await waitForFiniteAnimations(root);
     await ready();
     await capture(page, `test-results/visual-${state}-${testInfo.project.name}.png`);
   }
@@ -73,15 +115,15 @@ test('tutorial and own/public profile QA surfaces stay readable without test con
     localStorage.setItem('dungeon-veil-language', 'de');
   });
   await openQa(page, { qa: 'tutorial' });
-  await expect(page.getByTestId('tutorial-overlay')).toBeVisible({ timeout: 30_000 });
+  await expectActuallyPainted(page.getByTestId('tutorial-overlay'));
   await capture(page, `test-results/visual-tutorial-${testInfo.project.name}.png`);
 
   for (const profile of ['own', 'public']) {
     await openQa(page, { qa: 'profiles', profile, capture: '1' });
     const root = page.getByTestId('profile-layout-qa');
     await expect(root).toHaveAttribute('data-profile-view', profile);
-    if (profile === 'own') await expect(page.getByTestId('player-profile-panel')).toBeVisible();
-    else await expect(page.getByTestId('player-profile-card')).toBeVisible();
+    if (profile === 'own') await expectActuallyPainted(page.getByTestId('player-profile-panel'));
+    else await expectActuallyPainted(page.getByTestId('player-profile-card'));
     await expect(page.getByTestId('profile-qa-own')).toHaveCount(0);
     await expect(page.getByTestId('profile-qa-public')).toHaveCount(0);
     await capture(page, `test-results/visual-profile-${profile}-qa-${testInfo.project.name}.png`);
