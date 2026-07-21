@@ -23,6 +23,7 @@ const profile = read('src/components/PlayerProfilePanel.tsx');
 const autopilotSpec = read('tests/autopilot-product-journeys.spec.mjs');
 const outsideGuildSpec = read('tests/autopilot-outside-guild.spec.mjs');
 const autopilotWorkflow = read('../../.github/workflows/product-autopilot-qa.yml');
+const focusedWorkflow = read('../../.github/workflows/guild-mail-equipment-ux.yml');
 
 assert.match(mailbox, /mailbox-delete-completed/);
 assert.match(mailbox, /canDeleteMessage/);
@@ -83,10 +84,23 @@ for (const marker of [
 for (const marker of [
   'Product Autopilot QA',
   'automatic-product-journeys',
+  'tests/autopilot-product-journeys.spec.mjs',
   'tests/autopilot-outside-guild.spec.mjs',
   'autopilot-visual-evidence-',
   'Automatische Produktregression erkannt',
   'issues: write',
 ]) assert.match(autopilotWorkflow, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
+const autopilotSuitePaths = [...autopilotWorkflow.matchAll(/tests\/autopilot-[\w-]+\.spec\.mjs/g)]
+  .map(match => match[0])
+  .sort();
+assert.deepEqual(autopilotSuitePaths, [
+  'tests/autopilot-outside-guild.spec.mjs',
+  'tests/autopilot-product-journeys.spec.mjs',
+]);
+assert.doesNotMatch(autopilotWorkflow, /autopilot-core-user-flows\.spec\.mjs/);
+assert.doesNotMatch(autopilotWorkflow, /tests\/guild-mail-equipment-visual\.spec\.mjs/);
+assert.match(focusedWorkflow, /tests\/guild-mail-equipment-visual\.spec\.mjs/);
+assert.match(focusedWorkflow, /guild-mail-equipment-visual-\$\{\{ matrix\.project \}\}/);
 
 console.log('Guild, mailbox, optional equipment, profile, local Three runtime, signed-in outside-guild, automatic journey and cloud UX contracts passed.');
