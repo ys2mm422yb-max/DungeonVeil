@@ -12,9 +12,13 @@ function qaUrl(mode) {
 function runtimeMonitor(page) {
   const issues = [];
   const appOrigin = new URL(APP_URL).origin;
-  page.on('pageerror', error => issues.push(`pageerror: ${error.message}`));
+  page.__dungeonVeilIntentionalNavigation = false;
+  const intentionallyNavigating = () => page.__dungeonVeilIntentionalNavigation === true;
+  page.on('pageerror', error => {
+    if (!intentionallyNavigating()) issues.push(`pageerror: ${error.message}`);
+  });
   page.on('console', message => {
-    if (message.type() !== 'error') return;
+    if (message.type() !== 'error' || intentionallyNavigating()) return;
     const text = message.text();
     if (/favicon|supabase.*(?:401|403)/i.test(text)) return;
     issues.push(`console: ${text}`);
@@ -25,6 +29,7 @@ function runtimeMonitor(page) {
     }
   });
   page.on('response', response => {
+    if (intentionallyNavigating()) return;
     if (response.url().startsWith(appOrigin) && response.status() >= 400) issues.push(`http ${response.status()}: ${response.url()}`);
   });
   return issues;
@@ -146,11 +151,27 @@ async function installSocialMocks(page) {
 }
 
 async function gotoMenu(page, url = APP_URL) {
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  const boot = page.getByTestId('app-boot-loading-screen');
-  if (await boot.count()) await expect(boot).toBeHidden({ timeout: 60_000 });
-  await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
+  page.__dungeonVeilIntentionalNavigation = true;
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    const boot = page.getByTestId('app-boot-loading-screen');
+    if (await boot.count()) await expect(boot).toBeHidden({ timeout: 60_000 });
+    await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
+    const liveScene = page.getByTestId('live-hybrid-main-menu-scene');
+    if (await liveScene.count()) {
+      await expect.poll(
+        () => liveScene.getAttribute('data-ranger-loaded'),
+        { timeout: 60_000, intervals: [100, 200, 350, 500, 750, 1_000] },
+      ).toBe('true');
+      await expect.poll(
+        async () => Number(await liveScene.getAttribute('data-animation-frames') || 0),
+        { timeout: 20_000, intervals: [100, 200, 350, 500, 750] },
+      ).toBeGreaterThan(0);
+    }
+  } finally {
+    page.__dungeonVeilIntentionalNavigation = false;
+  }
 }
 
 async function pointer(locator) {
@@ -195,7 +216,6 @@ test('signed-out hub, solo run and duo entry remain functional', async ({ page }
   await expect(page.getByRole('button', { name: /Online & Cloud/i })).toBeVisible();
   await capture(page, 'signed-out-duo', testInfo.project.name);
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
   await gotoMenu(page);
   await pointer(page.getByRole('button', { name: /Spielen|Play/i }).first());
   await pointer(page.getByRole('button', { name: /Solo-Run|Solo Run/i }));
