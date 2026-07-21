@@ -126,6 +126,14 @@ test('quiver, relic and companion can be unequipped while bow and armor remain r
   await expect(page.getByTestId('equipment-primary-action')).toBeDisabled();
 
   await page.getByTestId('inventory-tab-quiver').click({ force: true });
+  const quiverPreview = page.locator('[data-equipment-preview-kind="quiver"]');
+  await expect(quiverPreview).toBeVisible();
+  await expect(quiverPreview).toHaveAttribute('data-equipment-preview-model', /quiver/i);
+  const itemName = page.getByTestId('equipment-item-name');
+  await expect(itemName).toBeVisible();
+  expect(await itemName.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  await page.waitForTimeout(600);
+
   const equipmentAction = page.getByTestId('equipment-primary-action');
   await expect(equipmentAction).toHaveAttribute('data-action', 'unequip');
   await equipmentAction.click({ force: true });
