@@ -21,6 +21,7 @@ const loot = read('src/components/kaykitLoot3D.ts');
 const menu = read('src/components/screens/MainMenuScreen.tsx');
 const profile = read('src/components/PlayerProfilePanel.tsx');
 const autopilotSpec = read('tests/autopilot-product-journeys.spec.mjs');
+const outsideGuildSpec = read('tests/autopilot-outside-guild.spec.mjs');
 const autopilotWorkflow = read('../../.github/workflows/product-autopilot-qa.yml');
 
 assert.match(mailbox, /mailbox-delete-completed/);
@@ -73,11 +74,19 @@ for (const marker of [
   'companion-upgraded',
 ]) assert.match(autopilotSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 for (const marker of [
+  'signed-in player outside a guild sees creation, mailbox and duo controls',
+  'signed-in-outside-guild',
+  'signed-in-empty-mailbox',
+  'signed-in-outside-guild-duo',
+  'external runtime request',
+]) assert.match(outsideGuildSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+for (const marker of [
   'Product Autopilot QA',
   'automatic-product-journeys',
+  'tests/autopilot-outside-guild.spec.mjs',
   'autopilot-visual-evidence-',
   'Automatische Produktregression erkannt',
   'issues: write',
 ]) assert.match(autopilotWorkflow, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
-console.log('Guild, mailbox, optional equipment, profile, local Three runtime, automatic journey and cloud UX contracts passed.');
+console.log('Guild, mailbox, optional equipment, profile, local Three runtime, signed-in outside-guild, automatic journey and cloud UX contracts passed.');
