@@ -4,10 +4,17 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import Game from './pages/game';
 import { LanguageProvider } from './i18n/LanguageContext';
+import { LootVisualQaStage } from './components/LootVisualQaStage';
 
 const queryClient = new QueryClient();
 
+function lootVisualQaEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('visualQa') === 'loot';
+}
+
 function Router() {
+  if (lootVisualQaEnabled()) return <LootVisualQaStage />;
   return (
     <Switch>
       <Route path="/" component={Game} />
