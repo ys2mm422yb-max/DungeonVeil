@@ -66,6 +66,7 @@ const requiredRoomMarkers = [
   "['android-chromium', 'ipad-landscape-webkit']",
   'fresh WebGL context',
   'visual-room-',
+  'getByText(`RAUM ${room}/50`',
 ];
 const requiredPaintedEvidenceMarkers = [
   'canvasLitCoverage',
@@ -130,9 +131,11 @@ for (const marker of requiredEquipmentMarkers) {
   if (!equipmentResponsive.includes(marker)) failures.push(`missing responsive equipment marker: ${marker}`);
 }
 if (!visualAudit.includes("from './visual-render-readiness.mjs'") || !visualAudit.includes('waitForLiveMenuPaint(page)') || !visualAudit.includes('waitForPaintedCanvas(page)')) failures.push('visual audit does not enforce painted WebGL evidence');
+if (!visualAudit.includes('getByText(`RAUM ${room}/50`')) failures.push('visual audit does not validate the literal visible room HUD label');
 if (!roomAudit.includes("from './visual-render-readiness.mjs'") || !roomAudit.includes('waitForPaintedCanvas(page)')) failures.push('chunked room audit does not reject blank WebGL frames');
 if (!mainMenuReference.includes("from './visual-render-readiness.mjs'") || !mainMenuReference.includes('waitForLiveMenuPaint(page')) failures.push('main-menu reference does not require a painted live Ranger frame');
 if (visualAudit.includes("getByTestId('live-hybrid-main-menu-frame').screenshot")) failures.push('menu animation evidence reverted to clipped element screenshots');
+if (visualAudit.includes('new RegExp(`RAUM') || roomAudit.includes('new RegExp(`RAUM')) failures.push('room HUD validation reverted to an escape-sensitive dynamic regular expression');
 if (!config.includes('visual-audit')) failures.push('visual audit is not part of the browser regression matrix');
 if (!config.includes('visual-room-chunks')) failures.push('chunked room visual regression is not part of the browser matrix');
 if (!config.includes('transient-ui-visual-audit')) failures.push('transient UI visual regression is not part of the browser matrix');
@@ -155,4 +158,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, transient game surfaces, tutorial, explicit reduced motion, responsive equipment, painted and changing WebGL evidence, literal room HUD labels, fresh-context rooms 1-50 on iPhone and desktop, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
