@@ -11,6 +11,7 @@ import {
   unlockCompanionV5,
   upgradeCompanionV5,
 } from '../game/companionCollectionV5';
+import { deselectCompanionV5 } from '../game/companionOptionalSelection';
 import { COMPANION_ROLE_ORDER_V4 } from '../game/companionSelectionV4';
 import { loadMetaProgression } from '../game/metaProgression';
 import { loadPlayerProfile, PLAYER_PROFILE_EVENT } from '../game/playerProfile';
@@ -131,15 +132,18 @@ export function CompanionManagementPanel({ language = 'de', embedded = false }: 
     </header>
 
     <article data-testid="companion-active-role" data-companion-role={collection.activeId ?? 'none'} className="mt-3 rounded-[24px] border border-violet-200/22 bg-[radial-gradient(circle_at_12%_10%,rgba(139,92,246,.2),rgba(255,255,255,.025)_58%)] p-3">
-      {active && activeProgress ? <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-3">
-        <CompanionPortrait role={active.id} />
-        <div className="min-w-0">
-          <div className="text-[7px] font-black uppercase tracking-[.2em] text-violet-100/42">{de ? 'FÜR DEN NÄCHSTEN RUN AKTIV' : 'ACTIVE FOR THE NEXT RUN'}</div>
-          <div className="mt-1 text-lg font-black text-white">{active.nameDe} <span className="text-white/46">· {de ? active.titleDe : active.titleEn}</span></div>
-          <div className="mt-1 text-[8px] leading-relaxed text-white/48">{de ? active.bonusDe : active.bonusEn}</div>
-          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[7px] font-black ${ROLE_TONE[active.id]}`}>{de ? 'STUFE' : 'LEVEL'} {activeProgress.level} / {COMPANION_MAX_LEVEL_V5}</div>
+      {active && activeProgress ? <div>
+        <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-3">
+          <CompanionPortrait role={active.id} />
+          <div className="min-w-0">
+            <div className="text-[7px] font-black uppercase tracking-[.2em] text-violet-100/42">{de ? 'FÜR DEN NÄCHSTEN RUN AKTIV' : 'ACTIVE FOR THE NEXT RUN'}</div>
+            <div className="mt-1 text-lg font-black text-white">{active.nameDe} <span className="text-white/46">· {de ? active.titleDe : active.titleEn}</span></div>
+            <div className="mt-1 text-[8px] leading-relaxed text-white/48">{de ? active.bonusDe : active.bonusEn}</div>
+            <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[7px] font-black ${ROLE_TONE[active.id]}`}>{de ? 'STUFE' : 'LEVEL'} {activeProgress.level} / {COMPANION_MAX_LEVEL_V5}</div>
+          </div>
         </div>
-      </div> : <div className="py-4 text-center"><div className="text-lg font-black text-white/82">{de ? 'Noch kein Begleiter gefunden' : 'No companion found yet'}</div><div className="mt-1 text-[8px] text-white/42">{de ? 'Der erste seltene Fund wird ab Kapitel 2 verfügbar.' : 'The first rare find becomes available from chapter 2.'}</div></div>}
+        <button data-testid="companion-unequip-button" type="button" onPointerDown={event => { event.preventDefault(); deselectCompanionV5(); setNotice(de ? 'Für den nächsten Run ist kein Begleiter ausgewählt.' : 'No companion is selected for the next run.'); refresh(); }} className="mt-3 w-full rounded-xl border border-white/12 bg-black/28 px-3 py-2.5 text-[8px] font-black uppercase tracking-[.12em] text-white/64 active:scale-[.99]">{de ? 'BEGLEITER ABLEGEN' : 'UNEQUIP COMPANION'}</button>
+      </div> : <div className="py-4 text-center"><div className="text-lg font-black text-white/82">{unlockedCount > 0 ? (de ? 'Kein Begleiter ausgewählt' : 'No companion selected') : (de ? 'Noch kein Begleiter gefunden' : 'No companion found yet')}</div><div className="mt-1 text-[8px] text-white/42">{unlockedCount > 0 ? (de ? 'Wähle unten einen gefundenen Gefährten für den nächsten Run.' : 'Choose a found ally below for the next run.') : (de ? 'Der erste seltene Fund wird ab Kapitel 2 verfügbar.' : 'The first rare find becomes available from chapter 2.')}</div></div>}
     </article>
 
     {notice && <div className="mt-2 rounded-xl border border-violet-200/14 bg-violet-400/[.07] px-3 py-2 text-[8px] font-bold text-violet-100/78">{notice}</div>}
