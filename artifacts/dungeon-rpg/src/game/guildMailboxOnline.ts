@@ -119,6 +119,17 @@ export async function markMailboxActioned(mailId: string): Promise<void> {
   emitMailboxChanged();
 }
 
+export async function deleteMailboxMessages(ids: string[]): Promise<number> {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  if (!currentOnlineSession() || uniqueIds.length === 0) return 0;
+  const deleted = await request<number>('rpc/delete_mailbox_messages', {
+    method: 'POST',
+    body: JSON.stringify({ p_ids: uniqueIds }),
+  });
+  emitMailboxChanged();
+  return Math.max(0, Number(deleted) || 0);
+}
+
 export async function mailboxUnreadCount(): Promise<number> {
   if (!currentOnlineSession()) return hasPendingGuildInviteToken() ? 1 : 0;
   const messages = await listMailboxMessages();
