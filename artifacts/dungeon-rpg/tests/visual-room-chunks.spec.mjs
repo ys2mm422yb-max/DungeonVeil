@@ -33,56 +33,60 @@ async function pressPointerUi(locator) {
 
 async function seedVisualState(page, projectName) {
   await page.addInitScript(({ ipad }) => {
-    localStorage.clear();
-    const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
-    const knownRelics = ['ash-eye', 'marked-claw', 'veil-heart'];
-    localStorage.setItem('dungeon-veil-language', 'de');
-    localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
-    localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'standard', textSize: 'standard', updatedAt: Date.now() }));
-    localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
-      version: 2,
-      initialized: true,
-      equipment: knownEquipment,
-      relics: knownRelics,
-      announcedEquipment: knownEquipment,
-      announcedRelics: knownRelics,
-    }));
-    localStorage.setItem('dungeon-veil-meta', JSON.stringify({
-      version: 4,
-      rank: 14,
-      xp: 0,
-      dust: 2542,
-      gold: 15914,
-      owned: {
-        'ash-bow': { level: 3, copies: 2 },
-        'ranger-quiver': { level: 2, copies: 1 },
-        'ranger-cloak': { level: 2, copies: 1 },
-      },
-      equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' },
-      rewardLedger: [],
-      currentRunId: '',
-    }));
-    localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
-      version: 1,
-      activeId: 'single-target',
-      companions: {
-        'single-target': { level: 3, unlockedAt: Date.now() },
-        'critical-support': { level: 2, unlockedAt: Date.now() },
-        shield: { level: 2, unlockedAt: Date.now() },
-        'loot-comfort': { level: 2, unlockedAt: Date.now() },
-        distraction: { level: 2, unlockedAt: Date.now() },
-      },
-      updatedAt: Date.now(),
-    }));
-    localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
-      version: 2,
-      owned: knownRelics,
-      equipped: 'marked-claw',
-      consumedHeartRuns: [],
-      activatedWorldCoreRuns: [],
-      relicMisses: { hunt: 0, boss: 0 },
-      crownRunStacks: {},
-    }));
+    const marker = 'dungeon-veil-room-evidence-seeded-v1';
+    if (sessionStorage.getItem(marker) !== 'true') {
+      localStorage.clear();
+      const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
+      const knownRelics = ['ash-eye', 'marked-claw', 'veil-heart'];
+      localStorage.setItem('dungeon-veil-language', 'de');
+      localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
+      localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'standard', textSize: 'standard', updatedAt: Date.now() }));
+      localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
+        version: 2,
+        initialized: true,
+        equipment: knownEquipment,
+        relics: knownRelics,
+        announcedEquipment: knownEquipment,
+        announcedRelics: knownRelics,
+      }));
+      localStorage.setItem('dungeon-veil-meta', JSON.stringify({
+        version: 4,
+        rank: 14,
+        xp: 0,
+        dust: 2542,
+        gold: 15914,
+        owned: {
+          'ash-bow': { level: 3, copies: 2 },
+          'ranger-quiver': { level: 2, copies: 1 },
+          'ranger-cloak': { level: 2, copies: 1 },
+        },
+        equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' },
+        rewardLedger: [],
+        currentRunId: '',
+      }));
+      localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
+        version: 1,
+        activeId: 'single-target',
+        companions: {
+          'single-target': { level: 3, unlockedAt: Date.now() },
+          'critical-support': { level: 2, unlockedAt: Date.now() },
+          shield: { level: 2, unlockedAt: Date.now() },
+          'loot-comfort': { level: 2, unlockedAt: Date.now() },
+          distraction: { level: 2, unlockedAt: Date.now() },
+        },
+        updatedAt: Date.now(),
+      }));
+      localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
+        version: 2,
+        owned: knownRelics,
+        equipped: 'marked-claw',
+        consumedHeartRuns: [],
+        activatedWorldCoreRuns: [],
+        relicMisses: { hunt: 0, boss: 0 },
+        crownRunStacks: {},
+      }));
+      sessionStorage.setItem(marker, 'true');
+    }
     if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
   }, { ipad: projectName.includes('ipad') });
 }
