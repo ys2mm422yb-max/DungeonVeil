@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const FULL_ROOM_CHUNKS = [
@@ -110,7 +111,7 @@ async function startFreshRun(page) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
-  await page.waitForTimeout(1_200);
+  await waitForPaintedCanvas(page);
 }
 
 async function loadRoom(page, room) {
@@ -137,8 +138,8 @@ async function loadRoom(page, room) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
-  await expect(page.getByText(new RegExp(`RAUM\\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(room % 10 === 0 ? 1_400 : 900);
+  await expect(page.getByText(new RegExp(`RAUM\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
+  await waitForPaintedCanvas(page);
 }
 
 async function assertNoHorizontalOverflow(page) {
@@ -154,6 +155,7 @@ async function captureRoom(page, room, projectName) {
   await assertNoHorizontalOverflow(page);
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByTestId('tutorial-overlay')).toHaveCount(0, { timeout: 20_000 });
+  await waitForPaintedCanvas(page);
   await page.screenshot({ path: `test-results/visual-room-${String(room).padStart(2, '0')}-${projectName}.png`, fullPage: false });
 }
 
@@ -164,7 +166,7 @@ async function captureRooms(page, testInfo, rooms) {
   await startFreshRun(page);
   for (const room of rooms) {
     if (room !== 1) await loadRoom(page, room);
-    await expect(page.getByText(new RegExp(`RAUM\\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(new RegExp(`RAUM\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
     await captureRoom(page, room, testInfo.project.name);
   }
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
