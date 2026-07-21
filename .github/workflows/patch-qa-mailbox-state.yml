@@ -1,9 +1,9 @@
 name: One-shot mailbox QA state patch
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/guild-mail-equipment-currency-ux-v1
+      - fix/mobile-telegraphs-room-21-50-balance
     paths:
       - '.github/workflows/patch-qa-mailbox-state.yml'
 
@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
