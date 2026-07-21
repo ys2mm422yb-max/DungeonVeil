@@ -184,6 +184,17 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const seenDamageIds = new Set<string>();
     const mobileTick = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
+    const suspendPendingHazards = () => {
+      const now = performance.now();
+      effects.runeStrikeAt = 0;
+      effects.nextRuneStormAt = now + 1_400;
+      roomMechanics.warningAt = 0;
+      roomMechanics.nextTriggerAt = now + 1_600;
+      const engine = getEngineRef.current();
+      if (engine) clearPostCombatHazards(engine);
+    };
+    window.addEventListener('dungeon-veil-room-preparing', suspendPendingHazards);
+
     const collectDamage = (engine: GameEngine) => {
       for (const number of engine.state.damageNumbers) {
         if (seenDamageIds.has(number.id)) continue;
@@ -281,6 +292,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     frame = requestAnimationFrame(update);
     return () => {
       cancelAnimationFrame(frame);
+      window.removeEventListener('dungeon-veil-room-preparing', suspendPendingHazards);
       disposeBossAttacks();
       disposeNormalAttacks();
       disposeFusionEffects();
