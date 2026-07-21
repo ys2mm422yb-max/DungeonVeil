@@ -6,12 +6,13 @@ const requireText = (source, pattern, message) => {
   if (!pattern.test(source)) throw new Error(message);
 };
 
-const [mechanics, recovery, bridge, duoQa, gameCanvas, combatStage, sessionBridge, main, spec, hiddenHudSpec, postClearSpec, atomicReadySpec, config, workflow] = await Promise.all([
+const [mechanics, recovery, bridge, duoQa, gameCanvas, roomFailureGuard, combatStage, sessionBridge, main, spec, hiddenHudSpec, postClearSpec, atomicReadySpec, config, workflow] = await Promise.all([
   read('src/game/roomMechanics.ts'),
   read('src/game/runRendererRecovery.ts'),
   read('src/game/runtimeEvidenceBridge.ts'),
   read('src/components/RuntimeDuoEvidenceQa.tsx'),
   read('src/components/GameCanvas.tsx'),
+  read('src/game/roomReadyFailureGuard.ts'),
   read('src/components/CombatStage.tsx'),
   read('src/components/GameSessionBridge.tsx'),
   read('src/main.tsx'),
@@ -47,6 +48,10 @@ requireText(duoQa, /remotePlayer=\{remotePlayer\}/, 'Duo runtime evidence must r
 requireText(gameCanvas, /GameCanvasKayKit3D owns the only normal room-ready signal/, 'Only the atomically built Three.js room may release a normal room transition.');
 const stageRoomBody = gameCanvas.match(/const stageRoom = async \(\) => \{([\s\S]*?)\n    \};/)?.[1] ?? '';
 if (/dungeon-veil-room-ready/.test(stageRoomBody)) throw new Error('The preload stage must never emit a premature room-ready signal.');
+requireText(roomFailureGuard, /detail\?\.failed/, 'Failed atomic room-ready events must be identified.');
+requireText(roomFailureGuard, /stopImmediatePropagation\(\)/, 'Failed atomic room-ready events must not resume any runtime listener.');
+requireText(roomFailureGuard, /dungeonVeilRoomBuildState = 'retrying'/, 'A failed atomic room build must remain visibly marked as retrying.');
+requireText(main, /installRoomReadyFailureGuard\(\)/, 'The failed room-ready guard must be installed before React mounts.');
 requireText(combatStage, /roomIdentity\(floor\)/, 'Run room titles must use the complete room bible instead of a 20-room list.');
 requireText(combatStage, /identity\.nameEn.*identity\.nameDe/, 'Room titles must follow the selected language.');
 requireText(combatStage, /data-room-title=\{roomTitle\}/, 'The runtime suite needs an explicit room-title evidence marker.');
@@ -76,6 +81,9 @@ requireText(postClearSpec, /killLivingEnemies/, 'The post-clear regression must 
 requireText(postClearSpec, /settled\.hp.*armed\.hp/s, 'The post-clear regression must prove player HP cannot change afterward.');
 requireText(atomicReadySpec, /\[13, 14, 21, 41, 50\]/, 'Complex rooms across every later visual phase must be covered by atomic readiness evidence.');
 requireText(atomicReadySpec, /evidence\.ready.*toBe\(1\)/s, 'Each complex room transition must expose exactly one normal room-ready signal.');
+requireText(atomicReadySpec, /failed: true/, 'Atomic readiness evidence must include a failed build attempt.');
+requireText(atomicReadySpec, /blocked\.evidence\.ready.*toBe\(0\)/s, 'A failed build must not reach room-ready listeners.');
+requireText(atomicReadySpec, /blocked\.runtime\.hp.*armed\.hp/s, 'A failed build must keep hazards and HP frozen.');
 requireText(atomicReadySpec, /waitForPaintedCanvas/, 'Atomic room readiness must finish with a painted Three.js canvas.');
 requireText(config, /post-clear-player-hazards/, 'The complete browser matrix must include post-clear player hazard regressions.');
 requireText(config, /atomic-room-readiness/, 'The complete browser matrix must include atomic room readiness regressions.');
