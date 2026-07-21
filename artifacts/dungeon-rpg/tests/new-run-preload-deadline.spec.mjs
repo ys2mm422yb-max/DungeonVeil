@@ -17,10 +17,10 @@ async function startNamedRun(page, name) {
   await expect(nameInput).toBeVisible();
   await nameInput.fill(name);
 
-  const startButton = page.getByRole('button', { name: /Run starten|Start Game/i }).first();
+  const startButton = page.getByTestId('run-name-confirm');
   await expect(startButton).toBeEnabled();
   const startedAt = Date.now();
-  await startButton.click({ force: true, noWaitAfter: true });
+  await pressPointerUi(startButton);
   return startedAt;
 }
 
