@@ -68,7 +68,7 @@ jobs:
             browser: webkit
           - project: android-chromium
             browser: chromium
-          - project: ipad-landscape-webkit
+          - project: ipad-portrait-webkit
             browser: webkit
           - project: desktop-chromium
             browser: chromium
