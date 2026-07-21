@@ -37,6 +37,32 @@ jobs:
           manifest=$(find source -type f -name complete-runtime-results.json -print -quit)
           test -n "$manifest"
           cp "$manifest" "$selected/complete-runtime-results.json"
+          python - "$manifest" "$selected/summary.json" <<'PY'
+          import json, sys
+          source, output = sys.argv[1:]
+          data = json.load(open(source))
+          issues = []
+          def walk(suite, prefix=()):
+              title = suite.get('title', '')
+              here = prefix + ((title,) if title else ())
+              for spec in suite.get('specs', []):
+                  spec_title = spec.get('title', '')
+                  for test in spec.get('tests', []):
+                      results = test.get('results', [])
+                      status = test.get('status')
+                      if status not in (None, 'expected') or any(r.get('status') not in ('passed', 'skipped') for r in results):
+                          issues.append({
+                              'title': ' > '.join(here + ((spec_title,) if spec_title else ())),
+                              'status': status,
+                              'results': [{'status': r.get('status'), 'retry': r.get('retry')} for r in results],
+                          })
+              for child in suite.get('suites', []):
+                  walk(child, here)
+          for suite in data.get('suites', []):
+              walk(suite)
+          json.dump({'stats': data.get('stats', {}), 'issues': issues}, open(output, 'w'), indent=2)
+          PY
+          printf '%s\n' "$GITHUB_RUN_ID" > "$selected/workflow-run-id.txt"
           for name in \
             post-clear-rune-room-13-android-chromium.png \
             post-clear-rune-room-16-android-chromium.png \
