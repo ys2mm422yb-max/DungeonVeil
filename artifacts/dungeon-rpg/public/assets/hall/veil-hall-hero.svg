@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 960" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Character-free gothic veil hall">
+  <metadata data-static-role="portal-atmosphere-only" data-static-hero-embedded="false">Dungeon Veil character-free atmospheric hall</metadata>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#040208"/>
+      <stop offset="0.42" stop-color="#10081b"/>
+      <stop offset="1" stop-color="#030106"/>
+    </linearGradient>
+    <radialGradient id="portal" cx="50%" cy="42%" r="48%">
+      <stop offset="0" stop-color="#bda0ff" stop-opacity="0.56"/>
+      <stop offset="0.26" stop-color="#7540d4" stop-opacity="0.36"/>
+      <stop offset="0.62" stop-color="#2c124a" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#08030e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="stone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#24162f"/>
+      <stop offset="0.48" stop-color="#120c19"/>
+      <stop offset="1" stop-color="#08050d"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#21122d" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#07040b" stop-opacity="0.96"/>
+    </linearGradient>
+    <linearGradient id="torch" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff0b4"/>
+      <stop offset="0.38" stop-color="#df8c42"/>
+      <stop offset="1" stop-color="#7b2e24" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="softGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <filter id="torchGlow" x="-200%" y="-200%" width="500%" height="500%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <filter id="mistBlur" x="-40%" y="-80%" width="180%" height="260%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+    <mask id="fadeBottom">
+      <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="white"/>
+        <stop offset="0.78" stop-color="white"/>
+        <stop offset="1" stop-color="black"/>
+      </linearGradient>
+      <rect width="540" height="960" fill="url(#fade)"/>
+    </mask>
+  </defs>
+
+  <rect width="540" height="960" fill="url(#bg)"/>
+  <ellipse cx="270" cy="410" rx="225" ry="330" fill="url(#portal)" filter="url(#softGlow)" opacity="0.48"/>
+
+  <g mask="url(#fadeBottom)">
+    <path d="M108 734V250C108 124 181 62 270 62s162 62 162 188v484" fill="none" stroke="#261630" stroke-width="32" opacity="0.72"/>
+    <path d="M132 734V266C132 155 192 95 270 95s138 60 138 171v468" fill="none" stroke="#4d2b62" stroke-width="5" opacity="0.58"/>
+    <path d="M154 734V282C154 188 204 129 270 129s116 59 116 153v452" fill="none" stroke="#9b67e5" stroke-width="2" opacity="0.24"/>
+
+    <g fill="url(#stone)" stroke="#3d244d" stroke-width="2" opacity="0.92">
+      <path d="M24 760h72V222l-19-31H43l-19 31z"/>
+      <path d="M444 760h72V222l-19-31h-34l-19 31z"/>
+      <path d="M70 760h54V314l-14-23H84l-14 23z"/>
+      <path d="M416 760h54V314l-14-23h-26l-14 23z"/>
+    </g>
+
+    <g fill="#352043" opacity="0.74">
+      <path d="M12 224h96l-10-30H22z"/>
+      <path d="M432 224h96l-10-30h-76z"/>
+      <path d="M58 316h78l-9-24H67z"/>
+      <path d="M404 316h78l-9-24h-60z"/>
+    </g>
+
+    <g stroke="#513065" stroke-width="2" opacity="0.42">
+      <path d="M41 248h38M41 309h38M41 370h38M41 431h38M41 492h38M41 553h38M41 614h38"/>
+      <path d="M461 248h38M461 309h38M461 370h38M461 431h38M461 492h38M461 553h38M461 614h38"/>
+    </g>
+
+    <path d="M191 685V337c0-68 35-110 79-110s79 42 79 110v348z" fill="#09040f" stroke="#6f4291" stroke-width="4" opacity="0.9"/>
+    <path d="M207 686V348c0-57 27-92 63-92s63 35 63 92v338z" fill="url(#portal)" opacity="0.92"/>
+    <path d="M222 684V365c0-45 21-73 48-73s48 28 48 73v319z" fill="#2b1150" opacity="0.34"/>
+
+    <g fill="none" stroke="#b084ff" opacity="0.34">
+      <path d="M270 332l24 35-24 35-24-35z" stroke-width="3"/>
+      <path d="M270 346l12 21-12 21-12-21z" stroke-width="2"/>
+      <path d="M270 402v128" stroke-width="2"/>
+    </g>
+
+    <g>
+      <ellipse cx="95" cy="470" rx="34" ry="42" fill="#d1783f" opacity="0.1" filter="url(#torchGlow)"/>
+      <ellipse cx="445" cy="470" rx="34" ry="42" fill="#d1783f" opacity="0.1" filter="url(#torchGlow)"/>
+      <path d="M90 486c-7-18 1-31 7-42 7 13 13 25 2 42z" fill="url(#torch)" opacity="0.72"/>
+      <path d="M440 486c-7-18 1-31 7-42 7 13 13 25 2 42z" fill="url(#torch)" opacity="0.72"/>
+      <path d="M88 489h18v34H88zM438 489h18v34h-18z" fill="#24162d"/>
+    </g>
+
+    <g fill="#160c20" stroke="#3d234d" stroke-width="1.5">
+      <path d="M154 730h232l24 26H130z"/>
+      <path d="M137 760h266l30 30H107z"/>
+      <path d="M112 795h316l38 38H74z"/>
+    </g>
+
+    <path d="M95 960l92-195h166l92 195z" fill="url(#floor)"/>
+    <g stroke="#6c3c83" stroke-width="1" opacity="0.2">
+      <path d="M187 765L124 960M222 765l-24 195M318 765l24 195M353 765l63 195"/>
+      <path d="M159 820h222M139 870h262M118 920h304"/>
+    </g>
+
+    <ellipse cx="270" cy="748" rx="190" ry="36" fill="#a879ff" opacity="0.08" filter="url(#mistBlur)"/>
+    <ellipse cx="270" cy="828" rx="228" ry="54" fill="#8f5bd1" opacity="0.055" filter="url(#mistBlur)"/>
+  </g>
+
+  <rect width="540" height="960" fill="none" stroke="#050208" stroke-width="42" opacity="0.5"/>
+  <ellipse cx="270" cy="520" rx="260" ry="470" fill="none" stroke="#000" stroke-width="80" opacity="0.24"/>
+</svg>

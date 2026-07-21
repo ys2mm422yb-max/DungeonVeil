@@ -2,25 +2,25 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
-async function clickAnimatedUi(locator) {
+async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
-  await locator.click({ force: true, noWaitAfter: true });
+  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
 }
 
 async function startNamedRun(page, name) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
-  await clickAnimatedUi(page.getByRole('button', { name: /Spielen|Play/i }));
-  await clickAnimatedUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }));
+  await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await pressPointerUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
 
   const nameInput = page.getByRole('textbox').first();
   await expect(nameInput).toBeVisible();
   await nameInput.fill(name);
 
-  const startButton = page.getByRole('button', { name: /Run starten|Start Game/i }).first();
+  const startButton = page.getByTestId('run-name-confirm');
   await expect(startButton).toBeEnabled();
   const startedAt = Date.now();
-  await clickAnimatedUi(startButton);
+  await pressPointerUi(startButton);
   return startedAt;
 }
 

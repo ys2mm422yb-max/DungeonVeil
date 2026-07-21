@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 await import('./validate-guild-search-and-join.mjs');
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, spectatorMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, guildPanel, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, villageScene, villagePlayer, main] = await Promise.all([
+const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigration, spectatorMigration, attemptMigration, socialClient, friendClient, attemptClient, friendsPanel, guildSocial, guildPanel, profileCard, onlinePanel, bossPanel, mailbox, rewardLocal, tutorial, tutorialState, bridge, menu, villageHub, menuScene, liveMenuScene, villageScene, villagePlayer, main] = await Promise.all([
   read('../../../supabase/migrations/20260713033000_add_social_profiles_worldboss_rewards.sql'),
   read('../../../supabase/migrations/20260713034500_social_acceptance_mailbox_notices.sql'),
   read('../../../supabase/migrations/20260713035500_prepare_recent_world_boss_rewards.sql'),
@@ -27,6 +27,7 @@ const [migration, noticesMigration, rewardSweepMigration, profileExtensionMigrat
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
+  read('../src/components/LiveHybridMainMenuScene.tsx'),
   read('../src/components/ModernVillageSquareScene.tsx'),
   read('../src/components/kaykitVillagePlayer3D.ts'),
   read('../src/main.tsx'),
@@ -63,7 +64,9 @@ const checks = [
   [tutorialState.includes('requestTutorialReplay') && tutorialState.includes('completeTutorial') && bridge.includes('<TutorialOverlay'), 'tutorial persistence or gameplay bridge is missing'],
   [menu.includes('Tutorial wiederholen') && menu.includes('requestTutorialReplay') && menu.includes('syncSocialProfileProgress'), 'main-menu tutorial replay or social progress sync is missing'],
   [villageHub.includes('veil-village-npc-hub') && villageHub.includes('npc-questmaster') && villageHub.includes('npc-postmaster') && villageHub.includes('npc-scout') && villageHub.includes('npc-guildmaster') && !villageHub.includes('npc-worldkeeper'), 'interactive village social navigation is missing or still contains the world-boss route'],
-  [menu.includes('<VillageNpcHub') && menuScene.includes('ModernVillageSquareScene') && villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)'), 'village NPC navigation is not backed by the focused equipped Ranger scene'],
+  [menu.includes('<VillageNpcHub') && menuScene.includes('data-composition="live-hybrid-scene"') && menuScene.includes('data-static-hero-embedded="false"') && menuScene.includes('LiveHybridMainMenuScene') && !menuScene.includes('ModernVillageSquareScene') && !menuScene.includes('MainMenuHeroFocusBridge'), 'social navigation is not backed by the single live hybrid Ranger scene'],
+  [liveMenuScene.includes('loadKayKitVillageArcher') && liveMenuScene.includes('activeCompanionV5') && liveMenuScene.includes('data-animation-frames') && liveMenuScene.includes('data-renderer="single-live-menu-canvas"'), 'live equipped Ranger animation or V5 companion integration is incomplete'],
+  [liveMenuScene.includes("host.dataset.companionSpecies = 'none'") && liveMenuScene.includes('COMPANION_COLLECTION_EVENT'), 'no-companion start state or collection updates are not respected'],
   [main.includes("qaMode === 'tutorial'") && main.includes('<TutorialVisualQa'), 'tutorial visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'village menu visual QA route is missing'],
 ];
@@ -75,5 +78,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social progression audit passed: public career profiles, cosmetic social cards, friend-only live viewing, server boss gates and focused Ranger remain integrated.');
-// User-authored rerun marker after the scoped Play-overlay browser selector fix.
+console.log('Social progression audit passed: public career profiles, social systems, server boss gates and the live hybrid Ranger/V5 companion menu remain integrated.');

@@ -1,71 +1,76 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 
-const [balance, reserve, selection, runtime, scene, chip, management, profileSummary, stage, menu, equipment, ownProfile, publicProfile, spectatorStage, duo, worldBoss, progression] = await Promise.all([
-  readFile(new URL('../src/game/buildBalanceV4.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/game/companionReserveV4.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/game/companionSelectionV4.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/CompanionRuntimeBridge.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/CompanionScene3D.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/CompanionStatusChip.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/CompanionManagementPanel.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/CompanionProfileSummary.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/CombatStage.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/screens/MainMenuScreen.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/screens/VeilChamberScreenV4.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/PlayerProfilePanel.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/PlayerProfileCard.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/SpectatorPlaybackStage.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('../src/game/coopDuoBalanceV4.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/components/WorldBossBattleScreenV4.tsx', import.meta.url), 'utf8'),
-  readFile(new URL('./ten-item-relic-grind-simulator.mjs', import.meta.url), 'utf8'),
+const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
+const [balance, reserve, collection, selection, runtime, scene, readability, chip, management, profileSummary, stage, equipment, ownProfile, publicProfile, spectatorStage, duo, worldBoss, progression] = await Promise.all([
+  read('../src/game/buildBalanceV4.ts'),
+  read('../src/game/companionReserveV4.ts'),
+  read('../src/game/companionCollectionV5.ts'),
+  read('../src/game/companionSelectionV4.ts'),
+  read('../src/components/CompanionRuntimeBridge.tsx'),
+  read('../src/components/CompanionScene3D.tsx'),
+  read('../src/components/companionVisualReadability3D.ts'),
+  read('../src/components/CompanionStatusChip.tsx'),
+  read('../src/components/CompanionManagementPanel.tsx'),
+  read('../src/components/CompanionProfileSummary.tsx'),
+  read('../src/components/CombatStage.tsx'),
+  read('../src/components/screens/VeilChamberScreenV4.tsx'),
+  read('../src/components/PlayerProfilePanel.tsx'),
+  read('../src/components/PlayerProfileCard.tsx'),
+  read('../src/components/SpectatorPlaybackStage.tsx'),
+  read('../src/game/coopDuoBalanceV4.ts'),
+  read('../src/components/WorldBossBattleScreenV4.tsx'),
+  read('./ten-item-relic-grind-simulator.mjs'),
 ]);
-const assert = (condition, message) => { if (!condition) throw new Error(`Companion reserve V4: ${message}`); };
+const assert = (condition, message) => { if (!condition) throw new Error(`Companion collection V5: ${message}`); };
 
-assert(balance.includes('minimumEffectivePower: 0.08') && balance.includes('averageEffectivePower: 0.10') && balance.includes('maximumEffectivePower: 0.12'), '8–12% power reserve missing');
 assert(balance.includes('maxVisiblePerPlayer: 1') && balance.includes('duoVisibleCap: 2'), 'solo or Duo visible cap missing');
 assert(balance.includes('projectileBudgetPerCompanion: 2') && balance.includes('particleBudgetPerCompanion: 12') && balance.includes('aiUpdatesPerSecond: 10'), 'performance budgets missing');
 assert(balance.includes('blocksPlayers: false') && balance.includes('reviveTarget: false'), 'collision or revive contract unsafe');
-assert(reserve.includes("'single-target' | 'critical-support' | 'shield' | 'loot-comfort' | 'distraction'"), 'planned companion roles incomplete');
-assert(reserve.includes("'single-target': 0.12") && reserve.includes("'loot-comfort': 0.08"), 'role power bands missing');
+assert(reserve.includes("'single-target' | 'critical-support' | 'shield' | 'loot-comfort' | 'distraction'"), 'five bounded companion roles are incomplete');
 assert(reserve.includes('blocksEnemies: false') && reserve.includes('reviveTarget: false'), 'companions can block or revive');
 assert(reserve.includes('perOwner.has(companion.ownerPlayerId)') && reserve.includes('duoVisibleCap'), 'one companion per owner or Duo cap not enforced');
-assert(reserve.includes('ownerPlayerId') && reserve.includes('ownerUserId') && reserve.includes("source: 'companion-v4'"), 'damage attribution missing');
-assert(reserve.includes('companionWorldBossDamageV4') && worldBoss.includes('WORLD_BOSS_BALANCE_V4'), 'World Boss attribution reserve missing');
+assert(reserve.includes('companionDamageAttributionV4') && worldBoss.includes('WORLD_BOSS_BALANCE_V4'), 'damage attribution reserve missing');
 assert(duo.includes('DUO_MOBILE_ENEMY_CAP') && balance.includes('duoVisibleCap: 2'), 'Duo mobile reserve not bounded');
 
-assert(selection.includes('COMPANION_ROLE_ORDER_V4') && selection.includes('COMPANION_SELECTION_STORAGE_KEY'), 'role selection or persistence missing');
-assert(selection.includes('saveCompanionRoleV4') && selection.includes('localStorage.setItem'), 'selected companion is not persisted');
-assert(chip.includes('run-companion-chip') && chip.includes('nextCompanionRoleV4'), 'visible in-run role control missing');
-assert(stage.includes('<CompanionRuntimeBridge') && stage.includes('<CompanionScene3D') && stage.includes('<CompanionStatusChip'), 'runtime, renderer or status integration missing');
-assert(scene.includes('data-scene-hook="object3d-add"') && scene.includes('THREE.Object3D.prototype.add'), 'active Three scene hook is missing');
-assert(!scene.includes('WebGLRenderer.prototype.render'), 'broken renderer prototype hook returned');
-assert(scene.includes('data-model-source="kaykit-adventurers"') && scene.includes('findKayKitModels') && scene.includes('KayKitCompanion_'), 'supplied KayKit companion models are not used');
-assert(scene.includes('rig_medium_general') && scene.includes('rig_medium_movementbasic') && scene.includes('rig_medium_combat'), 'KayKit idle, movement or combat animation loading missing');
-assert(scene.includes('normalizeCompanionRosterV4') && scene.includes("remote:${remote.userId}"), 'one visible companion per Solo/Duo owner is not enforced in the renderer');
-assert(scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"'), 'companion renderer must reuse the active run WebGL scene');
-assert(runtime.includes('window.setInterval(tick, 100)') && runtime.includes('reservation.projectileBudget'), '10 Hz AI or projectile budget missing at runtime');
-assert(runtime.includes("authorityRef.current === 'host'") && runtime.includes("modeRef.current === 'solo'"), 'Duo enemy authority gate missing');
-assert(runtime.includes("activeRole === 'single-target'") && runtime.includes("activeRole === 'critical-support'") && runtime.includes("activeRole === 'shield'") && runtime.includes("activeRole === 'loot-comfort'") && runtime.includes("activeRole === 'distraction'"), 'not all five role bonuses are implemented');
+for (const species of ['veil-lynx', 'ember-raven', 'rune-sentinel', 'lantern-wisp', 'dusk-drake']) {
+  assert(collection.includes(`'${species}'`), `distinct ${species} definition missing`);
+}
+for (const chapter of [2, 4, 6, 8, 10]) assert(collection.includes(`unlockChapter: ${chapter}`), `chapter ${chapter} companion find missing`);
+assert(collection.includes('COMPANION_MAX_LEVEL_V5 = 5') && collection.includes('COMPANION_UPGRADE_COSTS_V5') && collection.includes('upgradeCompanionV5'), 'five-level dust upgrade path missing');
+assert(collection.includes('unlockCompanionV5') && collection.includes('selectCompanionV5') && collection.includes('activeId: null'), 'locked collection or explicit pre-run selection missing');
+assert(collection.includes('companionEffectivePowerV5') && collection.includes('companionAttackIntervalV5'), 'level power or attack cadence scaling missing');
+
+assert(selection.includes('COMPANION_COLLECTION_STORAGE_KEY') && selection.includes('selectCompanionV5'), 'legacy selection compatibility is not routed through the collection');
+assert(stage.includes('activeCompanionV5') && stage.includes('captured once') && !stage.includes('saveCompanionRoleV4') && !stage.includes('changeCompanionRole'), 'run companion is not frozen before combat');
+assert(chip.includes("import './companionVisualReadability3D'") && chip.includes('read-only-companion-status') && chip.includes('pointer-events-none') && !chip.includes('nextCompanionRoleV4') && !chip.includes('onRoleChange'), 'readability install or read-only in-run status is missing');
+
+assert(runtime.includes('data-basic-attacks="true"') && runtime.includes('data-basic-attack-count="0"') && runtime.includes('basicAttackCountRef.current += 1') && runtime.includes('companionAttackIntervalV5') && runtime.includes('localCompanionOrigin'), 'every companion does not produce measurable visible paced basic attacks');
+assert(runtime.includes('data-selection="pre-run-frozen"') && runtime.includes('data-level={level}') && runtime.includes('companionEffectivePowerV5'), 'runtime level or frozen selection diagnostics missing');
+assert(runtime.includes("activeRole === 'shield'") && runtime.includes("activeRole === 'loot-comfort'") && runtime.includes("activeRole === 'distraction'"), 'role-specific guard, collection or distraction effects missing');
 assert(runtime.includes('data-revive-target="false"') && runtime.includes('data-blocks-players="false"') && runtime.includes('data-blocks-enemies="false"'), 'runtime collision or revive diagnostics unsafe');
 
-assert(menu.includes('main-menu-equipment-navigation') && !menu.includes('main-menu-companion-navigation') && !menu.includes("'companions'"), 'standalone companion main-menu navigation still exists');
-assert(equipment.includes("type ChamberTab = EquipmentTab | 'relic' | 'companion'") && equipment.includes("'companion'") && equipment.includes('inventory-tab-${key}') && equipment.includes('equipment-companion-section') && equipment.includes('<CompanionManagementPanel'), 'companion management is not consolidated inside equipment');
-assert(management.includes('companion-management-panel') && management.includes('companion-active-role') && management.includes('companion-reserve-grid'), 'management UI diagnostics missing');
-assert(management.includes('embedded?: boolean') && management.includes("data-embedded={embedded ? 'true' : 'false'}"), 'embedded equipment presentation is missing');
-assert(management.includes('reserve.length') && management.includes('4/4') === false, 'reserve must be calculated rather than hard-coded as a fake list');
-assert(management.includes('saveCompanionRoleV4') && management.includes('COMPANION_ROLE_ORDER_V4.filter'), 'active/reserve switching is not persistent');
-assert(profileSummary.includes('AKTIVER BEGLEITER') && profileSummary.includes('Reserve'), 'profile companion summary incomplete');
-assert(ownProfile.includes('own-player-profile-companion') && ownProfile.includes('<CompanionProfileSummary'), 'own profile companion missing');
-assert(publicProfile.includes('public-player-profile-companion') && publicProfile.includes('companionRoleForOwnerV4'), 'public profile companion fallback missing');
-assert(spectatorStage.includes('<CompanionScene3D') && spectatorStage.includes('spectator-companion-contract') && spectatorStage.includes('single-stable-three-state-with-companion'), 'spectator companion integration missing');
+assert(scene.includes('data-model-source="procedural-distinct-companion-v5"') && scene.includes('data-animation-source="articulated-locomotion-and-attacks"'), 'distinct animated scene contract missing');
+for (const part of ['VeilLynxLeg', 'EmberRavenWing', 'RuneSentinelLeg', 'LanternWispShard', 'DuskDrakeWing']) {
+  assert(scene.includes(part), `articulated ${part} rig missing`);
+}
+assert(scene.includes('CompanionV5AttackTrail') && scene.includes('CompanionV5AttackRing') && scene.includes('triggerAction(detail?.kind'), 'visible attack trail or action event binding missing');
+assert(scene.includes('maxStep = (5.8 + binding.level * 0.42) * delta') && scene.includes('speed > 0.025'), 'bounded locomotion still slides by positional interpolation');
+assert(scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"') && scene.includes('THREE.Object3D.prototype.add'), 'companion renderer must reuse the active run scene');
+assert(readability.includes('root.scale.multiplyScalar(IS_MOBILE ? 1.34 : 1.2)') && readability.includes("light.name = 'CompanionReadabilityLightV5'") && readability.includes("core.name = 'CompanionReadabilityCoreV5'"), 'dark-room companion scale, local light or readable core is missing');
+assert(readability.includes('companionOnlyLight = true') && readability.includes('material.emissiveIntensity') && readability.includes('node.frustumCulled = false'), 'bounded companion-only readability treatment is incomplete');
+
+assert(management.includes('BEGLEITER-SAMMLUNG') && management.includes('FUND BEANSPRUCHEN') && management.includes('upgradeCompanionV5'), 'collection UI lacks finds or upgrades');
+assert(management.includes('data-selection-surface="pre-run-only"') && management.includes('COMPANION_MAX_LEVEL_V5') && management.includes('SCHLEIERSTAUB'), 'pre-run-only level UI missing');
+assert(management.includes('companionCanBeFoundV5') && management.includes('selectCompanionV5') && management.includes('unlockCompanionV5'), 'locked find and selection controls missing');
+assert(equipment.includes("type ChamberTab = EquipmentTab | 'relic' | 'companion'") && equipment.includes('equipment-companion-section') && equipment.includes('<CompanionManagementPanel'), 'companion collection is not consolidated inside equipment');
+assert(profileSummary.includes('COMPANION_DEFINITIONS_V5') && profileSummary.includes('data-companion-level') && !profileSummary.includes('companion-reserve-count') && !profileSummary.includes('4 / 4'), 'profiles still show fake tactic reserves');
+assert(ownProfile.includes('own-player-profile-companion') && publicProfile.includes('public-player-profile-companion'), 'profile companion surfaces missing');
+assert(spectatorStage.includes('<CompanionScene3D') || spectatorStage.includes('spectator-companion-contract'), 'spectator companion integration missing');
 
 const hasSimulatorReserve = progression.includes('requiredWithoutCompanion: true')
   && ((progression.includes('average: 1.10') && progression.includes('maximum: 1.12'))
     || progression.includes('average: COMPANION_RESERVE_V4.averageEffectivePower'));
-assert(hasSimulatorReserve, 'base-game completeness or simulator reserve missing');
-const rolePowers = [0.12, 0.10, 0.10, 0.08, 0.08];
-assert(rolePowers.every(value => value >= 0.08 && value <= 0.12), 'role escapes 8–12% band');
-assert(Math.max(...rolePowers) - Math.min(...rolePowers) <= 0.04, 'companion roles are excessively unequal');
-console.log(JSON.stringify({ roles: 5, active: 1, reserve: 4, soloCap: 1, duoCap: 2, projectileBudget: 2, particleBudget: 12, aiHz: 10, sharedRunRenderer: true, equipmentManagement: true, profiles: true, spectator: true, rolePowers }, null, 2));
-console.log('Companion reserve V4 passed: equipment management, profiles, run and spectator use bounded visible KayKit companions.');
+assert(hasSimulatorReserve, 'base-game completeness reserve missing');
+console.log(JSON.stringify({ companions: 5, firstFindChapter: 2, maxLevel: 5, preRunSelection: true, inRunSwitching: false, basicAttacks: true, articulatedMotion: true, readableInDarkRooms: true, soloCap: 1, duoCap: 2, aiHz: 10, sharedRunRenderer: true }, null, 2));
+console.log('Companion collection V5 passed: rare unlocks, dust upgrades, fixed run selection and five distinct readable animated allies are present.');

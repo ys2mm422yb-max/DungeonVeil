@@ -79,6 +79,28 @@ function wait(milliseconds: number) {
   return new Promise<void>(resolve => globalThis.setTimeout(resolve, milliseconds));
 }
 
+function disposeUnclaimedVisual(visual: KayKitEnemyVisual) {
+  visual.mixer?.stopAllAction?.();
+  visual.root?.traverse?.((node: any) => {
+    if (node.geometry && !node.geometry.userData?.kayKitPersistent) node.geometry.dispose?.();
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    materials.filter(Boolean).forEach((material: any) => material.dispose?.());
+  });
+}
+
+function guardVisualSceneClaim(visual: KayKitEnemyVisual) {
+  const root = visual.root;
+  root.userData.pendingSceneClaim = true;
+  globalThis.setTimeout(() => {
+    if (root.parent) {
+      delete root.userData.pendingSceneClaim;
+      return;
+    }
+    root.userData.unclaimedVisualDisposed = true;
+    disposeUnclaimedVisual(visual);
+  }, 0);
+}
+
 function requestedVisualRole(enemy: Enemy) {
   return enemyVisualProfile(roomFromEnemyId(enemy), enemy.enemyType, spawnIndexFromEnemyId(enemy)).role;
 }
@@ -486,6 +508,7 @@ export async function createKayKitEnemyVisual(
       modelRole: visual.role,
     };
     visualState(visual);
+    guardVisualSceneClaim(visual);
   }
   return visual;
 }

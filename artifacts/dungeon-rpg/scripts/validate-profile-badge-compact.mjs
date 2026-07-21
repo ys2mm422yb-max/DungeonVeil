@@ -7,16 +7,17 @@ const [badge, menu] = await Promise.all([
 
 const legacyLogoSeparation = menu.includes('<ProfileBadge') && menu.includes('header className="mt-12');
 const referenceLogoSeparation = menu.includes('<ProfileBadge')
-  && menu.includes('header className="mt-[100px]')
-  && menu.includes('sm:mt-20')
+  && ((menu.includes('header className="mt-[100px]') && menu.includes('sm:mt-20'))
+    || (menu.includes('header className="mt-[78px]') && menu.includes('sm:mt-[70px]')))
   && menu.includes('DUNGEON VEIL');
 
 const checks = [
-  [badge.includes('w-[min(46vw,176px)]') && badge.includes('h-[48px]') && badge.includes('h-8 w-8'), 'profile badge does not use the compact 176px/48px layout'],
+  [badge.includes('w-[min(43vw,160px)]') && badge.includes('h-[44px]') && badge.includes('h-7 w-7'), 'profile badge does not use the tighter 160px/44px mobile layout'],
   [badge.includes('top-[max(10px,calc(env(safe-area-inset-top)+4px))]'), 'profile badge safe-area position is incorrect'],
-  [badge.includes('rounded-[14px]') && badge.includes('px-2 py-1'), 'profile badge spacing does not match the compact layout'],
-  [badge.includes('text-[9px]') && badge.includes('text-[5.5px]'), 'profile badge typography is not compact'],
-  [legacyLogoSeparation || referenceLogoSeparation, 'main menu profile integration is missing'],
+  [badge.includes('rounded-[13px]') && badge.includes('px-1.5 py-1'), 'profile badge spacing does not match the restrained layout'],
+  [badge.includes('text-[8.5px]') && badge.includes('text-[5px]'), 'profile badge typography is not compact enough for the mobile composition'],
+  [badge.includes('backdrop-blur-xl') && badge.includes('borderColor: `${card.border}9c`'), 'profile badge has lost its restrained translucent treatment'],
+  [referenceLogoSeparation || legacyLogoSeparation, 'main menu profile integration is missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -26,4 +27,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Compact profile badge audit passed: the top-left profile card uses the final 176px/48px layout and remains separated from the logo.');
+console.log('Compact profile badge audit passed: the tighter top-left profile card remains separated from the mobile logo composition.');

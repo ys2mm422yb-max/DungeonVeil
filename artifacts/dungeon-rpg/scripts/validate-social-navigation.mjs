@@ -1,10 +1,14 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, villageHub, menuSceneProxy, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, band] = await Promise.all([
+const [menu, villageHub, menuSceneProxy, menuPresentation, liveMenuScene, hallArt, menuHeroFocus, villageScene, villagePlayer, mailbox, inviteCard, guildClient, guildMigration, friendsPanel, friendClient, friendMigration, friendHardening, main, emailRedirect, stageWrapper, aggressiveStage, perspectiveStage, earlyAtmosphere, roomThemes, band] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/VillageNpcHub.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
+  read('../src/components/mainMenuPresentation.css'),
+  read('../src/components/LiveHybridMainMenuScene.tsx'),
+  read('../public/assets/hall/veil-hall-hero.svg'),
+  read('../src/components/MainMenuHeroFocusBridge.tsx'),
   read('../src/components/ModernVillageSquareScene.tsx'),
   read('../src/components/kaykitVillagePlayer3D.ts'),
   read('../src/components/MailboxPanel.tsx'),
@@ -20,6 +24,8 @@ const [menu, villageHub, menuSceneProxy, villageScene, villagePlayer, mailbox, i
   read('../src/components/WorldBossCohesiveStage.tsx'),
   read('../src/components/WorldBossAggressiveStage.tsx'),
   read('../src/components/WorldBossPerspectiveStage.tsx'),
+  read('../src/components/earlyVeilRoomAtmosphere3D.ts'),
+  read('../src/components/kaykitRoomThemes3D.ts'),
   read('../src/components/WorldBossCombatBandStage.tsx'),
 ]);
 
@@ -34,8 +40,33 @@ const saveEmphasisUsesProps = menu.includes("props.saveData ? 'gold' : 'dark'") 
 const saveEmphasisUsesRefreshedSave = menu.includes("currentSaveData ? 'gold' : 'dark'") && menu.includes("currentSaveData ? 'dark' : 'gold'");
 const actionBandSeparated = menu.includes('grid-cols-2')
   && (menu.includes('min-h-[250px] flex-1')
-    || (menu.includes('min-h-[220px] flex-1') && menu.includes('main-menu-companion-navigation')))
+    || (menu.includes('min-h-[220px] flex-1') && menu.includes('main-menu-companion-navigation'))
+    || (menu.includes('data-testid="main-menu-scene-focus"') && menu.includes('min-h-[300px] flex-1') && menu.includes('data-testid="main-menu-control-stack"')))
   && !menu.includes('h-[41vh]');
+const separatedCharacterComposition = menuSceneProxy.includes('dv-main-menu-ambient-portal')
+  && menuSceneProxy.includes('assets/hall/veil-hall-hero.svg')
+  && !menuSceneProxy.includes('assets/hall/veil-hall-hero.webp')
+  && menuSceneProxy.includes('object-top')
+  && menuSceneProxy.includes('WebkitMaskImage')
+  && menuSceneProxy.includes('maskImage')
+  && hallArt.includes('data-static-role="portal-atmosphere-only"')
+  && hallArt.includes('data-static-hero-embedded="false"')
+  && !hallArt.includes('<image')
+  && menuPresentation.includes('.dv-main-menu-ambient-portal')
+  && menuPresentation.includes('height: 73% !important')
+  && menuPresentation.includes('opacity: 0.68 !important')
+  && menuPresentation.includes('brightness(0.9)')
+  && menuPresentation.includes('.dv-main-menu-live-frame')
+  && menuPresentation.includes('scale(0.62)')
+  && menuPresentation.includes('scale(0.6)')
+  && menuPresentation.includes('transform-origin: 50% 75%')
+  && !menuPresentation.includes('inset: -')
+  && !menuPresentation.includes('mask-image: linear-gradient(to bottom, transparent')
+  && liveMenuScene.includes("renderer.domElement.style.imageRendering = 'auto'")
+  && liveMenuScene.includes("'MainMenuLiveCharacterFloor'")
+  && liveMenuScene.includes("'MainMenuLiveGroundHaze'")
+  && !liveMenuScene.includes('MainMenuLivePortalGlow')
+  && !liveMenuScene.includes('MainMenuLivePortalCore');
 const checks = [
   [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
   [menu.includes("setOverlay('play')") && playOverlay.includes('Solo-Run') && playOverlay.includes('Duo-Run') && playOverlay.includes('Weltboss') && playOverlay.includes("setOverlay('coop')") && playOverlay.includes("setOverlay('worldBoss')"), 'play mode chooser does not group solo, duo and world boss'],
@@ -59,12 +90,22 @@ const checks = [
   [emailRedirect.includes('url.origin === supabaseOrigin()') && emailRedirect.includes('PATCH_MARKER'), 'email redirect guard is not narrowly scoped or idempotent'],
   [main.includes("qaMode === 'worldboss'") && main.includes('<WorldBossVisualQa'), 'world-boss visual QA route is missing'],
   [main.includes("qaMode === 'menu'") && main.includes('<MainMenuVisualQa'), 'Veil village visual QA route is missing'],
-  [menuSceneProxy.includes('ModernVillageSquareScene') && menuSceneProxy.includes('dungeon-veil-meta-changed') && !menuSceneProxy.includes('VeilWorldOrb'), 'main menu scene proxy is not routed to the equipped modern village renderer'],
-  [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)') && !villageScene.includes('AelricWorldKeeper'), 'main menu does not use one focused equipped Ranger body'],
+  [menuSceneProxy.includes('import.meta.env.BASE_URL') && menuSceneProxy.includes('LiveHybridMainMenuScene') && !menuSceneProxy.includes('ModernVillageSquareScene') && !menuSceneProxy.includes('MainMenuHeroFocusBridge'), 'main menu does not combine Pages-safe character-free atmosphere with the dedicated live renderer'],
+  [menuSceneProxy.includes('data-composition="live-hybrid-scene"') && menuSceneProxy.includes('data-static-role="portal-atmosphere-only"') && menuSceneProxy.includes('data-static-hero-embedded="false"') && menuSceneProxy.includes('data-key-art="ambient-gothic-portal-v1"'), 'live hybrid composition or static-hero retirement markers are missing'],
+  [menuSceneProxy.includes('data-image-loaded') && menuSceneProxy.includes('data-image-failed') && menuSceneProxy.includes('naturalWidth > 0'), 'ambient menu art does not prove that real pixels loaded'],
+  [menuSceneProxy.includes('SPECTATOR_RENDERER_EVENT') && menuSceneProxy.includes('setSuspended') && menuSceneProxy.includes('if (suspended) return null'), 'live hybrid menu does not preserve the exclusive spectator handoff'],
+  [separatedCharacterComposition, 'character-free hall, bounded mobile character scale or separated live renderer contract is missing'],
+  [liveMenuScene.includes('loadKayKitVillageArcher') && liveMenuScene.includes('requestAnimationFrame(loop)') && liveMenuScene.includes('playerRig?.update(delta)') && liveMenuScene.includes('data-animation-frames'), 'equipped Ranger is not continuously animated in the live menu'],
+  [liveMenuScene.includes('activeCompanionV5') && liveMenuScene.includes('COMPANION_COLLECTION_EVENT') && liveMenuScene.includes("host.dataset.companionSpecies = 'none'"), 'V5 companion selection or no-companion start state is not respected by the menu'],
+  [liveMenuScene.includes('data-renderer="single-live-menu-canvas"') && liveMenuScene.includes("renderer.domElement.dataset.testid = 'live-hybrid-main-menu-canvas'"), 'single live menu canvas diagnostics are missing'],
+  [earlyAtmosphere.includes('first: 1, last: 9') && earlyAtmosphere.includes('background: 0x08050e') && earlyAtmosphere.includes('fog: 0x140b21') && earlyAtmosphere.includes('group.userData.noCollision = true'), 'rooms 1-9 do not have a bounded collision-free Veil environment contract'],
+  [earlyAtmosphere.includes("name = 'EarlyVeilStoneDarkeningLayer'") && earlyAtmosphere.includes("name = 'EarlyVeilFloorRune'") && earlyAtmosphere.includes("name = 'EarlyVeilWarmTorchLight'") && earlyAtmosphere.includes("name = 'EarlyVeilCentralLight'") && earlyAtmosphere.includes('THREE.Fog(EARLY_VEIL_ENVIRONMENT.fog, 23, 54)'), 'early rooms are missing dark stone, readable runes, warm contrast lights or atmospheric depth'],
+  [roomThemes.includes("from './earlyVeilRoomAtmosphere3D'") && roomThemes.includes('buildEarlyVeilRoomAtmosphere(THREE, root, room)') && roomThemes.includes('if (earlyVeilAtmosphere) additions.push(earlyVeilAtmosphere)'), 'early Veil atmosphere is not integrated through the existing room-theme lifecycle'],
+  [villageScene.includes("villageRoot.name = 'ModernKayKitVillageSquare'") && villageScene.includes('loadKayKitVillageArcher') && villagePlayer.includes("root.name = 'VillageEquippedPlayer'") && villagePlayer.includes('KAYKIT_PLAYER_ASSETS.ranger') && villagePlayer.includes('village-showcase-v14-player-focus') && villagePlayer.includes("equipmentRoot.name = 'VillageReadableLoadout'") && villagePlayer.includes('root.scale.setScalar(0.72)') && !villageScene.includes('AelricWorldKeeper'), 'standalone village renderer does not retain one focused equipped Ranger body'],
   [villageScene.includes('async function loadVillageAssets(') && renderStart >= 0 && assetStart > renderStart, 'village renderer does not start before asynchronous asset loading'],
   [villageScene.includes('Promise.allSettled') && villageScene.includes("result.status === 'rejected'") && villageScene.includes('Village asset failed to load'), 'individual village asset failures are not isolated'],
   [villageScene.includes('new ResizeObserver(resize)') && villageScene.includes("window.visualViewport?.addEventListener('resize', resize)") && villageScene.includes("renderer.domElement.style.width = '100%'") && villageScene.includes("renderer.domElement.style.height = '100%'"), 'mobile village viewport or canvas sizing is missing'],
-  [villageHub.includes('grid grid-cols-4') && !villageHub.includes("testId: 'npc-worldkeeper'") && !villageHub.includes('onWorldBoss') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock still mixes gameplay modes into the social routes'],
+  [villageHub.includes('grid grid-cols-4') && villageHub.includes('min-h-[48px]') && !villageHub.includes("testId: 'npc-worldkeeper'") && !villageHub.includes('onWorldBoss') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place') && !villageHub.includes('absolute z-20 flex'), 'village place dock is not compact or still mixes gameplay modes into the social routes'],
   [actionBandSeparated, 'main-menu action layout is not separated from the village scene'],
   [saveEmphasisUsesProps || saveEmphasisUsesRefreshedSave, 'continue and play do not switch primary emphasis with save availability'],
   [!menuSceneProxy.includes('VeilWorldOrb') && !villageScene.includes('VeilWorldGlobe'), 'legacy world-globe menu markers returned'],
@@ -79,5 +120,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: gameplay modes share one Play entry, social routes stay compact, and the current world-boss pipeline remains active.');
-// Keeps the reviewed Play-menu contract tied to the current PR head.
+console.log('Social/navigation audit passed: character-free hall, independently lit live Ranger, true equipped loadout, V5 companion state, compact routes and rooms 1-9 Veil atmosphere remain active with one exclusive menu renderer.');

@@ -1,0 +1,98 @@
+name: Main Menu Visual Regression
+
+on:
+  push:
+    branches: ['feat/live-hybrid-main-menu-v3', 'fix/**']
+    paths:
+      - '.github/workflows/main-menu-visual-regression.yml'
+      - 'artifacts/dungeon-rpg/public/assets/hall/**'
+      - 'artifacts/dungeon-rpg/src/components/MainMenuDungeonScene.tsx'
+      - 'artifacts/dungeon-rpg/src/components/LiveHybridMainMenuScene.tsx'
+      - 'artifacts/dungeon-rpg/src/components/ProfileBadge.tsx'
+      - 'artifacts/dungeon-rpg/src/components/mainMenuPresentation.css'
+      - 'artifacts/dungeon-rpg/src/components/kaykitVillagePlayer3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx'
+      - 'artifacts/dungeon-rpg/src/game/companionCollectionV5.ts'
+      - 'artifacts/dungeon-rpg/src/index.css'
+      - 'artifacts/dungeon-rpg/tests/visual-audit.spec.mjs'
+      - 'artifacts/dungeon-rpg/tests/visual-render-readiness.mjs'
+  pull_request:
+    branches: [main, 'fix/**', 'work/block-*']
+    paths:
+      - '.github/workflows/main-menu-visual-regression.yml'
+      - 'artifacts/dungeon-rpg/public/assets/hall/**'
+      - 'artifacts/dungeon-rpg/src/components/MainMenuDungeonScene.tsx'
+      - 'artifacts/dungeon-rpg/src/components/LiveHybridMainMenuScene.tsx'
+      - 'artifacts/dungeon-rpg/src/components/ProfileBadge.tsx'
+      - 'artifacts/dungeon-rpg/src/components/mainMenuPresentation.css'
+      - 'artifacts/dungeon-rpg/src/components/kaykitVillagePlayer3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/screens/MainMenuScreen.tsx'
+      - 'artifacts/dungeon-rpg/src/game/companionCollectionV5.ts'
+      - 'artifacts/dungeon-rpg/src/index.css'
+      - 'artifacts/dungeon-rpg/tests/visual-audit.spec.mjs'
+      - 'artifacts/dungeon-rpg/tests/visual-render-readiness.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  iphone-menu-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install isolated browser test runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install WebKit
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps webkit
+      - name: Build current branch
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Capture focused iPhone main-menu evidence
+        env:
+          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-menu-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
+          pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs --project=iphone-webkit --grep='live main menu proves a true no-companion start, five silhouettes and visible animation frames'
+      - name: Upload focused iPhone menu evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-iphone-main-menu-evidence
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
+          path: |
+            artifacts/dungeon-rpg/test-results/visual-main-menu-*-iphone-webkit.png
+            artifacts/dungeon-rpg/test-results/visual-play-mode-iphone-webkit.png
+      - name: Upload focused result manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-iphone-main-menu-results
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            artifacts/dungeon-rpg/test-results/full-game-results.json
+            /tmp/dungeon-veil-menu-preview.log

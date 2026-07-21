@@ -77,10 +77,13 @@
           "three": "./assets/vendor/three/build/three.module.js",
           "three/addons/": "./assets/vendor/three/examples/jsm/",
           "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js": "./assets/vendor/three/build/three.module.js",
+          "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js": "./assets/vendor/three/examples/jsm/loaders/GLTFLoader.js",
           "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/": "./assets/vendor/three/examples/jsm/"
         }
       }
     </script>
+    <link rel="modulepreload" href="./assets/vendor/three/build/three.module.js" />
+    <link rel="modulepreload" href="./assets/vendor/three/examples/jsm/loaders/GLTFLoader.js" />
   </head>
   <body>
     <div id="root"><div id="dv-boot"><div><strong>DUNGEON VEIL</strong><span>SCHLEIER WIRD GEÖFFNET</span><i></i></div></div></div>
