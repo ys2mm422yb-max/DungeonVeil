@@ -36,7 +36,12 @@ const representedUnlockChapters = new Set(unlockChapters);
 
 const checks = [
   [credits.includes('Ein hobbyloser Typ bei seinem ersten Spielprojekt') && !credits.includes('value="Replit AI"'), 'credits are not the new humorous first-project copy'],
-  [inventory.includes('data-testid="equipment-permanent-progression-copy"') && inventory.includes('Ausrüstungslevel 1–5 sind dauerhaft') && inventory.includes('Gold, Itemkopien und Schleierstaub') && inventory.includes('data-testid="equipment-upgrade-preview"') && inventory.includes('data-testid="equipment-upgrade-costs"'), 'equipment levels or their permanent three-resource upgrade path remain unclear'],
+  [inventory.includes('data-testid="equipment-permanent-progression-copy"')
+    && inventory.includes('Ausrüstungslevel 1–5 sind dauerhaft')
+    && inventory.includes('Bogen und Rüstung bleiben Pflicht')
+    && inventory.includes('Köcher, Relikt und Begleiter können abgelegt werden')
+    && inventory.includes('data-testid="equipment-upgrade-preview"')
+    && inventory.includes('data-testid="equipment-upgrade-costs"'), 'permanent equipment levels, their visible costs or the mandatory/optional loadout contract are unclear'],
   [gates.includes('ACTIVE_EQUIPMENT[id].unlockChapter') && unlockChapters.length === 10 && Math.min(...unlockChapters) === 1 && Math.max(...unlockChapters) === 10 && unlockChapters.every(chapter => chapter >= 1 && chapter <= 10) && representedUnlockChapters.size >= 7, 'the ten active equipment items are not distributed through chapter 10 as intended'],
   [retention.includes("if (isBossRoom(engine.state.floor)) spawnRareRelicDrop(engine, state, 'boss'") && retention.includes('engine.state.floor === 50 ? 0.2 : 0.12'), 'boss relics are not available at every boss milestone with the intended room-50 bonus'],
   [relics.includes("'world-core'") && relics.includes("source: 'worldboss'") && reward.includes("unlockVeilRelic('world-core')"), 'world-boss-exclusive relic is missing'],
