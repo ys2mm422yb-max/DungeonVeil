@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForLiveMenuPaint, waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const CRITICAL_ROOMS = [1, 5, 9, 10, 11, 19, 20, 21, 29, 30, 31, 39, 40, 41, 49, 50];
@@ -131,7 +132,7 @@ async function closeOverlay(page) {
 async function capture(page, path, { allowTutorial = false } = {}) {
   await assertNoHorizontalOverflow(page);
   if (!allowTutorial) await assertScreenshotIsUnobscured(page);
-  await page.screenshot({ path, fullPage: false });
+  return page.screenshot({ path, fullPage: false });
 }
 
 async function setActiveCompanion(page, activeId) {
@@ -147,6 +148,13 @@ async function setActiveCompanion(page, activeId) {
   }, { id: activeId, matrix: COMPANION_MATRIX });
 }
 
+async function waitForMenuAdvance(scene, previousFrames, timeout = 20_000) {
+  await expect.poll(
+    async () => Number(await scene.getAttribute('data-animation-frames') || 0),
+    { timeout, intervals: [100, 200, 350, 500, 750, 1_000] },
+  ).toBeGreaterThan(previousFrames);
+}
+
 async function startFreshRun(page) {
   await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
   await pressPointerUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
@@ -158,7 +166,7 @@ async function startFreshRun(page) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
-  await page.waitForTimeout(1_800);
+  await waitForPaintedCanvas(page);
 }
 
 async function loadRoom(page, room) {
@@ -186,7 +194,7 @@ async function loadRoom(page, room) {
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   await expect(page.getByText(new RegExp(`RAUM\\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(room % 10 === 0 ? 2_200 : 1_500);
+  await waitForPaintedCanvas(page);
 }
 
 async function openPlayMenu(page) {
@@ -205,24 +213,26 @@ test('live main menu proves a true no-companion start, five silhouettes and visi
   await initVisualState(page, testInfo.project.name, { activeCompanion: false });
   await gotoMenu(page);
 
-  const scene = page.getByTestId('live-hybrid-main-menu-scene');
-  await expect(scene).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
+  const scene = await waitForLiveMenuPaint(page);
   await expect(scene).toHaveAttribute('data-companion-species', 'none');
   await expect(page.locator('canvas')).toHaveCount(1);
   await capture(page, `test-results/visual-main-menu-no-companion-${testInfo.project.name}.png`);
 
   const beforeFrames = Number(await scene.getAttribute('data-animation-frames') || 0);
-  const frameA = await page.getByTestId('live-hybrid-main-menu-frame').screenshot({ path: `test-results/visual-main-menu-frame-a-${testInfo.project.name}.png` });
-  await page.waitForTimeout(1_500);
-  const frameB = await page.getByTestId('live-hybrid-main-menu-frame').screenshot({ path: `test-results/visual-main-menu-frame-b-${testInfo.project.name}.png` });
+  const frameA = await capture(page, `test-results/visual-main-menu-frame-a-${testInfo.project.name}.png`);
+  await waitForMenuAdvance(scene, beforeFrames);
+  await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'));
+  const frameB = await capture(page, `test-results/visual-main-menu-frame-b-${testInfo.project.name}.png`);
   const afterFrames = Number(await scene.getAttribute('data-animation-frames') || 0);
   expect(afterFrames).toBeGreaterThan(beforeFrames);
   expect(frameA.equals(frameB), 'The rendered menu frame remained pixel-identical while animation frames advanced').toBe(false);
 
   for (const [role, species] of COMPANION_MATRIX) {
+    const previousFrames = Number(await scene.getAttribute('data-animation-frames') || 0);
     await setActiveCompanion(page, role);
     await expect(scene).toHaveAttribute('data-companion-species', species, { timeout: 20_000 });
-    await page.waitForTimeout(500);
+    await waitForMenuAdvance(scene, previousFrames);
+    await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'));
     await capture(page, `test-results/visual-main-menu-companion-${species}-${testInfo.project.name}.png`);
   }
 
@@ -237,7 +247,7 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   const runtimeIssues = attachRuntimeMonitor(page);
   await initVisualState(page, testInfo.project.name);
   await gotoMenu(page);
-  await expect(page.getByTestId('live-hybrid-main-menu-scene')).toHaveAttribute('data-ranger-loaded', 'true', { timeout: 60_000 });
+  await waitForLiveMenuPaint(page);
   await capture(page, `test-results/visual-main-menu-${testInfo.project.name}.png`);
 
   await pressPointerUi(page.getByTestId('main-menu-profile-badge'));
@@ -329,6 +339,7 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   if (testInfo.project.name === 'ipad-landscape-webkit') {
     await page.setViewportSize({ width: 820, height: 1180 });
     await reloadMenu(page);
+    await waitForLiveMenuPaint(page);
     await capture(page, 'test-results/visual-main-menu-ipad-portrait-webkit.png');
     await pressPointerUi(page.getByTestId('main-menu-profile-badge'));
     await expect(page.getByTestId('player-profile-panel')).toBeVisible({ timeout: 30_000 });
@@ -350,6 +361,7 @@ test('rooms 1-50 produce stable visual evidence across the full run', async ({ p
   for (const room of rooms) {
     if (room !== 1) await loadRoom(page, room);
     await expect(page.getByText(new RegExp(`RAUM\\s+${room}/50`, 'i')).first()).toBeVisible({ timeout: 30_000 });
+    await waitForPaintedCanvas(page);
     await capture(page, `test-results/visual-room-${String(room).padStart(2, '0')}-${testInfo.project.name}.png`);
   }
 
