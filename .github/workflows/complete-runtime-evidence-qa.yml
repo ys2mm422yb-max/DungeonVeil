@@ -72,8 +72,6 @@ jobs:
             browser: webkit
           - project: ipad-landscape-webkit
             browser: webkit
-          - project: desktop-chromium
-            browser: chromium
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -198,4 +196,164 @@ jobs:
             else await github.rest.issues.createComment({ owner, repo, issue_number, body });
       - name: Fail after evidence upload
         if: steps.runtime-tests.outcome == 'failure'
+        run: exit 1
+
+  complete-desktop-evidence:
+    needs: runtime-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: solo-room-chunks
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: '^solo continuous renderer evidence rooms'
+          - group: duo-room-chunks
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: '^duo continuous renderer evidence rooms'
+          - group: solo-continuous-1-50
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: '^solo one renderer survives uninterrupted rooms 1-50$'
+          - group: duo-continuous-1-50
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: '^duo one renderer survives uninterrupted rooms 1-50$'
+          - group: hazards-and-webgl
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: 'room hazards stop before the final enemy death animation finishes|lost WebGL context recovers without leaving a black active fight'
+          - group: recovery-and-readiness
+            test_files: tests/complete-runtime-room-titles.spec.mjs tests/renderer-recovery-hidden-hud.spec.mjs tests/post-clear-player-hazards.spec.mjs tests/atomic-room-readiness.spec.mjs
+            test_grep: ''
+          - group: worldboss-and-smoke
+            test_files: tests/worldboss-block1.spec.mjs tests/full-game-smoke.spec.mjs
+            test_grep: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install deterministic browser runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install Chromium
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium
+      - name: Build current branch
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Record focused desktop runtime evidence
+        id: desktop-runtime-tests
+        continue-on-error: true
+        env:
+          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+          TEST_FILES: ${{ matrix.test_files }}
+          TEST_GREP: ${{ matrix.test_grep }}
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-complete-runtime-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
+          read -r -a TEST_FILE_ARGS <<< "$TEST_FILES"
+          PLAYWRIGHT_ARGS=(
+            --config=playwright.complete-runtime.config.mjs
+            --project=desktop-chromium
+            --timeout=300000
+            --retries=0
+          )
+          if [[ -n "$TEST_GREP" ]]; then
+            PLAYWRIGHT_ARGS+=(--grep "$TEST_GREP")
+          fi
+          timeout --signal=TERM --kill-after=30s 30m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            "${PLAYWRIGHT_ARGS[@]}" \
+            "${TEST_FILE_ARGS[@]}"
+      - name: Upload compact desktop runtime result manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-manifest-desktop-chromium-${{ matrix.group }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 9
+          path: artifacts/dungeon-rpg/test-results/complete-runtime-results.json
+      - name: Upload focused desktop screenshots, videos and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-evidence-desktop-chromium-${{ matrix.group }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 6
+          path: |
+            artifacts/dungeon-rpg/test-results/complete-runtime-evidence/**
+            artifacts/dungeon-rpg/test-results/**/*.webm
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.png
+            artifacts/dungeon-rpg/test-results/complete-runtime-results.json
+            artifacts/dungeon-rpg/playwright-complete-runtime-report/**
+            /tmp/dungeon-veil-complete-runtime-preview.log
+      - name: Publish focused desktop runtime failure to pull request
+        if: steps.desktop-runtime-tests.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          DESKTOP_GROUP: ${{ matrix.group }}
+        with:
+          script: |
+            const fs = require('fs');
+            const group = process.env.DESKTOP_GROUP;
+            const marker = `<!-- dungeon-veil-complete-runtime-desktop-${group} -->`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const manifestPath = 'artifacts/dungeon-rpg/test-results/complete-runtime-results.json';
+            const resultLines = [];
+            try {
+              const report = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+              const stats = report.stats || {};
+              resultLines.push(`Manifest: ${stats.expected ?? '?'} erwartet, ${stats.unexpected ?? '?'} unerwartet, ${stats.flaky ?? '?'} flaky, ${stats.skipped ?? '?'} übersprungen.`);
+              const failures = [];
+              const visit = (suites, prefix = '') => {
+                for (const suite of suites || []) {
+                  const nextPrefix = [prefix, suite.title].filter(Boolean).join(' / ');
+                  for (const spec of suite.specs || []) {
+                    for (const test of spec.tests || []) {
+                      if (test.status === 'expected' || test.status === 'skipped') continue;
+                      const lastResult = (test.results || []).at(-1);
+                      const detail = lastResult?.error?.message || lastResult?.status || test.status;
+                      failures.push(`${nextPrefix} / ${spec.title}: ${String(detail).split('\n')[0]}`);
+                    }
+                  }
+                  visit(suite.suites, nextPrefix);
+                }
+              };
+              visit(report.suites);
+              if (failures.length) resultLines.push('', 'Fehlgeschlagene Tests:', ...failures.slice(0, 8).map(item => `- ${item}`));
+              if ((report.errors || []).length) resultLines.push('', 'Reporter-Fehler:', ...report.errors.slice(0, 5).map(item => `- ${String(item.message || item).split('\n')[0]}`));
+            } catch (error) {
+              resultLines.push(`Manifest konnte nicht gelesen werden: ${error.message}`);
+            }
+            const body = [
+              marker,
+              `## Desktop-Laufzeitprüfung fehlgeschlagen: ${group}`,
+              '',
+              `Head: \`${context.payload.pull_request.head.sha}\``,
+              '',
+              ...resultLines,
+              '',
+              'Der Desktop-Nachweis ist in unabhängige Teilgruppen zerlegt, damit Hänger sofort isoliert und die übrigen Nachweise nicht blockiert werden.',
+              `Diagnose: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const previous = comments.find(comment => comment.user?.type === 'Bot' && comment.body?.includes(marker));
+            if (previous) await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+      - name: Fail after focused desktop evidence upload
+        if: steps.desktop-runtime-tests.outcome == 'failure'
         run: exit 1
