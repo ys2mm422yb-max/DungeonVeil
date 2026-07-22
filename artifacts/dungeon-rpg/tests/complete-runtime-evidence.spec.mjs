@@ -64,7 +64,7 @@ function runtimeIssues(page) {
 }
 
 async function waitForApi(page) {
-  await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => Bolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
 }
 
 async function startSolo(page) {
@@ -203,12 +203,31 @@ test('room hazards stop before the final enemy death animation finishes', async 
     ).toBe(true);
     const armed = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
     expect(armed.effects.some(id => id.startsWith(warningPrefix)), JSON.stringify(armed)).toBe(true);
+    await page.evaluate(() => {
+      const baseline = Number(window.__dungeonVeilRuntimeEvidence.snapshot()?.hp ?? 0);
+      const probe = { baseline, minimum: baseline, samples: [baseline], active: true };
+      window.__dvPostClearHpProbe = probe;
+      const sample = () => {
+        if (!probe.active) return;
+        const hp = Number(window.__dungeonVeilRuntimeEvidence.snapshot()?.hp ?? 0);
+        probe.samples.push(hp);
+        probe.minimum = Math.min(probe.minimum, hp);
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
     await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.killLivingEnemies());
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 10_000 }).toBe(0);
     await page.waitForTimeout(1_850);
-    const settled = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
-    expect(settled.hp, `post-clear HP loss in room ${room}: ${JSON.stringify({ armed, settled })}`).toBeGreaterThanOrEqual(armed.hp);
-    expect(settled.effects.filter(id => HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(settled)).toEqual([]);
+    const result = await page.evaluate(() => {
+      window.__dvPostClearHpProbe.active = false;
+      return {
+        probe: window.__dvPostClearHpProbe,
+        settled: window.__dungeonVeilRuntimeEvidence.snapshot(),
+      };
+    });
+    expect(result.probe.minimum, JSON.stringify({ armed, ...result })).toBeGreaterThanOrEqual(result.probe.baseline);
+    expect(result.settled.effects.filter(id => HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(result.settled)).toEqual([]);
     await mkdir(OUTPUT, { recursive: true });
     await page.screenshot({ path: `${OUTPUT}/ghost-damage-room-${room}-${testInfo.project.name}.png`, fullPage: false });
   }
