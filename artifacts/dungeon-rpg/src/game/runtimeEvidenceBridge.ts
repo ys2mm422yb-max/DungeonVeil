@@ -77,15 +77,18 @@ function attachApi(): void {
       const room = Math.max(1, Math.min(50, Math.floor(Number(requestedRoom) || 1)));
       const player = engine.state.player;
       const roomChanges = engine.state.floor !== room || engine.state.chapter !== 1;
+      const sameRoomQaKey = `qa-reload:1:${room}`;
       setMode(mode);
-      if (roomChanges) {
-        document.documentElement.dataset.dungeonVeilRoomBuildState = 'preparing';
-        document.documentElement.dataset.dungeonVeilRoomBuildFloor = String(room);
-      } else {
-        // The renderer key does not change when QA reloads the already visible room.
-        // No new atomic room-ready event will be emitted, so preserve its ready state.
-        document.documentElement.dataset.dungeonVeilRoomBuildState = 'ready';
-        document.documentElement.dataset.dungeonVeilRoomBuildFloor = String(room);
+      document.documentElement.dataset.dungeonVeilRoomBuildState = 'preparing';
+      document.documentElement.dataset.dungeonVeilRoomBuildFloor = String(room);
+      if (!roomChanges) {
+        // Same-room QA reloads do not change the renderer key, so GameCanvas will
+        // correctly keep the already painted room and emit no lifecycle event.
+        // Restart the localhost-only runtime systems explicitly around the fresh
+        // engine state so hazards are re-armed deterministically after recovery.
+        window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', {
+          detail: { key: sameRoomQaKey, floor: room, qaReload: true },
+        }));
       }
       engine.continueGame({
         playerName: player.playerName === 'Hero' ? 'Runtime Ranger' : player.playerName,
@@ -122,6 +125,12 @@ function attachApi(): void {
       engine.state.status = 'playing';
       engine.lastTime = performance.now();
       emit(engine);
+      if (!roomChanges) {
+        document.documentElement.dataset.dungeonVeilRoomBuildState = 'ready';
+        window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', {
+          detail: { key: sameRoomQaKey, floor: room, qaReload: true },
+        }));
+      }
       return stateSnapshot(engine);
     },
     killLivingEnemies: () => {
