@@ -37,6 +37,41 @@ async function startEvidence(page) {
   await waitForPaintedCanvas(page);
 }
 
+async function killAndTrackPostClearHp(page) {
+  return page.evaluate(() => {
+    const api = window.__dungeonVeilRuntimeEvidence;
+    const baseline = Number(api.snapshot()?.hp ?? 0);
+    const afterKillSnapshot = api.killLivingEnemies();
+    const afterKill = Number(afterKillSnapshot?.hp ?? baseline);
+    const probe = {
+      baseline,
+      minimum: Math.min(baseline, afterKill),
+      samples: [baseline, afterKill],
+      active: true,
+    };
+    window.__dvPostClearHpProbe = probe;
+    const sample = () => {
+      if (!probe.active) return;
+      const hp = Number(api.snapshot()?.hp ?? 0);
+      if (probe.samples.length < 240) probe.samples.push(hp);
+      probe.minimum = Math.min(probe.minimum, hp);
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    return { baseline, afterKill };
+  });
+}
+
+async function stopPostClearHpProbe(page) {
+  return page.evaluate(() => {
+    window.__dvPostClearHpProbe.active = false;
+    return {
+      probe: window.__dvPostClearHpProbe,
+      settled: window.__dungeonVeilRuntimeEvidence.snapshot(),
+    };
+  });
+}
+
 for (const room of [13, 16, 19]) {
   test(`room ${room} rune storm stops when the final living enemy dies`, async ({ page }, testInfo) => {
     test.setTimeout(300_000);
@@ -53,8 +88,7 @@ for (const room of [13, 16, 19]) {
       { timeout: 8_000 },
     ).toBe(true);
 
-    const armed = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
-    await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.killLivingEnemies());
+    const killEvidence = await killAndTrackPostClearHp(page);
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 10_000 }).toBe(0);
     await page.waitForTimeout(1_400);
 
@@ -62,10 +96,10 @@ for (const room of [13, 16, 19]) {
     await expect(viewport).toHaveAttribute('data-hurt-flash', 'idle');
     await expect(viewport).toHaveAttribute('data-hit-flash', 'idle');
 
-    const settled = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
-    expect(settled.hp, JSON.stringify(settled)).toBe(armed.hp);
-    expect(settled.effects.filter(id => PLAYER_HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(settled)).toEqual([]);
-    expect(settled.damageNumbers.filter(id => PLAYER_DAMAGE_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(settled)).toEqual([]);
+    const result = await stopPostClearHpProbe(page);
+    expect(result.probe.minimum, JSON.stringify({ killEvidence, ...result })).toBeGreaterThanOrEqual(result.probe.baseline);
+    expect(result.settled.effects.filter(id => PLAYER_HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(result.settled)).toEqual([]);
+    expect(result.settled.damageNumbers.filter(id => PLAYER_DAMAGE_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(result.settled)).toEqual([]);
 
     await mkdir(OUTPUT, { recursive: true });
     await page.screenshot({ path: `${OUTPUT}/post-clear-rune-room-${room}-${testInfo.project.name}.png`, fullPage: false });
