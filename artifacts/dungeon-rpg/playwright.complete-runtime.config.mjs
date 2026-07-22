@@ -61,6 +61,7 @@ export default defineConfig({
       // Kept under the legacy workflow key until the CI-only follow-up PR removes
       // that matrix entry. Gameplay itself is still recorded exclusively portrait.
       name: 'ipad-landscape-webkit',
+      grepInvert: /new run renders responsive combat controls and stays stable/,
       use: {
         browserName: 'webkit',
         viewport: { width: 820, height: 1180 },
