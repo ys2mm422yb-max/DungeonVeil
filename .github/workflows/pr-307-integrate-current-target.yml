@@ -1,0 +1,155 @@
+name: Integrate PR 307 onto current target
+
+on:
+  push:
+    branches:
+      - fix/guild-mail-equipment-currency-ux-v1
+    paths:
+      - '.github/workflows/pr-307-integrate-current-target.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr-307-controlled-integration
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/guild-mail-equipment-currency-ux-v1
+      - name: Merge current fixed target with controlled resolutions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin fix/mobile-telegraphs-room-21-50-balance
+
+          set +e
+          git merge --no-ff --no-commit origin/fix/mobile-telegraphs-room-21-50-balance
+          merge_status=$?
+          set -e
+
+          if [ "$merge_status" -ne 0 ]; then
+            conflicts="$(git diff --name-only --diff-filter=U | sort)"
+            printf '%s\n' "$conflicts"
+            expected="$(printf '%s\n' \
+              artifacts/dungeon-rpg/playwright.regression.config.mjs \
+              artifacts/dungeon-rpg/scripts/validate-blocks-4-15-integration.mjs \
+              artifacts/dungeon-rpg/src/main.tsx \
+              artifacts/dungeon-rpg/tests/full-game-smoke.spec.mjs \
+              artifacts/dungeon-rpg/tests/visual-room-chunks.spec.mjs | sort)"
+            unexpected="$(comm -23 <(printf '%s\n' "$conflicts") <(printf '%s\n' "$expected"))"
+            if [ -n "$unexpected" ]; then
+              echo "Unexpected merge conflicts:" >&2
+              printf '%s\n' "$unexpected" >&2
+              exit 1
+            fi
+            while IFS= read -r path; do
+              [ -z "$path" ] && continue
+              git checkout --theirs -- "$path"
+              git add "$path"
+            done <<< "$conflicts"
+          fi
+
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const mainPath = 'artifacts/dungeon-rpg/src/main.tsx';
+          let main = fs.readFileSync(mainPath, 'utf8');
+          const cssImports = [
+            "import './equipment-polish.css';",
+            "import './equipment-mobile-detail.css';",
+            "import './tablet-layout.css';",
+          ];
+          if (!main.includes(cssImports[0])) {
+            const marker = "import './readability.css';";
+            if (!main.includes(marker)) throw new Error('main.tsx readability import marker missing');
+            main = main.replace(marker, `${marker}\n${cssImports.join('\n')}`);
+          }
+          fs.writeFileSync(mainPath, main);
+
+          const configPath = 'artifacts/dungeon-rpg/playwright.regression.config.mjs';
+          let config = fs.readFileSync(configPath, 'utf8');
+          if (!config.includes('guild-mail-equipment-visual')) {
+            config = config.replace(
+              'reduced-motion-menu)\\.spec\\.mjs/',
+              'reduced-motion-menu|guild-mail-equipment-visual|autopilot-product-journeys|autopilot-outside-guild)\\.spec\\.mjs/',
+            );
+          }
+          if (!config.includes('retries: 0')) throw new Error('Playwright retries must remain zero');
+          if (/desktop-chromium|ipad-landscape-webkit/.test(config)) throw new Error('Unsupported desktop or landscape project remained in regression config');
+          for (const project of ['iphone-webkit', 'android-chromium', 'ipad-portrait-webkit', 'android-tablet-chromium']) {
+            if (!config.includes(`name: '${project}'`)) throw new Error(`Missing supported project ${project}`);
+          }
+          fs.writeFileSync(configPath, config);
+
+          const integrationPath = 'artifacts/dungeon-rpg/scripts/validate-blocks-4-15-integration.mjs';
+          let integration = fs.readFileSync(integrationPath, 'utf8');
+          if (!integration.includes('const guildProfileRouting =')) {
+            const direct = "guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}') && !guildSocial.includes('guild-profile-list-button')";
+            if (!integration.includes(direct)) throw new Error('Guild profile routing contract marker missing');
+            integration = integration.replace(direct, "guildProfileRouting && !guildSocial.includes('guild-profile-list-button')");
+            integration = integration.replace(
+              'const checks = [',
+              "const guildProfileRouting = guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}')\n  || guildSocial.includes('onOpenMemberProfile={qaMode ? undefined : setSelectedProfileId}');\n\nconst checks = [",
+            );
+          }
+          fs.writeFileSync(integrationPath, integration);
+
+          const smokePath = 'artifacts/dungeon-rpg/tests/full-game-smoke.spec.mjs';
+          let smoke = fs.readFileSync(smokePath, 'utf8');
+          smoke = smoke.replace(
+            "async function openOverflow(page) {\n  await clickAnimatedUi(page.getByRole('button', { name: /Mehr|More/i }).first());\n}",
+            "async function openResourceMenu(page) {\n  await clickAnimatedUi(page.getByTestId('main-menu-gold-button'));\n  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible();\n}",
+          );
+          smoke = smoke.replaceAll('await openOverflow(page);', 'await openResourceMenu(page);');
+          const oldProfileStep = `  await test.step('profile overview and statistics', async () => {\n    await clickAnimatedUi(page.getByTestId('main-menu-profile-badge'));\n    await expect(page.getByText(/Statistik|Statistics/i).first()).toBeVisible();\n    await expect(page.getByText(/Höchstes Kapitel|Highest Chapter/i).first()).toBeVisible();\n    await expect(page.getByText(/Höchster Raum|Highest Room/i).first()).toBeVisible();\n  });`;
+          const newProfileStep = `  await test.step('profile overview and statistics', async () => {\n    await clickAnimatedUi(page.getByTestId('main-menu-profile-badge'));\n    await expect(page.getByTestId('player-profile-panel')).toBeVisible();\n    await clickAnimatedUi(page.getByRole('button', { name: /Statistik|Stats/i }));\n    await expect(page.getByTestId('player-profile-statistics-grid')).toBeVisible();\n    await expect(page.getByText(/Höchstes Kapitel|Highest Chapter/i).first()).toBeVisible();\n    await expect(page.getByText(/Höchster Raum|Highest Room/i).first()).toBeVisible();\n    await clickAnimatedUi(page.getByRole('button', { name: /Profil schließen|Close profile/i }));\n  });`;
+          if (smoke.includes(oldProfileStep)) smoke = smoke.replace(oldProfileStep, newProfileStep);
+          if (!smoke.includes('async function openResourceMenu')) throw new Error('Resource-menu smoke contract was not applied');
+          fs.writeFileSync(smokePath, smoke);
+
+          const autopilotPath = '.github/workflows/product-autopilot-qa.yml';
+          let autopilot = fs.readFileSync(autopilotPath, 'utf8');
+          autopilot = autopilot.replace(
+            "          - project: ipad-landscape-webkit\n            browser: webkit\n          - project: desktop-chromium\n            browser: chromium",
+            "          - project: ipad-portrait-webkit\n            browser: webkit\n          - project: android-tablet-chromium\n            browser: chromium",
+          );
+          autopilot = autopilot.replace('      fail-fast: false\n      matrix:', '      fail-fast: false\n      max-parallel: 4\n      matrix:');
+          if (/desktop-chromium|ipad-landscape-webkit/.test(autopilot)) throw new Error('Unsupported project remained in Product Autopilot');
+          for (const project of ['iphone-webkit', 'android-chromium', 'ipad-portrait-webkit', 'android-tablet-chromium']) {
+            if (!autopilot.includes(`project: ${project}`)) throw new Error(`Product Autopilot missing ${project}`);
+          }
+          fs.writeFileSync(autopilotPath, autopilot);
+          NODE
+
+          rm -f \
+            .github/workflows/guild-mail-equipment-ux.yml \
+            .github/workflows/ipad-portrait-qa.yml \
+            .github/workflows/mobile-room-visual-qa.yml \
+            .github/workflows/motion-evidence-qa.yml \
+            artifacts/dungeon-rpg/playwright.motion.config.mjs \
+            .github/workflows/pr-307-integrate-current-target.yml
+
+          git add -A
+          git diff --cached --check
+          if git grep -n -E '^(<<<<<<<|=======|>>>>>>>)' -- . ':!pnpm-lock.yaml'; then
+            echo 'Conflict markers remain' >&2
+            exit 1
+          fi
+          if git grep -n -E 'desktop-chromium|ipad-landscape-webkit' -- \
+            .github/workflows/product-autopilot-qa.yml \
+            artifacts/dungeon-rpg/playwright.regression.config.mjs; then
+            echo 'Unsupported browser contract remains' >&2
+            exit 1
+          fi
+
+          git commit -m 'Integrate current target and modernize PR 307 mobile QA'
+          git push origin HEAD:fix/guild-mail-equipment-currency-ux-v1
