@@ -22,7 +22,13 @@ function isInstalledDisplayMode(): boolean {
   );
 }
 
+function isOrientationDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
+}
+
 function viewportIsLandscape(): boolean {
+  if (!isOrientationDevice()) return false;
   const viewport = window.visualViewport;
   const width = Math.max(1, Math.round(viewport?.width ?? window.innerWidth));
   const height = Math.max(1, Math.round(viewport?.height ?? window.innerHeight));
