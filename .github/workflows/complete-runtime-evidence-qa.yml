@@ -117,6 +117,15 @@ jobs:
             tests/atomic-room-readiness.spec.mjs \
             tests/worldboss-block1.spec.mjs \
             tests/full-game-smoke.spec.mjs
+      - name: Upload compact runtime result manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-manifest-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 9
+          path: artifacts/dungeon-rpg/test-results/complete-runtime-results.json
       - name: Upload complete screenshots, videos and traces
         if: always()
         uses: actions/upload-artifact@v4
@@ -140,15 +149,45 @@ jobs:
           DEVICE_PROJECT: ${{ matrix.project }}
         with:
           script: |
+            const fs = require('fs');
             const project = process.env.DEVICE_PROJECT;
             const marker = `<!-- dungeon-veil-complete-runtime-${project} -->`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
+            const manifestPath = 'artifacts/dungeon-rpg/test-results/complete-runtime-results.json';
+            const resultLines = [];
+            try {
+              const report = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+              const stats = report.stats || {};
+              resultLines.push(`Manifest: ${stats.expected ?? '?'} erwartet, ${stats.unexpected ?? '?'} unerwartet, ${stats.flaky ?? '?'} flaky, ${stats.skipped ?? '?'} übersprungen.`);
+              const failures = [];
+              const visit = (suites, prefix = '') => {
+                for (const suite of suites || []) {
+                  const nextPrefix = [prefix, suite.title].filter(Boolean).join(' / ');
+                  for (const spec of suite.specs || []) {
+                    for (const test of spec.tests || []) {
+                      if (test.status === 'expected' || test.status === 'skipped') continue;
+                      const lastResult = (test.results || []).at(-1);
+                      const detail = lastResult?.error?.message || lastResult?.status || test.status;
+                      failures.push(`${nextPrefix} / ${spec.title}: ${String(detail).split('\n')[0]}`);
+                    }
+                  }
+                  visit(suite.suites, nextPrefix);
+                }
+              };
+              visit(report.suites);
+              if (failures.length) resultLines.push('', 'Fehlgeschlagene Tests:', ...failures.slice(0, 8).map(item => `- ${item}`));
+              if ((report.errors || []).length) resultLines.push('', 'Reporter-Fehler:', ...report.errors.slice(0, 5).map(item => `- ${String(item.message || item).split('\n')[0]}`));
+            } catch (error) {
+              resultLines.push(`Manifest konnte nicht gelesen werden: ${error.message}`);
+            }
             const body = [
               marker,
               `## Vollständige Laufzeitprüfung fehlgeschlagen: ${project}`,
               '',
               `Head: \`${context.payload.pull_request.head.sha}\``,
+              '',
+              ...resultLines,
               '',
               'Solo und Duo Räume 1–50, Weltboss, schwarze Frames, Geisterschaden, Runenstürme nach dem letzten Gegner, atomare Raumfreigabe, versteckte Übergangs-HUDs, Raumtitel, Videos und Screenshots wurden geprüft.',
               `Diagnose: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
