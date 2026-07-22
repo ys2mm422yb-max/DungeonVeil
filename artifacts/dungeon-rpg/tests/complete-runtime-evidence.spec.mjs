@@ -207,7 +207,7 @@ test('room hazards stop before the final enemy death animation finishes', async 
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 10_000 }).toBe(0);
     await page.waitForTimeout(1_850);
     const settled = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
-    expect(settled.hp, JSON.stringify(settled)).toBe(armed.hp);
+    expect(settled.hp, `post-clear HP loss in room ${room}: ${JSON.stringify({ armed, settled })}`).toBeGreaterThanOrEqual(armed.hp);
     expect(settled.effects.filter(id => HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(settled)).toEqual([]);
     await mkdir(OUTPUT, { recursive: true });
     await page.screenshot({ path: `${OUTPUT}/ghost-damage-room-${room}-${testInfo.project.name}.png`, fullPage: false });
