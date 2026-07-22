@@ -77,7 +77,7 @@ const requiredPaintedEvidenceMarkers = [
   'createImageBitmap(element)',
   "sample.toBlob(blob => resolve(blob?.size || 0), 'image/png')",
   'frameHash',
-  'WebGL canvas remained blank, static or insufficiently painted',
+  'WebGL canvas remained blank or insufficiently painted',
   'waitForPaintedCanvas',
   'waitForLiveMenuPaint',
 ];
