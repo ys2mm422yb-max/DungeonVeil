@@ -1,4 +1,4 @@
-import type { GameEngine } from './runEngine';
+import { GameEngine } from './runEngine';
 
 const HAZARD_EFFECT_PREFIXES = [
   'rune-warning-', 'rune-impact-',
