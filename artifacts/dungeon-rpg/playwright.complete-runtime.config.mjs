@@ -74,7 +74,7 @@ export default defineConfig({
       name: 'desktop-chromium',
       use: {
         browserName: 'chromium',
-        viewport: { width: 900, height: 1440 },
+        viewport: { width: 1440, height: 900 },
         deviceScaleFactor: 1,
         isMobile: false,
         hasTouch: false,
