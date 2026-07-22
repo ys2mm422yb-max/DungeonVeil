@@ -1,0 +1,216 @@
+name: QA Split PR309 Final Android Evidence
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/qa-split-pr309-final-android-evidence.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  split-final-android-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: android-phone
+            source_artifact: complete-runtime-evidence-android-chromium
+          - device: android-tablet
+            source_artifact: complete-runtime-evidence-android-tablet-chromium
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exact final Android evidence from PR 309
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.source_artifact }}
+          path: source
+          github-token: ${{ github.token }}
+          repository: ys2mm422yb-max/DungeonVeil
+          run-id: 29946876382
+
+      - name: Deduplicate and split every PNG and WEBM
+        shell: bash
+        env:
+          DEVICE: ${{ matrix.device }}
+          SOURCE_ARTIFACT: ${{ matrix.source_artifact }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import shutil
+
+          source = Path('source')
+          output = Path('split')
+          output.mkdir(exist_ok=True)
+          max_part_bytes = 150 * 1024 * 1024
+          max_parts = 10
+          device = os.environ['DEVICE']
+          source_artifact = os.environ['SOURCE_ARTIFACT']
+
+          def digest(path: Path) -> str:
+              h = hashlib.sha256()
+              with path.open('rb') as handle:
+                  while block := handle.read(1024 * 1024):
+                      h.update(block)
+              return h.hexdigest()
+
+          candidates = sorted(
+              path for path in source.rglob('*')
+              if path.is_file() and path.suffix.lower() in {'.png', '.webm'}
+          )
+          if not candidates:
+              raise SystemExit(f'No PNG or WEBM files found in {source_artifact}')
+
+          unique = []
+          duplicates = {}
+          first_by_hash = {}
+          for path in candidates:
+              file_hash = digest(path)
+              relative = str(path.relative_to(source))
+              if file_hash in first_by_hash:
+                  duplicates.setdefault(file_hash, []).append(relative)
+              else:
+                  first_by_hash[file_hash] = relative
+                  unique.append((path, file_hash, relative, path.stat().st_size))
+
+          parts = [[] for _ in range(max_parts)]
+          part_sizes = [0 for _ in range(max_parts)]
+          current = 0
+          for entry in unique:
+              size = entry[3]
+              while current < max_parts - 1 and part_sizes[current] and part_sizes[current] + size > max_part_bytes:
+                  current += 1
+              parts[current].append(entry)
+              part_sizes[current] += size
+
+          if part_sizes[-1] > max_part_bytes:
+              raise SystemExit(f'{device} evidence exceeds ten-part 1.5 GiB capacity')
+
+          manifest = {
+              'source_run_id': 29946876382,
+              'source_head_sha': '05569d5b74e84c44338bf080d7b25be0d781e894',
+              'source_artifact': source_artifact,
+              'device': device,
+              'candidate_media_files': len(candidates),
+              'unique_media_files': len(unique),
+              'duplicate_media_files': len(candidates) - len(unique),
+              'parts': [],
+              'files': [],
+              'duplicates': duplicates,
+          }
+
+          for part_index, entries in enumerate(parts, start=1):
+              part_dir = output / f'part-{part_index:02d}'
+              part_dir.mkdir(parents=True, exist_ok=True)
+              for file_index, (path, file_hash, relative, size) in enumerate(entries, start=1):
+                  target = part_dir / f'{file_index:04d}-{path.name}'
+                  shutil.copy2(path, target)
+                  manifest['files'].append({
+                      'part': part_index,
+                      'stored_name': target.name,
+                      'original_path': relative,
+                      'sha256': file_hash,
+                      'size': size,
+                      'type': path.suffix.lower().lstrip('.'),
+                  })
+              (part_dir / 'README.txt').write_text(
+                  f'{device} PR309 final evidence part {part_index:02d}; media files: {len(entries)}\n',
+                  encoding='utf-8',
+              )
+              manifest['parts'].append({
+                  'part': part_index,
+                  'files': len(entries),
+                  'bytes': part_sizes[part_index - 1],
+              })
+
+          (output / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+          print(json.dumps(manifest['parts'], indent=2))
+          PY
+
+      - name: Upload split manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-split-manifest
+          path: split/manifest.json
+          retention-days: 3
+          compression-level: 9
+
+      - name: Upload evidence part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-01
+          path: split/part-01
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-02
+          path: split/part-02
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 03
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-03
+          path: split/part-03
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 04
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-04
+          path: split/part-04
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 05
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-05
+          path: split/part-05
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 06
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-06
+          path: split/part-06
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 07
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-07
+          path: split/part-07
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 08
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-08
+          path: split/part-08
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 09
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-09
+          path: split/part-09
+          retention-days: 3
+          compression-level: 0
+      - name: Upload evidence part 10
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-${{ matrix.device }}-final-evidence-part-10
+          path: split/part-10
+          retention-days: 3
+          compression-level: 0
