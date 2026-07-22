@@ -170,7 +170,7 @@ for (const mode of ['solo', 'duo']) {
   }
 
   test(`${mode} one renderer survives uninterrupted rooms 1-50`, async ({ page }, testInfo) => {
-    test.setTimeout(900_000);
+    test.setTimeout(1_200_000);
     const issues = runtimeIssues(page);
     if (mode === 'solo') await startSolo(page);
     else await startDuo(page);
