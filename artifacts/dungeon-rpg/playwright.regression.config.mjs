@@ -47,9 +47,7 @@ export default defineConfig({
       },
     },
     {
-      // Legacy workflow key retained for compatibility. Gameplay evidence is
-      // portrait-only; the dedicated rotation contract verifies the blocker.
-      name: 'ipad-landscape-webkit',
+      name: 'ipad-portrait-webkit',
       grepInvert: /new run renders responsive combat controls and stays stable/,
       use: {
         browserName: 'webkit',
@@ -61,13 +59,14 @@ export default defineConfig({
       },
     },
     {
-      name: 'desktop-chromium',
+      name: 'android-tablet-chromium',
       use: {
         browserName: 'chromium',
-        viewport: { width: 1440, height: 900 },
-        deviceScaleFactor: 1,
-        isMobile: false,
-        hasTouch: false,
+        viewport: { width: 800, height: 1280 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+        userAgent: 'Mozilla/5.0 (Linux; Android 15; SM-X910) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36',
       },
     },
   ],
