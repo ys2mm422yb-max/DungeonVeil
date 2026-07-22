@@ -113,22 +113,23 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
         return 0;
       }
 
-      const evidence = await canvasFrameEvidence(canvas);
-      const coverageScore = evidence.coverage / MIN_LIT_COVERAGE;
-      const samplePngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
-      let paintScore = Math.max(coverageScore, samplePngScore);
+      // The compositor is the user-visible source of truth. WebGL canvases render
+      // with preserveDrawingBuffer disabled, so reading their back buffer through
+      // createImageBitmap can be empty and—on software WebGL—can stall for tens of
+      // seconds. First verify the exact pixels the browser visibly composites.
+      const composited = await compositedCanvasEvidence(canvas);
+      let paintScore = composited.pngBytes / composited.requiredBytes;
 
-      // WebGL canvases commonly render with preserveDrawingBuffer disabled. In that
-      // mode createImageBitmap/drawImage may expose an empty back buffer even though
-      // the browser compositor and the user see a fully painted room. Playwright's
-      // element screenshot captures that composited frame. A black or near-uniform
-      // frame still compresses below the area-scaled evidence threshold.
+      // Keep the direct canvas sample as a fallback for environments where element
+      // screenshots are unavailable. It is no longer on the successful hot path.
       if (paintScore < 1) {
-        const composited = await compositedCanvasEvidence(canvas);
-        paintScore = Math.max(paintScore, composited.pngBytes / composited.requiredBytes);
+        const evidence = await canvasFrameEvidence(canvas);
+        const coverageScore = evidence.coverage / MIN_LIT_COVERAGE;
+        const samplePngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
+        paintScore = Math.max(paintScore, coverageScore, samplePngScore);
       }
 
-      const painted = evidence.width > 0 && evidence.height > 0 && paintScore >= 1;
+      const painted = Number.isFinite(paintScore) && paintScore >= 1;
       paintedSamples = painted ? paintedSamples + 1 : 0;
       return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
     },
