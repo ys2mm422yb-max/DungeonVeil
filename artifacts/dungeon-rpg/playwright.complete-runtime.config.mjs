@@ -48,19 +48,6 @@ export default defineConfig({
     },
     {
       name: 'ipad-portrait-webkit',
-      use: {
-        browserName: 'webkit',
-        viewport: { width: 820, height: 1180 },
-        deviceScaleFactor: 2,
-        isMobile: true,
-        hasTouch: true,
-        userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1',
-      },
-    },
-    {
-      // Kept under the legacy workflow key until the CI-only follow-up PR removes
-      // that matrix entry. Gameplay itself is still recorded exclusively portrait.
-      name: 'ipad-landscape-webkit',
       grepInvert: /new run renders responsive combat controls and stays stable/,
       use: {
         browserName: 'webkit',
@@ -72,13 +59,14 @@ export default defineConfig({
       },
     },
     {
-      name: 'desktop-chromium',
+      name: 'android-tablet-chromium',
       use: {
         browserName: 'chromium',
-        viewport: { width: 1440, height: 900 },
-        deviceScaleFactor: 1,
-        isMobile: false,
-        hasTouch: false,
+        viewport: { width: 800, height: 1280 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+        userAgent: 'Mozilla/5.0 (Linux; Android 15; SM-X910) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36',
       },
     },
   ],
