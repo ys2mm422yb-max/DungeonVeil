@@ -67,6 +67,17 @@ async function waitForApi(page) {
   await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
 }
 
+async function waitForRoomReady(page, room) {
+  await expect.poll(
+    () => page.evaluate(expectedRoom => {
+      const root = document.documentElement.dataset;
+      return root.dungeonVeilRoomBuildState === 'ready'
+        && Number(root.dungeonVeilRoomBuildFloor || 0) === expectedRoom;
+    }, room),
+    { timeout: 60_000 },
+  ).toBe(true);
+}
+
 async function startSolo(page) {
   await seedRuntimeEvidence(page);
   await page.goto(qaUrl('runtime'), { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -127,6 +138,7 @@ function assertPaintedSignal(signal, mode, room) {
 async function loadAndCheckRoom(page, mode, room, settleMs = 850) {
   await page.evaluate(({ nextRoom, nextMode }) => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, nextMode), { nextRoom: room, nextMode: mode });
   await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
+  await waitForRoomReady(page, room);
   await expect(page.getByText(`RAUM ${room}/50`, { exact: false }).first()).toBeVisible({ timeout: 30_000 });
   await waitForPaintedCanvas(page);
   await page.waitForTimeout(settleMs);
@@ -194,6 +206,9 @@ test('room hazards stop before the final enemy death animation finishes', async 
   await startSolo(page);
   for (const room of [16, 18]) {
     await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'solo'), room);
+    await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
+    await waitForRoomReady(page, room);
+    await waitForPaintedCanvas(page);
     await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.setPlayerStats(1, 5000));
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 30_000 }).toBeGreaterThan(0);
     const warningPrefix = room === 16 ? 'arc-warn-' : 'forge-warn-';
@@ -203,20 +218,28 @@ test('room hazards stop before the final enemy death animation finishes', async 
     ).toBe(true);
     const armed = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
     expect(armed.effects.some(id => id.startsWith(warningPrefix)), JSON.stringify(armed)).toBe(true);
-    await page.evaluate(() => {
-      const baseline = Number(window.__dungeonVeilRuntimeEvidence.snapshot()?.hp ?? 0);
-      const probe = { baseline, minimum: baseline, samples: [baseline], active: true };
+    const killEvidence = await page.evaluate(() => {
+      const api = window.__dungeonVeilRuntimeEvidence;
+      const baseline = Number(api.snapshot()?.hp ?? 0);
+      const afterKillSnapshot = api.killLivingEnemies();
+      const afterKill = Number(afterKillSnapshot?.hp ?? baseline);
+      const probe = {
+        baseline,
+        minimum: Math.min(baseline, afterKill),
+        samples: [baseline, afterKill],
+        active: true,
+      };
       window.__dvPostClearHpProbe = probe;
       const sample = () => {
         if (!probe.active) return;
-        const hp = Number(window.__dungeonVeilRuntimeEvidence.snapshot()?.hp ?? 0);
-        probe.samples.push(hp);
+        const hp = Number(api.snapshot()?.hp ?? 0);
+        if (probe.samples.length < 240) probe.samples.push(hp);
         probe.minimum = Math.min(probe.minimum, hp);
         requestAnimationFrame(sample);
       };
       requestAnimationFrame(sample);
+      return { baseline, afterKill };
     });
-    await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.killLivingEnemies());
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 10_000 }).toBe(0);
     await page.waitForTimeout(1_850);
     const result = await page.evaluate(() => {
@@ -226,7 +249,7 @@ test('room hazards stop before the final enemy death animation finishes', async 
         settled: window.__dungeonVeilRuntimeEvidence.snapshot(),
       };
     });
-    expect(result.probe.minimum, JSON.stringify({ armed, ...result })).toBeGreaterThanOrEqual(result.probe.baseline);
+    expect(result.probe.minimum, JSON.stringify({ armed, killEvidence, ...result })).toBeGreaterThanOrEqual(result.probe.baseline);
     expect(result.settled.effects.filter(id => HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(result.settled)).toEqual([]);
     await mkdir(OUTPUT, { recursive: true });
     await page.screenshot({ path: `${OUTPUT}/ghost-damage-room-${room}-${testInfo.project.name}.png`, fullPage: false });
