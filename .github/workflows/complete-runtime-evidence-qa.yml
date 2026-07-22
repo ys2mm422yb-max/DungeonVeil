@@ -8,6 +8,7 @@ on:
       - '.github/workflows/complete-runtime-evidence-qa.yml'
       - 'artifacts/dungeon-rpg/**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - fix/mobile-telegraphs-room-21-50-balance
     paths:
@@ -25,6 +26,7 @@ concurrency:
 
 jobs:
   runtime-contracts:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 70
     steps:
