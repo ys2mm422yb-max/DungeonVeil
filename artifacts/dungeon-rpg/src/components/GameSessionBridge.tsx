@@ -33,8 +33,13 @@ import { CoopBossLootOverlay } from './CoopBossLootOverlay';
 
 const PROFILE_FLUSH_MS = 5_000;
 const PUBLIC_PROFILE_SYNC_MS = 15_000;
-const PLAYER_HAZARD_EFFECT_PREFIXES = ['rune-warning-', 'rune-impact-', 'forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-'];
-const PLAYER_HAZARD_DAMAGE_PREFIXES = ['rune-hit-', 'forge-text-', 'arc-text-', 'core-text-'];
+const PLAYER_HAZARD_EFFECT_PREFIXES = [
+  'rune-warning-', 'rune-impact-',
+  'forge-warn-', 'forge-hit-',
+  'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-',
+  'telegraph-', 'mage-cast-', 'mage-impact-', 'shot-mage-',
+];
+const PLAYER_HAZARD_DAMAGE_PREFIXES = ['rune-hit-', 'forge-text-', 'arc-text-', 'core-text-', 'hit-', 'mage-hit-'];
 
 function restorePendingRoomGift(engine: GameEngine): void {
   const save = loadGame();
@@ -71,7 +76,12 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       if (!engine) return;
       engine.input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
     };
-    const resumeRuntime = () => {
+    const resumeRuntime = (event: Event) => {
+      const detail = (event as CustomEvent<{ failed?: boolean }>).detail;
+      if (detail?.failed) {
+        runtimeSystemsReadyRef.current = false;
+        return;
+      }
       runtimeSystemsReadyRef.current = true;
       const engine = getEngineRef.current();
       if (engine) engine.lastTime = performance.now();
@@ -183,6 +193,8 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     let lastPublicProfileSync = 0;
     let lastKillCount = Math.max(0, getEngineRef.current()?.state.killCount ?? 0);
     let pendingDamage = 0;
+    let guardedRoomKey = '';
+    let lastCombatHp: number | null = initialEngine?.state.player.hp ?? null;
     const seenDamageIds = new Set<string>();
     const mobileTick = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
@@ -192,6 +204,8 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       effects.nextRuneStormAt = now + 1_400;
       roomMechanics.warningAt = 0;
       roomMechanics.nextTriggerAt = now + 1_600;
+      guardedRoomKey = '';
+      lastCombatHp = null;
       const engine = getEngineRef.current();
       if (engine) clearPostCombatHazards(engine);
     };
@@ -246,11 +260,28 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
           const systemDt = Math.min(100, Math.max(dt, time - lastSystemTick));
           lastSystemTick = time;
           if (engine.state.status === 'playing') {
+            const roomKey = `${engine.state.chapter}:${engine.state.floor}`;
+            if (guardedRoomKey !== roomKey) {
+              guardedRoomKey = roomKey;
+              lastCombatHp = engine.state.player.hp;
+            }
             const combatActive = hasLivingEnemies(engine) && !engine.state.roomClearReady;
             updateRunBalance(engine, balance);
             updateRunRetentionSystems(engine, retention, time);
-            if (combatActive) updateRunEffectSystems(engine, effects, time);
-            else clearPostCombatHazards(engine);
+            if (combatActive) {
+              lastCombatHp = engine.state.player.hp;
+              updateRunEffectSystems(engine, effects, time);
+            } else {
+              const safeHp = lastCombatHp ?? engine.state.player.hp;
+              if (engine.state.player.hp < safeHp) {
+                engine.state.player.hp = safeHp;
+                engine.state.player.lastHitTime = 0;
+                engine.state.player.lastGuardTime = 0;
+              } else if (engine.state.player.hp > safeHp) {
+                lastCombatHp = engine.state.player.hp;
+              }
+              clearPostCombatHazards(engine);
+            }
             updateRoomMechanics(engine, roomMechanics, time, systemDt);
             updateRunSynergies(engine, synergies, time);
             updateFirstWardenFinale(engine, firstWarden, time);
