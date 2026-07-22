@@ -53,8 +53,6 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await expect(diagnostics).toHaveAttribute('data-engine-status', 'playing', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ready', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-boss-visual', 'original-black-fbx-dragon');
-  // Loading state and visible GPU output are separate contracts. The previous
-  // screenshot was captured while the canvas was technically ready but still black.
   await waitForPaintedCanvas(page, canvas, 60_000);
 
   const width = await numericAttribute(diagnostics, 'data-boss-width');
@@ -144,15 +142,6 @@ test('mobile landscape blocks gameplay and the same portrait fight resumes', asy
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
   });
-
-  if (testInfo.project.name === 'desktop-chromium') {
-    await page.setViewportSize({ width: 900, height: 600 });
-    await page.goto(runtimeDuoQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    await expect(page.getByTestId('runtime-duo-evidence-qa')).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('portrait-orientation-blocker')).toBeHidden();
-    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilOrientation)).toBe('portrait');
-    return;
-  }
 
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto(runtimeDuoQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
