@@ -3,6 +3,8 @@ import { expect } from '@playwright/test';
 const SAMPLE_SIZE = 64;
 const MIN_LIT_COVERAGE = 0.05;
 const MIN_SAMPLE_PNG_BYTES = 500;
+const MIN_COMPOSITED_PNG_BYTES = 4_000;
+const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
 const REQUIRED_PAINTED_SAMPLES = 2;
 
 async function canvasFrameEvidence(canvas) {
@@ -65,6 +67,19 @@ async function canvasFrameEvidence(canvas) {
   }, SAMPLE_SIZE);
 }
 
+async function compositedCanvasEvidence(canvas) {
+  try {
+    const box = await canvas.boundingBox();
+    if (!box || box.width < 1 || box.height < 1) return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
+    const png = await canvas.screenshot({ type: 'png', animations: 'allow' });
+    const area = Math.max(1, Math.round(box.width) * Math.round(box.height));
+    const requiredBytes = Math.max(MIN_COMPOSITED_PNG_BYTES, Math.floor(area * MIN_COMPOSITED_BYTES_PER_PIXEL));
+    return { pngBytes: png.length, requiredBytes };
+  } catch {
+    return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
+  }
+}
+
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
   await expect(canvas).toBeVisible({ timeout });
   let paintedSamples = 0;
@@ -78,8 +93,19 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
 
       const evidence = await canvasFrameEvidence(canvas);
       const coverageScore = evidence.coverage / MIN_LIT_COVERAGE;
-      const pngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
-      const paintScore = Math.max(coverageScore, pngScore);
+      const samplePngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
+      let paintScore = Math.max(coverageScore, samplePngScore);
+
+      // WebGL canvases commonly render with preserveDrawingBuffer disabled. In that
+      // mode createImageBitmap/drawImage may expose an empty back buffer even though
+      // the browser compositor and the user see a fully painted room. Playwright's
+      // element screenshot captures that composited frame. A black or near-uniform
+      // frame still compresses below the area-scaled evidence threshold.
+      if (paintScore < 1) {
+        const composited = await compositedCanvasEvidence(canvas);
+        paintScore = Math.max(paintScore, composited.pngBytes / composited.requiredBytes);
+      }
+
       const painted = evidence.width > 0 && evidence.height > 0 && paintScore >= 1;
       paintedSamples = painted ? paintedSamples + 1 : 0;
       return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
