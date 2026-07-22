@@ -38,7 +38,13 @@ function RuntimeDuoEvidenceScene() {
 
     let frame = 0;
     const tick = (time: number) => {
-      engine.update(time);
+      const buildState = document.documentElement.dataset.dungeonVeilRoomBuildState;
+      const rendererState = document.documentElement.dataset.dungeonVeilRendererState;
+      if ((!buildState || buildState === 'ready') && rendererState !== 'recovering' && rendererState !== 'lost') {
+        engine.update(time);
+      } else {
+        engine.lastTime = time;
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
