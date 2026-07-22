@@ -64,7 +64,7 @@ function runtimeIssues(page) {
 }
 
 async function waitForApi(page) {
-  await expect.poll(() => page.evaluate(() => Bolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
 }
 
 async function startSolo(page) {
