@@ -6,6 +6,7 @@ const MIN_SAMPLE_PNG_BYTES = 500;
 const MIN_COMPOSITED_PNG_BYTES = 4_000;
 const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
 const REQUIRED_PAINTED_SAMPLES = 2;
+const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
 
 async function canvasFrameEvidence(canvas) {
   return canvas.evaluate(async (element, sampleSize) => {
@@ -80,8 +81,29 @@ async function compositedCanvasEvidence(canvas) {
   }
 }
 
+async function waitForRoomRendererReady(page, timeout) {
+  await expect.poll(
+    async () => {
+      const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+      return !buildState || buildState === 'ready';
+    },
+    {
+      timeout,
+      intervals: POLL_INTERVALS,
+      message: 'Room renderer did not reach ready state',
+    },
+  ).toBe(true);
+}
+
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
   await expect(canvas).toBeVisible({ timeout });
+
+  // Room staging and GPU painting are separate phases. Slow software WebGL runners
+  // may legitimately spend most of the readiness budget building a complex room.
+  // Give the subsequent two composited paint samples their own complete budget so a
+  // visible room cannot fail merely because staging consumed the shared timeout.
+  await waitForRoomRendererReady(page, timeout);
+
   let paintedSamples = 0;
   await expect.poll(
     async () => {
@@ -112,7 +134,7 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
     },
     {
       timeout,
-      intervals: [100, 200, 350, 500, 750, 1_000],
+      intervals: POLL_INTERVALS,
       message: 'WebGL canvas remained blank or insufficiently painted',
     },
   ).toBeGreaterThanOrEqual(1);
@@ -127,7 +149,7 @@ export async function waitForLiveMenuPaint(page, timeout = 60_000) {
     async () => Number(await scene.getAttribute('data-animation-frames') || 0),
     {
       timeout,
-      intervals: [100, 200, 350, 500, 750, 1_000],
+      intervals: POLL_INTERVALS,
       message: 'Live menu animation did not advance far enough for visual evidence',
     },
   ).toBeGreaterThanOrEqual(10);
