@@ -109,10 +109,10 @@ requireText(config, /post-clear-player-hazards/, 'The complete browser matrix mu
 requireText(config, /atomic-room-readiness/, 'The complete browser matrix must include atomic room readiness regressions.');
 requireText(workflow, /tests\/post-clear-player-hazards\.spec\.mjs/, 'The GitHub workflow must execute post-clear player hazard evidence.');
 requireText(workflow, /tests\/atomic-room-readiness\.spec\.mjs/, 'The GitHub workflow must execute atomic room readiness evidence.');
-requireText(workflow, /duo-rooms-1-10[\s\S]*duo-rooms-11-20[\s\S]*duo-rooms-21-30[\s\S]*duo-rooms-31-40[\s\S]*duo-rooms-41-50/, 'Desktop Duo evidence must split all five ten-room ranges into independent jobs.');
-requireText(workflow, /duo continuous renderer evidence rooms 1-10[\s\S]*duo continuous renderer evidence rooms 11-20[\s\S]*duo continuous renderer evidence rooms 21-30[\s\S]*duo continuous renderer evidence rooms 31-40[\s\S]*duo continuous renderer evidence rooms 41-50/, 'Each independent Desktop Duo job must retain its exact ten-room evidence range.');
 requireText(config, /video: \{ mode: 'on'/, 'Successful evidence runs must always record video.');
-requireText(config, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-portrait-webkit[\s\S]*ipad-landscape-webkit[\s\S]*desktop-chromium/, 'The complete five-device matrix must include both iPad portrait and landscape.');
-requireText(workflow, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-portrait-webkit[\s\S]*ipad-landscape-webkit[\s\S]*desktop-chromium/, 'The GitHub workflow must execute the complete five-device matrix.');
+requireText(config, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-portrait-webkit[\s\S]*android-tablet-chromium/, 'The complete runtime matrix must include iPhone, Android phone, iPad and Android tablet in portrait.');
+requireText(workflow, /iphone-webkit[\s\S]*android-chromium[\s\S]*ipad-portrait-webkit[\s\S]*android-tablet-chromium/, 'The GitHub workflow must execute all four supported portrait mobile device classes.');
+if (/desktop-chromium|ipad-landscape-webkit/.test(config)) throw new Error('Complete runtime config must not include desktop or playable landscape projects.');
+if (/complete-desktop-evidence|desktop-chromium|ipad-landscape-webkit/.test(workflow)) throw new Error('Complete runtime workflow must not execute desktop or playable landscape evidence.');
 
 console.log('Complete runtime stability contract verified.');
