@@ -1,0 +1,199 @@
+name: Complete Runtime Evidence QA
+
+on:
+  push:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/complete-runtime-evidence-qa.yml'
+      - 'artifacts/dungeon-rpg/**'
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/complete-runtime-evidence-qa.yml'
+      - 'artifacts/dungeon-rpg/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Verify complete runtime stability contract
+        run: node artifacts/dungeon-rpg/scripts/validate-complete-runtime-stability.mjs
+      - name: Verify TypeScript
+        run: pnpm run typecheck
+      - name: Build GitHub Pages output
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Audit all rooms and combat systems
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm --filter @workspace/dungeon-rpg audit:duo-matrix
+          pnpm --filter @workspace/dungeon-rpg audit:coop-final
+          pnpm --filter @workspace/dungeon-rpg audit:worldboss
+      - name: Simulate Solo, Duo and World Boss combat
+        run: |
+          pnpm --filter @workspace/dungeon-rpg simulate:solo-combat
+          pnpm --filter @workspace/dungeon-rpg simulate:duo-combat
+          pnpm --filter @workspace/dungeon-rpg simulate:worldboss
+
+  complete-browser-evidence:
+    needs: runtime-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+          - project: android-chromium
+            browser: chromium
+          - project: ipad-portrait-webkit
+            browser: webkit
+          - project: android-tablet-chromium
+            browser: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install deterministic browser runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install browser engine
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Build current branch
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Record Solo and Duo rooms 1-50 plus World Boss and full-game motion
+        id: runtime-tests
+        continue-on-error: true
+        env:
+          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          BASE_PATH: /DungeonVeil/
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-complete-runtime-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
+          timeout --signal=TERM --kill-after=30s 165m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            --config=playwright.complete-runtime.config.mjs \
+            --project=${{ matrix.project }} \
+            tests/complete-runtime-evidence.spec.mjs \
+            tests/complete-runtime-room-titles.spec.mjs \
+            tests/renderer-recovery-hidden-hud.spec.mjs \
+            tests/post-clear-player-hazards.spec.mjs \
+            tests/atomic-room-readiness.spec.mjs \
+            tests/worldboss-block1.spec.mjs \
+            tests/full-game-smoke.spec.mjs
+      - name: Upload compact runtime result manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-manifest-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 9
+          path: artifacts/dungeon-rpg/test-results/complete-runtime-results.json
+      - name: Upload complete screenshots, videos and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-evidence-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 6
+          path: |
+            artifacts/dungeon-rpg/test-results/complete-runtime-evidence/**
+            artifacts/dungeon-rpg/test-results/**/*.webm
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.png
+            artifacts/dungeon-rpg/test-results/complete-runtime-results.json
+            artifacts/dungeon-rpg/playwright-complete-runtime-report/**
+            /tmp/dungeon-veil-complete-runtime-preview.log
+      - name: Publish complete runtime failure to pull request
+        if: steps.runtime-tests.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          DEVICE_PROJECT: ${{ matrix.project }}
+        with:
+          script: |
+            const fs = require('fs');
+            const project = process.env.DEVICE_PROJECT;
+            const marker = `<!-- dungeon-veil-complete-runtime-${project} -->`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const manifestPath = 'artifacts/dungeon-rpg/test-results/complete-runtime-results.json';
+            const resultLines = [];
+            try {
+              const report = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+              const stats = report.stats || {};
+              resultLines.push(`Manifest: ${stats.expected ?? '?'} erwartet, ${stats.unexpected ?? '?'} unerwartet, ${stats.flaky ?? '?'} flaky, ${stats.skipped ?? '?'} übersprungen.`);
+              const failures = [];
+              const visit = (suites, prefix = '') => {
+                for (const suite of suites || []) {
+                  const nextPrefix = [prefix, suite.title].filter(Boolean).join(' / ');
+                  for (const spec of suite.specs || []) {
+                    for (const test of spec.tests || []) {
+                      if (test.status === 'expected' || test.status === 'skipped') continue;
+                      const lastResult = (test.results || []).at(-1);
+                      const detail = lastResult?.error?.message || lastResult?.status || test.status;
+                      failures.push(`${nextPrefix} / ${spec.title}: ${String(detail).split('\n')[0]}`);
+                    }
+                  }
+                  visit(suite.suites, nextPrefix);
+                }
+              };
+              visit(report.suites);
+              if (failures.length) resultLines.push('', 'Fehlgeschlagene Tests:', ...failures.slice(0, 8).map(item => `- ${item}`));
+              if ((report.errors || []).length) resultLines.push('', 'Reporter-Fehler:', ...report.errors.slice(0, 5).map(item => `- ${String(item.message || item).split('\n')[0]}`));
+            } catch (error) {
+              resultLines.push(`Manifest konnte nicht gelesen werden: ${error.message}`);
+            }
+            const body = [
+              marker,
+              `## Vollständige Laufzeitprüfung fehlgeschlagen: ${project}`,
+              '',
+              `Head: \`${context.payload.pull_request.head.sha}\``,
+              '',
+              ...resultLines,
+              '',
+              'Solo und Duo Räume 1–50, Weltboss, schwarze Frames, Geisterschaden, Runenstürme nach dem letzten Gegner, atomare Raumfreigabe, versteckte Übergangs-HUDs, Raumtitel, Videos und Screenshots wurden auf unterstützten mobilen Hochformat-Geräten geprüft.',
+              `Diagnose: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const previous = comments.find(comment => comment.user?.type === 'Bot' && comment.body?.includes(marker));
+            if (previous) await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+      - name: Fail after evidence upload
+        if: steps.runtime-tests.outcome == 'failure'
+        run: exit 1

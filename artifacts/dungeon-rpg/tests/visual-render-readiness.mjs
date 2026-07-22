@@ -3,6 +3,10 @@ import { expect } from '@playwright/test';
 const SAMPLE_SIZE = 64;
 const MIN_LIT_COVERAGE = 0.05;
 const MIN_SAMPLE_PNG_BYTES = 500;
+const MIN_COMPOSITED_PNG_BYTES = 4_000;
+const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
+const REQUIRED_PAINTED_SAMPLES = 2;
+const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
 
 async function canvasFrameEvidence(canvas) {
   return canvas.evaluate(async (element, sampleSize) => {
@@ -64,24 +68,75 @@ async function canvasFrameEvidence(canvas) {
   }, SAMPLE_SIZE);
 }
 
-export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
-  await expect(canvas).toBeVisible({ timeout });
-  let previousFrameHash = null;
+async function compositedCanvasEvidence(canvas) {
+  try {
+    const box = await canvas.boundingBox();
+    if (!box || box.width < 1 || box.height < 1) return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
+    const png = await canvas.screenshot({ type: 'png', animations: 'allow' });
+    const area = Math.max(1, Math.round(box.width) * Math.round(box.height));
+    const requiredBytes = Math.max(MIN_COMPOSITED_PNG_BYTES, Math.floor(area * MIN_COMPOSITED_BYTES_PER_PIXEL));
+    return { pngBytes: png.length, requiredBytes };
+  } catch {
+    return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
+  }
+}
+
+async function waitForRoomRendererReady(page, timeout) {
   await expect.poll(
     async () => {
-      const evidence = await canvasFrameEvidence(canvas);
-      const changed = previousFrameHash !== null && evidence.frameHash !== previousFrameHash;
-      previousFrameHash = evidence.frameHash;
-      const coverageScore = evidence.coverage / MIN_LIT_COVERAGE;
-      const pngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
-      return changed && evidence.width > 0 && evidence.height > 0
-        ? Math.max(coverageScore, pngScore)
-        : 0;
+      const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+      return !buildState || buildState === 'ready';
     },
     {
       timeout,
-      intervals: [100, 200, 350, 500, 750, 1_000],
-      message: 'WebGL canvas remained blank, static or insufficiently painted',
+      intervals: POLL_INTERVALS,
+      message: 'Room renderer did not reach ready state',
+    },
+  ).toBe(true);
+}
+
+export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
+  await expect(canvas).toBeVisible({ timeout });
+
+  // Room staging and GPU painting are separate phases. Slow software WebGL runners
+  // may legitimately spend most of the readiness budget building a complex room.
+  // Give the subsequent two composited paint samples their own complete budget so a
+  // visible room cannot fail merely because staging consumed the shared timeout.
+  await waitForRoomRendererReady(page, timeout);
+
+  let paintedSamples = 0;
+  await expect.poll(
+    async () => {
+      const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+      if (buildState && buildState !== 'ready') {
+        paintedSamples = 0;
+        return 0;
+      }
+
+      // The compositor is the user-visible source of truth. WebGL canvases render
+      // with preserveDrawingBuffer disabled, so reading their back buffer through
+      // createImageBitmap can be empty and—on software WebGL—can stall for tens of
+      // seconds. First verify the exact pixels the browser visibly composites.
+      const composited = await compositedCanvasEvidence(canvas);
+      let paintScore = composited.pngBytes / composited.requiredBytes;
+
+      // Keep the direct canvas sample as a fallback for environments where element
+      // screenshots are unavailable. It is no longer on the successful hot path.
+      if (paintScore < 1) {
+        const evidence = await canvasFrameEvidence(canvas);
+        const coverageScore = evidence.coverage / MIN_LIT_COVERAGE;
+        const samplePngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
+        paintScore = Math.max(paintScore, coverageScore, samplePngScore);
+      }
+
+      const painted = Number.isFinite(paintScore) && paintScore >= 1;
+      paintedSamples = painted ? paintedSamples + 1 : 0;
+      return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
+    },
+    {
+      timeout,
+      intervals: POLL_INTERVALS,
+      message: 'WebGL canvas remained blank or insufficiently painted',
     },
   ).toBeGreaterThanOrEqual(1);
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -95,7 +150,7 @@ export async function waitForLiveMenuPaint(page, timeout = 60_000) {
     async () => Number(await scene.getAttribute('data-animation-frames') || 0),
     {
       timeout,
-      intervals: [100, 200, 350, 500, 750, 1_000],
+      intervals: POLL_INTERVALS,
       message: 'Live menu animation did not advance far enough for visual evidence',
     },
   ).toBeGreaterThanOrEqual(10);

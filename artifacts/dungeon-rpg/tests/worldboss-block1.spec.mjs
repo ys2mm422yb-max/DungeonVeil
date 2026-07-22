@@ -1,10 +1,19 @@
+import { mkdir } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
+import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const OUTPUT = 'test-results/complete-runtime-evidence';
 
 function worldBossQaUrl() {
   const url = new URL(APP_URL);
   url.searchParams.set('qa', 'worldboss');
+  return url.toString();
+}
+
+function runtimeDuoQaUrl() {
+  const url = new URL(APP_URL);
+  url.searchParams.set('qa', 'runtime-duo');
   return url.toString();
 }
 
@@ -32,7 +41,8 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await page.goto(worldBossQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('worldboss-visual-qa')).toBeVisible();
   await expect(page.getByTestId('worldboss-combat-band')).toBeVisible();
-  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 60_000 });
+  const canvas = page.locator('canvas').first();
+  await expect(canvas).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
   await expect(page.getByTestId('worldboss-dragon-loading')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByTestId('run-joystick')).toBeVisible();
@@ -43,6 +53,7 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await expect(diagnostics).toHaveAttribute('data-engine-status', 'playing', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ready', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-boss-visual', 'original-black-fbx-dragon');
+  await waitForPaintedCanvas(page, canvas, 60_000);
 
   const width = await numericAttribute(diagnostics, 'data-boss-width');
   const height = await numericAttribute(diagnostics, 'data-boss-height');
@@ -114,9 +125,61 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   }).toBeGreaterThan(dodgeBefore);
 
   await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
+  await waitForPaintedCanvas(page, canvas, 60_000);
   await testInfo.attach('worldboss-block1-ready.png', {
     body: await page.screenshot({ fullPage: false }),
     contentType: 'image/png',
   });
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+});
+
+test('mobile landscape blocks gameplay and the same portrait fight resumes', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  await page.addInitScript(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    sessionStorage.setItem('dungeon-veil-runtime-evidence-v1', '1');
+    localStorage.setItem('dungeon-veil-language', 'de');
+    localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
+  });
+
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.goto(runtimeDuoQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(page.getByTestId('runtime-duo-evidence-qa')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState), { timeout: 60_000 }).toBe('ready');
+  await expect(page.getByTestId('portrait-orientation-blocker')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilOrientation)).toBe('portrait');
+  await waitForPaintedCanvas(page);
+
+  const before = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
+  await page.setViewportSize({ width: 900, height: 600 });
+  const blocker = page.getByTestId('portrait-orientation-blocker');
+  await expect(blocker).toBeVisible();
+  await expect(blocker).toContainText(/GERÄT BITTE DREHEN|ROTATE YOUR DEVICE/i);
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilOrientation)).toBe('blocked');
+  expect(await page.evaluate(() => document.getElementById('root')?.inert)).toBe(true);
+
+  await page.waitForTimeout(1_500);
+  const blocked = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
+  expect(blocked.floor).toBe(before.floor);
+  expect(blocked.hp).toBe(before.hp);
+  expect(blocked.effects).toEqual(before.effects);
+  expect(blocked.damageNumbers).toEqual(before.damageNumbers);
+  expect(blocked.orientation).toBe('blocked');
+
+  await mkdir(OUTPUT, { recursive: true });
+  await page.screenshot({ path: `${OUTPUT}/portrait-only-landscape-blocked-${testInfo.project.name}.png`, fullPage: false });
+
+  await page.setViewportSize({ width: 600, height: 900 });
+  await expect(blocker).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilOrientation)).toBe('portrait');
+  expect(await page.evaluate(() => document.getElementById('root')?.inert)).toBe(false);
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState), { timeout: 60_000 }).toBe('ready');
+  await waitForPaintedCanvas(page);
+  const resumed = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
+  expect(resumed.floor).toBe(before.floor);
+  expect(resumed.hp).toBe(before.hp);
+  expect(resumed.orientation).toBe('portrait');
 });

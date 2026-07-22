@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const OWNED_RELICS = ['ash-eye', 'marked-claw', 'veil-heart'];
+const STARTER_EQUIPMENT = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
 
 async function openCodex(page) {
-  await page.addInitScript(() => {
+  await page.addInitScript(({ ownedRelics, starterEquipment }) => {
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-retention-v2', JSON.stringify({
       currencyVersion: 2,
@@ -17,17 +19,30 @@ async function openCodex(page) {
     }));
     localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
       version: 2,
-      owned: ['ash-eye', 'marked-claw', 'veil-heart'],
+      owned: ownedRelics,
       equipped: 'marked-claw',
       consumedHeartRuns: [], activatedWorldCoreRuns: [],
       relicMisses: { hunt: 0, boss: 0 }, crownRunStacks: {},
     }));
-  });
+    localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
+      version: 2,
+      initialized: true,
+      equipment: starterEquipment,
+      relics: ownedRelics,
+      announcedEquipment: starterEquipment,
+      announcedRelics: ownedRelics,
+    }));
+  }, { ownedRelics: OWNED_RELICS, starterEquipment: STARTER_EQUIPMENT });
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   const boot = page.getByTestId('app-boot-loading-screen');
   await expect(boot).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
-  await page.getByRole('button', { name: /Kodex|Codex/i }).first().click({ force: true });
+  const codexButton = page.getByRole('button', { name: /Kodex|Codex/i }).first();
+  await expect(codexButton).toBeVisible();
+  const touchDevice = await page.evaluate(() => navigator.maxTouchPoints > 0);
+  if (touchDevice) await codexButton.tap();
+  else await codexButton.click({ noWaitAfter: true });
   await expect(page.getByTestId('codex-responsive-layout')).toBeVisible();
 }
 

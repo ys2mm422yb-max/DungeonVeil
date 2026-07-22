@@ -101,14 +101,14 @@ jobs:
             browser: chromium
             evidence_name: visual-evidence-android-chromium
             screenshot_token: android-chromium
-          - project: ipad-landscape-webkit
+          - project: ipad-portrait-webkit
             browser: webkit
-            evidence_name: visual-evidence-ipad-webkit
-            screenshot_token: ipad
-          - project: desktop-chromium
+            evidence_name: visual-evidence-ipad-portrait-webkit
+            screenshot_token: ipad-portrait-webkit
+          - project: android-tablet-chromium
             browser: chromium
-            evidence_name: visual-evidence-desktop-chromium
-            screenshot_token: desktop-chromium
+            evidence_name: visual-evidence-android-tablet-chromium
+            screenshot_token: android-tablet-chromium
     env:
       BROWSER_PROJECT: ${{ matrix.project }}
     steps:
@@ -128,7 +128,7 @@ jobs:
         run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
       - name: Build current branch for browser regression
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-      - name: Test current branch on isolated device runner
+      - name: Test current branch on isolated portrait mobile runner
         id: browser-tests
         continue-on-error: true
         env:
@@ -145,9 +145,6 @@ jobs:
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
           GREP_INVERT='rooms 1-50 produce stable visual evidence across the full run'
-          if [[ "$BROWSER_PROJECT" == 'desktop-chromium' ]]; then
-            GREP_INVERT="$GREP_INVERT|full room visual evidence"
-          fi
           timeout --signal=TERM --kill-after=30s 70m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs --project="$BROWSER_PROJECT" --grep-invert "$GREP_INVERT"
       - name: Build compact Playwright failure summary
         if: steps.browser-tests.outcome == 'failure'
@@ -244,93 +241,4 @@ jobs:
             artifacts/dungeon-rpg/test-results/**/test-failed-*.png
       - name: Fail browser regression after diagnostics
         if: steps.browser-tests.outcome == 'failure'
-        run: exit 1
-
-  desktop-room-regression:
-    needs: static-regression
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: 01-10
-            grep: 'full room visual evidence 1-10 uses a fresh WebGL context'
-          - label: 11-20
-            grep: 'full room visual evidence 11-20 uses a fresh WebGL context'
-          - label: 21-30
-            grep: 'full room visual evidence 21-30 uses a fresh WebGL context'
-          - label: 31-40
-            grep: 'full room visual evidence 31-40 uses a fresh WebGL context'
-          - label: 41-50
-            grep: 'full room visual evidence 41-50 uses a fresh WebGL context'
-    env:
-      BROWSER_PROJECT: desktop-chromium
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - name: Install workspace
-        run: pnpm install --frozen-lockfile
-      - name: Install isolated browser test runner
-        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
-      - name: Install Chromium
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium
-      - name: Build current branch for desktop room evidence
-        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-      - name: Test isolated desktop room chunk
-        id: room-tests
-        continue-on-error: true
-        env:
-          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
-          BASE_PATH: /DungeonVeil/
-        shell: bash
-        run: |
-          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
-          PREVIEW_PID=$!
-          trap 'kill $PREVIEW_PID || true' EXIT
-          for attempt in {1..40}; do
-            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
-            sleep 1
-          done
-          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          timeout --signal=TERM --kill-after=30s 25m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs --project=desktop-chromium --grep="${{ matrix.grep }}"
-      - name: Upload desktop room visual evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-evidence-desktop-room-${{ matrix.label }}
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 6
-          path: artifacts/dungeon-rpg/test-results/**/visual-room-*-desktop-chromium.png
-      - name: Upload desktop room result manifest
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-game-regression-results-desktop-room-${{ matrix.label }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: |
-            artifacts/dungeon-rpg/test-results/full-game-results.json
-            /tmp/dungeon-veil-preview.log
-      - name: Upload desktop room failure traces
-        if: steps.room-tests.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-game-regression-failure-traces-desktop-room-${{ matrix.label }}
-          if-no-files-found: warn
-          retention-days: 7
-          compression-level: 9
-          path: |
-            artifacts/dungeon-rpg/test-results/**/trace.zip
-            artifacts/dungeon-rpg/test-results/**/*.webm
-            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
-      - name: Fail desktop room regression after diagnostics
-        if: steps.room-tests.outcome == 'failure'
         run: exit 1
