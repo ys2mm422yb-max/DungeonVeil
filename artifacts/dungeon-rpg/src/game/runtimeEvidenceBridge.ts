@@ -76,6 +76,8 @@ function attachApi(): void {
       const room = Math.max(1, Math.min(50, Math.floor(Number(requestedRoom) || 1)));
       const player = engine.state.player;
       setMode(mode);
+      document.documentElement.dataset.dungeonVeilRoomBuildState = 'preparing';
+      document.documentElement.dataset.dungeonVeilRoomBuildFloor = String(room);
       engine.continueGame({
         playerName: player.playerName === 'Hero' ? 'Runtime Ranger' : player.playerName,
         playerClass: 'archer',
