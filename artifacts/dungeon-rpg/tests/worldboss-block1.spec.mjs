@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
@@ -32,7 +33,8 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await page.goto(worldBossQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('worldboss-visual-qa')).toBeVisible();
   await expect(page.getByTestId('worldboss-combat-band')).toBeVisible();
-  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 60_000 });
+  const canvas = page.locator('canvas').first();
+  await expect(canvas).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
   await expect(page.getByTestId('worldboss-dragon-loading')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByTestId('run-joystick')).toBeVisible();
@@ -43,6 +45,9 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await expect(diagnostics).toHaveAttribute('data-engine-status', 'playing', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ready', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-boss-visual', 'original-black-fbx-dragon');
+  // Loading state and visible GPU output are separate contracts. The previous
+  // screenshot was captured while the canvas was technically ready but still black.
+  await waitForPaintedCanvas(page, canvas, 60_000);
 
   const width = await numericAttribute(diagnostics, 'data-boss-width');
   const height = await numericAttribute(diagnostics, 'data-boss-height');
@@ -114,6 +119,7 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   }).toBeGreaterThan(dodgeBefore);
 
   await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
+  await waitForPaintedCanvas(page, canvas, 60_000);
   await testInfo.attach('worldboss-block1-ready.png', {
     body: await page.screenshot({ fullPage: false }),
     contentType: 'image/png',
