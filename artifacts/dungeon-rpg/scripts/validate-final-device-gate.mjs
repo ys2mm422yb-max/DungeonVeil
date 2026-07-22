@@ -82,13 +82,16 @@ const checks = [
     && regressionWorkflow.includes("GREP_INVERT='rooms 1-50 produce stable visual evidence across the full run|full room visual evidence'")
     && !regressionWorkflow.includes('desktop-room-regression:')
     && !regressionWorkflow.includes('Build current branch for browser regression'), 'optimized regression does not reuse and serve the exact current Pages build while separating compact draft smoke from four-device final coverage'],
-  [completeRuntimeWorkflow.includes('Build current branch')
+  [completeRuntimeWorkflow.includes('types: [opened, synchronize, reopened, ready_for_review]')
+    && completeRuntimeWorkflow.includes("if: github.event_name != 'pull_request' || github.event.pull_request.draft == false")
+    && completeRuntimeWorkflow.includes('cancel-in-progress: true')
+    && completeRuntimeWorkflow.includes('Build current branch')
     && completeRuntimeWorkflow.includes('http://127.0.0.1:4173/DungeonVeil/')
     && completeRuntimeWorkflow.includes('complete-runtime-manifest-${{ matrix.project }}')
     && completeRuntimeWorkflow.includes('complete-runtime-evidence-${{ matrix.project }}')
     && completeRuntimeWorkflow.includes('tests/post-clear-player-hazards.spec.mjs')
     && completeRuntimeWorkflow.includes('tests/atomic-room-readiness.spec.mjs')
-    && completeRuntimeWorkflow.includes('tests/worldboss-block1.spec.mjs'), 'complete runtime workflow no longer preserves per-device evidence for the required combat, recovery and orientation checks'],
+    && completeRuntimeWorkflow.includes('tests/worldboss-block1.spec.mjs'), 'complete runtime workflow no longer skips draft synchronizations while preserving per-device evidence for ready PRs, manual runs and the target branch'],
   [pagesWorkflow.includes("- 'work/block-*'") && pagesWorkflow.includes('Write deployment marker') && pagesWorkflow.includes('Deploy Dungeon Veil Test Site'), 'final block branches are not deployed with a recorded commit'],
 ];
 
@@ -99,4 +102,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Final device gate passed: one exact Pages build feeds compact iPhone and Android phone draft smoke checks plus the retained four-device portrait mobile final regression; complete runtime evidence preserves exhaustive media, retries remain zero, WebGL execution stays serialized, and desktop or playable landscape remain excluded.');
+console.log('Final device gate passed: draft synchronizations use one shared Pages build and compact iPhone plus Android phone smoke checks while exhaustive runtime media is skipped; ready PRs, manual runs and the fixed target branch retain zero-retry evidence on all four supported portrait mobile projects, with desktop and playable landscape excluded.');
