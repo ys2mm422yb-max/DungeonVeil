@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference, mainEntry, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, fullGameWorkflow, checkWorkflow, ciWorkflow] = await Promise.all([
+const [config, smoke, worldBossSmoke, visualAudit, roomAudit, visualReadiness, mainMenuReference, mainEntry, transientAudit, reducedMotionAudit, equipmentResponsive, packageJson, fullGameWorkflow, checkWorkflow, ciWorkflow] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../tests/worldboss-block1.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-audit.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-room-chunks.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-render-readiness.mjs', import.meta.url), 'utf8'),
@@ -17,7 +18,10 @@ const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference
   readFile(new URL('../../../.github/workflows/dungeon-rpg-ci.yml', import.meta.url), 'utf8'),
 ]);
 
-const requiredProjects = ['iphone-webkit', 'android-chromium', 'ipad-portrait-webkit', 'android-tablet-chromium'];
+const supportedProjects = ['iphone-webkit', 'android-chromium', 'ipad-portrait-webkit', 'android-tablet-chromium'];
+const smokeProjects = ['iphone-webkit', 'android-chromium'];
+const unsupportedProjectPattern = /desktop-chromium|ipad-landscape-webkit/;
+
 const requiredFlows = [
   'main-menu-profile-badge',
   'Höchstes Kapitel',
@@ -116,48 +120,83 @@ const requiredEquipmentMarkers = [
   'toBeGreaterThanOrEqual(700)',
   'equipment-responsive-',
 ];
-const requiredMobileWorkflowMarkers = [
-  '- project: iphone-webkit',
-  '- project: android-chromium',
-  '- project: ipad-portrait-webkit',
-  '- project: android-tablet-chromium',
-  'visual-evidence-iphone-webkit',
-  'visual-evidence-android-chromium',
-  'visual-evidence-ipad-portrait-webkit',
-  'visual-evidence-android-tablet-chromium',
-  'Test current branch on isolated portrait mobile runner',
+const requiredOptimizedWorkflowMarkers = [
+  'workflow_dispatch:',
+  'ready_for_review',
+  'cancel-in-progress: true',
+  'Build GitHub Pages production output once',
+  'dungeon-veil-pages-build-${{ github.sha }}',
+  'browser-smoke:',
+  'max-parallel: 2',
+  'tests/full-game-smoke.spec.mjs',
+  'tests/worldboss-block1.spec.mjs',
+  'new run renders responsive combat controls and stays stable|world boss',
+  'Restore browser engine cache',
+  'actions/download-artifact@v4',
+  'browser-regression:',
+  "github.event.pull_request.draft == false",
+  "github.ref_name == 'fix/mobile-telegraphs-room-21-50-balance'",
+  "GREP_INVERT='rooms 1-50 produce stable visual evidence across the full run|full room visual evidence'",
+  'Test complete non-room regression on current portrait mobile device',
+  'full-game-regression-results-${{ matrix.project }}',
+  'retention-days: 1',
+  'retention-days: 3',
+  'retention-days: 5',
+  'compression-level: 9',
 ];
 
 const failures = [];
-for (const project of requiredProjects) {
+const requireMarkers = (source, label, markers) => {
+  for (const marker of markers) {
+    if (!source.includes(marker)) failures.push(`missing ${label} marker: ${marker}`);
+  }
+};
+const jobSection = (source, jobName) => {
+  const token = `\n  ${jobName}:\n`;
+  const start = source.indexOf(token);
+  if (start < 0) return '';
+  const bodyStart = start + token.length;
+  const rest = source.slice(bodyStart);
+  const next = rest.search(/\n  [a-zA-Z0-9_-]+:\n/);
+  return next < 0 ? source.slice(start) : source.slice(start, bodyStart + next);
+};
+const extractProjects = source => [...source.matchAll(/- project:\s*([^\s]+)/g)].map(match => match[1]);
+const sameProjects = (actual, expected) => actual.length === expected.length && actual.every((project, index) => project === expected[index]);
+
+for (const project of supportedProjects) {
   if (!config.includes(project)) failures.push(`missing browser project: ${project}`);
 }
 for (const flow of requiredFlows) {
   if (!smoke.includes(flow)) failures.push(`missing smoke flow marker: ${flow}`);
 }
-for (const marker of requiredVisualMarkers) {
-  if (!visualAudit.includes(marker)) failures.push(`missing visual audit marker: ${marker}`);
-}
-for (const marker of requiredRoomMarkers) {
-  if (!roomAudit.includes(marker)) failures.push(`missing chunked room audit marker: ${marker}`);
-}
-for (const marker of requiredPaintedEvidenceMarkers) {
-  if (!visualReadiness.includes(marker)) failures.push(`missing painted WebGL evidence marker: ${marker}`);
-}
-for (const marker of requiredTransientMarkers) {
-  if (!transientAudit.includes(marker)) failures.push(`missing painted German transient audit marker: ${marker}`);
-}
-for (const marker of requiredReducedMotionMarkers) {
-  if (!reducedMotionAudit.includes(marker)) failures.push(`missing reduced-motion audit marker: ${marker}`);
-}
-for (const marker of requiredEquipmentMarkers) {
-  if (!equipmentResponsive.includes(marker)) failures.push(`missing responsive equipment marker: ${marker}`);
-}
-for (const marker of requiredMobileWorkflowMarkers) {
-  if (!fullGameWorkflow.includes(marker)) failures.push(`missing supported mobile workflow marker: ${marker}`);
-}
-if (/desktop-chromium|ipad-landscape-webkit/.test(config)) failures.push('regression config still includes unsupported desktop or playable landscape projects');
-if (/desktop-room-regression|desktop-chromium|ipad-landscape-webkit/.test(fullGameWorkflow)) failures.push('full-game workflow still executes unsupported desktop or playable landscape jobs');
+requireMarkers(worldBossSmoke, 'world-boss smoke', [
+  'worldboss-visual-qa',
+  'worldboss-dragon-load-error',
+  'run-joystick',
+  'run-dash-button',
+  'Dragon.fbx',
+]);
+requireMarkers(visualAudit, 'visual audit', requiredVisualMarkers);
+requireMarkers(roomAudit, 'chunked room audit', requiredRoomMarkers);
+requireMarkers(visualReadiness, 'painted WebGL evidence', requiredPaintedEvidenceMarkers);
+requireMarkers(transientAudit, 'painted German transient audit', requiredTransientMarkers);
+requireMarkers(reducedMotionAudit, 'reduced-motion audit', requiredReducedMotionMarkers);
+requireMarkers(equipmentResponsive, 'responsive equipment', requiredEquipmentMarkers);
+requireMarkers(fullGameWorkflow, 'optimized portrait workflow', requiredOptimizedWorkflowMarkers);
+
+const smokeMatrix = extractProjects(jobSection(fullGameWorkflow, 'browser-smoke'));
+const fullMatrix = extractProjects(jobSection(fullGameWorkflow, 'browser-regression'));
+if (!sameProjects(smokeMatrix, smokeProjects)) failures.push(`draft smoke matrix differs from the supported phone pair: ${smokeMatrix.join(', ')}`);
+if (!sameProjects(fullMatrix, supportedProjects)) failures.push(`full regression matrix differs from the supported portrait matrix: ${fullMatrix.join(', ')}`);
+if (unsupportedProjectPattern.test(config)) failures.push('regression config still includes unsupported desktop or playable landscape projects');
+if (unsupportedProjectPattern.test(fullGameWorkflow)) failures.push('full-game workflow still executes unsupported desktop or playable landscape jobs');
+if (fullGameWorkflow.includes('desktop-room-regression:')) failures.push('full-game regression still duplicates dedicated room evidence');
+if (/Build current branch for browser regression|Build current branch for desktop room evidence/.test(fullGameWorkflow)) failures.push('browser jobs still rebuild production output instead of reusing the shared build');
+if (!fullGameWorkflow.includes("if: steps.browser-cache.outputs.cache-hit != 'true'")) failures.push('browser engine cache misses are not handled deterministically');
+if (!fullGameWorkflow.includes("github.event_name == 'workflow_dispatch' && inputs.full_evidence == true")) failures.push('manual full-evidence execution is missing');
+if (!fullGameWorkflow.includes("github.event_name == 'pull_request' && github.event.pull_request.draft == true")) failures.push('draft pull requests do not select the compact phone smoke path');
+if (fullGameWorkflow.includes('continue-on-error: true\n        run: node artifacts/dungeon-rpg/scripts/validate-full-game-regression-scope.mjs')) failures.push('regression scope validator is allowed to fail silently');
+
 if (!visualAudit.includes("from './visual-render-readiness.mjs'") || !visualAudit.includes('waitForLiveMenuPaint(page)') || !visualAudit.includes('waitForPaintedCanvas(page)')) failures.push('visual audit does not enforce painted WebGL evidence');
 if (!visualAudit.includes('getByText(`RAUM ${room}/50`')) failures.push('visual audit does not validate the literal visible room HUD label');
 if (!roomAudit.includes("from './visual-render-readiness.mjs'") || !roomAudit.includes('waitForPaintedCanvas(page)')) failures.push('chunked room audit does not reject blank WebGL frames');
@@ -189,4 +228,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: supported portrait iPhone, Android phone, iPad and Android tablet flows, full phone room coverage, critical tablet rooms, runtime errors, assets and production build are covered without desktop gameplay evidence.');
+console.log('Full-game regression scope audit passed: draft commits reuse one Pages build for compact iPhone and Android phone smoke checks, while ready PRs, manual full-evidence runs and the fixed target branch retain the four supported portrait mobile projects; complete runtime evidence remains responsible for exhaustive room media without desktop gameplay.');
