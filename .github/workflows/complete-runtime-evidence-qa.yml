@@ -208,16 +208,16 @@ jobs:
         include:
           - group: solo-room-chunks
             test_files: tests/complete-runtime-evidence.spec.mjs
-            test_grep: '^solo continuous renderer evidence rooms'
+            test_grep: 'solo continuous renderer evidence rooms'
           - group: duo-room-chunks
             test_files: tests/complete-runtime-evidence.spec.mjs
-            test_grep: '^duo continuous renderer evidence rooms'
+            test_grep: 'duo continuous renderer evidence rooms'
           - group: solo-continuous-1-50
             test_files: tests/complete-runtime-evidence.spec.mjs
-            test_grep: '^solo one renderer survives uninterrupted rooms 1-50$'
+            test_grep: 'solo one renderer survives uninterrupted rooms 1-50'
           - group: duo-continuous-1-50
             test_files: tests/complete-runtime-evidence.spec.mjs
-            test_grep: '^duo one renderer survives uninterrupted rooms 1-50$'
+            test_grep: 'duo one renderer survives uninterrupted rooms 1-50'
           - group: hazards-and-webgl
             test_files: tests/complete-runtime-evidence.spec.mjs
             test_grep: 'room hazards stop before the final enemy death animation finishes|lost WebGL context recovers without leaving a black active fight'
