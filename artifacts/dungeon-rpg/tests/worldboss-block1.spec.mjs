@@ -133,7 +133,7 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
 });
 
-test('mobile landscape blocks gameplay and the same portrait fight resumes', async ({ page }) => {
+test('mobile landscape blocks gameplay and the same portrait fight resumes', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   await page.addInitScript(() => {
     localStorage.clear();
@@ -170,7 +170,7 @@ test('mobile landscape blocks gameplay and the same portrait fight resumes', asy
   expect(blocked.orientation).toBe('blocked');
 
   await mkdir(OUTPUT, { recursive: true });
-  await page.screenshot({ path: `${OUTPUT}/portrait-only-landscape-blocked.png`, fullPage: false });
+  await page.screenshot({ path: `${OUTPUT}/portrait-only-landscape-blocked-${testInfo.project.name}.png`, fullPage: false });
 
   await page.setViewportSize({ width: 600, height: 900 });
   await expect(blocker).toBeHidden();
