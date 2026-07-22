@@ -3,6 +3,7 @@ import { expect } from '@playwright/test';
 const SAMPLE_SIZE = 64;
 const MIN_LIT_COVERAGE = 0.05;
 const MIN_SAMPLE_PNG_BYTES = 500;
+const REQUIRED_PAINTED_SAMPLES = 2;
 
 async function canvasFrameEvidence(canvas) {
   return canvas.evaluate(async (element, sampleSize) => {
@@ -66,22 +67,27 @@ async function canvasFrameEvidence(canvas) {
 
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
   await expect(canvas).toBeVisible({ timeout });
-  let previousFrameHash = null;
+  let paintedSamples = 0;
   await expect.poll(
     async () => {
+      const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+      if (buildState && buildState !== 'ready') {
+        paintedSamples = 0;
+        return 0;
+      }
+
       const evidence = await canvasFrameEvidence(canvas);
-      const changed = previousFrameHash !== null && evidence.frameHash !== previousFrameHash;
-      previousFrameHash = evidence.frameHash;
       const coverageScore = evidence.coverage / MIN_LIT_COVERAGE;
       const pngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
-      return changed && evidence.width > 0 && evidence.height > 0
-        ? Math.max(coverageScore, pngScore)
-        : 0;
+      const paintScore = Math.max(coverageScore, pngScore);
+      const painted = evidence.width > 0 && evidence.height > 0 && paintScore >= 1;
+      paintedSamples = painted ? paintedSamples + 1 : 0;
+      return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
     },
     {
       timeout,
       intervals: [100, 200, 350, 500, 750, 1_000],
-      message: 'WebGL canvas remained blank, static or insufficiently painted',
+      message: 'WebGL canvas remained blank or insufficiently painted',
     },
   ).toBeGreaterThanOrEqual(1);
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
