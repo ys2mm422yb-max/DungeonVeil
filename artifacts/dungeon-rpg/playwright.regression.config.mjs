@@ -8,7 +8,7 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 20_000 },
   fullyParallel: false,
-  retries: 1,
+  retries: 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['list'],
@@ -47,10 +47,13 @@ export default defineConfig({
       },
     },
     {
+      // Legacy workflow key retained for compatibility. Gameplay evidence is
+      // portrait-only; the dedicated rotation contract verifies the blocker.
       name: 'ipad-landscape-webkit',
+      grepInvert: /new run renders responsive combat controls and stays stable/,
       use: {
         browserName: 'webkit',
-        viewport: { width: 1180, height: 820 },
+        viewport: { width: 820, height: 1180 },
         deviceScaleFactor: 2,
         isMobile: true,
         hasTouch: true,
