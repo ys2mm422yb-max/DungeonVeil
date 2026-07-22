@@ -104,6 +104,9 @@ requireMarkers(fullGameWorkflow, 'optimized workflow', [
   'compression-level: 9',
 ]);
 requireMarkers(completeRuntimeWorkflow, 'complete runtime delegation', [
+  'types: [opened, synchronize, reopened, ready_for_review]',
+  "if: github.event_name != 'pull_request' || github.event.pull_request.draft == false",
+  'cancel-in-progress: true',
   'complete-runtime-manifest-${{ matrix.project }}',
   'complete-runtime-evidence-${{ matrix.project }}',
   'tests/complete-runtime-evidence.spec.mjs',
@@ -118,6 +121,7 @@ if (!sameProjects(smokeMatrix, smokeProjects)) failures.push(`draft smoke matrix
 if (!sameProjects(fullMatrix, supportedProjects)) failures.push(`full regression matrix differs from the supported portrait matrix: ${fullMatrix.join(', ')}`);
 if (unsupportedProjectPattern.test(config)) failures.push('regression config still includes unsupported desktop or playable landscape projects');
 if (unsupportedProjectPattern.test(fullGameWorkflow)) failures.push('full-game workflow still executes unsupported desktop or playable landscape jobs');
+if (unsupportedProjectPattern.test(completeRuntimeWorkflow)) failures.push('complete-runtime workflow still executes unsupported desktop or playable landscape jobs');
 if (fullGameWorkflow.includes('desktop-room-regression:')) failures.push('full-game regression still duplicates exhaustive room evidence');
 if (/Build current branch for browser regression|Build current branch for desktop room evidence/.test(fullGameWorkflow)) failures.push('browser jobs still rebuild production output instead of reusing the shared build');
 if (!fullGameWorkflow.includes("if: steps.browser-cache.outputs.cache-hit != 'true'")) failures.push('browser engine cache misses are not handled deterministically');
@@ -133,4 +137,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression contract passed: draft commits reuse one Pages build for compact iPhone and Android phone smoke checks; ready PRs, manual full-evidence runs and the fixed target branch retain the four supported portrait mobile projects; exhaustive room media remains delegated to complete runtime evidence without desktop gameplay.');
+console.log('Full-game regression contract passed: draft commits reuse one Pages build for compact iPhone and Android phone smoke checks and skip exhaustive runtime media; ready PRs, manual full-evidence runs and the fixed target branch retain the four supported portrait mobile projects without desktop gameplay.');
