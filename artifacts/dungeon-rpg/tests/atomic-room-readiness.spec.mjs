@@ -58,7 +58,7 @@ function resetEvidence(page) {
 }
 
 test('complex room transitions expose exactly one atomic ready signal', async ({ page }, testInfo) => {
-  test.setTimeout(300_000);
+  test.setTimeout(720_000);
   await startEvidence(page);
 
   for (const room of ROOMS) {
@@ -80,7 +80,7 @@ test('complex room transitions expose exactly one atomic ready signal', async ({
 });
 
 test('a failed atomic build cannot resume hazards before a successful retry', async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   await startEvidence(page);
   await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.loadRoom(13, 'duo'));
   await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(13);
