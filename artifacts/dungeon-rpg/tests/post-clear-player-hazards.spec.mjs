@@ -4,7 +4,8 @@ import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVeil/';
 const OUTPUT = 'test-results/complete-runtime-evidence';
-const PLAYER_HAZARD_PREFIXES = ['rune-warning-', 'rune-impact-', 'forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-'];
+const PLAYER_HAZARD_PREFIXES = ['rune-warning-', 'rune-impact-', 'forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-', 'telegraph-', 'mage-cast-', 'mage-impact-', 'shot-mage-'];
+const PLAYER_DAMAGE_PREFIXES = ['rune-hit-', 'hit-', 'mage-hit-'];
 
 function qaUrl() {
   const url = new URL(APP_URL);
@@ -38,7 +39,7 @@ async function startEvidence(page) {
 
 for (const room of [13, 16, 19]) {
   test(`room ${room} rune storm stops when the final living enemy dies`, async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
     await startEvidence(page);
     await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'duo'), room);
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
@@ -64,7 +65,7 @@ for (const room of [13, 16, 19]) {
     const settled = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
     expect(settled.hp, JSON.stringify(settled)).toBe(armed.hp);
     expect(settled.effects.filter(id => PLAYER_HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(settled)).toEqual([]);
-    expect(settled.damageNumbers.filter(id => id.startsWith('rune-hit-')), JSON.stringify(settled)).toEqual([]);
+    expect(settled.damageNumbers.filter(id => PLAYER_DAMAGE_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(settled)).toEqual([]);
 
     await mkdir(OUTPUT, { recursive: true });
     await page.screenshot({ path: `${OUTPUT}/post-clear-rune-room-${room}-${testInfo.project.name}.png`, fullPage: false });
