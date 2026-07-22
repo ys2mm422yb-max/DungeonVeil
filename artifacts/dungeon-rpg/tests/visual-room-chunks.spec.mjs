@@ -10,6 +10,8 @@ const FULL_ROOM_CHUNKS = [
   [31, 40],
   [41, 50],
 ];
+const FULL_ROOM_PROJECTS = ['iphone-webkit', 'android-chromium'];
+const CRITICAL_ROOM_PROJECTS = ['ipad-portrait-webkit', 'android-tablet-chromium'];
 const CRITICAL_ROOMS = [1, 5, 9, 10, 11, 19, 20, 21, 29, 30, 31, 39, 40, 41, 49, 50];
 const ROOM_EVIDENCE_DIRECTORY = 'test-results/room-evidence';
 
@@ -181,14 +183,14 @@ async function captureRooms(page, testInfo, rooms) {
 
 for (const [first, last] of FULL_ROOM_CHUNKS) {
   test(`full room visual evidence ${first}-${last} uses a fresh WebGL context`, async ({ page }, testInfo) => {
-    test.skip(!['iphone-webkit', 'desktop-chromium'].includes(testInfo.project.name), 'Full room evidence is required on iPhone and desktop only.');
+    test.skip(!FULL_ROOM_PROJECTS.includes(testInfo.project.name), 'Full room evidence is required on iPhone and Android phone.');
     test.setTimeout(900_000);
     await captureRooms(page, testInfo, Array.from({ length: last - first + 1 }, (_, index) => first + index));
   });
 }
 
-test('critical room visual evidence covers Android and iPad boundaries', async ({ page }, testInfo) => {
-  test.skip(!['android-chromium', 'ipad-landscape-webkit'].includes(testInfo.project.name), 'Critical boundary evidence is required on Android and iPad only.');
+test('critical room visual evidence covers iOS and Android tablets', async ({ page }, testInfo) => {
+  test.skip(!CRITICAL_ROOM_PROJECTS.includes(testInfo.project.name), 'Critical boundary evidence is required on iPad and Android tablet.');
   test.setTimeout(900_000);
   await captureRooms(page, testInfo, CRITICAL_ROOMS);
 });
