@@ -135,9 +135,8 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
 });
 
-test('landscape blocks gameplay and the same portrait fight resumes', async ({ page }, testInfo) => {
+test('mobile landscape blocks gameplay and the same portrait fight resumes', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
-  await page.setViewportSize({ width: 600, height: 900 });
   await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
@@ -145,6 +144,17 @@ test('landscape blocks gameplay and the same portrait fight resumes', async ({ p
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
   });
+
+  if (testInfo.project.name === 'desktop-chromium') {
+    await page.setViewportSize({ width: 900, height: 600 });
+    await page.goto(runtimeDuoQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await expect(page.getByTestId('runtime-duo-evidence-qa')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('portrait-orientation-blocker')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilOrientation)).toBe('portrait');
+    return;
+  }
+
+  await page.setViewportSize({ width: 600, height: 900 });
   await page.goto(runtimeDuoQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('runtime-duo-evidence-qa')).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
