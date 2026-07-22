@@ -17,7 +17,7 @@ const [config, smoke, visualAudit, roomAudit, visualReadiness, mainMenuReference
   readFile(new URL('../../../.github/workflows/dungeon-rpg-ci.yml', import.meta.url), 'utf8'),
 ]);
 
-const requiredProjects = ['iphone-webkit', 'android-chromium', 'ipad-landscape-webkit', 'desktop-chromium'];
+const requiredProjects = ['iphone-webkit', 'android-chromium', 'ipad-portrait-webkit', 'android-tablet-chromium'];
 const requiredFlows = [
   'main-menu-profile-badge',
   'Höchstes Kapitel',
@@ -64,8 +64,8 @@ const requiredRoomMarkers = [
   '[31, 40]',
   '[41, 50]',
   '[1, 5, 9, 10, 11, 19, 20, 21, 29, 30, 31, 39, 40, 41, 49, 50]',
-  "['iphone-webkit', 'desktop-chromium']",
-  "['android-chromium', 'ipad-landscape-webkit']",
+  "['iphone-webkit', 'android-chromium']",
+  "['ipad-portrait-webkit', 'android-tablet-chromium']",
   'fresh WebGL context',
   'visual-room-',
   'getByText(`RAUM ${room}/50`',
@@ -116,20 +116,16 @@ const requiredEquipmentMarkers = [
   'toBeGreaterThanOrEqual(700)',
   'equipment-responsive-',
 ];
-const requiredDesktopRoomWorkflowMarkers = [
-  'desktop-room-regression:',
-  "if [[ \"$BROWSER_PROJECT\" == 'desktop-chromium' ]]",
-  'GREP_INVERT="$GREP_INVERT|full room visual evidence"',
-  "grep: 'full room visual evidence 1-10 uses a fresh WebGL context'",
-  "grep: 'full room visual evidence 11-20 uses a fresh WebGL context'",
-  "grep: 'full room visual evidence 21-30 uses a fresh WebGL context'",
-  "grep: 'full room visual evidence 31-40 uses a fresh WebGL context'",
-  "grep: 'full room visual evidence 41-50 uses a fresh WebGL context'",
-  '--project=desktop-chromium --grep="${{ matrix.grep }}"',
-  'visual-evidence-desktop-room-${{ matrix.label }}',
-  'full-game-regression-results-desktop-room-${{ matrix.label }}',
-  'if-no-files-found: error',
-  'timeout --signal=TERM --kill-after=30s 25m',
+const requiredMobileWorkflowMarkers = [
+  '- project: iphone-webkit',
+  '- project: android-chromium',
+  '- project: ipad-portrait-webkit',
+  '- project: android-tablet-chromium',
+  'visual-evidence-iphone-webkit',
+  'visual-evidence-android-chromium',
+  'visual-evidence-ipad-portrait-webkit',
+  'visual-evidence-android-tablet-chromium',
+  'Test current branch on isolated portrait mobile runner',
 ];
 
 const failures = [];
@@ -157,9 +153,11 @@ for (const marker of requiredReducedMotionMarkers) {
 for (const marker of requiredEquipmentMarkers) {
   if (!equipmentResponsive.includes(marker)) failures.push(`missing responsive equipment marker: ${marker}`);
 }
-for (const marker of requiredDesktopRoomWorkflowMarkers) {
-  if (!fullGameWorkflow.includes(marker)) failures.push(`missing isolated desktop room workflow marker: ${marker}`);
+for (const marker of requiredMobileWorkflowMarkers) {
+  if (!fullGameWorkflow.includes(marker)) failures.push(`missing supported mobile workflow marker: ${marker}`);
 }
+if (/desktop-chromium|ipad-landscape-webkit/.test(config)) failures.push('regression config still includes unsupported desktop or playable landscape projects');
+if (/desktop-room-regression|desktop-chromium|ipad-landscape-webkit/.test(fullGameWorkflow)) failures.push('full-game workflow still executes unsupported desktop or playable landscape jobs');
 if (!visualAudit.includes("from './visual-render-readiness.mjs'") || !visualAudit.includes('waitForLiveMenuPaint(page)') || !visualAudit.includes('waitForPaintedCanvas(page)')) failures.push('visual audit does not enforce painted WebGL evidence');
 if (!visualAudit.includes('getByText(`RAUM ${room}/50`')) failures.push('visual audit does not validate the literal visible room HUD label');
 if (!roomAudit.includes("from './visual-render-readiness.mjs'") || !roomAudit.includes('waitForPaintedCanvas(page)')) failures.push('chunked room audit does not reject blank WebGL frames');
@@ -191,4 +189,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression scope audit passed: major menu flows, own/public profiles, animation-settled, actually painted and explicitly German transient game surfaces, tutorial, explicit reduced motion, responsive equipment, direct pixel-sampled painted and changing WebGL evidence, literal room HUD labels, isolated fresh-context desktop room chunks 1-50, full iPhone rooms 1-50, critical Android/iPad rooms, runtime errors, assets and production build are covered.');
+console.log('Full-game regression scope audit passed: supported portrait iPhone, Android phone, iPad and Android tablet flows, full phone room coverage, critical tablet rooms, runtime errors, assets and production build are covered without desktop gameplay evidence.');
