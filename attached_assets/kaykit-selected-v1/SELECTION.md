@@ -12,7 +12,6 @@ Komplette ZIP-, Source-, FBX-, Unity- und Blend-Pakete sind nicht enthalten.
 - `KayKit_FantasyWeaponsBits_1.0_EXTRA/Assets/gltf/staff_D.gltf`
 - `KayKit_FantasyWeaponsBits_1.0_EXTRA/Assets/gltf/sword_G.gltf`
 - `KayKit_FantasyWeaponsBits_1.0_EXTRA/Assets/gltf/wand_B.gltf`
-- `KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf/halberd.gltf`
 - `KayKit_Mystery_Monthly_Series_6_(1.1)/1 - July 2025 - Lorekeeper/assets/gltf/Lorekeeper_Staff.gltf`
 - `KayKit_Mystery_Monthly_Series_6_(1.1)/1 - July 2025 - Lorekeeper/assets/gltf/Lorekeeper_Tome.gltf`
 - `KayKit_Mystery_Monthly_Series_6_(1.1)/1 - July 2025 - Lorekeeper/characters/Lorekeeper.glb`
@@ -46,11 +45,3 @@ Komplette ZIP-, Source-, FBX-, Unity- und Blend-Pakete sind nicht enthalten.
 - `KayKit_Skeletons_1.1_EXTRA/characters/gltf/Skeleton_Minion.glb`
 - `KayKit_Skeletons_1.1_EXTRA/characters/gltf/Skeleton_Rogue.glb`
 - `KayKit_Skeletons_1.1_EXTRA/characters/gltf/Skeleton_Warrior.glb`
-- `KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Crossbow.gltf`
-- `KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Quiver.gltf`
-- `KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Shield_Large_A.gltf`
-- `KayKit_Skeletons_1.1_FREE/assets/gltf/Skeleton_Staff.gltf`
-- `KayKit_Skeletons_1.1_FREE/characters/gltf/Skeleton_Mage.glb`
-- `KayKit_Skeletons_1.1_FREE/characters/gltf/Skeleton_Minion.glb`
-- `KayKit_Skeletons_1.1_FREE/characters/gltf/Skeleton_Rogue.glb`
-- `KayKit_Skeletons_1.1_FREE/characters/gltf/Skeleton_Warrior.glb`
