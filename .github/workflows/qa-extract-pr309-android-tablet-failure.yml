@@ -1,0 +1,89 @@
+name: QA Extract PR309 Android Tablet Failure
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/qa-extract-pr309-android-tablet-failure.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  extract-tablet-failure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exact Android tablet evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: complete-runtime-evidence-android-tablet-chromium
+          path: source
+          github-token: ${{ github.token }}
+          repository: ys2mm422yb-max/DungeonVeil
+          run-id: 29940305186
+
+      - name: Extract only failed Duo 1-50 diagnostics
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import shutil
+
+          source = Path('source')
+          output = Path('diagnostic')
+          output.mkdir(exist_ok=True)
+          token = 'uninterrupted-rooms-1-50-android-tablet-chromium'
+          allowed_names = {'test-failed-1.png', 'video.webm', 'trace.zip', 'error-context.md'}
+
+          matches = [
+              path for path in source.rglob('*')
+              if path.is_file()
+              and token in str(path.parent)
+              and path.name in allowed_names
+          ]
+          result_json = next(iter(source.rglob('complete-runtime-results.json')), None)
+          if result_json is not None:
+              matches.append(result_json)
+          if not matches:
+              raise SystemExit('No Android tablet failure diagnostics found')
+
+          manifest = {
+              'source_run_id': 29940305186,
+              'source_head_sha': 'abebd4a7c22305aa93b0e17c105c66a58045028a',
+              'source_artifact': 'complete-runtime-evidence-android-tablet-chromium',
+              'files': [],
+          }
+          seen = set()
+          for index, path in enumerate(sorted(matches), start=1):
+              content = path.read_bytes()
+              digest = hashlib.sha256(content).hexdigest()
+              if digest in seen:
+                  continue
+              seen.add(digest)
+              target = output / f'{index:02d}-{path.name}'
+              shutil.copy2(path, target)
+              manifest['files'].append({
+                  'stored_name': target.name,
+                  'original_path': str(path.relative_to(source)),
+                  'sha256': digest,
+                  'size': len(content),
+              })
+
+          (output / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+          print(json.dumps(manifest, indent=2))
+          PY
+
+      - name: Upload focused tablet failure diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr309-android-tablet-duo-1-50-failure-diagnostics
+          path: diagnostic
+          retention-days: 3
+          compression-level: 6
