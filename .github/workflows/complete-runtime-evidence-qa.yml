@@ -209,9 +209,21 @@ jobs:
           - group: solo-room-chunks
             test_files: tests/complete-runtime-evidence.spec.mjs
             test_grep: 'solo continuous renderer evidence rooms'
-          - group: duo-room-chunks
+          - group: duo-rooms-1-10
             test_files: tests/complete-runtime-evidence.spec.mjs
-            test_grep: 'duo continuous renderer evidence rooms'
+            test_grep: 'duo continuous renderer evidence rooms 1-10'
+          - group: duo-rooms-11-20
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: 'duo continuous renderer evidence rooms 11-20'
+          - group: duo-rooms-21-30
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: 'duo continuous renderer evidence rooms 21-30'
+          - group: duo-rooms-31-40
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: 'duo continuous renderer evidence rooms 31-40'
+          - group: duo-rooms-41-50
+            test_files: tests/complete-runtime-evidence.spec.mjs
+            test_grep: 'duo continuous renderer evidence rooms 41-50'
           - group: solo-continuous-1-50
             test_files: tests/complete-runtime-evidence.spec.mjs
             test_grep: 'solo one renderer survives uninterrupted rooms 1-50'
