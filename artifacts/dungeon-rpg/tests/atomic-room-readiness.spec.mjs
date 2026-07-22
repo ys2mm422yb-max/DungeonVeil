@@ -91,23 +91,39 @@ test('a failed atomic build cannot resume hazards before a successful retry', as
     () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.effects.some(id => id.startsWith('rune-warning-'))),
     { timeout: 8_000 },
   ).toBe(true);
-  const armed = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
   await resetEvidence(page);
 
-  await page.evaluate(() => {
+  const guardEvidence = await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { floor: 13, key: 'evidence-failed-build', owner: 'atomic-test' } }));
     window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { floor: 13, key: 'evidence-failed-build', failed: true, owner: 'atomic-test' } }));
+    const api = window.__dungeonVeilRuntimeEvidence;
+    const baseline = Number(api.snapshot()?.hp ?? 0);
+    const probe = { baseline, minimum: baseline, samples: [baseline], active: true };
+    window.__dvAtomicHpProbe = probe;
+    const sample = () => {
+      if (!probe.active) return;
+      const hp = Number(api.snapshot()?.hp ?? 0);
+      if (probe.samples.length < 240) probe.samples.push(hp);
+      probe.minimum = Math.min(probe.minimum, hp);
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    return { baseline };
   });
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState)).toBe('retrying');
   await page.waitForTimeout(1_500);
 
-  const blocked = await page.evaluate(() => ({
-    runtime: window.__dungeonVeilRuntimeEvidence.snapshot(),
-    evidence: { ...window.__dvAtomicRoomEvidence },
-  }));
+  const blocked = await page.evaluate(() => {
+    window.__dvAtomicHpProbe.active = false;
+    return {
+      runtime: window.__dungeonVeilRuntimeEvidence.snapshot(),
+      evidence: { ...window.__dvAtomicRoomEvidence },
+      hpProbe: window.__dvAtomicHpProbe,
+    };
+  });
   expect(blocked.evidence.preparing, JSON.stringify(blocked.evidence)).toBe(1);
   expect(blocked.evidence.ready, JSON.stringify(blocked.evidence)).toBe(0);
-  expect(blocked.runtime.hp, JSON.stringify(blocked.runtime)).toBe(armed.hp);
+  expect(blocked.hpProbe.minimum, JSON.stringify({ guardEvidence, blocked })).toBeGreaterThanOrEqual(blocked.hpProbe.baseline);
   expect(blocked.runtime.effects.filter(id => PLAYER_HAZARD_PREFIXES.some(prefix => id.startsWith(prefix))), JSON.stringify(blocked.runtime)).toEqual([]);
   expect(blocked.runtime.damageNumbers.filter(id => id.startsWith('rune-hit-')), JSON.stringify(blocked.runtime)).toEqual([]);
 
