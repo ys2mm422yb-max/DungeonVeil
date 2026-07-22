@@ -4,11 +4,11 @@ const baseURL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVe
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /(?:complete-runtime-evidence|complete-runtime-room-titles|renderer-recovery-hidden-hud|post-clear-player-hazards|atomic-room-readiness|worldboss-block1|full-game-smoke)\.spec\.mjs/,
+  testMatch: /(?:complete-runtime-evidence|complete-runtime-room-titles|renderer-recovery-hidden-hud|post-clear-player-hazards|atomic-room-readiness|portrait-orientation|worldboss-block1|full-game-smoke)\.spec\.mjs/,
   timeout: 900_000,
   expect: { timeout: 30_000 },
   fullyParallel: false,
-  retries: 1,
+  retries: 0,
   workers: 1,
   reporter: [
     ['list'],
@@ -58,10 +58,12 @@ export default defineConfig({
       },
     },
     {
+      // Kept under the legacy workflow key until the CI-only follow-up PR removes
+      // that matrix entry. Gameplay itself is still recorded exclusively portrait.
       name: 'ipad-landscape-webkit',
       use: {
         browserName: 'webkit',
-        viewport: { width: 1180, height: 820 },
+        viewport: { width: 820, height: 1180 },
         deviceScaleFactor: 2,
         isMobile: true,
         hasTouch: true,
@@ -72,7 +74,7 @@ export default defineConfig({
       name: 'desktop-chromium',
       use: {
         browserName: 'chromium',
-        viewport: { width: 1440, height: 900 },
+        viewport: { width: 900, height: 1440 },
         deviceScaleFactor: 1,
         isMobile: false,
         hasTouch: false,
