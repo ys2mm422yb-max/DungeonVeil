@@ -13,6 +13,17 @@ function qaUrl() {
   return url.toString();
 }
 
+async function waitForRoomReady(page, room) {
+  await expect.poll(
+    () => page.evaluate(expectedRoom => {
+      const root = document.documentElement.dataset;
+      return root.dungeonVeilRoomBuildState === 'ready'
+        && Number(root.dungeonVeilRoomBuildFloor || 0) === expectedRoom;
+    }, room),
+    { timeout: 60_000 },
+  ).toBe(true);
+}
+
 async function startEvidence(page) {
   await page.addInitScript(() => {
     sessionStorage.setItem('dungeon-veil-runtime-evidence-v1', '1');
@@ -22,6 +33,7 @@ async function startEvidence(page) {
   await page.goto(qaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('runtime-duo-evidence-qa')).toBeVisible({ timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
+  await waitForRoomReady(page, 1);
   await waitForPaintedCanvas(page);
   await page.evaluate(() => {
     window.__dvAtomicRoomEvidence = { preparing: 0, ready: 0, readyFloors: [] };
@@ -54,6 +66,7 @@ test('complex room transitions expose exactly one atomic ready signal', async ({
     await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'duo'), room);
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
     await expect.poll(() => page.evaluate(() => window.__dvAtomicRoomEvidence.ready), { timeout: 60_000 }).toBe(1);
+    await waitForRoomReady(page, room);
     await page.waitForTimeout(650);
     const evidence = await page.evaluate(() => ({ ...window.__dvAtomicRoomEvidence }));
     expect(evidence.preparing, JSON.stringify(evidence)).toBeGreaterThanOrEqual(1);
@@ -69,11 +82,11 @@ test('complex room transitions expose exactly one atomic ready signal', async ({
 test('a failed atomic build cannot resume hazards before a successful retry', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   await startEvidence(page);
-  await page.evaluate(() => {
-    window.__dungeonVeilRuntimeEvidence.loadRoom(13, 'duo');
-    window.__dungeonVeilRuntimeEvidence.setPlayerStats(1, 5000);
-  });
+  await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.loadRoom(13, 'duo'));
   await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(13);
+  await waitForRoomReady(page, 13);
+  await waitForPaintedCanvas(page);
+  await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.setPlayerStats(1, 5000));
   await expect.poll(
     () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.effects.some(id => id.startsWith('rune-warning-'))),
     { timeout: 8_000 },
@@ -102,6 +115,7 @@ test('a failed atomic build cannot resume hazards before a successful retry', as
     window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { floor: 13, key: 'evidence-failed-build', owner: 'atomic-test' } }));
   });
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState)).toBe('ready');
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildFloor)).toBe('13');
   await expect.poll(() => page.evaluate(() => window.__dvAtomicRoomEvidence.ready)).toBe(1);
   await waitForPaintedCanvas(page);
   await mkdir(OUTPUT, { recursive: true });
