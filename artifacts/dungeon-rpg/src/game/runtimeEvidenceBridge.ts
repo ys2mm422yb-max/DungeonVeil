@@ -75,9 +75,17 @@ function attachApi(): void {
       if (!engine) return null;
       const room = Math.max(1, Math.min(50, Math.floor(Number(requestedRoom) || 1)));
       const player = engine.state.player;
+      const roomChanges = engine.state.floor !== room || engine.state.chapter !== 1;
       setMode(mode);
-      document.documentElement.dataset.dungeonVeilRoomBuildState = 'preparing';
-      document.documentElement.dataset.dungeonVeilRoomBuildFloor = String(room);
+      if (roomChanges) {
+        document.documentElement.dataset.dungeonVeilRoomBuildState = 'preparing';
+        document.documentElement.dataset.dungeonVeilRoomBuildFloor = String(room);
+      } else {
+        // The renderer key does not change when QA reloads the already visible room.
+        // No new atomic room-ready event will be emitted, so preserve its ready state.
+        document.documentElement.dataset.dungeonVeilRoomBuildState = 'ready';
+        document.documentElement.dataset.dungeonVeilRoomBuildFloor = String(room);
+      }
       engine.continueGame({
         playerName: player.playerName === 'Hero' ? 'Runtime Ranger' : player.playerName,
         playerClass: 'archer',
