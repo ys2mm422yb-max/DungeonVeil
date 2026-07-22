@@ -12,6 +12,17 @@ function qaUrl() {
   return url.toString();
 }
 
+async function waitForRoomReady(page, room) {
+  await expect.poll(
+    () => page.evaluate(expectedRoom => {
+      const root = document.documentElement.dataset;
+      return root.dungeonVeilRoomBuildState === 'ready'
+        && Number(root.dungeonVeilRoomBuildFloor || 0) === expectedRoom;
+    }, room),
+    { timeout: 60_000 },
+  ).toBe(true);
+}
+
 async function startEvidence(page) {
   await page.addInitScript(() => {
     sessionStorage.setItem('dungeon-veil-runtime-evidence-v1', '1');
@@ -21,6 +32,7 @@ async function startEvidence(page) {
   await page.goto(qaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('runtime-duo-evidence-qa')).toBeVisible({ timeout: 60_000 });
   await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
+  await waitForRoomReady(page, 1);
   await waitForPaintedCanvas(page);
 }
 
@@ -29,6 +41,9 @@ for (const room of [13, 16, 19]) {
     test.setTimeout(180_000);
     await startEvidence(page);
     await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'duo'), room);
+    await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
+    await waitForRoomReady(page, room);
+    await waitForPaintedCanvas(page);
     await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.setPlayerStats(1, 5000));
     await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.livingEnemies), { timeout: 30_000 }).toBeGreaterThan(0);
 
