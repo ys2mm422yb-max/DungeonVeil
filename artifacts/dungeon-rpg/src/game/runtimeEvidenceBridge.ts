@@ -47,6 +47,7 @@ function stateSnapshot(engine = currentEngine): Record<string, unknown> | null {
     effects: state.effects.map(effect => effect.id),
     damageNumbers: state.damageNumbers.map(number => number.id),
     runMode: document.documentElement.dataset.dungeonVeilRunMode ?? 'solo',
+    orientation: document.documentElement.dataset.dungeonVeilOrientation ?? 'portrait',
   };
 }
 
@@ -95,7 +96,9 @@ function attachApi(): void {
         xp: 0,
         hp: 9_999,
         maxHp: 9_999,
-        attack: 50_000,
+        // Evidence rooms must keep their enemies alive until the test explicitly
+        // defeats them. The former 50,000 attack made Android timing nondeterministic.
+        attack: 1,
         defense: 5_000,
         speed: Math.max(220, player.speed),
         attackRange: 520,
@@ -114,7 +117,7 @@ function attachApi(): void {
       });
       engine.state.player.hp = 9_999;
       engine.state.player.maxHp = 9_999;
-      engine.state.player.attack = 50_000;
+      engine.state.player.attack = 1;
       engine.state.player.defense = 5_000;
       engine.state.status = 'playing';
       engine.lastTime = performance.now();
