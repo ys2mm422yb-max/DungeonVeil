@@ -94,9 +94,9 @@ test('mobile resource actions and equipment upgrade stay on their intended surfa
 
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /Aschenbogen|Ash Bow/i })).toBeVisible();
+  await expect(page.getByText(/LEVEL 2\/5/i).first()).toBeVisible();
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toHaveCount(0);
   await assertNoWrongSurface(page);
-  await expect(page.getByText(/ITEM VERBESSERT|ITEM UPGRADED/i)).toBeVisible();
 
   await page.screenshot({ path: `test-results/mobile-resource-upgrade-${testInfo.project.name}.png`, fullPage: false });
 });
