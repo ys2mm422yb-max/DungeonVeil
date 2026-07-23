@@ -1,1 +1,0 @@
-One-time trigger for the focused KayKit bow animation preparation workflow.
