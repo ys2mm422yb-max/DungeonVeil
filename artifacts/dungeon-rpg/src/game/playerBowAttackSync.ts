@@ -29,6 +29,7 @@ type PatchedEngine = {
 };
 
 const ATTACK_SPEED_MULTIPLIERS = [1, 1.16, 1.3, 1.42] as const;
+const ATTACK_COOLDOWN_FACTORS = [1, 0.84, 0.7, 0.58] as const;
 
 function roomKey(engine: GameEngine): string {
   return `${engine.state.chapter}:${engine.state.floor}`;
@@ -39,10 +40,11 @@ function dispatchBowEvent(detail: PlayerBowEventDetail): void {
   window.dispatchEvent(new CustomEvent<PlayerBowEventDetail>(PLAYER_BOW_EVENT, { detail }));
 }
 
-function attackTiming(engine: GameEngine) {
+export function playerBowAttackTiming(engine: GameEngine) {
   const rank = skillRank(engine.state.runSkills, 'attackSpeed');
   const multiplier = ATTACK_SPEED_MULTIPLIERS[rank] ?? 1;
-  const cooldownMs = Math.max(120, CLASS_DEFS.archer.attackCooldownMs * multiplier ** -1);
+  const cooldownFactor = ATTACK_COOLDOWN_FACTORS[rank] ?? 1;
+  const cooldownMs = Math.max(120, CLASS_DEFS.archer.attackCooldownMs * cooldownFactor);
   const drawMs = Math.max(88, Math.min(cooldownMs * 0.7, Math.round(145 / multiplier)));
   const recoveryBudget = Math.max(36, cooldownMs - drawMs - 8);
   const releaseMs = Math.max(36, Math.min(recoveryBudget, Math.round(86 / multiplier)));
@@ -73,7 +75,7 @@ export function installPlayerBowAttackSync(engine: GameEngine): () => void {
     if (pending || engine.state.status !== 'playing' || engine.state.roomClearReady) return;
     if (!hasVisibleTarget(engine, runtime)) return;
 
-    const timing = attackTiming(engine);
+    const timing = playerBowAttackTiming(engine);
     engine.state.player.attackCooldown = timing.cooldownMs;
     engine.state.player.state = 'attacking';
     pending = {
