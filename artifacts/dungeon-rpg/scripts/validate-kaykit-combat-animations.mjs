@@ -9,9 +9,24 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const player = read('src/components/kaykitPlayer3D.ts');
 const canvas = read('src/components/GameCanvasKayKit3D.tsx');
 const enemy = read('src/components/kaykitEnemyBase3D.ts');
+const manifest = read('src/components/kaykitManifest3D.ts');
+const regional = read('src/game/enemyRegionalIdentity.ts');
 
 const enemyLoadsMelee = enemy.includes('/rig_medium_combatmelee\\.glb$/i');
 const enemyLoadsRanged = enemy.includes('/rig_medium_combatranged\\.glb$/i');
+const selectedExtras = [
+  'Skeleton_Mage_Necromancer',
+  'Skeleton_Warrior_Golem',
+  'Skeleton_Mage',
+  'Skeleton_Minion',
+  'Skeleton_Rogue',
+  'Skeleton_Warrior',
+];
+const allExtrasInManifest = selectedExtras.every(name => manifest.includes(`'${name}'`));
+const preservedMiddleChapters = regional.includes('if (safeRoom <= 30)')
+  && regional.includes("return adventurer('ranger', 'ranger')")
+  && regional.includes('if (safeRoom <= 40)')
+  && regional.includes("return index % 2 === 0 ? realMage() : skeleton('rogue', 'rogue')");
 
 const checks = [
   [player.includes('Rig_Medium_CombatRanged.glb'), 'Ranger does not load the KayKit ranged animation package'],
@@ -23,6 +38,13 @@ const checks = [
   [canvas.includes('playerRig.triggerAttack()') && canvas.includes('state.player.lastAttackTime > lastAttack'), 'Run renderer does not trigger the ranger attack from the authoritative shot event'],
   [enemyLoadsMelee && enemyLoadsRanged, 'Enemy library does not load both KayKit melee and ranged animation packs through the manifest'],
   [enemy.includes("['bow', 'attack']") || enemy.includes("['ranged', 'attack']"), 'Enemy ranged roles do not request ranged attack clips'],
+  [allExtrasInManifest && manifest.includes('includeSkeletonExtras'), 'Selected Skeletons Extra models are not exposed through the existing KayKit manifest loader'],
+  [manifest.includes('Skeleton_Mage_Necromancer') && manifest.includes('Skeleton_Warrior_Golem'), 'Role-safe Necromancer/Golem aliases are missing'],
+  [regional.includes("extraSkeleton('mage', 'skeleton_mage_necromancer')"), 'Room 20 does not use the selected Necromancer with the mage animation role'],
+  [regional.includes("extraSkeleton('warrior', 'skeleton_warrior_golem')"), 'Tomb guardian/Golem does not use the selected heavy warrior role'],
+  [regional.includes("extraSkeleton('rogue', 'skeleton_rogue')") && regional.includes("extraSkeleton('minion', 'skeleton_minion')"), 'Early skeleton variants are not mapped to distinct roles'],
+  [preservedMiddleChapters, 'The already validated room 21–40 silhouette mapping was changed unexpectedly'],
+  [regional.includes("if (type === 'skeleton') return extraSkeleton('warrior', 'skeleton_warrior');"), 'Late fortress skeletons do not use the selected warrior model'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -32,4 +54,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('KayKit combat animation contract passed: ranger uses authored bow clips and enemy roles retain melee/ranged package selection.');
+console.log('KayKit combat animation contract passed: authored ranger clips, selected skeleton roles, and room 21–40 visual boundaries are preserved.');
