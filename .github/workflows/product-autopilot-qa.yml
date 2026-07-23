@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - fix/guild-mail-equipment-currency-ux-v1
       - fix/mobile-telegraphs-room-21-50-balance
     paths:
       - '.github/workflows/product-autopilot-qa.yml'
