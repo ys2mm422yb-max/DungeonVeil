@@ -42,9 +42,24 @@ assert(
 for (let room = 21; room <= 30; room++) {
   assert(meadow.includes(`  ${room}: [`), `Room ${room} needs explicit meadow decoration.`);
 }
-assert(meadow.includes('Rock_3_A_Color1.gltf'), 'Room 30 needs a valid visible replacement rock.');
+const meadowBlock = (room, nextRoom) => {
+  const start = meadow.indexOf(`  ${room}: [`);
+  const end = nextRoom ? meadow.indexOf(`  ${nextRoom}: [`, start + 1) : meadow.indexOf('\n};', start);
+  assert(start >= 0 && end > start, `Room ${room} meadow source block is unavailable.`);
+  return meadow.slice(start, end);
+};
+const room21Meadow = meadowBlock(21, 22);
+const room30Meadow = meadowBlock(30, null);
+for (const [room, block] of [[21, room21Meadow], [30, room30Meadow]]) {
+  assert(block.includes('wall_arched.gltf'), `Room ${room} needs a visible architectural backdrop.`);
+  assert(block.includes('pillar.gltf') && block.includes('banner_patternA_green.gltf'), `Room ${room} needs framed chapter identity.`);
+}
+assert(meadow.includes("'ForestGateStoneTrail'") && meadow.includes("'ForestWardenStoneArena'"), 'Rooms 21 and 30 need distinct ground compositions.');
+assert(meadow.includes('buildMeadowGroundComposition') && meadow.includes('InstancedMesh'), 'Meadow framing must keep the compact instanced ground treatment.');
+assert(meadow.includes('Rock_3_A_Color1.gltf') || expanded.includes('Rock_3_A_Color1.gltf'), 'Room 30 needs a valid visible replacement rock.');
 assert(!expanded.includes('Rock_3_R_Color1.gltf'), 'The missing room-30 rock asset must not remain referenced.');
 assert(themes.includes('buildMeadowRoomTheme') && themes.includes('preloadMeadowRoomTheme'), 'Meadow additions must be built and preloaded.');
+assert(themes.includes('MEADOW_ENVIRONMENT') && themes.includes('background: 0x233d3a') && themes.includes('exposure: 1.06'), 'Rooms 21-30 need the verified lower-contrast meadow environment.');
 assert(themes.includes('Base room theme partially unavailable'), 'Room theme loading must survive one unavailable decoration.');
 
-console.log('Boss telegraphs, room-20 flight, contract-driven animation timing, meadow density and room-30 visibility audit passed.');
+console.log('Boss telegraphs, room-20 flight, contract-driven animation timing, meadow contrast, chapter framing and room-30 visibility audit passed.');
