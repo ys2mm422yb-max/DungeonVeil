@@ -18,7 +18,35 @@ function scoreLeftHand(name: string) {
   return 0;
 }
 
-export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig {
+function authoredBowAxisCorrection(THREE: any, bow: any) {
+  bow.position.set(0, 0, 0);
+  bow.rotation.set(0, 0, 0);
+  bow.scale.set(1, 1, 1);
+  bow.updateMatrixWorld(true);
+
+  const bounds = new THREE.Box3().setFromObject(bow);
+  const size = bounds.getSize(new THREE.Vector3());
+  const names: string[] = [];
+  bow.traverse?.((node: any) => names.push(normalizeName(node.name)));
+  const key = names.join('|');
+
+  // Adventurer bows are authored along local Z and already match HandSlotL.
+  // Fantasy Weapons bows (A/B/C) are authored along local X. A +90° Y
+  // correction maps both the limb axis and the Draw morph direction to the
+  // Ranger animation package instead of presenting the bow sideways/backwards.
+  const namedFantasyBow = /(?:^|\|)bow[a-z](?:withstring)?(?:\||$)/.test(key);
+  const majorAxisIsX = size.x > Math.max(size.z, size.y) * 1.3;
+  const correctionY = namedFantasyBow || majorAxisIsX ? Math.PI / 2 : 0;
+
+  bow.userData = {
+    ...(bow.userData ?? {}),
+    dungeonVeilBowAxisCorrection: correctionY,
+    dungeonVeilBowBounds: { x: size.x, y: size.y, z: size.z },
+  };
+  return correctionY;
+}
+
+export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
   let previousPulse = 0;
@@ -31,20 +59,19 @@ export function attachBowToRanger(_THREE: any, heroRoot: any, bow: any): BowRig 
     }
   });
 
+  const correctionY = authoredBowAxisCorrection(THREE, bow);
   anchor.add(bow);
   bow.rotation.order = 'YXZ';
 
   if (bestScore >= 130) {
-    // KayKit Adventurer bow + HandSlotL share the same authored equipment space.
-    // Preserve the package's native transform instead of guessing from bounds.
     bow.position.set(0, 0, 0);
-    bow.rotation.set(0, 0, 0);
+    bow.rotation.set(0, correctionY, 0);
   } else if (bestScore > 0) {
     bow.position.set(0.02, -0.015, 0.04);
-    bow.rotation.set(Math.PI / 2, 0, 0);
+    bow.rotation.set(Math.PI / 2, correctionY, 0);
   } else {
     bow.position.set(-0.32, 1.02, 0.16);
-    bow.rotation.set(Math.PI / 2, 0, 0);
+    bow.rotation.set(Math.PI / 2, correctionY, 0);
   }
 
   const basePosition = bow.position.clone();
