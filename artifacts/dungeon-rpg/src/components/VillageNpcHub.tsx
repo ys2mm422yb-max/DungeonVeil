@@ -46,7 +46,7 @@ export function VillageNpcHub({ language, dailyProgress, mailUnread, onQuests, o
         key={place.testId}
         data-testid={place.testId}
         type="button"
-        onPointerDown={event => { event.preventDefault(); place.action(); }}
+        onClick={event => { event.preventDefault(); event.stopPropagation(); place.action(); }}
         className="group relative grid min-h-[48px] min-w-0 place-items-center rounded-[11px] border border-white/[.06] bg-[linear-gradient(180deg,rgba(46,33,60,.54),rgba(13,10,18,.78))] px-0.5 py-0.5 text-center shadow-inner transition active:scale-[.96] active:bg-violet-900/30"
       >
         <span className="mx-auto grid h-6 w-6 place-items-center rounded-[8px] border border-amber-100/10 bg-black/30 text-amber-100/74 shadow-[inset_0_1px_7px_rgba(255,255,255,.03),0_4px_10px_rgba(0,0,0,.22)] group-active:text-violet-200"><DockIcon name={place.icon} /></span>
