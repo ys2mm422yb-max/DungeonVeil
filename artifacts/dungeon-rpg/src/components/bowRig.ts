@@ -30,13 +30,13 @@ function authoredBowAxisCorrection(THREE: any, bow: any) {
   bow.traverse?.((node: any) => names.push(normalizeName(node.name)));
   const key = names.join('|');
 
-  // Adventurer bows are authored along local Z and already match HandSlotL.
-  // Fantasy Weapons bows (A/B/C) are authored along local X. A +90° Y
-  // correction maps both the limb axis and the Draw morph direction to the
-  // Ranger animation package instead of presenting the bow sideways/backwards.
+  // Ranger weapon loading now wraps authored X-axis Fantasy Weapons bows and
+  // rotates the child by -90 degrees. The wrapper remains at identity so the
+  // same normalized model works in hand slots, enemy rigs and the main menu.
+  const alreadyNormalized = bow.userData?.dungeonVeilBowNormalized === true;
   const namedFantasyBow = /(?:^|\|)bow[a-z](?:withstring)?(?:\||$)/.test(key);
   const majorAxisIsX = size.x > Math.max(size.z, size.y) * 1.3;
-  const correctionY = namedFantasyBow || majorAxisIsX ? Math.PI / 2 : 0;
+  const correctionY = alreadyNormalized ? 0 : (namedFantasyBow || majorAxisIsX ? -Math.PI / 2 : 0);
 
   bow.userData = {
     ...(bow.userData ?? {}),
