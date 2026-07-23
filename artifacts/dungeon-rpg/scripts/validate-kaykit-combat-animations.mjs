@@ -54,7 +54,7 @@ const checks = [
 
   [enemyLoadsMelee && enemyLoadsRanged && enemyLoadsAdvancedMovement && enemyLoadsSpecial, 'Enemy library does not load melee, ranged, advanced movement, and special animation packs'],
   [enemy.includes('loadKayKitEnemyBow') && enemy.includes('attachBowToRanger') && enemy.includes("['running', 'holding', 'bow']"), 'Enemy rangers do not carry a real bow with authored bow locomotion'],
-  [!enemy.includes("role === 'rogue' || role === 'ranger'"), 'Enemy rangers are still grouped with blade-equipped rogues'],
+  [!enemy.includes("} else if (role === 'rogue' || role === 'ranger') {"), 'Enemy rangers are still grouped with blade-equipped rogues'],
   [enemy.includes("['ranged', 'bow', 'draw']") && enemy.includes("['ranged', 'bow', 'release']") && enemy.includes('attackResolveAt') && enemy.includes('awaitingRelease'), 'Enemy ranger Draw and Release are not synchronized to the authoritative resolve frame'],
   [enemy.includes("['ranged', 'magic', 'spellcasting'") && enemy.includes("['ranged', 'magic', 'shoot']") && enemy.includes("['ranged', 'magic', 'summon']"), 'Mage and Necromancer roles do not use authored magic preparation and release clips'],
   [enemy.includes("['melee', 'dualwield', 'attack', 'slice']") && enemy.includes("['melee', '2h', 'attack', 'chop']") && enemy.includes("['melee', '1h', 'attack', 'chop']"), 'Rogue and heavy melee roles do not use distinct authored attacks'],
