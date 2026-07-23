@@ -10,6 +10,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const boss = read('src/game/bossAttackTelegraphs.ts');
 const bridge = read('src/components/GameSessionBridge.tsx');
 const meadow = read('src/components/meadowRoomsTheme3D.ts');
+const darkwood = read('src/components/darkwoodRoomsTheme3D.ts');
 const themes = read('src/components/kaykitRoomThemes3D.ts');
 const expanded = read('src/game/expandedWorldRooms.ts');
 const enemy3D = read('src/components/kaykitEnemy3D.ts');
@@ -42,14 +43,14 @@ assert(
 for (let room = 21; room <= 30; room++) {
   assert(meadow.includes(`  ${room}: [`), `Room ${room} needs explicit meadow decoration.`);
 }
-const meadowBlock = (room, nextRoom) => {
-  const start = meadow.indexOf(`  ${room}: [`);
-  const end = nextRoom ? meadow.indexOf(`  ${nextRoom}: [`, start + 1) : meadow.indexOf('\n};', start);
-  assert(start >= 0 && end > start, `Room ${room} meadow source block is unavailable.`);
-  return meadow.slice(start, end);
+const sourceBlock = (source, room, nextRoom, label) => {
+  const start = source.indexOf(`  ${room}: [`);
+  const end = nextRoom ? source.indexOf(`  ${nextRoom}: [`, start + 1) : source.indexOf('\n};', start);
+  assert(start >= 0 && end > start, `Room ${room} ${label} source block is unavailable.`);
+  return source.slice(start, end);
 };
-const room21Meadow = meadowBlock(21, 22);
-const room30Meadow = meadowBlock(30, null);
+const room21Meadow = sourceBlock(meadow, 21, 22, 'meadow');
+const room30Meadow = sourceBlock(meadow, 30, null, 'meadow');
 for (const [room, block] of [[21, room21Meadow], [30, room30Meadow]]) {
   assert(block.includes('wall_arched.gltf'), `Room ${room} needs a visible architectural backdrop.`);
   assert(block.includes('pillar.gltf') && block.includes('banner_patternA_green.gltf'), `Room ${room} needs framed chapter identity.`);
@@ -60,6 +61,16 @@ assert(meadow.includes('Rock_3_A_Color1.gltf') || expanded.includes('Rock_3_A_Co
 assert(!expanded.includes('Rock_3_R_Color1.gltf'), 'The missing room-30 rock asset must not remain referenced.');
 assert(themes.includes('buildMeadowRoomTheme') && themes.includes('preloadMeadowRoomTheme'), 'Meadow additions must be built and preloaded.');
 assert(themes.includes('MEADOW_ENVIRONMENT') && themes.includes('background: 0x233d3a') && themes.includes('exposure: 1.06'), 'Rooms 21-30 need the verified lower-contrast meadow environment.');
+
+const room31Darkwood = sourceBlock(darkwood, 31, 40, 'darkwood');
+const room40Darkwood = sourceBlock(darkwood, 40, null, 'darkwood');
+assert(room31Darkwood.includes('arch_gate.gltf') && room31Darkwood.includes('post_lantern.gltf'), 'Room 31 needs a framed Darkwood entrance.');
+assert(room40Darkwood.includes('wall_arched.gltf') && room40Darkwood.includes('pillar.gltf') && room40Darkwood.includes('banner_patternB_blue.gltf'), 'Room 40 needs a distinct Shadow Warden backdrop.');
+assert(darkwood.includes("'DarkwoodGateStoneTrail'") && darkwood.includes("'ShadowWardenStoneArena'"), 'Rooms 31 and 40 need distinct ground compositions.');
+assert(darkwood.includes('buildDarkwoodGroundComposition') && darkwood.includes('InstancedMesh'), 'Darkwood framing must keep the compact instanced ground treatment.');
+assert(!darkwood.includes('collider'), 'Darkwood chapter frames must remain decorative and non-blocking.');
+assert(themes.includes('buildDarkwoodRoomTheme') && themes.includes('preloadDarkwoodRoomTheme'), 'Darkwood endpoint additions must be built and preloaded.');
+assert(themes.includes('room === 31 || room === 40'), 'Darkwood endpoint additions must stay limited to rooms 31 and 40.');
 assert(themes.includes('Base room theme partially unavailable'), 'Room theme loading must survive one unavailable decoration.');
 
-console.log('Boss telegraphs, room-20 flight, contract-driven animation timing, meadow contrast, chapter framing and room-30 visibility audit passed.');
+console.log('Boss telegraphs, room-20 flight, meadow contrast, chapter endpoint framing and room visibility audit passed.');
