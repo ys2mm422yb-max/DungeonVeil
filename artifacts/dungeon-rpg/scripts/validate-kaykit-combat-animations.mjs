@@ -13,11 +13,13 @@ const canvas = read('src/components/GameCanvasKayKit3D.tsx');
 const bridge = read('src/components/GameSessionBridge.tsx');
 const bowSync = read('src/game/playerBowAttackSync.ts');
 const enemy = read('src/components/kaykitEnemyBase3D.ts');
+const normalAttacks = read('src/game/normalEnemyAttackTelegraphs.ts');
 const manifest = read('src/components/kaykitManifest3D.ts');
 const regional = read('src/game/enemyRegionalIdentity.ts');
 
 const enemyLoadsMelee = enemy.includes('/rig_medium_combatmelee\\.glb$/i');
 const enemyLoadsRanged = enemy.includes('/rig_medium_combatranged\\.glb$/i');
+const enemyLoadsAdvancedMovement = enemy.includes('/rig_medium_movementadvanced\\.glb$/i');
 const selectedExtras = [
   'Necromancer',
   'Skeleton_Golem',
@@ -47,8 +49,14 @@ const checks = [
   [bowSync.includes("phase: 'draw'") && bowSync.includes("phase: 'release'") && bowSync.includes('originalAutoShoot(time)') && bowSync.includes('runtime.emit()'), 'Projectile creation is not tied to the visible release event'],
   [bowSync.includes("cancelPending('dash')") && bowSync.includes("cancelPending('room-change')") && bowSync.includes("cancelPending('room-clear')"), 'Prepared ranger shots do not cancel safely across dash and room transitions'],
   [canvas.includes('playerRig.triggerAttack()') && canvas.includes('state.player.lastAttackTime > lastAttack'), 'Run renderer lost its idempotent authoritative release fallback'],
-  [enemyLoadsMelee && enemyLoadsRanged, 'Enemy library does not load both KayKit melee and ranged animation packs through the manifest'],
-  [enemy.includes("['bow', 'attack']") || enemy.includes("['ranged', 'attack']"), 'Enemy ranged roles do not request ranged attack clips'],
+  [enemyLoadsMelee && enemyLoadsRanged && enemyLoadsAdvancedMovement, 'Enemy library does not load melee, ranged, and advanced movement animation packs'],
+  [enemy.includes('loadKayKitEnemyBow') && enemy.includes('attachBowToRanger') && enemy.includes("['running', 'holding', 'bow']"), 'Enemy rangers do not carry a real bow with authored bow locomotion'],
+  [enemy.includes("['ranged', 'bow', 'draw']") && enemy.includes("['ranged', 'bow', 'release']") && enemy.includes('attackResolveAt') && enemy.includes('awaitingRelease'), 'Enemy ranger Draw and Release are not synchronized to the authoritative resolve frame'],
+  [enemy.includes("['ranged', 'magic', 'spellcasting'") && enemy.includes("['ranged', 'magic', 'shoot']") && enemy.includes("['ranged', 'magic', 'summon']"), 'Mage and Necromancer roles do not use authored magic preparation and release clips'],
+  [enemy.includes("['melee', 'dualwield', 'attack', 'slice']") && enemy.includes("['melee', '2h', 'attack', 'chop']") && enemy.includes("['melee', '1h', 'attack', 'chop']"), 'Rogue and heavy melee roles do not use distinct authored attacks'],
+  [enemy.includes("['skeletons', 'idle']") && enemy.includes("['skeletons', 'walking']") && enemy.includes("['skeletons', 'death']"), 'Skeleton roles do not use their authored idle, walk, and death clips'],
+  [normalAttacks.includes('shot-ranger-') && normalAttacks.includes('captureResolvingRangerShots') && normalAttacks.includes('shotPathBlocked'), 'Normal ranger projectiles are not created at the existing release frame with LOS checks'],
+  [regional.includes("if (room === 50) return { ...adventurer('knight', 'knight'), bossVariant: 'ember-warden' }"), 'Room 50 lost its dedicated heavy final-boss role'],
   [allExtrasInManifest && manifest.includes('includeSkeletonExtras'), 'Selected Skeletons Extra models are not exposed through the existing KayKit manifest loader'],
   [noRoleAliasModels && regional.includes('SKELETON_EXTRA_MODEL'), 'Skeleton Extra roles still rely on duplicate alias files instead of explicit metadata'],
   [regional.includes("extraSkeleton('mage', 'necromancer')"), 'Room 20 does not use the selected Necromancer with the mage animation role'],
@@ -69,15 +77,16 @@ const server = await createServer({ root, logLevel: 'silent', server: { middlewa
 try {
   const runtime = await server.ssrLoadModule('/src/game/runEngine.ts');
   const sync = await server.ssrLoadModule('/src/game/playerBowAttackSync.ts');
+  const normal = await server.ssrLoadModule('/src/game/normalEnemyAttackTelegraphs.ts');
 
-  const makeEnemy = (game, id) => {
-    const player = game.state.player;
+  const makeEnemy = (game, id, enemyType = 'slime') => {
+    const playerState = game.state.player;
     return {
       id,
       type: 'enemy',
-      enemyType: 'slime',
-      x: player.x + 56,
-      y: player.y,
+      enemyType,
+      x: playerState.x + 28,
+      y: playerState.y,
       width: 32,
       height: 32,
       vx: 0,
@@ -90,9 +99,9 @@ try {
       color: '#43c968',
       state: 'chase',
       isDead: false,
-      targetX: player.x,
-      targetY: player.y,
-      nextAttackTime: Number.POSITIVE_INFINITY,
+      targetX: playerState.x,
+      targetY: playerState.y,
+      nextAttackTime: 0,
       flashUntil: 0,
       spawnTime: 0,
       lastAttackTime: 0,
@@ -146,8 +155,30 @@ try {
   } finally {
     disposeDash();
   }
+
+  const enemyRangerGame = new runtime.GameEngine();
+  const enemyRangerInternal = enemyRangerGame;
+  enemyRangerGame.state.floor = 25;
+  enemyRangerGame.state.chapter = 3;
+  enemyRangerGame.state.player.defense = 0;
+  enemyRangerGame.state.player.invincibleUntil = 0;
+  enemyRangerInternal.shotPathBlocked = () => false;
+  const enemyRanger = makeEnemy(enemyRangerGame, '3-25-0', 'skeleton');
+  enemyRangerGame.state.enemies = [enemyRanger];
+  const disposeEnemyRanger = normal.installNormalEnemyAttackTelegraphs(enemyRangerGame);
+  try {
+    const hpBeforeEnemyShot = enemyRangerGame.state.player.hp;
+    enemyRangerInternal.updateEnemies(16, 1000);
+    assert(enemyRanger.lastAttackTime === 1000, 'Enemy ranger did not begin the existing windup.');
+    assert(!enemyRangerGame.state.effects.some(effect => effect.id.startsWith('shot-ranger-')), 'Enemy ranger projectile appeared before release.');
+    enemyRangerInternal.updateEnemies(200, 1200);
+    assert(enemyRangerGame.state.player.hp < hpBeforeEnemyShot, 'Existing enemy ranger damage did not resolve.');
+    assert(enemyRangerGame.state.effects.filter(effect => effect.id.startsWith('shot-ranger-')).length === 1, 'Enemy ranger release did not create exactly one visual projectile.');
+  } finally {
+    disposeEnemyRanger();
+  }
 } finally {
   await server.close();
 }
 
-console.log('KayKit combat animation contract passed: Draw/Hold precedes Release, projectile and damage fire once at release, dash cancellation is clean, balance is unchanged, and Skeleton Extra roles remain explicit.');
+console.log('KayKit combat animation contract passed: player and enemy Draw/Hold precede Release, projectiles appear once at release, dash cancellation is clean, role clips are explicit, and balance is unchanged.');
