@@ -30,7 +30,7 @@ function attachRuntimeMonitor(page) {
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
-  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+  await locator.tap();
 }
 
 async function initVisualState(page, projectName, { activeCompanion = true } = {}) {

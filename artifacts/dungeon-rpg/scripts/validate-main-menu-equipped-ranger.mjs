@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection, equipmentVisuals, weaponVisuals, chamber, pointerSafety, main] = await Promise.all([
+const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection, equipmentVisuals, weaponVisuals, chamber] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/LiveHybridMainMenuScene.tsx'),
@@ -18,8 +18,6 @@ const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer,
   read('../src/game/equipmentVisuals.ts'),
   read('../src/game/equipmentVisualsWeaponsV4.ts'),
   read('../src/components/screens/VeilChamberScreenV4.tsx'),
-  read('../src/game/mobilePointerSafety.ts'),
-  read('../src/main.tsx'),
 ]);
 
 const quiverDefinitionRows = [...weaponVisuals.matchAll(/'(?:ranger|black|rune|frost|splinter|warden)-quiver':\s*\{[^\n]+/g)].map(match => match[0]);
@@ -54,9 +52,8 @@ const checks = [
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the run model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],
   [weapons.includes("const ashBowNeedsFlip = bowId === 'ash-bow'") && weapons.includes('ashBowNeedsFlip ? Math.PI') && weapons.includes('dungeonVeilBowAshFlip: ashBowNeedsFlip'), 'the Ash Bow does not have its dedicated 180-degree hand correction'],
-  [menu.includes('main-menu-dust-button') && menu.includes('armMobilePointerSafety(); props.onVeilChamber()') && menu.includes("armMobilePointerSafety(); setOverlay(current => current === 'more' ? null : 'more')") && !menu.includes('main-menu-dust-button" type="button" onPointerDown'), 'top resource actions still use unsafe pointer-down navigation'],
-  [chamber.includes('onPointerUp={event =>') && chamber.includes('armMobilePointerSafety(); window.setTimeout(upgrade, 0)') && chamber.includes('equipment-upgrade-button'), 'equipment upgrade is not protected against mobile click-through'],
-  [pointerSafety.includes("document.addEventListener('click'") && pointerSafety.includes('stopImmediatePropagation') && main.includes('installMobilePointerSafety();'), 'mobile pointer safety guard is not installed'],
+  [menu.includes('main-menu-dust-button') && menu.includes('props.onVeilChamber()') && menu.includes("setOverlay(current => current === 'more' ? null : 'more')") && menu.includes('disabled={disabled} onClick={event =>') && !menu.includes('armMobilePointerSafety') && !menu.includes('main-menu-dust-button" type="button" onPointerDown'), 'top resource and menu actions still use unsafe pointer-down navigation'],
+  [chamber.includes('onPointerUp={event => { event.preventDefault(); event.stopPropagation(); window.setTimeout(upgrade, 0); }}') && chamber.includes('onClick={event => { event.preventDefault(); event.stopPropagation(); }}') && chamber.includes('equipment-upgrade-button') && !chamber.includes('armMobilePointerSafety'), 'equipment upgrade is not locally isolated from mobile follow-up clicks'],
   [equipmentVisuals.includes('const xAxisBowPose') && equipmentVisuals.includes('const zAxisBowPose') && !equipmentVisuals.includes('/assets/imported/medieval-weapons'), 'equipment previews still use legacy imported bows or lack authored-axis poses'],
   [equipmentVisuals.includes('PlantWarrior_Bow_withString.gltf') && equipmentVisuals.includes('bow_C_withString.gltf'), 'new KayKit bow previews are not wired'],
   [weaponVisuals.includes('PlantWarrior_Bow_withString.gltf') && weaponVisuals.includes('bow_C_withString.gltf'), 'new KayKit bows are not wired to the equipped gameplay definitions'],
