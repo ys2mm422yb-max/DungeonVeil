@@ -219,12 +219,18 @@ test('signed-out hub, solo run and duo entry remain functional', async ({ page }
   await gotoMenu(page);
   await pointer(page.getByRole('button', { name: /Spielen|Play/i }).first());
   await pointer(page.getByRole('button', { name: /Solo-Run|Solo Run/i }));
-  const nameInput = page.getByRole('textbox').first();
-  if (await nameInput.isVisible().catch(() => false)) {
+  const runHud = page.getByTestId('run-hud');
+  const namePrompt = page.getByTestId('run-name-prompt');
+  await expect(namePrompt.or(runHud).first()).toBeVisible({ timeout: 60_000 });
+  if (await namePrompt.isVisible()) {
+    const nameInput = page.getByTestId('run-name-input');
+    const confirmName = page.getByTestId('run-name-confirm');
+    await expect(nameInput).toBeVisible();
     await nameInput.fill('Autopilot Ranger');
-    await pointer(page.getByTestId('run-name-confirm'));
+    await expect(confirmName).toBeEnabled();
+    await pointer(confirmName);
   }
-  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 120_000 });
+  await expect(runHud).toBeVisible({ timeout: 120_000 });
   await expect(page.getByTestId('run-joystick')).toBeVisible();
   await capture(page, 'solo-run-started', testInfo.project.name);
   expect(issues, issues.join('\n')).toEqual([]);
