@@ -1,0 +1,83 @@
+name: Refresh PR 307 resource menu tests
+
+on:
+  push:
+    branches:
+      - fix/guild-mail-equipment-currency-ux-v1
+    paths:
+      - '.ci/pr307-refresh-menu-tests.txt'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr-307-refresh-resource-menu-tests
+  cancel-in-progress: false
+
+jobs:
+  update-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/guild-mail-equipment-currency-ux-v1
+      - name: Update obsolete More-menu test paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          python3 <<'PY'
+          from pathlib import Path
+
+          account_path = Path('artifacts/dungeon-rpg/tests/account-profile-smoke.spec.mjs')
+          account = account_path.read_text()
+          old_account = "  await page.getByRole('button', { name: /Mehr|More/i }).click({ force: true, noWaitAfter: true });\n  await page.getByRole('button', { name: /Online & Cloud/i }).click({ force: true, noWaitAfter: true });"
+          new_account = "  await page.getByTestId('main-menu-gold-button').click({ force: true, noWaitAfter: true });\n  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible();\n  await page.getByRole('button', { name: /Online & Cloud/i }).click({ force: true, noWaitAfter: true });"
+          if account.count(old_account) != 1:
+              raise SystemExit('account profile More-menu marker changed unexpectedly')
+          account_path.write_text(account.replace(old_account, new_account))
+
+          reference_path = Path('artifacts/dungeon-rpg/tests/main-menu-reference.spec.mjs')
+          reference = reference_path.read_text()
+          old_reference = "  await expect(page.getByRole('button', { name: 'Mehr' })).toBeVisible();"
+          new_reference = "  await expect(page.getByTestId('main-menu-gold-button')).toBeVisible();\n  await expect(page.getByRole('button', { name: /Mehr|More/i })).toHaveCount(0);"
+          if reference.count(old_reference) != 1:
+              raise SystemExit('main-menu reference More marker changed unexpectedly')
+          reference_path.write_text(reference.replace(old_reference, new_reference))
+
+          audit_path = Path('artifacts/dungeon-rpg/tests/visual-audit.spec.mjs')
+          audit = audit_path.read_text()
+          old_helper = "async function openMoreMenu(page) {\n  await pressPointerUi(page.getByRole('button', { name: /Mehr|More/i }).first());\n  await expect(page.getByText(/Weitere Optionen|More options/i)).toBeVisible({ timeout: 20_000 });\n}"
+          new_helper = "async function openResourceMenu(page) {\n  await pressPointerUi(page.getByTestId('main-menu-gold-button'));\n  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible({ timeout: 20_000 });\n}"
+          if audit.count(old_helper) != 1:
+              raise SystemExit('visual audit More-menu helper changed unexpectedly')
+          audit = audit.replace(old_helper, new_helper)
+          if audit.count('await openMoreMenu(page);') != 2:
+              raise SystemExit('visual audit More-menu call count changed unexpectedly')
+          audit = audit.replace('await openMoreMenu(page);', 'await openResourceMenu(page);')
+          old_settings = "  await pressPointerUi(page.getByRole('button', { name: /Optionen|Options/i }));"
+          new_settings = "  await openResourceMenu(page);\n  await pressPointerUi(page.getByRole('button', { name: /Einstellungen|Settings/i }).first());"
+          if audit.count(old_settings) != 1:
+              raise SystemExit('visual audit settings marker changed unexpectedly')
+          audit = audit.replace(old_settings, new_settings)
+          audit_path.write_text(audit)
+
+          for path in (account_path, reference_path, audit_path):
+              text = path.read_text()
+              if 'getByRole(\'button\', { name: /Mehr|More/i }).click' in text or 'openMoreMenu(page)' in text:
+                  raise SystemExit(f'obsolete More-menu path remains in {path}')
+          if audit_path.read_text().count('await openResourceMenu(page);') != 3:
+              raise SystemExit('visual audit resource-menu call count is incomplete')
+          PY
+
+          rm -f .github/workflows/pr-307-refresh-resource-menu-tests.yml
+          printf 'completed\n' > .ci/pr307-refresh-menu-tests.txt
+
+          git add -A
+          git diff --cached --check
+          git commit -m 'Update final mobile tests for anchored resource menu'
+          git push origin HEAD:fix/guild-mail-equipment-currency-ux-v1
