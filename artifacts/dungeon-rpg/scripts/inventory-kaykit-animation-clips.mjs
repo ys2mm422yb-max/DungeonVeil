@@ -33,6 +33,14 @@ function glbJson(file) {
   throw new Error(`${path.basename(file)} has no JSON chunk`);
 }
 
+function outputPathFromArgs(args) {
+  const index = args.indexOf('--out');
+  if (index < 0) return null;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) throw new Error('--out requires a file path');
+  return path.resolve(process.cwd(), value);
+}
+
 const inventory = {};
 for (const [key, filename] of packs) {
   const json = glbJson(path.join(rigRoot, filename));
@@ -49,4 +57,12 @@ for (const [key, entry] of Object.entries(inventory)) {
   console.log(`\n[${key}] ${entry.file} (${entry.clipCount})`);
   entry.clips.forEach(clip => console.log(`  - ${clip}`));
 }
+
+const outputPath = outputPathFromArgs(process.argv.slice(2));
+if (outputPath) {
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, `${JSON.stringify({ generatedAt: new Date().toISOString(), packs: inventory }, null, 2)}\n`);
+  console.log(`\nWrote KayKit animation inventory to ${outputPath}`);
+}
+
 console.log(`\nKAYKIT_ANIMATION_INVENTORY_JSON=${JSON.stringify(inventory)}`);
