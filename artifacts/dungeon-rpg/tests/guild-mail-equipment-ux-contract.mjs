@@ -25,6 +25,7 @@ const profile = read('src/components/PlayerProfilePanel.tsx');
 const autopilotSpec = read('tests/autopilot-product-journeys.spec.mjs');
 const outsideGuildSpec = read('tests/autopilot-outside-guild.spec.mjs');
 const visualSpec = read('tests/guild-mail-equipment-visual.spec.mjs');
+const resourceSpec = read('tests/mobile-resource-upgrade.spec.mjs');
 const regressionConfig = read('playwright.regression.config.mjs');
 const autopilotWorkflow = read('../../.github/workflows/product-autopilot-qa.yml');
 
@@ -67,8 +68,12 @@ assert.match(equipmentPreview, /assets\/vendor\/three\/build\/three\.module\.js/
 assert.match(equipmentPreview, /data-three-runtime="local-pinned"/);
 assert.match(equipmentPolish, /overflow-wrap: anywhere/);
 
-assert.match(menu, /main-menu-resource-popover/);
+assert.match(menu, /main-menu-shop-panel/);
+assert.match(menu, /main-menu-options-panel/);
+assert.match(menu, /main-menu-settings-button/);
+assert.match(menu, /main-menu-top-overlay-backdrop/);
 assert.match(menu, /top-\[max\(76px/);
+assert.doesNotMatch(menu, /main-menu-resource-popover/);
 assert.match(menu, /const FILLED_MAILBOX_QA_STATE = Object\.freeze/);
 assert.match(menu, /qaState=\{qaMode \? FILLED_MAILBOX_QA_STATE : undefined\}/);
 assert.doesNotMatch(menu, /qaState=\{qaMode \? \{ signedIn: true, messages: FILLED_MAILBOX_QA \}/);
@@ -98,13 +103,26 @@ for (const marker of [
   'external runtime request',
 ]) assert.match(outsideGuildSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 for (const marker of [
-  'filled guild, mailbox and anchored resource views are functional and reviewable',
+  'filled guild, mailbox, shop and options views are functional and reviewable',
   'profile cosmetics and optional equipment can be inspected and unequipped',
+  'visual-shop-gold',
+  'visual-shop-dust',
+  'visual-options-menu',
   'visual-mailbox-filled',
   'visual-guild-members-filled',
   'visual-profile-refined-overview',
   'visual-equipment-quiver-unequipped',
 ]) assert.match(visualSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+for (const marker of [
+  "getByTestId('main-menu-gold-button').tap()",
+  "getByTestId('main-menu-dust-button').tap()",
+  "getByTestId('main-menu-settings-button').tap()",
+  "getByTestId('main-menu-profile-badge').tap()",
+  'main-menu-shop-panel',
+  'main-menu-options-panel',
+  'Shop schließen',
+  'Optionsmenü schließen',
+]) assert.match(resourceSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
 for (const marker of [
   'Product Autopilot QA',
@@ -116,6 +134,7 @@ for (const marker of [
   'tests/autopilot-product-journeys.spec.mjs',
   'tests/autopilot-outside-guild.spec.mjs',
   'tests/guild-mail-equipment-visual.spec.mjs',
+  'tests/mobile-resource-upgrade.spec.mjs',
   'product-autopilot-evidence-${{ matrix.project }}',
   'product-autopilot-failure-${{ matrix.project }}',
   'fix/mobile-telegraphs-room-21-50-balance',
@@ -132,4 +151,4 @@ assert.doesNotMatch(autopilotWorkflow, /desktop-chromium|ipad-landscape-webkit/)
 assert.doesNotMatch(autopilotWorkflow, /enable_auto_merge|auto-merge|issues: write|pull-requests: write/);
 assert.match(autopilotWorkflow, /permissions:\s*\n\s*contents: read/);
 
-console.log('Guild, mailbox, optional equipment, profile, local Three runtime, outside-guild, tablet layout and zero-retry portrait-mobile QA contracts passed.');
+console.log('Guild, mailbox, isolated Shop and Options, optional equipment, profile, local Three runtime, outside-guild, tablet layout and zero-retry portrait-mobile QA contracts passed.');
