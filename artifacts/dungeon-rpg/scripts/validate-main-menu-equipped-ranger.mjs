@@ -22,6 +22,11 @@ const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer,
 const quiverDefinitionRows = [...weaponVisuals.matchAll(/'(?:ranger|black|rune|frost|splinter|warden)-quiver':\s*\{[^\n]+/g)].map(match => match[0]);
 const allQuiverDefinitionsUseQuivers = quiverDefinitionRows.length === 6
   && quiverDefinitionRows.every(row => /assetPath:\s*`\$\{[^}]+\}\/[^`]*quiver[^`]*`/i.test(row));
+const quiverPreviewsUseNarrowArrows = equipmentVisuals.includes('arrow_bow.gltf')
+  && equipmentVisuals.includes('arrow_crossbow.gltf')
+  && equipmentVisuals.includes('skeletonQuiverArrowAccessory')
+  && !equipmentVisuals.includes('arrow_bow_bundle.gltf')
+  && !equipmentVisuals.includes('arrow_crossbow_bundle.gltf');
 
 const checks = [
   [menuScene.includes('data-composition="live-hybrid-scene"') && menuScene.includes('data-static-role="portal-atmosphere-only"'), 'live hybrid menu composition markers are missing'],
@@ -50,10 +55,10 @@ const checks = [
   [equipmentVisuals.includes('PlantWarrior_Bow_withString.gltf') && equipmentVisuals.includes('bow_C_withString.gltf'), 'new KayKit bow previews are not wired'],
   [weaponVisuals.includes('PlantWarrior_Bow_withString.gltf') && weaponVisuals.includes('bow_C_withString.gltf'), 'new KayKit bows are not wired to the equipped gameplay definitions'],
   [allQuiverDefinitionsUseQuivers, 'one or more equipment definitions use an arrow asset instead of a real quiver model'],
-  [equipmentVisuals.includes('Skeleton_Quiver.gltf') && weaponVisuals.includes('Skeleton_Quiver.gltf') && equipmentVisuals.includes('skeletonQuiverAccessory'), 'Skeleton quiver or its arrow-bundle preview is not wired consistently'],
+  [equipmentVisuals.includes('Skeleton_Quiver.gltf') && weaponVisuals.includes('Skeleton_Quiver.gltf') && quiverPreviewsUseNarrowArrows, 'Skeleton quiver or its narrow arrow/bolt preview is not wired consistently'],
   [player.includes('attachEquippedQuiver') && player.includes('const quiverDefinition = quiverEquipped ? EQUIPMENT[quiverId] : null') && !player.includes('quiverVariantGltf') && !player.includes('attachQuiverVariant'), 'gameplay still loads or attaches duplicate quiver variants'],
   [manifest.includes('import.meta.env.BASE_URL') && manifest.includes('appAssetUrl'), 'Pages-safe application asset resolver is missing'],
-  [collection.includes('activeId: null') && collection.includes('unlockChapter: 2') && collection.includes('COMPANION_COLLECTION_EVENT'), 'companion V5 unlock and start-state contract is missing'],
+  [collection.includes('activeId: null') && collection.includes('unlockChapter: 2') && collection.includes('COMPANION_COLLECTION_EVENT'), 'V5 companion unlock and start-state contract is missing'],
   [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes('const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId') && !metaStore.includes("talisman: 'veil-key'"), 'current three-slot equipment defaults or safe Talisman retirement are missing'],
 ];
 
@@ -64,4 +69,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Live hybrid main-menu audit passed: character-free hall, animated equipped Ranger, normalized bow orientation, real single-attached quivers, expanded KayKit equipment, V5 companion state, smooth 3D filtering, one live canvas and full equipment access remain intact.');
+console.log('Live hybrid main-menu audit passed: character-free hall, animated equipped Ranger, normalized bow orientation, real single-attached quivers with clear arrow previews, expanded KayKit equipment, V5 companion state, smooth 3D filtering, one live canvas and full equipment access remain intact.');
