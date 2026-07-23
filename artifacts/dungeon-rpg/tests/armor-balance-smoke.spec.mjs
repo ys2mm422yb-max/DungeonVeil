@@ -33,7 +33,8 @@ async function openEquipmentArmor(page, projectName) {
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
   await pressPointerUi(page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first());
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
-  await page.getByTestId('inventory-tab-armor').click({ force: true });
+  await pressPointerUi(page.getByTestId('inventory-tab-armor'));
+  await expect(page.getByText(/Waldläufermantel|Ranger Cloak/i).first()).toBeVisible({ timeout: 30_000 });
 }
 
 test('armor preview uses a male KayKit model and animated ready stance', async ({ page }, testInfo) => {
@@ -45,7 +46,6 @@ test('armor preview uses a male KayKit model and animated ready stance', async (
   });
 
   await openEquipmentArmor(page, testInfo.project.name);
-  await expect(page.getByText(/Waldläufermantel|Ranger Cloak/i).first()).toBeVisible();
 
   const preview = page.locator('[data-equipment-preview-kind="armor"]').first();
   await expect(preview).toBeVisible({ timeout: 30_000 });
