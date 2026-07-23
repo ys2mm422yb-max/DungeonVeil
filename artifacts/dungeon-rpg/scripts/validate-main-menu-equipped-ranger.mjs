@@ -44,6 +44,7 @@ const checks = [
   [!liveScene.includes('MainMenuLivePortalGlow') && !liveScene.includes('MainMenuLivePortalCore'), 'live character layer reintroduced a duplicate 3D portal'],
   [menuScene.includes('SPECTATOR_RENDERER_EVENT') && menuScene.includes('if (suspended) return null'), 'exclusive spectator handoff is missing'],
   [menu.includes('<VillageNpcHub') && villageHub.includes('grid grid-cols-4') && !villageHub.includes('Wähle einen Ort') && !villageHub.includes('Choose a place'), 'compact social navigation is missing or contains the retired prompt'],
+  [villageHub.includes('onClick={event => { event.preventDefault(); event.stopPropagation(); place.action(); }}') && !villageHub.includes('onPointerDown='), 'village actions still navigate on pointer-down instead of a completed isolated tap'],
   [menu.includes('main-menu-equipment-navigation') && menu.includes('props.onVeilChamber') && menu.includes("language === 'de' ? 'Ausrüstung' : 'Equipment'"), 'equipment remains inaccessible from the live menu'],
   [menu.includes('data-testid="main-menu-control-stack"') && menu.includes('grid-cols-2') && menu.includes('action(t.continueGame') && menu.includes("'Spielen' : 'Play'") && menu.includes("'Kodex' : 'Codex'"), 'four-action mobile control stack is incomplete'],
   [villagePlayer.includes('loadMetaProgression') && villagePlayer.includes('meta.equipped.bow') && villagePlayer.includes('meta.equipped.quiver') && villagePlayer.includes('meta.equipped.armor'), 'menu Ranger does not expose the current equipped loadout'],
@@ -61,7 +62,7 @@ const checks = [
   [equipmentVisuals.includes('Skeleton_Quiver.gltf') && weaponVisuals.includes('Skeleton_Quiver.gltf') && quiverPreviewsUseNarrowArrows, 'Skeleton quiver or its narrow arrow/bolt preview is not wired consistently'],
   [player.includes('attachEquippedQuiver') && player.includes('const quiverDefinition = quiverEquipped ? EQUIPMENT[quiverId] : null') && !player.includes('quiverVariantGltf') && !player.includes('attachQuiverVariant'), 'gameplay still loads or attaches duplicate quiver variants'],
   [manifest.includes('import.meta.env.BASE_URL') && manifest.includes('appAssetUrl'), 'Pages-safe application asset resolver is missing'],
-  [collection.includes('activeId: null') && collection.includes('unlockChapter: 2') && collection.includes('COMPANION_COLLECTION_EVENT'), 'V5 companion unlock and start-state contract is missing'],
+  [collection.includes('activeId: null') && collection.includes('unlockChapter: 2') && collection.includes('COMPANION_COLLECTION_EVENT'), 'V5 companion unlock and start-state contract is not respected'],
   [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes('const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId') && !metaStore.includes("talisman: 'veil-key'"), 'current three-slot equipment defaults or safe Talisman retirement are missing'],
 ];
 
