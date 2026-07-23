@@ -23,6 +23,7 @@ const W = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 const D = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 const EXTRA_WEAPONS = 'extras/weapons';
 const PLANT_WARRIOR = 'extras/plant-warrior';
+const EXTRA_SKELETON = 'extras/skeleton';
 
 const profile = (
   primaryPath: string,
@@ -68,6 +69,12 @@ const quiverAccessory = (path: string) => ({
   accessoryRotation: [0, 0, 0] as const,
   accessoryScale: 0.78,
 });
+const skeletonQuiverAccessory = (path: string) => ({
+  accessoryPath: path,
+  accessoryPosition: [0, 0.12, 0.04] as const,
+  accessoryRotation: [0.04, 0, 0] as const,
+  accessoryScale: 0.7,
+});
 
 /**
  * One source of truth for inventory previews and world drops. Armor previews use
@@ -85,10 +92,10 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
 
   'ranger-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.12, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
   'black-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.5, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
-  'rune-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.42, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
+  'rune-quiver': profile(`${EXTRA_SKELETON}/Skeleton_Quiver.gltf`, `${A}/quiver.gltf`, [-0.02, -0.18, 0.02], 0.62, 0.8, -0.01, true, 0.42, 'quiver', skeletonQuiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
   'frost-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.42, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
   'splinter-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.28, 'quiver', quiverAccessory(`${A}/arrow_crossbow_bundle.gltf`)),
-  'warden-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.38, 'quiver', quiverAccessory(`${A}/arrow_crossbow_bundle.gltf`)),
+  'warden-quiver': profile(`${EXTRA_SKELETON}/Skeleton_Quiver.gltf`, `${A}/quiver.gltf`, [-0.02, -0.18, 0.02], 0.62, 0.8, -0.01, true, 0.38, 'quiver', skeletonQuiverAccessory(`${A}/arrow_crossbow_bundle.gltf`)),
 
   'frost-grimoire': profile(`${A}/spellbook_closed.gltf`, `${A}/spellbook_closed.gltf`, [-0.46, -0.45, 0.15], 0.72, 0.65, 0, true, 0.22, 'book'),
   'ritual-shard': profile(`${A}/spellbook_open.gltf`, `${A}/spellbook_open.gltf`, [-0.5, -0.42, 0.12], 0.74, 0.67, 0, true, 0.32, 'book'),
@@ -119,7 +126,7 @@ export function equipmentVisualAudit() {
   return (Object.entries(EQUIPMENT_VISUALS) as Array<[EquipmentId, EquipmentVisualProfile]>).flatMap(([id, visual]) => {
     const issues: string[] = [];
     if (visual.kind === 'quiver' && !/quiver/i.test(visual.primaryPath)) issues.push(`${id}: primary is not a quiver`);
-    if (visual.kind === 'quiver' && !/bundle/i.test(visual.accessoryPath ?? '')) issues.push(`${id}: quiver has no arrow bundle`);
+    if (visual.kind === 'quiver' && !/(arrow.*bundle|bundle.*arrow)/i.test(visual.accessoryPath ?? '')) issues.push(`${id}: quiver has no arrow bundle`);
     if (visual.kind === 'crossbow' && !/crossbow/i.test(visual.primaryPath)) issues.push(`${id}: crossbow path is not a crossbow`);
     if (visual.kind === 'armor' && !/(ranger|knight|barbarian)\.glb$/i.test(visual.primaryPath)) issues.push(`${id}: armor preview is not a male character model`);
     if (visual.kind === 'armor' && !/(ranger|knight|barbarian)\.glb$/i.test(visual.fallbackPath)) issues.push(`${id}: armor fallback is not a male character model`);
