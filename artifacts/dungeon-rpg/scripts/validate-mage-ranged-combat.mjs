@@ -14,13 +14,13 @@ const engineSource = read('src/game/runEngine.ts');
 const canvasSource = read('src/components/GameCanvasKayKit3D.tsx');
 const bossSource = read('src/game/bossAttackTelegraphs.ts');
 
-assert(mageSource.includes("profile.family === 'adventurer' && profile.role === 'mage'"), 'Ranged combat is not limited to visible hat-mage models.');
+assert(mageSource.includes("profile.role === 'mage' && (profile.family === 'adventurer' || profile.family === 'skeleton')"), 'Ranged combat is not limited to visible mage-role models.');
 assert(mageSource.includes("if (enemy.enemyType === 'boss') return false"), 'Bosses can be accidentally converted to the normal mage projectile contract.');
-assert(mageSource.includes('shot-mage-') && mageSource.includes("type: 'beam'") && mageSource.includes("element: 'arcane'"), 'Hat mages lack a renderer-visible arcane projectile.');
+assert(mageSource.includes('shot-mage-') && mageSource.includes("type: 'beam'") && mageSource.includes("element: 'arcane'"), 'Mage-role enemies lack a renderer-visible arcane projectile.');
 assert(mageSource.includes('Math.hypot(target.x - projectile.x, target.y - projectile.y) <= hitRadius'), 'Mage damage is not tied to projectile collision.');
 assert(mageSource.includes('time > player.invincibleUntil'), 'Dash invulnerability does not protect against mage projectiles.');
 assert(mageSource.includes('runtime.shotPathBlocked(previousX, previousY, projectile.x, projectile.y'), 'Mage projectiles can pass through room geometry.');
-assert(mageSource.includes('resolveMageObstacleDirection') && mageSource.includes('movementPathBlockedByRoomProp') && mageSource.includes('roomPropDetourWaypoints'), 'Hat mages bypass obstacle-aware movement.');
+assert(mageSource.includes('resolveMageObstacleDirection') && mageSource.includes('movementPathBlockedByRoomProp') && mageSource.includes('roomPropDetourWaypoints'), 'Mage-role enemies bypass obstacle-aware movement.');
 assert(navigationSource.includes('forcedAlternateUntil') && navigationSource.includes('MAGE_STUCK_THRESHOLD_MS'), 'Mage navigation lacks stuck recovery.');
 assert(normalSource.includes('installMageRangedCombat(engine)') && normalSource.includes('disposeMageRangedCombat()'), 'Mage runtime is not installed and disposed with normal enemy combat.');
 assert(canvasSource.includes("effect.id.startsWith('shot-')"), 'The established projectile renderer no longer accepts shot-mage effects.');
@@ -66,16 +66,16 @@ try {
     deathTime: 0,
   });
 
-  assert(mage.isHatMageEnemy(11, enemy(11, 0)) === true, 'Room 11 visible hat mage is not ranged.');
+  assert(mage.isHatMageEnemy(11, enemy(11, 0)) === true, 'Room 11 Skeleton Mage is not ranged.');
   assert(mage.isHatMageEnemy(11, enemy(11, 1)) === false, 'Room 11 rogue was incorrectly converted to a mage.');
-  assert(mage.isHatMageEnemy(1, enemy(1, 0, 'vampire')) === false, 'A creature/bat mage role was incorrectly treated as a hat mage.');
+  assert(mage.isHatMageEnemy(1, enemy(1, 0, 'vampire')) === false, 'A creature/bat mage role was incorrectly treated as a ranged humanoid mage.');
   assert(mage.isHatMageEnemy(20, enemy(20, 0, 'boss')) === false, 'Room 20 boss was removed from its existing boss contract.');
   assert(mage.isHatMageEnemy(35, enemy(35, 0)) === true, 'Later visible hat mages are not ranged.');
 
   const far = mage.mageMovementVector(0, 0, 300, 0, 1);
   const near = mage.mageMovementVector(0, 0, 60, 0, 1);
-  assert(far.x > 0, 'A distant hat mage no longer approaches casting range.');
-  assert(near.x < 0, 'A nearby hat mage no longer retreats from the player.');
+  assert(far.x > 0, 'A distant mage no longer approaches casting range.');
+  assert(near.x < 0, 'A nearby mage no longer retreats from the player.');
   assert(mage.mageAttackDelay(1) === mage.MAGE_ATTACK_DELAY_MS, 'Room 1 mage cadence changed unexpectedly.');
   assert(mage.mageAttackDelay(50) >= 1040, 'Late mage cadence became too fast.');
 
@@ -131,8 +131,8 @@ try {
   try {
     internal.updateEnemies(16, 1000);
     internal.updateEnemies(16, 1500);
-    assert(testMage.lastAttackTime === 1500, 'Hat mage did not enter its cast animation.');
-    assert(game.state.effects.some(effect => effect.id.startsWith('mage-cast-')), 'Hat mage cast has no visible warning.');
+    assert(testMage.lastAttackTime === 1500, 'Skeleton Mage did not enter its cast animation.');
+    assert(game.state.effects.some(effect => effect.id.startsWith('mage-cast-')), 'Mage cast has no visible warning.');
     const hpAtCast = player.hp;
 
     internal.updateEnemies(16, 1950);
@@ -154,4 +154,4 @@ try {
   await server.close();
 }
 
-console.log('Hat mages keep range, route around props, recover from stalls, cast travelling projectiles, and respect dash invulnerability.');
+console.log('Adventurer and Skeleton mages keep range, route around props, recover from stalls, cast travelling projectiles, and respect dash invulnerability.');
