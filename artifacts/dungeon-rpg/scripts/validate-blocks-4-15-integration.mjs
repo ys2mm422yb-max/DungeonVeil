@@ -34,8 +34,18 @@ const [
   read('../../../.github/workflows/full-game-regression.yml'),
 ]);
 
+const regressionUsesCurrentBranchBuild =
+  regressionWorkflow.includes('Build GitHub Pages production output once') &&
+  regressionWorkflow.includes('dungeon-veil-pages-build-${{ github.sha }}') &&
+  regressionWorkflow.includes('actions/download-artifact@v4') &&
+  regressionWorkflow.includes('http://127.0.0.1:4173/DungeonVeil/') &&
+  regressionWorkflow.includes('- project: ipad-portrait-webkit') &&
+  regressionWorkflow.includes('- project: android-tablet-chromium') &&
+  !/desktop-chromium|ipad-landscape-webkit/.test(regressionWorkflow);
+
 const guildProfileRouting = guildSocial.includes('onOpenMemberProfile={setSelectedProfileId}')
   || guildSocial.includes('onOpenMemberProfile={qaMode ? undefined : setSelectedProfileId}');
+
 const checks = [
   [guildPanel.includes('guild-members-tab') && guildPanel.includes('guild-member-profile-button') && guildProfileRouting && !guildSocial.includes('guild-profile-list-button'), 'Block 4 guild profiles are not contained in the Members tab'],
   [publicProfile.includes('public-player-profile-dialog') && publicProfile.includes('public-player-profile-loading') && publicProfile.includes('public-player-profile-error') && publicProfile.includes('public-player-profile-empty'), 'Block 5 public profile states are incomplete'],
@@ -52,7 +62,7 @@ const checks = [
   [game.includes('saveEngineSession') && game.includes('handleContinue') && game.includes('beginPlayerProfileRun') && save.includes('loadGame'), 'critical new-run, continue or save paths are missing'],
   [portal.includes('this.livingEnemies().length === 0') && portal.includes('this.nextRoom()'), 'critical room-exit behavior is missing'],
   [worldBossBattle.includes('WorldBossLiteStage') && worldBossPanel.includes('startWorldBossAttempt') && worldBossPanel.includes('getWorldBossAttemptStatus'), 'critical world-boss entry or stage is missing'],
-  [regressionWorkflow.includes('Build current branch for browser regression') && regressionWorkflow.includes('http://127.0.0.1:4173/DungeonVeil/'), 'full regression no longer tests the current branch build'],
+  [regressionUsesCurrentBranchBuild, 'full regression no longer tests one shared current-branch Pages build on the supported portrait mobile matrix'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -63,4 +73,4 @@ if (failures.length) {
 }
 
 await import('./validate-final-device-gate.mjs');
-console.log('Blocks 4–17 integration audit passed: all functional blocks and the final automated device gate coexist in one build.');
+console.log('Blocks 4–17 integration audit passed: all functional blocks and the optimized portrait-mobile device gate coexist in one build.');

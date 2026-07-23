@@ -33,6 +33,13 @@ import { CoopBossLootOverlay } from './CoopBossLootOverlay';
 
 const PROFILE_FLUSH_MS = 5_000;
 const PUBLIC_PROFILE_SYNC_MS = 15_000;
+const PLAYER_HAZARD_EFFECT_PREFIXES = [
+  'rune-warning-', 'rune-impact-',
+  'forge-warn-', 'forge-hit-',
+  'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-',
+  'telegraph-', 'mage-cast-', 'mage-impact-', 'shot-mage-',
+];
+const PLAYER_HAZARD_DAMAGE_PREFIXES = ['rune-hit-', 'forge-text-', 'arc-text-', 'core-text-', 'hit-', 'mage-hit-'];
 
 function restorePendingRoomGift(engine: GameEngine): void {
   const save = loadGame();
@@ -47,19 +54,44 @@ function isActiveDuoRun(): boolean {
   return typeof document !== 'undefined' && document.documentElement.dataset.dungeonVeilRunMode === 'duo';
 }
 
+function hasLivingEnemies(engine: GameEngine): boolean {
+  return engine.state.enemies.some(enemy => enemy.hp > 0 && !enemy.isDead);
+}
+
+function clearPostCombatHazards(engine: GameEngine): void {
+  engine.state.effects = engine.state.effects.filter(effect => !PLAYER_HAZARD_EFFECT_PREFIXES.some(prefix => effect.id.startsWith(prefix)));
+  engine.state.damageNumbers = engine.state.damageNumbers.filter(number => !PLAYER_HAZARD_DAMAGE_PREFIXES.some(prefix => number.id.startsWith(prefix)));
+}
+
 export function GameSessionBridge({ getEngine, active }: { getEngine: () => GameEngine | null; active: boolean }) {
   const { language } = useLanguage();
   const getEngineRef = useRef(getEngine);
+  const runtimeSystemsReadyRef = useRef(true);
   getEngineRef.current = getEngine;
 
   useEffect(() => {
-    const stopInput = () => {
+    const prepareRuntime = () => {
+      runtimeSystemsReadyRef.current = false;
       const engine = getEngineRef.current();
       if (!engine) return;
       engine.input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
     };
-    window.addEventListener('dungeon-veil-room-preparing', stopInput);
-    return () => window.removeEventListener('dungeon-veil-room-preparing', stopInput);
+    const resumeRuntime = (event: Event) => {
+      const detail = (event as CustomEvent<{ failed?: boolean }>).detail;
+      if (detail?.failed) {
+        runtimeSystemsReadyRef.current = false;
+        return;
+      }
+      runtimeSystemsReadyRef.current = true;
+      const engine = getEngineRef.current();
+      if (engine) engine.lastTime = performance.now();
+    };
+    window.addEventListener('dungeon-veil-room-preparing', prepareRuntime);
+    window.addEventListener('dungeon-veil-room-ready', resumeRuntime);
+    return () => {
+      window.removeEventListener('dungeon-veil-room-preparing', prepareRuntime);
+      window.removeEventListener('dungeon-veil-room-ready', resumeRuntime);
+    };
   }, []);
 
   useEffect(() => {
@@ -161,8 +193,23 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     let lastPublicProfileSync = 0;
     let lastKillCount = Math.max(0, getEngineRef.current()?.state.killCount ?? 0);
     let pendingDamage = 0;
+    let guardedRoomKey = '';
+    let lastCombatHp: number | null = initialEngine?.state.player.hp ?? null;
     const seenDamageIds = new Set<string>();
     const mobileTick = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+
+    const suspendPendingHazards = () => {
+      const now = performance.now();
+      effects.runeStrikeAt = 0;
+      effects.nextRuneStormAt = now + 1_400;
+      roomMechanics.warningAt = 0;
+      roomMechanics.nextTriggerAt = now + 1_600;
+      guardedRoomKey = '';
+      lastCombatHp = null;
+      const engine = getEngineRef.current();
+      if (engine) clearPostCombatHazards(engine);
+    };
+    window.addEventListener('dungeon-veil-room-preparing', suspendPendingHazards);
 
     const collectDamage = (engine: GameEngine) => {
       for (const number of engine.state.damageNumbers) {
@@ -206,16 +253,35 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       const engine = getEngineRef.current();
       const dt = Math.min(100, Math.max(0, time - lastFrame));
       lastFrame = time;
-      if (engine) {
+      if (engine && runtimeSystemsReadyRef.current) {
         collectDamage(engine);
         const interval = mobileTick ? 50 : 33;
         if (time - lastSystemTick >= interval) {
           const systemDt = Math.min(100, Math.max(dt, time - lastSystemTick));
           lastSystemTick = time;
           if (engine.state.status === 'playing') {
+            const roomKey = `${engine.state.chapter}:${engine.state.floor}`;
+            if (guardedRoomKey !== roomKey) {
+              guardedRoomKey = roomKey;
+              lastCombatHp = engine.state.player.hp;
+            }
+            const combatActive = hasLivingEnemies(engine) && !engine.state.roomClearReady;
             updateRunBalance(engine, balance);
-            updateRunEffectSystems(engine, effects, time);
             updateRunRetentionSystems(engine, retention, time);
+            if (combatActive) {
+              lastCombatHp = engine.state.player.hp;
+              updateRunEffectSystems(engine, effects, time);
+            } else {
+              const safeHp = lastCombatHp ?? engine.state.player.hp;
+              if (engine.state.player.hp < safeHp) {
+                engine.state.player.hp = safeHp;
+                engine.state.player.lastHitTime = 0;
+                engine.state.player.lastGuardTime = 0;
+              } else if (engine.state.player.hp > safeHp) {
+                lastCombatHp = engine.state.player.hp;
+              }
+              clearPostCombatHazards(engine);
+            }
             updateRoomMechanics(engine, roomMechanics, time, systemDt);
             updateRunSynergies(engine, synergies, time);
             updateFirstWardenFinale(engine, firstWarden, time);
@@ -250,6 +316,8 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
         } else {
           checkedClearKey = '';
         }
+      } else if (engine) {
+        engine.lastTime = time;
       }
       frame = requestAnimationFrame(update);
     };
@@ -257,6 +325,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     frame = requestAnimationFrame(update);
     return () => {
       cancelAnimationFrame(frame);
+      window.removeEventListener('dungeon-veil-room-preparing', suspendPendingHazards);
       disposeBossAttacks();
       disposeNormalAttacks();
       disposeFusionEffects();

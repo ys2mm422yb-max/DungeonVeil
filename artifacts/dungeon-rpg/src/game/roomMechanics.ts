@@ -16,6 +16,13 @@ export type RoomMechanicState = {
   graveTriggered: boolean;
 };
 
+const HAZARD_EFFECT_PREFIXES = [
+  'forge-warn-', 'forge-hit-', 'forge-hit-inner-',
+  'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-',
+  'core-', 'core-inner-',
+];
+const HAZARD_TEXT_PREFIXES = ['forge-text-', 'arc-text-', 'core-text-'];
+
 export function createRoomMechanicState(): RoomMechanicState {
   return { roomKey: '', kind: null, nextTriggerAt: 0, warningAt: 0, targetX: 0, targetY: 0, ritualChargeMs: 0, ritualBroken: false, ritualBuffedIds: new Set(), graveTriggered: false };
 }
@@ -41,7 +48,21 @@ function scenePoint(engine: GameEngine, terms: string[]) {
   };
 }
 
+function hasLivingEnemies(engine: GameEngine): boolean {
+  return engine.state.enemies.some(enemy => enemy.hp > 0 && !enemy.isDead);
+}
+
+function clearPendingHazards(engine: GameEngine, state: RoomMechanicState): void {
+  state.warningAt = 0;
+  state.nextTriggerAt = Number.POSITIVE_INFINITY;
+  state.targetX = 0;
+  state.targetY = 0;
+  engine.state.effects = engine.state.effects.filter(effect => !HAZARD_EFFECT_PREFIXES.some(prefix => effect.id.startsWith(prefix)));
+  engine.state.damageNumbers = engine.state.damageNumbers.filter(number => !HAZARD_TEXT_PREFIXES.some(prefix => number.id.startsWith(prefix)));
+}
+
 function damage(engine: GameEngine, time: number, amount: number, color: string, id: string) {
+  if (engine.state.roomClearReady || !hasLivingEnemies(engine)) return;
   const p = engine.state.player;
   if (time <= p.invincibleUntil) return;
   p.hp -= amount;
@@ -71,6 +92,7 @@ function forge(engine: GameEngine, state: RoomMechanicState, time: number) {
   const p = engine.state.player;
   if (state.warningAt && time >= state.warningAt) {
     if (Math.hypot(p.x + p.width / 2 - state.targetX, p.y + p.height / 2 - state.targetY) <= 82) damage(engine, time, 16, '#ff7040', 'forge');
+    if (!hasLivingEnemies(engine)) { clearPendingHazards(engine, state); return; }
     engine.state.effects.push({ id: `forge-hit-${time}`, x: state.targetX, y: state.targetY, radius: 8, maxRadius: 112, color: '#ff4d1f', lifeTime: 0, maxLifeTime: 700, type: 'circle', element: 'fire' });
     engine.state.effects.push({ id: `forge-hit-inner-${time}`, x: state.targetX, y: state.targetY, radius: 0, maxRadius: 62, color: '#ffd26a', lifeTime: 0, maxLifeTime: 420, type: 'circle', element: 'fire' });
     state.warningAt = 0;
@@ -92,6 +114,7 @@ function arcLine(engine: GameEngine, state: RoomMechanicState, time: number) {
   if (state.warningAt && time >= state.warningAt) {
     const p = engine.state.player;
     if (Math.abs(p.y + p.height / 2 - state.targetY) <= 34) damage(engine, time, 14, '#a58bff', 'arc');
+    if (!hasLivingEnemies(engine)) { clearPendingHazards(engine, state); return; }
     engine.state.effects.push({ id: `arc-fire-${time}`, x: 0, y: state.targetY, radius: 0, maxRadius: mapWidth, color: '#8d5cff', lifeTime: 0, maxLifeTime: 520, type: 'beam', angle: 0, width: 16, element: 'arcane' });
     engine.state.effects.push({ id: `arc-source-${time}`, x: source.x, y: source.y, radius: 8, maxRadius: 78, color: '#d8c5ff', lifeTime: 0, maxLifeTime: 620, type: 'circle', element: 'arcane' });
     state.warningAt = 0;
@@ -151,7 +174,11 @@ function graveCall(engine: GameEngine, state: RoomMechanicState, time: number) {
 
 export function updateRoomMechanics(engine: GameEngine, state: RoomMechanicState, time: number, dt: number) {
   enterRoom(engine, state, time);
-  if (!state.kind || engine.state.roomClearReady) return;
+  if (!state.kind) return;
+  if (engine.state.roomClearReady || !hasLivingEnemies(engine)) {
+    clearPendingHazards(engine, state);
+    return;
+  }
   if (state.kind === 'forge-burst') forge(engine, state, time);
   if (state.kind === 'arc-line') arcLine(engine, state, time);
   if (state.kind === 'ritual-core') ritual(engine, state, time, dt);

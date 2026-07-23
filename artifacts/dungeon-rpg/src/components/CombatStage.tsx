@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { activeCompanionV5 } from '../game/companionCollectionV5';
+import { roomIdentity } from '../game/roomIdentity';
 import { GameCanvas } from './GameCanvas';
 import { CoopProjectileRealtimeBridge } from './CoopProjectileRealtimeBridge';
 import { CoopTeammateScene3D } from './CoopTeammateScene3D';
@@ -9,13 +10,6 @@ import { CoopTeammateUI } from './CoopTeammateUI';
 import { CompanionRuntimeBridge } from './CompanionRuntimeBridge';
 import { CompanionScene3D } from './CompanionScene3D';
 import { CompanionStatusChip } from './CompanionStatusChip';
-
-const ROOM_NAMES = [
-  'VERSORGUNGSPOSTEN', 'WACHSTUBE', 'SÄULENHALLE', 'BERGARBEITERLAGER', 'WERKSTATT',
-  'SCHMIEDE', 'SCHLAFQUARTIER', 'MATERIALLAGER', 'RITUALKAMMER', 'GRABWÄCHTERHALLE',
-  'KREUZGANG', 'GALERIE', 'GEFÄNGNISRING', 'KNOCHENHOF', 'RITUALARENA',
-  'WÄCHTERPASSAGE', 'EINGESTÜRZTES GEWÖLBE', 'SCHLEIER-RISS', 'WÄCHTERVORHALLE', 'BOSSHEILIGTUM',
-] as const;
 
 type ViewportBox = { width: number; height: number; left: number; top: number };
 
@@ -43,21 +37,29 @@ function readLanguage(): string {
   catch { return 'de'; }
 }
 
+function roomTitleFor(floor: number, language: string): string {
+  const identity = roomIdentity(floor);
+  return (language === 'en' ? identity.nameEn : identity.nameDe).toUpperCase();
+}
+
 export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const previousHpRef = useRef(gameState.player.hp);
   const previousFloorRef = useRef(gameState.floor);
   const lastDamageIdRef = useRef('');
   const shakeTimerRef = useRef<number | null>(null);
+  const hurtFlashTimerRef = useRef<number | null>(null);
+  const hitFlashTimerRef = useRef<number | null>(null);
   const [shakeClass, setShakeClass] = useState('');
   const [hurtFlash, setHurtFlash] = useState(false);
   const [hitFlash, setHitFlash] = useState(false);
-  const [roomTitle, setRoomTitle] = useState(() => ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
-  const [showRoomTitle, setShowRoomTitle] = useState(true);
   const [viewport, setViewport] = useState<ViewportBox>(() => readViewport());
   // Deliberately captured once. Equipment changes during a run do not replace the active ally.
   const [runCompanion] = useState(() => activeCompanionV5());
   const runMode = readRunMode();
   const language = readLanguage();
+  const hasLivingEnemies = gameState.enemies.some(enemy => enemy.hp > 0);
+  const [roomTitle, setRoomTitle] = useState(() => roomTitleFor(gameState.floor, language));
+  const [showRoomTitle, setShowRoomTitle] = useState(true);
 
   const triggerShake = (heavy: boolean) => {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
@@ -89,24 +91,29 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   }, []);
 
   useEffect(() => {
-    if (previousFloorRef.current === gameState.floor) return undefined;
+    const floorChanged = previousFloorRef.current !== gameState.floor;
     previousFloorRef.current = gameState.floor;
-    setRoomTitle(ROOM_NAMES[Math.max(0, Math.min(19, gameState.floor - 1))]);
+    setRoomTitle(roomTitleFor(gameState.floor, language));
+    if (!floorChanged) return undefined;
     setShowRoomTitle(true);
     try { navigator.vibrate?.([12, 35, 18]); } catch {}
     const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
     return () => window.clearTimeout(timer);
-  }, [gameState.floor]);
+  }, [gameState.floor, language]);
 
   useEffect(() => {
     const previousHp = previousHpRef.current;
     if (gameState.player.hp < previousHp) {
+      if (hurtFlashTimerRef.current !== null) window.clearTimeout(hurtFlashTimerRef.current);
       setHurtFlash(true);
       triggerShake(true);
       try { navigator.vibrate?.([24, 18, 40]); } catch {}
-      const timer = window.setTimeout(() => setHurtFlash(false), 220);
+      hurtFlashTimerRef.current = window.setTimeout(() => {
+        setHurtFlash(false);
+        hurtFlashTimerRef.current = null;
+      }, 220);
       previousHpRef.current = gameState.player.hp;
-      return () => window.clearTimeout(timer);
+      return undefined;
     }
     previousHpRef.current = gameState.player.hp;
     const latest = gameState.damageNumbers[gameState.damageNumbers.length - 1];
@@ -116,15 +123,32 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     const isHeavy = (latest.scale ?? 1) >= 1.3;
     if (!isPlayerHit) {
       triggerShake(isHeavy);
+      if (hitFlashTimerRef.current !== null) window.clearTimeout(hitFlashTimerRef.current);
       setHitFlash(true);
-      const flashTimer = window.setTimeout(() => setHitFlash(false), isHeavy ? 100 : 55);
+      hitFlashTimerRef.current = window.setTimeout(() => {
+        setHitFlash(false);
+        hitFlashTimerRef.current = null;
+      }, isHeavy ? 100 : 55);
       if (isHeavy) {
         try { navigator.vibrate?.(28); } catch {}
       }
-      return () => window.clearTimeout(flashTimer);
     }
     return undefined;
   }, [gameState.damageNumbers, gameState.player.hp]);
+
+  useEffect(() => {
+    if (!gameState.roomClearReady && hasLivingEnemies) return;
+    if (hurtFlashTimerRef.current !== null) {
+      window.clearTimeout(hurtFlashTimerRef.current);
+      hurtFlashTimerRef.current = null;
+    }
+    if (hitFlashTimerRef.current !== null) {
+      window.clearTimeout(hitFlashTimerRef.current);
+      hitFlashTimerRef.current = null;
+    }
+    setHurtFlash(false);
+    setHitFlash(false);
+  }, [gameState.roomClearReady, hasLivingEnemies]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
@@ -133,6 +157,8 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
 
   useEffect(() => () => {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
+    if (hurtFlashTimerRef.current !== null) window.clearTimeout(hurtFlashTimerRef.current);
+    if (hitFlashTimerRef.current !== null) window.clearTimeout(hitFlashTimerRef.current);
   }, []);
 
   return (
@@ -143,6 +169,9 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       data-viewport-width={viewport.width}
       data-viewport-height={viewport.height}
       data-run-companion={runCompanion?.definition.species ?? 'none'}
+      data-room-title={roomTitle}
+      data-hurt-flash={hurtFlash ? 'active' : 'idle'}
+      data-hit-flash={hitFlash ? 'active' : 'idle'}
     >
       {runCompanion && <CompanionRuntimeBridge gameState={gameState} role={runCompanion.id} level={runCompanion.level} mode={runMode} />}
       <div className={`absolute inset-0 ${shakeClass}`}>
@@ -160,7 +189,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       <div className={`pointer-events-none absolute inset-x-0 top-[22%] z-30 flex justify-center transition-all duration-400 ${showRoomTitle ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'}`}>
         <div className="relative min-w-[220px] max-w-[78vw] overflow-hidden rounded-xl border border-amber-200/18 bg-black/62 px-5 py-3 text-center shadow-[0_14px_38px_rgba(0,0,0,.38)] backdrop-blur-md">
           <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/65 to-transparent" />
-          <div className="text-[7px] font-black uppercase tracking-[.34em] text-amber-200/45">KAPITEL {gameState.chapter} · RAUM {gameState.floor}</div>
+          <div className="text-[7px] font-black uppercase tracking-[.34em] text-amber-200/45">{language === 'en' ? 'CHAPTER' : 'KAPITEL'} {gameState.chapter} · {language === 'en' ? 'ROOM' : 'RAUM'} {gameState.floor}</div>
           <div className="mt-1 font-serif text-[16px] tracking-[.08em] text-[#f4ead5]">{roomTitle}</div>
         </div>
       </div>

@@ -1,6 +1,13 @@
 name: Full Game Regression
 
 on:
+  workflow_dispatch:
+    inputs:
+      full_evidence:
+        description: Run the complete four-device portrait mobile regression
+        required: false
+        default: true
+        type: boolean
   push:
     branches: [test/full-game-regression-pass, 'fix/**', 'work/block-*']
     paths:
@@ -8,6 +15,7 @@ on:
       - 'artifacts/dungeon-rpg/**'
       - '.ci/full-game-regression-trigger*.txt'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, 'fix/**', 'work/block-*']
     paths:
       - '.github/workflows/full-game-regression.yml'
@@ -22,6 +30,11 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  PLAYWRIGHT_VERSION: '1.55.0'
+  BASE_PATH: /DungeonVeil/
+  DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
 
 jobs:
   static-regression:
@@ -39,7 +52,6 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Verify regression coverage
-        continue-on-error: true
         run: node artifacts/dungeon-rpg/scripts/validate-full-game-regression-scope.mjs
       - name: Audit every asset
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
@@ -55,7 +67,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dungeon-veil-social-audit-failure
-          retention-days: 7
+          retention-days: 5
+          compression-level: 9
           path: /tmp/dungeon-veil-social-audit.log
       - name: Fail after social audit diagnostics
         if: steps.social-audit.outcome == 'failure'
@@ -72,43 +85,44 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dungeon-veil-room-audit-failure
-          retention-days: 7
+          retention-days: 5
+          compression-level: 9
           path: /tmp/dungeon-veil-room-audit.log
       - name: Fail after room audit diagnostics
         if: steps.room-audit.outcome == 'failure'
         run: exit 1
       - name: Typecheck full workspace
         run: pnpm run typecheck
-      - name: Build GitHub Pages production output
+      - name: Build GitHub Pages production output once
         run: |
           BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
           test -f artifacts/dungeon-rpg/dist/public/index.html
           grep -q '/DungeonVeil/' artifacts/dungeon-rpg/dist/public/index.html
+      - name: Reuse production output in browser jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-veil-pages-build-${{ github.sha }}
+          retention-days: 1
+          compression-level: 9
+          path: artifacts/dungeon-rpg/dist/public
 
-  browser-regression:
+  browser-smoke:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.full_evidence != true) ||
+      (github.event_name == 'push' && github.ref_name != 'fix/mobile-telegraphs-room-21-50-balance') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == true)
     needs: static-regression
     runs-on: ubuntu-latest
-    timeout-minutes: 80
+    timeout-minutes: 30
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         include:
           - project: iphone-webkit
             browser: webkit
-            evidence_name: visual-evidence-iphone-webkit
-            screenshot_token: iphone-webkit
           - project: android-chromium
             browser: chromium
-            evidence_name: visual-evidence-android-chromium
-            screenshot_token: android-chromium
-          - project: ipad-landscape-webkit
-            browser: webkit
-            evidence_name: visual-evidence-ipad-webkit
-            screenshot_token: ipad
-          - project: desktop-chromium
-            browser: chromium
-            evidence_name: visual-evidence-desktop-chromium
-            screenshot_token: desktop-chromium
     env:
       BROWSER_PROJECT: ${{ matrix.project }}
     steps:
@@ -122,33 +136,131 @@ jobs:
           cache: pnpm
       - name: Install workspace
         run: pnpm install --frozen-lockfile
-      - name: Install isolated browser test runner
-        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
-      - name: Install isolated browser engine
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
-      - name: Build current branch for browser regression
-        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-      - name: Test current branch on isolated device runner
-        id: browser-tests
+      - name: Install deterministic browser runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@${PLAYWRIGHT_VERSION} --lockfile=false
+      - name: Restore browser engine cache
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
+      - name: Install browser system dependencies
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install-deps ${{ matrix.browser }}
+      - name: Install browser engine
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
+      - name: Download production output
+        uses: actions/download-artifact@v4
+        with:
+          name: dungeon-veil-pages-build-${{ github.sha }}
+          path: artifacts/dungeon-rpg/dist/public
+      - name: Run compact portrait mobile menu, combat and world-boss smoke
+        id: smoke-tests
         continue-on-error: true
-        env:
-          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
-          BASE_PATH: /DungeonVeil/
         shell: bash
         run: |
           BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill $PREVIEW_PID || true' EXIT
           for attempt in {1..40}; do
-            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
+            if curl --fail --silent "$DUNGEON_VEIL_URL" > /dev/null; then break; fi
             sleep 1
           done
-          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          GREP_INVERT='rooms 1-50 produce stable visual evidence across the full run'
-          if [[ "$BROWSER_PROJECT" == 'desktop-chromium' ]]; then
-            GREP_INVERT="$GREP_INVERT|full room visual evidence"
-          fi
-          timeout --signal=TERM --kill-after=30s 70m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs --project="$BROWSER_PROJECT" --grep-invert "$GREP_INVERT"
+          curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          timeout --signal=TERM --kill-after=30s 22m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/full-game-smoke.spec.mjs \
+            tests/worldboss-block1.spec.mjs \
+            --config=playwright.regression.config.mjs \
+            --project="$BROWSER_PROJECT" \
+            --grep='new run renders responsive combat controls and stays stable|world boss'
+      - name: Upload smoke failure evidence
+        if: steps.smoke-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-smoke-failure-${{ matrix.project }}
+          if-no-files-found: warn
+          retention-days: 5
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/full-game-results.json
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.webm
+            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
+            /tmp/dungeon-veil-preview.log
+      - name: Fail compact smoke after diagnostics
+        if: steps.smoke-tests.outcome == 'failure'
+        run: exit 1
+
+  browser-regression:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.full_evidence == true) ||
+      (github.event_name == 'push' && github.ref_name == 'fix/mobile-telegraphs-room-21-50-balance') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+    needs: static-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+          - project: android-chromium
+            browser: chromium
+          - project: ipad-portrait-webkit
+            browser: webkit
+          - project: android-tablet-chromium
+            browser: chromium
+    env:
+      BROWSER_PROJECT: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install deterministic browser runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@${PLAYWRIGHT_VERSION} --lockfile=false
+      - name: Restore browser engine cache
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
+      - name: Install browser system dependencies
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install-deps ${{ matrix.browser }}
+      - name: Install browser engine
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
+      - name: Download production output
+        uses: actions/download-artifact@v4
+        with:
+          name: dungeon-veil-pages-build-${{ github.sha }}
+          path: artifacts/dungeon-rpg/dist/public
+      - name: Test complete non-room regression on current portrait mobile device
+        id: browser-tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent "$DUNGEON_VEIL_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          GREP_INVERT='rooms 1-50 produce stable visual evidence across the full run|full room visual evidence'
+          timeout --signal=TERM --kill-after=30s 65m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            --config=playwright.regression.config.mjs \
+            --project="$BROWSER_PROJECT" \
+            --grep-invert "$GREP_INVERT"
       - name: Build compact Playwright failure summary
         if: steps.browser-tests.outcome == 'failure'
         shell: bash
@@ -211,22 +323,14 @@ jobs:
             } else {
               await github.rest.issues.createComment({ owner, repo, issue_number, body });
             }
-      - name: Upload device visual evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.evidence_name }}
-          if-no-files-found: warn
-          retention-days: 14
-          compression-level: 6
-          path: artifacts/dungeon-rpg/test-results/**/*${{ matrix.screenshot_token }}*.png
-      - name: Upload browser result manifest
+      - name: Upload compact regression manifest
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: full-game-regression-results-${{ matrix.project }}
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 3
+          compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/full-game-results.json
             /tmp/dungeon-veil-preview.log
@@ -236,7 +340,7 @@ jobs:
         with:
           name: full-game-regression-failure-traces-${{ matrix.project }}
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 5
           compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/**/trace.zip
@@ -244,93 +348,4 @@ jobs:
             artifacts/dungeon-rpg/test-results/**/test-failed-*.png
       - name: Fail browser regression after diagnostics
         if: steps.browser-tests.outcome == 'failure'
-        run: exit 1
-
-  desktop-room-regression:
-    needs: static-regression
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: 01-10
-            grep: 'full room visual evidence 1-10 uses a fresh WebGL context'
-          - label: 11-20
-            grep: 'full room visual evidence 11-20 uses a fresh WebGL context'
-          - label: 21-30
-            grep: 'full room visual evidence 21-30 uses a fresh WebGL context'
-          - label: 31-40
-            grep: 'full room visual evidence 31-40 uses a fresh WebGL context'
-          - label: 41-50
-            grep: 'full room visual evidence 41-50 uses a fresh WebGL context'
-    env:
-      BROWSER_PROJECT: desktop-chromium
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - name: Install workspace
-        run: pnpm install --frozen-lockfile
-      - name: Install isolated browser test runner
-        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
-      - name: Install Chromium
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps chromium
-      - name: Build current branch for desktop room evidence
-        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-      - name: Test isolated desktop room chunk
-        id: room-tests
-        continue-on-error: true
-        env:
-          DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
-          BASE_PATH: /DungeonVeil/
-        shell: bash
-        run: |
-          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-preview.log 2>&1 &
-          PREVIEW_PID=$!
-          trap 'kill $PREVIEW_PID || true' EXIT
-          for attempt in {1..40}; do
-            if curl --fail --silent http://127.0.0.1:4173/DungeonVeil/ > /dev/null; then break; fi
-            sleep 1
-          done
-          curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          timeout --signal=TERM --kill-after=30s 25m pnpm --dir artifacts/dungeon-rpg exec playwright test --config=playwright.regression.config.mjs --project=desktop-chromium --grep="${{ matrix.grep }}"
-      - name: Upload desktop room visual evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-evidence-desktop-room-${{ matrix.label }}
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 6
-          path: artifacts/dungeon-rpg/test-results/**/visual-room-*-desktop-chromium.png
-      - name: Upload desktop room result manifest
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-game-regression-results-desktop-room-${{ matrix.label }}
-          if-no-files-found: warn
-          retention-days: 14
-          path: |
-            artifacts/dungeon-rpg/test-results/full-game-results.json
-            /tmp/dungeon-veil-preview.log
-      - name: Upload desktop room failure traces
-        if: steps.room-tests.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-game-regression-failure-traces-desktop-room-${{ matrix.label }}
-          if-no-files-found: warn
-          retention-days: 7
-          compression-level: 9
-          path: |
-            artifacts/dungeon-rpg/test-results/**/trace.zip
-            artifacts/dungeon-rpg/test-results/**/*.webm
-            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
-      - name: Fail desktop room regression after diagnostics
-        if: steps.room-tests.outcome == 'failure'
         run: exit 1

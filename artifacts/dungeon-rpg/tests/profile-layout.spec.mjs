@@ -7,7 +7,7 @@ async function assertNoHorizontalOverflow(page) { const overflow = await page.ev
 
 test('own and public profiles use responsive equipment and companion layouts', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
-  const tablet = testInfo.project.name.includes('ipad');
+  const tablet = testInfo.project.name.includes('ipad') || testInfo.project.name.includes('tablet');
   const desktop = testInfo.project.name.includes('desktop');
   const wide = tablet || desktop;
   if (tablet) await page.setViewportSize({ width: 820, height: 1180 });

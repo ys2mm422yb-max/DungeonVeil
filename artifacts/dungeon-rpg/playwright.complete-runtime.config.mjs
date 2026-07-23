@@ -1,27 +1,27 @@
 import { defineConfig } from '@playwright/test';
 
-const baseURL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const baseURL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVeil/';
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|profile-layout|companion-runtime|loading-continuity|codex-visual-library|main-menu-reference|visual-audit|visual-room-chunks|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu|guild-mail-equipment-visual|autopilot-product-journeys|autopilot-outside-guild)\.spec\.mjs/,
-  timeout: 120_000,
-  expect: { timeout: 20_000 },
+  testMatch: /(?:complete-runtime-evidence|complete-runtime-room-titles|renderer-recovery-hidden-hud|post-clear-player-hazards|atomic-room-readiness|portrait-orientation|worldboss-block1|full-game-smoke)\.spec\.mjs/,
+  timeout: 900_000,
+  expect: { timeout: 30_000 },
   fullyParallel: false,
   retries: 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: [
     ['list'],
-    ['json', { outputFile: 'test-results/full-game-results.json' }],
-    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['json', { outputFile: 'test-results/complete-runtime-results.json' }],
+    ['html', { outputFolder: 'playwright-complete-runtime-report', open: 'never' }],
   ],
   use: {
     baseURL,
-    actionTimeout: 20_000,
+    actionTimeout: 30_000,
     navigationTimeout: 60_000,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
-    video: 'retain-on-failure',
+    video: { mode: 'on', size: { width: 640, height: 960 } },
   },
   projects: [
     {

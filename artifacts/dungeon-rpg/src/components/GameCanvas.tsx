@@ -131,7 +131,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     let cancelled = false;
     const requiredEnemyTypes = currentRoomEnemyTypes(gameState);
     window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', {
-      detail: { key: liveRoomKey, floor: gameState.floor, enemyTypes: requiredEnemyTypes },
+      detail: { key: liveRoomKey, floor: gameState.floor, enemyTypes: requiredEnemyTypes, owner: 'game-canvas-stage' },
     }));
 
     const stageRoom = async () => {
@@ -148,12 +148,8 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
           if (roomKey(latest) !== liveRoomKey) return;
           renderedRoomKeyRef.current = liveRoomKey;
           setRenderState(latest);
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            if (cancelled || token !== transitionTokenRef.current) return;
-            window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', {
-              detail: { key: liveRoomKey, floor: latest.floor, enemyTypes: requiredEnemyTypes },
-            }));
-          }));
+          // GameCanvasKayKit3D owns the only normal room-ready signal. It emits only
+          // after the complete Three.js room root has been built and added atomically.
           return;
         } catch (error) {
           attempt += 1;
@@ -221,17 +217,18 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
       recoveryReadyTimerRef.current = window.setTimeout(() => {
         recoveringRef.current = false;
         recoveryReadyTimerRef.current = null;
-        window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key: roomKey(latestStateRef.current), floor: latestStateRef.current.floor, recovered: true } }));
+        window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key: roomKey(latestStateRef.current), floor: latestStateRef.current.floor, recovered: true, owner: 'game-canvas-recovery' } }));
       }, 900);
     };
 
     const handleContextLost = (event: Event) => {
       event.preventDefault();
+      if (recoveringRef.current) return;
+      recoveringRef.current = true;
       let webglContextLosses = 1;
       try { webglContextLosses = (JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY) || '{}').webglContextLosses || 0) + 1; } catch {}
       updateDiagnostics('webglcontextlost', { webglContextLosses });
-      recoveringRef.current = true;
-      window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { reason: 'webglcontextlost', floor: latestStateRef.current.floor } }));
+      window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { reason: 'webglcontextlost', floor: latestStateRef.current.floor, owner: 'game-canvas-recovery' } }));
       try { sessionStorage.setItem(LOW_GPU_KEY, '1'); } catch {}
       window.dispatchEvent(new CustomEvent('dungeon-veil-renderer-lost', { detail: { webglContextLosses } }));
       if (recoveryTimer !== null) window.clearTimeout(recoveryTimer);
