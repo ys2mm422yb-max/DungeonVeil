@@ -33,7 +33,8 @@ test('restored collections, account entry and weekly elite contracts are visible
   await expect(page.getByText(/Dungeonläufer|Dungeon Runner/i).first()).toBeVisible();
 
   await reloadMenu(page);
-  await page.getByRole('button', { name: /Mehr|More/i }).click({ force: true, noWaitAfter: true });
+  await page.getByTestId('main-menu-gold-button').click({ force: true, noWaitAfter: true });
+  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible();
   await page.getByRole('button', { name: /Online & Cloud/i }).click({ force: true, noWaitAfter: true });
   await expect(page.getByRole('button', { name: /Mit Google anmelden|Continue with Google/i })).toBeVisible();
   await expect(page.getByPlaceholder('E-Mail')).toBeVisible();

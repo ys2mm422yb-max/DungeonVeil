@@ -7,6 +7,7 @@ import {
   type ActiveEquipmentSlot,
 } from './equipmentRedesign';
 import { EQUIPMENT } from './equipmentDefinitionsV4';
+import { isOptionalEquipmentSlotEquipped } from './optionalEquipmentState';
 import type { EquipmentId, EquipmentRarity, MetaProgression } from './metaProgressionTypes';
 
 export type CurrentProfileEquipmentItem = {
@@ -43,6 +44,7 @@ export function normalizeProfileEquipmentItems(value: unknown): CurrentProfileEq
 
 export function currentProfileEquipmentFromMeta(meta: MetaProgression): CurrentProfileEquipmentItem[] {
   return ACTIVE_EQUIPMENT_SLOTS.flatMap(slot => {
+    if (slot === 'quiver' && !isOptionalEquipmentSlotEquipped('quiver')) return [];
     const id = meta.equipped[slot];
     if (!isActiveEquipmentId(id)) return [];
     const definition = ACTIVE_EQUIPMENT[id];

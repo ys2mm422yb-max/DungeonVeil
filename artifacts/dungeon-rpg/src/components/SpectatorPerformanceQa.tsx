@@ -94,8 +94,12 @@ export function SpectatorPerformanceQa() {
     const emitPacket = () => {
       packetIndex += 1;
       const outagePhase = packetIndex % OUTAGE_CYCLE_PACKETS;
-      const plannedOutage = outagePhase >= OUTAGE_START_PACKET && outagePhase < OUTAGE_START_PACKET + OUTAGE_PACKET_COUNT;
-      const isolatedLoss = packetIndex % 11 === 0 || packetIndex % 17 === 0;
+      const outageEndPacket = OUTAGE_START_PACKET + OUTAGE_PACKET_COUNT;
+      const plannedOutage = outagePhase >= OUTAGE_START_PACKET && outagePhase < outageEndPacket;
+      const adjacentToPlannedOutage = outagePhase === OUTAGE_START_PACKET - 1 || outagePhase === outageEndPacket;
+      const isolatedLoss = !plannedOutage
+        && !adjacentToPlannedOutage
+        && (packetIndex % 11 === 0 || packetIndex % 17 === 0);
       if (plannedOutage || isolatedLoss) {
         outagePackets += 1;
         return;

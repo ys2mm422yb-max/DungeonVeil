@@ -32,10 +32,11 @@ const [menu, villageHub, menuSceneProxy, menuPresentation, liveMenuScene, hallAr
 const renderStart = villageScene.lastIndexOf('raf = requestAnimationFrame(loop);');
 const assetStart = villageScene.indexOf('void loadVillageAssets(');
 const playOverlayStart = menu.indexOf("{overlay === 'play'");
+const playOverlayEnd = menu.indexOf("{overlay === 'worldBoss'", playOverlayStart);
 const moreOverlayStart = menu.indexOf("{overlay === 'more'");
-const overlayCloseStart = menu.indexOf("{overlay !== 'guild'");
-const playOverlay = playOverlayStart >= 0 && moreOverlayStart > playOverlayStart ? menu.slice(playOverlayStart, moreOverlayStart) : '';
-const moreOverlay = moreOverlayStart >= 0 && overlayCloseStart > moreOverlayStart ? menu.slice(moreOverlayStart, overlayCloseStart) : '';
+const genericOverlayStart = menu.indexOf("{overlay && overlay !== 'profile'", moreOverlayStart);
+const playOverlay = playOverlayStart >= 0 && playOverlayEnd > playOverlayStart ? menu.slice(playOverlayStart, playOverlayEnd) : '';
+const moreOverlay = moreOverlayStart >= 0 && genericOverlayStart > moreOverlayStart ? menu.slice(moreOverlayStart, genericOverlayStart) : '';
 const saveEmphasisUsesProps = menu.includes("props.saveData ? 'gold' : 'dark'") && menu.includes("props.saveData ? 'dark' : 'gold'");
 const saveEmphasisUsesRefreshedSave = menu.includes("currentSaveData ? 'gold' : 'dark'") && menu.includes("currentSaveData ? 'dark' : 'gold'");
 const actionBandSeparated = menu.includes('grid-cols-2')
@@ -70,7 +71,7 @@ const separatedCharacterComposition = menuSceneProxy.includes('dv-main-menu-ambi
 const checks = [
   [menu.includes('<VillageNpcHub') && villageHub.includes("testId: 'npc-postmaster'") && villageHub.includes('action: onMailbox') && menu.includes('<MailboxPanel'), 'village-routed main-menu mailbox entry is missing'],
   [menu.includes("setOverlay('play')") && playOverlay.includes('Solo-Run') && playOverlay.includes('Duo-Run') && playOverlay.includes('Weltboss') && playOverlay.includes("setOverlay('coop')") && playOverlay.includes("setOverlay('worldBoss')"), 'play mode chooser does not group solo, duo and world boss'],
-  [moreOverlay.length > 0 && !moreOverlay.includes('Duo-Run') && !moreOverlay.includes('Duo Run'), 'duo run is still hidden in more options'],
+  [moreOverlay.length > 0 && moreOverlay.includes('main-menu-resource-popover') && !moreOverlay.includes('Duo-Run') && !moreOverlay.includes('Duo Run'), 'duo run is still hidden in more options'],
   [!menu.includes('WeeklyRiftPanel') && !menu.includes("overlay === 'rift'") && !menu.includes("setOverlay('rift')"), 'weekly-rift shortcut or panel is still mounted in the main menu'],
   [!menu.includes('<GuildInviteLinkCard') && menu.includes('onClose={() => setOverlay(null)}') && inviteCard.includes('createGuildInviteLinkOnline') && inviteCard.includes('navigator.share'), 'guild invite link is not isolated inside the closable guild panel'],
   [guildClient.includes('captureGuildInviteTokenFromUrl') && guildClient.includes('claimPendingGuildInviteLink') && guildClient.includes('rpc/claim_guild_invite_link'), 'guild invitation link claim flow is incomplete'],

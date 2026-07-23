@@ -53,13 +53,13 @@
 :root {
   /* DARK DUNGEON THEME ONLY */
   --background: 240 43% 4%; /* #0a0a0f */
-  --foreground: 45 20% 90%; 
+  --foreground: 45 20% 90%;
 
-  --border: 240 20% 15%; 
+  --border: 240 20% 15%;
   --input: 240 20% 15%;
   --ring: 38 85% 52%; /* Amber */
 
-  --card: 240 30% 8%; 
+  --card: 240 30% 8%;
   --card-foreground: 45 20% 90%;
   --card-border: 240 20% 15%;
 
@@ -69,10 +69,10 @@
 
   --primary: 38 85% 52%; /* Amber #e8a020 */
   --primary-foreground: 240 43% 4%;
-  
+
   --secondary: 223 47% 16%; /* Muted wall color #16213e */
   --secondary-foreground: 45 20% 90%;
-  
+
   --muted: 240 20% 10%;
   --muted-foreground: 240 10% 60%;
 
@@ -90,11 +90,11 @@
 
 .dark {
   --background: 240 43% 4%;
-  --foreground: 45 20% 90%; 
-  --border: 240 20% 15%; 
+  --foreground: 45 20% 90%;
+  --border: 240 20% 15%;
   --input: 240 20% 15%;
   --ring: 38 85% 52%;
-  --card: 240 30% 8%; 
+  --card: 240 30% 8%;
   --card-foreground: 45 20% 90%;
   --card-border: 240 20% 15%;
   --popover: 240 30% 8%;
@@ -134,7 +134,7 @@
     position: fixed;
     inset: 0;
   }
-  
+
   #root {
     @apply w-full h-full;
     min-height: 100svh;
@@ -221,5 +221,19 @@
 @media (min-width: 768px) {
   div.fixed.inset-0:has([data-testid='equipment-category-tabs']) > div.max-w-md {
     max-width: 64rem;
+  }
+}
+
+/* Long German equipment names must wrap inside the narrow mobile detail column. */
+@media (max-width: 479px) {
+  [data-testid='equipment-category-tabs'] ~ section > div.grid > div:last-child {
+    min-width: 0;
+  }
+
+  [data-testid='equipment-category-tabs'] ~ section > div.grid > div:last-child > h2 {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-size: clamp(1rem, 4.2vw, 1.25rem);
+    line-height: 1.1;
   }
 }

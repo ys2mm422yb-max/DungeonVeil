@@ -3,9 +3,10 @@ import { EQUIPMENT, type EquipmentId } from '../game/metaProgression';
 import { equipmentVisualProfile } from '../game/equipmentVisuals';
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 
-const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
-const KAYKIT_ROOT = '/assets/kaykit/';
+const localRuntimeUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
+const THREE_URL = localRuntimeUrl('assets/vendor/three/build/three.module.js');
+const GLTF_URL = localRuntimeUrl('assets/vendor/three/examples/jsm/loaders/GLTFLoader.js');
+const KAYKIT_ROOT = localRuntimeUrl('assets/kaykit/');
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
 type LoadedGltf = { scene: any };
@@ -14,7 +15,8 @@ let relicPromise: Promise<any | null> | null = null;
 const equipmentPromises = new Map<EquipmentId, Promise<any | null>>();
 
 function assetUrl(path: string) {
-  return path.startsWith('/') ? path : `${KAYKIT_ROOT}${path}`;
+  const relative = path.replace(/^\/+/, '').replace(/^assets\/kaykit\//, '');
+  return `${KAYKIT_ROOT}${relative}`;
 }
 
 function scorePotion(path: string) {
@@ -106,30 +108,50 @@ function createRelicReliquary(THREE: any, prototype: any, accent: string) {
   return root;
 }
 
-function createArmorToken(THREE: any, accent: string) {
+function createEquipmentDisplay(THREE: any, prototype: any, id: EquipmentId) {
+  const definition = EQUIPMENT[id];
+  const visual = equipmentVisualProfile(id);
   const root = new THREE.Group();
-  const color = new THREE.Color(accent);
-  const material = new THREE.MeshStandardMaterial({ color, metalness: 0.58, roughness: 0.38, emissive: color, emissiveIntensity: 0.06 });
-  const darkMaterial = material.clone();
-  darkMaterial.color.multiplyScalar(0.42);
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.22), material);
-  torso.position.y = 0.52;
-  torso.scale.x = 0.82;
-  root.add(torso);
-  for (const side of [-1, 1]) {
-    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 0.3), material.clone());
-    shoulder.position.set(side * 0.42, 0.76, 0);
-    shoulder.rotation.z = side * -0.22;
-    root.add(shoulder);
-  }
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.055, 7, 18, Math.PI), darkMaterial);
-  collar.position.set(0, 0.86, 0.12);
-  collar.rotation.z = Math.PI;
-  root.add(collar);
-  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.1, 0.27), darkMaterial.clone());
-  belt.position.y = 0.2;
-  root.add(belt);
-  root.userData.presentationKind = 'armor-token';
+  const color = new THREE.Color(definition.accent);
+  const pedestalMaterial = new THREE.MeshStandardMaterial({
+    color: color.clone().multiplyScalar(0.24),
+    emissive: color,
+    emissiveIntensity: 0.06,
+    metalness: definition.slot === 'armor' ? 0.64 : 0.42,
+    roughness: 0.38,
+  });
+  const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.51, 0.14, IS_MOBILE ? 12 : 18), pedestalMaterial);
+  pedestal.position.y = 0.07;
+  root.add(pedestal);
+
+  const object = prototype.clone(true);
+  object.rotation.set(...visual.rotation);
+  object.scale.setScalar(1);
+  object.position.set(0, 0, 0);
+  object.updateMatrixWorld(true);
+  const initialBox = new THREE.Box3().setFromObject(object);
+  const initialSize = initialBox.getSize(new THREE.Vector3());
+  const target = definition.slot === 'armor' ? 0.92 : definition.slot === 'quiver' ? 0.88 : 1.08;
+  object.scale.setScalar(target / Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001));
+  object.updateMatrixWorld(true);
+  const fittedBox = new THREE.Box3().setFromObject(object);
+  const center = fittedBox.getCenter(new THREE.Vector3());
+  object.position.x -= center.x;
+  object.position.z -= center.z;
+  object.position.y += 0.16 - fittedBox.min.y;
+  root.add(object);
+
+  const marker = new THREE.Mesh(
+    new THREE.RingGeometry(0.26, 0.31, IS_MOBILE ? 18 : 28),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }),
+  );
+  marker.rotation.x = -Math.PI / 2;
+  marker.position.y = 0.145;
+  root.add(marker);
+
+  root.userData.presentationKind = `equipment-model-${definition.slot}`;
+  root.userData.equipmentId = id;
+  root.userData.usesActualEquipmentModel = true;
   return root;
 }
 
@@ -167,7 +189,10 @@ function loadEquipment(id: EquipmentId) {
         }
       }
       return group;
-    })().catch(() => null));
+    })().catch(error => {
+      console.error(`Equipment drop model failed for ${id}`, error);
+      return null;
+    }));
   }
   return equipmentPromises.get(id)!;
 }
@@ -189,24 +214,12 @@ export async function createKayKitLootVisual(item: Item) {
   const root = new THREE.Group();
   root.name = equipment ? `KayKitEquipmentDrop_${equipment.id}_${item.id}` : relic ? `KayKitVeilRelic_${item.id}` : `KayKitHealingPotion_${item.id}`;
 
-  const object = equipment?.slot === 'armor'
-    ? createArmorToken(THREE, equipment.accent)
+  const object = equipment
+    ? createEquipmentDisplay(THREE, prototype, equipment.id)
     : relic
       ? createRelicReliquary(THREE, prototype, item.color || '#a978ff')
       : prototype.clone(true);
-  if (equipment?.slot === 'armor') {
-    object.scale.setScalar(0.96);
-    object.position.y = 0.04;
-  } else if (equipment) {
-    const visual = equipmentVisualProfile(equipment.id);
-    object.rotation.set(...visual.rotation);
-    object.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(object);
-    const size = box.getSize(new THREE.Vector3());
-    const maxDimension = Math.max(size.x, size.y, size.z, 0.001);
-    object.scale.setScalar(1.05 / maxDimension);
-    object.position.y = 0.08;
-  } else {
+  if (!equipment) {
     object.scale.setScalar(relic ? 0.94 : 0.9);
     object.position.y = relic ? 0.02 : 0.04;
   }
@@ -258,5 +271,6 @@ export async function createKayKitLootVisual(item: Item) {
   root.userData.equipment = Boolean(equipment);
   root.userData.rarity = rarity;
   root.userData.presentationKind = object.userData.presentationKind ?? (equipment ? 'equipment-model' : relic ? 'relic-reliquary' : 'potion');
+  root.userData.usesActualEquipmentModel = Boolean(equipment);
   return root;
 }

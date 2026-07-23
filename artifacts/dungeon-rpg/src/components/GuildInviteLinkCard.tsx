@@ -2,16 +2,21 @@ import React, { useEffect, useState } from 'react';
 import { currentOnlineSession, getMyGuildMembership, onlineSessionEventName, type OnlineGuildMembership } from '../game/supabaseOnline';
 import { createGuildInviteLinkOnline, makeGuildInviteUrl } from '../game/guildMailboxOnline';
 
-type Props = { language: 'de' | 'en' };
+type Props = { language: 'de' | 'en'; qaMembership?: OnlineGuildMembership | null };
 
-export function GuildInviteLinkCard({ language }: Props) {
+export function GuildInviteLinkCard({ language, qaMembership }: Props) {
   const de = language === 'de';
-  const [membership, setMembership] = useState<OnlineGuildMembership | null>(null);
+  const qaMode = qaMembership !== undefined;
+  const [membership, setMembership] = useState<OnlineGuildMembership | null>(() => qaMembership ?? null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (qaMode) {
+      setMembership(qaMembership ?? null);
+      return;
+    }
     let disposed = false;
     const refresh = async () => {
       if (!currentOnlineSession()) {
@@ -32,7 +37,7 @@ export function GuildInviteLinkCard({ language }: Props) {
       disposed = true;
       window.removeEventListener(onlineSessionEventName(), handleSession);
     };
-  }, []);
+  }, [qaMembership, qaMode]);
 
   const canInvite = membership?.role === 'owner' || membership?.role === 'officer';
   if (!canInvite || !membership) return null;
@@ -42,6 +47,10 @@ export function GuildInviteLinkCard({ language }: Props) {
     setError('');
     setMessage('');
     try {
+      if (qaMode) {
+        setMessage(de ? 'Einladungslink kopiert. Er ist 7 Tage gültig.' : 'Invitation link copied. It is valid for 7 days.');
+        return;
+      }
       const result = await createGuildInviteLinkOnline(membership.guild.id);
       const url = makeGuildInviteUrl(result.token);
       const shareData = {
@@ -70,6 +79,7 @@ export function GuildInviteLinkCard({ language }: Props) {
       <div className="min-w-0 flex-1">
         <div className="text-[8px] font-black uppercase tracking-[.2em] text-amber-100/52">{de ? 'EINLADUNG PER LINK' : 'INVITE BY LINK'}</div>
         <div className="mt-1 text-[9px] leading-relaxed text-white/42">{de ? 'Teile einen sicheren Link. Nach der Anmeldung landet die Einladung automatisch im Postfach.' : 'Share a secure link. After sign-in, the invitation automatically arrives in the mailbox.'}</div>
+        {qaMode && <div className="mt-2 truncate rounded-lg border border-white/8 bg-black/25 px-2 py-1.5 font-mono text-[7px] text-white/36">dungeonveil.app/guild/VEIL-7D</div>}
       </div>
     </div>
     {(message || error) && <div className={`mt-2 rounded-xl border px-3 py-2 text-[9px] ${error ? 'border-red-400/20 bg-red-500/10 text-red-200' : 'border-emerald-400/18 bg-emerald-500/10 text-emerald-200'}`}>{error || message}</div>}

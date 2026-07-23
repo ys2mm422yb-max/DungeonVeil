@@ -8,6 +8,7 @@ import {
   type CurrentProfileEquipmentItem,
 } from '../game/profileEquipment';
 import { TINY_SEMANTIC_UI } from '../game/tinyUiAssets';
+import { EquipmentArtwork } from './CodexArtwork';
 import { KayKitEquipmentPreview } from './KayKitEquipmentPreview';
 
 type Props = {
@@ -16,18 +17,6 @@ type Props = {
   testId: string;
   title?: string;
 };
-
-function SlotIcon({ slot, accent }: { slot: ActiveEquipmentSlot; accent: string }) {
-  if (slot === 'armor') {
-    return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border bg-black/35" style={{ borderColor: `${accent}55` }} aria-hidden="true">
-      <span className="h-8 w-7 border" style={{ borderColor: accent, background: `${accent}22`, clipPath: 'polygon(50% 0,100% 18%,90% 72%,50% 100%,10% 72%,0 18%)' }} />
-    </span>;
-  }
-  return <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl border bg-black/35" style={{ borderColor: `${accent}55` }} aria-hidden="true">
-    <img src={TINY_SEMANTIC_UI.arrow} alt="" className={`h-8 w-8 object-contain [image-rendering:pixelated] ${slot === 'bow' ? '-rotate-45' : 'rotate-[-12deg]'}`} />
-    {slot === 'quiver' && <img src={TINY_SEMANTIC_UI.arrow} alt="" className="absolute h-7 w-7 translate-x-1.5 translate-y-1 -rotate-[22deg] object-contain opacity-65 [image-rendering:pixelated]" />}
-  </span>;
-}
 
 export function ProfileEquipmentLoadout({ items, language, testId, title }: Props) {
   const de = language === 'de';
@@ -46,7 +35,7 @@ export function ProfileEquipmentLoadout({ items, language, testId, title }: Prop
     <div className="flex items-center justify-between gap-3">
       <div>
         <div className="text-[7px] font-black uppercase tracking-[.2em] text-cyan-100/48">{title ?? (de ? 'AKTUELLE AUSRÜSTUNG' : 'CURRENT EQUIPMENT')}</div>
-        <div className="mt-1 text-[7px] text-white/32">{de ? 'Nur aktive Ausrüstung aus dem aktuellen Drei-Slot-System.' : 'Only active equipment from the current three-slot system.'}</div>
+        <div className="mt-1 text-[7px] text-white/32">{de ? 'Dieselben Gegenstandsbilder wie in der Ausrüstung. Ein abgelegter Köcher erscheint als leerer Slot.' : 'The same item artwork used in Equipment. An unequipped quiver appears as an empty slot.'}</div>
       </div>
       <span className="rounded-full border border-cyan-200/12 bg-black/25 px-2 py-1 text-[6px] font-black uppercase tracking-[.12em] text-cyan-100/55">{items.length}/3</span>
     </div>
@@ -68,14 +57,16 @@ export function ProfileEquipmentLoadout({ items, language, testId, title }: Prop
             style={{ borderColor: definition ? `${definition.accent}${active ? '88' : '44'}` : 'rgba(255,255,255,.08)' }}
           >
             <div className="flex min-w-0 items-center gap-3">
-              {definition ? <SlotIcon slot={slot} accent={definition.accent} /> : <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-white/8 bg-black/25"><img src={TINY_SEMANTIC_UI.locked} alt="" className="h-6 w-6 object-contain opacity-28 [image-rendering:pixelated]" /></span>}
+              {definition && item
+                ? <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border bg-black/35" style={{ borderColor: `${definition.accent}55` }}><EquipmentArtwork itemId={item.id} accent={definition.accent} className="h-10 w-10" /></span>
+                : <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-dashed border-white/10 bg-black/25"><img src={TINY_SEMANTIC_UI.locked} alt="" className="h-6 w-6 object-contain opacity-20 [image-rendering:pixelated]" /></span>}
               <div className="min-w-0 flex-1">
                 <div className="text-[6px] font-black uppercase tracking-[.14em] text-white/30">{profileEquipmentSlotLabel(slot, de)}</div>
                 {item && definition ? <>
                   <div className="mt-1 truncate text-[10px] font-black" style={{ color: definition.accent }}>{de ? definition.nameDe : definition.nameEn}</div>
                   <div className="mt-1 text-[7px] text-white/46">{de ? `Stufe ${item.level}` : `Level ${item.level}`} · {profileEquipmentRarityLabel(item.rarity, de)}</div>
                   <div className="mt-1 truncate text-[7px] text-white/38">{profileEquipmentPrimaryBonus(item, de)}</div>
-                </> : <div className="mt-1 text-[9px] font-black text-white/28">{de ? 'Leer' : 'Empty'}</div>}
+                </> : <><div className="mt-1 text-[9px] font-black text-white/32">{de ? 'Nicht ausgerüstet' : 'Not equipped'}</div><div className="mt-1 text-[7px] text-white/22">{slot === 'quiver' ? (de ? 'Optionaler Slot' : 'Optional slot') : (de ? 'Zwingender Slot' : 'Required slot')}</div></>}
               </div>
             </div>
           </button>;
@@ -92,7 +83,7 @@ export function ProfileEquipmentLoadout({ items, language, testId, title }: Prop
             <div className="mt-2 text-[8px] font-black text-white/58">{de ? `Stufe ${selected.level}/5` : `Level ${selected.level}/5`} · {profileEquipmentPrimaryBonus(selected, de)}</div>
             <p className="mt-2 text-[8px] leading-relaxed text-white/38">{de ? selectedDefinition.descriptionDe : selectedDefinition.descriptionEn}</p>
           </div>
-        </> : <div className="grid min-h-[220px] place-items-center p-6 text-center text-[8px] leading-relaxed text-white/30">{de ? 'Kein aktiver Gegenstand in diesem Slot.' : 'No active item in this slot.'}</div>}
+        </> : <div className="grid min-h-[220px] place-items-center p-6 text-center"><div><div className="text-3xl text-white/14">∅</div><div className="mt-3 text-[9px] font-black uppercase tracking-[.14em] text-white/34">{de ? 'Slot ist leer' : 'Slot is empty'}</div><div className="mt-2 text-[8px] leading-relaxed text-white/24">{de ? 'Optionales Zubehör kann in der Ausrüstung jederzeit wieder angelegt werden.' : 'Optional accessories can be equipped again from Equipment at any time.'}</div></div></div>}
       </div>
     </div>
   </section>;

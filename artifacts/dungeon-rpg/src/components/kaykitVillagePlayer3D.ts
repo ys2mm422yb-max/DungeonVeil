@@ -1,4 +1,5 @@
 import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
+import { isOptionalEquipmentSlotEquipped } from '../game/optionalEquipmentState';
 import { KAYKIT_PLAYER_ASSETS, type KayKitPlayerRig } from './kaykitPlayer3D';
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 
@@ -89,7 +90,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const meta = loadMetaProgression();
   const Loader = pagesSafeLoader(GLTFLoader);
   const loader = new Loader();
-  const quiverDefinition = EQUIPMENT[meta.equipped.quiver];
+  const quiverEquipped = isOptionalEquipmentSlotEquipped('quiver');
+  const quiverDefinition = quiverEquipped ? EQUIPMENT[meta.equipped.quiver] : null;
 
   const [rangerGltf, idleGltf, weapons, quiverGltf] = await Promise.all([
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
@@ -104,10 +106,10 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   root.name = 'VillageEquippedPlayer';
   root.userData.presentation = 'village-showcase-v14-player-focus';
   root.userData.showcasePose = 'v14-idle-b-readable-loadout';
-  root.userData.equipmentPose = 'left-hand-bow-right-shoulder-quiver';
+  root.userData.equipmentPose = quiverEquipped ? 'left-hand-bow-right-shoulder-quiver' : 'left-hand-bow-no-quiver';
   root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
-    quiver: meta.equipped.quiver,
+    quiver: quiverEquipped ? meta.equipped.quiver : null,
     armor: meta.equipped.armor,
   };
 

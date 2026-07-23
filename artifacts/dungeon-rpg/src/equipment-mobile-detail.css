@@ -1,0 +1,13 @@
+@media (max-width: 430px) {
+  [data-testid="equipment-category-tabs"] + section:not([data-testid]) > div {
+    grid-template-columns: 38% 62%;
+  }
+
+  [data-testid="equipment-category-tabs"] + section:not([data-testid]) > div > div:last-child > h2 {
+    font-size: 1.0625rem;
+    line-height: 1.12;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: auto;
+  }
+}

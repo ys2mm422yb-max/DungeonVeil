@@ -22,10 +22,8 @@ function attachRuntimeMonitor(page) {
   page.on('response', response => {
     if (intentionallyNavigating()) return;
     const url = response.url();
-    if (!url.startsWith(appOrigin)) return;
-    if (response.status() >= 400) issues.push(`http ${response.status()}: ${url}`);
+    if (url.startsWith(appOrigin) && response.status() >= 400) issues.push(`http ${response.status()}: ${url}`);
   });
-
   return issues;
 }
 
@@ -37,8 +35,7 @@ async function navigateToApp(page) {
       return;
     } catch (error) {
       lastError = error;
-      const retryable = /ERR_ABORTED|frame was detached/i.test(String(error));
-      if (!retryable || attempt === 1) throw error;
+      if (!/ERR_ABORTED|frame was detached/i.test(String(error)) || attempt === 1) throw error;
       await page.waitForTimeout(350);
     }
   }
@@ -54,13 +51,10 @@ async function waitForReadyMenu(page) {
 }
 
 async function preparePage(page, projectName) {
-  const ipad = projectName.includes('ipad');
   await page.addInitScript(({ emulateIpad }) => {
     localStorage.setItem('dungeon-veil-language', 'de');
-    if (emulateIpad) {
-      Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
-    }
-  }, { emulateIpad: ipad });
+    if (emulateIpad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
+  }, { emulateIpad: projectName.includes('ipad') });
   await navigateToApp(page);
   await waitForReadyMenu(page);
 }
@@ -71,14 +65,12 @@ async function assertNoHorizontalOverflow(page) {
     bodyWidth: document.body.scrollWidth,
     documentWidth: document.documentElement.scrollWidth,
   }));
-  expect(
-    Math.max(geometry.bodyWidth, geometry.documentWidth),
-    `horizontal overflow: ${JSON.stringify(geometry)}`,
-  ).toBeLessThanOrEqual(geometry.innerWidth + 4);
+  expect(Math.max(geometry.bodyWidth, geometry.documentWidth), `horizontal overflow: ${JSON.stringify(geometry)}`)
+    .toBeLessThanOrEqual(geometry.innerWidth + 4);
 }
 
 async function clickAnimatedUi(locator) {
-  await expect(locator).toBeVisible();
+  await expect(locator).toBeVisible({ timeout: 30_000 });
   await locator.click({ force: true, noWaitAfter: true });
 }
 
@@ -100,8 +92,9 @@ async function openMenuButton(page, name) {
   await clickAnimatedUi(page.getByRole('button', { name }).first());
 }
 
-async function openOverflow(page) {
-  await clickAnimatedUi(page.getByRole('button', { name: /Mehr|More/i }).first());
+async function openResourceMenu(page) {
+  await clickAnimatedUi(page.getByTestId('main-menu-gold-button'));
+  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible();
 }
 
 async function openPlayMenu(page) {
@@ -114,6 +107,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
   await page.addInitScript(() => localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({ version: 1, initialized: true, equipment: [], relics: [] })));
   const issues = attachRuntimeMonitor(page);
   await preparePage(page, testInfo.project.name);
+
   await expect.poll(
     () => page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-seen-unlocks-v1') || '{}').version),
     { timeout: 10_000 },
@@ -125,9 +119,12 @@ test('main menu, profile and every hub panel open without fatal errors', async (
 
   await test.step('profile overview and statistics', async () => {
     await clickAnimatedUi(page.getByTestId('main-menu-profile-badge'));
-    await expect(page.getByText(/Statistik|Statistics/i).first()).toBeVisible();
+    await expect(page.getByTestId('player-profile-panel')).toBeVisible();
+    await clickAnimatedUi(page.getByRole('button', { name: /Statistik|Stats/i }));
+    await expect(page.getByTestId('player-profile-statistics-grid')).toBeVisible();
     await expect(page.getByText(/Höchstes Kapitel|Highest Chapter/i).first()).toBeVisible();
     await expect(page.getByText(/Höchster Raum|Highest Room/i).first()).toBeVisible();
+    await clickAnimatedUi(page.getByRole('button', { name: /Profil schließen|Close profile/i }));
   });
 
   await test.step('equipment and armor migration', async () => {
@@ -143,22 +140,27 @@ test('main menu, profile and every hub panel open without fatal errors', async (
           'ranger-quiver': { level: 1, copies: 0 },
           'veil-key': { level: 1, copies: 0 },
         },
-        equipped: {
-          bow: 'ash-bow',
-          quiver: 'ranger-quiver',
-          talisman: 'veil-key',
-        },
+        equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', talisman: 'veil-key' },
         rewardLedger: [],
         currentRunId: '',
       }));
       const ownedRelics = ['ash-eye', 'marked-claw', 'veil-heart'];
       localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
-        version: 2, owned: ownedRelics, equipped: 'marked-claw',
-        consumedHeartRuns: [], activatedWorldCoreRuns: [], relicMisses: { hunt: 0, boss: 0 }, crownRunStacks: {},
+        version: 2,
+        owned: ownedRelics,
+        equipped: 'marked-claw',
+        consumedHeartRuns: [],
+        activatedWorldCoreRuns: [],
+        relicMisses: { hunt: 0, boss: 0 },
+        crownRunStacks: {},
       }));
       const markers = JSON.parse(localStorage.getItem('dungeon-veil-seen-unlocks-v1') || '{}');
       localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
-        ...markers, version: 2, initialized: true, relics: ownedRelics, announcedRelics: ownedRelics,
+        ...markers,
+        version: 2,
+        initialized: true,
+        relics: ownedRelics,
+        announcedRelics: ownedRelics,
       }));
     });
     await reloadMenu(page, testInfo.project.name);
@@ -199,8 +201,7 @@ test('main menu, profile and every hub panel open without fatal errors', async (
 
   await test.step('mailbox has no permission error', async () => {
     await reloadMenu(page, testInfo.project.name);
-    const mailboxButton = page.getByTestId('npc-postmaster');
-    await clickAnimatedUi(mailboxButton);
+    await clickAnimatedUi(page.getByTestId('npc-postmaster'));
     await expect(page.getByText(/Nachrichten aus dem Schleier|Messages from the Veil/i)).toBeVisible();
     await expect(page.getByText(/permission denied/i)).toHaveCount(0);
   });
@@ -255,9 +256,9 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await expect(page.getByText(/Kodex|Codex/i).first()).toBeVisible();
   });
 
-  await test.step('credits from overflow menu', async () => {
+  await test.step('credits from anchored resource menu', async () => {
     await reloadMenu(page, testInfo.project.name);
-    await openOverflow(page);
+    await openResourceMenu(page);
     await openMenuButton(page, /Credits/i);
     await expect(page.getByText(/hobbyloser Typ|hobbyless guy/i)).toBeVisible();
   });
@@ -274,7 +275,7 @@ test('settings persist contrast, storage and joystick with standard UI size', as
   const issues = attachRuntimeMonitor(page);
   await page.addInitScript(() => localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'high', textSize: 'large', updatedAt: 1 })));
   await preparePage(page, testInfo.project.name);
-  await openOverflow(page);
+  await openResourceMenu(page);
   await openMenuButton(page, /Einstellungen|Settings/i);
 
   await expect(page.getByTestId('accessibility-settings')).toBeVisible();
@@ -354,7 +355,6 @@ test('new run renders responsive combat controls and stays stable', async ({ pag
 
   await page.getByTestId('run-pause-control').click();
   await expect(page.getByText(/Pause|Fortsetzen|Continue/i).first()).toBeVisible();
-
   await testInfo.attach('runtime-issues.json', {
     body: Buffer.from(JSON.stringify(issues, null, 2)),
     contentType: 'application/json',

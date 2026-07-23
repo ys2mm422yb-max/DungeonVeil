@@ -9,6 +9,11 @@ const [menu, panel, social, invite, identity] = await Promise.all([
   read('../src/components/SocialIdentityCard.tsx'),
 ]);
 
+const memberProfileCallback = panel.includes('onOpenMemberProfile(member.user_id)')
+  || panel.includes('onOpenMemberProfile ? () => onOpenMemberProfile(member.user_id) : undefined');
+const socialProfileRoute = social.includes('onOpenMemberProfile={setSelectedProfileId}')
+  || social.includes('onOpenMemberProfile={qaMode ? undefined : setSelectedProfileId}');
+
 const checks = [
   [!menu.includes("import { GuildInviteLinkCard }") && !menu.includes('<GuildInviteLinkCard language={language} /><GuildSocialPanel'), 'separate invite card still sits above the guild panel'],
   [menu.includes("<GuildSocialPanel language={language} onClose={() => setOverlay(null)}"), 'guild overlay does not own a fixed close callback'],
@@ -16,7 +21,7 @@ const checks = [
   [panel.includes('data-testid="guild-invite-tab"') && panel.includes('<GuildInviteLinkCard language={language} />'), 'link sharing is not isolated inside the Invite tab'],
   [panel.includes("tabButton('chat', 'Chat')") && panel.includes('<GuildChatPanel guildId={membership.guild.id}'), 'member guild chat tab is missing'],
   [panel.includes('data-testid="guild-members-tab"') && panel.includes('data-testid="guild-member-card"') && panel.includes('testId="guild-member-profile-button"'), 'member profiles are not integrated into the Members tab'],
-  [panel.includes('onOpenMemberProfile(member.user_id)') && social.includes('onOpenMemberProfile={setSelectedProfileId}'), 'member cards do not open the public profile'],
+  [memberProfileCallback && socialProfileRoute, 'member cards do not open the public profile'],
   [panel.includes('<SocialIdentityCard') && panel.includes('member.profile?.avatar_key') && identity.includes('resolveOnlineCard') && identity.includes('resolveOnlineTitle'), 'guild members do not show equipped calling cards, avatars and titles'],
   [panel.includes("`${members.length} Mitglieder`") && panel.includes('roleLabel(member.role, de)'), 'member count or translated guild roles are missing'],
   [!social.includes('guild-member-profile-strip') && !social.includes('guild-profile-list-button') && !social.includes('profilesOpen'), 'a separate guild profile strip or overlay still exists outside the Members tab'],

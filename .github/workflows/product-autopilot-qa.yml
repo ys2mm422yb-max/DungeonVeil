@@ -1,0 +1,169 @@
+name: Product Autopilot QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/product-autopilot-qa.yml'
+      - 'artifacts/dungeon-rpg/**'
+      - 'supabase/migrations/**'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/product-autopilot-qa.yml'
+      - 'artifacts/dungeon-rpg/**'
+      - 'supabase/migrations/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLAYWRIGHT_VERSION: '1.55.0'
+  BASE_PATH: /DungeonVeil/
+  DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+
+jobs:
+  product-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Verify focused UX contracts
+        run: node artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs
+      - name: Verify TypeScript
+        run: pnpm run typecheck
+      - name: Build GitHub Pages output once
+        run: |
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+          test -f artifacts/dungeon-rpg/dist/public/index.html
+          grep -q '/DungeonVeil/' artifacts/dungeon-rpg/dist/public/index.html
+      - name: Upload shared production output
+        uses: actions/upload-artifact@v4
+        with:
+          name: dungeon-veil-product-build-${{ github.sha }}
+          retention-days: 1
+          compression-level: 9
+          path: artifacts/dungeon-rpg/dist/public
+      - name: Audit product contracts
+        run: |
+          pnpm --filter @workspace/dungeon-rpg audit:assets
+          pnpm --filter @workspace/dungeon-rpg audit:social
+          pnpm --filter @workspace/dungeon-rpg audit:coop-realtime
+          pnpm --filter @workspace/dungeon-rpg audit:economy
+          pnpm --filter @workspace/dungeon-rpg audit:rooms
+          pnpm --filter @workspace/dungeon-rpg audit:worldboss
+          pnpm --filter @workspace/dungeon-rpg audit:spectator
+
+  automatic-product-journeys:
+    needs: product-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+          - project: android-chromium
+            browser: chromium
+          - project: ipad-portrait-webkit
+            browser: webkit
+          - project: android-tablet-chromium
+            browser: chromium
+    env:
+      BROWSER_PROJECT: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install deterministic browser runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@${PLAYWRIGHT_VERSION} --lockfile=false
+      - name: Restore browser engine cache
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
+      - name: Install browser system dependencies
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install-deps ${{ matrix.browser }}
+      - name: Install browser engine
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
+      - name: Download shared production output
+        uses: actions/download-artifact@v4
+        with:
+          name: dungeon-veil-product-build-${{ github.sha }}
+          path: artifacts/dungeon-rpg/dist/public
+      - name: Run portrait-mobile product journeys
+        id: product-tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-product-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent "$DUNGEON_VEIL_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          timeout --signal=TERM --kill-after=30s 55m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/autopilot-product-journeys.spec.mjs \
+            tests/autopilot-outside-guild.spec.mjs \
+            tests/guild-mail-equipment-visual.spec.mjs \
+            --config=playwright.regression.config.mjs \
+            --project="$BROWSER_PROJECT" \
+            2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
+      - name: Upload successful portrait screenshots
+        if: steps.product-tests.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-autopilot-evidence-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/autopilot-*-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
+      - name: Upload failure diagnostics
+        if: steps.product-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-autopilot-failure-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/**
+            artifacts/dungeon-rpg/playwright-report/**
+            /tmp/dungeon-veil-product-playwright-${{ matrix.project }}.log
+            /tmp/dungeon-veil-product-preview.log
+      - name: Fail product journeys after diagnostics
+        if: steps.product-tests.outcome == 'failure'
+        run: exit 1

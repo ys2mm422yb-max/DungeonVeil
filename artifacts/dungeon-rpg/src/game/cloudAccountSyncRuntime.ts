@@ -11,6 +11,8 @@ import { SAVE_EVENT } from './saveManager';
 import { SETTINGS_PERSISTENCE_EVENT } from './settingsPersistence';
 import { currentOnlineSession, onlineSessionEventName } from './supabaseOnline';
 import { WEEKLY_ELITE_EVENT } from './weeklyElite';
+import { OPTIONAL_EQUIPMENT_EVENT } from './optionalEquipmentState';
+import { COMPANION_COLLECTION_EVENT } from './companionCollectionV5';
 
 const CLOUD_USER_KEY = 'dungeon-veil-cloud-user-v1';
 const CLOUD_PUSH_DELAY_MS = 700;
@@ -20,8 +22,11 @@ const SYNC_EVENTS = [
   SAVE_EVENT,
   PLAYER_PROFILE_EVENT,
   SETTINGS_PERSISTENCE_EVENT,
+  OPTIONAL_EQUIPMENT_EVENT,
+  COMPANION_COLLECTION_EVENT,
   'dungeon-veil-meta-changed',
   'dungeon-veil-retention-update',
+  'dungeon-veil-relic-changed',
   'dungeon-veil-relics-changed',
   'dungeon-veil-new-content-changed',
   WEEKLY_ELITE_EVENT,

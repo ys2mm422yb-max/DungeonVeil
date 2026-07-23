@@ -3,8 +3,9 @@ import type { EquipmentId } from '../game/metaProgression';
 import { equipmentVisualProfile, type EquipmentVisualProfile } from '../game/equipmentVisuals';
 import { appAssetUrl } from '../game/appAssetUrl';
 
-const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+const localRuntimeUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
+const THREE_URL = localRuntimeUrl('assets/vendor/three/build/three.module.js');
+const GLTF_URL = localRuntimeUrl('assets/vendor/three/examples/jsm/loaders/GLTFLoader.js');
 const IDLE_ANIMATION = 'animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
@@ -16,8 +17,14 @@ function disposeObject(object: any) {
   object?.traverse?.((node: any) => {
     if (!node.isMesh && !node.isSkinnedMesh) return;
     node.geometry?.dispose?.();
-    if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
-    else node.material?.dispose?.();
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    materials.forEach((material: any) => {
+      if (!material) return;
+      for (const value of Object.values(material)) {
+        if (value && typeof value === 'object' && 'isTexture' in value) (value as any).dispose?.();
+      }
+      material.dispose?.();
+    });
   });
 }
 
@@ -28,8 +35,8 @@ function prepareObject(THREE: any, object: any, accent: string, strength: number
     node.castShadow = false;
     node.receiveShadow = false;
     node.frustumCulled = true;
-    const sourceMaterials = Array.isArray(node.material) ? node.material : [node.material];
-    const materials = sourceMaterials.map((material: any) => {
+    const source = Array.isArray(node.material) ? node.material : [node.material];
+    const materials = source.map((material: any) => {
       const clone = material?.clone?.() ?? material;
       if (clone?.color?.lerp) clone.color.lerp(tint, strength);
       if (clone?.emissive?.set) {
@@ -43,13 +50,13 @@ function prepareObject(THREE: any, object: any, accent: string, strength: number
   });
 }
 
-function clipKey(clip: any) {
-  return String(clip?.name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+function normalizedName(value: unknown) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
 
 function chooseIdleClip(clips: any[]) {
   return clips.find(clip => {
-    const key = clipKey(clip);
+    const key = normalizedName(clip?.name);
     return key.includes('idle') && !['crouch', 'sit', 'sleep', 'aim', 'bow'].some(term => key.includes(term));
   }) ?? null;
 }
@@ -58,7 +65,7 @@ function findBone(root: any, names: string[]) {
   let result: any = null;
   root.traverse((node: any) => {
     if (result) return;
-    const key = String(node.name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const key = normalizedName(node.name).replace(/_/g, '');
     if (names.some(name => key.includes(name))) result = node;
   });
   return result;
@@ -102,14 +109,14 @@ async function buildDisplay(THREE: any, loader: any, itemId: EquipmentId, accent
   if (visual.previewPose === 'idle-ready') {
     try {
       const animationGltf = await loader.loadAsync(assetUrl(IDLE_ANIMATION));
-      const idleClip = chooseIdleClip([...(loaded.animations ?? []), ...(animationGltf.animations ?? [])]);
-      if (idleClip) {
+      const clip = chooseIdleClip([...(loaded.animations ?? []), ...(animationGltf.animations ?? [])]);
+      if (clip) {
         mixer = new THREE.AnimationMixer(primary);
-        mixer.clipAction(idleClip).reset().play();
+        mixer.clipAction(clip).reset().play();
         mixer.update(0.016);
       } else applyFallbackReadyPose(primary);
     } catch (error) {
-      console.warn(`Armor idle animation failed for ${itemId}; using ready-pose fallback`, error);
+      console.warn(`Equipment preview idle animation failed for ${itemId}; using fallback pose`, error);
       applyFallbackReadyPose(primary);
     }
   }
@@ -202,6 +209,7 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
     const host = hostRef.current;
     if (!host) return;
     let disposed = false;
+    let removeResize = () => {};
 
     const boot = async () => {
       const THREE = await import(/* @vite-ignore */ THREE_URL);
@@ -211,25 +219,22 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
       const scene = new THREE.Scene();
       const root = new THREE.Group();
       scene.add(root);
-
-      const width = Math.max(1, host.clientWidth || 120);
-      const height = Math.max(1, host.clientHeight || 120);
+      const pixelWidth = Math.max(1, host.clientWidth || 120);
+      const pixelHeight = Math.max(1, host.clientHeight || 120);
       const viewHeight = 3.05;
-      const viewWidth = viewHeight * width / height;
+      const viewWidth = viewHeight * pixelWidth / pixelHeight;
       const camera = new THREE.OrthographicCamera(-viewWidth / 2, viewWidth / 2, viewHeight / 2, -viewHeight / 2, 0.1, 30);
       camera.position.set(0, 0.08, 6);
       camera.lookAt(0, 0, 0);
 
       const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, IS_MOBILE ? 1 : 1.08));
-      renderer.setSize(width, height, false);
+      renderer.setSize(pixelWidth, pixelHeight, false);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.35;
-      renderer.domElement.style.display = 'block';
-      renderer.domElement.style.width = '100%';
-      renderer.domElement.style.height = '100%';
-      host.appendChild(renderer.domElement);
+      renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
+      host.replaceChildren(renderer.domElement);
 
       scene.add(new THREE.HemisphereLight(0xfff1d4, 0x17131d, 1.8));
       const key = new THREE.DirectionalLight(0xffffff, 2.35);
@@ -281,34 +286,25 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
         if (runtime.display) fitDisplay(THREE, runtime.display, propsRef.current.itemId, runtime.width, runtime.height);
         renderer.render(scene, camera);
       };
-
       window.addEventListener('resize', resize);
-      (host as any).__equipmentCleanup = () => window.removeEventListener('resize', resize);
-      const current = propsRef.current;
-      await renderCurrent(runtime, current.itemId, current.accent);
+      removeResize = () => window.removeEventListener('resize', resize);
+      await renderCurrent(runtime, propsRef.current.itemId, propsRef.current.accent);
     };
 
     boot().catch(error => console.error('KayKit equipment preview failed', error));
 
     return () => {
       disposed = true;
+      removeResize();
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
-      (host as any).__equipmentCleanup?.();
-      if (runtime) {
-        runtime.loadToken += 1;
-        cancelAnimationFrame(runtime.raf);
-        runtime.mixer?.stopAllAction?.();
-        if (runtime.display) disposeObject(runtime.display);
-        runtime.scene?.traverse?.((node: any) => {
-          if (node === runtime.display) return;
-          node.geometry?.dispose?.();
-          if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
-          else node.material?.dispose?.();
-        });
-        runtime.renderer?.dispose?.();
-        runtime.renderer?.domElement?.remove?.();
-      }
+      if (!runtime) return;
+      runtime.loadToken += 1;
+      cancelAnimationFrame(runtime.raf);
+      runtime.mixer?.stopAllAction?.();
+      if (runtime.display) disposeObject(runtime.display);
+      runtime.renderer?.dispose?.();
+      runtime.renderer?.domElement?.remove?.();
     };
   }, []);
 
@@ -321,8 +317,10 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
   return <div
     ref={hostRef}
     className="h-full w-full overflow-hidden"
+    data-testid="equipment-model-preview"
     data-equipment-preview-kind={visual.kind}
     data-equipment-preview-pose={visual.previewPose ?? 'static'}
     data-equipment-preview-model={visual.primaryPath}
+    data-three-runtime="local-pinned"
   />;
 }

@@ -31,6 +31,9 @@ import { LanguageProvider } from './i18n/LanguageContext';
 import './index.css';
 import './guild-mobile.css';
 import './readability.css';
+import './equipment-polish.css';
+import './equipment-mobile-detail.css';
+import './tablet-layout.css';
 
 installRoomReadyFailureGuard();
 installAccessibilitySettings();
