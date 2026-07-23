@@ -9,11 +9,55 @@ import { buildFirelandsTheme } from './firelandsTheme3D';
 import { buildMeadowRoomTheme, preloadMeadowRoomTheme } from './meadowRoomsTheme3D';
 
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const MEADOW_ENVIRONMENT = {
+  background: 0x233d3a,
+  fog: 0x34554e,
+  ambient: 0xb8c5a8,
+  hemisphereSky: 0xa7c9bf,
+  hemisphereGround: 0x1b2f22,
+  hero: 0x7aa89a,
+  exposure: 1.06,
+} as const;
 
 export async function preloadKayKitRoomTheme(room: number) {
   const tasks: Promise<unknown>[] = [preloadBaseKayKitRoomTheme(room)];
   if (room >= 21 && room <= 30) tasks.push(preloadMeadowRoomTheme(room));
   await Promise.allSettled(tasks);
+}
+
+function applyMeadowEnvironment(THREE: any, root: any, room: number) {
+  if (room < 21 || room > 30) return;
+  const background = new THREE.Color(MEADOW_ENVIRONMENT.background);
+  const fog = new THREE.Fog(MEADOW_ENVIRONMENT.fog, 27, 55);
+  root.userData.environment = {
+    background: MEADOW_ENVIRONMENT.background,
+    fog: MEADOW_ENVIRONMENT.fog,
+    exposure: MEADOW_ENVIRONMENT.exposure,
+  };
+
+  const driver = root.userData?.environmentDriver;
+  if (driver) {
+    driver.onBeforeRender = (renderer: any, scene: any) => {
+      scene.background = background;
+      scene.fog = fog;
+      renderer.toneMappingExposure = MEADOW_ENVIRONMENT.exposure;
+    };
+  }
+
+  const architectureLights = root.userData?.architectureLights ?? [];
+  architectureLights.forEach((light: any) => {
+    if (light.isAmbientLight) {
+      light.color.setHex(MEADOW_ENVIRONMENT.ambient);
+      light.intensity = IS_MOBILE ? 0.28 : 0.3;
+    } else if (light.isHemisphereLight) {
+      light.color.setHex(MEADOW_ENVIRONMENT.hemisphereSky);
+      light.groundColor.setHex(MEADOW_ENVIRONMENT.hemisphereGround);
+      light.intensity = IS_MOBILE ? 0.48 : 0.55;
+    } else if (light.isPointLight) {
+      light.color.setHex(MEADOW_ENVIRONMENT.hero);
+      light.intensity = Math.min(Number(light.intensity) || 0, IS_MOBILE ? 1.3 : 2.5);
+    }
+  });
 }
 
 function cleanStaticRoomTheme(root: any, room: number) {
@@ -53,6 +97,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   if (room >= 41 && room <= 50) additions.push(buildFirelandsTheme(THREE, room));
 
   additions.forEach(addition => root.add(addition));
+  applyMeadowEnvironment(THREE, root, room);
   cleanStaticRoomTheme(root, room);
 
   const baseReady = Promise.resolve(root.userData?.ready ?? Promise.resolve()).catch(error => {
@@ -62,6 +107,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
     baseReady,
     ...additions.map(addition => addition.userData?.ready ?? Promise.resolve()),
   ]).then(() => {
+    applyMeadowEnvironment(THREE, root, room);
     cleanStaticRoomTheme(root, room);
     return undefined;
   });
