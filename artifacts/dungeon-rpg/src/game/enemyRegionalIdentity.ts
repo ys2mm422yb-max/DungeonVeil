@@ -12,17 +12,19 @@ export type EnemyVisualProfile = {
   bossVariant?: BossVariant;
 };
 
+const SKELETON_EXTRA_ROOT = 'extras/kaykit_skeletons_1.1_extra/characters/gltf';
 const creature = (role: EnemyVisualRole = 'minion'): EnemyVisualProfile => ({ family: 'creature', role, useImported: true });
 const skeleton = (role: EnemyVisualRole, modelToken?: string): EnemyVisualProfile => ({ family: 'skeleton', role, modelToken, useImported: false });
+const extraSkeleton = (role: EnemyVisualRole, model: string): EnemyVisualProfile => skeleton(role, `${SKELETON_EXTRA_ROOT}/${model}.glb`);
 const adventurer = (role: EnemyVisualRole, modelToken: string): EnemyVisualProfile => ({ family: 'adventurer', role, modelToken, useImported: false });
 const realMage = (): EnemyVisualProfile => adventurer('mage', '/characters/gltf/mage.glb');
 
 export function bossVisualProfile(room: number): EnemyVisualProfile {
-  if (room === 20) return { ...realMage(), bossVariant: 'veil-necromancer' };
+  if (room === 20) return { ...extraSkeleton('mage', 'skeleton_mage_necromancer'), bossVariant: 'veil-necromancer' };
   if (room === 30) return { ...adventurer('ranger', 'ranger'), bossVariant: 'forest-captain' };
   if (room === 40) return { ...adventurer('rogue', 'rogue_hooded'), bossVariant: 'shadow-cultist' };
   if (room === 50) return { ...adventurer('knight', 'knight'), bossVariant: 'ember-warden' };
-  return { ...skeleton('warrior', 'warrior'), bossVariant: 'tomb-guardian' };
+  return { ...extraSkeleton('warrior', 'skeleton_warrior_golem'), bossVariant: 'tomb-guardian' };
 }
 
 export function enemyVisualProfile(room: number, type: EnemyType, index = 0): EnemyVisualProfile {
@@ -30,18 +32,26 @@ export function enemyVisualProfile(room: number, type: EnemyType, index = 0): En
   if (type === 'boss') return bossVisualProfile(safeRoom);
 
   if (safeRoom <= 10) {
-    if (type === 'skeleton') return skeleton(index % 3 === 0 ? 'rogue' : 'minion', index % 3 === 0 ? 'rogue' : 'minion');
-    if (type === 'orc' || type === 'golem') return skeleton('warrior', 'warrior');
+    if (type === 'skeleton') return index % 3 === 0
+      ? extraSkeleton('rogue', 'skeleton_rogue')
+      : extraSkeleton('minion', 'skeleton_minion');
+    if (type === 'orc') return extraSkeleton('warrior', 'skeleton_warrior');
+    if (type === 'golem') return extraSkeleton('warrior', 'skeleton_warrior_golem');
     return creature(type === 'vampire' ? 'mage' : type === 'spider' || type === 'goblin' ? 'rogue' : 'minion');
   }
 
   if (safeRoom <= 20) {
-    if (type === 'skeleton') return index % 2 === 0 ? realMage() : skeleton('rogue', 'rogue');
-    if (type === 'orc' || type === 'golem') return skeleton('warrior', 'warrior');
+    if (type === 'skeleton') return index % 2 === 0
+      ? extraSkeleton('mage', 'skeleton_mage')
+      : extraSkeleton('rogue', 'skeleton_rogue');
+    if (type === 'orc') return extraSkeleton('warrior', 'skeleton_warrior');
+    if (type === 'golem') return extraSkeleton('warrior', 'skeleton_warrior_golem');
     if (type === 'vampire' && index % 2 === 1) return realMage();
     return creature(type === 'vampire' ? 'mage' : type === 'spider' ? 'rogue' : 'minion');
   }
 
+  // The meadow and darkwood chapters already read clearly in the room 21–40
+  // mobile evidence. Keep their established adventurer/creature silhouettes.
   if (safeRoom <= 30) {
     if (type === 'skeleton') return adventurer('ranger', 'ranger');
     if (type === 'orc') return adventurer('barbarian', 'barbarian');
@@ -61,7 +71,7 @@ export function enemyVisualProfile(room: number, type: EnemyType, index = 0): En
   if (type === 'orc') return adventurer('barbarian', 'barbarian');
   if (type === 'golem') return adventurer('knight', 'knight');
   if (type === 'vampire') return realMage();
-  if (type === 'skeleton') return skeleton('warrior', 'warrior');
+  if (type === 'skeleton') return extraSkeleton('warrior', 'skeleton_warrior');
   return creature(type === 'spider' ? 'rogue' : 'minion');
 }
 
