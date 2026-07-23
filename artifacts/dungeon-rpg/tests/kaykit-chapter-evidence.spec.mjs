@@ -66,8 +66,18 @@ async function loadRoom(page, room) {
     { timeout: 60_000 },
   ).toBe(true);
   await expect(page.getByText(`RAUM ${room}/50`, { exact: false }).first()).toBeVisible({ timeout: 30_000 });
+
+  // The first paint may need several seconds on a cold mobile WebGL context.
+  // Warm the renderer first, then respawn the same encounter so auto-attacks
+  // cannot clear early rooms before the actual evidence screenshot.
   await waitForPaintedCanvas(page);
-  await page.waitForTimeout(850);
+  const respawned = await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'solo'), room);
+  expect(respawned?.livingEnemies, `Room ${room} did not respawn an active encounter`).toBeGreaterThan(0);
+  await page.waitForTimeout(220);
+
+  const snapshot = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
+  expect(snapshot?.livingEnemies, `Room ${room} has no active encounter after renderer warmup`).toBeGreaterThan(0);
+  return snapshot;
 }
 
 test('compact chapter and boss evidence stays readable on the supported portrait device', async ({ page }, testInfo) => {
@@ -85,8 +95,6 @@ test('compact chapter and boss evidence stays readable on the supported portrait
   await mkdir(OUTPUT, { recursive: true });
   for (const room of EVIDENCE_ROOMS) {
     await loadRoom(page, room);
-    const snapshot = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
-    expect(snapshot?.livingEnemies, `Room ${room} has no active encounter`).toBeGreaterThan(0);
     await page.screenshot({
       path: `${OUTPUT}/chapter-evidence-room-${String(room).padStart(2, '0')}-${testInfo.project.name}.png`,
       fullPage: false,
