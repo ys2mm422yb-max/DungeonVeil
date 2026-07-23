@@ -61,11 +61,9 @@ test('mobile resource actions and equipment upgrade stay on their intended surfa
   await page.getByTestId('main-menu-gold-button').tap();
   await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible();
   await assertNoWrongSurface(page);
-  await page.waitForTimeout(550);
   await page.getByRole('button', { name: /Gold-Menü schließen|Close gold menu/i }).tap();
   await expect(page.getByTestId('main-menu-resource-popover')).toHaveCount(0);
 
-  await page.waitForTimeout(550);
   await page.getByTestId('main-menu-dust-button').tap();
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('heading', { name: /Aschenbogen|Ash Bow/i })).toBeVisible();
