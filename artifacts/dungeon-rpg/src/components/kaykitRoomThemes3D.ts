@@ -7,6 +7,7 @@ import { buildRoomOneGrandEntrance } from './roomOneGrandEntrance3D';
 import { buildRoomTwoCommandWatch } from './roomTwoCommandWatch3D';
 import { buildFirelandsTheme } from './firelandsTheme3D';
 import { buildMeadowRoomTheme, preloadMeadowRoomTheme } from './meadowRoomsTheme3D';
+import { buildDarkwoodRoomTheme, preloadDarkwoodRoomTheme } from './darkwoodRoomsTheme3D';
 
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const MEADOW_ENVIRONMENT = {
@@ -22,6 +23,7 @@ const MEADOW_ENVIRONMENT = {
 export async function preloadKayKitRoomTheme(room: number) {
   const tasks: Promise<unknown>[] = [preloadBaseKayKitRoomTheme(room)];
   if (room >= 21 && room <= 30) tasks.push(preloadMeadowRoomTheme(room));
+  if (room === 31 || room === 40) tasks.push(preloadDarkwoodRoomTheme(room));
   await Promise.allSettled(tasks);
 }
 
@@ -94,6 +96,7 @@ export function buildKayKitRoomTheme(THREE: any, room: number) {
   if (room === 1) additions.push(buildRoomOneGrandEntrance(THREE));
   if (room === 2) additions.push(buildRoomTwoCommandWatch(THREE));
   if (room >= 21 && room <= 30) additions.push(buildMeadowRoomTheme(THREE, room));
+  if (room === 31 || room === 40) additions.push(buildDarkwoodRoomTheme(THREE, room));
   if (room >= 41 && room <= 50) additions.push(buildFirelandsTheme(THREE, room));
 
   additions.forEach(addition => root.add(addition));
