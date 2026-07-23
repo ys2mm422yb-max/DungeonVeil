@@ -1,0 +1,127 @@
+name: Apply focused mobile fixes
+
+on:
+  push:
+    branches:
+      - fix/spectator-upgrade-resource-actions-v1
+    paths:
+      - .github/workflows/apply-focused-mobile-fixes.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/spectator-upgrade-resource-actions-v1
+
+      - name: Apply resource, upgrade and Ash Bow fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('artifacts/dungeon-rpg')
+
+          def replace_once(path, old, new):
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}: {old[:100]!r}')
+              path.write_text(text.replace(old, new, 1))
+
+          safety = root / 'src/game/mobilePointerSafety.ts'
+          safety.write_text("""let installed = false;
+          let blockClicksUntil = 0;
+
+          export function armMobilePointerSafety(durationMs = 480): void {
+            if (typeof performance === 'undefined') return;
+            blockClicksUntil = Math.max(blockClicksUntil, performance.now() + Math.max(0, durationMs));
+          }
+
+          export function installMobilePointerSafety(): void {
+            if (installed || typeof document === 'undefined') return;
+            installed = true;
+            document.addEventListener('click', event => {
+              if (typeof performance === 'undefined' || performance.now() > blockClicksUntil) return;
+              event.preventDefault();
+              event.stopImmediatePropagation();
+            }, true);
+          }
+          """)
+
+          main = root / 'src/main.tsx'
+          replace_once(main,
+            "import { installPortraitOrientationRuntime } from './game/portraitOrientationRuntime';",
+            "import { installPortraitOrientationRuntime } from './game/portraitOrientationRuntime';\nimport { installMobilePointerSafety } from './game/mobilePointerSafety';")
+          replace_once(main,
+            "installPortraitOrientationRuntime();\ninstallPostCombatHazardGuard();",
+            "installPortraitOrientationRuntime();\ninstallMobilePointerSafety();\ninstallPostCombatHazardGuard();")
+
+          menu = root / 'src/components/screens/MainMenuScreen.tsx'
+          replace_once(menu,
+            "import { requestTutorialReplay } from '../../game/tutorialState';",
+            "import { requestTutorialReplay } from '../../game/tutorialState';\nimport { armMobilePointerSafety } from '../../game/mobilePointerSafety';")
+          replace_once(menu,
+            'data-testid="main-menu-dust-button" type="button" onPointerDown={event => { event.preventDefault(); props.onVeilChamber(); }}',
+            'data-testid="main-menu-dust-button" type="button" onClick={event => { event.preventDefault(); event.stopPropagation(); armMobilePointerSafety(); props.onVeilChamber(); }}')
+          replace_once(menu,
+            "aria-expanded={overlay === 'more'} onPointerDown={event => { event.preventDefault(); setOverlay(current => current === 'more' ? null : 'more'); }}",
+            "aria-expanded={overlay === 'more'} onClick={event => { event.preventDefault(); event.stopPropagation(); armMobilePointerSafety(); setOverlay(current => current === 'more' ? null : 'more'); }}")
+          replace_once(menu,
+            "aria-label={language === 'de' ? 'Optionen' : 'Options'} onPointerDown={event => { event.preventDefault(); props.onSettings(); }}",
+            "aria-label={language === 'de' ? 'Optionen' : 'Options'} onClick={event => { event.preventDefault(); event.stopPropagation(); armMobilePointerSafety(); props.onSettings(); }}")
+
+          badge = root / 'src/components/ProfileBadge.tsx'
+          replace_once(badge,
+            "import type { PlayerProfileProgress } from '../game/playerProfile';",
+            "import type { PlayerProfileProgress } from '../game/playerProfile';\nimport { armMobilePointerSafety } from '../game/mobilePointerSafety';")
+          replace_once(badge,
+            "onPointerDown={event => { event.preventDefault(); onOpen(); }}",
+            "onClick={event => { event.preventDefault(); event.stopPropagation(); armMobilePointerSafety(); onOpen(); }}")
+
+          chamber = root / 'src/components/screens/VeilChamberScreenV4.tsx'
+          replace_once(chamber,
+            "import { equipmentUpgradePreview, type EquipmentUpgradePreviewKey } from '../../game/equipmentUpgradePreview';",
+            "import { equipmentUpgradePreview, type EquipmentUpgradePreviewKey } from '../../game/equipmentUpgradePreview';\nimport { armMobilePointerSafety } from '../../game/mobilePointerSafety';")
+          replace_once(chamber,
+            "onClick={event => { event.preventDefault(); event.stopPropagation(); upgrade(); }}",
+            "onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }} onPointerUp={event => { event.preventDefault(); event.stopPropagation(); armMobilePointerSafety(); window.setTimeout(upgrade, 0); }} onClick={event => { event.preventDefault(); event.stopPropagation(); }}")
+
+          weapons = root / 'src/components/kaykitWeapons3D.ts'
+          replace_once(weapons,
+            "function normalizeRangerBow(scene: any, path: string) {\n  const wrapper = new scene.constructor();\n  const authoredAlongX = /(?:^|\\/)bow_[a-z](?:_withstring)?\\.gltf$/i.test(path);\n\n  scene.position.set(0, 0, 0);\n  scene.rotation.set(0, authoredAlongX ? -Math.PI / 2 : 0, 0);",
+            "function normalizeRangerBow(scene: any, path: string, bowId: EquipmentId | undefined) {\n  const wrapper = new scene.constructor();\n  const authoredAlongX = /(?:^|\\/)bow_[a-z](?:_withstring)?\\.gltf$/i.test(path);\n  const ashBowNeedsFlip = bowId === 'ash-bow';\n  const axisCorrectionY = ashBowNeedsFlip ? Math.PI : authoredAlongX ? -Math.PI / 2 : 0;\n\n  scene.position.set(0, 0, 0);\n  scene.rotation.set(0, axisCorrectionY, 0);")
+          replace_once(weapons,
+            "dungeonVeilBowChildAxisCorrection: authoredAlongX ? -Math.PI / 2 : 0,",
+            "dungeonVeilBowChildAxisCorrection: axisCorrectionY,\n    dungeonVeilBowAshFlip: ashBowNeedsFlip,")
+          replace_once(weapons,
+            "return { bow: normalizeRangerBow(bowGltf.scene, bowPath), arrow: arrowGltf.scene };",
+            "return { bow: normalizeRangerBow(bowGltf.scene, bowPath, bowId), arrow: arrowGltf.scene };")
+
+          validator = root / 'scripts/validate-main-menu-equipped-ranger.mjs'
+          replace_once(validator,
+            "const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection, equipmentVisuals, weaponVisuals] = await Promise.all([",
+            "const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection, equipmentVisuals, weaponVisuals, chamber, pointerSafety, main] = await Promise.all([")
+          replace_once(validator,
+            "  read('../src/game/equipmentVisualsWeaponsV4.ts'),\n]);",
+            "  read('../src/game/equipmentVisualsWeaponsV4.ts'),\n  read('../src/components/screens/VeilChamberScreenV4.tsx'),\n  read('../src/game/mobilePointerSafety.ts'),\n  read('../src/main.tsx'),\n]);")
+          replace_once(validator,
+            "  [weapons.includes('normalizeRangerBow') && weapons.includes('dungeonVeilBowNormalized') && weapons.includes('authoredAlongX ? -Math.PI / 2 : 0'), 'shared menu, enemy and gameplay bow-axis normalization is missing'],",
+            "  [weapons.includes(\"const ashBowNeedsFlip = bowId === 'ash-bow'\") && weapons.includes('ashBowNeedsFlip ? Math.PI') && weapons.includes('dungeonVeilBowAshFlip: ashBowNeedsFlip'), 'the Ash Bow does not have its dedicated 180-degree hand correction'],\n  [menu.includes('main-menu-dust-button') && menu.includes('armMobilePointerSafety(); props.onVeilChamber()') && menu.includes(\"armMobilePointerSafety(); setOverlay(current => current === 'more' ? null : 'more')\") && !menu.includes('main-menu-dust-button\" type=\"button\" onPointerDown'), 'top resource actions still use unsafe pointer-down navigation'],\n  [chamber.includes('onPointerUp={event =>') && chamber.includes('armMobilePointerSafety(); window.setTimeout(upgrade, 0)') && chamber.includes('equipment-upgrade-button'), 'equipment upgrade is not protected against mobile click-through'],\n  [pointerSafety.includes(\"document.addEventListener('click'\") && pointerSafety.includes('stopImmediatePropagation') && main.includes('installMobilePointerSafety();'), 'mobile pointer safety guard is not installed'],")
+          PY
+
+      - name: Run focused static validation
+        run: node artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs
+
+      - name: Commit focused product fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src artifacts/dungeon-rpg/scripts/validate-main-menu-equipped-ranger.mjs
+          git commit -m "Fix mobile resource actions, upgrades and Ash Bow orientation"
+          git push origin HEAD:fix/spectator-upgrade-resource-actions-v1
