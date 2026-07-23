@@ -44,6 +44,15 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Write KayKit animation inventory
+        run: node artifacts/dungeon-rpg/scripts/inventory-kaykit-animation-clips.mjs --out artifacts/dungeon-rpg/kaykit-animation-inventory.json
+      - name: Upload KayKit animation inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaykit-animation-inventory-${{ github.sha }}
+          path: artifacts/dungeon-rpg/kaykit-animation-inventory.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Room and collision audit
         run: pnpm --filter @workspace/dungeon-rpg audit:rooms
       - name: Typecheck Dungeon Veil
