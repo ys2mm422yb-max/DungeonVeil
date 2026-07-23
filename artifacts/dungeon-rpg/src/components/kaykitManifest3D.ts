@@ -53,8 +53,8 @@ const NINTH_PACK_MODEL_NAMES = [
 const NINTH_PACK_MODELS = NINTH_PACK_MODEL_NAMES.map(name => `${NINTH_PACK_GLTF_ROOT}/${name}.gltf`);
 const SKELETON_EXTRA_ROOT = 'extras/KayKit_Skeletons_1.1_EXTRA';
 const SKELETON_EXTRA_MODELS = [
-  'Necromancer',
-  'Skeleton_Golem',
+  'Skeleton_Mage_Necromancer',
+  'Skeleton_Warrior_Golem',
   'Skeleton_Mage',
   'Skeleton_Minion',
   'Skeleton_Rogue',
