@@ -11,6 +11,7 @@ const boss = read('src/game/bossAttackTelegraphs.ts');
 const bridge = read('src/components/GameSessionBridge.tsx');
 const meadow = read('src/components/meadowRoomsTheme3D.ts');
 const darkwood = read('src/components/darkwoodRoomsTheme3D.ts');
+const firelands = read('src/components/firelandsTheme3D.ts');
 const themes = read('src/components/kaykitRoomThemes3D.ts');
 const expanded = read('src/game/expandedWorldRooms.ts');
 const enemy3D = read('src/components/kaykitEnemy3D.ts');
@@ -71,6 +72,22 @@ assert(darkwood.includes('buildDarkwoodGroundComposition') && darkwood.includes(
 assert(!darkwood.includes('collider'), 'Darkwood chapter frames must remain decorative and non-blocking.');
 assert(themes.includes('buildDarkwoodRoomTheme') && themes.includes('preloadDarkwoodRoomTheme'), 'Darkwood endpoint additions must be built and preloaded.');
 assert(themes.includes('room === 31 || room === 40'), 'Darkwood endpoint additions must stay limited to rooms 31 and 40.');
+
+const gatewayStart = firelands.indexOf('function buildFirstArcGateway');
+const gatewayEnd = firelands.indexOf('export function buildFirelandsTheme', gatewayStart);
+assert(gatewayStart >= 0 && gatewayEnd > gatewayStart, 'Room 50 needs an explicit first-arc gateway builder.');
+const gateway = firelands.slice(gatewayStart, gatewayEnd);
+assert(gateway.includes("gateway.name = 'FirstArcGateway'") && gateway.includes('userData.firstArcGateway = true'), 'Room 50 gateway needs an inspectable identity.');
+assert(gateway.includes('TorusGeometry') && gateway.includes('PlaneGeometry') && gateway.includes('0x8030a8'), 'Room 50 gateway needs a framed Veil surface.');
+assert(gateway.includes('depthWrite: false') && gateway.includes('transparent: true'), 'Room 50 gateway must remain a lightweight transparent backdrop.');
+assert(!gateway.includes('PointLight') && !gateway.includes('collider'), 'Room 50 gateway must remain non-lighting and non-blocking.');
+assert(
+  firelands.includes('if (room === 50)')
+    && firelands.includes('root.add(buildFirstArcGateway(THREE))')
+    && firelands.includes('const bossRing ='),
+  'Room 50 must add the first-arc gateway without replacing its established boss ring.',
+);
+assert(themes.includes('buildFirelandsTheme') && themes.includes('room >= 41 && room <= 50'), 'Firelands additions must remain scoped to rooms 41-50.');
 assert(themes.includes('Base room theme partially unavailable'), 'Room theme loading must survive one unavailable decoration.');
 
-console.log('Boss telegraphs, room-20 flight, meadow contrast, chapter endpoint framing and room visibility audit passed.');
+console.log('Boss telegraphs, room-20 flight, chapter endpoint framing, room-50 gateway and room visibility audit passed.');
