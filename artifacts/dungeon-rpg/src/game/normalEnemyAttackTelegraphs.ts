@@ -1,7 +1,6 @@
 import type { Enemy } from './entities';
 import type { GameEngine } from './runEngine';
 import { installMageRangedCombat } from './mageRangedCombat';
-import { installPlayerBowAttackSync } from './playerBowAttackSync';
 
 type EnemyWindup = {
   hitAt: number;
@@ -46,10 +45,8 @@ export function installNormalEnemyAttackTelegraphs(engine: GameEngine): () => vo
   };
 
   const disposeMageRangedCombat = installMageRangedCombat(engine);
-  const disposePlayerBowAttackSync = installPlayerBowAttackSync(engine);
 
   return () => {
-    disposePlayerBowAttackSync();
     disposeMageRangedCombat();
     runtime.updateEnemies = originalUpdateEnemies;
   };
