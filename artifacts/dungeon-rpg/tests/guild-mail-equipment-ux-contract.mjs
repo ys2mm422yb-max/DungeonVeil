@@ -97,7 +97,14 @@ for (const marker of [
   'signed-in-outside-guild-duo',
   'external runtime request',
 ]) assert.match(outsideGuildSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-assert.match(visualSpec, /guild-mail-equipment/);
+for (const marker of [
+  'filled guild, mailbox and anchored resource views are functional and reviewable',
+  'profile cosmetics and optional equipment can be inspected and unequipped',
+  'visual-mailbox-filled',
+  'visual-guild-members-filled',
+  'visual-profile-refined-overview',
+  'visual-equipment-quiver-unequipped',
+]) assert.match(visualSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
 for (const marker of [
   'Product Autopilot QA',
