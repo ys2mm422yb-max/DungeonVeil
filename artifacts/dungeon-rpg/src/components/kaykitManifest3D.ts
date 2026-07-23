@@ -51,6 +51,21 @@ const NINTH_PACK_MODEL_NAMES = [
 ] as const;
 
 const NINTH_PACK_MODELS = NINTH_PACK_MODEL_NAMES.map(name => `${NINTH_PACK_GLTF_ROOT}/${name}.gltf`);
+const SKELETON_EXTRA_ROOT = 'extras/KayKit_Skeletons_1.1_EXTRA';
+const SKELETON_EXTRA_MODELS = [
+  'Necromancer',
+  'Skeleton_Golem',
+  'Skeleton_Mage',
+  'Skeleton_Minion',
+  'Skeleton_Rogue',
+  'Skeleton_Warrior',
+].map(name => `${SKELETON_EXTRA_ROOT}/characters/gltf/${name}.glb`);
+const SKELETON_EXTRA_TEXTURES = [`${SKELETON_EXTRA_ROOT}/assets/gltf/skeleton_texture_A.png`];
+const SKELETON_EXTRA_FILES = [
+  ...SKELETON_EXTRA_MODELS,
+  ...SKELETON_EXTRA_TEXTURES,
+  `${SKELETON_EXTRA_ROOT}/License.txt`,
+];
 const PACK_NAMES: KayKitPackName[] = ['adventurers', 'animations', 'dungeon', 'weapons', 'forest', 'halloween', 'resources', 'skeletons', 'furniture', 'tools'];
 const APP_BASE_URL = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_APP_BASE_URL = APP_BASE_URL.endsWith('/') ? APP_BASE_URL : `${APP_BASE_URL}/`;
@@ -120,6 +135,22 @@ function includeNinthPack(manifest: KayKitManifest): KayKitManifest {
   return manifest;
 }
 
+function includeSkeletonExtras(manifest: KayKitManifest): KayKitManifest {
+  const skeletons = manifest.packs.skeletons;
+  const missingModels = SKELETON_EXTRA_MODELS.filter(path => !skeletons.models.includes(path));
+  const missingTextures = SKELETON_EXTRA_TEXTURES.filter(path => !skeletons.textures.includes(path));
+  const missingFiles = SKELETON_EXTRA_FILES.filter(path => !skeletons.files.includes(path));
+  if (!missingModels.length && !missingTextures.length && !missingFiles.length) return manifest;
+
+  skeletons.models.push(...missingModels);
+  skeletons.textures.push(...missingTextures);
+  skeletons.files.push(...missingFiles);
+  skeletons.modelCount = skeletons.models.length;
+  skeletons.textureCount = skeletons.textures.length;
+  skeletons.fileCount = skeletons.files.length;
+  return manifest;
+}
+
 export function loadKayKitManifest(): Promise<KayKitManifest> {
   if (!manifestPromise) {
     manifestPromise = fetch(appAssetUrl('assets/kaykit/manifest.json'), { cache: 'no-cache' })
@@ -127,7 +158,7 @@ export function loadKayKitManifest(): Promise<KayKitManifest> {
         if (!response.ok) throw new Error(`KayKit manifest ${response.status}`);
         return response.json();
       })
-      .then((raw: RawManifest) => includeNinthPack(normalizeManifest(raw)));
+      .then((raw: RawManifest) => includeSkeletonExtras(includeNinthPack(normalizeManifest(raw))));
   }
   return manifestPromise;
 }

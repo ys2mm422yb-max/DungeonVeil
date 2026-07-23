@@ -1,7 +1,9 @@
 import type { Enemy, EnemyType } from '../game/entities';
+import { bossAttackContract } from '../game/bossAttackTelegraphs';
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
-import { loadKayKitBossWeapon, loadKayKitFinalBossFocus } from './kaykitWeapons3D';
+import { loadKayKitBossWeapon, loadKayKitEnemyBow, loadKayKitFinalBossFocus } from './kaykitWeapons3D';
 import { enemyVisualProfile } from '../game/enemyRegionalIdentity';
+import { attachBowToRanger, type BowRig } from './bowRig';
 
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 const SKELETON_UTILS_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/SkeletonUtils.js';
@@ -16,6 +18,7 @@ const IMPORTED_CREATURES: Partial<Record<EnemyType, { path: string; targetHeight
 };
 
 type EnemyRole = 'mage' | 'rogue' | 'warrior' | 'minion' | 'ranger' | 'barbarian' | 'knight';
+type TimedEnemy = Enemy & { attackResolveAt?: number };
 type EnemyPrototype = {
   scene: any;
   clips: any[];
@@ -30,6 +33,7 @@ type EnemyPrototype = {
 type EnemyLibrary = {
   prototypes: EnemyPrototype[];
   weapons: Partial<Record<'axe' | 'blade' | 'staff' | 'shieldSmall' | 'shieldLarge', any>>;
+  rangerBow: any | null;
   bossWeapon: any | null;
   finalBossFocus: any | null;
 };
@@ -41,11 +45,15 @@ export type KayKitEnemyVisual = {
   idle: any;
   move: any;
   attack: any;
+  release?: any;
+  hit?: any;
   death: any;
   lastState: string;
   lastAttackTime: number;
   lastHitTime: number;
   attackRemaining: number;
+  releaseRemaining?: number;
+  hitRemaining?: number;
   deathPlayed: boolean;
   deathElapsed: number;
   baseScale: number;
@@ -61,6 +69,11 @@ export type KayKitEnemyVisual = {
   role: EnemyRole;
   movePlaybackBase: number;
   attackDuration: number;
+  releaseDuration?: number;
+  attackResolveAt?: number;
+  awaitingRelease?: boolean;
+  attackClipDuration?: number;
+  bowRig?: BowRig | null;
   tintMode: 'normal' | 'hit';
 };
 
@@ -88,6 +101,71 @@ function chooseClip(clips: any[], groups: string[][], rejects: string[] = []) {
   return null;
 }
 
+function chooseIdleClip(prototype: EnemyPrototype, role: EnemyRole) {
+  if (role === 'ranger') {
+    return chooseClip(prototype.clips, [['ranged', 'bow', 'aiming', 'idle'], ['ranged', 'bow', 'idle'], ['idle', 'a'], ['idle']], ['up']);
+  }
+  if (prototype.family === 'skeleton') {
+    return chooseClip(prototype.clips, [['skeletons', 'idle'], ['idle', 'a'], ['idle']], ['inactive', 'pose']);
+  }
+  return chooseClip(prototype.clips, [['idle', 'a'], ['idle'], ['stand']], ['crouch', 'sit']);
+}
+
+function chooseMoveClip(prototype: EnemyPrototype, role: EnemyRole, boss: boolean) {
+  if (role === 'ranger') {
+    return chooseClip(prototype.clips, [['running', 'holding', 'bow'], ['running', 'a'], ['running'], ['walking', 'a'], ['walking']], ['back', 'left', 'right']);
+  }
+  if (role === 'rogue') {
+    return chooseClip(prototype.clips, [['running', 'a'], ['running'], ['sneaking'], ['walking', 'a']], ['back', 'left', 'right']);
+  }
+  if (role === 'warrior' || role === 'barbarian' || role === 'knight' || boss) {
+    return chooseClip(prototype.clips, [['walking', 'a'], ['walking'], ['running', 'a'], ['running']], ['back', 'left', 'right']);
+  }
+  if (prototype.family === 'skeleton') {
+    return chooseClip(prototype.clips, [['skeletons', 'walking'], ['running', 'a'], ['walking', 'a'], ['running'], ['walking']], ['back', 'left', 'right']);
+  }
+  return chooseClip(prototype.clips, [['running', 'a'], ['run'], ['walking', 'a'], ['walk'], ['fly'], ['crawl'], ['move']], ['back', 'left', 'right', 'crouch']);
+}
+
+function chooseAttackClip(prototype: EnemyPrototype, role: EnemyRole, room: number, enemyType: EnemyType) {
+  if (role === 'mage') {
+    return chooseClip(
+      prototype.clips,
+      enemyType === 'boss' && room === 20
+        ? [['ranged', 'magic', 'spellcasting', 'long'], ['ranged', 'magic', 'spellcasting'], ['ranged', 'magic', 'raise'], ['magic']]
+        : [['ranged', 'magic', 'spellcasting'], ['ranged', 'magic', 'raise'], ['magic']],
+      ['bow', 'crossbow'],
+    );
+  }
+  if (role === 'ranger') {
+    return chooseClip(prototype.clips, [['ranged', 'bow', 'draw']], ['up', 'crossbow']);
+  }
+  if (role === 'rogue') {
+    return chooseClip(prototype.clips, [['melee', 'dualwield', 'attack', 'slice'], ['melee', 'dualwield', 'attack', 'stab'], ['melee', '1h', 'attack', 'slice', 'diagonal'], ['melee', '1h', 'attack', 'stab']], ['bow', 'ranged']);
+  }
+  if (role === 'barbarian') {
+    return chooseClip(prototype.clips, [['melee', '2h', 'attack', 'chop'], ['melee', '2h', 'attack', 'slice'], ['melee', '2h', 'attack']], ['bow', 'ranged']);
+  }
+  if (role === 'warrior' || role === 'knight') {
+    return chooseClip(prototype.clips, [['melee', '1h', 'attack', 'chop'], ['melee', 'block', 'attack'], ['melee', '1h', 'attack', 'slice']], ['bow', 'ranged']);
+  }
+  return chooseClip(prototype.clips, [['melee', '1h', 'attack', 'stab'], ['melee', 'unarmed', 'attack', 'punch', 'a'], ['attack', 'a'], ['attack'], ['bite'], ['sting']], ['bow', 'crossbow', 'ranged']);
+}
+
+function chooseReleaseClip(prototype: EnemyPrototype, role: EnemyRole, room: number) {
+  if (role === 'ranger') return chooseClip(prototype.clips, [['ranged', 'bow', 'release']], ['up', 'crossbow']);
+  if (role === 'mage') {
+    return chooseClip(
+      prototype.clips,
+      room === 20
+        ? [['ranged', 'magic', 'summon'], ['ranged', 'magic', 'shoot'], ['ranged', 'magic', 'raise']]
+        : [['ranged', 'magic', 'shoot'], ['ranged', 'magic', 'summon'], ['ranged', 'magic', 'raise']],
+      ['bow', 'crossbow'],
+    );
+  }
+  return null;
+}
+
 function hashId(id: string) {
   let hash = 2166136261;
   for (let index = 0; index < id.length; index++) {
@@ -105,19 +183,12 @@ function roomFromEnemyId(enemy: Enemy) {
 
 function roleFromPath(path: string): EnemyRole {
   const key = path.toLowerCase();
-  if (key.includes('mage')) return 'mage';
+  if (key.includes('mage') || key.includes('necromancer')) return 'mage';
   if (key.includes('rogue')) return 'rogue';
   if (key.includes('ranger')) return 'ranger';
   if (key.includes('barbarian')) return 'barbarian';
   if (key.includes('knight')) return 'knight';
-  if (key.includes('warrior')) return 'warrior';
-  return 'minion';
-}
-
-function preferredRole(type: EnemyType): EnemyRole {
-  if (type === 'vampire') return 'mage';
-  if (type === 'goblin' || type === 'spider') return 'rogue';
-  if (type === 'demon' || type === 'orc' || type === 'golem' || type === 'boss') return 'warrior';
+  if (key.includes('warrior') || key.includes('golem')) return 'warrior';
   return 'minion';
 }
 
@@ -144,10 +215,6 @@ function prepareModel(root: any) {
     if (node.material) node.material = Array.isArray(node.material) ? node.material.map((material: any) => material.clone()) : node.material.clone();
     node.castShadow = !IS_MOBILE;
     node.receiveShadow = !IS_MOBILE;
-    // Animated bounds can lag behind the skinned pose on mobile. Never let a
-    // living enemy disappear only because its bind-pose bounds left the frustum.
-    // Chrome/iPad may report stale bounds for imported and skinned enemy meshes.
-    // Combat actors stay renderer-visible; room geometry still handles real occlusion.
     node.frustumCulled = false;
   });
 }
@@ -209,6 +276,7 @@ async function loadLibrary() {
     const animationModels = [
       ...findKayKitModels(manifest, 'animations', /rig_medium_general\.glb$/i),
       ...findKayKitModels(manifest, 'animations', /rig_medium_movementbasic\.glb$/i),
+      ...findKayKitModels(manifest, 'animations', /rig_medium_movementadvanced\.glb$/i),
       ...findKayKitModels(manifest, 'animations', /rig_medium_combatmelee\.glb$/i),
       ...findKayKitModels(manifest, 'animations', /rig_medium_combatranged\.glb$/i),
       ...findKayKitModels(manifest, 'animations', /rig_medium_special\.glb$/i),
@@ -223,7 +291,7 @@ async function loadLibrary() {
       shieldLarge: findAsset(/skeleton_shield_large_a\.(?:gltf|glb)$/i),
     } as const;
 
-    const [animationGlb, skeletonCharacters, adventurerCharacters, weaponEntries, bossWeapon, finalBossFocus] = await Promise.all([
+    const [animationGlb, skeletonCharacters, adventurerCharacters, weaponEntries, rangerBow, bossWeapon, finalBossFocus] = await Promise.all([
       Promise.all(animationModels.map(path => loader.loadAsync(modelUrl(manifest, path)))),
       Promise.all(skeletonModels.map(path => loader.loadAsync(modelUrl(manifest, path)))),
       Promise.all(adventurerModels.map(path => loader.loadAsync(modelUrl(manifest, path)))),
@@ -232,6 +300,7 @@ async function loadLibrary() {
         const gltf = await loader.loadAsync(modelUrl(manifest, path));
         return [key, gltf.scene] as const;
       })),
+      loadKayKitEnemyBow(),
       loadKayKitBossWeapon(),
       loadKayKitFinalBossFocus(),
     ]);
@@ -255,6 +324,7 @@ async function loadLibrary() {
         })),
       ],
       weapons: Object.fromEntries(weaponEntries.filter(([, scene]) => Boolean(scene))) as EnemyLibrary['weapons'],
+      rangerBow,
       bossWeapon,
       finalBossFocus,
     };
@@ -293,6 +363,17 @@ function importedScale(THREE: any, scene: any, targetHeight: number, widthWeight
   const size = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3());
   const visualReference = Math.max(size.y, size.x * widthWeight, size.z * widthWeight, 0.001);
   return targetHeight / visualReference;
+}
+
+function fallbackResolveAt(enemy: Enemy, role: EnemyRole, room: number) {
+  const explicit = (enemy as TimedEnemy).attackResolveAt;
+  if (Number.isFinite(explicit) && Number(explicit) > enemy.lastAttackTime) return Number(explicit);
+  const bossContract = enemy.enemyType === 'boss' ? bossAttackContract(room) : null;
+  if (bossContract) return enemy.lastAttackTime + bossContract.windupMs;
+  if (role === 'mage') return enemy.lastAttackTime + 420;
+  if (enemy.enemyType === 'spider' || enemy.enemyType === 'vampire') return enemy.lastAttackTime + 165;
+  if (enemy.enemyType === 'demon' || enemy.enemyType === 'golem' || enemy.enemyType === 'orc') return enemy.lastAttackTime + 270;
+  return enemy.lastAttackTime + 185;
 }
 
 export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
@@ -339,57 +420,77 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     const source = library.weapons[name];
     return source ? source.clone(true) : null;
   };
+  let bowRig: BowRig | null = null;
 
   if (!prototype.imported) {
     if (role === 'mage') {
       const focus = finalBoss && library.finalBossFocus ? library.finalBossFocus.clone(true) : cloneWeapon('staff');
       attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.92);
-    } else if (role === 'rogue' || role === 'ranger') {
-      attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.86);
-    } else if (role === 'warrior' || role === 'barbarian' || role === 'knight') {
+    } else if (role === 'ranger') {
+      const bow = library.rangerBow?.clone?.(true) ?? null;
+      if (bow) {
+        prepareModel(bow);
+        bowRig = attachBowToRanger(THREE, scene, bow);
+        bowRig.updateShotPose(0);
+      }
+    } else if (role === 'rogue') {
+      attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.84);
+      attachEquipment(leftHand, cloneWeapon('blade'), [-0.01, 0.01, 0], [Math.PI / 2, 0, -Math.PI / 2], 0.84);
+    } else if (role === 'warrior' || role === 'knight') {
       const weapon = enemy.enemyType === 'boss' && library.bossWeapon ? library.bossWeapon.clone(true) : cloneWeapon('axe');
       attachEquipment(rightHand, weapon, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], enemy.enemyType === 'boss' ? 1.18 : 0.92);
       attachEquipment(leftHand, cloneWeapon(enemy.enemyType === 'boss' ? 'shieldLarge' : 'shieldSmall'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], enemy.enemyType === 'boss' ? 1.12 : 0.9);
+    } else if (role === 'barbarian') {
+      const weapon = enemy.enemyType === 'boss' && library.bossWeapon ? library.bossWeapon.clone(true) : cloneWeapon('axe');
+      attachEquipment(rightHand, weapon, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], enemy.enemyType === 'boss' ? 1.2 : 1.02);
     } else {
       attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.82);
     }
   }
 
-  const idleClip = chooseClip(prototype.clips, [['idle', 'a'], ['idle'], ['stand']], ['crouch', 'sit']);
-  const normalMoveClip = chooseClip(prototype.clips, [['run'], ['walk'], ['fly'], ['crawl'], ['move']], ['back', 'left', 'right', 'crouch']);
-  const bossMoveClip = chooseClip(prototype.clips, [['walk', 'forward'], ['walk']], ['back', 'left', 'right', 'crouch']) ?? normalMoveClip;
-  const moveClip = enemy.enemyType === 'boss' ? bossMoveClip : normalMoveClip;
-  const casterBoss = enemy.enemyType === 'boss' && (roomNumber === 20 || roomNumber === 50);
-  const rangerBoss = enemy.enemyType === 'boss' && roomNumber === 30;
-  const attackClip = casterBoss
-    ? chooseClip(prototype.clips, [['cast'], ['spell'], ['magic'], ['ranged', 'attack'], ['attack']], ['bow', 'crossbow'])
-    : rangerBoss
-      ? chooseClip(prototype.clips, [['bow', 'attack'], ['ranged', 'attack'], ['attack']], ['crossbow'])
-      : chooseClip(prototype.clips, [['attack', 'a'], ['attack'], ['bite'], ['sting']], ['bow', 'crossbow', 'ranged']);
-  const deathClip = chooseClip(prototype.clips, [['death', 'a'], ['death', 'b'], ['death'], ['die']], []);
+  const idleClip = chooseIdleClip(prototype, role);
+  const moveClip = chooseMoveClip(prototype, role, enemy.enemyType === 'boss');
+  const attackClip = chooseAttackClip(prototype, role, roomNumber, enemy.enemyType)
+    ?? chooseClip(prototype.clips, [['attack', 'a'], ['attack'], ['bite'], ['sting']], ['bow', 'crossbow', 'ranged']);
+  const releaseClip = chooseReleaseClip(prototype, role, roomNumber);
+  const hitClip = chooseClip(prototype.clips, [['hit', 'a'], ['hit', 'b'], ['melee', 'block', 'hit']], ['pose']);
+  const deathClip = prototype.family === 'skeleton'
+    ? chooseClip(prototype.clips, [['skeletons', 'death'], ['death', 'a'], ['death', 'b'], ['death'], ['die']], ['pose', 'resurrect'])
+    : chooseClip(prototype.clips, [['death', 'a'], ['death', 'b'], ['death'], ['die']], []);
 
   const mixer = new THREE.AnimationMixer(scene);
   const idle = idleClip ? mixer.clipAction(idleClip) : null;
   const move = moveClip ? mixer.clipAction(moveClip) : null;
   const attack = attackClip ? mixer.clipAction(attackClip) : null;
+  const release = releaseClip ? mixer.clipAction(releaseClip) : null;
+  const hit = hitClip ? mixer.clipAction(hitClip) : null;
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   const importedVisual = Boolean(prototype.imported);
   const roleMoveBase: Record<EnemyRole, number> = {
-    minion: 1.36, rogue: 1.42, ranger: 1.38, mage: 1.34, warrior: 1.28, barbarian: 1.25, knight: 1.22,
+    minion: 1.36, rogue: 1.42, ranger: 1.38, mage: 1.34, warrior: 1.08, barbarian: 1.04, knight: 1.02,
   };
-  const movePlaybackBase = finalBoss ? 1.08 : enemy.enemyType === 'boss' ? 1.02 : importedVisual ? 1.18 : roleMoveBase[role];
-  const roleAttackDuration: Record<EnemyRole, number> = {
-    minion: 0.4, rogue: 0.36, ranger: 0.4, mage: 0.44, warrior: 0.48, barbarian: 0.5, knight: 0.52,
-  };
-  const attackDuration = finalBoss ? 0.68 : enemy.enemyType === 'boss' ? 0.72 : importedVisual ? 0.34 : roleAttackDuration[role];
+  const movePlaybackBase = finalBoss ? 0.96 : enemy.enemyType === 'boss' ? 0.94 : importedVisual ? 1.18 : roleMoveBase[role];
+  const initialResolveAt = fallbackResolveAt(enemy, role, roomNumber);
+  const attackDuration = Math.max(0.08, (initialResolveAt - enemy.lastAttackTime) / 1000);
+  const releaseDuration = role === 'ranger' ? 0.16 : role === 'mage' ? 0.2 : 0;
+  const attackClipDuration = Math.max(0.12, attackClip?.duration ?? 0.5);
 
   idle?.reset().play();
   if (move) move.timeScale = movePlaybackBase;
   if (attack) {
     attack.setLoop(THREE.LoopOnce, 1);
-    attack.clampWhenFinished = false;
-    const clipDuration = Math.max(0.12, attackClip?.duration ?? 0.5);
-    attack.timeScale = Math.min(3.1, Math.max(0.85, clipDuration / attackDuration));
+    attack.clampWhenFinished = Boolean(release);
+    attack.timeScale = Math.min(5, Math.max(0.5, attackClipDuration / attackDuration));
+  }
+  if (release && releaseClip) {
+    release.setLoop(THREE.LoopOnce, 1);
+    release.clampWhenFinished = false;
+    release.timeScale = Math.min(5, Math.max(0.65, releaseClip.duration / Math.max(0.08, releaseDuration)));
+  }
+  if (hit && hitClip) {
+    hit.setLoop(THREE.LoopOnce, 1);
+    hit.clampWhenFinished = false;
+    hit.timeScale = Math.max(0.8, hitClip.duration / 0.16);
   }
   if (death && deathClip) {
     death.setLoop(THREE.LoopOnce, 1);
@@ -469,11 +570,15 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     idle,
     move,
     attack,
+    release,
+    hit,
     death,
     lastState: 'idle',
     lastAttackTime: enemy.lastAttackTime,
     lastHitTime: enemy.lastHitTime ?? 0,
     attackRemaining: 0,
+    releaseRemaining: 0,
+    hitRemaining: 0,
     deathPlayed: false,
     deathElapsed: 0,
     baseScale,
@@ -489,13 +594,18 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     role,
     movePlaybackBase,
     attackDuration,
+    releaseDuration,
+    attackResolveAt: 0,
+    awaitingRelease: false,
+    attackClipDuration,
+    bowRig,
     tintMode: 'normal',
   };
 }
 
 function transition(visual: KayKitEnemyVisual, next: any, fade = 0.1) {
   if (!next) return;
-  const actions = [visual.idle, visual.move, visual.attack, visual.death].filter(Boolean);
+  const actions = [visual.idle, visual.move, visual.attack, visual.release, visual.hit, visual.death].filter(Boolean);
   for (const action of actions) if (action !== next && action.isRunning?.()) action.fadeOut(fade);
   next.reset().fadeIn(fade).play();
 }
@@ -522,6 +632,12 @@ function setMeshTint(root: any, color: number | null, intensity: number) {
       }
     });
   });
+}
+
+function returnToLocomotion(visual: KayKitEnemyVisual, enemy: Enemy) {
+  const next = enemy.state === 'chase' ? visual.move : visual.idle;
+  transition(visual, next, 0.08);
+  visual.lastState = enemy.state === 'chase' ? 'chase' : 'idle';
 }
 
 export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy, delta: number, now = Date.now()) {
@@ -579,6 +695,12 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   if ((enemy.lastHitTime ?? 0) > visual.lastHitTime) {
     visual.lastHitTime = enemy.lastHitTime ?? 0;
     visual.hitElapsed = enemy.enemyType === 'boss' ? 0.08 : 0.16;
+    const attackBusy = visual.attackRemaining > 0 || Boolean(visual.awaitingRelease) || (visual.releaseRemaining ?? 0) > 0;
+    if (enemy.enemyType !== 'boss' && visual.hit && !attackBusy) {
+      visual.hitRemaining = 0.16;
+      transition(visual, visual.hit, 0.025);
+      visual.lastState = 'hit';
+    }
   }
 
   if (enemy.isDead || enemy.state === 'dead') {
@@ -586,7 +708,11 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
       visual.deathPlayed = true;
       visual.deathElapsed = 0;
       visual.hitElapsed = 0;
+      visual.hitRemaining = 0;
       visual.attackRemaining = 0;
+      visual.releaseRemaining = 0;
+      visual.awaitingRelease = false;
+      visual.bowRig?.updateShotPose(0);
       visual.scene.position.set(0, 0, 0);
       visual.scene.rotation.z = 0;
       visual.root.position.y = 0;
@@ -638,20 +764,49 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
     visual.scene.rotation.z *= 0.6;
   }
 
+  const roomNumber = roomFromEnemyId(enemy);
   if (enemy.lastAttackTime > visual.lastAttackTime) {
     visual.lastAttackTime = enemy.lastAttackTime;
-    visual.attackRemaining = visual.attackDuration;
-    transition(visual, visual.attack, 0.03);
-    visual.lastState = 'attack';
-  }
-  if (visual.attackRemaining > 0) {
-    visual.attackRemaining = Math.max(0, visual.attackRemaining - delta);
-    if (visual.attackRemaining === 0) {
-      const next = enemy.state === 'chase' ? visual.move : visual.idle;
-      transition(visual, next, 0.08);
-      visual.lastState = enemy.state === 'chase' ? 'chase' : 'idle';
+    visual.hitRemaining = 0;
+    visual.attackResolveAt = fallbackResolveAt(enemy, visual.role, roomNumber);
+    visual.attackDuration = Math.max(0.08, (visual.attackResolveAt - enemy.lastAttackTime) / 1000);
+    visual.attackRemaining = Math.max(0, (visual.attackResolveAt - now) / 1000);
+    visual.releaseRemaining = 0;
+    visual.awaitingRelease = Boolean(visual.release);
+    visual.bowRig?.updateShotPose(0);
+    if (visual.attack) {
+      visual.attack.timeScale = Math.min(5, Math.max(0.5, (visual.attackClipDuration ?? 0.5) / visual.attackDuration));
+      transition(visual, visual.attack, 0.03);
+      visual.lastState = 'attack';
     }
-  } else {
+  }
+
+  if (visual.awaitingRelease && now >= (visual.attackResolveAt ?? Number.POSITIVE_INFINITY)) {
+    visual.awaitingRelease = false;
+    visual.attackRemaining = 0;
+    visual.bowRig?.updateShotPose(0);
+    if (visual.release) {
+      visual.releaseRemaining = visual.releaseDuration ?? 0.16;
+      transition(visual, visual.release, 0.02);
+      visual.lastState = 'release';
+    }
+  }
+
+  if (visual.bowRig && visual.awaitingRelease && visual.attackResolveAt && visual.attackResolveAt > visual.lastAttackTime) {
+    const drawProgress = Math.max(0, Math.min(1, (now - visual.lastAttackTime) / (visual.attackResolveAt - visual.lastAttackTime)));
+    visual.bowRig.updateShotPose(drawProgress);
+  }
+
+  if ((visual.releaseRemaining ?? 0) > 0) {
+    visual.releaseRemaining = Math.max(0, (visual.releaseRemaining ?? 0) - delta);
+    if (visual.releaseRemaining === 0) returnToLocomotion(visual, enemy);
+  } else if (visual.attackRemaining > 0) {
+    visual.attackRemaining = Math.max(0, visual.attackRemaining - delta);
+    if (visual.attackRemaining === 0 && !visual.awaitingRelease) returnToLocomotion(visual, enemy);
+  } else if ((visual.hitRemaining ?? 0) > 0) {
+    visual.hitRemaining = Math.max(0, (visual.hitRemaining ?? 0) - delta);
+    if (visual.hitRemaining === 0) returnToLocomotion(visual, enemy);
+  } else if (!visual.awaitingRelease) {
     const desiredState = enemy.state === 'chase' ? 'chase' : 'idle';
     if (desiredState !== visual.lastState) {
       transition(visual, desiredState === 'chase' ? visual.move : visual.idle, 0.1);
@@ -660,7 +815,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   }
 
   if (visual.move) {
-    const referenceSpeed = visual.imported ? 72 : visual.role === 'warrior' ? 56 : 68;
+    const referenceSpeed = visual.imported ? 72 : visual.role === 'warrior' || visual.role === 'barbarian' || visual.role === 'knight' ? 56 : 68;
     const speedFactor = enemy.enemyType === 'boss' ? 1 : Math.max(0.82, Math.min(1.22, enemy.speed / referenceSpeed));
     const baseMoveSpeed = visual.movePlaybackBase * speedFactor;
     visual.move.timeScale = frozen

@@ -3,6 +3,96 @@ function seeded(room: number, index: number, salt: number) {
   return value - Math.floor(value);
 }
 
+function buildFirstArcGateway(THREE: any) {
+  const gateway = new THREE.Group();
+  gateway.name = 'FirstArcGateway';
+  gateway.userData.firstArcGateway = true;
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: 0x241a22,
+    emissive: 0x4b1f2e,
+    emissiveIntensity: 0.42,
+    roughness: 0.86,
+    metalness: 0.12,
+  });
+  const edgeMaterial = new THREE.MeshStandardMaterial({
+    color: 0x6a4438,
+    emissive: 0xa43c24,
+    emissiveIntensity: 0.72,
+    roughness: 0.62,
+    metalness: 0.16,
+  });
+  const veilMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2d1738,
+    emissive: 0x8030a8,
+    emissiveIntensity: 1.85,
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    roughness: 0.5,
+    metalness: 0,
+  });
+  const innerVeilMaterial = new THREE.MeshBasicMaterial({
+    color: 0xc36dff,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+
+  const pillarGeometry = new THREE.BoxGeometry(0.42, 2.55, 0.5);
+  for (const x of [-1.58, 1.58]) {
+    const pillar = new THREE.Mesh(pillarGeometry, frameMaterial);
+    pillar.position.set(x, 1.3, -7.72);
+    pillar.castShadow = false;
+    pillar.receiveShadow = false;
+    gateway.add(pillar);
+  }
+
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(1.58, 0.22, 8, 36, Math.PI), frameMaterial);
+  arch.position.set(0, 2.55, -7.72);
+  arch.castShadow = false;
+  arch.receiveShadow = false;
+  gateway.add(arch);
+
+  const edgeArch = new THREE.Mesh(new THREE.TorusGeometry(1.58, 0.065, 6, 36, Math.PI), edgeMaterial);
+  edgeArch.position.set(0, 2.55, -7.48);
+  edgeArch.castShadow = false;
+  edgeArch.receiveShadow = false;
+  gateway.add(edgeArch);
+
+  const threshold = new THREE.Mesh(new THREE.BoxGeometry(3.55, 0.24, 0.82), frameMaterial);
+  threshold.position.set(0, 0.12, -7.72);
+  threshold.castShadow = false;
+  threshold.receiveShadow = false;
+  gateway.add(threshold);
+
+  const veil = new THREE.Mesh(new THREE.PlaneGeometry(2.75, 2.55), veilMaterial);
+  veil.position.set(0, 1.32, -7.86);
+  veil.renderOrder = 2;
+  gateway.add(veil);
+
+  const innerVeil = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.1), innerVeilMaterial);
+  innerVeil.position.set(0, 1.35, -7.62);
+  innerVeil.renderOrder = 3;
+  gateway.add(innerVeil);
+
+  const runeGeometry = new THREE.BoxGeometry(0.18, 0.42, 0.06);
+  for (let index = 0; index < 6; index++) {
+    const side = index % 2 === 0 ? -1 : 1;
+    const level = Math.floor(index / 2);
+    const rune = new THREE.Mesh(runeGeometry, edgeMaterial);
+    rune.position.set(side * 1.57, 0.72 + level * 0.72, -7.43);
+    rune.rotation.z = side * (0.1 + level * 0.07);
+    rune.castShadow = false;
+    rune.receiveShadow = false;
+    gateway.add(rune);
+  }
+
+  return gateway;
+}
+
 export function buildFirelandsTheme(THREE: any, room: number) {
   const root = new THREE.Group();
   root.name = `FirelandsTheme_${room}`;
@@ -66,6 +156,7 @@ export function buildFirelandsTheme(THREE: any, room: number) {
     bossRing.rotation.x = Math.PI / 2;
     bossRing.position.y = 0.055;
     root.add(bossRing);
+    root.add(buildFirstArcGateway(THREE));
   }
 
   const emberCount = 28 + Math.round(progress * 26);

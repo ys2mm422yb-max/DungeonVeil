@@ -137,6 +137,7 @@ jobs:
             tests/autopilot-product-journeys.spec.mjs \
             tests/autopilot-outside-guild.spec.mjs \
             tests/guild-mail-equipment-visual.spec.mjs \
+            tests/kaykit-chapter-evidence.spec.mjs \
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
@@ -151,6 +152,7 @@ jobs:
           path: |
             artifacts/dungeon-rpg/test-results/autopilot-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
       - name: Upload failure diagnostics
         if: steps.product-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4

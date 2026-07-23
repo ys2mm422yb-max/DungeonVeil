@@ -60,7 +60,7 @@ function enemySpawnIndex(enemy: Enemy): number {
 export function isHatMageEnemy(room: number, enemy: Pick<Enemy, 'enemyType' | 'id'>): boolean {
   if (enemy.enemyType === 'boss') return false;
   const profile = enemyVisualProfile(room, enemy.enemyType, enemySpawnIndex(enemy as Enemy));
-  return profile.family === 'adventurer' && profile.role === 'mage';
+  return profile.role === 'mage' && (profile.family === 'adventurer' || profile.family === 'skeleton');
 }
 
 export function mageAttackDelay(room: number): number {

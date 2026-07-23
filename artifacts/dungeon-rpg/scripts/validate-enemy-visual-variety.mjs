@@ -18,10 +18,12 @@ const [visual, baseVisual, regional, encounters, runEngine, manifest] = await Pr
   read('../public/assets/kaykit/manifest.json'),
 ]);
 
+// Lock the actual balance and encounter sources. The enemy renderer is the
+// intentional implementation surface of this PR and is validated semantically
+// below instead of being frozen to an obsolete blob SHA.
 const protectedFiles = new Map([
   ['../src/game/runEngine.ts', '064d97fc6a3e10358aeabcc765f95bf980d68f60'],
   ['../src/game/encounterPlan.ts', 'daa636ebdddf45cd757feb1953231074400985d0'],
-  ['../src/components/kaykitEnemyBase3D.ts', 'ad3dd5041eaf56bcefe0e4385b338c1079171ce5'],
 ]);
 
 const failures = [];
@@ -43,6 +45,8 @@ const shippedModels = [
   ['vampire-bat', '../public/assets/imported/enemies/Bat.glb'],
   ['demon-snake', '../public/assets/imported/enemies/Snake_angry.glb'],
   ['real-mage', '../public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Mage.glb'],
+  ['skeleton-necromancer', '../public/assets/kaykit/extras/KayKit_Skeletons_1.1_EXTRA/characters/gltf/Necromancer.glb'],
+  ['skeleton-golem', '../public/assets/kaykit/extras/KayKit_Skeletons_1.1_EXTRA/characters/gltf/Skeleton_Golem.glb'],
 ];
 for (const [name, relative] of shippedModels) {
   const model = await readBuffer(relative);
@@ -61,10 +65,14 @@ const checks = [
   [visual.includes('prepareImportedModel(scene)') && visual.includes('node.frustumCulled = false;'), 'direct imported creatures are not prepared for reliable mobile rendering'],
   [!visual.includes('EnemyMageIdentity_') && !visual.includes('robeMaterial'), 'the fake mage costume overlay still exists'],
   [regional.includes("const realMage = (): EnemyVisualProfile => adventurer('mage', '/characters/gltf/mage.glb')"), 'the exact real Mage.glb profile is missing'],
-  [regional.includes("if (room === 20) return { ...realMage(), bossVariant: 'veil-necromancer' }"), 'room 20 caster does not use Mage.glb'],
-  [!regional.includes("skeleton('mage'") && regional.includes('return index % 2 === 0 ? realMage()'), 'humanoid mage roles can still select the wrong body'],
+  [regional.includes("if (room === 20) return { ...extraSkeleton('mage', 'necromancer'), bossVariant: 'veil-necromancer' }"), 'room 20 caster does not use the selected Skeleton Extra Necromancer'],
+  [regional.includes('SKELETON_EXTRA_MODEL') && regional.includes("necromancer: 'necromancer'") && regional.includes("golem: 'skeleton_golem'"), 'Skeleton Extra roles are not mapped explicitly to original model files'],
+  [regional.includes("extraSkeleton('mage', 'mage')") && regional.includes('return index % 2 === 0 ? realMage()'), 'mage roles no longer preserve their explicit chapter-specific bodies'],
   [manifest.includes('Characters/gltf/Mage.glb'), 'Mage.glb is missing from the manifest'],
   [baseVisual.includes("slime: { path: '/assets/imported/enemies/Slime.glb'") && baseVisual.includes("goblin: { path: '/assets/imported/enemies/Rat.glb'") && baseVisual.includes("spider: { path: '/assets/imported/enemies/Spider.glb'") && baseVisual.includes("vampire: { path: '/assets/imported/enemies/Bat.glb'") && baseVisual.includes("demon: { path: '/assets/imported/enemies/Snake_angry.glb'"), 'distinct creature asset mapping is incomplete'],
+  [baseVisual.includes('bossAttackContract(room)') && baseVisual.includes('enemy.lastAttackTime + 420') && baseVisual.includes('enemy.lastAttackTime + 270') && baseVisual.includes('enemy.lastAttackTime + 185'), 'enemy visual timing no longer follows the existing boss, mage, heavy, and normal windup contracts'],
+  [baseVisual.includes('loadKayKitEnemyBow') && baseVisual.includes('attachBowToRanger') && baseVisual.includes("['ranged', 'bow', 'release']"), 'ranger visual role no longer uses a dedicated bow and authored release'],
+  [baseVisual.includes("['hit', 'a']") && baseVisual.includes("['skeletons', 'death']"), 'authored hit and Skeleton death reactions are no longer selected'],
   [regional.includes('attackRange: 178, attackDelay: 1040, moveScale: 0.9') && regional.includes('attackRange: 190, attackDelay: 820, moveScale: 1.12'), 'boss combat values changed during the visual fix'],
 ];
 for (const [ok, message] of checks) if (!ok) failures.push(message);
@@ -75,4 +83,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Enemy visual variety audit passed: distinct GLBs use a direct imported path, imported-only rooms skip the humanoid library, and balance is unchanged.');
+console.log('Enemy visual variety audit passed: distinct GLBs and role animations are verified semantically while enemy stats, encounters, and boss balance remain locked.');

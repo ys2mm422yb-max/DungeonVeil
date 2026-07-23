@@ -10,6 +10,7 @@ export type KayKitRangerWeapons = {
 };
 
 const rangerWeaponCache = new Map<string, Promise<KayKitRangerWeapons | null>>();
+let enemyBowPromise: Promise<any | null> | null = null;
 let bossWeaponPromise: Promise<any | null> | null = null;
 let finalBossFocusPromise: Promise<any | null> | null = null;
 
@@ -75,6 +76,15 @@ export async function loadKayKitRangerWeapons(): Promise<KayKitRangerWeapons | n
     bow: prototype.bow.clone(true),
     arrow: prototype.arrow.clone(true),
   };
+}
+
+export async function loadKayKitEnemyBow() {
+  if (!enemyBowPromise) {
+    enemyBowPromise = loadRangerWeaponPrototype('enemy-ranger-bow', undefined, null)
+      .then(prototype => prototype?.bow ?? null);
+  }
+  const prototype = await enemyBowPromise;
+  return prototype?.clone?.(true) ?? prototype;
 }
 
 export async function loadKayKitBossWeapon() {
