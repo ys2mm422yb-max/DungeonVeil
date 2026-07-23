@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'vite';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -8,6 +9,8 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const player = read('src/components/kaykitPlayer3D.ts');
 const canvas = read('src/components/GameCanvasKayKit3D.tsx');
+const bridge = read('src/components/GameSessionBridge.tsx');
+const bowSync = read('src/game/playerBowAttackSync.ts');
 const enemy = read('src/components/kaykitEnemyBase3D.ts');
 const manifest = read('src/components/kaykitManifest3D.ts');
 const regional = read('src/game/enemyRegionalIdentity.ts');
@@ -34,9 +37,15 @@ const checks = [
   [player.includes("['ranged', 'bow', 'aiming', 'idle']"), 'Ranger aiming idle is not selected from the KayKit ranged package'],
   [player.includes("['running', 'holding', 'bow']"), 'Ranger movement does not prefer the authored bow-running clip'],
   [player.includes("['ranged', 'bow', 'release']") && player.includes("['ranged', 'bow', 'draw']"), 'Ranger draw/release clips are not selected explicitly'],
-  [player.includes("attackPhase: 'none' | 'release' | 'draw'") && player.includes('if (attackRemaining === 0) beginDraw();'), 'Ranger does not transition from release into the authored draw phase'],
+  [player.includes("attackPhase: 'none' | 'draw' | 'hold' | 'release'") && player.includes("detail.phase === 'draw'") && player.includes("detail.phase === 'release'"), 'Ranger does not play Draw/Hold before the authored Release phase'],
+  [player.includes('window.addEventListener(PLAYER_BOW_EVENT, handleBowEvent)') && player.includes('window.removeEventListener(PLAYER_BOW_EVENT, handleBowEvent)'), 'Ranger bow animation event lifecycle leaks or is not connected'],
+  [!player.includes('if (attackRemaining === 0) beginDraw();'), 'Legacy Release-then-Draw animation order remains active'],
   [!player.includes("findBone(visual, ['upperarml'])") && !player.includes('lowerArmR.rotation'), 'Manual ranger arm-rotation fallback remains active'],
-  [canvas.includes('playerRig.triggerAttack()') && canvas.includes('state.player.lastAttackTime > lastAttack'), 'Run renderer does not trigger the ranger attack from the authoritative shot event'],
+  [bridge.includes('installPlayerBowAttackSync(initialEngine)') && bridge.includes('disposePlayerBowSync()'), 'Game session does not install and dispose the synchronized bow runtime'],
+  [bowSync.includes('ATTACK_COOLDOWN_FACTORS = [1, 0.84, 0.7, 0.58]') && bowSync.includes('CLASS_DEFS.archer.attackCooldownMs * cooldownFactor'), 'Ranger attack-speed balance changed during animation synchronization'],
+  [bowSync.includes("phase: 'draw'") && bowSync.includes("phase: 'release'") && bowSync.includes('originalAutoShoot(time)') && bowSync.includes('runtime.emit()'), 'Projectile creation is not tied to the visible release event'],
+  [bowSync.includes("cancelPending('dash')") && bowSync.includes("cancelPending('room-change')") && bowSync.includes("cancelPending('room-clear')"), 'Prepared ranger shots do not cancel safely across dash and room transitions'],
+  [canvas.includes('playerRig.triggerAttack()') && canvas.includes('state.player.lastAttackTime > lastAttack'), 'Run renderer lost its idempotent authoritative release fallback'],
   [enemyLoadsMelee && enemyLoadsRanged, 'Enemy library does not load both KayKit melee and ranged animation packs through the manifest'],
   [enemy.includes("['bow', 'attack']") || enemy.includes("['ranged', 'attack']"), 'Enemy ranged roles do not request ranged attack clips'],
   [allExtrasInManifest && manifest.includes('includeSkeletonExtras'), 'Selected Skeletons Extra models are not exposed through the existing KayKit manifest loader'],
@@ -55,4 +64,89 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('KayKit combat animation contract passed: authored ranger clips, explicit Skeleton Extra role metadata, and room 21–40 visual boundaries are preserved.');
+const server = await createServer({ root, logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' });
+try {
+  const runtime = await server.ssrLoadModule('/src/game/runEngine.ts');
+  const sync = await server.ssrLoadModule('/src/game/playerBowAttackSync.ts');
+
+  const makeEnemy = (game, id) => {
+    const player = game.state.player;
+    return {
+      id,
+      type: 'enemy',
+      enemyType: 'slime',
+      x: player.x + 56,
+      y: player.y,
+      width: 32,
+      height: 32,
+      vx: 0,
+      vy: 0,
+      hp: 120,
+      maxHp: 120,
+      attack: 4,
+      defense: 0,
+      speed: 42,
+      color: '#43c968',
+      state: 'chase',
+      isDead: false,
+      targetX: player.x,
+      targetY: player.y,
+      nextAttackTime: Number.POSITIVE_INFINITY,
+      flashUntil: 0,
+      spawnTime: 0,
+      lastAttackTime: 0,
+      deathTime: 0,
+    };
+  };
+
+  const game = new runtime.GameEngine();
+  const internal = game;
+  internal.shotPathBlocked = () => false;
+  const target = makeEnemy(game, 'bow-sync-target');
+  game.state.enemies = [target];
+  const dispose = sync.installPlayerBowAttackSync(game);
+  try {
+    const hpBefore = target.hp;
+    internal.updatePlayer(16, 1000);
+    assert(target.hp === hpBefore && game.state.player.lastAttackTime === 0, 'Ranger damage occurred before the visible draw finished.');
+    assert(Math.abs(game.state.player.attackCooldown - 270) < 0.001, 'Base ranger cooldown changed when the draw began.');
+
+    internal.updatePlayer(100, 1100);
+    assert(target.hp === hpBefore, 'Ranger damage occurred during the draw windup.');
+    internal.updatePlayer(30, 1130);
+    assert(target.hp < hpBefore, 'Ranger did not deal damage at the synchronized release.');
+    assert(game.state.player.lastAttackTime === 1130, 'Authoritative shot timestamp does not match the release frame.');
+    assert(game.state.effects.filter(effect => effect.id.startsWith('shot-')).length === 1, 'One release created more than one projectile effect.');
+    assert(game.state.player.attackCooldown > 0 && game.state.player.attackCooldown < 270, 'Release restarted the cooldown instead of preserving the existing cadence.');
+
+    game.state.runSkills.attackSpeed = 3;
+    const fast = sync.playerBowAttackTiming(game);
+    assert(Math.abs(fast.cooldownMs - 156.6) < 0.001, 'Attack-speed rank 3 no longer uses the existing 0.58 cooldown factor.');
+    assert(fast.drawMs < fast.cooldownMs, 'Fast ranger draw exceeds the established attack cadence.');
+  } finally {
+    dispose();
+  }
+
+  const dashGame = new runtime.GameEngine();
+  const dashInternal = dashGame;
+  dashInternal.shotPathBlocked = () => false;
+  const dashTarget = makeEnemy(dashGame, 'bow-dash-target');
+  dashGame.state.enemies = [dashTarget];
+  const disposeDash = sync.installPlayerBowAttackSync(dashGame);
+  try {
+    const hpBeforeDash = dashTarget.hp;
+    dashInternal.updatePlayer(16, 2000);
+    dashGame.input.dodge = true;
+    dashInternal.updatePlayer(16, 2020);
+    dashGame.input.dodge = false;
+    dashInternal.updatePlayer(100, 2120);
+    assert(dashTarget.hp === hpBeforeDash, 'A dash-cancelled draw produced a ghost shot.');
+    assert(dashGame.state.player.lastAttackTime === 0, 'A dash-cancelled draw advanced the authoritative shot timestamp.');
+  } finally {
+    disposeDash();
+  }
+} finally {
+  await server.close();
+}
+
+console.log('KayKit combat animation contract passed: Draw/Hold precedes Release, projectile and damage fire once at release, dash cancellation is clean, balance is unchanged, and Skeleton Extra roles remain explicit.');
