@@ -60,18 +60,8 @@ for (const [key, entry] of Object.entries(inventory)) {
 
 const outputPath = outputPathFromArgs(process.argv.slice(2));
 if (outputPath) {
-  const enemySourcePath = path.join(root, 'src/components/kaykitEnemyBase3D.ts');
-  const diagnosticSource = fs.readFileSync(enemySourcePath, 'utf8');
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, `${JSON.stringify({
-    generatedAt: new Date().toISOString(),
-    packs: inventory,
-    diagnosticSource: {
-      path: 'src/components/kaykitEnemyBase3D.ts',
-      sha256: await import('node:crypto').then(({ createHash }) => createHash('sha256').update(diagnosticSource).digest('hex')),
-      content: diagnosticSource,
-    },
-  }, null, 2)}\n`);
+  fs.writeFileSync(outputPath, `${JSON.stringify({ generatedAt: new Date().toISOString(), packs: inventory }, null, 2)}\n`);
   console.log(`\nWrote KayKit animation inventory to ${outputPath}`);
 }
 
