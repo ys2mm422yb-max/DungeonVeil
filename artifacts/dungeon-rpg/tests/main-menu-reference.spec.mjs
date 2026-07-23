@@ -66,7 +66,8 @@ test('live hybrid menu keeps four primary actions with an animated equipped Rang
   await expect(page.getByTestId('main-menu-hero-focus-bridge')).toHaveCount(0);
   await expect(page.getByTestId('main-menu-scene-focus')).toBeVisible();
   await expect(page.getByTestId('main-menu-control-stack')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Mehr' })).toBeVisible();
+  await expect(page.getByTestId('main-menu-gold-button')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Mehr|More/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Tagesbelohnung/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Kapitel 1/i })).toHaveCount(0);
   await expect(page.getByTestId('veil-village-npc-hub')).toBeVisible();
