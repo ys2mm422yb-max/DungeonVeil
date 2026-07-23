@@ -2,6 +2,7 @@ import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 import { attachBowToRanger, type BowRig } from './bowRig';
 import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
 import { isOptionalEquipmentSlotEquipped } from '../game/optionalEquipmentState';
+import { PLAYER_BOW_EVENT, type PlayerBowEventDetail } from '../game/playerBowAttackSync';
 
 const KAYKIT_ROOT = '/assets/kaykit';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
@@ -201,7 +202,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   for (const action of [dash, release, draw]) {
     if (!action) continue;
     action.setLoop(THREE.LoopOnce, 1);
-    action.clampWhenFinished = false;
+    action.clampWhenFinished = action === draw;
   }
 
   prepareModel(weapons.bow);
@@ -217,10 +218,12 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const arrowPrototype = buildArrowPrototype(THREE);
 
   let moving = false;
-  let attackPhase: 'none' | 'release' | 'draw' = 'none';
+  let attackPhase: 'none' | 'draw' | 'hold' | 'release' = 'none';
   let attackRemaining = 0;
-  let releaseDuration = 0.16;
-  let drawDuration = 0.2;
+  let defaultReleaseDuration = 0.086;
+  let defaultDrawDuration = 0.145;
+  let releaseDuration = defaultReleaseDuration;
+  let drawDuration = defaultDrawDuration;
   let dashRemaining = 0;
   let dashDuration = 0.24;
   let movementMultiplier = 1;
@@ -230,8 +233,12 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const applySpeeds = () => {
     if (run) run.timeScale = 1.04 * movementMultiplier;
     if (dash) dash.timeScale = Math.max(1.18, 1.32 * movementMultiplier);
-    releaseDuration = 0.16 / attackMultiplier;
-    drawDuration = 0.2 / attackMultiplier;
+    defaultReleaseDuration = 0.086 / attackMultiplier;
+    defaultDrawDuration = 0.145 / attackMultiplier;
+    if (attackPhase === 'none') {
+      releaseDuration = defaultReleaseDuration;
+      drawDuration = defaultDrawDuration;
+    }
   };
   applySpeeds();
 
@@ -251,14 +258,50 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     transition(next, 0.08);
   };
 
-  const beginDraw = () => {
+  const cancelAttack = () => {
+    attackPhase = 'none';
+    attackRemaining = 0;
+    draw?.stop();
+    release?.stop();
+    current = null;
+    bowRig.updateShotPose(moving ? 0 : 1);
+    playBase();
+  };
+
+  const beginDraw = (durationMs?: number) => {
+    if (dashRemaining > 0) return;
+    drawDuration = durationMs && durationMs > 0 ? durationMs / 1000 : defaultDrawDuration;
     attackPhase = 'draw';
     attackRemaining = drawDuration;
+    bowRig.updateShotPose(0);
     if (draw && drawClip) {
+      draw.paused = false;
       draw.timeScale = Math.max(0.1, drawClip.duration / Math.max(0.01, drawDuration));
-      transition(draw, 0.035);
+      transition(draw, 0.025);
     }
   };
+
+  const beginRelease = (durationMs?: number) => {
+    if (dashRemaining > 0 || attackPhase === 'release') return;
+    releaseDuration = durationMs && durationMs > 0 ? durationMs / 1000 : defaultReleaseDuration;
+    attackPhase = 'release';
+    attackRemaining = releaseDuration;
+    bowRig.updateShotPose(1);
+    if (draw) draw.paused = false;
+    if (release && releaseClip) {
+      release.timeScale = Math.max(0.1, releaseClip.duration / Math.max(0.01, releaseDuration));
+      transition(release, 0.015);
+    }
+  };
+
+  const handleBowEvent = (event: Event) => {
+    const detail = (event as CustomEvent<PlayerBowEventDetail>).detail;
+    if (!detail) return;
+    if (detail.phase === 'draw') beginDraw(detail.drawMs);
+    else if (detail.phase === 'release') beginRelease(detail.releaseMs);
+    else cancelAttack();
+  };
+  if (typeof window !== 'undefined') window.addEventListener(PLAYER_BOW_EVENT, handleBowEvent);
 
   return {
     root,
@@ -273,18 +316,10 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       applySpeeds();
     },
     triggerAttack() {
-      if (dashRemaining > 0) return;
-      attackPhase = 'release';
-      attackRemaining = releaseDuration;
-      bowRig.updateShotPose(1);
-      if (release && releaseClip) {
-        release.timeScale = Math.max(0.1, releaseClip.duration / Math.max(0.01, releaseDuration));
-        transition(release, 0.025);
-      } else beginDraw();
+      beginRelease();
     },
     triggerDash() {
-      attackPhase = 'none';
-      attackRemaining = 0;
+      cancelAttack();
       bowRig.updateShotPose(0);
       dashDuration = dash ? Math.max(0.2, Math.min(0.34, dashClip!.duration / dash.timeScale)) : 0.24;
       dashRemaining = dashDuration;
@@ -316,15 +351,24 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       }
 
       mixer.update(delta);
-      if (attackPhase === 'release') {
-        attackRemaining = Math.max(0, attackRemaining - delta);
-        const progress = 1 - attackRemaining / Math.max(0.001, releaseDuration);
-        bowRig.updateShotPose(Math.max(0, 1 - progress * 1.35));
-        if (attackRemaining === 0) beginDraw();
-      } else if (attackPhase === 'draw') {
+      if (attackPhase === 'draw') {
         attackRemaining = Math.max(0, attackRemaining - delta);
         const progress = 1 - attackRemaining / Math.max(0.001, drawDuration);
         bowRig.updateShotPose(Math.sin(Math.min(1, progress) * Math.PI * 0.5));
+        if (attackRemaining === 0) {
+          attackPhase = 'hold';
+          bowRig.updateShotPose(1);
+          if (draw && drawClip) {
+            draw.time = drawClip.duration;
+            draw.paused = true;
+          }
+        }
+      } else if (attackPhase === 'hold') {
+        bowRig.updateShotPose(1);
+      } else if (attackPhase === 'release') {
+        attackRemaining = Math.max(0, attackRemaining - delta);
+        const progress = 1 - attackRemaining / Math.max(0.001, releaseDuration);
+        bowRig.updateShotPose(Math.max(0, 1 - progress * 1.35));
         if (attackRemaining === 0) {
           attackPhase = 'none';
           current = null;
@@ -340,6 +384,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       }
     },
     stop() {
+      if (typeof window !== 'undefined') window.removeEventListener(PLAYER_BOW_EVENT, handleBowEvent);
       mixer.stopAllAction();
     },
   };
