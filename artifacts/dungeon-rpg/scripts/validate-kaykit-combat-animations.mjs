@@ -180,10 +180,19 @@ try {
     const hpBeforeEnemyShot = enemyRangerGame.state.player.hp;
     enemyRangerInternal.updateEnemies(16, 1000);
     assert(enemyRanger.lastAttackTime === 1000, 'Enemy ranger did not begin the existing windup.');
+    assert(enemyRanger.attackResolveAt === 1185, 'Enemy ranger did not inherit the authoritative 185 ms resolve frame.');
     assert(!enemyRangerGame.state.effects.some(effect => effect.id.startsWith('shot-ranger-')), 'Enemy ranger projectile appeared before release.');
-    enemyRangerInternal.updateEnemies(200, 1200);
-    assert(enemyRangerGame.state.player.hp < hpBeforeEnemyShot, 'Existing enemy ranger damage did not resolve.');
+
+    enemyRangerInternal.updateEnemies(184, 1184);
+    assert(enemyRangerGame.state.player.hp === hpBeforeEnemyShot, 'Enemy ranger damage occurred before release.');
+    assert(!enemyRangerGame.state.effects.some(effect => effect.id.startsWith('shot-ranger-')), 'Enemy ranger projectile appeared during draw.');
+
+    enemyRangerInternal.updateEnemies(1, 1185);
+    assert(enemyRangerGame.state.player.hp < hpBeforeEnemyShot, 'Existing enemy ranger damage did not resolve at release.');
     assert(enemyRangerGame.state.effects.filter(effect => effect.id.startsWith('shot-ranger-')).length === 1, 'Enemy ranger release did not create exactly one visual projectile.');
+
+    enemyRangerInternal.updateEnemies(16, 1201);
+    assert(enemyRangerGame.state.effects.filter(effect => effect.id.startsWith('shot-ranger-')).length === 1, 'Enemy ranger release duplicated its visual projectile.');
   } finally {
     disposeEnemyRanger();
   }
@@ -191,4 +200,4 @@ try {
   await server.close();
 }
 
-console.log('KayKit combat animation contract passed: player and enemy Draw/Hold precede Release, projectiles appear once at release, hit reactions do not interrupt attacks or bosses, role clips are explicit, and balance is unchanged.');
+console.log('KayKit combat animation contract passed: player and enemy Draw/Hold precede one exact Release, projectiles appear once at release, hit reactions do not interrupt attacks or bosses, role clips are explicit, and balance is unchanged.');
