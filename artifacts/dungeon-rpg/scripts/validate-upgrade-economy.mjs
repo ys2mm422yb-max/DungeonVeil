@@ -39,10 +39,10 @@ const checks = [
   [preview.includes('.filter(row => Math.abs(row.delta) >= 0.05)'), 'preview shows unchanged stats'],
   [inventory.includes('data-testid="equipment-upgrade-preview"') && inventory.includes('LEVEL {level} → {level + 1}') && inventory.includes('shown(row.delta'), 'inventory lacks current-to-next stat comparison'],
   [inventory.includes('data-testid="equipment-upgrade-disabled-reason"') && inventory.includes('ZU WENIG GOLD') && inventory.includes('ZU WENIGE ITEMKOPIEN') && inventory.includes('ZU WENIG SCHLEIERSTAUB'), 'disabled upgrade button does not explain the missing requirement'],
-  [inventory.includes('data-testid="equipment-upgrade-button"') && inventory.includes('event.stopPropagation(); upgrade();'), 'upgrade action is not isolated from parent pointer navigation'],
+  [inventory.includes('data-testid="equipment-upgrade-button"') && inventory.includes('onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}') && inventory.includes('onPointerUp={event => { event.preventDefault(); event.stopPropagation(); window.setTimeout(upgrade, 0); }}') && inventory.includes('onClick={event => { event.preventDefault(); event.stopPropagation(); }}') && !inventory.includes('armMobilePointerSafety'), 'upgrade action is not locally isolated from pointer navigation and follow-up clicks'],
   [inventory.includes('upgradingRef.current') && inventory.includes('setUpgrading(true)') && inventory.includes("upgrading ? '…'"), 'upgrade action lacks repeated-tap guard or visible pending state'],
   [!inventory.includes('startNewGame(') && !inventory.includes('setUiState(') && !inventory.includes('markActiveRun('), 'inventory can directly start, restore or navigate into a run'],
-  [inventory.includes('ITEM VERBESSERT') && inventory.includes("(next.owned[item.id]?.level ?? before) > before"), 'successful upgrade does not confirm an actual level change'],
+  [inventory.includes('ITEM VERBESSERT') && inventory.includes('(next.owned[item.id]?.level ?? before) > before'), 'successful upgrade does not confirm an actual level change'],
   [cloud.includes("'dungeon-veil-equipment-targeting-v2'") || cloud.includes("'dungeon-veil-equipment-targeting-v1'"), 'targeted equipment progression is missing from cloud saves'],
   [cloud.includes('sourceMarkWeight(targeting.sourceMarks)') && cloud.includes('targeting.wishItem'), 'cloud conflict weight ignores targeted equipment progress'],
 ];
@@ -54,4 +54,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Upgrade economy V4 audit passed: rarity curves, long-term copies, item-specific marks, safe inventory upgrades and real stat previews are active.');
+console.log('Upgrade economy V4 audit passed: rarity curves, long-term copies, item-specific marks, mobile-safe inventory upgrades and real stat previews are active.');

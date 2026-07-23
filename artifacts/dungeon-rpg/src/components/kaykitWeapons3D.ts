@@ -40,12 +40,14 @@ function equippedArrowPath(bowId: EquipmentId | undefined) {
   return null;
 }
 
-function normalizeRangerBow(scene: any, path: string) {
+function normalizeRangerBow(scene: any, path: string, bowId: EquipmentId | undefined) {
   const wrapper = new scene.constructor();
   const authoredAlongX = /(?:^|\/)bow_[a-z](?:_withstring)?\.gltf$/i.test(path);
+  const ashBowNeedsFlip = bowId === 'ash-bow';
+  const axisCorrectionY = ashBowNeedsFlip ? Math.PI : authoredAlongX ? -Math.PI / 2 : 0;
 
   scene.position.set(0, 0, 0);
-  scene.rotation.set(0, authoredAlongX ? -Math.PI / 2 : 0, 0);
+  scene.rotation.set(0, axisCorrectionY, 0);
   scene.scale.set(1, 1, 1);
 
   wrapper.name = 'DungeonVeilNormalizedRangerBow';
@@ -53,7 +55,8 @@ function normalizeRangerBow(scene: any, path: string) {
     ...(wrapper.userData ?? {}),
     dungeonVeilBowNormalized: true,
     dungeonVeilBowSourcePath: path,
-    dungeonVeilBowChildAxisCorrection: authoredAlongX ? -Math.PI / 2 : 0,
+    dungeonVeilBowChildAxisCorrection: axisCorrectionY,
+    dungeonVeilBowAshFlip: ashBowNeedsFlip,
   };
   wrapper.add(scene);
   return wrapper;
@@ -80,7 +83,7 @@ async function loadRangerWeaponPrototype(cacheKey: string, bowId: EquipmentId | 
         loader.loadAsync(modelUrl(manifest, bowPath)),
         loader.loadAsync(modelUrl(manifest, arrowPath)),
       ]);
-      return { bow: normalizeRangerBow(bowGltf.scene, bowPath), arrow: arrowGltf.scene };
+      return { bow: normalizeRangerBow(bowGltf.scene, bowPath, bowId), arrow: arrowGltf.scene };
     })());
   }
   return rangerWeaponCache.get(cacheKey)!;

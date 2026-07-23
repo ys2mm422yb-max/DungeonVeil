@@ -19,7 +19,7 @@ export function ProfileBadge({ profile, playerName, rank, language, onOpen }: Pr
   return <button
     type="button"
     aria-label={language === 'de' ? 'Profil öffnen' : 'Open profile'}
-    onPointerDown={event => { event.preventDefault(); onOpen(); }}
+    onClick={event => { event.preventDefault(); event.stopPropagation(); onOpen(); }}
     className="absolute left-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-30 flex h-[44px] w-[min(43vw,160px)] items-center gap-1.5 rounded-[13px] border px-1.5 py-1 text-left shadow-[0_7px_18px_rgba(0,0,0,.38)] backdrop-blur-xl active:scale-[.97]"
     style={{ background: card.background, borderColor: `${card.border}9c`, boxShadow: `0 7px 18px rgba(0,0,0,.38),0 0 10px ${card.glow}` }}
     data-testid="main-menu-profile-badge"

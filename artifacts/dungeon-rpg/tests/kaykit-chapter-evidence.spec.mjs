@@ -40,7 +40,7 @@ async function seedRuntimeEvidence(page) {
 
 async function pointer(locator) {
   await expect(locator).toBeVisible({ timeout: 60_000 });
-  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+  await locator.tap();
 }
 
 async function startSolo(page) {

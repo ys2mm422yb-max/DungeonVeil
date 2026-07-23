@@ -176,7 +176,7 @@ async function gotoMenu(page, url = APP_URL) {
 
 async function pointer(locator) {
   await expect(locator).toBeVisible({ timeout: 30_000 });
-  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+  await locator.tap();
 }
 
 async function capture(page, name, projectName) {
