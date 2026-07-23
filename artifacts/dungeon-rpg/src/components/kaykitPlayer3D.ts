@@ -72,20 +72,20 @@ function fitAttachment(THREE: any, object: any, targetSize: number) {
   object.position.sub(center.multiplyScalar(object.scale.x));
 }
 
-function attachQuiver(parent: any, object: any) {
-  if (!parent || !object) return;
-  object.position.set(-0.17, 0.05, -0.16);
-  object.rotation.set(0.15, 0.2, -0.08);
-  object.scale.setScalar(1);
-  parent.add(object);
-}
-
-function attachQuiverVariant(THREE: any, parent: any, object: any, variant: 'black-quiver' | 'rune-quiver') {
+function attachEquippedQuiver(THREE: any, parent: any, object: any, quiverId: string) {
   if (!parent || !object) return;
   prepareModel(object);
-  fitAttachment(THREE, object, variant === 'rune-quiver' ? 0.58 : 0.72);
-  object.position.set(variant === 'rune-quiver' ? -0.05 : -0.12, 0.08, -0.24);
-  object.rotation.set(0.12, variant === 'rune-quiver' ? -0.18 : 0.16, variant === 'rune-quiver' ? 0.2 : -0.08);
+  const skeletonQuiver = quiverId === 'rune-quiver' || quiverId === 'warden-quiver';
+  if (skeletonQuiver) {
+    fitAttachment(THREE, object, 0.68);
+    object.position.set(-0.08, 0.08, -0.22);
+    object.rotation.set(0.12, -0.14, 0.16);
+  } else {
+    object.position.set(-0.17, 0.05, -0.16);
+    object.rotation.set(0.15, 0.2, -0.08);
+    object.scale.setScalar(1);
+  }
+  object.name = `DungeonVeilEquippedQuiver_${quiverId}`;
   parent.add(object);
 }
 
@@ -155,17 +155,16 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const quiverEquipped = isOptionalEquipmentSlotEquipped('quiver');
   const quiverId = meta.equipped.quiver;
   const talismanId = meta.equipped.talisman;
-  const quiverVariant = quiverEquipped && quiverId !== 'ranger-quiver' ? EQUIPMENT[quiverId] : null;
+  const quiverDefinition = quiverEquipped ? EQUIPMENT[quiverId] : null;
   const talismanDefinition = EQUIPMENT[talismanId];
-  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, rangedGltf, weapons, quiverVariantGltf, talismanGltf] = await Promise.all([
+  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, rangedGltf, weapons, talismanGltf] = await Promise.all([
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
-    quiverEquipped ? loader.loadAsync(KAYKIT_PLAYER_ASSETS.quiver) : Promise.resolve(null),
+    quiverDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverDefinition.assetPath}`) : Promise.resolve(null),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranged),
     loadKayKitRangerWeapons(),
-    quiverVariant ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverVariant.assetPath}`) : Promise.resolve(null),
     talismanDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${talismanDefinition.assetPath}`) : Promise.resolve(null),
   ]);
   if (!weapons) throw new Error('No KayKit bow and arrow found in the supplied KayKit libraries');
@@ -210,10 +209,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const bowRig: BowRig = attachBowToRanger(THREE, visual, weapons.bow);
   const spine = findBone(visual, ['spine2', 'spine1', 'spine', 'chest']);
   const chest = findBone(visual, ['spine2', 'chest', 'spine1']);
-  if (quiverGltf?.scene) attachQuiver(spine, quiverGltf.scene);
-  if (quiverVariantGltf && (quiverId === 'black-quiver' || quiverId === 'rune-quiver')) {
-    attachQuiverVariant(THREE, spine, quiverVariantGltf.scene, quiverId);
-  }
+  if (quiverGltf?.scene) attachEquippedQuiver(THREE, spine, quiverGltf.scene, quiverId);
   if (talismanGltf) attachTalisman(THREE, chest, talismanGltf.scene, talismanId);
   const arrowPrototype = buildArrowPrototype(THREE);
 

@@ -23,6 +23,7 @@ const W = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 const D = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
 const EXTRA_WEAPONS = 'extras/weapons';
 const PLANT_WARRIOR = 'extras/plant-warrior';
+const EXTRA_SKELETON = 'extras/skeleton';
 
 const profile = (
   primaryPath: string,
@@ -62,11 +63,17 @@ const xAxisBowPose = [0.08, -0.48, Math.PI / 2] as const;
 const zAxisBowPose = [Math.PI / 2, -0.1, -0.04] as const;
 const frostCrossbowPose = [-0.18, -0.78, Math.PI / 2 - 0.08] as const;
 const splinterCrossbowPose = [-0.22, -0.7, Math.PI / 2 - 0.1] as const;
-const quiverAccessory = (path: string) => ({
+const quiverArrowAccessory = (path: string) => ({
   accessoryPath: path,
-  accessoryPosition: [0, 0.18, 0.08] as const,
-  accessoryRotation: [0, 0, 0] as const,
-  accessoryScale: 0.78,
+  accessoryPosition: [0.02, 0.16, 0.01] as const,
+  accessoryRotation: [Math.PI / 2, 0, 0] as const,
+  accessoryScale: 0.82,
+});
+const skeletonQuiverArrowAccessory = (path: string) => ({
+  accessoryPath: path,
+  accessoryPosition: [0.02, 0.13, 0.01] as const,
+  accessoryRotation: [Math.PI / 2 + 0.04, 0, 0] as const,
+  accessoryScale: 0.76,
 });
 
 /**
@@ -83,12 +90,12 @@ export const EQUIPMENT_VISUALS: Record<EquipmentId, EquipmentVisualProfile> = {
   'frost-bow': profile(`${A}/crossbow_2handed.gltf`, `${A}/crossbow_2handed.gltf`, frostCrossbowPose, 0.7, 0.82, 0, true, 0.3, 'crossbow'),
   'splinter-bow': profile(`${A}/crossbow_1handed.gltf`, `${A}/crossbow_1handed.gltf`, splinterCrossbowPose, 0.72, 0.82, 0, true, 0.18, 'crossbow'),
 
-  'ranger-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.12, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
-  'black-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.5, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
-  'rune-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.42, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
-  'frost-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.42, 'quiver', quiverAccessory(`${A}/arrow_bow_bundle.gltf`)),
-  'splinter-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.28, 'quiver', quiverAccessory(`${A}/arrow_crossbow_bundle.gltf`)),
-  'warden-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.38, 'quiver', quiverAccessory(`${A}/arrow_crossbow_bundle.gltf`)),
+  'ranger-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.12, 'quiver', quiverArrowAccessory(`${A}/arrow_bow.gltf`)),
+  'black-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.5, 'quiver', quiverArrowAccessory(`${A}/arrow_bow.gltf`)),
+  'rune-quiver': profile(`${EXTRA_SKELETON}/Skeleton_Quiver.gltf`, `${A}/quiver.gltf`, [-0.02, -0.18, 0.02], 0.62, 0.8, -0.01, true, 0.42, 'quiver', skeletonQuiverArrowAccessory(`${A}/arrow_bow.gltf`)),
+  'frost-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.42, 'quiver', quiverArrowAccessory(`${A}/arrow_bow.gltf`)),
+  'splinter-quiver': profile(`${A}/quiver.gltf`, `${A}/quiver.gltf`, [-0.04, -0.32, -0.08], 0.62, 0.8, -0.01, true, 0.28, 'quiver', quiverArrowAccessory(`${A}/arrow_crossbow.gltf`)),
+  'warden-quiver': profile(`${EXTRA_SKELETON}/Skeleton_Quiver.gltf`, `${A}/quiver.gltf`, [-0.02, -0.18, 0.02], 0.62, 0.8, -0.01, true, 0.38, 'quiver', skeletonQuiverArrowAccessory(`${A}/arrow_crossbow.gltf`)),
 
   'frost-grimoire': profile(`${A}/spellbook_closed.gltf`, `${A}/spellbook_closed.gltf`, [-0.46, -0.45, 0.15], 0.72, 0.65, 0, true, 0.22, 'book'),
   'ritual-shard': profile(`${A}/spellbook_open.gltf`, `${A}/spellbook_open.gltf`, [-0.5, -0.42, 0.12], 0.74, 0.67, 0, true, 0.32, 'book'),
@@ -119,7 +126,8 @@ export function equipmentVisualAudit() {
   return (Object.entries(EQUIPMENT_VISUALS) as Array<[EquipmentId, EquipmentVisualProfile]>).flatMap(([id, visual]) => {
     const issues: string[] = [];
     if (visual.kind === 'quiver' && !/quiver/i.test(visual.primaryPath)) issues.push(`${id}: primary is not a quiver`);
-    if (visual.kind === 'quiver' && !/bundle/i.test(visual.accessoryPath ?? '')) issues.push(`${id}: quiver has no arrow bundle`);
+    if (visual.kind === 'quiver' && !/arrow_(?:bow|crossbow)\.gltf$/i.test(visual.accessoryPath ?? '')) issues.push(`${id}: quiver has no narrow arrow or bolt accessory`);
+    if (visual.kind === 'quiver' && /_bundle\.gltf$/i.test(visual.accessoryPath ?? '')) issues.push(`${id}: oversized preview bundle can obscure the quiver`);
     if (visual.kind === 'crossbow' && !/crossbow/i.test(visual.primaryPath)) issues.push(`${id}: crossbow path is not a crossbow`);
     if (visual.kind === 'armor' && !/(ranger|knight|barbarian)\.glb$/i.test(visual.primaryPath)) issues.push(`${id}: armor preview is not a male character model`);
     if (visual.kind === 'armor' && !/(ranger|knight|barbarian)\.glb$/i.test(visual.fallbackPath)) issues.push(`${id}: armor fallback is not a male character model`);
