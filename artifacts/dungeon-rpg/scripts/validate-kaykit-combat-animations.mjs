@@ -20,6 +20,7 @@ const regional = read('src/game/enemyRegionalIdentity.ts');
 const enemyLoadsMelee = enemy.includes('/rig_medium_combatmelee\\.glb$/i');
 const enemyLoadsRanged = enemy.includes('/rig_medium_combatranged\\.glb$/i');
 const enemyLoadsAdvancedMovement = enemy.includes('/rig_medium_movementadvanced\\.glb$/i');
+const enemyLoadsSpecial = enemy.includes('/rig_medium_special\\.glb$/i');
 const selectedExtras = [
   'Necromancer',
   'Skeleton_Golem',
@@ -34,6 +35,7 @@ const preservedMiddleChapters = regional.includes('if (safeRoom <= 30)')
   && regional.includes("return adventurer('ranger', 'ranger')")
   && regional.includes('if (safeRoom <= 40)')
   && regional.includes("return index % 2 === 0 ? realMage() : skeleton('rogue', 'rogue')");
+const duplicateRoleSelector = path.join(root, 'src/components/kaykitEnemyAnimationRoles3D.ts');
 
 const checks = [
   [player.includes('Rig_Medium_CombatRanged.glb'), 'Ranger does not load the KayKit ranged animation package'],
@@ -49,13 +51,21 @@ const checks = [
   [bowSync.includes("phase: 'draw'") && bowSync.includes("phase: 'release'") && bowSync.includes('originalAutoShoot(time)') && bowSync.includes('runtime.emit()'), 'Projectile creation is not tied to the visible release event'],
   [bowSync.includes("cancelPending('dash')") && bowSync.includes("cancelPending('room-change')") && bowSync.includes("cancelPending('room-clear')"), 'Prepared ranger shots do not cancel safely across dash and room transitions'],
   [canvas.includes('playerRig.triggerAttack()') && canvas.includes('state.player.lastAttackTime > lastAttack'), 'Run renderer lost its idempotent authoritative release fallback'],
-  [enemyLoadsMelee && enemyLoadsRanged && enemyLoadsAdvancedMovement, 'Enemy library does not load melee, ranged, and advanced movement animation packs'],
+
+  [enemyLoadsMelee && enemyLoadsRanged && enemyLoadsAdvancedMovement && enemyLoadsSpecial, 'Enemy library does not load melee, ranged, advanced movement, and special animation packs'],
   [enemy.includes('loadKayKitEnemyBow') && enemy.includes('attachBowToRanger') && enemy.includes("['running', 'holding', 'bow']"), 'Enemy rangers do not carry a real bow with authored bow locomotion'],
+  [!enemy.includes("role === 'rogue' || role === 'ranger'"), 'Enemy rangers are still grouped with blade-equipped rogues'],
   [enemy.includes("['ranged', 'bow', 'draw']") && enemy.includes("['ranged', 'bow', 'release']") && enemy.includes('attackResolveAt') && enemy.includes('awaitingRelease'), 'Enemy ranger Draw and Release are not synchronized to the authoritative resolve frame'],
   [enemy.includes("['ranged', 'magic', 'spellcasting'") && enemy.includes("['ranged', 'magic', 'shoot']") && enemy.includes("['ranged', 'magic', 'summon']"), 'Mage and Necromancer roles do not use authored magic preparation and release clips'],
   [enemy.includes("['melee', 'dualwield', 'attack', 'slice']") && enemy.includes("['melee', '2h', 'attack', 'chop']") && enemy.includes("['melee', '1h', 'attack', 'chop']"), 'Rogue and heavy melee roles do not use distinct authored attacks'],
   [enemy.includes("['skeletons', 'idle']") && enemy.includes("['skeletons', 'walking']") && enemy.includes("['skeletons', 'death']"), 'Skeleton roles do not use their authored idle, walk, and death clips'],
+  [enemy.includes("const hitClip = chooseClip(prototype.clips, [['hit', 'a'], ['hit', 'b']") && enemy.includes("enemy.enemyType !== 'boss' && visual.hit && !attackBusy"), 'Hit_A/B reactions are missing or can interrupt bosses and active attacks'],
+  [enemy.includes('visual.hitRemaining = 0;') && enemy.includes('visual.attackRemaining > 0 || Boolean(visual.awaitingRelease)'), 'Starting an attack does not cancel a prior hit reaction cleanly'],
   [normalAttacks.includes('shot-ranger-') && normalAttacks.includes('captureResolvingRangerShots') && normalAttacks.includes('shotPathBlocked'), 'Normal ranger projectiles are not created at the existing release frame with LOS checks'],
+  [normalAttacks.includes('(enemy as AttackTimingEnemy).attackResolveAt = windup.hitAt'), 'Normal enemy visuals do not receive the authoritative damage-resolution time'],
+  [enemy.includes('bossAttackContract(room)') && enemy.includes('visual.awaitingRelease && now >= (visual.attackResolveAt'), 'Enemy release animations are not synchronized to normal and boss windup contracts'],
+  [!fs.existsSync(duplicateRoleSelector), 'A second competing enemy role selector remains in the runtime tree'],
+
   [regional.includes("if (room === 50) return { ...adventurer('knight', 'knight'), bossVariant: 'ember-warden' }"), 'Room 50 lost its dedicated heavy final-boss role'],
   [allExtrasInManifest && manifest.includes('includeSkeletonExtras'), 'Selected Skeletons Extra models are not exposed through the existing KayKit manifest loader'],
   [noRoleAliasModels && regional.includes('SKELETON_EXTRA_MODEL'), 'Skeleton Extra roles still rely on duplicate alias files instead of explicit metadata'],
@@ -181,4 +191,4 @@ try {
   await server.close();
 }
 
-console.log('KayKit combat animation contract passed: player and enemy Draw/Hold precede Release, projectiles appear once at release, dash cancellation is clean, role clips are explicit, and balance is unchanged.');
+console.log('KayKit combat animation contract passed: player and enemy Draw/Hold precede Release, projectiles appear once at release, hit reactions do not interrupt attacks or bosses, role clips are explicit, and balance is unchanged.');
