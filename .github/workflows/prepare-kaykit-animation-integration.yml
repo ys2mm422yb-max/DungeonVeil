@@ -1,0 +1,305 @@
+name: Prepare KayKit animation integration
+
+on:
+  push:
+    branches:
+      - feat/kaykit-enemy-animation-integration-v1
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: contains(github.event.head_commit.message, '[prepare-kaykit-animation]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply synchronized KayKit bow animation patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('artifacts/dungeon-rpg')
+          player_path = root / 'src/components/kaykitPlayer3D.ts'
+          engine_path = root / 'src/game/runEngine.ts'
+          package_path = root / 'package.json'
+          validator_path = root / 'scripts/validate-kaykit-combat-animations.mjs'
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              return text.replace(old, new, 1)
+
+          player = player_path.read_text()
+          player = replace_once(
+              player,
+              "  movementAdvanced: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb`,\n",
+              "  movementAdvanced: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb`,\n  combatRanged: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatRanged.glb`,\n",
+              'player ranged asset',
+          )
+          player = replace_once(
+              player,
+              "  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, weapons, quiverVariantGltf, talismanGltf] = await Promise.all([\n",
+              "  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, rangedGltf, weapons, quiverVariantGltf, talismanGltf] = await Promise.all([\n",
+              'player ranged promise tuple',
+          )
+          player = replace_once(
+              player,
+              "    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),\n    loadKayKitRangerWeapons(),\n",
+              "    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),\n    loader.loadAsync(KAYKIT_PLAYER_ASSETS.combatRanged),\n    loadKayKitRangerWeapons(),\n",
+              'player ranged promise load',
+          )
+          player = replace_once(
+              player,
+              "    ...(advancedGltf.animations ?? []),\n  ];\n",
+              "    ...(advancedGltf.animations ?? []),\n    ...(rangedGltf.animations ?? []),\n  ];\n",
+              'player ranged clips',
+          )
+          player = replace_once(
+              player,
+              "  const dashClip = chooseClip(clips, [['dodge', 'forward'], ['roll', 'forward'], ['dodge'], ['roll']], ['back', 'left', 'right']);\n  const mixer = new THREE.AnimationMixer(visual);\n  const idle = idleClip ? mixer.clipAction(idleClip) : null;\n  const run = runClip ? mixer.clipAction(runClip) : null;\n  const dash = dashClip ? mixer.clipAction(dashClip) : null;\n",
+              "  const dashClip = chooseClip(clips, [['dodge', 'forward'], ['roll', 'forward'], ['dodge'], ['roll']], ['back', 'left', 'right']);\n  const bowDrawClip = chooseClip(clips, [['ranged', 'bow', 'draw']], ['up']);\n  const bowReleaseClip = chooseClip(clips, [['ranged', 'bow', 'release']], ['up']);\n  const mixer = new THREE.AnimationMixer(visual);\n  const idle = idleClip ? mixer.clipAction(idleClip) : null;\n  const run = runClip ? mixer.clipAction(runClip) : null;\n  const dash = dashClip ? mixer.clipAction(dashClip) : null;\n  const bowDraw = bowDrawClip ? mixer.clipAction(bowDrawClip) : null;\n  const bowRelease = bowReleaseClip ? mixer.clipAction(bowReleaseClip) : null;\n",
+              'player bow actions',
+          )
+          player = replace_once(
+              player,
+              "  if (dash) {\n    dash.setLoop(THREE.LoopOnce, 1);\n    dash.clampWhenFinished = true;\n  }\n",
+              "  if (dash) {\n    dash.setLoop(THREE.LoopOnce, 1);\n    dash.clampWhenFinished = true;\n  }\n  for (const action of [bowDraw, bowRelease]) {\n    if (!action) continue;\n    action.setLoop(THREE.LoopOnce, 1);\n    action.clampWhenFinished = true;\n  }\n",
+              'player bow action setup',
+          )
+          player = replace_once(
+              player,
+              "  let shotTime = 0;\n  let shotDuration = 0.24;\n",
+              "  let shotDrawRemaining = 0;\n  let shotReleaseRemaining = 0;\n  let shotDuration = 0.26;\n  let releaseDuration = 0.16;\n",
+              'player bow timing state',
+          )
+          player = replace_once(
+              player,
+              "    attackMultiplier = Math.max(1, Math.min(1.9, attackSpeedMultiplier));\n      shotDuration = 0.24 / attackMultiplier;\n",
+              "    attackMultiplier = Math.max(1, Math.min(1.9, attackSpeedMultiplier));\n      shotDuration = 0.26 / attackMultiplier;\n      releaseDuration = 0.16 / attackMultiplier;\n",
+              'player bow timing speed',
+          )
+          player = replace_once(
+              player,
+              "  const applyShotPose = (pulse: number) => {\n    bowRig.updateShotPose(pulse);\n    if (upperArmL) {\n      upperArmL.rotation.y += pulse * 0.28;\n      upperArmL.rotation.z -= pulse * 0.72;\n    }\n    if (lowerArmL) lowerArmL.rotation.z -= pulse * 0.18;\n    if (upperArmR) {\n      upperArmR.rotation.y -= pulse * 0.34;\n      upperArmR.rotation.z += pulse * 0.9;\n    }\n    if (lowerArmR) {\n      lowerArmR.rotation.y -= pulse * 0.2;\n      lowerArmR.rotation.z += pulse * 1.05;\n    }\n    if (chest) chest.rotation.y += pulse * 0.1;\n    visual.rotation.z = -pulse * 0.045;\n    visual.position.z = pulse * 0.035;\n    visual.position.y = pulse * 0.02;\n  };\n",
+              "  const proceduralShotFallback = !bowDraw || !bowRelease;\n  const applyShotPose = (pulse: number) => {\n    bowRig.updateShotPose(pulse);\n    if (!proceduralShotFallback) return;\n    if (upperArmL) {\n      upperArmL.rotation.y += pulse * 0.28;\n      upperArmL.rotation.z -= pulse * 0.72;\n    }\n    if (lowerArmL) lowerArmL.rotation.z -= pulse * 0.18;\n    if (upperArmR) {\n      upperArmR.rotation.y -= pulse * 0.34;\n      upperArmR.rotation.z += pulse * 0.9;\n    }\n    if (lowerArmR) {\n      lowerArmR.rotation.y -= pulse * 0.2;\n      lowerArmR.rotation.z += pulse * 1.05;\n    }\n    if (chest) chest.rotation.y += pulse * 0.1;\n    visual.rotation.z = -pulse * 0.045;\n    visual.position.z = pulse * 0.035;\n    visual.position.y = pulse * 0.02;\n  };\n\n  const playOneShot = (action: any, clip: any, duration: number) => {\n    if (!action || !clip) return false;\n    action.stop();\n    action.reset();\n    action.timeScale = Math.max(0.1, clip.duration / Math.max(0.05, duration));\n    action.fadeIn(0.025).play();\n    current?.fadeOut(0.035);\n    current = action;\n    return true;\n  };\n",
+              'player package animation pose',
+          )
+          player = replace_once(
+              player,
+              "    triggerAttack() {\n      if (dashRemaining <= 0) shotTime = shotDuration;\n    },\n    triggerDash() {\n      shotTime = 0;\n      bowRig.updateShotPose(0);\n",
+              "    triggerAttack() {\n      if (dashRemaining > 0) return;\n      shotDrawRemaining = shotDuration;\n      shotReleaseRemaining = 0;\n      playOneShot(bowDraw, bowDrawClip, shotDuration);\n    },\n    triggerDash() {\n      shotDrawRemaining = 0;\n      shotReleaseRemaining = 0;\n      bowRig.updateShotPose(0);\n",
+              'player trigger bow animation',
+          )
+          update_pattern = re.compile(r"      mixer\.update\(delta\);\n      if \(shotTime > 0\) \{.*?      \}\n    \},\n    stop\(\) \{", re.S)
+          replacement = """      mixer.update(delta);
+      if (shotDrawRemaining > 0) {
+        shotDrawRemaining = Math.max(0, shotDrawRemaining - delta);
+        const progress = 1 - shotDrawRemaining / Math.max(0.001, shotDuration);
+        applyShotPose(Math.sin(Math.min(1, progress) * Math.PI * 0.5));
+        if (shotDrawRemaining === 0) {
+          shotReleaseRemaining = releaseDuration;
+          playOneShot(bowRelease, bowReleaseClip, releaseDuration);
+        }
+      } else if (shotReleaseRemaining > 0) {
+        shotReleaseRemaining = Math.max(0, shotReleaseRemaining - delta);
+        const releaseProgress = 1 - shotReleaseRemaining / Math.max(0.001, releaseDuration);
+        applyShotPose(Math.cos(Math.min(1, releaseProgress) * Math.PI * 0.5));
+        if (shotReleaseRemaining === 0) {
+          current = null;
+          playBase();
+        }
+      } else {
+        bowRig.updateShotPose(0);
+        visual.rotation.x *= 0.68;
+        visual.rotation.z *= 0.68;
+        visual.position.z *= 0.68;
+        visual.position.y *= 0.68;
+        visual.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, delta * 18));
+      }
+    },
+    stop() {"""
+          player, count = update_pattern.subn(replacement, player, count=1)
+          if count != 1:
+              raise SystemExit(f'player bow update loop: expected one match, found {count}')
+          player = replace_once(
+              player,
+              "  const arrowPrototype = buildArrowPrototype(THREE);\n",
+              "  root.userData.bowAnimationContract = {\n    draw: bowDrawClip?.name ?? 'procedural-fallback',\n    release: bowReleaseClip?.name ?? 'procedural-fallback',\n  };\n  const arrowPrototype = buildArrowPrototype(THREE);\n",
+              'player bow contract metadata',
+          )
+          player_path.write_text(player)
+
+          engine = engine_path.read_text()
+          engine = replace_once(
+              engine,
+              "  private enemyWindups = new Map<string, EnemyWindup>();\n",
+              "  private enemyWindups = new Map<string, EnemyWindup>();\n  private pendingPlayerShot: { token: number; floor: number } | null = null;\n  private playerShotToken = 0;\n",
+              'engine pending shot state',
+          )
+          engine = engine.replace(
+              "    this.enemyWindups.clear();\n",
+              "    this.enemyWindups.clear();\n    this.cancelPendingPlayerShot();\n",
+          )
+          auto_pattern = re.compile(r"  private autoShoot\(time: number\): void \{.*?\n  \}\n\n  private shotPathBlocked", re.S)
+          auto_replacement = """  private cancelPendingPlayerShot(): void {
+    this.playerShotToken += 1;
+    this.pendingPlayerShot = null;
+  }
+
+  private autoShoot(time: number): void {
+    const p = this.state.player;
+    if (this.pendingPlayerShot || this.state.status !== 'playing') return;
+    const px = p.x + 16;
+    const py = p.y + 16;
+    const visible = this.visibleEnemiesFrom(px, py)
+      .filter(enemy => distance(px, py, enemy.x + enemy.width / 2, enemy.y + enemy.height / 2) <= p.attackRange);
+    if (!visible.length) return;
+
+    const speedRank = skillRank(this.state.runSkills, 'attackSpeed');
+    const cooldownFactors = [1, 0.84, 0.70, 0.58];
+    const animationMultipliers = [1, 1.16, 1.3, 1.42];
+    p.attackCooldown = Math.max(120, CLASS_DEFS.archer.attackCooldownMs * cooldownFactors[speedRank]);
+    p.lastAttackTime = time;
+
+    const primary = visible[0];
+    const primaryX = primary.x + primary.width / 2;
+    const primaryY = primary.y + primary.height / 2;
+    const baseAngle = Math.atan2(primaryY - py, primaryX - px);
+    p.facing = { x: Math.cos(baseAngle), y: Math.sin(baseAngle) };
+
+    const token = ++this.playerShotToken;
+    const floor = this.state.floor;
+    this.pendingPlayerShot = { token, floor };
+    const releaseDelay = Math.round(260 / animationMultipliers[speedRank]);
+    globalThis.setTimeout(() => {
+      const pending = this.pendingPlayerShot;
+      if (!pending || pending.token !== token) return;
+      this.pendingPlayerShot = null;
+      if (this.state.status !== 'playing' || this.state.floor !== floor) return;
+      this.releasePlayerShot(performance.now());
+    }, releaseDelay);
+  }
+
+  private releasePlayerShot(time: number): void {
+    const p = this.state.player;
+    const px = p.x + 16;
+    const py = p.y + 16;
+    const visible = this.visibleEnemiesFrom(px, py)
+      .filter(enemy => distance(px, py, enemy.x + enemy.width / 2, enemy.y + enemy.height / 2) <= p.attackRange);
+    if (!visible.length) return;
+
+    const multiRank = skillRank(this.state.runSkills, 'multishot');
+    const targets = visible.slice(0, Math.min(1 + multiRank, visible.length));
+    const primary = targets[0];
+    const primaryX = primary.x + primary.width / 2;
+    const primaryY = primary.y + primary.height / 2;
+    const baseAngle = Math.atan2(primaryY - py, primaryX - px);
+    p.facing = { x: Math.cos(baseAngle), y: Math.sin(baseAngle) };
+    const hitIds = new Set<string>();
+
+    targets.forEach((target, index) => {
+      const endX = target.x + target.width / 2;
+      const endY = target.y + target.height / 2;
+      const angle = Math.atan2(endY - py, endX - px);
+      const element = this.chooseShotElement(time, index);
+      this.addShotEffect(`shot-${time}-${index}`, px, py, endX, endY, angle, element.color, element.kind, index === 0 ? 4 : 3);
+      hitIds.add(target.id);
+      const damage = this.baseArrowDamage(target, index === 0 ? 1 : 0.82);
+      this.damageEnemy(target, damage, time, px, py, element.kind, index === 0 ? 1.2 : 1);
+      this.applyElementStatus(target, element.kind, time);
+      if (index === 0) {
+        this.applyPiercing(target, px, py, angle, damage, time, element.kind, hitIds);
+        this.applyRicochet(target, damage, time, element.kind, hitIds);
+      }
+    });
+  }
+
+  private shotPathBlocked"""
+          engine, count = auto_pattern.subn(auto_replacement, engine, count=1)
+          if count != 1:
+              raise SystemExit(f'engine synchronized shot replacement: expected one match, found {count}')
+          engine_path.write_text(engine)
+
+          validator_path.write_text(r'''import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+const root = path.resolve(import.meta.dirname, '..');
+const [player, engine, rangedBuffer] = await Promise.all([
+  readFile(path.join(root, 'src/components/kaykitPlayer3D.ts'), 'utf8'),
+  readFile(path.join(root, 'src/game/runEngine.ts'), 'utf8'),
+  readFile(path.join(root, 'public/assets/kaykit/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatRanged.glb')),
+]);
+
+function glbJson(buffer) {
+  if (buffer.toString('utf8', 0, 4) !== 'glTF') throw new Error('CombatRanged asset is not a GLB');
+  const jsonLength = buffer.readUInt32LE(12);
+  const jsonType = buffer.toString('utf8', 16, 20);
+  if (jsonType !== 'JSON') throw new Error('CombatRanged GLB has no JSON chunk');
+  return JSON.parse(buffer.toString('utf8', 20, 20 + jsonLength).replace(/\u0000+$/g, '').trim());
+}
+
+const clips = new Set((glbJson(rangedBuffer).animations ?? []).map(animation => animation.name));
+const checks = [
+  [clips.has('Ranged_Bow_Draw'), 'KayKit Ranged_Bow_Draw clip is missing'],
+  [clips.has('Ranged_Bow_Release'), 'KayKit Ranged_Bow_Release clip is missing'],
+  [player.includes('Rig_Medium_CombatRanged.glb'), 'Ranger does not load the ranged animation package'],
+  [player.includes("[['ranged', 'bow', 'draw']]"), 'Ranger does not select the KayKit bow draw clip'],
+  [player.includes("[['ranged', 'bow', 'release']]"), 'Ranger does not select the KayKit bow release clip'],
+  [player.includes('playOneShot(bowDraw') && player.includes('playOneShot(bowRelease'), 'Ranger does not play both bow phases'],
+  [engine.includes('pendingPlayerShot') && engine.includes('releasePlayerShot'), 'Game engine has no delayed bow release contract'],
+  [engine.indexOf('p.lastAttackTime = time') < engine.indexOf('this.releasePlayerShot(performance.now())'), 'Animation start does not precede projectile release'],
+  [engine.includes('const releaseDelay = Math.round(260 / animationMultipliers[speedRank])'), 'Bow release timing is not scaled with attack speed'],
+];
+
+const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
+if (failures.length) {
+  failures.forEach(message => console.error(`  - ${message}`));
+  process.exit(1);
+}
+console.log('KayKit combat animation audit passed: the Ranger draws with the package clip and releases damage at the synchronized animation moment.');
+''')
+
+          package_text = package_path.read_text()
+          package_text = replace_once(
+              package_text,
+              '"audit:assets": "node scripts/validate-local-three-runtime.mjs && node scripts/audit-kaykit-assets.mjs && node scripts/validate-armor-progression.mjs && node scripts/validate-enemy-visual-variety.mjs && node scripts/validate-complete-enemy-loading.mjs"',
+              '"audit:assets": "node scripts/validate-local-three-runtime.mjs && node scripts/audit-kaykit-assets.mjs && node scripts/validate-kaykit-combat-animations.mjs && node scripts/validate-armor-progression.mjs && node scripts/validate-enemy-visual-variety.mjs && node scripts/validate-complete-enemy-loading.mjs"',
+              'asset audit integration',
+          )
+          package_path.write_text(package_text)
+          PY
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Verify KayKit animation contract
+        run: node artifacts/dungeon-rpg/scripts/validate-kaykit-combat-animations.mjs
+      - name: Verify TypeScript
+        run: pnpm run typecheck
+
+      - name: Commit focused implementation and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/prepare-kaykit-animation-integration.yml
+          git add artifacts/dungeon-rpg/src/components/kaykitPlayer3D.ts \
+                  artifacts/dungeon-rpg/src/game/runEngine.ts \
+                  artifacts/dungeon-rpg/scripts/validate-kaykit-combat-animations.mjs \
+                  artifacts/dungeon-rpg/package.json
+          git commit -m "Synchronize KayKit bow draw and projectile release"
+          git push origin HEAD:feat/kaykit-enemy-animation-integration-v1
