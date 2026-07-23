@@ -125,6 +125,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
+          set -o pipefail
           BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/dungeon-veil-product-preview.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill $PREVIEW_PID || true' EXIT
@@ -138,7 +139,8 @@ jobs:
             tests/autopilot-outside-guild.spec.mjs \
             tests/guild-mail-equipment-visual.spec.mjs \
             --config=playwright.regression.config.mjs \
-            --project="$BROWSER_PROJECT"
+            --project="$BROWSER_PROJECT" \
+            2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
       - name: Upload successful portrait screenshots
         if: steps.product-tests.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -155,15 +157,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: product-autopilot-failure-${{ matrix.project }}
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
           compression-level: 9
           path: |
-            artifacts/dungeon-rpg/test-results/full-game-results.json
+            artifacts/dungeon-rpg/test-results/**
             artifacts/dungeon-rpg/playwright-report/**
-            artifacts/dungeon-rpg/test-results/**/trace.zip
-            artifacts/dungeon-rpg/test-results/**/*.webm
-            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
+            /tmp/dungeon-veil-product-playwright-${{ matrix.project }}.log
             /tmp/dungeon-veil-product-preview.log
       - name: Fail product journeys after diagnostics
         if: steps.product-tests.outcome == 'failure'
