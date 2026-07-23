@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection] = await Promise.all([
+const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection, equipmentVisuals, weaponVisuals] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/LiveHybridMainMenuScene.tsx'),
@@ -15,6 +15,8 @@ const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer,
   read('../src/game/metaStoreV4.ts'),
   read('../src/game/equipmentRedesign.ts'),
   read('../src/game/companionCollectionV5.ts'),
+  read('../src/game/equipmentVisuals.ts'),
+  read('../src/game/equipmentVisualsWeaponsV4.ts'),
 ]);
 
 const checks = [
@@ -39,6 +41,10 @@ const checks = [
   [player.includes('KAYKIT_PLAYER_ASSETS.ranger') && player.includes('Ranger.glb'), 'the shared in-run Ranger body is no longer available'],
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the run model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],
+  [weapons.includes('normalizeRangerBow') && weapons.includes('dungeonVeilBowNormalized') && weapons.includes('authoredAlongX ? -Math.PI / 2 : 0'), 'shared menu, enemy and gameplay bow-axis normalization is missing'],
+  [equipmentVisuals.includes('const xAxisBowPose') && equipmentVisuals.includes('const zAxisBowPose') && !equipmentVisuals.includes('/assets/imported/medieval-weapons'), 'equipment previews still use legacy imported bows or lack authored-axis poses'],
+  [equipmentVisuals.includes('PlantWarrior_Bow_withString.gltf') && equipmentVisuals.includes('bow_C_withString.gltf'), 'new KayKit bow previews are not wired'],
+  [weaponVisuals.includes('PlantWarrior_Bow_withString.gltf') && weaponVisuals.includes('bow_C_withString.gltf'), 'new KayKit bows are not wired to the equipped gameplay definitions'],
   [manifest.includes('import.meta.env.BASE_URL') && manifest.includes('appAssetUrl'), 'Pages-safe application asset resolver is missing'],
   [collection.includes('activeId: null') && collection.includes('unlockChapter: 2') && collection.includes('COMPANION_COLLECTION_EVENT'), 'companion V5 unlock and start-state contract is missing'],
   [redesign.includes("ACTIVE_EQUIPMENT_SLOTS: readonly ActiveEquipmentSlot[] = ['bow', 'quiver', 'armor']") && metaStore.includes('const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId') && !metaStore.includes("talisman: 'veil-key'"), 'current three-slot equipment defaults or safe Talisman retirement are missing'],
@@ -51,4 +57,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Live hybrid main-menu audit passed: character-free hall, animated equipped Ranger, V5 companion state, smooth 3D filtering, one live canvas and full equipment access remain intact.');
+console.log('Live hybrid main-menu audit passed: character-free hall, animated equipped Ranger, normalized bow orientation, expanded KayKit equipment, V5 companion state, smooth 3D filtering, one live canvas and full equipment access remain intact.');
