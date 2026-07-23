@@ -32,7 +32,12 @@ assert(enemy3D.includes('height = maxHeight * (1 - phase * phase)'), 'Room 20 bo
 assert(enemy3D.includes('visual.scene.position.y = state.baseSceneY + flight.height'), 'The actual 3D boss model must move vertically.');
 assert(enemy3D.includes('state.shadow.scale.setScalar(flight.shadowScale)') && enemy3D.includes('flight.shadowOpacity'), 'The ground shadow must react to flight height.');
 assert(enemy3D.includes('safetyShell.visible = !flight.active'), 'The permanent visibility shell must not leave a duplicate boss on the floor.');
-assert(enemyBase3D.includes("const attackDuration = finalBoss ? 0.68 : enemy.enemyType === 'boss' ? 0.72"), 'The existing 720 ms room-20 attack animation timing must remain unchanged.');
+assert(
+  boss.includes("20: { room: 20, target: 'locked-ground', radius: 92, windupMs: 720")
+    && enemyBase3D.includes("const bossContract = enemy.enemyType === 'boss' ? bossAttackContract(room) : null")
+    && enemyBase3D.includes('enemy.lastAttackTime + bossContract.windupMs'),
+  'The room-20 animation must continue to follow the existing 720 ms boss windup contract.',
+);
 
 for (let room = 21; room <= 30; room++) {
   assert(meadow.includes(`  ${room}: [`), `Room ${room} needs explicit meadow decoration.`);
@@ -42,4 +47,4 @@ assert(!expanded.includes('Rock_3_R_Color1.gltf'), 'The missing room-30 rock ass
 assert(themes.includes('buildMeadowRoomTheme') && themes.includes('preloadMeadowRoomTheme'), 'Meadow additions must be built and preloaded.');
 assert(themes.includes('Base room theme partially unavailable'), 'Room theme loading must survive one unavailable decoration.');
 
-console.log('Boss telegraphs, room-20 flight, meadow density and room-30 visibility audit passed.');
+console.log('Boss telegraphs, room-20 flight, contract-driven animation timing, meadow density and room-30 visibility audit passed.');
