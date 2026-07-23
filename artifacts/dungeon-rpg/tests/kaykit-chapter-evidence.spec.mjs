@@ -38,19 +38,35 @@ async function seedRuntimeEvidence(page) {
   });
 }
 
+async function pointer(locator) {
+  await expect(locator).toBeVisible({ timeout: 60_000 });
+  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+}
+
 async function startSolo(page) {
   await seedRuntimeEvidence(page);
   await page.goto(qaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
-  await page.getByRole('button', { name: /Spielen|Play/i }).first().click({ force: true });
-  await page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first().click({ force: true });
-  const input = page.getByRole('textbox').first();
-  await expect(input).toBeVisible({ timeout: 30_000 });
-  await input.fill('KayKit Chapter Evidence');
-  const confirm = page.getByTestId('run-name-confirm');
-  if (await confirm.count()) await confirm.click({ force: true });
-  else await page.getByRole('button', { name: /Run starten|Start Game/i }).first().click({ force: true });
-  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
+
+  await pointer(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 30_000 });
+  await pointer(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
+
+  const runHud = page.getByTestId('run-hud');
+  const namePrompt = page.getByTestId('run-name-prompt');
+  await expect(namePrompt.or(runHud).first()).toBeVisible({ timeout: 60_000 });
+  if (await namePrompt.isVisible()) {
+    const input = page.getByTestId('run-name-input');
+    const confirm = page.getByTestId('run-name-confirm');
+    await expect(input).toBeVisible({ timeout: 30_000 });
+    await input.fill('KayKit Chapter Evidence');
+    await expect(confirm).toBeEnabled();
+    await pointer(confirm);
+  }
+
+  await expect(runHud).toBeVisible({ timeout: 120_000 });
   await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilRuntimeEvidence)), { timeout: 60_000 }).toBe(true);
   await waitForPaintedCanvas(page);
 }
