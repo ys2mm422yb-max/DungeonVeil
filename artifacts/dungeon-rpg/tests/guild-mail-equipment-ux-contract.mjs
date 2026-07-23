@@ -24,16 +24,18 @@ const menu = read('src/components/screens/MainMenuScreen.tsx');
 const profile = read('src/components/PlayerProfilePanel.tsx');
 const autopilotSpec = read('tests/autopilot-product-journeys.spec.mjs');
 const outsideGuildSpec = read('tests/autopilot-outside-guild.spec.mjs');
+const visualSpec = read('tests/guild-mail-equipment-visual.spec.mjs');
 const regressionConfig = read('playwright.regression.config.mjs');
 const autopilotWorkflow = read('../../.github/workflows/product-autopilot-qa.yml');
-const focusedWorkflow = read('../../.github/workflows/guild-mail-equipment-ux.yml');
-const ipadPortraitWorkflow = read('../../.github/workflows/ipad-portrait-qa.yml');
 
 assert.match(mailbox, /mailbox-delete-completed/);
 assert.match(mailbox, /canDeleteMessage/);
 assert.match(mailbox, /message\.actioned_at/);
 assert.match(mailbox, /message\.read_at/);
 assert.match(mailboxClient, /rpc\/delete_mailbox_messages/);
+assert.match(migration, /security definer/i);
+assert.match(migration, /set search_path = ''/);
+assert.match(migration, /v_user uuid := auth\.uid\(\)/);
 assert.match(migration, /mail\.user_id = v_user/);
 assert.match(migration, /mail\.actioned_at is not null/);
 assert.match(migration, /mail\.read_at is not null/);
@@ -72,6 +74,8 @@ assert.match(menu, /qaState=\{qaMode \? FILLED_MAILBOX_QA_STATE : undefined\}/);
 assert.doesNotMatch(menu, /qaState=\{qaMode \? \{ signedIn: true, messages: FILLED_MAILBOX_QA \}/);
 assert.match(profile, /grid-cols-5/);
 assert.match(profile, /aria-label=\{item\.full\}/);
+assert.match(entry, /import '\.\/equipment-polish\.css';/);
+assert.match(entry, /import '\.\/equipment-mobile-detail\.css';/);
 assert.match(entry, /import '\.\/tablet-layout\.css';/);
 assert.match(tabletLayout, /min-width: 768px/);
 assert.match(tabletLayout, /guild-social-panel/);
@@ -93,34 +97,32 @@ for (const marker of [
   'signed-in-outside-guild-duo',
   'external runtime request',
 ]) assert.match(outsideGuildSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+assert.match(visualSpec, /guild-mail-equipment/);
+
 for (const marker of [
   'Product Autopilot QA',
+  'product-contracts',
   'automatic-product-journeys',
+  'Build GitHub Pages output once',
+  'dungeon-veil-product-build-${{ github.sha }}',
+  'actions/download-artifact@v4',
   'tests/autopilot-product-journeys.spec.mjs',
   'tests/autopilot-outside-guild.spec.mjs',
-  'autopilot-visual-evidence-',
-  'Automatische Produktregression erkannt',
-  'issues: write',
+  'tests/guild-mail-equipment-visual.spec.mjs',
+  'product-autopilot-evidence-${{ matrix.project }}',
+  'product-autopilot-failure-${{ matrix.project }}',
+  'fix/mobile-telegraphs-room-21-50-balance',
 ]) assert.match(autopilotWorkflow, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
-const autopilotSuitePaths = [...autopilotWorkflow.matchAll(/tests\/autopilot-[\w-]+\.spec\.mjs/g)]
-  .map(match => match[0])
-  .sort();
-assert.deepEqual(autopilotSuitePaths, [
-  'tests/autopilot-outside-guild.spec.mjs',
-  'tests/autopilot-product-journeys.spec.mjs',
-]);
-assert.doesNotMatch(autopilotWorkflow, /autopilot-core-user-flows\.spec\.mjs/);
-assert.doesNotMatch(autopilotWorkflow, /tests\/guild-mail-equipment-visual\.spec\.mjs/);
-assert.match(focusedWorkflow, /tests\/guild-mail-equipment-visual\.spec\.mjs/);
-assert.match(focusedWorkflow, /guild-mail-equipment-visual-\$\{\{ matrix\.project \}\}/);
+const supportedProjects = ['iphone-webkit', 'android-chromium', 'ipad-portrait-webkit', 'android-tablet-chromium'];
+const workflowProjects = [...autopilotWorkflow.matchAll(/- project:\s*([^\s]+)/g)].map(match => match[1]);
+const configProjects = [...regressionConfig.matchAll(/name:\s*'([^']+)'/g)].map(match => match[1]);
+assert.deepEqual(workflowProjects, supportedProjects);
+assert.deepEqual(configProjects, supportedProjects);
+assert.match(regressionConfig, /retries: 0/);
+assert.doesNotMatch(regressionConfig, /desktop-chromium|ipad-landscape-webkit/);
+assert.doesNotMatch(autopilotWorkflow, /desktop-chromium|ipad-landscape-webkit/);
+assert.doesNotMatch(autopilotWorkflow, /enable_auto_merge|auto-merge|issues: write|pull-requests: write/);
+assert.match(autopilotWorkflow, /permissions:\s*\n\s*contents: read/);
 
-assert.match(regressionConfig, /name: 'ipad-portrait-webkit'/);
-assert.match(regressionConfig, /viewport: \{ width: 820, height: 1180 \}/);
-assert.match(ipadPortraitWorkflow, /name: iPad Portrait QA/);
-assert.match(ipadPortraitWorkflow, /--project=ipad-portrait-webkit/);
-assert.match(ipadPortraitWorkflow, /ipad-portrait-visual-evidence/);
-assert.match(ipadPortraitWorkflow, /trace\.zip/);
-assert.match(ipadPortraitWorkflow, /\.webm/);
-
-console.log('Guild, mailbox, optional equipment, profile, local Three runtime, signed-in outside-guild, tablet layout, automatic journey, iPad portrait and cloud UX contracts passed.');
+console.log('Guild, mailbox, optional equipment, profile, local Three runtime, outside-guild, tablet layout and zero-retry portrait-mobile QA contracts passed.');
