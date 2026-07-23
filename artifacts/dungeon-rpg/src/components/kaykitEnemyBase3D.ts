@@ -45,11 +45,15 @@ export type KayKitEnemyVisual = {
   idle: any;
   move: any;
   attack: any;
+  release?: any;
+  hit?: any;
   death: any;
   lastState: string;
   lastAttackTime: number;
   lastHitTime: number;
   attackRemaining: number;
+  releaseRemaining?: number;
+  hitRemaining?: number;
   deathPlayed: boolean;
   deathElapsed: number;
   baseScale: number;
@@ -65,14 +69,12 @@ export type KayKitEnemyVisual = {
   role: EnemyRole;
   movePlaybackBase: number;
   attackDuration: number;
-  tintMode: 'normal' | 'hit';
-  release?: any;
-  releaseRemaining?: number;
   releaseDuration?: number;
   attackResolveAt?: number;
   awaitingRelease?: boolean;
   attackClipDuration?: number;
   bowRig?: BowRig | null;
+  tintMode: 'normal' | 'hit';
 };
 
 let libraryPromise: Promise<EnemyLibrary> | null = null;
@@ -451,6 +453,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const attackClip = chooseAttackClip(prototype, role, roomNumber, enemy.enemyType)
     ?? chooseClip(prototype.clips, [['attack', 'a'], ['attack'], ['bite'], ['sting']], ['bow', 'crossbow', 'ranged']);
   const releaseClip = chooseReleaseClip(prototype, role, roomNumber);
+  const hitClip = chooseClip(prototype.clips, [['hit', 'a'], ['hit', 'b'], ['melee', 'block', 'hit']], ['pose']);
   const deathClip = prototype.family === 'skeleton'
     ? chooseClip(prototype.clips, [['skeletons', 'death'], ['death', 'a'], ['death', 'b'], ['death'], ['die']], ['pose', 'resurrect'])
     : chooseClip(prototype.clips, [['death', 'a'], ['death', 'b'], ['death'], ['die']], []);
@@ -460,6 +463,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   const move = moveClip ? mixer.clipAction(moveClip) : null;
   const attack = attackClip ? mixer.clipAction(attackClip) : null;
   const release = releaseClip ? mixer.clipAction(releaseClip) : null;
+  const hit = hitClip ? mixer.clipAction(hitClip) : null;
   const death = deathClip ? mixer.clipAction(deathClip) : null;
   const importedVisual = Boolean(prototype.imported);
   const roleMoveBase: Record<EnemyRole, number> = {
@@ -482,6 +486,11 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     release.setLoop(THREE.LoopOnce, 1);
     release.clampWhenFinished = false;
     release.timeScale = Math.min(5, Math.max(0.65, releaseClip.duration / Math.max(0.08, releaseDuration)));
+  }
+  if (hit && hitClip) {
+    hit.setLoop(THREE.LoopOnce, 1);
+    hit.clampWhenFinished = false;
+    hit.timeScale = Math.max(0.8, hitClip.duration / 0.16);
   }
   if (death && deathClip) {
     death.setLoop(THREE.LoopOnce, 1);
@@ -562,12 +571,14 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
     move,
     attack,
     release,
+    hit,
     death,
     lastState: 'idle',
     lastAttackTime: enemy.lastAttackTime,
     lastHitTime: enemy.lastHitTime ?? 0,
     attackRemaining: 0,
     releaseRemaining: 0,
+    hitRemaining: 0,
     deathPlayed: false,
     deathElapsed: 0,
     baseScale,
@@ -594,7 +605,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
 
 function transition(visual: KayKitEnemyVisual, next: any, fade = 0.1) {
   if (!next) return;
-  const actions = [visual.idle, visual.move, visual.attack, visual.release, visual.death].filter(Boolean);
+  const actions = [visual.idle, visual.move, visual.attack, visual.release, visual.hit, visual.death].filter(Boolean);
   for (const action of actions) if (action !== next && action.isRunning?.()) action.fadeOut(fade);
   next.reset().fadeIn(fade).play();
 }
@@ -684,6 +695,12 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   if ((enemy.lastHitTime ?? 0) > visual.lastHitTime) {
     visual.lastHitTime = enemy.lastHitTime ?? 0;
     visual.hitElapsed = enemy.enemyType === 'boss' ? 0.08 : 0.16;
+    const attackBusy = visual.attackRemaining > 0 || Boolean(visual.awaitingRelease) || (visual.releaseRemaining ?? 0) > 0;
+    if (enemy.enemyType !== 'boss' && visual.hit && !attackBusy) {
+      visual.hitRemaining = 0.16;
+      transition(visual, visual.hit, 0.025);
+      visual.lastState = 'hit';
+    }
   }
 
   if (enemy.isDead || enemy.state === 'dead') {
@@ -691,6 +708,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
       visual.deathPlayed = true;
       visual.deathElapsed = 0;
       visual.hitElapsed = 0;
+      visual.hitRemaining = 0;
       visual.attackRemaining = 0;
       visual.releaseRemaining = 0;
       visual.awaitingRelease = false;
@@ -749,6 +767,7 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   const roomNumber = roomFromEnemyId(enemy);
   if (enemy.lastAttackTime > visual.lastAttackTime) {
     visual.lastAttackTime = enemy.lastAttackTime;
+    visual.hitRemaining = 0;
     visual.attackResolveAt = fallbackResolveAt(enemy, visual.role, roomNumber);
     visual.attackDuration = Math.max(0.08, (visual.attackResolveAt - enemy.lastAttackTime) / 1000);
     visual.attackRemaining = Math.max(0, (visual.attackResolveAt - now) / 1000);
@@ -784,6 +803,9 @@ export function updateKayKitEnemyVisual(visual: KayKitEnemyVisual, enemy: Enemy,
   } else if (visual.attackRemaining > 0) {
     visual.attackRemaining = Math.max(0, visual.attackRemaining - delta);
     if (visual.attackRemaining === 0 && !visual.awaitingRelease) returnToLocomotion(visual, enemy);
+  } else if ((visual.hitRemaining ?? 0) > 0) {
+    visual.hitRemaining = Math.max(0, (visual.hitRemaining ?? 0) - delta);
+    if (visual.hitRemaining === 0) returnToLocomotion(visual, enemy);
   } else if (!visual.awaitingRelease) {
     const desiredState = enemy.state === 'chase' ? 'chase' : 'idle';
     if (desiredState !== visual.lastState) {
