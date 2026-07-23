@@ -14,6 +14,8 @@ type PatchedEngine = {
   enemyWindups: Map<string, EnemyWindup>;
 };
 
+type AttackTimingEnemy = Enemy & { attackResolveAt?: number };
+
 export function normalEnemyDamageRadius(range: number): number {
   // This is the existing runtime hit reach from GameEngine. Keeping the same
   // factor means this module changes presentation only, never combat balance.
@@ -35,6 +37,7 @@ export function installNormalEnemyAttackTelegraphs(engine: GameEngine): () => vo
 
       const windup = runtime.enemyWindups.get(enemy.id);
       if (!windup) continue;
+      (enemy as AttackTimingEnemy).attackResolveAt = windup.hitAt;
       const effect = engine.state.effects.find(candidate => candidate.id === `telegraph-${enemy.lastAttackTime}-${enemy.id}`);
       if (!effect) continue;
 
