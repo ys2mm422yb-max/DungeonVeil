@@ -16,6 +16,7 @@ import { createRunRelicEffectState, updateRunRelicEffects } from '../game/runRel
 import { createRoomMechanicState, updateRoomMechanics } from '../game/roomMechanics';
 import { installNormalEnemyAttackTelegraphs } from '../game/normalEnemyAttackTelegraphs';
 import { installBossAttackTelegraphs } from '../game/bossAttackTelegraphs';
+import { installPlayerBowAttackSync } from '../game/playerBowAttackSync';
 import { createRunSynergyState, updateRunSynergies } from '../game/runSynergies';
 import { createFirstWardenFinaleState, updateFirstWardenFinale } from '../game/firstWardenFinale';
 import { createEquipmentWorldLootState, disposeEquipmentWorldLoot, spawnRoomEquipmentReward, updateEquipmentWorldLoot } from '../game/equipmentWorldLoot';
@@ -183,6 +184,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
     const initialEngine = getEngineRef.current();
     const disposeGiftProgression = initialEngine ? installBoundedRunGiftProgression(initialEngine) : () => {};
     const disposeFusionEffects = initialEngine ? installRunFusionEffects(initialEngine) : () => {};
+    const disposePlayerBowSync = initialEngine ? installPlayerBowAttackSync(initialEngine) : () => {};
     const disposeNormalAttacks = initialEngine ? installNormalEnemyAttackTelegraphs(initialEngine) : () => {};
     const disposeBossAttacks = initialEngine ? installBossAttackTelegraphs(initialEngine) : () => {};
     let frame = 0;
@@ -328,6 +330,7 @@ export function GameSessionBridge({ getEngine, active }: { getEngine: () => Game
       window.removeEventListener('dungeon-veil-room-preparing', suspendPendingHazards);
       disposeBossAttacks();
       disposeNormalAttacks();
+      disposePlayerBowSync();
       disposeFusionEffects();
       disposeGiftProgression();
       const engine = getEngineRef.current();
