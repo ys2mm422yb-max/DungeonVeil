@@ -65,12 +65,27 @@ const ENCOUNTERS: Record<number, EnemyType[]> = {
   78: ['orc', 'demon', 'spider', 'vampire', 'golem', 'skeleton', 'orc', 'demon'],
   79: ['golem', 'vampire', 'demon', 'orc', 'spider', 'skeleton', 'vampire', 'golem'],
   80: [],
+
+  81: ['orc', 'golem', 'demon', 'spider', 'vampire', 'skeleton'],
+  82: ['golem', 'orc', 'vampire', 'demon', 'spider', 'skeleton', 'golem'],
+  83: ['demon', 'vampire', 'golem', 'spider', 'orc', 'skeleton', 'demon'],
+  84: ['golem', 'orc', 'demon', 'vampire', 'spider', 'skeleton', 'golem', 'orc'],
+  85: ['vampire', 'demon', 'golem', 'orc', 'spider', 'skeleton', 'slime'],
+  86: ['golem', 'demon', 'orc', 'vampire', 'spider', 'skeleton', 'golem', 'demon'],
+  87: ['orc', 'vampire', 'demon', 'golem', 'spider', 'skeleton', 'vampire', 'orc'],
+  88: ['golem', 'orc', 'demon', 'spider', 'vampire', 'skeleton', 'golem', 'demon'],
+  89: ['golem', 'vampire', 'demon', 'orc', 'spider', 'skeleton', 'vampire', 'golem'],
+  90: [],
 };
 
 const REGION_POOLS: Record<number, EnemyType[]> = {
   3: ['goblin', 'spider', 'slime', 'skeleton', 'orc', 'vampire', 'demon'],
   4: ['vampire', 'spider', 'skeleton', 'orc', 'demon', 'golem'],
   5: ['orc', 'golem', 'vampire', 'skeleton', 'demon', 'spider', 'slime'],
+  6: ['golem', 'orc', 'demon', 'vampire', 'spider', 'skeleton', 'slime'],
+  7: ['demon', 'golem', 'vampire', 'orc', 'spider', 'skeleton', 'slime'],
+  8: ['golem', 'vampire', 'demon', 'orc', 'spider', 'skeleton', 'slime'],
+  9: ['golem', 'orc', 'demon', 'vampire', 'spider', 'skeleton', 'slime'],
 };
 
 function enforceLateRoomRoleMix(plan: EnemyType[], local: number): EnemyType[] {
@@ -87,7 +102,7 @@ export function getEncounterPlan(room: number): EnemyType[] {
   if (ENCOUNTERS[safeRoom]) return [...ENCOUNTERS[safeRoom]];
   if (safeRoom % 10 === 0) return [];
   const region = Math.ceil(safeRoom / 10);
-  const pool = REGION_POOLS[region] ?? REGION_POOLS[3];
+  const pool = REGION_POOLS[region] ?? REGION_POOLS[9];
   const local = (safeRoom - 1) % 10;
   const count = Math.min(8, 5 + Math.floor(local / 2));
   const generated = Array.from({ length: count }, (_, index) => pool[(index + local * 2) % pool.length]);
