@@ -1,5 +1,4 @@
 import { ACTIVE_EQUIPMENT, isActiveEquipmentId } from './equipmentRedesign';
-import { clearEquipmentWishItemIfMatches } from './equipmentTargeting';
 import {
   loadMetaProgression,
   saveMetaProgression,
@@ -53,9 +52,7 @@ export function upgradeMetaItemBalanced(id: EquipmentId) {
   meta.dust -= cost.dust;
   progress.copies -= cost.copies;
   progress.level += 1;
-  const saved = saveMetaProgression(meta);
-  if (progress.level >= 5) clearEquipmentWishItemIfMatches(id);
-  return saved;
+  return saveMetaProgression(meta);
 }
 
 export const EQUIPMENT_UPGRADE_GOLD_COSTS = Object.freeze({ 1: 3500, 2: 11000, 3: 32000, 4: 85000 });
