@@ -1,4 +1,5 @@
 import type { GameEngine } from './runEngine';
+import { updateCinderCrownMechanics } from './cinderCrownMechanics';
 import { drownedReliquaryRoomSpec, isDrownedReliquaryRoom } from './drownedReliquaryRooms';
 
 type PendingTide = {
@@ -159,6 +160,7 @@ function resolveHazards(engine: GameEngine, state: ReliquaryRuntimeState, now: n
 }
 
 export function updateDrownedReliquaryMechanics(engine: GameEngine, now = performance.now()): void {
+  updateCinderCrownMechanics(engine, now);
   if (!isDrownedReliquaryRoom(engine.state.floor) || engine.state.status !== 'playing') return;
   const state = getState(engine, now);
   const combatActive = !engine.state.roomClearReady && engine.state.enemies.some(enemy => !enemy.isDead && enemy.hp > 0);
