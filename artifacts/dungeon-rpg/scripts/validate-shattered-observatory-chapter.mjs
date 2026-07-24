@@ -52,7 +52,7 @@ for (let room = 61; room <= 69; room += 1) {
 if (!/^\s*70:\s*\[\],?$/m.test(encounters)) fail('room 70 must reserve normal encounters for the boss');
 
 if (!spawns.includes("import { shatteredObservatoryRoomSpec }")) fail('runtime spawn resolver does not import Observatory room specs');
-if (!spawns.includes('observatory?.enemySpawns')) fail('runtime spawn resolver does not consume authored Observatory spawns');
+if (!spawns.includes('const authored = observatory ?? golden ?? legacy!;') || !spawns.includes('const authoredSpawns = authored.enemySpawns;')) fail('runtime spawn resolver does not consume authored Observatory spawns');
 
 if (!roomBible.includes("'shattered-observatory'")) fail('Observatory lighting phase is missing');
 if (!roomBible.includes('for (const spec of Object.values(SHATTERED_OBSERVATORY_ROOMS))')) fail('rooms 61-70 are not registered in the room bible');
