@@ -65,16 +65,18 @@ for (let room = 61; room <= 69; room += 1) {
 if (!encounterLines.some(line => line === '70: [],')) fail('room 70 must reserve normal encounters for the boss');
 
 if (!spawns.includes("import { shatteredObservatoryRoomSpec }")) fail('runtime spawn resolver does not import Observatory room specs');
-if (!spawns.includes('const authored = observatory ?? golden ?? legacy!;') || !spawns.includes('const authoredSpawns = authored.enemySpawns;')) fail('runtime spawn resolver does not consume authored Observatory spawns');
+if (!spawns.includes('const authored = reliquary ?? observatory ?? golden ?? legacy!;') || !spawns.includes('const authoredSpawns = authored.enemySpawns;')) fail('runtime spawn resolver does not consume authored Observatory spawns');
 
 if (!roomBible.includes("'shattered-observatory'")) fail('Observatory lighting phase is missing');
 if (!roomBible.includes('for (const spec of Object.values(SHATTERED_OBSERVATORY_ROOMS))')) fail('rooms 61-70 are not registered in the room bible');
-if (!roomBible.includes('Math.min(70')) fail('room bible is still clamped below room 70');
+const roomBibleClamp = roomBible.match(/Math\.min\((\d+),\s*Math\.floor\(roomNumber\)\)/);
+if (!roomBibleClamp || Number(roomBibleClamp[1]) < 70) fail('room bible is still clamped below room 70');
 if (!roomBible.includes('Krone des entfesselten Astronomen')) fail('room 70 presentation identity is missing');
 
 if (!logicalSetpieces.includes("from './logicalRoomSetpiecesLegacy'")) fail('logical setpiece resolver does not preserve the legacy layouts');
 if (!logicalSetpieces.includes("from './shatteredObservatorySetpieces'")) fail('logical setpiece resolver does not import Observatory layouts');
-if (!logicalSetpieces.includes('Math.min(70')) fail('logical setpiece resolver is still clamped below room 70');
+const setpieceClamp = logicalSetpieces.match(/Math\.min\((\d+),\s*Math\.floor\(room\)\)/);
+if (!setpieceClamp || Number(setpieceClamp[1]) < 70) fail('logical setpiece resolver is still clamped below room 70');
 if (!logicalSetpieces.includes('if (observatory.length)')) fail('Observatory layouts are not preferred before legacy fallback');
 if (!legacySetpieces.includes('goldenFractureSetpieces')) fail('legacy setpiece implementation was not preserved');
 
