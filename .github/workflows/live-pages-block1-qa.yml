@@ -1,0 +1,111 @@
+name: Live Pages Block 1 QA (DO NOT MERGE)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/live-pages-block1-qa.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-pages-block1-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PLAYWRIGHT_VERSION: '1.55.0'
+  DUNGEON_VEIL_URL: https://ys2mm422yb-max.github.io/DungeonVeil/
+
+jobs:
+  live-pages-mobile-taps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+          - project: android-chromium
+            browser: chromium
+          - project: ipad-portrait-webkit
+            browser: webkit
+          - project: android-tablet-chromium
+            browser: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install deterministic browser runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@${PLAYWRIGHT_VERSION} --lockfile=false
+      - name: Restore browser engine cache
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
+      - name: Install browser system dependencies
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install-deps ${{ matrix.browser }}
+      - name: Install browser engine
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
+      - name: Wait for fixed Pages deployment
+        shell: bash
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error "$DUNGEON_VEIL_URL" > /tmp/dungeon-veil-live.html; then
+              break
+            fi
+            sleep 5
+          done
+          curl --fail --silent --show-error "$DUNGEON_VEIL_URL" > /tmp/dungeon-veil-live.html
+          grep -q '<div id="root"></div>' /tmp/dungeon-veil-live.html
+      - name: Test live Shop, Options and Profile taps
+        id: live-tests
+        continue-on-error: true
+        shell: bash
+        env:
+          BROWSER_PROJECT: ${{ matrix.project }}
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 20m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/mobile-resource-upgrade.spec.mjs \
+            --config=playwright.regression.config.mjs \
+            --project="$BROWSER_PROJECT" \
+            2>&1 | tee "/tmp/dungeon-veil-live-${BROWSER_PROJECT}.log"
+      - name: Upload live portrait evidence
+        if: steps.live-tests.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-pages-block1-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 9
+          path: artifacts/dungeon-rpg/test-results/mobile-resource-upgrade-${{ matrix.project }}.png
+      - name: Upload live failure diagnostics
+        if: steps.live-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-pages-block1-failure-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/**
+            artifacts/dungeon-rpg/playwright-report/**
+            /tmp/dungeon-veil-live-${{ matrix.project }}.log
+            /tmp/dungeon-veil-live.html
+      - name: Fail live Pages QA after diagnostics
+        if: steps.live-tests.outcome == 'failure'
+        run: exit 1
