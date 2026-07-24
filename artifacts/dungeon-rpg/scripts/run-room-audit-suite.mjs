@@ -26,6 +26,7 @@ const scripts = [
   'validate-room-quality-6-50.mjs',
   'validate-golden-fracture-chapter.mjs',
   'validate-shattered-observatory-chapter.mjs',
+  'validate-drowned-reliquary-chapter.mjs',
   'validate-guild-mobile-layout.mjs',
   'validate-blocks-1-8-integration.mjs',
   'validate-main-menu-equipped-ranger.mjs',
