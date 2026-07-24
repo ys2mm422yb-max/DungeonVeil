@@ -13,10 +13,21 @@ const nextRoom = nextRoomStart >= 0 && nextRoomEnd > nextRoomStart
   ? runEngine.slice(nextRoomStart, nextRoomEnd)
   : '';
 
+const chapterRoomMatch = chapterRun.match(/export const CHAPTER_ROOMS = (\d+);/);
+const finalBossMatch = chapterRun.match(/export const FINAL_BOSS_ROOM = (\d+);/);
+const bossRoomsMatch = chapterRun.match(/export const BOSS_ROOMS = \[([^\]]+)\] as const;/);
+const chapterRooms = Number(chapterRoomMatch?.[1] ?? 0);
+const finalBossRoom = Number(finalBossMatch?.[1] ?? 0);
+const bossRooms = (bossRoomsMatch?.[1] ?? '')
+  .split(',')
+  .map(value => Number(value.trim()))
+  .filter(Number.isFinite);
+const expectedBossRooms = Array.from({ length: Math.floor(chapterRooms / 10) }, (_, index) => (index + 1) * 10);
+
 const checks = [
-  [chapterRun.includes('export const CHAPTER_ROOMS = 80;'), 'chapter length is not fixed at 80 rooms'],
-  [chapterRun.includes('export const FINAL_BOSS_ROOM = 80;'), 'final boss room is not defined as room 80'],
-  [chapterRun.includes('export const BOSS_ROOMS = [10, 20, 30, 40, 50, 60, 70, 80] as const;'), 'boss-room registry does not include rooms 10 through 80 at ten-room intervals'],
+  [chapterRooms === 90, 'chapter length is not fixed at 90 rooms for Block 6'],
+  [finalBossRoom === chapterRooms, 'final boss room does not match the configured chapter boundary'],
+  [bossRooms.length === expectedBossRooms.length && expectedBossRooms.every((room, index) => bossRooms[index] === room), 'boss-room registry does not cover every ten-room milestone through the configured chapter boundary'],
   [contract.includes('const chapterBoss = safeFloor === FINAL_BOSS_ROOM;'), 'reward contract does not derive the chapter boss from FINAL_BOSS_ROOM'],
   [contract.includes('chapterBoss ? 260 + safeChapter * 30 : boss ? 130 + safeChapter * 20'), 'XP reward tiers are not separated between the final chapter boss and intermediate bosses'],
   [contract.includes('chapterBoss ? 105 + safeChapter * 15 : boss ? 55 + safeChapter * 10'), 'Veil Dust reward tiers are not separated between the final chapter boss and intermediate bosses'],
@@ -39,4 +50,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Chapter reward contract audit passed: room 80 owns the final chapter reward, intermediate bosses stay distinct, and optional duo currency uses an isolated ledger.');
+console.log(`Chapter reward contract audit passed: room ${finalBossRoom} owns the final chapter reward, every ten-room boss milestone remains registered, and optional duo currency uses an isolated ledger.`);
