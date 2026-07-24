@@ -17,6 +17,9 @@ const spawns = read('src/game/roomSpawn3D.ts');
 const roomBible = read('src/game/roomBible.ts');
 const logicalSetpieces = read('src/game/logicalRoomSetpieces.ts');
 const legacySetpieces = read('src/game/logicalRoomSetpiecesLegacy.ts');
+const mechanics = read('src/game/shatteredObservatoryMechanics.ts');
+const runBalance = read('src/game/runBalance.ts');
+const legacyRunBalance = read('src/game/runBalanceLegacy.ts');
 
 for (let room = 61; room <= 70; room += 1) {
   if (!new RegExp(`\\b${room}:\\s*R\\(${room},`).test(rooms)) fail(`room ${room} is missing from SHATTERED_OBSERVATORY_ROOMS`);
@@ -62,4 +65,15 @@ if (!logicalSetpieces.includes('Math.min(70')) fail('logical setpiece resolver i
 if (!logicalSetpieces.includes('if (observatory.length)')) fail('Observatory layouts are not preferred before legacy fallback');
 if (!legacySetpieces.includes('goldenFractureSetpieces')) fail('legacy setpiece implementation was not preserved');
 
-if (!process.exitCode) console.log('Shattered Observatory chapter contract passed: rooms 61-70, encounters, spawns, room bible, lighting, portals and setpieces are fully wired.');
+if (!runBalance.includes("from './runBalanceLegacy'")) fail('run balance does not preserve the proven legacy balance path');
+if (!runBalance.includes('updateShatteredObservatoryMechanics(engine)')) fail('run balance does not execute Observatory mechanics');
+if (!legacyRunBalance.includes('updateGoldenFractureMechanics')) fail('legacy chapter mechanics were not preserved');
+if (!mechanics.includes('const EFFECT_PREFIX = \'shattered-observatory-\'')) fail('Observatory effects do not have an isolated cleanup prefix');
+if (!mechanics.includes('clearObservatoryHazards(engine, state)')) fail('Observatory hazards do not clean up atomically after combat');
+if (!mechanics.includes('boss.maxHp = Math.max(7600')) fail('Astronomer does not have unique boss HP tuning');
+if (!mechanics.includes('boss.nextAttackTime = now + 1100')) fail('Astronomer opening recovery window is missing');
+if (!mechanics.includes('ratio <= 0.33 ? 3 : ratio <= 0.66 ? 2 : 1')) fail('Astronomer three-phase thresholds are missing');
+if (!mechanics.includes('spec.telegraphMs + spec.activeMs + spec.recoveryMs')) fail('authored warning, active and recovery timing is not respected');
+if (!mechanics.includes('DER ENTFESSELTE ASTRONOM')) fail('unique Astronomer runtime identity is missing');
+
+if (!process.exitCode) console.log('Shattered Observatory chapter contract passed: rooms 61-70, encounters, spawns, presentation, hazards, balance and Astronomer phases are fully wired.');
