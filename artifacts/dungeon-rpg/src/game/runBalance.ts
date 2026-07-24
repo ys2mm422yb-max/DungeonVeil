@@ -1,4 +1,6 @@
 import type { EliteAffix, Enemy } from './entities';
+import { CHAPTER_ROOMS } from './chapterRun';
+import { updateGoldenFractureMechanics } from './goldenFractureMechanics';
 import type { GameEngine } from './runEngine';
 
 const ENEMY_SPEED_FACTOR: Record<string, number> = {
@@ -53,7 +55,8 @@ function enemyIndex(enemy: Enemy) {
 function legacySpawnScale(room: number, chapter: number, boss: boolean): number {
   const chapterScale = 1 + Math.max(0, chapter - 1) * 0.36;
   const roomScale = 1 + Math.max(0, room - 1) * 0.055;
-  return chapterScale * roomScale * (boss && room === 50 ? 1.18 : 1);
+  const bossScale = boss ? (room >= 60 ? 1.3 : room >= 50 ? 1.18 : 1) : 1;
+  return chapterScale * roomScale * bossScale;
 }
 
 function legacyAttackScale(scale: number): number {
@@ -94,6 +97,7 @@ function attackCapForRoom(room: number, chapter: number): number {
 }
 
 function bossTuningForRoom(room: number): BossTuning {
+  if (room >= 60) return { hpFloor: 6200, attackFloor: 60, attackCap: 82, speedScale: 1.14, firstAttackDelay: 760 };
   if (room >= 50) return { hpFloor: 4500, attackFloor: 52, attackCap: 72, speedScale: 1.12, firstAttackDelay: 520 };
   if (room >= 40) return { hpFloor: 3200, attackFloor: 42, attackCap: 60, speedScale: 1.1, firstAttackDelay: 550 };
   if (room >= 30) return { hpFloor: 2200, attackFloor: 34, attackCap: 48, speedScale: 1.08, firstAttackDelay: 580 };
@@ -201,7 +205,7 @@ function updateEliteMechanics(engine: GameEngine, state: RunBalanceState, time: 
 }
 
 export function updateRunBalance(engine: GameEngine, state: RunBalanceState): void {
-  const room = Math.max(1, Math.min(50, engine.state.floor));
+  const room = Math.max(1, Math.min(CHAPTER_ROOMS, engine.state.floor));
   const chapter = Math.max(1, Math.round(engine.state.chapter));
   const roomKey = `${chapter}:${room}`;
   if (state.roomKey !== roomKey) {
@@ -261,4 +265,5 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
   }
 
   updateEliteMechanics(engine, state, time);
+  updateGoldenFractureMechanics(engine, time);
 }

@@ -137,7 +137,7 @@ try {
     if (room === 15 || room === 16) focusRooms.push(`room ${room}: ${plan.length} enemies, ${points.length} safe spawns, ${roomOccluded} initially occluded, dedicated models staged before activation`);
   }
 
-  if (checkedRooms !== 50) fail(`expected 50 audited rooms, checked ${checkedRooms}`);
+  if (checkedRooms !== chapter.CHAPTER_ROOMS) fail(`expected ${chapter.CHAPTER_ROOMS} audited rooms, checked ${checkedRooms}`);
   if (focusRooms.length !== 2) fail('rooms 15 and 16 were not both audited');
   focusRooms.forEach(summary => console.log(`Enemy visibility focus: ${summary}`));
 

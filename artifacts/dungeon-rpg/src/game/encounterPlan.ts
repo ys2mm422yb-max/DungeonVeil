@@ -1,4 +1,5 @@
 import type { EnemyType } from './entities';
+import { CHAPTER_ROOMS } from './chapterRun';
 import { applyChapterMechanicsV4 } from './chapterMechanicsV4';
 
 /**
@@ -31,6 +32,17 @@ const ENCOUNTERS: Record<number, EnemyType[]> = {
   18: ['golem', 'demon', 'vampire', 'spider', 'skeleton', 'vampire', 'golem', 'demon'],
   19: ['golem', 'demon', 'vampire', 'skeleton', 'demon', 'vampire', 'golem', 'spider'],
   20: [],
+
+  51: ['orc', 'demon', 'skeleton', 'vampire', 'golem', 'spider'],
+  52: ['golem', 'vampire', 'skeleton', 'demon', 'golem', 'slime'],
+  53: ['orc', 'skeleton', 'demon', 'spider', 'vampire', 'golem', 'spider'],
+  54: ['orc', 'demon', 'spider', 'golem', 'vampire', 'slime', 'demon'],
+  55: ['golem', 'vampire', 'demon', 'skeleton', 'golem', 'spider', 'vampire'],
+  56: ['spider', 'demon', 'orc', 'slime', 'vampire', 'spider', 'golem', 'demon'],
+  57: ['orc', 'golem', 'vampire', 'demon', 'skeleton', 'golem', 'spider', 'vampire'],
+  58: ['vampire', 'spider', 'demon', 'skeleton', 'orc', 'spider', 'golem', 'demon'],
+  59: ['orc', 'vampire', 'golem', 'demon', 'slime', 'skeleton', 'spider', 'vampire'],
+  60: [],
 };
 
 const REGION_POOLS: Record<number, EnemyType[]> = {
@@ -52,7 +64,7 @@ function enforceLateRoomRoleMix(plan: EnemyType[], local: number): EnemyType[] {
 }
 
 export function getEncounterPlan(room: number): EnemyType[] {
-  const safeRoom = Math.max(1, Math.min(50, room));
+  const safeRoom = Math.max(1, Math.min(CHAPTER_ROOMS, room));
   if (ENCOUNTERS[safeRoom]) return [...ENCOUNTERS[safeRoom]];
   if (safeRoom % 10 === 0) return [];
   const region = Math.ceil(safeRoom / 10);

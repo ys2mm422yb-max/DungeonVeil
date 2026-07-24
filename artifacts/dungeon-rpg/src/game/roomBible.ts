@@ -1,8 +1,9 @@
 import { EXPANDED_ROOM_BLUEPRINTS } from './expandedWorldRooms';
+import { GOLDEN_FRACTURE_ROOMS, type GoldenFractureSilhouette } from './goldenFractureRooms';
 import { logicalRoomSetpieces } from './logicalRoomSetpieces';
 import { roomPropColliderFootprint } from './propPresentation3D';
 
-export type RoomPhaseId = 'inhabited-mine' | 'abandoned-quarters' | 'ancient-ruins' | 'warden-veil' | 'meadow-forest' | 'darkwood-village' | 'fortress-ember';
+export type RoomPhaseId = 'inhabited-mine' | 'abandoned-quarters' | 'ancient-ruins' | 'warden-veil' | 'meadow-forest' | 'darkwood-village' | 'fortress-ember' | 'golden-fracture';
 export type RoomSilhouette = 'tri-island' | 'axial' | 'three-lane' | 'diagonal' | 's-curve' | 'ring' | 'zigzag' | 's-lane' | 'cross' | 'arena' | 'orbit';
 export type RoomPack = 'furniture' | 'tools' | 'resources' | 'forest' | 'halloween';
 export type RoomShell = 'intact' | 'abandoned' | 'monumental' | 'veil';
@@ -73,6 +74,11 @@ const PHASE_LIGHTS: Record<RoomPhaseId, RoomBibleSpec['light']> = {
     hemisphereSky: 0xd09a7d, hemisphereGround: 0x24100b,
     key: 0xff7042, fill: 0x6d3458, exposure: 1.12,
   },
+  'golden-fracture': {
+    background: 0x17120a, fog: 0x21170d, ambient: 0xd5c6a8,
+    hemisphereSky: 0xf2d58f, hemisphereGround: 0x241710,
+    key: 0xffc75b, fill: 0x7152aa, exposure: 1.16,
+  },
 };
 
 const room = (
@@ -113,18 +119,15 @@ export const ROOM_BIBLE: Record<number, RoomBibleSpec> = {
   4: room(4, 'Bergarbeiterlager', 'Miners Camp', 'inhabited-mine', 'diagonal', 'Erz- und Schienenachse', ['tools', 'resources'], ['pickaxe', 'ore', 'coal', 'rail', 'bucket', 'lantern'], ['ritual', 'grave', 'guard_banner'], 5, 'intact', P(5.4, -12.2), [P(-5.0, -6.4), P(-2.2, -3.2), P(1.0, -0.2), P(3.4, 2.4), P(5.2, 5.0)]),
   5: room(5, 'Werkstatt', 'Workshop', 'inhabited-mine', 's-curve', 'Reparaturplattform', ['tools', 'furniture'], ['workbench', 'grindstone', 'saw', 'wrench', 'blueprint'], ['column', 'grave', 'ritual', 'rock_mass'], 5, 'intact', P(-4.8, -12.0), [P(4.4, -6.2), P(0.8, -4.2), P(-3.4, -1.5), P(2.8, 1.3), P(-4.2, 4.7), P(2.8, 5.5)]),
   6: room(6, 'Schmiede', 'Forge', 'inhabited-mine', 'tri-island', 'zentraler Schmiedeherd', ['tools', 'resources'], ['anvil', 'forge', 'grindstone', 'ingot', 'coal', 'torch'], ['dining', 'bed', 'ritual', 'grave'], 4, 'intact', P(0, -13.5), [P(-4.7, -5.0), P(0, -6.4), P(4.7, -5.0), P(-5.2, 0.7), P(5.2, 0.7), P(-3.6, 5.0), P(3.6, 5.0)]),
-
   7: room(7, 'Schlafquartier', 'Sleeping Quarters', 'abandoned-quarters', 'zigzag', 'erloschenes Gemeinschaftsfeuer', ['furniture'], ['bed', 'trunk', 'rug', 'pillow', 'cabinet'], ['anvil', 'column', 'barrel_stack', 'ritual'], 5, 'abandoned', P(-5.2, -11.6), [P(4.8, -6.0), P(0.4, -4.1), P(-4.4, -1.8), P(3.8, 1.0), P(-3.8, 4.2), P(2.8, 5.4)]),
   8: room(8, 'Materiallager', 'Material Vault', 'abandoned-quarters', 's-lane', 'umgestürztes Hochregal', ['resources', 'tools'], ['shelf', 'sack', 'wood', 'rope', 'ore', 'bucket'], ['bed', 'ritual', 'grave', 'forge'], 6, 'abandoned', P(5.0, -11.8), [P(-4.7, -6.4), P(2.8, -4.5), P(-2.8, -1.5), P(3.7, 1.5), P(-3.8, 4.0), P(2.8, 5.6)]),
   9: room(9, 'Ritualkammer', 'Ritual Chamber', 'abandoned-quarters', 'ring', 'zentraler Runenkreis', ['halloween', 'resources'], ['candle', 'crystal', 'skull', 'cauldron', 'rune'], ['table', 'barrel', 'shelf', 'bed'], 3, 'abandoned', P(0, -13.7), [P(-4.5, -4.0), P(0, -5.5), P(4.5, -4.0), P(-5.2, 1.2), P(5.2, 1.2), P(-3.5, 5.0), P(3.5, 5.0)]),
   10: room(10, 'Grabwächterhalle', 'Tomb Guardian Hall', 'abandoned-quarters', 'axial', 'Sarkophagachse', ['halloween'], ['tomb', 'coffin', 'grave', 'statue', 'candle'], ['workbench', 'pallet', 'barrel_stack', 'forge'], 4, 'abandoned', P(0, -13.7), [P(0, -3.2)]),
-
   11: room(11, 'Kreuzgang', 'Crossing Cloister', 'ancient-ruins', 'cross', 'kleiner Zentralschrein', ['halloween', 'forest'], ['shrine', 'statue', 'root', 'mushroom', 'stone'], ['barrel', 'workbench', 'anvil'], 4, 'monumental', P(0, -13.7), [P(0, -6.0), P(-4.8, -1.5), P(4.8, -1.5), P(0, 2.0), P(-4.5, 5.0), P(4.5, 5.0)]),
   12: room(12, 'Galerie', 'Gallery', 'ancient-ruins', 'axial', 'monumentale Hauptstatue', ['halloween', 'furniture'], ['statue', 'banner', 'pedestal', 'candle'], ['crate', 'barrel', 'forge', 'pallet'], 3, 'monumental', P(0, -13.7), [P(-3.4, -6.4), P(3.4, -6.4), P(0, -3.0), P(-3.8, 1.6), P(3.8, 1.6), P(0, 5.2)]),
   13: room(13, 'Gefängnisring', 'Prison Ring', 'ancient-ruins', 'ring', 'zentraler Schlüsselmechanismus', ['halloween', 'tools'], ['fence', 'chain', 'lock', 'cage', 'key'], ['barrel', 'bed', 'workbench', 'forge'], 4, 'monumental', P(0, -13.7), [P(-4.8, -4.2), P(0, -5.8), P(4.8, -4.2), P(-5.4, 1.0), P(5.4, 1.0), P(-3.8, 5.0), P(3.8, 5.0)]),
   14: room(14, 'Knochenhof', 'Bone Yard', 'ancient-ruins', 'diagonal', 'Knochensteg', ['halloween'], ['bone', 'skull', 'grave', 'mist', 'rubble'], ['shelf', 'weapon_rack', 'forge', 'bed'], 4, 'monumental', P(5.2, -12.2), [P(-5.0, -6.0), P(-2.4, -3.0), P(0.5, -0.4), P(3.0, 2.1), P(5.0, 4.8), P(-4.2, 4.8)]),
   15: room(15, 'Ritualarena', 'Ritual Arena', 'ancient-ruins', 'arena', 'großer Altar', ['halloween', 'resources'], ['altar', 'rune', 'crystal', 'candle', 'shrine'], ['table', 'barrel', 'shelf', 'bed'], 3, 'monumental', P(0, -13.7), [P(-4.5, -4.3), P(0, -6.0), P(4.5, -4.3), P(-5.0, 1.5), P(5.0, 1.5), P(-3.5, 5.2), P(3.5, 5.2)]),
-
   16: room(16, 'Warden-Passage', 'Warden Passage', 'warden-veil', 'axial', 'monumentale Wächterstatue', ['halloween', 'resources'], ['statue', 'banner', 'spear', 'gate', 'sigil'], ['barrel', 'bed', 'workbench', 'pallet'], 3, 'veil', P(0, -13.7), [P(-3.4, -7.0), P(0, -6.2), P(3.4, -7.0), P(-3.4, -1.5), P(0, -0.5), P(3.4, -1.5), P(0, 4.2)]),
   17: room(17, 'Eingestürztes Gewölbe', 'Collapsed Vault', 'warden-veil', 'diagonal', 'gebrochener Bodenriss', ['halloween', 'resources'], ['rubble', 'crack', 'pillar', 'stone', 'crystal'], ['barrel', 'bed', 'workbench', 'shelf'], 4, 'veil', P(-5.0, -12.0), [P(4.7, -6.2), P(1.8, -3.2), P(-1.0, -0.6), P(-3.6, 2.3), P(3.5, 4.6), P(-4.7, 5.4)]),
   18: room(18, 'Veil-Riss', 'Veil Rift', 'warden-veil', 'orbit', 'großer Schleier-Riss', ['resources', 'halloween'], ['crystal', 'gem', 'rift', 'floating', 'rune'], ['barrel', 'workbench', 'bed', 'table'], 2, 'veil', P(0, -0.8), [P(-4.5, -4.0), P(0, -5.6), P(4.5, -4.0), P(-5.3, 0.8), P(5.3, 0.8), P(-3.7, 4.8), P(0, 5.8), P(3.7, 4.8)]),
@@ -137,6 +140,37 @@ for (const blueprint of EXPANDED_ROOM_BLUEPRINTS) {
     blueprint.room, blueprint.nameDe, blueprint.nameEn, blueprint.phase, blueprint.silhouette, blueprint.heroObject,
     [...blueprint.packs], [...blueprint.keywords], [...blueprint.forbiddenKeywords], blueprint.density, blueprint.shell,
     { ...blueprint.portal }, blueprint.enemySpawns.map(point => ({ ...point })),
+  );
+}
+
+const GOLDEN_SILHOUETTES: Record<GoldenFractureSilhouette, RoomSilhouette> = {
+  'fractured-causeway': 'three-lane',
+  'split-sanctum': 'diagonal',
+  'crescent-forge': 's-curve',
+  'shattered-crossing': 'cross',
+  'twin-vaults': 'tri-island',
+  'spiral-descent': 'orbit',
+  'broken-crown': 'ring',
+  'veil-bridges': 's-lane',
+  'sunken-throne': 'axial',
+  'boss-oculus': 'arena',
+};
+
+for (const spec of Object.values(GOLDEN_FRACTURE_ROOMS)) {
+  ROOM_BIBLE[spec.room] = room(
+    spec.room,
+    spec.titleDe,
+    spec.titleEn,
+    'golden-fracture',
+    GOLDEN_SILHOUETTES[spec.silhouette],
+    spec.room === 60 ? 'goldenes Oculus mit vier Phasenankern' : `gebrochene Goldstruktur: ${spec.silhouette}`,
+    ['resources', 'halloween'],
+    ['gold', 'crystal', 'rift', 'floating', 'rune', 'pillar', spec.hazard],
+    ['forest', 'village', 'bed', 'barrel_stack'],
+    spec.room === 60 ? 1 : 3,
+    'veil',
+    { ...spec.portal },
+    spec.enemySpawns.map(point => ({ ...point })),
   );
 }
 
@@ -232,7 +266,7 @@ function resolvedEnemySpawns(roomNumber: number, spec: RoomBibleSpec): RoomBible
 }
 
 export function roomBibleSpec(roomNumber: number): RoomBibleSpec {
-  const safeRoom = Math.max(1, Math.min(50, roomNumber));
+  const safeRoom = Math.max(1, Math.min(60, roomNumber));
   const cached = RESOLVED_ROOM_SPECS.get(safeRoom);
   if (cached) return cached;
 

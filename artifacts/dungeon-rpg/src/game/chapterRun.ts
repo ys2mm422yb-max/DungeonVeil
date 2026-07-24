@@ -1,13 +1,14 @@
 import { DungeonMap, TileType } from './dungeon';
+import { goldenFracturePortalTile } from './goldenFractureRooms';
 import { roomPortalTile } from './roomBible';
 
 const fill = <T,>(height: number, width: number, value: T): T[][] =>
   Array.from({ length: height }, () => Array<T>(width).fill(value));
 
-export const CHAPTER_ROOMS = 50;
+export const CHAPTER_ROOMS = 60;
 export const MID_CHAPTER_BOSS_ROOM = 10;
-export const FINAL_BOSS_ROOM = 50;
-export const BOSS_ROOMS = [10, 20, 30, 40, 50] as const;
+export const FINAL_BOSS_ROOM = 60;
+export const BOSS_ROOMS = [10, 20, 30, 40, 50, 60] as const;
 
 export function isBossRoom(room: number): boolean {
   return BOSS_ROOMS.includes(room as (typeof BOSS_ROOMS)[number]);
@@ -33,7 +34,7 @@ export function generateRunRoom(room: number): DungeonMap {
 
   const startX = Math.floor(width / 2);
   const startY = height - 4;
-  const authoredExit = roomPortalTile(room, width, height);
+  const authoredExit = goldenFracturePortalTile(room, width, height) ?? roomPortalTile(room, width, height);
   // A tall top wall still occluded the previous y=5 position in the portrait camera.
   // Every perimeter exit now sits at y=7 (scene z=-8.5), visibly in front of the wall.
   const exit = {

@@ -1,4 +1,5 @@
 import { expandedWorldSetpieces } from './expandedWorldRooms';
+import { goldenFractureSetpieces } from './goldenFractureSetpieces';
 import type { RoomSetpiece } from './roomSetpieceLayout';
 import { calibratedRoomSetpieces } from './roomSetpieceCalibrated';
 
@@ -359,7 +360,9 @@ function anchorWallDecoration(room: number, piece: RoomSetpiece, index: number):
 }
 
 export function logicalRoomSetpieces(room: number): LogicalRoomSetpiece[] {
-  const safeRoom = Math.max(1, Math.min(50, room));
+  const safeRoom = Math.max(1, Math.min(60, room));
+  const golden = goldenFractureSetpieces(safeRoom);
+  if (golden.length) return golden.map(piece => ({ ...piece }));
   const expanded = expandedWorldSetpieces(safeRoom);
   if (expanded.length) return expanded.map(piece => ({ ...piece }));
   const key = Math.min(20, safeRoom);

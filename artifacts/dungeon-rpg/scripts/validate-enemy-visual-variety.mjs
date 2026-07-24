@@ -23,7 +23,7 @@ const [visual, baseVisual, regional, encounters, runEngine, manifest] = await Pr
 // below instead of being frozen to an obsolete blob SHA.
 const protectedFiles = new Map([
   ['../src/game/runEngine.ts', '064d97fc6a3e10358aeabcc765f95bf980d68f60'],
-  ['../src/game/encounterPlan.ts', 'daa636ebdddf45cd757feb1953231074400985d0'],
+  ['../src/game/encounterPlan.ts', 'ec5f4cfddd3dc29ad76f3e83cd2e34173d1b36b6'],
 ]);
 
 const failures = [];
