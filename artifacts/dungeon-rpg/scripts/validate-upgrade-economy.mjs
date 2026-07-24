@@ -30,7 +30,7 @@ const checks = [
   [forgeMarks.includes('pendingExchange') && forgeMarks.includes('meta.rewardLedger.includes(transaction.rewardKey)') && forgeMarks.includes('recover(normalize(JSON.parse(raw)))'), 'Forge Mark exchange is not crash recoverable'],
   [forgeMarks.includes('ACTIVE_EQUIPMENT_IDS.filter') && forgeMarks.includes('unlockRank <= meta.rank') && forgeMarks.includes('unlockChapter <= safeChapter'), 'Forge Mark pool can include locked or invalid equipment'],
   [!dropContract.includes('SOURCE_WISH_CHANCE') && !dropContract.includes('CHAPTER_WISH_CHANCE') && !dropContract.includes('wishItem'), 'retired wish chance or pity remains in the real drop contract'],
-  [dropContract.includes("rollForgeMarkReward(safeFloor === FINAL_BOSS_ROOM ? 'chapterBoss' : 'intermediateBoss'"), 'boss Forge Mark rolls are not wired to the real reward path'],
+  [dropContract.includes("const markSource = safeFloor === FINAL_BOSS_ROOM ? 'chapterBoss' : 'intermediateBoss'") && dropContract.includes('rollForgeMarkReward(markSource,'), 'boss Forge Mark rolls are not wired to the real reward path'],
   [legacyInventory.includes('balancedEquipmentUpgradeCost(item.id, meta)'), 'inventory does not display the V4 cost'],
   [legacyInventory.includes('meta.dust >= cost.dust') && legacyInventory.includes('copies >= cost.copies'), 'inventory upgrade button does not require dust and copies'],
   [legacyInventory.includes('upgradeMetaItemBalanced(item.id)'), 'inventory upgrade button is not wired to V4 economy'],
