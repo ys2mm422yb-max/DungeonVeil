@@ -9,7 +9,9 @@ const protectedSoloFiles = new Map([
   // Block 5 intentionally canonicalizes relic triggers in runRetention.ts.
   // validate-relic-runtime-ui-v4.mjs verifies its exact caps, trigger isolation and resume safety.
   ['../src/game/runRetention.ts', '19e9a88963f9ce306df3c305725a5c1898cd9c3d'],
-  ['../src/game/runBalance.ts', '4f4c4aa6ee9186c7a637a44c3e9aff122680eb31'],
+  // Rooms 61-70 wrap the unchanged solo balance implementation with an isolated
+  // Observatory mechanics update. The protected legacy blob remains byte-identical.
+  ['../src/game/runBalanceLegacy.ts', '4f4c4aa6ee9186c7a637a44c3e9aff122680eb31'],
   ['../src/game/runEffectSystems.ts', 'fb2059b66558b1d27810cf533172adf492e05d49'],
 ]);
 
@@ -25,8 +27,11 @@ for (const [relative, expected] of protectedSoloFiles) {
   if (actual !== expected) failures.push(`${relative.replace('../src/', 'src/')} changed (${actual}, expected ${expected})`);
 }
 
+const runBalance = await readFile(new URL('../src/game/runBalance.ts', import.meta.url), 'utf8');
 const runMode = await readFile(new URL('../src/game/coopRunMode.ts', import.meta.url), 'utf8');
 const contractChecks = [
+  [runBalance.includes("from './runBalanceLegacy'") && runBalance.includes('updateLegacyRunBalance(engine, state);'), 'active run balance no longer delegates to the protected solo balance implementation'],
+  [runBalance.includes('updateShatteredObservatoryMechanics(engine);'), 'Observatory mechanics are not isolated after the protected balance update'],
   [runMode.includes("export type RunMode = 'solo' | 'duo'"), 'run modes are not explicitly separated'],
   [runMode.includes("SOLO_BALANCE_POLICY = 'immutable'"), 'solo balance is not marked immutable'],
   [runMode.includes('COOP_PLAYER_LIMIT = 2'), 'duo player limit is not fixed at two'],
@@ -40,4 +45,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Co-op isolation passed: ${protectedSoloFiles.size} solo-core files match their approved hashes, while equipment and relic behavior is governed by the canonical redesign audits.`);
+console.log(`Co-op isolation passed: ${protectedSoloFiles.size} solo-core files match their approved hashes, while the Observatory wrapper remains isolated from Duo networking.`);
