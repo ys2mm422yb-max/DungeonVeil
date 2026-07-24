@@ -1,5 +1,6 @@
 import type { EliteAffix, Enemy } from './entities';
 import { CHAPTER_ROOMS } from './chapterRun';
+import { updateGoldenFractureMechanics } from './goldenFractureMechanics';
 import type { GameEngine } from './runEngine';
 
 const ENEMY_SPEED_FACTOR: Record<string, number> = {
@@ -264,4 +265,5 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
   }
 
   updateEliteMechanics(engine, state, time);
+  updateGoldenFractureMechanics(engine, time);
 }
