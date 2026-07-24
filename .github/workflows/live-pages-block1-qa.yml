@@ -64,13 +64,21 @@ jobs:
         shell: bash
         run: |
           for attempt in {1..60}; do
-            if curl --fail --silent --show-error "$DUNGEON_VEIL_URL" > /tmp/dungeon-veil-live.html; then
+            if curl --fail --silent --show-error --location \
+              --output /tmp/dungeon-veil-live.html \
+              --write-out '%{http_code}' \
+              "$DUNGEON_VEIL_URL" | grep -q '^200$'; then
               break
             fi
             sleep 5
           done
-          curl --fail --silent --show-error "$DUNGEON_VEIL_URL" > /tmp/dungeon-veil-live.html
-          grep -q '<div id="root"></div>' /tmp/dungeon-veil-live.html
+          STATUS="$(curl --fail --silent --show-error --location \
+            --output /tmp/dungeon-veil-live.html \
+            --write-out '%{http_code}' \
+            "$DUNGEON_VEIL_URL")"
+          test "$STATUS" = '200'
+          test -s /tmp/dungeon-veil-live.html
+          grep -Eq 'id=["'"']root["'"']' /tmp/dungeon-veil-live.html
       - name: Test live Shop, Options and Profile taps
         id: live-tests
         continue-on-error: true
