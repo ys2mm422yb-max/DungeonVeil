@@ -5,6 +5,7 @@ import { collectBalancedEquipmentDrop } from './equipmentCollection';
 import { rollForgeMarkReward } from './forgeMarks';
 import {
   EQUIPMENT,
+  loadMetaProgression,
   spawnEquipmentDrop,
   type EquipmentId,
   type PendingEquipmentDrop,
@@ -99,7 +100,7 @@ function spawnHuntEquipment(engine: GameEngine, state: EquipmentWorldLootState) 
   for (const enemy of engine.state.enemies) {
     if (!enemy.isDead || !enemy.isHuntTarget || state.processedHuntDeaths.has(enemy.id)) continue;
     state.processedHuntDeaths.add(enemy.id);
-    const runId = engine.state.runId || engine.state.player.playerName || 'legacy-run';
+    const runId = loadMetaProgression().currentRunId || engine.state.player.playerName || 'legacy-run';
     const mark = rollForgeMarkReward('hunt', `${runId}:${engine.state.chapter}:${engine.state.floor}:${enemy.id}:forge-mark`);
     if (mark.granted) {
       window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', {
