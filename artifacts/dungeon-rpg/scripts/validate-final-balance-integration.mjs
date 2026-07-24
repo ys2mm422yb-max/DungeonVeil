@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [redesign, gates, targeting, collection, runtime, playerRuntime, combat, relics, retention, balance, overlay, effects] = await Promise.all([
+const [redesign, gates, targeting, collection, runtime, playerRuntime, combat, relics, retention, balance, legacyBalance, overlay, effects] = await Promise.all([
   read('../src/game/equipmentRedesign.ts'),
   read('../src/game/equipmentChapterGates.ts'),
   read('../src/game/equipmentTargeting.ts'),
@@ -12,11 +12,13 @@ const [redesign, gates, targeting, collection, runtime, playerRuntime, combat, r
   read('../src/game/veilRelics.ts'),
   read('../src/game/runRetention.ts'),
   read('../src/game/runBalance.ts'),
+  read('../src/game/runBalanceLegacy.ts'),
   read('../src/game/combatBalanceOverlayV4.ts'),
   read('../src/game/runEffectSystems.ts'),
 ]);
 
 const activeIds = [...redesign.matchAll(/^\s*'([^']+)':\s*\{/gm)].map(match => match[1]);
+const balanceImplementation = `${balance}\n${legacyBalance}`;
 const checks = [
   [activeIds.length === 10, 'active equipment catalog is not exactly ten items'],
   [redesign.includes('unlockChapter: 10') && redesign.includes("'warden-bow'"), 'late equipment unlocks do not extend through chapter ten'],
@@ -31,8 +33,8 @@ const checks = [
   [playerRuntime.includes('Math.floor(kills / 7)') && playerRuntime.includes('state.clawUntil = time + 2500'), 'Marked Claw seven-kill cadence is not active'],
   [playerRuntime.includes("equippedVeilRelic() === 'depth-rune-shard' ? 0.82 : 1") && playerRuntime.indexOf('rawDamage * runeFactor') < playerRuntime.indexOf('defenseMitigation(player.defense'), 'Rune Shard is not reducing damage before final defense mitigation'],
   [combat.includes('safeDefense / (safeDefense + 32)') && combat.includes('cap = 0.52'), 'diminishing defense or cap is missing'],
-  [balance.includes('legacySpawnScale') && balance.includes('baseHp = Math.max(1, enemy.maxHp / spawnScale)'), 'legacy spawn scaling is not normalized before central balance'],
-  [balance.includes('ELITE_AFFIXES') && balance.includes('updateMenders') && balance.includes('queueVolatileDeaths'), 'elite affix mechanics are incomplete'],
+  [balance.includes("from './runBalanceLegacy'") && balanceImplementation.includes('legacySpawnScale') && balanceImplementation.includes('baseHp = Math.max(1, enemy.maxHp / spawnScale)'), 'legacy spawn scaling is not normalized before central balance'],
+  [balance.includes('updateLegacyRunBalance') && balanceImplementation.includes('ELITE_AFFIXES') && balanceImplementation.includes('updateMenders') && balanceImplementation.includes('queueVolatileDeaths'), 'elite affix mechanics are incomplete'],
   [overlay.includes('applyCombatBalanceV4Overlay') && overlay.includes('chapterCombatProfileV4') && overlay.includes('roomCombatScaleV4'), 'V4 room and chapter overlay is not active'],
   [effects.includes('engine.state.floor !== 50') && effects.includes('engine.state.floor === 50'), 'final boss phase is not owned by room fifty'],
 ];

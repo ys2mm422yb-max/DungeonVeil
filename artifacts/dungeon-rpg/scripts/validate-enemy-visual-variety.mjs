@@ -23,7 +23,7 @@ const [visual, baseVisual, regional, encounters, runEngine, manifest] = await Pr
 // below instead of being frozen to an obsolete blob SHA.
 const protectedFiles = new Map([
   ['../src/game/runEngine.ts', '064d97fc6a3e10358aeabcc765f95bf980d68f60'],
-  ['../src/game/encounterPlan.ts', 'ec5f4cfddd3dc29ad76f3e83cd2e34173d1b36b6'],
+  ['../src/game/encounterPlan.ts', '4ae2a4bd4f261679ce5c30f82ca7b921c413640c'],
 ]);
 
 const failures = [];
@@ -60,7 +60,7 @@ const checks = [
   [visual.includes('types.map(preloadLocalEnemyAsset)') && visual.includes('types.map(loadImportedPrototype)'), 'requested models are not fully fetched and parsed'],
   [!visual.includes('IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset)'), 'all five creatures are still forced before every room'],
   [visual.includes('createDedicatedImportedVisual') && visual.includes('if (importedEnemyType(enemy.enemyType))') && visual.includes('return createBaseKayKitEnemyVisual(THREE, enemy);'), 'imported creatures do not have a direct construction path separate from humanoid models'],
-  [visual.includes("const needsBaseLibrary = enemyTypes.length === 0 || enemyTypes.some(type => !importedEnemyType(type));") && visual.includes('needsBaseLibrary ? preloadBaseKayKitEnemyVisuals() : Promise.resolve()'), 'imported-only rooms still wait for the full humanoid library'],
+  [visual.includes('const needsBaseLibrary = enemyTypes.length === 0 || enemyTypes.some(type => !importedEnemyType(type));') && visual.includes('needsBaseLibrary ? preloadBaseKayKitEnemyVisuals() : Promise.resolve()'), 'imported-only rooms still wait for the full humanoid library'],
   [visual.includes('throw new Error(`Dedicated enemy model did not become ready:') && visual.includes('enemyPreloadPromises.delete(key)') && visual.includes('importedPrototypePromises.delete(type)'), 'dedicated model failures are not retried safely'],
   [visual.includes('prepareImportedModel(scene)') && visual.includes('node.frustumCulled = false;'), 'direct imported creatures are not prepared for reliable mobile rendering'],
   [!visual.includes('EnemyMageIdentity_') && !visual.includes('robeMaterial'), 'the fake mage costume overlay still exists'],
