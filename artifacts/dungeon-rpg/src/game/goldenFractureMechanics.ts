@@ -70,6 +70,13 @@ function queueHazard(engine: GameEngine, state: GoldenFractureRuntimeState, now:
   state.nextHazardAt = now + spec.telegraphMs + spec.recoveryMs + Math.max(350, 900 - phaseBonus * 170);
 }
 
+function clearHazards(engine: GameEngine, state: GoldenFractureRuntimeState): void {
+  state.pending = [];
+  state.nextHazardAt = Number.POSITIVE_INFINITY;
+  engine.state.effects = engine.state.effects.filter(effect => !effect.id.startsWith('golden-fracture-'));
+  engine.state.damageNumbers = engine.state.damageNumbers.filter(number => !number.id.startsWith('golden-fracture-'));
+}
+
 function resolveHazards(engine: GameEngine, state: GoldenFractureRuntimeState, now: number) {
   const player = engine.state.player;
   const px = player.x + player.width / 2;
@@ -122,9 +129,12 @@ function updateAurelPhase(engine: GameEngine, state: GoldenFractureRuntimeState,
 export function updateGoldenFractureMechanics(engine: GameEngine, now = performance.now()): void {
   if (!isGoldenFractureRoom(engine.state.floor) || engine.state.status !== 'playing') return;
   const state = getState(engine, now);
+  const combatActive = !engine.state.roomClearReady && engine.state.enemies.some(enemy => !enemy.isDead && enemy.hp > 0);
+  if (!combatActive) {
+    clearHazards(engine, state);
+    return;
+  }
   updateAurelPhase(engine, state, now);
   resolveHazards(engine, state, now);
-  if (engine.state.enemies.some(enemy => !enemy.isDead && enemy.hp > 0) && now >= state.nextHazardAt) {
-    queueHazard(engine, state, now);
-  }
+  if (now >= state.nextHazardAt) queueHazard(engine, state, now);
 }
