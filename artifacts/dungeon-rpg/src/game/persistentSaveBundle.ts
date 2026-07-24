@@ -4,6 +4,7 @@ const PRE_RESTORE_BACKUP_KEY = 'dungeon-veil-pre-cloud-restore-v1';
 const CORE_BUNDLE_KEYS = [
   'dungeon-veil-save',
   'dungeon-veil-meta',
+  'dungeon-veil-forge-marks-v1',
   'dungeon-veil-equipment-targeting-v2',
   'dungeon-veil-equipment-targeting-v1',
   'dungeon-veil-equipment-redesign-v1',
@@ -99,9 +100,6 @@ function equipmentProgressWeight(value: unknown): number {
     return total + level * 2_500 + copies * 300;
   }, 0);
 }
-function sourceMarkWeight(value: unknown): number {
-  return Object.values(record(value)).reduce<number>((total, raw) => total + Math.floor(number(raw)) * 3_000, 0);
-}
 
 export function persistentPlayerId(): string {
   try {
@@ -150,7 +148,8 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   const stats = record(profile.stats);
   const meta = parseBundleValue(bundle, 'dungeon-veil-meta');
   const owned = record(meta.owned);
-  const targeting = parseFirstBundleValue(bundle, ['dungeon-veil-equipment-targeting-v2', 'dungeon-veil-equipment-targeting-v1']);
+  const forgeMarks = parseBundleValue(bundle, 'dungeon-veil-forge-marks-v1');
+  const legacyTargeting = parseFirstBundleValue(bundle, ['dungeon-veil-equipment-targeting-v2', 'dungeon-veil-equipment-targeting-v1']);
   const migration = parseBundleValue(bundle, 'dungeon-veil-equipment-redesign-v1');
   const retention = parseBundleValue(bundle, 'dungeon-veil-retention-v2');
   const codex = record(retention.codex);
@@ -180,8 +179,11 @@ export function bundleProgressWeight(bundle: DungeonVeilSaveBundle): number {
   weight += number(meta.dust) * 100;
   weight += Object.keys(owned).length * 10_000;
   weight += equipmentProgressWeight(owned);
-  weight += sourceMarkWeight(targeting.sourceMarks);
-  if (typeof targeting.wishItem === 'string' && targeting.wishItem) weight += 2_000;
+  weight += number(forgeMarks.marks) * 3_000;
+  if (!forgeMarks.migratedLegacyMarks) {
+    const sourceMarks = record(legacyTargeting.sourceMarks);
+    weight += Object.values(sourceMarks).reduce<number>((total, raw) => total + Math.floor(number(raw)) * 3_000, 0);
+  }
   weight += stringArrayLength(meta.cosmeticUnlocks) * 1_000;
   weight += stringArrayLength(migration.cosmeticUnlocks) * 1_000;
   weight += number(record(migration.compensation).gold) / 10 + number(record(migration.compensation).dust) * 100;

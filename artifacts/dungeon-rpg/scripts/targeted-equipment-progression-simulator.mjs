@@ -7,25 +7,19 @@ import { simulateBalancedEquipmentSources } from './balanced-equipment-source-si
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(HERE, '..');
-const BOSS_ROOMS = new Set([10, 20, 30, 40, 50]);
 
-export const TARGETED_EQUIPMENT_SIMULATOR_VERSION = 1;
-export const TARGETED_EQUIPMENT_RULES = Object.freeze({
-  sourceMarkCost: 3,
-  sourceWishChance: 0.35,
-  chapterWishChance: 0.5,
-  wishPityMisses: 2,
-  huntWishAttemptsPerChapter: 1,
-  upgradeCopiesTotal: 11,
+export const TARGETED_EQUIPMENT_SIMULATOR_VERSION = 2;
+export const FORGE_MARK_SIMULATION_RULES = Object.freeze({
+  exchangeCost: 10,
+  huntsPerChapter: 12,
+  intermediateBossesPerChapter: 4,
+  chapterBossesPerChapter: 1,
+  huntChance: 0.01,
+  intermediateBossChance: 0.025,
+  chapterBossChance: 0.075,
+  categoryWeights: Object.freeze({ bow: 40, quiver: 30, armor: 30 }),
+  rarityWeights: Object.freeze({ common: 55, rare: 32, epic: 13 }),
 });
-
-export const TARGETED_EQUIPMENT_CASES = Object.freeze([
-  { id: 'ash-bow', source: 'forge', unlockChapter: 1, starter: true },
-  { id: 'hunter-bow', source: 'hunt', unlockChapter: 2, starter: false },
-  { id: 'guardian-sigil', source: 'warden', unlockChapter: 3, starter: false },
-  { id: 'veil-bow', source: 'ritual', unlockChapter: 4, starter: false },
-  { id: 'veil-key', source: 'depth', unlockChapter: 1, starter: true },
-]);
 
 function mulberry32(seed) {
   let value = seed >>> 0;
@@ -64,118 +58,84 @@ function distribution(values, maxValue) {
   return result;
 }
 
-function huntChapter(rng, roomsSinceHunt) {
-  let hunts = 0;
-  let equipmentDrops = 0;
-  for (let room = 1; room <= 50; room += 1) {
-    if (room < 8 || BOSS_ROOMS.has(room)) continue;
-    const chance = Math.min(0.18 + roomsSinceHunt * 0.09, 0.72);
-    if (rng() <= chance) {
-      hunts += 1;
-      roomsSinceHunt = 0;
-      if (rng() <= 0.18) equipmentDrops += 1;
-    } else {
-      roomsSinceHunt += 1;
-    }
-  }
-  return { hunts, equipmentDrops, roomsSinceHunt };
-}
-
-function sourceChapterState(source, chapter, hunt) {
-  if (source === 'forge') return { marks: 1, wishAttempts: 1 };
-  if (source === 'ritual') return chapter >= 4 ? { marks: 1, wishAttempts: 1 } : { marks: 0, wishAttempts: 0 };
-  if (source === 'warden') return chapter >= 3 ? { marks: 1, wishAttempts: 1 } : { marks: 0, wishAttempts: 0 };
-  if (source === 'depth') return chapter <= 2 ? { marks: 2, wishAttempts: 2 } : { marks: 1, wishAttempts: 1 };
-  const huntBoss = chapter <= 3 ? 1 : 0;
-  return {
-    marks: (hunt.hunts > 0 ? 1 : 0) + huntBoss,
-    wishAttempts: (hunt.equipmentDrops > 0 ? TARGETED_EQUIPMENT_RULES.huntWishAttemptsPerChapter : 0) + huntBoss,
-  };
-}
-
-function resolveWishAttempt(rng, misses, chance) {
-  if (misses >= TARGETED_EQUIPMENT_RULES.wishPityMisses || rng() <= chance) return { hit: true, misses: 0 };
-  return { hit: false, misses: misses + 1 };
-}
-
-function simulateTargetCase(target, seed, maxChapters) {
-  const rng = mulberry32(seed);
-  const acquisitionsNeeded = TARGETED_EQUIPMENT_RULES.upgradeCopiesTotal + (target.starter ? 0 : 1);
-  let acquisitions = 0;
+function rollMany(rng, attempts, chance) {
   let marks = 0;
-  let sourceMisses = 0;
-  let chapterMisses = 0;
-  let roomsSinceHunt = 0;
+  for (let attempt = 0; attempt < attempts; attempt += 1) if (rng() < chance) marks += 1;
+  return marks;
+}
 
+function simulateExchangeChapter(seed, maxChapters) {
+  const rng = mulberry32(seed);
+  let marks = 0;
   for (let chapter = 1; chapter <= maxChapters; chapter += 1) {
-    const hunt = huntChapter(rng, roomsSinceHunt);
-    roomsSinceHunt = hunt.roomsSinceHunt;
-    const source = sourceChapterState(target.source, chapter, hunt);
-    marks += source.marks;
-
-    if (chapter < target.unlockChapter) continue;
-
-    for (let attempt = 0; attempt < source.wishAttempts; attempt += 1) {
-      const result = resolveWishAttempt(rng, sourceMisses, TARGETED_EQUIPMENT_RULES.sourceWishChance);
-      sourceMisses = result.misses;
-      if (result.hit) acquisitions += 1;
-    }
-
-    const chapterResult = resolveWishAttempt(rng, chapterMisses, TARGETED_EQUIPMENT_RULES.chapterWishChance);
-    chapterMisses = chapterResult.misses;
-    if (chapterResult.hit) acquisitions += 1;
-
-    while (marks >= TARGETED_EQUIPMENT_RULES.sourceMarkCost && acquisitions < acquisitionsNeeded) {
-      marks -= TARGETED_EQUIPMENT_RULES.sourceMarkCost;
-      acquisitions += 1;
-    }
-
-    if (acquisitions >= acquisitionsNeeded) return chapter - target.unlockChapter + 1;
+    marks += rollMany(rng, FORGE_MARK_SIMULATION_RULES.huntsPerChapter, FORGE_MARK_SIMULATION_RULES.huntChance);
+    marks += rollMany(rng, FORGE_MARK_SIMULATION_RULES.intermediateBossesPerChapter, FORGE_MARK_SIMULATION_RULES.intermediateBossChance);
+    marks += rollMany(rng, FORGE_MARK_SIMULATION_RULES.chapterBossesPerChapter, FORGE_MARK_SIMULATION_RULES.chapterBossChance);
+    if (marks >= FORGE_MARK_SIMULATION_RULES.exchangeCost) return chapter;
   }
   return null;
+}
+
+function weightedPick(rng, weights) {
+  const entries = Object.entries(weights);
+  const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
+  let cursor = rng() * total;
+  for (const [entry, weight] of entries) {
+    cursor -= weight;
+    if (cursor < 0) return entry;
+  }
+  return entries.at(-1)[0];
+}
+
+function simulateRewardDistribution(seed, samples) {
+  const rng = mulberry32(seed);
+  const categoryCounts = { bow: 0, quiver: 0, armor: 0 };
+  const rarityCounts = { common: 0, rare: 0, epic: 0 };
+  for (let sample = 0; sample < samples; sample += 1) {
+    categoryCounts[weightedPick(rng, FORGE_MARK_SIMULATION_RULES.categoryWeights)] += 1;
+    rarityCounts[weightedPick(rng, FORGE_MARK_SIMULATION_RULES.rarityWeights)] += 1;
+  }
+  const ratios = counts => Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, value / samples]));
+  return { samples, categoryCounts, rarityCounts, categoryRatios: ratios(categoryCounts), rarityRatios: ratios(rarityCounts) };
 }
 
 export function simulateTargetedEquipmentProgression({
   seed = DEFAULT_SEED,
   samples = DEFAULT_SAMPLES,
-  maxChapters = DEFAULT_MAX_CHAPTERS,
+  maxChapters = Math.max(DEFAULT_MAX_CHAPTERS, 120),
 } = {}) {
   const base = simulateBalancedEquipmentSources({ seed, samples, maxChapters });
-  const targetResults = Object.fromEntries(TARGETED_EQUIPMENT_CASES.map((target, targetIndex) => {
-    const values = Array.from({ length: samples }, (_, sample) => simulateTargetCase(
-      target,
-      hashSeed(seed, sample, targetIndex * 101),
-      maxChapters,
-    ));
-    return [target.id, {
-      source: target.source,
-      unlockChapter: target.unlockChapter,
-      starter: target.starter,
-      eligibleChaptersToLevelFiveCopies: distribution(values, maxChapters),
-    }];
-  }));
-
+  const chapterValues = Array.from({ length: samples }, (_, sample) => simulateExchangeChapter(hashSeed(seed, sample), maxChapters));
+  const expectedMarksPerChapter = (
+    FORGE_MARK_SIMULATION_RULES.huntsPerChapter * FORGE_MARK_SIMULATION_RULES.huntChance
+    + FORGE_MARK_SIMULATION_RULES.intermediateBossesPerChapter * FORGE_MARK_SIMULATION_RULES.intermediateBossChance
+    + FORGE_MARK_SIMULATION_RULES.chapterBossesPerChapter * FORGE_MARK_SIMULATION_RULES.chapterBossChance
+  );
   return {
     ...base,
-    simulatorVersion: `${base.simulatorVersion}+target-${TARGETED_EQUIPMENT_SIMULATOR_VERSION}`,
-    scenario: 'targeted-equipment-progression',
-    currentRules: { ...base.currentRules, ...TARGETED_EQUIPMENT_RULES },
-    targetedEquipment: targetResults,
+    simulatorVersion: `${base.simulatorVersion}+forge-${TARGETED_EQUIPMENT_SIMULATOR_VERSION}`,
+    scenario: 'forge-marks-equipment-progression',
+    currentRules: { ...base.currentRules, ...FORGE_MARK_SIMULATION_RULES },
+    forgeMarks: {
+      expectedMarksPerChapter,
+      expectedMeanChaptersPerExchange: FORGE_MARK_SIMULATION_RULES.exchangeCost / expectedMarksPerChapter,
+      chaptersToFirstExchange: distribution(chapterValues, maxChapters),
+      rewardDistribution: simulateRewardDistribution(hashSeed(seed, samples, 0x51f15e), Math.max(samples * 4, 16_384)),
+    },
     warnings: base.warnings.filter(warning => warning.code !== 'targeted_copy_control_missing'),
   };
 }
 
 export function renderTargetedEquipmentMarkdown(report) {
-  const rows = Object.entries(report.targetedEquipment).map(([id, entry]) => {
-    const result = entry.eligibleChaptersToLevelFiveCopies;
-    return `| ${id} | ${entry.source} | ${entry.unlockChapter} | ${entry.starter ? 'yes' : 'no'} | ${result.p10} | ${result.median} | ${result.p90} | ${result.p99} |`;
-  }).join('\n');
+  const exchange = report.forgeMarks.chaptersToFirstExchange;
+  const category = report.forgeMarks.rewardDistribution.categoryRatios;
+  const rarity = report.forgeMarks.rewardDistribution.rarityRatios;
   const warnings = report.warnings.map(warning => `- **${warning.severity.toUpperCase()} · ${warning.code}:** ${warning.message}`).join('\n');
-  return `# Dungeon Veil targeted equipment progression\n\n- Scenario: \`${report.scenario}\`\n- Seed: \`${report.seed}\`\n- Samples: ${report.samples}\n- Source mark cost: ${report.currentRules.sourceMarkCost}\n- Source wish chance: ${Math.round(report.currentRules.sourceWishChance * 100)}%\n- Room-50 wish chance: ${Math.round(report.currentRules.chapterWishChance * 100)}%\n- Guaranteed after matching misses: ${report.currentRules.wishPityMisses}\n\n## Eligible chapters to eleven upgrade copies\n\nUnowned targets require one additional acquisition for the initial unlock. The table reports elapsed chapters from the target's unlock chapter.\n\n| Item | Source | Unlock chapter | Starter | P10 | Median | P90 | P99 |\n|---|---|---:|---|---:|---:|---:|---:|\n${rows}\n\n## Remaining warnings\n\n${warnings}\n`;
+  return `# Dungeon Veil Forge Marks progression\n\n- Scenario: \`${report.scenario}\`\n- Seed: \`${report.seed}\`\n- Samples: ${report.samples}\n- Exchange cost: ${report.currentRules.exchangeCost} Forge Marks\n- Expected marks per 50-room chapter: ${report.forgeMarks.expectedMarksPerChapter.toFixed(3)}\n- Expected mean chapters per exchange: ${report.forgeMarks.expectedMeanChaptersPerExchange.toFixed(2)}\n\n## Chapters to first ten-mark exchange\n\n| P10 | Median | P90 | P99 |\n|---:|---:|---:|---:|\n| ${exchange.p10} | ${exchange.median} | ${exchange.p90} | ${exchange.p99} |\n\n## Simulated reward distribution\n\n- Categories: bow ${(category.bow * 100).toFixed(2)}%, quiver ${(category.quiver * 100).toFixed(2)}%, armor ${(category.armor * 100).toFixed(2)}%\n- Rarities: common ${(rarity.common * 100).toFixed(2)}%, rare ${(rarity.rare * 100).toFixed(2)}%, epic ${(rarity.epic * 100).toFixed(2)}%\n\n## Remaining warnings\n\n${warnings || '- None'}\n`;
 }
 
 function parseCli(argv) {
-  const options = { seed: DEFAULT_SEED, samples: DEFAULT_SAMPLES, maxChapters: DEFAULT_MAX_CHAPTERS, format: 'summary', write: false };
+  const options = { seed: DEFAULT_SEED, samples: DEFAULT_SAMPLES, maxChapters: Math.max(DEFAULT_MAX_CHAPTERS, 120), format: 'summary', write: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--json') options.format = 'json';
@@ -197,15 +157,17 @@ async function main() {
     const docsDir = path.join(PROJECT_ROOT, 'docs');
     await mkdir(docsDir, { recursive: true });
     await Promise.all([
-      writeFile(path.join(docsDir, 'targeted-equipment-progression.json'), `${JSON.stringify(report, null, 2)}\n`),
-      writeFile(path.join(docsDir, 'targeted-equipment-progression.md'), markdown),
+      writeFile(path.join(docsDir, 'forge-marks-progression.json'), `${JSON.stringify(report, null, 2)}\n`),
+      writeFile(path.join(docsDir, 'forge-marks-progression.md'), markdown),
     ]);
   }
   if (options.format === 'json') console.log(JSON.stringify(report, null, 2));
   else if (options.format === 'markdown') console.log(markdown);
   else {
-    console.log(`Targeted equipment simulator: ${report.samples} samples × ${report.maxChapters} chapters`);
-    console.log('Median eligible chapters:', Object.fromEntries(Object.entries(report.targetedEquipment).map(([id, entry]) => [id, entry.eligibleChaptersToLevelFiveCopies.median])));
+    console.log(`Forge Marks simulator: ${report.samples} samples × ${report.maxChapters} chapters`);
+    console.log('Chapters to first exchange:', report.forgeMarks.chaptersToFirstExchange);
+    console.log('Reward category ratios:', report.forgeMarks.rewardDistribution.categoryRatios);
+    console.log('Reward rarity ratios:', report.forgeMarks.rewardDistribution.rarityRatios);
     console.log(`Remaining warnings: ${report.warnings.length}`);
   }
 }

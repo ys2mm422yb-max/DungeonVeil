@@ -1,21 +1,12 @@
 import { FINAL_BOSS_ROOM, isBossRoom } from './chapterRun';
 import { equipmentUnlockChapter } from './equipmentChapterGates';
+import { rollForgeMarkReward } from './forgeMarks';
 import { ACTIVE_EQUIPMENT, isActiveEquipmentId } from './equipmentRedesign';
-import {
-  CHAPTER_WISH_CHANCE,
-  CHAPTER_WISH_PITY_MISSES,
-  SOURCE_WISH_CHANCE,
-  WISH_PITY_MISSES,
-  loadEquipmentTargeting,
-  saveEquipmentTargeting,
-  type EquipmentTargetingProfile,
-} from './equipmentTargeting';
 import {
   EQUIPMENT,
   loadMetaProgression,
   type EquipmentDefinition,
   type EquipmentDropSource,
-  type EquipmentId,
   type MetaProgression,
   type PendingEquipmentDrop,
 } from './metaProgression';
@@ -59,52 +50,13 @@ function chooseEquipment(
   chapter: number,
   source: EquipmentDropSource | null,
   random: () => number,
-  forcedItem: EquipmentId | null = null,
 ): PendingEquipmentDrop | null {
   const pool = eligibleEquipment(meta, chapter, source);
   if (!pool.length) return null;
-  if (forcedItem) {
-    const forced = pool.find(item => item.id === forcedItem);
-    if (forced) return equipmentDrop(meta, forced);
-  }
   const unowned = pool.filter(item => !meta.owned[item.id]);
   const candidates = unowned.length > 0 && random() < UNOWNED_ITEM_PREFERENCE ? unowned : pool;
   const index = Math.min(candidates.length - 1, Math.floor(Math.max(0, random()) * candidates.length));
   return equipmentDrop(meta, candidates[index]);
-}
-
-function eligibleWishItem(meta: MetaProgression, profile: EquipmentTargetingProfile, chapter: number, source: EquipmentDropSource | null): EquipmentId | null {
-  const id = profile.wishItem;
-  if (!id || !isActiveEquipmentId(id)) return null;
-  const item = ACTIVE_EQUIPMENT[id];
-  if (source && item.dropSource !== source) return null;
-  if (item.unlockRank > meta.rank || equipmentUnlockChapter(id) > chapter) return null;
-  if ((meta.owned[id]?.level ?? 0) >= 5) return null;
-  return id;
-}
-
-function chooseTargetedReward(
-  meta: MetaProgression,
-  profile: EquipmentTargetingProfile,
-  chapter: number,
-  source: EquipmentDropSource | null,
-  random: () => number,
-): PendingEquipmentDrop | null {
-  const wishItem = eligibleWishItem(meta, profile, chapter, source);
-  if (!wishItem) {
-    if (source) profile.sourceWishMisses[source] = 0;
-    else profile.chapterWishMisses = 0;
-    return chooseEquipment(meta, chapter, source, random);
-  }
-  const misses = source ? profile.sourceWishMisses[source] : profile.chapterWishMisses;
-  const chance = source ? SOURCE_WISH_CHANCE : CHAPTER_WISH_CHANCE;
-  const pity = source ? WISH_PITY_MISSES : CHAPTER_WISH_PITY_MISSES;
-  const wishHit = misses >= pity || random() <= chance;
-  const drop = chooseEquipment(meta, chapter, source, random, wishHit ? wishItem : null);
-  const receivedWish = drop?.item === wishItem;
-  if (source) profile.sourceWishMisses[source] = receivedWish ? 0 : Math.min(pity, misses + 1);
-  else profile.chapterWishMisses = receivedWish ? 0 : Math.min(pity, misses + 1);
-  return drop;
 }
 
 export function bossEquipmentSource(_chapter: number, floor: number): EquipmentDropSource | null {
@@ -119,12 +71,11 @@ export function rollBossEquipmentReward(chapter: number, floor: number, random: 
   if (!isBossRoom(safeFloor)) return null;
   const source = bossEquipmentSource(safeChapter, safeFloor);
   const meta = loadMetaProgression();
-  const profile = loadEquipmentTargeting();
-  if (source && random() <= 0.45) profile.sourceMarks[source] += 1;
+  const runId = meta.currentRunId || 'legacy-run';
+  const markSource = safeFloor === FINAL_BOSS_ROOM ? 'chapterBoss' : 'intermediateBoss';
+  rollForgeMarkReward(markSource, `${runId}:${safeChapter}:${safeFloor}:forge-mark`, random);
   const chance = BOSS_EQUIPMENT_DROP_CHANCE[safeFloor] ?? 0;
-  const drop = random() <= chance ? chooseTargetedReward(meta, profile, safeChapter, source, random) : null;
-  saveEquipmentTargeting(profile);
-  return drop;
+  return random() <= chance ? chooseEquipment(meta, safeChapter, source, random) : null;
 }
 
 export function rollHuntEquipmentReward(
@@ -134,17 +85,7 @@ export function rollHuntEquipmentReward(
 ): PendingEquipmentDrop | null {
   if (random() > Math.max(0, Math.min(1, Number(chance) || 0))) return null;
   const safeChapter = Math.max(1, Math.floor(Number(chapter) || 1));
-  const meta = loadMetaProgression();
-  const profile = loadEquipmentTargeting();
-  const runId = meta.currentRunId;
-  const wishKey = runId ? `${runId}:${safeChapter}:hunt-wish` : '';
-  const canUseWishAttempt = Boolean(wishKey && eligibleWishItem(meta, profile, safeChapter, 'hunt') && !profile.huntWishLedger.includes(wishKey));
-  if (canUseWishAttempt) profile.huntWishLedger.push(wishKey);
-  const drop = canUseWishAttempt
-    ? chooseTargetedReward(meta, profile, safeChapter, 'hunt', random)
-    : chooseEquipment(meta, safeChapter, 'hunt', random);
-  saveEquipmentTargeting(profile);
-  return drop;
+  return chooseEquipment(loadMetaProgression(), safeChapter, 'hunt', random);
 }
 
 export function eligibleEquipmentForSource(chapter: number, source: EquipmentDropSource | null, meta: MetaProgression = loadMetaProgression()) {
