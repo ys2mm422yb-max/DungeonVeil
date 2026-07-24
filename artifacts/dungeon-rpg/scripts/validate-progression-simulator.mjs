@@ -44,7 +44,11 @@ assert(dropContract.includes('HUNT_EQUIPMENT_DROP_CHANCE = 0.08'), 'runtime hunt
 assert(dropContract.includes('50: 0.42'), 'room-50 milestone equipment chance is missing');
 assert(dropContract.includes('UNOWNED_ITEM_PREFERENCE = 0.35') && dropContract.includes('random() < UNOWNED_ITEM_PREFERENCE'), 'bounded unowned-item preference missing');
 assert(!dropContract.includes('SOURCE_WISH_CHANCE') && !dropContract.includes('CHAPTER_WISH_CHANCE') && !dropContract.includes('wishItem'), 'retired wish chance or pity remains in the drop contract');
-assert(dropContract.includes("rollForgeMarkReward(safeFloor === FINAL_BOSS_ROOM ? 'chapterBoss' : 'intermediateBoss'"), 'boss Forge Mark rolls are not wired');
+assert(
+  dropContract.includes("const markSource = safeFloor === FINAL_BOSS_ROOM ? 'chapterBoss' : 'intermediateBoss'")
+    && dropContract.includes('rollForgeMarkReward(markSource,'),
+  'boss Forge Mark rolls are not wired',
+);
 assert(dropContract.includes('(meta.owned[item.id]?.level ?? 0) < 5'), 'level-five items remain in active equipment drop pools');
 assert(rewardContract.includes('rollBossEquipmentReward(safeChapter, safeFloor)'), 'boss equipment contract is not owned by chapter rewards');
 assert(!rewardContract.includes('safeFloor >= 3 && Math.random() < 0.18'), 'legacy normal-room random equipment remains active');
