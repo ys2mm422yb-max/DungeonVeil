@@ -1,4 +1,5 @@
 import type { EliteAffix, Enemy } from './entities';
+import { CHAPTER_ROOMS } from './chapterRun';
 import type { GameEngine } from './runEngine';
 
 const ENEMY_SPEED_FACTOR: Record<string, number> = {
@@ -201,7 +202,7 @@ function updateEliteMechanics(engine: GameEngine, state: RunBalanceState, time: 
 }
 
 export function updateRunBalance(engine: GameEngine, state: RunBalanceState): void {
-  const room = Math.max(1, Math.min(50, engine.state.floor));
+  const room = Math.max(1, Math.min(CHAPTER_ROOMS, engine.state.floor));
   const chapter = Math.max(1, Math.round(engine.state.chapter));
   const roomKey = `${chapter}:${room}`;
   if (state.roomKey !== roomKey) {
