@@ -54,14 +54,22 @@ const ENCOUNTERS: Record<number, EnemyType[]> = {
   68: ['golem', 'orc', 'spider', 'vampire', 'demon', 'skeleton', 'slime'],
   69: ['golem', 'vampire', 'demon', 'orc', 'spider', 'skeleton', 'vampire', 'golem'],
   70: [],
+
+  71: ['golem', 'vampire', 'spider', 'orc', 'demon', 'skeleton'],
+  72: ['orc', 'golem', 'spider', 'demon', 'vampire', 'skeleton', 'orc'],
+  73: ['vampire', 'demon', 'spider', 'golem', 'skeleton', 'orc', 'vampire'],
+  74: ['golem', 'orc', 'demon', 'spider', 'vampire', 'skeleton', 'golem'],
+  75: ['demon', 'vampire', 'golem', 'spider', 'orc', 'skeleton', 'slime'],
+  76: ['golem', 'orc', 'vampire', 'demon', 'spider', 'skeleton', 'golem', 'vampire'],
+  77: ['vampire', 'spider', 'demon', 'golem', 'orc', 'skeleton', 'vampire'],
+  78: ['orc', 'demon', 'spider', 'vampire', 'golem', 'skeleton', 'orc', 'demon'],
+  79: ['golem', 'vampire', 'demon', 'orc', 'spider', 'skeleton', 'vampire', 'golem'],
+  80: [],
 };
 
 const REGION_POOLS: Record<number, EnemyType[]> = {
-  // Meadow / light forest: animals plus rangers, rogues and barbarians.
   3: ['goblin', 'spider', 'slime', 'skeleton', 'orc', 'vampire', 'demon'],
-  // Darkwood / ruined village: bats, cultists, mages and grave guards.
   4: ['vampire', 'spider', 'skeleton', 'orc', 'demon', 'golem'],
-  // Ember fortress: knights, barbarians, fire mages and heavy guards.
   5: ['orc', 'golem', 'vampire', 'skeleton', 'demon', 'spider', 'slime'],
 };
 

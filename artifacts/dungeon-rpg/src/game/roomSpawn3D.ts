@@ -1,4 +1,5 @@
 import { isBossRoom } from './chapterRun';
+import { drownedReliquaryRoomSpec } from './drownedReliquaryRooms';
 import { goldenFractureRoomSpec } from './goldenFractureRooms';
 import { shatteredObservatoryRoomSpec } from './shatteredObservatoryRooms';
 import { roomBibleSpec } from './roomBible';
@@ -20,10 +21,11 @@ const BOSS_CANDIDATES: readonly RoomSpawnPoint[] = [
 ];
 
 function runtimeSafeSpawnPoints(room: number, requestedCount?: number): RoomSpawnPoint[] {
-  const observatory = shatteredObservatoryRoomSpec(room);
-  const golden = observatory ? null : goldenFractureRoomSpec(room);
-  const legacy = observatory || golden ? null : roomBibleSpec(room);
-  const authored = observatory ?? golden ?? legacy!;
+  const reliquary = drownedReliquaryRoomSpec(room);
+  const observatory = reliquary ? null : shatteredObservatoryRoomSpec(room);
+  const golden = reliquary || observatory ? null : goldenFractureRoomSpec(room);
+  const legacy = reliquary || observatory || golden ? null : roomBibleSpec(room);
+  const authored = reliquary ?? observatory ?? golden ?? legacy!;
   const boss = isBossRoom(room);
   const targetCount = requestedCount ?? (boss ? 1 : 8);
   const clearance = boss ? 1.18 : 0.72;
@@ -67,17 +69,10 @@ function runtimeSafeSpawnPoints(room: number, requestedCount?: number): RoomSpaw
   return selected;
 }
 
-/**
- * Enemy formations originate in the authored chapter data, then receive one
- * final runtime pass against the exact visible prop and architecture colliders.
- */
 export function getRoomSpawnPoints(room: number): RoomSpawnPoint[] {
   return runtimeSafeSpawnPoints(room);
 }
 
-/**
- * Duo may request extra mobile-safe points without changing the solo formation.
- */
 export function getDuoRoomSpawnPoints(room: number, requestedCount: number): RoomSpawnPoint[] {
   const minimum = isBossRoom(room) ? 1 : 8;
   const maximum = isBossRoom(room) ? 4 : 12;

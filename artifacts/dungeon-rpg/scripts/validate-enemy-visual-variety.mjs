@@ -23,7 +23,7 @@ const [visual, baseVisual, regional, encounters, runEngine, manifest] = await Pr
 // below instead of being frozen to an obsolete blob SHA.
 const protectedFiles = new Map([
   ['../src/game/runEngine.ts', '064d97fc6a3e10358aeabcc765f95bf980d68f60'],
-  ['../src/game/encounterPlan.ts', '4ae2a4bd4f261679ce5c30f82ca7b921c413640c'],
+  ['../src/game/encounterPlan.ts', '756dbeaba4661c621a2e4312dc919465760e09a2'],
 ]);
 
 const failures = [];
@@ -83,4 +83,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Enemy visual variety audit passed: distinct GLBs and role animations are verified semantically while enemy stats, encounters, and boss balance remain locked.');
+console.log('Enemy visual variety audit passed: distinct GLBs and role animations are verified semantically while enemy stats, authored encounters, and boss balance remain locked.');
