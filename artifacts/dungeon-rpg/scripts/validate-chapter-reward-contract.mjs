@@ -14,17 +14,18 @@ const nextRoom = nextRoomStart >= 0 && nextRoomEnd > nextRoomStart
   : '';
 
 const checks = [
-  [chapterRun.includes('export const CHAPTER_ROOMS = 50;'), 'chapter length is no longer fixed at 50 rooms'],
-  [chapterRun.includes('export const FINAL_BOSS_ROOM = 50;'), 'final boss room is no longer defined as room 50'],
-  [contract.includes('const chapterBoss = safeFloor === FINAL_BOSS_ROOM;'), 'reward contract does not treat room 50 as the chapter boss'],
-  [contract.includes('chapterBoss ? 260 + safeChapter * 30 : boss ? 130 + safeChapter * 20'), 'XP reward tiers are not separated between room 50 and normal bosses'],
-  [contract.includes('chapterBoss ? 105 + safeChapter * 15 : boss ? 55 + safeChapter * 10'), 'Veil Dust reward tiers are not separated between room 50 and normal bosses'],
-  [contract.includes('chapterBoss ? 900 + safeChapter * 140 : boss ? 350 + safeChapter * 70'), 'gold reward tiers are not separated between room 50 and normal bosses'],
+  [chapterRun.includes('export const CHAPTER_ROOMS = 60;'), 'chapter length is not fixed at 60 rooms'],
+  [chapterRun.includes('export const FINAL_BOSS_ROOM = 60;'), 'final boss room is not defined as room 60'],
+  [chapterRun.includes('export const BOSS_ROOMS = [10, 20, 30, 40, 50, 60] as const;'), 'boss-room registry does not include rooms 10, 20, 30, 40, 50 and 60'],
+  [contract.includes('const chapterBoss = safeFloor === FINAL_BOSS_ROOM;'), 'reward contract does not derive the chapter boss from FINAL_BOSS_ROOM'],
+  [contract.includes('chapterBoss ? 260 + safeChapter * 30 : boss ? 130 + safeChapter * 20'), 'XP reward tiers are not separated between room 60 and intermediate bosses'],
+  [contract.includes('chapterBoss ? 105 + safeChapter * 15 : boss ? 55 + safeChapter * 10'), 'Veil Dust reward tiers are not separated between room 60 and intermediate bosses'],
+  [contract.includes('chapterBoss ? 900 + safeChapter * 140 : boss ? 350 + safeChapter * 70'), 'gold reward tiers are not separated between room 60 and intermediate bosses'],
   [bridge.includes("import { rewardChapterRoomClear } from '../game/chapterRewardContract';"), 'active run bridge does not import the chapter reward contract'],
   [bridge.includes('const reward = rewardChapterRoomClear(') && bridge.includes('engine.state.chapter') && bridge.includes('engine.state.floor'), 'active room clear does not use the chapter reward contract'],
   [!bridge.includes('rewardMetaRoomClear'), 'active run bridge still uses the legacy room-20 reward path'],
-  [nextRoom.includes('const completedChapter = this.state.floor >= CHAPTER_ROOMS;'), 'chapter completion is not tied to the 50-room boundary'],
-  [nextRoom.includes('this.state.floor = completedChapter ? 1 : this.state.floor + 1;') && nextRoom.includes('if (completedChapter) this.state.chapter++;'), 'room 50 does not continue into the next chapter'],
+  [nextRoom.includes('const completedChapter = this.state.floor >= CHAPTER_ROOMS;'), 'chapter completion is not tied to the 60-room boundary'],
+  [nextRoom.includes('this.state.floor = completedChapter ? 1 : this.state.floor + 1;') && nextRoom.includes('if (completedChapter) this.state.chapter++;'), 'room 60 does not continue into the next chapter'],
   [!nextRoom.includes('this.state.runSkills = {}') && !nextRoom.includes('this.state = this.makeState'), 'chapter transition resets the active run build'],
   [contract.includes('const ledgerRunId = normalized.rewardRunId || meta.currentRunId;') && contract.includes('const rewardKey = `${ledgerRunId}:${safeChapter}:${safeFloor}`;') && contract.includes('meta.rewardLedger.push(rewardKey);'), 'chapter rewards are not protected against duplicate room-clear grants'],
   [contract.includes('xp: baseAmounts.xp') && contract.includes('dust: Math.round(baseAmounts.dust * normalized.multiplier)') && contract.includes('gold: Math.round(baseAmounts.gold * normalized.multiplier)'), 'optional duo currency scaling changes rank XP or skips gold/dust'],
@@ -38,4 +39,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Chapter reward contract audit passed: room 50 owns the chapter reward, solo remains unchanged, and optional duo currency uses an isolated ledger.');
+console.log('Chapter reward contract audit passed: room 60 owns the chapter reward, intermediate bosses stay distinct, and optional duo currency uses an isolated ledger.');
