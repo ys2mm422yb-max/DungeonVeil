@@ -43,6 +43,17 @@ const ENCOUNTERS: Record<number, EnemyType[]> = {
   58: ['vampire', 'spider', 'demon', 'skeleton', 'orc', 'spider', 'golem', 'demon'],
   59: ['orc', 'vampire', 'golem', 'demon', 'slime', 'skeleton', 'spider', 'vampire'],
   60: [],
+
+  61: ['vampire', 'orc', 'orc', 'demon', 'spider', 'skeleton'],
+  62: ['golem', 'spider', 'spider', 'orc', 'vampire', 'demon', 'skeleton'],
+  63: ['vampire', 'vampire', 'demon', 'skeleton', 'spider', 'golem', 'orc'],
+  64: ['orc', 'orc', 'golem', 'vampire', 'demon', 'spider', 'skeleton'],
+  65: ['golem', 'demon', 'vampire', 'spider', 'skeleton', 'orc', 'slime'],
+  66: ['demon', 'vampire', 'spider', 'skeleton', 'golem', 'orc', 'vampire'],
+  67: ['orc', 'spider', 'vampire', 'demon', 'skeleton', 'golem', 'spider'],
+  68: ['golem', 'orc', 'spider', 'vampire', 'demon', 'skeleton', 'slime'],
+  69: ['golem', 'vampire', 'demon', 'orc', 'spider', 'skeleton', 'vampire', 'golem'],
+  70: [],
 };
 
 const REGION_POOLS: Record<number, EnemyType[]> = {
