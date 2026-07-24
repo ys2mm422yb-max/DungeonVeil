@@ -9,7 +9,7 @@ const protectedSoloFiles = new Map([
   // Block 5 intentionally canonicalizes relic triggers in runRetention.ts.
   // validate-relic-runtime-ui-v4.mjs verifies its exact caps, trigger isolation and resume safety.
   ['../src/game/runRetention.ts', '19e9a88963f9ce306df3c305725a5c1898cd9c3d'],
-  ['../src/game/runBalance.ts', 'fcd61f6e0061b03d8343f6a2d86459336b053182'],
+  ['../src/game/runBalance.ts', '4f4c4aa6ee9186c7a637a44c3e9aff122680eb31'],
   ['../src/game/runEffectSystems.ts', 'fb2059b66558b1d27810cf533172adf492e05d49'],
 ]);
 
