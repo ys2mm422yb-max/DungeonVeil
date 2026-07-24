@@ -1,6 +1,7 @@
 import type { GameEngine } from './runEngine';
 import { roomIdentity } from './roomIdentity';
 import { calibratedRoomSetpieces } from './roomSetpieceCalibrated';
+import { updateGoldenFractureMechanics } from './goldenFractureMechanics';
 
 export type RoomMechanicKind = 'forge-burst' | 'arc-line' | 'ritual-core' | 'grave-call' | null;
 export type RoomMechanicState = {
@@ -174,6 +175,7 @@ function graveCall(engine: GameEngine, state: RoomMechanicState, time: number) {
 
 export function updateRoomMechanics(engine: GameEngine, state: RoomMechanicState, time: number, dt: number) {
   enterRoom(engine, state, time);
+  updateGoldenFractureMechanics(engine, time);
   if (!state.kind) return;
   if (engine.state.roomClearReady || !hasLivingEnemies(engine)) {
     clearPendingHazards(engine, state);
