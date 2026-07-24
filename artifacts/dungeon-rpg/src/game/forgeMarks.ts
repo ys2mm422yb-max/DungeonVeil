@@ -67,15 +67,16 @@ function activeId(value: unknown): value is ActiveEquipmentId {
 }
 function legacyMarks(): number {
   if (typeof localStorage === 'undefined') return 0;
+  let total = 0;
   for (const key of LEGACY_KEYS) {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
       const parsed = JSON.parse(raw) as { sourceMarks?: Record<string, unknown> };
-      return integer(Object.values(parsed.sourceMarks ?? {}).reduce<number>((sum, value) => sum + integer(value), 0));
+      total += Object.values(parsed.sourceMarks ?? {}).reduce<number>((sum, value) => sum + integer(value), 0);
     } catch {}
   }
-  return 0;
+  return integer(total);
 }
 function receipt(value: unknown): ForgeMarkExchangeReceipt | null {
   if (!value || typeof value !== 'object') return null;
