@@ -2,13 +2,15 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [chapterRun, fractureRooms, encounters, balance, spawns, roomBible] = await Promise.all([
+const [chapterRun, fractureRooms, encounters, balance, spawns, roomBible, logicalSetpieces, fractureSetpieces] = await Promise.all([
   read('../src/game/chapterRun.ts'),
   read('../src/game/goldenFractureRooms.ts'),
   read('../src/game/encounterPlan.ts'),
   read('../src/game/runBalance.ts'),
   read('../src/game/roomSpawn3D.ts'),
   read('../src/game/roomBible.ts'),
+  read('../src/game/logicalRoomSetpieces.ts'),
+  read('../src/game/goldenFractureSetpieces.ts'),
 ]);
 
 function assert(condition, message) {
@@ -51,6 +53,14 @@ assert(roomBible.includes('Math.min(60, roomNumber)'), 'room bible presentation 
 assert(!roomBible.includes('Math.min(50, roomNumber)'), 'room bible still falls back to room 50 above the old boundary');
 assert(roomBible.includes("spec.room === 60 ? 'goldenes Oculus mit vier Phasenankern'"), 'Aurel boss-room presentation identity is missing');
 
+assert(logicalSetpieces.includes("import { goldenFractureSetpieces }"), 'logical room presentation does not import Golden Fracture setpieces');
+assert(logicalSetpieces.includes('Math.min(60, room)'), 'logical room presentation remains clamped below room 60');
+assert(!logicalSetpieces.includes('Math.min(50, room)'), 'logical room presentation still falls back to room 50');
+assert(logicalSetpieces.includes('const golden = goldenFractureSetpieces(safeRoom);'), 'logical room resolver does not select Golden Fracture props');
+const authoredSetpieceRooms = [...fractureSetpieces.matchAll(/^\s*(5[1-9]|60):\s*\[/gm)];
+assert(authoredSetpieceRooms.length === 10, `expected 10 Golden Fracture setpiece layouts, found ${authoredSetpieceRooms.length}`);
+assert(fractureSetpieces.includes('goldenes') || fractureSetpieces.includes('circle_magic'), 'Aurel presentation centerpiece is missing');
+
 console.log(JSON.stringify({
   rooms: 10,
   normalRooms: 9,
@@ -59,5 +69,6 @@ console.log(JSON.stringify({
   aurelHpFloor: 6200,
   aurelFirstAttackDelayMs: 760,
   presentationBoundary: 60,
+  authoredSetpieceRooms: 10,
 }, null, 2));
-console.log('Golden Fracture audit passed: rooms 51-60, encounters, spawns, presentation, balance and Aurel tuning are wired.');
+console.log('Golden Fracture audit passed: rooms 51-60, encounters, spawns, room bible, setpieces, balance and Aurel tuning are wired.');
