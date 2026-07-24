@@ -2,12 +2,13 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [chapterRun, fractureRooms, encounters, balance, spawns] = await Promise.all([
+const [chapterRun, fractureRooms, encounters, balance, spawns, roomBible] = await Promise.all([
   read('../src/game/chapterRun.ts'),
   read('../src/game/goldenFractureRooms.ts'),
   read('../src/game/encounterPlan.ts'),
   read('../src/game/runBalance.ts'),
   read('../src/game/roomSpawn3D.ts'),
+  read('../src/game/roomBible.ts'),
 ]);
 
 function assert(condition, message) {
@@ -43,6 +44,13 @@ assert(balance.includes('firstAttackDelay: 760'), 'Aurel opening recovery window
 assert(spawns.includes('goldenFractureRoomSpec(room)'), 'runtime spawn resolver does not recognize rooms 51-60');
 assert(spawns.includes('golden?.enemySpawns ?? legacy!.enemySpawns'), 'runtime spawn resolver does not consume authored chapter spawns');
 
+assert(roomBible.includes("import { GOLDEN_FRACTURE_ROOMS"), 'room bible does not import Golden Fracture presentation specs');
+assert(roomBible.includes("'golden-fracture'"), 'Golden Fracture lighting phase is missing');
+assert(roomBible.includes('for (const spec of Object.values(GOLDEN_FRACTURE_ROOMS))'), 'rooms 51-60 are not registered in the room bible');
+assert(roomBible.includes('Math.min(60, roomNumber)'), 'room bible presentation remains clamped below room 60');
+assert(!roomBible.includes('Math.min(50, roomNumber)'), 'room bible still falls back to room 50 above the old boundary');
+assert(roomBible.includes("spec.room === 60 ? 'goldenes Oculus mit vier Phasenankern'"), 'Aurel boss-room presentation identity is missing');
+
 console.log(JSON.stringify({
   rooms: 10,
   normalRooms: 9,
@@ -50,5 +58,6 @@ console.log(JSON.stringify({
   encounterBand: [6, 8],
   aurelHpFloor: 6200,
   aurelFirstAttackDelayMs: 760,
+  presentationBoundary: 60,
 }, null, 2));
-console.log('Golden Fracture audit passed: rooms 51-60, encounters, spawns, balance and Aurel tuning are wired.');
+console.log('Golden Fracture audit passed: rooms 51-60, encounters, spawns, presentation, balance and Aurel tuning are wired.');
