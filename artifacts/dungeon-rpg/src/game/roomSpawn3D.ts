@@ -1,4 +1,5 @@
 import { isBossRoom } from './chapterRun';
+import { goldenFractureRoomSpec } from './goldenFractureRooms';
 import { roomBibleSpec } from './roomBible';
 import { roomPropColliders } from './roomCollision3D';
 
@@ -18,16 +19,17 @@ const BOSS_CANDIDATES: readonly RoomSpawnPoint[] = [
 ];
 
 function runtimeSafeSpawnPoints(room: number, requestedCount?: number): RoomSpawnPoint[] {
-  const spec = roomBibleSpec(room);
+  const golden = goldenFractureRoomSpec(room);
+  const legacy = golden ? null : roomBibleSpec(room);
   const boss = isBossRoom(room);
   const targetCount = requestedCount ?? (boss ? 1 : 8);
   const clearance = boss ? 1.18 : 0.72;
   const portalClearance = boss ? 1.8 : 3.1;
   const maxX = boss ? 7.2 : 4.25;
-  const portal = {
-    x: spec.portal.x,
-    z: spec.portal.z < -8 ? -8.5 : spec.portal.z,
-  };
+  const portal = golden
+    ? { x: golden.portal.x, z: golden.portal.z < -8 ? -8.5 : golden.portal.z }
+    : { x: legacy!.portal.x, z: legacy!.portal.z < -8 ? -8.5 : legacy!.portal.z };
+  const authoredSpawns = golden?.enemySpawns ?? legacy!.enemySpawns;
   const colliders = roomPropColliders(room);
   const selected: RoomSpawnPoint[] = [];
 
@@ -45,7 +47,7 @@ function runtimeSafeSpawnPoints(room: number, requestedCount?: number): RoomSpaw
     if (selected.length < targetCount && valid(point)) selected.push({ ...point });
   };
 
-  spec.enemySpawns.forEach(add);
+  authoredSpawns.forEach(add);
   if (boss) {
     BOSS_CANDIDATES.forEach(add);
   } else {
