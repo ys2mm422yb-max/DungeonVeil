@@ -4,8 +4,8 @@ import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVeil/';
 const OUTPUT = 'test-results';
-const EVIDENCE_ROOMS = [1, 10, 11, 20, 21, 30, 31, 40, 41, 50, 51, 59, 60, 61, 69, 70];
-const CHAPTER_ROOMS = 70;
+const EVIDENCE_ROOMS = [1, 10, 11, 20, 21, 30, 31, 40, 41, 50, 51, 59, 60, 61, 69, 70, 71, 79, 80];
+const CHAPTER_ROOMS = 80;
 
 function qaUrl() {
   const url = new URL(APP_URL);
