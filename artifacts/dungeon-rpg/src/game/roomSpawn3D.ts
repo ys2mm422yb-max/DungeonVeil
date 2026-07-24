@@ -1,5 +1,6 @@
 import { isBossRoom } from './chapterRun';
 import { goldenFractureRoomSpec } from './goldenFractureRooms';
+import { shatteredObservatoryRoomSpec } from './shatteredObservatoryRooms';
 import { roomBibleSpec } from './roomBible';
 import { roomPropColliders } from './roomCollision3D';
 
@@ -19,17 +20,20 @@ const BOSS_CANDIDATES: readonly RoomSpawnPoint[] = [
 ];
 
 function runtimeSafeSpawnPoints(room: number, requestedCount?: number): RoomSpawnPoint[] {
-  const golden = goldenFractureRoomSpec(room);
-  const legacy = golden ? null : roomBibleSpec(room);
+  const observatory = shatteredObservatoryRoomSpec(room);
+  const golden = observatory ? null : goldenFractureRoomSpec(room);
+  const legacy = observatory || golden ? null : roomBibleSpec(room);
+  const authored = observatory ?? golden ?? legacy!;
   const boss = isBossRoom(room);
   const targetCount = requestedCount ?? (boss ? 1 : 8);
   const clearance = boss ? 1.18 : 0.72;
   const portalClearance = boss ? 1.8 : 3.1;
   const maxX = boss ? 7.2 : 4.25;
-  const portal = golden
-    ? { x: golden.portal.x, z: golden.portal.z < -8 ? -8.5 : golden.portal.z }
-    : { x: legacy!.portal.x, z: legacy!.portal.z < -8 ? -8.5 : legacy!.portal.z };
-  const authoredSpawns = golden?.enemySpawns ?? legacy!.enemySpawns;
+  const portal = {
+    x: authored.portal.x,
+    z: authored.portal.z < -8 ? -8.5 : authored.portal.z,
+  };
+  const authoredSpawns = authored.enemySpawns;
   const colliders = roomPropColliders(room);
   const selected: RoomSpawnPoint[] = [];
 
@@ -64,8 +68,8 @@ function runtimeSafeSpawnPoints(room: number, requestedCount?: number): RoomSpaw
 }
 
 /**
- * Enemy formations originate in the room bible, then receive one final runtime
- * pass against the exact visible prop and architecture colliders used by movement.
+ * Enemy formations originate in the authored chapter data, then receive one
+ * final runtime pass against the exact visible prop and architecture colliders.
  */
 export function getRoomSpawnPoints(room: number): RoomSpawnPoint[] {
   return runtimeSafeSpawnPoints(room);
