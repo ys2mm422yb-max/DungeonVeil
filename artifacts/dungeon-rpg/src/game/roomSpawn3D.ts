@@ -1,4 +1,5 @@
 import { isBossRoom } from './chapterRun';
+import { cinderCrownRoomSpec } from './cinderCrownRooms';
 import { drownedReliquaryRoomSpec } from './drownedReliquaryRooms';
 import { goldenFractureRoomSpec } from './goldenFractureRooms';
 import { shatteredObservatoryRoomSpec } from './shatteredObservatoryRooms';
@@ -21,11 +22,12 @@ const BOSS_CANDIDATES: readonly RoomSpawnPoint[] = [
 ];
 
 function runtimeSafeSpawnPoints(room: number, requestedCount?: number): RoomSpawnPoint[] {
-  const reliquary = drownedReliquaryRoomSpec(room);
-  const observatory = reliquary ? null : shatteredObservatoryRoomSpec(room);
-  const golden = reliquary || observatory ? null : goldenFractureRoomSpec(room);
-  const legacy = reliquary || observatory || golden ? null : roomBibleSpec(room);
-  const authored = reliquary ?? observatory ?? golden ?? legacy!;
+  const cinder = cinderCrownRoomSpec(room);
+  const reliquary = cinder ? null : drownedReliquaryRoomSpec(room);
+  const observatory = cinder || reliquary ? null : shatteredObservatoryRoomSpec(room);
+  const golden = cinder || reliquary || observatory ? null : goldenFractureRoomSpec(room);
+  const legacy = cinder || reliquary || observatory || golden ? null : roomBibleSpec(room);
+  const authored = cinder ?? reliquary ?? observatory ?? golden ?? legacy!;
   const boss = isBossRoom(room);
   const targetCount = requestedCount ?? (boss ? 1 : 8);
   const clearance = boss ? 1.18 : 0.72;
