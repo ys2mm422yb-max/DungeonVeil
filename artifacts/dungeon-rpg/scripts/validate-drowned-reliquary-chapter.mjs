@@ -23,6 +23,11 @@ const requiredHazards = [
   'leviathan-phases',
 ];
 
+const chapterRoomMatch = chapterRun.match(/export const CHAPTER_ROOMS = (\d+);/);
+const finalBossMatch = chapterRun.match(/export const FINAL_BOSS_ROOM = (\d+);/);
+const chapterRoomLimit = Number(chapterRoomMatch?.[1] ?? 0);
+const finalBossRoom = Number(finalBossMatch?.[1] ?? 0);
+
 const checks = [
   [authoredRooms.length === 10 && uniqueRooms.size === 10, 'rooms 71-80 are not exactly ten unique authored room specs'],
   [[...uniqueRooms].every(room => room >= 71 && room <= 80), 'room registry contains values outside 71-80'],
@@ -30,8 +35,8 @@ const checks = [
   [rooms.includes("80: R(80, 'Der Reliquiar-Leviathan'") && rooms.includes("['chapter-boss']"), 'room 80 is not registered as the Reliquary Leviathan boss'],
   [rooms.includes('room >= 71 && room <= 80'), 'Drowned Reliquary range guard is missing'],
   [chapterRun.includes("import { reliquaryPortalTile } from './drownedReliquaryRooms';") && chapterRun.includes('reliquaryPortalTile(room, width, height)'), 'authored Reliquary portals are not used by the run generator'],
-  [chapterRun.includes('export const CHAPTER_ROOMS = 80;') && chapterRun.includes('export const FINAL_BOSS_ROOM = 80;'), 'run progression does not terminate at room 80'],
-  [chapterRun.includes('10, 20, 30, 40, 50, 60, 70, 80'), 'boss registry does not extend through room 80'],
+  [chapterRoomLimit >= 80 && finalBossRoom >= 80, 'run progression no longer includes the complete rooms 71-80 chapter'],
+  [chapterRun.includes('10, 20, 30, 40, 50, 60, 70, 80'), 'boss registry does not include room 80'],
   [runBalance.includes('updateDrownedReliquaryMechanics(engine);'), 'Drowned Reliquary runtime mechanics are not connected to the balance loop'],
   [mechanics.includes("const EFFECT_PREFIX = 'drowned-reliquary-';"), 'chapter hazard effects do not have an isolated cleanup prefix'],
   [mechanics.includes('clearReliquaryHazards(engine, state);'), 'chapter hazards are not deterministically cleared after combat'],
@@ -47,4 +52,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Drowned Reliquary chapter audit passed: rooms 71-80, tide hazards, room-80 boss ownership, cleanup and progression are registered.');
+console.log(`Drowned Reliquary chapter audit passed: rooms 71-80 remain intact inside the ${chapterRoomLimit}-room run, with tide hazards, room-80 boss ownership and cleanup registered.`);
