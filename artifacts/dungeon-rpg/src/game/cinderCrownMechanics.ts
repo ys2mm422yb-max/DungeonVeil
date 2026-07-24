@@ -109,8 +109,8 @@ function queueHazard(engine: GameEngine, state: CinderRuntimeState, now: number)
   if (!spec) return;
   const player = engine.state.player;
   const point = scenePoint(engine, spec.room, state.cycle, state.phase);
-  const tracksPlayer = spec.hazard === 'furnace-vent-bursts'
-    || spec.hazard === 'collapsing-basalt-circles'
+  const tracksPlayer = spec.hazard === 'delayed-furnace-vents'
+    || spec.hazard === 'collapsing-basalt-plates'
     || spec.hazard === 'ashen-king-phases';
   const x = tracksPlayer ? player.x + player.width / 2 : point.x;
   const y = tracksPlayer ? player.y + player.height / 2 : point.y;
