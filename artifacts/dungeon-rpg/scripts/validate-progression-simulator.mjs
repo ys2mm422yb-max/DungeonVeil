@@ -59,7 +59,7 @@ assert(inventory.includes('exchangeForgeMarks(exchangeIdRef.current)') && invent
 assert(inventory.includes('data-testid="forge-mark-reward-name"') && inventory.includes('data-testid="forge-mark-reward-category"') && inventory.includes('data-testid="forge-mark-reward-rarity"'), 'Forge Mark reward presentation is incomplete');
 assert(inventory.includes("'dungeon-veil-cloud-save-restored'") && inventory.includes('FORGE_MARK_EVENT'), 'equipment screen does not refresh after cloud or Forge Mark changes');
 assert(cloud.includes("'dungeon-veil-forge-marks-v1'") && cloud.includes("'dungeon-veil-equipment-targeting-v2'") && cloud.includes("'dungeon-veil-equipment-targeting-v1'"), 'Forge Mark progress or legacy migration fallback is missing from cloud bundles');
-assert(cloud.includes('forgeMarkWeight(forgeMarks.marks)'), 'cloud conflict weighting ignores Forge Marks');
+assert(cloud.includes('number(forgeMarks.marks) * 3_000') && cloud.includes('Math.floor(number(raw)) * 3_000'), 'cloud conflict weighting ignores Forge Marks');
 assert(!cloud.includes("typeof targeting.wishItem === 'string'"), 'retired wish selection still affects cloud conflict weighting');
 
 assert(progression.currentRules.firstChapterGiftSelections === 11 && progression.currentRules.laterChapterGiftSelections === 5, 'bounded 11/5 gift schedule regressed');
