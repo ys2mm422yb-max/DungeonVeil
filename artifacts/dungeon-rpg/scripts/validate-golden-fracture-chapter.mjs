@@ -17,8 +17,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(`Golden Fracture audit failed: ${message}`);
 }
 
-assert(chapterRun.includes('export const CHAPTER_ROOMS = 60'), 'chapter length is not 60 rooms');
-assert(chapterRun.includes('export const FINAL_BOSS_ROOM = 60'), 'room 60 is not the final boss room');
+assert(/export const CHAPTER_ROOMS = (?:6[0-9]|[7-9][0-9]|[1-9][0-9]{2,})/.test(chapterRun), 'chapter length no longer includes rooms 51-60');
 assert(chapterRun.includes('60') && chapterRun.includes('BOSS_ROOMS'), 'room 60 is missing from the boss-room registry');
 
 const specs = [...fractureRooms.matchAll(/^\s*(5[1-9]|60): room\((5[1-9]|60),/gm)];
@@ -49,12 +48,12 @@ assert(spawns.includes('golden?.enemySpawns ?? legacy!.enemySpawns'), 'runtime s
 assert(roomBible.includes("import { GOLDEN_FRACTURE_ROOMS"), 'room bible does not import Golden Fracture presentation specs');
 assert(roomBible.includes("'golden-fracture'"), 'Golden Fracture lighting phase is missing');
 assert(roomBible.includes('for (const spec of Object.values(GOLDEN_FRACTURE_ROOMS))'), 'rooms 51-60 are not registered in the room bible');
-assert(roomBible.includes('Math.min(60, roomNumber)'), 'room bible presentation remains clamped below room 60');
+assert(/Math\.min\((?:6[0-9]|[7-9][0-9]|[1-9][0-9]{2,}), roomNumber\)/.test(roomBible), 'room bible presentation remains clamped below room 60');
 assert(!roomBible.includes('Math.min(50, roomNumber)'), 'room bible still falls back to room 50 above the old boundary');
 assert(roomBible.includes("spec.room === 60 ? 'goldenes Oculus mit vier Phasenankern'"), 'Aurel boss-room presentation identity is missing');
 
 assert(logicalSetpieces.includes("import { goldenFractureSetpieces }"), 'logical room presentation does not import Golden Fracture setpieces');
-assert(logicalSetpieces.includes('Math.min(60, room)'), 'logical room presentation remains clamped below room 60');
+assert(/Math\.min\((?:6[0-9]|[7-9][0-9]|[1-9][0-9]{2,}), room\)/.test(logicalSetpieces), 'logical room presentation remains clamped below room 60');
 assert(!logicalSetpieces.includes('Math.min(50, room)'), 'logical room presentation still falls back to room 50');
 assert(logicalSetpieces.includes('const golden = goldenFractureSetpieces(safeRoom);'), 'logical room resolver does not select Golden Fracture props');
 const authoredSetpieceRooms = [...fractureSetpieces.matchAll(/^\s*(5[1-9]|60):\s*\[/gm)];
@@ -68,7 +67,7 @@ console.log(JSON.stringify({
   encounterBand: [6, 8],
   aurelHpFloor: 6200,
   aurelFirstAttackDelayMs: 760,
-  presentationBoundary: 60,
+  minimumChapterLength: 60,
   authoredSetpieceRooms: 10,
 }, null, 2));
-console.log('Golden Fracture audit passed: rooms 51-60, encounters, spawns, room bible, setpieces, balance and Aurel tuning are wired.');
+console.log('Golden Fracture audit passed: rooms 51-60 remain wired while later chapters may extend the run beyond room 60.');
