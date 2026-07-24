@@ -78,7 +78,7 @@ jobs:
             "$DUNGEON_VEIL_URL")"
           test "$STATUS" = '200'
           test -s /tmp/dungeon-veil-live.html
-          grep -Eq 'id=["'"']root["'"']' /tmp/dungeon-veil-live.html
+          grep -q 'id="root"' /tmp/dungeon-veil-live.html
       - name: Test live Shop, Options and Profile taps
         id: live-tests
         continue-on-error: true
