@@ -22,8 +22,8 @@ const runBalance = read('src/game/runBalance.ts');
 const legacyRunBalance = read('src/game/runBalanceLegacy.ts');
 
 for (let room = 61; room <= 70; room += 1) {
-  if (!new RegExp(`\\b${room}:\\s*R\\(${room},`).test(rooms)) fail(`room ${room} is missing from SHATTERED_OBSERVATORY_ROOMS`);
-  if (!new RegExp(`\\b${room}:\\s*\\[`).test(setpieces)) fail(`room ${room} has no authored setpiece layout`);
+  if (!new RegExp(`\b${room}:\s*R\(${room},`).test(rooms)) fail(`room ${room} is missing from SHATTERED_OBSERVATORY_ROOMS`);
+  if (!new RegExp(`\b${room}:\s*\[`).test(setpieces)) fail(`room ${room} has no authored setpiece layout`);
 }
 
 const titleMatches = [...rooms.matchAll(/\b(6[1-9]|70):\s*R\([^,]+,\s*'([^']+)',\s*'([^']+)'/g)];
@@ -38,13 +38,15 @@ for (const token of ['rotating-star-lane', 'alternating-starfall-bands', 'lens-b
 }
 
 if (!rooms.includes('room >= 61 && room <= 70') && !rooms.includes('roomNumber >= 61 && roomNumber <= 70')) fail('room range guard does not cover exactly 61-70');
-if (!chapterRun.includes('export const CHAPTER_ROOMS = 70;')) fail('chapter run is not extended to room 70');
-if (!chapterRun.includes('export const FINAL_BOSS_ROOM = 70;')) fail('final boss room is not room 70');
+const chapterRoomMatch = chapterRun.match(/export const CHAPTER_ROOMS = (\d+);/);
+const finalBossMatch = chapterRun.match(/export const FINAL_BOSS_ROOM = (\d+);/);
+if (!chapterRoomMatch || Number(chapterRoomMatch[1]) < 70) fail('chapter run does not reach room 70');
+if (!finalBossMatch || Number(finalBossMatch[1]) < 70) fail('configured final boss occurs before room 70');
 if (!chapterRun.includes('10, 20, 30, 40, 50, 60, 70')) fail('boss-room registry is missing room 70');
 if (!chapterRun.includes('observatoryPortalTile(room')) fail('chapter room generation does not use Observatory portals');
 
 for (let room = 61; room <= 69; room += 1) {
-  const match = encounters.match(new RegExp(`^\\s*${room}:\\s*\\[([^\\]]+)\\]`, 'm'));
+  const match = encounters.match(new RegExp(`^\s*${room}:\s*\[([^\]]+)\]`, 'm'));
   if (!match) fail(`room ${room} lacks an explicit encounter`);
   const count = match ? [...match[1].matchAll(/'([^']+)'/g)].length : 0;
   if (count < 6 || count > 8) fail(`room ${room} enemy count ${count} escapes the 6-8 band`);
@@ -76,4 +78,4 @@ if (!mechanics.includes('ratio <= 0.33 ? 3 : ratio <= 0.66 ? 2 : 1')) fail('Astr
 if (!mechanics.includes('spec.telegraphMs + spec.activeMs + spec.recoveryMs')) fail('authored warning, active and recovery timing is not respected');
 if (!mechanics.includes('DER ENTFESSELTE ASTRONOM')) fail('unique Astronomer runtime identity is missing');
 
-if (!process.exitCode) console.log('Shattered Observatory chapter contract passed: rooms 61-70, encounters, spawns, presentation, hazards, balance and Astronomer phases are fully wired.');
+if (!process.exitCode) console.log('Shattered Observatory chapter contract passed: rooms 61-70 remain fully wired while later chapters may extend the run.');
