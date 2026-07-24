@@ -33,7 +33,7 @@ for (let room = 51; room <= 59; room++) {
   assert(new Set(enemies).size >= 4, `room ${room} lacks enemy variety`);
 }
 assert(/^\s*60:\s*\[\],?$/m.test(encounters), 'room 60 must reserve normal encounters for the boss');
-assert(encounters.includes('Math.min(60, room)'), 'encounter lookup is still clamped below room 60');
+assert(encounters.includes('Math.min(CHAPTER_ROOMS, room)'), 'encounter lookup is still clamped below chapter length');
 
 assert(balance.includes('Math.min(CHAPTER_ROOMS, engine.state.floor)'), 'run balance is still clamped below chapter length');
 assert(balance.includes('room >= 60 ? 1.3'), 'room 60 boss spawn scale is missing');
