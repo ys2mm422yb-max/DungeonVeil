@@ -1,3 +1,4 @@
+import { CHAPTER_ROOMS } from './chapterRun';
 import { TileType } from './dungeon';
 import type { GameState } from './runEngine';
 import { GameEngine } from './runEngine';
@@ -74,7 +75,7 @@ function attachApi(): void {
     loadRoom: (requestedRoom, mode = 'solo') => {
       const engine = currentEngine;
       if (!engine) return null;
-      const room = Math.max(1, Math.min(50, Math.floor(Number(requestedRoom) || 1)));
+      const room = Math.max(1, Math.min(CHAPTER_ROOMS, Math.floor(Number(requestedRoom) || 1)));
       const player = engine.state.player;
       const roomChanges = engine.state.floor !== room || engine.state.chapter !== 1;
       const sameRoomQaKey = `qa-reload:1:${room}`;
