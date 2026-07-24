@@ -5,7 +5,7 @@ const [rooms, mechanics, chapterRun, runBalance, bible] = await Promise.all([
   readFile(new URL('../src/game/drownedReliquaryMechanics.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/chapterRun.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/runBalance.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../../../../docs/ROOMS_71_80_BIBLE.md', import.meta.url), 'utf8'),
+  readFile(new URL('../../../docs/ROOMS_71_80_BIBLE.md', import.meta.url), 'utf8'),
 ]);
 
 const authoredRooms = [...rooms.matchAll(/^\s*(7[1-9]|80): R\(/gm)].map(match => Number(match[1]));
