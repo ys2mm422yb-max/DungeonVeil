@@ -5,6 +5,7 @@ import {
   updateRunBalance as updateLegacyRunBalance,
   type RunBalanceState,
 } from './runBalanceLegacy';
+import { updateCinderCrownMechanics } from './cinderCrownMechanics';
 import { updateDrownedReliquaryMechanics } from './drownedReliquaryMechanics';
 import { updateShatteredObservatoryMechanics } from './shatteredObservatoryMechanics';
 
@@ -15,4 +16,5 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
   updateLegacyRunBalance(engine, state);
   updateShatteredObservatoryMechanics(engine);
   updateDrownedReliquaryMechanics(engine);
+  updateCinderCrownMechanics(engine);
 }
