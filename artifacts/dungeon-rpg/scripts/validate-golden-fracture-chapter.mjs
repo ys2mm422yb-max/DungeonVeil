@@ -40,8 +40,8 @@ assert(balance.includes('room >= 60 ? 1.3'), 'room 60 boss spawn scale is missin
 assert(balance.includes('if (room >= 60) return { hpFloor: 6200'), 'Aurel boss tuning is missing');
 assert(balance.includes('firstAttackDelay: 760'), 'Aurel opening recovery window is missing');
 
-assert(spawns.includes('isGoldenFractureRoom(room)'), 'runtime spawn resolver does not recognize rooms 51-60');
-assert(spawns.includes('goldenFractureRoomSpec(room)'), 'runtime spawn resolver does not consume authored chapter specs');
+assert(spawns.includes('goldenFractureRoomSpec(room)'), 'runtime spawn resolver does not recognize rooms 51-60');
+assert(spawns.includes('golden?.enemySpawns ?? legacy!.enemySpawns'), 'runtime spawn resolver does not consume authored chapter spawns');
 
 console.log(JSON.stringify({
   rooms: 10,
