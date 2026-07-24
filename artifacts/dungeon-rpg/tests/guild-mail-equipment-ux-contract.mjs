@@ -94,6 +94,9 @@ for (const marker of [
   'external runtime request',
   'solo-run-started',
   'companion-upgraded',
+  'waitForPaintedCanvas',
+  'waitForPlayableRoom',
+  'DER SCHLEIER ÖFFNET SICH',
 ]) assert.match(autopilotSpec, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 for (const marker of [
   'signed-in player outside a guild sees creation, mailbox and duo controls',
@@ -151,4 +154,4 @@ assert.doesNotMatch(autopilotWorkflow, /desktop-chromium|ipad-landscape-webkit/)
 assert.doesNotMatch(autopilotWorkflow, /enable_auto_merge|auto-merge|issues: write|pull-requests: write/);
 assert.match(autopilotWorkflow, /permissions:\s*\n\s*contents: read/);
 
-console.log('Guild, mailbox, isolated Shop and Options, optional equipment, profile, local Three runtime, outside-guild, tablet layout and zero-retry portrait-mobile QA contracts passed.');
+console.log('Guild, mailbox, isolated Shop and Options, renderer-ready solo evidence, optional equipment, profile, local Three runtime, outside-guild, tablet layout and zero-retry portrait-mobile QA contracts passed.');
