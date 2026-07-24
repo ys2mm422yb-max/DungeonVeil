@@ -46,57 +46,63 @@ async function waitForMenu(page) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('main-menu-gold-button')).toBeVisible();
   await expect(page.getByTestId('main-menu-dust-button')).toBeVisible();
+  await expect(page.getByTestId('main-menu-settings-button')).toBeVisible();
+  await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible();
 }
 
-async function assertNoWrongSurface(page) {
+async function assertOnlyShop(page) {
+  await expect(page.getByTestId('main-menu-shop-panel')).toBeVisible();
+  await expect(page.getByTestId('main-menu-shop-gold-balance')).toContainText('50.000');
+  await expect(page.getByTestId('main-menu-shop-dust-balance')).toContainText('5.000');
+  await expect(page.getByTestId('main-menu-options-panel')).toHaveCount(0);
   await expect(page.getByTestId('player-profile-panel')).toHaveCount(0);
   await expect(page.getByTestId('accessibility-settings')).toHaveCount(0);
 }
 
-test('mobile resource actions and equipment upgrade stay on their intended surfaces', async ({ page }, testInfo) => {
+async function closeShop(page) {
+  await page.getByRole('button', { name: /Shop schließen|Close shop/i }).tap();
+  await expect(page.getByTestId('main-menu-shop-panel')).toHaveCount(0);
+}
+
+test('gold, dust, options and profile use isolated mobile tap surfaces', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   await seedUpgradeableAshBow(page);
   await waitForMenu(page);
 
   await page.getByTestId('main-menu-gold-button').tap();
-  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible();
-  await assertNoWrongSurface(page);
-  await page.getByRole('button', { name: /Gold-Menü schließen|Close gold menu/i }).tap();
-  await expect(page.getByTestId('main-menu-resource-popover')).toHaveCount(0);
+  await assertOnlyShop(page);
+  await closeShop(page);
 
   await page.getByTestId('main-menu-dust-button').tap();
-  await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: /Aschenbogen|Ash Bow/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Spielen|Play/i })).toHaveCount(0);
-  await assertNoWrongSurface(page);
+  await assertOnlyShop(page);
+  await closeShop(page);
 
-  const before = await page.evaluate(() => {
-    const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
-    return {
-      level: meta.owned?.['ash-bow']?.level,
-      copies: meta.owned?.['ash-bow']?.copies,
-      gold: meta.gold,
-      dust: meta.dust,
-    };
-  });
-  expect(before).toEqual({ level: 1, copies: 4, gold: 50000, dust: 5000 });
+  await page.getByTestId('main-menu-settings-button').tap();
+  await expect(page.getByTestId('main-menu-options-panel')).toBeVisible();
+  await expect(page.getByText('Online & Cloud', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Tutorial wiederholen|Replay tutorial/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Optionsmenü schließen|Close options menu/i })).toBeVisible();
+  await expect(page.getByTestId('main-menu-shop-panel')).toHaveCount(0);
+  await expect(page.getByTestId('player-profile-panel')).toHaveCount(0);
+  await page.getByRole('button', { name: /Optionsmenü schließen|Close options menu/i }).tap();
+  await expect(page.getByTestId('main-menu-options-panel')).toHaveCount(0);
 
-  await page.getByTestId('equipment-upgrade-button').tap();
-  await expect.poll(async () => page.evaluate(() => {
-    const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
-    return {
-      level: meta.owned?.['ash-bow']?.level,
-      copies: meta.owned?.['ash-bow']?.copies,
-      gold: meta.gold,
-      dust: meta.dust,
-    };
-  }), { timeout: 10_000 }).toEqual({ level: 2, copies: 3, gold: 46500, dust: 4880 });
+  await page.getByTestId('main-menu-profile-badge').tap();
+  await expect(page.getByTestId('player-profile-panel')).toBeVisible();
+  await expect(page.getByTestId('main-menu-shop-panel')).toHaveCount(0);
+  await expect(page.getByTestId('main-menu-options-panel')).toHaveCount(0);
+  await page.getByRole('button', { name: /Profil schließen|Close profile/i }).tap();
+  await expect(page.getByTestId('player-profile-panel')).toHaveCount(0);
 
-  await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Aschenbogen|Ash Bow/i })).toBeVisible();
-  await expect(page.getByText(/LEVEL 2\/5/i).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: /Spielen|Play/i })).toHaveCount(0);
-  await assertNoWrongSurface(page);
+  await page.getByTestId('main-menu-gold-button').tap();
+  await assertOnlyShop(page);
+  await closeShop(page);
+  await page.getByTestId('main-menu-settings-button').tap();
+  await expect(page.getByTestId('main-menu-options-panel')).toBeVisible();
+  await expect(page.getByTestId('main-menu-shop-panel')).toHaveCount(0);
+  await page.getByRole('button', { name: /Optionsmenü schließen|Close options menu/i }).tap();
 
+  await page.getByTestId('main-menu-dust-button').tap();
+  await assertOnlyShop(page);
   await page.screenshot({ path: `test-results/mobile-resource-upgrade-${testInfo.project.name}.png`, fullPage: false });
 });

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const SUPABASE_REST = 'https://hfndwqfghyomwapqsked.supabase.co/rest/v1/';
@@ -185,6 +186,11 @@ async function capture(page, name, projectName) {
   await page.screenshot({ path: `test-results/autopilot-${name}-${projectName}.png`, fullPage: false });
 }
 
+async function waitForPlayableRoom(page) {
+  await waitForPaintedCanvas(page, page.locator('canvas').first(), 120_000);
+  await expect(page.getByText(/DER SCHLEIER ÖFFNET SICH|THE VEIL OPENS/i)).toBeHidden({ timeout: 120_000 });
+}
+
 async function closeStandardOverlay(page) {
   const close = page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).last();
   await pointer(close);
@@ -232,6 +238,7 @@ test('signed-out hub, solo run and duo entry remain functional', async ({ page }
   }
   await expect(runHud).toBeVisible({ timeout: 120_000 });
   await expect(page.getByTestId('run-joystick')).toBeVisible();
+  await waitForPlayableRoom(page);
   await capture(page, 'solo-run-started', testInfo.project.name);
   expect(issues, issues.join('\n')).toEqual([]);
 });

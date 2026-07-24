@@ -53,7 +53,17 @@ const checks = [
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the run model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],
   [weapons.includes("const ashBowNeedsFlip = bowId === 'ash-bow'") && weapons.includes('ashBowNeedsFlip ? Math.PI') && weapons.includes('dungeonVeilBowAshFlip: ashBowNeedsFlip'), 'the Ash Bow does not have its dedicated 180-degree hand correction'],
-  [menu.includes('main-menu-dust-button') && menu.includes('props.onVeilChamber()') && menu.includes("setOverlay(current => current === 'more' ? null : 'more')") && menu.includes('disabled={disabled} onClick={event =>') && !menu.includes('armMobilePointerSafety') && !menu.includes('main-menu-dust-button" type="button" onPointerDown'), 'top resource and menu actions still use unsafe pointer-down navigation'],
+  [menu.includes('data-testid="main-menu-shop-panel"')
+    && menu.includes('data-testid="main-menu-options-panel"')
+    && menu.includes('data-testid="main-menu-settings-button"')
+    && menu.includes("current === 'shop' ? null : 'shop'")
+    && menu.includes("current === 'options' ? null : 'options'")
+    && menu.includes('props.onVeilChamber();')
+    && menu.includes('Online & Cloud')
+    && menu.includes('Tutorial wiederholen')
+    && !menu.includes("current === 'more' ? null : 'more'")
+    && !menu.includes('main-menu-resource-popover')
+    && !menu.includes('main-menu-dust-button" type="button" onPointerDown'), 'shop and options routing is not isolated from the retired gold menu or unsafe pointer-down navigation'],
   [chamber.includes('onPointerUp={event => { event.preventDefault(); event.stopPropagation(); window.setTimeout(upgrade, 0); }}') && chamber.includes('onClick={event => { event.preventDefault(); event.stopPropagation(); }}') && chamber.includes('equipment-upgrade-button') && !chamber.includes('armMobilePointerSafety'), 'equipment upgrade is not locally isolated from mobile follow-up clicks'],
   [equipmentVisuals.includes('const xAxisBowPose') && equipmentVisuals.includes('const zAxisBowPose') && !equipmentVisuals.includes('/assets/imported/medieval-weapons'), 'equipment previews still use legacy imported bows or lack authored-axis poses'],
   [equipmentVisuals.includes('PlantWarrior_Bow_withString.gltf') && equipmentVisuals.includes('bow_C_withString.gltf'), 'new KayKit bow previews are not wired'],
@@ -73,4 +83,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Live hybrid main-menu audit passed: character-free hall, animated equipped Ranger, normalized bow orientation, real single-attached quivers with clear arrow previews, expanded KayKit equipment, V5 companion state, smooth 3D filtering, one live canvas and full equipment access remain intact.');
+console.log('Live hybrid main-menu audit passed: character-free hall, animated equipped Ranger, isolated Shop and Options routing, normalized bow orientation, real single-attached quivers with clear arrow previews, expanded KayKit equipment, V5 companion state, smooth 3D filtering, one live canvas and full equipment access remain intact.');

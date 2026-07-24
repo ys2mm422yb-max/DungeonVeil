@@ -36,7 +36,7 @@ interface Props {
   onCredits: () => void;
 }
 
-type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'more' | 'play' | 'online' | 'guild' | 'worldBoss' | 'coop' | null;
+type Overlay = 'profile' | 'daily' | 'mailbox' | 'friends' | 'shop' | 'options' | 'play' | 'online' | 'guild' | 'worldBoss' | 'coop' | null;
 type IconName = 'scroll' | 'mail' | 'friends' | 'guild' | 'portal' | 'swords' | 'bag' | 'book' | 'gift' | 'boss' | 'coin' | 'dust' | 'settings';
 
 const FILLED_MAILBOX_QA: MailboxMessage[] = [
@@ -126,6 +126,7 @@ export function MainMenuScreen(props: Props) {
   const chapter = currentSaveData?.chapter ?? 1;
   const room = currentSaveData?.floor ?? 1;
   const gold = Number(meta.gold ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US');
+  const dust = Number(meta.dust ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US');
   const onlineSignedIn = qaMode || Boolean(currentOnlineSession());
 
   useEffect(() => {
@@ -215,12 +216,33 @@ export function MainMenuScreen(props: Props) {
     </button>;
   };
 
-  const resourceMenu = <div className="rounded-3xl border border-amber-100/16 bg-[linear-gradient(145deg,rgba(31,25,19,.98),rgba(12,10,13,.99))] p-3 shadow-[0_24px_70px_rgba(0,0,0,.64)] backdrop-blur-2xl">
+  const optionsMenu = <div data-testid="main-menu-options-panel" className="rounded-3xl border border-amber-100/16 bg-[linear-gradient(145deg,rgba(31,25,19,.98),rgba(12,10,13,.99))] p-3 shadow-[0_24px_70px_rgba(0,0,0,.64)] backdrop-blur-2xl">
     <div className="flex items-start justify-between gap-3 px-1 pb-2">
-      <div><div className="text-[7px] font-black uppercase tracking-[.25em] text-amber-100/42">{language === 'de' ? 'GOLD & KONTO' : 'GOLD & ACCOUNT'}</div><div className="mt-1 text-sm font-black text-amber-50">{language === 'de' ? 'Weitere Optionen' : 'More options'}</div></div>
-      <button type="button" aria-label={language === 'de' ? 'Gold-Menü schließen' : 'Close gold menu'} onClick={event => { event.preventDefault(); event.stopPropagation(); setOverlay(null); }} className="grid h-8 w-8 place-items-center rounded-xl border border-white/9 bg-black/24 text-sm text-white/46 active:scale-90">×</button>
+      <div><div className="text-[7px] font-black uppercase tracking-[.25em] text-amber-100/42">DUNGEON VEIL</div><div className="mt-1 text-sm font-black text-amber-50">{language === 'de' ? 'Optionen' : 'Options'}</div></div>
+      <button type="button" aria-label={language === 'de' ? 'Optionsmenü schließen' : 'Close options menu'} onClick={event => { event.preventDefault(); event.stopPropagation(); setOverlay(null); }} className="grid h-8 w-8 place-items-center rounded-xl border border-white/9 bg-black/24 text-sm text-white/46 active:scale-90">×</button>
     </div>
-    <div className="space-y-1.5">{action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', 'friends', () => setOverlay('online'), 'violet')}{action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', 'scroll', replayTutorial, 'dark')}{action(t.settings, '', 'settings', () => { setOverlay(null); props.onSettings(); }, 'dark')}{action(t.credits, '', 'book', () => { setOverlay(null); props.onCredits(); }, 'dark')}</div>
+    <div className="space-y-1.5">
+      {action('Online & Cloud', language === 'de' ? 'KONTO · PROFIL · SPIELSTAND' : 'ACCOUNT · PROFILE · SAVE', 'friends', () => setOverlay('online'), 'violet')}
+      {action(language === 'de' ? 'Tutorial wiederholen' : 'Replay tutorial', language === 'de' ? 'BEWEGUNG · DASH · KAMPF' : 'MOVEMENT · DASH · COMBAT', 'scroll', replayTutorial, 'dark')}
+      {action(t.settings, '', 'settings', () => { setOverlay(null); props.onSettings(); }, 'dark')}
+      {action(t.credits, '', 'book', () => { setOverlay(null); props.onCredits(); }, 'dark')}
+    </div>
+  </div>;
+
+  const shopMenu = <div data-testid="main-menu-shop-panel" className="rounded-3xl border border-violet-200/18 bg-[linear-gradient(145deg,rgba(28,20,39,.985),rgba(10,8,14,.995))] p-3 shadow-[0_24px_70px_rgba(0,0,0,.68)] backdrop-blur-2xl">
+    <div className="flex items-start justify-between gap-3 px-1 pb-2">
+      <div><div className="text-[7px] font-black uppercase tracking-[.25em] text-violet-100/42">DUNGEON VEIL</div><div className="mt-1 text-sm font-black text-violet-50">{language === 'de' ? 'Shop' : 'Shop'}</div></div>
+      <button type="button" aria-label={language === 'de' ? 'Shop schließen' : 'Close shop'} onClick={event => { event.preventDefault(); event.stopPropagation(); setOverlay(null); }} className="grid h-8 w-8 place-items-center rounded-xl border border-white/9 bg-black/24 text-sm text-white/46 active:scale-90">×</button>
+    </div>
+    <div className="grid grid-cols-2 gap-2">
+      <div data-testid="main-menu-shop-gold-balance" className="rounded-2xl border border-amber-200/14 bg-amber-400/[.055] p-3"><div className="flex items-center gap-2 text-amber-100/65"><MenuIcon name="coin" className="h-4 w-4"/><span className="text-[7px] font-black uppercase tracking-[.14em]">Gold</span></div><div className="mt-2 text-lg font-black text-amber-100">{gold}</div></div>
+      <div data-testid="main-menu-shop-dust-balance" className="rounded-2xl border border-violet-200/14 bg-violet-400/[.055] p-3"><div className="flex items-center gap-2 text-violet-100/65"><MenuIcon name="dust" className="h-4 w-4"/><span className="text-[7px] font-black uppercase tracking-[.14em]">{language === 'de' ? 'Schleierstaub' : 'Veil Dust'}</span></div><div className="mt-2 text-lg font-black text-violet-100">{dust}</div></div>
+    </div>
+    <p className="px-1 pb-1 pt-3 text-[8px] leading-relaxed text-white/42">{language === 'de' ? 'Gold und Schleierstaub werden in der Ausrüstung für dauerhafte Verbesserungen und die Schmiede eingesetzt.' : 'Gold and Veil Dust are spent in Equipment on permanent upgrades and the forge.'}</p>
+    <div className="mt-2 space-y-1.5">
+      {action(language === 'de' ? 'Ausrüstung & Schmiede' : 'Equipment & Forge', language === 'de' ? 'VERBESSERN · HERSTELLEN · AUSRÜSTEN' : 'UPGRADE · CRAFT · EQUIP', 'bag', () => { setOverlay(null); props.onVeilChamber(); }, 'violet')}
+      {action(language === 'de' ? 'Aufträge' : 'Quests', language === 'de' ? 'RESSOURCEN VERDIENEN' : 'EARN RESOURCES', 'scroll', () => setOverlay('daily'), 'dark')}
+    </div>
   </div>;
 
   return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#050308] text-white">
@@ -232,10 +254,10 @@ export function MainMenuScreen(props: Props) {
     <ProfileBadge profile={profile} playerName={profileName} rank={meta.rank} language={language} onOpen={() => setOverlay('profile')} />
     <div className="absolute right-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-30 flex items-start gap-1.5">
       <div className="space-y-1">
-        <button data-testid="main-menu-dust-button" type="button" onClick={event => { event.preventDefault(); event.stopPropagation(); props.onVeilChamber(); }} className="flex h-7 min-w-[92px] items-center rounded-[11px] border border-violet-300/14 bg-black/58 px-2 text-[9px] font-black text-white/72 backdrop-blur-xl active:scale-95"><MenuIcon name="dust" className="mr-1.5 h-3.5 w-3.5 text-violet-400" /><span className="flex-1 text-left">{Number(meta.dust ?? 0).toLocaleString(language === 'de' ? 'de-DE' : 'en-US')}</span><span className="text-sm text-white/32">＋</span></button>
-        <button data-testid="main-menu-gold-button" type="button" aria-label={language === 'de' ? 'Gold und weitere Optionen' : 'Gold and more options'} aria-expanded={overlay === 'more'} onClick={event => { event.preventDefault(); event.stopPropagation(); setOverlay(current => current === 'more' ? null : 'more'); }} className={`flex h-7 min-w-[92px] items-center rounded-[11px] border px-2 text-[9px] font-black backdrop-blur-xl active:scale-95 ${overlay === 'more' ? 'border-amber-200/30 bg-amber-500/14 text-amber-50' : 'border-amber-200/12 bg-black/58 text-white/72'}`}><MenuIcon name="coin" className="mr-1.5 h-3.5 w-3.5 text-amber-400" /><span className="flex-1 text-left">{gold}</span><span className="text-sm text-white/32">＋</span></button>
+        <button data-testid="main-menu-dust-button" type="button" aria-label={language === 'de' ? 'Schleierstaub-Shop öffnen' : 'Open Veil Dust shop'} aria-expanded={overlay === 'shop'} onClick={event => { event.preventDefault(); event.stopPropagation(); setOverlay(current => current === 'shop' ? null : 'shop'); }} className={`flex h-7 min-w-[92px] items-center rounded-[11px] border px-2 text-[9px] font-black backdrop-blur-xl active:scale-95 ${overlay === 'shop' ? 'border-violet-200/30 bg-violet-500/14 text-violet-50' : 'border-violet-300/14 bg-black/58 text-white/72'}`}><MenuIcon name="dust" className="mr-1.5 h-3.5 w-3.5 text-violet-400" /><span className="flex-1 text-left">{dust}</span><span className="text-sm text-white/32">＋</span></button>
+        <button data-testid="main-menu-gold-button" type="button" aria-label={language === 'de' ? 'Gold-Shop öffnen' : 'Open Gold shop'} aria-expanded={overlay === 'shop'} onClick={event => { event.preventDefault(); event.stopPropagation(); setOverlay(current => current === 'shop' ? null : 'shop'); }} className={`flex h-7 min-w-[92px] items-center rounded-[11px] border px-2 text-[9px] font-black backdrop-blur-xl active:scale-95 ${overlay === 'shop' ? 'border-amber-200/30 bg-amber-500/14 text-amber-50' : 'border-amber-200/12 bg-black/58 text-white/72'}`}><MenuIcon name="coin" className="mr-1.5 h-3.5 w-3.5 text-amber-400" /><span className="flex-1 text-left">{gold}</span><span className="text-sm text-white/32">＋</span></button>
       </div>
-      <button type="button" aria-label={language === 'de' ? 'Optionen' : 'Options'} onClick={event => { event.preventDefault(); event.stopPropagation(); props.onSettings(); }} className="grid h-[60px] w-10 place-items-center rounded-[15px] border border-white/[.09] bg-black/58 text-white/60 backdrop-blur-xl active:scale-95"><MenuIcon name="settings" className="h-5 w-5" /></button>
+      <button data-testid="main-menu-settings-button" type="button" aria-label={language === 'de' ? 'Optionsmenü öffnen' : 'Open options menu'} aria-expanded={overlay === 'options'} onClick={event => { event.preventDefault(); event.stopPropagation(); setOverlay(current => current === 'options' ? null : 'options'); }} className={`grid h-[60px] w-10 place-items-center rounded-[15px] border backdrop-blur-xl active:scale-95 ${overlay === 'options' ? 'border-amber-200/25 bg-amber-500/12 text-amber-100' : 'border-white/[.09] bg-black/58 text-white/60'}`}><MenuIcon name="settings" className="h-5 w-5" /></button>
     </div>
 
     <div className="relative z-10 flex h-full min-h-0 flex-col pb-[max(8px,calc(env(safe-area-inset-bottom)+2px))] pt-[max(16px,calc(env(safe-area-inset-top)+5px))]">
@@ -246,9 +268,9 @@ export function MainMenuScreen(props: Props) {
 
     {overlay === 'profile' && <PlayerProfilePanel profile={profile} saveData={currentSaveData} meta={meta} retention={retention} language={language} onProfileChange={setProfile} onClose={() => setOverlay(null)} />}
 
-    {overlay === 'more' && <div className="absolute inset-0 z-40 bg-black/20" onClick={() => setOverlay(null)}><div data-testid="main-menu-resource-popover" className="absolute right-3 top-[max(76px,calc(env(safe-area-inset-top)+70px))] w-[min(330px,calc(100vw-24px))]" onClick={event => event.stopPropagation()}>{resourceMenu}</div></div>}
+    {(overlay === 'shop' || overlay === 'options') && <div data-testid="main-menu-top-overlay-backdrop" className="absolute inset-0 z-40 bg-black/35" onClick={() => setOverlay(null)}><div className="absolute right-3 top-[max(76px,calc(env(safe-area-inset-top)+70px))] w-[min(330px,calc(100vw-24px))]" onClick={event => event.stopPropagation()}>{overlay === 'shop' ? shopMenu : optionsMenu}</div></div>}
 
-    {overlay && overlay !== 'profile' && overlay !== 'more' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onClick={() => setOverlay(null)}><div className="w-full max-w-sm" onClick={event => event.stopPropagation()}>
+    {overlay && overlay !== 'profile' && overlay !== 'shop' && overlay !== 'options' && <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#06070b]/78 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-md md:px-6" onClick={() => setOverlay(null)}><div className="w-full max-w-sm" onClick={event => event.stopPropagation()}>
       {overlay === 'daily' && <DailyQuestPanel defaultOpen />}
       {overlay === 'mailbox' && <><MailboxPanel language={language} onUnreadChange={setMailUnread} qaState={qaMode ? FILLED_MAILBOX_QA_STATE : undefined} />{!onlineSignedIn && <button type="button" onClick={event => { event.preventDefault(); event.stopPropagation(); setOverlay('online'); }} className="mt-3 w-full rounded-2xl border border-violet-200/20 bg-violet-400/10 py-3 text-[9px] font-black uppercase tracking-[.18em] text-violet-50 active:scale-[.98]">ONLINE & CLOUD ÖFFNEN</button>}</>}
       {overlay === 'friends' && <FriendsPanel language={language} onOpenOnline={() => setOverlay('online')} />}

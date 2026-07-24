@@ -175,21 +175,37 @@ async function closeStandardOverlay(page) {
   await pointer(close);
 }
 
-test('filled guild, mailbox and anchored resource views are functional and reviewable', async ({ page }, testInfo) => {
+test('filled guild, mailbox, shop and options views are functional and reviewable', async ({ page }, testInfo) => {
   test.setTimeout(300_000);
   const runtimeIssues = attachRuntimeMonitor(page);
   await gotoMenu(page, testInfo.project.name);
 
   await pointer(page.getByTestId('main-menu-gold-button'));
-  const popover = page.getByTestId('main-menu-resource-popover');
-  await expect(popover).toBeVisible();
-  const [goldBox, popoverBox] = await Promise.all([page.getByTestId('main-menu-gold-button').boundingBox(), popover.boundingBox()]);
+  const goldShop = page.getByTestId('main-menu-shop-panel');
+  await expect(goldShop).toBeVisible();
+  await expect(page.getByTestId('main-menu-shop-gold-balance')).toContainText('24.850');
+  await expect(page.getByTestId('main-menu-shop-dust-balance')).toContainText('9.840');
+  const [goldBox, shopBox] = await Promise.all([page.getByTestId('main-menu-gold-button').boundingBox(), goldShop.boundingBox()]);
   expect(goldBox).not.toBeNull();
-  expect(popoverBox).not.toBeNull();
-  expect(popoverBox.y).toBeGreaterThanOrEqual(goldBox.y + goldBox.height - 2);
-  expect(Math.abs((popoverBox.x + popoverBox.width) - (page.viewportSize().width - 12))).toBeLessThanOrEqual(6);
-  await capture(page, 'visual-gold-popover', testInfo.project.name);
-  await pointer(page.getByRole('button', { name: /Gold-Menü schließen|Close gold menu/i }));
+  expect(shopBox).not.toBeNull();
+  expect(shopBox.y).toBeGreaterThanOrEqual(goldBox.y + goldBox.height - 2);
+  expect(Math.abs((shopBox.x + shopBox.width) - (page.viewportSize().width - 12))).toBeLessThanOrEqual(6);
+  await capture(page, 'visual-shop-gold', testInfo.project.name);
+  await pointer(page.getByRole('button', { name: /Shop schließen|Close shop/i }));
+
+  await pointer(page.getByTestId('main-menu-dust-button'));
+  await expect(page.getByTestId('main-menu-shop-panel')).toBeVisible();
+  await expect(page.getByTestId('main-menu-options-panel')).toHaveCount(0);
+  await capture(page, 'visual-shop-dust', testInfo.project.name);
+  await pointer(page.getByRole('button', { name: /Shop schließen|Close shop/i }));
+
+  await pointer(page.getByTestId('main-menu-settings-button'));
+  await expect(page.getByTestId('main-menu-options-panel')).toBeVisible();
+  await expect(page.getByText('Online & Cloud', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Tutorial wiederholen|Replay tutorial/i)).toBeVisible();
+  await expect(page.getByTestId('main-menu-shop-panel')).toHaveCount(0);
+  await capture(page, 'visual-options-menu', testInfo.project.name);
+  await pointer(page.getByRole('button', { name: /Optionsmenü schließen|Close options menu/i }));
 
   await pointer(page.getByTestId('npc-postmaster'));
   await expect(page.getByTestId('mailbox-panel')).toBeVisible();
