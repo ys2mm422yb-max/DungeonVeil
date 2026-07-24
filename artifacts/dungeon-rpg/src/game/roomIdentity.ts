@@ -1,4 +1,5 @@
 import { ROOM_BIBLE, type RoomPhaseId, type RoomShell, type RoomSilhouette } from './roomBible';
+import { CHAPTER_ROOMS } from './chapterRun';
 
 export type RoomIdentityId =
   | 'storehouse'
@@ -79,5 +80,5 @@ export const ROOM_IDENTITIES: Record<number, RoomIdentity> = Object.fromEntries(
 ) as Record<number, RoomIdentity>;
 
 export function roomIdentity(room: number): RoomIdentity {
-  return ROOM_IDENTITIES[Math.max(1, Math.min(50, room))] ?? ROOM_IDENTITIES[1];
+  return ROOM_IDENTITIES[Math.max(1, Math.min(CHAPTER_ROOMS, room))] ?? ROOM_IDENTITIES[1];
 }
