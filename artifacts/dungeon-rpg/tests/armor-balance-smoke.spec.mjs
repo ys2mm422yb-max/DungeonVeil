@@ -2,11 +2,6 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
-async function pressPointerUi(locator) {
-  await expect(locator).toBeVisible();
-  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
-}
-
 async function openEquipmentArmor(page, projectName) {
   await page.addInitScript(({ emulateIpad }) => {
     localStorage.setItem('dungeon-veil-language', 'de');
@@ -31,11 +26,9 @@ async function openEquipmentArmor(page, projectName) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
-  await page.getByTestId('main-menu-gold-button').click({ force: true, noWaitAfter: true });
-  await expect(page.getByTestId('main-menu-shop-panel')).toBeVisible();
   const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
   await expect(equipmentEntry).toBeVisible();
-  await equipmentEntry.getByRole('button').click({ force: true, noWaitAfter: true });
+  await equipmentEntry.getByRole('button').click({ force: true });
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
   await page.getByTestId('inventory-tab-armor').click({ force: true });
   await expect(page.getByText(/Waldläufermantel|Ranger Cloak/i).first()).toBeVisible({ timeout: 30_000 });
