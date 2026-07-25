@@ -33,9 +33,9 @@ async function openEquipmentArmor(page, projectName) {
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
   await page.getByTestId('main-menu-gold-button').click({ force: true, noWaitAfter: true });
   await expect(page.getByTestId('main-menu-shop-panel')).toBeVisible();
-  await pressPointerUi(page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first());
+  await page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first().click({ force: true, noWaitAfter: true });
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
-  await pressPointerUi(page.getByTestId('inventory-tab-armor'));
+  await page.getByTestId('inventory-tab-armor').click({ force: true });
   await expect(page.getByText(/Waldläufermantel|Ranger Cloak/i).first()).toBeVisible({ timeout: 30_000 });
 }
 
