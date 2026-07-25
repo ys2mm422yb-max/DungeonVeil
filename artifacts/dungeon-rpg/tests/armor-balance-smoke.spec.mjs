@@ -4,9 +4,19 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 
 async function openEquipmentArmor(page, projectName) {
   await page.addInitScript(({ emulateIpad }) => {
+    const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
     localStorage.setItem('dungeon-veil-language', 'de');
-    localStorage.setItem('dungeon-veil-meta', JSON.stringify({
+    localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
+    localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
       version: 2,
+      initialized: true,
+      equipment: knownEquipment,
+      relics: [],
+      announcedEquipment: knownEquipment,
+      announcedRelics: [],
+    }));
+    localStorage.setItem('dungeon-veil-meta', JSON.stringify({
+      version: 4,
       rank: 1,
       xp: 0,
       dust: 0,
@@ -14,9 +24,9 @@ async function openEquipmentArmor(page, projectName) {
       owned: {
         'ash-bow': { level: 1, copies: 0 },
         'ranger-quiver': { level: 1, copies: 0 },
-        'veil-key': { level: 1, copies: 0 },
+        'ranger-cloak': { level: 1, copies: 0 },
       },
-      equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', talisman: 'veil-key' },
+      equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' },
       rewardLedger: [],
       currentRunId: '',
     }));
@@ -26,10 +36,11 @@ async function openEquipmentArmor(page, projectName) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
   const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
   await expect(equipmentEntry).toBeVisible();
   await equipmentEntry.getByRole('button').click({ force: true });
-  await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible({ timeout: 60_000 });
   await page.getByTestId('inventory-tab-armor').click({ force: true });
   await expect(page.getByText(/Waldläufermantel|Ranger Cloak/i).first()).toBeVisible({ timeout: 30_000 });
 }
