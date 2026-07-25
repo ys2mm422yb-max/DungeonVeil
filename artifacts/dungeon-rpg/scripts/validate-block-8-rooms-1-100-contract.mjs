@@ -26,7 +26,7 @@ const [roomBible, veilNexus, evidence, runEngine, encounterPlan, chapterRun, run
 required(/export\s+const\s+CHAPTER_ROOMS\s*=\s*100\s*;/.test(chapterRun), 'Every chapter must contain exactly 100 rooms.');
 required(/export\s+const\s+FINAL_BOSS_ROOM\s*=\s*100\s*;/.test(chapterRun), 'Room 100 must remain the chapter final boss.');
 required(/Math\.min\(100,\s*Math\.floor\(roomNumber\)\)/.test(roomBible), 'Room Bible must resolve through room 100.');
-required(/roomNumber\s*>=\s*91\s*&&\s*roomNumber\s*<=\s*100/.test(veilNexus), 'Veil Nexus room guard must cover rooms 91-100.');
+required(/(?:room|roomNumber)\s*>=\s*91\s*&&\s*(?:room|roomNumber)\s*<=\s*100/.test(veilNexus), 'Veil Nexus room guard must cover rooms 91-100.');
 
 for (let room = 91; room <= 100; room += 1) {
   required(new RegExp(`\\b${room}:\\s*R\\(${room},`).test(veilNexus), `Room ${room} is missing from the Veil Nexus room registry.`);
