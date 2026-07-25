@@ -1,13 +1,13 @@
 export type VeilNexusSilhouette =
-  | 'nexus-gate'
-  | 'mirror-vault'
-  | 'broken-axis'
-  | 'echo-cloister'
-  | 'convergence-bridge'
-  | 'memory-engine'
-  | 'fourfold-sanctum'
-  | 'last-threshold'
-  | 'heart-approach'
+  | 'veil-threshold'
+  | 'echo-hall'
+  | 'broken-bridges'
+  | 'anchor-chamber'
+  | 'falling-court'
+  | 'convergence-path'
+  | 'final-archive'
+  | 'fracture-heart'
+  | 'nexus-antechamber'
   | 'veil-core-arena';
 
 export type VeilNexusHazard =
@@ -54,15 +54,15 @@ const R = (
 ): VeilNexusRoomSpec => ({ room, titleDe, titleEn, silhouette, hazard, portal, enemySpawns, enemyRoles, telegraphMs, activeMs, recoveryMs });
 
 export const VEIL_NEXUS_ROOMS: Readonly<Record<number, VeilNexusRoomSpec>> = {
-  91: R(91, 'Schwelle des Schleiers', 'Threshold of the Veil', 'nexus-gate', 'phased-veil-gates', P(0, -13.7), [P(-4.8, -5.8), P(4.8, -5.8), P(-2.6, -0.8), P(2.6, -0.8), P(-4.0, 4.6), P(4.0, 4.6)], ['vanguard', 'interrupter'], 1450, 820, 1150),
-  92: R(92, 'Halle der Echos', 'Hall of Echoes', 'mirror-vault', 'marked-echo-impacts', P(4.8, -12.0), [P(-4.8, -5.7), P(0, -6.2), P(4.8, -5.7), P(-4.6, 0.4), P(4.6, 0.4), P(-2.8, 4.9), P(2.8, 4.9)], ['echo-ranger', 'controller'], 1500, 850, 1200),
-  93: R(93, 'Zerbrochene Brücken', 'Broken Bridges', 'broken-axis', 'rotating-bridge-segments', P(-4.8, -12.0), [P(-4.9, -5.5), P(0, -6.1), P(4.9, -5.5), P(-4.8, 0.8), P(4.8, 0.8), P(-3.0, 4.8), P(3.0, 4.8)], ['skirmisher', 'ranged'], 1550, 900, 1200),
-  94: R(94, 'Kammer der Anker', 'Anchor Chamber', 'echo-cloister', 'linked-anchor-zones', P(0, -13.7), [P(-4.5, -5.7), P(4.5, -5.7), P(-5.0, 0), P(5.0, 0), P(-2.9, 4.8), P(2.9, 4.8)], ['anchor-guard', 'support'], 1500, 900, 1250),
-  95: R(95, 'Der fallende Hof', 'The Falling Court', 'convergence-bridge', 'gravity-pulses', P(0, -13.5), [P(-4.9, -5.8), P(0, -6.2), P(4.9, -5.8), P(-4.5, 0.5), P(4.5, 0.5), P(0, 5.0)], ['pursuer', 'controller'], 1600, 850, 1300),
-  96: R(96, 'Pfad der Konvergenz', 'Path of Convergence', 'memory-engine', 'converging-pressure-lanes', P(4.8, -12.0), [P(-4.9, -5.4), P(0, -6.2), P(4.9, -5.4), P(-4.9, 1.0), P(4.9, 1.0), P(-2.9, 4.8), P(2.9, 4.8)], ['lane-guard', 'interrupter'], 1550, 900, 1300),
-  97: R(97, 'Archiv der letzten Wege', 'Archive of Final Paths', 'fourfold-sanctum', 'sequenced-portal-routes', P(-4.8, -12.0), [P(-4.8, -5.8), P(0, -6.1), P(4.8, -5.8), P(-4.8, 0.2), P(4.8, 0.2), P(-3.1, 4.8), P(3.1, 4.8)], ['portal-warden', 'assassin'], 1650, 900, 1350),
-  98: R(98, 'Herz der Spaltung', 'Heart of the Fracture', 'last-threshold', 'fracture-echo-pattern', P(0, -13.7), [P(-4.9, -5.5), P(0, -6.3), P(4.9, -5.5), P(-5.0, 1.2), P(5.0, 1.2), P(-2.8, 5.0), P(2.8, 5.0)], ['elite-controller', 'echo-ranger'], 1650, 950, 1400),
-  99: R(99, 'Vorhof des Nexus', 'Nexus Antechamber', 'heart-approach', 'layered-nexus-sequence', P(0, -13.7), [P(-5.0, -5.7), P(0, -6.3), P(5.0, -5.7), P(-5.0, 0.3), P(5.0, 0.3), P(-3.2, 4.9), P(0, 5.4), P(3.2, 4.9)], ['elite-pursuer', 'elite-controller', 'interrupter'], 1750, 950, 1450),
+  91: R(91, 'Schwelle des Schleiers', 'Threshold of the Veil', 'veil-threshold', 'phased-veil-gates', P(0, -13.7), [P(-4.8, -5.8), P(4.8, -5.8), P(-2.6, -0.8), P(2.6, -0.8), P(-4.0, 4.6), P(4.0, 4.6)], ['vanguard', 'interrupter'], 1450, 820, 1150),
+  92: R(92, 'Halle der Echos', 'Hall of Echoes', 'echo-hall', 'marked-echo-impacts', P(4.8, -12.0), [P(-4.8, -5.7), P(0, -6.2), P(4.8, -5.7), P(-4.6, 0.4), P(4.6, 0.4), P(-2.8, 4.9), P(2.8, 4.9)], ['echo-ranger', 'controller'], 1500, 850, 1200),
+  93: R(93, 'Zerbrochene Brücken', 'Broken Bridges', 'broken-bridges', 'rotating-bridge-segments', P(-4.8, -12.0), [P(-4.9, -5.5), P(0, -6.1), P(4.9, -5.5), P(-4.8, 0.8), P(4.8, 0.8), P(-3.0, 4.8), P(3.0, 4.8)], ['skirmisher', 'ranged'], 1550, 900, 1200),
+  94: R(94, 'Kammer der Anker', 'Anchor Chamber', 'anchor-chamber', 'linked-anchor-zones', P(0, -13.7), [P(-4.5, -5.7), P(4.5, -5.7), P(-5.0, 0), P(5.0, 0), P(-2.9, 4.8), P(2.9, 4.8)], ['anchor-guard', 'support'], 1500, 900, 1250),
+  95: R(95, 'Der fallende Hof', 'The Falling Court', 'falling-court', 'gravity-pulses', P(0, -13.5), [P(-4.9, -5.8), P(0, -6.2), P(4.9, -5.8), P(-4.5, 0.5), P(4.5, 0.5), P(0, 5.0)], ['pursuer', 'controller'], 1600, 850, 1300),
+  96: R(96, 'Pfad der Konvergenz', 'Path of Convergence', 'convergence-path', 'converging-pressure-lanes', P(4.8, -12.0), [P(-4.9, -5.4), P(0, -6.2), P(4.9, -5.4), P(-4.9, 1.0), P(4.9, 1.0), P(-2.9, 4.8), P(2.9, 4.8)], ['lane-guard', 'interrupter'], 1550, 900, 1300),
+  97: R(97, 'Archiv der letzten Wege', 'Archive of Final Paths', 'final-archive', 'sequenced-portal-routes', P(-4.8, -12.0), [P(-4.8, -5.8), P(0, -6.1), P(4.8, -5.8), P(-4.8, 0.2), P(4.8, 0.2), P(-3.1, 4.8), P(3.1, 4.8)], ['portal-warden', 'assassin'], 1650, 900, 1350),
+  98: R(98, 'Herz der Spaltung', 'Heart of the Fracture', 'fracture-heart', 'fracture-echo-pattern', P(0, -13.7), [P(-4.9, -5.5), P(0, -6.3), P(4.9, -5.5), P(-5.0, 1.2), P(5.0, 1.2), P(-2.8, 5.0), P(2.8, 5.0)], ['elite-controller', 'echo-ranger'], 1650, 950, 1400),
+  99: R(99, 'Vorhof des Nexus', 'Nexus Antechamber', 'nexus-antechamber', 'layered-nexus-sequence', P(0, -13.7), [P(-5.0, -5.7), P(0, -6.3), P(5.0, -5.7), P(-5.0, 0.3), P(5.0, 0.3), P(-3.2, 4.9), P(0, 5.4), P(3.2, 4.9)], ['elite-pursuer', 'elite-controller', 'interrupter'], 1750, 950, 1450),
   100: R(100, 'Der Schleierkern', 'The Veil Core', 'veil-core-arena', 'veil-core-phases', P(0, -13.7), [P(0, 2.0), P(-4.2, 1.4), P(4.2, 1.4), P(-2.7, 4.8), P(2.7, 4.8)], ['final-boss'], 1850, 1000, 1550),
 };
 
