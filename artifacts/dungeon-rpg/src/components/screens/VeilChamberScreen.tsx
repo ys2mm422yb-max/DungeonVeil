@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { EQUIPMENT } from '../../game/metaProgression';
+import { equipmentUpgradeSuccessChance } from '../../game/equipmentUpgradeEconomy';
 import {
   exchangeForgeMarks,
   FORGE_MARK_EVENT,
@@ -22,6 +23,8 @@ const RARITY_LABELS = {
   epic: { de: 'EPISCH', en: 'EPIC' },
 } as const;
 
+type UpgradeResultDetail = { id?: string; success?: boolean; chance?: number; level?: number };
+
 export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const { language } = useLanguage();
   const de = language === 'de';
@@ -29,7 +32,10 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const [open, setOpen] = useState(false);
   const [receipt, setReceipt] = useState<ForgeMarkExchangeReceipt | null>(null);
   const [busy, setBusy] = useState(false);
+  const [upgradeChance, setUpgradeChance] = useState<number | null>(null);
   const exchangeIdRef = useRef('');
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const upgradePointerActiveRef = useRef(false);
 
   useEffect(() => {
     const refresh = () => setProfile({ ...loadForgeMarks() });
@@ -40,6 +46,37 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
       window.removeEventListener('dungeon-veil-cloud-save-restored', refresh);
     };
   }, []);
+
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) return;
+    const updateChance = () => {
+      const preview = root.querySelector<HTMLElement>('[data-testid="equipment-upgrade-preview"]');
+      const match = preview?.textContent?.match(/LEVEL\s+(\d+)\s*→/i);
+      setUpgradeChance(match ? Math.round(equipmentUpgradeSuccessChance(Number(match[1])) * 100) : null);
+    };
+    updateChance();
+    const observer = new MutationObserver(updateChance);
+    observer.observe(root, { subtree: true, childList: true, characterData: true });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const handleResult = (event: Event) => {
+      const detail = (event as CustomEvent<UpgradeResultDetail>).detail ?? {};
+      if (detail.success !== false) return;
+      const item = detail.id && Object.prototype.hasOwnProperty.call(EQUIPMENT, detail.id) ? EQUIPMENT[detail.id as keyof typeof EQUIPMENT] : null;
+      window.dispatchEvent(new CustomEvent('dungeon-veil-retention-toast', {
+        detail: {
+          title: de ? 'UPGRADE FEHLGESCHLAGEN' : 'UPGRADE FAILED',
+          text: `${item ? (de ? item.nameDe : item.nameEn) : (de ? 'Ausrüstung' : 'Equipment')} · ${Math.round((detail.chance ?? 0) * 100)} %`,
+          tone: 'warning',
+        },
+      }));
+    };
+    window.addEventListener('dungeon-veil-equipment-upgrade-result', handleResult);
+    return () => window.removeEventListener('dungeon-veil-equipment-upgrade-result', handleResult);
+  }, [de]);
 
   const exchange = () => {
     if (busy || profile.marks < FORGE_MARK_EXCHANGE_COST) return;
@@ -61,8 +98,27 @@ export function VeilChamberScreen({ onBack }: { onBack: () => void }) {
   const reward = receipt ? EQUIPMENT[receipt.item] : null;
   const enough = profile.marks >= FORGE_MARK_EXCHANGE_COST;
 
-  return <div data-testid="forge-mark-chamber-wrapper">
-    <style>{`section:has(> [data-testid="equipment-source-marks"]) { display: none !important; }`}</style>
+  return <div
+    ref={wrapperRef}
+    data-testid="forge-mark-chamber-wrapper"
+    onPointerDownCapture={event => {
+      const button = (event.target as Element | null)?.closest?.('[data-testid="equipment-upgrade-button"]') as HTMLElement | null;
+      if (!button) return;
+      upgradePointerActiveRef.current = true;
+      const pointerType = event.pointerType || 'touch';
+      window.queueMicrotask(() => button.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType })));
+    }}
+    onPointerUpCapture={event => {
+      if (!upgradePointerActiveRef.current || !event.nativeEvent.isTrusted) return;
+      event.preventDefault();
+      event.stopPropagation();
+      upgradePointerActiveRef.current = false;
+    }}
+  >
+    <style>{`
+      section:has(> [data-testid="equipment-source-marks"]) { display: none !important; }
+      ${upgradeChance !== null ? `[data-testid="equipment-upgrade-button"]::after { content: "${de ? 'ERFOLG' : 'SUCCESS'} ${upgradeChance} %"; display: block; margin-top: 3px; font-size: 6px; letter-spacing: .12em; opacity: .66; }` : ''}
+    `}</style>
     <LegacyVeilChamberScreen onBack={onBack} />
 
     <button
