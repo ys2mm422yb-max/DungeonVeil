@@ -68,7 +68,18 @@ const RELIQUARY_SILHOUETTES: Record<ReliquarySilhouette, RoomSilhouette> = { 'su
 for (const spec of Object.values(DROWNED_RELIQUARY_ROOMS)) ROOM_BIBLE[spec.room] = room(spec.room, spec.titleDe, spec.titleEn, 'drowned-reliquary', RELIQUARY_SILHOUETTES[spec.silhouette], spec.room === 80 ? 'überflutetes Leviathan-Becken mit Kettenankern' : `versunkene Reliquie: ${spec.silhouette}`, ['resources', 'halloween'], ['water', 'tide', 'chain', 'reliquary', 'verdigris', 'cyan', spec.hazard], ['forest', 'village', 'bed', 'barrel_stack', 'gold-dominant', 'star-dominant'], spec.room === 80 ? 1 : 3, 'veil', { ...spec.portal }, spec.enemySpawns.map(point => ({ ...point })));
 const CINDER_SILHOUETTES: Record<CinderCrownSilhouette, RoomSilhouette> = { 'cinder-gate': 'three-lane', 'chain-court': 'cross', 'bellows-hall': 'diagonal', 'black-anvil': 'ring', 'shattered-battlements': 'tri-island', 'ember-procession': 's-curve', 'crown-crucible': 'orbit', 'slag-throne': 'axial', 'last-coronation': 'tri-island', 'ashen-king-arena': 'arena' };
 for (const spec of Object.values(CINDER_CROWN_ROOMS)) ROOM_BIBLE[spec.room] = room(spec.room, spec.titleDe, spec.titleEn, 'cinder-crown', CINDER_SILHOUETTES[spec.silhouette], spec.room === 90 ? 'Aschenkönig-Arena mit Kronenankern' : `Aschenkronen-Struktur: ${spec.silhouette}`, ['tools', 'resources', 'halloween'], ['cinder', 'ember', 'forge', 'basalt', 'chain', 'crown', spec.hazard], ['water', 'tide', 'forest', 'village', 'star-dominant', 'gold-dominant'], spec.room === 90 ? 1 : 3, 'veil', { ...spec.portal }, spec.enemySpawns.map(point => ({ ...point })));
-const VEIL_NEXUS_SILHOUETTES: Record<VeilNexusSilhouette, RoomSilhouette> = { 'nexus-gate': 'three-lane', 'mirror-vault': 'cross', 'broken-axis': 'diagonal', 'echo-cloister': 'ring', 'convergence-bridge': 'tri-island', 'memory-engine': 's-curve', 'fourfold-sanctum': 'orbit', 'last-threshold': 'axial', 'heart-approach': 'tri-island', 'veil-core-arena': 'arena' };
+const VEIL_NEXUS_SILHOUETTES: Record<VeilNexusSilhouette, RoomSilhouette> = {
+  'veil-threshold': 'three-lane',
+  'echo-hall': 'cross',
+  'broken-bridges': 'diagonal',
+  'anchor-chamber': 'ring',
+  'falling-court': 'tri-island',
+  'convergence-path': 's-curve',
+  'final-archive': 'orbit',
+  'fracture-heart': 'axial',
+  'nexus-antechamber': 'tri-island',
+  'veil-core-arena': 'arena',
+};
 for (const spec of Object.values(VEIL_NEXUS_ROOMS)) ROOM_BIBLE[spec.room] = room(spec.room, spec.titleDe, spec.titleEn, 'veil-nexus', VEIL_NEXUS_SILHOUETTES[spec.silhouette], spec.room === 100 ? 'Schleierkern-Arena mit vier Nexusankern' : `Nexus-Struktur: ${spec.silhouette}`, ['resources', 'halloween'], ['veil', 'nexus', 'mirror', 'echo', 'rift', 'convergence', spec.hazard], ['forest', 'village', 'bed', 'barrel_stack', 'water-dominant', 'forge-dominant'], spec.room === 100 ? 1 : 3, 'veil', { ...spec.portal }, spec.enemySpawns.map(point => ({ ...point })));
 
 const RESOLVED_ROOM_SPECS = new Map<number, RoomBibleSpec>();
