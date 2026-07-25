@@ -49,6 +49,13 @@ required(/attackCapForRoom\([^)]*chapter/.test(runBalance), 'Attack pressure mus
 
 required(/chapter\s*:\s*number/.test(runEngine), 'Runtime state must store chapter separately from floor.');
 required(/chapter\??\s*:\s*number/.test(saveManager), 'Save data must store chapter separately from room/floor.');
+required(/claimedChapterRewards\??\s*:\s*number\[\]/.test(saveManager), 'Save data must persist claimed chapter rewards.');
+required(/SAVE_VERSION\s*=\s*5/.test(saveManager), 'Chapter reward persistence must use save version 5 or newer.');
+required(/normalizeChapter\(compactData\.chapter/.test(saveManager), 'Saved chapters must be normalized to the supported 1-100 range.');
+required(/normalizeRoom\(compactData\.floor\)/.test(saveManager), 'Saved rooms must be normalized to the supported 1-100 range.');
+required(/normalizeClaimedChapterRewards\(compactData\.claimedChapterRewards\)/.test(saveManager), 'Saved chapter reward claims must be normalized.');
+required(/claimedChapterRewards:\s*normalizeClaimedChapterRewards\(parsed\.claimedChapterRewards\)/.test(saveManager), 'Loaded chapter reward claims must be normalized.');
+
 required(/export\s+const\s+MAX_CHAPTER\s*=\s*100\s*;/.test(progression), 'Progression must define chapter 100 as the terminal boundary.');
 required(/export\s+const\s+ROOMS_PER_CHAPTER\s*=\s*100\s*;/.test(progression), 'Progression must define 100 rooms per chapter.');
 required(/safeChapter\s*>=\s*MAX_CHAPTER/.test(progression), 'Chapter 100 room 100 must enter a terminal state.');
