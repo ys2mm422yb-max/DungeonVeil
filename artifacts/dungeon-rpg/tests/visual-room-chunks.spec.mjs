@@ -33,7 +33,7 @@ function attachRuntimeMonitor(page) {
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
-  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+  await locator.click({ force: true });
 }
 
 async function seedVisualState(page, projectName) {
@@ -106,6 +106,7 @@ async function gotoMenu(page) {
 
 async function startFreshRun(page) {
   await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 30_000 });
   await pressPointerUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
   const name = page.getByRole('textbox').first();
   await expect(name).toBeVisible({ timeout: 30_000 });
