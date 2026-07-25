@@ -120,7 +120,7 @@ async function startFreshRun(page) {
 }
 
 async function roomLabel(page, room) {
-  return page.getByText(`RAUM ${room}/50`, { exact: false }).first();
+  return page.getByText(`RAUM ${room}/100`, { exact: false }).first();
 }
 
 async function loadRoom(page, room) {
