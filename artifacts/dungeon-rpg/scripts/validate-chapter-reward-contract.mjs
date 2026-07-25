@@ -25,7 +25,7 @@ const bossRooms = (bossRoomsMatch?.[1] ?? '')
 const expectedBossRooms = Array.from({ length: Math.floor(chapterRooms / 10) }, (_, index) => (index + 1) * 10);
 
 const checks = [
-  [chapterRooms === 90, 'chapter length is not fixed at 90 rooms for Block 6'],
+  [chapterRooms === 100, 'chapter length is not fixed at 100 rooms for Block 7'],
   [finalBossRoom === chapterRooms, 'final boss room does not match the configured chapter boundary'],
   [bossRooms.length === expectedBossRooms.length && expectedBossRooms.every((room, index) => bossRooms[index] === room), 'boss-room registry does not cover every ten-room milestone through the configured chapter boundary'],
   [contract.includes('const chapterBoss = safeFloor === FINAL_BOSS_ROOM;'), 'reward contract does not derive the chapter boss from FINAL_BOSS_ROOM'],

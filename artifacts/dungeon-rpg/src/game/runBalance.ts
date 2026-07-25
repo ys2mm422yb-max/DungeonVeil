@@ -8,6 +8,7 @@ import {
 import { updateCinderCrownMechanics } from './cinderCrownMechanics';
 import { updateDrownedReliquaryMechanics } from './drownedReliquaryMechanics';
 import { updateShatteredObservatoryMechanics } from './shatteredObservatoryMechanics';
+import { updateVeilNexusMechanics } from './veilNexusMechanics';
 
 export { createRunBalanceState, chapterBalanceProfile };
 export type { RunBalanceState, ChapterBalanceProfile } from './runBalanceLegacy';
@@ -17,4 +18,5 @@ export function updateRunBalance(engine: GameEngine, state: RunBalanceState): vo
   updateShatteredObservatoryMechanics(engine);
   updateDrownedReliquaryMechanics(engine);
   updateCinderCrownMechanics(engine);
+  updateVeilNexusMechanics(engine);
 }
