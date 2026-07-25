@@ -27,10 +27,22 @@ const EPIC_COSTS: Record<number, BalancedEquipmentUpgradeCost> = {
   4: { gold: 240000, copies: 24, dust: 12500 },
 };
 
+export const EQUIPMENT_UPGRADE_SUCCESS_CHANCES = Object.freeze({
+  1: 1,
+  2: 0.85,
+  3: 0.7,
+  4: 0.55,
+} as const);
+
 function costTable(id: EquipmentId) {
   if (!isActiveEquipmentId(id)) return null;
   const rarity = ACTIVE_EQUIPMENT[id].rarity;
   return rarity === 'common' ? COMMON_COSTS : rarity === 'rare' ? RARE_COSTS : EPIC_COSTS;
+}
+
+export function equipmentUpgradeSuccessChance(level: number): number {
+  const safeLevel = Math.max(1, Math.min(4, Math.floor(Number(level) || 1))) as keyof typeof EQUIPMENT_UPGRADE_SUCCESS_CHANCES;
+  return EQUIPMENT_UPGRADE_SUCCESS_CHANCES[safeLevel];
 }
 
 export function balancedEquipmentUpgradeCost(
@@ -42,17 +54,28 @@ export function balancedEquipmentUpgradeCost(
   return !table || level <= 0 || level >= 5 ? null : table[level] ?? null;
 }
 
-export function upgradeMetaItemBalanced(id: EquipmentId) {
+export function upgradeMetaItemBalanced(id: EquipmentId, random: () => number = Math.random) {
   const meta = loadMetaProgression();
   const progress = meta.owned[id];
   if (!progress || !isActiveEquipmentId(id)) return meta;
   const cost = balancedEquipmentUpgradeCost(id, meta);
   if (!cost || meta.gold < cost.gold || meta.dust < cost.dust || progress.copies < cost.copies) return meta;
+
+  const fromLevel = progress.level;
+  const chance = equipmentUpgradeSuccessChance(fromLevel);
   meta.gold -= cost.gold;
   meta.dust -= cost.dust;
   progress.copies -= cost.copies;
-  progress.level += 1;
-  return saveMetaProgression(meta);
+  const success = Math.max(0, Math.min(0.999999999, Number(random()) || 0)) < chance;
+  if (success) progress.level += 1;
+
+  const saved = saveMetaProgression(meta);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('dungeon-veil-equipment-upgrade-result', {
+      detail: { id, fromLevel, level: saved.owned[id]?.level ?? fromLevel, chance, success },
+    }));
+  }
+  return saved;
 }
 
 export const EQUIPMENT_UPGRADE_GOLD_COSTS = Object.freeze({ 1: 3500, 2: 11000, 3: 32000, 4: 85000 });
