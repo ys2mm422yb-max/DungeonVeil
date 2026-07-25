@@ -34,7 +34,7 @@ test('restored collections, account entry and weekly elite contracts are visible
 
   await reloadMenu(page);
   await page.getByTestId('main-menu-gold-button').click({ force: true, noWaitAfter: true });
-  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible();
+  await expect(page.getByTestId('main-menu-shop-panel')).toBeVisible();
   await page.getByRole('button', { name: /Online & Cloud/i }).click({ force: true, noWaitAfter: true });
   await expect(page.getByRole('button', { name: /Mit Google anmelden|Continue with Google/i })).toBeVisible();
   await expect(page.getByPlaceholder('E-Mail')).toBeVisible();
