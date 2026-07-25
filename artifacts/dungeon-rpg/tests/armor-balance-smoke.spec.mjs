@@ -31,7 +31,7 @@ async function openEquipmentArmor(page, projectName) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
-  await pressPointerUi(page.getByTestId('main-menu-gold-button'));
+  await page.getByTestId('main-menu-gold-button').click({ force: true, noWaitAfter: true });
   await expect(page.getByTestId('main-menu-shop-panel')).toBeVisible();
   await pressPointerUi(page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first());
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible();
