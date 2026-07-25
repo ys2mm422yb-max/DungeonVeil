@@ -116,9 +116,7 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await expect.poll(() => numericAttribute(diagnostics, 'data-joy-y')).toBe(0);
 
   const dodgeBefore = await numericAttribute(diagnostics, 'data-player-last-dodge');
-  await page.getByTestId('run-dash-button').dispatchEvent('pointerdown', {
-    bubbles: true, cancelable: true, pointerId: 42, pointerType: 'touch', isPrimary: true,
-  });
+  await page.getByTestId('run-dash-button').click({ force: true });
   await expect.poll(() => numericAttribute(diagnostics, 'data-player-last-dodge'), {
     timeout: 10_000,
     intervals: [100, 200, 400],
