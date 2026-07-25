@@ -4,13 +4,14 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
-  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+  await locator.click({ force: true, noWaitAfter: true });
 }
 
 async function startNamedRun(page, name) {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible();
   await pressPointerUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
 
   const nameInput = page.getByRole('textbox').first();
