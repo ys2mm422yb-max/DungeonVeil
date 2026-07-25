@@ -32,9 +32,15 @@ const CINDER_SILHOUETTES: Record<CinderCrownSilhouette, RoomSilhouette> = {
   'ashen-king-arena': 'arena',
 };
 const VEIL_NEXUS_SILHOUETTES: Record<VeilNexusSilhouette, RoomSilhouette> = {
-  'nexus-gate': 'three-lane', 'mirror-vault': 'cross', 'broken-axis': 'diagonal',
-  'echo-cloister': 'ring', 'convergence-bridge': 'tri-island', 'memory-engine': 's-curve',
-  'fourfold-sanctum': 'orbit', 'last-threshold': 'axial', 'heart-approach': 'tri-island',
+  'veil-threshold': 'three-lane',
+  'echo-hall': 'cross',
+  'broken-bridges': 'diagonal',
+  'anchor-chamber': 'ring',
+  'falling-court': 'tri-island',
+  'convergence-path': 's-curve',
+  'final-archive': 'orbit',
+  'fracture-heart': 'axial',
+  'nexus-antechamber': 'tri-island',
   'veil-core-arena': 'arena',
 };
 
