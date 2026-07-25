@@ -73,10 +73,11 @@ requireText(sessionBridge, /effects\.runeStrikeAt = 0/, 'Armed rune storms must 
 requireText(sessionBridge, /roomMechanics\.warningAt = 0/, 'Armed room-mechanic warnings must be cancelled on renderer loss.');
 requireText(main, /qaMode === 'runtime-duo'/, 'The dedicated Duo evidence view must be reachable by the test runner.');
 requireText(main, /installRunRendererRecovery\(\)/, 'Renderer recovery must be installed at app startup.');
-requireText(spec, /\[1, 10\].*\[11, 20\].*\[21, 30\].*\[31, 40\].*\[41, 50\]/s, 'The evidence suite must cover every room 1-50 with reviewable screenshots.');
+requireText(spec, /\[1, 10\].*\[11, 20\].*\[21, 30\].*\[31, 40\].*\[41, 50\].*\[51, 60\].*\[61, 70\].*\[71, 80\].*\[81, 90\].*\[91, 100\]/s, 'The evidence suite must cover every room 1-100 in reviewable chunks.');
 requireText(spec, /\['solo', 'duo'\]/, 'The evidence suite must cover both Solo and Duo.');
-requireText(spec, /one renderer survives uninterrupted rooms 1-50/, 'Solo and Duo must each traverse all 50 rooms without replacing the page or renderer test session.');
-requireText(spec, /for \(let room = 1; room <= 50; room \+= 1\)/, 'The uninterrupted evidence must visit every room in sequence.');
+requireText(spec, /one renderer survives uninterrupted rooms 1-100/, 'Solo and Duo must each traverse all 100 rooms without replacing the page or renderer test session.');
+requireText(spec, /for \(let room = 1; room <= 100; room \+= 1\)/, 'The uninterrupted evidence must visit every room in sequence.');
+requireText(spec, /RAUM \$\{room\}\/100/, 'The evidence suite must verify the 100-room HUD contract.');
 requireText(spec, /unexpected page reload/, 'The uninterrupted evidence must reject silent recovery reloads.');
 requireText(spec, /warningPrefix[\s\S]*expect\.poll/s, 'The room hazard regression must wait for a real visible warning instead of assuming a fixed load delay.');
 if (/waitForTimeout\(3_650\)/.test(spec)) throw new Error('Fixed room-hazard timing is not reliable across mobile renderers.');
