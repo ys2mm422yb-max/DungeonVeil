@@ -4,8 +4,8 @@ import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVeil/';
 const OUTPUT = 'test-results';
-const EVIDENCE_ROOMS = [1, 10, 11, 20, 21, 30, 31, 40, 41, 50, 51, 59, 60, 61, 69, 70, 71, 79, 80];
-const CHAPTER_ROOMS = 80;
+const EVIDENCE_ROOMS = [1, 10, 11, 20, 21, 30, 31, 40, 41, 50, 51, 59, 60, 61, 69, 70, 71, 79, 80, 81, 89, 90];
+const CHAPTER_ROOMS = 90;
 
 function qaUrl() {
   const url = new URL(APP_URL);
@@ -84,9 +84,6 @@ async function loadRoom(page, room) {
   ).toBe(true);
   await expect(page.getByText(`RAUM ${room}/${CHAPTER_ROOMS}`, { exact: false }).first()).toBeVisible({ timeout: 30_000 });
 
-  // The first paint may need several seconds on a cold mobile WebGL context.
-  // Warm the renderer first, then respawn the same encounter so auto-attacks
-  // cannot clear early rooms before the actual evidence screenshot.
   await waitForPaintedCanvas(page);
   const respawned = await page.evaluate(nextRoom => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, 'solo'), room);
   expect(respawned?.livingEnemies, `Room ${room} did not respawn an active encounter`).toBeGreaterThan(0);
@@ -98,7 +95,7 @@ async function loadRoom(page, room) {
 }
 
 test('compact chapter and boss evidence stays readable on the supported portrait device', async ({ page }, testInfo) => {
-  test.setTimeout(420_000);
+  test.setTimeout(480_000);
   const issues = [];
   page.on('pageerror', error => issues.push(`pageerror: ${error.message}`));
   page.on('console', message => {

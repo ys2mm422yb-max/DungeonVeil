@@ -1,3 +1,4 @@
+import { CINDER_CROWN_ROOMS, type CinderCrownSilhouette } from './cinderCrownRooms';
 import { DROWNED_RELIQUARY_ROOMS, type ReliquarySilhouette } from './drownedReliquaryRooms';
 import { EXPANDED_ROOM_BLUEPRINTS } from './expandedWorldRooms';
 import { GOLDEN_FRACTURE_ROOMS, type GoldenFractureSilhouette } from './goldenFractureRooms';
@@ -5,7 +6,7 @@ import { SHATTERED_OBSERVATORY_ROOMS, type ObservatorySilhouette } from './shatt
 import { resolvedRoomSetpieces } from './roomSetpieceResolver';
 import { roomPropColliderFootprint } from './propPresentation3D';
 
-export type RoomPhaseId = 'inhabited-mine' | 'abandoned-quarters' | 'ancient-ruins' | 'warden-veil' | 'meadow-forest' | 'darkwood-village' | 'fortress-ember' | 'golden-fracture' | 'shattered-observatory' | 'drowned-reliquary';
+export type RoomPhaseId = 'inhabited-mine' | 'abandoned-quarters' | 'ancient-ruins' | 'warden-veil' | 'meadow-forest' | 'darkwood-village' | 'fortress-ember' | 'golden-fracture' | 'shattered-observatory' | 'drowned-reliquary' | 'cinder-crown';
 export type RoomSilhouette = 'tri-island' | 'axial' | 'three-lane' | 'diagonal' | 's-curve' | 'ring' | 'zigzag' | 's-lane' | 'cross' | 'arena' | 'orbit';
 export type RoomPack = 'furniture' | 'tools' | 'resources' | 'forest' | 'halloween';
 export type RoomShell = 'intact' | 'abandoned' | 'monumental' | 'veil';
@@ -51,6 +52,7 @@ const PHASE_LIGHTS: Record<RoomPhaseId, RoomBibleSpec['light']> = {
   'golden-fracture': { background: 0x17120a, fog: 0x21170d, ambient: 0xd5c6a8, hemisphereSky: 0xf2d58f, hemisphereGround: 0x241710, key: 0xffc75b, fill: 0x7152aa, exposure: 1.16 },
   'shattered-observatory': { background: 0x080d1d, fog: 0x0b1328, ambient: 0xaebdd2, hemisphereSky: 0x8fd8e8, hemisphereGround: 0x0b1021, key: 0xb9efff, fill: 0x6d58b8, exposure: 1.12 },
   'drowned-reliquary': { background: 0x061716, fog: 0x082321, ambient: 0x9fc7bd, hemisphereSky: 0x6fd7c8, hemisphereGround: 0x071b1a, key: 0x87f2d4, fill: 0x397f9b, exposure: 1.1 },
+  'cinder-crown': { background: 0x190806, fog: 0x240b08, ambient: 0xc69a8b, hemisphereSky: 0xe08b65, hemisphereGround: 0x210906, key: 0xff6b32, fill: 0x873a67, exposure: 1.14 },
 };
 
 const room = (roomNumber: number, nameDe: string, nameEn: string, phase: RoomPhaseId, silhouette: RoomSilhouette, heroObject: string, packs: RoomPack[], keywords: string[], forbiddenKeywords: string[], density: number, shell: RoomShell, portal: RoomBiblePoint, enemySpawns: RoomBiblePoint[]): RoomBibleSpec => ({ room: roomNumber, nameDe, nameEn, phase, silhouette, heroObject, packs, keywords, forbiddenKeywords, density, shell, portal, enemySpawns, light: PHASE_LIGHTS[phase] });
@@ -115,6 +117,23 @@ for (const spec of Object.values(DROWNED_RELIQUARY_ROOMS)) {
   ROOM_BIBLE[spec.room] = room(spec.room, spec.titleDe, spec.titleEn, 'drowned-reliquary', RELIQUARY_SILHOUETTES[spec.silhouette], spec.room === 80 ? 'überflutetes Leviathan-Becken mit Kettenankern' : `versunkene Reliquie: ${spec.silhouette}`, ['resources', 'halloween'], ['water', 'tide', 'chain', 'reliquary', 'verdigris', 'cyan', spec.hazard], ['forest', 'village', 'bed', 'barrel_stack', 'gold-dominant', 'star-dominant'], spec.room === 80 ? 1 : 3, 'veil', { ...spec.portal }, spec.enemySpawns.map(point => ({ ...point })));
 }
 
+const CINDER_SILHOUETTES: Record<CinderCrownSilhouette, RoomSilhouette> = {
+  'cinder-gate': 'three-lane',
+  'chain-court': 'cross',
+  'bellows-hall': 'diagonal',
+  'black-anvil': 'ring',
+  'shattered-battlements': 'tri-island',
+  'ember-procession': 's-curve',
+  'crown-crucible': 'orbit',
+  'slag-throne': 'axial',
+  'last-coronation': 'tri-island',
+  'ashen-king-arena': 'arena',
+};
+
+for (const spec of Object.values(CINDER_CROWN_ROOMS)) {
+  ROOM_BIBLE[spec.room] = room(spec.room, spec.titleDe, spec.titleEn, 'cinder-crown', CINDER_SILHOUETTES[spec.silhouette], spec.room === 90 ? 'Aschenkönig-Arena mit Kronenankern' : `Aschenkronen-Struktur: ${spec.silhouette}`, ['tools', 'resources', 'halloween'], ['cinder', 'ember', 'forge', 'basalt', 'chain', 'crown', spec.hazard], ['water', 'tide', 'forest', 'village', 'star-dominant', 'gold-dominant'], spec.room === 90 ? 1 : 3, 'veil', { ...spec.portal }, spec.enemySpawns.map(point => ({ ...point })));
+}
+
 const RESOLVED_ROOM_SPECS = new Map<number, RoomBibleSpec>();
 const SPAWN_GRID_X = [-4.2, -2.1, 0, 2.1, 4.2] as const;
 const SPAWN_GRID_Z = [-6.4, -4.1, -1.8, 0.7, 3.1, 5.3] as const;
@@ -152,7 +171,7 @@ function resolvedEnemySpawns(roomNumber: number, spec: RoomBibleSpec): RoomBible
 }
 
 export function roomBibleSpec(roomNumber: number): RoomBibleSpec {
-  const safeRoom = Math.max(1, Math.min(80, Math.floor(roomNumber)));
+  const safeRoom = Math.max(1, Math.min(90, Math.floor(roomNumber)));
   const cached = RESOLVED_ROOM_SPECS.get(safeRoom);
   if (cached) return cached;
   const base = ROOM_BIBLE[safeRoom] ?? ROOM_BIBLE[1];

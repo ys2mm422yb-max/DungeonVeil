@@ -1,8 +1,7 @@
 import type { GameEngine } from './runEngine';
-import { updateCinderCrownMechanics } from './cinderCrownMechanics';
-import { drownedReliquaryRoomSpec, isDrownedReliquaryRoom } from './drownedReliquaryRooms';
+import { cinderCrownRoomSpec, isCinderCrownRoom } from './cinderCrownRooms';
 
-type PendingTide = {
+type PendingCinder = {
   id: string;
   triggerAt: number;
   x: number;
@@ -12,23 +11,23 @@ type PendingTide = {
   color: string;
 };
 
-type ReliquaryRuntimeState = {
+type CinderRuntimeState = {
   room: number;
   cycle: number;
   phase: number;
   nextHazardAt: number;
-  pending: PendingTide[];
+  pending: PendingCinder[];
   bossTuned: boolean;
 };
 
-const runtime = new WeakMap<GameEngine, ReliquaryRuntimeState>();
-const EFFECT_PREFIX = 'drowned-reliquary-';
+const runtime = new WeakMap<GameEngine, CinderRuntimeState>();
+const EFFECT_PREFIX = 'cinder-crown-';
 
-function createState(room: number, now: number): ReliquaryRuntimeState {
-  return { room, cycle: 0, phase: 1, nextHazardAt: now + 2100, pending: [], bossTuned: false };
+function createState(room: number, now: number): CinderRuntimeState {
+  return { room, cycle: 0, phase: 1, nextHazardAt: now + 1900, pending: [], bossTuned: false };
 }
 
-function getState(engine: GameEngine, now: number): ReliquaryRuntimeState {
+function getState(engine: GameEngine, now: number): CinderRuntimeState {
   const room = engine.state.floor;
   const current = runtime.get(engine);
   if (current && current.room === room) return current;
@@ -39,40 +38,40 @@ function getState(engine: GameEngine, now: number): ReliquaryRuntimeState {
 
 function scenePoint(engine: GameEngine, room: number, cycle: number, phase: number) {
   const points = [
-    [-4.3, -4.9], [0, -5.5], [4.3, -4.9],
-    [-4.9, -0.4], [4.9, -0.4],
-    [-3.9, 4.1], [0, 4.9], [3.9, 4.1],
+    [-4.5, -5.0], [0, -5.7], [4.5, -5.0],
+    [-5.0, -0.5], [5.0, -0.5],
+    [-4.0, 4.0], [0, 5.0], [4.0, 4.0],
   ] as const;
-  const [x, z] = points[(room * 13 + cycle * 5 + phase) % points.length];
+  const [x, z] = points[(room * 17 + cycle * 7 + phase) % points.length];
   return {
     x: (x + engine.state.map.width / 2 - 0.5) * 40,
     y: (z + engine.state.map.height / 2 - 0.5) * 40,
   };
 }
 
-function clearReliquaryHazards(engine: GameEngine, state: ReliquaryRuntimeState) {
+function clearCinderHazards(engine: GameEngine, state: CinderRuntimeState) {
   state.pending = [];
   state.nextHazardAt = Number.POSITIVE_INFINITY;
   engine.state.effects = engine.state.effects.filter(effect => !effect.id.startsWith(EFFECT_PREFIX));
   engine.state.damageNumbers = engine.state.damageNumbers.filter(number => !number.id.startsWith(EFFECT_PREFIX));
 }
 
-function tuneLeviathan(engine: GameEngine, state: ReliquaryRuntimeState, now: number) {
-  if (engine.state.floor !== 80 || state.bossTuned) return;
+function tuneAshenKing(engine: GameEngine, state: CinderRuntimeState, now: number) {
+  if (engine.state.floor !== 90 || state.bossTuned) return;
   const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss' && !enemy.isDead && enemy.hp > 0);
   if (!boss) return;
   state.bossTuned = true;
-  boss.maxHp = Math.max(9200, boss.maxHp);
+  boss.maxHp = Math.max(11200, boss.maxHp);
   boss.hp = boss.maxHp;
-  boss.attack = Math.max(74, Math.min(98, boss.attack));
-  boss.speed *= 1.06;
-  boss.nextAttackTime = now + 1200;
-  boss.color = '#59e0cf';
+  boss.attack = Math.max(82, Math.min(108, boss.attack));
+  boss.speed *= 1.08;
+  boss.nextAttackTime = now + 1150;
+  boss.color = '#ff8a3d';
   engine.state.damageNumbers.push({
     id: `${EFFECT_PREFIX}boss-awaken-${now}`,
     x: boss.x + boss.width / 2,
     y: boss.y - 28,
-    value: 'DER RELIQUIAR-LEVIATHAN',
+    value: 'DER ASCHENKÖNIG',
     color: boss.color,
     lifeTime: 0,
     maxLifeTime: 2000,
@@ -80,24 +79,24 @@ function tuneLeviathan(engine: GameEngine, state: ReliquaryRuntimeState, now: nu
   });
 }
 
-function updateLeviathanPhase(engine: GameEngine, state: ReliquaryRuntimeState, now: number) {
-  if (engine.state.floor !== 80) return;
+function updateAshenKingPhase(engine: GameEngine, state: CinderRuntimeState, now: number) {
+  if (engine.state.floor !== 90) return;
   const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss' && !enemy.isDead && enemy.hp > 0);
   if (!boss || boss.maxHp <= 0) return;
   const ratio = boss.hp / boss.maxHp;
-  const nextPhase = ratio <= 0.3 ? 3 : ratio <= 0.62 ? 2 : 1;
+  const nextPhase = ratio <= 0.28 ? 3 : ratio <= 0.6 ? 2 : 1;
   if (nextPhase <= state.phase) return;
   state.phase = nextPhase;
-  boss.attack = Math.min(98, Math.round(boss.attack * (nextPhase === 2 ? 1.06 : 1.09)));
-  boss.speed *= nextPhase === 2 ? 1.03 : 1.05;
-  boss.nextAttackTime = Math.max(boss.nextAttackTime, now + (nextPhase === 2 ? 980 : 840));
-  boss.color = nextPhase === 2 ? '#50cfd2' : '#75f0b2';
-  state.nextHazardAt = now + 700;
+  boss.attack = Math.min(108, Math.round(boss.attack * (nextPhase === 2 ? 1.06 : 1.08)));
+  boss.speed *= nextPhase === 2 ? 1.035 : 1.055;
+  boss.nextAttackTime = Math.max(boss.nextAttackTime, now + (nextPhase === 2 ? 920 : 780));
+  boss.color = nextPhase === 2 ? '#ff6b2e' : '#ffd166';
+  state.nextHazardAt = now + 620;
   engine.state.damageNumbers.push({
     id: `${EFFECT_PREFIX}phase-${nextPhase}-${now}`,
     x: boss.x + boss.width / 2,
     y: boss.y - 28,
-    value: `LEVIATHAN · PHASE ${nextPhase === 2 ? 'II' : 'III'}`,
+    value: `ASCHENKÖNIG · PHASE ${nextPhase === 2 ? 'II' : 'III'}`,
     color: boss.color,
     lifeTime: 0,
     maxLifeTime: 1800,
@@ -105,31 +104,31 @@ function updateLeviathanPhase(engine: GameEngine, state: ReliquaryRuntimeState, 
   });
 }
 
-function queueHazard(engine: GameEngine, state: ReliquaryRuntimeState, now: number) {
-  const spec = drownedReliquaryRoomSpec(engine.state.floor);
+function queueHazard(engine: GameEngine, state: CinderRuntimeState, now: number) {
+  const spec = cinderCrownRoomSpec(engine.state.floor);
   if (!spec) return;
   const player = engine.state.player;
   const point = scenePoint(engine, spec.room, state.cycle, state.phase);
-  const tracksPlayer = spec.hazard === 'delayed-tide-circles'
-    || spec.hazard === 'shrinking-island-overlap'
-    || spec.hazard === 'leviathan-phases';
+  const tracksPlayer = spec.hazard === 'delayed-furnace-vents'
+    || spec.hazard === 'collapsing-basalt-plates'
+    || spec.hazard === 'ashen-king-phases';
   const x = tracksPlayer ? player.x + player.width / 2 : point.x;
   const y = tracksPlayer ? player.y + player.height / 2 : point.y;
-  const radius = Math.min(126, 72 + (state.cycle % 3) * 14 + Math.max(0, state.phase - 1) * 9);
-  const damage = Math.min(38, Math.max(9, Math.round(player.maxHp * (0.09 + Math.max(0, state.phase - 1) * 0.018))));
-  const color = state.phase >= 3 ? '#75f0b2' : state.cycle % 2 === 0 ? '#46d6d1' : '#52a9c9';
+  const radius = Math.min(132, 74 + (state.cycle % 3) * 15 + Math.max(0, state.phase - 1) * 10);
+  const damage = Math.min(44, Math.max(11, Math.round(player.maxHp * (0.1 + Math.max(0, state.phase - 1) * 0.02))));
+  const color = state.phase >= 3 ? '#ffd166' : state.cycle % 2 === 0 ? '#ff7a32' : '#d94a24';
   const id = `${EFFECT_PREFIX}${spec.room}-${state.cycle}`;
   state.pending.push({ id, triggerAt: now + spec.telegraphMs, x, y, radius, damage, color });
   engine.state.effects.push({
     id: `${id}-warning`, x, y, radius: 8, maxRadius: radius, color,
-    lifeTime: 0, maxLifeTime: spec.telegraphMs, type: 'circle', element: 'arcane',
+    lifeTime: 0, maxLifeTime: spec.telegraphMs, type: 'circle', element: 'fire',
   });
   state.cycle += 1;
-  const phaseCompression = Math.max(0, state.phase - 1) * 130;
-  state.nextHazardAt = now + spec.telegraphMs + spec.activeMs + spec.recoveryMs + Math.max(360, 820 - phaseCompression);
+  const phaseCompression = Math.max(0, state.phase - 1) * 140;
+  state.nextHazardAt = now + spec.telegraphMs + spec.activeMs + spec.recoveryMs + Math.max(320, 760 - phaseCompression);
 }
 
-function resolveHazards(engine: GameEngine, state: ReliquaryRuntimeState, now: number) {
+function resolveHazards(engine: GameEngine, state: CinderRuntimeState, now: number) {
   const player = engine.state.player;
   const px = player.x + player.width / 2;
   const py = player.y + player.height / 2;
@@ -154,22 +153,21 @@ function resolveHazards(engine: GameEngine, state: ReliquaryRuntimeState, now: n
     engine.state.effects.push({
       id: `${hazard.id}-burst`, x: hazard.x, y: hazard.y, radius: 0,
       maxRadius: hazard.radius + 14, color: hazard.color, lifeTime: 0,
-      maxLifeTime: 560, type: 'circle', element: 'arcane',
+      maxLifeTime: 560, type: 'circle', element: 'fire',
     });
   }
 }
 
-export function updateDrownedReliquaryMechanics(engine: GameEngine, now = performance.now()): void {
-  updateCinderCrownMechanics(engine, now);
-  if (!isDrownedReliquaryRoom(engine.state.floor) || engine.state.status !== 'playing') return;
+export function updateCinderCrownMechanics(engine: GameEngine, now = performance.now()): void {
+  if (!isCinderCrownRoom(engine.state.floor) || engine.state.status !== 'playing') return;
   const state = getState(engine, now);
   const combatActive = !engine.state.roomClearReady && engine.state.enemies.some(enemy => !enemy.isDead && enemy.hp > 0);
   if (!combatActive) {
-    clearReliquaryHazards(engine, state);
+    clearCinderHazards(engine, state);
     return;
   }
-  tuneLeviathan(engine, state, now);
-  updateLeviathanPhase(engine, state, now);
+  tuneAshenKing(engine, state, now);
+  updateAshenKingPhase(engine, state, now);
   resolveHazards(engine, state, now);
   if (now >= state.nextHazardAt) queueHazard(engine, state, now);
 }

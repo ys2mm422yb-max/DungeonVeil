@@ -1,0 +1,47 @@
+import type { RoomSetpiece } from './roomSetpieceLayout';
+
+const D = 'dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf';
+const R = 'resources/KayKit_ResourceBits_1.0_FREE/Assets/gltf';
+const H = 'halloween/KayKit_HalloweenBits_1.0_FREE/Assets/gltf';
+
+const p = (
+  model: string,
+  x: number,
+  z: number,
+  rotation = 0,
+  scale = 1,
+  collider?: readonly [number, number],
+  y = 0,
+): RoomSetpiece & { y?: number } => ({ model, x, y, z, rotation, scale, collider });
+
+const column = (x: number, z: number, scale = 1) =>
+  p(`${D}/barrier_column.gltf`, x, z, 0, scale, [0.9 * scale, 0.9 * scale]);
+const furnace = (x: number, z: number, scale = 1) =>
+  p(`${H}/shrine_candles.gltf`, x, z, 0, scale, [1.0 * scale, 1.0 * scale]);
+const crownStone = (x: number, z: number, rotation = 0, scale = 1) =>
+  p(`${D}/table_long_decorated_A.gltf`, x, z, rotation, scale, [1.7 * scale, 0.8 * scale]);
+const crystal = (x: number, z: number, scale = 1) =>
+  p(`${R}/Crystal_Large.gltf`, x, z, 0, scale, [0.8 * scale, 0.8 * scale]);
+const rubble = (x: number, z: number, rotation = 0, scale = 1) =>
+  p(`${D}/rubble_large.gltf`, x, z, rotation, scale, [1.35 * scale, 0.9 * scale]);
+const rune = (x: number, z: number, scale = 1) =>
+  p(`${D}/circle_magic.gltf`, x, z, 0, scale, undefined, 0.025);
+const cinderMarker = (x: number, z: number, rotation = 0, scale = 1) =>
+  p(`${H}/gravestone_A.gltf`, x, z, rotation, scale, [0.7 * scale, 0.45 * scale]);
+
+const SETPIECES: Readonly<Record<number, readonly RoomSetpiece[]>> = {
+  81: [column(-7.7, -4.8, 1.15), column(7.7, -4.8, 1.15), furnace(-5.8, 4.5, 1.1), furnace(5.8, 4.5, 1.1), rubble(0, 5.1, 0, 1.05)],
+  82: [column(-7.5, -5.4), column(-7.5, 0), column(-7.5, 5.0), column(7.5, -5.4), column(7.5, 0), column(7.5, 5.0), crownStone(0, 4.8, 0, 0.75)],
+  83: [furnace(-6.8, -4.8, 1.05), furnace(6.8, -4.8, 1.05), furnace(-6.8, 4.6, 1.05), furnace(6.8, 4.6, 1.05), rubble(0, -0.3, 0.4, 1.1)],
+  84: [rubble(-7.2, -4.4, 0.45), rubble(7.2, -4.4, -0.45), rubble(-7.2, 4.3, -0.25), rubble(7.2, 4.3, 0.25), rune(0, 4.9, 1.25)],
+  85: [crystal(-7.0, -4.9, 1.0), crystal(7.0, 4.4, 1.0), furnace(7.0, -4.7, 1.0), furnace(-7.0, 4.4, 1.0), crownStone(0, 5.0, 0, 0.72)],
+  86: [column(-7.6, -5.0, 1.1), column(7.6, -5.0, 1.1), column(-7.6, 4.7, 1.1), column(7.6, 4.7, 1.1), cinderMarker(-5.2, 0.4, 0.3, 1.0), cinderMarker(5.2, 0.4, -0.3, 1.0)],
+  87: [rune(0, -0.2, 1.6), furnace(-6.8, -4.8, 1.1), furnace(6.8, -4.8, 1.1), furnace(-6.8, 4.6, 1.1), furnace(6.8, 4.6, 1.1), crystal(0, 5.1, 1.05)],
+  88: [rubble(-7.4, -5.1, 0.35), rubble(7.4, -1.8, -0.35), rubble(-7.4, 1.8, -0.35), rubble(7.4, 5.0, 0.35), crownStone(-5.2, 4.8, 0.2, 0.68)],
+  89: [column(-7.8, -5.0, 1.2), column(7.8, -5.0, 1.2), column(-7.8, 4.8, 1.2), column(7.8, 4.8, 1.2), furnace(-5.2, 0.2, 1.15), furnace(5.2, 0.2, 1.15), rune(0, 5.0, 1.55)],
+  90: [rune(0, 1.8, 2.2), column(-8.1, -4.8, 1.4), column(8.1, -4.8, 1.4), column(-8.1, 4.9, 1.4), column(8.1, 4.9, 1.4), furnace(-6.0, 0.5, 1.3), furnace(6.0, 0.5, 1.3), crownStone(-5.8, 5.2, 0, 0.78), crownStone(5.8, 5.2, 0, 0.78)],
+};
+
+export function cinderCrownSetpieces(room: number): RoomSetpiece[] {
+  return (SETPIECES[room] ?? []).map(piece => ({ ...piece }));
+}

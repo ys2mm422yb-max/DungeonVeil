@@ -46,7 +46,7 @@ assert(legacyBalance.includes('if (room >= 60) return { hpFloor: 6200'), 'Aurel 
 assert(legacyBalance.includes('firstAttackDelay: 760'), 'Aurel opening recovery window is missing');
 
 assert(spawns.includes('goldenFractureRoomSpec(room)'), 'runtime spawn resolver does not recognize rooms 51-60');
-assert(spawns.includes('const authored = reliquary ?? observatory ?? golden ?? legacy!;') && spawns.includes('const authoredSpawns = authored.enemySpawns;'), 'runtime spawn resolver does not consume authored Golden Fracture spawns');
+assert(spawns.includes('const authored = cinder ?? reliquary ?? observatory ?? golden ?? legacy!;') && spawns.includes('const authoredSpawns = authored.enemySpawns;'), 'runtime spawn resolver does not consume authored Golden Fracture spawns after later chapter resolvers');
 
 assert(roomBible.includes("import { GOLDEN_FRACTURE_ROOMS"), 'room bible does not import Golden Fracture presentation specs');
 assert(roomBible.includes("'golden-fracture'"), 'Golden Fracture lighting phase is missing');
