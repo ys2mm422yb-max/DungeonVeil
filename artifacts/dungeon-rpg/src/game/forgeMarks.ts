@@ -14,7 +14,11 @@ export const FORGE_MARKS_KEY = 'dungeon-veil-forge-marks-v1';
 export const FORGE_MARK_EXCHANGE_COST = 10;
 export const FORGE_MARK_MAX_BALANCE = 9_999;
 export const FORGE_MARK_EVENT = 'dungeon-veil-forge-marks-changed';
-export const FORGE_MARK_DROP_CHANCES = Object.freeze({ hunt: 0.01, intermediateBoss: 0.025, chapterBoss: 0.075 });
+export const FORGE_MARK_DROP_CHANCES = Object.freeze({
+  hunt: 0.01,
+  intermediateBoss: 0,
+  chapterBoss: 0.075,
+});
 export const FORGE_MARK_CATEGORY_WEIGHTS: Readonly<Record<CurrentEquipmentSlot, number>> = Object.freeze({ bow: 40, quiver: 30, armor: 30 });
 export const FORGE_MARK_RARITY_WEIGHTS: Readonly<Record<EquipmentRarity, number>> = Object.freeze({ common: 55, rare: 32, epic: 13 });
 
@@ -56,13 +60,13 @@ export type ForgeMarkExchangeResult = {
 function integer(value: unknown, max = FORGE_MARK_MAX_BALANCE): number {
   return Math.max(0, Math.min(max, Math.floor(Number(value) || 0)));
 }
-function id(value: unknown): string {
+function safeId(value: unknown): string {
   return typeof value === 'string' ? value.trim().slice(0, 120) : '';
 }
-function strings(value: unknown, limit: number): string[] {
+function uniqueStrings(value: unknown, limit: number): string[] {
   return Array.isArray(value) ? [...new Set(value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0))].slice(-limit) : [];
 }
-function activeId(value: unknown): value is ActiveEquipmentId {
+function isActiveId(value: unknown): value is ActiveEquipmentId {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(ACTIVE_EQUIPMENT, value);
 }
 function legacyMarks(): number {
@@ -78,42 +82,41 @@ function legacyMarks(): number {
   }
   return integer(total);
 }
-function receipt(value: unknown): ForgeMarkExchangeReceipt | null {
+function normalizeReceipt(value: unknown): ForgeMarkExchangeReceipt | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Partial<ForgeMarkExchangeReceipt>;
-  const exchangeId = id(raw.id);
-  if (!exchangeId || !activeId(raw.item)) return null;
+  const id = safeId(raw.id);
+  if (!id || !isActiveId(raw.item)) return null;
   const definition = ACTIVE_EQUIPMENT[raw.item];
   return {
-    id: exchangeId,
+    id,
     item: raw.item,
     category: definition.slot,
     rarity: definition.rarity,
     duplicate: Boolean(raw.duplicate),
     convertedDust: integer(raw.convertedDust, 999_999),
     marksAfter: integer(raw.marksAfter),
-    rewardKey: typeof raw.rewardKey === 'string' && raw.rewardKey ? raw.rewardKey.slice(0, 180) : `forge-mark-exchange:${exchangeId}`,
+    rewardKey: typeof raw.rewardKey === 'string' && raw.rewardKey ? raw.rewardKey.slice(0, 180) : `forge-mark-exchange:${id}`,
     createdAt: Math.max(0, Math.floor(Number(raw.createdAt) || 0)),
   };
 }
-function pending(value: unknown): PendingExchange | null {
+function normalizePending(value: unknown): PendingExchange | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Partial<PendingExchange>;
-  const base = receipt({ ...raw, marksAfter: 0 });
+  const base = normalizeReceipt({ ...raw, marksAfter: 0 });
   return base ? { ...base, marksBefore: integer(raw.marksBefore) } : null;
 }
 function normalize(value: unknown): ForgeMarkProfile {
   const raw = value && typeof value === 'object' ? value as Partial<ForgeMarkProfile> : {};
-  const receipts = Array.isArray(raw.exchangeReceipts)
-    ? raw.exchangeReceipts.map(receipt).filter((entry): entry is ForgeMarkExchangeReceipt => entry !== null).slice(-RECEIPT_LIMIT)
-    : [];
   return {
     version: 1,
     marks: integer(raw.marks),
     migratedLegacyMarks: raw.migratedLegacyMarks !== false,
-    rollLedger: strings(raw.rollLedger, LEDGER_LIMIT),
-    exchangeReceipts: receipts,
-    pendingExchange: pending(raw.pendingExchange),
+    rollLedger: uniqueStrings(raw.rollLedger, LEDGER_LIMIT),
+    exchangeReceipts: Array.isArray(raw.exchangeReceipts)
+      ? raw.exchangeReceipts.map(normalizeReceipt).filter((entry): entry is ForgeMarkExchangeReceipt => entry !== null).slice(-RECEIPT_LIMIT)
+      : [],
+    pendingExchange: normalizePending(raw.pendingExchange),
   };
 }
 function write(profile: ForgeMarkProfile, dispatch = true): ForgeMarkProfile {
@@ -137,12 +140,11 @@ function finalize(profile: ForgeMarkProfile, transaction: PendingExchange): Forg
   }, false);
 }
 function recover(profile: ForgeMarkProfile): ForgeMarkProfile {
-  const transaction = profile.pendingExchange;
-  if (!transaction) return profile;
+  if (!profile.pendingExchange) return profile;
   const meta = loadMetaProgression();
-  return meta.rewardLedger.includes(transaction.rewardKey)
-    ? finalize(profile, transaction)
-    : write({ ...profile, marks: transaction.marksBefore, pendingExchange: null }, false);
+  return meta.rewardLedger.includes(profile.pendingExchange.rewardKey)
+    ? finalize(profile, profile.pendingExchange)
+    : write({ ...profile, marks: profile.pendingExchange.marksBefore, pendingExchange: null }, false);
 }
 
 export function loadForgeMarks(): ForgeMarkProfile {
@@ -156,7 +158,7 @@ export function loadForgeMarks(): ForgeMarkProfile {
 }
 export function saveForgeMarks(profile: ForgeMarkProfile): ForgeMarkProfile { return write(profile); }
 export function grantForgeMarks(amount: number, ledgerKey: string): { profile: ForgeMarkProfile; granted: number } {
-  const key = id(ledgerKey);
+  const key = safeId(ledgerKey);
   const profile = loadForgeMarks();
   const requested = integer(amount);
   if (!key || requested <= 0 || profile.rollLedger.includes(key)) return { profile, granted: 0 };
@@ -166,11 +168,12 @@ export function grantForgeMarks(amount: number, ledgerKey: string): { profile: F
   return { profile: saveForgeMarks(profile), granted: profile.marks - before };
 }
 export function rollForgeMarkReward(source: ForgeMarkRollSource, ledgerKey: string, random: () => number = Math.random) {
-  const key = id(ledgerKey);
+  const key = safeId(ledgerKey);
   const profile = loadForgeMarks();
   if (!key || profile.rollLedger.includes(key)) return { profile, attempted: false, granted: false, source };
   profile.rollLedger.push(key);
-  const granted = Math.max(0, Math.min(1, Number(random()) || 0)) < FORGE_MARK_DROP_CHANCES[source];
+  const chance = FORGE_MARK_DROP_CHANCES[source];
+  const granted = chance > 0 && Math.max(0, Math.min(1, Number(random()) || 0)) < chance;
   if (granted) profile.marks = integer(profile.marks + 1);
   return { profile: saveForgeMarks(profile), attempted: true, granted, source };
 }
@@ -205,10 +208,10 @@ function applyItem(meta: MetaProgression, transaction: PendingExchange): MetaPro
   return saveMetaProgression(meta);
 }
 export function exchangeForgeMarks(exchangeId: string, random: () => number = Math.random): ForgeMarkExchangeResult {
-  const safeId = id(exchangeId);
+  const id = safeId(exchangeId);
   let profile = loadForgeMarks();
-  if (!safeId) return { profile, exchanged: false, replayed: false, busy: false, reason: 'invalid-id', receipt: null };
-  const replay = profile.exchangeReceipts.find(entry => entry.id === safeId) ?? null;
+  if (!id) return { profile, exchanged: false, replayed: false, busy: false, reason: 'invalid-id', receipt: null };
+  const replay = profile.exchangeReceipts.find(entry => entry.id === id) ?? null;
   if (replay) return { profile, exchanged: true, replayed: true, busy: false, reason: 'ok', receipt: replay };
   if (exchangeExecuting) return { profile, exchanged: false, replayed: false, busy: true, reason: 'busy', receipt: null };
   if (profile.marks < FORGE_MARK_EXCHANGE_COST) return { profile, exchanged: false, replayed: false, busy: false, reason: 'insufficient-marks', receipt: null };
@@ -220,20 +223,20 @@ export function exchangeForgeMarks(exchangeId: string, random: () => number = Ma
     const definition = ACTIVE_EQUIPMENT[item];
     const existing = meta.owned[item];
     const transaction: PendingExchange = {
-      id: safeId,
+      id,
       item,
       category: definition.slot,
       rarity: definition.rarity,
       duplicate: Boolean(existing),
       convertedDust: existing?.level === 5 ? MAX_LEVEL_DUPLICATE_DUST[EQUIPMENT[item].rarity] : 0,
       marksBefore: profile.marks,
-      rewardKey: `forge-mark-exchange:${safeId}`,
+      rewardKey: `forge-mark-exchange:${id}`,
       createdAt: Date.now(),
     };
     write({ ...profile, pendingExchange: transaction }, false);
     applyItem(meta, transaction);
     profile = finalize(loadForgeMarks(), transaction);
-    const completed = profile.exchangeReceipts.find(entry => entry.id === safeId) ?? null;
+    const completed = profile.exchangeReceipts.find(entry => entry.id === id) ?? null;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event(FORGE_MARK_EVENT));
       window.dispatchEvent(new Event('dungeon-veil-meta-changed'));
