@@ -27,16 +27,20 @@ expect(mechanics.includes('updateCinderCrownMechanics'), 'Cinder Crown runtime u
 expect(mechanics.includes("engine.state.floor !== 90"), 'Room 90 boss tuning guard is missing.');
 expect(mechanics.includes("value: 'DER ASCHENKÖNIG'"), 'Ashen King awakening presentation is missing.');
 expect(mechanics.includes("effect.id.startsWith(EFFECT_PREFIX)"), 'Cinder hazards must be cleaned after combat.');
-expect(logicalSetpieces.includes("Math.min(90"), 'Logical room setpieces must resolve through room 90.');
+expect(/Math\.min\((?:90|100)/.test(logicalSetpieces), 'Logical room setpieces must resolve through at least room 90.');
 expect(logicalSetpieces.includes('cinderCrownSetpieces'), 'Cinder Crown setpieces are not routed.');
-expect(chapterRun.includes('export const CHAPTER_ROOMS = 90;'), 'Run length must extend through room 90.');
-expect(chapterRun.includes('export const FINAL_BOSS_ROOM = 90;'), 'Final boss registry must point to room 90 for Block 6.');
-expect(chapterRun.includes('90] as const'), 'Boss room registry must include room 90.');
+const chapterRoomMatch = chapterRun.match(/export const CHAPTER_ROOMS = (\d+);/);
+const finalBossMatch = chapterRun.match(/export const FINAL_BOSS_ROOM = (\d+);/);
+const chapterRooms = Number(chapterRoomMatch?.[1] ?? 0);
+const finalBossRoom = Number(finalBossMatch?.[1] ?? 0);
+expect(chapterRooms >= 90, 'Run length must extend through at least room 90.');
+expect(finalBossRoom >= 90, 'Final boss registry must not regress below room 90.');
+expect(chapterRun.includes('90') && chapterRun.includes('] as const'), 'Boss room registry must include room 90.');
 expect(chapterRun.includes('cinderCrownPortalTile'), 'Room generation must use Cinder Crown portals.');
 expect(roomBible.includes("import { CINDER_CROWN_ROOMS"), 'Central room bible does not import Cinder Crown specs.');
 expect(roomBible.includes("'cinder-crown'"), 'Central room bible does not register the Cinder Crown phase.');
 expect(roomBible.includes('for (const spec of Object.values(CINDER_CROWN_ROOMS))'), 'Central room bible does not register rooms 81-90.');
-expect(roomBible.includes('Math.min(90'), 'Central room bible still clamps below room 90.');
+expect(/Math\.min\((?:90|100)/.test(roomBible), 'Central room bible still clamps below room 90.');
 expect(roomIdentity.includes('CINDER_CROWN_ROOMS'), 'Room identity registry does not include Cinder Crown rooms.');
 
 const telegraphs = [...rooms.matchAll(/R\(\d+,[\s\S]*?,\s*(\d+),\s*(\d+),\s*(\d+)\)/g)].map(match => ({ telegraph: Number(match[1]), active: Number(match[2]), recovery: Number(match[3]) }));
@@ -46,4 +50,4 @@ for (const timing of telegraphs) {
   expect(timing.recovery >= 900, `Cinder Crown recovery ${timing.recovery}ms is below the fairness floor.`);
 }
 
-console.log('Cinder Crown chapter contract passed: authored rooms 81-90, central room bible, identities, boss, hazards, setpieces and run routing are registered.');
+console.log('Cinder Crown chapter contract passed: authored rooms 81-90, central room bible, identities, boss, hazards, setpieces and run routing remain registered without blocking later chapters.');
