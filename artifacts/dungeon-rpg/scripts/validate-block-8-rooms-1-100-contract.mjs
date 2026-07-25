@@ -10,7 +10,7 @@ const required = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
-const [roomBible, veilNexus, evidence, runEngine, encounterPlan, chapterRun, runBalance, saveManager, plan] = await Promise.all([
+const [roomBible, veilNexus, evidence, runEngine, encounterPlan, chapterRun, runBalance, saveManager, progression, plan] = await Promise.all([
   read('src/game/roomBible.ts'),
   read('src/game/veilNexusRooms.ts'),
   read('tests/kaykit-chapter-evidence.spec.mjs'),
@@ -19,6 +19,7 @@ const [roomBible, veilNexus, evidence, runEngine, encounterPlan, chapterRun, run
   read('src/game/chapterRun.ts'),
   read('src/game/runBalanceLegacy.ts'),
   read('src/game/saveManager.ts'),
+  read('src/game/chapterProgression.ts'),
   read('../../docs/BLOCK_8_BALANCE_EVIDENCE_PLAN.md'),
 ]);
 
@@ -47,14 +48,18 @@ required(/shouldBeElite\([^)]*chapter/.test(runBalance), 'Elite composition must
 required(/attackCapForRoom\([^)]*chapter/.test(runBalance), 'Attack pressure must be bounded through a chapter-aware cap.');
 
 required(/chapter\s*:\s*number/.test(runEngine), 'Runtime state must store chapter separately from floor.');
-required(/chapter\s*:\s*number/.test(saveManager), 'Save data must store chapter separately from room/floor.');
-required(/rewardLedger|claimed|claim|completion/i.test(saveManager + runEngine), 'Persistence must track claimed completion rewards.');
+required(/chapter\??\s*:\s*number/.test(saveManager), 'Save data must store chapter separately from room/floor.');
+required(/export\s+const\s+MAX_CHAPTER\s*=\s*100\s*;/.test(progression), 'Progression must define chapter 100 as the terminal boundary.');
+required(/export\s+const\s+ROOMS_PER_CHAPTER\s*=\s*100\s*;/.test(progression), 'Progression must define 100 rooms per chapter.');
+required(/safeChapter\s*>=\s*MAX_CHAPTER/.test(progression), 'Chapter 100 room 100 must enter a terminal state.');
+required(/chapter:\s*safeChapter\s*\+\s*1,\s*room:\s*1/.test(progression), 'Room 100 must advance to room 1 of the next chapter.');
+required(/claimChapterReward/.test(progression), 'Progression must expose an idempotent chapter reward claim.');
+required(/current\.includes\(safeChapter\)/.test(progression), 'Duplicate chapter reward claims must be rejected.');
+required(/normalizeClaimedChapterRewards/.test(progression), 'Persisted chapter reward claims must be normalized.');
 
-required(/room\s*===\s*100|roomNumber\s*===\s*100|floor\s*===\s*100|FINAL_BOSS_ROOM/.test(runEngine), 'Run engine must contain an explicit room-100 completion path.');
-required(/chapter\s*\+\s*1|nextChapter|advanceChapter|chapterCompleted/i.test(runEngine), 'Room 100 must advance to the next chapter.');
-required(/floor\s*[:=]\s*1|room\s*[:=]\s*1|nextFloor\s*=\s*1/.test(runEngine), 'Chapter advancement must reset the room position to 1.');
-required(/exactly|once|ledger|claim|completion/i.test(runEngine), 'Run engine must preserve an idempotent completion/reward contract.');
-required(/chapter\s*(?:===|>=)\s*100|MAX_CHAPTER\s*=\s*100|FINAL_CHAPTER\s*=\s*100/.test(runEngine + saveManager), 'The product must define a distinct chapter-100 terminal boundary.');
+required(/this\.state\.floor\s*=\s*completedChapter\s*\?\s*1/.test(runEngine), 'Runtime chapter advancement must reset the room position to 1.');
+required(/this\.state\.chapter\+\+/.test(runEngine), 'Runtime must advance the chapter after room 100.');
+required(/chapter-complete/.test(runEngine), 'Runtime must persist chapter completion separately from normal room completion.');
 
 for (const chapter of [1, 2, 5, 10, 25, 50, 75, 100]) {
   required(new RegExp(`(?:^|[\\s,])${chapter}(?:[\\s,])`).test(plan), `Block 8 plan is missing representative chapter ${chapter}.`);
