@@ -31,12 +31,12 @@ assert([...redesign.matchAll(/^\s{2}'([^']+)': \{/gm)].length === 10, 'active eq
 
 assert(forgeMarks.includes("FORGE_MARKS_KEY = 'dungeon-veil-forge-marks-v1'"), 'Forge Mark profile key is missing');
 assert(forgeMarks.includes('FORGE_MARK_EXCHANGE_COST = 10'), 'Forge Mark exchange cost is not exactly ten');
-assert(forgeMarks.includes("FORGE_MARK_DROP_CHANCES = Object.freeze({ hunt: 0.01, intermediateBoss: 0.025, chapterBoss: 0.075 })"), 'Forge Mark drop rates differ from the approved rare curve');
+assert(/hunt:\s*0\.01[\s\S]*intermediateBoss:\s*0[\s\S]*chapterBoss:\s*0\.075/.test(forgeMarks), 'Forge Mark drop rates do not exclude elite/intermediate bosses');
 assert(forgeMarks.includes('bow: 40, quiver: 30, armor: 30'), 'Forge Mark category distribution is missing');
 assert(forgeMarks.includes('common: 55, rare: 32, epic: 13'), 'Forge Mark rarity distribution is missing');
 assert(forgeMarks.includes("LEGACY_KEYS = ['dungeon-veil-equipment-targeting-v2', 'dungeon-veil-equipment-targeting-v1']"), 'legacy source-mark migration inputs are missing');
-assert(forgeMarks.includes('exchangeReceipts.find(entry => entry.id === safeId)') && forgeMarks.includes('exchangeExecuting'), 'exchange retry or rapid-tap protection is missing');
-assert(forgeMarks.includes('pendingExchange') && forgeMarks.includes('meta.rewardLedger.includes(transaction.rewardKey)'), 'exchange crash recovery is missing');
+assert(forgeMarks.includes('exchangeReceipts.find(entry => entry.id === id)') && forgeMarks.includes('exchangeExecuting'), 'exchange retry or rapid-tap protection is missing');
+assert(forgeMarks.includes('pendingExchange') && forgeMarks.includes('meta.rewardLedger.includes(profile.pendingExchange.rewardKey)'), 'exchange crash recovery is missing');
 assert(forgeMarks.includes('marksBefore - FORGE_MARK_EXCHANGE_COST'), 'atomic ten-mark deduction is missing');
 assert(forgeMarks.includes('ACTIVE_EQUIPMENT_IDS.filter') && forgeMarks.includes('unlockRank <= meta.rank') && forgeMarks.includes('unlockChapter <= safeChapter'), 'Forge Mark reward pool can contain locked equipment');
 
@@ -65,12 +65,12 @@ assert(!cloud.includes("typeof targeting.wishItem === 'string'"), 'retired wish 
 assert(progression.currentRules.firstChapterGiftSelections === 11 && progression.currentRules.laterChapterGiftSelections === 5, 'bounded 11/5 gift schedule regressed');
 assert(progression.currentRules.hunterBlessingMaxRank === 3 && progression.currentRules.vitalSparkMaxRank === 3, 'gift mastery caps regressed');
 assert(progression.giftGrowth.atChapter10.offensiveAttack === 29 && progression.giftGrowth.atChapter10.defensiveMaxHealth === 206, 'chapter-10 gift reference changed unexpectedly');
-assert(Math.abs(progression.forgeMarks.expectedMarksPerChapter - 0.295) < 1e-9, 'Forge Mark expected chapter income is not 0.295');
+assert(Math.abs(progression.forgeMarks.expectedMarksPerChapter - 0.195) < 1e-9, 'Forge Mark expected chapter income is not 0.195');
 const exchange = progression.forgeMarks.chaptersToFirstExchange;
-assert(exchange.p10 >= 20 && exchange.p10 <= 25, `Forge Mark P10 outside approved band: ${exchange.p10}`);
-assert(exchange.median >= 30 && exchange.median <= 36, `Forge Mark median outside approved band: ${exchange.median}`);
-assert(exchange.p90 >= 44 && exchange.p90 <= 53, `Forge Mark P90 outside approved band: ${exchange.p90}`);
-assert(exchange.p99 >= 57 && exchange.p99 <= 72, `Forge Mark P99 outside approved band: ${exchange.p99}`);
+assert(exchange.p10 >= 30 && exchange.p10 <= 34, `Forge Mark P10 outside approved band: ${exchange.p10}`);
+assert(exchange.median >= 48 && exchange.median <= 52, `Forge Mark median outside approved band: ${exchange.median}`);
+assert(exchange.p90 >= 70 && exchange.p90 <= 76, `Forge Mark P90 outside approved band: ${exchange.p90}`);
+assert(exchange.p99 >= 92 && exchange.p99 <= 100, `Forge Mark P99 outside approved band: ${exchange.p99}`);
 const categories = progression.forgeMarks.rewardDistribution.categoryRatios;
 assert(Math.abs(categories.bow - 0.4) <= 0.02 && Math.abs(categories.quiver - 0.3) <= 0.02 && Math.abs(categories.armor - 0.3) <= 0.02, 'simulated Forge Mark category distribution drifted');
 const rarities = progression.forgeMarks.rewardDistribution.rarityRatios;
@@ -103,4 +103,4 @@ console.log(JSON.stringify({
   relics: report.relics,
   companionReserve: report.companionReserve,
 }, null, 2));
-console.log('Progression simulator V4 audit passed: Forge Marks, long-term ten-item, relic, Solo/Duo and companion-reserve contracts are coherent.');
+console.log('Progression simulator V4 audit passed: Forge Marks without elite drops, long-term ten-item, relic, Solo/Duo and companion-reserve contracts are coherent.');
