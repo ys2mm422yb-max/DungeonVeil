@@ -61,6 +61,8 @@ test('companions are found and upgraded before a run, then remain fixed with art
 
   await openMenu(page, testInfo.project.name);
   await expect(page.getByTestId('main-menu-companion-navigation')).toHaveCount(0);
+  await pressPointerUi(page.getByTestId('main-menu-gold-button'));
+  await expect(page.getByTestId('main-menu-shop-panel')).toBeVisible();
   const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
   await expect(equipmentEntry).toBeVisible();
   await pressPointerUi(equipmentEntry.getByRole('button'));
