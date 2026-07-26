@@ -6,6 +6,7 @@ import Game from './pages/game';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { LootVisualQaStage } from './components/LootVisualQaStage';
 import { GuildRaidModePortal } from './components/GuildRaidModePortal';
+import { GuildRaidRunPortal } from './components/GuildRaidRunPortal';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ function App() {
             <Router />
           </WouterRouter>
           <GuildRaidModePortal />
+          <GuildRaidRunPortal />
           <Toaster />
         </TooltipProvider>
       </LanguageProvider>

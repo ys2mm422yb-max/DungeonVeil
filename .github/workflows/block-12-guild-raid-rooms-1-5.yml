@@ -1,0 +1,33 @@
+name: Block 12 Guild Raid Rooms 1-5
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+
+permissions:
+  contents: read
+
+jobs:
+  contract-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Validate Block 12 cooperative room contract
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-block-12-guild-raid-rooms-1-5.mjs
+      - name: Verify TypeScript
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
