@@ -5,6 +5,7 @@ import {
   type EquipmentId,
   type MetaProgression,
 } from './metaProgression';
+import { loadPlayerProfile, recordPlayerProfileProgress } from './playerProfile';
 
 export type BalancedEquipmentUpgradeCost = { gold: number; copies: number; dust: number };
 
@@ -54,6 +55,11 @@ export function balancedEquipmentUpgradeCost(
   return !table || level <= 0 || level >= 5 ? null : table[level] ?? null;
 }
 
+function markUpgradeAsLocalActivity(): void {
+  const profile = loadPlayerProfile();
+  recordPlayerProfileProgress(profile.stats.highestChapter, profile.stats.highestRoom);
+}
+
 export function upgradeMetaItemBalanced(id: EquipmentId, random: () => number = Math.random) {
   const meta = loadMetaProgression();
   const progress = meta.owned[id];
@@ -69,6 +75,11 @@ export function upgradeMetaItemBalanced(id: EquipmentId, random: () => number = 
   const success = Math.max(0, Math.min(0.999999999, Number(random()) || 0)) < chance;
   if (success) progress.level += 1;
 
+  // Upgrade attempts intentionally consume resources. Touch the guarded profile
+  // activity timestamp before the meta-change event can start cloud reconciliation,
+  // otherwise an older remote bundle can look newer/heavier and force a reload back
+  // to the main menu immediately after tapping UPGRADE.
+  markUpgradeAsLocalActivity();
   const saved = saveMetaProgression(meta);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('dungeon-veil-equipment-upgrade-result', {
