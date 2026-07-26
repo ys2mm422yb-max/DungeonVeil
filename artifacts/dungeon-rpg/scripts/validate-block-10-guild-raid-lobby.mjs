@@ -1,13 +1,17 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [entry, panel, client, migration, evidence] = await Promise.all([
+const [entry, panel, client, evidence, migrationBase, migrationActionsA, migrationActionsB, migrationStart] = await Promise.all([
   read('../src/components/GuildSocialPanel.tsx'),
   read('../src/components/GuildRaidLobbyPanel.tsx'),
   read('../src/game/guildRaidLobbyOnline.ts'),
-  read('../../../supabase/migrations/20260726113000_guild_raid_lobby_block_10.sql'),
   read('../tests/guild-raid-lobby-mobile.spec.mjs'),
+  read('../../../supabase/migrations/20260726113000_guild_raid_lobby_block_10.sql'),
+  read('../../../supabase/migrations/20260726113100_guild_raid_lobby_actions_a.sql'),
+  read('../../../supabase/migrations/20260726113200_guild_raid_lobby_actions_b.sql'),
+  read('../../../supabase/migrations/20260726113300_guild_raid_lobby_start_realtime.sql'),
 ]);
+const migration = [migrationBase, migrationActionsA, migrationActionsB, migrationStart].join('\n');
 
 const publicFunctions = [
   'guild_raid_get_snapshot',
