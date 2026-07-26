@@ -1,4 +1,5 @@
-import { createGuildRaidMutationKey, mutateGuildRaidRunState, type GuildRaidRunSnapshot } from './guildRaidRunOnline';
+import type { GuildRaidRunSnapshot } from './guildRaidRunOnline';
+import { submitAuthoritativeGuildRaidBossAction } from './guildRaidBossOnline';
 
 export type GuildRaidBossPhase = 'veil-armor' | 'split-echoes' | 'collapse' | 'defeated';
 export type GuildRaidBossAction =
@@ -121,15 +122,9 @@ export function bossReadyFromRoomTen(snapshot: GuildRaidRunSnapshot): boolean {
 export async function submitGuildRaidBossAction(
   snapshot: GuildRaidRunSnapshot,
   action: GuildRaidBossAction,
-  idempotencyKey = createGuildRaidMutationKey(),
 ): Promise<GuildRaidRunSnapshot> {
   if (!bossReadyFromRoomTen(snapshot) && !snapshot.roomState?.bossState) throw new Error('Der Raid-Boss wurde noch nicht freigeschaltet.');
-  const current = normalizeGuildRaidBossState(snapshot.roomState?.bossState);
-  const next = reduceGuildRaidBossAction(current, action);
-  return mutateGuildRaidRunState(snapshot.raidRunId, snapshot.stateVersion, {
-    bossState: next,
-    playerState: { mechanicState: { lastBossAction: action.type, bossRevision: next.revision } },
-  }, idempotencyKey);
+  return submitAuthoritativeGuildRaidBossAction(snapshot, action);
 }
 
 export const GUILD_RAID_BOSS_SLOTS = slots;
