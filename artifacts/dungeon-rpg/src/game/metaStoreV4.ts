@@ -3,6 +3,7 @@ import { knownEquipmentId, migrateLegacyMetaToV4, normalizeProgress, numericProg
 import type { EquipmentId, EquipmentSlot, MetaProgression } from './metaProgressionTypes';
 
 const META_KEY = 'dungeon-veil-meta';
+const PLAYER_PROFILE_KEY = 'dungeon-veil-player-profile-v1';
 export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = ACTIVE_EQUIPMENT_SLOTS;
 const RETIRED_TALISMAN_COMPAT = undefined as unknown as EquipmentId;
 
@@ -77,6 +78,16 @@ function normalizeV4(parsed: any): MetaProgression {
   };
 }
 
+function touchPlayerActivity(): void {
+  try {
+    const raw = localStorage.getItem(PLAYER_PROFILE_KEY);
+    if (!raw) return;
+    const profile = JSON.parse(raw) as Record<string, unknown>;
+    profile.updatedAt = Date.now();
+    localStorage.setItem(PLAYER_PROFILE_KEY, JSON.stringify(profile));
+  } catch {}
+}
+
 export function loadMetaProgression(): MetaProgression {
   try {
     const raw = localStorage.getItem(META_KEY);
@@ -94,6 +105,7 @@ export function loadMetaProgression(): MetaProgression {
 export function saveMetaProgression(meta: MetaProgression): MetaProgression {
   const normalized = normalizeV4({ ...meta, version: 4 });
   localStorage.setItem(META_KEY, JSON.stringify(normalized));
+  touchPlayerActivity();
   window.dispatchEvent(new Event('dungeon-veil-meta-changed'));
   return normalized;
 }
