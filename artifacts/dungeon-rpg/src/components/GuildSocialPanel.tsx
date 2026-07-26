@@ -52,6 +52,7 @@ export function GuildSocialPanel({ language, onClose, onOpenOnline }: Props) {
     {raidEligible && <button
       type="button"
       data-testid="guild-raid-entry"
+      aria-label={language === 'de' ? 'Gildenraid öffnen' : 'Open guild raid'}
       onClick={() => setRaidOpen(true)}
       className="min-h-12 w-full shrink-0 rounded-2xl border border-violet-200/28 bg-[linear-gradient(135deg,rgba(70,35,105,.96),rgba(28,17,43,.98))] px-4 py-2.5 text-left shadow-[0_12px_28px_rgba(25,10,42,.42)] active:scale-[.985]"
     >
