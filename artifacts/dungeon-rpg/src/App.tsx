@@ -5,6 +5,7 @@ import { Route, Switch, Router as WouterRouter } from 'wouter';
 import Game from './pages/game';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { LootVisualQaStage } from './components/LootVisualQaStage';
+import { GuildRaidModePortal } from './components/GuildRaidModePortal';
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ function App() {
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
             <Router />
           </WouterRouter>
+          <GuildRaidModePortal />
           <Toaster />
         </TooltipProvider>
       </LanguageProvider>
