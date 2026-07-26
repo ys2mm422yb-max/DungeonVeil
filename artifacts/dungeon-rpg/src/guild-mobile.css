@@ -38,6 +38,17 @@
     min-height: 42px;
   }
 
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-lobby-overlay'] button {
+    min-height: 44px;
+  }
+
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-create'],
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-ready-toggle'],
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-leave'],
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-start'] {
+    min-height: 48px;
+  }
+
   [data-testid='guild-social-panel'] .grid.grid-cols-3 {
     gap: 7px !important;
   }
