@@ -24,6 +24,7 @@ const checks = [
   [economy.includes("dungeon-veil-equipment-upgrade-result") && economy.includes('success') && economy.includes('chance'), 'upgrade result event is missing'],
   [!economy.includes('equipmentTargeting') && !economy.includes('WishItem'), 'retired wish cleanup remains connected to equipment upgrades'],
   [meta.includes("export * from './metaStoreV4'") && store.includes('version: 4'), 'V4 meta store is not canonical'],
+  [store.includes("const PLAYER_PROFILE_KEY = 'dungeon-veil-player-profile-v1'") && store.includes('function touchPlayerActivity()') && store.includes('profile.updatedAt = Date.now()') && store.includes('touchPlayerActivity();') && cloud.includes('number(profile.updatedAt)'), 'equipment upgrades can be overwritten by cloud reconciliation and reload the app to the main menu'],
   [forgeMarks.includes('FORGE_MARK_EXCHANGE_COST = 10'), 'Forge Mark exchange cost is not exactly ten'],
   [forgeMarks.includes('hunt: 0.01') && forgeMarks.includes('intermediateBoss: 0') && forgeMarks.includes('chapterBoss: 0.075'), 'Forge Mark drop chances do not exclude elite/intermediate bosses'],
   [forgeMarks.includes('FORGE_MARK_CATEGORY_WEIGHTS') && forgeMarks.includes('bow: 40, quiver: 30, armor: 30'), 'Forge Mark category weights are missing'],
@@ -48,7 +49,7 @@ const checks = [
   [legacyInventory.includes('data-testid="equipment-upgrade-preview"') && legacyInventory.includes('LEVEL {level} → {level + 1}') && legacyInventory.includes('shown(row.delta'), 'inventory lacks current-to-next stat comparison'],
   [legacyInventory.includes('data-testid="equipment-upgrade-disabled-reason"') && legacyInventory.includes('ZU WENIG GOLD') && legacyInventory.includes('ZU WENIGE ITEMKOPIEN') && legacyInventory.includes('ZU WENIG SCHLEIERSTAUB'), 'disabled upgrade button does not explain the missing requirement'],
   [inventory.includes('onPointerDownCapture') && inventory.includes('equipment-upgrade-button') && inventory.includes('queueMicrotask') && inventory.includes('onPointerUpCapture'), 'upgrade action is not touch-atomic or protected from follow-up pointer navigation'],
-  [inventory.includes('equipmentUpgradeSuccessChance') && inventory.includes("ERFOLG") && inventory.includes('upgradeChance'), 'visible upgrade success chance is missing'],
+  [inventory.includes('equipmentUpgradeSuccessChance') && inventory.includes('ERFOLG') && inventory.includes('upgradeChance'), 'visible upgrade success chance is missing'],
   [legacyInventory.includes('upgradingRef.current') && legacyInventory.includes('setUpgrading(true)') && legacyInventory.includes("upgrading ? '…'"), 'upgrade action lacks repeated-tap guard or visible pending state'],
   [!inventory.includes('startNewGame(') && !inventory.includes('setUiState(') && !inventory.includes('markActiveRun('), 'inventory can directly start, restore or navigate into a run'],
   [legacyInventory.includes('ITEM VERBESSERT') && legacyInventory.includes('(next.owned[item.id]?.level ?? before) > before'), 'successful upgrade does not confirm an actual level change'],
@@ -64,4 +65,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Upgrade economy V4 audit passed: rarity curves, probabilistic touch-safe upgrades, Forge Marks without elite drops, atomic exchange and real stat previews are active.');
+console.log('Upgrade economy V4 audit passed: rarity curves, probabilistic touch-safe upgrades, cloud-safe persistence, Forge Marks without elite drops, atomic exchange and real stat previews are active.');
