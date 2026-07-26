@@ -35,6 +35,10 @@ import './equipment-polish.css';
 import './equipment-mobile-detail.css';
 import './tablet-layout.css';
 
+const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+const qaMode = searchParams?.get('qa') ?? null;
+const visualQaMode = searchParams?.get('visualQa') ?? null;
+
 installRoomReadyFailureGuard();
 installAccessibilitySettings();
 installControlSettings();
@@ -43,12 +47,11 @@ installProfileStorageIntegrity();
 installPortraitOrientationRuntime();
 installPostCombatHazardGuard();
 repairLegacyProfileStats();
-installCloudAccountSyncRuntime();
+if (!visualQaMode) installCloudAccountSyncRuntime();
 installEmailConfirmationRedirect();
 installRunRendererRecovery();
 installRuntimeEvidenceBridge();
 
-const qaMode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('qa') : null;
 if (qaMode === 'states') localStorage.setItem('dungeon-veil-language', 'de');
 if (!qaMode) startVersionGuard();
 const qaView = qaMode === 'worldboss'
