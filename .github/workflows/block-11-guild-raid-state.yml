@@ -23,9 +23,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
@@ -35,5 +40,4 @@ jobs:
         working-directory: artifacts/dungeon-rpg
         run: node scripts/validate-block-11-guild-raid-state.mjs
       - name: Verify TypeScript
-        working-directory: artifacts/dungeon-rpg
-        run: pnpm typecheck
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
