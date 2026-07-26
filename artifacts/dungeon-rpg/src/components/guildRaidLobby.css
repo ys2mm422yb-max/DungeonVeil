@@ -22,3 +22,22 @@
   width: 44px;
   height: 44px;
 }
+
+/* Keep actionable invite choices above already-pending rows in the clipped mobile scrollport. */
+[data-testid='guild-raid-invite-section'] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+[data-testid='guild-raid-invite-section'] > :first-child {
+  order: 0;
+}
+
+[data-testid='guild-raid-invite-member'] {
+  order: 1;
+}
+
+[data-testid='guild-raid-pending-invite'] {
+  order: 2;
+}
