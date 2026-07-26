@@ -4,38 +4,236 @@
     height: 100dvh;
     max-height: 100dvh;
     overflow: hidden;
-    padding-top: max(10px, env(safe-area-inset-top));
-    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    padding: max(8px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+    background:
+      radial-gradient(circle at 18% 10%, rgba(204, 145, 55, .10), transparent 30%),
+      radial-gradient(circle at 88% 72%, rgba(85, 56, 118, .10), transparent 36%);
   }
 
-  [data-testid='guild-social-panel'] > div:first-child {
+  [data-testid='guild-panel-shell'] {
     box-sizing: border-box;
-    width: min(100%, 680px);
-    max-height: calc(100dvh - max(10px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom)));
-    overflow-y: auto !important;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
+    width: min(100%, 680px) !important;
+    height: calc(100dvh - max(18px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))) !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 auto;
+    overflow: hidden !important;
     padding: 14px !important;
-    border-radius: 22px !important;
-    scroll-padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    border-radius: 24px !important;
+    border-color: rgba(224, 184, 112, .20) !important;
+    background:
+      linear-gradient(180deg, rgba(23, 22, 27, .98), rgba(10, 9, 12, .99) 58%, rgba(17, 12, 9, .99)) !important;
+    box-shadow:
+      0 28px 80px rgba(0, 0, 0, .68),
+      inset 0 1px 0 rgba(255, 239, 202, .08),
+      inset 0 -1px 0 rgba(184, 122, 43, .08) !important;
   }
 
-  [data-testid='guild-social-panel'] > div:first-child > div:first-child {
-    margin-bottom: 12px !important;
+  [data-testid='guild-panel-header'] {
+    min-height: 86px;
+    padding: 5px 58px 14px 2px !important;
+    border-bottom-color: rgba(255, 255, 255, .08) !important;
+  }
+
+  [data-testid='guild-panel-header']::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 76px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(239, 188, 96, .95), rgba(239, 188, 96, 0));
+  }
+
+  [data-testid='guild-close-button'] {
+    width: 46px !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    border-radius: 14px !important;
+    background: linear-gradient(180deg, rgba(15, 15, 19, .96), rgba(5, 5, 7, .98)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 10px 24px rgba(0, 0, 0, .28);
+  }
+
+  [data-testid='guild-tabs'] {
+    position: relative;
+    display: flex !important;
+    gap: 4px !important;
+    margin: 10px 0 0;
+    padding: 4px !important;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 16px;
+    background: rgba(0, 0, 0, .34);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+  }
+
+  [data-testid='guild-tabs'] > button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 46px !important;
+    padding: 0 6px !important;
+    border: 0 !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: rgba(255, 255, 255, .42) !important;
+    transition: background .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease;
+  }
+
+  [data-testid='guild-tabs'] > button[class*='bg-amber'] {
+    color: rgb(255 235 190) !important;
+    background:
+      linear-gradient(180deg, rgba(130, 88, 35, .78), rgba(67, 42, 20, .92)) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 229, 171, .18),
+      0 6px 18px rgba(79, 45, 10, .28) !important;
+  }
+
+  [data-testid='guild-overview-tab'],
+  [data-testid='guild-members-tab'],
+  [data-testid='guild-invite-tab'] {
+    padding-top: 12px !important;
+    padding-bottom: 84px !important;
+    scroll-padding-bottom: 92px;
+  }
+
+  [data-testid='guild-presence-summary'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    padding: 2px 0;
+  }
+
+  [data-testid='guild-presence-summary'] > div {
+    min-height: 76px;
+    display: grid;
+    place-content: center;
+    padding: 8px 4px !important;
+    border-radius: 15px !important;
+    border-color: rgba(224, 184, 112, .14) !important;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .015)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035);
+  }
+
+  [data-testid='guild-presence-summary'] > div > div:first-child {
+    font-size: 15px !important;
+    line-height: 1.05;
   }
 
   [data-testid='guild-social-panel'] section {
-    border-radius: 16px !important;
-    padding: 11px !important;
+    border-radius: 18px !important;
   }
 
-  [data-testid='guild-social-panel'] textarea {
-    min-height: 94px;
-    max-height: 132px;
+  [data-testid='guild-overview-tab'] > section:not([data-testid='guild-presence-summary']),
+  [data-testid='guild-invite-tab'] > div,
+  [data-testid='guild-member-card'],
+  [data-testid='guild-join-policy'],
+  [data-testid='guild-search-result'] {
+    border-color: rgba(255, 255, 255, .09) !important;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .012)) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .035),
+      0 10px 28px rgba(0, 0, 0, .16);
+  }
+
+  [data-testid='guild-member-card'] {
+    padding: 10px !important;
+    overflow: hidden;
+  }
+
+  [data-testid='guild-member-card']::before {
+    content: '';
+    display: block;
+    height: 2px;
+    margin: -10px -10px 9px;
+    background: linear-gradient(90deg, rgba(213, 142, 61, .72), rgba(213, 142, 61, 0) 72%);
+  }
+
+  [data-testid='guild-chat-tab'] {
+    padding-top: 12px !important;
+    padding-bottom: 74px;
+  }
+
+  [data-testid='guild-chat-messages'] {
+    border-radius: 18px !important;
+    border-color: rgba(255, 255, 255, .08) !important;
+    background:
+      radial-gradient(circle at 50% -15%, rgba(204, 145, 55, .10), transparent 42%),
+      linear-gradient(180deg, rgba(5, 7, 10, .82), rgba(2, 3, 5, .96)) !important;
+    box-shadow: inset 0 1px 12px rgba(0, 0, 0, .48);
+  }
+
+  [data-testid='guild-chat-message'] > div {
+    border-radius: 15px !important;
+    box-shadow: 0 7px 18px rgba(0, 0, 0, .18);
+  }
+
+  [data-testid='guild-chat-input'],
+  [data-testid='guild-invite-tab'] input,
+  [data-testid='guild-overview-tab'] textarea {
+    min-height: 50px !important;
+    border-radius: 15px !important;
+    border-color: rgba(255, 255, 255, .11) !important;
+    background: rgba(0, 0, 0, .52) !important;
+    box-shadow: inset 0 1px 8px rgba(0, 0, 0, .34);
+  }
+
+  [data-testid='guild-overview-tab'] textarea,
+  [data-testid='guild-chat-input'] {
+    min-height: 92px !important;
+    max-height: 128px;
+  }
+
+  [data-testid='guild-chat-send'] {
+    min-width: 86px !important;
+    min-height: 52px !important;
+    border-radius: 15px !important;
+    background: linear-gradient(180deg, rgba(129, 83, 32, .82), rgba(70, 41, 17, .94)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 230, 178, .12), 0 8px 20px rgba(0, 0, 0, .24);
   }
 
   [data-testid='guild-social-panel'] button {
-    min-height: 42px;
+    min-height: 44px;
+  }
+
+  [data-testid='guild-social-panel'] button[class*='bg-amber'] {
+    background: linear-gradient(180deg, rgba(126, 84, 34, .82), rgba(67, 40, 18, .94));
+    box-shadow: inset 0 1px 0 rgba(255, 230, 178, .12), 0 8px 22px rgba(0, 0, 0, .20);
+  }
+
+  [data-testid='guild-panel-shell'] > div:last-child,
+  [data-testid='guild-panel-shell'] > div > div:last-child {
+    z-index: 5;
+  }
+
+  [data-testid='guild-join-requests-open'],
+  [data-testid='guild-search-open'] {
+    right: 24px !important;
+    bottom: calc(max(20px, env(safe-area-inset-bottom)) + 2px) !important;
+    min-height: 46px !important;
+    border-radius: 14px !important;
+    background: linear-gradient(180deg, rgba(72, 50, 25, .96), rgba(31, 22, 13, .98)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 230, 178, .10), 0 12px 30px rgba(0, 0, 0, .42) !important;
+  }
+
+  [data-testid='guild-access-overlay'] {
+    inset: 0 !important;
+    border-radius: 24px !important;
+    padding: 14px !important;
+    background:
+      radial-gradient(circle at 20% 0%, rgba(204, 145, 55, .10), transparent 34%),
+      linear-gradient(180deg, rgba(23, 22, 27, .995), rgba(8, 8, 11, .998)) !important;
+  }
+
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-lobby-overlay'] button {
+    min-height: 44px;
+  }
+
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-lobby-overlay'] [data-testid='guild-raid-create'],
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-lobby-overlay'] [data-testid='guild-raid-ready-toggle'],
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-lobby-overlay'] [data-testid='guild-raid-leave'],
+  [data-testid='guild-social-panel'] [data-testid='guild-raid-lobby-overlay'] [data-testid='guild-raid-start'] {
+    min-height: 48px;
   }
 
   [data-testid='guild-social-panel'] .grid.grid-cols-3 {

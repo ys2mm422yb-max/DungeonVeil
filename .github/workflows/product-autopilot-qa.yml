@@ -139,6 +139,7 @@ jobs:
             tests/guild-mail-equipment-visual.spec.mjs \
             tests/mobile-resource-upgrade.spec.mjs \
             tests/kaykit-chapter-evidence.spec.mjs \
+            tests/guild-raid-lobby-mobile.spec.mjs \
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
