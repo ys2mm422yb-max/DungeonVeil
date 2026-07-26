@@ -1,0 +1,19 @@
+/* Explicit pixel touch targets keep the raid lobby accessible when the app root font-size is scaled on small WebKit viewports. */
+[data-testid="guild-raid-create"],
+[data-testid="guild-raid-ready-toggle"],
+[data-testid="guild-raid-leave"],
+[data-testid="guild-raid-start"],
+[data-testid="guild-raid-entry"] {
+  min-height: 48px;
+}
+
+[data-testid="guild-raid-invite-decline"],
+[data-testid="guild-raid-invite-accept"],
+[data-testid="guild-raid-refresh"],
+[data-testid="guild-raid-remove-member"],
+[data-testid="guild-raid-cancel-invite"],
+[data-testid="guild-raid-invite-member"],
+[data-testid="guild-raid-dissolve"],
+[data-testid="guild-raid-close"] {
+  min-height: 44px;
+}
