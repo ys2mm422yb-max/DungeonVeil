@@ -1,0 +1,39 @@
+name: Block 11 Guild Raid State
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - 'artifacts/dungeon-rpg/src/game/guildRaidRunOnline.ts'
+      - 'artifacts/dungeon-rpg/scripts/validate-block-11-guild-raid-state.mjs'
+      - 'supabase/migrations/20260726130000_guild_raid_synchronized_state_block_11.sql'
+      - 'docs/BLOCK_11_SYNCHRONIZED_RAID_STATE_EXECUTION_PLAN.md'
+      - '.github/workflows/block-11-guild-raid-state.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: block-11-guild-raid-state-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Validate Block 11 authoritative raid state contract
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-block-11-guild-raid-state.mjs
+      - name: Verify TypeScript
+        working-directory: artifacts/dungeon-rpg
+        run: pnpm typecheck
