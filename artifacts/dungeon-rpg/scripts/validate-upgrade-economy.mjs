@@ -48,13 +48,14 @@ const checks = [
   [legacyInventory.includes('data-testid="equipment-upgrade-preview"') && legacyInventory.includes('LEVEL {level} → {level + 1}') && legacyInventory.includes('shown(row.delta'), 'inventory lacks current-to-next stat comparison'],
   [legacyInventory.includes('data-testid="equipment-upgrade-disabled-reason"') && legacyInventory.includes('ZU WENIG GOLD') && legacyInventory.includes('ZU WENIGE ITEMKOPIEN') && legacyInventory.includes('ZU WENIG SCHLEIERSTAUB'), 'disabled upgrade button does not explain the missing requirement'],
   [inventory.includes('onPointerDownCapture') && inventory.includes('equipment-upgrade-button') && inventory.includes('queueMicrotask') && inventory.includes('onPointerUpCapture'), 'upgrade action is not touch-atomic or protected from follow-up pointer navigation'],
-  [inventory.includes('equipmentUpgradeSuccessChance') && inventory.includes("ERFOLG") && inventory.includes('upgradeChance'), 'visible upgrade success chance is missing'],
+  [inventory.includes('equipmentUpgradeSuccessChance') && inventory.includes('ERFOLG') && inventory.includes('upgradeChance'), 'visible upgrade success chance is missing'],
   [legacyInventory.includes('upgradingRef.current') && legacyInventory.includes('setUpgrading(true)') && legacyInventory.includes("upgrading ? '…'"), 'upgrade action lacks repeated-tap guard or visible pending state'],
   [!inventory.includes('startNewGame(') && !inventory.includes('setUiState(') && !inventory.includes('markActiveRun('), 'inventory can directly start, restore or navigate into a run'],
   [legacyInventory.includes('ITEM VERBESSERT') && legacyInventory.includes('(next.owned[item.id]?.level ?? before) > before'), 'successful upgrade does not confirm an actual level change'],
   [inventory.includes('UPGRADE FEHLGESCHLAGEN') && inventory.includes('dungeon-veil-equipment-upgrade-result'), 'failed upgrades do not show explicit feedback'],
   [cloud.includes("'dungeon-veil-forge-marks-v1'"), 'Forge Mark progression is missing from cloud saves'],
   [cloud.includes('forgeMarks.marks') || cloud.includes('number(forgeMarks.marks)'), 'cloud conflict weight ignores Forge Mark progress'],
+  [economy.includes("import { loadPlayerProfile, recordPlayerProfileProgress } from './playerProfile'") && economy.includes('markUpgradeAsLocalActivity();') && economy.indexOf('markUpgradeAsLocalActivity();') < economy.indexOf('const saved = saveMetaProgression(meta);'), 'upgrade does not mark guarded local activity before cloud reconciliation'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -64,4 +65,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Upgrade economy V4 audit passed: rarity curves, probabilistic touch-safe upgrades, Forge Marks without elite drops, atomic exchange and real stat previews are active.');
+console.log('Upgrade economy V4 audit passed: rarity curves, probabilistic touch-safe upgrades, cloud-safe activity ordering, Forge Marks without elite drops, atomic exchange and real stat previews are active.');
