@@ -15,6 +15,7 @@ const checks = [
   [client.includes('/rest/v1/rpc/') && client.includes('guild_raid_create_or_get_lobby') && client.includes('guild_raid_start_lobby'), 'server-authoritative RPC client is incomplete'],
   [migration.includes('create table if not exists public.guild_raid_lobbies') && migration.includes('create table if not exists public.guild_raid_lobby_members') && migration.includes('create table if not exists public.guild_raid_invitations') && migration.includes('create table if not exists public.guild_raid_runs'), 'required persistent entities are missing'],
   [migration.includes('slot smallint not null check (slot between 1 and 4)') && migration.includes('unique (lobby_id, slot)') && migration.includes('guild_raid_members_one_active_lobby'), 'four-slot uniqueness contract is incomplete'],
+  [migration.includes('public.guild_members') && migration.includes('same guild membership required'), 'same-guild authority is not repeated server-side'],
   [migration.includes('security definer') && migration.includes('set search_path = public, pg_temp') && migration.includes('enable row level security'), 'RPC hardening or RLS is incomplete'],
   [migration.includes("exactly four members required") && migration.includes("all members must be ready") && migration.includes('idempotency_key') && migration.includes('unique (created_by_user_id, idempotency_key)'), 'atomic idempotent start contract is incomplete'],
   [!client.includes('duo') && !panel.includes('duo') && !migration.includes('coop_lobb'), 'guild raid lobby improperly reuses Duo state'],
