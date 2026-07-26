@@ -42,7 +42,7 @@ const checks = [
   [files.integrity.includes("status: 'ok' | 'repaired' | 'restored' | 'reset'") || files.integrity.includes("ProfileStorageStatus = 'ok' | 'repaired' | 'restored' | 'reset'"), 'profile storage health states are incomplete'],
   [files.integrity.includes('PLAYER_PROFILE_EVENT') && files.integrity.includes('previousRaw'), 'profile changes do not retain a previous valid snapshot'],
   [files.main.includes('installProfileStorageIntegrity();'), 'profile storage integrity is not installed at startup'],
-  [files.storageSettings.includes('data-testid="profile-storage-settings"') && files.storageSettings.includes('data-testid="profile-backup-restore"'), 'statistics and backup health are not visible in settings'],
+  [files.storageSettings.includes('data-testid="profile-storage-settings"') && files.storageSettings.includes('statusLabel(health.status, de)') && !files.storageSettings.includes('data-testid="profile-backup-restore"'), 'statistics and storage health must stay visible without exposing manual profile restore'],
   [files.settings.includes('<ProfileStorageSettings language={language} />'), 'settings do not mount statistics and storage health'],
   [files.session.includes('recordPlayerProfileRoomClear') && files.session.includes('recordPlayerProfileSession'), 'real run activity is not connected to profile statistics'],
   [files.game.includes('beginPlayerProfileRun'), 'new runs are not counted in profile statistics'],
@@ -73,4 +73,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Player profile audit passed: responsive tablet identity, explicit equipment statistics, canonical current loadout, registration, server validation, local/cloud propagation and storage integrity share one contract.');
+console.log('Player profile audit passed: responsive tablet identity, explicit equipment statistics, canonical current loadout, registration, server validation, local/cloud propagation, visible storage health and hidden manual restore share one contract.');
