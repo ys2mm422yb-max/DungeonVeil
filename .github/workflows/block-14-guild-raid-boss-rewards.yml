@@ -2,6 +2,8 @@ name: Block 14 Guild Raid Boss Rewards
 
 on:
   pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
     paths:
       - 'artifacts/dungeon-rpg/src/components/GuildRaidRunPanel.tsx'
       - 'artifacts/dungeon-rpg/src/game/guildRaidBoss.ts'
@@ -16,25 +18,26 @@ permissions:
 
 jobs:
   validate-block-14:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          version: 9
-      - uses: actions/setup-node@v4
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: artifacts/dungeon-rpg/pnpm-lock.yaml
-      - name: Install dependencies
-        working-directory: artifacts/dungeon-rpg
+      - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Validate Block 14 contract
-        run: node artifacts/dungeon-rpg/scripts/validate-block-14-guild-raid-boss-rewards.mjs
+        working-directory: artifacts/dungeon-rpg
+        run: node scripts/validate-block-14-guild-raid-boss-rewards.mjs
       - name: Typecheck
-        working-directory: artifacts/dungeon-rpg
-        run: pnpm exec tsc --noEmit
+        run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build
-        working-directory: artifacts/dungeon-rpg
-        run: pnpm build
+        run: pnpm --filter @workspace/dungeon-rpg build
