@@ -1,24 +1,62 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [entry, panel, client, migration] = await Promise.all([
+const [entry, panel, client, migration, evidence] = await Promise.all([
   read('../src/components/GuildSocialPanel.tsx'),
   read('../src/components/GuildRaidLobbyPanel.tsx'),
   read('../src/game/guildRaidLobbyOnline.ts'),
   read('../../../supabase/migrations/20260726113000_guild_raid_lobby_block_10.sql'),
+  read('../tests/guild-raid-lobby-mobile.spec.mjs'),
 ]);
 
+const publicFunctions = [
+  'guild_raid_get_snapshot',
+  'guild_raid_list_my_invitations',
+  'guild_raid_create_lobby',
+  'guild_raid_invite_member',
+  'guild_raid_cancel_invite',
+  'guild_raid_respond_invite',
+  'guild_raid_set_ready',
+  'guild_raid_remove_member',
+  'guild_raid_leave_lobby',
+  'guild_raid_dissolve_lobby',
+  'guild_raid_start',
+];
+const securityDefiners = (migration.match(/security definer/gi) ?? []).length;
+const emptySearchPaths = (migration.match(/set search_path = ''/gi) ?? []).length;
+const mutationIdempotency = [
+  'guild_raid_create_lobby(p_idempotency_key uuid)',
+  'p_target_user_id uuid,\n  p_idempotency_key uuid',
+  'guild_raid_cancel_invite(\n  p_invitation_id uuid,\n  p_idempotency_key uuid',
+  'p_accept boolean,\n  p_idempotency_key uuid',
+  'p_ready boolean,\n  p_idempotency_key uuid',
+  'guild_raid_remove_member(',
+  'guild_raid_leave_lobby(',
+  'guild_raid_dissolve_lobby(',
+  'guild_raid_start(',
+].every(fragment => migration.includes(fragment));
+
 const checks = [
-  [entry.includes('guild-raid-entry') && entry.includes('<GuildRaidLobbyPanel'), 'guild raid entry is not mounted inside the guild surface'],
-  [panel.includes('guild-raid-slots') && panel.includes('snapshot.slots.map') && panel.includes('filled === 4') && panel.includes('ready === 4'), 'four stable slots or start eligibility is missing'],
-  [panel.includes('inviteGuildRaidMember') && panel.includes('setGuildRaidReady') && panel.includes('leaveGuildRaidLobby') && panel.includes('startGuildRaidLobby'), 'lobby controls are incomplete'],
-  [client.includes('/rest/v1/rpc/') && client.includes('guild_raid_create_or_get_lobby') && client.includes('guild_raid_start_lobby'), 'server-authoritative RPC client is incomplete'],
-  [migration.includes('create table if not exists public.guild_raid_lobbies') && migration.includes('create table if not exists public.guild_raid_lobby_members') && migration.includes('create table if not exists public.guild_raid_invitations') && migration.includes('create table if not exists public.guild_raid_runs'), 'required persistent entities are missing'],
-  [migration.includes('slot smallint not null check (slot between 1 and 4)') && migration.includes('unique (lobby_id, slot)') && migration.includes('guild_raid_members_one_active_lobby'), 'four-slot uniqueness contract is incomplete'],
-  [migration.includes('public.guild_members') && migration.includes('same guild membership required'), 'same-guild authority is not repeated server-side'],
-  [migration.includes('security definer') && migration.includes('set search_path = public, pg_temp') && migration.includes('enable row level security'), 'RPC hardening or RLS is incomplete'],
-  [migration.includes("exactly four members required") && migration.includes("all members must be ready") && migration.includes('idempotency_key') && migration.includes('unique (created_by_user_id, idempotency_key)'), 'atomic idempotent start contract is incomplete'],
-  [!client.includes('duo') && !panel.includes('duo') && !migration.includes('coop_lobb'), 'guild raid lobby improperly reuses Duo state'],
+  [entry.includes('guild-raid-entry') && entry.includes('<GuildRaidLobbyPanel') && !entry.includes('!qaMode && raidOpen'), 'guild raid entry is not mounted consistently inside the guild surface'],
+  [panel.includes('guild-raid-guildless-blocked') && panel.includes('guild-raid-incoming-invitations'), 'guildless or invitation states are missing'],
+  [panel.includes('guild-raid-slots') && panel.includes('Array.from({ length: 4 }') && panel.includes('guild-raid-slot-'), 'four stable visible slots are missing'],
+  [panel.includes('cancelGuildRaidInvitation') && panel.includes('removeGuildRaidMember') && panel.includes('dissolveGuildRaidLobby'), 'leader administration controls are incomplete'],
+  [panel.includes('guild-raid-landscape-blocker') && panel.includes('min-h-11') && !panel.includes('min-h-10') && panel.includes('h-11 w-11'), 'landscape lock or 44px touch-target contract is incomplete'],
+  [client.includes('/rest/v1/rpc/') && client.includes('/realtime/v1/websocket') && client.includes('postgres_changes') && client.includes('heartbeat'), 'authoritative RPC or Supabase Realtime client is incomplete'],
+  [client.includes('version > knownVersion + 1') && panel.includes('fetchGuildRaidLobbySnapshot'), 'version-gap snapshot reconciliation is missing'],
+  [migration.includes('create table public.guild_raid_lobbies') && migration.includes('create table public.guild_raid_lobby_members') && migration.includes('create table public.guild_raid_invitations') && migration.includes('create table public.guild_raid_runs') && migration.includes('create table public.guild_raid_participants') && migration.includes('create table public.guild_raid_room_states'), 'required persistent lobby/run handoff entities are missing'],
+  [migration.includes('slot smallint') && migration.includes('slot between 1 and 4') && migration.includes('guild_raid_lobby_members_slot_uidx') && migration.includes('guild_raid_lobby_members_active_user_uidx'), 'stable slot or unique active membership constraints are incomplete'],
+  [migration.includes('all four players must remain active members of the same guild') && migration.includes('raid participant freeze failed'), 'same-guild start revalidation or four-participant freeze is missing'],
+  [migration.includes("status = 'starting'") && migration.includes("status = 'started'") && migration.includes('on conflict (lobby_id) do nothing'), 'atomic single-run start transition is incomplete'],
+  [mutationIdempotency && migration.includes('guild_raid_lobby_events') && migration.includes('idempotency_key uuid not null unique'), 'mutating RPC idempotency ledger is incomplete'],
+  [securityDefiners > 0 && securityDefiners === emptySearchPaths && !migration.includes('set search_path = public'), 'SECURITY DEFINER functions do not all use a fixed empty search path'],
+  [publicFunctions.every(name => migration.includes(`revoke all on function public.${name}`)) && publicFunctions.every(name => migration.includes(`grant execute on function public.${name}`)), 'RPC execute privileges are not explicitly revoked and re-granted'],
+  [migration.includes('enable row level security') && migration.includes('private.is_guild_raid_lobby_member') && migration.includes('private.is_guild_raid_run_participant'), 'non-recursive participant-scoped RLS helpers are missing'],
+  [migration.includes('public.profiles') && !migration.includes('public.player_profiles'), 'migration references the wrong profile table'],
+  [migration.includes('alter publication supabase_realtime add table public.guild_raid_lobbies') && migration.includes('alter publication supabase_realtime add table public.guild_raid_lobby_members'), 'Realtime publication setup is missing'],
+  [!client.toLowerCase().includes('duo') && !panel.toLowerCase().includes('duo') && !migration.includes('coop_lobb'), 'guild raid lobby improperly reuses Duo state'],
+  [evidence.includes('iphone-webkit') || evidence.includes('testInfo.project.name'), 'mobile evidence is not project-specific'],
+  [evidence.includes('guild-raid-landscape-blocker') && evidence.includes('guild-raid-started-handoff') && evidence.includes('guild-raid-incoming-invitations'), 'required runtime states are not covered by evidence'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -27,4 +65,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log('Block 10 guild raid lobby audit passed: four stable same-guild slots, explicit readiness and idempotent server start are present.');
+console.log(`Block 10 guild raid lobby audit passed: ${securityDefiners} hardened functions, four stable same-guild slots, complete lobby controls, Realtime reconciliation and exact-once server start are present.`);
