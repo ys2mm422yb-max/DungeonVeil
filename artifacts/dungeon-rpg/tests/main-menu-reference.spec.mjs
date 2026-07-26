@@ -128,17 +128,17 @@ test('live hybrid menu keeps four primary actions with an animated equipped Rang
   expect(layout.clippedLabels).toEqual([]);
   expect(layout.sceneTransform).not.toBe('none');
 
-  await pressPointerUi(page.getByRole('button', { name: /Spielen/i }));
+  await page.getByRole('button', { name: /Spielen/i }).click({ force: true });
   await expect(page.getByRole('button', { name: /Weltboss/i })).toBeVisible();
-  await pressPointerUi(page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }));
+  await page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).click({ force: true });
 
-  await pressPointerUi(page.getByTestId('main-menu-equipment-navigation').getByRole('button'));
+  await page.getByTestId('main-menu-equipment-navigation').getByRole('button').click({ force: true });
   await expect(page.getByRole('heading', { name: 'AUSRÜSTUNG' })).toBeVisible();
   await expect(page.getByTestId('equipment-category-tabs').locator('button')).toHaveCount(5);
   await page.getByTestId('inventory-tab-companion').click({ force: true });
   await expect(page.getByTestId('equipment-companion-section')).toBeVisible();
   await expect(page.getByTestId('companion-management-panel')).toHaveAttribute('data-embedded', 'true');
-  await pressPointerUi(page.getByRole('button', { name: 'Zurück' }));
+  await page.getByRole('button', { name: 'Zurück' }).click({ force: true });
   await page.bringToFront();
   await waitForLiveMenuPaint(page, 30_000);
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });

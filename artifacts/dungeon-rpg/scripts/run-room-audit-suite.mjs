@@ -29,6 +29,7 @@ const scripts = [
   'validate-drowned-reliquary-chapter.mjs',
   'validate-cinder-crown-chapter.mjs',
   'validate-veil-nexus-chapter.mjs',
+  'validate-block-8-rooms-1-100-contract.mjs',
   'validate-guild-mobile-layout.mjs',
   'validate-blocks-1-8-integration.mjs',
   'validate-main-menu-equipped-ranger.mjs',

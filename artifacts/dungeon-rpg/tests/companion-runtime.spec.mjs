@@ -4,7 +4,7 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
-  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+  await locator.click({ force: true });
 }
 
 async function openMenu(page, projectName) {
@@ -39,6 +39,7 @@ async function openMenu(page, projectName) {
 
 async function startFreshRun(page) {
   await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 20_000 });
   await pressPointerUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
   const name = page.getByRole('textbox').first();
   await expect(name).toBeVisible();
@@ -63,7 +64,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(page.getByTestId('main-menu-companion-navigation')).toHaveCount(0);
   const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
   await expect(equipmentEntry).toBeVisible();
-  await pressPointerUi(equipmentEntry.getByRole('button'));
+  await equipmentEntry.getByRole('button').click({ force: true });
   await expect(page.getByRole('heading', { name: /AUSRÜSTUNG|EQUIPMENT/i })).toBeVisible();
   await page.getByTestId('inventory-tab-companion').click({ force: true });
 

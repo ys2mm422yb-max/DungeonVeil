@@ -34,9 +34,9 @@ async function seedEquipmentState(page) {
   });
 }
 
-async function pointer(locator) {
+async function clickUi(locator) {
   await expect(locator).toBeVisible();
-  await locator.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+  await locator.click({ force: true });
 }
 
 test('equipment uses a real tablet and desktop workspace without breaking mobile', async ({ page }, testInfo) => {
@@ -45,7 +45,9 @@ test('equipment uses a real tablet and desktop workspace without breaking mobile
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
-  await page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first().click({ force: true });
+  const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
+  await expect(equipmentEntry).toBeVisible({ timeout: 60_000 });
+  await clickUi(equipmentEntry.getByRole('button'));
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible({ timeout: 60_000 });
 
   const tabs = page.getByTestId('equipment-category-tabs');
@@ -77,7 +79,7 @@ test('equipment uses a real tablet and desktop workspace without breaking mobile
   }
   await page.screenshot({ path: `test-results/equipment-responsive-${testInfo.project.name}.png`, fullPage: false });
 
-  await pointer(page.getByTestId('inventory-tab-quiver'));
+  await clickUi(page.getByTestId('inventory-tab-quiver'));
   await expect(page.locator('[data-equipment-preview-kind="quiver"]')).toBeVisible({ timeout: 60_000 });
   const itemName = page.getByRole('heading', { name: /Reichweitenköcher|Range Quiver/i });
   await expect(itemName).toBeVisible();

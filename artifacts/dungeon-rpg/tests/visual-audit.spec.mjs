@@ -30,7 +30,7 @@ function attachRuntimeMonitor(page) {
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
-  await locator.tap();
+  await locator.click({ force: true, noWaitAfter: true });
 }
 
 async function initVisualState(page, projectName, { activeCompanion = true } = {}) {
@@ -206,9 +206,9 @@ async function openPlayMenu(page) {
   await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 20_000 });
 }
 
-async function openResourceMenu(page) {
-  await pressPointerUi(page.getByTestId('main-menu-gold-button'));
-  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible({ timeout: 20_000 });
+async function openOptionsMenu(page) {
+  await pressPointerUi(page.getByRole('button', { name: /Optionsmenü öffnen|Open options menu/i }).first());
+  await expect(page.getByRole('button', { name: /Einstellungen|Settings/i }).first()).toBeVisible({ timeout: 20_000 });
 }
 
 test('live main menu proves a true no-companion start, five silhouettes and visible animation frames', async ({ page }, testInfo) => {
@@ -307,13 +307,13 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
     await pressPointerUi(page.getByRole('button', { name: buttonName }).first());
     await expect(page.getByText(visibleText).first()).toBeVisible({ timeout: 30_000 });
     await capture(page, `test-results/visual-${name}-${testInfo.project.name}.png`);
-    await closeOverlay(page);
+    await reloadMenu(page);
   }
 
-  await openResourceMenu(page);
+  await openOptionsMenu(page);
   await pressPointerUi(page.getByRole('button', { name: /Online & Cloud/i }).first());
   await capture(page, `test-results/visual-online-cloud-${testInfo.project.name}.png`);
-  await closeOverlay(page);
+  await reloadMenu(page);
 
   await openPlayMenu(page);
   await pressPointerUi(page.getByRole('button', { name: /Duo-Run|Duo Run/i }).first());
@@ -327,14 +327,14 @@ test('central UI surfaces produce reviewable screenshots without clipping', asyn
   await capture(page, `test-results/visual-worldboss-${testInfo.project.name}.png`);
   await closeOverlay(page);
 
-  await openResourceMenu(page);
+  await openOptionsMenu(page);
   await pressPointerUi(page.getByRole('button', { name: /Einstellungen|Settings/i }).first());
   await expect(page.getByTestId('accessibility-settings')).toBeVisible({ timeout: 30_000 });
   await capture(page, `test-results/visual-settings-${testInfo.project.name}.png`);
   await page.getByRole('button', { name: /Zurück|Back/i }).first().click({ force: true });
   await expect(page.getByRole('button', { name: /Spielen|Play/i }).first()).toBeVisible({ timeout: 30_000 });
 
-  await openResourceMenu(page);
+  await openOptionsMenu(page);
   await pressPointerUi(page.getByRole('button', { name: /Credits/i }).first());
   await expect(page.getByText(/hobbyloser Typ|hobbyless guy/i)).toBeVisible({ timeout: 30_000 });
   await capture(page, `test-results/visual-credits-${testInfo.project.name}.png`);

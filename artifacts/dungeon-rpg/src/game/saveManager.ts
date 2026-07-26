@@ -1,10 +1,11 @@
 import { ClassKey } from './classes';
 import { DungeonMap, generateDungeon } from './dungeon';
 import { UpgradeKey } from '../i18n/translations';
+import { normalizeChapter, normalizeClaimedChapterRewards, normalizeRoom } from './chapterProgression';
 
 const SAVE_KEY = 'dungeon-veil-save';
 export const SAVE_EVENT = 'dungeon-veil-save-changed';
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export interface SaveData {
   saveVersion?: number;
@@ -13,6 +14,7 @@ export interface SaveData {
   playerClass: ClassKey;
   floor: number;
   chapter?: number;
+  claimedChapterRewards?: number[];
   runSkills?: Partial<Record<UpgradeKey, number>>;
   level: number;
   xp: number;
@@ -61,6 +63,9 @@ export function saveGame(data: SaveData): boolean {
     const { dungeonMap: _dungeonMap, ...compactData } = data;
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       ...compactData,
+      floor: normalizeRoom(compactData.floor),
+      chapter: normalizeChapter(compactData.chapter ?? 1),
+      claimedChapterRewards: normalizeClaimedChapterRewards(compactData.claimedChapterRewards),
       runSkills: persistentRunSkills(compactData.runSkills),
       saveVersion: SAVE_VERSION,
     }));
@@ -81,13 +86,16 @@ export function loadGame(): SaveData | null {
     if (!['warrior', 'mage', 'archer'].includes(parsed.playerClass)) return null;
 
     const inDungeon = !!parsed.inDungeon;
+    const floor = normalizeRoom(parsed.floor);
     return {
       ...parsed,
+      floor,
       saveVersion: parsed.saveVersion ?? 1,
-      chapter: Math.max(1, parsed.chapter ?? 1),
+      chapter: normalizeChapter(parsed.chapter ?? 1),
+      claimedChapterRewards: normalizeClaimedChapterRewards(parsed.claimedChapterRewards),
       runSkills: persistentRunSkills(parsed.runSkills),
       inDungeon,
-      dungeonMap: inDungeon ? (parsed.dungeonMap ?? rebuildDungeon(parsed.floor)) : undefined,
+      dungeonMap: inDungeon ? (parsed.dungeonMap ?? rebuildDungeon(floor)) : undefined,
       worldX: Number.isFinite(parsed.worldX) ? parsed.worldX : parsed.playerX ?? 0,
       worldY: Number.isFinite(parsed.worldY) ? parsed.worldY : parsed.playerY ?? 0,
       playerX: Number.isFinite(parsed.playerX) ? parsed.playerX : parsed.worldX ?? 0,

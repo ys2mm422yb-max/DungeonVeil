@@ -92,9 +92,9 @@ async function openMenuButton(page, name) {
   await clickAnimatedUi(page.getByRole('button', { name }).first());
 }
 
-async function openResourceMenu(page) {
-  await clickAnimatedUi(page.getByTestId('main-menu-gold-button'));
-  await expect(page.getByTestId('main-menu-resource-popover')).toBeVisible();
+async function openOptionsMenu(page) {
+  await clickAnimatedUi(page.getByRole('button', { name: /Optionsmenü öffnen|Open options menu/i }).first());
+  await expect(page.getByRole('button', { name: /Einstellungen|Settings/i }).first()).toBeVisible();
 }
 
 async function openPlayMenu(page) {
@@ -256,9 +256,9 @@ test('main menu, profile and every hub panel open without fatal errors', async (
     await expect(page.getByText(/Kodex|Codex/i).first()).toBeVisible();
   });
 
-  await test.step('credits from anchored resource menu', async () => {
+  await test.step('credits from options menu', async () => {
     await reloadMenu(page, testInfo.project.name);
-    await openResourceMenu(page);
+    await openOptionsMenu(page);
     await openMenuButton(page, /Credits/i);
     await expect(page.getByText(/hobbyloser Typ|hobbyless guy/i)).toBeVisible();
   });
@@ -275,7 +275,7 @@ test('settings persist contrast, storage and joystick with standard UI size', as
   const issues = attachRuntimeMonitor(page);
   await page.addInitScript(() => localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'high', textSize: 'large', updatedAt: 1 })));
   await preparePage(page, testInfo.project.name);
-  await openResourceMenu(page);
+  await openOptionsMenu(page);
   await openMenuButton(page, /Einstellungen|Settings/i);
 
   await expect(page.getByTestId('accessibility-settings')).toBeVisible();

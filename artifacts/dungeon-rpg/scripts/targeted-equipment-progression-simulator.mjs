@@ -8,14 +8,14 @@ import { simulateBalancedEquipmentSources } from './balanced-equipment-source-si
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(HERE, '..');
 
-export const TARGETED_EQUIPMENT_SIMULATOR_VERSION = 2;
+export const TARGETED_EQUIPMENT_SIMULATOR_VERSION = 3;
 export const FORGE_MARK_SIMULATION_RULES = Object.freeze({
   exchangeCost: 10,
   huntsPerChapter: 12,
   intermediateBossesPerChapter: 4,
   chapterBossesPerChapter: 1,
   huntChance: 0.01,
-  intermediateBossChance: 0.025,
+  intermediateBossChance: 0,
   chapterBossChance: 0.075,
   categoryWeights: Object.freeze({ bow: 40, quiver: 30, armor: 30 }),
   rarityWeights: Object.freeze({ common: 55, rare: 32, epic: 13 }),
@@ -131,7 +131,7 @@ export function renderTargetedEquipmentMarkdown(report) {
   const category = report.forgeMarks.rewardDistribution.categoryRatios;
   const rarity = report.forgeMarks.rewardDistribution.rarityRatios;
   const warnings = report.warnings.map(warning => `- **${warning.severity.toUpperCase()} · ${warning.code}:** ${warning.message}`).join('\n');
-  return `# Dungeon Veil Forge Marks progression\n\n- Scenario: \`${report.scenario}\`\n- Seed: \`${report.seed}\`\n- Samples: ${report.samples}\n- Exchange cost: ${report.currentRules.exchangeCost} Forge Marks\n- Expected marks per 50-room chapter: ${report.forgeMarks.expectedMarksPerChapter.toFixed(3)}\n- Expected mean chapters per exchange: ${report.forgeMarks.expectedMeanChaptersPerExchange.toFixed(2)}\n\n## Chapters to first ten-mark exchange\n\n| P10 | Median | P90 | P99 |\n|---:|---:|---:|---:|\n| ${exchange.p10} | ${exchange.median} | ${exchange.p90} | ${exchange.p99} |\n\n## Simulated reward distribution\n\n- Categories: bow ${(category.bow * 100).toFixed(2)}%, quiver ${(category.quiver * 100).toFixed(2)}%, armor ${(category.armor * 100).toFixed(2)}%\n- Rarities: common ${(rarity.common * 100).toFixed(2)}%, rare ${(rarity.rare * 100).toFixed(2)}%, epic ${(rarity.epic * 100).toFixed(2)}%\n\n## Remaining warnings\n\n${warnings || '- None'}\n`;
+  return `# Dungeon Veil Forge Marks progression\n\n- Scenario: \`${report.scenario}\`\n- Seed: \`${report.seed}\`\n- Samples: ${report.samples}\n- Exchange cost: ${report.currentRules.exchangeCost} Forge Marks\n- Expected marks per 100-room chapter: ${report.forgeMarks.expectedMarksPerChapter.toFixed(3)}\n- Expected mean chapters per exchange: ${report.forgeMarks.expectedMeanChaptersPerExchange.toFixed(2)}\n\n## Chapters to first ten-mark exchange\n\n| P10 | Median | P90 | P99 |\n|---:|---:|---:|---:|\n| ${exchange.p10} | ${exchange.median} | ${exchange.p90} | ${exchange.p99} |\n\n## Simulated reward distribution\n\n- Categories: bow ${(category.bow * 100).toFixed(2)}%, quiver ${(category.quiver * 100).toFixed(2)}%, armor ${(category.armor * 100).toFixed(2)}%\n- Rarities: common ${(rarity.common * 100).toFixed(2)}%, rare ${(rarity.rare * 100).toFixed(2)}%, epic ${(rarity.epic * 100).toFixed(2)}%\n\n## Remaining warnings\n\n${warnings || '- None'}\n`;
 }
 
 function parseCli(argv) {
