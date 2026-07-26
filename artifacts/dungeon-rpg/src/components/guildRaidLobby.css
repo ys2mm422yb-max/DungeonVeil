@@ -1,0 +1,24 @@
+/* Block 10 mobile contract: use physical CSS pixels so the game's rem scaling cannot shrink touch targets. */
+[data-testid='guild-raid-entry'],
+[data-testid='guild-raid-create'],
+[data-testid='guild-raid-ready-toggle'],
+[data-testid='guild-raid-leave'],
+[data-testid='guild-raid-start'] {
+  min-height: 48px;
+}
+
+[data-testid='guild-raid-close'],
+[data-testid='guild-raid-invite-decline'],
+[data-testid='guild-raid-invite-accept'],
+[data-testid='guild-raid-refresh'],
+[data-testid='guild-raid-remove-member'],
+[data-testid='guild-raid-cancel-invite'],
+[data-testid='guild-raid-invite-member'],
+[data-testid='guild-raid-dissolve'] {
+  min-height: 44px;
+}
+
+[data-testid='guild-raid-close'] {
+  width: 44px;
+  height: 44px;
+}
