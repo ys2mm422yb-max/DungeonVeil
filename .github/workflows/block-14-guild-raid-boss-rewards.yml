@@ -1,0 +1,40 @@
+name: Block 14 Guild Raid Boss Rewards
+
+on:
+  pull_request:
+    paths:
+      - 'artifacts/dungeon-rpg/src/components/GuildRaidRunPanel.tsx'
+      - 'artifacts/dungeon-rpg/src/game/guildRaidBoss.ts'
+      - 'artifacts/dungeon-rpg/src/game/guildRaidBossOnline.ts'
+      - 'artifacts/dungeon-rpg/scripts/validate-block-14-guild-raid-boss-rewards.mjs'
+      - 'supabase/migrations/20260726213000_guild_raid_boss_rewards_block_14.sql'
+      - '.github/workflows/block-14-guild-raid-boss-rewards.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-block-14:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: artifacts/dungeon-rpg/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: artifacts/dungeon-rpg
+        run: pnpm install --frozen-lockfile
+      - name: Validate Block 14 contract
+        run: node artifacts/dungeon-rpg/scripts/validate-block-14-guild-raid-boss-rewards.mjs
+      - name: Typecheck
+        working-directory: artifacts/dungeon-rpg
+        run: pnpm exec tsc --noEmit
+      - name: Build
+        working-directory: artifacts/dungeon-rpg
+        run: pnpm build
