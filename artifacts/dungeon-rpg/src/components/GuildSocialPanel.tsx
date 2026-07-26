@@ -4,6 +4,7 @@ import { GuildAccessOverlay } from './GuildAccessOverlay';
 import { GuildPanelMobile } from './GuildPanelMobile';
 import { GuildRaidLobbyPanel } from './GuildRaidLobbyPanel';
 import { PlayerProfileCard } from './PlayerProfileCard';
+import './guildRaidTouchTargets.css';
 
 type Props = { language: 'de' | 'en'; onClose: () => void; onOpenOnline: () => void };
 
