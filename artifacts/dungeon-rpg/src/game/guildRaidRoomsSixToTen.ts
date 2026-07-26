@@ -52,7 +52,7 @@ export function initialGuildRaidAdvancedRoomState(room: GuildRaidAdvancedRoomId)
   if (room === 6) return { room, phase: 'active', revision: 0, mirrorStances: { '1': null, '2': null, '3': null, '4': null }, mirrorRounds: 0 };
   if (room === 7) return { room, phase: 'active', revision: 0, relayCarrier: 1, relayStep: 0, relayMistakes: 0 };
   if (room === 8) return { room, phase: 'active', revision: 0, shadowTargetRevision: 1, shadowMarks: [], shadowStrikes: [] };
-  if (room === 9) return { room, phase: 'active', revision: 0, sharedStability: 0, lastPulse: 0, pulseContributors: [] };
+  if (room === 9) return { room, phase: 'active', revision: 0, sharedStability: 0, lastPulse: 1, pulseContributors: [] };
   return { room, phase: 'active', revision: 0, gateRoles: {}, gateRuneSequence: [3, 1, 4, 2], gateRuneStep: 0, gateChannels: { '1': false, '2': false, '3': false, '4': false }, bossHandoffReady: false };
 }
 
@@ -67,8 +67,8 @@ export function reduceGuildRaidAdvancedRoomAction(state: GuildRaidAdvancedRoomSt
 
   if (state.room === 6 && action.type === 'mirror') {
     const stances = { ...state.mirrorStances, [String(action.slot)]: action.stance };
-    const pairA = stances['1'] && stances['1'] === stances['2'];
-    const pairB = stances['3'] && stances['3'] === stances['4'];
+    const pairA = Boolean(stances['1'] && stances['1'] === stances['2']);
+    const pairB = Boolean(stances['3'] && stances['3'] === stances['4']);
     const rounds = pairA && pairB ? (state.mirrorRounds ?? 0) + 1 : state.mirrorRounds ?? 0;
     next = { ...next, mirrorStances: pairA && pairB ? { '1': null, '2': null, '3': null, '4': null } : stances, mirrorRounds: rounds, phase: rounds >= 3 ? 'cleared' : 'active' };
   } else if (state.room === 7 && action.type === 'relay') {
@@ -90,16 +90,22 @@ export function reduceGuildRaidAdvancedRoomAction(state: GuildRaidAdvancedRoomSt
       next = { ...next, shadowTargetRevision: targetRevision, shadowMarks: [], shadowStrikes: [], phase: targetRevision > 4 ? 'cleared' : 'active' };
     } else next = { ...next, shadowStrikes: strikes };
   } else if (state.room === 9 && action.type === 'stabilize') {
-    if (action.pulse <= (state.lastPulse ?? 0)) return state;
-    const contributors = action.pulse === (state.lastPulse ?? 0) + 1 ? uniq([...(state.pulseContributors ?? []), action.slot]) : [action.slot];
-    const gained = contributors.length >= 2 ? 20 : 5;
+    const lastPulse = state.lastPulse ?? 1;
+    if (action.pulse < lastPulse) return state;
+    const contributors = action.pulse === lastPulse
+      ? uniq([...(state.pulseContributors ?? []), action.slot])
+      : [action.slot];
+    const previousCount = action.pulse === lastPulse ? (state.pulseContributors?.length ?? 0) : 0;
+    const gained = contributors.length >= 2 && previousCount < 2 ? 20 : contributors.length === 1 && previousCount === 0 ? 5 : 0;
     const stability = Math.min(100, (state.sharedStability ?? 0) + gained);
     next = { ...next, lastPulse: action.pulse, pulseContributors: contributors, sharedStability: stability, phase: stability >= 100 ? 'cleared' : 'active' };
   } else if (state.room === 10 && action.type === 'gate-role') {
-    const roles = { ...state.gateRoles, [String(action.slot)]: action.role };
-    next = { ...next, gateRoles: roles };
+    const roles = { ...state.gateRoles };
+    for (const [slot, role] of Object.entries(roles)) if (role === action.role && slot !== String(action.slot)) delete roles[slot];
+    roles[String(action.slot)] = action.role;
+    next = { ...next, gateRoles: roles, gateRuneStep: 0, gateChannels: { '1': false, '2': false, '3': false, '4': false }, bossHandoffReady: false };
   } else if (state.room === 10 && action.type === 'gate-rune') {
-    if (Object.keys(state.gateRoles ?? {}).length < 4) throw new Error('Alle vier Rollen müssen zuerst bestätigt sein.');
+    if (new Set(Object.values(state.gateRoles ?? {})).size < 4) throw new Error('Alle vier unterschiedlichen Rollen müssen zuerst bestätigt sein.');
     const expected = state.gateRuneSequence?.[state.gateRuneStep ?? 0];
     next = action.rune === expected ? { ...next, gateRuneStep: (state.gateRuneStep ?? 0) + 1 } : { ...next, gateRuneStep: 0 };
   } else if (state.room === 10 && action.type === 'gate-channel') {
