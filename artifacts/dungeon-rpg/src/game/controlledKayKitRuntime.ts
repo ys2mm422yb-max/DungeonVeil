@@ -4,6 +4,8 @@ type RuntimeHandle = { dispose: () => void };
 
 const HOST_TEST_ID = 'guild-raid-boss-panel';
 const VISUAL_TEST_ID = 'controlled-kaykit-veiled-archon';
+const THREE_MODULE_ID = 'three';
+const GLTF_LOADER_MODULE_ID = 'three/addons/loaders/GLTFLoader.js';
 let activeHandle: RuntimeHandle | null = null;
 let observer: MutationObserver | null = null;
 
@@ -34,11 +36,12 @@ async function mountVeiledArchon(host: HTMLElement): Promise<RuntimeHandle> {
   const cleanups: Array<() => void> = [];
 
   try {
-    // Local import-map aliases keep the model runtime fully offline and Pages-safe.
+    // Runtime-only bare imports are resolved by the local import map in index.html.
+    // Vite must not bundle them because the vendored Three runtime is copied from public/.
     // @ts-ignore Three is intentionally supplied by the vendored browser import map.
-    const THREE = await import('three');
+    const THREE = await import(/* @vite-ignore */ THREE_MODULE_ID);
     // @ts-ignore GLTFLoader is intentionally supplied by the vendored browser import map.
-    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_LOADER_MODULE_ID);
     if (disposed || !shell.isConnected) throw new Error('KayKit host was removed');
 
     const scene = new THREE.Scene();
