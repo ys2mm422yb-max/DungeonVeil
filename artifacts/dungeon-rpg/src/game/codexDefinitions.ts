@@ -90,7 +90,7 @@ export const CODEX_BEASTS: readonly CodexEnemyEntry[] = [
 ] as const;
 
 export const CODEX_HUNTS: readonly CodexHuntEntry[] = [
-  ['Aschenjäger', "Ash Hunter"], ['Der Runenlose', 'The Runeless'], ['Nachtklaue', 'Night Claw'],
+  ['Aschenjäger', 'Ash Hunter'], ['Der Runenlose', 'The Runeless'], ['Nachtklaue', 'Night Claw'],
   ['Knochenrufer', 'Bone Caller'], ['Veyra die Verlorene', 'Veyra the Lost'], ['Schleierhetzer', 'Veil Hound'],
 ].map(([nameDe, nameEn]) => ({
   id: nameDe.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-'), nameDe, nameEn,
@@ -131,9 +131,44 @@ export const CODEX_WARDENS: readonly CodexWardenEntry[] = [
   },
   {
     id: 'warden-50', discoveryKey: '1:50', enemyType: 'boss', room: 50,
-    nameDe: 'Glutwächter', nameEn: 'Ember Warden', areaDe: 'Glutwächter-Arena · Raum 50', areaEn: 'Ember Warden Arena · room 50', kindDe: 'Finaler Wächter', kindEn: 'Final warden',
-    descriptionDe: 'Der finale Kapitelwächter verbindet Feuer, schwere Waffen und die dichteste Angriffskadenz des Runs.',
-    descriptionEn: 'The final chapter warden combines fire, heavy weapons and the run’s densest attack cadence.',
+    nameDe: 'Glutwächter', nameEn: 'Ember Warden', areaDe: 'Glutwächter-Arena · Raum 50', areaEn: 'Ember Warden Arena · room 50', kindDe: 'Kapitelwächter', kindEn: 'Chapter warden',
+    descriptionDe: 'Der Glutwächter verbindet Feuer, schwere Waffen und die dichteste Angriffskadenz des ersten Handlungsbogens.',
+    descriptionEn: 'The Ember Warden combines fire, heavy weapons and the densest attack cadence of the first story arc.',
     hintDe: 'Bezwinge Raum 50.', hintEn: 'Conquer room 50.',
+  },
+  {
+    id: 'warden-60', discoveryKey: '1:60', enemyType: 'boss', room: 60,
+    nameDe: 'Aurel, Hüter der Goldenen Fraktur', nameEn: 'Aurel, Keeper of the Golden Fracture', areaDe: 'Goldene Fraktur · Raum 60', areaEn: 'Golden Fracture · room 60', kindDe: 'Frakturwächter', kindEn: 'Fracture warden',
+    descriptionDe: 'Aurel bricht sichere Wege mit goldenen Spalten, verzögerten Einschlägen und wechselnden Kampffeldern auf.',
+    descriptionEn: 'Aurel breaks safe routes with golden fractures, delayed impacts and shifting battlefields.',
+    hintDe: 'Durchquere die Goldene Fraktur bis Raum 60.', hintEn: 'Cross the Golden Fracture to room 60.',
+  },
+  {
+    id: 'warden-70', discoveryKey: '1:70', enemyType: 'boss', room: 70,
+    nameDe: 'Der entfesselte Astronom', nameEn: 'The Astronomer Unbound', areaDe: 'Zersplittertes Observatorium · Raum 70', areaEn: 'Shattered Observatory · room 70', kindDe: 'Sternenmagier', kindEn: 'Astral caster',
+    descriptionDe: 'Der Astronom zwingt mit rotierenden Sicherheitsbahnen und verzögertem Sternenfall zu präziser Bewegung.',
+    descriptionEn: 'The Astronomer demands precise movement through rotating safe lanes and delayed starfall.',
+    hintDe: 'Erreiche das Herz des Observatoriums in Raum 70.', hintEn: 'Reach the heart of the observatory in room 70.',
+  },
+  {
+    id: 'warden-80', discoveryKey: '1:80', enemyType: 'boss', room: 80,
+    nameDe: 'Reliquiar-Leviathan', nameEn: 'Reliquary Leviathan', areaDe: 'Versunkenes Reliquiar · Raum 80', areaEn: 'Drowned Reliquary · room 80', kindDe: 'Gezeitenkoloss', kindEn: 'Tidal colossus',
+    descriptionDe: 'Der Leviathan überflutet das Feld, verschiebt trockene Inseln und verbindet Strömungen mit Kettenangriffen.',
+    descriptionEn: 'The Leviathan floods the field, shifts dry islands and combines currents with chain attacks.',
+    hintDe: 'Tauche bis zum versunkenen Kern in Raum 80 vor.', hintEn: 'Descend to the drowned core in room 80.',
+  },
+  {
+    id: 'warden-90', discoveryKey: '1:90', enemyType: 'boss', room: 90,
+    nameDe: 'Der Aschenkönig', nameEn: 'The Ashen King', areaDe: 'Aschenkronen-Feste · Raum 90', areaEn: 'Cinder Crown · room 90', kindDe: 'Glutmonarch', kindEn: 'Ember monarch',
+    descriptionDe: 'Der Aschenkönig verknüpft Glutbahnen, Kettenschläge, Ofenventile und einstürzende Basaltzonen.',
+    descriptionEn: 'The Ashen King combines ember lanes, chain sweeps, furnace vents and collapsing basalt zones.',
+    hintDe: 'Steige bis zum Thron der Aschenkrone in Raum 90 auf.', hintEn: 'Ascend to the Cinder Crown throne in room 90.',
+  },
+  {
+    id: 'warden-100', discoveryKey: '1:100', enemyType: 'boss', room: 100,
+    nameDe: 'Der Schleierkern', nameEn: 'The Veil Core', areaDe: 'Schleiernexus · Raum 100', areaEn: 'Veil Nexus · room 100', kindDe: 'Finaler Nexus-Wächter', kindEn: 'Final Nexus warden',
+    descriptionDe: 'Der Schleierkern ist der mehrphasige Abschluss von Kapitel 1 und vereint frühere Mechaniken in klar lesbaren finalen Angriffsmustern.',
+    descriptionEn: 'The Veil Core is chapter 1’s multi-phase conclusion, combining earlier mechanics into readable final attack patterns.',
+    hintDe: 'Bezwinge alle 100 Räume von Kapitel 1.', hintEn: 'Conquer all 100 rooms of chapter 1.',
   },
 ] as const;
