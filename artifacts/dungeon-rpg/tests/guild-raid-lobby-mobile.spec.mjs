@@ -271,6 +271,8 @@ async function capture(page, state, projectName) {
 }
 
 async function assertTouchTarget(locator, minimum = 44) {
+  await locator.scrollIntoViewIfNeeded();
+  await expect(locator).toBeVisible();
   const box = await locator.boundingBox();
   expect(box).not.toBeNull();
   expect(box.height).toBeGreaterThanOrEqual(minimum);
