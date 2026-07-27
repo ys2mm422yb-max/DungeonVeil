@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [entry, panel, client, evidence, migrationBase, migrationActionsA, migrationActionsB, migrationStart] = await Promise.all([
+const [entry, panel, lobbyCss, client, evidence, migrationBase, migrationActionsA, migrationActionsB, migrationStart] = await Promise.all([
   read('../src/components/GuildSocialPanel.tsx'),
   read('../src/components/GuildRaidLobbyPanel.tsx'),
+  read('../src/components/guildRaidLobby.css'),
   read('../src/game/guildRaidLobbyOnline.ts'),
   read('../tests/guild-raid-lobby-mobile.spec.mjs'),
   read('../../../supabase/migrations/20260726113000_guild_raid_lobby_block_10.sql'),
@@ -40,12 +41,24 @@ const mutationIdempotency = [
   'guild_raid_start(',
 ].every(fragment => migration.includes(fragment));
 
+const germanVisualCopy = [
+  "[aria-label='Gildenraid-Lobby']",
+  "content: 'Bereit'",
+  "content: 'Stand'",
+  "content: 'Platz 1'",
+  "content: 'Platz 2'",
+  "content: 'Platz 3'",
+  "content: 'Platz 4'",
+  "content: 'Live-Sync'",
+].every(fragment => lobbyCss.includes(fragment));
+
 const checks = [
   [entry.includes('guild-raid-entry') && entry.includes('<GuildRaidLobbyPanel') && !entry.includes('!qaMode && raidOpen'), 'guild raid entry is not mounted consistently inside the guild surface'],
   [panel.includes('guild-raid-guildless-blocked') && panel.includes('guild-raid-incoming-invitations'), 'guildless or invitation states are missing'],
   [panel.includes('guild-raid-slots') && panel.includes('Array.from({ length: 4 }') && panel.includes('guild-raid-slot-'), 'four stable visible slots are missing'],
   [panel.includes('cancelGuildRaidInvitation') && panel.includes('removeGuildRaidMember') && panel.includes('dissolveGuildRaidLobby'), 'leader administration controls are incomplete'],
   [panel.includes('guild-raid-landscape-blocker') && panel.includes('min-h-11') && !panel.includes('min-h-10') && panel.includes('h-11 w-11'), 'landscape lock or 44px touch-target contract is incomplete'],
+  [germanVisualCopy, 'German guild raid lobby still exposes untranslated Ready, Slot, Server or Live labels'],
   [client.includes('/rest/v1/rpc/') && client.includes('/realtime/v1/websocket') && client.includes('postgres_changes') && client.includes('heartbeat'), 'authoritative RPC or Supabase Realtime client is incomplete'],
   [client.includes('version > knownVersion + 1') && panel.includes('fetchGuildRaidLobbySnapshot'), 'version-gap snapshot reconciliation is missing'],
   [migration.includes('create table public.guild_raid_lobbies') && migration.includes('create table public.guild_raid_lobby_members') && migration.includes('create table public.guild_raid_invitations') && migration.includes('create table public.guild_raid_runs') && migration.includes('create table public.guild_raid_participants') && migration.includes('create table public.guild_raid_room_states'), 'required persistent lobby/run handoff entities are missing'],
@@ -69,4 +82,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log(`Block 10 guild raid lobby audit passed: ${securityDefiners} hardened functions, four stable same-guild slots, complete lobby controls, Realtime reconciliation and exact-once server start are present.`);
+console.log(`Block 10 guild raid lobby audit passed: ${securityDefiners} hardened functions, four stable same-guild slots, German visual copy, complete lobby controls, Realtime reconciliation and exact-once server start are present.`);
