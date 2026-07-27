@@ -41,3 +41,44 @@
 [data-testid='guild-raid-pending-invite'] {
   order: 2;
 }
+
+/* German product-copy correction. The panel already exposes a localized aria-label,
+   so these rules only affect the German surface and leave the English mode untouched. */
+[aria-label='Gildenraid-Lobby'] [data-testid='guild-raid-summary'] > div > div:nth-child(2) > div:nth-child(2),
+[aria-label='Gildenraid-Lobby'] [data-testid^='guild-raid-slot-'] > div:first-child > span:first-child,
+[aria-label='Gildenraid-Lobby'] [data-testid^='guild-raid-slot-'] > div:first-child > span:last-child {
+  font-size: 0;
+}
+
+[aria-label='Gildenraid-Lobby'] [data-testid='guild-raid-summary'] > div > div:nth-child(2) > div:nth-child(2)::after {
+  content: 'Bereit';
+  font-size: 6px;
+}
+
+[aria-label='Gildenraid-Lobby'] [data-testid='guild-raid-summary'] > div > div:nth-child(3) > div:nth-child(2) {
+  font-size: 0;
+}
+
+[aria-label='Gildenraid-Lobby'] [data-testid='guild-raid-summary'] > div > div:nth-child(3) > div:nth-child(2)::after {
+  content: 'Stand';
+  font-size: 6px;
+}
+
+[aria-label='Gildenraid-Lobby'] [data-testid='guild-raid-slot-1'] > div:first-child > span:first-child::after { content: 'Platz 1'; font-size: 7px; }
+[aria-label='Gildenraid-Lobby'] [data-testid='guild-raid-slot-2'] > div:first-child > span:first-child::after { content: 'Platz 2'; font-size: 7px; }
+[aria-label='Gildenraid-Lobby'] [data-testid='guild-raid-slot-3'] > div:first-child > span:first-child::after { content: 'Platz 3'; font-size: 7px; }
+[aria-label='Gildenraid-Lobby'] [data-testid='guild-raid-slot-4'] > div:first-child > span:first-child::after { content: 'Platz 4'; font-size: 7px; }
+
+[aria-label='Gildenraid-Lobby'] [data-testid^='guild-raid-slot-'] > div:first-child > span:last-child::after {
+  content: 'Bereit';
+  font-size: 6px;
+}
+
+[aria-label='Gildenraid-Lobby'] header > div:first-of-type > span:last-child {
+  font-size: 0;
+}
+
+[aria-label='Gildenraid-Lobby'] header > div:first-of-type > span:last-child::after {
+  content: 'Live-Sync';
+  font-size: 7px;
+}
