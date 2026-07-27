@@ -1,0 +1,31 @@
+name: Block 16 Licensing and Third-Party Notices
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - LICENSE
+      - COPYRIGHT.md
+      - THIRD_PARTY_LICENSES.md
+      - README.md
+      - artifacts/dungeon-rpg/public/assets/kaykit-controlled/**
+      - artifacts/dungeon-rpg/src/game/controlledKayKitRegistry.ts
+      - artifacts/dungeon-rpg/vite.config.ts
+      - artifacts/dungeon-rpg/scripts/validate-block-16-licensing.mjs
+      - .github/workflows/block-16-licensing.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  licensing-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate proprietary and third-party notices
+        run: node artifacts/dungeon-rpg/scripts/validate-block-16-licensing.mjs
