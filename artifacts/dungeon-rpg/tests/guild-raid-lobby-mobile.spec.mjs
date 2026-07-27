@@ -50,7 +50,6 @@ function makeRaidController(currentUserId, withIncoming = false) {
     incoming: withIncoming ? [{ invitationId: 'qa-incoming', lobbyId: 'qa-raid-lobby', guildId: guild.id, guildName: guild.name, guildTag: guild.tag, leaderUserId: 'qa-owner', leaderName: 'Maxi', expiresAt: new Date(Date.now() + 25 * 60_000).toISOString() }] : [],
     startCount: 0,
   };
-
   const profile = id => profiles.find(item => item.id === id);
   const guildRole = id => guildMembers.find(item => item.user_id === id)?.role ?? 'member';
   const bump = () => { state.version += 1; };
@@ -59,55 +58,30 @@ function makeRaidController(currentUserId, withIncoming = false) {
     if (!state.members.some(member => member.userId === state.currentUserId)) return null;
     const readyCount = state.members.filter(member => member.ready).length;
     return {
-      lobbyId: 'qa-raid-lobby',
-      guildId: guild.id,
-      guildName: guild.name,
-      guildTag: guild.tag,
-      leaderUserId: state.leaderUserId,
-      status: state.status,
-      raidRunId: state.runId,
-      version: state.version,
-      expiresAt: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
-      serverNow: new Date().toISOString(),
-      viewerUserId: state.currentUserId,
-      viewerIsLeader: state.currentUserId === state.leaderUserId,
-      memberCount: state.members.length,
-      readyCount,
+      lobbyId: 'qa-raid-lobby', guildId: guild.id, guildName: guild.name, guildTag: guild.tag,
+      leaderUserId: state.leaderUserId, status: state.status, raidRunId: state.runId, version: state.version,
+      expiresAt: new Date(Date.now() + 2 * 60 * 60_000).toISOString(), serverNow: new Date().toISOString(),
+      viewerUserId: state.currentUserId, viewerIsLeader: state.currentUserId === state.leaderUserId,
+      memberCount: state.members.length, readyCount,
       canStart: state.currentUserId === state.leaderUserId && state.members.length === 4 && readyCount === 4 && state.status === 'ready',
       members: state.members.map(member => ({
-        userId: member.userId,
-        slot: member.slot,
-        status: member.ready ? 'ready' : 'joined',
-        ready: member.ready,
-        joinedAt: '2026-07-26T08:00:00.000Z',
-        displayName: profile(member.userId)?.display_name ?? 'Abenteurer',
-        avatarKey: profile(member.userId)?.avatar_key ?? null,
-        guildRole: guildRole(member.userId),
-        isLeader: member.userId === state.leaderUserId,
+        userId: member.userId, slot: member.slot, status: member.ready ? 'ready' : 'joined', ready: member.ready,
+        joinedAt: '2026-07-26T08:00:00.000Z', displayName: profile(member.userId)?.display_name ?? 'Abenteurer',
+        avatarKey: profile(member.userId)?.avatar_key ?? null, guildRole: guildRole(member.userId), isLeader: member.userId === state.leaderUserId,
       })),
       invitations: state.invitations.map(invitation => ({
-        invitationId: invitation.id,
-        targetUserId: invitation.userId,
-        displayName: profile(invitation.userId)?.display_name ?? 'Abenteurer',
-        avatarKey: profile(invitation.userId)?.avatar_key ?? null,
-        status: 'pending',
-        expiresAt: new Date(Date.now() + 25 * 60_000).toISOString(),
+        invitationId: invitation.id, targetUserId: invitation.userId,
+        displayName: profile(invitation.userId)?.display_name ?? 'Abenteurer', avatarKey: profile(invitation.userId)?.avatar_key ?? null,
+        status: 'pending', expiresAt: new Date(Date.now() + 25 * 60_000).toISOString(),
       })),
     };
   };
-
   return {
-    guild,
-    profiles,
-    guildMembers,
-    state,
-    snapshot,
+    guild, profiles, guildMembers, state, snapshot,
     fillLobby() {
       state.members = [
-        { userId: 'qa-owner', slot: 1, ready: false },
-        { userId: 'qa-officer', slot: 2, ready: false },
-        { userId: 'qa-member', slot: 3, ready: false },
-        { userId: 'qa-away', slot: 4, ready: false },
+        { userId: 'qa-owner', slot: 1, ready: false }, { userId: 'qa-officer', slot: 2, ready: false },
+        { userId: 'qa-member', slot: 3, ready: false }, { userId: 'qa-away', slot: 4, ready: false },
       ];
       state.invitations = [];
       resetReady();
@@ -115,8 +89,7 @@ function makeRaidController(currentUserId, withIncoming = false) {
     },
     readyOthers() {
       state.members.filter(member => member.userId !== state.currentUserId).forEach(member => { member.ready = true; });
-      const allReady = state.members.length === 4 && state.members.every(member => member.ready);
-      state.status = allReady ? 'ready' : 'forming';
+      state.status = state.members.length === 4 && state.members.every(member => member.ready) ? 'ready' : 'forming';
       bump();
     },
     handleRpc(name, body) {
@@ -124,75 +97,38 @@ function makeRaidController(currentUserId, withIncoming = false) {
       if (name === 'guild_raid_list_my_invitations') return state.incoming;
       if (name === 'guild_raid_create_lobby') {
         if (!state.members.some(member => member.userId === state.currentUserId)) state.members = [{ userId: state.currentUserId, slot: 1, ready: false }];
-        state.leaderUserId = state.currentUserId;
-        state.status = 'forming';
-        bump();
-        return snapshot();
+        state.leaderUserId = state.currentUserId; state.status = 'forming'; bump(); return snapshot();
       }
       if (name === 'guild_raid_invite_member') {
         const userId = String(body.p_target_user_id);
         if (!state.invitations.some(invitation => invitation.userId === userId)) state.invitations.push({ id: `invite-${userId}`, userId });
-        resetReady();
-        bump();
-        return snapshot();
+        resetReady(); bump(); return snapshot();
       }
-      if (name === 'guild_raid_cancel_invite') {
-        state.invitations = state.invitations.filter(invitation => invitation.id !== body.p_invitation_id);
-        bump();
-        return snapshot();
-      }
+      if (name === 'guild_raid_cancel_invite') { state.invitations = state.invitations.filter(invitation => invitation.id !== body.p_invitation_id); bump(); return snapshot(); }
       if (name === 'guild_raid_respond_invite') {
-        const accept = Boolean(body.p_accept);
-        state.incoming = [];
+        const accept = Boolean(body.p_accept); state.incoming = [];
         if (!accept) return { accepted: false, lobbyId: 'qa-raid-lobby' };
         if (!state.members.some(member => member.userId === state.currentUserId)) {
           const used = new Set(state.members.map(member => member.slot));
-          const slot = [1, 2, 3, 4].find(candidate => !used.has(candidate));
-          state.members.push({ userId: state.currentUserId, slot, ready: false });
+          state.members.push({ userId: state.currentUserId, slot: [1, 2, 3, 4].find(candidate => !used.has(candidate)), ready: false });
         }
-        resetReady();
-        bump();
-        return snapshot();
+        resetReady(); bump(); return snapshot();
       }
       if (name === 'guild_raid_set_ready') {
         const member = state.members.find(item => item.userId === state.currentUserId);
         if (member) member.ready = Boolean(body.p_ready);
-        state.status = state.members.length === 4 && state.members.every(item => item.ready) ? 'ready' : 'forming';
-        bump();
-        return snapshot();
+        state.status = state.members.length === 4 && state.members.every(item => item.ready) ? 'ready' : 'forming'; bump(); return snapshot();
       }
-      if (name === 'guild_raid_remove_member') {
-        state.members = state.members.filter(member => member.userId !== body.p_target_user_id);
-        resetReady();
-        bump();
-        return snapshot();
-      }
+      if (name === 'guild_raid_remove_member') { state.members = state.members.filter(member => member.userId !== body.p_target_user_id); resetReady(); bump(); return snapshot(); }
       if (name === 'guild_raid_leave_lobby') {
         state.members = state.members.filter(member => member.userId !== state.currentUserId);
         let newLeaderUserId = null;
-        if (state.currentUserId === state.leaderUserId && state.members.length) {
-          state.members.sort((a, b) => a.slot - b.slot);
-          state.leaderUserId = state.members[0].userId;
-          newLeaderUserId = state.leaderUserId;
-        }
-        resetReady();
-        bump();
-        return { left: true, lobbyId: 'qa-raid-lobby', dissolved: state.members.length === 0, newLeaderUserId, leaderRule: 'lowest_occupied_slot' };
+        if (state.currentUserId === state.leaderUserId && state.members.length) { state.members.sort((a, b) => a.slot - b.slot); state.leaderUserId = state.members[0].userId; newLeaderUserId = state.leaderUserId; }
+        resetReady(); bump(); return { left: true, lobbyId: 'qa-raid-lobby', dissolved: state.members.length === 0, newLeaderUserId, leaderRule: 'lowest_occupied_slot' };
       }
-      if (name === 'guild_raid_dissolve_lobby') {
-        state.members = [];
-        state.invitations = [];
-        state.status = 'dissolved';
-        bump();
-        return { dissolved: true };
-      }
+      if (name === 'guild_raid_dissolve_lobby') { state.members = []; state.invitations = []; state.status = 'dissolved'; bump(); return { dissolved: true }; }
       if (name === 'guild_raid_start') {
-        if (!state.runId) {
-          state.runId = 'qa-raid-run-exactly-once';
-          state.status = 'started';
-          state.startCount += 1;
-          bump();
-        }
+        if (!state.runId) { state.runId = 'qa-raid-run-exactly-once'; state.status = 'started'; state.startCount += 1; bump(); }
         return snapshot();
       }
       return [];
@@ -207,17 +143,12 @@ async function installApiMocks(page, controller) {
     const resource = url.pathname.split('/').pop() || '';
     const select = url.searchParams.get('select') || '';
     let body = [];
-    if (resource === 'guild_members' && url.searchParams.has('user_id')) {
-      body = [{ role: controller.state.currentUserId === 'qa-owner' ? 'owner' : 'officer', guilds: controller.guild }];
-    } else if (resource === 'guild_members' && url.searchParams.has('guild_id')) {
-      body = controller.guildMembers;
-    } else if (resource === 'guild_invites' || resource === 'guild_messages') {
-      body = [];
-    } else if (resource === 'profiles' && select.includes('last_active_at')) {
-      body = controller.profiles.map(({ id, last_active_at }) => ({ id, last_active_at }));
-    } else if (resource === 'profiles') {
-      body = controller.profiles;
-    } else if (url.pathname.includes('/rpc/')) {
+    if (resource === 'guild_members' && url.searchParams.has('user_id')) body = [{ role: controller.state.currentUserId === 'qa-owner' ? 'owner' : 'officer', guilds: controller.guild }];
+    else if (resource === 'guild_members' && url.searchParams.has('guild_id')) body = controller.guildMembers;
+    else if (resource === 'guild_invites' || resource === 'guild_messages') body = [];
+    else if (resource === 'profiles' && select.includes('last_active_at')) body = controller.profiles.map(({ id, last_active_at }) => ({ id, last_active_at }));
+    else if (resource === 'profiles') body = controller.profiles;
+    else if (url.pathname.includes('/rpc/')) {
       let requestBody = {};
       try { requestBody = request.postDataJSON() ?? {}; } catch {}
       body = controller.handleRpc(resource, requestBody);
@@ -228,9 +159,7 @@ async function installApiMocks(page, controller) {
 
 async function seedState(page, userId) {
   await page.addInitScript(({ userId }) => {
-    localStorage.clear();
-    sessionStorage.clear();
-    const now = Date.now();
+    localStorage.clear(); sessionStorage.clear(); const now = Date.now();
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
     localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'standard', textSize: 'standard', updatedAt: now }));
@@ -239,7 +168,7 @@ async function seedState(page, userId) {
     localStorage.setItem('dungeon-veil-meta', JSON.stringify({ version: 4, rank: 20, xp: 420, dust: 9840, gold: 24850, owned: {}, equipped: {}, rewardLedger: [], currentRunId: '' }));
     class FakeWebSocket {
       static OPEN = 1;
-      constructor() { this.readyState = 0; this.closed = false; setTimeout(() => { if (this.closed) return; this.readyState = 1; this.onopen?.({}); }, 0); }
+      constructor() { this.readyState = 0; this.closed = false; setTimeout(() => { if (!this.closed) { this.readyState = 1; this.onopen?.({}); } }, 0); }
       send(raw) { const message = JSON.parse(raw); if (message.event === 'phx_join') setTimeout(() => this.onmessage?.({ data: JSON.stringify({ topic: message.topic, event: 'phx_reply', payload: { status: 'ok', response: { postgres_changes: [{ id: 1 }] } }, ref: message.ref, join_ref: message.join_ref }) }), 0); }
       close() { this.closed = true; this.readyState = 3; }
     }
@@ -271,11 +200,9 @@ async function capture(page, state, projectName) {
 }
 
 async function assertTouchTarget(locator, minimum = 44) {
-  await locator.scrollIntoViewIfNeeded();
   await expect(locator).toBeVisible();
-  const box = await locator.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box.height).toBeGreaterThanOrEqual(minimum);
+  const height = await locator.evaluate(element => element.getBoundingClientRect().height);
+  expect(height).toBeGreaterThanOrEqual(minimum);
 }
 
 test('leader forms four-player guild raid lobby and creates one server run', async ({ page }, testInfo) => {
@@ -283,7 +210,6 @@ test('leader forms four-player guild raid lobby and creates one server run', asy
   const issues = monitorRuntime(page);
   const controller = makeRaidController('qa-owner');
   await gotoGuildRaid(page, controller);
-
   await expect(page.getByTestId('guild-raid-create')).toBeVisible();
   await assertTouchTarget(page.getByTestId('guild-raid-create'), 48);
   await capture(page, 'empty', testInfo.project.name);
@@ -295,8 +221,8 @@ test('leader forms four-player guild raid lobby and creates one server run', asy
     const invite = page.getByTestId('guild-raid-invite-member').first();
     await assertTouchTarget(invite);
     await invite.tap();
+    await expect(page.getByTestId('guild-raid-pending-invite')).toHaveCount(index + 1);
   }
-  await expect(page.getByTestId('guild-raid-pending-invite')).toHaveCount(3);
   await capture(page, 'invites-pending', testInfo.project.name);
 
   controller.fillLobby();
@@ -310,7 +236,6 @@ test('leader forms four-player guild raid lobby and creates one server run', asy
   await expect(start).toBeEnabled();
   await assertTouchTarget(start, 48);
   await capture(page, 'four-ready', testInfo.project.name);
-
   await start.tap();
   await expect(page.getByTestId('guild-raid-started-handoff')).toContainText('qa-raid-run-exactly-once');
   expect(controller.state.startCount).toBe(1);
@@ -339,7 +264,6 @@ test('invited non-leader can accept but cannot use leader controls', async ({ pa
   const issues = monitorRuntime(page);
   const controller = makeRaidController('qa-officer', true);
   await gotoGuildRaid(page, controller);
-
   await expect(page.getByTestId('guild-raid-incoming-invitations')).toBeVisible();
   await capture(page, 'incoming-invite', testInfo.project.name);
   const accept = page.getByTestId('guild-raid-invite-accept');
