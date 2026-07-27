@@ -4,15 +4,15 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const OWNED_RELICS = ['ash-eye', 'marked-claw', 'veil-heart'];
 const STARTER_EQUIPMENT = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
 
-async function openCodex(page) {
-  await page.addInitScript(({ ownedRelics, starterEquipment }) => {
-    localStorage.setItem('dungeon-veil-language', 'de');
+async function openCodex(page, { language = 'de' } = {}) {
+  await page.addInitScript(({ ownedRelics, starterEquipment, language }) => {
+    localStorage.setItem('dungeon-veil-language', language);
     localStorage.setItem('dungeon-veil-retention-v2', JSON.stringify({
       currencyVersion: 2,
       sigils: 0,
       codex: {
         enemies: ['goblin', 'skeleton', 'spider'],
-        bosses: ['1:10', '1:20'],
+        bosses: ['1:10', '1:20', '1:50', '1:100'],
         hunts: ['Aschenjäger'],
         relics: [],
       },
@@ -32,7 +32,7 @@ async function openCodex(page) {
       announcedEquipment: starterEquipment,
       announcedRelics: ownedRelics,
     }));
-  }, { ownedRelics: OWNED_RELICS, starterEquipment: STARTER_EQUIPMENT });
+  }, { ownedRelics: OWNED_RELICS, starterEquipment: STARTER_EQUIPMENT, language });
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   const boot = page.getByTestId('app-boot-loading-screen');
   await expect(boot).toBeHidden({ timeout: 60_000 });
@@ -55,7 +55,15 @@ async function assertNoOverflow(page) {
   expect(Math.max(width.body, width.root)).toBeLessThanOrEqual(width.viewport + 4);
 }
 
-test('codex uses visual cards, one shared model preview and responsive tablet detail', async ({ page }, testInfo) => {
+async function assertTouchTarget(locator, minimum = 44) {
+  await expect(locator).toBeVisible();
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box.height).toBeGreaterThanOrEqual(minimum);
+  expect(box.width).toBeGreaterThanOrEqual(minimum);
+}
+
+test('codex uses visual cards, ten wardens, exact counters and responsive detail', async ({ page }) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(error.message));
@@ -65,11 +73,14 @@ test('codex uses visual cards, one shared model preview and responsive tablet de
 
   await openCodex(page);
   await assertNoOverflow(page);
+  await assertTouchTarget(page.getByTestId('codex-back'));
+  for (const tab of ['beasts', 'hunts', 'wardens', 'relics', 'equipment']) await assertTouchTarget(page.getByTestId(`codex-tab-${tab}`));
 
   const grid = page.getByTestId('codex-card-grid');
   await expect(grid.locator('button')).toHaveCount(8);
   await expect(page.getByTestId('codex-card-goblin')).toHaveAttribute('data-known', 'true');
   await expect(page.getByTestId('codex-card-slime')).toHaveAttribute('data-known', 'false');
+  await expect(page.getByTestId('codex-count-beasts')).toHaveText('3/8');
   await expect(page.getByTestId('codex-shared-model-preview')).toHaveCount(1);
   await expect(page.getByTestId('codex-shared-model-preview')).toHaveAttribute('data-preview-renderers', '1');
   expect(await page.locator('[data-codex-preview-canvas="true"]').count()).toBeLessThanOrEqual(1);
@@ -78,17 +89,19 @@ test('codex uses visual cards, one shared model preview and responsive tablet de
   await expect(page.getByTestId('codex-shared-model-preview')).toHaveCount(0);
   await expect(page.getByTestId('codex-detail-panel')).toContainText(/Erstmals nach dem ersten Wächter|First seen after/i);
 
-  await page.getByRole('button', { name: /WÄCHTER|WARDENS/i }).click();
-  await expect(grid.locator('button')).toHaveCount(5);
+  await page.getByTestId('codex-tab-wardens').click();
+  await expect(grid.locator('button')).toHaveCount(10);
+  await expect(page.getByTestId('codex-count-wardens')).toHaveText('4/10');
   await expect(page.getByTestId('codex-card-warden-10')).toHaveAttribute('data-known', 'true');
-  await expect(page.getByTestId('codex-card-warden-30')).toHaveAttribute('data-known', 'false');
+  await expect(page.getByTestId('codex-card-warden-60')).toHaveAttribute('data-known', 'false');
+  await expect(page.getByTestId('codex-card-warden-100')).toHaveAttribute('data-known', 'true');
 
-  await page.getByRole('button', { name: /RELIKTE|RELICS/i }).click();
+  await page.getByTestId('codex-tab-relics').click();
   await expect(grid.locator('button')).toHaveCount(7);
   await expect(page.getByTestId('codex-card-marked-claw')).toHaveAttribute('data-known', 'true');
   await expect(page.getByTestId('codex-card-world-core')).toHaveAttribute('data-known', 'false');
 
-  await page.getByRole('button', { name: /AUSRÜSTUNG|EQUIPMENT/i }).click();
+  await page.getByTestId('codex-tab-equipment').click();
   await expect(grid.locator('button')).toHaveCount(10);
 
   if ((page.viewportSize()?.width ?? 390) >= 768) {
@@ -104,4 +117,24 @@ test('codex uses visual cards, one shared model preview and responsive tablet de
 
   await assertNoOverflow(page);
   expect(runtimeErrors).toEqual([]);
+});
+
+test('English codex contains no German card-state copy and survives reload', async ({ page }) => {
+  test.setTimeout(180_000);
+  await openCodex(page, { language: 'en' });
+  await expect(page.getByRole('heading', { name: 'CODEX' })).toBeVisible();
+  await expect(page.getByTestId('codex-card-slime')).toContainText('UNDISCOVERED');
+  await expect(page.getByTestId('codex-card-slime')).toContainText('SILHOUETTE · DISCOVERY HINT');
+  await expect(page.getByTestId('codex-card-slime')).not.toContainText('NICHT ENTDECKT');
+  await page.getByTestId('codex-tab-wardens').click();
+  await expect(page.getByTestId('codex-count-wardens')).toHaveText('4/10');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('button', { name: /Play/i })).toBeVisible({ timeout: 60_000 });
+  const codexButton = page.getByRole('button', { name: /Codex/i }).first();
+  await codexButton.click({ noWaitAfter: true });
+  await expect(page.getByTestId('codex-card-slime')).toContainText('UNDISCOVERED');
+  await page.getByTestId('codex-tab-wardens').click();
+  await expect(page.getByTestId('codex-count-wardens')).toHaveText('4/10');
+  await expect(page.getByTestId('codex-card-warden-100')).toHaveAttribute('data-known', 'true');
+  await assertNoOverflow(page);
 });
