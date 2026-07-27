@@ -97,25 +97,34 @@ Diese Datei ist die dauerhafte, repository-interne Quelle für den verbindlichen
 
 ## Block 7 – Räume 91–100 und finaler Raum-100-Boss
 
-- Räume 91–99 bilden das finale Kapitel des erweiterten Runs.
+- Räume 91–99 bilden das finale Kapitel des ersten 100-Raum-Durchlaufs.
 - Raum 100 ist ein echter großer Abschlussboss und kein vergrößerter Standardgegner.
 - Eigene Bossphasen, Angriffe, Telegraphen, Arena, Übergänge, visuelle Identität, Belohnung und Abschlussdarstellung.
 - Frühere Mechaniken sinnvoll zusammenführen, ohne unfair oder unlesbar zu werden.
 - Tod, Neustart, Fortsetzen, Duo, Renderer-Recovery und Orientierung müssen funktionieren.
-- Nach Raum 100 eindeutigen Abschluss-/Weiterführungszustand schaffen.
-- Keine Endlosschleife und keine doppelte Belohnung.
+- Nach Raum 100 endet der Gesamtfortschritt nicht: Der Run wechselt verbindlich von **Kapitel 1** zu **Kapitel 2** und beginnt wieder bei **Raum 1**.
+- Jedes Kapitel besteht aus denselben 100 Raumpositionen, muss aber als klar stärkerer Durchlauf behandelt werden; Kapitelnummer und aktuelle Raumposition müssen getrennt gespeichert, angezeigt und synchronisiert werden.
+- Der Schwierigkeitsanstieg pro Kapitel darf nicht nur aus mehr Gegner-HP bestehen. Angriffsdruck, Gegnerkombinationen, Eliterollen, Bewegung, Gefahrenmuster, Reaktionsfenster, Bossphasen und mechanische Überlagerungen müssen kontrolliert zunehmen.
+- Kapitel 2 muss bereits deutlich schwerer als Kapitel 1 sein. Der Anstieg bis Kapitel 100 soll so steil und anspruchsvoll sein, dass Kapitel 100 nur von außergewöhnlich starken, sehr gut ausgerüsteten und mechanisch sicheren Spielern erreicht werden kann.
+- Kapitel 100 ist das langfristige Extremziel. Es darf nicht durch triviales lineares Farmen, einfache Zeitinvestition oder eine einzelne übermächtige Ausrüstungskombination zuverlässig erreichbar sein.
+- Die Skalierung muss mathematisch dokumentiert, simuliert und gegen unfaire Soforttode, unsichtbare Gefahren, nicht mehr reagierbare Telegraphen, HP-Schwämme und technisch unmögliche Begegnungen abgesichert werden.
+- Belohnungen, Ausrüstungsfortschritt und Upgradeökonomie müssen mit der Kapitelsteigerung wachsen, ohne den Schwierigkeitssprung vollständig zu neutralisieren oder exponentielle Inflation zu erzeugen.
+- Nach jedem Raum-100-Sieg darf Kapitelaufstieg und Belohnung exakt einmal erfolgen; Doppeltap, Retry, Reload, Reconnect und Duo-Synchronisierung dürfen weder Kapitel überspringen noch Belohnungen duplizieren.
+- Tod, Fortsetzen und Cloud-Save müssen jederzeit exakt **Kapitel**, **Raum**, Bosszustand und bereits beanspruchte Kapitelbelohnungen wiederherstellen.
+- Es gibt keine Endlosschleife innerhalb eines Kapitels: Raum 100 führt genau einmal in Raum 1 des nächsten Kapitels. Nach Abschluss von Kapitel 100 muss ein eigener endgültiger Endzustand mit besonderer Abschlussdarstellung entstehen.
 
 ## Block 8 – Gesamtbalance, Progression und vollständige Räume-1–100-Evidence
 
-- Gesamte Schwierigkeitskurve 1–100 prüfen und unfaire Sprünge beseitigen.
+- Gesamte Schwierigkeitskurve 1–100 in Kapitel 1 prüfen und unfaire Sprünge beseitigen.
+- Den Kapitelaufstieg 1 → 2, mehrere repräsentative mittlere Kapitel sowie die Extrem-Skalierung bis Kapitel 100 mit deterministischen Simulationen und dokumentierten Grenzwerten prüfen.
 - Gegner-HP, Angriffsdruck, Bewegung, Pausen, Gefahren und Belohnungen gemeinsam bewerten.
 - Gold, Schleierstaub, Ausrüstungsdrops, Schmiedemarken und Upgradeökonomie simulieren.
-- Save/Fortsetzen, Duo-Synchronisierung und gegebenenfalls Spectator-Zustände auf Räume 51–100 erweitern.
+- Save/Fortsetzen, Duo-Synchronisierung und gegebenenfalls Spectator-Zustände auf Räume 51–100 sowie auf Kapitel- und Raumposition erweitern.
 - Weltboss und bestehende Modi dürfen nicht regressieren.
-- Room Bible, Kodex, Titel und Freischaltungen bis Raum 100 aktualisieren.
-- Validatoren bewusst vom alten 1–50-Vertrag auf den passenden 1–100-Vertrag erweitern.
+- Room Bible, Kodex, Titel und Freischaltungen bis Raum 100 aktualisieren; Kapitelnummer, Kapitelbestwerte und Kapitelabschluss müssen getrennt abgebildet werden.
+- Validatoren bewusst vom alten 1–50-Vertrag auf den passenden 1–100- und 100-Kapitel-Vertrag erweitern.
 - Vollständige Solo- und Duo-Läufe auf iPhone und Android-Smartphone; kritische Übergänge, Bosse und Runtime-Verträge auf iPad und Android-Tablet.
-- Räume 50/51, 60/61, 70/71, 80/81, 90/91 und Raum 100 besonders prüfen.
+- Räume 50/51, 60/61, 70/71, 80/81, 90/91, Raum 100 sowie der Übergang Kapitel 1 Raum 100 → Kapitel 2 Raum 1 besonders prüfen.
 - WebGL-Recovery, Orientierungsschutz, Hazard-Cleanup, Tod/Fortsetzen und HUD-/Renderingfehler prüfen.
 - Alle Screenshots und Videos tatsächlich ansehen und sichtbare Fehler selbst korrigieren.
 
@@ -198,8 +207,9 @@ Diese Datei ist die dauerhafte, repository-interne Quelle für den verbindlichen
 
 ## Block 17 – Abschließender Gesamtpolish und Veröffentlichung
 
-- Gesamtes veröffentlichte Spiel prüfen: Hauptmenü, Shop, Optionen, Profil, Ausrüstung, Kodex, Aufträge, Post, Freunde, Gilde, Gildenraid, Solo, Duo, Räume 1–100, alle Bosse, Weltboss, Begleiter, Relikte, Schmiedemarken, Upgrades, Loot, Save/Reload, Cloud, Spectator, Renderer-Recovery und Querformatblocker.
+- Gesamtes veröffentlichte Spiel prüfen: Hauptmenü, Shop, Optionen, Profil, Ausrüstung, Kodex, Aufträge, Post, Freunde, Gilde, Gildenraid, Solo, Duo, Räume 1–100, Kapitelaufstieg 1–100, alle Bosse, Weltboss, Begleiter, Relikte, Schmiedemarken, Upgrades, Loot, Save/Reload, Cloud, Spectator, Renderer-Recovery und Querformatblocker.
 - Visuell nach schwarzen Räumen, unsichtbaren Gegnern, falschen Waffenhaltungen, schwebenden/doppelten Ausrüstungsteilen, Geisterschaden, Gefahren nach Kampfende, abgeschnittenem HUD, zu kleinen Touchflächen, überlappenden Menüs, horizontalem Überlauf, leeren Räumen, schlechter Beleuchtung, verdeckten Telegraphen, falschen Titeln/Bildern, falschen Übergangsscreens, Speicher-/Geometriewachstum und Platzhaltern suchen.
+- Kapitelanzeige, Raumreset nach Raum 100, einmalige Kapitelbelohnung, Kapitel-/Raum-Saves, Duo-Synchronisierung und finalen Abschluss nach Kapitel 100 gezielt prüfen.
 - Fehler nicht nur melden, sondern auf getrennten kleinen Branches selbst beheben.
 - Abschließend vollständige mobile Hochformatmatrix, Retries 0, alle Pflichtchecks grün, finale Screenshots/Videos manuell geprüft, exakten Head-SHA geprüft, in den festen Zielbranch gemergt, Zielbranch-Actions und Pages geprüft.
 - Stündliche Automation erst deaktivieren, wenn alle Blöcke wirklich abgeschlossen sind.
