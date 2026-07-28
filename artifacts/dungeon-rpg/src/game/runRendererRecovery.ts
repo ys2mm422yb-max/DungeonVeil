@@ -43,7 +43,11 @@ function markRestored(reason: string): void {
   clearRecoveryTimers();
   fallbackActive = false;
   lostSince = 0;
-  primaryRecoveryStartedAt = 0;
+  // Keep the primary-recovery grace window alive after the ready signal. On
+  // Android Chromium the replacement canvas can briefly report a lost context
+  // while it finishes mounting; clearing the grace here started a duplicate
+  // watchdog recovery cycle with a second Preparing/Lost/Ready sequence.
+  primaryRecoveryStartedAt = performance.now();
   const html = document.documentElement;
   html.dataset.dungeonVeilRendererState = 'ready';
   html.dataset.dungeonVeilRendererReason = reason;

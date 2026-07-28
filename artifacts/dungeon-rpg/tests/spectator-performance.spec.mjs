@@ -5,6 +5,26 @@ function qaUrl() { const url = new URL(APP_URL); url.searchParams.set('qa', 'spe
 const numberAttr = (locator, name) => locator.getAttribute(name).then(value => Number(value || 0));
 async function rendererMetrics(page) { return page.evaluate(() => { try { return JSON.parse(localStorage.getItem('dungeon-veil-performance') || '{}'); } catch { return {}; } }); }
 
+async function stableRendererMetrics(page) {
+  const deadline = Date.now() + 8_000;
+  let previous = await rendererMetrics(page);
+  let stableSamples = 0;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(250);
+    const current = await rendererMetrics(page);
+    const sameGeometry = Number.isFinite(previous.geometries)
+      && Number.isFinite(current.geometries)
+      && previous.geometries === current.geometries;
+    const sameTextures = Number.isFinite(previous.textures)
+      && Number.isFinite(current.textures)
+      && previous.textures === current.textures;
+    stableSamples = sameGeometry && sameTextures ? stableSamples + 1 : 0;
+    previous = current;
+    if (stableSamples >= 3) return current;
+  }
+  return previous;
+}
+
 test('spectator playback and its companion stay smooth and bounded through jitter and packet loss', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   if (testInfo.project.name.includes('ipad')) await page.setViewportSize({ width: 820, height: 1180 });
@@ -32,7 +52,7 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   const startX = await numberAttr(diagnostics, 'data-player-x');
   const startFrames = await numberAttr(diagnostics, 'data-frames');
   const startMeasuredFrames = await numberAttr(diagnostics, 'data-measured-frames');
-  const earlyRenderer = await rendererMetrics(page);
+  const earlyRenderer = await stableRendererMetrics(page);
   await page.waitForTimeout(12_000);
   const finalX = await numberAttr(diagnostics, 'data-player-x');
   const frames = await numberAttr(diagnostics, 'data-frames');

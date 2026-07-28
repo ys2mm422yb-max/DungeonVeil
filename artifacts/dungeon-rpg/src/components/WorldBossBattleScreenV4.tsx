@@ -5,6 +5,7 @@ import { TILE_SIZE, TileType } from '../game/dungeon';
 import { submitWorldBossHit, type WorldBossEvent } from '../game/supabaseOnline';
 import { WORLD_BOSS_BALANCE_V4 } from '../game/buildBalanceV4';
 import { createEquipmentRuntimeBalanceState, updateEquipmentRuntimeBalance } from '../game/equipmentRuntimeBalance';
+import { worldBossRotationProfile, type WorldBossRotationProfile } from '../game/worldBossRotationProfile';
 import { VirtualJoystick } from './VirtualJoystick';
 import { ActionButtons } from './ActionButtons';
 import { WorldBossLiteStage } from './WorldBossLiteStage';
@@ -17,7 +18,6 @@ const SIMULATION_STEP_MS = IS_MOBILE ? 33 : 0;
 const RAID_PARTICLE_LIMIT = IS_MOBILE ? 12 : 36;
 const RAID_EFFECT_LIMIT = IS_MOBILE ? 8 : 20;
 const RAID_DAMAGE_LIMIT = IS_MOBILE ? 6 : 12;
-const BOSS_START_DELAY_MS = 700;
 
 type BattlePhase = 'fighting' | 'submitting' | 'result';
 type FinishReason = 'victory' | 'defeat' | 'time';
@@ -55,7 +55,7 @@ function raidSave(engine: GameEngine, source: SaveData | null): SaveData {
   };
 }
 
-function prepareArena(state: GameState) {
+function prepareArena(state: GameState, profile: WorldBossRotationProfile) {
   const map = state.map;
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
@@ -77,6 +77,7 @@ function prepareArena(state: GameState) {
 
   const boss = state.enemies.find(enemy => enemy.enemyType === 'boss');
   if (!boss) return;
+  const health = Math.round(WORLD_BOSS_BALANCE_V4.health * profile.combat.healthMultiplier);
   boss.x = map.width * TILE_SIZE * 0.5 - boss.width / 2;
   boss.y = map.height * TILE_SIZE * 0.24 - boss.height / 2;
   boss.targetX = boss.x;
@@ -85,17 +86,19 @@ function prepareArena(state: GameState) {
   boss.lastProgressY = boss.y;
   boss.vx = 0;
   boss.vy = 0;
-  boss.maxHp = WORLD_BOSS_BALANCE_V4.health;
-  boss.hp = WORLD_BOSS_BALANCE_V4.health;
-  boss.attack = WORLD_BOSS_BALANCE_V4.clawDamage;
-  boss.defense = 6;
+  boss.maxHp = health;
+  boss.hp = health;
+  boss.attack = Math.round(WORLD_BOSS_BALANCE_V4.clawDamage * profile.combat.clawMultiplier);
+  boss.defense = profile.combat.defense;
   boss.speed = 0;
-  boss.nextAttackTime = performance.now() + 1200;
+  boss.nextAttackTime = performance.now() + profile.combat.startDelayMs + 500;
   Object.assign(boss, {
     balanceSeason: WORLD_BOSS_BALANCE_V4.balanceSeason,
-    fireBreathDamage: WORLD_BOSS_BALANCE_V4.fireBreathDamage,
-    clawDamage: WORLD_BOSS_BALANCE_V4.clawDamage,
-    slamDamage: WORLD_BOSS_BALANCE_V4.slamDamage,
+    worldBossKey: profile.key,
+    worldBossTheme: profile.theme,
+    fireBreathDamage: Math.round(WORLD_BOSS_BALANCE_V4.fireBreathDamage * profile.combat.breathMultiplier),
+    clawDamage: Math.round(WORLD_BOSS_BALANCE_V4.clawDamage * profile.combat.clawMultiplier),
+    slamDamage: Math.round(WORLD_BOSS_BALANCE_V4.slamDamage * profile.combat.slamMultiplier),
     armorMitigationCap: WORLD_BOSS_BALANCE_V4.armorMitigationCap,
   });
 }
@@ -116,6 +119,7 @@ function snapshot(state: GameState): GameState {
 
 export function WorldBossBattleScreen({ event, saveData, language, onClose, onBossUpdated }: Props) {
   const de = language === 'de';
+  const profile = useMemo(() => worldBossRotationProfile(event), [event]);
   const engineRef = useRef<GameEngine | null>(null);
   const finishedRef = useRef(false);
   const readyRef = useRef(false);
@@ -165,8 +169,8 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       const now = performance.now();
       const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
       if (boss) {
-        releaseRef.current = now + BOSS_START_DELAY_MS;
-        boss.nextAttackTime = Math.max(boss.nextAttackTime, now + 1200);
+        releaseRef.current = now + profile.combat.startDelayMs;
+        boss.nextAttackTime = Math.max(boss.nextAttackTime, now + profile.combat.startDelayMs + 500);
         boss.spawnTime = now;
       }
       engine.lastTime = now;
@@ -174,7 +178,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       setState(snapshot(engine.state));
     }
     setReady(true);
-  }, [de, handleLoadError]);
+  }, [de, handleLoadError, profile.combat.startDelayMs]);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -199,12 +203,12 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     engine.onStateChange = () => {};
 
     engine.continueGame(raidSave(engine, saveData));
-    prepareArena(engine.state);
+    prepareArena(engine.state, profile);
     updateEquipmentRuntimeBalance(engine, equipmentRuntime);
     engine.state.player.hp = engine.state.player.maxHp;
     engine.state.status = 'paused';
     const boss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
-    initialBossHpRef.current = boss?.maxHp ?? WORLD_BOSS_BALANCE_V4.health;
+    initialBossHpRef.current = boss?.maxHp ?? Math.round(WORLD_BOSS_BALANCE_V4.health * profile.combat.healthMultiplier);
     setState(snapshot(engine.state));
 
     const finish = async (reason: FinishReason) => {
@@ -219,7 +223,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       if (reason === 'time') setRemainingMs(0);
       const liveBoss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
       const localDamage = Math.max(0, initialBossHpRef.current - Math.max(0, liveBoss?.hp ?? 0));
-      const raidDamage = Math.max(1, Math.min(WORLD_BOSS_BALANCE_V4.health, Math.round(localDamage)));
+      const raidDamage = Math.max(1, Math.min(initialBossHpRef.current, Math.round(localDamage)));
       setSubmittedDamage(raidDamage);
       phaseRef.current = 'submitting';
       setPhase('submitting');
@@ -249,7 +253,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       if (!startRef.current) startRef.current = time;
       const stagedBoss = engine.state.enemies.find(enemy => enemy.enemyType === 'boss');
       if (stagedBoss && releaseRef.current > 0 && time >= releaseRef.current) {
-        stagedBoss.speed = 44;
+        stagedBoss.speed = profile.combat.moveSpeed;
         releaseRef.current = 0;
       }
       if (SIMULATION_STEP_MS === 0 || !lastStep || time - lastStep >= SIMULATION_STEP_MS) {
@@ -288,16 +292,16 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
       engineRef.current = null;
       clearWorldBossLoadFailure();
     };
-  }, [event.current_hp, event.id, onBossUpdated, saveData]);
+  }, [event.current_hp, event.id, onBossUpdated, profile, saveData]);
 
   const boss = state?.enemies.find(enemy => enemy.enemyType === 'boss');
   const bossPercent = boss && boss.maxHp > 0 ? Math.max(0, Math.min(100, boss.hp / boss.maxHp * 100)) : 0;
   const playerPercent = state && state.player.maxHp > 0 ? Math.max(0, Math.min(100, state.player.hp / state.player.maxHp * 100)) : 0;
   const seconds = Math.ceil(remainingMs / 1000);
   const resultTitle = useMemo(() => submitError ? (de ? 'Übertragung fehlgeschlagen' : 'Submission failed')
-    : finishReason === 'victory' ? (de ? 'Aschenkönig zurückgedrängt' : 'Ash King repelled')
+    : finishReason === 'victory' ? (de ? `${event.name} zurückgedrängt` : `${event.name} repelled`)
       : finishReason === 'defeat' ? (de ? 'Du wurdest bezwungen' : 'You were defeated')
-        : (de ? 'Angriff beendet' : 'Attack finished'), [de, finishReason, submitError]);
+        : (de ? 'Angriff beendet' : 'Attack finished'), [de, event.name, finishReason, submitError]);
 
   const move = useCallback((x: number, y: number) => {
     const engine = engineRef.current;
@@ -326,7 +330,7 @@ export function WorldBossBattleScreen({ event, saveData, language, onClose, onBo
     onClose();
   }, [onClose]);
 
-  return <div data-testid="worldboss-battle-root" data-input-contract="stable-ref-v2" className="fixed inset-0 z-[120] overflow-hidden bg-[#080401] text-white" style={{ touchAction: 'none', overscrollBehavior: 'none' }}>
+  return <div data-testid="worldboss-battle-root" data-input-contract="stable-ref-v2" data-worldboss-key={profile.key} data-worldboss-theme={profile.theme} data-worldboss-speed={profile.combat.moveSpeed} data-worldboss-defense={profile.combat.defense} className="fixed inset-0 z-[120] overflow-hidden bg-[#080401] text-white" style={{ touchAction: 'none', overscrollBehavior: 'none' }}>
     {state && <>
       <WorldBossLiteStage engineRef={engineRef} onReady={handleReady} onLoadError={handleLoadError} />
       <div data-testid="worldboss-compact-status" className="pointer-events-none absolute inset-x-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-50">
