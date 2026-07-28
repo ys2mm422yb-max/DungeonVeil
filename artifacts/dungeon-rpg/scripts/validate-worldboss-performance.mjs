@@ -27,6 +27,11 @@ const hasRotationHealthExpression = files.battle.includes('WORLD_BOSS_BALANCE_V4
 const hasRotationScaledHealth = hasRotationHealthExpression
   && files.battle.includes('boss.maxHp = health')
   && files.battle.includes('boss.hp = health');
+const hasMobileFramePacing = files.stage.includes('if (!IS_MOBILE || qualityLevel === 0) return 0;')
+  && files.stage.includes('return qualityLevel >= 2 ? 42 : 33;');
+const hasMobileResolutionCap = files.stage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)")
+  && files.stage.includes('if (qualityLevel >= 2) return IS_ANDROID ? 0.56 : 0.64;')
+  && files.stage.includes('if (qualityLevel >= 1) return IS_ANDROID ? 0.66 : 0.76;');
 
 const checks = [
   [files.entry.includes("export { WorldBossBattleScreen } from './WorldBossBattleScreenV4';"), 'public battle entry is not routed through the canonical V4 controller'],
@@ -44,7 +49,7 @@ const checks = [
   [files.stage.includes("root.name = 'AshKingLowCostKayKitHall'") && files.stage.includes("lower.name = 'AshKingRaisedDais'") && files.stage.includes("'VeilGateArch'"), 'curated KayKit hall is missing'],
   [files.stage.includes('new THREE.CanvasTexture(canvas)') && files.stage.includes('new THREE.PlaneGeometry(24, 32, 1, 1)') && files.stage.includes("floor.name = 'AshKingDetailedSingleFloor'"), 'single detailed stone floor is missing'],
   [files.stage.includes('const MAX_PROJECTILES = IS_MOBILE ? 3 : 8;') && files.stage.includes('const EMBER_COUNT = IS_MOBILE ? 6 : 20;'), 'mobile effect budgets are too high'],
-  [files.stage.includes('qualityLevel === 0 return 0') && files.stage.includes("return Math.min(ratio, IS_ANDROID ? 0.76 : 0.9)"), 'mobile frame pacing or resolution is not performance safe'],
+  [hasMobileFramePacing && hasMobileResolutionCap, 'mobile frame pacing or resolution is not performance safe'],
   [files.stage.includes('fps < 24 ? 2 : fps < 44') && files.stage.includes('IS_MOBILE ? 60 : 0'), 'adaptive 60-fps-first ladder is missing'],
   [files.stage.includes('camera.fov = phonePortrait ? 58') && files.stage.includes('cameraDistance = phonePortrait ? 23.6') && files.stage.includes('data-camera="calm-perspective-camera"'), 'calm phone-safe camera is missing'],
   [files.stage.includes('new THREE.CircleGeometry(1, 24)') && !files.stage.includes('new THREE.RingGeometry'), 'neon ring telegraphs remain'],
