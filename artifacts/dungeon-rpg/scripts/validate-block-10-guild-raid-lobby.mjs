@@ -42,15 +42,17 @@ const mutationIdempotency = [
 ].every(fragment => migration.includes(fragment));
 
 const germanVisualCopy = [
-  "[aria-label='Gildenraid-Lobby']",
-  "content: 'Bereit'",
-  "content: 'Stand'",
-  "content: 'Platz 1'",
-  "content: 'Platz 2'",
-  "content: 'Platz 3'",
-  "content: 'Platz 4'",
-  "content: 'Live-Sync'",
-].every(fragment => lobbyCss.includes(fragment));
+  "de ? 'Live-Sync' : 'Live'",
+  "de ? 'Serverstand' : 'Snapshot'",
+  "de ? 'Bereit' : 'Ready'",
+  "de ? 'Stand' : 'Server'",
+  "de ? `Platz ${index + 1}` : `Slot ${index + 1}`",
+  "member.ready ? (de ? 'Bereit' : 'Ready') : (de ? 'Nicht bereit' : 'Not ready')",
+  "de ? 'Raid-Übergabe bereit' : 'Raid handoff ready'",
+].every(fragment => panel.includes(fragment));
+const noCssTranslationMask = !lobbyCss.includes("[aria-label='Gildenraid-Lobby']")
+  && !lobbyCss.includes("content: 'Bereit'")
+  && !lobbyCss.includes("content: 'Platz 1'");
 
 const checks = [
   [entry.includes('guild-raid-entry') && entry.includes('<GuildRaidLobbyPanel') && !entry.includes('!qaMode && raidOpen'), 'guild raid entry is not mounted consistently inside the guild surface'],
@@ -58,7 +60,7 @@ const checks = [
   [panel.includes('guild-raid-slots') && panel.includes('Array.from({ length: 4 }') && panel.includes('guild-raid-slot-'), 'four stable visible slots are missing'],
   [panel.includes('cancelGuildRaidInvitation') && panel.includes('removeGuildRaidMember') && panel.includes('dissolveGuildRaidLobby'), 'leader administration controls are incomplete'],
   [panel.includes('guild-raid-landscape-blocker') && panel.includes('min-h-11') && !panel.includes('min-h-10') && panel.includes('h-11 w-11'), 'landscape lock or 44px touch-target contract is incomplete'],
-  [germanVisualCopy, 'German guild raid lobby still exposes untranslated Ready, Slot, Server or Live labels'],
+  [germanVisualCopy && noCssTranslationMask, 'German guild raid lobby copy is not localized in React or still depends on a CSS text mask'],
   [client.includes('/rest/v1/rpc/') && client.includes('/realtime/v1/websocket') && client.includes('postgres_changes') && client.includes('heartbeat'), 'authoritative RPC or Supabase Realtime client is incomplete'],
   [client.includes('version > knownVersion + 1') && panel.includes('fetchGuildRaidLobbySnapshot'), 'version-gap snapshot reconciliation is missing'],
   [migration.includes('create table public.guild_raid_lobbies') && migration.includes('create table public.guild_raid_lobby_members') && migration.includes('create table public.guild_raid_invitations') && migration.includes('create table public.guild_raid_runs') && migration.includes('create table public.guild_raid_participants') && migration.includes('create table public.guild_raid_room_states'), 'required persistent lobby/run handoff entities are missing'],
@@ -82,4 +84,4 @@ if (failures.length) {
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
-console.log(`Block 10 guild raid lobby audit passed: ${securityDefiners} hardened functions, four stable same-guild slots, German visual copy, complete lobby controls, Realtime reconciliation and exact-once server start are present.`);
+console.log(`Block 10 guild raid lobby audit passed: ${securityDefiners} hardened functions, four stable same-guild slots, React-localized German copy, complete lobby controls, Realtime reconciliation and exact-once server start are present.`);
