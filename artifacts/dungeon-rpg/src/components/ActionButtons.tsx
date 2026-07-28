@@ -13,7 +13,7 @@ export function ActionButtons({ gameState: g, onDodge, variant = 'default' }: Pr
   const p = g.player;
   const def = CLASS_DEFS.archer;
   const [dash, setDash] = useState(0);
-  const pointerTriggerAtRef = useRef(0);
+  const pointerUpTriggerAtRef = useRef(0);
   const worldBoss = variant === 'worldBoss';
   const tabletLandscape = typeof window !== 'undefined'
     && typeof navigator !== 'undefined'
@@ -61,20 +61,24 @@ export function ActionButtons({ gameState: g, onDodge, variant = 'default' }: Pr
   >
     <button
       data-testid="run-dash-button"
-      data-input-contract="pointerdown-click-dedup-v1"
+      data-input-contract="pointerup-click-dedup-v2"
       type="button"
       aria-label={ready ? 'Dash bereit' : `Dash in ${seconds.toFixed(1)} Sekunden`}
       aria-disabled={!ready}
       onPointerDown={event => {
         event.preventDefault();
         event.stopPropagation();
-        pointerTriggerAtRef.current = performance.now();
+      }}
+      onPointerUp={event => {
+        event.preventDefault();
+        event.stopPropagation();
+        pointerUpTriggerAtRef.current = performance.now();
         triggerDodge();
       }}
       onClick={event => {
         event.preventDefault();
         event.stopPropagation();
-        if (performance.now() - pointerTriggerAtRef.current < 750) return;
+        if (performance.now() - pointerUpTriggerAtRef.current < 750) return;
         triggerDodge();
       }}
       className={`absolute inset-0 grid place-items-center overflow-hidden rounded-full border-2 backdrop-blur-md transition-[transform,opacity,border-color,background-color] duration-150 ${ready ? 'border-cyan-100/45 bg-black/68 shadow-[0_10px_28px_rgba(0,0,0,.58),0_0_18px_rgba(91,184,227,.18)] active:scale-88' : 'border-white/10 bg-black/76 opacity-78'}`}
