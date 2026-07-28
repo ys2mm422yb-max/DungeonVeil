@@ -1,4 +1,4 @@
-export { WorldBossRotatingBattleScreen as WorldBossBattleScreen } from './WorldBossRotatingBattleScreen';
+export { WorldBossBattleScreen } from './WorldBossBattleScreenV4';
 
-// The canonical V4 controller keeps the stable mobile input and Supabase hit flow.
-// The rotation wrapper adds deterministic boss identity without replacing those contracts.
+// WorldBossLiteStage remains inside the canonical V4 controller.
+// startWorldBossAttempt and resume ownership remain in WorldBossPanel/worldBossAttemptOnline.
