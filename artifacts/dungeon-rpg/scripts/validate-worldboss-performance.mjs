@@ -23,7 +23,8 @@ const dragon = await readFile(new URL('../public/assets/3d/Dragon.fbx', import.m
 const dragonHeader = dragon.subarray(0, 64).toString('utf8');
 
 const hasCanonicalHealth = files.battle.includes('boss.maxHp = WORLD_BOSS_BALANCE_V4.health');
-const hasRotationScaledHealth = files.battle.includes('WORLD_BOSS_BALANCE_V4.health * profile.combat.healthMultiplier')
+const hasRotationHealthExpression = files.battle.includes('WORLD_BOSS_BALANCE_V4.health * profile.combat.healthMultiplier');
+const hasRotationScaledHealth = hasRotationHealthExpression
   && files.battle.includes('boss.maxHp = health')
   && files.battle.includes('boss.hp = health');
 
