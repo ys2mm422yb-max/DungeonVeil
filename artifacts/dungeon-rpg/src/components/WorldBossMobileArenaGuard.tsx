@@ -2,7 +2,9 @@ import React, { useEffect } from 'react';
 import type { GameEngine } from '../game/runEngine';
 import { TILE_SIZE } from '../game/dungeon';
 
-export const WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'visible-walkable-interior-v3';
+export const WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'expanded-camera-safe-arena-v3';
+export const WORLD_BOSS_ARENA_HALF_WIDTH_TILES = 6.25;
+export const WORLD_BOSS_ARENA_HALF_HEIGHT_TILES = 11.25;
 
 type Props = {
   engineRef: React.RefObject<GameEngine | null>;
@@ -46,12 +48,14 @@ function clampEntity(entity: MovableEntity, minimumCenterX: number, maximumCente
 export function enforceWorldBossVisibleArena(engine: GameEngine): void {
   if (!isPortraitTouchDevice()) return;
   const { map, player, enemies } = engine.state;
+  const mapHalfWidth = Math.max(1, (map.width - 3) / 2);
+  const mapHalfHeight = Math.max(1, (map.height - 3) / 2);
 
-  // The old phone-only clamp used a much smaller invisible rectangle than the
-  // rendered hall. That made fighters stick and slide along boundaries the
-  // player could not see. The guard now mirrors the real one-tile wall ring.
-  const halfWidth = Math.max(1, (map.width - 3) / 2);
-  const halfHeight = Math.max(1, (map.height - 3) / 2);
+  // The former 5.25 × 7.65 phone rectangle was much too tight for the rendered
+  // hall and produced invisible side-sliding. The expanded envelope uses the
+  // complete camera-visible combat floor while still preventing offscreen fights.
+  const halfWidth = Math.min(WORLD_BOSS_ARENA_HALF_WIDTH_TILES, mapHalfWidth);
+  const halfHeight = Math.min(WORLD_BOSS_ARENA_HALF_HEIGHT_TILES, mapHalfHeight);
   const minimumCenterX = worldCenterForMappedAxis(-halfWidth, map.width);
   const maximumCenterX = worldCenterForMappedAxis(halfWidth, map.width);
   const minimumCenterY = worldCenterForMappedAxis(-halfHeight, map.height);
@@ -77,6 +81,8 @@ export function WorldBossMobileArenaGuard({ engineRef }: Props) {
   return <span
     data-testid="worldboss-visible-arena-guard"
     data-boundary-contract={WORLD_BOSS_ARENA_BOUNDARY_CONTRACT}
+    data-half-width-tiles={WORLD_BOSS_ARENA_HALF_WIDTH_TILES}
+    data-half-height-tiles={WORLD_BOSS_ARENA_HALF_HEIGHT_TILES}
     className="sr-only"
-  >Portrait touch devices use the complete visible walkable arena interior.</span>;
+  >Portrait touch devices use the expanded camera-visible combat floor.</span>;
 }
