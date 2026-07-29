@@ -3,7 +3,7 @@ import { waitForLiveMenuPaint, waitForPaintedCanvas } from './visual-render-read
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const STANDARD_LOADOUT = Object.freeze({ bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' });
-const ALTERNATE_LOADOUT = Object.freeze({ bow: 'ember-bow', quiver: 'rune-quiver', armor: 'warden-armor' });
+const ALTERNATE_LOADOUT = Object.freeze({ bow: 'ember-bow', quiver: 'warden-quiver', armor: 'warden-armor' });
 const KNOWN_EQUIPMENT = Object.freeze([...Object.values(STANDARD_LOADOUT), ...Object.values(ALTERNATE_LOADOUT)]);
 const COMPANION_MATRIX = Object.freeze([
   ['single-target', 'veil-lynx'],
