@@ -11,6 +11,7 @@ const [
   focusedSpec,
   regressionConfig,
   workflow,
+  productWorkflow,
 ] = await Promise.all([
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/LiveHybridMainMenuScene.tsx'),
@@ -21,6 +22,7 @@ const [
   read('../tests/block-20-main-menu.spec.mjs'),
   read('../playwright.regression.config.mjs'),
   read('../../../.github/workflows/main-menu-visual-regression.yml'),
+  read('../../../.github/workflows/product-autopilot-qa.yml'),
 ]);
 
 const checks = [
@@ -44,6 +46,7 @@ const checks = [
   [regressionConfig.includes('block-20-main-menu') && regressionConfig.includes('retries: 0') && regressionConfig.includes("name: 'iphone-webkit'") && regressionConfig.includes("name: 'android-chromium'") && regressionConfig.includes("name: 'ipad-portrait-webkit'") && regressionConfig.includes("name: 'android-tablet-chromium'"), 'Playwright regression config does not include Block 20 on all four portrait devices with zero retries'],
   [workflow.includes('validate-block-20-main-menu.mjs') && workflow.includes('block-20-main-menu.spec.mjs') && workflow.includes('matrix:') && workflow.includes('iphone-webkit') && workflow.includes('android-chromium') && workflow.includes('ipad-portrait-webkit') && workflow.includes('android-tablet-chromium'), 'Main Menu Visual Regression does not run the focused validator and four-device matrix'],
   [workflow.includes('actions/upload-artifact@v4') && workflow.includes('actions/download-artifact@v4') && workflow.includes('block20-*-${{ matrix.project }}.png'), 'four-device Block 20 evidence is not preserved as reviewable artifacts'],
+  [productWorkflow.includes("group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}") && productWorkflow.includes('cancel-in-progress: true'), 'Product Autopilot reruns can still cancel the exact-head PR evidence attempt'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -53,4 +56,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Block 20 main-menu audit passed: one local animated renderer, resilient WebGL recovery, synchronized equipment and companions, genuine taps, Reduced Motion and four-device portrait evidence remain enforced.');
+console.log('Block 20 main-menu audit passed: one local animated renderer, resilient WebGL recovery, synchronized equipment and companions, genuine taps, Reduced Motion, isolated Product Autopilot reruns and four-device portrait evidence remain enforced.');
