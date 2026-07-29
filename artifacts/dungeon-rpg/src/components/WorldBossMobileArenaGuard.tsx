@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import type { GameEngine } from '../game/runEngine';
 import { TILE_SIZE } from '../game/dungeon';
 
-export const WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'expanded-camera-safe-arena-v3';
+export const WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'visible-walkable-interior-v3';
 export const WORLD_BOSS_ARENA_HALF_WIDTH_TILES = 6.25;
 export const WORLD_BOSS_ARENA_HALF_HEIGHT_TILES = 11.25;
 
