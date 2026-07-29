@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LiveHybridMainMenuScene } from './LiveHybridMainMenuScene';
 import './mainMenuPresentation.css';
 
 export const SPECTATOR_RENDERER_EVENT = 'dungeon-veil-spectator-renderer';
+
+type MenuWebglState = 'booting' | 'ready' | 'lost' | 'recovering' | 'reduced-motion';
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -13,6 +15,11 @@ export function MainMenuDungeonScene() {
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
   const [ambientLoaded, setAmbientLoaded] = useState(false);
   const [ambientFailed, setAmbientFailed] = useState(false);
+  const [rendererGeneration, setRendererGeneration] = useState(0);
+  const [webglRecoveries, setWebglRecoveries] = useState(0);
+  const [webglState, setWebglState] = useState<MenuWebglState>('booting');
+  const liveFrameRef = useRef<HTMLDivElement>(null);
+  const recoveryBlockedRef = useRef(false);
 
   useEffect(() => {
     const handleSpectatorRenderer = (event: Event) => {
@@ -29,6 +36,67 @@ export function MainMenuDungeonScene() {
     };
   }, []);
 
+  useEffect(() => {
+    const frame = liveFrameRef.current;
+    if (!frame || reducedMotion) return;
+    let recoveryTimer = 0;
+
+    const restartRenderer = () => {
+      if (recoveryBlockedRef.current) return;
+      recoveryBlockedRef.current = true;
+      setWebglRecoveries(value => value + 1);
+      setWebglState('recovering');
+      setRendererGeneration(value => value + 1);
+    };
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      if (recoveryBlockedRef.current) return;
+      setWebglState('lost');
+      window.clearTimeout(recoveryTimer);
+      recoveryTimer = window.setTimeout(restartRenderer, 120);
+    };
+    const handleContextRestored = () => {
+      if (recoveryBlockedRef.current) return;
+      window.clearTimeout(recoveryTimer);
+      restartRenderer();
+    };
+
+    frame.addEventListener('webglcontextlost', handleContextLost, true);
+    frame.addEventListener('webglcontextrestored', handleContextRestored, true);
+    return () => {
+      window.clearTimeout(recoveryTimer);
+      frame.removeEventListener('webglcontextlost', handleContextLost, true);
+      frame.removeEventListener('webglcontextrestored', handleContextRestored, true);
+    };
+  }, [rendererGeneration, reducedMotion]);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      recoveryBlockedRef.current = true;
+      setWebglState('reduced-motion');
+      return () => { recoveryBlockedRef.current = false; };
+    }
+
+    const frame = liveFrameRef.current;
+    if (!frame) return;
+    setWebglState(rendererGeneration > 0 ? 'recovering' : 'booting');
+
+    const markRendererReady = () => {
+      const liveScene = frame.querySelector<HTMLElement>('[data-testid="live-hybrid-main-menu-scene"]');
+      const canvas = frame.querySelector('canvas[data-testid="live-hybrid-main-menu-canvas"]');
+      if (liveScene?.dataset.animationState !== 'running' || liveScene.dataset.rangerLoaded !== 'true' || !canvas) return;
+      recoveryBlockedRef.current = false;
+      setWebglState('ready');
+    };
+    const observer = new MutationObserver(markRendererReady);
+    observer.observe(frame, { attributes: true, childList: true, subtree: true });
+    const readyCheck = window.setTimeout(markRendererReady, 0);
+    return () => {
+      window.clearTimeout(readyCheck);
+      observer.disconnect();
+    };
+  }, [rendererGeneration, reducedMotion]);
+
   if (suspended) return null;
   const heroUrl = `${import.meta.env.BASE_URL}assets/hall/veil-hall-hero.svg`;
 
@@ -42,6 +110,10 @@ export function MainMenuDungeonScene() {
     data-reduced-motion-active={reducedMotion ? 'true' : 'false'}
     data-image-loaded={ambientLoaded ? 'true' : 'false'}
     data-image-failed={ambientFailed ? 'true' : 'false'}
+    data-webgl-context-contract="captured-loss-remount-recovery"
+    data-webgl-state={webglState}
+    data-webgl-recoveries={webglRecoveries}
+    data-renderer-generation={rendererGeneration}
     className="dv-main-menu-scene pointer-events-none absolute inset-0 overflow-hidden bg-[#050208]"
     style={{ transform: 'translate3d(0,0,0)' }}
   >
@@ -73,9 +145,14 @@ export function MainMenuDungeonScene() {
       }}
     />
     <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,1,6,.62)_0%,rgba(8,3,14,.08)_28%,rgba(9,4,15,.12)_58%,rgba(3,1,6,.72)_100%)]" />
-    {!reducedMotion && <div data-testid="live-hybrid-main-menu-frame" className="dv-main-menu-live-frame">
-      <LiveHybridMainMenuScene />
+    {!reducedMotion && <div ref={liveFrameRef} data-testid="live-hybrid-main-menu-frame" className="dv-main-menu-live-frame">
+      <LiveHybridMainMenuScene key={`live-menu-renderer-${rendererGeneration}`} />
     </div>}
+    {!reducedMotion && webglState !== 'ready' && <div
+      data-testid="main-menu-webgl-recovery-fallback"
+      aria-hidden="true"
+      className="absolute inset-[20%_18%_27%] z-[4] rounded-[50%] bg-[radial-gradient(ellipse_at_center,rgba(151,96,226,.16),rgba(31,14,47,.08)_48%,transparent_73%)] opacity-90 blur-[2px]"
+    />}
     {reducedMotion && <div data-testid="main-menu-reduced-motion-fallback" aria-hidden="true" className="absolute inset-[15%_13%_25%] flex items-end justify-center">
       <svg viewBox="0 0 520 620" className="h-full max-h-[620px] w-full max-w-[520px] overflow-visible drop-shadow-[0_28px_38px_rgba(0,0,0,.65)]" role="presentation">
         <defs>
