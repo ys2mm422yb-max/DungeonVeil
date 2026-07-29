@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type React from 'react';
 import type { GameEngine } from '../game/runEngine';
 import { getWorldBossLoadedVisual, getWorldBossLoadFailure } from './worldBossMobileVisual3D';
+import { WORLD_BOSS_ARENA_BOUNDARY_CONTRACT } from './WorldBossMobileArenaGuard';
 
 export function WorldBossRuntimeDiagnostics({ engineRef }: { engineRef: React.RefObject<GameEngine | null> }) {
   const hostRef = useRef<HTMLSpanElement>(null);
@@ -25,6 +26,9 @@ export function WorldBossRuntimeDiagnostics({ engineRef }: { engineRef: React.Re
         host.dataset.joyX = engine.input.joyX.toFixed(3);
         host.dataset.joyY = engine.input.joyY.toFixed(3);
         host.dataset.engineStatus = engine.state.status;
+        host.dataset.mapWidth = String(engine.state.map.width);
+        host.dataset.mapHeight = String(engine.state.map.height);
+        host.dataset.arenaBoundaryContract = WORLD_BOSS_ARENA_BOUNDARY_CONTRACT;
         host.dataset.bossHp = String(Math.max(0, boss?.hp ?? 0));
         host.dataset.dragonLoadState = failure ? 'error' : visual ? 'ready' : 'loading';
         host.dataset.bossVisual = visual?.identity ?? (failure ? 'load-error-no-fallback' : 'loading');
@@ -40,5 +44,10 @@ export function WorldBossRuntimeDiagnostics({ engineRef }: { engineRef: React.Re
     return () => cancelAnimationFrame(frame);
   }, [engineRef]);
 
-  return <span ref={hostRef} data-testid="worldboss-runtime-diagnostics" data-contract="movement-dash-dragon-v2" className="sr-only" />;
+  return <span
+    ref={hostRef}
+    data-testid="worldboss-runtime-diagnostics"
+    data-contract="movement-dash-open-arena-v3"
+    className="sr-only"
+  />;
 }
