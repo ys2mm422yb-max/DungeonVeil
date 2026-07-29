@@ -82,9 +82,19 @@
 [data-testid='main-menu-gold-button'],
 [data-testid='main-menu-settings-button'] {
   position: relative;
-  overflow: hidden;
   transform: translateZ(0);
+  touch-action: manipulation;
   transition: transform 150ms ease, border-color 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+
+[data-testid='main-menu-control-stack'] button {
+  overflow: hidden;
+}
+
+[data-testid='main-menu-dust-button'],
+[data-testid='main-menu-gold-button'],
+[data-testid='main-menu-settings-button'] {
+  overflow: visible;
 }
 
 [data-testid='main-menu-control-stack'] button::before,
@@ -94,9 +104,31 @@
   content: '';
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
   background: linear-gradient(115deg, rgba(255, 255, 255, 0.075), transparent 34%, transparent 68%, rgba(181, 140, 255, 0.055));
   opacity: 0.7;
+}
+
+[data-testid='main-menu-dust-button']::after,
+[data-testid='main-menu-gold-button']::after,
+[data-testid='main-menu-settings-button']::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  background: transparent;
+}
+
+[data-testid='main-menu-dust-button']::after {
+  inset: -14px -2px -2px;
+}
+
+[data-testid='main-menu-gold-button']::after {
+  inset: -2px -2px -14px;
+}
+
+[data-testid='main-menu-settings-button']::after {
+  inset: 0 -2px;
 }
 
 [data-testid='main-menu-control-stack'] button:not(:disabled):active,
