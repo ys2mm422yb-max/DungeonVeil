@@ -4,9 +4,13 @@ import { waitForLiveMenuPaint, waitForPaintedCanvas } from './visual-render-read
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const STANDARD_LOADOUT = Object.freeze({ bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' });
 const ALTERNATE_LOADOUT = Object.freeze({ bow: 'ember-bow', quiver: 'rune-quiver', armor: 'warden-armor' });
-const KNOWN_EQUIPMENT = Object.freeze([
-  ...Object.values(STANDARD_LOADOUT),
-  ...Object.values(ALTERNATE_LOADOUT),
+const KNOWN_EQUIPMENT = Object.freeze([...Object.values(STANDARD_LOADOUT), ...Object.values(ALTERNATE_LOADOUT)]);
+const COMPANION_MATRIX = Object.freeze([
+  ['single-target', 'veil-lynx'],
+  ['critical-support', 'ember-raven'],
+  ['shield', 'rune-sentinel'],
+  ['loot-comfort', 'lantern-wisp'],
+  ['distraction', 'dusk-drake'],
 ]);
 
 function attachRuntimeMonitor(page) {
@@ -26,8 +30,14 @@ function attachRuntimeMonitor(page) {
 }
 
 async function seedBlock20State(page, { activeCompanion = null, loadout = STANDARD_LOADOUT, quiverVisible = true } = {}) {
-  await page.addInitScript(({ companion, equipment, equipped, showQuiver }) => {
+  await page.addInitScript(({ companion, companionMatrix, equipment, equipped, showQuiver }) => {
+    const marker = 'dungeon-veil-block20-main-menu-seeded-v1';
+    if (sessionStorage.getItem(marker) === 'true') return;
+    localStorage.clear();
     const owned = Object.fromEntries(equipment.map(id => [id, { level: id === equipped.bow ? 3 : 2, copies: 1 }]));
+    const companions = companion
+      ? Object.fromEntries(companionMatrix.map(([role]) => [role, { level: role === companion ? 3 : 2, unlockedAt: Date.now() }]))
+      : {};
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
     localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'standard', textSize: 'standard', updatedAt: Date.now() }));
@@ -58,7 +68,7 @@ async function seedBlock20State(page, { activeCompanion = null, loadout = STANDA
     localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
       version: 1,
       activeId: companion,
-      companions: companion ? { [companion]: { level: 3, unlockedAt: Date.now() } } : {},
+      companions,
       updatedAt: Date.now(),
     }));
     localStorage.setItem('dungeon-veil-relics-v2', JSON.stringify({
@@ -70,7 +80,14 @@ async function seedBlock20State(page, { activeCompanion = null, loadout = STANDA
       relicMisses: { hunt: 0, boss: 0 },
       crownRunStacks: {},
     }));
-  }, { companion: activeCompanion, equipment: KNOWN_EQUIPMENT, equipped: loadout, showQuiver: quiverVisible });
+    sessionStorage.setItem(marker, 'true');
+  }, {
+    companion: activeCompanion,
+    companionMatrix: COMPANION_MATRIX,
+    equipment: KNOWN_EQUIPMENT,
+    equipped: loadout,
+    showQuiver: quiverVisible,
+  });
 }
 
 async function gotoMenu(page) {
@@ -125,15 +142,16 @@ async function updateEquipment(page, loadout, quiverVisible) {
 }
 
 async function setCompanion(page, activeId) {
-  await page.evaluate(id => {
+  await page.evaluate(({ id, matrix }) => {
+    const companions = Object.fromEntries(matrix.map(([role]) => [role, { level: role === id ? 3 : 2, unlockedAt: Date.now() }]));
     localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
       version: 1,
       activeId: id,
-      companions: id ? { [id]: { level: 3, unlockedAt: Date.now() } } : {},
+      companions: id ? companions : {},
       updatedAt: Date.now(),
     }));
     window.dispatchEvent(new CustomEvent('dungeon-veil-companion-collection-v5'));
-  }, activeId);
+  }, { id: activeId, matrix: COMPANION_MATRIX });
 }
 
 async function rangerDiagnostics(page) {
