@@ -4,7 +4,7 @@ import { TILE_SIZE } from '../game/dungeon';
 
 export const WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'visible-walkable-interior-v3';
 
- type Props = {
+type Props = {
   engineRef: React.RefObject<GameEngine | null>;
 };
 
