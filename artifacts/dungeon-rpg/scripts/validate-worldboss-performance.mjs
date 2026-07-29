@@ -88,17 +88,22 @@ const checks = [
     && files.diagnostics.includes('dataset.mapWidth')
     && files.diagnostics.includes('dataset.mapHeight')
     && files.diagnostics.includes('dataset.arenaBoundaryContract')
-    && files.diagnostics.includes('movement-dash-open-arena-v3'), 'world-boss runtime diagnostics do not expose direct movement, visible bounds and original-dragon geometry'],
+    && files.diagnostics.includes('movement-dash-open-arena-v3')
+    && files.diagnostics.includes('__dungeonVeilWorldBossMovementProbe')
+    && files.diagnostics.includes('movementProbeActive')
+    && files.diagnostics.includes('Number.MAX_SAFE_INTEGER'), 'world-boss runtime diagnostics do not expose an isolated, invulnerable movement probe and original-dragon geometry'],
   [files.browserConfig.includes('worldboss-block1')
     && files.browserTest.includes("data-contract', 'movement-dash-open-arena-v3'")
     && files.browserTest.includes("data-arena-boundary-contract', 'visible-walkable-interior-v3'")
     && files.browserTest.includes("data-half-width-tiles', '6.25'")
     && files.browserTest.includes("data-half-height-tiles', '11.25'")
-    && files.browserTest.includes('async function travelJoystick')
+    && files.browserTest.includes('resetMovementProbe')
+    && files.browserTest.includes('driveMovementProbe')
     && files.browserTest.includes('toBeGreaterThan(205)')
-    && files.browserTest.includes('toBeGreaterThan(22)')
-    && files.browserTest.includes('toBeLessThan(12)')
-    && files.browserTest.includes('FBXLoader.js'), 'four-device browser regression does not prove original-dragon loading, segmented expanded-arena travel, direct cardinal touch and dash'],
+    && files.browserTest.includes('toBeGreaterThan(35)')
+    && files.browserTest.includes('toBeLessThan(5)')
+    && files.browserTest.includes("new PointerEvent('pointerdown'")
+    && files.browserTest.includes('FBXLoader.js'), 'four-device browser regression does not prove real touch integration, isolated expanded-arena travel, direct cardinal paths and dash'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -108,4 +113,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss V4 audit passed: stable input, expanded camera-safe movement, segmented direct touch routes, pinned same-origin FBX loading, original black dragon geometry and four-device movement/dash regression are protected.');
+console.log('World-boss V4 audit passed: real touch input, isolated expanded camera-safe movement paths, pinned same-origin FBX loading, original black dragon geometry and four-device movement/dash regression are protected.');
