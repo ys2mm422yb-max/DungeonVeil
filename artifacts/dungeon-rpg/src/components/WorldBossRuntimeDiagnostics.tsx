@@ -47,7 +47,7 @@ export function WorldBossRuntimeDiagnostics({ engineRef }: { engineRef: React.Re
   return <span
     ref={hostRef}
     data-testid="worldboss-runtime-diagnostics"
-    data-contract="movement-dash-open-arena-v3"
+    data-contract="movement-dash-expanded-arena-v3"
     className="sr-only"
   />;
 }
