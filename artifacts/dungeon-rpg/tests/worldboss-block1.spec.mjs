@@ -21,45 +21,21 @@ function numericAttribute(locator, name) {
   return locator.getAttribute(name).then(value => Number(value || 0));
 }
 
-async function holdJoystick(page, joystick, diagnostics, x, y, pointerId, holdMs) {
-  const box = await joystick.boundingBox();
-  expect(box).toBeTruthy();
-  const centerX = box.x + box.width / 2;
-  const centerY = box.y + box.height / 2;
-  const radius = Math.min(box.width, box.height) * 0.3;
-
-  await page.evaluate(({ centerX, centerY, targetX, targetY, pointerId }) => {
-    const control = document.querySelector('[data-testid="run-joystick"]');
-    control.dispatchEvent(new PointerEvent('pointerdown', {
-      bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary: true,
-      clientX: centerX, clientY: centerY,
-    }));
-    window.dispatchEvent(new PointerEvent('pointermove', {
-      bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary: true,
-      clientX: targetX, clientY: targetY,
-    }));
-  }, {
-    centerX,
-    centerY,
-    targetX: centerX + x * radius,
-    targetY: centerY + y * radius,
-    pointerId,
-  });
-
-  await page.waitForTimeout(holdMs);
-  await page.evaluate(pointerId => {
-    window.dispatchEvent(new PointerEvent('pointerup', {
-      bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary: true,
-    }));
-  }, pointerId);
-  await expect.poll(() => numericAttribute(diagnostics, 'data-joy-x')).toBe(0);
-  await expect.poll(() => numericAttribute(diagnostics, 'data-joy-y')).toBe(0);
+async function movementProbeSnapshot(page) {
+  return page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe?.snapshot());
 }
 
-async function travelJoystick(page, joystick, diagnostics, x, y, firstPointerId, segments, holdMs) {
-  for (let segment = 0; segment < segments; segment += 1) {
-    await holdJoystick(page, joystick, diagnostics, x, y, firstPointerId + segment, holdMs);
-  }
+async function resetMovementProbe(page, diagnostics) {
+  await expect(diagnostics).toHaveAttribute('data-movement-probe', 'available');
+  await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilWorldBossMovementProbe)), { timeout: 20_000 }).toBe(true);
+  return page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe.reset());
+}
+
+async function driveMovementProbe(page, x, y, durationMs) {
+  await page.evaluate(({ x, y }) => window.__dungeonVeilWorldBossMovementProbe.setInput(x, y), { x, y });
+  await page.waitForTimeout(durationMs);
+  await page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe.stop());
+  return movementProbeSnapshot(page);
 }
 
 async function openWorldBossArena(page) {
@@ -72,6 +48,7 @@ async function openWorldBossArena(page) {
   await expect(joystick).toBeVisible();
   await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-open-arena-v3');
   await expect(diagnostics).toHaveAttribute('data-arena-boundary-contract', 'visible-walkable-interior-v3');
+  await expect(diagnostics).toHaveAttribute('data-movement-probe', 'available');
   await expect(guard).toHaveAttribute('data-boundary-contract', 'visible-walkable-interior-v3');
   await expect(guard).toHaveAttribute('data-half-width-tiles', '6.25');
   await expect(guard).toHaveAttribute('data-half-height-tiles', '11.25');
@@ -197,7 +174,7 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
 });
 
-test('world boss segmented touch route crosses the former invisible phone clamp', async ({ page }, testInfo) => {
+test('world boss movement probe crosses the former invisible phone clamp', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
@@ -205,51 +182,38 @@ test('world boss segmented touch route crosses the former invisible phone clamp'
     if (message.type() === 'error') runtimeErrors.push(`console: ${message.text()}`);
   });
 
-  const { joystick, diagnostics } = await openWorldBossArena(page);
-  const start = {
-    x: await numericAttribute(diagnostics, 'data-player-x'),
-    y: await numericAttribute(diagnostics, 'data-player-y'),
-  };
-
-  // Repeated short touch gestures model real thumb re-centering and are stable in
-  // both WebKit and Chromium. The resulting route must cross the old 5.25-tile clamp.
-  await travelJoystick(page, joystick, diagnostics, 1, 0, 61, 10, 300);
-  const right = {
-    x: await numericAttribute(diagnostics, 'data-player-x'),
-    y: await numericAttribute(diagnostics, 'data-player-y'),
-  };
+  const { diagnostics } = await openWorldBossArena(page);
+  const start = await resetMovementProbe(page, diagnostics);
+  const right = await driveMovementProbe(page, 1, 0, 1_600);
   expect(right.x - start.x).toBeGreaterThan(205);
-  expect(Math.abs(right.y - start.y)).toBeLessThan(20);
+  expect(Math.abs(right.y - start.y)).toBeLessThan(5);
+  expect(right.hp).toBeGreaterThan(0);
+  expect(right.status).toBe('playing');
 
   await mkdir(OUTPUT, { recursive: true });
   await page.screenshot({ path: `${OUTPUT}/worldboss-open-arena-${testInfo.project.name}.png`, fullPage: false });
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
 });
 
-test('world boss short cardinal touch gestures stay direct in every direction', async ({ page }) => {
+test('world boss movement probe keeps every cardinal route direct', async ({ page }) => {
   test.setTimeout(180_000);
-  const { joystick, diagnostics } = await openWorldBossArena(page);
+  const { diagnostics } = await openWorldBossArena(page);
   const directions = [
-    { x: -1, y: 0, axis: 'x', sign: -1, pointerId: 81 },
-    { x: 1, y: 0, axis: 'x', sign: 1, pointerId: 82 },
-    { x: 0, y: -1, axis: 'y', sign: -1, pointerId: 83 },
-    { x: 0, y: 1, axis: 'y', sign: 1, pointerId: 84 },
+    { x: -1, y: 0, axis: 'x', sign: -1 },
+    { x: 1, y: 0, axis: 'x', sign: 1 },
+    { x: 0, y: -1, axis: 'y', sign: -1 },
+    { x: 0, y: 1, axis: 'y', sign: 1 },
   ];
 
   for (const direction of directions) {
-    const before = {
-      x: await numericAttribute(diagnostics, 'data-player-x'),
-      y: await numericAttribute(diagnostics, 'data-player-y'),
-    };
-    await holdJoystick(page, joystick, diagnostics, direction.x, direction.y, direction.pointerId, 320);
-    const after = {
-      x: await numericAttribute(diagnostics, 'data-player-x'),
-      y: await numericAttribute(diagnostics, 'data-player-y'),
-    };
+    const before = await resetMovementProbe(page, diagnostics);
+    const after = await driveMovementProbe(page, direction.x, direction.y, 420);
     const primary = direction.axis === 'x' ? after.x - before.x : after.y - before.y;
     const cross = direction.axis === 'x' ? after.y - before.y : after.x - before.x;
-    expect(primary * direction.sign).toBeGreaterThan(22);
-    expect(Math.abs(cross)).toBeLessThan(12);
+    expect(primary * direction.sign).toBeGreaterThan(35);
+    expect(Math.abs(cross)).toBeLessThan(5);
+    expect(after.hp).toBeGreaterThan(0);
+    expect(after.status).toBe('playing');
   }
 });
 
