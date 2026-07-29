@@ -78,6 +78,14 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   const dragonResponse = responses.find(item => item.url.includes('Dragon.fbx'));
   expect(dragonResponse.contentType.toLowerCase()).not.toContain('text/html');
 
+  const dashButton = page.getByTestId('run-dash-button');
+  const dodgeBefore = await numericAttribute(diagnostics, 'data-player-last-dodge');
+  await dashButton.click({ force: true });
+  await expect.poll(() => numericAttribute(diagnostics, 'data-player-last-dodge'), {
+    timeout: 10_000,
+    intervals: [100, 200, 400],
+  }).toBeGreaterThan(dodgeBefore);
+
   const startX = await numericAttribute(diagnostics, 'data-player-x');
   const startY = await numericAttribute(diagnostics, 'data-player-y');
   const joystick = page.getByTestId('run-joystick');
@@ -114,13 +122,6 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   });
   await expect.poll(() => numericAttribute(diagnostics, 'data-joy-x')).toBe(0);
   await expect.poll(() => numericAttribute(diagnostics, 'data-joy-y')).toBe(0);
-
-  const dodgeBefore = await numericAttribute(diagnostics, 'data-player-last-dodge');
-  await page.getByTestId('run-dash-button').click({ force: true });
-  await expect.poll(() => numericAttribute(diagnostics, 'data-player-last-dodge'), {
-    timeout: 10_000,
-    intervals: [100, 200, 400],
-  }).toBeGreaterThan(dodgeBefore);
 
   await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
   await waitForPaintedCanvas(page, canvas, 60_000);

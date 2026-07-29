@@ -1,7 +1,8 @@
 import { findKayKitModels, loadKayKitManifest, modelUrl } from './kaykitManifest3D';
 import { EQUIPMENT, loadMetaProgression, type EquipmentId } from '../game/metaProgression';
 
-const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+const localRuntimeUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
+const GLTF_URL = localRuntimeUrl('assets/vendor/three/examples/jsm/loaders/GLTFLoader.js');
 const FANTASY_WEAPONS_GLTF = 'weapons/KayKit_FantasyWeaponsBits_1.0_FREE/Assets/gltf';
 
 export type KayKitRangerWeapons = {

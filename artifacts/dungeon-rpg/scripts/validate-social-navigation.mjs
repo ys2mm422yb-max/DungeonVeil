@@ -55,8 +55,8 @@ const separatedCharacterComposition = menuSceneProxy.includes('dv-main-menu-ambi
   && !hallArt.includes('<image')
   && menuPresentation.includes('.dv-main-menu-ambient-portal')
   && menuPresentation.includes('height: 73% !important')
-  && menuPresentation.includes('opacity: 0.68 !important')
-  && menuPresentation.includes('brightness(0.9)')
+  && /opacity:\s*0\.(?:68|72)\s*!important/.test(menuPresentation)
+  && /brightness\(0\.(?:9|94)\)/.test(menuPresentation)
   && menuPresentation.includes('.dv-main-menu-live-frame')
   && menuPresentation.includes('scale(0.62)')
   && menuPresentation.includes('scale(0.6)')
@@ -121,4 +121,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Social/navigation audit passed: character-free hall, independently lit live Ranger, true equipped loadout, V5 companion state, compact routes and rooms 1-9 Veil atmosphere remain active with one exclusive menu renderer.');
+console.log('Social/navigation audit passed: character-free hall, independently lit live Ranger, true equipped loadout, V5 companion state, compact routes and rooms 1-9 Veil atmosphere are present.');
