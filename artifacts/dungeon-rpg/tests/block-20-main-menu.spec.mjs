@@ -191,8 +191,14 @@ test('Block 20 preserves animated Ranger, equipment combinations and companion s
   const frameB = await capture(page, 'animation-frame-b', testInfo.project.name);
   expect(frameA.equals(frameB), 'Portal, light and Ranger evidence remained pixel-identical while frames advanced').toBe(false);
 
+  const companionFrames = Number(await scene.getAttribute('data-animation-frames') || 0);
   await setCompanion(page, 'critical-support');
   await expect(scene).toHaveAttribute('data-companion-species', 'ember-raven', { timeout: 20_000 });
+  await expect.poll(
+    async () => Number(await scene.getAttribute('data-animation-frames') || 0),
+    { timeout: 20_000, intervals: [100, 200, 350, 500, 750] },
+  ).toBeGreaterThan(companionFrames);
+  await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), 60_000);
   await capture(page, 'active-companion-ember-raven', testInfo.project.name);
 
   await updateEquipment(page, ALTERNATE_LOADOUT, true);
