@@ -120,15 +120,24 @@
 }
 
 [data-testid='main-menu-dust-button']::after {
-  inset: -14px -2px -2px;
+  top: -14px;
+  right: -2px;
+  bottom: -2px;
+  left: -2px;
 }
 
 [data-testid='main-menu-gold-button']::after {
-  inset: -2px -2px -14px;
+  top: -2px;
+  right: -2px;
+  bottom: -14px;
+  left: -2px;
 }
 
 [data-testid='main-menu-settings-button']::after {
-  inset: 0 -2px;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  left: -2px;
 }
 
 [data-testid='main-menu-control-stack'] button:not(:disabled):active,
