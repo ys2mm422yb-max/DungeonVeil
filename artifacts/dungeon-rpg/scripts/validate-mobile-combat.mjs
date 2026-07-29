@@ -73,7 +73,13 @@ const checks = [
   [files.boss.includes('import { WorldBossLiteStage }') && !files.boss.includes('import { CombatStage }'), 'world boss still uses the full run renderer'],
   [files.boss.includes('engine.onStateChange = () => {}') && files.boss.includes('setState(snapshot(engine.state))'), 'world boss React updates are not throttled'],
   [files.bossStageProxy.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.bossBand.includes('<WorldBossCohesiveStage') && files.bossBand.includes('<WorldBossMobileArenaGuard'), 'world-boss stage proxy or mobile arena guard routing is broken'],
-  [files.bossArenaGuard.includes('PHONE_ARENA_HALF_WIDTH_TILES = 5.25') && files.bossArenaGuard.includes('PHONE_ARENA_HALF_HEIGHT_TILES = 7.65') && files.bossArenaGuard.includes('enforceWorldBossVisibleArena') && files.bossArenaGuard.includes('clampEntity(player') && files.bossArenaGuard.includes('clampEntity(boss'), 'phone world-boss fighters can still leave the camera-safe arena'],
+  [files.bossArenaGuard.includes("WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'visible-walkable-interior-v3'")
+    && files.bossArenaGuard.includes('WORLD_BOSS_ARENA_HALF_WIDTH_TILES = 6.25')
+    && files.bossArenaGuard.includes('WORLD_BOSS_ARENA_HALF_HEIGHT_TILES = 11.25')
+    && files.bossArenaGuard.includes('Math.min(WORLD_BOSS_ARENA_HALF_WIDTH_TILES, mapHalfWidth)')
+    && files.bossArenaGuard.includes('Math.min(WORLD_BOSS_ARENA_HALF_HEIGHT_TILES, mapHalfHeight)')
+    && files.bossArenaGuard.includes('clampEntity(player')
+    && files.bossArenaGuard.includes('clampEntity(boss'), 'phone world-boss fighters do not use the expanded camera-visible arena'],
   [files.bossCohesive.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && files.bossController.includes('<WorldBossPerspectiveStage'), 'world-boss aggressive controller routing is missing'],
   [files.bossController.includes('const PURSUIT_SPEED = 82;') && files.bossController.includes("type AttackKind = 'breath' | 'claw' | 'slam'") && files.bossController.includes('boss-shot-breath-') && files.bossController.includes('boss-claw-impact-') && files.bossController.includes('boss-slam-impact-'), 'world-boss three-attack kit is missing'],
   [!files.bossStage.includes('buildKayKitDungeonRoom') && files.bossStage.includes('new THREE.CanvasTexture(canvas)') && files.bossStage.includes('new THREE.PlaneGeometry(24, 32, 1, 1)'), 'high-call room shell or repeated floor geometry remains'],
@@ -93,4 +99,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('Mobile combat audit passed: Veil-gate boot, one-size UI, phone-safe world-boss framing, durable contrast and bounded mobile effects are active.');
+console.log('Mobile combat audit passed: Veil-gate boot, one-size UI, expanded camera-safe world-boss movement, durable contrast and bounded mobile effects are active.');
