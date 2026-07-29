@@ -43,12 +43,14 @@ const checks = [
   [files.battle.includes('WORLD_BOSS_BALANCE_V4.balanceSeason') && files.balance.includes("balanceSeason: 'equipment-v4-s1'"), 'world-boss balance season is not visible/versioned'],
   [files.proxyStage.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.combatBand.includes('<WorldBossCohesiveStage') && files.combatBand.includes('<WorldBossMobileArenaGuard'), 'world-boss stage routing or arena guard is broken'],
   [files.arenaGuard.includes("WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'visible-walkable-interior-v3'")
-    && files.arenaGuard.includes('(map.width - 3) / 2')
-    && files.arenaGuard.includes('(map.height - 3) / 2')
+    && files.arenaGuard.includes('WORLD_BOSS_ARENA_HALF_WIDTH_TILES = 6.25')
+    && files.arenaGuard.includes('WORLD_BOSS_ARENA_HALF_HEIGHT_TILES = 11.25')
+    && files.arenaGuard.includes('Math.min(WORLD_BOSS_ARENA_HALF_WIDTH_TILES, mapHalfWidth)')
+    && files.arenaGuard.includes('Math.min(WORLD_BOSS_ARENA_HALF_HEIGHT_TILES, mapHalfHeight)')
     && files.arenaGuard.includes('clampEntity(player')
     && files.arenaGuard.includes('clampEntity(boss')
     && !files.arenaGuard.includes('PHONE_ARENA_HALF_WIDTH_TILES')
-    && !files.arenaGuard.includes('PHONE_ARENA_HALF_HEIGHT_TILES'), 'world-boss movement still uses a smaller invisible phone-only rectangle instead of the visible walkable interior'],
+    && !files.arenaGuard.includes('PHONE_ARENA_HALF_HEIGHT_TILES'), 'world-boss movement does not use the expanded camera-visible arena'],
   [files.cohesiveStage.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && files.aggressiveStage.includes('<WorldBossPerspectiveStage'), 'cohesive stage does not route through the aggressive controller'],
   [files.aggressiveStage.includes("const RELEASE_DELAY_MS = 320;") && files.aggressiveStage.includes("type AttackKind = 'breath' | 'claw' | 'slam'") && files.aggressiveStage.includes('const BREATH_HIT_RADIUS = 76;') && files.aggressiveStage.includes('const CLAW_RANGE = 158;') && files.aggressiveStage.includes('const SLAM_RANGE = 205;') && files.aggressiveStage.includes('boss-shot-breath-') && files.aggressiveStage.includes('boss-claw-impact-') && files.aggressiveStage.includes('boss-slam-impact-'), 'world-boss three-attack controller is missing or shares one generic hit profile'],
   [!files.stage.includes('buildKayKitDungeonRoom') && !files.stage.includes('buildKayKitRoomTheme') && !files.stage.includes('floor_tile_large.gltf'), 'generic high-call dungeon shell or repeated floor models remain'],
@@ -90,10 +92,13 @@ const checks = [
   [files.browserConfig.includes('worldboss-block1')
     && files.browserTest.includes("data-contract', 'movement-dash-open-arena-v3'")
     && files.browserTest.includes("data-arena-boundary-contract', 'visible-walkable-interior-v3'")
-    && files.browserTest.includes('toBeGreaterThan(215)')
-    && files.browserTest.includes('toBeLessThan(-215)')
-    && files.browserTest.includes('toBeLessThan(18)')
-    && files.browserTest.includes('FBXLoader.js'), 'four-device browser regression does not prove original-dragon loading, direct cardinal routes, visible arena bounds and dash'],
+    && files.browserTest.includes("data-half-width-tiles', '6.25'")
+    && files.browserTest.includes("data-half-height-tiles', '11.25'")
+    && files.browserTest.includes('async function travelJoystick')
+    && files.browserTest.includes('toBeGreaterThan(205)')
+    && files.browserTest.includes('toBeGreaterThan(22)')
+    && files.browserTest.includes('toBeLessThan(12)')
+    && files.browserTest.includes('FBXLoader.js'), 'four-device browser regression does not prove original-dragon loading, segmented expanded-arena travel, direct cardinal touch and dash'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -103,4 +108,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss V4 audit passed: stable input, visible walkable bounds, direct cardinal routes, pinned same-origin FBX loading, original black dragon geometry and four-device movement/dash regression are protected.');
+console.log('World-boss V4 audit passed: stable input, expanded camera-safe movement, segmented direct touch routes, pinned same-origin FBX loading, original black dragon geometry and four-device movement/dash regression are protected.');
