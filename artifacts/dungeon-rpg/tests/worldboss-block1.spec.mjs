@@ -31,10 +31,17 @@ async function resetMovementProbe(page, diagnostics) {
   return page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe.reset());
 }
 
-async function driveMovementProbe(page, x, y, durationMs) {
+async function driveMovementProbeUntil(page, start, x, y, axis, sign, targetDistance) {
   await page.evaluate(({ x, y }) => window.__dungeonVeilWorldBossMovementProbe.setInput(x, y), { x, y });
-  await page.waitForTimeout(durationMs);
-  await page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe.stop());
+  try {
+    await expect.poll(async () => {
+      const current = await movementProbeSnapshot(page);
+      const primary = axis === 'x' ? current.x - start.x : current.y - start.y;
+      return primary * sign;
+    }, { timeout: 12_000, intervals: [100, 200, 400] }).toBeGreaterThan(targetDistance);
+  } finally {
+    await page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe.stop());
+  }
   return movementProbeSnapshot(page);
 }
 
@@ -184,7 +191,7 @@ test('world boss movement probe crosses the former invisible phone clamp', async
 
   const { diagnostics } = await openWorldBossArena(page);
   const start = await resetMovementProbe(page, diagnostics);
-  const right = await driveMovementProbe(page, 1, 0, 1_600);
+  const right = await driveMovementProbeUntil(page, start, 1, 0, 'x', 1, 205);
   expect(right.x - start.x).toBeGreaterThan(205);
   expect(Math.abs(right.y - start.y)).toBeLessThan(5);
   expect(right.hp).toBeGreaterThan(0);
@@ -207,7 +214,7 @@ test('world boss movement probe keeps every cardinal route direct', async ({ pag
 
   for (const direction of directions) {
     const before = await resetMovementProbe(page, diagnostics);
-    const after = await driveMovementProbe(page, direction.x, direction.y, 420);
+    const after = await driveMovementProbeUntil(page, before, direction.x, direction.y, direction.axis, direction.sign, 35);
     const primary = direction.axis === 'x' ? after.x - before.x : after.y - before.y;
     const cross = direction.axis === 'x' ? after.y - before.y : after.x - before.x;
     expect(primary * direction.sign).toBeGreaterThan(35);
