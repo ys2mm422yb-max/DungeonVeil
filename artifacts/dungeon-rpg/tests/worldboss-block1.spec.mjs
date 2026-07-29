@@ -21,6 +21,48 @@ function numericAttribute(locator, name) {
   return locator.getAttribute(name).then(value => Number(value || 0));
 }
 
+async function movementProbeSnapshot(page) {
+  return page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe?.snapshot());
+}
+
+async function resetMovementProbe(page, diagnostics) {
+  await expect(diagnostics).toHaveAttribute('data-movement-probe', 'available');
+  await expect.poll(() => page.evaluate(() => Boolean(window.__dungeonVeilWorldBossMovementProbe)), { timeout: 20_000 }).toBe(true);
+  return page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe.reset());
+}
+
+async function driveMovementProbeUntil(page, start, x, y, axis, sign, targetDistance) {
+  await page.evaluate(({ x, y }) => window.__dungeonVeilWorldBossMovementProbe.setInput(x, y), { x, y });
+  try {
+    await expect.poll(async () => {
+      const current = await movementProbeSnapshot(page);
+      const primary = axis === 'x' ? current.x - start.x : current.y - start.y;
+      return primary * sign;
+    }, { timeout: 12_000, intervals: [100, 200, 400] }).toBeGreaterThan(targetDistance);
+  } finally {
+    await page.evaluate(() => window.__dungeonVeilWorldBossMovementProbe.stop());
+  }
+  return movementProbeSnapshot(page);
+}
+
+async function openWorldBossArena(page) {
+  await page.goto(worldBossQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(page.getByTestId('worldboss-dragon-loading')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
+  const joystick = page.getByTestId('run-joystick');
+  const diagnostics = page.getByTestId('worldboss-runtime-diagnostics');
+  const guard = page.getByTestId('worldboss-visible-arena-guard');
+  await expect(joystick).toBeVisible();
+  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-open-arena-v3');
+  await expect(diagnostics).toHaveAttribute('data-arena-boundary-contract', 'visible-walkable-interior-v3');
+  await expect(diagnostics).toHaveAttribute('data-movement-probe', 'available');
+  await expect(guard).toHaveAttribute('data-boundary-contract', 'visible-walkable-interior-v3');
+  await expect(guard).toHaveAttribute('data-half-width-tiles', '6.25');
+  await expect(guard).toHaveAttribute('data-half-height-tiles', '11.25');
+  await waitForPaintedCanvas(page);
+  return { joystick, diagnostics };
+}
+
 test('world boss loads the original FBX and accepts movement plus dash', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   if (testInfo.project.name.includes('ipad')) await page.setViewportSize({ width: 820, height: 1180 });
@@ -49,10 +91,15 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await expect(page.getByTestId('run-dash-button')).toBeVisible();
 
   const diagnostics = page.getByTestId('worldboss-runtime-diagnostics');
-  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-dragon-v2');
+  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-open-arena-v3');
   await expect(diagnostics).toHaveAttribute('data-engine-status', 'playing', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ready', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-boss-visual', 'original-black-fbx-dragon');
+  await expect(diagnostics).toHaveAttribute('data-arena-boundary-contract', 'visible-walkable-interior-v3');
+  const arenaGuard = page.getByTestId('worldboss-visible-arena-guard');
+  await expect(arenaGuard).toHaveAttribute('data-boundary-contract', 'visible-walkable-interior-v3');
+  await expect(arenaGuard).toHaveAttribute('data-half-width-tiles', '6.25');
+  await expect(arenaGuard).toHaveAttribute('data-half-height-tiles', '11.25');
   await waitForPaintedCanvas(page, canvas, 60_000);
 
   const width = await numericAttribute(diagnostics, 'data-boss-width');
@@ -68,6 +115,8 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   expect(groundY).toBeGreaterThanOrEqual(-0.03);
   expect(groundY).toBeLessThanOrEqual(0.09);
   expect(topY).toBeGreaterThan(0.5);
+  expect(await numericAttribute(diagnostics, 'data-map-width')).toBeGreaterThanOrEqual(20);
+  expect(await numericAttribute(diagnostics, 'data-map-height')).toBeGreaterThanOrEqual(28);
 
   for (const required of ['Dragon.fbx', 'FBXLoader.js', 'fflate.module.js', 'NURBSCurve.js', 'NURBSUtils.js']) {
     const response = responses.find(item => item.url.includes(required));
@@ -130,6 +179,49 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
     contentType: 'image/png',
   });
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+});
+
+test('world boss movement probe crosses the former invisible phone clamp', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const runtimeErrors = [];
+  page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
+  page.on('console', message => {
+    if (message.type() === 'error') runtimeErrors.push(`console: ${message.text()}`);
+  });
+
+  const { diagnostics } = await openWorldBossArena(page);
+  const start = await resetMovementProbe(page, diagnostics);
+  const right = await driveMovementProbeUntil(page, start, 1, 0, 'x', 1, 205);
+  expect(right.x - start.x).toBeGreaterThan(205);
+  expect(Math.abs(right.y - start.y)).toBeLessThan(5);
+  expect(right.hp).toBeGreaterThan(0);
+  expect(right.status).toBe('playing');
+
+  await mkdir(OUTPUT, { recursive: true });
+  await page.screenshot({ path: `${OUTPUT}/worldboss-open-arena-${testInfo.project.name}.png`, fullPage: false });
+  expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+});
+
+test('world boss movement probe keeps every cardinal route direct', async ({ page }) => {
+  test.setTimeout(180_000);
+  const { diagnostics } = await openWorldBossArena(page);
+  const directions = [
+    { x: -1, y: 0, axis: 'x', sign: -1 },
+    { x: 1, y: 0, axis: 'x', sign: 1 },
+    { x: 0, y: -1, axis: 'y', sign: -1 },
+    { x: 0, y: 1, axis: 'y', sign: 1 },
+  ];
+
+  for (const direction of directions) {
+    const before = await resetMovementProbe(page, diagnostics);
+    const after = await driveMovementProbeUntil(page, before, direction.x, direction.y, direction.axis, direction.sign, 35);
+    const primary = direction.axis === 'x' ? after.x - before.x : after.y - before.y;
+    const cross = direction.axis === 'x' ? after.y - before.y : after.x - before.x;
+    expect(primary * direction.sign).toBeGreaterThan(35);
+    expect(Math.abs(cross)).toBeLessThan(5);
+    expect(after.hp).toBeGreaterThan(0);
+    expect(after.status).toBe('playing');
+  }
 });
 
 test('mobile landscape blocks gameplay and the same portrait fight resumes', async ({ page }, testInfo) => {

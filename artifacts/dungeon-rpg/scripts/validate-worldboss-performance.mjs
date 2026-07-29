@@ -35,14 +35,22 @@ const hasMobileResolutionCap = files.stage.includes("return Math.min(ratio, IS_A
 
 const checks = [
   [files.entry.includes("export { WorldBossBattleScreen } from './WorldBossBattleScreenV4';"), 'public battle entry is not routed through the canonical V4 controller'],
-  [files.battle.includes("import { WorldBossLiteStage }") && files.battle.includes('<WorldBossLiteStage'), 'V4 battle screen is not using the dedicated world-boss stage'],
+  [files.battle.includes('import { WorldBossLiteStage }') && files.battle.includes('<WorldBossLiteStage'), 'V4 battle screen is not using the dedicated world-boss stage'],
   [files.battle.includes('WORLD_BOSS_BALANCE_V4.timeLimitSeconds * 1000') && files.balance.includes('timeLimitSeconds: 150'), '150-second V4 attempt contract is missing'],
   [(hasCanonicalHealth || hasRotationScaledHealth) && files.balance.includes('health: 118000'), '118,000 HP V4 boss baseline or rotation-scaled health contract is missing'],
   [files.battle.includes('createEquipmentRuntimeBalanceState') && files.battle.includes('updateEquipmentRuntimeBalance(engine, equipmentRuntime)'), 'world boss does not apply current equipment, critical, speed and defense runtime'],
   [files.battle.includes('Math.round(localDamage)') && !files.battle.includes('localDamage * 6'), 'world-boss submission still distorts confirmed local damage'],
   [files.battle.includes('WORLD_BOSS_BALANCE_V4.balanceSeason') && files.balance.includes("balanceSeason: 'equipment-v4-s1'"), 'world-boss balance season is not visible/versioned'],
-  [files.proxyStage.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.combatBand.includes('<WorldBossCohesiveStage') && files.combatBand.includes('<WorldBossMobileArenaGuard'), 'world-boss stage routing or phone arena guard is broken'],
-  [files.arenaGuard.includes('PHONE_ARENA_HALF_WIDTH_TILES = 5.25') && files.arenaGuard.includes('PHONE_ARENA_HALF_HEIGHT_TILES = 7.65') && files.arenaGuard.includes('enforceWorldBossVisibleArena') && files.arenaGuard.includes('clampEntity(player') && files.arenaGuard.includes('clampEntity(boss'), 'phone fighters can still escape beyond the visible world-boss arena'],
+  [files.proxyStage.includes('WorldBossCombatBandStage as WorldBossLiteStage') && files.combatBand.includes('<WorldBossCohesiveStage') && files.combatBand.includes('<WorldBossMobileArenaGuard'), 'world-boss stage routing or arena guard is broken'],
+  [files.arenaGuard.includes("WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'visible-walkable-interior-v3'")
+    && files.arenaGuard.includes('WORLD_BOSS_ARENA_HALF_WIDTH_TILES = 6.25')
+    && files.arenaGuard.includes('WORLD_BOSS_ARENA_HALF_HEIGHT_TILES = 11.25')
+    && files.arenaGuard.includes('Math.min(WORLD_BOSS_ARENA_HALF_WIDTH_TILES, mapHalfWidth)')
+    && files.arenaGuard.includes('Math.min(WORLD_BOSS_ARENA_HALF_HEIGHT_TILES, mapHalfHeight)')
+    && files.arenaGuard.includes('clampEntity(player')
+    && files.arenaGuard.includes('clampEntity(boss')
+    && !files.arenaGuard.includes('PHONE_ARENA_HALF_WIDTH_TILES')
+    && !files.arenaGuard.includes('PHONE_ARENA_HALF_HEIGHT_TILES'), 'world-boss movement does not use the expanded camera-visible arena'],
   [files.cohesiveStage.includes('WorldBossAggressiveStage as WorldBossCohesiveStage') && files.aggressiveStage.includes('<WorldBossPerspectiveStage'), 'cohesive stage does not route through the aggressive controller'],
   [files.aggressiveStage.includes("const RELEASE_DELAY_MS = 320;") && files.aggressiveStage.includes("type AttackKind = 'breath' | 'claw' | 'slam'") && files.aggressiveStage.includes('const BREATH_HIT_RADIUS = 76;') && files.aggressiveStage.includes('const CLAW_RANGE = 158;') && files.aggressiveStage.includes('const SLAM_RANGE = 205;') && files.aggressiveStage.includes('boss-shot-breath-') && files.aggressiveStage.includes('boss-claw-impact-') && files.aggressiveStage.includes('boss-slam-impact-'), 'world-boss three-attack controller is missing or shares one generic hit profile'],
   [!files.stage.includes('buildKayKitDungeonRoom') && !files.stage.includes('buildKayKitRoomTheme') && !files.stage.includes('floor_tile_large.gltf'), 'generic high-call dungeon shell or repeated floor models remain'],
@@ -75,8 +83,27 @@ const checks = [
   [files.engine.includes('ignoreRoomPropCollisions = false;') && files.engine.includes('!this.ignoreRoomPropCollisions && shotBlockedByRoomProp') && files.engine.includes('return !this.ignoreRoomPropCollisions && collidesWithRoomProp'), 'engine collision bypass is missing or affects normal rooms'],
   [files.stage.includes("slot.material.color.set('#d8b77a')") && files.stage.includes('const breathGeometry') && files.stage.includes("const breathShot = effect.id.startsWith('boss-shot-breath-')") && files.stage.includes('slot.breath.visible = true'), 'dedicated directional dragon breath or neutral player arrows are missing'],
   [files.stage.includes('ownedTextures.forEach') && files.stage.includes('renderer?.forceContextLoss?.()'), 'renderer or texture cleanup is incomplete'],
-  [files.combatBand.includes('<WorldBossRuntimeDiagnostics') && files.diagnostics.includes('getWorldBossLoadedVisual') && files.diagnostics.includes('dataset.bossVisual') && files.diagnostics.includes('movement-dash-dragon-v2'), 'world-boss runtime diagnostics do not expose movement, dash and original-dragon geometry'],
-  [files.browserConfig.includes('worldboss-block1') && files.browserTest.includes("data-boss-visual', 'original-black-fbx-dragon'") && files.browserTest.includes('data-boss-ground-y') && files.browserTest.includes('data-player-last-dodge') && files.browserTest.includes('toBeGreaterThan(4)') && files.browserTest.includes('FBXLoader.js'), 'four-device browser regression does not prove original-dragon loading, floor alignment, movement and dash'],
+  [files.combatBand.includes('<WorldBossRuntimeDiagnostics')
+    && files.diagnostics.includes('getWorldBossLoadedVisual')
+    && files.diagnostics.includes('dataset.mapWidth')
+    && files.diagnostics.includes('dataset.mapHeight')
+    && files.diagnostics.includes('dataset.arenaBoundaryContract')
+    && files.diagnostics.includes('movement-dash-open-arena-v3')
+    && files.diagnostics.includes('__dungeonVeilWorldBossMovementProbe')
+    && files.diagnostics.includes('movementProbeActive')
+    && files.diagnostics.includes('Number.MAX_SAFE_INTEGER'), 'world-boss runtime diagnostics do not expose an isolated, invulnerable movement probe and original-dragon geometry'],
+  [files.browserConfig.includes('worldboss-block1')
+    && files.browserTest.includes("data-contract', 'movement-dash-open-arena-v3'")
+    && files.browserTest.includes("data-arena-boundary-contract', 'visible-walkable-interior-v3'")
+    && files.browserTest.includes("data-half-width-tiles', '6.25'")
+    && files.browserTest.includes("data-half-height-tiles', '11.25'")
+    && files.browserTest.includes('resetMovementProbe')
+    && files.browserTest.includes('driveMovementProbe')
+    && files.browserTest.includes('toBeGreaterThan(205)')
+    && files.browserTest.includes('toBeGreaterThan(35)')
+    && files.browserTest.includes('toBeLessThan(5)')
+    && files.browserTest.includes("new PointerEvent('pointerdown'")
+    && files.browserTest.includes('FBXLoader.js'), 'four-device browser regression does not prove real touch integration, isolated expanded-arena travel, direct cardinal paths and dash'],
 ];
 
 const failed = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -86,4 +113,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log('World-boss V4 audit passed: stable iPad input, pinned same-origin FBX loading, original black dragon geometry, bounded failure UX and four-device movement/dash regression are protected.');
+console.log('World-boss V4 audit passed: real touch input, isolated expanded camera-safe movement paths, pinned same-origin FBX loading, original black dragon geometry and four-device movement/dash regression are protected.');

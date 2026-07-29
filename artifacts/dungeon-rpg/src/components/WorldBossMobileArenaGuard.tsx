@@ -2,8 +2,9 @@ import React, { useEffect } from 'react';
 import type { GameEngine } from '../game/runEngine';
 import { TILE_SIZE } from '../game/dungeon';
 
-export const PHONE_ARENA_HALF_WIDTH_TILES = 5.25;
-export const PHONE_ARENA_HALF_HEIGHT_TILES = 7.65;
+export const WORLD_BOSS_ARENA_BOUNDARY_CONTRACT = 'visible-walkable-interior-v3';
+export const WORLD_BOSS_ARENA_HALF_WIDTH_TILES = 6.25;
+export const WORLD_BOSS_ARENA_HALF_HEIGHT_TILES = 11.25;
 
 type Props = {
   engineRef: React.RefObject<GameEngine | null>;
@@ -18,11 +19,11 @@ type MovableEntity = {
   vy: number;
 };
 
-function isNarrowPhonePortrait(): boolean {
+function isPortraitTouchDevice(): boolean {
   const viewport = window.visualViewport;
   const width = Math.max(1, viewport?.width ?? window.innerWidth);
   const height = Math.max(1, viewport?.height ?? window.innerHeight);
-  return width <= 700 && height / width >= 1.28;
+  return navigator.maxTouchPoints > 0 && height > width;
 }
 
 function worldCenterForMappedAxis(mapped: number, mapTiles: number): number {
@@ -45,12 +46,16 @@ function clampEntity(entity: MovableEntity, minimumCenterX: number, maximumCente
 }
 
 export function enforceWorldBossVisibleArena(engine: GameEngine): void {
-  if (!isNarrowPhonePortrait()) return;
+  if (!isPortraitTouchDevice()) return;
   const { map, player, enemies } = engine.state;
   const mapHalfWidth = Math.max(1, (map.width - 3) / 2);
   const mapHalfHeight = Math.max(1, (map.height - 3) / 2);
-  const halfWidth = Math.min(PHONE_ARENA_HALF_WIDTH_TILES, mapHalfWidth);
-  const halfHeight = Math.min(PHONE_ARENA_HALF_HEIGHT_TILES, mapHalfHeight);
+
+  // The former 5.25 × 7.65 phone rectangle was much too tight for the rendered
+  // hall and produced invisible side-sliding. The expanded envelope uses the
+  // complete camera-visible combat floor while still preventing offscreen fights.
+  const halfWidth = Math.min(WORLD_BOSS_ARENA_HALF_WIDTH_TILES, mapHalfWidth);
+  const halfHeight = Math.min(WORLD_BOSS_ARENA_HALF_HEIGHT_TILES, mapHalfHeight);
   const minimumCenterX = worldCenterForMappedAxis(-halfWidth, map.width);
   const maximumCenterX = worldCenterForMappedAxis(halfWidth, map.width);
   const minimumCenterY = worldCenterForMappedAxis(-halfHeight, map.height);
@@ -73,5 +78,11 @@ export function WorldBossMobileArenaGuard({ engineRef }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [engineRef]);
 
-  return <span data-testid="worldboss-visible-arena-guard" className="sr-only">Narrow phones keep both fighters inside the camera-safe arena.</span>;
+  return <span
+    data-testid="worldboss-visible-arena-guard"
+    data-boundary-contract={WORLD_BOSS_ARENA_BOUNDARY_CONTRACT}
+    data-half-width-tiles={WORLD_BOSS_ARENA_HALF_WIDTH_TILES}
+    data-half-height-tiles={WORLD_BOSS_ARENA_HALF_HEIGHT_TILES}
+    className="sr-only"
+  >Portrait touch devices use the expanded camera-visible combat floor.</span>;
 }
