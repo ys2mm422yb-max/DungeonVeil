@@ -21,6 +21,41 @@ function numericAttribute(locator, name) {
   return locator.getAttribute(name).then(value => Number(value || 0));
 }
 
+async function holdJoystick(page, joystick, diagnostics, x, y, pointerId, holdMs) {
+  const box = await joystick.boundingBox();
+  expect(box).toBeTruthy();
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+  const radius = Math.min(box.width, box.height) * 0.3;
+
+  await page.evaluate(({ centerX, centerY, targetX, targetY, pointerId }) => {
+    const control = document.querySelector('[data-testid="run-joystick"]');
+    control.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary: true,
+      clientX: centerX, clientY: centerY,
+    }));
+    window.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary: true,
+      clientX: targetX, clientY: targetY,
+    }));
+  }, {
+    centerX,
+    centerY,
+    targetX: centerX + x * radius,
+    targetY: centerY + y * radius,
+    pointerId,
+  });
+
+  await page.waitForTimeout(holdMs);
+  await page.evaluate(pointerId => {
+    window.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary: true,
+    }));
+  }, pointerId);
+  await expect.poll(() => numericAttribute(diagnostics, 'data-joy-x')).toBe(0);
+  await expect.poll(() => numericAttribute(diagnostics, 'data-joy-y')).toBe(0);
+}
+
 test('world boss loads the original FBX and accepts movement plus dash', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   if (testInfo.project.name.includes('ipad')) await page.setViewportSize({ width: 820, height: 1180 });
@@ -49,10 +84,12 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await expect(page.getByTestId('run-dash-button')).toBeVisible();
 
   const diagnostics = page.getByTestId('worldboss-runtime-diagnostics');
-  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-dragon-v2');
+  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-open-arena-v3');
   await expect(diagnostics).toHaveAttribute('data-engine-status', 'playing', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ready', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-boss-visual', 'original-black-fbx-dragon');
+  await expect(diagnostics).toHaveAttribute('data-arena-boundary-contract', 'visible-walkable-interior-v3');
+  await expect(page.getByTestId('worldboss-visible-arena-guard')).toHaveAttribute('data-boundary-contract', 'visible-walkable-interior-v3');
   await waitForPaintedCanvas(page, canvas, 60_000);
 
   const width = await numericAttribute(diagnostics, 'data-boss-width');
@@ -68,6 +105,8 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   expect(groundY).toBeGreaterThanOrEqual(-0.03);
   expect(groundY).toBeLessThanOrEqual(0.09);
   expect(topY).toBeGreaterThan(0.5);
+  expect(await numericAttribute(diagnostics, 'data-map-width')).toBeGreaterThanOrEqual(20);
+  expect(await numericAttribute(diagnostics, 'data-map-height')).toBeGreaterThanOrEqual(28);
 
   for (const required of ['Dragon.fbx', 'FBXLoader.js', 'fflate.module.js', 'NURBSCurve.js', 'NURBSUtils.js']) {
     const response = responses.find(item => item.url.includes(required));
@@ -129,6 +168,65 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
     body: await page.screenshot({ fullPage: false }),
     contentType: 'image/png',
   });
+  expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+});
+
+test('world boss open arena keeps long cardinal routes direct and free of invisible phone clamps', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const runtimeErrors = [];
+  page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
+  page.on('console', message => {
+    if (message.type() === 'error') runtimeErrors.push(`console: ${message.text()}`);
+  });
+
+  await page.goto(worldBossQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(page.getByTestId('worldboss-dragon-loading')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
+  const joystick = page.getByTestId('run-joystick');
+  const diagnostics = page.getByTestId('worldboss-runtime-diagnostics');
+  await expect(joystick).toBeVisible();
+  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-open-arena-v3');
+  await expect(diagnostics).toHaveAttribute('data-arena-boundary-contract', 'visible-walkable-interior-v3');
+  await waitForPaintedCanvas(page);
+
+  const start = {
+    x: await numericAttribute(diagnostics, 'data-player-x'),
+    y: await numericAttribute(diagnostics, 'data-player-y'),
+  };
+  await holdJoystick(page, joystick, diagnostics, 1, 0, 51, 1_500);
+  const right = {
+    x: await numericAttribute(diagnostics, 'data-player-x'),
+    y: await numericAttribute(diagnostics, 'data-player-y'),
+  };
+  expect(right.x - start.x).toBeGreaterThan(215);
+  expect(Math.abs(right.y - start.y)).toBeLessThan(18);
+
+  await holdJoystick(page, joystick, diagnostics, -1, 0, 52, 1_500);
+  const left = {
+    x: await numericAttribute(diagnostics, 'data-player-x'),
+    y: await numericAttribute(diagnostics, 'data-player-y'),
+  };
+  expect(left.x - right.x).toBeLessThan(-215);
+  expect(Math.abs(left.y - right.y)).toBeLessThan(18);
+
+  await holdJoystick(page, joystick, diagnostics, 0, -1, 53, 900);
+  const up = {
+    x: await numericAttribute(diagnostics, 'data-player-x'),
+    y: await numericAttribute(diagnostics, 'data-player-y'),
+  };
+  expect(up.y - left.y).toBeLessThan(-110);
+  expect(Math.abs(up.x - left.x)).toBeLessThan(18);
+
+  await holdJoystick(page, joystick, diagnostics, 0, 1, 54, 900);
+  const down = {
+    x: await numericAttribute(diagnostics, 'data-player-x'),
+    y: await numericAttribute(diagnostics, 'data-player-y'),
+  };
+  expect(down.y - up.y).toBeGreaterThan(110);
+  expect(Math.abs(down.x - up.x)).toBeLessThan(18);
+
+  await mkdir(OUTPUT, { recursive: true });
+  await page.screenshot({ path: `${OUTPUT}/worldboss-open-arena-${testInfo.project.name}.png`, fullPage: false });
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
 });
 
