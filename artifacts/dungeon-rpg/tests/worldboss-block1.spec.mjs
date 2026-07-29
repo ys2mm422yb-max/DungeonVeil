@@ -56,6 +56,29 @@ async function holdJoystick(page, joystick, diagnostics, x, y, pointerId, holdMs
   await expect.poll(() => numericAttribute(diagnostics, 'data-joy-y')).toBe(0);
 }
 
+async function travelJoystick(page, joystick, diagnostics, x, y, firstPointerId, segments, holdMs) {
+  for (let segment = 0; segment < segments; segment += 1) {
+    await holdJoystick(page, joystick, diagnostics, x, y, firstPointerId + segment, holdMs);
+  }
+}
+
+async function openWorldBossArena(page) {
+  await page.goto(worldBossQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(page.getByTestId('worldboss-dragon-loading')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
+  const joystick = page.getByTestId('run-joystick');
+  const diagnostics = page.getByTestId('worldboss-runtime-diagnostics');
+  const guard = page.getByTestId('worldboss-visible-arena-guard');
+  await expect(joystick).toBeVisible();
+  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-open-arena-v3');
+  await expect(diagnostics).toHaveAttribute('data-arena-boundary-contract', 'visible-walkable-interior-v3');
+  await expect(guard).toHaveAttribute('data-boundary-contract', 'visible-walkable-interior-v3');
+  await expect(guard).toHaveAttribute('data-half-width-tiles', '6.25');
+  await expect(guard).toHaveAttribute('data-half-height-tiles', '11.25');
+  await waitForPaintedCanvas(page);
+  return { joystick, diagnostics };
+}
+
 test('world boss loads the original FBX and accepts movement plus dash', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   if (testInfo.project.name.includes('ipad')) await page.setViewportSize({ width: 820, height: 1180 });
@@ -89,7 +112,10 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   await expect(diagnostics).toHaveAttribute('data-dragon-load-state', 'ready', { timeout: 20_000 });
   await expect(diagnostics).toHaveAttribute('data-boss-visual', 'original-black-fbx-dragon');
   await expect(diagnostics).toHaveAttribute('data-arena-boundary-contract', 'visible-walkable-interior-v3');
-  await expect(page.getByTestId('worldboss-visible-arena-guard')).toHaveAttribute('data-boundary-contract', 'visible-walkable-interior-v3');
+  const arenaGuard = page.getByTestId('worldboss-visible-arena-guard');
+  await expect(arenaGuard).toHaveAttribute('data-boundary-contract', 'visible-walkable-interior-v3');
+  await expect(arenaGuard).toHaveAttribute('data-half-width-tiles', '6.25');
+  await expect(arenaGuard).toHaveAttribute('data-half-height-tiles', '11.25');
   await waitForPaintedCanvas(page, canvas, 60_000);
 
   const width = await numericAttribute(diagnostics, 'data-boss-width');
@@ -171,7 +197,7 @@ test('world boss loads the original FBX and accepts movement plus dash', async (
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
 });
 
-test('world boss open arena keeps long cardinal routes direct and free of invisible phone clamps', async ({ page }, testInfo) => {
+test('world boss segmented touch route crosses the former invisible phone clamp', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
@@ -179,55 +205,52 @@ test('world boss open arena keeps long cardinal routes direct and free of invisi
     if (message.type() === 'error') runtimeErrors.push(`console: ${message.text()}`);
   });
 
-  await page.goto(worldBossQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await expect(page.getByTestId('worldboss-dragon-loading')).toBeHidden({ timeout: 60_000 });
-  await expect(page.getByTestId('worldboss-dragon-load-error')).toHaveCount(0);
-  const joystick = page.getByTestId('run-joystick');
-  const diagnostics = page.getByTestId('worldboss-runtime-diagnostics');
-  await expect(joystick).toBeVisible();
-  await expect(diagnostics).toHaveAttribute('data-contract', 'movement-dash-open-arena-v3');
-  await expect(diagnostics).toHaveAttribute('data-arena-boundary-contract', 'visible-walkable-interior-v3');
-  await waitForPaintedCanvas(page);
-
+  const { joystick, diagnostics } = await openWorldBossArena(page);
   const start = {
     x: await numericAttribute(diagnostics, 'data-player-x'),
     y: await numericAttribute(diagnostics, 'data-player-y'),
   };
-  await holdJoystick(page, joystick, diagnostics, 1, 0, 51, 1_500);
+
+  // Repeated short touch gestures model real thumb re-centering and are stable in
+  // both WebKit and Chromium. The resulting route must cross the old 5.25-tile clamp.
+  await travelJoystick(page, joystick, diagnostics, 1, 0, 61, 10, 300);
   const right = {
     x: await numericAttribute(diagnostics, 'data-player-x'),
     y: await numericAttribute(diagnostics, 'data-player-y'),
   };
-  expect(right.x - start.x).toBeGreaterThan(215);
-  expect(Math.abs(right.y - start.y)).toBeLessThan(18);
-
-  await holdJoystick(page, joystick, diagnostics, -1, 0, 52, 1_500);
-  const left = {
-    x: await numericAttribute(diagnostics, 'data-player-x'),
-    y: await numericAttribute(diagnostics, 'data-player-y'),
-  };
-  expect(left.x - right.x).toBeLessThan(-215);
-  expect(Math.abs(left.y - right.y)).toBeLessThan(18);
-
-  await holdJoystick(page, joystick, diagnostics, 0, -1, 53, 900);
-  const up = {
-    x: await numericAttribute(diagnostics, 'data-player-x'),
-    y: await numericAttribute(diagnostics, 'data-player-y'),
-  };
-  expect(up.y - left.y).toBeLessThan(-110);
-  expect(Math.abs(up.x - left.x)).toBeLessThan(18);
-
-  await holdJoystick(page, joystick, diagnostics, 0, 1, 54, 900);
-  const down = {
-    x: await numericAttribute(diagnostics, 'data-player-x'),
-    y: await numericAttribute(diagnostics, 'data-player-y'),
-  };
-  expect(down.y - up.y).toBeGreaterThan(110);
-  expect(Math.abs(down.x - up.x)).toBeLessThan(18);
+  expect(right.x - start.x).toBeGreaterThan(205);
+  expect(Math.abs(right.y - start.y)).toBeLessThan(20);
 
   await mkdir(OUTPUT, { recursive: true });
   await page.screenshot({ path: `${OUTPUT}/worldboss-open-arena-${testInfo.project.name}.png`, fullPage: false });
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+});
+
+test('world boss short cardinal touch gestures stay direct in every direction', async ({ page }) => {
+  test.setTimeout(180_000);
+  const { joystick, diagnostics } = await openWorldBossArena(page);
+  const directions = [
+    { x: -1, y: 0, axis: 'x', sign: -1, pointerId: 81 },
+    { x: 1, y: 0, axis: 'x', sign: 1, pointerId: 82 },
+    { x: 0, y: -1, axis: 'y', sign: -1, pointerId: 83 },
+    { x: 0, y: 1, axis: 'y', sign: 1, pointerId: 84 },
+  ];
+
+  for (const direction of directions) {
+    const before = {
+      x: await numericAttribute(diagnostics, 'data-player-x'),
+      y: await numericAttribute(diagnostics, 'data-player-y'),
+    };
+    await holdJoystick(page, joystick, diagnostics, direction.x, direction.y, direction.pointerId, 320);
+    const after = {
+      x: await numericAttribute(diagnostics, 'data-player-x'),
+      y: await numericAttribute(diagnostics, 'data-player-y'),
+    };
+    const primary = direction.axis === 'x' ? after.x - before.x : after.y - before.y;
+    const cross = direction.axis === 'x' ? after.y - before.y : after.x - before.x;
+    expect(primary * direction.sign).toBeGreaterThan(22);
+    expect(Math.abs(cross)).toBeLessThan(12);
+  }
 });
 
 test('mobile landscape blocks gameplay and the same portrait fight resumes', async ({ page }, testInfo) => {
