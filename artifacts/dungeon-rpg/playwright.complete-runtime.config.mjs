@@ -13,7 +13,6 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['json', { outputFile: 'test-results/complete-runtime-results.json' }],
-    ['html', { outputFolder: 'playwright-complete-runtime-report', open: 'never' }],
   ],
   use: {
     baseURL,
@@ -21,7 +20,7 @@ export default defineConfig({
     navigationTimeout: 60_000,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
-    video: { mode: 'on', size: { width: 640, height: 960 } },
+    video: { mode: 'on', size: { width: 360, height: 640 } },
   },
   projects: [
     {
