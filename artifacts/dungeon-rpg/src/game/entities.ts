@@ -1,5 +1,5 @@
 import { ClassKey } from './classes';
-import type { EnemyType } from './enemyRegistry';
+import type { EnemyAttackPattern, EnemyCombatRole, EnemyFamilyId, EnemyTelegraph, EnemyType } from './enemyRegistry';
 import type { VeilRelicId } from './veilRelics';
 import type { EquipmentDropSource, EquipmentId, EquipmentRarity } from './metaProgression';
 
@@ -49,6 +49,10 @@ export type EliteAffix = 'bulwark' | 'frenzy' | 'mender' | 'volatile';
 export interface Enemy extends Entity {
   type: 'enemy';
   enemyType: EnemyType;
+  enemyFamilyId?: EnemyFamilyId;
+  enemyCombatRole?: EnemyCombatRole;
+  enemyAttackPattern?: EnemyAttackPattern;
+  enemyTelegraph?: EnemyTelegraph;
   hp: number;
   maxHp: number;
   attack: number;
