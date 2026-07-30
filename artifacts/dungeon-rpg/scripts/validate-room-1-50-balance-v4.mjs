@@ -25,7 +25,7 @@ const ENEMY = Object.freeze({
 
 const encounterTableSource = encounterSource.slice(
   encounterSource.indexOf('const ENCOUNTERS'),
-  encounterSource.indexOf('const REGION_POOLS'),
+  encounterSource.indexOf('function generatedEncounter'),
 );
 const explicit = new Map();
 for (const match of encounterTableSource.matchAll(/^\s*(\d+):\s*\[([^\]]*)\],?$/gm)) {
@@ -114,7 +114,13 @@ for (const chapter of [1, 5, 10]) {
 }
 
 assert(explicit.size === 20, `expected explicit contracts for rooms 1–20, found ${explicit.size}`);
-assert(encounterSource.includes('enforceLateRoomRoleMix') && encounterSource.includes('safeRoom >= 41'), 'runtime late-room role-mix contract is missing');
+assert(
+  encounterSource.includes("import { deterministicEnemyFamilyForRoom } from './enemyRegistry'")
+    && encounterSource.includes('function generatedEncounter')
+    && encounterSource.includes('deterministicEnemyFamilyForRoom(room, slot, result)')
+    && encounterSource.includes('return generatedEncounter(safeRoom)'),
+  'runtime canonical registry encounter contract is missing',
+);
 assert([...Array(50)].every((_, index) => encounter(index + 1).every(type => ENEMY[type])), 'unknown enemy type appears in a room plan');
 assert([10, 20, 30, 40, 50].every(room => encounter(room).length === 0), 'boss rooms contain normal encounter spawns');
 
