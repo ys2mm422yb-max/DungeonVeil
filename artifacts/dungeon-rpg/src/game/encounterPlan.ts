@@ -1,18 +1,18 @@
-import type { EnemyType } from './enemyRegistry';
-import { deterministicEnemyFamilyForRoom } from './enemyRegistry';
+import type { EnemyFamilyId, EnemyType } from './enemyRegistry';
+import {
+  deterministicEnemyFamilyForRoom,
+  enemyFamilyForSpawn,
+  runtimeEnemyTypeForFamily,
+} from './enemyRegistry';
 import { CHAPTER_ROOMS } from './chapterRun';
 import { applyChapterMechanicsV4 } from './chapterMechanicsV4';
 
 /**
- * Deliberate room compositions. Order matters because it is paired with the
- * authored room spawn points. Boss rooms are handled separately by runEngine.
- *
- * Authored encounters remain stable for compatibility. Rooms without an
- * explicit composition are generated deterministically from the canonical
- * enemy registry so room-band eligibility and anti-repetition rules have one
- * authoritative source.
+ * Stable runtime compositions retained for established authored rooms. Family
+ * identity is resolved separately through the canonical registry, allowing the
+ * same licensed presentation base to represent a mechanically distinct family.
  */
-const ENCOUNTERS: Record<number, EnemyType[]> = {
+const AUTHORED_RUNTIME_ENCOUNTERS: Record<number, EnemyType[]> = {
   1: ['goblin', 'skeleton'],
   2: ['goblin', 'spider', 'skeleton'],
   3: ['skeleton', 'spider', 'goblin', 'vampire'],
@@ -80,21 +80,28 @@ const ENCOUNTERS: Record<number, EnemyType[]> = {
   90: [],
 };
 
-function generatedEncounter(room: number): EnemyType[] {
+function encounterCount(room: number): number {
+  const authored = AUTHORED_RUNTIME_ENCOUNTERS[room];
+  if (authored) return authored.length;
   const local = (room - 1) % 10;
-  const count = Math.min(8, 5 + Math.floor(local / 2));
-  const result: EnemyType[] = [];
-  for (let slot = 0; slot < count; slot++) {
-    result.push(deterministicEnemyFamilyForRoom(room, slot, result));
+  return Math.min(8, 5 + Math.floor(local / 2));
+}
+
+export function getEncounterFamilyPlan(room: number): EnemyFamilyId[] {
+  const safeRoom = Math.max(1, Math.min(CHAPTER_ROOMS, Math.floor(room)));
+  if (safeRoom % 10 === 0) return [];
+  const authored = AUTHORED_RUNTIME_ENCOUNTERS[safeRoom];
+  if (authored) return authored.map((runtimeType, slot) => enemyFamilyForSpawn(safeRoom, slot, runtimeType));
+
+  const result: EnemyFamilyId[] = [];
+  for (let slot = 0; slot < encounterCount(safeRoom); slot++) {
+    result.push(deterministicEnemyFamilyForRoom(safeRoom, slot, result));
   }
   return result;
 }
 
 export function getEncounterPlan(room: number): EnemyType[] {
-  const safeRoom = Math.max(1, Math.min(CHAPTER_ROOMS, room));
-  if (ENCOUNTERS[safeRoom]) return [...ENCOUNTERS[safeRoom]];
-  if (safeRoom % 10 === 0) return [];
-  return generatedEncounter(safeRoom);
+  return getEncounterFamilyPlan(room).map(runtimeEnemyTypeForFamily);
 }
 
 export function getChapterEncounterPlan(room: number, chapter: number): EnemyType[] {
