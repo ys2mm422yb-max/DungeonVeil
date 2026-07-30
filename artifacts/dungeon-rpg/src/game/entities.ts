@@ -1,5 +1,5 @@
 import { ClassKey } from './classes';
-import { EnemyTypeName } from './sprites';
+import type { EnemyType } from './enemyRegistry';
 import type { VeilRelicId } from './veilRelics';
 import type { EquipmentDropSource, EquipmentId, EquipmentRarity } from './metaProgression';
 
@@ -43,7 +43,7 @@ export interface Player extends Entity {
   relicAttackSpeedUntil?: number;
 }
 
-export type EnemyType = EnemyTypeName;
+export type { EnemyType } from './enemyRegistry';
 export type EliteAffix = 'bulwark' | 'frenzy' | 'mender' | 'volatile';
 
 export interface Enemy extends Entity {
