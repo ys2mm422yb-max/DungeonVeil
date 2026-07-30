@@ -1,4 +1,5 @@
-import type { EnemyType } from './entities';
+import type { EnemyType } from './enemyRegistry';
+import { deterministicEnemyFamilyForRoom } from './enemyRegistry';
 import { CHAPTER_ROOMS } from './chapterRun';
 import { applyChapterMechanicsV4 } from './chapterMechanicsV4';
 
@@ -6,9 +7,10 @@ import { applyChapterMechanicsV4 } from './chapterMechanicsV4';
  * Deliberate room compositions. Order matters because it is paired with the
  * authored room spawn points. Boss rooms are handled separately by runEngine.
  *
- * Internal type names still carry legacy labels for compatibility. The 3D
- * presentation resolves those types into region-specific creatures, skeleton
- * roles and Adventurer bodies through enemyRegionalIdentity.
+ * Authored encounters remain stable for compatibility. Rooms without an
+ * explicit composition are generated deterministically from the canonical
+ * enemy registry so room-band eligibility and anti-repetition rules have one
+ * authoritative source.
  */
 const ENCOUNTERS: Record<number, EnemyType[]> = {
   1: ['goblin', 'skeleton'],
@@ -78,22 +80,13 @@ const ENCOUNTERS: Record<number, EnemyType[]> = {
   90: [],
 };
 
-const REGION_POOLS: Record<number, EnemyType[]> = {
-  3: ['goblin', 'spider', 'slime', 'skeleton', 'orc', 'vampire', 'demon'],
-  4: ['vampire', 'spider', 'skeleton', 'orc', 'demon', 'golem'],
-  5: ['orc', 'golem', 'vampire', 'skeleton', 'demon', 'spider', 'slime'],
-  6: ['golem', 'orc', 'demon', 'vampire', 'spider', 'skeleton', 'slime'],
-  7: ['demon', 'golem', 'vampire', 'orc', 'spider', 'skeleton', 'slime'],
-  8: ['golem', 'vampire', 'demon', 'orc', 'spider', 'skeleton', 'slime'],
-  9: ['golem', 'orc', 'demon', 'vampire', 'spider', 'skeleton', 'slime'],
-};
-
-function enforceLateRoomRoleMix(plan: EnemyType[], local: number): EnemyType[] {
-  if (plan.length < 3) return plan;
-  const result = [...plan];
-  result[0] = local % 2 === 0 ? 'golem' : 'orc';
-  result[1] = local % 3 === 0 ? 'vampire' : 'demon';
-  result[2] = local % 2 === 0 ? 'spider' : 'slime';
+function generatedEncounter(room: number): EnemyType[] {
+  const local = (room - 1) % 10;
+  const count = Math.min(8, 5 + Math.floor(local / 2));
+  const result: EnemyType[] = [];
+  for (let slot = 0; slot < count; slot++) {
+    result.push(deterministicEnemyFamilyForRoom(room, slot, result));
+  }
   return result;
 }
 
@@ -101,12 +94,7 @@ export function getEncounterPlan(room: number): EnemyType[] {
   const safeRoom = Math.max(1, Math.min(CHAPTER_ROOMS, room));
   if (ENCOUNTERS[safeRoom]) return [...ENCOUNTERS[safeRoom]];
   if (safeRoom % 10 === 0) return [];
-  const region = Math.ceil(safeRoom / 10);
-  const pool = REGION_POOLS[region] ?? REGION_POOLS[9];
-  const local = (safeRoom - 1) % 10;
-  const count = Math.min(8, 5 + Math.floor(local / 2));
-  const generated = Array.from({ length: count }, (_, index) => pool[(index + local * 2) % pool.length]);
-  return safeRoom >= 41 ? enforceLateRoomRoleMix(generated, local) : generated;
+  return generatedEncounter(safeRoom);
 }
 
 export function getChapterEncounterPlan(room: number, chapter: number): EnemyType[] {
