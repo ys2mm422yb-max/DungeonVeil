@@ -14,7 +14,10 @@ function assert(condition, message) {
 }
 
 assert(normalTelegraphs.includes('return range * 1.18;'), 'Normal enemy presentation must preserve the existing 1.18 runtime hit reach.');
-assert(normalTelegraphs.includes('effect.maxRadius = normalEnemyDamageRadius(windup.range);'), 'Normal warning radius must match the real hit radius.');
+const sharesDamageReach = normalTelegraphs.includes('const damageRadius = normalEnemyDamageRadius(windup.range);')
+  && normalTelegraphs.includes('effect.maxRadius = damageRadius;')
+  && normalTelegraphs.includes('effect.maxRadius = Math.max(damageRadius, windup.range * 1.1);');
+assert(sharesDamageReach, 'Normal circle/cone warnings must match real hit reach and line warnings must never undershoot it.');
 assert(normalTelegraphs.includes('effect.maxLifeTime = Math.max(1, windup.hitAt - enemy.lastAttackTime);'), 'Normal warning lifetime must match the existing windup.');
 assert(normalTelegraphs.includes("enemy.enemyType === 'boss'"), 'Normal enemy adapter must leave boss attacks to their dedicated system.');
 assert(!normalTelegraphs.includes('enemy.attack ='), 'Presentation adapter must not alter enemy attack values.');
