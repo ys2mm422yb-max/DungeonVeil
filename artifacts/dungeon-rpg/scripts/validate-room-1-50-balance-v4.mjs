@@ -26,9 +26,9 @@ const ENEMY = Object.freeze({
 const authoredStart = encounterSource.indexOf('const AUTHORED_RUNTIME_ENCOUNTERS');
 const authoredEnd = encounterSource.indexOf('function encounterCount');
 assert(authoredStart >= 0 && authoredEnd > authoredStart, 'authored runtime encounter table is missing');
-const encounterTableSource = encounterSource.slice(authoredStart, authoredEnd);
+const encounterTableSource = encounterSource.slice(authoredStart, authoredEnd).replace(/\r/g, '');
 const explicit = new Map();
-for (const match of encounterTableSource.matchAll(/^\s*(\d+):\s*\[([^\]]*)\],?$/gm)) {
+for (const match of encounterTableSource.matchAll(/(?:^|\n)\s*(\d+):\s*\[([^\]]*)\]/g)) {
   const room = Number(match[1]);
   if (room > 20) continue;
   const types = [...match[2].matchAll(/'([^']+)'/g)].map(entry => entry[1]);
