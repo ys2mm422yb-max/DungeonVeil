@@ -54,7 +54,17 @@ if (!familyRuntime.includes('enemy.enemyFamilyId = familyId') || !familyRuntime.
 if (!entities.includes('enemyCombatRole?: EnemyCombatRole') || !entities.includes('enemyTelegraph?: EnemyTelegraph')) failures.push('runtime enemies do not carry canonical family metadata');
 if (!telegraphs.includes("telegraph === 'line'") || !telegraphs.includes("telegraph === 'cone'") || !telegraphs.includes("telegraph === 'body-flash'")) failures.push('canonical telegraph shapes are not rendered');
 if (!persistentSave.includes("'dungeon-veil-retention-v2'")) failures.push('retention/Codex state is not included in cloud save bundles');
-if (!regional.includes('enemyFamilyForSpawn(safeRoom, index, type)') || !regional.includes('definition.role')) failures.push('visible roles are not resolved from family identity');
+const registryDrivenLateVisuals = regional.includes('function lateRegistryVisual')
+  && regional.includes('enemyFamilyForSpawn(room, index, type)')
+  && regional.includes('const definition = enemyDefinition(familyId)')
+  && regional.includes('const role = definition.role')
+  && regional.includes('return lateRegistryVisual(safeRoom, type, index)');
+const preservedValidatedVisuals = regional.includes('if (safeRoom <= 30)')
+  && regional.includes("return adventurer('ranger', 'ranger')")
+  && regional.includes('if (safeRoom <= 40)')
+  && regional.includes("return index % 2 === 0 ? realMage() : skeleton('rogue', 'rogue')")
+  && regional.includes('if (safeRoom <= 50)');
+if (!registryDrivenLateVisuals || !preservedValidatedVisuals) failures.push('visible roles are not resolved from family identity while preserving validated rooms 1-50');
 
 const runtimeTypes = ['slime', 'goblin', 'skeleton', 'orc', 'spider', 'vampire', 'demon', 'golem'];
 for (const type of runtimeTypes) {
