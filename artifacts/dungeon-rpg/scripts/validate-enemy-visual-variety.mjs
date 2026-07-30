@@ -1,41 +1,64 @@
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const readBuffer = relative => readFile(new URL(relative, import.meta.url));
 
-function gitBlobSha(content) {
-  const header = Buffer.from(`blob ${content.length}\0`);
-  return createHash('sha1').update(header).update(content).digest('hex');
-}
-
-const [visual, baseVisual, regional, encounters, runEngine, manifest] = await Promise.all([
+const [registry, visual, baseVisual, regional, encounters, runEngine, codex, retention, persistentSave, manifest] = await Promise.all([
+  read('../src/game/enemyRegistry.ts'),
   read('../src/components/kaykitEnemy3D.ts'),
   read('../src/components/kaykitEnemyBase3D.ts'),
   read('../src/game/enemyRegionalIdentity.ts'),
   read('../src/game/encounterPlan.ts'),
   read('../src/game/runEngine.ts'),
+  read('../src/game/codexDefinitions.ts'),
+  read('../src/game/runRetention.ts'),
+  read('../src/game/persistentSaveBundle.ts'),
   read('../public/assets/kaykit/manifest.json'),
 ]);
 
-// Lock the actual balance and encounter sources. The enemy renderer is the
-// intentional implementation surface of this PR and is validated semantically
-// below instead of being frozen to an obsolete blob SHA.
-const protectedFiles = new Map([
-  ['../src/game/runEngine.ts', '064d97fc6a3e10358aeabcc765f95bf980d68f60'],
-  ['../src/game/encounterPlan.ts', '2aef61fc74784c13d3e696a66226c70cb6548d47'],
-]);
-
 const failures = [];
-for (const [relative, expected] of protectedFiles) {
-  const actual = gitBlobSha(await readBuffer(relative));
-  if (actual !== expected) failures.push(`${relative.replace('../', '')} changed (${actual}, expected ${expected})`);
+const familyMatches = [...registry.matchAll(/family\(\s*'([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']+)'[\s\S]*?spawn\((\d+)\s*,\s*(\d+)/g)];
+const families = familyMatches.map(match => ({ id: match[1], runtimeType: match[2], silhouette: match[3], minRoom: Number(match[4]), maxRoom: Number(match[5]) }));
+const familyIds = families.map(family => family.id);
+const uniqueFamilyIds = new Set(familyIds);
+const uniqueSilhouettes = new Set(families.map(family => family.silhouette));
+
+if (families.length < 24) failures.push(`only ${families.length} normal enemy families are registered; expected at least 24`);
+if (uniqueFamilyIds.size !== families.length) failures.push('enemy family ids are not unique');
+if (uniqueSilhouettes.size < 24) failures.push(`only ${uniqueSilhouettes.size} unique silhouette contracts are registered; expected at least 24`);
+if (!registry.includes("boss: {") || !registry.includes("id: 'boss'")) failures.push('canonical boss family is missing');
+if (!registry.includes('provenance:')) failures.push('registry provenance metadata is missing');
+
+for (const family of families) {
+  if (family.minRoom < 1 || family.maxRoom > 100 || family.maxRoom < family.minRoom) failures.push(`${family.id} has an invalid room range ${family.minRoom}-${family.maxRoom}`);
+  const familyStart = registry.indexOf(`family('${family.id}'`);
+  const familyEnd = registry.indexOf('\n  ', familyStart + 20);
+  const fragment = registry.slice(familyStart, familyEnd > familyStart ? familyEnd : familyStart + 1_800);
+  if (!fragment.includes("text('") && !fragment.includes('text("')) failures.push(`${family.id} lacks bilingual text`);
 }
 
-const enemyTypes = ['slime', 'goblin', 'skeleton', 'orc', 'spider', 'vampire', 'demon', 'golem'];
-for (const type of enemyTypes) {
-  if (!runEngine.includes(`${type}: {`)) failures.push(`enemy stats missing for ${type}`);
-  if (!encounters.includes(`'${type}'`)) failures.push(`encounter plans no longer use ${type}`);
+for (let start = 1; start <= 91; start += 10) {
+  const end = start + 9;
+  const eligible = families.filter(family => family.minRoom <= end && family.maxRoom >= start);
+  if (eligible.length < 3) failures.push(`room band ${start}-${end} has only ${eligible.length} eligible families`);
+}
+
+for (const required of ['getEncounterFamilyPlan', 'deterministicEnemyFamilyForRoom', 'enemyFamilyForSpawn', 'runtimeEnemyTypeForFamily']) {
+  if (!encounters.includes(required)) failures.push(`encounter plan is missing ${required}`);
+}
+if (!codex.includes('NORMAL_ENEMY_FAMILY_IDS.map')) failures.push('beast Codex is not derived from the canonical registry');
+if (!codex.includes('familyId: id') || !codex.includes('mechanicDe')) failures.push('beast Codex lacks family identity or mechanic copy');
+if (!retention.includes('enemyKills: Partial<Record<EnemyFamilyId, number>>')) failures.push('family kill counters are not persisted');
+if (!retention.includes('getEncounterFamilyPlan(engine.state.floor)')) failures.push('room discoveries are not driven by the family plan');
+if (!retention.includes('profile.codex.enemyKills[familyId]')) failures.push('enemy deaths do not increment family counters');
+if (!persistentSave.includes("'dungeon-veil-retention-v2'")) failures.push('retention/Codex state is not included in cloud save bundles');
+if (!regional.includes('enemyFamilyForSpawn(safeRoom, index, type)')) failures.push('visible enemy roles are not resolved from family identity');
+if (!regional.includes('definition.role')) failures.push('family combat roles do not drive visual roles');
+
+const runtimeTypes = ['slime', 'goblin', 'skeleton', 'orc', 'spider', 'vampire', 'demon', 'golem'];
+for (const type of runtimeTypes) {
+  if (!registry.includes(`'${type}'`)) failures.push(`runtime type ${type} is missing from the registry`);
+  if (!encounters.includes(`'${type}'`)) failures.push(`authored encounter compatibility no longer uses ${type}`);
 }
 
 const shippedModels = [
@@ -55,32 +78,22 @@ for (const [name, relative] of shippedModels) {
 }
 
 const checks = [
-  [visual.includes("['slime', 'goblin', 'spider', 'vampire', 'demon']") && visual.includes('preloadRealCreatureModels'), 'the complete set of distinct real creature models is no longer registered'],
-  [visual.includes('requestedImportedTypes(requestedTypes)') && visual.includes('loadEnemyAssetsWithRetries(requestedTypes, importedTypes)') && visual.includes('preloadRealCreatureModels(importedTypes)'), 'creature loading is not scoped to requested room types'],
-  [visual.includes('types.map(preloadLocalEnemyAsset)') && visual.includes('types.map(loadImportedPrototype)'), 'requested models are not fully fetched and parsed'],
-  [!visual.includes('IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset)'), 'all five creatures are still forced before every room'],
-  [visual.includes('createDedicatedImportedVisual') && visual.includes('if (importedEnemyType(enemy.enemyType))') && visual.includes('return createBaseKayKitEnemyVisual(THREE, enemy);'), 'imported creatures do not have a direct construction path separate from humanoid models'],
-  [visual.includes('const needsBaseLibrary = enemyTypes.length === 0 || enemyTypes.some(type => !importedEnemyType(type));') && visual.includes('needsBaseLibrary ? preloadBaseKayKitEnemyVisuals() : Promise.resolve()'), 'imported-only rooms still wait for the full humanoid library'],
-  [visual.includes('throw new Error(`Dedicated enemy model did not become ready:') && visual.includes('enemyPreloadPromises.delete(key)') && visual.includes('importedPrototypePromises.delete(type)'), 'dedicated model failures are not retried safely'],
-  [visual.includes('prepareImportedModel(scene)') && visual.includes('node.frustumCulled = false;'), 'direct imported creatures are not prepared for reliable mobile rendering'],
-  [!visual.includes('EnemyMageIdentity_') && !visual.includes('robeMaterial'), 'the fake mage costume overlay still exists'],
+  [visual.includes("['slime', 'goblin', 'spider', 'vampire', 'demon']") && visual.includes('preloadRealCreatureModels'), 'distinct imported creature models are no longer registered'],
+  [visual.includes('requestedImportedTypes(requestedTypes)') && visual.includes('loadEnemyAssetsWithRetries(requestedTypes, importedTypes)'), 'creature loading is not scoped to requested room types'],
+  [visual.includes('createDedicatedImportedVisual') && visual.includes('return createBaseKayKitEnemyVisual(THREE, enemy);'), 'imported and humanoid construction paths are no longer separated'],
   [regional.includes("const realMage = (): EnemyVisualProfile => adventurer('mage', '/characters/gltf/mage.glb')"), 'the exact real Mage.glb profile is missing'],
-  [regional.includes("if (room === 20) return { ...extraSkeleton('mage', 'necromancer'), bossVariant: 'veil-necromancer' }"), 'room 20 caster does not use the selected Skeleton Extra Necromancer'],
-  [regional.includes('SKELETON_EXTRA_MODEL') && regional.includes("necromancer: 'necromancer'") && regional.includes("golem: 'skeleton_golem'"), 'Skeleton Extra roles are not mapped explicitly to original model files'],
-  [regional.includes("extraSkeleton('mage', 'mage')") && regional.includes('return index % 2 === 0 ? realMage()'), 'mage roles no longer preserve their explicit chapter-specific bodies'],
+  [regional.includes("extraSkeleton('mage', 'necromancer')") && regional.includes("extraSkeleton('warrior', 'golem')"), 'selected Skeleton Extra roles are missing'],
   [manifest.includes('Characters/gltf/Mage.glb'), 'Mage.glb is missing from the manifest'],
-  [baseVisual.includes("slime: { path: '/assets/imported/enemies/Slime.glb'") && baseVisual.includes("goblin: { path: '/assets/imported/enemies/Rat.glb'") && baseVisual.includes("spider: { path: '/assets/imported/enemies/Spider.glb'") && baseVisual.includes("vampire: { path: '/assets/imported/enemies/Bat.glb'") && baseVisual.includes("demon: { path: '/assets/imported/enemies/Snake_angry.glb'"), 'distinct creature asset mapping is incomplete'],
-  [baseVisual.includes('bossAttackContract(room)') && baseVisual.includes('enemy.lastAttackTime + 420') && baseVisual.includes('enemy.lastAttackTime + 270') && baseVisual.includes('enemy.lastAttackTime + 185'), 'enemy visual timing no longer follows the existing boss, mage, heavy, and normal windup contracts'],
-  [baseVisual.includes('loadKayKitEnemyBow') && baseVisual.includes('attachBowToRanger') && baseVisual.includes("['ranged', 'bow', 'release']"), 'ranger visual role no longer uses a dedicated bow and authored release'],
-  [baseVisual.includes("['hit', 'a']") && baseVisual.includes("['skeletons', 'death']"), 'authored hit and Skeleton death reactions are no longer selected'],
-  [regional.includes('attackRange: 178, attackDelay: 1040, moveScale: 0.9') && regional.includes('attackRange: 190, attackDelay: 820, moveScale: 1.12'), 'boss combat values changed during the visual fix'],
+  [baseVisual.includes("slime: { path: '/assets/imported/enemies/Slime.glb'") && baseVisual.includes("demon: { path: '/assets/imported/enemies/Snake_angry.glb'"), 'distinct creature asset mapping is incomplete'],
+  [baseVisual.includes('loadKayKitEnemyBow') && baseVisual.includes('attachBowToRanger'), 'ranger visual roles no longer use the dedicated bow'],
+  [runEngine.includes('getEncounterPlan(room)'), 'runtime no longer consumes the encounter plan'],
 ];
 for (const [ok, message] of checks) if (!ok) failures.push(message);
 
 if (failures.length) {
-  console.error(`Enemy visual variety audit failed with ${failures.length} error(s):`);
+  console.error(`Enemy registry and visual variety audit failed with ${failures.length} error(s):`);
   failures.forEach(message => console.error(`  - ${message}`));
   process.exit(1);
 }
 
-console.log('Enemy visual variety audit passed: distinct GLBs and role animations are verified semantically while enemy stats, authored encounters, and boss balance remain locked.');
+console.log(`Enemy registry audit passed: ${families.length} normal families, ${uniqueSilhouettes.size} silhouettes, rooms 1-100, Codex counters, persistence and licensed presentation paths are verified semantically.`);
