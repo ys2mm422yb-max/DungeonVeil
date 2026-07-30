@@ -127,6 +127,31 @@ jobs:
           retention-days: 21
           compression-level: 9
           path: artifacts/dungeon-rpg/test-results/complete-runtime-results.json
+      - name: Prepare compact review media
+        if: always()
+        run: node artifacts/dungeon-rpg/scripts/prepare-complete-runtime-review-media.mjs artifacts/dungeon-rpg/test-results artifacts/dungeon-rpg/review-media
+      - name: Upload review screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-review-screenshots-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/review-media/screenshots/**
+            artifacts/dungeon-rpg/review-media/review-media-manifest.json
+      - name: Upload distinct compact review videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-review-videos-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 6
+          path: |
+            artifacts/dungeon-rpg/review-media/videos/**
+            artifacts/dungeon-rpg/review-media/review-media-manifest.json
       - name: Upload complete screenshots, videos and traces
         if: always()
         uses: actions/upload-artifact@v4
