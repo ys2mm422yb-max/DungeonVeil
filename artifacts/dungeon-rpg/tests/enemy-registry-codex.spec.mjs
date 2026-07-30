@@ -27,6 +27,13 @@ async function openCodex(page) {
   await expect(page.getByTestId('codex-count-beasts')).toHaveText('3/35');
 }
 
+async function ensureGoblinDetail(page) {
+  const layout = page.getByTestId('codex-responsive-layout');
+  if (!await layout.isVisible().catch(() => false)) await openCodex(page);
+  await page.getByTestId('codex-card-goblin').click();
+  await expect(page.getByTestId('codex-detail-panel')).toBeVisible({ timeout: 20_000 });
+}
+
 test('canonical enemy registry Codex keeps family discoveries and counters across reload and cloud restore', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
@@ -47,19 +54,25 @@ test('canonical enemy registry Codex keeps family discoveries and counters acros
   await openCodex(page);
   await expect(page.getByTestId('codex-card-goblin')).toHaveAttribute('data-known', 'true');
   await expect(page.getByTestId('codex-card-cave-bat')).toHaveAttribute('data-known', 'false');
-  await page.getByTestId('codex-card-goblin').click();
+  await ensureGoblinDetail(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText(/BESIEGT|DEFEATED/i);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('14');
 
+  const restoreSettled = Promise.race([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30_000 }).then(() => 'navigated').catch(() => 'unchanged'),
+    page.waitForFunction(() => document.querySelector('[data-testid="codex-detail-panel"]')?.textContent?.includes('15'), null, { timeout: 30_000 }).then(() => 'updated').catch(() => 'unchanged'),
+  ]);
   await page.evaluate(({ key, profile }) => {
     localStorage.setItem(key, JSON.stringify(profile));
     window.dispatchEvent(new Event('dungeon-veil-cloud-save-restored'));
   }, { key: RETENTION_KEY, profile: retention(['goblin', 'skeleton', 'orc'], { goblin: 15, skeleton: 9, orc: 4 }) });
+  await restoreSettled;
+  await ensureGoblinDetail(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('15');
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
   await openCodex(page);
-  await page.getByTestId('codex-card-goblin').click();
+  await ensureGoblinDetail(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('15');
 
   await mkdir(OUTPUT, { recursive: true });
