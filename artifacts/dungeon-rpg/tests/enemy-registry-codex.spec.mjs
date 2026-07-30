@@ -34,6 +34,13 @@ async function ensureGoblinDetail(page) {
   await expect(page.getByTestId('codex-detail-panel')).toBeVisible({ timeout: 20_000 });
 }
 
+async function expectPaintedGoblinPreview(page) {
+  const preview = page.getByTestId('codex-shared-model-preview');
+  await expect(preview).toHaveAttribute('data-preview-status', 'ready', { timeout: 60_000 });
+  await expect(preview).toHaveAttribute('data-preview-painted', 'true');
+  await expect(preview.locator('canvas[data-codex-preview-canvas="true"]')).toBeVisible();
+}
+
 test('canonical enemy registry Codex keeps family discoveries and counters across reload and cloud restore', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
@@ -55,6 +62,7 @@ test('canonical enemy registry Codex keeps family discoveries and counters acros
   await expect(page.getByTestId('codex-card-goblin')).toHaveAttribute('data-known', 'true');
   await expect(page.getByTestId('codex-card-cave-bat')).toHaveAttribute('data-known', 'false');
   await ensureGoblinDetail(page);
+  await expectPaintedGoblinPreview(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText(/BESIEGT|DEFEATED/i);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('14');
 
@@ -68,11 +76,13 @@ test('canonical enemy registry Codex keeps family discoveries and counters acros
   }, { key: RETENTION_KEY, profile: retention(['goblin', 'skeleton', 'orc'], { goblin: 15, skeleton: 9, orc: 4 }) });
   await restoreSettled;
   await ensureGoblinDetail(page);
+  await expectPaintedGoblinPreview(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('15');
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
   await openCodex(page);
   await ensureGoblinDetail(page);
+  await expectPaintedGoblinPreview(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('15');
 
   await mkdir(OUTPUT, { recursive: true });
