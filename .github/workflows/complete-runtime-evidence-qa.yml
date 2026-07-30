@@ -158,7 +158,7 @@ jobs:
         if: steps.runtime-tests.outcome == 'failure' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: complete-runtime-diagnostics-${{ matrix.project }}
+          name: complete-runtime-evidence-${{ matrix.project }}
           if-no-files-found: error
           retention-days: 7
           compression-level: 6
