@@ -108,7 +108,6 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       visual.root.position.z -= center.z;
       visual.root.position.y -= box.min.y;
       visual.root.rotation.y = enemyType === 'boss' ? -0.2 : 0.18;
-      setStatus('ready');
 
       const resize = () => {
         const width = Math.max(1, host.clientWidth || 320);
@@ -118,6 +117,8 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
         camera.updateProjectionMatrix();
       };
       resize();
+      renderer.render(scene, camera);
+      if (!disposed) setStatus('ready');
       const observer = new ResizeObserver(resize);
       observer.observe(host);
       removeResize = () => observer.disconnect();
