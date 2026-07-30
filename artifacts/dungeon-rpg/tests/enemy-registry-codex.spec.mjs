@@ -4,6 +4,7 @@ import { test, expect } from '@playwright/test';
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const OUTPUT = 'test-results/complete-runtime-evidence';
 const RETENTION_KEY = 'dungeon-veil-retention-v2';
+const SEED_MARKER = 'dungeon-veil-enemy-registry-codex-seeded-v1';
 
 function retention(enemies = ['goblin', 'skeleton', 'orc'], enemyKills = { goblin: 14, skeleton: 9, orc: 4 }) {
   return {
@@ -32,13 +33,15 @@ test('canonical enemy registry Codex keeps family discoveries and counters acros
   page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
   page.on('console', message => { if (message.type() === 'error') runtimeErrors.push(`console: ${message.text()}`); });
 
-  await page.addInitScript(({ key, profile }) => {
+  await page.addInitScript(({ key, profile, seedMarker }) => {
+    if (sessionStorage.getItem(seedMarker) === '1') return;
     localStorage.clear();
     sessionStorage.clear();
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
     localStorage.setItem(key, JSON.stringify(profile));
-  }, { key: RETENTION_KEY, profile: retention() });
+    sessionStorage.setItem(seedMarker, '1');
+  }, { key: RETENTION_KEY, profile: retention(), seedMarker: SEED_MARKER });
 
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await openCodex(page);
