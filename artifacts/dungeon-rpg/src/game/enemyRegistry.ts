@@ -141,7 +141,7 @@ export function enemyFamiliesForRoom(room: number, includeBoss = false): EnemyFa
   return ENEMY_FAMILY_IDS
     .map(id => ENEMY_REGISTRY[id])
     .filter(definition => {
-      if (definition.spawn.bossOnly && !includeBoss) return false;
+      if ('bossOnly' in definition.spawn && definition.spawn.bossOnly && !includeBoss) return false;
       return normalizedRoom >= definition.spawn.minRoom && normalizedRoom <= definition.spawn.maxRoom;
     });
 }
