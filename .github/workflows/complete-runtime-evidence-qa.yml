@@ -91,7 +91,7 @@ jobs:
         run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
       - name: Build current branch
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-      - name: Record Solo and Duo rooms 1-50 plus World Boss and full-game motion
+      - name: Record Solo and Duo rooms 1-100, registry Codex, World Boss and full-game motion
         id: runtime-tests
         continue-on-error: true
         env:
@@ -116,7 +116,8 @@ jobs:
             tests/post-clear-player-hazards.spec.mjs \
             tests/atomic-room-readiness.spec.mjs \
             tests/worldboss-block1.spec.mjs \
-            tests/full-game-smoke.spec.mjs
+            tests/full-game-smoke.spec.mjs \
+            tests/enemy-registry-codex.spec.mjs
       - name: Upload compact runtime result manifest
         if: always()
         uses: actions/upload-artifact@v4
@@ -189,7 +190,7 @@ jobs:
               '',
               ...resultLines,
               '',
-              'Solo und Duo Räume 1–50, Weltboss, schwarze Frames, Geisterschaden, Runenstürme nach dem letzten Gegner, atomare Raumfreigabe, versteckte Übergangs-HUDs, Raumtitel, Videos und Screenshots wurden auf unterstützten mobilen Hochformat-Geräten geprüft.',
+              'Solo und Duo Räume 1–100, Registry-Kodex mit Entdeckungen und Abschusszählern, Weltboss, schwarze Frames, Geisterschaden, Runenstürme nach dem letzten Gegner, atomare Raumfreigabe, versteckte Übergangs-HUDs, Raumtitel, Videos und Screenshots wurden auf unterstützten mobilen Hochformat-Geräten geprüft.',
               `Diagnose: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
             ].join('\n');
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
