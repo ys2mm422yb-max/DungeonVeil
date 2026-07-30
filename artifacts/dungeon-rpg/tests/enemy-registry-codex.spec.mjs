@@ -41,6 +41,32 @@ async function expectPaintedGoblinPreview(page) {
   await expect(preview.locator('canvas[data-codex-preview-canvas="true"]')).toBeVisible();
 }
 
+async function ensurePaintedGoblinDetail(page) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await ensureGoblinDetail(page);
+      const outcome = await Promise.race([
+        expectPaintedGoblinPreview(page)
+          .then(() => ({ type: 'painted' }))
+          .catch(error => ({ type: 'error', error })),
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60_000 })
+          .then(() => ({ type: 'navigated' }))
+          .catch(() => ({ type: 'navigation-timeout' })),
+      ]);
+      if (outcome.type === 'painted') return;
+      if (outcome.type === 'error') throw outcome.error;
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < 3) {
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(500);
+    }
+  }
+  throw lastError ?? new Error('Goblin Codex preview did not remain visible after navigation recovery.');
+}
+
 test('canonical enemy registry Codex keeps family discoveries and counters across reload and cloud restore', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const runtimeErrors = [];
@@ -61,28 +87,30 @@ test('canonical enemy registry Codex keeps family discoveries and counters acros
   await openCodex(page);
   await expect(page.getByTestId('codex-card-goblin')).toHaveAttribute('data-known', 'true');
   await expect(page.getByTestId('codex-card-cave-bat')).toHaveAttribute('data-known', 'false');
-  await ensureGoblinDetail(page);
-  await expectPaintedGoblinPreview(page);
+  await ensurePaintedGoblinDetail(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText(/BESIEGT|DEFEATED/i);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('14');
 
-  const restoreSettled = Promise.race([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30_000 }).then(() => 'navigated').catch(() => 'unchanged'),
-    page.waitForFunction(() => document.querySelector('[data-testid="codex-detail-panel"]')?.textContent?.includes('15'), null, { timeout: 30_000 }).then(() => 'updated').catch(() => 'unchanged'),
-  ]);
+  const restoreNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30_000 })
+    .then(() => 'navigated')
+    .catch(() => 'unchanged');
+  const restoreUpdate = page.waitForFunction(
+    () => document.querySelector('[data-testid="codex-detail-panel"]')?.textContent?.includes('15'),
+    null,
+    { timeout: 30_000 },
+  ).then(() => 'updated').catch(() => 'unchanged');
   await page.evaluate(({ key, profile }) => {
     localStorage.setItem(key, JSON.stringify(profile));
     window.dispatchEvent(new Event('dungeon-veil-cloud-save-restored'));
   }, { key: RETENTION_KEY, profile: retention(['goblin', 'skeleton', 'orc'], { goblin: 15, skeleton: 9, orc: 4 }) });
-  await restoreSettled;
-  await ensureGoblinDetail(page);
-  await expectPaintedGoblinPreview(page);
+  await Promise.race([restoreNavigation, restoreUpdate]);
+  await Promise.race([restoreNavigation, page.waitForTimeout(2_000).then(() => 'stable')]);
+  await ensurePaintedGoblinDetail(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('15');
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
   await openCodex(page);
-  await ensureGoblinDetail(page);
-  await expectPaintedGoblinPreview(page);
+  await ensurePaintedGoblinDetail(page);
   await expect(page.getByTestId('codex-detail-panel')).toContainText('15');
 
   await mkdir(OUTPUT, { recursive: true });
