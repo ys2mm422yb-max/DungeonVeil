@@ -4,6 +4,12 @@ import { isBossRoom } from './chapterRun';
 import { dailyTaskIdsForDate, taskById, tasksForDate, type DailyMetric, type DailyTaskId } from './dailyQuests';
 import { activeWeeklyRiftId } from './weeklyRiftRun';
 import { grantMetaDust, migrateLegacySigilsToDust } from './metaCurrency';
+import { getEncounterFamilyPlan } from './encounterPlan';
+import {
+  enemyFamilyForSpawn,
+  isEnemyFamilyId,
+  type EnemyFamilyId,
+} from './enemyRegistry';
 import {
   VEIL_RELICS,
   advanceGuardianCrownForCurrentRun,
@@ -23,7 +29,13 @@ export type RetentionProfile = {
   /** Kept at zero so older cloud bundles remain readable after the 1:1 dust migration. */
   sigils: 0;
   daily: { date: string; selected: DailyTaskId[]; progress: DailyProgress; claimed: DailyTaskId[] };
-  codex: { enemies: string[]; bosses: string[]; hunts: string[]; relics: string[] };
+  codex: {
+    enemies: EnemyFamilyId[];
+    enemyKills: Partial<Record<EnemyFamilyId, number>>;
+    bosses: string[];
+    hunts: string[];
+    relics: string[];
+  };
 };
 
 export type RunRetentionState = {
@@ -55,11 +67,27 @@ function emptyProgress(): DailyProgress {
 
 function emptyProfile(): RetentionProfile {
   const date = localDateKey();
-  return { currencyVersion: 2, sigils: 0, daily: { date, selected: dailyTaskIdsForDate(date), progress: emptyProgress(), claimed: [] }, codex: { enemies: [], bosses: [], hunts: [], relics: [] } };
+  return {
+    currencyVersion: 2,
+    sigils: 0,
+    daily: { date, selected: dailyTaskIdsForDate(date), progress: emptyProgress(), claimed: [] },
+    codex: { enemies: [], enemyKills: {}, bosses: [], hunts: [], relics: [] },
+  };
 }
 
-function unique(values: string[]): string[] { return [...new Set(values)]; }
+function unique<T extends string>(values: T[]): T[] { return [...new Set(values)]; }
 function safeNumber(value: unknown): number { return Math.max(0, Number(value ?? 0) || 0); }
+function enemyFamilyArray(value: unknown): EnemyFamilyId[] {
+  return unique((Array.isArray(value) ? value : []).filter((item): item is EnemyFamilyId => typeof item === 'string' && isEnemyFamilyId(item)));
+}
+function enemyKillRecord(value: unknown): Partial<Record<EnemyFamilyId, number>> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const result: Partial<Record<EnemyFamilyId, number>> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (isEnemyFamilyId(key) && key !== 'boss') result[key] = Math.floor(safeNumber(raw));
+  }
+  return result;
+}
 
 export function loadRetentionProfile(): RetentionProfile {
   try {
@@ -82,10 +110,11 @@ export function loadRetentionProfile(): RetentionProfile {
       sigils: 0,
       daily: { date, selected: selected.length === 3 ? selected : dailyTaskIdsForDate(date), progress, claimed },
       codex: {
-        enemies: unique(Array.isArray(parsed.codex?.enemies) ? parsed.codex.enemies : []),
-        bosses: unique(Array.isArray(parsed.codex?.bosses) ? parsed.codex.bosses : []),
-        hunts: unique(Array.isArray(parsed.codex?.hunts) ? parsed.codex.hunts : []),
-        relics: unique(Array.isArray(parsed.codex?.relics) ? parsed.codex.relics : []),
+        enemies: enemyFamilyArray(parsed.codex?.enemies),
+        enemyKills: enemyKillRecord(parsed.codex?.enemyKills),
+        bosses: unique(Array.isArray(parsed.codex?.bosses) ? parsed.codex.bosses.filter((item: unknown): item is string => typeof item === 'string') : []),
+        hunts: unique(Array.isArray(parsed.codex?.hunts) ? parsed.codex.hunts.filter((item: unknown): item is string => typeof item === 'string') : []),
+        relics: unique(Array.isArray(parsed.codex?.relics) ? parsed.codex.relics.filter((item: unknown): item is string => typeof item === 'string') : []),
       },
     };
 
@@ -123,7 +152,8 @@ function claimCompletedDailies(profile: RetentionProfile): void {
 function mutateProfile(mutator: (profile: RetentionProfile) => void): RetentionProfile {
   const profile = loadRetentionProfile();
   mutator(profile);
-  profile.codex.enemies = unique(profile.codex.enemies);
+  profile.codex.enemies = unique(profile.codex.enemies.filter(id => id !== 'boss'));
+  profile.codex.enemyKills = enemyKillRecord(profile.codex.enemyKills);
   profile.codex.bosses = unique(profile.codex.bosses);
   profile.codex.hunts = unique(profile.codex.hunts);
   profile.codex.relics = unique(profile.codex.relics);
@@ -134,22 +164,25 @@ function mutateProfile(mutator: (profile: RetentionProfile) => void): RetentionP
 
 export function createRunRetentionState(): RunRetentionState {
   return {
-    roomKey: '',
-    roomClearKey: '',
-    processedDeaths: new Set<string>(),
-    huntTargetId: '',
-    roomsSinceHunt: 0,
-    huntChapter: 0,
-    huntsSpawnedThisChapter: 0,
-    lastHuntFloor: -99,
-    lastAuraAt: 0,
-    pendingRelics: new Map(),
+    roomKey: '', roomClearKey: '', processedDeaths: new Set<string>(), huntTargetId: '', roomsSinceHunt: 0,
+    huntChapter: 0, huntsSpawnedThisChapter: 0, lastHuntFloor: -99, lastAuraAt: 0, pendingRelics: new Map(),
   };
 }
 
+function spawnIndexFromEnemyId(id: string): number {
+  const withoutHunt = id.replace(/-hunt-\d+$/, '');
+  const parsed = Number(withoutHunt.split('-').at(-1));
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+}
+
+function familyIdForEnemy(engine: GameEngine, enemy: GameEngine['state']['enemies'][number]): EnemyFamilyId {
+  if (enemy.enemyType === 'boss') return 'boss';
+  return enemyFamilyForSpawn(engine.state.floor, spawnIndexFromEnemyId(enemy.id), enemy.enemyType);
+}
+
 function markDiscoveries(engine: GameEngine): void {
-  const enemyTypes = engine.state.enemies.map(enemy => enemy.enemyType);
-  if (enemyTypes.length) mutateProfile(profile => { profile.codex.enemies.push(...enemyTypes); });
+  const familyIds = getEncounterFamilyPlan(engine.state.floor).filter(id => id !== 'boss');
+  if (familyIds.length) mutateProfile(profile => { profile.codex.enemies.push(...familyIds); });
 }
 
 function updateRunDailyMetrics(engine: GameEngine): void {
@@ -269,16 +302,19 @@ function processDeaths(engine: GameEngine, state: RunRetentionState, time: numbe
     const huntName = enemy.huntName ?? 'Gezeichnete Beute';
     const activeRelic = equippedVeilRelic();
     const huntReward = Math.round((enemy.huntReward ?? 25) * (activeRelic === 'night-hunt-sigil' ? 1.5 : 1));
+    const familyId = familyIdForEnemy(engine, enemy);
 
     mutateProfile(profile => {
       profile.daily.progress.kills++;
       if ((enemy.burnUntil ?? 0) > enemy.deathTime) profile.daily.progress.fireKills++;
       if ((enemy.frostUntil ?? 0) > enemy.deathTime) profile.daily.progress.frostKills++;
-      profile.codex.enemies.push(enemy.enemyType);
+      if (familyId !== 'boss') {
+        profile.codex.enemies.push(familyId);
+        profile.codex.enemyKills[familyId] = Math.floor(safeNumber(profile.codex.enemyKills[familyId])) + 1;
+      }
       if (enemy.enemyType === 'boss') { profile.daily.progress.bossKills++; profile.codex.bosses.push(`${engine.state.chapter}:${engine.state.floor}`); }
       if (isHunt) { profile.daily.progress.hunts++; grantMetaDust(huntReward); profile.codex.hunts.push(huntName); }
     });
-
 
     if (enemy.enemyType === 'boss' && activeRelic === 'broken-guardian-crown') {
       const crown = advanceGuardianCrownForCurrentRun();
