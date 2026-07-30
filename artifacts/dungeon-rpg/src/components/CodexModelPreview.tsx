@@ -27,9 +27,39 @@ function disposeObject(root: any) {
   });
 }
 
+function nextAnimationFrame() {
+  return new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+}
+
+function renderedFrameHasVisiblePixels(renderer: any) {
+  const canvas = renderer?.domElement as HTMLCanvasElement | undefined;
+  const context = renderer?.getContext?.();
+  const width = Number(canvas?.width ?? 0);
+  const height = Number(canvas?.height ?? 0);
+  if (!canvas || !context || width < 2 || height < 2 || context.isContextLost?.()) return false;
+
+  try {
+    const pixels = new Uint8Array(width * height * 4);
+    context.finish?.();
+    context.readPixels(0, 0, width, height, context.RGBA, context.UNSIGNED_BYTE, pixels);
+    const required = Math.max(96, Math.floor(width * height * 0.001));
+    let visible = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index + 3] > 8 && pixels[index] + pixels[index + 1] + pixels[index + 2] > 24) {
+        visible += 1;
+        if (visible >= required) return true;
+      }
+    }
+  } catch (error) {
+    console.warn('Codex preview framebuffer inspection failed', error);
+  }
+  return false;
+}
+
 export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { enemyType: EnemyType; room: number; accent?: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [painted, setPainted] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -42,6 +72,7 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
     let removeResize = () => {};
     let lastFrame = 0;
     setStatus('loading');
+    setPainted(false);
 
     const boot = async () => {
       const THREE = await import(/* @vite-ignore */ THREE_URL) as any;
@@ -51,7 +82,12 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       scene = new THREE.Scene();
       scene.background = null;
       scene.fog = new THREE.FogExp2(0x080510, 0.055);
-      renderer = new THREE.WebGLRenderer({ antialias: !IS_MOBILE, alpha: true, powerPreference: 'high-performance' });
+      renderer = new THREE.WebGLRenderer({
+        antialias: !IS_MOBILE,
+        alpha: true,
+        powerPreference: 'high-performance',
+        preserveDrawingBuffer: true,
+      });
       renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, IS_MOBILE ? 1 : 1.35));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -117,8 +153,18 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
         camera.updateProjectionMatrix();
       };
       resize();
-      renderer.render(scene, camera);
-      if (!disposed) setStatus('ready');
+
+      let framePainted = false;
+      for (let attempt = 0; attempt < 5 && !disposed && !framePainted; attempt += 1) {
+        renderer.render(scene, camera);
+        framePainted = renderedFrameHasVisiblePixels(renderer);
+        if (!framePainted) await nextAnimationFrame();
+      }
+      if (disposed) return;
+      if (!framePainted) throw new Error(`Codex preview framebuffer remained blank: ${enemyType}`);
+      setPainted(true);
+      setStatus('ready');
+
       const observer = new ResizeObserver(resize);
       observer.observe(host);
       removeResize = () => observer.disconnect();
@@ -139,7 +185,10 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
 
     boot().catch(error => {
       console.error('Codex shared model preview failed', error);
-      if (!disposed) setStatus('error');
+      if (!disposed) {
+        setPainted(false);
+        setStatus('error');
+      }
     });
 
     return () => {
@@ -159,6 +208,7 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
     data-testid="codex-shared-model-preview"
     data-preview-renderers="1"
     data-preview-status={status}
+    data-preview-painted={painted ? 'true' : 'false'}
     className="relative min-h-[250px] overflow-hidden rounded-[1.75rem] border border-violet-200/15 bg-[radial-gradient(circle_at_50%_35%,rgba(115,70,190,.18),rgba(5,3,10,.96)_72%)]"
   >
     <div ref={hostRef} className="absolute inset-0" />
