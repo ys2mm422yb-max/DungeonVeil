@@ -51,49 +51,25 @@ jobs:
 
           path = Path('artifacts/dungeon-rpg/scripts/validate-kaykit-combat-animations.mjs')
           source = path.read_text(encoding='utf-8')
-
           replacements = [
-            (
-              """const earlyFamilyRoles = regional.includes(\"skeleton: skeleton('grave-skeleton-guard', 'warrior', 'warrior', 'slam', 'axe-shield'\")
-  && regional.includes(\"'bone-archer': skeleton('grave-bone-archer', 'ranger', 'rogue', 'projectile', 'bow'\")
-  && regional.includes(\"'crypt-acolyte': skeleton('grave-crypt-acolyte', 'mage', 'mage', 'summon', 'staff'\")
-  && regional.includes(\"'grave-hound': creature('grave-hound', 'rogue', 'lunge'\");""",
-              """const earlyFamilyRoles = regional.includes(\"skeleton: familySkeleton('skeleton', 'warrior', 'warrior', 'slam', 'axe-shield'\")
-  && regional.includes(\"'bone-archer': familySkeleton('bone-archer', 'ranger', 'rogue', 'projectile', 'bow'\")
-  && regional.includes(\"'crypt-acolyte': familySkeleton('crypt-acolyte', 'mage', 'mage', 'summon', 'staff'\")
-  && regional.includes(\"'grave-hound': familyCreature('grave-hound', 'rogue', 'lunge'\");""",
-              'early family roles',
-            ),
-            (
-              """const middleFamilyRoles = regional.includes(\"orc: adventurer('marsh-orc-raider', 'barbarian', 'barbarian', 'slam', 'heavy-axe'\")
-  && regional.includes(\"'boar-brute': skeleton('marsh-boar-brute', 'barbarian', 'golem', 'lunge', 'heavy-axe'\")
-  && regional.includes(\"'shadow-rogue': adventurer('darkwood-shadow-rogue', 'rogue', 'rogue_hooded', 'lunge', 'dual-blade'\")
-  && regional.includes(\"'dusk-mage': realMage('darkwood-dusk-mage', 'projectile'\");""",
-              """const middleFamilyRoles = regional.includes(\"orc: familyAdventurer('orc', 'barbarian', 'barbarian', 'slam', 'heavy-axe'\")
-  && regional.includes(\"'boar-brute': familySkeleton('boar-brute', 'barbarian', 'golem', 'lunge', 'heavy-axe'\")
-  && regional.includes(\"'shadow-rogue': familyAdventurer('shadow-rogue', 'rogue', 'rogue_hooded', 'lunge', 'dual-blade'\")
-  && regional.includes(\"'dusk-mage': familyRealMage('dusk-mage', 'projectile'\");""",
-              'middle family roles',
-            ),
-            (
-              """const lateFamilyRoles = regional.includes(\"'cinder-knight': adventurer('cinder-knight', 'knight', 'knight', 'fire', 'axe-shield'\")
-  && regional.includes(\"'ember-witch': skeleton('cinder-ember-witch', 'mage', 'necromancer', 'fire', 'staff'\")
-  && regional.includes(\"'veil-aberration': skeleton('nexus-veil-aberration', 'barbarian', 'golem', 'burst', 'heavy-axe'\")
-  && regional.includes(\"'nexus-herald': skeleton('nexus-herald', 'mage', 'necromancer', 'summon', 'staff'\");""",
-              """const lateFamilyRoles = regional.includes(\"'cinder-knight': familyAdventurer('cinder-knight', 'knight', 'knight', 'fire', 'axe-shield'\")
-  && regional.includes(\"'ember-witch': familySkeleton('ember-witch', 'mage', 'necromancer', 'fire', 'staff'\")
-  && regional.includes(\"'veil-aberration': familySkeleton('veil-aberration', 'barbarian', 'golem', 'burst', 'heavy-axe'\")
-  && regional.includes(\"'nexus-herald': familySkeleton('nexus-herald', 'mage', 'necromancer', 'summon', 'staff'\");""",
-              'late family roles',
-            ),
+            ("skeleton: skeleton('grave-skeleton-guard',", "skeleton: familySkeleton('skeleton',"),
+            ("'bone-archer': skeleton('grave-bone-archer',", "'bone-archer': familySkeleton('bone-archer',"),
+            ("'crypt-acolyte': skeleton('grave-crypt-acolyte',", "'crypt-acolyte': familySkeleton('crypt-acolyte',"),
+            ("'grave-hound': creature('grave-hound',", "'grave-hound': familyCreature('grave-hound',"),
+            ("orc: adventurer('marsh-orc-raider',", "orc: familyAdventurer('orc',"),
+            ("'boar-brute': skeleton('marsh-boar-brute',", "'boar-brute': familySkeleton('boar-brute',"),
+            ("'shadow-rogue': adventurer('darkwood-shadow-rogue',", "'shadow-rogue': familyAdventurer('shadow-rogue',"),
+            ("'dusk-mage': realMage('darkwood-dusk-mage',", "'dusk-mage': familyRealMage('dusk-mage',"),
+            ("'cinder-knight': adventurer('cinder-knight',", "'cinder-knight': familyAdventurer('cinder-knight',"),
+            ("'ember-witch': skeleton('cinder-ember-witch',", "'ember-witch': familySkeleton('ember-witch',"),
+            ("'veil-aberration': skeleton('nexus-veil-aberration',", "'veil-aberration': familySkeleton('veil-aberration',"),
+            ("'nexus-herald': skeleton('nexus-herald',", "'nexus-herald': familySkeleton('nexus-herald',"),
           ]
-
-          for old, new, label in replacements:
+          for old, new in replacements:
             count = source.count(old)
             if count != 1:
-              raise SystemExit(f'{label}: expected one stale block, found {count}')
+              raise SystemExit(f'expected one stale audit signature for {old!r}, found {count}')
             source = source.replace(old, new, 1)
-
           path.write_text(source, encoding='utf-8')
           PY
 
