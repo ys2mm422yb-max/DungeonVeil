@@ -154,19 +154,18 @@ jobs:
           path: |
             artifacts/dungeon-rpg/review-media/videos/**
             artifacts/dungeon-rpg/review-media/review-media-manifest.json
-      - name: Upload full diagnostics only after failure or manual run
+      - name: Upload focused diagnostics only after failure or manual run
         if: steps.runtime-tests.outcome == 'failure' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: complete-runtime-evidence-${{ matrix.project }}
           if-no-files-found: error
           retention-days: 7
-          compression-level: 6
+          compression-level: 9
           path: |
-            artifacts/dungeon-rpg/test-results/complete-runtime-evidence/**
-            artifacts/dungeon-rpg/test-results/**/*.webm
             artifacts/dungeon-rpg/test-results/**/trace.zip
-            artifacts/dungeon-rpg/test-results/**/*.png
+            artifacts/dungeon-rpg/test-results/**/error-context.md
+            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
             artifacts/dungeon-rpg/test-results/complete-runtime-results.json
             /tmp/dungeon-veil-complete-runtime-preview.log
       - name: Publish complete runtime failure to pull request
