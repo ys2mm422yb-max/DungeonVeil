@@ -48,6 +48,25 @@ Result: all four portrait projects green, `retries: 0`.
 
 Every successful review artifact is below 100 MiB and therefore far below both the 250 MiB target and the 400 MiB ceiling. The formerly oversized Android outputs are now split into independently downloadable screenshot, distinct-video and manifest artifacts.
 
+### Repository-wide workflow validation
+
+Exact head: `be1f70ec3e8b0afd061c9f1bba8256fddbf2bcfa`  
+Draft PR: `#372`  
+Result: all four Product Autopilot and all four Main Menu portrait jobs green with the new byte-accurate pre-upload budgets.
+
+| Workflow | Device | Successful evidence artifact |
+| --- | --- | ---: |
+| Product Autopilot QA | iPhone / WebKit | 34,738,523 bytes (33.13 MiB) |
+| Product Autopilot QA | Android phone / Chromium | 55,389,279 bytes (52.82 MiB) |
+| Product Autopilot QA | iPad portrait / WebKit | 43,445,069 bytes (41.43 MiB) |
+| Product Autopilot QA | Android tablet / Chromium | 67,453,151 bytes (64.33 MiB) |
+| Main Menu Visual Regression | iPhone / WebKit | 8,514,159 bytes (8.12 MiB) |
+| Main Menu Visual Regression | Android phone / Chromium | 18,495,018 bytes (17.64 MiB) |
+| Main Menu Visual Regression | iPad portrait / WebKit | 8,940,323 bytes (8.53 MiB) |
+| Main Menu Visual Regression | Android tablet / Chromium | 24,759,172 bytes (23.61 MiB) |
+
+No raw trace, failure video or HTML report was uploaded for these successful device jobs.
+
 ## Workflow rules
 
 - `Complete Runtime Evidence QA` keeps screenshots and hash-distinct videos separate. Its raw diagnostics marker remains available only after failure or manual dispatch.
