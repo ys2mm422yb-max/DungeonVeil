@@ -8,19 +8,25 @@ async function rendererMetrics(page) { return page.evaluate(() => { try { return
 async function stableRendererMetrics(page) {
   const deadline = Date.now() + 8_000;
   let previous = await rendererMetrics(page);
-  let stableSamples = 0;
+  let previousAt = Number(previous.at || 0);
+  let stablePublishedSamples = 0;
   while (Date.now() < deadline) {
     await page.waitForTimeout(250);
     const current = await rendererMetrics(page);
+    const currentAt = Number(current.at || 0);
+    // GameCanvas publishes memory metrics once per two-second render window.
+    // Re-reading the same localStorage object is not a new stability sample.
+    if (!Number.isFinite(currentAt) || currentAt <= previousAt) continue;
     const sameGeometry = Number.isFinite(previous.geometries)
       && Number.isFinite(current.geometries)
       && previous.geometries === current.geometries;
     const sameTextures = Number.isFinite(previous.textures)
       && Number.isFinite(current.textures)
       && previous.textures === current.textures;
-    stableSamples = sameGeometry && sameTextures ? stableSamples + 1 : 0;
+    stablePublishedSamples = sameGeometry && sameTextures ? stablePublishedSamples + 1 : 0;
     previous = current;
-    if (stableSamples >= 3) return current;
+    previousAt = currentAt;
+    if (stablePublishedSamples >= 2) return current;
   }
   return previous;
 }
