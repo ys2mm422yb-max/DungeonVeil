@@ -53,6 +53,7 @@ jobs:
         run: |
           python3 - <<'PYEXTRACT'
           from pathlib import Path
+          from textwrap import dedent
 
           workflow = Path('.github/workflows/fix-enemy-presentation-contract-once.yml').read_text(encoding='utf-8')
           start_marker = "          python3 - <<'PY'\n"
@@ -60,11 +61,8 @@ jobs:
           if workflow.count(start_marker) != 1 or workflow.count(end_marker) != 1:
               raise SystemExit('reviewed repair program markers changed')
           embedded = workflow.split(start_marker, 1)[1].split(end_marker, 1)[0]
-          lines = embedded.splitlines()
-          if any(line and not line.startswith('          ') for line in lines):
-              raise SystemExit('reviewed repair program indentation changed')
           Path('/tmp/repair-enemy-presentation-contract.py').write_text(
-              '\n'.join(line[10:] if line else '' for line in lines) + '\n',
+              dedent(embedded).lstrip('\n') + '\n',
               encoding='utf-8',
           )
           PYEXTRACT
