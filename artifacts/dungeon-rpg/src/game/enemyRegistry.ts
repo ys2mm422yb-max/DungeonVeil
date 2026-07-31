@@ -1,3 +1,5 @@
+import { enemyPresentationKeyForFamily, type EnemyPresentationKey } from './enemyPresentationContract';
+
 export const RUNTIME_ENEMY_TYPES = [
   'slime', 'goblin', 'skeleton', 'orc', 'spider', 'vampire', 'demon', 'golem', 'boss',
 ] as const;
@@ -31,7 +33,7 @@ export type EnemySpawnProfile = { minRoom: number; maxRoom: number; baseWeight: 
 export type EnemyFamilyDefinition = {
   id: EnemyFamilyId;
   runtimeType: EnemyType;
-  presentationKey: EnemyType;
+  presentationKey: EnemyPresentationKey;
   silhouette: string;
   region: EnemyRegion;
   role: EnemyCombatRole;
@@ -75,7 +77,7 @@ function family(
   eliteEligible = true,
 ): EnemyFamilyDefinition {
   return {
-    id, runtimeType, presentationKey: runtimeType, silhouette, region, role, attackPattern, telegraph,
+    id, runtimeType, presentationKey: enemyPresentationKeyForFamily(id), silhouette, region, role, attackPattern, telegraph,
     stats: familyStats, spawn: familySpawn, eliteEligible,
     name: text(nameDe, nameEn), kind: text(kindDe, kindEn), description: text(descriptionDe, descriptionEn),
     mechanic: text(mechanicDe, mechanicEn), hint: text(hintDe, hintEn),
@@ -130,7 +132,7 @@ export const ENEMY_REGISTRY = {
   'rift-beast': family('rift-beast', 'golem', 'massive-rift-beast', 'nexus', 'bruiser', 'quake', 'circle', stats(280, 31, 11, 50, 46, 110, '#5d426f'), spawn(91, 100, 7, 1), 'Rissbestie', 'Rift Beast', 'Nexuskoloss', 'Nexus colossus', 'Eine massive Kreatur, die den Boden in Rissfelder zerlegt.', 'A massive creature that breaks the floor into rift fields.', 'Großer Kreis zerfällt in kleinere Gefahrenzonen.', 'A large circle fractures into smaller danger zones.', 'Bewacht die letzten Räume.', 'Guards the final rooms.'),
 
   boss: {
-    id: 'boss', runtimeType: 'boss', presentationKey: 'boss', silhouette: 'unique-room-warden', region: 'boss', role: 'boss',
+    id: 'boss', runtimeType: 'boss', presentationKey: enemyPresentationKeyForFamily('boss'), silhouette: 'unique-room-warden', region: 'boss', role: 'boss',
     attackPattern: 'boss-cycle', telegraph: 'multi-stage', stats: stats(520, 24, 7, 54, 74, 180, '#ff493a'),
     spawn: { minRoom: 10, maxRoom: 100, baseWeight: 0, maxConsecutiveRooms: 0, bossOnly: true }, eliteEligible: false,
     name: text('Schleierfürst', 'Veil Lord'), kind: text('Raumwächter', 'Room warden'),

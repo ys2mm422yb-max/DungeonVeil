@@ -3,8 +3,8 @@ import { readFile } from 'node:fs/promises';
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const readBuffer = relative => readFile(new URL(relative, import.meta.url));
 
-const [registry, visual, baseVisual, regional, encounters, runEngine, codex, retention, familyRuntime, telegraphs, entities, persistentSave, manifest] = await Promise.all([
-  read('../src/game/enemyRegistry.ts'), read('../src/components/kaykitEnemy3D.ts'), read('../src/components/kaykitEnemyBase3D.ts'),
+const [registry, presentationContract, visual, baseVisual, regional, encounters, runEngine, codex, retention, familyRuntime, telegraphs, entities, persistentSave, manifest] = await Promise.all([
+  read('../src/game/enemyRegistry.ts'), read('../src/game/enemyPresentationContract.ts'), read('../src/components/kaykitEnemy3D.ts'), read('../src/components/kaykitEnemyBase3D.ts'),
   read('../src/game/enemyRegionalIdentity.ts'), read('../src/game/encounterPlan.ts'), read('../src/game/runEngine.ts'),
   read('../src/game/codexDefinitions.ts'), read('../src/game/runRetention.ts'), read('../src/game/enemyFamilyRuntime.ts'),
   read('../src/game/normalEnemyAttackTelegraphs.ts'), read('../src/game/entities.ts'), read('../src/game/persistentSaveBundle.ts'),
@@ -55,19 +55,52 @@ if (!entities.includes('enemyCombatRole?: EnemyCombatRole') || !entities.include
 if (!telegraphs.includes("telegraph === 'line'") || !telegraphs.includes("telegraph === 'cone'") || !telegraphs.includes("telegraph === 'body-flash'")) failures.push('canonical telegraph shapes are not rendered');
 if (!persistentSave.includes("'dungeon-veil-retention-v2'")) failures.push('retention/Codex state is not included in cloud save bundles');
 
+const contractBlock = presentationContract.match(/export const ENEMY_PRESENTATION_KEY_BY_FAMILY = \{([\s\S]*?)\n\} as const satisfies Record<EnemyFamilyId, string>;/)?.[1] ?? '';
+const contractMatches = [...contractBlock.matchAll(/^\s{2}'([^']+)':\s*'([^']+)',?$/gm)];
+const presentationByFamily = new Map(contractMatches.map(match => [match[1], match[2]]));
+const allContractKeys = new Set(contractMatches.map(match => match[2]));
+const normalPresentationKeys = families.map(family => presentationByFamily.get(family.id)).filter(Boolean);
+const presentationKeys = new Set(normalPresentationKeys);
+
 const presentationBlock = regional.match(/export const ENEMY_FAMILY_PRESENTATIONS = \{([\s\S]*?)\n\} satisfies Record<NormalEnemyFamilyId, EnemyVisualProfile>;/)?.[1] ?? '';
-const presentationMatches = [...presentationBlock.matchAll(/^\s{2}(?:'([^']+)'|([a-z][a-z0-9-]*)):\s*(?:creature|skeleton|adventurer|realMage)\(\s*'([^']+)'/gm)];
-const presentations = presentationMatches.map(match => ({ familyId: match[1] || match[2], presentationKey: match[3] }));
+const presentationMatches = [...presentationBlock.matchAll(/^\s{2}(?:'([^']+)'|([a-z][a-z0-9-]*)):\s*family(?:Creature|Skeleton|Adventurer|RealMage)\(\s*'([^']+)'/gm)];
+const presentations = presentationMatches.map(match => ({
+  familyId: match[1] || match[2],
+  helperFamilyId: match[3],
+  presentationKey: presentationByFamily.get(match[1] || match[2]),
+}));
 const presentationFamilies = new Set(presentations.map(entry => entry.familyId));
-const presentationKeys = new Set(presentations.map(entry => entry.presentationKey));
+
+if (!presentationContract.includes("import type { EnemyFamilyId } from './enemyRegistry';")) failures.push('presentation contract is not typed against the canonical family registry');
+if (contractMatches.length !== families.length + 1) failures.push(`presentation contract contains ${contractMatches.length} entries for ${families.length + 1} families including boss`);
+if (presentationByFamily.size !== contractMatches.length) failures.push('presentation contract contains duplicate family ids');
+if (allContractKeys.size !== contractMatches.length) failures.push(`presentation contract keys are not unique: ${allContractKeys.size}/${contractMatches.length}`);
+if (presentationByFamily.get('boss') !== 'boss-family') failures.push('boss family lacks a canonical presentation identity');
+
+for (const family of families) {
+  const presentationKey = presentationByFamily.get(family.id);
+  if (!presentationKey) failures.push(`${family.id} has no canonical presentation key`);
+  if (presentationKey === family.runtimeType) failures.push(`${family.id} still falls back to runtime type ${family.runtimeType} as its presentation key`);
+}
+
+if (!registry.includes('presentationKey: EnemyPresentationKey;')) failures.push('EnemyFamilyDefinition.presentationKey is not separated from EnemyType');
+if (registry.includes('presentationKey: runtimeType')) failures.push('registry still assigns presentation identity from runtimeType');
+if (!registry.includes('presentationKey: enemyPresentationKeyForFamily(id)')) failures.push('normal registry families do not consume the canonical presentation contract');
+if (!registry.includes("presentationKey: enemyPresentationKeyForFamily('boss')")) failures.push('boss registry family does not consume the canonical presentation contract');
+if (!regional.includes("from './enemyPresentationContract'")) failures.push('renderer does not import the canonical presentation contract');
+if (!regional.includes('enemyPresentationKeyForFamily(familyId)')) failures.push('renderer family builders do not resolve canonical presentation identity');
 
 if (!regional.includes('ENEMY_FAMILY_PRESENTATIONS')) failures.push('canonical family presentation matrix is missing');
 if (presentations.length !== families.length) failures.push(`presentation matrix contains ${presentations.length} entries for ${families.length} normal families`);
+for (const entry of presentations) {
+  if (entry.familyId !== entry.helperFamilyId) failures.push(`${entry.familyId} presentation helper is incorrectly bound to ${entry.helperFamilyId}`);
+}
 for (const family of families) {
   if (!presentationFamilies.has(family.id)) failures.push(`${family.id} has no explicit visual presentation profile`);
 }
 if (presentationKeys.size !== presentations.length) failures.push(`presentation keys are not unique: ${presentationKeys.size}/${presentations.length}`);
 if (presentationKeys.size < 30) failures.push(`only ${presentationKeys.size} distinct presentation keys are registered; expected at least 30`);
+if (/^\s{2}(?:'[^']+'|[a-z][a-z0-9-]*):\s*(?:creature|skeleton|adventurer|realMage)\(/m.test(presentationBlock)) failures.push('family matrix duplicates presentation-key literals instead of using the canonical contract');
 if (!regional.includes('explicitFamilyId ?? enemyFamilyForSpawn')) failures.push('visual resolution does not prefer explicit canonical family identity');
 if (regional.includes('if (safeRoom <= 10)') || regional.includes('function lateRegistryVisual')) failures.push('legacy room/type visual branching still bypasses the family presentation matrix');
 

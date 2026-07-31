@@ -4,6 +4,7 @@ import {
   type EnemyAttackPattern,
   type EnemyFamilyId,
 } from './enemyRegistry';
+import { enemyPresentationKeyForFamily, type EnemyPresentationKey } from './enemyPresentationContract';
 
 export type EnemyVisualFamily = 'creature' | 'skeleton' | 'adventurer';
 export type EnemyVisualRole = 'minion' | 'rogue' | 'mage' | 'warrior' | 'ranger' | 'barbarian' | 'knight';
@@ -11,7 +12,7 @@ export type EnemyWeaponProfile = 'natural' | 'single-blade' | 'dual-blade' | 'bo
 export type BossVariant = 'tomb-guardian' | 'veil-necromancer' | 'forest-captain' | 'shadow-cultist' | 'ember-warden';
 
 export type EnemyVisualProfile = {
-  presentationKey: string;
+  presentationKey: EnemyPresentationKey | `boss-${string}` | `legacy-${EnemyType}`;
   family: EnemyVisualFamily;
   role: EnemyVisualRole;
   modelToken?: string;
@@ -35,7 +36,7 @@ const SKELETON_EXTRA_MODEL = {
 } as const;
 
 function creature(
-  presentationKey: string,
+  presentationKey: EnemyVisualProfile['presentationKey'],
   role: EnemyVisualRole,
   attackProfile: EnemyAttackPattern,
   scaleMultiplier = 1,
@@ -44,7 +45,7 @@ function creature(
 }
 
 function skeleton(
-  presentationKey: string,
+  presentationKey: EnemyVisualProfile['presentationKey'],
   role: EnemyVisualRole,
   model: keyof typeof SKELETON_EXTRA_MODEL,
   attackProfile: EnemyAttackPattern,
@@ -64,7 +65,7 @@ function skeleton(
 }
 
 function adventurer(
-  presentationKey: string,
+  presentationKey: EnemyVisualProfile['presentationKey'],
   role: EnemyVisualRole,
   modelToken: string,
   attackProfile: EnemyAttackPattern,
@@ -74,8 +75,42 @@ function adventurer(
   return { presentationKey, family: 'adventurer', role, modelToken, useImported: false, attackProfile, weaponProfile, scaleMultiplier };
 }
 
-const realMage = (presentationKey: string, attackProfile: EnemyAttackPattern, scaleMultiplier = 1): EnemyVisualProfile =>
+const realMage = (presentationKey: EnemyVisualProfile['presentationKey'], attackProfile: EnemyAttackPattern, scaleMultiplier = 1): EnemyVisualProfile =>
   adventurer(presentationKey, 'mage', '/characters/gltf/mage.glb', attackProfile, 'staff', scaleMultiplier);
+
+function familyCreature(
+  familyId: NormalEnemyFamilyId,
+  role: EnemyVisualRole,
+  attackProfile: EnemyAttackPattern,
+  scaleMultiplier = 1,
+): EnemyVisualProfile {
+  return creature(enemyPresentationKeyForFamily(familyId), role, attackProfile, scaleMultiplier);
+}
+
+function familySkeleton(
+  familyId: NormalEnemyFamilyId,
+  role: EnemyVisualRole,
+  model: keyof typeof SKELETON_EXTRA_MODEL,
+  attackProfile: EnemyAttackPattern,
+  weaponProfile: EnemyWeaponProfile,
+  scaleMultiplier = 1,
+): EnemyVisualProfile {
+  return skeleton(enemyPresentationKeyForFamily(familyId), role, model, attackProfile, weaponProfile, scaleMultiplier);
+}
+
+function familyAdventurer(
+  familyId: NormalEnemyFamilyId,
+  role: EnemyVisualRole,
+  modelToken: string,
+  attackProfile: EnemyAttackPattern,
+  weaponProfile: EnemyWeaponProfile,
+  scaleMultiplier = 1,
+): EnemyVisualProfile {
+  return adventurer(enemyPresentationKeyForFamily(familyId), role, modelToken, attackProfile, weaponProfile, scaleMultiplier);
+}
+
+const familyRealMage = (familyId: NormalEnemyFamilyId, attackProfile: EnemyAttackPattern, scaleMultiplier = 1): EnemyVisualProfile =>
+  realMage(enemyPresentationKeyForFamily(familyId), attackProfile, scaleMultiplier);
 
 /**
  * Canonical family presentation matrix.
@@ -85,50 +120,50 @@ const realMage = (presentationKey: string, attackProfile: EnemyAttackPattern, sc
  * and animation role for every authored family independently of runtimeType.
  */
 export const ENEMY_FAMILY_PRESENTATIONS = {
-  slime: creature('crypt-slime', 'minion', 'contact', 0.94),
-  goblin: adventurer('crypt-goblin-skirmisher', 'rogue', 'rogue', 'lunge', 'dual-blade', 0.88),
-  'cave-bat': creature('crypt-cave-bat', 'mage', 'projectile', 0.9),
-  'thorn-crawler': creature('crypt-thorn-crawler', 'rogue', 'web', 1.02),
+  slime: familyCreature('slime', 'minion', 'contact', 0.94),
+  goblin: familyAdventurer('goblin', 'rogue', 'rogue', 'lunge', 'dual-blade', 0.88),
+  'cave-bat': familyCreature('cave-bat', 'mage', 'projectile', 0.9),
+  'thorn-crawler': familyCreature('thorn-crawler', 'rogue', 'web', 1.02),
 
-  skeleton: skeleton('grave-skeleton-guard', 'warrior', 'warrior', 'slam', 'axe-shield', 1.04),
-  'bone-archer': skeleton('grave-bone-archer', 'ranger', 'rogue', 'projectile', 'bow', 0.96),
-  'crypt-acolyte': skeleton('grave-crypt-acolyte', 'mage', 'mage', 'summon', 'staff', 1),
-  'grave-hound': creature('grave-hound', 'rogue', 'lunge', 0.9),
+  skeleton: familySkeleton('skeleton', 'warrior', 'warrior', 'slam', 'axe-shield', 1.04),
+  'bone-archer': familySkeleton('bone-archer', 'ranger', 'rogue', 'projectile', 'bow', 0.96),
+  'crypt-acolyte': familySkeleton('crypt-acolyte', 'mage', 'mage', 'summon', 'staff', 1),
+  'grave-hound': familyCreature('grave-hound', 'rogue', 'lunge', 0.9),
 
-  orc: adventurer('marsh-orc-raider', 'barbarian', 'barbarian', 'slam', 'heavy-axe', 1.08),
-  spider: creature('marsh-spider', 'rogue', 'web', 1.08),
-  'briar-shaman': realMage('marsh-briar-shaman', 'burst', 1),
-  'boar-brute': skeleton('marsh-boar-brute', 'barbarian', 'golem', 'lunge', 'heavy-axe', 1.14),
+  orc: familyAdventurer('orc', 'barbarian', 'barbarian', 'slam', 'heavy-axe', 1.08),
+  spider: familyCreature('spider', 'rogue', 'web', 1.08),
+  'briar-shaman': familyRealMage('briar-shaman', 'burst', 1),
+  'boar-brute': familySkeleton('boar-brute', 'barbarian', 'golem', 'lunge', 'heavy-axe', 1.14),
 
-  vampire: creature('darkwood-vampire-stalker', 'mage', 'drain', 1.02),
-  'shadow-rogue': adventurer('darkwood-shadow-rogue', 'rogue', 'rogue_hooded', 'lunge', 'dual-blade', 0.96),
-  'dusk-mage': realMage('darkwood-dusk-mage', 'projectile', 1.02),
-  'carrion-swarm': skeleton('darkwood-carrion-swarm', 'minion', 'minion', 'burst', 'single-blade', 0.82),
+  vampire: familyCreature('vampire', 'mage', 'drain', 1.02),
+  'shadow-rogue': familyAdventurer('shadow-rogue', 'rogue', 'rogue_hooded', 'lunge', 'dual-blade', 0.96),
+  'dusk-mage': familyRealMage('dusk-mage', 'projectile', 1.02),
+  'carrion-swarm': familySkeleton('carrion-swarm', 'minion', 'minion', 'burst', 'single-blade', 0.82),
 
-  demon: creature('ember-demon-serpent', 'minion', 'fire', 1.06),
-  'veil-cultist': skeleton('ember-veil-cultist', 'mage', 'necromancer', 'summon', 'staff', 1.02),
-  golem: skeleton('ember-stone-golem', 'warrior', 'golem', 'quake', 'heavy-axe', 1.18),
-  'flame-imp': skeleton('ember-flame-imp', 'mage', 'minion', 'projectile', 'staff', 0.82),
+  demon: familyCreature('demon', 'minion', 'fire', 1.06),
+  'veil-cultist': familySkeleton('veil-cultist', 'mage', 'necromancer', 'summon', 'staff', 1.02),
+  golem: familySkeleton('golem', 'warrior', 'golem', 'quake', 'heavy-axe', 1.18),
+  'flame-imp': familySkeleton('flame-imp', 'mage', 'minion', 'projectile', 'staff', 0.82),
 
-  'gilded-sentinel': adventurer('fracture-gilded-sentinel', 'knight', 'knight', 'slam', 'axe-shield', 1.08),
-  'fracture-wisp': skeleton('fracture-wisp', 'mage', 'mage', 'beam', 'staff', 0.86),
-  'crystal-lancer': skeleton('fracture-crystal-lancer', 'warrior', 'warrior', 'lunge', 'axe-shield', 1.02),
+  'gilded-sentinel': familyAdventurer('gilded-sentinel', 'knight', 'knight', 'slam', 'axe-shield', 1.08),
+  'fracture-wisp': familySkeleton('fracture-wisp', 'mage', 'mage', 'beam', 'staff', 0.86),
+  'crystal-lancer': familySkeleton('crystal-lancer', 'warrior', 'warrior', 'lunge', 'axe-shield', 1.02),
 
-  'star-seer': realMage('astral-star-seer', 'beam', 1.04),
-  'astral-mote': skeleton('astral-mote', 'mage', 'minion', 'burst', 'staff', 0.78),
-  'void-knight': adventurer('astral-void-knight', 'knight', 'knight', 'slam', 'axe-shield', 1.1),
+  'star-seer': familyRealMage('star-seer', 'beam', 1.04),
+  'astral-mote': familySkeleton('astral-mote', 'mage', 'minion', 'burst', 'staff', 0.78),
+  'void-knight': familyAdventurer('void-knight', 'knight', 'knight', 'slam', 'axe-shield', 1.1),
 
-  'drowned-revenant': skeleton('reliquary-drowned-revenant', 'warrior', 'warrior', 'tide', 'axe-shield', 1.04),
-  tidecaller: skeleton('reliquary-tidecaller', 'mage', 'mage', 'tide', 'staff', 1),
-  'chain-crab': creature('reliquary-chain-crab', 'rogue', 'lunge', 1.12),
+  'drowned-revenant': familySkeleton('drowned-revenant', 'warrior', 'warrior', 'tide', 'axe-shield', 1.04),
+  tidecaller: familySkeleton('tidecaller', 'mage', 'mage', 'tide', 'staff', 1),
+  'chain-crab': familyCreature('chain-crab', 'rogue', 'lunge', 1.12),
 
-  'cinder-knight': adventurer('cinder-knight', 'knight', 'knight', 'fire', 'axe-shield', 1.12),
-  'furnace-hound': creature('cinder-furnace-hound', 'rogue', 'lunge', 1.08),
-  'ember-witch': skeleton('cinder-ember-witch', 'mage', 'necromancer', 'fire', 'staff', 1.02),
+  'cinder-knight': familyAdventurer('cinder-knight', 'knight', 'knight', 'fire', 'axe-shield', 1.12),
+  'furnace-hound': familyCreature('furnace-hound', 'rogue', 'lunge', 1.08),
+  'ember-witch': familySkeleton('ember-witch', 'mage', 'necromancer', 'fire', 'staff', 1.02),
 
-  'veil-aberration': skeleton('nexus-veil-aberration', 'barbarian', 'golem', 'burst', 'heavy-axe', 1.2),
-  'nexus-herald': skeleton('nexus-herald', 'mage', 'necromancer', 'summon', 'staff', 1.08),
-  'rift-beast': creature('nexus-rift-beast', 'minion', 'lunge', 1.16),
+  'veil-aberration': familySkeleton('veil-aberration', 'barbarian', 'golem', 'burst', 'heavy-axe', 1.2),
+  'nexus-herald': familySkeleton('nexus-herald', 'mage', 'necromancer', 'summon', 'staff', 1.08),
+  'rift-beast': familyCreature('rift-beast', 'minion', 'lunge', 1.16),
 } satisfies Record<NormalEnemyFamilyId, EnemyVisualProfile>;
 
 export function bossVisualProfile(room: number): EnemyVisualProfile {
