@@ -26,7 +26,9 @@ async function stableRendererMetrics(page) {
     stablePublishedSamples = sameGeometry && sameTextures ? stablePublishedSamples + 1 : 0;
     previous = current;
     previousAt = currentAt;
-    if (stablePublishedSamples >= 2) return current;
+    // Three consecutive newly published windows prove the asynchronous model and
+    // texture preload has settled before the bounded-growth interval begins.
+    if (stablePublishedSamples >= 3) return current;
   }
   return previous;
 }
