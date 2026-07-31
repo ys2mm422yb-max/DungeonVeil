@@ -29,13 +29,14 @@ permissions:
 
 jobs:
   repair-enemy-presentation-contract:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/enemy-family-presentation-v2'
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/enemy-family-presentation-v2'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout exact push
+      - name: Checkout exact PR branch
         uses: actions/checkout@v4
         with:
+          ref: feat/enemy-family-presentation-v2
           fetch-depth: 0
           persist-credentials: true
 
