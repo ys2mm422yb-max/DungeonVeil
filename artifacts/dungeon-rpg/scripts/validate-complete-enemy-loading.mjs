@@ -18,27 +18,34 @@ for (const asset of ['Slime.glb', 'Rat.glb', 'Spider.glb', 'Bat.glb', 'Snake_ang
 }
 
 const requiredLoaderContracts = [
-  ['requestedImportedTypes(requestedTypes)', 'preload does not filter normalized requested room types'],
-  ['loadEnemyAssetsWithRetries(requestedTypes, importedTypes)', 'preload does not preserve the full room type list for base-library decisions'],
-  ['types.map(preloadLocalEnemyAsset)', 'requested GLBs are not fully fetched before model creation'],
+  ['requestedImportedTypes(requestedTypes, requestedFamilies)', 'preload does not filter exact requested family profiles'],
+  ['runtimeEnemyTypeForFamily(familyId)', 'family preload does not resolve the canonical runtime carrier'],
+  ['enemyVisualProfile(1, runtimeType, 0, familyId).useImported', 'family preload does not honor the actual presentation profile'],
+  ['types.map(readLocalEnemyAsset)', 'requested GLBs are not fully fetched before model creation'],
   ['types.map(loadImportedPrototype)', 'requested GLBs are not parsed before room entry'],
   ['const bytes = await response.arrayBuffer();', 'enemy GLBs are not fully read'],
+  ['new GLTFLoader().parseAsync(bytes, enemyAssetBaseUrl(type))', 'cached GLB bytes are not parsed without a second network request'],
+  ['const importedAssetPromises = new Map<', 'enemy GLB byte reads are not cached by imported type'],
   ['createDedicatedImportedVisual', 'imported creatures do not have a direct visual construction path'],
   ['throw new Error(`Dedicated enemy model did not become ready:', 'a dedicated creature can still settle on a generic model'],
-  ['const enemyPreloadPromises = new Map<string, Promise<void>>();', 'room-type preload results are not cached'],
-  ['enemyPreloadPromises.delete(key);', 'failed room-type preload cannot be retried'],
-  ["export async function preloadKayKitEnemyVisuals(enemyTypes: readonly Enemy['enemyType'][] = [])", 'preloader does not accept exact room enemy types'],
+  ['const enemyPreloadPromises = new Map<string, Promise<void>>();', 'room-family preload results are not cached'],
+  ["requestedFamilies.join('|') || 'legacy'", 'preload cache key does not distinguish exact family sets'],
+  ['enemyPreloadPromises.delete(key);', 'failed room-family preload cannot be retried'],
+  ['enemyFamilyIds: readonly EnemyFamilyId[] = []', 'preloader does not accept exact room family ids'],
+  ['await startEnemyPreload(enemyTypes, enemyFamilyIds)', 'preloader drops exact room family ids'],
 ];
 for (const [needle, message] of requiredLoaderContracts) if (!enemyLoader.includes(needle)) failures.push(message);
 if (enemyLoader.includes('ENEMY_PRELOAD_MAX_BLOCK_MS')) failures.push('old 3.5 second early release still exists');
 if (enemyLoader.includes('Promise.race([preload')) failures.push('required enemy preload can still release early');
-if (enemyLoader.includes('IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset)')) failures.push('all five creatures are still forced before every room');
+if (enemyLoader.includes('IMPORTED_ENEMY_TYPES.map(readLocalEnemyAsset)')) failures.push('all five creatures are still forced before every room');
+if (enemyLoader.includes('new GLTFLoader().loadAsync(enemyAssetUrl(type))')) failures.push('imported model parsing still performs a second network request');
 
 const requiredEntryContracts = [
   ['preloadRequiredRunRoom(sessionSave.floor)', 'automatic saved-session resume does not preload its exact room'],
   ['await preloadRequiredRunRoom(1);', 'new run does not preload room 1 before entering the game'],
   ['await preloadRequiredRunRoom(save.floor);', 'continue flow does not preload the saved room'],
-  ['preloadKayKitEnemyVisuals(enemyTypes)', 'run entry does not pass exact planned enemy types'],
+  ['const enemyFamilyIds = plannedRoomEnemyFamilyIds(safeFloor);', 'run entry does not derive exact planned enemy families'],
+  ['preloadKayKitEnemyVisuals(enemyTypes, enemyFamilyIds)', 'run entry does not pass exact planned enemy types and families'],
   ["setUiState('game');", 'run entry no longer enters the game after preload'],
 ];
 for (const [needle, message] of requiredEntryContracts) if (!game.includes(needle)) failures.push(message);
@@ -52,8 +59,9 @@ if (freshRunStart < 0 || freshRunPreload < 0 || freshRunEnter < 0 || freshRunPre
 const requiredCanvasContracts = [
   ['const [renderState, setRenderState] = useState(gameState);', 'canvas no longer keeps a complete visible room during staging'],
   ['currentRoomEnemyTypes(gameState)', 'current room types are not derived from actual enemies'],
-  ['preloadKayKitEnemyVisuals(requiredEnemyTypes)', 'room transition does not stage its exact enemy models'],
-  ['preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor))', 'next room background preload is not type-specific'],
+  ['currentRoomEnemyFamilyIds(gameState)', 'current room families are not derived from actual enemies'],
+  ['preloadKayKitEnemyVisuals(requiredEnemyTypes, requiredEnemyFamilyIds)', 'room transition does not stage its exact enemy family models'],
+  ['preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor), plannedRoomEnemyFamilyIds(nextFloor))', 'next room background preload is not family-specific'],
   ['keeping previous room visible', 'room transition no longer retries while preserving the previous room'],
   ['<GameCanvasKayKit3D key={rendererGeneration} gameState={renderState} />', '3D canvas is conditionally removed during model staging'],
 ];

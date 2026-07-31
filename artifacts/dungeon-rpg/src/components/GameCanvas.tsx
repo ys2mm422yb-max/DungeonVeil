@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { EnemyType } from '../game/entities';
+import { enemyFamilyForSpawn, type EnemyFamilyId } from '../game/enemyRegistry';
 import type { GameState } from '../game/runEngine';
 import { CHAPTER_ROOMS, isBossRoom } from '../game/chapterRun';
-import { getEncounterPlan } from '../game/encounterPlan';
+import { getEncounterFamilyPlan, getEncounterPlan } from '../game/encounterPlan';
 import { reportProductionAudit } from '../game/productionAudit';
 import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
 import { CombatFeedbackOverlay } from './CombatFeedbackOverlay';
@@ -33,12 +34,27 @@ function uniqueEnemyTypes(types: readonly EnemyType[]) {
   return [...new Set(types)];
 }
 
+function uniqueEnemyFamilyIds(familyIds: readonly EnemyFamilyId[]) {
+  return [...new Set(familyIds)];
+}
+
 function currentRoomEnemyTypes(state: GameState) {
   return uniqueEnemyTypes(state.enemies.map(enemy => enemy.enemyType));
 }
 
+function currentRoomEnemyFamilyIds(state: GameState) {
+  return uniqueEnemyFamilyIds(state.enemies.map((enemy, index) =>
+    enemy.enemyFamilyId
+    ?? (enemy.enemyType === 'boss' ? 'boss' : enemyFamilyForSpawn(state.floor, index, enemy.enemyType))
+  ));
+}
+
 function plannedRoomEnemyTypes(floor: number): EnemyType[] {
   return isBossRoom(floor) ? ['boss'] : uniqueEnemyTypes(getEncounterPlan(floor));
+}
+
+function plannedRoomEnemyFamilyIds(floor: number): EnemyFamilyId[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyFamilyIds(getEncounterFamilyPlan(floor));
 }
 
 function wait(milliseconds: number) {
@@ -130,8 +146,9 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     const token = ++transitionTokenRef.current;
     let cancelled = false;
     const requiredEnemyTypes = currentRoomEnemyTypes(gameState);
+    const requiredEnemyFamilyIds = currentRoomEnemyFamilyIds(gameState);
     window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', {
-      detail: { key: liveRoomKey, floor: gameState.floor, enemyTypes: requiredEnemyTypes, owner: 'game-canvas-stage' },
+      detail: { key: liveRoomKey, floor: gameState.floor, enemyTypes: requiredEnemyTypes, enemyFamilyIds: requiredEnemyFamilyIds, owner: 'game-canvas-stage' },
     }));
 
     const stageRoom = async () => {
@@ -141,7 +158,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
           await Promise.all([
             preloadKayKitDungeonRoom(gameState.floor),
             preloadKayKitRoomTheme(gameState.floor),
-            preloadKayKitEnemyVisuals(requiredEnemyTypes),
+            preloadKayKitEnemyVisuals(requiredEnemyTypes, requiredEnemyFamilyIds),
           ]);
           if (cancelled || token !== transitionTokenRef.current) return;
           const latest = latestStateRef.current;
@@ -175,7 +192,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     void Promise.all([
       preloadKayKitDungeonRoom(nextFloor),
       preloadKayKitRoomTheme(nextFloor),
-      preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor)),
+      preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor), plannedRoomEnemyFamilyIds(nextFloor)),
     ]).catch(error => {
       preloadKeyRef.current = '';
       console.error('Dungeon Veil next room preload failed', error);

@@ -1,6 +1,7 @@
 import type { Enemy } from '../game/entities';
 import { bossAttackContract } from '../game/bossAttackTelegraphs';
 import { enemyVisualProfile } from '../game/enemyRegionalIdentity';
+import { runtimeEnemyTypeForFamily, type EnemyFamilyId } from '../game/enemyRegistry';
 import {
   createKayKitEnemyVisual as createBaseKayKitEnemyVisual,
   preloadKayKitEnemyVisuals as preloadBaseKayKitEnemyVisuals,
@@ -49,10 +50,12 @@ const IMPORTED_ENEMY_CONFIG: Record<(typeof IMPORTED_ENEMY_TYPES)[number], {
   vampire: { path: 'assets/imported/enemies/Bat.glb', targetHeight: 1.22, widthWeight: 0.48 },
   demon: { path: 'assets/imported/enemies/Snake_angry.glb', targetHeight: 1.12, widthWeight: 0.62 },
 };
+const ENEMY_ASSET_FETCH_ATTEMPTS = 4;
 const IS_MOBILE = typeof navigator !== 'undefined'
   && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const flightVisuals = new WeakMap<object, FlightVisualState>();
 const enemyPreloadPromises = new Map<string, Promise<void>>();
+const importedAssetPromises = new Map<(typeof IMPORTED_ENEMY_TYPES)[number], Promise<ArrayBuffer>>();
 const importedPrototypePromises = new Map<(typeof IMPORTED_ENEMY_TYPES)[number], Promise<ImportedPrototype>>();
 const GROUNDED_ROOM_20_BOSS_POSE: Room20BossFlightPose = {
   active: false,
@@ -117,14 +120,59 @@ function importedEnemyType(type: Enemy['enemyType']): type is (typeof IMPORTED_E
   return IMPORTED_ENEMY_TYPES.includes(type as (typeof IMPORTED_ENEMY_TYPES)[number]);
 }
 
-function requestedImportedTypes(enemyTypes: readonly Enemy['enemyType'][]) {
-  return [...new Set(enemyTypes.filter(importedEnemyType))].sort();
+function requestedImportedTypes(
+  enemyTypes: readonly Enemy['enemyType'][],
+  enemyFamilyIds: readonly EnemyFamilyId[],
+) {
+  if (!enemyFamilyIds.length) return [...new Set(enemyTypes.filter(importedEnemyType))].sort();
+
+  const importedTypes = enemyFamilyIds.flatMap(familyId => {
+    const runtimeType = runtimeEnemyTypeForFamily(familyId);
+    if (!importedEnemyType(runtimeType)) return [];
+    return enemyVisualProfile(1, runtimeType, 0, familyId).useImported ? [runtimeType] : [];
+  });
+  return [...new Set(importedTypes)].sort();
 }
 
 function enemyAssetUrl(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
   const path = IMPORTED_ENEMY_CONFIG[type].path;
   if (typeof document === 'undefined') return `/${path}`;
   return new URL(path, document.baseURI).toString();
+}
+
+function enemyAssetBaseUrl(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  return new URL('.', enemyAssetUrl(type)).toString();
+}
+
+async function readLocalEnemyAsset(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  const cached = importedAssetPromises.get(type);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= ENEMY_ASSET_FETCH_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(enemyAssetUrl(type), {
+cache: attempt === 1 ? 'default' : 'reload',
+credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        const bytes = await response.arrayBuffer();
+        if (bytes.byteLength < 512) throw new Error(`enemy asset is truncated (${bytes.byteLength} bytes)`);
+        return bytes;
+      } catch (error) {
+        lastError = error;
+        if (attempt < ENEMY_ASSET_FETCH_ATTEMPTS) await wait(attempt * 320);
+      }
+    }
+    throw new Error(`Local enemy asset failed to load: ${type}`, { cause: lastError });
+  })().catch(error => {
+    importedAssetPromises.delete(type);
+    throw error;
+  });
+
+  importedAssetPromises.set(type, promise);
+  return promise;
 }
 
 function clipName(clip: any) {
@@ -199,8 +247,9 @@ async function loadImportedPrototype(type: (typeof IMPORTED_ENEMY_TYPES)[number]
   const promise = (async () => {
     try {
       const config = IMPORTED_ENEMY_CONFIG[type];
+      const bytes = await readLocalEnemyAsset(type);
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
-      const gltf = await new GLTFLoader().loadAsync(enemyAssetUrl(type));
+      const gltf = await new GLTFLoader().parseAsync(bytes, enemyAssetBaseUrl(type));
       if (!gltf?.scene) throw new Error(`GLB has no scene: ${type}`);
       return {
         scene: gltf.scene,
@@ -372,14 +421,9 @@ async function createReliableEnemyVisual(THREE: any, enemy: Enemy): Promise<KayK
 }
 
 async function preloadRealCreatureModels(types: readonly (typeof IMPORTED_ENEMY_TYPES)[number][]) {
-  // Runtime enemy types are coarse simulation carriers and can resolve to
-  // humanoid family profiles. Eagerly decoding every carrier here made
-  // WebKit download unused Rat/Bat prototypes beside the full KayKit
-  // library and could keep the run preparation screen alive indefinitely.
-  // Imported prototypes are cached by loadImportedPrototype and now load
-  // only when createDedicatedImportedVisual receives an actual family
-  // profile with useImported=true.
-  void types;
+  if (!types.length) return;
+  await Promise.all(types.map(readLocalEnemyAsset));
+  await Promise.all(types.map(loadImportedPrototype));
 }
 
 async function loadEnemyAssetsWithRetries(
@@ -406,10 +450,14 @@ async function loadEnemyAssetsWithRetries(
   throw lastError instanceof Error ? lastError : new Error('Enemy preload failed');
 }
 
-function startEnemyPreload(enemyTypes: readonly Enemy['enemyType'][]) {
+function startEnemyPreload(
+  enemyTypes: readonly Enemy['enemyType'][],
+  enemyFamilyIds: readonly EnemyFamilyId[],
+) {
   const requestedTypes = [...new Set(enemyTypes)].sort();
-  const importedTypes = requestedImportedTypes(requestedTypes);
-  const key = requestedTypes.join('|') || 'base';
+  const requestedFamilies = [...new Set(enemyFamilyIds)].sort();
+  const importedTypes = requestedImportedTypes(requestedTypes, requestedFamilies);
+  const key = `${requestedTypes.join('|') || 'base'}::${requestedFamilies.join('|') || 'legacy'}`;
   const cached = enemyPreloadPromises.get(key);
   if (cached) return cached;
 
@@ -421,8 +469,11 @@ function startEnemyPreload(enemyTypes: readonly Enemy['enemyType'][]) {
   return preload;
 }
 
-export async function preloadKayKitEnemyVisuals(enemyTypes: readonly Enemy['enemyType'][] = []) {
-  await startEnemyPreload(enemyTypes);
+export async function preloadKayKitEnemyVisuals(
+  enemyTypes: readonly Enemy['enemyType'][] = [],
+  enemyFamilyIds: readonly EnemyFamilyId[] = [],
+) {
+  await startEnemyPreload(enemyTypes, enemyFamilyIds);
 }
 
 function findGroundShadow(visual: BaseKayKitEnemyVisual) {
