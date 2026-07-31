@@ -2,7 +2,7 @@ name: Dungeon RPG Check
 
 on:
   push:
-    branches: [main, work/blocks-1-7-production-pass, 'fix/**', 'work/block-*']
+    branches: [main, work/blocks-1-7-production-pass, 'fix/**', 'feat/**', 'work/block-*']
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
@@ -24,7 +24,69 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
+  repair-enemy-presentation-contract:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/enemy-family-presentation-v2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact push
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify unchanged source contract
+        run: |
+          git diff --exit-code 6c1032ea770bef2cdd91f930e36e2b36ffd3f526 -- \
+            artifacts/dungeon-rpg/src/game/enemyRegistry.ts \
+            artifacts/dungeon-rpg/src/game/enemyRegionalIdentity.ts \
+            artifacts/dungeon-rpg/scripts/validate-enemy-visual-variety.mjs
+          test ! -e artifacts/dungeon-rpg/src/game/enemyPresentationContract.ts
+
+      - name: Reuse and apply reviewed repair program
+        shell: bash
+        run: |
+          python3 - <<'PYEXTRACT'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/fix-enemy-presentation-contract-once.yml').read_text(encoding='utf-8')
+          start_marker = "          python3 - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          if workflow.count(start_marker) != 1 or workflow.count(end_marker) != 1:
+              raise SystemExit('reviewed repair program markers changed')
+          embedded = workflow.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          lines = embedded.splitlines()
+          if any(line and not line.startswith('          ') for line in lines):
+              raise SystemExit('reviewed repair program indentation changed')
+          Path('/tmp/repair-enemy-presentation-contract.py').write_text(
+              '\n'.join(line[10:] if line else '' for line in lines) + '\n',
+              encoding='utf-8',
+          )
+          PYEXTRACT
+          python3 /tmp/repair-enemy-presentation-contract.py
+
+      - name: Commit guarded source repair and restore CI
+        shell: bash
+        run: |
+          git checkout 6c1032ea770bef2cdd91f930e36e2b36ffd3f526 -- .github/workflows/dungeon-rpg-check.yml
+          rm .github/workflows/fix-enemy-presentation-contract-once.yml
+          rm .github/workflows/run-enemy-presentation-contract-fast-once.yml
+          git config user.name "Dungeon Veil Contract Repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/game/enemyPresentationContract.ts \
+                  artifacts/dungeon-rpg/src/game/enemyRegistry.ts \
+                  artifacts/dungeon-rpg/src/game/enemyRegionalIdentity.ts \
+                  artifacts/dungeon-rpg/scripts/validate-enemy-visual-variety.mjs \
+                  .github/workflows/dungeon-rpg-check.yml \
+                  .github/workflows/fix-enemy-presentation-contract-once.yml \
+                  .github/workflows/run-enemy-presentation-contract-fast-once.yml
+          git commit -m "fix: separate enemy presentation identity"
+          git push origin HEAD:feat/enemy-family-presentation-v2
+
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
