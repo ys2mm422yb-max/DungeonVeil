@@ -83,4 +83,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Exact room enemy preload, direct imported visual path, always-mounted canvas and no-blob production build verified.');
+console.log('Exact family-aware room preload, cached imported GLB parsing, always-mounted canvas and no-blob production build verified.');
