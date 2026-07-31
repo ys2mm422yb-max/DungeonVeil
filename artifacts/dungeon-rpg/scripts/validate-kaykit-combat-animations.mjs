@@ -191,6 +191,7 @@ try {
   enemyRangerGame.state.player.invincibleUntil = 0;
   enemyRangerInternal.shotPathBlocked = () => false;
   const enemyRanger = makeEnemy(enemyRangerGame, '3-25-0', 'skeleton');
+  enemyRanger.enemyFamilyId = 'bone-archer';
   enemyRangerGame.state.enemies = [enemyRanger];
   const disposeEnemyRanger = normal.installNormalEnemyAttackTelegraphs(enemyRangerGame);
   try {
