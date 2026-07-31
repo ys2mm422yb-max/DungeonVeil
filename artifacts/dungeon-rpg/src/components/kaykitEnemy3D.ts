@@ -124,7 +124,12 @@ function requestedImportedTypes(
   enemyTypes: readonly Enemy['enemyType'][],
   enemyFamilyIds: readonly EnemyFamilyId[],
 ) {
-  if (!enemyFamilyIds.length) return [...new Set(enemyTypes.filter(importedEnemyType))].sort();
+  if (!enemyFamilyIds.length) {
+    const importedTypes = enemyTypes.flatMap(type =>
+      importedEnemyType(type) && enemyVisualProfile(1, type, 0).useImported ? [type] : []
+    );
+    return [...new Set(importedTypes)].sort();
+  }
 
   const importedTypes = enemyFamilyIds.flatMap(familyId => {
     const runtimeType = runtimeEnemyTypeForFamily(familyId);
@@ -428,11 +433,15 @@ async function preloadRealCreatureModels(types: readonly (typeof IMPORTED_ENEMY_
 
 async function loadEnemyAssetsWithRetries(
   enemyTypes: readonly Enemy['enemyType'][],
+  enemyFamilyIds: readonly EnemyFamilyId[],
   importedTypes: readonly (typeof IMPORTED_ENEMY_TYPES)[number][],
 ) {
-  // Family profiles can route any technical creature type to the humanoid
-  // library, so the base library is now always part of deterministic preload.
-  const needsBaseLibrary = true;
+  const needsBaseLibrary = enemyFamilyIds.length > 0
+    ? enemyFamilyIds.some(familyId => {
+        const runtimeType = runtimeEnemyTypeForFamily(familyId);
+        return !enemyVisualProfile(1, runtimeType, 0, familyId).useImported;
+      })
+    : enemyTypes.length === 0 || enemyTypes.some(type => !enemyVisualProfile(1, type, 0).useImported);
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -461,7 +470,7 @@ function startEnemyPreload(
   const cached = enemyPreloadPromises.get(key);
   if (cached) return cached;
 
-  const preload = loadEnemyAssetsWithRetries(requestedTypes, importedTypes).catch(error => {
+  const preload = loadEnemyAssetsWithRetries(requestedTypes, requestedFamilies, importedTypes).catch(error => {
     enemyPreloadPromises.delete(key);
     throw error;
   });

@@ -3,6 +3,7 @@ import { GameEngine, type RunGameState } from '../game/runEngine';
 import { buildSpectatorSnapshot } from '../game/socialSpectatorOnline';
 import { SpectatorSnapshotBuffer } from '../game/spectatorInterpolation';
 import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
+import { preloadKayKitEnemyVisuals } from './kaykitEnemy3D';
 import { SpectatorPlaybackStage } from './SpectatorPlaybackStage';
 
 const PACKET_MS = 125;
@@ -29,7 +30,7 @@ function createQaState(): RunGameState {
   state.player.state = 'moving';
   state.runSkills = { multishot: 2, speed: 1, fireArrow: 1 };
   state.enemies = [{
-    id: 'spectator-qa-goblin', type: 'enemy', enemyType: 'goblin',
+    id: 'spectator-qa-goblin', type: 'enemy', enemyType: 'goblin', enemyFamilyId: 'goblin',
     x: centerX + 180, y: centerY - 120, width: 30, height: 30, vx: 0, vy: 0,
     hp: 34, maxHp: 34, attack: 6, defense: 1, speed: 68, color: '#89a94b',
     state: 'chase', isDead: false, targetX: centerX, targetY: centerY,
@@ -39,6 +40,7 @@ function createQaState(): RunGameState {
 }
 
 export function SpectatorPerformanceQa() {
+  const [assetsReady, setAssetsReady] = useState(false);
   const sourceRef = useRef<RunGameState>(createQaState());
   const bufferRef = useRef(new SpectatorSnapshotBuffer());
   const diagnosticsRef = useRef<HTMLSpanElement>(null);
@@ -46,6 +48,16 @@ export function SpectatorPerformanceQa() {
   const renderCountRef = useRef(0);
   const packetContractRef = useRef<{ keyframeBytes: number; deltaBytes: number; deltaHasMap: boolean } | null>(null);
   renderCountRef.current += 1;
+
+  useEffect(() => {
+    let cancelled = false;
+    void preloadKayKitEnemyVisuals(['goblin'], ['goblin']).then(() => {
+      if (!cancelled) setAssetsReady(true);
+    }).catch(error => {
+      console.error('Spectator QA enemy preload failed', error);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   if (!packetContractRef.current) {
     const keyframe = buildSpectatorSnapshot(cloneState(sourceRef.current), initialAt.current);
@@ -70,6 +82,7 @@ export function SpectatorPerformanceQa() {
   const [stableState] = useState<RunGameState>(() => bufferRef.current.sample(initialAt.current) ?? cloneState(sourceRef.current));
 
   useEffect(() => {
+    if (!assetsReady) return;
     document.documentElement.dataset.dungeonVeilSpectating = '1';
     window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: true } }));
     const startedAt = Date.now();
@@ -229,11 +242,11 @@ export function SpectatorPerformanceQa() {
       window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: false } }));
       delete document.documentElement.dataset.dungeonVeilSpectating;
     };
-  }, [stableState]);
+  }, [assetsReady, stableState]);
 
-  return <div data-testid="spectator-performance-qa" className="fixed inset-0 overflow-hidden bg-black">
-    <SpectatorPlaybackStage stableState={stableState} />
+  return <div data-testid="spectator-performance-qa" data-assets-ready={assetsReady ? 'true' : 'false'} className="fixed inset-0 overflow-hidden bg-black">
+    {assetsReady && <SpectatorPlaybackStage stableState={stableState} />}
     <span ref={diagnosticsRef} data-testid="spectator-performance-diagnostics" data-contract="jitter-loss-layout-long-run-v5" className="sr-only" />
-    <span data-testid="visual-qa-ready" className="pointer-events-none fixed bottom-1 right-1 z-[999] h-1 w-1 opacity-0" />
+    {assetsReady && <span data-testid="visual-qa-ready" className="pointer-events-none fixed bottom-1 right-1 z-[999] h-1 w-1 opacity-0" />}
   </div>;
 }

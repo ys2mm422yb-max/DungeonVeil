@@ -40,7 +40,9 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
   page.on('console', message => { if (message.type() === 'error' && !/favicon/i.test(message.text())) runtimeErrors.push(`console: ${message.text()}`); });
   await page.goto(qaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await expect(page.getByTestId('spectator-performance-qa')).toBeVisible();
+  const spectatorQa = page.getByTestId('spectator-performance-qa');
+  await expect(spectatorQa).toBeVisible();
+  await expect(spectatorQa).toHaveAttribute('data-assets-ready', 'true');
   await expect(page.getByTestId('spectator-playback-stage')).toHaveAttribute('data-render-contract', 'single-stable-three-state-with-companion');
   await expect(page.getByTestId('spectator-performance-diagnostics')).toHaveAttribute('data-contract', 'jitter-loss-layout-long-run-v5');
   await expect(page.getByTestId('spectator-companion-contract')).toHaveAttribute('data-shared-renderer', 'true');
