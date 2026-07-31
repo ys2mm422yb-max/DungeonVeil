@@ -38,7 +38,13 @@ const wardenRooms = [...definitions.matchAll(/^\s*\[(10|20|30|40|50|60|70|80|90|
 assert(wardenRooms.length === 10 && new Set(wardenRooms).size === 10, `Expected ten generated Warden definitions, found ${wardenRooms.length}.`);
 assert(definitions.includes('discoveryKey: `1:${room}`') && definitions.includes('id: `warden-${room}`'), 'Warden discovery keys are not generated from their room definitions.');
 for (const room of [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]) assert(wardenRooms.includes(room), `Warden room ${room} is missing.`);
-assert(definitions.includes('room: definition.spawn.minRoom') && definitions.includes('enemyType: definition.presentationKey'), 'Beast first-sighting or presentation metadata is not derived from registry spawn data.');
+assert(
+  definitions.includes('room: definition.spawn.minRoom')
+    && definitions.includes('enemyType: definition.runtimeType')
+    && definitions.includes('presentationKey: definition.presentationKey'),
+  'Beast first-sighting, runtime identity or presentation identity is not derived from the canonical registry.',
+);
+assert(definitions.includes("presentationKey: ENEMY_REGISTRY.boss.presentationKey"), 'Warden presentation identity is not derived from the canonical boss registry entry.');
 assert(artwork.includes("case 'world-core'") && artwork.includes("case 'broken-guardian-crown'") && artwork.includes("slot === 'bow'") && artwork.includes("slot === 'quiver'"), 'Relic or equipment artwork is not individually defined.');
 assert(preview.includes('data-preview-renderers="1"') && preview.includes('createKayKitEnemyVisual') && preview.includes('preloadKayKitEnemyVisuals') && preview.includes('forceContextLoss'), 'Codex model preview is not a single bounded renderer using current enemy models.');
 assert(!preview.includes('Object.values(CODEX_BEASTS).map') && screen.includes('<CodexModelPreview enemyType={entry.enemyType}'), 'Codex preview contract regressed.');
@@ -46,4 +52,4 @@ assert(config.includes('codex-visual-library') && test.includes('toHaveCount(35)
 assert(test.includes("codex-tab-wardens") && test.includes("codex-count-wardens") && test.includes("language: 'en'"), 'English, counter or Warden coverage is incomplete.');
 assert(persistenceTest.includes("toHaveText('3/35')") && persistenceTest.includes('dungeon-veil-cloud-save-restored') && persistenceTest.includes("toContainText('15')"), 'Family discovery/counter reload and cloud-restore coverage is missing.');
 
-console.log(`Block 21 Codex passed: ${normalFamilyCount} registry families, ten generated wardens, family counters, cloud/reload persistence, bilingual states, shared artwork and responsive four-device layout.`);
+console.log(`Block 21 Codex passed: ${normalFamilyCount} registry families, ten generated wardens, separated runtime/presentation identities, family counters, cloud/reload persistence, bilingual states, shared artwork and responsive four-device layout.`);
