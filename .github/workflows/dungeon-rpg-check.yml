@@ -24,6 +24,9 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   typecheck-and-build:
     runs-on: ubuntu-latest
@@ -59,3 +62,183 @@ jobs:
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg build
+
+  repair-pr-374-spectator-reuse:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 374
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout protected source branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/enemy-family-presentation-v2
+          fetch-depth: 0
+      - name: Guard exact source state
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED=93c35112ca38b50e2fca2a764223d3c8bc0c7b8a
+          git diff --quiet "$EXPECTED" -- artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx
+      - name: Apply bounded spectator visual reuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one match, found {count}: {old[:120]!r}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "const LOW_GPU_KEY = 'dungeon-veil-low-gpu';",
+              "const LOW_GPU_KEY = 'dungeon-veil-low-gpu';\n"
+              "const SPECTATOR_DORMANT_ENEMY_TTL_MS = 8_000;\n"
+              "const SPECTATOR_DORMANT_ENEMY_LIMIT = 4;",
+          )
+          replace_once(
+              "    const enemyVisuals = new Map<string, KayKitEnemyVisual>();\n"
+              "    const enemyFallbacks = new Map<string, any>();",
+              "    const enemyVisuals = new Map<string, KayKitEnemyVisual>();\n"
+              "    const dormantEnemyVisuals = new Map<string, { visual: KayKitEnemyVisual; removedAt: number }>();\n"
+              "    const enemyFallbacks = new Map<string, any>();",
+          )
+          replace_once(
+              "    const disposeObject = (object: any) => object?.traverse?.((node: any) => {\n"
+              "      node.geometry?.dispose?.();\n"
+              "      if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());\n"
+              "      else node.material?.dispose?.();\n"
+              "    });",
+              "    const disposeObject = (object: any) => object?.traverse?.((node: any) => {\n"
+              "      node.geometry?.dispose?.();\n"
+              "      if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());\n"
+              "      else node.material?.dispose?.();\n"
+              "    });\n\n"
+              "    const disposeEnemyVisual = (visual: KayKitEnemyVisual) => {\n"
+              "      scene?.remove?.(visual.root);\n"
+              "      visual.mixer?.stopAllAction?.();\n"
+              "      disposeObject(visual.root);\n"
+              "    };\n\n"
+              "    const spectatorReuseActive = () => document.documentElement.dataset.dungeonVeilSpectating === '1';\n\n"
+              "    const evictDormantEnemyVisuals = (now: number, force = false) => {\n"
+              "      for (const [id, entry] of dormantEnemyVisuals) {\n"
+              "        if (!force && now - entry.removedAt <= SPECTATOR_DORMANT_ENEMY_TTL_MS) continue;\n"
+              "        disposeEnemyVisual(entry.visual);\n"
+              "        dormantEnemyVisuals.delete(id);\n"
+              "      }\n"
+              "      while (dormantEnemyVisuals.size > SPECTATOR_DORMANT_ENEMY_LIMIT) {\n"
+              "        const oldest = [...dormantEnemyVisuals.entries()].sort((left, right) => left[1].removedAt - right[1].removedAt)[0];\n"
+              "        if (!oldest) break;\n"
+              "        disposeEnemyVisual(oldest[1].visual);\n"
+              "        dormantEnemyVisuals.delete(oldest[0]);\n"
+              "      }\n"
+              "    };",
+          )
+          replace_once(
+              "    const syncEnemies = (state: GameState, delta: number, gameNow: number) => {\n"
+              "      const active = new Set(state.enemies.map(enemy => enemy.id));\n"
+              "      for (const [id, visual] of enemyVisuals) {\n"
+              "        if (active.has(id)) continue;\n"
+              "        scene.remove(visual.root);\n"
+              "        visual.mixer?.stopAllAction?.();\n"
+              "        disposeObject(visual.root);\n"
+              "        enemyVisuals.delete(id);\n"
+              "      }",
+              "    const syncEnemies = (state: GameState, delta: number, gameNow: number) => {\n"
+              "      const active = new Set(state.enemies.map(enemy => enemy.id));\n"
+              "      const reuseDormantVisuals = spectatorReuseActive();\n"
+              "      evictDormantEnemyVisuals(gameNow);\n"
+              "      for (const [id, visual] of enemyVisuals) {\n"
+              "        if (active.has(id)) continue;\n"
+              "        scene.remove(visual.root);\n"
+              "        enemyVisuals.delete(id);\n"
+              "        if (reuseDormantVisuals) {\n"
+              "          const previous = dormantEnemyVisuals.get(id);\n"
+              "          if (previous && previous.visual !== visual) disposeEnemyVisual(previous.visual);\n"
+              "          dormantEnemyVisuals.set(id, { visual, removedAt: gameNow });\n"
+              "          evictDormantEnemyVisuals(gameNow);\n"
+              "        } else {\n"
+              "          disposeEnemyVisual(visual);\n"
+              "        }\n"
+              "      }",
+          )
+          replace_once(
+              "        let visual = enemyVisuals.get(enemy.id);\n"
+              "        if (!visual) {",
+              "        let visual = enemyVisuals.get(enemy.id);\n"
+              "        if (!visual && reuseDormantVisuals) {\n"
+              "          const dormant = dormantEnemyVisuals.get(enemy.id);\n"
+              "          if (dormant) {\n"
+              "            dormantEnemyVisuals.delete(enemy.id);\n"
+              "            visual = dormant.visual;\n"
+              "            enemyVisuals.set(enemy.id, visual);\n"
+              "            scene.add(visual.root);\n"
+              "          }\n"
+              "        }\n"
+              "        if (!visual) {",
+          )
+          replace_once(
+              "          createKayKitEnemyVisual(THREE, enemy).then(created => {\n"
+              "            enemyLoading.delete(enemy.id);\n"
+              "            if (!created || disposed || !stateRef.current.enemies.some(current => current.id === enemy.id)) return;",
+              "          createKayKitEnemyVisual(THREE, enemy).then(created => {\n"
+              "            enemyLoading.delete(enemy.id);\n"
+              "            if (!created) return;\n"
+              "            if (disposed) {\n"
+              "              disposeEnemyVisual(created);\n"
+              "              return;\n"
+              "            }\n"
+              "            if (!stateRef.current.enemies.some(current => current.id === enemy.id)) {\n"
+              "              if (spectatorReuseActive()) {\n"
+              "                dormantEnemyVisuals.set(enemy.id, { visual: created, removedAt: performance.now() });\n"
+              "                evictDormantEnemyVisuals(performance.now());\n"
+              "              } else {\n"
+              "                disposeEnemyVisual(created);\n"
+              "              }\n"
+              "              return;\n"
+              "            }",
+          )
+          replace_once(
+              "      for (const visual of enemyVisuals.values()) { visual.mixer?.stopAllAction?.(); disposeObject(visual.root); }\n"
+              "      for (const mesh of arrowVisuals.values()) disposeObject(mesh);",
+              "      for (const visual of enemyVisuals.values()) disposeEnemyVisual(visual);\n"
+              "      evictDormantEnemyVisuals(performance.now(), true);\n"
+              "      for (const mesh of arrowVisuals.values()) disposeObject(mesh);",
+          )
+
+          path.write_text(text)
+          PY
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Validate focused renderer repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm --filter @workspace/dungeon-rpg typecheck
+          pnpm --filter @workspace/dungeon-rpg build
+          grep -q "dormantEnemyVisuals" artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx
+          grep -q "SPECTATOR_DORMANT_ENEMY_TTL_MS" artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx
+      - name: Restore CI and commit source repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout 93c35112ca38b50e2fca2a764223d3c8bc0c7b8a -- .github/workflows/dungeon-rpg-check.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/workflows/dungeon-rpg-check.yml artifacts/dungeon-rpg/src/components/GameCanvasKayKit3D.tsx
+          git commit -m "fix: reuse transient spectator enemy visuals"
+          git push origin HEAD:feat/enemy-family-presentation-v2
