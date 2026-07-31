@@ -37,18 +37,18 @@ const duplicateRoleSelector = path.join(root, 'src/components/kaykitEnemyAnimati
 const familyMatrixPresent = regional.includes('export const ENEMY_FAMILY_PRESENTATIONS')
   && regional.includes('satisfies Record<NormalEnemyFamilyId, EnemyVisualProfile>')
   && regional.includes('explicitFamilyId ?? enemyFamilyForSpawn');
-const earlyFamilyRoles = regional.includes("skeleton: skeleton('grave-skeleton-guard', 'warrior', 'warrior', 'slam', 'axe-shield'")
-  && regional.includes("'bone-archer': skeleton('grave-bone-archer', 'ranger', 'rogue', 'projectile', 'bow'")
-  && regional.includes("'crypt-acolyte': skeleton('grave-crypt-acolyte', 'mage', 'mage', 'summon', 'staff'")
-  && regional.includes("'grave-hound': creature('grave-hound', 'rogue', 'lunge'");
-const middleFamilyRoles = regional.includes("orc: adventurer('marsh-orc-raider', 'barbarian', 'barbarian', 'slam', 'heavy-axe'")
-  && regional.includes("'boar-brute': skeleton('marsh-boar-brute', 'barbarian', 'golem', 'lunge', 'heavy-axe'")
-  && regional.includes("'shadow-rogue': adventurer('darkwood-shadow-rogue', 'rogue', 'rogue_hooded', 'lunge', 'dual-blade'")
-  && regional.includes("'dusk-mage': realMage('darkwood-dusk-mage', 'projectile'");
-const lateFamilyRoles = regional.includes("'cinder-knight': adventurer('cinder-knight', 'knight', 'knight', 'fire', 'axe-shield'")
-  && regional.includes("'ember-witch': skeleton('cinder-ember-witch', 'mage', 'necromancer', 'fire', 'staff'")
-  && regional.includes("'veil-aberration': skeleton('nexus-veil-aberration', 'barbarian', 'golem', 'burst', 'heavy-axe'")
-  && regional.includes("'nexus-herald': skeleton('nexus-herald', 'mage', 'necromancer', 'summon', 'staff'");
+const earlyFamilyRoles = regional.includes("skeleton: familySkeleton('skeleton', 'warrior', 'warrior', 'slam', 'axe-shield'")
+  && regional.includes("'bone-archer': familySkeleton('bone-archer', 'ranger', 'rogue', 'projectile', 'bow'")
+  && regional.includes("'crypt-acolyte': familySkeleton('crypt-acolyte', 'mage', 'mage', 'summon', 'staff'")
+  && regional.includes("'grave-hound': familyCreature('grave-hound', 'rogue', 'lunge'");
+const middleFamilyRoles = regional.includes("orc: familyAdventurer('orc', 'barbarian', 'barbarian', 'slam', 'heavy-axe'")
+  && regional.includes("'boar-brute': familySkeleton('boar-brute', 'barbarian', 'golem', 'lunge', 'heavy-axe'")
+  && regional.includes("'shadow-rogue': familyAdventurer('shadow-rogue', 'rogue', 'rogue_hooded', 'lunge', 'dual-blade'")
+  && regional.includes("'dusk-mage': familyRealMage('dusk-mage', 'projectile'");
+const lateFamilyRoles = regional.includes("'cinder-knight': familyAdventurer('cinder-knight', 'knight', 'knight', 'fire', 'axe-shield'")
+  && regional.includes("'ember-witch': familySkeleton('ember-witch', 'mage', 'necromancer', 'fire', 'staff'")
+  && regional.includes("'veil-aberration': familySkeleton('veil-aberration', 'barbarian', 'golem', 'burst', 'heavy-axe'")
+  && regional.includes("'nexus-herald': familySkeleton('nexus-herald', 'mage', 'necromancer', 'summon', 'staff'");
 const bossProfiles = regional.includes("boss-ember-warden', 'knight', 'knight', 'boss-cycle', 'axe-shield'")
   && regional.includes("boss-veil-necromancer', 'mage', 'necromancer', 'boss-cycle', 'staff'")
   && regional.includes("boss-tomb-guardian', 'warrior', 'golem', 'boss-cycle', 'heavy-axe'");

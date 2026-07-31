@@ -24,65 +24,7 @@ on:
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  repair-family-animation-audit:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/enemy-family-presentation-v2'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout exact PR branch
-        uses: actions/checkout@v4
-        with:
-          ref: feat/enemy-family-presentation-v2
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Verify unchanged audit source
-        run: git diff --exit-code b8ce5099154e2470fb61f0db8061069bba2c5691 -- artifacts/dungeon-rpg/scripts/validate-kaykit-combat-animations.mjs
-
-      - name: Align role checks with canonical family wrappers
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('artifacts/dungeon-rpg/scripts/validate-kaykit-combat-animations.mjs')
-          source = path.read_text(encoding='utf-8')
-          replacements = [
-            ("skeleton: skeleton('grave-skeleton-guard',", "skeleton: familySkeleton('skeleton',"),
-            ("'bone-archer': skeleton('grave-bone-archer',", "'bone-archer': familySkeleton('bone-archer',"),
-            ("'crypt-acolyte': skeleton('grave-crypt-acolyte',", "'crypt-acolyte': familySkeleton('crypt-acolyte',"),
-            ("'grave-hound': creature('grave-hound',", "'grave-hound': familyCreature('grave-hound',"),
-            ("orc: adventurer('marsh-orc-raider',", "orc: familyAdventurer('orc',"),
-            ("'boar-brute': skeleton('marsh-boar-brute',", "'boar-brute': familySkeleton('boar-brute',"),
-            ("'shadow-rogue': adventurer('darkwood-shadow-rogue',", "'shadow-rogue': familyAdventurer('shadow-rogue',"),
-            ("'dusk-mage': realMage('darkwood-dusk-mage',", "'dusk-mage': familyRealMage('dusk-mage',"),
-            ("'cinder-knight': adventurer('cinder-knight',", "'cinder-knight': familyAdventurer('cinder-knight',"),
-            ("'ember-witch': skeleton('cinder-ember-witch',", "'ember-witch': familySkeleton('ember-witch',"),
-            ("'veil-aberration': skeleton('nexus-veil-aberration',", "'veil-aberration': familySkeleton('veil-aberration',"),
-            ("'nexus-herald': skeleton('nexus-herald',", "'nexus-herald': familySkeleton('nexus-herald',"),
-          ]
-          for old, new in replacements:
-            count = source.count(old)
-            if count != 1:
-              raise SystemExit(f'expected one stale audit signature for {old!r}, found {count}')
-            source = source.replace(old, new, 1)
-          path.write_text(source, encoding='utf-8')
-          PY
-
-      - name: Commit audit alignment and restore CI
-        shell: bash
-        run: |
-          git checkout b8ce5099154e2470fb61f0db8061069bba2c5691 -- .github/workflows/dungeon-rpg-check.yml
-          git config user.name "Dungeon Veil Audit Repair"
-          git config user.email "actions@users.noreply.github.com"
-          git add artifacts/dungeon-rpg/scripts/validate-kaykit-combat-animations.mjs .github/workflows/dungeon-rpg-check.yml
-          git commit -m "test: align animation audit with family wrappers"
-          git push origin HEAD:feat/enemy-family-presentation-v2
-
   typecheck-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
