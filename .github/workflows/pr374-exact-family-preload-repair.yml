@@ -1,0 +1,92 @@
+name: PR374 Exact Family Preload Repair
+
+on:
+  push:
+    branches:
+      - feat/enemy-family-presentation-v2
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr374-exact-family-preload-repair
+  cancel-in-progress: true
+
+jobs:
+  repair-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/enemy-family-presentation-v2
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Extract and apply exact-family patch
+        shell: bash
+        run: |
+          set -o pipefail
+          python - <<'PY' 2>&1 | tee /tmp/pr374-extract.log
+          from pathlib import Path
+          import subprocess
+
+          source_commit = 'cc820bb4727dfd0ef9a617f1fedf6ab0e16c54fd'
+          source_path = '.github/workflows/pr374-exact-family-preload-fix.yml'
+          raw = subprocess.check_output(['git', 'show', f'{source_commit}:{source_path}'], text=True)
+          lines = raw.splitlines()
+          marker = "          python - <<'PY'"
+          start = lines.index(marker) + 1
+          end = next(index for index in range(start, len(lines)) if lines[index] == '          PY')
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines[start:end]) + '\n'
+          Path('/tmp/pr374-apply.py').write_text(script)
+          print(f'Extracted {len(script.splitlines())} patch lines from {source_commit}.')
+          PY
+          python /tmp/pr374-apply.py 2>&1 | tee /tmp/pr374-patch.log
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile 2>&1 | tee /tmp/pr374-install.log
+      - name: Verify asset loading contract
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets 2>&1 | tee /tmp/pr374-assets.log
+      - name: Verify TypeScript
+        run: pnpm run typecheck 2>&1 | tee /tmp/pr374-typecheck.log
+      - name: Verify production build
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build 2>&1 | tee /tmp/pr374-build.log
+      - name: Commit verified correction
+        shell: bash
+        run: |
+          rm .github/workflows/pr374-exact-family-preload-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts artifacts/dungeon-rpg/src/components/GameCanvas.tsx artifacts/dungeon-rpg/src/pages/game.tsx artifacts/dungeon-rpg/scripts/validate-complete-enemy-loading.mjs .github/workflows/pr374-exact-family-preload-repair.yml
+          git diff --cached --quiet && { echo 'Repair produced no changes.'; exit 1; }
+          git commit -m "Preload exact enemy family assets"
+          git push origin HEAD:feat/enemy-family-presentation-v2
+      - name: Report exact repair failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          {
+            echo '## Exact-family preload repair failed'
+            echo
+            echo "Head: \`${GITHUB_SHA}\`"
+            echo
+            echo 'The temporary repair workflow failed before it could create a verified source commit. Relevant log tails:'
+            for log in /tmp/pr374-*.log; do
+              [ -f "$log" ] || continue
+              echo
+              echo "### $(basename "$log")"
+              echo '```text'
+              tail -n 80 "$log"
+              echo '```'
+            done
+          } > /tmp/pr374-comment.md
+          gh pr comment 374 --body-file /tmp/pr374-comment.md
