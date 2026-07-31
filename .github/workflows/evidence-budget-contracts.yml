@@ -1,0 +1,40 @@
+name: Evidence Budget Contracts
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/**'
+      - 'artifacts/dungeon-rpg/playwright*.config.mjs'
+      - 'artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs'
+      - 'artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/**'
+      - 'artifacts/dungeon-rpg/playwright*.config.mjs'
+      - 'artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs'
+      - 'artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-evidence-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enforce repository-wide Playwright and artifact budgets
+        run: node artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs
