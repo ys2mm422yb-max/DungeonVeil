@@ -15,6 +15,7 @@ const canvasSource = read('src/components/GameCanvasKayKit3D.tsx');
 const bossSource = read('src/game/bossAttackTelegraphs.ts');
 
 assert(mageSource.includes("profile.role === 'mage' && (profile.family === 'adventurer' || profile.family === 'skeleton')"), 'Ranged combat is not limited to visible mage-role models.');
+assert(mageSource.includes("Pick<Enemy, 'enemyType' | 'id' | 'enemyFamilyId'>") && mageSource.includes('enemy.enemyFamilyId'), 'Mage combat does not resolve explicit canonical family identity.');
 assert(mageSource.includes("if (enemy.enemyType === 'boss') return false"), 'Bosses can be accidentally converted to the normal mage projectile contract.');
 assert(mageSource.includes('shot-mage-') && mageSource.includes("type: 'beam'") && mageSource.includes("element: 'arcane'"), 'Mage-role enemies lack a renderer-visible arcane projectile.');
 assert(mageSource.includes('Math.hypot(target.x - projectile.x, target.y - projectile.y) <= hitRadius'), 'Mage damage is not tied to projectile collision.');
@@ -39,10 +40,11 @@ try {
   const navigation = await server.ssrLoadModule('/src/game/mageObstacleNavigation.ts');
   const runtime = await server.ssrLoadModule('/src/game/runEngine.ts');
 
-  const enemy = (room, index, enemyType = 'skeleton') => ({
+  const enemy = (room, index, enemyType = 'skeleton', enemyFamilyId = undefined) => ({
     id: `audit-${room}-${index}`,
     type: 'enemy',
     enemyType,
+    enemyFamilyId,
     x: 0,
     y: 0,
     width: 26,
@@ -66,11 +68,11 @@ try {
     deathTime: 0,
   });
 
-  assert(mage.isHatMageEnemy(11, enemy(11, 0)) === true, 'Room 11 Skeleton Mage is not ranged.');
-  assert(mage.isHatMageEnemy(11, enemy(11, 1)) === false, 'Room 11 rogue was incorrectly converted to a mage.');
-  assert(mage.isHatMageEnemy(1, enemy(1, 0, 'vampire')) === false, 'A creature/bat mage role was incorrectly treated as a ranged humanoid mage.');
-  assert(mage.isHatMageEnemy(20, enemy(20, 0, 'boss')) === false, 'Room 20 boss was removed from its existing boss contract.');
-  assert(mage.isHatMageEnemy(35, enemy(35, 0)) === true, 'Later visible hat mages are not ranged.');
+  assert(mage.isHatMageEnemy(11, enemy(11, 0, 'vampire', 'crypt-acolyte')) === true, 'Crypt Acolyte is not a ranged mage.');
+  assert(mage.isHatMageEnemy(11, enemy(11, 1, 'skeleton', 'bone-archer')) === false, 'Bone Archer was incorrectly converted to a mage.');
+  assert(mage.isHatMageEnemy(1, enemy(1, 0, 'vampire', 'cave-bat')) === false, 'Cave Bat was incorrectly treated as a humanoid mage.');
+  assert(mage.isHatMageEnemy(20, enemy(20, 0, 'boss', 'boss')) === false, 'Room 20 boss was removed from its existing boss contract.');
+  assert(mage.isHatMageEnemy(35, enemy(35, 0, 'vampire', 'dusk-mage')) === true, 'Dusk Mage is not ranged.');
 
   const far = mage.mageMovementVector(0, 0, 300, 0, 1);
   const near = mage.mageMovementVector(0, 0, 60, 0, 1);
@@ -113,13 +115,13 @@ try {
 
   const game = new runtime.GameEngine();
   game.state.floor = 11;
-  game.state.chapter = 1;
+  game.state.chapter = 2;
   const player = game.state.player;
   player.hp = 100;
   player.maxHp = 100;
   player.defense = 0;
   player.invincibleUntil = 0;
-  const testMage = enemy(11, 0);
+  const testMage = enemy(11, 0, 'vampire', 'crypt-acolyte');
   testMage.x = player.x + 92;
   testMage.y = player.y;
   testMage.spawnTime = 0;
@@ -131,7 +133,7 @@ try {
   try {
     internal.updateEnemies(16, 1000);
     internal.updateEnemies(16, 1500);
-    assert(testMage.lastAttackTime === 1500, 'Skeleton Mage did not enter its cast animation.');
+    assert(testMage.lastAttackTime === 1500, 'Crypt Acolyte did not enter its cast animation.');
     assert(game.state.effects.some(effect => effect.id.startsWith('mage-cast-')), 'Mage cast has no visible warning.');
     const hpAtCast = player.hp;
 
@@ -154,4 +156,4 @@ try {
   await server.close();
 }
 
-console.log('Adventurer and Skeleton mages keep range, route around props, recover from stalls, cast travelling projectiles, and respect dash invulnerability.');
+console.log('Canonical Adventurer and Skeleton mage families keep range, route around props, recover from stalls, cast travelling projectiles, and respect dash invulnerability.');
