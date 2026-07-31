@@ -131,6 +131,13 @@ async function canvasSignal(page) {
   });
 }
 
+function isPaintedSignal(signal) {
+  return signal.width > 10
+    && signal.height > 10
+    && signal.average > 1.5
+    && signal.nonDarkRatio > 0.01;
+}
+
 function assertPaintedSignal(signal, mode, room) {
   expect(signal.width, JSON.stringify(signal)).toBeGreaterThan(10);
   expect(signal.height, JSON.stringify(signal)).toBeGreaterThan(10);
@@ -138,16 +145,36 @@ function assertPaintedSignal(signal, mode, room) {
   expect(signal.nonDarkRatio, `black canvas in ${mode} room ${room}: ${JSON.stringify(signal)}`).toBeGreaterThan(0.01);
 }
 
+async function waitForRuntimePaintedCanvas(page, mode, room) {
+  let signal = { average: 0, nonDarkRatio: 0, width: 0, height: 0 };
+  try {
+    await expect.poll(
+      async () => {
+        signal = await canvasSignal(page);
+        return isPaintedSignal(signal);
+      },
+      {
+        timeout: 5_000,
+        intervals: [100, 200, 350, 500],
+        message: `fast runtime canvas probe stayed blank in ${mode} room ${room}`,
+      },
+    ).toBe(true);
+  } catch {
+    const canvas = page.locator('[data-testid="run-three-host"] canvas').first();
+    await waitForPaintedCanvas(page, canvas, 30_000);
+    signal = await canvasSignal(page);
+  }
+  assertPaintedSignal(signal, mode, room);
+  return signal;
+}
+
 async function loadAndCheckRoom(page, mode, room, settleMs = 850) {
   await page.evaluate(({ nextRoom, nextMode }) => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, nextMode), { nextRoom: room, nextMode: mode });
   await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
   await waitForRoomReady(page, room);
   await expect(page.getByText(new RegExp(`RAUM\\s*${room}/${CHAPTER_ROOMS}`, 'i')).first()).toBeVisible({ timeout: 30_000 });
-  await waitForPaintedCanvas(page);
   await page.waitForTimeout(settleMs);
-  const signal = await canvasSignal(page);
-  assertPaintedSignal(signal, mode, room);
-  return signal;
+  return waitForRuntimePaintedCanvas(page, mode, room);
 }
 
 async function loadAndCaptureRoom(page, mode, room, projectName) {
