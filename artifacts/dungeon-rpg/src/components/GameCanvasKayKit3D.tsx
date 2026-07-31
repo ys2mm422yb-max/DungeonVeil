@@ -23,6 +23,7 @@ const MAX_CIRCLE_VISUALS = IS_ANDROID ? 8 : IS_IOS ? 10 : IS_MOBILE ? 12 : 28;
 const MAX_DAMAGE_VISUALS = IS_ANDROID ? 7 : IS_IOS ? 10 : IS_MOBILE ? 12 : 28;
 const PERFORMANCE_KEY = 'dungeon-veil-performance';
 const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
+const ENEMY_VISUAL_ABSENCE_GRACE_MS = 5000;
 
 export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -70,6 +71,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const enemyFallbacks = new Map<string, any>();
     const enemySafetyShells = new Map<string, any>();
     const enemyLoading = new Set<string>();
+    const enemyAbsentSince = new Map<string, number>();
     const arrowVisuals = new Map<string, any>();
     const lootVisuals = new Map<string, any>();
     const lootLoading = new Set<string>();
@@ -217,29 +219,56 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       });
     };
 
-    const syncEnemies = (state: GameState, delta: number, gameNow: number) => {
-      const active = new Set(state.enemies.map(enemy => enemy.id));
-      for (const [id, visual] of enemyVisuals) {
-        if (active.has(id)) continue;
+    const setEnemyLayersVisible = (id: string, visible: boolean) => {
+      const visual = enemyVisuals.get(id);
+      if (visual) visual.root.visible = visible;
+      const fallback = enemyFallbacks.get(id);
+      if (fallback) fallback.visible = visible;
+      const shell = enemySafetyShells.get(id);
+      if (shell) shell.visible = visible;
+    };
+
+    const disposeEnemyLayers = (id: string) => {
+      const visual = enemyVisuals.get(id);
+      if (visual) {
         scene.remove(visual.root);
         visual.mixer?.stopAllAction?.();
         disposeObject(visual.root);
         enemyVisuals.delete(id);
       }
-      for (const [id, fallback] of enemyFallbacks) {
-        if (active.has(id)) continue;
+      const fallback = enemyFallbacks.get(id);
+      if (fallback) {
         scene.remove(fallback);
         disposeObject(fallback);
         enemyFallbacks.delete(id);
       }
-      for (const [id, shell] of enemySafetyShells) {
-        if (active.has(id)) continue;
+      const shell = enemySafetyShells.get(id);
+      if (shell) {
         scene.remove(shell);
         disposeObject(shell);
         enemySafetyShells.delete(id);
       }
+      enemyAbsentSince.delete(id);
+    };
+
+    const syncEnemies = (state: GameState, delta: number, gameNow: number) => {
+      const active = new Set(state.enemies.map(enemy => enemy.id));
+      const knownIds = new Set([...enemyVisuals.keys(), ...enemyFallbacks.keys(), ...enemySafetyShells.keys()]);
+      for (const id of knownIds) {
+        if (active.has(id)) {
+          enemyAbsentSince.delete(id);
+          setEnemyLayersVisible(id, true);
+          continue;
+        }
+        const absentSince = enemyAbsentSince.get(id) ?? gameNow;
+        enemyAbsentSince.set(id, absentSince);
+        setEnemyLayersVisible(id, false);
+        if (gameNow - absentSince >= ENEMY_VISUAL_ABSENCE_GRACE_MS) disposeEnemyLayers(id);
+      }
 
       for (const enemy of state.enemies) {
+        enemyAbsentSince.delete(enemy.id);
+        setEnemyLayersVisible(enemy.id, true);
         const nextX = mapX(state, enemy.x + enemy.width / 2);
         const nextZ = mapZ(state, enemy.y + enemy.height / 2);
         const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;
@@ -269,6 +298,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
             enemyFallbacks.set(enemy.id, fallback);
             scene.add(fallback);
           }
+          fallback.visible = true;
           fallback.position.set(nextX, 0, nextZ);
           fallback.rotation.y = gameNow * 0.0015 + enemy.id.length;
           if (fallback.userData.ring?.material) {
@@ -279,13 +309,24 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           enemyLoading.add(enemy.id);
           createKayKitEnemyVisual(THREE, enemy).then(created => {
             enemyLoading.delete(enemy.id);
-            if (!created || disposed || !stateRef.current.enemies.some(current => current.id === enemy.id)) return;
+            if (!created || disposed) {
+              if (created) disposeObject(created.root);
+              return;
+            }
+            const stillActive = stateRef.current.enemies.some(current => current.id === enemy.id);
+            const absentSince = enemyAbsentSince.get(enemy.id);
+            const withinGrace = absentSince !== undefined && performance.now() - absentSince < ENEMY_VISUAL_ABSENCE_GRACE_MS;
+            if (!stillActive && !withinGrace) {
+              disposeObject(created.root);
+              return;
+            }
             const fallback = enemyFallbacks.get(enemy.id);
             if (fallback) {
               scene.remove(fallback);
               disposeObject(fallback);
               enemyFallbacks.delete(enemy.id);
             }
+            created.root.visible = stillActive;
             enemyVisuals.set(enemy.id, created);
             scene.add(created.root);
           }).catch(error => {
@@ -298,6 +339,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         }
         visual = enemyVisuals.get(enemy.id);
         if (!visual) continue;
+        visual.root.visible = true;
         const fallback = enemyFallbacks.get(enemy.id);
         if (fallback) {
           scene.remove(fallback);
