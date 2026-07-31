@@ -1,4 +1,5 @@
 import type { EnemyFamilyId } from './enemyRegistry';
+import type { EnemyType } from './enemyRegistry';
 
 /**
  * Canonical presentation identity for every authored enemy family.
@@ -47,6 +48,12 @@ export const ENEMY_PRESENTATION_KEY_BY_FAMILY = {
 } as const satisfies Record<EnemyFamilyId, string>;
 
 export type EnemyPresentationKey = (typeof ENEMY_PRESENTATION_KEY_BY_FAMILY)[EnemyFamilyId];
+
+type RuntimePresentationFallback = Extract<EnemyPresentationKey, EnemyType>;
+type PresentationKeysAreIndependent = RuntimePresentationFallback extends never ? true : never;
+
+/** Compile-time proof that no canonical presentation key is a runtime type. */
+export const ENEMY_PRESENTATION_KEYS_ARE_INDEPENDENT: PresentationKeysAreIndependent = true;
 
 export function enemyPresentationKeyForFamily(id: EnemyFamilyId): EnemyPresentationKey {
   return ENEMY_PRESENTATION_KEY_BY_FAMILY[id];
