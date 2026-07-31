@@ -45,6 +45,8 @@ jobs:
           cache: pnpm
       - name: Install workspace
         run: pnpm install --frozen-lockfile
+      - name: Validate repository evidence budgets
+        run: node artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs
       - name: Verify focused UX contracts
         run: node artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs
       - name: Verify TypeScript
@@ -143,6 +145,22 @@ jobs:
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
+      - name: Upload compact product result manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-autopilot-results-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+          path: artifacts/dungeon-rpg/test-results/full-game-results.json
+      - name: Enforce successful product evidence budget
+        if: steps.product-tests.outcome == 'success'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --max-mb 100
+          --label "product-success-${{ matrix.project }}"
+          artifacts/dungeon-rpg/test-results
       - name: Upload successful portrait screenshots
         if: steps.product-tests.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -156,7 +174,16 @@ jobs:
             artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/mobile-resource-upgrade-${{ matrix.project }}.png
-      - name: Upload failure diagnostics
+      - name: Enforce focused product failure budget
+        if: steps.product-tests.outcome == 'failure'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --max-mb 350
+          --label "product-failure-${{ matrix.project }}"
+          artifacts/dungeon-rpg/test-results
+          "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
+          /tmp/dungeon-veil-product-preview.log
+      - name: Upload focused failure diagnostics
         if: steps.product-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
@@ -165,8 +192,10 @@ jobs:
           retention-days: 7
           compression-level: 9
           path: |
-            artifacts/dungeon-rpg/test-results/**
-            artifacts/dungeon-rpg/playwright-report/**
+            artifacts/dungeon-rpg/test-results/full-game-results.json
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.webm
+            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
             /tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log
             /tmp/dungeon-veil-product-preview.log
       - name: Fail product journeys after diagnostics

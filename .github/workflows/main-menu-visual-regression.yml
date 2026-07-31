@@ -51,6 +51,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  PLAYWRIGHT_VERSION: '1.55.0'
+
 jobs:
   build-and-static:
     name: build-and-static
@@ -67,6 +70,8 @@ jobs:
           cache: pnpm
       - name: Install workspace
         run: pnpm install --frozen-lockfile
+      - name: Validate repository evidence budgets
+        run: node artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs
       - name: Validate focused Block 20 contract
         run: node artifacts/dungeon-rpg/scripts/validate-block-20-main-menu.mjs
       - name: Build current branch once
@@ -77,7 +82,7 @@ jobs:
           name: block20-menu-build-${{ github.sha }}
           if-no-files-found: error
           retention-days: 2
-          compression-level: 6
+          compression-level: 9
           path: artifacts/dungeon-rpg/dist
 
   mobile-main-menu-evidence:
@@ -87,6 +92,7 @@ jobs:
     timeout-minutes: 35
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         include:
           - project: iphone-webkit
@@ -109,15 +115,26 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Install isolated browser test runner
-        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
-      - name: Install matrix browser
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@${PLAYWRIGHT_VERSION} --lockfile=false
+      - name: Restore browser engine cache
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
+      - name: Install browser system dependencies
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install-deps ${{ matrix.browser }}
+      - name: Install browser engine
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
       - name: Download exact-head menu build
         uses: actions/download-artifact@v4
         with:
           name: block20-menu-build-${{ github.sha }}
           path: artifacts/dungeon-rpg/dist
       - name: Capture focused four-device Block 20 evidence
+        id: menu-tests
+        continue-on-error: true
         env:
           DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
           BASE_PATH: /DungeonVeil/
@@ -131,26 +148,57 @@ jobs:
             sleep 1
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          pnpm --dir artifacts/dungeon-rpg exec playwright test tests/block-20-main-menu.spec.mjs --config=playwright.regression.config.mjs --project=${{ matrix.project }}
-      - name: Upload focused Block 20 visual evidence
+          timeout --signal=TERM --kill-after=30s 25m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/block-20-main-menu.spec.mjs \
+            --config=playwright.regression.config.mjs \
+            --project=${{ matrix.project }}
+      - name: Upload compact Block 20 result manifest
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: block20-${{ matrix.project }}-results
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+          path: artifacts/dungeon-rpg/test-results/full-game-results.json
+      - name: Enforce focused Block 20 success budget
+        if: steps.menu-tests.outcome == 'success'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --max-mb 100
+          --label "block20-success-${{ matrix.project }}"
+          artifacts/dungeon-rpg/test-results
+      - name: Upload focused Block 20 visual evidence
+        if: steps.menu-tests.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: block20-${{ matrix.project }}-visual-evidence
           if-no-files-found: error
           retention-days: 14
-          compression-level: 6
+          compression-level: 9
           path: artifacts/dungeon-rpg/test-results/block20-*-${{ matrix.project }}.png
+      - name: Enforce focused Block 20 failure budget
+        if: steps.menu-tests.outcome == 'failure'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --max-mb 350
+          --label "block20-failure-${{ matrix.project }}"
+          artifacts/dungeon-rpg/test-results
+          "/tmp/dungeon-veil-block20-${{ matrix.project }}.log"
       - name: Upload focused Block 20 diagnostics
-        if: always()
+        if: steps.menu-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: block20-${{ matrix.project }}-diagnostics
           if-no-files-found: warn
           retention-days: 7
+          compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/full-game-results.json
             artifacts/dungeon-rpg/test-results/**/trace.zip
             artifacts/dungeon-rpg/test-results/**/*.webm
-            artifacts/dungeon-rpg/playwright-report/**
+            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
             /tmp/dungeon-veil-block20-${{ matrix.project }}.log
+      - name: Fail Block 20 evidence after diagnostics
+        if: steps.menu-tests.outcome == 'failure'
+        run: exit 1
