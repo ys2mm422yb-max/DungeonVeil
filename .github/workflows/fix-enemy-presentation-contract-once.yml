@@ -25,8 +25,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Verify exact starting head
-        run: test "$(git rev-parse HEAD)" = "6c1032ea770bef2cdd91f930e36e2b36ffd3f526"
+      - name: Verify unchanged source contract
+        run: |
+          git diff --exit-code 6c1032ea770bef2cdd91f930e36e2b36ffd3f526 -- \
+            artifacts/dungeon-rpg/src/game/enemyRegistry.ts \
+            artifacts/dungeon-rpg/src/game/enemyRegionalIdentity.ts \
+            artifacts/dungeon-rpg/scripts/validate-enemy-visual-variety.mjs
+          test ! -e artifacts/dungeon-rpg/src/game/enemyPresentationContract.ts
 
       - uses: pnpm/action-setup@v4
 
