@@ -1,0 +1,206 @@
+name: PR 374 WebKit Fix
+
+on:
+  push:
+    branches:
+      - feat/enemy-family-presentation-v2
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr374-webkit-fix
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: github.repository == 'ys2mm422yb-max/DungeonVeil'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/enemy-family-presentation-v2
+          fetch-depth: 0
+      - name: Guard exact source head
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED=159681b3005a2e0224320b5c340c353cf90ac54f
+          git diff --quiet "$EXPECTED" -- \
+            artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts \
+            artifacts/dungeon-rpg/src/components/SpectatorPerformanceQa.tsx \
+            artifacts/dungeon-rpg/tests/spectator-performance.spec.mjs \
+            artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs
+      - name: Apply exact WebKit fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}: {old[:80]!r}')
+              file.write_text(text.replace(old, new, 1))
+
+          enemy = 'artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts'
+          replace_once(
+              enemy,
+              "  if (!enemyFamilyIds.length) return [...new Set(enemyTypes.filter(importedEnemyType))].sort();",
+              """  if (!enemyFamilyIds.length) {
+              const importedTypes = enemyTypes.flatMap(type =>
+                importedEnemyType(type) && enemyVisualProfile(1, type, 0).useImported ? [type] : []
+              );
+              return [...new Set(importedTypes)].sort();
+            }""",
+          )
+          replace_once(
+              enemy,
+              """async function loadEnemyAssetsWithRetries(
+            enemyTypes: readonly Enemy['enemyType'][],
+            importedTypes: readonly (typeof IMPORTED_ENEMY_TYPES)[number][],
+          ) {
+            // Family profiles can route any technical creature type to the humanoid
+            // library, so the base library is now always part of deterministic preload.
+            const needsBaseLibrary = true;""",
+              """async function loadEnemyAssetsWithRetries(
+            enemyTypes: readonly Enemy['enemyType'][],
+            enemyFamilyIds: readonly EnemyFamilyId[],
+            importedTypes: readonly (typeof IMPORTED_ENEMY_TYPES)[number][],
+          ) {
+            const needsBaseLibrary = enemyFamilyIds.length > 0
+              ? enemyFamilyIds.some(familyId => {
+                  const runtimeType = runtimeEnemyTypeForFamily(familyId);
+                  return !enemyVisualProfile(1, runtimeType, 0, familyId).useImported;
+                })
+              : enemyTypes.length === 0 || enemyTypes.some(type => !enemyVisualProfile(1, type, 0).useImported);""",
+          )
+          replace_once(
+              enemy,
+              "const preload = loadEnemyAssetsWithRetries(requestedTypes, importedTypes).catch(error => {",
+              "const preload = loadEnemyAssetsWithRetries(requestedTypes, requestedFamilies, importedTypes).catch(error => {",
+          )
+
+          spectator = 'artifacts/dungeon-rpg/src/components/SpectatorPerformanceQa.tsx'
+          replace_once(
+              spectator,
+              "import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';",
+              "import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';\nimport { preloadKayKitEnemyVisuals } from './kaykitEnemy3D';",
+          )
+          replace_once(
+              spectator,
+              "id: 'spectator-qa-goblin', type: 'enemy', enemyType: 'goblin',",
+              "id: 'spectator-qa-goblin', type: 'enemy', enemyType: 'goblin', enemyFamilyId: 'goblin',",
+          )
+          replace_once(
+              spectator,
+              """export function SpectatorPerformanceQa() {
+            const sourceRef = useRef<RunGameState>(createQaState());""",
+              """export function SpectatorPerformanceQa() {
+            const [assetsReady, setAssetsReady] = useState(false);
+            const sourceRef = useRef<RunGameState>(createQaState());""",
+          )
+          replace_once(
+              spectator,
+              """  renderCountRef.current += 1;
+
+            if (!packetContractRef.current) {""",
+              """  renderCountRef.current += 1;
+
+            useEffect(() => {
+              let cancelled = false;
+              void preloadKayKitEnemyVisuals(['goblin'], ['goblin']).then(() => {
+                if (!cancelled) setAssetsReady(true);
+              }).catch(error => {
+                console.error('Spectator QA enemy preload failed', error);
+              });
+              return () => { cancelled = true; };
+            }, []);
+
+            if (!packetContractRef.current) {""",
+          )
+          replace_once(
+              spectator,
+              """  useEffect(() => {
+            document.documentElement.dataset.dungeonVeilSpectating = '1';""",
+              """  useEffect(() => {
+            if (!assetsReady) return;
+            document.documentElement.dataset.dungeonVeilSpectating = '1';""",
+          )
+          replace_once(spectator, "  }, [stableState]);", "  }, [assetsReady, stableState]);")
+          replace_once(
+              spectator,
+              """  return <div data-testid=\"spectator-performance-qa\" className=\"fixed inset-0 overflow-hidden bg-black\">
+            <SpectatorPlaybackStage stableState={stableState} />""",
+              """  return <div data-testid=\"spectator-performance-qa\" data-assets-ready={assetsReady ? 'true' : 'false'} className=\"fixed inset-0 overflow-hidden bg-black\">
+            {assetsReady && <SpectatorPlaybackStage stableState={stableState} />}""",
+          )
+          replace_once(
+              spectator,
+              "    <span data-testid=\"visual-qa-ready\" className=\"pointer-events-none fixed bottom-1 right-1 z-[999] h-1 w-1 opacity-0\" />",
+              "    {assetsReady && <span data-testid=\"visual-qa-ready\" className=\"pointer-events-none fixed bottom-1 right-1 z-[999] h-1 w-1 opacity-0\" />}",
+          )
+
+          spectator_test = 'artifacts/dungeon-rpg/tests/spectator-performance.spec.mjs'
+          replace_once(
+              spectator_test,
+              """  await page.goto(qaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+            await expect(page.getByTestId('spectator-performance-qa')).toBeVisible();""",
+              """  await page.goto(qaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+            const spectatorQa = page.getByTestId('spectator-performance-qa');
+            await expect(spectatorQa).toBeVisible();
+            await expect(spectatorQa).toHaveAttribute('data-assets-ready', 'true');""",
+          )
+
+          companion_test = 'artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs'
+          replace_once(
+              companion_test,
+              """async function pressPointerUi(locator) {
+            await expect(locator).toBeVisible();
+            await locator.click({ force: true });
+          }""",
+              """async function pressPointerUi(locator) {
+            await expect(locator).toBeVisible();
+            await locator.scrollIntoViewIfNeeded();
+            await locator.click();
+          }""",
+          )
+          replace_once(
+              companion_test,
+              "  await equipmentEntry.getByRole('button').click({ force: true });",
+              "  await pressPointerUi(equipmentEntry.getByRole('button'));",
+          )
+          PY
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Validate TypeScript and production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm --dir artifacts/dungeon-rpg exec tsc --noEmit
+          pnpm --dir artifacts/dungeon-rpg run build
+          grep -q "data-assets-ready" artifacts/dungeon-rpg/src/components/SpectatorPerformanceQa.tsx
+          ! grep -q "const needsBaseLibrary = true" artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts
+      - name: Commit guarded source fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/pr374-webkit-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts \
+            artifacts/dungeon-rpg/src/components/SpectatorPerformanceQa.tsx \
+            artifacts/dungeon-rpg/tests/spectator-performance.spec.mjs \
+            artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs
+          git commit -m "fix: settle WebKit spectator assets and pointer navigation"
+          git push origin HEAD:feat/enemy-family-presentation-v2
