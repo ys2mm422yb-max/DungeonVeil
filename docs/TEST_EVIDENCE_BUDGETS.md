@@ -50,9 +50,9 @@ Every successful review artifact is below 100 MiB and therefore far below both t
 
 ### Repository-wide workflow validation
 
-Exact head: `be1f70ec3e8b0afd061c9f1bba8256fddbf2bcfa`  
+Exact head: `39af4ccedecdc1d4e105c743a6a2d3d73cb22da8`  
 Draft PR: `#372`  
-Result: all four Product Autopilot and all four Main Menu portrait jobs green with the new byte-accurate pre-upload budgets.
+Result: all four Product Autopilot and all four Main Menu portrait jobs green with the new byte-accurate pre-upload budgets before this documentation-only follow-up commit.
 
 | Workflow | Device | Successful evidence artifact |
 | --- | --- | ---: |
