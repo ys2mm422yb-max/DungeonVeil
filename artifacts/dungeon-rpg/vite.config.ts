@@ -29,6 +29,7 @@ const ENEMY_FALLBACK_BLOCK = `        let visual = enemyVisuals.get(enemy.id);
             enemyFallbacks.set(enemy.id, fallback);
             scene.add(fallback);
           }
+          fallback.visible = true;
           fallback.position.set(nextX, 0, nextZ);
           fallback.rotation.y = gameNow * 0.0015 + enemy.id.length;
           if (fallback.userData.ring?.material) {
