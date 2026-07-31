@@ -7,6 +7,8 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const failures = [];
 
 const enemyLoader = read('src/components/kaykitEnemy3D.ts');
+const spectator = read('src/components/SpectatorPerformanceQa.tsx');
+const spectatorTest = read('tests/spectator-performance.spec.mjs');
 const canvas = read('src/components/GameCanvas.tsx');
 const game = read('src/pages/game.tsx');
 const vite = read('vite.config.ts');
@@ -21,6 +23,8 @@ const requiredLoaderContracts = [
   ['requestedImportedTypes(requestedTypes, requestedFamilies)', 'preload does not filter exact requested family profiles'],
   ['runtimeEnemyTypeForFamily(familyId)', 'family preload does not resolve the canonical runtime carrier'],
   ['enemyVisualProfile(1, runtimeType, 0, familyId).useImported', 'family preload does not honor the actual presentation profile'],
+  ['enemyFamilyIds.some(familyId => {', 'base-library preload is not derived from exact family profiles'],
+  ['enemyTypes.some(type => !enemyVisualProfile(1, type, 0).useImported)', 'legacy preload does not derive its base-library need from the actual visual profile'],
   ['types.map(readLocalEnemyAsset)', 'requested GLBs are not fully fetched before model creation'],
   ['types.map(loadImportedPrototype)', 'requested GLBs are not parsed before room entry'],
   ['const bytes = await response.arrayBuffer();', 'enemy GLBs are not fully read'],
@@ -35,10 +39,23 @@ const requiredLoaderContracts = [
   ['await startEnemyPreload(enemyTypes, enemyFamilyIds)', 'preloader drops exact room family ids'],
 ];
 for (const [needle, message] of requiredLoaderContracts) if (!enemyLoader.includes(needle)) failures.push(message);
+if (enemyLoader.includes('const needsBaseLibrary = true')) failures.push('base humanoid library is still forced for every family preload');
 if (enemyLoader.includes('ENEMY_PRELOAD_MAX_BLOCK_MS')) failures.push('old 3.5 second early release still exists');
 if (enemyLoader.includes('Promise.race([preload')) failures.push('required enemy preload can still release early');
 if (enemyLoader.includes('IMPORTED_ENEMY_TYPES.map(readLocalEnemyAsset)')) failures.push('all five creatures are still forced before every room');
 if (enemyLoader.includes('new GLTFLoader().loadAsync(enemyAssetUrl(type))')) failures.push('imported model parsing still performs a second network request');
+
+const requiredSpectatorContracts = [
+  ["import { preloadKayKitEnemyVisuals } from './kaykitEnemy3D';", 'spectator QA does not use the production family preloader'],
+  ["enemyFamilyId: 'goblin'", 'spectator QA enemy is not bound to its canonical family'],
+  ["preloadKayKitEnemyVisuals(['goblin'], ['goblin'])", 'spectator QA does not preload its exact family before rendering'],
+  ['const [assetsReady, setAssetsReady] = useState(false);', 'spectator QA has no explicit asset-ready gate'],
+  ['if (!assetsReady) return;', 'spectator packet and measurement loop can start before preload completion'],
+  ["data-assets-ready={assetsReady ? 'true' : 'false'}", 'spectator QA does not expose preload readiness'],
+  ['{assetsReady && <SpectatorPlaybackStage stableState={stableState} />}', 'spectator renderer can mount before exact assets are ready'],
+];
+for (const [needle, message] of requiredSpectatorContracts) if (!spectator.includes(needle)) failures.push(message);
+if (!spectatorTest.includes("toHaveAttribute('data-assets-ready', 'true')")) failures.push('spectator regression test does not wait for exact family preload before renderer measurement');
 
 const requiredEntryContracts = [
   ['preloadRequiredRunRoom(sessionSave.floor)', 'automatic saved-session resume does not preload its exact room'],
@@ -83,4 +100,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Exact family-aware room preload, cached imported GLB parsing, always-mounted canvas and no-blob production build verified.');
+console.log('Exact family-aware room and spectator preload, cached imported GLB parsing, always-mounted canvas and no-blob production build verified.');
