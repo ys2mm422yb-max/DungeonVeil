@@ -101,8 +101,17 @@ function guardVisualSceneClaim(visual: KayKitEnemyVisual) {
   }, 0);
 }
 
+function requestedVisualProfile(enemy: Enemy) {
+  return enemyVisualProfile(
+    roomFromEnemyId(enemy),
+    enemy.enemyType,
+    spawnIndexFromEnemyId(enemy),
+    enemy.enemyFamilyId,
+  );
+}
+
 function requestedVisualRole(enemy: Enemy) {
-  return enemyVisualProfile(roomFromEnemyId(enemy), enemy.enemyType, spawnIndexFromEnemyId(enemy)).role;
+  return requestedVisualProfile(enemy).role;
 }
 
 function importedEnemyType(type: Enemy['enemyType']): type is (typeof IMPORTED_ENEMY_TYPES)[number] {
@@ -371,7 +380,8 @@ async function createDedicatedImportedVisual(
 }
 
 async function createReliableEnemyVisual(THREE: any, enemy: Enemy): Promise<KayKitEnemyVisual | null> {
-  if (importedEnemyType(enemy.enemyType)) {
+  const profile = requestedVisualProfile(enemy);
+  if (importedEnemyType(enemy.enemyType) && profile.useImported) {
     const visual = await createDedicatedImportedVisual(
       THREE,
       enemy as Enemy & { enemyType: (typeof IMPORTED_ENEMY_TYPES)[number] },
@@ -392,7 +402,9 @@ async function loadEnemyAssetsWithRetries(
   enemyTypes: readonly Enemy['enemyType'][],
   importedTypes: readonly (typeof IMPORTED_ENEMY_TYPES)[number][],
 ) {
-  const needsBaseLibrary = enemyTypes.length === 0 || enemyTypes.some(type => !importedEnemyType(type));
+  // Family profiles can route any technical creature type to the humanoid
+  // library, so the base library is now always part of deterministic preload.
+  const needsBaseLibrary = true;
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -499,11 +511,21 @@ export async function createKayKitEnemyVisual(
   THREE: any,
   enemy: Enemy,
 ): Promise<KayKitEnemyVisual | null> {
+  const profile = requestedVisualProfile(enemy);
   const visual = await createReliableEnemyVisual(THREE, enemy);
   if (visual) {
+    const familyScale = profile.scaleMultiplier ?? 1;
+    if (familyScale !== 1) {
+      visual.root.scale.multiplyScalar(familyScale);
+      visual.baseScale *= familyScale;
+    }
     visual.root.userData.enemyVisualIdentity = {
       enemyType: enemy.enemyType,
-      requestedRole: requestedVisualRole(enemy),
+      enemyFamilyId: enemy.enemyFamilyId,
+      presentationKey: profile.presentationKey,
+      requestedRole: profile.role,
+      attackProfile: profile.attackProfile,
+      weaponProfile: profile.weaponProfile,
       imported: visual.imported,
       modelRole: visual.role,
     };
