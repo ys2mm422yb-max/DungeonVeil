@@ -20,7 +20,12 @@ function enemySpawnIndex(enemy: Enemy): number {
 function isRangerRole(engine: GameEngine, enemy: Enemy): boolean {
   if (enemy.enemyType === 'boss') return false;
   return enemy.enemyCombatRole === 'ranged'
-    || enemyVisualProfile(engine.state.floor, enemy.enemyType, enemySpawnIndex(enemy)).role === 'ranger';
+    || enemyVisualProfile(
+      engine.state.floor,
+      enemy.enemyType,
+      enemySpawnIndex(enemy),
+      enemy.enemyFamilyId,
+    ).role === 'ranger';
 }
 function captureResolvingRangerShots(engine: GameEngine, runtime: PatchedEngine, time: number): ResolvingRangerShot[] {
   const shots: ResolvingRangerShot[] = [];
