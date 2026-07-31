@@ -51,9 +51,14 @@ export type EnemyPresentationKey = (typeof ENEMY_PRESENTATION_KEY_BY_FAMILY)[Ene
 
 type RuntimePresentationFallback = Extract<EnemyPresentationKey, EnemyType>;
 type PresentationKeysAreIndependent = RuntimePresentationFallback extends never ? true : never;
+type MissingPresentationFamily = Exclude<EnemyFamilyId, keyof typeof ENEMY_PRESENTATION_KEY_BY_FAMILY>;
+type UnexpectedPresentationFamily = Exclude<keyof typeof ENEMY_PRESENTATION_KEY_BY_FAMILY, EnemyFamilyId>;
+type PresentationFamilyCoverageIsExact = [MissingPresentationFamily, UnexpectedPresentationFamily] extends [never, never] ? true : never;
 
 /** Compile-time proof that no canonical presentation key is a runtime type. */
 export const ENEMY_PRESENTATION_KEYS_ARE_INDEPENDENT: PresentationKeysAreIndependent = true;
+/** Compile-time proof that the presentation contract has exactly one entry per family. */
+export const ENEMY_PRESENTATION_FAMILY_COVERAGE_IS_EXACT: PresentationFamilyCoverageIsExact = true;
 
 export function enemyPresentationKeyForFamily(id: EnemyFamilyId): EnemyPresentationKey {
   return ENEMY_PRESENTATION_KEY_BY_FAMILY[id];
