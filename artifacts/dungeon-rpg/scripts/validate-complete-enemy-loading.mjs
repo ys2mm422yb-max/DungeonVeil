@@ -7,6 +7,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const failures = [];
 
 const enemyLoader = read('src/components/kaykitEnemy3D.ts');
+const runCanvas = read('src/components/GameCanvasKayKit3D.tsx');
 const spectator = read('src/components/SpectatorPerformanceQa.tsx');
 const spectatorTest = read('tests/spectator-performance.spec.mjs');
 const canvas = read('src/components/GameCanvas.tsx');
@@ -44,6 +45,19 @@ if (enemyLoader.includes('ENEMY_PRELOAD_MAX_BLOCK_MS')) failures.push('old 3.5 s
 if (enemyLoader.includes('Promise.race([preload')) failures.push('required enemy preload can still release early');
 if (enemyLoader.includes('IMPORTED_ENEMY_TYPES.map(readLocalEnemyAsset)')) failures.push('all five creatures are still forced before every room');
 if (enemyLoader.includes('new GLTFLoader().loadAsync(enemyAssetUrl(type))')) failures.push('imported model parsing still performs a second network request');
+
+const requiredRunCanvasContracts = [
+  ['const ENEMY_VISUAL_ABSENCE_GRACE_MS = 5000;', 'transient enemy absence grace is not fixed at five seconds'],
+  ['const enemyAbsentSince = new Map<string, number>();', 'renderer does not track temporarily absent enemy ids'],
+  ['setEnemyLayersVisible(id, false);', 'temporarily absent enemy layers are not hidden'],
+  ['gameNow - absentSince >= ENEMY_VISUAL_ABSENCE_GRACE_MS', 'temporarily absent enemy visuals are not disposed only after grace expiry'],
+  ['setEnemyLayersVisible(enemy.id, true);', 'returning enemy ids do not reactivate their existing visual layers'],
+  ['created.root.visible = stillActive;', 'asynchronously completed visuals do not preserve hidden grace-state reuse'],
+];
+for (const [needle, message] of requiredRunCanvasContracts) if (!runCanvas.includes(needle)) failures.push(message);
+if (runCanvas.includes('for (const [id, visual] of enemyVisuals) {\n        if (active.has(id)) continue;\n        scene.remove(visual.root);')) {
+  failures.push('renderer still immediately disposes a temporarily absent enemy visual');
+}
 
 const requiredSpectatorContracts = [
   ["import { preloadKayKitEnemyVisuals } from './kaykitEnemy3D';", 'spectator QA does not use the production family preloader'],
@@ -100,4 +114,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Exact family-aware room and spectator preload, cached imported GLB parsing, always-mounted canvas and no-blob production build verified.');
+console.log('Exact family-aware room and spectator preload, transient enemy visual reuse, cached imported GLB parsing, always-mounted canvas and no-blob production build verified.');
