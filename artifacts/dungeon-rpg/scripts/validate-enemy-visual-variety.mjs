@@ -144,7 +144,7 @@ const checks = [
   [visual.includes("['slime', 'goblin', 'spider', 'vampire', 'demon']") && visual.includes('preloadRealCreatureModels'), 'distinct imported creature models are no longer registered'],
   [visual.includes('const profile = requestedVisualProfile(enemy)') && visual.includes('importedEnemyType(enemy.enemyType) && profile.useImported'), 'imported creatures still bypass canonical family presentation profiles'],
   [visual.includes('enemy.enemyFamilyId') && visual.includes('presentationKey: profile.presentationKey') && visual.includes('weaponProfile: profile.weaponProfile'), 'runtime visual diagnostics do not expose family presentation identity'],
-  [visual.includes('const needsBaseLibrary = true'), 'humanoid family overrides are not included in deterministic preload'],
+  [visual.includes('enemyFamilyIds.some(familyId => {') && visual.includes('!enemyVisualProfile(1, runtimeType, 0, familyId).useImported') && !visual.includes('const needsBaseLibrary = true'), 'humanoid family overrides are not included in deterministic preload'],
   [visual.includes('createDedicatedImportedVisual') && visual.includes('return createBaseKayKitEnemyVisual(THREE, enemy);'), 'imported and humanoid construction paths are no longer separated'],
   [regional.includes("modelToken: `${SKELETON_EXTRA_ROOT}/${SKELETON_EXTRA_MODEL[model]}.glb`"), 'specialized Skeleton Extra model selection is missing'],
   [manifest.includes('Characters/gltf/Mage.glb'), 'Mage.glb is missing from the manifest'],
