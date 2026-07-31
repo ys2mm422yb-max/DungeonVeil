@@ -104,4 +104,5 @@ assert(gateWorkflow.includes('validate-evidence-budget-contracts.mjs'), 'The ded
 assert(gateWorkflow.includes('timeout-minutes: 5'), 'Evidence Budget Contracts must remain a fast five-minute gate.');
 
 console.log(`Evidence budget contracts passed for ${workflowNames.length} workflows and ${configNames.length} Playwright configs.`);
-console.log(`Critical workflows: ${['complete-runtime-evidence-qa.yml', 'full-game-regression.yml', 'product-autopilot-qa.yml', 'main-menu-visual-regression.yml'].map(basename).join(', ')}`);
+const criticalWorkflowNames = ['complete-runtime-evidence-qa.yml', 'full-game-regression.yml', 'product-autopilot-qa.yml', 'main-menu-visual-regression.yml'];
+console.log(`Critical workflows: ${criticalWorkflowNames.map(name => basename(name)).join(', ')}`);
