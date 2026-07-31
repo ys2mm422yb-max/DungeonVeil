@@ -49,7 +49,6 @@ const IMPORTED_ENEMY_CONFIG: Record<(typeof IMPORTED_ENEMY_TYPES)[number], {
   vampire: { path: 'assets/imported/enemies/Bat.glb', targetHeight: 1.22, widthWeight: 0.48 },
   demon: { path: 'assets/imported/enemies/Snake_angry.glb', targetHeight: 1.12, widthWeight: 0.62 },
 };
-const ENEMY_ASSET_FETCH_ATTEMPTS = 4;
 const IS_MOBILE = typeof navigator !== 'undefined'
   && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const flightVisuals = new WeakMap<object, FlightVisualState>();
@@ -126,26 +125,6 @@ function enemyAssetUrl(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
   const path = IMPORTED_ENEMY_CONFIG[type].path;
   if (typeof document === 'undefined') return `/${path}`;
   return new URL(path, document.baseURI).toString();
-}
-
-async function preloadLocalEnemyAsset(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
-  let lastError: unknown = null;
-  for (let attempt = 1; attempt <= ENEMY_ASSET_FETCH_ATTEMPTS; attempt++) {
-    try {
-      const response = await fetch(enemyAssetUrl(type), {
-        cache: attempt === 1 ? 'default' : 'reload',
-        credentials: 'same-origin',
-      });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      const bytes = await response.arrayBuffer();
-      if (bytes.byteLength < 512) throw new Error(`enemy asset is truncated (${bytes.byteLength} bytes)`);
-      return;
-    } catch (error) {
-      lastError = error;
-      if (attempt < ENEMY_ASSET_FETCH_ATTEMPTS) await wait(attempt * 320);
-    }
-  }
-  throw new Error(`Local enemy asset failed to load: ${type}`, { cause: lastError });
 }
 
 function clipName(clip: any) {
@@ -393,9 +372,14 @@ async function createReliableEnemyVisual(THREE: any, enemy: Enemy): Promise<KayK
 }
 
 async function preloadRealCreatureModels(types: readonly (typeof IMPORTED_ENEMY_TYPES)[number][]) {
-  if (!types.length) return;
-  await Promise.all(types.map(preloadLocalEnemyAsset));
-  await Promise.all(types.map(loadImportedPrototype));
+  // Runtime enemy types are coarse simulation carriers and can resolve to
+  // humanoid family profiles. Eagerly decoding every carrier here made
+  // WebKit download unused Rat/Bat prototypes beside the full KayKit
+  // library and could keep the run preparation screen alive indefinitely.
+  // Imported prototypes are cached by loadImportedPrototype and now load
+  // only when createDedicatedImportedVisual receives an actual family
+  // profile with useImported=true.
+  void types;
 }
 
 async function loadEnemyAssetsWithRetries(
