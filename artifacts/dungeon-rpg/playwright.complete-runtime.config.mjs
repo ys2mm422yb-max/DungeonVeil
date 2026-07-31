@@ -4,7 +4,7 @@ const baseURL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVe
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /(?:complete-runtime-evidence|complete-runtime-room-titles|renderer-recovery-hidden-hud|post-clear-player-hazards|atomic-room-readiness|portrait-orientation|worldboss-block1|full-game-smoke)\.spec\.mjs/,
+  testMatch: /(?:complete-runtime-evidence|complete-runtime-room-titles|renderer-recovery-hidden-hud|post-clear-player-hazards|atomic-room-readiness|portrait-orientation|worldboss-block1|full-game-smoke|enemy-registry-codex)\.spec\.mjs/,
   timeout: 900_000,
   expect: { timeout: 30_000 },
   fullyParallel: false,
@@ -13,7 +13,6 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['json', { outputFile: 'test-results/complete-runtime-results.json' }],
-    ['html', { outputFolder: 'playwright-complete-runtime-report', open: 'never' }],
   ],
   use: {
     baseURL,
@@ -21,7 +20,7 @@ export default defineConfig({
     navigationTimeout: 60_000,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
-    video: { mode: 'on', size: { width: 640, height: 960 } },
+    video: { mode: 'on', size: { width: 360, height: 640 } },
   },
   projects: [
     {

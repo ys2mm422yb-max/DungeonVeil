@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { waitForLiveMenuPaint } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 
-async function openEquipmentArmor(page, projectName) {
-  await page.addInitScript(({ emulateIpad }) => {
+async function openEquipmentArmor(page) {
+  await page.addInitScript(() => {
     const knownEquipment = ['ash-bow', 'ranger-quiver', 'ranger-cloak'];
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
@@ -30,22 +31,33 @@ async function openEquipmentArmor(page, projectName) {
       rewardLedger: [],
       currentRunId: '',
     }));
-    if (emulateIpad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
-  }, { emulateIpad: projectName.includes('ipad') });
+  });
 
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.bringToFront();
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: /Spielen|Play/i })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
+
+  // A forced click can land while the cold WebKit menu scene is still booting and
+  // bypass the normal interaction contract. Reuse the canonical live-menu readiness
+  // proof, then perform a genuine actionable click so the navigation event cannot be
+  // discarded during renderer startup.
+  await waitForLiveMenuPaint(page);
   const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
-  await expect(equipmentEntry).toBeVisible();
-  await equipmentEntry.getByRole('button').click({ force: true });
+  const equipmentButton = equipmentEntry.getByRole('button');
+  await expect(equipmentButton).toBeVisible({ timeout: 60_000 });
+  await expect(equipmentButton).toBeEnabled();
+  await equipmentButton.click();
+
   await expect(page.getByRole('heading', { name: /Ausrüstung|Equipment/i })).toBeVisible({ timeout: 60_000 });
-  await page.getByTestId('inventory-tab-armor').click({ force: true });
+  const armorTab = page.getByTestId('inventory-tab-armor');
+  await expect(armorTab).toBeVisible();
+  await armorTab.click();
   await expect(page.getByText(/Waldläufermantel|Ranger Cloak/i).first()).toBeVisible({ timeout: 30_000 });
 }
 
-test('armor preview uses a male KayKit model and animated ready stance', async ({ page }, testInfo) => {
+test('armor preview uses a male KayKit model and animated ready stance', async ({ page }) => {
   test.setTimeout(120_000);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -53,7 +65,7 @@ test('armor preview uses a male KayKit model and animated ready stance', async (
     if (message.type() === 'error' && /TypeError|ReferenceError|Cannot read/i.test(message.text())) errors.push(message.text());
   });
 
-  await openEquipmentArmor(page, testInfo.project.name);
+  await openEquipmentArmor(page);
 
   const preview = page.locator('[data-equipment-preview-kind="armor"]').first();
   await expect(preview).toBeVisible({ timeout: 30_000 });

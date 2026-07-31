@@ -14,8 +14,15 @@ function assert(condition, message) {
 }
 
 assert(normalTelegraphs.includes('return range * 1.18;'), 'Normal enemy presentation must preserve the existing 1.18 runtime hit reach.');
-assert(normalTelegraphs.includes('effect.maxRadius = normalEnemyDamageRadius(windup.range);'), 'Normal warning radius must match the real hit radius.');
+const familyTelegraphStart = normalTelegraphs.indexOf('function applyFamilyTelegraph');
+const familyTelegraphEnd = normalTelegraphs.indexOf('export function installNormalEnemyAttackTelegraphs', familyTelegraphStart);
+const familyTelegraphSource = normalTelegraphs.slice(familyTelegraphStart, familyTelegraphEnd);
+const maxRadiusAssignments = familyTelegraphSource.match(/effect\.maxRadius\s*=/g) ?? [];
+const sharesDamageReach = familyTelegraphSource.includes('effect.maxRadius = normalEnemyDamageRadius(windup.range);')
+  && maxRadiusAssignments.length === 1;
+assert(sharesDamageReach, 'Every normal family warning must inherit the real hit reach exactly and no shape branch may override it.');
 assert(normalTelegraphs.includes('effect.maxLifeTime = Math.max(1, windup.hitAt - enemy.lastAttackTime);'), 'Normal warning lifetime must match the existing windup.');
+assert(normalTelegraphs.includes("telegraph === 'line'") && normalTelegraphs.includes("telegraph === 'cone'") && normalTelegraphs.includes("telegraph === 'body-flash'"), 'Canonical family warning shapes are incomplete.');
 assert(normalTelegraphs.includes("enemy.enemyType === 'boss'"), 'Normal enemy adapter must leave boss attacks to their dedicated system.');
 assert(!normalTelegraphs.includes('enemy.attack ='), 'Presentation adapter must not alter enemy attack values.');
 assert(!normalTelegraphs.includes('enemy.speed ='), 'Presentation adapter must not alter enemy speed.');
@@ -53,8 +60,8 @@ try {
     }
   }
 
-  assert(checked > 100, `Expected broad 50-room collider coverage, checked only ${checked}.`);
-  console.log(`Normal enemy telegraph and prop hitbox audit passed: ${checked} solid props checked across all rooms.`);
+  assert(checked > 100, `Expected broad room collider coverage, checked only ${checked}.`);
+  console.log(`Normal enemy family telegraph and prop hitbox audit passed: exact hit-reach parity plus ${checked} solid props checked across all rooms.`);
 } finally {
   await server.close();
 }

@@ -5,6 +5,7 @@ import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVeil/';
 const OUTPUT = 'test-results/complete-runtime-evidence';
 const CHAPTER_ROOMS = 100;
+const FULL_RUNTIME = process.env.DUNGEON_VEIL_FULL_RUNTIME === '1';
 const CHUNKS = Array.from({ length: 10 }, (_, index) => [index * 10 + 1, index * 10 + 10]);
 const CONTINUOUS_SCREENSHOT_ROOMS = new Set([1, 10, 20, 30, 40, 50, 51, 60, 70, 80, 90, 91, 99, 100]);
 const HAZARD_PREFIXES = ['forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-', 'core-', 'core-inner-'];
@@ -130,6 +131,13 @@ async function canvasSignal(page) {
   });
 }
 
+function isPaintedSignal(signal) {
+  return signal.width > 10
+    && signal.height > 10
+    && signal.average > 1.5
+    && signal.nonDarkRatio > 0.01;
+}
+
 function assertPaintedSignal(signal, mode, room) {
   expect(signal.width, JSON.stringify(signal)).toBeGreaterThan(10);
   expect(signal.height, JSON.stringify(signal)).toBeGreaterThan(10);
@@ -137,16 +145,36 @@ function assertPaintedSignal(signal, mode, room) {
   expect(signal.nonDarkRatio, `black canvas in ${mode} room ${room}: ${JSON.stringify(signal)}`).toBeGreaterThan(0.01);
 }
 
+async function waitForRuntimePaintedCanvas(page, mode, room) {
+  let signal = { average: 0, nonDarkRatio: 0, width: 0, height: 0 };
+  try {
+    await expect.poll(
+      async () => {
+        signal = await canvasSignal(page);
+        return isPaintedSignal(signal);
+      },
+      {
+        timeout: 5_000,
+        intervals: [100, 200, 350, 500],
+        message: `fast runtime canvas probe stayed blank in ${mode} room ${room}`,
+      },
+    ).toBe(true);
+  } catch {
+    const canvas = page.locator('[data-testid="run-three-host"] canvas').first();
+    await waitForPaintedCanvas(page, canvas, 30_000);
+    signal = await canvasSignal(page);
+  }
+  assertPaintedSignal(signal, mode, room);
+  return signal;
+}
+
 async function loadAndCheckRoom(page, mode, room, settleMs = 850) {
   await page.evaluate(({ nextRoom, nextMode }) => window.__dungeonVeilRuntimeEvidence.loadRoom(nextRoom, nextMode), { nextRoom: room, nextMode: mode });
   await expect.poll(() => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.floor), { timeout: 30_000 }).toBe(room);
   await waitForRoomReady(page, room);
   await expect(page.getByText(new RegExp(`RAUM\\s*${room}/${CHAPTER_ROOMS}`, 'i')).first()).toBeVisible({ timeout: 30_000 });
-  await waitForPaintedCanvas(page);
   await page.waitForTimeout(settleMs);
-  const signal = await canvasSignal(page);
-  assertPaintedSignal(signal, mode, room);
-  return signal;
+  return waitForRuntimePaintedCanvas(page, mode, room);
 }
 
 async function loadAndCaptureRoom(page, mode, room, projectName) {
@@ -156,23 +184,25 @@ async function loadAndCaptureRoom(page, mode, room, projectName) {
 }
 
 for (const mode of ['solo', 'duo']) {
-  for (const [first, last] of CHUNKS) {
-    test(`${mode} continuous renderer evidence rooms ${first}-${last}`, async ({ page }, testInfo) => {
-      test.setTimeout(1_200_000);
-      const issues = runtimeIssues(page);
-      if (mode === 'solo') await startSolo(page);
-      else await startDuo(page);
-      for (let room = first; room <= last; room += 1) await loadAndCaptureRoom(page, mode, room, testInfo.project.name);
-      await testInfo.attach(`${mode}-${first}-${last}-runtime-issues.json`, {
-        body: Buffer.from(JSON.stringify(issues, null, 2)),
-        contentType: 'application/json',
+  if (FULL_RUNTIME) {
+    for (const [first, last] of CHUNKS) {
+      test(`${mode} diagnostic renderer evidence rooms ${first}-${last}`, async ({ page }, testInfo) => {
+        test.setTimeout(1_200_000);
+        const issues = runtimeIssues(page);
+        if (mode === 'solo') await startSolo(page);
+        else await startDuo(page);
+        for (let room = first; room <= last; room += 1) await loadAndCaptureRoom(page, mode, room, testInfo.project.name);
+        await testInfo.attach(`${mode}-${first}-${last}-runtime-issues.json`, {
+          body: Buffer.from(JSON.stringify(issues, null, 2)),
+          contentType: 'application/json',
+        });
+        expect(issues, issues.join('\n')).toEqual([]);
       });
-      expect(issues, issues.join('\n')).toEqual([]);
-    });
+    }
   }
 
   test(`${mode} one renderer survives uninterrupted rooms 1-100`, async ({ page }, testInfo) => {
-    test.setTimeout(2_400_000);
+    test.setTimeout(1_200_000);
     const issues = runtimeIssues(page);
     if (mode === 'solo') await startSolo(page);
     else await startDuo(page);

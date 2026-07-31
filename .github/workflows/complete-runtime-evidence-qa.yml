@@ -28,7 +28,7 @@ jobs:
   runtime-contracts:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -61,7 +61,7 @@ jobs:
   complete-browser-evidence:
     needs: runtime-contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -91,11 +91,12 @@ jobs:
         run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
       - name: Build current branch
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
-      - name: Record Solo and Duo rooms 1-50 plus World Boss and full-game motion
+      - name: Validate Solo and Duo rooms 1-100 with compact four-device evidence
         id: runtime-tests
         continue-on-error: true
         env:
           DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+          DUNGEON_VEIL_FULL_RUNTIME: '0'
           BASE_PATH: /DungeonVeil/
         shell: bash
         run: |
@@ -107,7 +108,7 @@ jobs:
             sleep 1
           done
           curl --fail http://127.0.0.1:4173/DungeonVeil/ > /dev/null
-          timeout --signal=TERM --kill-after=30s 165m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+          timeout --signal=TERM --kill-after=30s 55m pnpm --dir artifacts/dungeon-rpg exec playwright test \
             --config=playwright.complete-runtime.config.mjs \
             --project=${{ matrix.project }} \
             tests/complete-runtime-evidence.spec.mjs \
@@ -116,7 +117,8 @@ jobs:
             tests/post-clear-player-hazards.spec.mjs \
             tests/atomic-room-readiness.spec.mjs \
             tests/worldboss-block1.spec.mjs \
-            tests/full-game-smoke.spec.mjs
+            tests/full-game-smoke.spec.mjs \
+            tests/enemy-registry-codex.spec.mjs
       - name: Upload compact runtime result manifest
         if: always()
         uses: actions/upload-artifact@v4
@@ -126,21 +128,45 @@ jobs:
           retention-days: 21
           compression-level: 9
           path: artifacts/dungeon-rpg/test-results/complete-runtime-results.json
-      - name: Upload complete screenshots, videos and traces
+      - name: Prepare compact review media
+        id: review-media
         if: always()
+        run: node artifacts/dungeon-rpg/scripts/prepare-complete-runtime-review-media.mjs artifacts/dungeon-rpg/test-results artifacts/dungeon-rpg/review-media
+      - name: Upload review screenshots
+        if: always() && steps.review-media.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-review-screenshots-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/review-media/screenshots/**
+            artifacts/dungeon-rpg/review-media/review-media-manifest.json
+      - name: Upload distinct compact review videos
+        if: always() && steps.review-media.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-runtime-review-videos-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 21
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/review-media/videos/**
+            artifacts/dungeon-rpg/review-media/review-media-manifest.json
+      - name: Upload focused diagnostics only after failure or manual run
+        if: steps.runtime-tests.outcome == 'failure' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: complete-runtime-evidence-${{ matrix.project }}
           if-no-files-found: error
-          retention-days: 21
-          compression-level: 6
+          retention-days: 7
+          compression-level: 9
           path: |
-            artifacts/dungeon-rpg/test-results/complete-runtime-evidence/**
-            artifacts/dungeon-rpg/test-results/**/*.webm
             artifacts/dungeon-rpg/test-results/**/trace.zip
-            artifacts/dungeon-rpg/test-results/**/*.png
+            artifacts/dungeon-rpg/test-results/**/error-context.md
+            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
             artifacts/dungeon-rpg/test-results/complete-runtime-results.json
-            artifacts/dungeon-rpg/playwright-complete-runtime-report/**
             /tmp/dungeon-veil-complete-runtime-preview.log
       - name: Publish complete runtime failure to pull request
         if: steps.runtime-tests.outcome == 'failure' && github.event_name == 'pull_request'
@@ -189,7 +215,7 @@ jobs:
               '',
               ...resultLines,
               '',
-              'Solo und Duo Räume 1–50, Weltboss, schwarze Frames, Geisterschaden, Runenstürme nach dem letzten Gegner, atomare Raumfreigabe, versteckte Übergangs-HUDs, Raumtitel, Videos und Screenshots wurden auf unterstützten mobilen Hochformat-Geräten geprüft.',
+              'Solo und Duo Räume 1–100, Registry-Kodex, Weltboss, schwarze Frames, Geisterschaden, Raumfreigabe, Recovery und kompakte mobile Review-Medien wurden geprüft.',
               `Diagnose: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
             ].join('\n');
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });

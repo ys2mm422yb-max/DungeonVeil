@@ -23,12 +23,12 @@ const ENEMY = Object.freeze({
   golem: { hp: 190, attack: 20, role: 'heavy' },
 });
 
-const encounterTableSource = encounterSource.slice(
-  encounterSource.indexOf('const ENCOUNTERS'),
-  encounterSource.indexOf('const REGION_POOLS'),
-);
+const authoredStart = encounterSource.indexOf('const AUTHORED_RUNTIME_ENCOUNTERS');
+const authoredEnd = encounterSource.indexOf('function encounterCount');
+assert(authoredStart >= 0 && authoredEnd > authoredStart, 'authored runtime encounter table is missing');
+const encounterTableSource = encounterSource.slice(authoredStart, authoredEnd).replace(/\r/g, '');
 const explicit = new Map();
-for (const match of encounterTableSource.matchAll(/^\s*(\d+):\s*\[([^\]]*)\],?$/gm)) {
+for (const match of encounterTableSource.matchAll(/(?:^|\n)\s*(\d+):\s*\[([^\]]*)\]/g)) {
   const room = Number(match[1]);
   if (room > 20) continue;
   const types = [...match[2].matchAll(/'([^']+)'/g)].map(entry => entry[1]);
@@ -114,7 +114,13 @@ for (const chapter of [1, 5, 10]) {
 }
 
 assert(explicit.size === 20, `expected explicit contracts for rooms 1–20, found ${explicit.size}`);
-assert(encounterSource.includes('enforceLateRoomRoleMix') && encounterSource.includes('safeRoom >= 41'), 'runtime late-room role-mix contract is missing');
+assert(
+  encounterSource.includes('function getEncounterFamilyPlan')
+    && encounterSource.includes('deterministicEnemyFamilyForRoom')
+    && encounterSource.includes('result.push(deterministicEnemyFamilyForRoom(safeRoom, slot, result))')
+    && encounterSource.includes('return getEncounterFamilyPlan(room).map(runtimeEnemyTypeForFamily)'),
+  'runtime canonical registry encounter contract is missing',
+);
 assert([...Array(50)].every((_, index) => encounter(index + 1).every(type => ENEMY[type])), 'unknown enemy type appears in a room plan');
 assert([10, 20, 30, 40, 50].every(room => encounter(room).length === 0), 'boss rooms contain normal encounter spawns');
 
@@ -167,4 +173,4 @@ console.log(JSON.stringify({
   openingRoomTargetCycles: rows.find(row => row.chapter === 1 && row.room === 1)?.targetCycles,
   scenarios: rows.length,
 }, null, 2));
-console.log('Room 1–50 V4 audit passed: compositions, staged boss milestones, target cycles, spawn guards, retry/transition paths and mobile caps remain bounded.');
+console.log('Room 1–50 V4 audit passed: authored runtime compositions, canonical family selection, staged boss milestones, target cycles, spawn guards, retry/transition paths and mobile caps remain bounded.');
