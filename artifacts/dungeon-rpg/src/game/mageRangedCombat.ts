@@ -57,9 +57,9 @@ function enemySpawnIndex(enemy: Enemy): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function isHatMageEnemy(room: number, enemy: Pick<Enemy, 'enemyType' | 'id'>): boolean {
+export function isHatMageEnemy(room: number, enemy: Pick<Enemy, 'enemyType' | 'id' | 'enemyFamilyId'>): boolean {
   if (enemy.enemyType === 'boss') return false;
-  const profile = enemyVisualProfile(room, enemy.enemyType, enemySpawnIndex(enemy as Enemy));
+  const profile = enemyVisualProfile(room, enemy.enemyType, enemySpawnIndex(enemy as Enemy), enemy.enemyFamilyId);
   return profile.role === 'mage' && (profile.family === 'adventurer' || profile.family === 'skeleton');
 }
 
