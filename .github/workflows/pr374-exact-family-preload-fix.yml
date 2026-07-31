@@ -1,0 +1,402 @@
+name: PR374 Exact Family Preload Fix
+
+on:
+  push:
+    branches:
+      - feat/enemy-family-presentation-v2
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/enemy-family-presentation-v2
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Patch exact-family preload contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(path, old, new, label):
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one exact match, found {count}')
+              path.write_text(text.replace(old, new, 1))
+
+          def sub_once(path, pattern, replacement, label):
+              text = path.read_text()
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one regex match, found {count}')
+              path.write_text(updated)
+
+          enemy = Path('artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts')
+          replace_once(
+              enemy,
+              "import { enemyVisualProfile } from '../game/enemyRegionalIdentity';\n",
+              "import { enemyVisualProfile } from '../game/enemyRegionalIdentity';\nimport { runtimeEnemyTypeForFamily, type EnemyFamilyId } from '../game/enemyRegistry';\n",
+              'enemy registry import',
+          )
+          replace_once(
+              enemy,
+              "};\nconst IS_MOBILE = typeof navigator !== 'undefined'\n",
+              "};\nconst ENEMY_ASSET_FETCH_ATTEMPTS = 4;\nconst IS_MOBILE = typeof navigator !== 'undefined'\n",
+              'asset retry constant',
+          )
+          replace_once(
+              enemy,
+              "const enemyPreloadPromises = new Map<string, Promise<void>>();\nconst importedPrototypePromises = new Map<(typeof IMPORTED_ENEMY_TYPES)[number], Promise<ImportedPrototype>>();\n",
+              "const enemyPreloadPromises = new Map<string, Promise<void>>();\nconst importedAssetPromises = new Map<(typeof IMPORTED_ENEMY_TYPES)[number], Promise<ArrayBuffer>>();\nconst importedPrototypePromises = new Map<(typeof IMPORTED_ENEMY_TYPES)[number], Promise<ImportedPrototype>>();\n",
+              'asset promise cache',
+          )
+          replace_once(
+              enemy,
+              """function requestedImportedTypes(enemyTypes: readonly Enemy['enemyType'][]) {
+  return [...new Set(enemyTypes.filter(importedEnemyType))].sort();
+}
+
+function enemyAssetUrl(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  const path = IMPORTED_ENEMY_CONFIG[type].path;
+  if (typeof document === 'undefined') return `/${path}`;
+  return new URL(path, document.baseURI).toString();
+}
+""",
+              """function requestedImportedTypes(
+  enemyTypes: readonly Enemy['enemyType'][],
+  enemyFamilyIds: readonly EnemyFamilyId[],
+) {
+  if (!enemyFamilyIds.length) return [...new Set(enemyTypes.filter(importedEnemyType))].sort();
+
+  const importedTypes = enemyFamilyIds.flatMap(familyId => {
+    const runtimeType = runtimeEnemyTypeForFamily(familyId);
+    if (!importedEnemyType(runtimeType)) return [];
+    return enemyVisualProfile(1, runtimeType, 0, familyId).useImported ? [runtimeType] : [];
+  });
+  return [...new Set(importedTypes)].sort();
+}
+
+function enemyAssetUrl(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  const path = IMPORTED_ENEMY_CONFIG[type].path;
+  if (typeof document === 'undefined') return `/${path}`;
+  return new URL(path, document.baseURI).toString();
+}
+
+function enemyAssetBaseUrl(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  return new URL('.', enemyAssetUrl(type)).toString();
+}
+
+async function readLocalEnemyAsset(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  const cached = importedAssetPromises.get(type);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= ENEMY_ASSET_FETCH_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(enemyAssetUrl(type), {
+          cache: attempt === 1 ? 'default' : 'reload',
+          credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        const bytes = await response.arrayBuffer();
+        if (bytes.byteLength < 512) throw new Error(`enemy asset is truncated (${bytes.byteLength} bytes)`);
+        return bytes;
+      } catch (error) {
+        lastError = error;
+        if (attempt < ENEMY_ASSET_FETCH_ATTEMPTS) await wait(attempt * 320);
+      }
+    }
+    throw new Error(`Local enemy asset failed to load: ${type}`, { cause: lastError });
+  })().catch(error => {
+    importedAssetPromises.delete(type);
+    throw error;
+  });
+
+  importedAssetPromises.set(type, promise);
+  return promise;
+}
+""",
+              'family-aware imported selection and byte cache',
+          )
+          sub_once(
+              enemy,
+              r"async function loadImportedPrototype\(type: \(typeof IMPORTED_ENEMY_TYPES\)\[number\]\) \{.*?\n\}\n\nasync function createDedicatedImportedVisual",
+              """async function loadImportedPrototype(type: (typeof IMPORTED_ENEMY_TYPES)[number]) {
+  const cached = importedPrototypePromises.get(type);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    try {
+      const config = IMPORTED_ENEMY_CONFIG[type];
+      const bytes = await readLocalEnemyAsset(type);
+      const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
+      const gltf = await new GLTFLoader().parseAsync(bytes, enemyAssetBaseUrl(type));
+      if (!gltf?.scene) throw new Error(`GLB has no scene: ${type}`);
+      return {
+        scene: gltf.scene,
+        clips: gltf.animations ?? [],
+        targetHeight: config.targetHeight,
+        widthWeight: config.widthWeight,
+        rotationY: config.rotationY ?? 0,
+      };
+    } catch (error) {
+      importedPrototypePromises.delete(type);
+      throw error;
+    }
+  })();
+  importedPrototypePromises.set(type, promise);
+  return promise;
+}
+
+async function createDedicatedImportedVisual""",
+              'single-fetch prototype parser',
+          )
+          sub_once(
+              enemy,
+              r"async function preloadRealCreatureModels\(types: readonly \(typeof IMPORTED_ENEMY_TYPES\)\[number\]\[\]\) \{.*?\n\}",
+              """async function preloadRealCreatureModels(types: readonly (typeof IMPORTED_ENEMY_TYPES)[number][]) {
+  if (!types.length) return;
+  await Promise.all(types.map(readLocalEnemyAsset));
+  await Promise.all(types.map(loadImportedPrototype));
+}""",
+              'exact imported preload',
+          )
+          sub_once(
+              enemy,
+              r"function startEnemyPreload\(enemyTypes: readonly Enemy\['enemyType'\]\[\]\) \{.*?export async function preloadKayKitEnemyVisuals\(enemyTypes: readonly Enemy\['enemyType'\]\[\] = \[\]\) \{\n  await startEnemyPreload\(enemyTypes\);\n\}",
+              """function startEnemyPreload(
+  enemyTypes: readonly Enemy['enemyType'][],
+  enemyFamilyIds: readonly EnemyFamilyId[],
+) {
+  const requestedTypes = [...new Set(enemyTypes)].sort();
+  const requestedFamilies = [...new Set(enemyFamilyIds)].sort();
+  const importedTypes = requestedImportedTypes(requestedTypes, requestedFamilies);
+  const key = `${requestedTypes.join('|') || 'base'}::${requestedFamilies.join('|') || 'legacy'}`;
+  const cached = enemyPreloadPromises.get(key);
+  if (cached) return cached;
+
+  const preload = loadEnemyAssetsWithRetries(requestedTypes, importedTypes).catch(error => {
+    enemyPreloadPromises.delete(key);
+    throw error;
+  });
+  enemyPreloadPromises.set(key, preload);
+  return preload;
+}
+
+export async function preloadKayKitEnemyVisuals(
+  enemyTypes: readonly Enemy['enemyType'][] = [],
+  enemyFamilyIds: readonly EnemyFamilyId[] = [],
+) {
+  await startEnemyPreload(enemyTypes, enemyFamilyIds);
+}""",
+              'family-keyed preload API',
+          )
+
+          canvas = Path('artifacts/dungeon-rpg/src/components/GameCanvas.tsx')
+          replace_once(
+              canvas,
+              "import type { EnemyType } from '../game/entities';\n",
+              "import type { EnemyType } from '../game/entities';\nimport { enemyFamilyForSpawn, type EnemyFamilyId } from '../game/enemyRegistry';\n",
+              'canvas family import',
+          )
+          replace_once(
+              canvas,
+              "import { getEncounterPlan } from '../game/encounterPlan';\n",
+              "import { getEncounterFamilyPlan, getEncounterPlan } from '../game/encounterPlan';\n",
+              'canvas encounter family import',
+          )
+          replace_once(
+              canvas,
+              """function uniqueEnemyTypes(types: readonly EnemyType[]) {
+  return [...new Set(types)];
+}
+
+function currentRoomEnemyTypes(state: GameState) {
+  return uniqueEnemyTypes(state.enemies.map(enemy => enemy.enemyType));
+}
+
+function plannedRoomEnemyTypes(floor: number): EnemyType[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyTypes(getEncounterPlan(floor));
+}
+""",
+              """function uniqueEnemyTypes(types: readonly EnemyType[]) {
+  return [...new Set(types)];
+}
+
+function uniqueEnemyFamilyIds(familyIds: readonly EnemyFamilyId[]) {
+  return [...new Set(familyIds)];
+}
+
+function currentRoomEnemyTypes(state: GameState) {
+  return uniqueEnemyTypes(state.enemies.map(enemy => enemy.enemyType));
+}
+
+function currentRoomEnemyFamilyIds(state: GameState) {
+  return uniqueEnemyFamilyIds(state.enemies.map((enemy, index) =>
+    enemy.enemyFamilyId
+    ?? (enemy.enemyType === 'boss' ? 'boss' : enemyFamilyForSpawn(state.floor, index, enemy.enemyType))
+  ));
+}
+
+function plannedRoomEnemyTypes(floor: number): EnemyType[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyTypes(getEncounterPlan(floor));
+}
+
+function plannedRoomEnemyFamilyIds(floor: number): EnemyFamilyId[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyFamilyIds(getEncounterFamilyPlan(floor));
+}
+""",
+              'canvas family helpers',
+          )
+          replace_once(
+              canvas,
+              "    const requiredEnemyTypes = currentRoomEnemyTypes(gameState);\n",
+              "    const requiredEnemyTypes = currentRoomEnemyTypes(gameState);\n    const requiredEnemyFamilyIds = currentRoomEnemyFamilyIds(gameState);\n",
+              'canvas required families',
+          )
+          replace_once(
+              canvas,
+              "detail: { key: liveRoomKey, floor: gameState.floor, enemyTypes: requiredEnemyTypes, owner: 'game-canvas-stage' }",
+              "detail: { key: liveRoomKey, floor: gameState.floor, enemyTypes: requiredEnemyTypes, enemyFamilyIds: requiredEnemyFamilyIds, owner: 'game-canvas-stage' }",
+              'canvas preparing event',
+          )
+          replace_once(
+              canvas,
+              "            preloadKayKitEnemyVisuals(requiredEnemyTypes),\n",
+              "            preloadKayKitEnemyVisuals(requiredEnemyTypes, requiredEnemyFamilyIds),\n",
+              'canvas exact current preload',
+          )
+          replace_once(
+              canvas,
+              "      preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor)),\n",
+              "      preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor), plannedRoomEnemyFamilyIds(nextFloor)),\n",
+              'canvas exact next preload',
+          )
+
+          game = Path('artifacts/dungeon-rpg/src/pages/game.tsx')
+          replace_once(
+              game,
+              "import type { EnemyType } from '../game/entities';\n",
+              "import type { EnemyType } from '../game/entities';\nimport type { EnemyFamilyId } from '../game/enemyRegistry';\n",
+              'game family type import',
+          )
+          replace_once(
+              game,
+              "import { getEncounterPlan } from '../game/encounterPlan';\n",
+              "import { getEncounterFamilyPlan, getEncounterPlan } from '../game/encounterPlan';\n",
+              'game encounter family import',
+          )
+          replace_once(
+              game,
+              """function uniqueEnemyTypes(types: readonly EnemyType[]) {
+  return [...new Set(types)];
+}
+
+function plannedRoomEnemyTypes(floor: number): EnemyType[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyTypes(getEncounterPlan(floor));
+}
+""",
+              """function uniqueEnemyTypes(types: readonly EnemyType[]) {
+  return [...new Set(types)];
+}
+
+function uniqueEnemyFamilyIds(familyIds: readonly EnemyFamilyId[]) {
+  return [...new Set(familyIds)];
+}
+
+function plannedRoomEnemyTypes(floor: number): EnemyType[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyTypes(getEncounterPlan(floor));
+}
+
+function plannedRoomEnemyFamilyIds(floor: number): EnemyFamilyId[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyFamilyIds(getEncounterFamilyPlan(floor));
+}
+""",
+              'game family helpers',
+          )
+          replace_once(
+              game,
+              "  const enemyTypes = plannedRoomEnemyTypes(safeFloor);\n",
+              "  const enemyTypes = plannedRoomEnemyTypes(safeFloor);\n  const enemyFamilyIds = plannedRoomEnemyFamilyIds(safeFloor);\n",
+              'game exact families',
+          )
+          replace_once(
+              game,
+              "        preloadKayKitEnemyVisuals(enemyTypes),\n",
+              "        preloadKayKitEnemyVisuals(enemyTypes, enemyFamilyIds),\n",
+              'game exact run preload',
+          )
+
+          validator = Path('artifacts/dungeon-rpg/scripts/validate-complete-enemy-loading.mjs')
+          sub_once(
+              validator,
+              r"const requiredLoaderContracts = \[.*?\];\nfor \(const \[needle, message\] of requiredLoaderContracts\)",
+              """const requiredLoaderContracts = [
+  ['requestedImportedTypes(requestedTypes, requestedFamilies)', 'preload does not filter exact requested family profiles'],
+  ['runtimeEnemyTypeForFamily(familyId)', 'family preload does not resolve the canonical runtime carrier'],
+  ['enemyVisualProfile(1, runtimeType, 0, familyId).useImported', 'family preload does not honor the actual presentation profile'],
+  ['types.map(readLocalEnemyAsset)', 'requested GLBs are not fully fetched before model creation'],
+  ['types.map(loadImportedPrototype)', 'requested GLBs are not parsed before room entry'],
+  ['const bytes = await response.arrayBuffer();', 'enemy GLBs are not fully read'],
+  ['new GLTFLoader().parseAsync(bytes, enemyAssetBaseUrl(type))', 'cached GLB bytes are not parsed without a second network request'],
+  ['const importedAssetPromises = new Map<', 'enemy GLB byte reads are not cached by imported type'],
+  ['createDedicatedImportedVisual', 'imported creatures do not have a direct visual construction path'],
+  ['throw new Error(`Dedicated enemy model did not become ready:', 'a dedicated creature can still settle on a generic model'],
+  ['const enemyPreloadPromises = new Map<string, Promise<void>>();', 'room-family preload results are not cached'],
+  ["requestedFamilies.join('|') || 'legacy'", 'preload cache key does not distinguish exact family sets'],
+  ['enemyPreloadPromises.delete(key);', 'failed room-family preload cannot be retried'],
+  ['enemyFamilyIds: readonly EnemyFamilyId[] = []', 'preloader does not accept exact room family ids'],
+  ['await startEnemyPreload(enemyTypes, enemyFamilyIds)', 'preloader drops exact room family ids'],
+];
+for (const [needle, message] of requiredLoaderContracts)""",
+              'validator loader contracts',
+          )
+          replace_once(
+              validator,
+              "  ['preloadKayKitEnemyVisuals(enemyTypes)', 'run entry does not pass exact planned enemy types'],\n",
+              "  ['const enemyFamilyIds = plannedRoomEnemyFamilyIds(safeFloor);', 'run entry does not derive exact planned enemy families'],\n  ['preloadKayKitEnemyVisuals(enemyTypes, enemyFamilyIds)', 'run entry does not pass exact planned enemy types and families'],\n",
+              'validator run entry contract',
+          )
+          replace_once(
+              validator,
+              "  ['currentRoomEnemyTypes(gameState)', 'current room types are not derived from actual enemies'],\n  ['preloadKayKitEnemyVisuals(requiredEnemyTypes)', 'room transition does not stage its exact enemy models'],\n  ['preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor))', 'next room background preload is not type-specific'],\n",
+              "  ['currentRoomEnemyTypes(gameState)', 'current room types are not derived from actual enemies'],\n  ['currentRoomEnemyFamilyIds(gameState)', 'current room families are not derived from actual enemies'],\n  ['preloadKayKitEnemyVisuals(requiredEnemyTypes, requiredEnemyFamilyIds)', 'room transition does not stage its exact enemy family models'],\n  ['preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor), plannedRoomEnemyFamilyIds(nextFloor))', 'next room background preload is not family-specific'],\n",
+              'validator canvas contracts',
+          )
+          replace_once(
+              validator,
+              "if (enemyLoader.includes('IMPORTED_ENEMY_TYPES.map(preloadLocalEnemyAsset)')) failures.push('all five creatures are still forced before every room');\n",
+              "if (enemyLoader.includes('IMPORTED_ENEMY_TYPES.map(readLocalEnemyAsset)')) failures.push('all five creatures are still forced before every room');\nif (enemyLoader.includes('new GLTFLoader().loadAsync(enemyAssetUrl(type))')) failures.push('imported model parsing still performs a second network request');\n",
+              'validator anti-regression checks',
+          )
+          PY
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Verify asset loading contract
+        run: pnpm --filter @workspace/dungeon-rpg audit:assets
+      - name: Verify TypeScript
+        run: pnpm run typecheck
+      - name: Verify production build
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Commit verified correction
+        run: |
+          rm .github/workflows/pr374-exact-family-preload-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/dungeon-rpg/src/components/kaykitEnemy3D.ts artifacts/dungeon-rpg/src/components/GameCanvas.tsx artifacts/dungeon-rpg/src/pages/game.tsx artifacts/dungeon-rpg/scripts/validate-complete-enemy-loading.mjs .github/workflows/pr374-exact-family-preload-fix.yml
+          git commit -m "Preload exact enemy family assets"
+          git push origin HEAD:feat/enemy-family-presentation-v2
