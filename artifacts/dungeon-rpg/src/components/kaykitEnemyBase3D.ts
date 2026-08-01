@@ -385,7 +385,7 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
 
   const roomNumber = roomFromEnemyId(enemy);
   const spawnIndex = Number(enemy.id.split('-').at(-1) ?? 0) || 0;
-  const profile = enemyVisualProfile(roomNumber, enemy.enemyType, spawnIndex);
+  const profile = enemyVisualProfile(roomNumber, enemy.enemyType, spawnIndex, enemy.enemyFamilyId);
   const finalBoss = enemy.enemyType === 'boss' && roomNumber === 50;
   const importedPrototype = profile.useImported ? await importedWithinBudget(enemy.enemyType) : null;
   const role = profile.role;
