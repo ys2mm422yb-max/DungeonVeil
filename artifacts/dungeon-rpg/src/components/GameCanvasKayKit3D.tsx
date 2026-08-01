@@ -181,6 +181,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const previousRig = playerRig;
       playerRig = nextRig;
       arrowPrototype = nextRig.arrowPrototype;
+      host.dataset.equippedArmor = String(nextRig.root.userData.equippedArmor ?? 'ranger-cloak');
+      host.dataset.equippedArmorFallback = nextRig.root.userData.equippedArmorFallback ? 'true' : 'false';
       previousRig?.stop();
       if (previousRig?.root) {
         scene.remove(previousRig.root);
@@ -1018,6 +1020,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (disposed) return;
       playerRig.root.scale.setScalar(0.96);
       arrowPrototype = playerRig.arrowPrototype;
+      host.dataset.equippedArmor = String(playerRig.root.userData.equippedArmor ?? 'ranger-cloak');
+      host.dataset.equippedArmorFallback = playerRig.root.userData.equippedArmorFallback ? 'true' : 'false';
       scene.add(playerRig.root);
       clock = new THREE.Clock();
       resize();
@@ -1057,6 +1061,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (playerRig?.root) disposeObject(playerRig.root);
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
+      delete host.dataset.equippedArmor;
+      delete host.dataset.equippedArmorFallback;
     };
   }, []);
 

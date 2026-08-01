@@ -24,6 +24,7 @@ const equippedBody = read('src/game/equippedPlayerBody.ts');
 const villagePlayer = read('src/components/kaykitVillagePlayer3D.ts');
 const runPlayer = read('src/components/kaykitPlayer3D.ts');
 const runCanvas = read('src/components/GameCanvasKayKit3D.tsx');
+const productJourney = read('tests/autopilot-product-journeys.spec.mjs');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -73,6 +74,11 @@ assert(runPlayer.includes('resolveEquippedPlayerBody(meta.equipped.armor)') && r
 assert(runPlayer.includes('equippedArmor = equippedBody.armorId') && runPlayer.includes('equippedArmorFallback = equippedBody.usedFallback'), 'active run renderer does not expose equipped-body diagnostics');
 assert(runCanvas.includes("window.addEventListener('dungeon-veil-meta-changed', refreshEquippedPlayerRig)")
   && runCanvas.includes("window.addEventListener('dungeon-veil-cloud-save-restored', refreshEquippedPlayerRig)"), 'active run renderer does not refresh after equipment or cloud-restore changes');
+assert(runCanvas.includes('host.dataset.equippedArmor =') && runCanvas.includes('host.dataset.equippedArmorFallback ='), 'active run renderer does not expose the resolved visible armor for lifecycle verification');
+assert(productJourney.includes("toHaveAttribute('data-equipped-armor', 'ash-armor')")
+  && productJourney.includes("toHaveAttribute('data-equipped-armor', 'warden-armor')")
+  && productJourney.includes("toHaveAttribute('data-equipped-armor-fallback', 'true')")
+  && productJourney.includes("new Event('dungeon-veil-cloud-save-restored')"), 'four-device product journey does not cover immediate, reload, cloud-restore and fallback armor appearances');
 assert(runCanvas.includes('generation !== playerRigGeneration')
   && runCanvas.includes('scene.remove(previousRig.root)')
   && runCanvas.includes('disposeObject(previousRig.root)'), 'active run renderer does not replace the visible rig safely');
