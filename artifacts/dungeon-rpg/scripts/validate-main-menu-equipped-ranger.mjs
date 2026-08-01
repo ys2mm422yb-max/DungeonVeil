@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection, equipmentVisuals, weaponVisuals, chamber] = await Promise.all([
+const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer, player, weapons, manifest, metaStore, redesign, collection, equipmentVisuals, weaponVisuals, chamber, equippedBody] = await Promise.all([
   read('../src/components/screens/MainMenuScreen.tsx'),
   read('../src/components/MainMenuDungeonScene.tsx'),
   read('../src/components/LiveHybridMainMenuScene.tsx'),
@@ -18,6 +18,7 @@ const [menu, menuScene, liveScene, hallArt, indexCss, villageHub, villagePlayer,
   read('../src/game/equipmentVisuals.ts'),
   read('../src/game/equipmentVisualsWeaponsV4.ts'),
   read('../src/components/screens/VeilChamberScreenV4.tsx'),
+  read('../src/game/equippedPlayerBody.ts'),
 ]);
 
 const quiverDefinitionRows = [...weaponVisuals.matchAll(/'(?:ranger|black|rune|frost|splinter|warden)-quiver':\s*\{[^\n]+/g)].map(match => match[0]);
@@ -49,7 +50,7 @@ const checks = [
   [menu.includes('data-testid="main-menu-control-stack"') && menu.includes('grid-cols-2') && menu.includes('action(t.continueGame') && menu.includes("'Spielen' : 'Play'") && menu.includes("'Kodex' : 'Codex'"), 'four-action mobile control stack is incomplete'],
   [villagePlayer.includes('loadMetaProgression') && villagePlayer.includes('meta.equipped.bow') && villagePlayer.includes('meta.equipped.quiver') && villagePlayer.includes('meta.equipped.armor'), 'menu Ranger does not expose the current equipped loadout'],
   [villagePlayer.includes('idleAction.reset().play()') && villagePlayer.includes('mixer.update(delta)'), 'menu Ranger idle animation is missing'],
-  [player.includes('KAYKIT_PLAYER_ASSETS.ranger') && player.includes('Ranger.glb'), 'the shared in-run Ranger body is no longer available'],
+  [player.includes('resolveEquippedPlayerBody(meta.equipped.armor)') && equippedBody.includes("DEFAULT_ARMOR_ID: EquipmentId = 'ranger-cloak'") && equippedBody.includes('Ranger.glb'), 'the shared in-run Ranger fallback is no longer available'],
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the run model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],
   [weapons.includes("const ashBowNeedsFlip = bowId === 'ash-bow'") && weapons.includes('ashBowNeedsFlip ? Math.PI') && weapons.includes('dungeonVeilBowAshFlip: ashBowNeedsFlip'), 'the Ash Bow does not have its dedicated 180-degree hand correction'],
