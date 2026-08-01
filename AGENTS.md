@@ -34,6 +34,20 @@ The former Secondary/Zweit-Autopilot is paused. Do not create a new `worker: sec
 
 An active Codespaces launcher lease has precedence for its PR, branch, files, and task scope. The background coordinator must not modify overlapping product code, restart overlapping tests, or merge that PR while the lease is active. It may continue independent GitHub coordination and clearly non-overlapping work.
 
+## Codespaces queue-drain contract
+
+One user start of the Codespaces Autopilot should process the complete currently free product queue as far as the configured bounded pass and runtime budget safely allows.
+
+- Finishing, safely parking, or externally waiting on one task does not end the launcher run when another independent product task is free.
+- Rebuild the queue live before each new task from open product issues, PRs, reviews, exact-head Actions, roadmap state, deployments, evidence, and user comments.
+- Issue #376 and roadmap #323 are coordination sources, not ordinary product tasks to close.
+- Existing defective or red product PRs take priority over opening new backlog PRs.
+- Avoid uncontrolled PR sprawl. When two or more independent product PRs are already waiting on external checks or evidence, prefer existing PRs, red gates, reviews, or safe independent work before opening another new product PR.
+- Each task has its own lease lifecycle. A lease must be terminal before the same launcher switches to a different task.
+- The launcher stops only when the product queue is temporarily empty, the repository is globally blocked, the user manually stops it, or its bounded budget is reached.
+- A running check for one task is not a global blocker.
+- The user has granted standing permission for normal safe branch, implementation, test, commit, push, PR, Ready, merge, and publication steps. Do not ask for routine confirmation, but never bypass repository quality or safety rules.
+
 ## Worker coordination
 
 Use the lease protocol from Issue #376. A run must never end with its own lease still `active`.
