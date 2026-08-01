@@ -423,28 +423,41 @@ export async function createKayKitEnemyVisual(THREE: any, enemy: Enemy): Promise
   let bowRig: BowRig | null = null;
 
   if (!prototype.imported) {
-    if (role === 'mage') {
-      const focus = finalBoss && library.finalBossFocus ? library.finalBossFocus.clone(true) : cloneWeapon('staff');
-      attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.92);
-    } else if (role === 'ranger') {
-      const bow = library.rangerBow?.clone?.(true) ?? null;
-      if (bow) {
-        prepareModel(bow);
-        bowRig = attachBowToRanger(THREE, scene, bow);
-        bowRig.updateShotPose(0);
+    switch (profile.weaponProfile) {
+      case 'staff': {
+        const focus = finalBoss && library.finalBossFocus ? library.finalBossFocus.clone(true) : cloneWeapon('staff');
+        attachEquipment(rightHand, focus, [0, 0.03, 0], [Math.PI / 2, 0, Math.PI / 2], finalBoss ? 1.28 : 0.92);
+        break;
       }
-    } else if (role === 'rogue') {
-      attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.84);
-      attachEquipment(leftHand, cloneWeapon('blade'), [-0.01, 0.01, 0], [Math.PI / 2, 0, -Math.PI / 2], 0.84);
-    } else if (role === 'warrior' || role === 'knight') {
-      const weapon = enemy.enemyType === 'boss' && library.bossWeapon ? library.bossWeapon.clone(true) : cloneWeapon('axe');
-      attachEquipment(rightHand, weapon, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], enemy.enemyType === 'boss' ? 1.18 : 0.92);
-      attachEquipment(leftHand, cloneWeapon(enemy.enemyType === 'boss' ? 'shieldLarge' : 'shieldSmall'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], enemy.enemyType === 'boss' ? 1.12 : 0.9);
-    } else if (role === 'barbarian') {
-      const weapon = enemy.enemyType === 'boss' && library.bossWeapon ? library.bossWeapon.clone(true) : cloneWeapon('axe');
-      attachEquipment(rightHand, weapon, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], enemy.enemyType === 'boss' ? 1.2 : 1.02);
-    } else {
-      attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.82);
+      case 'bow': {
+        const bow = library.rangerBow?.clone?.(true) ?? null;
+        if (bow) {
+          prepareModel(bow);
+          bowRig = attachBowToRanger(THREE, scene, bow);
+          bowRig.updateShotPose(0);
+        }
+        break;
+      }
+      case 'dual-blade':
+        attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.84);
+        attachEquipment(leftHand, cloneWeapon('blade'), [-0.01, 0.01, 0], [Math.PI / 2, 0, -Math.PI / 2], 0.84);
+        break;
+      case 'axe-shield': {
+        const weapon = enemy.enemyType === 'boss' && library.bossWeapon ? library.bossWeapon.clone(true) : cloneWeapon('axe');
+        attachEquipment(rightHand, weapon, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], enemy.enemyType === 'boss' ? 1.18 : 0.92);
+        attachEquipment(leftHand, cloneWeapon(enemy.enemyType === 'boss' ? 'shieldLarge' : 'shieldSmall'), [0, 0.02, 0], [Math.PI / 2, 0, -Math.PI / 2], enemy.enemyType === 'boss' ? 1.12 : 0.9);
+        break;
+      }
+      case 'heavy-axe': {
+        const weapon = enemy.enemyType === 'boss' && library.bossWeapon ? library.bossWeapon.clone(true) : cloneWeapon('axe');
+        attachEquipment(rightHand, weapon, [0.01, 0.02, 0], [Math.PI / 2, 0, Math.PI / 2], enemy.enemyType === 'boss' ? 1.2 : 1.02);
+        break;
+      }
+      case 'single-blade':
+        attachEquipment(rightHand, cloneWeapon('blade'), [0.01, 0.01, 0], [Math.PI / 2, 0, Math.PI / 2], 0.82);
+        break;
+      case 'natural':
+        break;
     }
   }
 
