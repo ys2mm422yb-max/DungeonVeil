@@ -6,7 +6,7 @@
       "type": "shell",
       "command": "bash",
       "args": [
-        "${workspaceFolder}/scripts/start-dungeon-veil-autopilot.sh"
+        "${workspaceFolder}/scripts/ensure-codex-and-start-autopilot.sh"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -27,7 +27,7 @@
         "reevaluateOnRerun": true,
         "instanceLimit": 1
       },
-      "detail": "Startet den universellen Dungeon-Veil-Codex-Worker ohne erneutes Prompt-Einfügen."
+      "detail": "Repariert bei Bedarf die Codex-CLI und startet danach den universellen Dungeon-Veil-Codex-Worker."
     }
   ]
 }
