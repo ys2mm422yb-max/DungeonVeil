@@ -23,6 +23,17 @@ These instructions apply to the entire repository. GitHub is the source of truth
 
 Task-specific product, gameplay, visual, and acceptance requirements belong in the relevant GitHub issue, PR, review thread, or Issue #376 handoff. Do not permanently add task-specific requirements to this file.
 
+## Active operating model
+
+Dungeon Veil currently uses exactly two active roles:
+
+1. **Codespaces Autopilot** — the preferred worker for real local development. It owns large-file editing, product code, TypeScript, builds, focused tests, Playwright, commits, and pushes. Its lease uses `worker: primary` plus a unique `launcher_run_id`.
+2. **Hourly background coordinator** — the unattended GitHub coordinator, quality checker, merge worker, and publisher. It owns queue maintenance, PR/review/check monitoring, exact-head verification, evidence/deployment tracking, factual handoffs, Ready transitions, merge, and publication. If it needs its own lease, use `worker: background`.
+
+The former Secondary/Zweit-Autopilot is paused. Do not create a new `worker: secondary` lease, delegate work to a Secondary, or plan around an active Secondary unless the user explicitly reactivates that role.
+
+An active Codespaces launcher lease has precedence for its PR, branch, files, and task scope. The background coordinator must not modify overlapping product code, restart overlapping tests, or merge that PR while the lease is active. It may continue independent GitHub coordination and clearly non-overlapping work.
+
 ## Worker coordination
 
 Use the lease protocol from Issue #376. A run must never end with its own lease still `active`.
