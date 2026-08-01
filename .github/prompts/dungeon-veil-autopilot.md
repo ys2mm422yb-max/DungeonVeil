@@ -106,7 +106,7 @@ Gib am Ende jedes Codex-Passes genau diese drei maschinenlesbaren Zeilen aus:
 
 ```text
 AUTOPILOT_TASK_STATUS: continue|completed|waiting_external|blocked_external|released
-AUTOPILOT_QUEUE_STATUS: same_task|next_task|empty|globally_blocked
+AUTOPILOT_QUEUE_STATUS: same_task|next_task|empty|globally_blocked|budget_exhausted
 AUTOPILOT_NEXT: konkrete nächste Operation
 ```
 
@@ -119,5 +119,6 @@ Bedeutung:
 - `blocked_external` + `next_task`: Nur diese Aufgabe ist extern blockiert; andere Arbeit bleibt möglich.
 - beliebiger terminaler Aufgabenstatus + `empty`: Nach vollständiger Live-Prüfung ist momentan keine weitere freie Produktarbeit vorhanden.
 - `waiting_external`, `blocked_external` oder `released` + `globally_blocked`: Die gesamte Queue ist tatsächlich blockiert.
-- `continue` darf niemals mit `next_task`, `empty` oder `globally_blocked` kombiniert werden.
+- ein terminaler Aufgabenstatus + `budget_exhausted`: Das begrenzte Launcher-Budget ist erreicht; sichere Übergabe und erneuter Start setzen die Queue fort.
+- `continue` darf niemals mit `next_task`, `empty`, `globally_blocked` oder `budget_exhausted` kombiniert werden.
 - Ein erfolgreicher Pass ohne gültige Marker gilt als fehlerhafter Pass und löst den sicheren Abschluss-Handoff aus.
