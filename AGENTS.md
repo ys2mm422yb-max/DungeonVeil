@@ -25,32 +25,51 @@ Task-specific product, gameplay, visual, and acceptance requirements belong in t
 
 ## Active operating model
 
-Dungeon Veil currently uses exactly two active roles:
+Dungeon Veil uses exactly four regular ChatGPT automation roles, staggered hourly in `Europe/Berlin` so a new pass starts every 15 minutes:
 
-1. **Codespaces Autopilot** — the preferred worker for real local development. It owns large-file editing, product code, TypeScript, builds, focused tests, Playwright, commits, and pushes. Its lease uses `worker: primary` plus a unique `launcher_run_id`.
-2. **Hourly background coordinator** — the unattended GitHub coordinator, quality checker, merge worker, and publisher. It owns queue maintenance, PR/review/check monitoring, exact-head verification, evidence/deployment tracking, factual handoffs, Ready transitions, merge, and publication. If it needs its own lease, use `worker: background`.
+1. **`:00` — Primary developer** (`worker: primary`) takes the highest-priority free product task, implements and tests the fix, maintains its PR, and may carry a fully accepted exact head through Ready, merge, and publication.
+2. **`:15` — Secondary developer** (`worker: secondary`) works on an independent free product task. It must never overlap another live lease's PR, branch, files, or scope and must immediately select different free work when a scope is occupied.
+3. **`:30` — Visual and asset scout** (`worker: visual`) opens and evaluates screenshots, videos, traces, and runtime evidence; tests the published player experience; audits available purchased assets; and implements isolated visual or asset improvements when the scope is free.
+4. **`:45` — QA, merge, and publication verifier** (`worker: verifier`) diagnoses red gates, reviews threads and evidence, performs final exact-head acceptance, merges without auto-merge only when every gate is satisfied, retains branches, and verifies deployment.
 
-The former Secondary/Zweit-Autopilot is paused. Do not create a new `worker: secondary` lease, delegate work to a Secondary, or plan around an active Secondary unless the user explicitly reactivates that role.
+Do not create a fifth regular worker unless concrete live evidence shows that it increases completed, conflict-free throughput. `worker: background` is reserved for explicitly separate coordination or migration work and is not a fifth scheduled product worker.
 
-An active Codespaces launcher lease has precedence for its PR, branch, files, and task scope. The background coordinator must not modify overlapping product code, restart overlapping tests, or merge that PR while the lease is active. It may continue independent GitHub coordination and clearly non-overlapping work.
+Codespaces is an optional targeted execution environment for heavy local builds, Playwright runs, or safe large edits. It is not an additional regular worker. A targeted Codespaces launcher uses `worker: primary` with a unique `launcher_run_id`, must read live leases first, and may work only inside its own non-overlapping lease.
 
-## Codespaces queue-drain contract
+Only a current, unexpired, exact-head overlapping lease blocks work. One running Action, deployment, media-download problem, or task-local external wait is not a global lock; every worker must select the next independent free operation when possible.
 
-One user start of the Codespaces Autopilot should process the complete currently free product queue as far as the configured bounded pass and runtime budget safely allows.
+## Queue-drain contract
 
-- Finishing, safely parking, or externally waiting on one task does not end the launcher run when another independent product task is free.
+Each automation pass should process the complete currently free queue as far as its bounded run permits safely.
+
+- Finishing, safely parking, or externally waiting on one task does not end a run when another independent task for that role is free.
 - Rebuild the queue live before each new task from open product issues, PRs, reviews, exact-head Actions, roadmap state, deployments, evidence, and user comments.
 - Issue #376 and roadmap #323 are coordination sources, not ordinary product tasks to close.
 - Existing defective or red product PRs take priority over opening new backlog PRs.
-- Avoid uncontrolled PR sprawl. When two or more independent product PRs are already waiting on external checks or evidence, prefer existing PRs, red gates, reviews, or safe independent work before opening another new product PR.
-- Each task has its own lease lifecycle. A lease must be terminal before the same launcher switches to a different task.
-- The launcher stops only when the product queue is temporarily empty, the repository is globally blocked, the user manually stops it, or its bounded budget is reached.
+- Avoid uncontrolled PR sprawl. When two or more independent product PRs are already waiting on external checks or evidence, prefer existing PRs, red gates, reviews, evidence, or safe independent work before opening another product PR.
+- Each task has its own lease lifecycle. A lease must be terminal before the same worker switches to a different task.
 - A running check for one task is not a global blocker.
 - The user has granted standing permission for normal safe branch, implementation, test, commit, push, PR, Ready, merge, and publication steps. Do not ask for routine confirmation, but never bypass repository quality or safety rules.
+
+A Codespaces launcher additionally reports:
+
+```text
+AUTOPILOT_TASK_STATUS: continue|completed|waiting_external|blocked_external|released
+AUTOPILOT_QUEUE_STATUS: same_task|next_task|empty|globally_blocked|budget_exhausted
+AUTOPILOT_NEXT: concrete next operation
+```
 
 ## Worker coordination
 
 Use the lease protocol from Issue #376. A run must never end with its own lease still `active`.
+
+Allowed worker values are:
+
+- `primary`
+- `secondary`
+- `visual`
+- `verifier`
+- `background` only for explicitly separate background coordination or migration work
 
 Allowed terminal states are:
 
@@ -58,6 +77,8 @@ Allowed terminal states are:
 - `released`
 - `waiting_external`
 - `blocked_external`
+
+Before every GitHub write, claim exactly one narrow lease, recheck the affected head after the claim, stay within the declared scope, and terminalize the lease at the end. Never hold more than one own active lease.
 
 Only a current, unexpired, exact-head overlapping lease blocks work. Release stale, malformed, expired, or head-stale locks only after live verification.
 
@@ -69,8 +90,10 @@ Only a current, unexpired, exact-head overlapping lease blocks work. Release sta
 - UI, gameplay, and runtime acceptance use only the four supported mobile portrait projects.
 - Evidence must follow Issue #366: small, separate, and hash-deduplicated.
 - Before Ready or merge, verify the unchanged exact head, base branch, mergeability, reviews, threads, required checks, artifacts, leases, and every task criterion.
+- Actually open and inspect all relevant hash-distinct screenshots, videos, traces, and runtime evidence before claiming visual acceptance.
 - Merge only after all applicable Draft and Ready exact-head gates are green and no known blocker remains.
 - Keep issues open until their complete Definition of Done is satisfied.
+- After merge, verify the target-branch deployment and the fixed public test URL before claiming publication success.
 
 ## Safe implementation practices
 
@@ -79,6 +102,7 @@ Only a current, unexpired, exact-head overlapping lease blocks work. Release sta
 - Remove temporary repair files and debugging artifacts before completion.
 - For large file replacement, read the complete current file, verify blob SHA and head immediately before writing, then inspect the resulting diff and head.
 - Run the narrowest relevant validation first, followed by repository typecheck/build and the task-specific checks required by GitHub.
+- Do not force-push, reset, or overwrite another worker's commits.
 
 Common commands from the repository root:
 
