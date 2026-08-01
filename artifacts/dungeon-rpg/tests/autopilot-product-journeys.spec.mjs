@@ -47,8 +47,8 @@ async function seedBaseState(page, { signedIn = false } = {}) {
     localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
       version: 2,
       initialized: true,
-      equipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak'],
-      announcedEquipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak'],
+      equipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak', 'ash-armor', 'warden-armor'],
+      announcedEquipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak', 'ash-armor', 'warden-armor'],
       relics: ['ash-eye', 'marked-claw', 'night-hunt-sigil', 'veil-heart', 'broken-guardian-crown', 'depth-rune-shard', 'world-core'],
       announcedRelics: ['ash-eye', 'marked-claw', 'night-hunt-sigil', 'veil-heart', 'broken-guardian-crown', 'depth-rune-shard', 'world-core'],
     }));
