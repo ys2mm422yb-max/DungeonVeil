@@ -4,7 +4,8 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
-  await locator.click({ force: true });
+  await locator.scrollIntoViewIfNeeded();
+  await locator.click();
 }
 
 async function openMenu(page, projectName) {
@@ -64,7 +65,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(page.getByTestId('main-menu-companion-navigation')).toHaveCount(0);
   const equipmentEntry = page.getByTestId('main-menu-equipment-navigation');
   await expect(equipmentEntry).toBeVisible();
-  await equipmentEntry.getByRole('button').click({ force: true });
+  await pressPointerUi(equipmentEntry.getByRole('button'));
   await expect(page.getByRole('heading', { name: /AUSRÜSTUNG|EQUIPMENT/i })).toBeVisible();
   await page.getByTestId('inventory-tab-companion').click({ force: true });
 

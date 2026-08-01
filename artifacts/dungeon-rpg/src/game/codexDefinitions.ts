@@ -4,11 +4,13 @@ import {
   type EnemyFamilyId,
   type EnemyType,
 } from './enemyRegistry';
+import type { EnemyPresentationKey } from './enemyPresentationContract';
 
 export type CodexEnemyEntry = {
   id: EnemyFamilyId;
   familyId: EnemyFamilyId;
   enemyType: EnemyType;
+  presentationKey: EnemyPresentationKey;
   room: number;
   nameDe: string;
   nameEn: string;
@@ -50,7 +52,8 @@ export const CODEX_BEASTS: readonly CodexEnemyEntry[] = NORMAL_ENEMY_FAMILY_IDS.
   return {
     id,
     familyId: id,
-    enemyType: definition.presentationKey,
+    enemyType: definition.runtimeType,
+    presentationKey: definition.presentationKey,
     room: definition.spawn.minRoom,
     nameDe: definition.name.de,
     nameEn: definition.name.en,
@@ -95,6 +98,7 @@ export const CODEX_WARDENS: readonly CodexWardenEntry[] = WARDENS.map(([room, na
   id: `warden-${room}`,
   discoveryKey: `1:${room}`,
   enemyType: 'boss',
+  presentationKey: ENEMY_REGISTRY.boss.presentationKey,
   room,
   nameDe,
   nameEn,

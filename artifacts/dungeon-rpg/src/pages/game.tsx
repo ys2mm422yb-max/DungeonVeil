@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GameEngine, GameState } from '../game/runEngine';
 import type { EnemyType } from '../game/entities';
+import type { EnemyFamilyId } from '../game/enemyRegistry';
 import { hasSave, loadGame, SaveData } from '../game/saveManager';
 import { saveEngineSession } from '../game/sessionStore';
 import { isBossRoom } from '../game/chapterRun';
-import { getEncounterPlan } from '../game/encounterPlan';
+import { getEncounterFamilyPlan, getEncounterPlan } from '../game/encounterPlan';
 import { UpgradeKey, Language } from '../i18n/translations';
 import { useLanguage } from '../i18n/LanguageContext';
 import { CombatStage } from '../components/CombatStage';
@@ -56,8 +57,16 @@ function uniqueEnemyTypes(types: readonly EnemyType[]) {
   return [...new Set(types)];
 }
 
+function uniqueEnemyFamilyIds(familyIds: readonly EnemyFamilyId[]) {
+  return [...new Set(familyIds)];
+}
+
 function plannedRoomEnemyTypes(floor: number): EnemyType[] {
   return isBossRoom(floor) ? ['boss'] : uniqueEnemyTypes(getEncounterPlan(floor));
+}
+
+function plannedRoomEnemyFamilyIds(floor: number): EnemyFamilyId[] {
+  return isBossRoom(floor) ? ['boss'] : uniqueEnemyFamilyIds(getEncounterFamilyPlan(floor));
 }
 
 function wait(milliseconds: number) {
@@ -67,6 +76,7 @@ function wait(milliseconds: number) {
 async function preloadRequiredRunRoom(floor: number) {
   const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
   const enemyTypes = plannedRoomEnemyTypes(safeFloor);
+  const enemyFamilyIds = plannedRoomEnemyFamilyIds(safeFloor);
   let lastError: unknown = null;
 
   for (let attempt = 1; attempt <= RUN_ENTRY_PRELOAD_ATTEMPTS; attempt++) {
@@ -74,7 +84,7 @@ async function preloadRequiredRunRoom(floor: number) {
       await Promise.all([
         preloadKayKitDungeonRoom(safeFloor),
         preloadKayKitRoomTheme(safeFloor),
-        preloadKayKitEnemyVisuals(enemyTypes),
+        preloadKayKitEnemyVisuals(enemyTypes, enemyFamilyIds),
       ]);
       return;
     } catch (error) {

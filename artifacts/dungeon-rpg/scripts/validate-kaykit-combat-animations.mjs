@@ -13,6 +13,7 @@ const canvas = read('src/components/GameCanvasKayKit3D.tsx');
 const bridge = read('src/components/GameSessionBridge.tsx');
 const bowSync = read('src/game/playerBowAttackSync.ts');
 const enemy = read('src/components/kaykitEnemyBase3D.ts');
+const enemyRouter = read('src/components/kaykitEnemy3D.ts');
 const normalAttacks = read('src/game/normalEnemyAttackTelegraphs.ts');
 const manifest = read('src/components/kaykitManifest3D.ts');
 const regional = read('src/game/enemyRegionalIdentity.ts');
@@ -31,11 +32,26 @@ const selectedExtras = [
 ];
 const allExtrasInManifest = selectedExtras.every(name => manifest.includes(`'${name}'`));
 const noRoleAliasModels = !manifest.includes('Skeleton_Mage_Necromancer') && !manifest.includes('Skeleton_Warrior_Golem');
-const preservedMiddleChapters = regional.includes('if (safeRoom <= 30)')
-  && regional.includes("return adventurer('ranger', 'ranger')")
-  && regional.includes('if (safeRoom <= 40)')
-  && regional.includes("return index % 2 === 0 ? realMage() : skeleton('rogue', 'rogue')");
 const duplicateRoleSelector = path.join(root, 'src/components/kaykitEnemyAnimationRoles3D.ts');
+
+const familyMatrixPresent = regional.includes('export const ENEMY_FAMILY_PRESENTATIONS')
+  && regional.includes('satisfies Record<NormalEnemyFamilyId, EnemyVisualProfile>')
+  && regional.includes('explicitFamilyId ?? enemyFamilyForSpawn');
+const earlyFamilyRoles = regional.includes("skeleton: familySkeleton('skeleton', 'warrior', 'warrior', 'slam', 'axe-shield'")
+  && regional.includes("'bone-archer': familySkeleton('bone-archer', 'ranger', 'rogue', 'projectile', 'bow'")
+  && regional.includes("'crypt-acolyte': familySkeleton('crypt-acolyte', 'mage', 'mage', 'summon', 'staff'")
+  && regional.includes("'grave-hound': familyCreature('grave-hound', 'rogue', 'lunge'");
+const middleFamilyRoles = regional.includes("orc: familyAdventurer('orc', 'barbarian', 'barbarian', 'slam', 'heavy-axe'")
+  && regional.includes("'boar-brute': familySkeleton('boar-brute', 'barbarian', 'golem', 'lunge', 'heavy-axe'")
+  && regional.includes("'shadow-rogue': familyAdventurer('shadow-rogue', 'rogue', 'rogue_hooded', 'lunge', 'dual-blade'")
+  && regional.includes("'dusk-mage': familyRealMage('dusk-mage', 'projectile'");
+const lateFamilyRoles = regional.includes("'cinder-knight': familyAdventurer('cinder-knight', 'knight', 'knight', 'fire', 'axe-shield'")
+  && regional.includes("'ember-witch': familySkeleton('ember-witch', 'mage', 'necromancer', 'fire', 'staff'")
+  && regional.includes("'veil-aberration': familySkeleton('veil-aberration', 'barbarian', 'golem', 'burst', 'heavy-axe'")
+  && regional.includes("'nexus-herald': familySkeleton('nexus-herald', 'mage', 'necromancer', 'summon', 'staff'");
+const bossProfiles = regional.includes("boss-ember-warden', 'knight', 'knight', 'boss-cycle', 'axe-shield'")
+  && regional.includes("boss-veil-necromancer', 'mage', 'necromancer', 'boss-cycle', 'staff'")
+  && regional.includes("boss-tomb-guardian', 'warrior', 'golem', 'boss-cycle', 'heavy-axe'");
 
 const checks = [
   [player.includes('Rig_Medium_CombatRanged.glb'), 'Ranger does not load the KayKit ranged animation package'],
@@ -52,13 +68,13 @@ const checks = [
   [bowSync.includes("cancelPending('dash')") && bowSync.includes("cancelPending('room-change')") && bowSync.includes("cancelPending('room-clear')"), 'Prepared ranger shots do not cancel safely across dash and room transitions'],
   [canvas.includes('playerRig.triggerAttack()') && canvas.includes('state.player.lastAttackTime > lastAttack'), 'Run renderer lost its idempotent authoritative release fallback'],
 
-  [enemyLoadsMelee && enemyLoadsRanged && enemyLoadsAdvancedMovement && enemyLoadsSpecial, 'Enemy library does not load melee, ranged, advanced movement, and special animation packs'],
+  [enemyLoadsMelee && enemyLoadsRanged && enemyLoadsAdvancedMovement && enemyLoadsSpecial, 'Enemy library does not load melee, ranged, advanced movement and special animation packs'],
   [enemy.includes('loadKayKitEnemyBow') && enemy.includes('attachBowToRanger') && enemy.includes("['running', 'holding', 'bow']"), 'Enemy rangers do not carry a real bow with authored bow locomotion'],
   [!enemy.includes("} else if (role === 'rogue' || role === 'ranger') {"), 'Enemy rangers are still grouped with blade-equipped rogues'],
   [enemy.includes("['ranged', 'bow', 'draw']") && enemy.includes("['ranged', 'bow', 'release']") && enemy.includes('attackResolveAt') && enemy.includes('awaitingRelease'), 'Enemy ranger Draw and Release are not synchronized to the authoritative resolve frame'],
   [enemy.includes("['ranged', 'magic', 'spellcasting'") && enemy.includes("['ranged', 'magic', 'shoot']") && enemy.includes("['ranged', 'magic', 'summon']"), 'Mage and Necromancer roles do not use authored magic preparation and release clips'],
   [enemy.includes("['melee', 'dualwield', 'attack', 'slice']") && enemy.includes("['melee', '2h', 'attack', 'chop']") && enemy.includes("['melee', '1h', 'attack', 'chop']"), 'Rogue and heavy melee roles do not use distinct authored attacks'],
-  [enemy.includes("['skeletons', 'idle']") && enemy.includes("['skeletons', 'walking']") && enemy.includes("['skeletons', 'death']"), 'Skeleton roles do not use their authored idle, walk, and death clips'],
+  [enemy.includes("['skeletons', 'idle']") && enemy.includes("['skeletons', 'walking']") && enemy.includes("['skeletons', 'death']"), 'Skeleton roles do not use their authored idle, walk and death clips'],
   [enemy.includes("const hitClip = chooseClip(prototype.clips, [['hit', 'a'], ['hit', 'b']") && enemy.includes("enemy.enemyType !== 'boss' && visual.hit && !attackBusy"), 'Hit_A/B reactions are missing or can interrupt bosses and active attacks'],
   [enemy.includes('visual.hitRemaining = 0;') && enemy.includes('visual.attackRemaining > 0 || Boolean(visual.awaitingRelease)'), 'Starting an attack does not cancel a prior hit reaction cleanly'],
   [normalAttacks.includes('shot-ranger-') && normalAttacks.includes('captureResolvingRangerShots') && normalAttacks.includes('shotPathBlocked'), 'Normal ranger projectiles are not created at the existing release frame with LOS checks'],
@@ -66,14 +82,15 @@ const checks = [
   [enemy.includes('bossAttackContract(room)') && enemy.includes('visual.awaitingRelease && now >= (visual.attackResolveAt'), 'Enemy release animations are not synchronized to normal and boss windup contracts'],
   [!fs.existsSync(duplicateRoleSelector), 'A second competing enemy role selector remains in the runtime tree'],
 
-  [regional.includes("if (room === 50) return { ...adventurer('knight', 'knight'), bossVariant: 'ember-warden' }"), 'Room 50 lost its dedicated heavy final-boss role'],
+  [familyMatrixPresent, 'Enemy visuals are not resolved through the canonical family presentation matrix'],
+  [earlyFamilyRoles, 'Early grave families no longer use distinct guard, archer, caster and hound roles'],
+  [middleFamilyRoles, 'Rooms 21–40 lost their differentiated brute, rogue and mage presentation roles'],
+  [lateFamilyRoles, 'Late cinder and nexus families do not use their selected heavy and caster roles'],
+  [bossProfiles, 'Bosses lost their selected Necromancer, Golem or heavy final-warden roles'],
   [allExtrasInManifest && manifest.includes('includeSkeletonExtras'), 'Selected Skeletons Extra models are not exposed through the existing KayKit manifest loader'],
   [noRoleAliasModels && regional.includes('SKELETON_EXTRA_MODEL'), 'Skeleton Extra roles still rely on duplicate alias files instead of explicit metadata'],
-  [regional.includes("extraSkeleton('mage', 'necromancer')"), 'Room 20 does not use the selected Necromancer with the mage animation role'],
-  [regional.includes("extraSkeleton('warrior', 'golem')"), 'Tomb guardian/Golem does not use the selected heavy warrior role'],
-  [regional.includes("extraSkeleton('rogue', 'rogue')") && regional.includes("extraSkeleton('minion', 'minion')"), 'Early skeleton variants are not mapped to distinct roles'],
-  [preservedMiddleChapters, 'The already validated room 21–40 silhouette mapping was changed unexpectedly'],
-  [regional.includes("if (type === 'skeleton') return extraSkeleton('warrior', 'warrior');"), 'Late fortress skeletons do not use the selected warrior model'],
+  [enemyRouter.includes('importedEnemyType(enemy.enemyType) && profile.useImported'), 'Imported technical enemy types still bypass family presentation routing'],
+  [enemyRouter.includes('presentationKey: profile.presentationKey') && enemyRouter.includes('attackProfile: profile.attackProfile') && enemyRouter.includes('weaponProfile: profile.weaponProfile'), 'Runtime visual identity does not expose family model, attack and weapon profiles'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -174,6 +191,7 @@ try {
   enemyRangerGame.state.player.invincibleUntil = 0;
   enemyRangerInternal.shotPathBlocked = () => false;
   const enemyRanger = makeEnemy(enemyRangerGame, '3-25-0', 'skeleton');
+  enemyRanger.enemyFamilyId = 'bone-archer';
   enemyRangerGame.state.enemies = [enemyRanger];
   const disposeEnemyRanger = normal.installNormalEnemyAttackTelegraphs(enemyRangerGame);
   try {
@@ -200,4 +218,4 @@ try {
   await server.close();
 }
 
-console.log('KayKit combat animation contract passed: player and enemy Draw/Hold precede one exact Release, projectiles appear once at release, hit reactions do not interrupt attacks or bosses, role clips are explicit, and balance is unchanged.');
+console.log('KayKit combat animation contract passed: player and enemy Draw/Hold precede one exact Release, projectiles appear once at release, hit reactions do not interrupt attacks or bosses, every family resolves through explicit model/weapon/attack profiles, role clips are authored and balance is unchanged.');

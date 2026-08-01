@@ -63,8 +63,9 @@ try {
     "const renderedRoomKeyRef = useRef('');",
     'const [renderState, setRenderState] = useState(gameState);',
     'currentRoomEnemyTypes(gameState)',
-    'preloadKayKitEnemyVisuals(requiredEnemyTypes)',
-    'preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor))',
+    'currentRoomEnemyFamilyIds(gameState)',
+    'preloadKayKitEnemyVisuals(requiredEnemyTypes, requiredEnemyFamilyIds)',
+    'preloadKayKitEnemyVisuals(plannedRoomEnemyTypes(nextFloor), plannedRoomEnemyFamilyIds(nextFloor))',
     'keeping previous room visible',
   ]) {
     if (!hostCanvasSource.includes(required)) fail(`missing complete-room enemy staging guard: ${required}`);
@@ -146,7 +147,7 @@ try {
     errors.forEach(message => console.error(`  - ${message}`));
     process.exitCode = 1;
   } else {
-    console.log(`Enemy visibility audit passed: ${checkedRooms} rooms and ${checkedEnemies} enemy starts retain safe spawns, LOS guards, non-culled meshes, an always-mounted canvas and a production build without colored enemy bodies.`);
+    console.log(`Enemy visibility audit passed: ${checkedRooms} rooms and ${checkedEnemies} enemy starts retain safe spawns, LOS guards, non-culled meshes, exact-family staging, an always-mounted canvas and a production build without colored enemy bodies.`);
   }
 } finally {
   await server.close();
