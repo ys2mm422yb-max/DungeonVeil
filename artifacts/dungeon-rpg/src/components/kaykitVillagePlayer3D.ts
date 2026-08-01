@@ -114,9 +114,9 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     bow: meta.equipped.bow,
     quiver: quiverEquipped ? meta.equipped.quiver : null,
     armor: meta.equipped.armor,
-    resolvedArmor: equippedBody.armorId,
-    armorFallback: equippedBody.usedFallback,
   };
+  root.userData.resolvedArmor = equippedBody.armorId;
+  root.userData.armorFallback = equippedBody.usedFallback;
 
   const visual = rangerGltf.scene;
   visual.name = `VillageEquippedBody_${equippedBody.armorId}`;
@@ -189,6 +189,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       equipmentPose: root.userData.equipmentPose,
       animationDriver: idleClip.name,
       loadout: root.userData.equippedLoadout,
+      resolvedArmor: root.userData.resolvedArmor,
+      armorFallback: root.userData.armorFallback,
       visibleEquipment: root.userData.visibleEquipment,
       cleanSingleBody: true,
       depthTestedEquipment: true,
