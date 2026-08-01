@@ -69,13 +69,13 @@ cleanup() {
   rm -f "$pass_prompt_file" "$cleanup_prompt_file"
   rmdir "$lock_dir" 2>/dev/null || true
 }
-trap cleanup EXIT
 
 if ! mkdir "$lock_dir" 2>/dev/null; then
   echo "Der Dungeon-Veil-Autopilot läuft bereits in diesem Codespace." >&2
   echo "Öffne das vorhandene Autopilot-Terminal, statt einen zweiten Lauf zu starten." >&2
   exit 3
 fi
+trap cleanup EXIT
 
 if ! command -v codex >/dev/null 2>&1; then
   echo "Fehler: Codex CLI ist nicht installiert. Baue den Codespace neu auf oder führe .devcontainer/postCreate.sh aus." >&2
@@ -148,8 +148,9 @@ run_codex_pass() {
   local label="$1"
   local input_file="$2"
   local pass_log="$repo_root/.git/dungeon-veil-autopilot-${label}.log"
-  local pass_message="$repo_root/.git/dungeon-veil-autopilot-${label}-last-message.txt"
   local codex_status
+
+  local pass_message="$repo_root/.git/dungeon-veil-autopilot-${label}-last-message.txt"
 
   : > "$pass_log"
   : > "$pass_message"
