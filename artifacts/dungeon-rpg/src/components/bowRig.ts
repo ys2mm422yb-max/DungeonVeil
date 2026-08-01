@@ -30,9 +30,9 @@ function authoredBowAxisCorrection(THREE: any, bow: any) {
   bow.traverse?.((node: any) => names.push(normalizeName(node.name)));
   const key = names.join('|');
 
-  // Ranger weapon loading now wraps authored X-axis Fantasy Weapons bows and
+  // Ranger weapon loading wraps authored X-axis Fantasy Weapons bows and
   // rotates the child by -90 degrees. The wrapper remains at identity so the
-  // same normalized model works in hand slots, enemy rigs and the main menu.
+  // same normalized model works in player, enemy, Codex and menu hand slots.
   const alreadyNormalized = bow.userData?.dungeonVeilBowNormalized === true;
   const namedFantasyBow = /(?:^|\|)bow[a-z](?:withstring)?(?:\||$)/.test(key);
   const majorAxisIsX = size.x > Math.max(size.z, size.y) * 1.3;
@@ -46,7 +46,12 @@ function authoredBowAxisCorrection(THREE: any, bow: any) {
   return correctionY;
 }
 
-export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
+export function attachBowToRanger(
+  THREE: any,
+  heroRoot: any,
+  bow: any,
+  facingCorrectionY = 0,
+): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
   let previousPulse = 0;
@@ -59,7 +64,7 @@ export function attachBowToRanger(THREE: any, heroRoot: any, bow: any): BowRig {
     }
   });
 
-  const correctionY = authoredBowAxisCorrection(THREE, bow);
+  const correctionY = authoredBowAxisCorrection(THREE, bow) + facingCorrectionY;
   anchor.add(bow);
   bow.rotation.order = 'YXZ';
 
