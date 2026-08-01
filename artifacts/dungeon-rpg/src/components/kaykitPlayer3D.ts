@@ -1,6 +1,7 @@
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
 import { attachBowToRanger, type BowRig } from './bowRig';
 import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
+import { resolveEquippedPlayerBody } from '../game/equippedPlayerBody';
 import { isOptionalEquipmentSlotEquipped } from '../game/optionalEquipmentState';
 import { PLAYER_BOW_EVENT, type PlayerBowEventDetail } from '../game/playerBowAttackSync';
 
@@ -152,13 +153,14 @@ function buildArrowPrototype(THREE: any) {
 export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const loader = new GLTFLoader();
   const meta = loadMetaProgression();
+  const equippedBody = resolveEquippedPlayerBody(meta.equipped.armor);
   const quiverEquipped = isOptionalEquipmentSlotEquipped('quiver');
   const quiverId = meta.equipped.quiver;
   const talismanId = meta.equipped.talisman;
   const quiverDefinition = quiverEquipped ? EQUIPMENT[quiverId] : null;
   const talismanDefinition = EQUIPMENT[talismanId];
   const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, rangedGltf, weapons, talismanGltf] = await Promise.all([
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
+    loader.loadAsync(`${KAYKIT_ROOT}/${equippedBody.assetPath}`),
     quiverDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverDefinition.assetPath}`) : Promise.resolve(null),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
@@ -171,9 +173,11 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   const root = new THREE.Group();
   root.name = 'KayKitRangerPlayer';
+  root.userData.equippedArmor = equippedBody.armorId;
+  root.userData.equippedArmorFallback = equippedBody.usedFallback;
   root.userData.equippedQuiver = quiverEquipped ? quiverId : null;
   const visual = rangerGltf.scene;
-  visual.name = 'KayKitRanger';
+  visual.name = `KayKitPlayerBody_${equippedBody.armorId}`;
   visual.scale.setScalar(1.18);
   prepareModel(visual);
   root.add(visual);
