@@ -67,7 +67,7 @@ assert(assetAudit.includes("armor: ['armor', 'armour', 'helmet'") && assetAudit.
 
 assert(equippedBody.includes('EQUIPMENT_ARMOR_VISUALS') && equippedBody.includes('resolveEquippedPlayerBody'), 'canonical equipped-player-body resolver is missing');
 assert(equippedBody.includes("DEFAULT_ARMOR_ID: EquipmentId = 'ranger-cloak'") && equippedBody.includes('usedFallback: true'), 'equipped-player-body fallback is not explicit and safe');
-assert(villagePlayer.includes('resolveEquippedPlayerBody(meta.equipped.armor)') && villagePlayer.includes('equippedArmorFallback'), 'main-menu renderer does not consume the canonical equipped armor');
+assert(villagePlayer.includes('resolveEquippedPlayerBody(meta.equipped.armor)') && villagePlayer.includes('armorFallback'), 'main-menu renderer does not consume the canonical equipped armor');
 assert(runPlayer.includes('resolveEquippedPlayerBody(meta.equipped.armor)') && runPlayer.includes('loader.loadAsync(`${KAYKIT_ROOT}/${equippedBody.assetPath}`)'), 'active run renderer does not load the equipped armor body');
 assert(runPlayer.includes('equippedArmor = equippedBody.armorId') && runPlayer.includes('equippedArmorFallback = equippedBody.usedFallback'), 'active run renderer does not expose equipped-body diagnostics');
 assert(cloud.includes('equipmentProgressWeight') && store.includes('equipped'), 'equipped armor persistence is not represented in the saved progression contract');
