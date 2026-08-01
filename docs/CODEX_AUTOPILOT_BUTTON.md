@@ -4,7 +4,7 @@ Der Codespace enthält eine gespeicherte VS-Code-Aufgabe. Dadurch muss der unive
 
 ## Start auf dem iPhone
 
-1. Öffne den Dungeon-Veil-Codespace.
+1. Öffne den Dungeon-Veil-Codespace auf dem Zielbranch `fix/mobile-telegraphs-room-21-50-balance`.
 2. Öffne das VS-Code-Menü.
 3. Wähle **Terminal → Run Build Task** beziehungsweise **Terminal → Buildaufgabe ausführen**.
 4. Die Standardaufgabe **Dungeon Veil: Autopilot starten** beginnt in einem eigenen Terminal.
@@ -23,10 +23,28 @@ Der Launcher:
 - verwendet ausdrücklich weder `danger-full-access` noch eine Approval-/Sandbox-Umgehung;
 - verhindert parallele doppelte Starts;
 - verweigert den Start bei nicht committeten lokalen Änderungen;
-- speichert das laufende Log und die letzte Codex-Zusammenfassung ausschließlich unter `.git/`.
+- speichert Logs, Pass-Zusammenfassungen und temporäre Prompts ausschließlich unter `.git/`;
+- führt standardmäßig bis zu vier aufeinanderfolgende Arbeitspässe aus;
+- startet automatisch einen weiteren Pass, wenn die Aufgabe nach reiner Bestandsaufnahme, Branchwechsel, Teiländerung oder behebbaren Testfehlern noch weiter bearbeitbar ist;
+- beendet sich sofort bei einem echten terminalen Status wie `completed`, `waiting_external`, `blocked_external` oder `released`;
+- führt nach Erreichen des Pass-Limits oder einem Codex-Fehler einen gesonderten Abschluss-Handoff aus;
+- versucht beim Prozessende zusätzlich, eine zu diesem Launcher-Lauf gehörende versehentlich aktive Lease in Issue #376 sicher auf `released` zu setzen.
+
+Jeder Launcher-Lauf besitzt eine eindeutige `launcher_run_id`. Dadurch kann ein Folgepass dieselbe Lease übernehmen, ohne mit anderen Primary-/Secondary-Workern zu kollidieren.
+
+## Woran ein echter Abschluss erkennbar ist
+
+Am Ende zeigt das Terminal einen dieser Statuswerte:
+
+- `completed`: Die gewählte GitHub-Aufgabe ist vollständig abgeschlossen.
+- `waiting_external`: Eine tatsächlich notwendige externe Prüfung oder Abhängigkeit läuft noch.
+- `blocked_external`: Ein belegtes Authentifizierungs-, Berechtigungs- oder externes Infrastrukturproblem verhindert die Fortsetzung.
+- `released`: Der Arbeitsstand wurde sicher dokumentiert und mit exakter Fortsetzung freigegeben.
+
+`continue` erscheint nur zwischen internen Arbeitspässen. Dafür muss der Nutzer nichts erneut starten oder bestätigen.
 
 ## Falls der Lauf stoppt
 
-Das Terminal nennt den Exit-Status und den Pfad zum Log. Behebe nur den konkret genannten Authentifizierungs-, Netzwerk-, Berechtigungs- oder Worktree-Fehler und starte dieselbe Buildaufgabe danach erneut.
+Das Terminal nennt den Exit-Status und den Pfad zum Log. Behebe nur einen konkret genannten Authentifizierungs-, Netzwerk-, Berechtigungs- oder Worktree-Fehler und starte dieselbe Buildaufgabe danach erneut.
 
 Ein Codespace muss während des Laufs aktiv bleiben. Stoppe ihn nach Abschluss ausdrücklich, damit keine unnötige Codespaces-Zeit verbraucht wird.
