@@ -1,4 +1,5 @@
 import { EQUIPMENT, loadMetaProgression } from '../game/metaProgression';
+import { resolveEquippedPlayerBody } from '../game/equippedPlayerBody';
 import { isOptionalEquipmentSlotEquipped } from '../game/optionalEquipmentState';
 import { KAYKIT_PLAYER_ASSETS, type KayKitPlayerRig } from './kaykitPlayer3D';
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
@@ -82,19 +83,20 @@ function addPresentationModel(
 }
 
 /**
- * A clean menu presentation of the same KayKit Ranger body used in a run.
+ * A clean menu presentation of the equipped KayKit player body used in a run.
  * The combat rig is intentionally not reused here because its hand- and
  * bone-mounted attachments created duplicate equipment and face clipping.
  */
 export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Promise<KayKitPlayerRig> {
   const meta = loadMetaProgression();
+  const equippedBody = resolveEquippedPlayerBody(meta.equipped.armor);
   const Loader = pagesSafeLoader(GLTFLoader);
   const loader = new Loader();
   const quiverEquipped = isOptionalEquipmentSlotEquipped('quiver');
   const quiverDefinition = quiverEquipped ? EQUIPMENT[meta.equipped.quiver] : null;
 
   const [rangerGltf, idleGltf, weapons, quiverGltf] = await Promise.all([
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranger),
+    loader.loadAsync(`${KAYKIT_ROOT}/${equippedBody.assetPath}`),
     loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
     loadKayKitRangerWeapons(),
     quiverDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverDefinition.assetPath}`) : Promise.resolve(null),
@@ -111,10 +113,12 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     bow: meta.equipped.bow,
     quiver: quiverEquipped ? meta.equipped.quiver : null,
     armor: meta.equipped.armor,
+    resolvedArmor: equippedBody.armorId,
+    armorFallback: equippedBody.usedFallback,
   };
 
   const visual = rangerGltf.scene;
-  visual.name = 'VillageRunRangerBody';
+  visual.name = `VillageEquippedBody_${equippedBody.armorId}`;
   visual.scale.setScalar(1.18);
   prepareModel(visual);
   root.add(visual);
@@ -123,7 +127,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const idleClip = clips.find((clip: any) => clipKey(clip).includes('idle_b'))
     ?? clips.find((clip: any) => clipKey(clip).includes('idle_a'))
     ?? clips.find((clip: any) => clipKey(clip).includes('idle'));
-  if (!idleClip) throw new Error('KayKit idle animation is missing for the village Ranger');
+  if (!idleClip) throw new Error('KayKit idle animation is missing for the equipped village player');
 
   const mixer = new THREE.AnimationMixer(visual);
   const idleAction = mixer.clipAction(idleClip);
