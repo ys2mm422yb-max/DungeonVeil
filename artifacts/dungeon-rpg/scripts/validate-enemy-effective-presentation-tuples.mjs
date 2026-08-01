@@ -119,8 +119,10 @@ for (const [tupleKey, owners] of tupleOwners) {
   if (owners.length > 1) failures.push(`effective runtime presentation is duplicated by ${owners.join(', ')}: ${tupleKey}`);
 }
 
-if (entries.some(entry => JSON.stringify(entry.tuple).includes(entry.familyId))) {
-  failures.push('effective tuple identity incorrectly depends on family id instead of rendered body/equipment/motion fields');
+for (const entry of entries) {
+  if ('familyId' in entry.tuple || 'presentationKey' in entry.tuple || 'name' in entry.tuple || 'tint' in entry.tuple) {
+    failures.push(`${entry.familyId} effective tuple uses a forbidden identity-only field`);
+  }
 }
 if (regional.includes('tint') && sourceLines.some(line => /family(?:Creature|Skeleton|Adventurer|RealMage)\([^)]*tint/i.test(line))) {
   failures.push('family uniqueness depends on tint, which is not an accepted standalone identity dimension');
