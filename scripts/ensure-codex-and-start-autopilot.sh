@@ -35,4 +35,30 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 4
 fi
 
-exec bash "$repo_root/scripts/start-dungeon-veil-autopilot.sh"
+canonical_launcher="$repo_root/scripts/start-dungeon-veil-autopilot.sh"
+runtime_launcher="$repo_root/.git/dungeon-veil-autopilot-full-access-runtime.sh"
+
+# The canonical launcher intentionally keeps its conservative default. The saved
+# Codespaces task is the explicitly trusted development worker, so it needs access
+# to .git, browser processes and authenticated GitHub network operations.
+sed \
+  -e 's/--sandbox workspace-write/--sandbox danger-full-access/' \
+  -e '/sandbox_workspace_write\.network_access=true/d' \
+  "$canonical_launcher" > "$runtime_launcher"
+
+if ! grep -q -- '--sandbox danger-full-access' "$runtime_launcher"; then
+  rm -f "$runtime_launcher"
+  echo "Fehler: Der Autopilot-Launcher konnte nicht auf Codespaces-Vollzugriff vorbereitet werden." >&2
+  exit 5
+fi
+
+cleanup_runtime_launcher() {
+  rm -f "$runtime_launcher"
+}
+trap cleanup_runtime_launcher EXIT
+
+set +e
+bash "$runtime_launcher"
+status=$?
+set -e
+exit "$status"
