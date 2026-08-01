@@ -38,8 +38,11 @@ function runtimeMonitor(page) {
 
 async function seedBaseState(page, { signedIn = false } = {}) {
   await page.addInitScript(({ online }) => {
+    const seedMarker = 'dungeon-veil-autopilot-product-seeded-v1';
+    if (sessionStorage.getItem(seedMarker) === '1') return;
     localStorage.clear();
     sessionStorage.clear();
+    sessionStorage.setItem(seedMarker, '1');
     const now = Date.now();
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');

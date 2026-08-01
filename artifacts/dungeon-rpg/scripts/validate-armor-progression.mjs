@@ -79,6 +79,8 @@ assert(productJourney.includes("toHaveAttribute('data-equipped-armor', 'ash-armo
   && productJourney.includes("toHaveAttribute('data-equipped-armor', 'warden-armor')")
   && productJourney.includes("toHaveAttribute('data-equipped-armor-fallback', 'true')")
   && productJourney.includes("new Event('dungeon-veil-cloud-save-restored')"), 'four-device product journey does not cover immediate, reload, cloud-restore and fallback armor appearances');
+assert(productJourney.includes("sessionStorage.getItem(seedMarker) === '1'")
+  && productJourney.includes("sessionStorage.setItem(seedMarker, '1')"), 'four-device product journey reseeds and erases persisted run state during reload');
 assert(runCanvas.includes('generation !== playerRigGeneration')
   && runCanvas.includes('scene.remove(previousRig.root)')
   && runCanvas.includes('disposeObject(previousRig.root)'), 'active run renderer does not replace the visible rig safely');
