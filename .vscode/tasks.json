@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Dungeon Veil: Autopilot starten",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "${workspaceFolder}/scripts/start-dungeon-veil-autopilot.sh"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true,
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "runOptions": {
+        "reevaluateOnRerun": true,
+        "instanceLimit": 1
+      },
+      "detail": "Startet den universellen Dungeon-Veil-Codex-Worker ohne erneutes Prompt-Einfügen."
+    }
+  ]
+}
