@@ -11,6 +11,32 @@ Der Codespace enthält eine gespeicherte VS-Code-Aufgabe. Dadurch muss der unive
 
 Alternativ kann unter **Terminal → Run Task** ausdrücklich **Dungeon Veil: Autopilot starten** gewählt werden.
 
+## Verbindliche Aufgabenteilung
+
+Dungeon Veil verwendet zwei aktive Rollen:
+
+### Codespaces-Autopilot
+
+Der Startknopf ist der bevorzugte Weg für echte Entwicklungsarbeit. Der Codespaces-Autopilot:
+
+- bearbeitet Produktcode und große Dateien;
+- führt TypeScript, Build, fokussierte Tests und Playwright aus;
+- erstellt Commits und pusht Arbeitsbranches;
+- arbeitet mit einer `worker: primary`-Lease und eindeutiger `launcher_run_id`;
+- hat während einer aktiven Lease Vorrang für seinen PR-, Branch-, Datei- und Aufgabenbereich.
+
+### Stündliche Hintergrund-Koordination
+
+Die separate Hintergrund-Automation läuft ohne geöffneten Codespace. Sie:
+
+- überwacht GitHub, PRs, Reviews, Exact-Head-Actions, Evidence und Deployments;
+- hält Queue, Roadmap #323 und Issue #376 aktuell;
+- bereitet konkrete Fortsetzungsanweisungen für den nächsten Codespaces-Lauf vor;
+- setzt vollständig geprüfte PRs Ready, wartet Ready-only-Gates ab, mergt ohne Auto-Merge und veröffentlicht;
+- darf während einer überlappenden aktiven Codespaces-Lease keinen konkurrierenden Produktcode ändern, keine überlappenden Tests neu starten und den betroffenen PR nicht mergen.
+
+Der frühere Secondary-/Zweit-Autopilot ist pausiert. Es wird keine neue `worker: secondary`-Lease erwartet und keine Arbeit an einen Secondary delegiert, solange der Nutzer diese Rolle nicht ausdrücklich wieder aktiviert.
+
 ## Verhalten
 
 Der Launcher:
@@ -30,7 +56,7 @@ Der Launcher:
 - führt nach Erreichen des Pass-Limits oder einem Codex-Fehler einen gesonderten Abschluss-Handoff aus;
 - versucht beim Prozessende zusätzlich, eine zu diesem Launcher-Lauf gehörende versehentlich aktive Lease in Issue #376 sicher auf `released` zu setzen.
 
-Jeder Launcher-Lauf besitzt eine eindeutige `launcher_run_id`. Dadurch kann ein Folgepass dieselbe Lease übernehmen, ohne mit anderen Primary-/Secondary-Workern zu kollidieren.
+Jeder Launcher-Lauf besitzt eine eindeutige `launcher_run_id`. Dadurch kann ein Folgepass dieselbe Lease übernehmen, ohne mit der Hintergrund-Koordination oder anderen Arbeiten zu kollidieren.
 
 ## Woran ein echter Abschluss erkennbar ist
 

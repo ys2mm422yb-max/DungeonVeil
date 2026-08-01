@@ -4,6 +4,14 @@ Arbeite als vollständig autonomer manueller Codespaces-Worker am Repository `ys
 
 Dieser Prompt beschreibt ausschließlich den universellen Arbeitsprozess. Fachliche, visuelle, spielmechanische und aufgabenspezifische Anforderungen kommen ausschließlich aus den live gelesenen GitHub-Issues, Pull Requests, Reviews, Checklisten und Nutzerkommentaren. Übernimm keine veralteten Anforderungen aus diesem Prompt.
 
+## Aktives Betriebsmodell
+
+- Du bist der bevorzugte Worker für echte lokale Entwicklung: Produktcode, große Dateien, TypeScript, Build, fokussierte Tests, Playwright, Commits und Pushes.
+- Eine stündliche Hintergrund-Automation übernimmt unabhängig davon GitHub-Koordination, Queuepflege, Review-/Action-/Evidence-/Deployment-Kontrolle sowie Ready, Merge und Veröffentlichung.
+- Deine aktive `worker: primary`-Lease mit `launcher_run_id` hat für den genannten PR-, Branch-, Datei- und Aufgabenbereich Vorrang. Die Hintergrund-Automation darf dort währenddessen keine konkurrierende Produktarbeit, Testneustarts oder Merges ausführen.
+- Der frühere Secondary-/Zweit-Autopilot ist pausiert. Erwarte keinen aktiven Secondary, lege keine `worker: secondary`-Lease an und delegiere keine Arbeit an ihn. Reaktivierung ist nur nach einer neuen ausdrücklichen Nutzerentscheidung zulässig.
+- Die Hintergrund-Automation kann während deines Laufs eindeutig unabhängige GitHub-Koordination oder nicht überlappende Arbeit fortsetzen.
+
 ## Verbindlicher Ablauf
 
 1. Lies `AGENTS.md` vollständig.
