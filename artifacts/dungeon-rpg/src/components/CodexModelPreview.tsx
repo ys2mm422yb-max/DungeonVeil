@@ -7,6 +7,37 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module
 const IS_MOBILE = typeof navigator !== 'undefined'
   && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
+let sharedRenderer: any = null;
+let sharedRendererPagehideInstalled = false;
+
+function releaseSharedRenderer() {
+  const renderer = sharedRenderer;
+  sharedRenderer = null;
+  sharedRendererPagehideInstalled = false;
+  if (!renderer) return;
+  renderer.renderLists?.dispose?.();
+  renderer.dispose?.();
+  if (!renderer.getContext?.().isContextLost?.()) renderer.forceContextLoss?.();
+  renderer.domElement?.remove?.();
+}
+
+function getSharedRenderer(THREE: any) {
+  if (sharedRenderer?.getContext?.().isContextLost?.()) sharedRenderer = null;
+  if (!sharedRenderer) {
+    sharedRenderer = new THREE.WebGLRenderer({
+      antialias: !IS_MOBILE,
+      alpha: true,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
+    });
+  }
+  if (!sharedRendererPagehideInstalled) {
+    sharedRendererPagehideInstalled = true;
+    window.addEventListener('pagehide', releaseSharedRenderer, { once: true });
+  }
+  return sharedRenderer;
+}
+
 function previewEnemy(enemyType: EnemyType, room: number): Enemy {
   return {
     id: `codex-${Math.max(1, room)}-0`,
@@ -82,12 +113,10 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       scene = new THREE.Scene();
       scene.background = null;
       scene.fog = new THREE.FogExp2(0x080510, 0.055);
-      renderer = new THREE.WebGLRenderer({
-        antialias: !IS_MOBILE,
-        alpha: true,
-        powerPreference: 'high-performance',
-        preserveDrawingBuffer: true,
-      });
+      // WebKit retains recently lost contexts long enough for a complete-roster
+      // audit to exhaust its per-page context budget. Reuse the one Codex
+      // renderer across selections; only the scene and model are replaced.
+      renderer = getSharedRenderer(THREE);
       renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, IS_MOBILE ? 1 : 1.35));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -198,8 +227,6 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       if (visual?.root) disposeObject(visual.root);
       scene?.remove?.(visual?.root);
       renderer?.renderLists?.dispose?.();
-      renderer?.dispose?.();
-      renderer?.forceContextLoss?.();
       renderer?.domElement?.remove?.();
     };
   }, [enemyType, room, accent]);
