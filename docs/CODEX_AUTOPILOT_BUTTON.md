@@ -101,7 +101,7 @@ Jeder Pass liefert:
 
 ```text
 AUTOPILOT_TASK_STATUS: continue|completed|waiting_external|blocked_external|released
-AUTOPILOT_QUEUE_STATUS: same_task|next_task|empty|globally_blocked
+AUTOPILOT_QUEUE_STATUS: same_task|next_task|empty|globally_blocked|budget_exhausted
 AUTOPILOT_NEXT: konkrete nächste Operation
 ```
 
@@ -109,6 +109,7 @@ AUTOPILOT_NEXT: konkrete nächste Operation
 - `next_task`: aktuelle Aufgaben-Lease ist terminal; nächster Pass wählt eine neue freie Produktaufgabe.
 - `empty`: die Live-Queue enthält momentan keine weitere freie Produktarbeit.
 - `globally_blocked`: die gesamte Queue ist tatsächlich blockiert.
+- `budget_exhausted`: der Lauf wurde sauber übergeben, weil Pass- oder Zeitbudget erreicht ist.
 
 ## Woran ein echter Gesamtabschluss erkennbar ist
 
