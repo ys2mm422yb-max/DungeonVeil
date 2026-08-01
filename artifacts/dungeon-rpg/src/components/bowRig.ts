@@ -46,11 +46,20 @@ function authoredBowAxisCorrection(THREE: any, bow: any) {
   return correctionY;
 }
 
+function enemyFacingCorrection(heroRoot: any) {
+  let current = heroRoot;
+  while (current) {
+    if (String(current.name ?? '').startsWith('KayKitEnemy_')) return Math.PI;
+    current = current.parent;
+  }
+  return 0;
+}
+
 export function attachBowToRanger(
   THREE: any,
   heroRoot: any,
   bow: any,
-  facingCorrectionY = 0,
+  facingCorrectionY = enemyFacingCorrection(heroRoot),
 ): BowRig {
   let anchor = heroRoot;
   let bestScore = 0;
