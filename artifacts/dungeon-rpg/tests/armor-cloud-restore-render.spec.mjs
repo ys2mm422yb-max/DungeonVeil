@@ -8,22 +8,27 @@ async function tap(locator) {
   await locator.tap();
 }
 
-async function waitForNoVisibleRoomTitle(page) {
+async function waitForStableUncoveredRoom(page) {
   const roomTitles = page.getByText(/VERSORGUNGSPOSTEN|SUPPLY POST/i);
+  let hiddenSince = 0;
 
   await expect.poll(async () => {
     const count = await roomTitles.count();
     for (let index = 0; index < count; index += 1) {
-      if (await roomTitles.nth(index).isVisible()) return false;
+      if (await roomTitles.nth(index).isVisible()) {
+        hiddenSince = 0;
+        return false;
+      }
     }
-    return true;
+
+    if (hiddenSince === 0) hiddenSince = Date.now();
+    return Date.now() - hiddenSince >= 3_000;
   }, {
     timeout: 120_000,
-    message: 'every matching room-title transition must be outside the visible viewport before evidence capture',
+    intervals: [100, 250, 500],
+    message: 'every room-title transition must remain outside the visible viewport for three continuous seconds before evidence capture',
   }).toBe(true);
 
-  // Let the browser commit the first fully uncovered frame after the last visible
-  // title instance disappears. This does not replace the visibility assertion.
   await page.evaluate(() => new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(resolve));
   }));
@@ -102,10 +107,9 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
   await expect(renderer).toHaveAttribute('data-equipped-armor', 'warden-armor', { timeout: 120_000 });
   await expect(renderer).toHaveAttribute('data-equipped-armor-fallback', 'false');
 
-  // A painted WebGL back buffer alone is insufficient evidence while any duplicate
-  // room-title instance still covers the scene. The old `.first()` locator could
-  // pass against a hidden copy while another visible copy remained on iOS.
-  await waitForNoVisibleRoomTitle(page);
+  // iOS can schedule the initial room transition after the first hidden-title check.
+  // Require a continuously uncovered interval so delayed overlays cannot race the capture.
+  await waitForStableUncoveredRoom(page);
   await waitForPaintedCanvas(page, canvas, 120_000);
   await page.screenshot({
     path: `test-results/armor-cloud-restore-painted-${testInfo.project.name}.png`,
