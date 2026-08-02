@@ -142,6 +142,7 @@ jobs:
             tests/mobile-resource-upgrade.spec.mjs \
             tests/kaykit-chapter-evidence.spec.mjs \
             tests/guild-raid-lobby-mobile.spec.mjs \
+            tests/armor-cloud-restore-render.spec.mjs \
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
@@ -174,6 +175,7 @@ jobs:
             artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/mobile-resource-upgrade-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.png
       - name: Enforce focused product failure budget
         if: steps.product-tests.outcome == 'failure'
         run: >-
