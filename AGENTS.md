@@ -10,99 +10,146 @@ These instructions apply to the entire repository. GitHub is the source of truth
 - Leave PR #315 untouched.
 - Do not enable auto-merge.
 - Do not delete branches automatically.
-- Use only the public test URL already documented in Issue #376.
-- Replit is forbidden for this repository.
+- Do not force-push, reset, or overwrite another worker's commits.
+- Use only `https://ys2mm422yb-max.github.io/DungeonVeil/` as the public test URL.
+- Replit and temporary GitHub Actions workflows used as patch transport are forbidden.
 
 ## Start every task from live GitHub state
 
-1. Read Issue #376 completely, including its newest comments.
-2. Read the full task issue, linked PR, current user comments, reviews, review threads, checklists, and exact-head Actions.
-3. Check for live worker leases before writing. Never overlap a leased issue, PR, branch, file set, or task scope.
+1. Read Issue #376 completely, especially its body and newest comments.
+2. Read the full task issue, linked PR, current user comments, reviews, review threads, checklists, exact-head Actions, artifacts, and deployments.
+3. Check live worker leases before every write. Never overlap a leased issue, PR, branch, file set, or task scope.
 4. Verify the current target-branch head before creating a focused branch.
 5. Create new product work as a Draft PR against `fix/mobile-telegraphs-room-21-50-balance`.
 
-Task-specific product, gameplay, visual, and acceptance requirements belong in the relevant GitHub issue, PR, review thread, or Issue #376 handoff. Do not permanently add task-specific requirements to this file.
+Task-specific product, gameplay, visual, and acceptance requirements belong in the relevant issue, PR, review thread, or Issue #376 handoff.
 
-## Active operating model
+## Active operating model: exactly two regular workers
 
-Dungeon Veil uses exactly four regular ChatGPT automation roles, staggered hourly in `Europe/Berlin` so a new pass starts every 15 minutes:
+Dungeon Veil uses exactly two regular ChatGPT automation roles in `Europe/Berlin`:
 
-1. **`:00` — Primary developer** (`worker: primary`) takes the highest-priority free product task, implements and tests the fix, maintains its PR, and may carry a fully accepted exact head through Ready, merge, and publication.
-2. **`:15` — Secondary developer** (`worker: secondary`) works on an independent free product task. It must never overlap another live lease's PR, branch, files, or scope and must immediately select different free work when a scope is occupied.
-3. **`:30` — Visual and asset scout** (`worker: visual`) opens and evaluates screenshots, videos, traces, and runtime evidence; tests the published player experience; audits available purchased assets; and implements isolated visual or asset improvements when the scope is free.
-4. **`:45` — QA, merge, and publication verifier** (`worker: verifier`) diagnoses red gates, reviews threads and evidence, performs final exact-head acceptance, merges without auto-merge only when every gate is satisfied, retains branches, and verifies deployment.
+1. **`:00` — Master implementer** (`worker: primary`)
+   - owns the highest-priority free product task;
+   - implements, tests, commits, pushes, and maintains its PR;
+   - generates and actually inspects required runtime and visual evidence;
+   - may carry a fully accepted exact head through Ready, merge, and publication.
+2. **`:30` — Master verifier** (`worker: verifier`)
+   - verifies exact-head gates, reviews, threads, artifacts, and evidence;
+   - may safely implement a focused correction when it does not overlap the primary lease;
+   - performs final acceptance, Expected-Head merge without auto-merge, retains branches, and verifies publication.
 
-Do not create a fifth regular worker unless concrete live evidence shows that it increases completed, conflict-free throughput. `worker: background` is reserved for explicitly separate coordination or migration work and is not a fifth scheduled product worker.
+There are no scheduled `secondary` or `visual` workers. Historical comments using those names are audit records only and do not authorize new leases or work. Do not create additional regular workers unless the user explicitly changes this operating model.
 
-Codespaces is an optional targeted execution environment for heavy local builds, Playwright runs, or safe large edits. It is not an additional regular worker. A targeted Codespaces launcher uses `worker: primary` with a unique `launcher_run_id`, must read live leases first, and may work only inside its own non-overlapping lease.
+`worker: background` is permitted only for a short-lived, explicitly separate coordination or migration task. It is never a third scheduled product worker.
 
-Only a current, unexpired, exact-head overlapping lease blocks work. One running Action, deployment, media-download problem, or task-local external wait is not a global lock; every worker must select the next independent free operation when possible.
+Codespaces is an optional execution environment, not an additional worker. A targeted Codespaces launcher uses `worker: primary`, has a unique `launcher_run_id`, and must obey the same non-overlapping lease rules.
 
-## Queue-drain contract
+## Mandatory progress model
 
-Each automation pass should process the complete currently free queue as far as its bounded run permits safely.
+Primary state machine:
 
-- Finishing, safely parking, or externally waiting on one task does not end a run when another independent task for that role is free.
-- Rebuild the queue live before each new task from open product issues, PRs, reviews, exact-head Actions, roadmap state, deployments, evidence, and user comments.
-- Issue #376 and roadmap #323 are coordination sources, not ordinary product tasks to close.
-- Existing defective or red product PRs take priority over opening new backlog PRs.
-- Avoid uncontrolled PR sprawl. When two or more independent product PRs are already waiting on external checks or evidence, prefer existing PRs, red gates, reviews, evidence, or safe independent work before opening another product PR.
-- Each task has its own lease lifecycle. A lease must be terminal before the same worker switches to a different task.
-- A running check for one task is not a global blocker.
-- The user has granted standing permission for normal safe branch, implementation, test, commit, push, PR, Ready, merge, and publication steps. Do not ask for routine confirmation, but never bypass repository quality or safety rules.
+`IMPLEMENTIEREN -> EXAKT-HEAD-TESTS -> EVIDENCE -> READY -> READY-GATES -> MERGE -> DEPLOY -> DONE`
 
-A Codespaces launcher additionally reports:
+Verifier state machine:
 
-```text
-AUTOPILOT_TASK_STATUS: continue|completed|waiting_external|blocked_external|released
-AUTOPILOT_QUEUE_STATUS: same_task|next_task|empty|globally_blocked|budget_exhausted
-AUTOPILOT_NEXT: concrete next operation
-```
+`VERIFY -> EVIDENCE -> READY-GATES -> MERGE -> DEPLOY -> DONE`
 
-## Worker coordination
+A worker may not merely report the same exact head, state, and blocker in three consecutive runs. It must take a new concrete action: fix the cause and create a new head, rerun a genuinely transient failed job, inspect missing evidence, safely park the task and continue independent work, or create a precise issue and focused fix when appropriate.
 
-Use the lease protocol from Issue #376. A run must never end with its own lease still `active`.
+`waiting_external` is not a run-ending condition when independent work exists.
 
-Allowed worker values are:
+## Queue and WIP contract
+
+Rebuild the live queue from open issues and comments, PRs, reviews and threads, roadmap #323, Issue #376, Actions, deployments, artifacts, user rejections, and self-discovered product defects.
+
+Prioritize:
+
+1. safety, data-loss, auth, build, deployment, and merge blockers;
+2. red, cancelled, stale, or missing exact-head gates;
+3. active PR defects, rejected user feedback, and unresolved reviews;
+4. unfinished acceptance criteria in existing work;
+5. visible UI, gameplay, mobile, enemy, boss, equipment, animation, and asset defects;
+6. roadmap and remaining backlog;
+7. safe tests, validators, evidence, and process improvements.
+
+Across both workers, keep at most one actively modified or verified product PR plus one additional cleanly parked `waiting_external` PR. Do not open a third implementation PR while active work can continue.
+
+## Worker coordination and leases
+
+Use the lease protocol in Issue #376. Allowed new worker values are:
 
 - `primary`
-- `secondary`
-- `visual`
 - `verifier`
-- `background` only for explicitly separate background coordination or migration work
+- `background` only for explicit coordination or migration
 
-Allowed terminal states are:
+Do not create new `secondary` or `visual` leases.
 
-- `completed`
-- `released`
-- `waiting_external`
-- `blocked_external`
+Before every GitHub write:
 
-Before every GitHub write, claim exactly one narrow lease, recheck the affected head after the claim, stay within the declared scope, and terminalize the lease at the end. Never hold more than one own active lease.
+1. read all current leases;
+2. reject any overlapping issue, PR, branch, file, or scope;
+3. claim exactly one narrow exact-head lease;
+4. re-read the affected head after the claim;
+5. stay inside the declared scope;
+6. never hold more than one own active lease;
+7. terminalize the lease before the run ends.
 
-Only a current, unexpired, exact-head overlapping lease blocks work. Release stale, malformed, expired, or head-stale locks only after live verification.
+Allowed terminal states are `completed`, `released`, `waiting_external`, and `blocked_external`.
+
+Only a current, unexpired, exact-head overlapping lease blocks work. Historical, expired, malformed, or head-stale locks are not active after live verification.
+
+## Durable handoff memory
+
+Every active-task handoff in Issue #376 must include:
+
+- `task_key`
+- `state`
+- `attempt`
+- `exact_head`
+- `last_completed_step`
+- `next_executable_step`
+- `artifact_ids`
+- `known_good_runs`
+- `blocker_class`
+- `updated_at`
+
+The next run resumes exactly at `next_executable_step`; it must not restart a broad audit. Local files are not durable memory. Artifact IDs, hashes, run IDs, PR state, and GitHub comments are durable memory.
+
+## Failure classification and self-healing
+
+Classify blockers as:
+
+- `product`: reproducible code, test, workflow, data, UI, gameplay, or evidence defect; fix it or create a precise focused handoff
+- `transient_tool`: container, network, DNS, cache, connector, or runtime failure; try two technically different methods, then perform other concrete work
+- `external_wait`: unchanged running GitHub job or unavailable external resource; park it and continue elsewhere
+
+Only `product` is a functional PR blocker. A transient tool failure must not be recorded as a permanent merge blocker.
+
+When the same transient tool failure appears in two consecutive runs, create one deduplicated process issue and, when safely isolatable, a permanent workflow or evidence fix. Prefer small separate, directly inspectable media artifacts plus a manifest and hash list over difficult monolithic archives.
 
 ## Quality and merge rules
 
 - A known defect, rejecting user report, unresolved review requirement, or unmet issue criterion blocks Ready and merge even when automated checks are green.
-- Do not weaken assertions, coverage, thresholds, timeouts, or Playwright configuration.
+- Do not weaken assertions, coverage, thresholds, timeouts, acceptance criteria, or Playwright configuration.
 - Playwright retries remain `0`.
 - UI, gameplay, and runtime acceptance use only the four supported mobile portrait projects.
-- Evidence must follow Issue #366: small, separate, and hash-deduplicated.
-- Before Ready or merge, verify the unchanged exact head, base branch, mergeability, reviews, threads, required checks, artifacts, leases, and every task criterion.
+- Evidence follows Issue #366: small, separate, and SHA-256-deduplicated.
 - Actually open and inspect all relevant hash-distinct screenshots, videos, traces, and runtime evidence before claiming visual acceptance.
+- Before Ready or merge, verify the unchanged exact head, base branch, mergeability, reviews, threads, required checks, artifacts, leases, and every task criterion.
 - Merge only after all applicable Draft and Ready exact-head gates are green and no known blocker remains.
+- Use Expected-Head protection, never auto-merge, and keep the source branch.
 - Keep issues open until their complete Definition of Done is satisfied.
-- After merge, verify the target-branch deployment and the fixed public test URL before claiming publication success.
+- After merge, verify the target-branch commit and GitHub Pages deployment.
+
+A browser, DNS, cache, network, or tool inability to open the public URL alone does not block merge when every exact-head gate is green, evidence is accepted, and the exact merged target commit has a successful Pages deployment. A failed, missing, or stale deployment remains a blocker.
 
 ## Safe implementation practices
 
 - Prefer focused changes and preserve unrelated behavior.
-- Never use temporary GitHub Actions workflows as patch transport.
 - Remove temporary repair files and debugging artifacts before completion.
-- For large file replacement, read the complete current file, verify blob SHA and head immediately before writing, then inspect the resulting diff and head.
-- Run the narrowest relevant validation first, followed by repository typecheck/build and the task-specific checks required by GitHub.
-- Do not force-push, reset, or overwrite another worker's commits.
+- For a complete file replacement, read the current file, verify its blob SHA and branch head immediately before writing, then inspect the resulting diff and new head.
+- Run the narrowest relevant validation first, followed by repository typecheck/build and task-specific checks.
+- Never overwrite another worker's commits or tests.
 
 Common commands from the repository root:
 
@@ -121,7 +168,7 @@ Run additional audit and Playwright commands exactly as required by the active i
 - Use GitHub Codespaces secrets for interactive development and GitHub Actions secrets for workflows. They are separate stores.
 - Codex should sign in with the user's ChatGPT account. Do not require or create `OPENAI_API_KEY` for that flow.
 - Do not commit real `.env` files. Commit example templates only with placeholder values.
-- Treat the Codespaces-provided `GITHUB_TOKEN` as ephemeral and never copy it elsewhere.
+- Treat a Codespaces-provided `GITHUB_TOKEN` as ephemeral and never copy it elsewhere.
 - If a secret is exposed, stop work, avoid repeating it, and document only that rotation is required—never the value.
 
 ## Codespaces
