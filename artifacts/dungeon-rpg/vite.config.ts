@@ -114,37 +114,60 @@ function sidecarMimeType(fileName: string, declaredMime?: string) {
   return 'application/octet-stream';
 }
 
-async function inlineGltfSidecars(gltfPath: string) {
+function emittedAssetUrl(outDir: string, sidecarPath: string, basePath: string) {
+  const relative = path.relative(outDir, sidecarPath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Refusing emitted glTF asset outside production output: ${sidecarPath}`);
+  }
+  const encodedPath = relative.split(path.sep).map(segment => encodeURIComponent(segment)).join('/');
+  return `${basePath}${encodedPath}`;
+}
+
+async function resolveGltfSidecar(gltfPath: string, uri: string) {
+  const directory = path.dirname(gltfPath);
+  const sidecarPath = path.resolve(directory, decodeURIComponent(uri));
+  const relative = path.relative(directory, sidecarPath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Refusing glTF sidecar outside its asset directory: ${uri}`);
+  }
+  if (!(await hasContent(sidecarPath))) throw new Error(`Required glTF sidecar is missing: ${sidecarPath}`);
+  return sidecarPath;
+}
+
+async function inlineGltfSidecars(gltfPath: string, outDir: string, basePath: string) {
   const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
     buffers?: Array<{ uri?: string }>;
     images?: Array<{ uri?: string; mimeType?: string }>;
   };
-  const directory = path.dirname(gltfPath);
   let changed = false;
 
-  for (const entry of [...(source.buffers ?? []), ...(source.images ?? [])]) {
+  for (const entry of source.buffers ?? []) {
     const uri = entry.uri;
     if (!uri || uri.startsWith('data:') || uri.includes('://')) continue;
-    const sidecarPath = path.resolve(directory, decodeURIComponent(uri));
-    const relative = path.relative(directory, sidecarPath);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      throw new Error(`Refusing glTF sidecar outside its asset directory: ${uri}`);
-    }
+    const sidecarPath = await resolveGltfSidecar(gltfPath, uri);
     const bytes = await fs.readFile(sidecarPath);
-    entry.uri = `data:${sidecarMimeType(uri, 'mimeType' in entry ? entry.mimeType : undefined)};base64,${bytes.toString('base64')}`;
+    entry.uri = `data:${sidecarMimeType(uri)};base64,${bytes.toString('base64')}`;
+    changed = true;
+  }
+
+  for (const entry of source.images ?? []) {
+    const uri = entry.uri;
+    if (!uri || uri.startsWith('data:') || uri.includes('://')) continue;
+    const sidecarPath = await resolveGltfSidecar(gltfPath, uri);
+    entry.uri = emittedAssetUrl(outDir, sidecarPath, basePath);
     changed = true;
   }
 
   if (changed) await fs.writeFile(gltfPath, `${JSON.stringify(source)}\n`, 'utf8');
 }
 
-async function inlineRequiredKayKitSidecars(outDir: string) {
+async function inlineRequiredKayKitSidecars(outDir: string, basePath: string) {
   const gltfPaths = [
     path.join(outDir, 'assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf'),
   ];
   for (const gltfPath of gltfPaths) {
     if (!(await hasContent(gltfPath))) throw new Error(`Required KayKit glTF is missing from the production build: ${gltfPath}`);
-    await inlineGltfSidecars(gltfPath);
+    await inlineGltfSidecars(gltfPath, outDir, basePath);
   }
 }
 
@@ -189,7 +212,7 @@ export default defineConfig(async () => {
   const inlineKayKitSidecarsPlugin: Plugin = {
     name: 'dungeon-veil-inline-kaykit-sidecars',
     async writeBundle() {
-      await inlineRequiredKayKitSidecars(buildOutDir);
+      await inlineRequiredKayKitSidecars(buildOutDir, normalizedBasePath);
     },
   };
 
