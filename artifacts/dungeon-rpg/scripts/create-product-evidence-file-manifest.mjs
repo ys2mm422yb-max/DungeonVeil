@@ -33,6 +33,19 @@ function pngDimensions(bytes, relativePath) {
   };
 }
 
+function duplicateHashGroups(entries) {
+  const pathsByHash = new Map();
+  for (const entry of entries) {
+    const paths = pathsByHash.get(entry.sha256) ?? [];
+    paths.push(entry.path);
+    pathsByHash.set(entry.sha256, paths);
+  }
+  return [...pathsByHash.entries()]
+    .filter(([, paths]) => paths.length > 1)
+    .map(([sha256, paths]) => ({ sha256, paths: paths.sort((a, b) => a.localeCompare(b)) }))
+    .sort((a, b) => a.sha256.localeCompare(b.sha256));
+}
+
 async function createManifest(root, outputPath) {
   const rootPath = path.resolve(root);
   const names = await fs.readdir(rootPath);
@@ -61,9 +74,14 @@ async function createManifest(root, outputPath) {
 
   if (entries.length === 0) throw new Error(`No product evidence media found in ${rootPath}`);
 
+  const files = entries.sort((a, b) => a.path.localeCompare(b.path));
+  const duplicateHashes = duplicateHashGroups(files);
   const manifest = {
     version: 1,
-    files: entries.sort((a, b) => a.path.localeCompare(b.path)),
+    mediaFiles: files.length,
+    uniqueMediaFiles: files.length - duplicateHashes.reduce((count, group) => count + group.paths.length - 1, 0),
+    duplicateHashes,
+    files,
   };
   await fs.writeFile(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return manifest;
@@ -79,10 +97,17 @@ async function selfTest() {
     png.writeUInt32BE(844, 20);
     await fs.writeFile(path.join(root, 'visual-z-device.png'), png);
     await fs.writeFile(path.join(root, 'autopilot-a-device.webm'), Buffer.from('video'));
+    await fs.writeFile(path.join(root, 'autopilot-b-device.webm'), Buffer.from('video'));
     const output = path.join(root, 'manifest.json');
     const manifest = await createManifest(root, output);
-    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,visual-z-device.png') {
+    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,autopilot-b-device.webm,visual-z-device.png') {
       throw new Error('Manifest ordering is not deterministic');
+    }
+    if (manifest.mediaFiles !== 3 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 1) {
+      throw new Error('Manifest duplicate hash summary is invalid');
+    }
+    if (manifest.duplicateHashes[0].paths.join(',') !== 'autopilot-a-device.webm,autopilot-b-device.webm') {
+      throw new Error('Duplicate evidence paths are not deterministic');
     }
     const pngEntry = manifest.files.find((entry) => entry.path.endsWith('.png'));
     if (pngEntry.png.width !== 390 || pngEntry.png.height !== 844 || pngEntry.sha256.length !== 64) {
