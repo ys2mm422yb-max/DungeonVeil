@@ -16,6 +16,7 @@ const scripts = [
   'validate-combat-telegraphs-late-balance.mjs',
   'validate-mobile-zoom-guard.mjs',
   'validate-ipad-run-layout.mjs',
+  'validate-rooms-1-20-mobile-visual-evidence-contract.mjs',
   'validate-worldboss-performance.mjs',
   'validate-social-navigation.mjs',
   'validate-social-progression.mjs',
