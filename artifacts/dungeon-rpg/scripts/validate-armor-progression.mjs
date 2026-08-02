@@ -77,8 +77,8 @@ assert(runCanvas.includes("window.addEventListener('dungeon-veil-meta-changed', 
 assert(runCanvas.includes('host.dataset.equippedArmor =') && runCanvas.includes('host.dataset.equippedArmorFallback ='), 'active run renderer does not expose the resolved visible armor for lifecycle verification');
 assert(productJourney.includes("toHaveAttribute('data-equipped-armor', 'ash-armor')")
   && productJourney.includes("toHaveAttribute('data-equipped-armor', 'warden-armor')")
-  && productJourney.includes("toHaveAttribute('data-equipped-armor-fallback', 'true')")
-  && productJourney.includes("new Event('dungeon-veil-cloud-save-restored')"), 'four-device product journey does not cover immediate, reload, cloud-restore and fallback armor appearances');
+  && productJourney.includes("toHaveAttribute('data-equipped-armor-fallback', 'false')")
+  && productJourney.includes("new Event('dungeon-veil-cloud-save-restored')"), 'four-device product journey does not cover immediate, reload, cloud-restore and canonical default armor appearances');
 assert(productJourney.includes("sessionStorage.getItem(seedMarker) === '1'")
   && productJourney.includes("sessionStorage.setItem(seedMarker, '1')"), 'four-device product journey reseeds and erases persisted run state during reload');
 assert(runCanvas.includes('generation !== playerRigGeneration')
