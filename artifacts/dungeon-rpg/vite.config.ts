@@ -93,6 +93,21 @@ async function ensureLocalThreeRuntime() {
     await fs.writeFile(temporary, bytes);
     await fs.rename(temporary, destination);
   }));
+
+  const gltfLoaderPath = path.join(publicRoot, 'examples/jsm/loaders/GLTFLoader.js');
+  const gltfLoaderSource = await fs.readFile(gltfLoaderPath, 'utf8');
+  const imageBitmapConstruction = 'new ImageBitmapLoader( this.options.manager )';
+  const textureConstruction = 'new TextureLoader( this.options.manager )';
+  if (!gltfLoaderSource.includes(imageBitmapConstruction) && !gltfLoaderSource.includes(textureConstruction)) {
+    throw new Error('Pinned GLTFLoader image-decoder contract changed; refusing an unverified runtime build');
+  }
+  if (gltfLoaderSource.includes(imageBitmapConstruction)) {
+    await fs.writeFile(
+      gltfLoaderPath,
+      gltfLoaderSource.replaceAll(imageBitmapConstruction, textureConstruction),
+      'utf8',
+    );
+  }
 }
 
 function dedicatedEnemyModelsOnly(code: string) {
