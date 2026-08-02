@@ -80,6 +80,11 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
 
   await expect(renderer).toHaveAttribute('data-equipped-armor', 'warden-armor', { timeout: 120_000 });
   await expect(renderer).toHaveAttribute('data-equipped-armor-fallback', 'false');
+
+  // A painted WebGL back buffer alone is insufficient evidence while the room-title
+  // transition still covers the scene. Wait for the fixed room-1 title card to leave
+  // the visible viewport before accepting or capturing the cloud-restored armour.
+  await expect(page.getByText(/VERSORGUNGSPOSTEN|SUPPLY POST/i).first()).toBeHidden({ timeout: 120_000 });
   await waitForPaintedCanvas(page, canvas, 120_000);
   await page.screenshot({
     path: `test-results/armor-cloud-restore-painted-${testInfo.project.name}.png`,
