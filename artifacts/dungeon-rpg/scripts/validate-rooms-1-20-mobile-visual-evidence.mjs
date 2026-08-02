@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, extname, relative, resolve, sep } from 'node:path';
 
 const REQUIRED_PROJECTS = [
   'android-chromium',
@@ -11,6 +11,7 @@ const REQUIRED_PROJECTS = [
 const REQUIRED_ROOM_SAMPLES = [1, 10, 20];
 const REQUIRED_SURFACES = ['room', 'inventory'];
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const manifestArg = process.argv.find((arg) => arg.startsWith('--manifest='));
 if (!manifestArg) {
@@ -24,6 +25,7 @@ if (!existsSync(manifestPath)) {
   process.exit(1);
 }
 
+const manifestRoot = dirname(manifestPath);
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 if (manifest.retries !== 0) {
   throw new Error(`Expected retries=0, received ${manifest.retries}`);
@@ -45,15 +47,30 @@ for (const entry of manifest.entries) {
   if (entry.surface === 'room' && !Number.isInteger(entry.room)) {
     throw new Error(`Room evidence requires an integer room number: ${JSON.stringify(entry)}`);
   }
+  if (typeof entry.file !== 'string' || entry.file.length === 0) {
+    throw new Error(`Evidence entry requires a non-empty relative file path: ${JSON.stringify(entry)}`);
+  }
 
-  const filePath = resolve(manifestPath, '..', entry.file);
+  const filePath = resolve(manifestRoot, entry.file);
+  const relativePath = relative(manifestRoot, filePath);
+  if (relativePath === '' || relativePath === '..' || relativePath.startsWith(`..${sep}`)) {
+    throw new Error(`Evidence file must stay inside the manifest directory: ${entry.file}`);
+  }
+  if (extname(filePath).toLowerCase() !== '.png') {
+    throw new Error(`Evidence file must be a PNG: ${entry.file}`);
+  }
   if (!existsSync(filePath)) throw new Error(`Evidence file missing: ${filePath}`);
   const bytes = statSync(filePath).size;
   if (bytes <= 0 || bytes > MAX_FILE_BYTES) {
     throw new Error(`Evidence file outside compact budget (${bytes} bytes): ${filePath}`);
   }
 
-  const hash = createHash('sha256').update(readFileSync(filePath)).digest('hex');
+  const contents = readFileSync(filePath);
+  if (contents.length < PNG_SIGNATURE.length || !contents.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+    throw new Error(`Evidence file is not a decodable PNG candidate: ${entry.file}`);
+  }
+
+  const hash = createHash('sha256').update(contents).digest('hex');
   if (entry.sha256 && entry.sha256 !== hash) {
     throw new Error(`SHA-256 mismatch for ${entry.file}: expected ${entry.sha256}, got ${hash}`);
   }
@@ -81,4 +98,4 @@ for (const [project, projectCoverage] of coverage) {
   }
 }
 
-console.log(`Rooms 1-20 mobile visual evidence contract passed: ${manifest.entries.length} unique compact files across ${REQUIRED_PROJECTS.length} portrait projects.`);
+console.log(`Rooms 1-20 mobile visual evidence contract passed: ${manifest.entries.length} unique compact PNG files across ${REQUIRED_PROJECTS.length} portrait projects.`);
