@@ -107,6 +107,47 @@ function dedicatedEnemyModelsOnly(code: string) {
     .replace(ENEMY_FALLBACK_ERROR, ENEMY_DEDICATED_MODEL_ERROR);
 }
 
+function sidecarMimeType(fileName: string, declaredMime?: string) {
+  if (declaredMime) return declaredMime;
+  if (fileName.endsWith('.png')) return 'image/png';
+  if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) return 'image/jpeg';
+  return 'application/octet-stream';
+}
+
+async function inlineGltfSidecars(gltfPath: string) {
+  const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
+    buffers?: Array<{ uri?: string }>;
+    images?: Array<{ uri?: string; mimeType?: string }>;
+  };
+  const directory = path.dirname(gltfPath);
+  let changed = false;
+
+  for (const entry of [...(source.buffers ?? []), ...(source.images ?? [])]) {
+    const uri = entry.uri;
+    if (!uri || uri.startsWith('data:') || uri.includes('://')) continue;
+    const sidecarPath = path.resolve(directory, decodeURIComponent(uri));
+    const relative = path.relative(directory, sidecarPath);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      throw new Error(`Refusing glTF sidecar outside its asset directory: ${uri}`);
+    }
+    const bytes = await fs.readFile(sidecarPath);
+    entry.uri = `data:${sidecarMimeType(uri, 'mimeType' in entry ? entry.mimeType : undefined)};base64,${bytes.toString('base64')}`;
+    changed = true;
+  }
+
+  if (changed) await fs.writeFile(gltfPath, `${JSON.stringify(source)}\n`, 'utf8');
+}
+
+async function inlineRequiredKayKitSidecars(outDir: string) {
+  const gltfPaths = [
+    path.join(outDir, 'assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf'),
+  ];
+  for (const gltfPath of gltfPaths) {
+    if (!(await hasContent(gltfPath))) throw new Error(`Required KayKit glTF is missing from the production build: ${gltfPath}`);
+    await inlineGltfSidecars(gltfPath);
+  }
+}
+
 export default defineConfig(async () => {
   await ensureLocalThreeRuntime();
 
@@ -115,6 +156,7 @@ export default defineConfig(async () => {
   const basePath = process.env.BASE_PATH ?? '/';
   const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
   const replitPlugins = [];
+  const buildOutDir = path.resolve(import.meta.dirname, 'dist/public');
 
   const dedicatedEnemyModelsPlugin: Plugin = {
     name: 'dungeon-veil-dedicated-enemy-models-only',
@@ -144,6 +186,13 @@ export default defineConfig(async () => {
     },
   };
 
+  const inlineKayKitSidecarsPlugin: Plugin = {
+    name: 'dungeon-veil-inline-kaykit-sidecars',
+    async writeBundle() {
+      await inlineRequiredKayKitSidecars(buildOutDir);
+    },
+  };
+
   if (process.env.NODE_ENV !== 'production' && process.env.REPL_ID !== undefined) {
     const [{ cartographer }, { devBanner }] = await Promise.all([
       import('@replit/vite-plugin-cartographer'),
@@ -160,7 +209,7 @@ export default defineConfig(async () => {
 
   return {
     base: normalizedBasePath,
-    plugins: [dedicatedEnemyModelsPlugin, internalAssetBasePlugin, react(), tailwindcss(), runtimeErrorOverlay(), ...replitPlugins],
+    plugins: [dedicatedEnemyModelsPlugin, internalAssetBasePlugin, inlineKayKitSidecarsPlugin, react(), tailwindcss(), runtimeErrorOverlay(), ...replitPlugins],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, 'src'),
@@ -175,7 +224,7 @@ export default defineConfig(async () => {
     },
     root: path.resolve(import.meta.dirname),
     build: {
-      outDir: path.resolve(import.meta.dirname, 'dist/public'),
+      outDir: buildOutDir,
       emptyOutDir: true,
     },
     server: {
