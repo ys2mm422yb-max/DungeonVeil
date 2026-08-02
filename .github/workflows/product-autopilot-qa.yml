@@ -47,6 +47,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Validate repository evidence budgets
         run: node artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs
+      - name: Verify product evidence file manifest
+        run: node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs --self-test
       - name: Verify focused UX contracts
         run: node artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs
       - name: Verify TypeScript
@@ -154,6 +156,12 @@ jobs:
           retention-days: 7
           compression-level: 9
           path: artifacts/dungeon-rpg/test-results/full-game-results.json
+      - name: Generate deterministic evidence file manifest
+        if: steps.product-tests.outcome == 'success'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs
+          artifacts/dungeon-rpg/test-results
+          artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
       - name: Enforce successful product evidence budget
         if: steps.product-tests.outcome == 'success'
         run: >-
@@ -174,6 +182,7 @@ jobs:
             artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/mobile-resource-upgrade-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
       - name: Enforce focused product failure budget
         if: steps.product-tests.outcome == 'failure'
         run: >-
