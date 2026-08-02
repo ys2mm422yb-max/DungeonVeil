@@ -272,7 +272,7 @@ test('signed-out hub, solo run and duo entry remain functional', async ({ page }
     window.dispatchEvent(new Event('dungeon-veil-meta-changed'));
   });
   await expect(page.getByTestId('run-three-host')).toHaveAttribute('data-equipped-armor', 'ranger-cloak');
-  await expect(page.getByTestId('run-three-host')).toHaveAttribute('data-equipped-armor-fallback', 'true');
+  await expect(page.getByTestId('run-three-host')).toHaveAttribute('data-equipped-armor-fallback', 'false');
   await capture(page, 'solo-run-started', testInfo.project.name);
   expect(issues, issues.join('\n')).toEqual([]);
 });
