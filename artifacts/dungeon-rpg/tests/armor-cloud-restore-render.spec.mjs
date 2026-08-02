@@ -42,6 +42,12 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
     localStorage.removeItem('dungeon-veil-active-session-v1');
   });
 
+  const viewport = page.viewportSize();
+  expect(viewport, `${testInfo.project.name} must expose a fixed portrait viewport`).not.toBeNull();
+  expect(viewport.width, `${testInfo.project.name} viewport width must be positive`).toBeGreaterThan(0);
+  expect(viewport.height, `${testInfo.project.name} viewport height must be positive`).toBeGreaterThan(0);
+  expect(viewport.height, `${testInfo.project.name} must remain portrait`).toBeGreaterThan(viewport.width);
+
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   const boot = page.getByTestId('app-boot-loading-screen');
   if (await boot.count()) await expect(boot).toBeHidden({ timeout: 60_000 });
