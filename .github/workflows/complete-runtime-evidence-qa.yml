@@ -118,7 +118,8 @@ jobs:
             tests/atomic-room-readiness.spec.mjs \
             tests/worldboss-block1.spec.mjs \
             tests/full-game-smoke.spec.mjs \
-            tests/enemy-registry-codex.spec.mjs
+            tests/enemy-registry-codex.spec.mjs \
+            tests/enemy-roster-visual-evidence.spec.mjs
       - name: Upload compact runtime result manifest
         if: always()
         uses: actions/upload-artifact@v4
