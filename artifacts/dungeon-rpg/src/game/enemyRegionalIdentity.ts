@@ -123,7 +123,7 @@ export const ENEMY_FAMILY_PRESENTATIONS = {
   slime: familyCreature('slime', 'minion', 'contact', 0.94),
   goblin: familyAdventurer('goblin', 'rogue', 'rogue', 'lunge', 'dual-blade', 0.88),
   'cave-bat': familyCreature('cave-bat', 'mage', 'projectile', 0.9),
-  'thorn-crawler': familyCreature('thorn-crawler', 'rogue', 'web', 1.02),
+  'thorn-crawler': familySkeleton('thorn-crawler', 'rogue', 'minion', 'web', 'dual-blade', 0.94),
 
   skeleton: familySkeleton('skeleton', 'warrior', 'warrior', 'slam', 'axe-shield', 1.04),
   'bone-archer': familySkeleton('bone-archer', 'ranger', 'rogue', 'projectile', 'bow', 0.96),
@@ -133,9 +133,9 @@ export const ENEMY_FAMILY_PRESENTATIONS = {
   orc: familyAdventurer('orc', 'barbarian', 'barbarian', 'slam', 'heavy-axe', 1.08),
   spider: familyCreature('spider', 'rogue', 'web', 1.08),
   'briar-shaman': familyRealMage('briar-shaman', 'burst', 1),
-  'boar-brute': familySkeleton('boar-brute', 'barbarian', 'golem', 'lunge', 'heavy-axe', 1.14),
+  'boar-brute': familySkeleton('boar-brute', 'barbarian', 'minion', 'lunge', 'heavy-axe', 1.14),
 
-  vampire: familyCreature('vampire', 'mage', 'drain', 1.02),
+  vampire: familySkeleton('vampire', 'rogue', 'rogue', 'drain', 'dual-blade', 1.02),
   'shadow-rogue': familyAdventurer('shadow-rogue', 'rogue', 'rogue_hooded', 'lunge', 'dual-blade', 0.96),
   'dusk-mage': familyRealMage('dusk-mage', 'projectile', 1.02),
   'carrion-swarm': familySkeleton('carrion-swarm', 'minion', 'minion', 'burst', 'single-blade', 0.82),
@@ -153,16 +153,16 @@ export const ENEMY_FAMILY_PRESENTATIONS = {
   'astral-mote': familySkeleton('astral-mote', 'mage', 'rogue', 'burst', 'staff', 0.78),
   'void-knight': familyAdventurer('void-knight', 'knight', 'rogue_hooded', 'slam', 'axe-shield', 1.1),
 
-  'drowned-revenant': familySkeleton('drowned-revenant', 'warrior', 'golem', 'tide', 'axe-shield', 1.04),
+  'drowned-revenant': familySkeleton('drowned-revenant', 'warrior', 'warrior', 'tide', 'axe-shield', 1.04),
   tidecaller: familySkeleton('tidecaller', 'mage', 'warrior', 'tide', 'staff', 1),
   'chain-crab': familyCreature('chain-crab', 'rogue', 'lunge', 1.12),
 
   'cinder-knight': familyAdventurer('cinder-knight', 'knight', 'knight', 'fire', 'axe-shield', 1.12),
   'furnace-hound': familyCreature('furnace-hound', 'rogue', 'lunge', 1.08),
-  'ember-witch': familySkeleton('ember-witch', 'mage', 'necromancer', 'fire', 'staff', 1.02),
+  'ember-witch': familyRealMage('ember-witch', 'fire', 1.02),
 
-  'veil-aberration': familySkeleton('veil-aberration', 'barbarian', 'golem', 'burst', 'heavy-axe', 1.2),
-  'nexus-herald': familySkeleton('nexus-herald', 'mage', 'necromancer', 'summon', 'staff', 1.08),
+  'veil-aberration': familySkeleton('veil-aberration', 'barbarian', 'rogue', 'burst', 'heavy-axe', 1.2),
+  'nexus-herald': familyAdventurer('nexus-herald', 'mage', 'ranger', 'summon', 'staff', 1.08),
   'rift-beast': familyCreature('rift-beast', 'minion', 'lunge', 1.16),
 } satisfies Record<NormalEnemyFamilyId, EnemyVisualProfile>;
 
