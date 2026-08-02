@@ -113,9 +113,6 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       scene = new THREE.Scene();
       scene.background = null;
       scene.fog = new THREE.FogExp2(0x080510, 0.055);
-      // WebKit retains recently lost contexts long enough for a complete-roster
-      // audit to exhaust its per-page context budget. Reuse the one Codex
-      // renderer across selections; only the scene and model are replaced.
       renderer = getSharedRenderer(THREE);
       renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, IS_MOBILE ? 1 : 1.35));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -162,12 +159,17 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       if (!visual?.root) throw new Error(`Codex preview visual unavailable: ${enemyType}`);
       scene.add(visual.root);
       visual.root.updateMatrixWorld(true);
-      const initial = new THREE.Box3().setFromObject(visual.root);
+
+      // Frame only the authored character scene. Runtime roots also contain
+      // shadows, status halos and safety helpers whose bounds can dwarf a model
+      // (the Rift Beast previously collapsed to a tiny body behind the sigil).
+      const framingObject = visual.scene ?? visual.root;
+      const initial = new THREE.Box3().setFromObject(framingObject);
       const size = initial.getSize(new THREE.Vector3());
       const scale = 2.7 / Math.max(size.y, size.x * 0.78, size.z * 0.78, 0.001);
       visual.root.scale.multiplyScalar(scale);
       visual.root.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(visual.root);
+      const box = new THREE.Box3().setFromObject(framingObject);
       const center = box.getCenter(new THREE.Vector3());
       visual.root.position.x -= center.x;
       visual.root.position.z -= center.z;
