@@ -114,15 +114,6 @@ function sidecarMimeType(fileName: string, declaredMime?: string) {
   return 'application/octet-stream';
 }
 
-function emittedAssetUrl(outDir: string, sidecarPath: string, basePath: string) {
-  const relative = path.relative(outDir, sidecarPath);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error(`Refusing emitted glTF asset outside production output: ${sidecarPath}`);
-  }
-  const encodedPath = relative.split(path.sep).map(segment => encodeURIComponent(segment)).join('/');
-  return `${basePath}${encodedPath}`;
-}
-
 async function resolveGltfSidecar(gltfPath: string, uri: string) {
   const directory = path.dirname(gltfPath);
   const sidecarPath = path.resolve(directory, decodeURIComponent(uri));
@@ -134,40 +125,71 @@ async function resolveGltfSidecar(gltfPath: string, uri: string) {
   return sidecarPath;
 }
 
-async function inlineGltfSidecars(gltfPath: string, outDir: string, basePath: string) {
+function alignToFour(bytes: Buffer) {
+  const padding = (4 - (bytes.byteLength % 4)) % 4;
+  return padding === 0 ? bytes : Buffer.concat([bytes, Buffer.alloc(padding)]);
+}
+
+async function inlineGltfSidecars(gltfPath: string) {
   const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
-    buffers?: Array<{ uri?: string }>;
-    images?: Array<{ uri?: string; mimeType?: string }>;
+    buffers?: Array<{ uri?: string; byteLength?: number }>;
+    bufferViews?: Array<{ buffer: number; byteOffset?: number; byteLength: number }>;
+    images?: Array<{ uri?: string; mimeType?: string; bufferView?: number }>;
   };
+  const buffers = source.buffers ?? [];
+  const embeddedBuffers = new Map<number, Buffer>();
   let changed = false;
 
-  for (const entry of source.buffers ?? []) {
+  for (const [index, entry] of buffers.entries()) {
     const uri = entry.uri;
     if (!uri || uri.startsWith('data:') || uri.includes('://')) continue;
     const sidecarPath = await resolveGltfSidecar(gltfPath, uri);
-    const bytes = await fs.readFile(sidecarPath);
-    entry.uri = `data:${sidecarMimeType(uri)};base64,${bytes.toString('base64')}`;
+    embeddedBuffers.set(index, await fs.readFile(sidecarPath));
     changed = true;
   }
 
   for (const entry of source.images ?? []) {
     const uri = entry.uri;
     if (!uri || uri.startsWith('data:') || uri.includes('://')) continue;
-    const sidecarPath = await resolveGltfSidecar(gltfPath, uri);
-    entry.uri = emittedAssetUrl(outDir, sidecarPath, basePath);
+    const imagePath = await resolveGltfSidecar(gltfPath, uri);
+    const imageBytes = await fs.readFile(imagePath);
+    const targetBufferIndex = 0;
+    const currentBuffer = embeddedBuffers.get(targetBufferIndex);
+    if (!currentBuffer) {
+      throw new Error(`Required image sidecar cannot be embedded without buffer 0: ${imagePath}`);
+    }
+
+    const alignedBuffer = alignToFour(currentBuffer);
+    const byteOffset = alignedBuffer.byteLength;
+    embeddedBuffers.set(targetBufferIndex, Buffer.concat([alignedBuffer, imageBytes]));
+    source.bufferViews ??= [];
+    entry.bufferView = source.bufferViews.push({
+      buffer: targetBufferIndex,
+      byteOffset,
+      byteLength: imageBytes.byteLength,
+    }) - 1;
+    entry.mimeType = sidecarMimeType(uri, entry.mimeType);
+    delete entry.uri;
     changed = true;
+  }
+
+  for (const [index, bytes] of embeddedBuffers) {
+    const entry = buffers[index];
+    if (!entry) throw new Error(`Missing glTF buffer entry ${index} while embedding sidecars`);
+    entry.byteLength = bytes.byteLength;
+    entry.uri = `data:application/octet-stream;base64,${bytes.toString('base64')}`;
   }
 
   if (changed) await fs.writeFile(gltfPath, `${JSON.stringify(source)}\n`, 'utf8');
 }
 
-async function inlineRequiredKayKitSidecars(outDir: string, basePath: string) {
+async function inlineRequiredKayKitSidecars(outDir: string) {
   const gltfPaths = [
     path.join(outDir, 'assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf'),
   ];
   for (const gltfPath of gltfPaths) {
     if (!(await hasContent(gltfPath))) throw new Error(`Required KayKit glTF is missing from the production build: ${gltfPath}`);
-    await inlineGltfSidecars(gltfPath, outDir, basePath);
+    await inlineGltfSidecars(gltfPath);
   }
 }
 
@@ -212,7 +234,7 @@ export default defineConfig(async () => {
   const inlineKayKitSidecarsPlugin: Plugin = {
     name: 'dungeon-veil-inline-kaykit-sidecars',
     async writeBundle() {
-      await inlineRequiredKayKitSidecars(buildOutDir, normalizedBasePath);
+      await inlineRequiredKayKitSidecars(buildOutDir);
     },
   };
 
