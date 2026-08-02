@@ -2,6 +2,7 @@ import { CHAPTER_ROOMS } from './chapterRun';
 import { TileType } from './dungeon';
 import type { GameState } from './runEngine';
 import { GameEngine } from './runEngine';
+import { isEnemyFamilyId, runtimeEnemyTypeForFamily, type EnemyFamilyId } from './enemyRegistry';
 
 const MARKER = 'dungeon-veil-runtime-evidence-v1';
 
@@ -15,6 +16,7 @@ type RuntimeEvidenceApi = {
   chooseFirstGift: () => Record<string, unknown> | null;
   setMode: (mode: EvidenceMode) => void;
   setPlayerStats: (attack: number, defense: number) => Record<string, unknown> | null;
+  setLivingEnemyFamilies: (families: string[]) => Record<string, unknown> | null;
 };
 
 declare global {
@@ -43,6 +45,9 @@ function stateSnapshot(engine = currentEngine): Record<string, unknown> | null {
     hp: state.player.hp,
     maxHp: state.player.maxHp,
     livingEnemies: state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead).length,
+    livingEnemyFamilies: state.enemies
+      .filter(enemy => enemy.hp > 0 && !enemy.isDead)
+      .map(enemy => enemy.enemyFamilyId ?? null),
     deadEnemies: state.enemies.filter(enemy => enemy.isDead || enemy.hp <= 0).length,
     roomClearReady: state.roomClearReady,
     effects: state.effects.map(effect => effect.id),
@@ -174,6 +179,20 @@ function attachApi(): void {
       engine.state.player.defense = Math.max(0, Number(defense) || 0);
       engine.state.player.hp = Math.max(engine.state.player.hp, 9_999);
       engine.state.player.maxHp = Math.max(engine.state.player.maxHp, 9_999);
+      emit(engine);
+      return stateSnapshot(engine);
+    },
+    setLivingEnemyFamilies: requestedFamilies => {
+      const engine = currentEngine;
+      if (!engine) return null;
+      const families = requestedFamilies.filter(isEnemyFamilyId) as EnemyFamilyId[];
+      if (!families.length) return stateSnapshot(engine);
+      const livingEnemies = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead);
+      for (const [index, enemy] of livingEnemies.entries()) {
+        const familyId = families[index % families.length];
+        enemy.enemyFamilyId = familyId;
+        enemy.enemyType = runtimeEnemyTypeForFamily(familyId);
+      }
       emit(engine);
       return stateSnapshot(engine);
     },

@@ -151,6 +151,8 @@ const checks = [
   [baseVisual.includes("slime: { path: '/assets/imported/enemies/Slime.glb'") && baseVisual.includes("demon: { path: '/assets/imported/enemies/Snake_angry.glb'"), 'distinct creature asset mapping is incomplete'],
   [baseVisual.includes('loadKayKitEnemyBow') && baseVisual.includes('attachBowToRanger'), 'ranger visual roles no longer use the dedicated bow'],
   [baseVisual.includes("role === 'rogue'") && baseVisual.includes("role === 'barbarian'") && baseVisual.includes("role === 'mage'"), 'role-specific attack animation selection is incomplete'],
+  [baseVisual.includes('enemyVisualProfile(roomNumber, enemy.enemyType, spawnIndex, enemy.enemyFamilyId)'), 'base renderer drops canonical enemyFamilyId and can collapse distinct families back to room/index inference'],
+  [regional.includes("skeleton: familySkeleton('skeleton', 'warrior', 'warrior', 'slam', 'axe-shield'") && regional.includes("'bone-archer': familySkeleton('bone-archer', 'ranger', 'rogue', 'projectile', 'bow'"), 'Skeleton Guard and Bone Archer no longer have distinct body, role and weapon contracts'],
   [runEngine.includes('getEncounterPlan(room)'), 'runtime no longer consumes the encounter plan'],
 ];
 for (const [ok, message] of checks) if (!ok) failures.push(message);
