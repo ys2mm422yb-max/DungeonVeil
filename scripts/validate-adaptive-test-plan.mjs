@@ -44,6 +44,7 @@ for (const term of sharedPolicyTerms) {
 assert(agents.includes('docs/ADAPTIVE_TEST_POLICY.md'), 'AGENTS.md must reference the adaptive testing policy');
 assert(agents.includes('Adaptive test-plan contract'), 'AGENTS.md must contain the adaptive test-plan contract section');
 assert(template.includes('<!-- adaptive-test-plan:start -->') && template.includes('<!-- adaptive-test-plan:end -->'), 'PR template must contain adaptive test-plan markers');
+assert(template.includes('Declared domains:'), 'PR template must require machine-readable declared domains');
 assert(template.includes('### Acceptance-criterion mapping'), 'PR template must require acceptance-criterion mapping');
 assert(template.includes('### Omitted broad checks'), 'PR template must require explicit broad-check omissions');
 assert(template.includes('### Verifier decision'), 'PR template must require an independent verifier decision');
@@ -73,6 +74,11 @@ assert(riskMatch, 'adaptive test plan must declare one risk level: low, medium, 
 const risk = riskMatch[1].toLowerCase();
 
 const domains = section(block, 'Affected domains and surfaces');
+const declaredMatch = domains.match(/Declared domains:\s*`?([^`\n]+)`?/i);
+assert(declaredMatch, 'affected domains section must contain `Declared domains: ...`');
+const declaredDomains = declaredMatch[1].trim().toLowerCase();
+assert(substantive(declaredDomains, ['replace-with', 'comma-separated']), 'declared domains are still placeholder text');
+
 const mapping = section(block, 'Acceptance-criterion mapping');
 const checks = section(block, 'Selected checks');
 const evidence = section(block, 'Selected evidence');
@@ -80,7 +86,7 @@ const omitted = section(block, 'Omitted broad checks');
 const escalation = section(block, 'Escalation triggers');
 const verifier = section(block, 'Verifier decision');
 
-assert(substantive(domains, ['replace with concrete']), 'affected domains and surfaces are still placeholder text');
+assert(substantive(domains, ['replace with concrete']), 'affected surfaces are still placeholder text');
 assert(substantive(mapping, ['`ac-1`', 'add one row']), 'acceptance-criterion mapping is missing or still placeholder text');
 assert(substantive(checks, ['exact command']), 'selected checks are missing or still placeholder text');
 assert(substantive(evidence, ['exact screenshot']), 'selected evidence is missing or still placeholder text');
@@ -91,7 +97,7 @@ assert(/\b(pending|accepted|expanded)\b/i.test(verifier), 'verifier decision mus
 const evidenceIsNone = /\bnone\b/i.test(evidence) || /process\/docs-only/i.test(evidence);
 assert(!(risk === 'high' || risk === 'critical') || !evidenceIsNone, `${risk} risk requires concrete evidence`);
 
-const visibleDomain = /\b(ui|gameplay|renderer|webgl|touch|layout|animation|assets?|enemy|boss|companion|equipment|upgrade-effects?|rooms?)\b/i.test(domains);
+const visibleDomain = /\b(ui|gameplay|renderer|webgl|touch|layout|animation|assets?|enemy|boss|companion|equipment|upgrade-effects?|rooms?)\b/i.test(declaredDomains);
 if ((risk === 'high' || risk === 'critical') && visibleDomain) {
   const requiredDevices = ['iPhone', 'Android phone', 'iPad', 'Android tablet'];
   for (const device of requiredDevices) {
@@ -99,9 +105,9 @@ if ((risk === 'high' || risk === 'critical') && visibleDomain) {
   }
 }
 
-const criticalDomain = /\b(auth|security|supabase|rls|rpc|persistence|cloud|economy|rewards?|multiplayer|reconnect|world.?boss|deployment|shared navigation|global registr|spawn tables?|workflow)\b/i.test(domains);
+const criticalDomain = /\b(auth|security|supabase|rls|rpc|persistence|cloud|economy|rewards?|multiplayer|reconnect|world.?boss|deployment|shared navigation|global registr|spawn tables?|workflow)\b/i.test(declaredDomains);
 assert(!criticalDomain || risk === 'critical', 'critical system domain requires risk level `critical`');
 
 assert(!/red.*irrelevant|failure.*not relevant/i.test(omitted), 'a failed relevant gate cannot be dismissed as irrelevant');
 
-console.log(`Adaptive PR test plan passed for risk=${risk}: acceptance mapping, checks, evidence, omissions, escalation and verifier state are complete.`);
+console.log(`Adaptive PR test plan passed for risk=${risk}, domains=${declaredDomains}: acceptance mapping, checks, evidence, omissions, escalation and verifier state are complete.`);
