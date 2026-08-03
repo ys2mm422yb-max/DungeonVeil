@@ -103,8 +103,14 @@ assert.match(bowRig, /material\?\.clone\?\.\(\)/,
   'upgrade emissive changes must use per-rig material clones');
 assert.match(bowRig, /new THREE\.PointLight\(/,
   'prestige tiers must attach a bounded light directly to the moving bow mesh');
-assert.match(bowRig, /prefers-reduced-motion: reduce/);
-assert.match(bowRig, /dungeonVeilRendererRecovery/);
+assert.match(bowRig, /function prefersReducedMotion\(\)/);
+assert.match(bowRig, /function rendererRecoveryActive\(\)/);
+assert.match(bowRig, /const staticFallbackActive = \(\) => prefersReducedMotion\(\) \|\| rendererRecoveryActive\(\);/,
+  'live bow fallback state must be evaluated dynamically while the rig is alive');
+assert.match(bowRig, /bow\.userData\.dungeonVeilUpgradeStaticFallback = staticFallback;/,
+  'live bow metadata must track recovery transitions');
+assert.match(bowRig, /const edgeGlow = staticFallback \? profile\.staticFallbackStrength : profile\.edgeGlow;/,
+  'live bow recovery must switch to the static fallback strength');
 assert.match(bowRig, /upgradeBinding\.update\(pulse\)/,
   'the live bow effect must follow draw, attack and movement animation updates');
 
