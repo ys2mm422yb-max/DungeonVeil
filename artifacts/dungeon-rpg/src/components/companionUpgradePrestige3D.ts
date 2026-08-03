@@ -25,28 +25,27 @@ function rendererRecoveryActive() {
     || root.dungeonVeilLowGpu === '1';
 }
 
+function setTelemetryValue(data: DOMStringMap, key: string, value: string) {
+  if (data[key] !== value) data[key] = value;
+}
+
 function publishRuntimeTelemetry(
   role: string,
-  tier: number,
+  tierLabel: string,
   prestige: string,
-  particleCount: number,
+  particleCountLabel: string,
   particlesActive: boolean,
   staticFallback: boolean,
 ) {
   if (typeof document === 'undefined') return;
   const data = document.documentElement.dataset;
-  const next = {
-    dungeonVeilCompanionUpgradeBinding: 'in-run-companion-combat-mesh',
-    dungeonVeilCompanionUpgradeRole: role,
-    dungeonVeilCompanionUpgradeTier: String(tier),
-    dungeonVeilCompanionUpgradePrestige: prestige,
-    dungeonVeilCompanionUpgradeParticleCount: String(particleCount),
-    dungeonVeilCompanionUpgradeParticlesActive: particlesActive ? 'true' : 'false',
-    dungeonVeilCompanionUpgradeStaticFallback: staticFallback ? 'true' : 'false',
-  } as const;
-  for (const [key, value] of Object.entries(next)) {
-    if (data[key] !== value) data[key] = value;
-  }
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeBinding', 'in-run-companion-combat-mesh');
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeRole', role);
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeTier', tierLabel);
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradePrestige', prestige);
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeParticleCount', particleCountLabel);
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeParticlesActive', particlesActive ? 'true' : 'false');
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeStaticFallback', staticFallback ? 'true' : 'false');
 }
 
 function clearRuntimeTelemetry(role: string) {
@@ -70,18 +69,24 @@ export function createCompanionUpgradePrestigeBinding(
   accentHex: number,
 ): CompanionUpgradePrestigeBinding {
   const tier = normalizeUpgradeVisualTier(level);
+  const tierLabel = String(tier);
   visual.userData.dungeonVeilUpgradeTier = tier;
   visual.userData.dungeonVeilUpgradeBinding = 'in-run-companion-combat-mesh';
   visual.userData.dungeonVeilUpgradeStaticFallback = false;
 
   if (tier < 3) {
-    publishRuntimeTelemetry(role, tier, 'none', 0, false, false);
+    publishRuntimeTelemetry(role, tierLabel, 'none', '0', false, false);
     return {
-      update: () => publishRuntimeTelemetry(role, tier, 'none', 0, false, false),
+      update: () => publishRuntimeTelemetry(role, tierLabel, 'none', '0', false, false),
       dispose: () => clearRuntimeTelemetry(role),
     };
   }
 
+  const movingProfile = getUpgradeVisualProfile(tier);
+  const staticProfile = getUpgradeVisualProfile(tier, {
+    reducedMotion: true,
+    lowGpu: true,
+  });
   const accentColor = new THREE.Color(accentHex);
   const materialBindings: MaterialBinding[] = [];
 
@@ -119,6 +124,7 @@ export function createCompanionUpgradePrestigeBinding(
   visual.add(light);
 
   const particleCount = tier === 5 ? 6 : tier === 4 ? 4 : 2;
+  const particleCountLabel = String(particleCount);
   const particleGeometry = new THREE.OctahedronGeometry(tier === 5 ? 0.045 : 0.035, 0);
   const particleMaterial = new THREE.MeshBasicMaterial({
     color: accentHex,
@@ -160,15 +166,12 @@ export function createCompanionUpgradePrestigeBinding(
   visual.add(aura);
 
   visual.userData.dungeonVeilUpgradeParticleCount = particleCount;
-  publishRuntimeTelemetry(role, tier, getUpgradeVisualProfile(tier).prestige, particleCount, false, false);
+  publishRuntimeTelemetry(role, tierLabel, movingProfile.prestige, particleCountLabel, false, false);
 
   return {
     update(now: number, actionPulse: number) {
       const staticFallback = prefersReducedMotion() || rendererRecoveryActive();
-      const profile = getUpgradeVisualProfile(tier, {
-        reducedMotion: staticFallback,
-        lowGpu: staticFallback,
-      });
+      const profile = staticFallback ? staticProfile : movingProfile;
       const motionPulse = staticFallback
         ? 0
         : Math.sin(now * (0.0018 + profile.lightSweepSpeed * 0.006)) * profile.pulseStrength;
@@ -214,9 +217,9 @@ export function createCompanionUpgradePrestigeBinding(
       visual.userData.dungeonVeilUpgradeStaticFallback = staticFallback;
       publishRuntimeTelemetry(
         role,
-        tier,
+        tierLabel,
         profile.prestige,
-        particleCount,
+        particleCountLabel,
         particleGroup.visible,
         staticFallback,
       );
