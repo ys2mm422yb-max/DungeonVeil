@@ -1,3 +1,6 @@
+import { loadMetaProgression } from '../game/metaProgression';
+import { getUpgradeVisualProfile, normalizeUpgradeVisualTier } from '../lib/upgradeVisualTiers';
+
 export type BowRig = {
   bow: any;
   anchor: any;
@@ -55,6 +58,84 @@ function enemyFacingCorrection(heroRoot: any) {
   return 0;
 }
 
+function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
+  const isPlayerBow = String(heroRoot?.name ?? '').startsWith('KayKitPlayerBody_');
+  if (!isPlayerBow) return { update: (_attackPulse: number) => undefined };
+
+  const meta = loadMetaProgression();
+  const bowId = meta.equipped.bow;
+  const tier = normalizeUpgradeVisualTier(Number(meta.owned[bowId]?.level ?? 1));
+  const reducedMotion = typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  const rendererRecovery = typeof document !== 'undefined'
+    && (document.documentElement.dataset.dungeonVeilLowGpu === '1'
+      || document.documentElement.dataset.dungeonVeilRendererRecovery === '1');
+  const profile = getUpgradeVisualProfile(tier, { reducedMotion, lowGpu: rendererRecovery });
+  const staticFallback = reducedMotion || rendererRecovery;
+
+  bow.userData = {
+    ...(bow.userData ?? {}),
+    dungeonVeilUpgradeBinding: 'in-run-player-bow-mesh',
+    dungeonVeilUpgradeTier: tier,
+    dungeonVeilUpgradePrestige: profile.prestige,
+    dungeonVeilUpgradeStaticFallback: staticFallback,
+  };
+  heroRoot.userData = {
+    ...(heroRoot.userData ?? {}),
+    dungeonVeilBowUpgradeTier: tier,
+  };
+
+  // Levels one and two stay byte-for-byte visually normal: no material clone,
+  // light or animation is created until the first prestige tier is reached.
+  if (tier < 3) return { update: (_attackPulse: number) => undefined };
+
+  const glowColor = tier === 5 ? 0xfef08a : tier === 4 ? 0xd8b4fe : 0xa78bfa;
+  const materialStates: Array<{ material: any; baseIntensity: number }> = [];
+
+  bow.traverse?.((node: any) => {
+    if (!node.isMesh || !node.material) return;
+    const sourceMaterials = Array.isArray(node.material) ? node.material : [node.material];
+    const clonedMaterials = sourceMaterials.map((material: any) => material?.clone?.() ?? material);
+    node.material = Array.isArray(node.material) ? clonedMaterials : clonedMaterials[0];
+
+    for (const material of clonedMaterials) {
+      if (!material?.emissive?.setHex) continue;
+      const baseIntensity = Number(material.emissiveIntensity ?? 0);
+      material.emissive.setHex(glowColor);
+      material.emissiveIntensity = baseIntensity + profile.edgeGlow * 0.72;
+      material.needsUpdate = true;
+      materialStates.push({ material, baseIntensity });
+    }
+  });
+
+  const glowLight = new THREE.PointLight(
+    glowColor,
+    0.18 + profile.edgeGlow * 0.82,
+    tier === 5 ? 2.4 : tier === 4 ? 1.9 : 1.45,
+    2,
+  );
+  glowLight.name = 'DungeonVeilBowUpgradePrestige';
+  glowLight.position.set(0, 0.08, 0);
+  bow.add(glowLight);
+
+  const update = (attackPulse: number) => {
+    const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const ambientPulse = staticFallback || profile.pulseStrength === 0
+      ? 0
+      : Math.sin(now * (0.0016 + profile.lightSweepSpeed * 0.003)) * profile.pulseStrength;
+    const attackBoost = staticFallback ? 0 : Math.max(0, Math.min(1, attackPulse)) * profile.pulseStrength;
+    const strength = profile.edgeGlow * Math.max(0.58, 0.78 + ambientPulse + attackBoost);
+
+    for (const state of materialStates) {
+      state.material.emissiveIntensity = state.baseIntensity + strength;
+    }
+    glowLight.intensity = 0.12 + strength * (tier === 5 ? 1.45 : 1.12);
+  };
+
+  update(0);
+  return { update };
+}
+
 export function attachBowToRanger(
   THREE: any,
   heroRoot: any,
@@ -90,6 +171,7 @@ export function attachBowToRanger(
 
   const basePosition = bow.position.clone();
   const baseRotation = bow.rotation.clone();
+  const upgradeBinding = createPlayerBowUpgradeBinding(THREE, heroRoot, bow);
 
   return {
     bow,
@@ -110,6 +192,7 @@ export function attachBowToRanger(
         if (!node.morphTargetInfluences?.length) return;
         node.morphTargetInfluences[0] = Math.max(0, Math.min(1, pulse));
       });
+      upgradeBinding.update(pulse);
     },
   };
 }
