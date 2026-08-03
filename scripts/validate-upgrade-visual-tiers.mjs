@@ -3,11 +3,13 @@ import { readFile } from 'node:fs/promises';
 
 const profilePath = 'artifacts/dungeon-rpg/src/lib/upgradeVisualTiers.ts';
 const overlayPath = 'artifacts/dungeon-rpg/src/components/EquippedUpgradePrestigeOverlay.tsx';
+const bindingsPath = 'artifacts/dungeon-rpg/src/components/UpgradeTierSurfaceBindings.tsx';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 
-const [profiles, overlay, app] = await Promise.all([
+const [profiles, overlay, bindings, app] = await Promise.all([
   readFile(profilePath, 'utf8'),
   readFile(overlayPath, 'utf8'),
+  readFile(bindingsPath, 'utf8'),
   readFile(appPath, 'utf8'),
 ]);
 
@@ -62,8 +64,31 @@ assert.equal(mixedLevelContract.armor, 3);
 assert.match(overlay, /tiers\[slot\] = normalizeUpgradeVisualTier/,
   'mixed levels must be normalized and retained independently');
 
+assert.match(bindings, /data-testid=\"equipment-model-preview\"/,
+  'the actual KayKit equipment preview must receive a local tier binding');
+assert.match(bindings, /data-testid\^=\"companion-role-\"/,
+  'companion collection cards must receive level-local tier bindings');
+assert.match(bindings, /data-testid=\"companion-active-role\"/,
+  'the selected companion presentation must receive its own tier binding');
+assert.match(bindings, /collection\.companions\[role\]/,
+  'companion tiers must resolve from each role progress independently');
+assert.match(bindings, /equipmentForSurface\(surface, meta\)/,
+  'equipment card and preview bindings must resolve their own equipment item');
+assert.match(bindings, /if \(tier < 3\)/,
+  'card/model-local levels 1 and 2 must remain visually normal');
+assert.match(bindings, /data\.upgradeStaticFallback|dataset\.upgradeStaticFallback/,
+  'surface bindings must expose a deterministic static fallback state');
+assert.match(bindings, /prefers-reduced-motion: reduce/);
+assert.match(bindings, /dungeon-veil-renderer-lost/);
+assert.match(bindings, /dungeon-veil-renderer-ready/);
+assert.match(bindings, /pointer-events: none/,
+  'local sweep layers must never intercept input');
+
 assert.match(app, /import \{ EquippedUpgradePrestigeOverlay \}/);
 assert.match(app, /<EquippedUpgradePrestigeOverlay \/>/,
   'the real application shell must mount the equipped prestige presentation');
+assert.match(app, /import \{ UpgradeTierSurfaceBindings \}/);
+assert.match(app, /<UpgradeTierSurfaceBindings \/>/,
+  'the real application shell must mount card/model-local and companion bindings');
 
 console.log('Upgrade visual tier contract passed.');
