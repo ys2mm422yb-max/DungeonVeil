@@ -7,9 +7,10 @@
     "dev": "pnpm --filter @workspace/dungeon-rpg dev",
     "start:mobile": "bash scripts/start-replit-mobile.sh",
     "audit:adaptive-test-policy": "node scripts/validate-adaptive-test-plan.mjs --policy-only",
+    "audit:upgrade-visual-tiers": "node scripts/validate-upgrade-visual-tiers.mjs",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run audit:adaptive-test-policy && pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run audit:adaptive-test-policy && pnpm run audit:upgrade-visual-tiers && pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
   "devDependencies": {
