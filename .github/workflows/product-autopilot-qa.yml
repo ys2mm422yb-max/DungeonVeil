@@ -149,6 +149,18 @@ jobs:
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
+      - name: Prepare compact companion prestige review video
+        if: steps.product-tests.outcome == 'success'
+        shell: bash
+        run: |
+          mapfile -t raw_videos < <(find artifacts/dungeon-rpg/test-results -type f -name video.webm -print)
+          test "${#raw_videos[@]}" -eq 1
+          output="artifacts/dungeon-rpg/test-results/visual-upgrade-prestige-${BROWSER_PROJECT}.webm"
+          ffmpeg -hide_banner -loglevel error -y -i "${raw_videos[0]}" \
+            -vf "scale='min(540,iw)':-2:flags=lanczos" \
+            -c:v libvpx-vp9 -crf 36 -b:v 0 -an "$output"
+          rm -f "${raw_videos[0]}"
+          test -s "$output"
       - name: Upload compact product result manifest
         if: always()
         uses: actions/upload-artifact@v4
@@ -171,7 +183,7 @@ jobs:
           --max-mb 100
           --label "product-success-${{ matrix.project }}"
           artifacts/dungeon-rpg/test-results
-      - name: Upload successful portrait screenshots
+      - name: Upload successful portrait screenshots and review video
         if: steps.product-tests.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
@@ -185,7 +197,7 @@ jobs:
             artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/mobile-resource-upgrade-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.png
-            artifacts/dungeon-rpg/test-results/**/video.webm
+            artifacts/dungeon-rpg/test-results/visual-upgrade-prestige-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
       - name: Enforce focused product failure budget
         if: steps.product-tests.outcome == 'failure'
