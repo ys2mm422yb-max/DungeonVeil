@@ -18,13 +18,30 @@ export const RUN_CAMERA = {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-function isTabletLandscape(aspect: number) {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+function viewportMetrics() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return null;
   const viewport = window.visualViewport;
-  const width = viewport?.width ?? window.innerWidth;
-  const height = viewport?.height ?? window.innerHeight;
-  const coarsePointer = navigator.maxTouchPoints > 1 || window.matchMedia?.('(pointer: coarse)').matches;
-  return coarsePointer && aspect >= 1.15 && width > height && Math.min(width, height) >= 650;
+  return {
+    width: viewport?.width ?? window.innerWidth,
+    height: viewport?.height ?? window.innerHeight,
+    coarsePointer: navigator.maxTouchPoints > 1 || window.matchMedia?.('(pointer: coarse)').matches,
+  };
+}
+
+function isTabletLandscape(aspect: number) {
+  const metrics = viewportMetrics();
+  if (!metrics) return false;
+  return metrics.coarsePointer && aspect >= 1.15 && metrics.width > metrics.height && Math.min(metrics.width, metrics.height) >= 650;
+}
+
+function isTabletPortrait(aspect: number) {
+  const metrics = viewportMetrics();
+  if (!metrics) return false;
+  return metrics.coarsePointer
+    && aspect >= 0.68
+    && aspect <= 0.92
+    && metrics.height > metrics.width
+    && Math.min(metrics.width, metrics.height) >= 600;
 }
 
 function isSpectatorViewport() {
@@ -33,6 +50,7 @@ function isSpectatorViewport() {
 
 function responsiveFrame(aspect: number) {
   if (isTabletLandscape(aspect)) return { height: 15.9, distance: 19.0, lookAhead: 2.15 };
+  if (isTabletPortrait(aspect)) return { height: 17.2, distance: 19.8, lookAhead: 3.1 };
   if (isSpectatorViewport() && aspect < 0.55) return { height: 23.8, distance: 28.6, lookAhead: 1.8 };
   if (isSpectatorViewport() && aspect < 0.72) return { height: 22.4, distance: 27.0, lookAhead: 2.0 };
   if (aspect < 0.55) return { height: 20.2, distance: 21.7, lookAhead: 2.35 };

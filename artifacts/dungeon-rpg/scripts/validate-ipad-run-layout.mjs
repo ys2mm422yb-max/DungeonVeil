@@ -12,7 +12,9 @@ const [camera, hud, joystick, actions, canvas, enemyWrapper, enemyBase] = await 
 const enemy = `${enemyWrapper}\n${enemyBase}`;
 
 const checks = [
-  [camera.includes('function isTabletLandscape') && camera.includes('Math.min(width, height) >= 650'), 'tablet landscape detection is missing from the run camera'],
+  [camera.includes('function viewportMetrics()')
+    && camera.includes('function isTabletLandscape(aspect: number)')
+    && camera.includes('Math.min(metrics.width, metrics.height) >= 650'), 'tablet landscape detection is missing from the run camera'],
   [camera.includes('height: 15.9') && camera.includes('distance: 19.0') && camera.includes('lookAhead: 2.15'), 'iPad landscape camera framing is not tightened'],
   [hud.includes('data-testid="run-hud"') && hud.includes("tabletLandscape?'left-6 right-6 top-5'"), 'iPad HUD inset is missing'],
   [hud.includes("tabletLandscape?'h-14 w-14 text-base'"), 'iPad pause control scaling is missing'],
