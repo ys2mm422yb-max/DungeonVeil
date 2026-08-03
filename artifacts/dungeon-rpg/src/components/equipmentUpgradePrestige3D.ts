@@ -43,10 +43,9 @@ export function attachEquipmentUpgradePrestige3D(
   options: EquipmentUpgradeBindingOptions,
 ): EquipmentUpgradeBinding3D {
   const tier = normalizeUpgradeVisualTier(options.level);
-  const reducedMotion = options.reducedMotion ?? prefersReducedMotion();
-  const lowGpu = options.lowGpu ?? rendererRecoveryActive();
-  const profile = getUpgradeVisualProfile(tier, { reducedMotion, lowGpu });
-  const staticFallback = reducedMotion || lowGpu;
+  const profile = getUpgradeVisualProfile(tier);
+  const staticFallbackActive = () => (options.reducedMotion ?? prefersReducedMotion())
+    || (options.lowGpu ?? rendererRecoveryActive());
 
   object.userData = {
     ...(object.userData ?? {}),
@@ -54,7 +53,7 @@ export function attachEquipmentUpgradePrestige3D(
     dungeonVeilUpgradeSlot: options.slot,
     dungeonVeilUpgradeTier: tier,
     dungeonVeilUpgradePrestige: profile.prestige,
-    dungeonVeilUpgradeStaticFallback: staticFallback,
+    dungeonVeilUpgradeStaticFallback: staticFallbackActive(),
   };
 
   if (tier < 3) {
@@ -92,14 +91,17 @@ export function attachEquipmentUpgradePrestige3D(
   object.add(light);
 
   const update = (activityPulse = 0) => {
+    const staticFallback = staticFallbackActive();
+    object.userData.dungeonVeilUpgradeStaticFallback = staticFallback;
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const edgeGlow = staticFallback ? profile.staticFallbackStrength : profile.edgeGlow;
     const ambientPulse = staticFallback || profile.pulseStrength === 0
       ? 0
       : Math.sin(now * (0.0013 + profile.lightSweepSpeed * 0.0024)) * profile.pulseStrength;
     const activityBoost = staticFallback
       ? 0
       : Math.max(0, Math.min(1, activityPulse)) * profile.pulseStrength * (isArmor ? 0.78 : 0.56);
-    const strength = profile.edgeGlow * Math.max(0.56, 0.76 + ambientPulse + activityBoost);
+    const strength = edgeGlow * Math.max(0.56, 0.76 + ambientPulse + activityBoost);
 
     for (const state of materialStates) {
       state.material.emissiveIntensity = state.baseIntensity + strength;
