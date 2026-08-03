@@ -59,6 +59,17 @@ function enemyFacingCorrection(heroRoot: any) {
   return 0;
 }
 
+function prefersReducedMotion() {
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+function rendererRecoveryActive() {
+  return typeof document !== 'undefined'
+    && (document.documentElement.dataset.dungeonVeilLowGpu === '1'
+      || document.documentElement.dataset.dungeonVeilRendererRecovery === '1');
+}
+
 function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
   const isPlayerBow = String(heroRoot?.name ?? '').startsWith('KayKitPlayerBody_');
   if (!isPlayerBow) return { update: (_attackPulse: number) => undefined };
@@ -66,20 +77,15 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
   const meta = loadMetaProgression();
   const bowId = meta.equipped.bow;
   const tier = normalizeUpgradeVisualTier(Number(meta.owned[bowId]?.level ?? 1));
-  const reducedMotion = typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-  const rendererRecovery = typeof document !== 'undefined'
-    && (document.documentElement.dataset.dungeonVeilLowGpu === '1'
-      || document.documentElement.dataset.dungeonVeilRendererRecovery === '1');
-  const profile = getUpgradeVisualProfile(tier, { reducedMotion, lowGpu: rendererRecovery });
-  const staticFallback = reducedMotion || rendererRecovery;
+  const profile = getUpgradeVisualProfile(tier);
+  const staticFallbackActive = () => prefersReducedMotion() || rendererRecoveryActive();
 
   bow.userData = {
     ...(bow.userData ?? {}),
     dungeonVeilUpgradeBinding: 'in-run-player-bow-mesh',
     dungeonVeilUpgradeTier: tier,
     dungeonVeilUpgradePrestige: profile.prestige,
-    dungeonVeilUpgradeStaticFallback: staticFallback,
+    dungeonVeilUpgradeStaticFallback: staticFallbackActive(),
   };
   heroRoot.userData = {
     ...(heroRoot.userData ?? {}),
@@ -120,12 +126,15 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
   bow.add(glowLight);
 
   const update = (attackPulse: number) => {
+    const staticFallback = staticFallbackActive();
+    bow.userData.dungeonVeilUpgradeStaticFallback = staticFallback;
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const edgeGlow = staticFallback ? profile.staticFallbackStrength : profile.edgeGlow;
     const ambientPulse = staticFallback || profile.pulseStrength === 0
       ? 0
       : Math.sin(now * (0.0016 + profile.lightSweepSpeed * 0.003)) * profile.pulseStrength;
     const attackBoost = staticFallback ? 0 : Math.max(0, Math.min(1, attackPulse)) * profile.pulseStrength;
-    const strength = profile.edgeGlow * Math.max(0.58, 0.78 + ambientPulse + attackBoost);
+    const strength = edgeGlow * Math.max(0.58, 0.78 + ambientPulse + attackBoost);
 
     for (const state of materialStates) {
       state.material.emissiveIntensity = state.baseIntensity + strength;
