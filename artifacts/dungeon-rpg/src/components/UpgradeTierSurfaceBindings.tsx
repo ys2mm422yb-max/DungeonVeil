@@ -9,6 +9,7 @@ import { getUpgradeVisualProfile, normalizeUpgradeVisualTier } from '../lib/upgr
 import { createCompanionUpgradePrestigeBinding } from './companionUpgradePrestige3D';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const BOUND_CLASS = 'dungeon-veil-upgrade-bound-surface';
 const STYLE_ID = 'dungeon-veil-upgrade-surface-style';
 const EQUIPMENT_CARD_SELECTORS = [
@@ -18,6 +19,13 @@ const EQUIPMENT_CARD_SELECTORS = [
   '[data-testid^="equipment-item-"]',
   '[data-testid^="inventory-item-"]',
 ].join(',');
+
+type CompanionCombatBinding = {
+  role: keyof typeof COMPANION_DEFINITIONS_V5;
+  binding: ReturnType<typeof createCompanionUpgradePrestigeBinding>;
+  actionStartedAt: number;
+  actionEndsAt: number;
+};
 
 function equipmentForSurface(surface: HTMLElement, meta: ReturnType<typeof loadMetaProgression>) {
   const testId = surface.dataset.testid ?? '';
@@ -117,11 +125,22 @@ export function UpgradeTierSurfaceBindings() {
     let rendererRecovery = rendererFallbackActive();
     let frame = 0;
     let combatFrame = 0;
+    let nextSceneScanAt = 0;
+    let observedCompanionScene: any = null;
     let THREE: any = null;
     let originalAdd: ((...objects: any[]) => any) | null = null;
     let patchedAdd: ((this: any, ...objects: any[]) => any) | null = null;
+    let restoreScheduled = false;
     const touched = new Set<HTMLElement>();
-    const combatBindings = new Map<any, ReturnType<typeof createCompanionUpgradePrestigeBinding>>();
+    const combatBindings = new Map<any, CompanionCombatBinding>();
+
+    const restoreSceneCapture = () => {
+      if (THREE && originalAdd && patchedAdd && THREE.Object3D.prototype.add === patchedAdd) {
+        THREE.Object3D.prototype.add = originalAdd;
+      }
+      patchedAdd = null;
+      restoreScheduled = false;
+    };
 
     const bindCompanionCombatRoot = (root: any) => {
       if (!THREE || !root?.userData?.dungeonVeilCompanionV5 || combatBindings.has(root)) return;
@@ -130,30 +149,66 @@ export function UpgradeTierSurfaceBindings() {
       const visual = root.children?.find((child: any) => String(child?.name ?? '').startsWith('CompanionVisual_'));
       if (!definition || !visual) return;
       const level = Number(root.userData.companionLevel ?? 1);
-      combatBindings.set(
-        root,
-        createCompanionUpgradePrestigeBinding(THREE, visual, role, level, definition.accentHex),
-      );
+      combatBindings.set(root, {
+        role,
+        binding: createCompanionUpgradePrestigeBinding(THREE, visual, role, level, definition.accentHex),
+        actionStartedAt: 0,
+        actionEndsAt: 0,
+      });
+      observedCompanionScene = root.parent ?? observedCompanionScene;
+      if (!restoreScheduled) {
+        restoreScheduled = true;
+        queueMicrotask(restoreSceneCapture);
+      }
     };
 
-    const installCompanionCombatBindings = async () => {
-      THREE = await import(/* @vite-ignore */ THREE_URL);
-      originalAdd = THREE.Object3D.prototype.add;
-      patchedAdd = function patchedUpgradeTierObjectAdd(this: any, ...objects: any[]) {
+    const armSceneCapture = () => {
+      if (!THREE || !originalAdd || patchedAdd || THREE.Object3D.prototype.add !== originalAdd) return;
+      patchedAdd = function captureCompanionSceneAdd(this: any, ...objects: any[]) {
         const result = originalAdd!.apply(this, objects);
         objects.forEach(bindCompanionCombatRoot);
         return result;
       };
       THREE.Object3D.prototype.add = patchedAdd;
+    };
+
+    const scanObservedScene = (now: number) => {
+      if (!observedCompanionScene || now < nextSceneScanAt) return;
+      nextSceneScanAt = now + 500;
+      for (const child of observedCompanionScene.children ?? []) bindCompanionCombatRoot(child);
+    };
+
+    const handleCompanionAction = (event: Event) => {
+      const detail = (event as CustomEvent<{ role?: string; kind?: string }>).detail;
+      if (!detail?.role) return;
+      const startedAt = performance.now();
+      const duration = detail.kind === 'guard' ? 620 : detail.kind === 'collect' ? 540 : 480;
+      for (const entry of combatBindings.values()) {
+        if (entry.role !== detail.role) continue;
+        entry.actionStartedAt = startedAt;
+        entry.actionEndsAt = startedAt + duration;
+      }
+    };
+
+    const installCompanionCombatBindings = async () => {
+      THREE = await import(/* @vite-ignore */ THREE_URL);
+      originalAdd = THREE.Object3D.prototype.add;
+      if (document.documentElement.dataset.dungeonVeilActiveRun === '1') armSceneCapture();
 
       const updateCombatBindings = (now: number) => {
-        for (const [root, binding] of combatBindings) {
+        scanObservedScene(now);
+        for (const [root, entry] of combatBindings) {
           if (!root.parent) {
-            binding.dispose();
+            entry.binding.dispose();
             combatBindings.delete(root);
             continue;
           }
-          binding.update(now, 0);
+          const duration = Math.max(1, entry.actionEndsAt - entry.actionStartedAt);
+          const progress = entry.actionEndsAt > now
+            ? Math.min(1, Math.max(0, (now - entry.actionStartedAt) / duration))
+            : 1;
+          const actionPulse = entry.actionEndsAt > now ? Math.sin(progress * Math.PI) : 0;
+          entry.binding.update(now, actionPulse);
         }
         combatFrame = window.requestAnimationFrame(updateCombatBindings);
       };
@@ -202,8 +257,16 @@ export function UpgradeTierSurfaceBindings() {
       if (frame) return;
       frame = window.requestAnimationFrame(apply);
     };
-    const lost = () => { rendererRecovery = true; schedule(); };
-    const ready = () => { rendererRecovery = rendererFallbackActive(); schedule(); };
+    const lost = () => { rendererRecovery = true; observedCompanionScene = null; armSceneCapture(); schedule(); };
+    const ready = () => { rendererRecovery = rendererFallbackActive(); observedCompanionScene = null; armSceneCapture(); schedule(); };
+    const runActiveChanged = (event: Event) => {
+      const active = Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active);
+      if (active) armSceneCapture();
+      else {
+        restoreSceneCapture();
+        observedCompanionScene = null;
+      }
+    };
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     media.addEventListener?.('change', schedule);
@@ -212,6 +275,8 @@ export function UpgradeTierSurfaceBindings() {
     window.addEventListener('dungeon-veil-cloud-save-restored', schedule);
     window.addEventListener('dungeon-veil-renderer-lost', lost);
     window.addEventListener('dungeon-veil-renderer-ready', ready);
+    window.addEventListener('dungeon-veil-run-active-changed', runActiveChanged);
+    window.addEventListener(COMPANION_ACTION_EVENT, handleCompanionAction);
     schedule();
     void installCompanionCombatBindings().catch(error => {
       console.error('Companion combat upgrade binding could not start', error);
@@ -227,12 +292,12 @@ export function UpgradeTierSurfaceBindings() {
       window.removeEventListener('dungeon-veil-cloud-save-restored', schedule);
       window.removeEventListener('dungeon-veil-renderer-lost', lost);
       window.removeEventListener('dungeon-veil-renderer-ready', ready);
+      window.removeEventListener('dungeon-veil-run-active-changed', runActiveChanged);
+      window.removeEventListener(COMPANION_ACTION_EVENT, handleCompanionAction);
       touched.forEach(clearSurface);
-      combatBindings.forEach(binding => binding.dispose());
+      combatBindings.forEach(entry => entry.binding.dispose());
       combatBindings.clear();
-      if (THREE && originalAdd && patchedAdd && THREE.Object3D.prototype.add === patchedAdd) {
-        THREE.Object3D.prototype.add = originalAdd;
-      }
+      restoreSceneCapture();
     };
   }, []);
 
