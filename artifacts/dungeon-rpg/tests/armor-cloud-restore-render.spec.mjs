@@ -90,6 +90,10 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
   }
 
   await expect(runHud).toBeVisible({ timeout: 120_000 });
+  // WebKit can schedule the room-intro portal after the HUD is already visible.
+  // Let that fixed product animation complete before changing the equipped rig so
+  // the armour evidence cannot be captured inside the initial transition.
+  await page.waitForTimeout(10_000);
   const canvas = page.locator('canvas').first();
   await waitForPaintedCanvas(page, canvas, 120_000);
   const renderer = page.getByTestId('run-three-host');
