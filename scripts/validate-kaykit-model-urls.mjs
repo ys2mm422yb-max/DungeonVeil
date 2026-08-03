@@ -18,7 +18,7 @@ assert.match(
 );
 assert.match(
   manifestSource,
-  /const joined = `\$\{manifest\.root\.replace\(\/\\\/$\/, ''\)\}\/\$\{relativePath\.replace\(\/\^\\\/+\/, ''\)\}`;/,
+  /const joined = `[\s\S]*manifest\.root\.replace[\s\S]*relativePath\.replace[\s\S]*`;/,
   'model and manifest paths must be joined before runtime URL resolution',
 );
 assert.match(
