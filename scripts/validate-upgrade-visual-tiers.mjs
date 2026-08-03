@@ -152,21 +152,21 @@ assert.match(bindings, /startsWith\('CompanionVisual_'\)/,
   'prestige must attach to the companion model group rather than the scene or a DOM surrogate');
 assert.match(bindings, /root\.userData\.companionLevel/,
   'the live companion effect must use that role instance own level');
-assert.match(bindings, /definition\.accentHex/,
-  'the live companion effect must retain the role-specific presentation accent');
+assert.match(bindings, /createCompanionUpgradePrestigeBinding\(THREE, visual, role, level, definition\.accentHex\)/,
+  'the live companion effect must receive the actual role, role-local level and role accent');
 assert.match(bindings, /THREE\.Object3D\.prototype\.add = patchedAdd/,
   'the persistent application binding must see actual companion roots when they enter the shared renderer scene');
 assert.match(bindings, /binding\.update\(now, 0\)/,
   'the attached companion effect must update while the real combat model moves');
-assert.match(bindings, /combatBindings\.delete\(root\)/,
-  'removed companion rigs must leave the live binding registry');
+assert.match(bindings, /binding\.dispose\(\);[\s\S]*combatBindings\.delete\(root\)/,
+  'removed companion rigs must release telemetry before leaving the live binding registry');
 
 assert.match(companionBinding, /normalizeUpgradeVisualTier\(level\)/,
   'companion combat prestige must normalize each role level independently');
 assert.match(companionBinding, /dungeonVeilUpgradeBinding = 'in-run-companion-combat-mesh'/,
   'the actual companion model must expose a deterministic mesh-local binding identity');
-assert.match(companionBinding, /if \(tier < 3\) return \{ update: \(\) => undefined \};/,
-  'companion levels 1 and 2 must not clone materials or create a light');
+assert.match(companionBinding, /if \(tier < 3\) \{[\s\S]*publishRuntimeTelemetry\(role, tier, 'none', 0, false, false\);[\s\S]*dispose: \(\) => clearRuntimeTelemetry\(role\)/,
+  'companion levels 1 and 2 must stay effect-free while still exposing factual runtime evidence');
 assert.match(companionBinding, /material\?\.clone\?\.\(\)/,
   'companion prestige must isolate materials per live rig');
 assert.match(companionBinding, /new THREE\.PointLight\(/,
@@ -175,10 +175,16 @@ assert.match(companionBinding, /const accentColor = new THREE\.Color\(accentHex\
   'the companion update loop must reuse its accent color instead of allocating per frame');
 assert.match(companionBinding, /prefersReducedMotion\(\) \|\| rendererRecoveryActive\(\)/,
   'Reduced Motion and renderer recovery must be re-evaluated dynamically');
+assert.match(companionBinding, /dungeonVeilRendererRecovery === 'true'[\s\S]*dungeonVeilRendererRecovery === '1'/,
+  'both maintained renderer-recovery dataset encodings must activate the static fallback');
+assert.match(companionBinding, /dungeonVeilLowGpu === 'true'[\s\S]*dungeonVeilLowGpu === '1'/,
+  'both maintained low-GPU dataset encodings must activate the static fallback');
 assert.match(companionBinding, /getUpgradeVisualProfile\(tier, \{[\s\S]*reducedMotion: staticFallback,[\s\S]*lowGpu: staticFallback,/,
   'the canonical static fallback profile must drive companion recovery behavior');
 assert.match(companionBinding, /visual\.userData\.dungeonVeilUpgradeStaticFallback = staticFallback;/,
   'the actual companion model must expose its live fallback state');
+assert.match(companionBinding, /publishRuntimeTelemetry\([\s\S]*particleGroup\.visible,[\s\S]*staticFallback,/,
+  'runtime evidence must report the actual bounded particle and fallback state');
 assert.doesNotMatch(companionBinding, /document\.createElement|appendChild|canvas/,
   'companion combat prestige must not create a DOM or second-canvas surrogate');
 
