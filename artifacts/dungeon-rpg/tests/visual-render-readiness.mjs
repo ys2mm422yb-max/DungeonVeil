@@ -95,6 +95,38 @@ async function waitForRoomRendererReady(page, timeout) {
   ).toBe(true);
 }
 
+async function waitForRestoredArmorRoomIntro(page, timeout) {
+  const runRenderer = page.getByTestId('run-three-host');
+  if (!await runRenderer.count()) return;
+  const equippedArmor = await runRenderer.getAttribute('data-equipped-armor');
+  if (equippedArmor !== 'ash-armor' && equippedArmor !== 'warden-armor') return;
+
+  // WebKit can expose a painted back buffer several seconds before the delayed
+  // room-intro portal starts. The cloud-restore armour journey reloads while Ash
+  // armour is active and immediately switches to Warden afterwards, so wait through
+  // that delayed cycle before allowing either evidence capture to proceed.
+  await page.waitForTimeout(10_000);
+  const roomTitles = page.getByText(/VERSORGUNGSPOSTEN|SUPPLY POST|DER SCHLEIER ÖFFNET SICH|THE VEIL OPENS/i);
+  const allRoomTitlesHidden = async () => {
+    const count = await roomTitles.count();
+    for (let index = 0; index < count; index += 1) {
+      if (await roomTitles.nth(index).isVisible()) return false;
+    }
+    return true;
+  };
+  await expect.poll(allRoomTitlesHidden, {
+    timeout,
+    intervals: POLL_INTERVALS,
+    message: 'Room intro remained visible over restored-armour evidence',
+  }).toBe(true);
+  await page.waitForTimeout(3_000);
+  await expect.poll(allRoomTitlesHidden, {
+    timeout,
+    intervals: POLL_INTERVALS,
+    message: 'Room intro reappeared before restored-armour evidence capture',
+  }).toBe(true);
+}
+
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
   await expect(canvas).toBeVisible({ timeout });
 
@@ -139,6 +171,7 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
       message: 'WebGL canvas remained blank or insufficiently painted',
     },
   ).toBeGreaterThanOrEqual(1);
+  await waitForRestoredArmorRoomIntro(page, timeout);
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
