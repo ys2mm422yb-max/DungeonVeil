@@ -5,13 +5,15 @@ const profilePath = 'artifacts/dungeon-rpg/src/lib/upgradeVisualTiers.ts';
 const overlayPath = 'artifacts/dungeon-rpg/src/components/EquippedUpgradePrestigeOverlay.tsx';
 const bindingsPath = 'artifacts/dungeon-rpg/src/components/UpgradeTierSurfaceBindings.tsx';
 const bowRigPath = 'artifacts/dungeon-rpg/src/components/bowRig.ts';
+const equipmentBindingPath = 'artifacts/dungeon-rpg/src/components/equipmentUpgradePrestige3D.ts';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 
-const [profiles, overlay, bindings, bowRig, app] = await Promise.all([
+const [profiles, overlay, bindings, bowRig, equipmentBinding, app] = await Promise.all([
   readFile(profilePath, 'utf8'),
   readFile(overlayPath, 'utf8'),
   readFile(bindingsPath, 'utf8'),
   readFile(bowRigPath, 'utf8'),
+  readFile(equipmentBindingPath, 'utf8'),
   readFile(appPath, 'utf8'),
 ]);
 
@@ -94,7 +96,7 @@ assert.match(bowRig, /const bowId = meta\.equipped\.bow;/);
 assert.match(bowRig, /meta\.owned\[bowId\]\?\.level/,
   'the live bow mesh must use the actual equipped bow level');
 assert.match(bowRig, /dungeonVeilUpgradeBinding: 'in-run-player-bow-mesh'/,
-  'the live mesh must expose a deterministic binding identity');
+  'the live bow mesh must expose a deterministic binding identity');
 assert.match(bowRig, /if \(tier < 3\) return \{ update:/,
   'levels 1 and 2 must not clone materials or create a light');
 assert.match(bowRig, /material\?\.clone\?\.\(\)/,
@@ -105,6 +107,34 @@ assert.match(bowRig, /prefers-reduced-motion: reduce/);
 assert.match(bowRig, /dungeonVeilRendererRecovery/);
 assert.match(bowRig, /upgradeBinding\.update\(pulse\)/,
   'the live bow effect must follow draw, attack and movement animation updates');
+
+assert.match(equipmentBinding, /type EquipmentUpgradeSlot3D = 'armor' \| 'quiver'/,
+  'the reusable live binding must stay scoped to armor and quiver');
+assert.match(equipmentBinding, /if \(tier < 3\)/,
+  'levels one and two must remain untouched on live armor and quiver meshes');
+assert.match(equipmentBinding, /material\?\.clone\?\.\(\)/,
+  'live armor and quiver effects must clone materials per player rig');
+assert.match(equipmentBinding, /new THREE\.PointLight\(/,
+  'live armor and quiver prestige must use bounded mesh-local lights');
+assert.match(equipmentBinding, /staticFallbackActive\(\)/,
+  'renderer recovery and Reduced Motion must be re-evaluated while the rig is alive');
+
+assert.match(bowRig, /function createPlayerArmorAndQuiverUpgradeBinding\(THREE: any, heroRoot: any\)/,
+  'the player rig must own independent live armor and quiver bindings');
+assert.match(bowRig, /const armorId = meta\.equipped\.armor;/);
+assert.match(bowRig, /const quiverId = meta\.equipped\.quiver;/);
+assert.match(bowRig, /meta\.owned\[armorId\]\?\.level/,
+  'the live armor binding must use the equipped armor level');
+assert.match(bowRig, /meta\.owned\[quiverId\]\?\.level/,
+  'the live quiver binding must use the equipped quiver level');
+assert.match(bowRig, /binding: 'in-run-player-armor-mesh'/);
+assert.match(bowRig, /binding: 'in-run-player-quiver-mesh'/);
+assert.match(bowRig, /startsWith\('DungeonVeilEquippedQuiver_'\)/,
+  'the quiver binding must attach to the actual equipped quiver object');
+assert.match(bowRig, /const equipmentUpgradeBinding = createPlayerArmorAndQuiverUpgradeBinding\(THREE, heroRoot\);/,
+  'armor binding must be created before the bow is parented to avoid cross-slot material leakage');
+assert.match(bowRig, /equipmentUpgradeBinding\.update\(pulse\)/,
+  'live armor and quiver prestige must follow player animation updates');
 
 assert.match(app, /import \{ EquippedUpgradePrestigeOverlay \}/);
 assert.match(app, /<EquippedUpgradePrestigeOverlay \/>/,
