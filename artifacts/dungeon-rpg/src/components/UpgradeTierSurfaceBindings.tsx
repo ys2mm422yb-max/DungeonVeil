@@ -102,11 +102,19 @@ function installStyle() {
   document.head.append(style);
 }
 
+function rendererFallbackActive() {
+  const data = document.documentElement.dataset;
+  return data.dungeonVeilRendererRecovery === 'true'
+    || data.dungeonVeilRendererRecovery === '1'
+    || data.dungeonVeilLowGpu === 'true'
+    || data.dungeonVeilLowGpu === '1';
+}
+
 export function UpgradeTierSurfaceBindings() {
   useEffect(() => {
     installStyle();
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let rendererRecovery = document.documentElement.dataset.dungeonVeilRendererRecovery === 'true';
+    let rendererRecovery = rendererFallbackActive();
     let frame = 0;
     let combatFrame = 0;
     let THREE: any = null;
@@ -124,7 +132,7 @@ export function UpgradeTierSurfaceBindings() {
       const level = Number(root.userData.companionLevel ?? 1);
       combatBindings.set(
         root,
-        createCompanionUpgradePrestigeBinding(THREE, visual, level, definition.accentHex),
+        createCompanionUpgradePrestigeBinding(THREE, visual, role, level, definition.accentHex),
       );
     };
 
@@ -141,6 +149,7 @@ export function UpgradeTierSurfaceBindings() {
       const updateCombatBindings = (now: number) => {
         for (const [root, binding] of combatBindings) {
           if (!root.parent) {
+            binding.dispose();
             combatBindings.delete(root);
             continue;
           }
@@ -194,7 +203,7 @@ export function UpgradeTierSurfaceBindings() {
       frame = window.requestAnimationFrame(apply);
     };
     const lost = () => { rendererRecovery = true; schedule(); };
-    const ready = () => { rendererRecovery = false; schedule(); };
+    const ready = () => { rendererRecovery = rendererFallbackActive(); schedule(); };
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     media.addEventListener?.('change', schedule);
@@ -219,6 +228,7 @@ export function UpgradeTierSurfaceBindings() {
       window.removeEventListener('dungeon-veil-renderer-lost', lost);
       window.removeEventListener('dungeon-veil-renderer-ready', ready);
       touched.forEach(clearSurface);
+      combatBindings.forEach(binding => binding.dispose());
       combatBindings.clear();
       if (THREE && originalAdd && patchedAdd && THREE.Object3D.prototype.add === patchedAdd) {
         THREE.Object3D.prototype.add = originalAdd;
