@@ -1,8 +1,14 @@
 import { useEffect } from 'react';
-import { COMPANION_COLLECTION_EVENT, loadCompanionCollectionV5 } from '../game/companionCollectionV5';
+import {
+  COMPANION_COLLECTION_EVENT,
+  COMPANION_DEFINITIONS_V5,
+  loadCompanionCollectionV5,
+} from '../game/companionCollectionV5';
 import { EQUIPMENT, loadMetaProgression, type EquipmentId } from '../game/metaProgression';
 import { getUpgradeVisualProfile, normalizeUpgradeVisualTier } from '../lib/upgradeVisualTiers';
+import { createCompanionUpgradePrestigeBinding } from './companionUpgradePrestige3D';
 
+const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const BOUND_CLASS = 'dungeon-veil-upgrade-bound-surface';
 const STYLE_ID = 'dungeon-veil-upgrade-surface-style';
 const EQUIPMENT_CARD_SELECTORS = [
@@ -102,7 +108,48 @@ export function UpgradeTierSurfaceBindings() {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
     let rendererRecovery = document.documentElement.dataset.dungeonVeilRendererRecovery === 'true';
     let frame = 0;
+    let combatFrame = 0;
+    let THREE: any = null;
+    let originalAdd: ((...objects: any[]) => any) | null = null;
+    let patchedAdd: ((this: any, ...objects: any[]) => any) | null = null;
     const touched = new Set<HTMLElement>();
+    const combatBindings = new Map<any, ReturnType<typeof createCompanionUpgradePrestigeBinding>>();
+
+    const bindCompanionCombatRoot = (root: any) => {
+      if (!THREE || !root?.userData?.dungeonVeilCompanionV5 || combatBindings.has(root)) return;
+      const role = root.userData.companionRole as keyof typeof COMPANION_DEFINITIONS_V5;
+      const definition = COMPANION_DEFINITIONS_V5[role];
+      const visual = root.children?.find((child: any) => String(child?.name ?? '').startsWith('CompanionVisual_'));
+      if (!definition || !visual) return;
+      const level = Number(root.userData.companionLevel ?? 1);
+      combatBindings.set(
+        root,
+        createCompanionUpgradePrestigeBinding(THREE, visual, level, definition.accentHex),
+      );
+    };
+
+    const installCompanionCombatBindings = async () => {
+      THREE = await import(/* @vite-ignore */ THREE_URL);
+      originalAdd = THREE.Object3D.prototype.add;
+      patchedAdd = function patchedUpgradeTierObjectAdd(this: any, ...objects: any[]) {
+        const result = originalAdd!.apply(this, objects);
+        objects.forEach(bindCompanionCombatRoot);
+        return result;
+      };
+      THREE.Object3D.prototype.add = patchedAdd;
+
+      const updateCombatBindings = (now: number) => {
+        for (const [root, binding] of combatBindings) {
+          if (!root.parent) {
+            combatBindings.delete(root);
+            continue;
+          }
+          binding.update(now, 0);
+        }
+        combatFrame = window.requestAnimationFrame(updateCombatBindings);
+      };
+      combatFrame = window.requestAnimationFrame(updateCombatBindings);
+    };
 
     const apply = () => {
       frame = 0;
@@ -157,9 +204,13 @@ export function UpgradeTierSurfaceBindings() {
     window.addEventListener('dungeon-veil-renderer-lost', lost);
     window.addEventListener('dungeon-veil-renderer-ready', ready);
     schedule();
+    void installCompanionCombatBindings().catch(error => {
+      console.error('Companion combat upgrade binding could not start', error);
+    });
 
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
+      if (combatFrame) window.cancelAnimationFrame(combatFrame);
       observer.disconnect();
       media.removeEventListener?.('change', schedule);
       window.removeEventListener('dungeon-veil-meta-changed', schedule);
@@ -168,6 +219,10 @@ export function UpgradeTierSurfaceBindings() {
       window.removeEventListener('dungeon-veil-renderer-lost', lost);
       window.removeEventListener('dungeon-veil-renderer-ready', ready);
       touched.forEach(clearSurface);
+      combatBindings.clear();
+      if (THREE && originalAdd && patchedAdd && THREE.Object3D.prototype.add === patchedAdd) {
+        THREE.Object3D.prototype.add = originalAdd;
+      }
     };
   }, []);
 
