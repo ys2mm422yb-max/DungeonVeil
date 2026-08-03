@@ -8,6 +8,7 @@ const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
 const REQUIRED_PAINTED_SAMPLES = 2;
 const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
 const RESTORED_ARMOR_SCREENSHOT_GUARD = Symbol('restoredArmorScreenshotGuard');
+const NAVIGATION_SAFE_EVALUATE_GUARD = Symbol('navigationSafeEvaluateGuard');
 
 async function canvasFrameEvidence(canvas) {
   return canvas.evaluate(async (element, sampleSize) => {
@@ -71,6 +72,21 @@ async function waitForRoomRendererReady(page, timeout) {
   ).toBe(true);
 }
 
+function installNavigationSafeEvaluate(page, timeout) {
+  if (page[NAVIGATION_SAFE_EVALUATE_GUARD]) return;
+  const originalEvaluate = page.evaluate.bind(page);
+  page.evaluate = async (...args) => {
+    try {
+      return await originalEvaluate(...args);
+    } catch (error) {
+      if (!/execution context was destroyed|most likely because of a navigation/i.test(String(error?.message || error))) throw error;
+      await page.waitForLoadState('domcontentloaded', { timeout });
+      return originalEvaluate(...args);
+    }
+  };
+  page[NAVIGATION_SAFE_EVALUATE_GUARD] = true;
+}
+
 function installRestoredArmorScreenshotGuard(page, timeout) {
   if (page[RESTORED_ARMOR_SCREENSHOT_GUARD]) return;
   const originalScreenshot = page.screenshot.bind(page);
@@ -93,6 +109,7 @@ function installRestoredArmorScreenshotGuard(page, timeout) {
 }
 
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
+  installNavigationSafeEvaluate(page, timeout);
   installRestoredArmorScreenshotGuard(page, timeout);
   await expect(canvas).toBeVisible({ timeout });
   await waitForRoomRendererReady(page, timeout);
