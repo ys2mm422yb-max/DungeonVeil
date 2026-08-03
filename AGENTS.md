@@ -127,15 +127,45 @@ Only `product` is a functional PR blocker. A transient tool failure must not be 
 
 When the same transient tool failure appears in two consecutive runs, create one deduplicated process issue and, when safely isolatable, a permanent workflow or evidence fix. Prefer small separate, directly inspectable media artifacts plus a manifest and hash list over difficult monolithic archives.
 
+## Adaptive test-plan contract
+
+The canonical policy is `docs/ADAPTIVE_TEST_POLICY.md`. Every new PR except protected historical PR #315 must use the structured block in `.github/PULL_REQUEST_TEMPLATE.md`.
+
+The implementer must choose and document the smallest sufficient exact-head matrix based on the actual diff, issue acceptance criteria, affected data flow, prior failures, and plausible regressions. It must record:
+
+- risk level: `low`, `medium`, `high`, or `critical`;
+- affected domains, files, modes, menus, rooms, states, devices, and browsers;
+- a concrete proof mapping for every acceptance criterion;
+- selected checks and evidence with technical reasons;
+- every omitted broad check with a technical non-impact reason;
+- escalation triggers that expand the matrix when assumptions fail.
+
+Adaptive testing never permits weakening or skipping a relevant requirement. A red, cancelled, stale, or missing relevant check cannot be dismissed as irrelevant after it fails. Explicit issue, review, or user-required checks remain mandatory.
+
+Use these defaults:
+
+- `low`: docs/process/non-executable metadata — focused structure or contract validation; no browser or gameplay evidence without executable impact;
+- `medium`: localized nonvisual code — focused unit/contract checks plus TypeScript/build where applicable;
+- `high`: visible UI, interaction, gameplay, animation, assets, touch, layout, or renderer behavior — focused journeys and compact evidence; all four portrait projects whenever browser, touch, layout, WebGL, renderer, or gameplay differences can matter;
+- `critical`: auth/security, Supabase/RLS/RPC, persistence/cloud, economy/rewards, multiplayer/reconnect, world-boss rotation, shared navigation, renderer/WebGL lifecycle, global registries/spawns, deployment, or central workflows — full relevant integration, recovery, idempotency, exact-head, and cross-device gates.
+
+A run test is required only when the change is visible or functional during a run or creates a plausible run regression. Choose exact menus, rooms, states, and devices that prove the changed contract instead of generating a generic game tour.
+
+Evidence must be small, separate, manifest-backed, SHA-256-deduplicated, and directly tied to acceptance criteria. Open every relevant hash-distinct item before visual acceptance.
+
+The verifier independently reviews the diff and test plan. It must mark the plan `accepted` or `expanded`, and must expand or reject any plan that understates risk, omits a criterion, uses irrelevant evidence, or attempts to bypass a relevant failure.
+
+The maintained validator `scripts/validate-adaptive-test-plan.mjs` and its permanent pull-request workflow enforce the policy structure. Do not bypass or weaken them.
+
 ## Quality and merge rules
 
 - A known defect, rejecting user report, unresolved review requirement, or unmet issue criterion blocks Ready and merge even when automated checks are green.
 - Do not weaken assertions, coverage, thresholds, timeouts, acceptance criteria, or Playwright configuration.
 - Playwright retries remain `0`.
-- UI, gameplay, and runtime acceptance use only the four supported mobile portrait projects.
+- UI, gameplay, and runtime acceptance use only the four supported mobile portrait projects when those surfaces are affected or can differ across engines/devices.
 - Evidence follows Issue #366: small, separate, and SHA-256-deduplicated.
 - Actually open and inspect all relevant hash-distinct screenshots, videos, traces, and runtime evidence before claiming visual acceptance.
-- Before Ready or merge, verify the unchanged exact head, base branch, mergeability, reviews, threads, required checks, artifacts, leases, and every task criterion.
+- Before Ready or merge, verify the unchanged exact head, base branch, mergeability, reviews, threads, adaptive test-plan validity, selected and otherwise applicable required checks, artifacts, leases, and every task criterion.
 - Merge only after all applicable Draft and Ready exact-head gates are green and no known blocker remains.
 - Use Expected-Head protection, never auto-merge, and keep the source branch.
 - Keep issues open until their complete Definition of Done is satisfied.
@@ -148,19 +178,20 @@ A browser, DNS, cache, network, or tool inability to open the public URL alone d
 - Prefer focused changes and preserve unrelated behavior.
 - Remove temporary repair files and debugging artifacts before completion.
 - For a complete file replacement, read the current file, verify its blob SHA and branch head immediately before writing, then inspect the resulting diff and new head.
-- Run the narrowest relevant validation first, followed by repository typecheck/build and task-specific checks.
+- Run the narrowest relevant validation first, followed by the additional checks selected by the adaptive test plan.
 - Never overwrite another worker's commits or tests.
 
 Common commands from the repository root:
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm run audit:adaptive-test-policy
 pnpm typecheck
 pnpm build
 pnpm --filter @workspace/dungeon-rpg dev
 ```
 
-Run additional audit and Playwright commands exactly as required by the active issue and existing workflows. Do not substitute weaker checks.
+Run additional audit and Playwright commands exactly as required by the active issue and adaptive test plan. Do not substitute weaker checks.
 
 ## Secrets and authentication
 
