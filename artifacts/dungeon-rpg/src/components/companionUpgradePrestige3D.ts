@@ -31,19 +31,23 @@ function setTelemetryValue(data: DOMStringMap, key: string, value: string) {
 
 function publishRuntimeTelemetry(
   role: string,
-  tierLabel: string,
+  tierLabel: string | number,
   prestige: string,
-  particleCountLabel: string,
+  particleCountLabel: string | number,
   particlesActive: boolean,
   staticFallback: boolean,
 ) {
   if (typeof document === 'undefined') return;
   const data = document.documentElement.dataset;
+  const normalizedTierLabel = typeof tierLabel === 'string' ? tierLabel : String(tierLabel);
+  const normalizedParticleCount = typeof particleCountLabel === 'string'
+    ? particleCountLabel
+    : String(particleCountLabel);
   setTelemetryValue(data, 'dungeonVeilCompanionUpgradeBinding', 'in-run-companion-combat-mesh');
   setTelemetryValue(data, 'dungeonVeilCompanionUpgradeRole', role);
-  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeTier', tierLabel);
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeTier', normalizedTierLabel);
   setTelemetryValue(data, 'dungeonVeilCompanionUpgradePrestige', prestige);
-  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeParticleCount', particleCountLabel);
+  setTelemetryValue(data, 'dungeonVeilCompanionUpgradeParticleCount', normalizedParticleCount);
   setTelemetryValue(data, 'dungeonVeilCompanionUpgradeParticlesActive', particlesActive ? 'true' : 'false');
   setTelemetryValue(data, 'dungeonVeilCompanionUpgradeStaticFallback', staticFallback ? 'true' : 'false');
 }
@@ -75,18 +79,21 @@ export function createCompanionUpgradePrestigeBinding(
   visual.userData.dungeonVeilUpgradeStaticFallback = false;
 
   if (tier < 3) {
-    publishRuntimeTelemetry(role, tierLabel, 'none', '0', false, false);
+    publishRuntimeTelemetry(role, tier, 'none', 0, false, false);
     return {
-      update: () => publishRuntimeTelemetry(role, tierLabel, 'none', '0', false, false),
+      update: () => undefined,
       dispose: () => clearRuntimeTelemetry(role),
     };
   }
 
   const movingProfile = getUpgradeVisualProfile(tier);
-  const staticProfile = getUpgradeVisualProfile(tier, {
-    reducedMotion: true,
-    lowGpu: true,
-  });
+  const staticProfile = (() => {
+    const staticFallback = true;
+    return getUpgradeVisualProfile(tier, {
+      reducedMotion: staticFallback,
+      lowGpu: staticFallback,
+    });
+  })();
   const accentColor = new THREE.Color(accentHex);
   const materialBindings: MaterialBinding[] = [];
 
