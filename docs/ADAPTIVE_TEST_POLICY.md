@@ -8,6 +8,14 @@ Choose the smallest **sufficient** exact-head test and evidence matrix that prov
 
 Adaptive selection means relevance and precision. It never means fewer checks merely to save time.
 
+## Immutable quality floor
+
+- Playwright retries remain `0`.
+- Never weaken, remove, bypass, or relabel a relevant test, assertion, coverage rule, threshold, timeout, acceptance criterion, review requirement, or user rejection.
+- Explicit task requirements remain mandatory even when a smaller generic matrix would otherwise be sufficient.
+- A relevant red, cancelled, stale, or missing check cannot be reclassified as irrelevant after failure.
+- `main`, PR #315, auto-merge, branch deletion, force-push, reset, and temporary Actions used as patch transport remain outside the permitted workflow.
+
 ## Mandatory test-plan record
 
 Before implementation is considered complete, the PR body must contain the structured block from `.github/PULL_REQUEST_TEMPLATE.md` and document:
