@@ -1,5 +1,6 @@
 import { loadMetaProgression } from '../game/metaProgression';
 import { getUpgradeVisualProfile, normalizeUpgradeVisualTier } from '../lib/upgradeVisualTiers';
+import { attachEquipmentUpgradePrestige3D, type EquipmentUpgradeBinding3D } from './equipmentUpgradePrestige3D';
 
 export type BowRig = {
   bow: any;
@@ -136,6 +137,58 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
   return { update };
 }
 
+function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
+  const isPlayerBody = String(heroRoot?.name ?? '').startsWith('KayKitPlayerBody_');
+  if (!isPlayerBody) return { update: (_activityPulse: number) => undefined };
+
+  const meta = loadMetaProgression();
+  const armorId = meta.equipped.armor;
+  const quiverId = meta.equipped.quiver;
+  const armorLevel = Number(meta.owned[armorId]?.level ?? 1);
+  const quiverLevel = Number(meta.owned[quiverId]?.level ?? 1);
+
+  // This runs before the bow is parented, so the armor traversal cannot clone
+  // or tint bow/quiver materials and each equipped slot remains independent.
+  const armorBinding = attachEquipmentUpgradePrestige3D(THREE, heroRoot, {
+    slot: 'armor',
+    level: armorLevel,
+    binding: 'in-run-player-armor-mesh',
+  });
+  heroRoot.userData = {
+    ...(heroRoot.userData ?? {}),
+    dungeonVeilArmorUpgradeTier: armorBinding.tier,
+    dungeonVeilQuiverUpgradeTier: normalizeUpgradeVisualTier(quiverLevel),
+  };
+
+  let quiverBinding: EquipmentUpgradeBinding3D | null = null;
+  let remainingQuiverSearches = 16;
+
+  const bindQuiverWhenAttached = () => {
+    if (quiverBinding || remainingQuiverSearches <= 0) return;
+    remainingQuiverSearches -= 1;
+    let equippedQuiver: any = null;
+    heroRoot.traverse?.((node: any) => {
+      if (equippedQuiver) return;
+      if (String(node?.name ?? '').startsWith('DungeonVeilEquippedQuiver_')) equippedQuiver = node;
+    });
+    if (!equippedQuiver) return;
+
+    quiverBinding = attachEquipmentUpgradePrestige3D(THREE, equippedQuiver, {
+      slot: 'quiver',
+      level: quiverLevel,
+      binding: 'in-run-player-quiver-mesh',
+    });
+  };
+
+  return {
+    update(activityPulse: number) {
+      bindQuiverWhenAttached();
+      armorBinding.update(activityPulse);
+      quiverBinding?.update(activityPulse);
+    },
+  };
+}
+
 export function attachBowToRanger(
   THREE: any,
   heroRoot: any,
@@ -154,6 +207,7 @@ export function attachBowToRanger(
     }
   });
 
+  const equipmentUpgradeBinding = createPlayerArmorAndQuiverUpgradeBinding(THREE, heroRoot);
   const correctionY = authoredBowAxisCorrection(THREE, bow) + facingCorrectionY;
   anchor.add(bow);
   bow.rotation.order = 'YXZ';
@@ -193,6 +247,7 @@ export function attachBowToRanger(
         node.morphTargetInfluences[0] = Math.max(0, Math.min(1, pulse));
       });
       upgradeBinding.update(pulse);
+      equipmentUpgradeBinding.update(pulse);
     },
   };
 }
