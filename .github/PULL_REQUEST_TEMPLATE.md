@@ -12,7 +12,10 @@ Describe the focused product or process change and link every addressed issue.
 
 ### Affected domains and surfaces
 
-- Replace with concrete domains, files, systems, menus, rooms, states, modes, devices, and browsers.
+Declared domains: `replace-with-comma-separated-canonical-domains`
+
+- Replace with concrete files, systems, menus, rooms, states, modes, devices, browsers, and data flows.
+- Canonical domain examples: `docs`, `process`, `workflow`, `menu`, `inventory`, `codex`, `localization`, `touch`, `layout`, `gameplay`, `rooms`, `enemy`, `boss`, `companion`, `equipment`, `upgrade-effects`, `renderer`, `webgl`, `animation`, `assets`, `performance`, `lifecycle`, `persistence`, `cloud`, `auth`, `supabase`, `economy`, `rewards`, `multiplayer`, `reconnect`, `deployment`.
 
 ### Acceptance-criterion mapping
 
