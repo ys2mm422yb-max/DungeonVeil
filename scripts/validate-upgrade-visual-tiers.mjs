@@ -154,18 +154,28 @@ assert.match(bindings, /root\.userData\.companionLevel/,
   'the live companion effect must use that role instance own level');
 assert.match(bindings, /createCompanionUpgradePrestigeBinding\(THREE, visual, role, level, definition\.accentHex\)/,
   'the live companion effect must receive the actual role, role-local level and role accent');
-assert.match(bindings, /THREE\.Object3D\.prototype\.add = patchedAdd/,
-  'the persistent application binding must see actual companion roots when they enter the shared renderer scene');
-assert.match(bindings, /binding\.update\(now, 0\)/,
-  'the attached companion effect must update while the real combat model moves');
-assert.match(bindings, /binding\.dispose\(\);[\s\S]*combatBindings\.delete\(root\)/,
+assert.match(bindings, /document\.documentElement\.dataset\.dungeonVeilActiveRun === '1'/,
+  'scene capture must be armed only for an active run');
+assert.match(bindings, /queueMicrotask\(restoreSceneCapture\)/,
+  'the temporary Three.js add interception must restore itself immediately after the companion scene is found');
+assert.match(bindings, /THREE\.Object3D\.prototype\.add = originalAdd/,
+  'the shared Three.js prototype must be restored explicitly');
+assert.match(bindings, /for \(const child of observedCompanionScene\.children \?\? \[\]\) bindCompanionCombatRoot\(child\)/,
+  'later companion roots must be discovered only inside the already observed renderer scene');
+assert.match(bindings, /window\.addEventListener\(COMPANION_ACTION_EVENT, handleCompanionAction\)/,
+  'the live companion effect must receive the existing combat action event');
+assert.match(bindings, /const actionPulse = entry\.actionEndsAt > now \? Math\.sin\(progress \* Math\.PI\) : 0;/,
+  'the model-local effect must derive a bounded pulse from the real companion action window');
+assert.match(bindings, /entry\.binding\.update\(now, actionPulse\)/,
+  'the attached companion effect must update with the real combat pulse while the model moves');
+assert.match(bindings, /entry\.binding\.dispose\(\);[\s\S]*combatBindings\.delete\(root\)/,
   'removed companion rigs must release telemetry before leaving the live binding registry');
 
 assert.match(companionBinding, /normalizeUpgradeVisualTier\(level\)/,
   'companion combat prestige must normalize each role level independently');
 assert.match(companionBinding, /dungeonVeilUpgradeBinding = 'in-run-companion-combat-mesh'/,
   'the actual companion model must expose a deterministic mesh-local binding identity');
-assert.match(companionBinding, /if \(tier < 3\) \{[\s\S]*publishRuntimeTelemetry\(role, tier, 'none', 0, false, false\);[\s\S]*dispose: \(\) => clearRuntimeTelemetry\(role\)/,
+assert.match(companionBinding, /if \(tier < 3\) \{[\s\S]*publishRuntimeTelemetry\(role, tier, 'none', 0, false, false\);[\s\S]*update: \(\) => undefined,[\s\S]*dispose: \(\) => clearRuntimeTelemetry\(role\)/,
   'companion levels 1 and 2 must stay effect-free while still exposing factual runtime evidence');
 assert.match(companionBinding, /material\?\.clone\?\.\(\)/,
   'companion prestige must isolate materials per live rig');
@@ -179,8 +189,12 @@ assert.match(companionBinding, /dungeonVeilRendererRecovery === 'true'[\s\S]*dun
   'both maintained renderer-recovery dataset encodings must activate the static fallback');
 assert.match(companionBinding, /dungeonVeilLowGpu === 'true'[\s\S]*dungeonVeilLowGpu === '1'/,
   'both maintained low-GPU dataset encodings must activate the static fallback');
-assert.match(companionBinding, /getUpgradeVisualProfile\(tier, \{[\s\S]*reducedMotion: staticFallback,[\s\S]*lowGpu: staticFallback,/,
-  'the canonical static fallback profile must drive companion recovery behavior');
+assert.match(companionBinding, /const movingProfile = getUpgradeVisualProfile\(tier\);/,
+  'the moving companion profile must be resolved once before the frame loop');
+assert.match(companionBinding, /const staticProfile = \(\(\) => \{[\s\S]*const staticFallback = true;[\s\S]*getUpgradeVisualProfile\(tier, \{[\s\S]*reducedMotion: staticFallback,[\s\S]*lowGpu: staticFallback,/,
+  'the canonical static fallback profile must be resolved once before the frame loop');
+assert.match(companionBinding, /const profile = staticFallback \? staticProfile : movingProfile;/,
+  'the update loop must select a precomputed profile without allocating');
 assert.match(companionBinding, /visual\.userData\.dungeonVeilUpgradeStaticFallback = staticFallback;/,
   'the actual companion model must expose its live fallback state');
 assert.match(companionBinding, /publishRuntimeTelemetry\([\s\S]*particleGroup\.visible,[\s\S]*staticFallback,/,
