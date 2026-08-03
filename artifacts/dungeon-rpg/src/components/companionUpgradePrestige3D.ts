@@ -8,6 +8,7 @@ type MaterialBinding = {
 
 type CompanionUpgradePrestigeBinding = {
   update: (now: number, actionPulse: number) => void;
+  dispose: () => void;
 };
 
 function prefersReducedMotion() {
@@ -16,13 +17,55 @@ function prefersReducedMotion() {
 }
 
 function rendererRecoveryActive() {
-  return typeof document !== 'undefined'
-    && document.documentElement.dataset.dungeonVeilRendererRecovery === 'true';
+  if (typeof document === 'undefined') return false;
+  const root = document.documentElement.dataset;
+  return root.dungeonVeilRendererRecovery === 'true'
+    || root.dungeonVeilRendererRecovery === '1'
+    || root.dungeonVeilLowGpu === 'true'
+    || root.dungeonVeilLowGpu === '1';
+}
+
+function publishRuntimeTelemetry(
+  role: string,
+  tier: number,
+  prestige: string,
+  particleCount: number,
+  particlesActive: boolean,
+  staticFallback: boolean,
+) {
+  if (typeof document === 'undefined') return;
+  const data = document.documentElement.dataset;
+  const next = {
+    dungeonVeilCompanionUpgradeBinding: 'in-run-companion-combat-mesh',
+    dungeonVeilCompanionUpgradeRole: role,
+    dungeonVeilCompanionUpgradeTier: String(tier),
+    dungeonVeilCompanionUpgradePrestige: prestige,
+    dungeonVeilCompanionUpgradeParticleCount: String(particleCount),
+    dungeonVeilCompanionUpgradeParticlesActive: particlesActive ? 'true' : 'false',
+    dungeonVeilCompanionUpgradeStaticFallback: staticFallback ? 'true' : 'false',
+  } as const;
+  for (const [key, value] of Object.entries(next)) {
+    if (data[key] !== value) data[key] = value;
+  }
+}
+
+function clearRuntimeTelemetry(role: string) {
+  if (typeof document === 'undefined') return;
+  const data = document.documentElement.dataset;
+  if (data.dungeonVeilCompanionUpgradeRole !== role) return;
+  delete data.dungeonVeilCompanionUpgradeBinding;
+  delete data.dungeonVeilCompanionUpgradeRole;
+  delete data.dungeonVeilCompanionUpgradeTier;
+  delete data.dungeonVeilCompanionUpgradePrestige;
+  delete data.dungeonVeilCompanionUpgradeParticleCount;
+  delete data.dungeonVeilCompanionUpgradeParticlesActive;
+  delete data.dungeonVeilCompanionUpgradeStaticFallback;
 }
 
 export function createCompanionUpgradePrestigeBinding(
   THREE: any,
   visual: any,
+  role: string,
   level: number,
   accentHex: number,
 ): CompanionUpgradePrestigeBinding {
@@ -31,7 +74,13 @@ export function createCompanionUpgradePrestigeBinding(
   visual.userData.dungeonVeilUpgradeBinding = 'in-run-companion-combat-mesh';
   visual.userData.dungeonVeilUpgradeStaticFallback = false;
 
-  if (tier < 3) return { update: () => undefined };
+  if (tier < 3) {
+    publishRuntimeTelemetry(role, tier, 'none', 0, false, false);
+    return {
+      update: () => publishRuntimeTelemetry(role, tier, 'none', 0, false, false),
+      dispose: () => clearRuntimeTelemetry(role),
+    };
+  }
 
   const accentColor = new THREE.Color(accentHex);
   const materialBindings: MaterialBinding[] = [];
@@ -111,6 +160,7 @@ export function createCompanionUpgradePrestigeBinding(
   visual.add(aura);
 
   visual.userData.dungeonVeilUpgradeParticleCount = particleCount;
+  publishRuntimeTelemetry(role, tier, getUpgradeVisualProfile(tier).prestige, particleCount, false, false);
 
   return {
     update(now: number, actionPulse: number) {
@@ -162,6 +212,17 @@ export function createCompanionUpgradePrestigeBinding(
 
       visual.userData.dungeonVeilUpgradePrestige = profile.prestige;
       visual.userData.dungeonVeilUpgradeStaticFallback = staticFallback;
+      publishRuntimeTelemetry(
+        role,
+        tier,
+        profile.prestige,
+        particleCount,
+        particleGroup.visible,
+        staticFallback,
+      );
+    },
+    dispose() {
+      clearRuntimeTelemetry(role);
     },
   };
 }
