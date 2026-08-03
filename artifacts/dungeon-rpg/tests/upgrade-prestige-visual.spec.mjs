@@ -60,9 +60,11 @@ async function waitForStableRoom(page) {
 
 async function seedInitialState(page, role, level) {
   await page.addInitScript(({ activeRole, activeLevel, roles }) => {
+    if (sessionStorage.getItem('dungeon-veil-prestige-qa-seeded') === '1') return;
     const now = Date.now();
     localStorage.clear();
     sessionStorage.clear();
+    sessionStorage.setItem('dungeon-veil-prestige-qa-seeded', '1');
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
     localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({
