@@ -23,17 +23,44 @@ assert.match(profiles, /tier: 5,[\s\S]*?prestige: 'maximum'/);
 assert.match(profiles, /particleDensity: 0,[\s\S]*?particleIntervalMs: 0,[\s\S]*?pulseStrength: 0,[\s\S]*?lightSweepSpeed: 0,/,
   'reduced-motion and low-GPU resolution must remove moving effects');
 
-assert.match(overlay, /ACTIVE_SLOTS[^\n]*\['bow', 'quiver', 'armor'\]/,
-  'all active equipped slots must participate in the visible tier');
+assert.match(overlay, /ACTIVE_SLOTS = \['bow', 'quiver', 'armor'\] as const/,
+  'all active equipped slots must participate independently');
+assert.match(overlay, /resolveEquippedUpgradeTiers\(meta: MetaProgression\): SlotTierMap/,
+  'equipped tiers must resolve per slot rather than collapsing to one maximum');
+assert.doesNotMatch(overlay, /Math\.max\(highest, level\)/,
+  'mixed equipment levels must not collapse into one global tier');
+assert.doesNotMatch(overlay, /function equippedTier/,
+  'the obsolete global highest-tier resolver must remain removed');
+
+for (const slot of ['bow', 'quiver', 'armor']) {
+  assert.match(overlay, new RegExp(`${slot}: '[^']+'`), `${slot} needs a dedicated presentation anchor`);
+}
+
+assert.match(overlay, /data-equipment-slot=\{slot\}/);
+assert.match(overlay, /data-model-anchor=\{`equipped-\$\{slot\}`\}/,
+  'each slot effect must expose its own model-anchor identity');
+assert.match(overlay, /tier=\{slotTiers\[slot\]\}/,
+  'each rendered effect must receive the matching slot tier');
 assert.match(overlay, /if \(tier < 3\) return null;/,
-  'levels 1 and 2 must remain visually normal');
-assert.match(overlay, /data-upgrade-tier=\{tier\}/);
+  'levels 1 and 2 must remain visually normal independently per slot');
 assert.match(overlay, /data-static-fallback=\{profile\.particleDensity === 0/);
 assert.match(overlay, /prefers-reduced-motion: reduce/);
 assert.match(overlay, /pointer-events-none/,
   'prestige feedback must never intercept gameplay or menu input');
 assert.match(overlay, /dungeon-veil-renderer-lost/);
 assert.match(overlay, /dungeon-veil-renderer-ready/);
+
+const mixedLevelContract = {
+  bow: 5,
+  quiver: 1,
+  armor: 3,
+};
+assert.deepEqual(Object.keys(mixedLevelContract), ['bow', 'quiver', 'armor']);
+assert.equal(mixedLevelContract.bow, 5);
+assert.equal(mixedLevelContract.quiver, 1);
+assert.equal(mixedLevelContract.armor, 3);
+assert.match(overlay, /tiers\[slot\] = normalizeUpgradeVisualTier/,
+  'mixed levels must be normalized and retained independently');
 
 assert.match(app, /import \{ EquippedUpgradePrestigeOverlay \}/);
 assert.match(app, /<EquippedUpgradePrestigeOverlay \/>/,
