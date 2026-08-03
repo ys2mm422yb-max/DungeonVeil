@@ -38,8 +38,11 @@ function runtimeMonitor(page) {
 
 async function seedBaseState(page, { signedIn = false } = {}) {
   await page.addInitScript(({ online }) => {
+    const seedMarker = 'dungeon-veil-autopilot-product-seeded-v1';
+    if (sessionStorage.getItem(seedMarker) === '1') return;
     localStorage.clear();
     sessionStorage.clear();
+    sessionStorage.setItem(seedMarker, '1');
     const now = Date.now();
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
@@ -47,8 +50,8 @@ async function seedBaseState(page, { signedIn = false } = {}) {
     localStorage.setItem('dungeon-veil-seen-unlocks-v1', JSON.stringify({
       version: 2,
       initialized: true,
-      equipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak'],
-      announcedEquipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak'],
+      equipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak', 'ash-armor', 'warden-armor'],
+      announcedEquipment: ['ash-bow', 'ranger-quiver', 'ranger-cloak', 'ash-armor', 'warden-armor'],
       relics: ['ash-eye', 'marked-claw', 'night-hunt-sigil', 'veil-heart', 'broken-guardian-crown', 'depth-rune-shard', 'world-core'],
       announcedRelics: ['ash-eye', 'marked-claw', 'night-hunt-sigil', 'veil-heart', 'broken-guardian-crown', 'depth-rune-shard', 'world-core'],
     }));
@@ -62,6 +65,8 @@ async function seedBaseState(page, { signedIn = false } = {}) {
         'ash-bow': { level: 1, copies: 99 },
         'ranger-quiver': { level: 1, copies: 99 },
         'ranger-cloak': { level: 1, copies: 99 },
+        'ash-armor': { level: 1, copies: 99 },
+        'warden-armor': { level: 1, copies: 99 },
       },
       equipped: { bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' },
       rewardLedger: [],
@@ -239,6 +244,35 @@ test('signed-out hub, solo run and duo entry remain functional', async ({ page }
   await expect(runHud).toBeVisible({ timeout: 120_000 });
   await expect(page.getByTestId('run-joystick')).toBeVisible();
   await waitForPlayableRoom(page);
+  const runRenderer = page.getByTestId('run-three-host');
+  await expect(runRenderer).toHaveAttribute('data-equipped-armor', 'ranger-cloak');
+  await page.evaluate(() => {
+    const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
+    localStorage.setItem('dungeon-veil-meta', JSON.stringify({ ...meta, equipped: { ...meta.equipped, armor: 'ash-armor' } }));
+    window.dispatchEvent(new Event('dungeon-veil-meta-changed'));
+  });
+  await expect(runRenderer).toHaveAttribute('data-equipped-armor', 'ash-armor');
+  await capture(page, 'solo-run-ash-armor', testInfo.project.name);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 120_000 });
+  await waitForPlayableRoom(page);
+  await expect(page.getByTestId('run-three-host')).toHaveAttribute('data-equipped-armor', 'ash-armor');
+  await page.evaluate(() => {
+    const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
+    localStorage.setItem('dungeon-veil-meta', JSON.stringify({ ...meta, equipped: { ...meta.equipped, armor: 'warden-armor' } }));
+    window.dispatchEvent(new Event('dungeon-veil-cloud-save-restored'));
+  });
+  await expect(page.getByTestId('run-three-host')).toHaveAttribute('data-equipped-armor', 'warden-armor');
+  await capture(page, 'solo-run-warden-armor-cloud-restored', testInfo.project.name);
+
+  await page.evaluate(() => {
+    const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
+    localStorage.setItem('dungeon-veil-meta', JSON.stringify({ ...meta, equipped: { ...meta.equipped, armor: null } }));
+    window.dispatchEvent(new Event('dungeon-veil-meta-changed'));
+  });
+  await expect(page.getByTestId('run-three-host')).toHaveAttribute('data-equipped-armor', 'ranger-cloak');
+  await expect(page.getByTestId('run-three-host')).toHaveAttribute('data-equipped-armor-fallback', 'false');
   await capture(page, 'solo-run-started', testInfo.project.name);
   expect(issues, issues.join('\n')).toEqual([]);
 });

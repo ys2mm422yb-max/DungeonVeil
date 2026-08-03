@@ -20,6 +20,11 @@ const inventory = read('src/components/screens/VeilChamberScreenV4.tsx');
 const cloud = read('src/game/persistentSaveBundle.ts');
 const bridge = read('src/components/GameSessionBridge.tsx');
 const assetAudit = read('scripts/audit-kaykit-assets.mjs');
+const equippedBody = read('src/game/equippedPlayerBody.ts');
+const villagePlayer = read('src/components/kaykitVillagePlayer3D.ts');
+const runPlayer = read('src/components/kaykitPlayer3D.ts');
+const runCanvas = read('src/components/GameCanvasKayKit3D.tsx');
+const productJourney = read('tests/autopilot-product-journeys.spec.mjs');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -29,6 +34,7 @@ const activeArmorIds = ['ranger-cloak', 'ash-armor', 'warden-armor'];
 for (const id of activeArmorIds) {
   assert(redesign.includes(`'${id}': {`), `${id} is missing from the active armor catalog`);
   assert(armorVisuals.includes(`'${id}': { id: '${id}', slot: 'armor'`), `${id} has no retained armor visual`);
+  assert(equippedBody.includes(`'${id}'`) || armorVisuals.includes(`'${id}'`), `${id} is not covered by the equipped-body contract`);
 }
 
 const armorSection = redesign.match(/'ranger-cloak':[\s\S]*?'warden-armor':[\s\S]*?\n\s*},/m)?.[0] ?? '';
@@ -61,6 +67,25 @@ assert(preview.includes('AnimationMixer') && preview.includes('chooseIdleClip') 
 assert(preview.includes('Rig_Medium_General.glb'), 'armor preview has no KayKit idle animation source');
 assert(assetAudit.includes("armor: ['armor', 'armour', 'helmet'") && assetAudit.includes("'characters', 'armor'"), 'asset audit does not require armor candidates');
 
+assert(equippedBody.includes('EQUIPMENT_ARMOR_VISUALS') && equippedBody.includes('resolveEquippedPlayerBody'), 'canonical equipped-player-body resolver is missing');
+assert(equippedBody.includes("DEFAULT_ARMOR_ID: EquipmentId = 'ranger-cloak'") && equippedBody.includes('usedFallback: true'), 'equipped-player-body fallback is not explicit and safe');
+assert(villagePlayer.includes('resolveEquippedPlayerBody(meta.equipped.armor)') && villagePlayer.includes('armorFallback'), 'main-menu renderer does not consume the canonical equipped armor');
+assert(runPlayer.includes('resolveEquippedPlayerBody(meta.equipped.armor)') && runPlayer.includes('loader.loadAsync(`${KAYKIT_ROOT}/${equippedBody.assetPath}`)'), 'active run renderer does not load the equipped armor body');
+assert(runPlayer.includes('equippedArmor = equippedBody.armorId') && runPlayer.includes('equippedArmorFallback = equippedBody.usedFallback'), 'active run renderer does not expose equipped-body diagnostics');
+assert(runCanvas.includes("window.addEventListener('dungeon-veil-meta-changed', refreshEquippedPlayerRig)")
+  && runCanvas.includes("window.addEventListener('dungeon-veil-cloud-save-restored', refreshEquippedPlayerRig)"), 'active run renderer does not refresh after equipment or cloud-restore changes');
+assert(runCanvas.includes('host.dataset.equippedArmor =') && runCanvas.includes('host.dataset.equippedArmorFallback ='), 'active run renderer does not expose the resolved visible armor for lifecycle verification');
+assert(productJourney.includes("toHaveAttribute('data-equipped-armor', 'ash-armor')")
+  && productJourney.includes("toHaveAttribute('data-equipped-armor', 'warden-armor')")
+  && productJourney.includes("toHaveAttribute('data-equipped-armor-fallback', 'false')")
+  && productJourney.includes("new Event('dungeon-veil-cloud-save-restored')"), 'four-device product journey does not cover immediate, reload, cloud-restore and canonical default armor appearances');
+assert(productJourney.includes("sessionStorage.getItem(seedMarker) === '1'")
+  && productJourney.includes("sessionStorage.setItem(seedMarker, '1')"), 'four-device product journey reseeds and erases persisted run state during reload');
+assert(runCanvas.includes('generation !== playerRigGeneration')
+  && runCanvas.includes('scene.remove(previousRig.root)')
+  && runCanvas.includes('disposeObject(previousRig.root)'), 'active run renderer does not replace the visible rig safely');
+assert(cloud.includes('equipmentProgressWeight') && store.includes('equipped'), 'equipped armor persistence is not represented in the saved progression contract');
+
 const requiredModels = [
   'public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb',
   'public/assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Knight.glb',
@@ -69,4 +94,4 @@ const requiredModels = [
 ];
 for (const model of requiredModels) assert(exists(model), `required armor preview asset is missing: ${model}`);
 
-console.log('Armor progression audit passed: exactly three active armor roles, diminishing defense, V4 migration, statless legacy cosmetics, cloud weighting and mobile equipment previews are coherent.');
+console.log('Armor progression audit passed: exactly three active armor roles, canonical menu/run body resolution, immediate equipment/cloud refresh, safe fallback, persisted equipment state, diminishing defense, V4 migration, statless legacy cosmetics, cloud weighting and mobile equipment previews are coherent.');

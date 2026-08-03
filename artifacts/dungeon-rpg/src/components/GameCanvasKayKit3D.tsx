@@ -10,6 +10,8 @@ import { buildKayKitRoomTheme, preloadKayKitRoomTheme } from './kaykitRoomThemes
 import { createKayKitEnemyVisual, updateKayKitEnemyVisual, type KayKitEnemyVisual } from './kaykitEnemy3D';
 import { createKayKitLootVisual } from './kaykitLoot3D';
 import { loadKayKitManifest } from './kaykitManifest3D';
+import { loadMetaProgression } from '../game/metaStoreV4';
+import { resolveEquippedPlayerBody } from '../game/equippedPlayerBody';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const GLTF_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
@@ -43,6 +45,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let cameraGoal: any;
     let clock: any;
     let playerRig: KayKitPlayerRig | null = null;
+    let GLTFLoaderCtor: any = null;
+    let playerRigGeneration = 0;
     let arrowPrototype: any = null;
     let roomRoot: any = null;
     let portal: any = null;
@@ -157,6 +161,34 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (Array.isArray(node.material)) node.material.forEach((material: any) => material?.dispose?.());
       else node.material?.dispose?.();
     });
+
+    const refreshEquippedPlayerRig = async () => {
+      if (disposed || !THREE || !GLTFLoaderCtor || !scene || !playerRig) return;
+      const equippedBody = resolveEquippedPlayerBody(loadMetaProgression().equipped.armor);
+      if (playerRig?.root.userData.equippedArmor === equippedBody.armorId
+        && playerRig.root.userData.equippedArmorFallback === equippedBody.usedFallback) return;
+
+      const generation = ++playerRigGeneration;
+      const nextRig = await loadKayKitRanger(THREE, GLTFLoaderCtor);
+      if (disposed || generation !== playerRigGeneration) {
+        nextRig.stop();
+        disposeObject(nextRig.root);
+        return;
+      }
+
+      nextRig.root.scale.setScalar(0.96);
+      scene.add(nextRig.root);
+      const previousRig = playerRig;
+      playerRig = nextRig;
+      arrowPrototype = nextRig.arrowPrototype;
+      host.dataset.equippedArmor = String(nextRig.root.userData.equippedArmor ?? 'ranger-cloak');
+      host.dataset.equippedArmorFallback = nextRig.root.userData.equippedArmorFallback ? 'true' : 'false';
+      previousRig?.stop();
+      if (previousRig?.root) {
+        scene.remove(previousRig.root);
+        disposeObject(previousRig.root);
+      }
+    };
 
     const buildRoom = (state: GameState) => {
       const key = `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
@@ -944,6 +976,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (disposed) return;
       THREE = await import(/* @vite-ignore */ THREE_URL);
       const { GLTFLoader } = await import(/* @vite-ignore */ GLTF_URL) as any;
+      GLTFLoaderCtor = GLTFLoader;
       if (disposed) return;
 
       scene = new THREE.Scene();
@@ -987,6 +1020,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (disposed) return;
       playerRig.root.scale.setScalar(0.96);
       arrowPrototype = playerRig.arrowPrototype;
+      host.dataset.equippedArmor = String(playerRig.root.userData.equippedArmor ?? 'ranger-cloak');
+      host.dataset.equippedArmorFallback = playerRig.root.userData.equippedArmorFallback ? 'true' : 'false';
       scene.add(playerRig.root);
       clock = new THREE.Clock();
       resize();
@@ -994,6 +1029,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     };
 
     window.addEventListener('resize', resize);
+    window.addEventListener('dungeon-veil-meta-changed', refreshEquippedPlayerRig);
+    window.addEventListener('dungeon-veil-cloud-save-restored', refreshEquippedPlayerRig);
     window.addEventListener('orientationchange', resize);
     window.visualViewport?.addEventListener('resize', resize);
     window.visualViewport?.addEventListener('scroll', resize);
@@ -1005,6 +1042,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       roomGeneration += 1;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('dungeon-veil-meta-changed', refreshEquippedPlayerRig);
+      window.removeEventListener('dungeon-veil-cloud-save-restored', refreshEquippedPlayerRig);
       window.removeEventListener('orientationchange', resize);
       window.visualViewport?.removeEventListener('resize', resize);
       window.visualViewport?.removeEventListener('scroll', resize);
@@ -1022,6 +1061,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (playerRig?.root) disposeObject(playerRig.root);
       renderer?.dispose?.();
       renderer?.domElement?.remove?.();
+      delete host.dataset.equippedArmor;
+      delete host.dataset.equippedArmorFallback;
     };
   }, []);
 

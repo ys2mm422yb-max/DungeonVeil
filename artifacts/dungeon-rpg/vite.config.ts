@@ -93,6 +93,21 @@ async function ensureLocalThreeRuntime() {
     await fs.writeFile(temporary, bytes);
     await fs.rename(temporary, destination);
   }));
+
+  const gltfLoaderPath = path.join(publicRoot, 'examples/jsm/loaders/GLTFLoader.js');
+  const gltfLoaderSource = await fs.readFile(gltfLoaderPath, 'utf8');
+  const imageBitmapConstruction = 'new ImageBitmapLoader( this.options.manager )';
+  const textureConstruction = 'new TextureLoader( this.options.manager )';
+  if (!gltfLoaderSource.includes(imageBitmapConstruction) && !gltfLoaderSource.includes(textureConstruction)) {
+    throw new Error('Pinned GLTFLoader image-decoder contract changed; refusing an unverified runtime build');
+  }
+  if (gltfLoaderSource.includes(imageBitmapConstruction)) {
+    await fs.writeFile(
+      gltfLoaderPath,
+      gltfLoaderSource.replaceAll(imageBitmapConstruction, textureConstruction),
+      'utf8',
+    );
+  }
 }
 
 function dedicatedEnemyModelsOnly(code: string) {
@@ -107,6 +122,95 @@ function dedicatedEnemyModelsOnly(code: string) {
     .replace(ENEMY_FALLBACK_ERROR, ENEMY_DEDICATED_MODEL_ERROR);
 }
 
+function sidecarMimeType(fileName: string, declaredMime?: string) {
+  if (declaredMime) return declaredMime;
+  if (fileName.endsWith('.png')) return 'image/png';
+  if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) return 'image/jpeg';
+  return 'application/octet-stream';
+}
+
+async function resolveGltfSidecar(gltfPath: string, uri: string) {
+  const directory = path.dirname(gltfPath);
+  const sidecarPath = path.resolve(directory, decodeURIComponent(uri));
+  const relative = path.relative(directory, sidecarPath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Refusing glTF sidecar outside its asset directory: ${uri}`);
+  }
+  if (!(await hasContent(sidecarPath))) throw new Error(`Required glTF sidecar is missing: ${sidecarPath}`);
+  return sidecarPath;
+}
+
+async function inlineGltfSidecars(gltfPath: string) {
+  const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
+    buffers?: Array<{ uri?: string; byteLength?: number }>;
+    images?: Array<{ uri?: string; mimeType?: string; bufferView?: number }>;
+  };
+  const buffers = source.buffers ?? [];
+  const embeddedBuffers = new Map<number, Buffer>();
+  let changed = false;
+
+  for (const [index, entry] of buffers.entries()) {
+    const uri = entry.uri;
+    if (!uri || uri.startsWith('data:') || uri.includes('://')) continue;
+    const sidecarPath = await resolveGltfSidecar(gltfPath, uri);
+    embeddedBuffers.set(index, await fs.readFile(sidecarPath));
+    changed = true;
+  }
+
+  for (const entry of source.images ?? []) {
+    const uri = entry.uri;
+    if (!uri || uri.startsWith('data:') || uri.includes('://')) continue;
+    const imagePath = await resolveGltfSidecar(gltfPath, uri);
+    const imageBytes = await fs.readFile(imagePath);
+    const mimeType = sidecarMimeType(uri, entry.mimeType);
+    entry.uri = `data:${mimeType};base64,${imageBytes.toString('base64')}`;
+    entry.mimeType = mimeType;
+    delete entry.bufferView;
+    changed = true;
+  }
+
+  for (const [index, bytes] of embeddedBuffers) {
+    const entry = buffers[index];
+    if (!entry) throw new Error(`Missing glTF buffer entry ${index} while embedding sidecars`);
+    entry.byteLength = bytes.byteLength;
+    entry.uri = `data:application/octet-stream;base64,${bytes.toString('base64')}`;
+  }
+
+  if (changed) await fs.writeFile(gltfPath, `${JSON.stringify(source)}\n`, 'utf8');
+}
+
+async function validateRequiredQuiverPackaging(gltfPath: string) {
+  const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
+    buffers?: Array<{ uri?: string }>;
+    images?: Array<{ uri?: string; mimeType?: string; bufferView?: number }>;
+  };
+  const [buffer] = source.buffers ?? [];
+  if (!buffer?.uri?.startsWith('data:application/octet-stream;base64,')) {
+    throw new Error('Required quiver binary buffer must remain embedded as a data URI');
+  }
+  const images = source.images ?? [];
+  if (images.length === 0) throw new Error('Required quiver texture is missing from the production glTF');
+  for (const image of images) {
+    if (image.bufferView !== undefined) {
+      throw new Error('Required quiver texture must not be packaged as a glTF bufferView');
+    }
+    if (!image.uri?.startsWith('data:image/png;base64,') || image.mimeType !== 'image/png') {
+      throw new Error('Required quiver texture must be a validated PNG data URI');
+    }
+  }
+}
+
+async function inlineRequiredKayKitSidecars(outDir: string) {
+  const gltfPaths = [
+    path.join(outDir, 'assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf'),
+  ];
+  for (const gltfPath of gltfPaths) {
+    if (!(await hasContent(gltfPath))) throw new Error(`Required KayKit glTF is missing from the production build: ${gltfPath}`);
+    await inlineGltfSidecars(gltfPath);
+    await validateRequiredQuiverPackaging(gltfPath);
+  }
+}
+
 export default defineConfig(async () => {
   await ensureLocalThreeRuntime();
 
@@ -115,6 +219,7 @@ export default defineConfig(async () => {
   const basePath = process.env.BASE_PATH ?? '/';
   const normalizedBasePath = basePath.endsWith('/') ? basePath : `${basePath}/`;
   const replitPlugins = [];
+  const buildOutDir = path.resolve(import.meta.dirname, 'dist/public');
 
   const dedicatedEnemyModelsPlugin: Plugin = {
     name: 'dungeon-veil-dedicated-enemy-models-only',
@@ -144,6 +249,13 @@ export default defineConfig(async () => {
     },
   };
 
+  const inlineKayKitSidecarsPlugin: Plugin = {
+    name: 'dungeon-veil-inline-kaykit-sidecars',
+    async writeBundle() {
+      await inlineRequiredKayKitSidecars(buildOutDir);
+    },
+  };
+
   if (process.env.NODE_ENV !== 'production' && process.env.REPL_ID !== undefined) {
     const [{ cartographer }, { devBanner }] = await Promise.all([
       import('@replit/vite-plugin-cartographer'),
@@ -160,7 +272,7 @@ export default defineConfig(async () => {
 
   return {
     base: normalizedBasePath,
-    plugins: [dedicatedEnemyModelsPlugin, internalAssetBasePlugin, react(), tailwindcss(), runtimeErrorOverlay(), ...replitPlugins],
+    plugins: [dedicatedEnemyModelsPlugin, internalAssetBasePlugin, inlineKayKitSidecarsPlugin, react(), tailwindcss(), runtimeErrorOverlay(), ...replitPlugins],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, 'src'),
@@ -175,7 +287,7 @@ export default defineConfig(async () => {
     },
     root: path.resolve(import.meta.dirname),
     build: {
-      outDir: path.resolve(import.meta.dirname, 'dist/public'),
+      outDir: buildOutDir,
       emptyOutDir: true,
     },
     server: {
