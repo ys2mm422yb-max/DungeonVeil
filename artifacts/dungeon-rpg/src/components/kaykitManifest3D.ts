@@ -163,8 +163,18 @@ export function loadKayKitManifest(): Promise<KayKitManifest> {
   return manifestPromise;
 }
 
+function absoluteRuntimeModelUrl(value: string): string {
+  if (typeof document === 'undefined') return value;
+  try {
+    return new URL(value, document.baseURI).href;
+  } catch {
+    return value;
+  }
+}
+
 export function modelUrl(manifest: KayKitManifest, relativePath: string) {
-  return `${manifest.root.replace(/\/$/, '')}/${relativePath.replace(/^\/+/, '')}`;
+  const joined = `${manifest.root.replace(/\/$/, '')}/${relativePath.replace(/^\/+/, '')}`;
+  return absoluteRuntimeModelUrl(joined);
 }
 
 export function findKayKitModels(
