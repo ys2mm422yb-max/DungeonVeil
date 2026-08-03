@@ -4,12 +4,14 @@ import { readFile } from 'node:fs/promises';
 const profilePath = 'artifacts/dungeon-rpg/src/lib/upgradeVisualTiers.ts';
 const overlayPath = 'artifacts/dungeon-rpg/src/components/EquippedUpgradePrestigeOverlay.tsx';
 const bindingsPath = 'artifacts/dungeon-rpg/src/components/UpgradeTierSurfaceBindings.tsx';
+const bowRigPath = 'artifacts/dungeon-rpg/src/components/bowRig.ts';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 
-const [profiles, overlay, bindings, app] = await Promise.all([
+const [profiles, overlay, bindings, bowRig, app] = await Promise.all([
   readFile(profilePath, 'utf8'),
   readFile(overlayPath, 'utf8'),
   readFile(bindingsPath, 'utf8'),
+  readFile(bowRigPath, 'utf8'),
   readFile(appPath, 'utf8'),
 ]);
 
@@ -83,6 +85,26 @@ assert.match(bindings, /dungeon-veil-renderer-lost/);
 assert.match(bindings, /dungeon-veil-renderer-ready/);
 assert.match(bindings, /pointer-events: none/,
   'local sweep layers must never intercept input');
+
+assert.match(bowRig, /function createPlayerBowUpgradeBinding\(THREE: any, heroRoot: any, bow: any\)/,
+  'the live bow rig must own a mesh-local upgrade binding');
+assert.match(bowRig, /startsWith\('KayKitPlayerBody_'\)/,
+  'player prestige must never leak onto enemy bow rigs');
+assert.match(bowRig, /const bowId = meta\.equipped\.bow;/);
+assert.match(bowRig, /meta\.owned\[bowId\]\?\.level/,
+  'the live bow mesh must use the actual equipped bow level');
+assert.match(bowRig, /dungeonVeilUpgradeBinding: 'in-run-player-bow-mesh'/,
+  'the live mesh must expose a deterministic binding identity');
+assert.match(bowRig, /if \(tier < 3\) return \{ update:/,
+  'levels 1 and 2 must not clone materials or create a light');
+assert.match(bowRig, /material\?\.clone\?\.\(\)/,
+  'upgrade emissive changes must use per-rig material clones');
+assert.match(bowRig, /new THREE\.PointLight\(/,
+  'prestige tiers must attach a bounded light directly to the moving bow mesh');
+assert.match(bowRig, /prefers-reduced-motion: reduce/);
+assert.match(bowRig, /dungeonVeilRendererRecovery/);
+assert.match(bowRig, /upgradeBinding\.update\(pulse\)/,
+  'the live bow effect must follow draw, attack and movement animation updates');
 
 assert.match(app, /import \{ EquippedUpgradePrestigeOverlay \}/);
 assert.match(app, /<EquippedUpgradePrestigeOverlay \/>/,
