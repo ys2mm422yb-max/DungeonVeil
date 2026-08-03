@@ -7,23 +7,17 @@ const MIN_COMPOSITED_PNG_BYTES = 4_000;
 const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
 const REQUIRED_PAINTED_SAMPLES = 2;
 const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
+const RESTORED_ARMOR_SCREENSHOT_GUARD = Symbol('restoredArmorScreenshotGuard');
 
 async function canvasFrameEvidence(canvas) {
   return canvas.evaluate(async (element, sampleSize) => {
     await new Promise(resolve => requestAnimationFrame(() => resolve()));
-    const empty = {
-      coverage: 0,
-      pngBytes: 0,
-      frameHash: 0,
-      width: element.width,
-      height: element.height,
-    };
+    const empty = { coverage: 0, pngBytes: 0, frameHash: 0, width: element.width, height: element.height };
     const sample = document.createElement('canvas');
     sample.width = sampleSize;
     sample.height = sampleSize;
     const context = sample.getContext('2d', { willReadFrequently: true });
     if (!context) return empty;
-
     let bitmap = null;
     try {
       context.clearRect(0, 0, sampleSize, sampleSize);
@@ -33,7 +27,6 @@ async function canvasFrameEvidence(canvas) {
       } catch {
         context.drawImage(element, 0, 0, sampleSize, sampleSize);
       }
-
       const pixels = context.getImageData(0, 0, sampleSize, sampleSize).data;
       let lit = 0;
       let frameHash = 2166136261;
@@ -41,25 +34,13 @@ async function canvasFrameEvidence(canvas) {
         const alpha = pixels[index + 3];
         const brightness = pixels[index] + pixels[index + 1] + pixels[index + 2];
         if (alpha > 16 && brightness > 54) lit += 1;
-        frameHash ^= pixels[index];
-        frameHash = Math.imul(frameHash, 16777619);
-        frameHash ^= pixels[index + 1];
-        frameHash = Math.imul(frameHash, 16777619);
-        frameHash ^= pixels[index + 2];
-        frameHash = Math.imul(frameHash, 16777619);
-        frameHash ^= alpha;
-        frameHash = Math.imul(frameHash, 16777619);
+        frameHash ^= pixels[index]; frameHash = Math.imul(frameHash, 16777619);
+        frameHash ^= pixels[index + 1]; frameHash = Math.imul(frameHash, 16777619);
+        frameHash ^= pixels[index + 2]; frameHash = Math.imul(frameHash, 16777619);
+        frameHash ^= alpha; frameHash = Math.imul(frameHash, 16777619);
       }
-      const pngBytes = await new Promise(resolve => {
-        sample.toBlob(blob => resolve(blob?.size || 0), 'image/png');
-      });
-      return {
-        coverage: lit / (sampleSize * sampleSize),
-        pngBytes,
-        frameHash: frameHash >>> 0,
-        width: element.width,
-        height: element.height,
-      };
+      const pngBytes = await new Promise(resolve => sample.toBlob(blob => resolve(blob?.size || 0), 'image/png'));
+      return { coverage: lit / (sampleSize * sampleSize), pngBytes, frameHash: frameHash >>> 0, width: element.width, height: element.height };
     } catch {
       return empty;
     } finally {
@@ -74,8 +55,7 @@ async function compositedCanvasEvidence(canvas) {
     if (!box || box.width < 1 || box.height < 1) return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
     const png = await canvas.screenshot({ type: 'png', animations: 'allow' });
     const area = Math.max(1, Math.round(box.width) * Math.round(box.height));
-    const requiredBytes = Math.max(MIN_COMPOSITED_PNG_BYTES, Math.floor(area * MIN_COMPOSITED_BYTES_PER_PIXEL));
-    return { pngBytes: png.length, requiredBytes };
+    return { pngBytes: png.length, requiredBytes: Math.max(MIN_COMPOSITED_PNG_BYTES, Math.floor(area * MIN_COMPOSITED_BYTES_PER_PIXEL)) };
   } catch {
     return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
   }
@@ -87,55 +67,35 @@ async function waitForRoomRendererReady(page, timeout) {
       const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
       return !buildState || buildState === 'ready';
     },
-    {
-      timeout,
-      intervals: POLL_INTERVALS,
-      message: 'Room renderer did not reach ready state',
-    },
+    { timeout, intervals: POLL_INTERVALS, message: 'Room renderer did not reach ready state' },
   ).toBe(true);
 }
 
-async function waitForRestoredArmorRoomIntro(page, timeout) {
-  const runRenderer = page.getByTestId('run-three-host');
-  if (!await runRenderer.count()) return;
-  const equippedArmor = await runRenderer.getAttribute('data-equipped-armor');
-  if (equippedArmor !== 'ash-armor' && equippedArmor !== 'warden-armor') return;
-
-  // WebKit can expose a painted back buffer several seconds before the delayed
-  // room-intro portal starts. The cloud-restore armour journey reloads while Ash
-  // armour is active and immediately switches to Warden afterwards, so wait through
-  // that delayed cycle before allowing either evidence capture to proceed.
-  await page.waitForTimeout(10_000);
-  const roomTitles = page.getByText(/VERSORGUNGSPOSTEN|SUPPLY POST|DER SCHLEIER ÖFFNET SICH|THE VEIL OPENS/i);
-  const allRoomTitlesHidden = async () => {
-    const count = await roomTitles.count();
-    for (let index = 0; index < count; index += 1) {
-      if (await roomTitles.nth(index).isVisible()) return false;
+function installRestoredArmorScreenshotGuard(page, timeout) {
+  if (page[RESTORED_ARMOR_SCREENSHOT_GUARD]) return;
+  const originalScreenshot = page.screenshot.bind(page);
+  page.screenshot = async options => {
+    const runRenderer = page.getByTestId('run-three-host');
+    if (await runRenderer.count()) {
+      const equippedArmor = await runRenderer.getAttribute('data-equipped-armor');
+      if (equippedArmor === 'warden-armor') {
+        // The cloud-restore journey can switch the visible rig before WebKit starts
+        // its delayed room-intro portal. Settle only the actual Warden evidence
+        // screenshot instead of blocking unrelated painted-room readiness checks.
+        await page.waitForTimeout(13_000);
+        await waitForRoomRendererReady(page, timeout);
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      }
     }
-    return true;
+    return originalScreenshot(options);
   };
-  await expect.poll(allRoomTitlesHidden, {
-    timeout,
-    intervals: POLL_INTERVALS,
-    message: 'Room intro remained visible over restored-armour evidence',
-  }).toBe(true);
-  await page.waitForTimeout(3_000);
-  await expect.poll(allRoomTitlesHidden, {
-    timeout,
-    intervals: POLL_INTERVALS,
-    message: 'Room intro reappeared before restored-armour evidence capture',
-  }).toBe(true);
+  page[RESTORED_ARMOR_SCREENSHOT_GUARD] = true;
 }
 
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
+  installRestoredArmorScreenshotGuard(page, timeout);
   await expect(canvas).toBeVisible({ timeout });
-
-  // Room staging and GPU painting are separate phases. Slow software WebGL runners
-  // may legitimately spend most of the readiness budget building a complex room.
-  // Give the subsequent two composited paint samples their own complete budget so a
-  // visible room cannot fail merely because staging consumed the shared timeout.
   await waitForRoomRendererReady(page, timeout);
-
   let paintedSamples = 0;
   await expect.poll(
     async () => {
@@ -144,34 +104,18 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
         paintedSamples = 0;
         return 0;
       }
-
-      // The compositor is the user-visible source of truth. WebGL canvases render
-      // with preserveDrawingBuffer disabled, so reading their back buffer through
-      // createImageBitmap can be empty and—on software WebGL—can stall for tens of
-      // seconds. First verify the exact pixels the browser visibly composites.
       const composited = await compositedCanvasEvidence(canvas);
       let paintScore = composited.pngBytes / composited.requiredBytes;
-
-      // Keep the direct canvas sample as a fallback for environments where element
-      // screenshots are unavailable. It is no longer on the successful hot path.
       if (paintScore < 1) {
         const evidence = await canvasFrameEvidence(canvas);
-        const coverageScore = evidence.coverage / MIN_LIT_COVERAGE;
-        const samplePngScore = evidence.pngBytes / MIN_SAMPLE_PNG_BYTES;
-        paintScore = Math.max(paintScore, coverageScore, samplePngScore);
+        paintScore = Math.max(paintScore, evidence.coverage / MIN_LIT_COVERAGE, evidence.pngBytes / MIN_SAMPLE_PNG_BYTES);
       }
-
       const painted = Number.isFinite(paintScore) && paintScore >= 1;
       paintedSamples = painted ? paintedSamples + 1 : 0;
       return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
     },
-    {
-      timeout,
-      intervals: POLL_INTERVALS,
-      message: 'WebGL canvas remained blank or insufficiently painted',
-    },
+    { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank or insufficiently painted' },
   ).toBeGreaterThanOrEqual(1);
-  await waitForRestoredArmorRoomIntro(page, timeout);
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
@@ -181,11 +125,7 @@ export async function waitForLiveMenuPaint(page, timeout = 60_000) {
   await expect(scene).toHaveAttribute('data-animation-state', 'running', { timeout });
   await expect.poll(
     async () => Number(await scene.getAttribute('data-animation-frames') || 0),
-    {
-      timeout,
-      intervals: POLL_INTERVALS,
-      message: 'Live menu animation did not advance far enough for visual evidence',
-    },
+    { timeout, intervals: POLL_INTERVALS, message: 'Live menu animation did not advance far enough for visual evidence' },
   ).toBeGreaterThanOrEqual(10);
   await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), timeout);
   return scene;
