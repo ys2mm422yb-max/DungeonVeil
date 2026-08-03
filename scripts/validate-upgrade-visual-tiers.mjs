@@ -6,14 +6,16 @@ const overlayPath = 'artifacts/dungeon-rpg/src/components/EquippedUpgradePrestig
 const bindingsPath = 'artifacts/dungeon-rpg/src/components/UpgradeTierSurfaceBindings.tsx';
 const bowRigPath = 'artifacts/dungeon-rpg/src/components/bowRig.ts';
 const equipmentBindingPath = 'artifacts/dungeon-rpg/src/components/equipmentUpgradePrestige3D.ts';
+const companionBindingPath = 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 
-const [profiles, overlay, bindings, bowRig, equipmentBinding, app] = await Promise.all([
+const [profiles, overlay, bindings, bowRig, equipmentBinding, companionBinding, app] = await Promise.all([
   readFile(profilePath, 'utf8'),
   readFile(overlayPath, 'utf8'),
   readFile(bindingsPath, 'utf8'),
   readFile(bowRigPath, 'utf8'),
   readFile(equipmentBindingPath, 'utf8'),
+  readFile(companionBindingPath, 'utf8'),
   readFile(appPath, 'utf8'),
 ]);
 
@@ -141,6 +143,44 @@ assert.match(bowRig, /const equipmentUpgradeBinding = createPlayerArmorAndQuiver
   'armor binding must be created before the bow is parented to avoid cross-slot material leakage');
 assert.match(bowRig, /equipmentUpgradeBinding\.update\(pulse\)/,
   'live armor and quiver prestige must follow player animation updates');
+
+assert.match(bindings, /import \{ createCompanionUpgradePrestigeBinding \} from '\.\/companionUpgradePrestige3D';/,
+  'the mounted application binding must install the live companion combat effect');
+assert.match(bindings, /root\?\.userData\?\.dungeonVeilCompanionV5/,
+  'only real CompanionV5 combat roots may receive the companion prestige binding');
+assert.match(bindings, /startsWith\('CompanionVisual_'\)/,
+  'prestige must attach to the companion model group rather than the scene or a DOM surrogate');
+assert.match(bindings, /root\.userData\.companionLevel/,
+  'the live companion effect must use that role instance own level');
+assert.match(bindings, /definition\.accentHex/,
+  'the live companion effect must retain the role-specific presentation accent');
+assert.match(bindings, /THREE\.Object3D\.prototype\.add = patchedAdd/,
+  'the persistent application binding must see actual companion roots when they enter the shared renderer scene');
+assert.match(bindings, /binding\.update\(now, 0\)/,
+  'the attached companion effect must update while the real combat model moves');
+assert.match(bindings, /combatBindings\.delete\(root\)/,
+  'removed companion rigs must leave the live binding registry');
+
+assert.match(companionBinding, /normalizeUpgradeVisualTier\(level\)/,
+  'companion combat prestige must normalize each role level independently');
+assert.match(companionBinding, /dungeonVeilUpgradeBinding = 'in-run-companion-combat-mesh'/,
+  'the actual companion model must expose a deterministic mesh-local binding identity');
+assert.match(companionBinding, /if \(tier < 3\) return \{ update: \(\) => undefined \};/,
+  'companion levels 1 and 2 must not clone materials or create a light');
+assert.match(companionBinding, /material\?\.clone\?\.\(\)/,
+  'companion prestige must isolate materials per live rig');
+assert.match(companionBinding, /new THREE\.PointLight\(/,
+  'companion tiers 3-5 must use one bounded model-local light');
+assert.match(companionBinding, /const accentColor = new THREE\.Color\(accentHex\);/,
+  'the companion update loop must reuse its accent color instead of allocating per frame');
+assert.match(companionBinding, /prefersReducedMotion\(\) \|\| rendererRecoveryActive\(\)/,
+  'Reduced Motion and renderer recovery must be re-evaluated dynamically');
+assert.match(companionBinding, /getUpgradeVisualProfile\(tier, \{[\s\S]*reducedMotion: staticFallback,[\s\S]*lowGpu: staticFallback,/,
+  'the canonical static fallback profile must drive companion recovery behavior');
+assert.match(companionBinding, /visual\.userData\.dungeonVeilUpgradeStaticFallback = staticFallback;/,
+  'the actual companion model must expose its live fallback state');
+assert.doesNotMatch(companionBinding, /document\.createElement|appendChild|canvas/,
+  'companion combat prestige must not create a DOM or second-canvas surrogate');
 
 assert.match(app, /import \{ EquippedUpgradePrestigeOverlay \}/);
 assert.match(app, /<EquippedUpgradePrestigeOverlay \/>/,
