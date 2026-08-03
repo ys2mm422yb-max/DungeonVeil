@@ -1,0 +1,46 @@
+name: Adaptive Test Plan
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adaptive-test-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate repository adaptive testing policy
+        run: node scripts/validate-adaptive-test-plan.mjs --policy-only
+
+  pr-test-plan:
+    if: github.event.pull_request.number != 315
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate pull request adaptive test plan
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/validate-adaptive-test-plan.mjs
