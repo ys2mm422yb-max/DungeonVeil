@@ -37,39 +37,49 @@ async function tap(locator) {
   await locator.tap();
 }
 
-async function resolveTransientRoomTitle(page) {
-  const exactTitle = /^(VERSORGUNGSPOSTEN|SUPPLY POST)$/i;
-  const candidates = page.locator('[data-testid]');
-  const candidateCount = await candidates.count();
-  const matches = [];
+async function readTransientRoomTitleState(page) {
+  return page.evaluate(() => {
+    const exactTitle = /^(VERSORGUNGSPOSTEN|SUPPLY POST)$/i;
+    const owners = [];
+    const visibleOwners = [];
 
-  for (let index = 0; index < candidateCount; index += 1) {
-    const candidate = candidates.nth(index);
-    const testId = await candidate.getAttribute('data-testid');
-    if (!testId || !/(room.*title|title.*room|transition)/i.test(testId)) continue;
-    const text = (await candidate.textContent() ?? '').trim();
-    if (exactTitle.test(text)) matches.push({ testId, locator: candidate });
-  }
+    for (const candidate of document.querySelectorAll('[data-testid]')) {
+      const testId = candidate.getAttribute('data-testid') ?? '';
+      if (!/(room.*title|title.*room|transition)/i.test(testId)) continue;
+      const text = (candidate.textContent ?? '').trim();
+      if (!exactTitle.test(text)) continue;
+      owners.push(testId);
 
-  expect(matches.map(match => match.testId), 'exactly one authoritative transient room-title component must own the localized title').toHaveLength(1);
-  return matches[0].locator;
+      const style = window.getComputedStyle(candidate);
+      const bounds = candidate.getBoundingClientRect();
+      const visible = style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && Number(style.opacity || '1') > 0
+        && bounds.width > 0
+        && bounds.height > 0;
+      if (visible) visibleOwners.push(testId);
+    }
+
+    return { owners, visibleOwners };
+  });
 }
 
 async function waitForStableRoom(page) {
-  const roomTitle = await resolveTransientRoomTitle(page);
   let hiddenSince = 0;
   await expect.poll(async () => {
-    if (await roomTitle.isVisible()) {
+    const { owners, visibleOwners } = await readTransientRoomTitleState(page);
+    if (owners.length > 1 || visibleOwners.length > 1) return 'duplicate';
+    if (visibleOwners.length === 1) {
       hiddenSince = 0;
-      return false;
+      return 'active';
     }
     if (hiddenSince === 0) hiddenSince = Date.now();
-    return Date.now() - hiddenSince >= 1_200;
+    return Date.now() - hiddenSince >= 1_200 ? 'stable' : 'settling';
   }, {
     timeout: 120_000,
     intervals: [100, 250, 500],
-    message: 'authoritative room-title transition component must be continuously hidden before prestige evidence capture',
-  }).toBe(true);
+    message: 'the authoritative room-title transition must be absent or continuously hidden before prestige evidence capture, and duplicate owners are forbidden',
+  }).toBe('stable');
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
