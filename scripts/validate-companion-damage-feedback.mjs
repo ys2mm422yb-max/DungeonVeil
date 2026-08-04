@@ -51,33 +51,38 @@ assert.match(runtime, /@media \(prefers-reduced-motion: reduce\)/,
 
 assert.match(journey, /const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';/,
   'the focused browser journey must subscribe to the authoritative companion action event');
+assert.match(journey, /const COMPANION_ACTION_SNAPSHOTS = '__dungeonVeilCompanionActionSnapshots';/,
+  'the observer must retain immutable event/render snapshots independently from the transient DOM');
 assert.match(journey, /async function armCompanionActionObservation\(page\)/,
   'the focused browser journey must arm observation before combat begins');
 assert.match(journey, /await armCompanionActionObservation\(page\);\s*await startFreshRun\(page\);/,
   'the observer must be active before a run can emit the first companion hit');
 assert.doesNotMatch(journey, /page\.waitForTimeout\(10_000\)/,
   'a fixed post-entry delay must not consume the room before transient hit feedback is observed');
+assert.match(journey, /const captureRenderedFeedback = \(\) => \{/,
+  'the armed browser observer must own rendered-node capture');
+assert.match(journey, /new MutationObserver\(captureRenderedFeedback\)\.observe\(document\.documentElement,/,
+  'rendered feedback must be captured at React commit time rather than by a later locator scan');
+assert.match(journey, /snapshots\.push\(Object\.freeze\(\{/,
+  'the first matching rendered-node criterion snapshot must be immutable');
+assert.match(journey, /feedbackId,[\s\S]*feedbackRole: node\.dataset\.companionRole[\s\S]*feedbackTargetId: node\.dataset\.targetId[\s\S]*critical: node\.dataset\.critical/,
+  'the immutable snapshot must retain rendered identity, role, target and critical status');
+assert.match(journey, /width: rect\.width,[\s\S]*height: rect\.height,[\s\S]*fontSize: Number\.parseFloat\(style\.fontSize\),[\s\S]*pointerEvents: style\.pointerEvents/,
+  'the immutable snapshot must retain the exact rendered readability metrics');
+assert.match(journey, /visibleCount: layer\?\.getAttribute\('data-visible-count'\) \|\| '',/,
+  'layer visibility and node geometry must be captured in the same browser observer turn');
+assert.match(journey, /queueMicrotask\(captureRenderedFeedback\);/,
+  'an event-adjacent capture attempt must complement the React mutation observer');
 assert.match(journey, /async function waitForCorrelatedCompanionFeedback\(page, role, expectedCritical = false, notBefore = 0\)/,
   'the focused journey must support independent basic and critical correlation with an input epoch');
-assert.match(journey, /entry\.role !== expectedRole \|\| entry\.kind !== 'attack' \|\| !entry\.targetId \|\| entry\.at < minimumAt/,
-  'critical correlation must reject companion actions that predate the supported player input');
-assert.match(journey, /for \(let index = log\.length - 1; index >= 0; index -= 1\)/,
-  'correlation must inspect the newest captured companion attacks first');
-assert.match(journey, /element\.dataset\.companionRole === expectedRole[\s\S]*element\.dataset\.targetId === entry\.targetId[\s\S]*element\.dataset\.critical === String\(critical\)/,
-  'the live node must match role, struck enemy and expected critical identity');
-assert.match(journey, /rect\.width <= 0 \|\| rect\.height <= 0/,
-  'the correlated node must have a real rendered footprint');
-assert.match(journey, /const layer = document\.querySelector\('\[data-testid="companion-damage-feedback-layer"\]'\);/,
-  'the same-tick browser snapshot must inspect the real feedback layer');
-assert.match(journey, /feedbackId: node\.getAttribute\('data-testid'\),/,
-  'the atomic snapshot must retain the exact rendered feedback identity');
-assert.match(journey, /feedbackRole: node\.dataset\.companionRole \|\| '',/);
-assert.match(journey, /feedbackTargetId: node\.dataset\.targetId \|\| '',/);
-assert.match(journey, /text: node\.textContent \|\| '',/);
-assert.match(journey, /width: rect\.width,/);
-assert.match(journey, /fontSize: Number\.parseFloat\(style\.fontSize\),/);
-assert.match(journey, /visibleCount: layer\?\.getAttribute\('data-visible-count'\) \|\| '',/,
-  'layer visibility and node geometry must be captured in the same browser tick');
+assert.match(journey, /const snapshots = window\[snapshotKey\] \|\| \[\];/,
+  'correlation must consume persisted snapshots rather than scan the current transient DOM');
+assert.match(journey, /for \(let index = snapshots\.length - 1; index >= 0; index -= 1\)/,
+  'correlation must inspect the newest immutable companion snapshots first');
+assert.match(journey, /snapshot\.at >= minimumAt[\s\S]*snapshot\.feedbackRole === expectedRole[\s\S]*snapshot\.feedbackTargetId === snapshot\.targetId[\s\S]*snapshot\.critical === String\(critical\)/,
+  'the persisted snapshot must match epoch, role, struck enemy and expected critical identity');
+assert.doesNotMatch(journey, /waitForFunction[\s\S]{0,1200}document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)/,
+  'the waiter must never reacquire a short-lived feedback node after the authoritative event');
 assert.match(journey, /function assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\)/,
   'basic and critical feedback must share the same strict readability contract');
 assert.match(journey, /expect\(observedFeedback\.feedbackTargetId\)\.toBe\(observedFeedback\.targetId\);/,
