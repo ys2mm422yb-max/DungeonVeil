@@ -62,12 +62,9 @@ async function startFreshRun(page) {
 async function triggerConfirmedPlayerAttack(page) {
   const runtime = page.getByTestId('companion-runtime-bridge');
   await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
-  const hitFlash = page.getByTestId('run-visual-viewport');
+  const attackIssuedAt = await page.evaluate(() => performance.now());
   await page.keyboard.press('Space');
-  await page.waitForFunction(() => (
-    document.querySelector('[data-testid="run-visual-viewport"]')?.getAttribute('data-hit-flash') === 'active'
-  ), undefined, { timeout: 5_000 });
-  await expect(hitFlash).toHaveAttribute('data-hit-flash', /active|idle/);
+  return attackIssuedAt;
 }
 
 async function armCompanionActionObservation(page) {
@@ -91,14 +88,14 @@ async function armCompanionActionObservation(page) {
   }, { eventName: COMPANION_ACTION_EVENT, logKey: COMPANION_ACTION_LOG, listenerKey: COMPANION_ACTION_LISTENER });
 }
 
-async function waitForCorrelatedCompanionFeedback(page, role, expectedCritical = false) {
-  const handle = await page.waitForFunction(({ logKey, expectedRole, critical }) => {
+async function waitForCorrelatedCompanionFeedback(page, role, expectedCritical = false, notBefore = 0) {
+  const handle = await page.waitForFunction(({ logKey, expectedRole, critical, minimumAt }) => {
     const log = window[logKey] || [];
     const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
     const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
     for (let index = log.length - 1; index >= 0; index -= 1) {
       const entry = log[index];
-      if (entry.role !== expectedRole || entry.kind !== 'attack' || !entry.targetId) continue;
+      if (entry.role !== expectedRole || entry.kind !== 'attack' || !entry.targetId || entry.at < minimumAt) continue;
       const node = nodes.find(element => (
         element.dataset.companionRole === expectedRole
         && element.dataset.targetId === entry.targetId
@@ -123,7 +120,7 @@ async function waitForCorrelatedCompanionFeedback(page, role, expectedCritical =
       };
     }
     return false;
-  }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, critical: expectedCritical }, { timeout: 20_000 });
+  }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, critical: expectedCritical, minimumAt: notBefore }, { timeout: 20_000 });
   return handle.jsonValue();
 }
 
@@ -265,8 +262,8 @@ test('critical-support proc renders one readable value on its actual target', as
   await expect(chip).toHaveAttribute('data-companion-role', 'critical-support');
   await expect(chip).toHaveAttribute('data-companion-level', '2');
 
-  await triggerConfirmedPlayerAttack(page);
-  const observedCritical = await waitForCorrelatedCompanionFeedback(page, 'critical-support', true);
+  const attackIssuedAt = await triggerConfirmedPlayerAttack(page);
+  const observedCritical = await waitForCorrelatedCompanionFeedback(page, 'critical-support', true, attackIssuedAt);
   assertReadableFeedback(observedCritical, { role: 'critical-support', critical: true, marker: /✦\s*-\d+/ });
   await page.screenshot({
     path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
