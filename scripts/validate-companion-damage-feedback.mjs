@@ -96,6 +96,12 @@ assert.match(journey, /test\('critical-support proc renders one readable value o
   'Issue #407 critical-support acceptance must have a real browser journey');
 assert.match(journey, /activeId: 'critical-support',[\s\S]*'critical-support': \{ level: 2, unlockedAt: 1 \}/,
   'the critical journey must use the actual pre-run companion selection state');
+assert.match(journey, /async function triggerConfirmedPlayerAttack\(page\)[\s\S]*data-basic-attack-count[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*data-hit-flash[\s\S]*active/,
+  'the critical journey must prove a live target, issue a real player attack and observe its rendered hit feedback');
+assert.match(journey, /await triggerConfirmedPlayerAttack\(page\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback\(page, 'critical-support', true\);/,
+  'critical feedback observation must begin only after the deterministic player-attack stimulus succeeds');
+assert.doesNotMatch(journey, /data-companion-level', '2'\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback/,
+  'the critical journey must never regress to passive waiting after run entry');
 assert.match(journey, /waitForCorrelatedCompanionFeedback\(page, 'critical-support', true\)/,
   'the critical journey must wait for a critical node from the real combat loop');
 assert.match(journey, /assertReadableFeedback\(observedCritical, \{ role: 'critical-support', critical: true, marker: \/✦\\s\*-\\d\+\/ \}\)/,
