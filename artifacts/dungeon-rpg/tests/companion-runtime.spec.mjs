@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
+const COMPANION_ACTION_SNAPSHOTS = '__dungeonVeilCompanionActionSnapshots';
 const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
 const DEFAULT_COMPANION_STATE = {
   activeId: 'single-target',
@@ -68,11 +69,52 @@ async function triggerConfirmedPlayerAttack(page) {
 }
 
 async function armCompanionActionObservation(page) {
-  await page.evaluate(({ eventName, logKey, listenerKey }) => {
+  await page.evaluate(({ eventName, logKey, snapshotKey, listenerKey }) => {
     const scope = window;
     scope[logKey] = [];
+    scope[snapshotKey] = [];
     if (scope[listenerKey]) return;
     scope[listenerKey] = true;
+
+    const captureRenderedFeedback = () => {
+      const log = scope[logKey] || [];
+      const snapshots = scope[snapshotKey] || [];
+      const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
+      const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
+      for (const node of nodes) {
+        const entry = [...log].reverse().find(candidate => (
+          candidate.role === node.dataset.companionRole
+          && candidate.targetId === node.dataset.targetId
+        ));
+        if (!entry) continue;
+        const feedbackId = node.getAttribute('data-testid') || '';
+        if (snapshots.some(snapshot => snapshot.feedbackId === feedbackId && snapshot.at === entry.at)) continue;
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) <= 0) continue;
+        snapshots.push(Object.freeze({
+          ...entry,
+          feedbackId,
+          feedbackRole: node.dataset.companionRole || '',
+          feedbackTargetId: node.dataset.targetId || '',
+          critical: node.dataset.critical || '',
+          text: node.textContent || '',
+          width: rect.width,
+          height: rect.height,
+          fontSize: Number.parseFloat(style.fontSize),
+          pointerEvents: style.pointerEvents,
+          visibleCount: layer?.getAttribute('data-visible-count') || '',
+        }));
+        if (snapshots.length > 16) snapshots.splice(0, snapshots.length - 16);
+      }
+    };
+
+    new MutationObserver(captureRenderedFeedback).observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-visible-count'],
+    });
     window.addEventListener(eventName, event => {
       const detail = event.detail;
       if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
@@ -84,43 +126,38 @@ async function armCompanionActionObservation(page) {
         at: detail.at,
       });
       if (log.length > 16) log.splice(0, log.length - 16);
+      queueMicrotask(captureRenderedFeedback);
     });
-  }, { eventName: COMPANION_ACTION_EVENT, logKey: COMPANION_ACTION_LOG, listenerKey: COMPANION_ACTION_LISTENER });
+  }, {
+    eventName: COMPANION_ACTION_EVENT,
+    logKey: COMPANION_ACTION_LOG,
+    snapshotKey: COMPANION_ACTION_SNAPSHOTS,
+    listenerKey: COMPANION_ACTION_LISTENER,
+  });
 }
 
 async function waitForCorrelatedCompanionFeedback(page, role, expectedCritical = false, notBefore = 0) {
-  const handle = await page.waitForFunction(({ logKey, expectedRole, critical, minimumAt }) => {
-    const log = window[logKey] || [];
-    const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
-    const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
-    for (let index = log.length - 1; index >= 0; index -= 1) {
-      const entry = log[index];
-      if (entry.role !== expectedRole || entry.kind !== 'attack' || !entry.targetId || entry.at < minimumAt) continue;
-      const node = nodes.find(element => (
-        element.dataset.companionRole === expectedRole
-        && element.dataset.targetId === entry.targetId
-        && element.dataset.critical === String(critical)
-      ));
-      if (!node) continue;
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) <= 0) continue;
-      return {
-        ...entry,
-        feedbackId: node.getAttribute('data-testid'),
-        feedbackRole: node.dataset.companionRole || '',
-        feedbackTargetId: node.dataset.targetId || '',
-        critical: node.dataset.critical || '',
-        text: node.textContent || '',
-        width: rect.width,
-        height: rect.height,
-        fontSize: Number.parseFloat(style.fontSize),
-        pointerEvents: style.pointerEvents,
-        visibleCount: layer?.getAttribute('data-visible-count') || '',
-      };
+  const handle = await page.waitForFunction(({ snapshotKey, expectedRole, critical, minimumAt }) => {
+    const snapshots = window[snapshotKey] || [];
+    for (let index = snapshots.length - 1; index >= 0; index -= 1) {
+      const snapshot = snapshots[index];
+      if (
+        snapshot.role === expectedRole
+        && snapshot.kind === 'attack'
+        && snapshot.targetId
+        && snapshot.at >= minimumAt
+        && snapshot.feedbackRole === expectedRole
+        && snapshot.feedbackTargetId === snapshot.targetId
+        && snapshot.critical === String(critical)
+      ) return snapshot;
     }
     return false;
-  }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, critical: expectedCritical, minimumAt: notBefore }, { timeout: 20_000 });
+  }, {
+    snapshotKey: COMPANION_ACTION_SNAPSHOTS,
+    expectedRole: role,
+    critical: expectedCritical,
+    minimumAt: notBefore,
+  }, { timeout: 20_000 });
   return handle.jsonValue();
 }
 
