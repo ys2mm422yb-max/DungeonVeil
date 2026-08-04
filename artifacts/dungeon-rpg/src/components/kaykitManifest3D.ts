@@ -80,9 +80,14 @@ function isRootRelativeAssetPath(value: string): boolean {
   return value.charCodeAt(0) === 47 && value.slice(1).startsWith('assets/');
 }
 
+function stripSchemeLessRuntimeHost(value: string): string {
+  const match = value.match(/^\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?\/(.+)$/i);
+  return match ? `/${match[1]}` : value;
+}
+
 function normalizeManifestRoot(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return appAssetUrl('assets/kaykit').replace(/\/$/, '');
-  const root = value.trim().replace(/\/$/, '');
+  const root = stripSchemeLessRuntimeHost(value.trim().replace(/\/$/, ''));
   if (isRootRelativeAssetPath(root) || root.startsWith('assets/')) return appAssetUrl(root).replace(/\/$/, '');
   return root;
 }
