@@ -193,6 +193,7 @@ export function UpgradeTierSurfaceBindings() {
     const installCompanionCombatBindings = async () => {
       THREE = await import(/* @vite-ignore */ THREE_URL);
       originalAdd = THREE.Object3D.prototype.add;
+      armSceneCapture();
       if (document.documentElement.dataset.dungeonVeilActiveRun === '1') armSceneCapture();
 
       const updateCombatBindings = (now: number) => {
