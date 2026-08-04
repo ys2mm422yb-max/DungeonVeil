@@ -9,6 +9,7 @@ import { GuildRaidModePortal } from './components/GuildRaidModePortal';
 import { GuildRaidRunPortal } from './components/GuildRaidRunPortal';
 import { EquippedUpgradePrestigeOverlay } from './components/EquippedUpgradePrestigeOverlay';
 import { UpgradeTierSurfaceBindings } from './components/UpgradeTierSurfaceBindings';
+import './components/companionDamageFeedback.css';
 
 const queryClient = new QueryClient();
 
