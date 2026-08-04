@@ -4,11 +4,15 @@ import { readFile } from 'node:fs/promises';
 const runtimePath = 'artifacts/dungeon-rpg/src/components/CompanionRuntimeBridge.tsx';
 const journeyPath = 'artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs';
 const workflowPath = '.github/workflows/product-autopilot-qa.yml';
+const readabilityPath = 'artifacts/dungeon-rpg/src/components/companionDamageFeedback.css';
+const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 
-const [runtime, journey, workflow] = await Promise.all([
+const [runtime, journey, workflow, readability, app] = await Promise.all([
   readFile(runtimePath, 'utf8'),
   readFile(journeyPath, 'utf8'),
   readFile(workflowPath, 'utf8'),
+  readFile(readabilityPath, 'utf8'),
+  readFile(appPath, 'utf8'),
 ]);
 
 assert.match(runtime, /const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;/,
@@ -31,7 +35,11 @@ assert.match(runtime, /data-critical=\{damageFeedback\.critical \? 'true' : 'fal
 assert.match(runtime, /pointer-events-none fixed inset-0 z-\[34\]/,
   'combat feedback must never intercept movement or attack controls');
 assert.match(runtime, /min-h-\[38px\] min-w-\[82px\]/,
-  'portrait-mobile feedback needs a deterministic readable hit target footprint');
+  'the component must retain its semantic minimum footprint');
+assert.match(readability, /\[data-testid\^="companion-damage-number-"\]\s*\{[\s\S]*min-width:\s*88px\s*!important;/,
+  'the untransformed width must compensate for the 0.94 exit scale and keep the rendered box at or above 82px');
+assert.match(app, /import '\.\/components\/companionDamageFeedback\.css';/,
+  'the transformed-width contract must be loaded in every app mode');
 assert.match(runtime, /fontSize: 'clamp\(21px, 5\.4vw, 29px\)'/,
   'companion values need a mobile-readable font floor');
 assert.match(runtime, /@media \(prefers-reduced-motion: reduce\)/,
@@ -62,6 +70,8 @@ assert.match(journey, /getByTestId\(observedFeedback\.feedbackId\)/,
 assert.match(journey, /toHaveAttribute\('data-companion-role', 'shield'\)/);
 assert.match(journey, /toHaveAttribute\('data-target-id', observedFeedback\.targetId\)/);
 assert.match(journey, /toContainText\(\/◆\\s\*-\\d\+\//);
+assert.match(journey, /damageMetrics\.width\)\.toBeGreaterThanOrEqual\(82\)/,
+  'the browser journey must enforce the actual transformed mobile width');
 assert.match(journey, /damageMetrics\.fontSize\)\.toBeGreaterThanOrEqual\(21\)/,
   'the browser journey must enforce the actual computed mobile font size');
 assert.match(journey, /companion-damage-feedback-\$\{testInfo\.project\.name\}\.png/,
