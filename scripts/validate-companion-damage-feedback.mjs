@@ -52,15 +52,15 @@ assert.match(journey, /const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-ac
 assert.match(journey, /async function armCompanionActionObservation\(page\)/,
   'the focused browser journey must arm observation before combat begins');
 assert.match(journey, /await armCompanionActionObservation\(page\);\s*await startFreshRun\(page\);/,
-  'the observer must be active before the run can emit the first companion hit');
+  'the observer must be active before a run can emit the first companion hit');
 assert.doesNotMatch(journey, /page\.waitForTimeout\(10_000\)/,
   'a fixed post-entry delay must not consume the room before transient hit feedback is observed');
-assert.match(journey, /async function waitForCorrelatedCompanionFeedback\(page, role\)/,
-  'the focused browser journey must correlate an authoritative hit with a simultaneously visible node');
+assert.match(journey, /async function waitForCorrelatedCompanionFeedback\(page, role, expectedCritical = false\)/,
+  'the focused journey must support independent basic and critical correlation');
 assert.match(journey, /for \(let index = log\.length - 1; index >= 0; index -= 1\)/,
   'correlation must inspect the newest captured companion attacks first');
-assert.match(journey, /element\.dataset\.companionRole === expectedRole && element\.dataset\.targetId === entry\.targetId/,
-  'the live node must match both the companion role and struck enemy');
+assert.match(journey, /element\.dataset\.companionRole === expectedRole[\s\S]*element\.dataset\.targetId === entry\.targetId[\s\S]*element\.dataset\.critical === String\(critical\)/,
+  'the live node must match role, struck enemy and expected critical identity');
 assert.match(journey, /rect\.width <= 0 \|\| rect\.height <= 0/,
   'the correlated node must have a real rendered footprint');
 assert.match(journey, /const layer = document\.querySelector\('\[data-testid="companion-damage-feedback-layer"\]'\);/,
@@ -74,36 +74,46 @@ assert.match(journey, /width: rect\.width,/);
 assert.match(journey, /fontSize: Number\.parseFloat\(style\.fontSize\),/);
 assert.match(journey, /visibleCount: layer\?\.getAttribute\('data-visible-count'\) \|\| '',/,
   'layer visibility and node geometry must be captured in the same browser tick');
-assert.match(journey, /const observedFeedback = await waitForCorrelatedCompanionFeedback\(page, 'shield'\);/,
-  'the shield journey must wait for the exact visible authoritative hit under review');
-assert.match(journey, /expect\(observedFeedback\.feedbackId\)\.toMatch\(\/\^companion-damage-number-\/\);/);
-assert.match(journey, /expect\(observedFeedback\.feedbackRole\)\.toBe\('shield'\);/);
-assert.match(journey, /expect\(observedFeedback\.feedbackTargetId\)\.toBe\(observedFeedback\.targetId\);/);
-assert.match(journey, /expect\(observedFeedback\.critical\)\.toBe\('false'\);/);
-assert.match(journey, /expect\(observedFeedback\.text\)\.toMatch\(\/◆\\s\*-\\d\+\/\);/);
-assert.match(journey, /expect\(observedFeedback\.visibleCount\)\.toBe\('1'\);/);
-assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(82\);/,
-  'the atomic browser snapshot must enforce the actual transformed mobile width');
+assert.match(journey, /function assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\)/,
+  'basic and critical feedback must share the same strict readability contract');
+assert.match(journey, /expect\(observedFeedback\.feedbackTargetId\)\.toBe\(observedFeedback\.targetId\);/,
+  'the rendered value must remain tied to the exact attacked enemy');
+assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(82\);/);
 assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(38\);/);
-assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(21\);/,
-  'the atomic browser snapshot must enforce the actual computed mobile font size');
+assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(21\);/);
 assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\);/);
-assert.doesNotMatch(journey, /getByTestId\(observedFeedback\.feedbackId\)/,
-  'a short-lived feedback node must not be reacquired after the atomic snapshot');
-assert.doesNotMatch(journey, /const damageNumber = page\.getByTestId/,
-  'the transient node must not be queried again after its lifecycle can expire');
+
+assert.match(journey, /waitForCorrelatedCompanionFeedback\(page, 'shield', false\)/,
+  'the solo basic-hit proof must require a non-critical shield value');
+assert.match(journey, /assertReadableFeedback\(observedFeedback, \{ role: 'shield', critical: false, marker: \/◆\\s\*-\\d\+\/ \}\)/,
+  'the basic companion proof must require the diamond marker and readable damage');
 assert.match(journey, /companion-damage-feedback-\$\{testInfo\.project\.name\}\.png/,
-  'the browser journey must produce criterion-specific evidence');
+  'the basic hit must produce criterion-specific evidence');
+
+assert.match(journey, /test\('critical-support proc renders one readable value on its actual target'/,
+  'Issue #407 critical-support acceptance must have a real browser journey');
+assert.match(journey, /activeId: 'critical-support',[\s\S]*'critical-support': \{ level: 2, unlockedAt: 1 \}/,
+  'the critical journey must use the actual pre-run companion selection state');
+assert.match(journey, /waitForCorrelatedCompanionFeedback\(page, 'critical-support', true\)/,
+  'the critical journey must wait for a critical node from the real combat loop');
+assert.match(journey, /assertReadableFeedback\(observedCritical, \{ role: 'critical-support', critical: true, marker: \/✦\\s\*-\\d\+\/ \}\)/,
+  'the critical proof must require the star marker and critical identity');
+assert.match(journey, /companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png/,
+  'the critical proc must produce separate criterion-specific evidence');
+assert.doesNotMatch(journey, /getByTestId\(observed(?:Feedback|Critical)\.feedbackId\)/,
+  'a short-lived feedback node must not be reacquired after its atomic snapshot');
 assert.doesNotMatch(journey,
   /data-basic-attack-count[\s\S]{0,500}toBeGreaterThan\(0\);[\s\S]{0,250}(?:getByTestId|querySelector)\([^\n]*companion-damage-feedback-layer/,
   'a monotonic attack-counter wait must not precede observation of short-lived feedback');
 
 assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/,
-  'Product Autopilot must run the focused feedback journey on all four portrait projects');
+  'Product Autopilot must run both focused feedback journeys on all four portrait projects');
 assert.match(workflow, /companion-damage-feedback-\$\{\{ matrix\.project \}\}\.png/,
-  'Product Autopilot must upload the dedicated feedback screenshot');
+  'Product Autopilot must upload the basic feedback screenshot');
+assert.match(workflow, /companion-damage-feedback-critical-\$\{\{ matrix\.project \}\}\.png/,
+  'Product Autopilot must upload the critical feedback screenshot');
 assert.match(manifestGenerator, /'companion-damage-feedback-',/,
-  'the dedicated feedback screenshot must be included in every SHA-256 product evidence manifest');
+  'both dedicated feedback screenshots must be included in every SHA-256 product evidence manifest');
 assert.match(manifestGenerator, /await fs\.writeFile\(path\.join\(root, 'companion-damage-feedback-device\.png'\), png\);/,
   'the manifest generator self-test must exercise the dedicated feedback prefix');
 assert.match(manifestGenerator, /const companionEntry = manifest\.files\.find\(\(entry\) => entry\.path === 'companion-damage-feedback-device\.png'\);/,
