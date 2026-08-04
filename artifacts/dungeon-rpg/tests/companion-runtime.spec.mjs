@@ -75,7 +75,8 @@ async function armCompanionActionObservation(page) {
     scope[snapshotKey] = [];
     if (scope[listenerKey]) return;
     scope[listenerKey] = true;
-    let pendingCaptureFrames = 0;
+    let captureUntil = 0;
+    let captureFrameScheduled = false;
 
     const captureRenderedFeedback = () => {
       const log = scope[logKey] || [];
@@ -108,13 +109,22 @@ async function armCompanionActionObservation(page) {
         }));
         if (snapshots.length > 16) snapshots.splice(0, snapshots.length - 16);
       }
-      if (pendingCaptureFrames > 0) {
-        pendingCaptureFrames -= 1;
-        requestAnimationFrame(captureRenderedFeedback);
-      }
     };
 
-    new MutationObserver(captureRenderedFeedback).observe(document.documentElement, {
+    const scheduleRenderedFeedbackCapture = () => {
+      if (captureFrameScheduled || performance.now() >= captureUntil) return;
+      captureFrameScheduled = true;
+      requestAnimationFrame(() => {
+        captureFrameScheduled = false;
+        captureRenderedFeedback();
+        scheduleRenderedFeedbackCapture();
+      });
+    };
+
+    new MutationObserver(() => {
+      captureRenderedFeedback();
+      scheduleRenderedFeedbackCapture();
+    }).observe(document.documentElement, {
       childList: true,
       subtree: true,
       attributes: true,
@@ -131,8 +141,11 @@ async function armCompanionActionObservation(page) {
         at: detail.at,
       });
       if (log.length > 16) log.splice(0, log.length - 16);
-      pendingCaptureFrames = 12;
-      queueMicrotask(captureRenderedFeedback);
+      captureUntil = Math.max(captureUntil, performance.now() + 420);
+      queueMicrotask(() => {
+        captureRenderedFeedback();
+        scheduleRenderedFeedbackCapture();
+      });
     });
   }, {
     eventName: COMPANION_ACTION_EVENT,
