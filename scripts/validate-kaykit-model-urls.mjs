@@ -16,9 +16,8 @@ assert.match(
   /function stripSchemeLessRuntimeHost\(value: string\): string/,
   'preview-origin paths accidentally serialized without a scheme must be repaired at the manifest boundary',
 );
-assert.match(
-  manifestSource,
-  /\^\\\/(?:localhost\|127/,
+assert.ok(
+  manifestSource.includes("value.match(/^\\/(?:localhost|127(?:\\.\\d{1,3}){3})(?::\\d+)?\\/(.+)$/i)"),
   'scheme-less localhost and loopback roots must be recognized deterministically',
 );
 assert.match(
