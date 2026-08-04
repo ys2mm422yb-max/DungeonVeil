@@ -43,5 +43,7 @@ assert.match(bindings, /startsWith\('CompanionVisual_'\)/,
   'the binding must target the real moving companion model group');
 assert.match(bindings, /if \(!root\.parent\) \{[\s\S]*combatBindings\.delete\(root\);/,
   'removed rigs must be released from the live binding registry');
+assert.match(bindings, /THREE = await import\(\/\* @vite-ignore \*\/ THREE_URL\);[\s\S]*originalAdd = THREE\.Object3D\.prototype\.add;[\s\S]*armSceneCapture\(\);[\s\S]*if \(document\.documentElement\.dataset\.dungeonVeilActiveRun === '1'\) armSceneCapture\(\);/,
+  'the narrow CompanionV5 capture must be armed immediately after the shared Three module resolves, before active-run state can race past installation');
 
 console.log('Companion combat prestige contract passed.');
