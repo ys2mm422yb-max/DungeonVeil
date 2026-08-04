@@ -38,7 +38,7 @@ async function tap(locator) {
 }
 
 async function waitForStableRoom(page) {
-  const roomTitles = page.getByText(/VERSORGUNGSPOSTEN|SUPPLY POST/i);
+  const roomTitles = page.getByText(/^(VERSORGUNGSPOSTEN|SUPPLY POST)$/i);
   let hiddenSince = 0;
   await expect.poll(async () => {
     const count = await roomTitles.count();
