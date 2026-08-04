@@ -80,6 +80,7 @@ async function waitForCorrelatedCompanionFeedback(page, role) {
   const handle = await page.waitForFunction(({ logKey, expectedRole }) => {
     const log = window[logKey] || [];
     const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
+    const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
     for (let index = log.length - 1; index >= 0; index -= 1) {
       const entry = log[index];
       if (entry.role !== expectedRole || entry.kind !== 'attack' || !entry.targetId) continue;
@@ -91,6 +92,15 @@ async function waitForCorrelatedCompanionFeedback(page, role) {
       return {
         ...entry,
         feedbackId: node.getAttribute('data-testid'),
+        feedbackRole: node.dataset.companionRole || '',
+        feedbackTargetId: node.dataset.targetId || '',
+        critical: node.dataset.critical || '',
+        text: node.textContent || '',
+        width: rect.width,
+        height: rect.height,
+        fontSize: Number.parseFloat(style.fontSize),
+        pointerEvents: style.pointerEvents,
+        visibleCount: layer?.getAttribute('data-visible-count') || '',
       };
     }
     return false;
@@ -167,29 +177,16 @@ test('companions are found and upgraded before a run, then remain fixed with art
 
   const observedFeedback = await waitForCorrelatedCompanionFeedback(page, 'shield');
   expect(observedFeedback).toBeTruthy();
-
-  const damageLayer = page.getByTestId('companion-damage-feedback-layer');
-  const damageNumber = page.getByTestId(observedFeedback.feedbackId);
-  await expect(damageLayer).toHaveAttribute('data-visible-count', '1', { timeout: 30_000 });
-  await expect(damageNumber).toBeVisible({ timeout: 30_000 });
-  await expect(damageNumber).toHaveAttribute('data-companion-role', 'shield');
-  await expect(damageNumber).toHaveAttribute('data-target-id', observedFeedback.targetId);
-  await expect(damageNumber).toHaveAttribute('data-critical', 'false');
-  await expect(damageNumber).toContainText(/◆\s*-\d+/);
-  const damageMetrics = await damageNumber.evaluate(element => {
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    return {
-      width: rect.width,
-      height: rect.height,
-      fontSize: Number.parseFloat(style.fontSize),
-      pointerEvents: style.pointerEvents,
-    };
-  });
-  expect(damageMetrics.width).toBeGreaterThanOrEqual(82);
-  expect(damageMetrics.height).toBeGreaterThanOrEqual(38);
-  expect(damageMetrics.fontSize).toBeGreaterThanOrEqual(21);
-  expect(damageMetrics.pointerEvents).toBe('none');
+  expect(observedFeedback.feedbackId).toMatch(/^companion-damage-number-/);
+  expect(observedFeedback.feedbackRole).toBe('shield');
+  expect(observedFeedback.feedbackTargetId).toBe(observedFeedback.targetId);
+  expect(observedFeedback.critical).toBe('false');
+  expect(observedFeedback.text).toMatch(/◆\s*-\d+/);
+  expect(observedFeedback.visibleCount).toBe('1');
+  expect(observedFeedback.width).toBeGreaterThanOrEqual(82);
+  expect(observedFeedback.height).toBeGreaterThanOrEqual(38);
+  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(21);
+  expect(observedFeedback.pointerEvents).toBe('none');
   await page.screenshot({ path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`, fullPage: false });
   await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
 
