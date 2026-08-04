@@ -8,8 +8,9 @@ const bowRigPath = 'artifacts/dungeon-rpg/src/components/bowRig.ts';
 const equipmentBindingPath = 'artifacts/dungeon-rpg/src/components/equipmentUpgradePrestige3D.ts';
 const companionBindingPath = 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
+const prestigeJourneyPath = 'artifacts/dungeon-rpg/tests/upgrade-prestige-visual.spec.mjs';
 
-const [profiles, overlay, bindings, bowRig, equipmentBinding, companionBinding, app] = await Promise.all([
+const [profiles, overlay, bindings, bowRig, equipmentBinding, companionBinding, app, prestigeJourney] = await Promise.all([
   readFile(profilePath, 'utf8'),
   readFile(overlayPath, 'utf8'),
   readFile(bindingsPath, 'utf8'),
@@ -17,6 +18,7 @@ const [profiles, overlay, bindings, bowRig, equipmentBinding, companionBinding, 
   readFile(equipmentBindingPath, 'utf8'),
   readFile(companionBindingPath, 'utf8'),
   readFile(appPath, 'utf8'),
+  readFile(prestigeJourneyPath, 'utf8'),
 ]);
 
 for (const tier of [1, 2, 3, 4, 5]) {
@@ -208,5 +210,20 @@ assert.match(app, /<EquippedUpgradePrestigeOverlay \/>/,
 assert.match(app, /import \{ UpgradeTierSurfaceBindings \}/);
 assert.match(app, /<UpgradeTierSurfaceBindings \/>/,
   'the real application shell must mount card/model-local and companion bindings');
+
+assert.match(prestigeJourney, /async function readTransientRoomTitleState\(page\)/,
+  'the prestige journey must inspect transition state without requiring the transient component to stay mounted');
+assert.match(prestigeJourney, /return \{ owners, visibleOwners \};/,
+  'the lifecycle probe must separate authoritative ownership from active visibility');
+assert.match(prestigeJourney, /owners\.length > 1 \|\| visibleOwners\.length > 1/,
+  'duplicate room-title owners must fail deterministically');
+assert.match(prestigeJourney, /visibleOwners\.length === 1[\s\S]*hiddenSince = 0/,
+  'an active transition must reset the continuous hidden interval');
+assert.match(prestigeJourney, /Date\.now\(\) - hiddenSince >= 1_200 \? 'stable' : 'settling'/,
+  'the room must remain absent or hidden for the unchanged 1200ms stability threshold');
+assert.match(prestigeJourney, /timeout: 120_000,[\s\S]*intervals: \[100, 250, 500\]/,
+  'the existing timeout and polling contract must remain unchanged');
+assert.doesNotMatch(prestigeJourney, /resolveTransientRoomTitle|toHaveLength\(1\)/,
+  'stable-room detection must never require one transient overlay to remain mounted');
 
 console.log('Upgrade visual tier contract passed.');
