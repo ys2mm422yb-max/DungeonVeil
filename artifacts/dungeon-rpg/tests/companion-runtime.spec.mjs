@@ -154,7 +154,6 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await armCompanionActionObservation(page);
   const observedHit = await waitForCorrelatedCompanionHit(page, 'shield');
   expect(observedHit).toBeTruthy();
-  await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
 
   const damageLayer = page.getByTestId('companion-damage-feedback-layer');
   const damageNumber = page.locator(`[data-testid^="companion-damage-number-"][data-companion-role="shield"][data-target-id="${observedHit.targetId}"]`).first();
@@ -179,6 +178,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   expect(damageMetrics.fontSize).toBeGreaterThanOrEqual(21);
   expect(damageMetrics.pointerEvents).toBe('none');
   await page.screenshot({ path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`, fullPage: false });
+  await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
 
   await expect(scene).toHaveAttribute('data-scene-hook', 'object3d-add');
   await expect(scene).toHaveAttribute('data-model-source', 'procedural-distinct-companion-v5');
