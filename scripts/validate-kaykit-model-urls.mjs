@@ -13,6 +13,21 @@ assert.match(
 );
 assert.match(
   manifestSource,
+  /function stripSchemeLessRuntimeHost\(value: string\): string/,
+  'preview-origin paths accidentally serialized without a scheme must be repaired at the manifest boundary',
+);
+assert.match(
+  manifestSource,
+  /\^\\\/(?:localhost\|127/,
+  'scheme-less localhost and loopback roots must be recognized deterministically',
+);
+assert.match(
+  manifestSource,
+  /const root = stripSchemeLessRuntimeHost\(value\.trim\(\)\.replace/,
+  'manifest roots must be repaired before asset-root classification and model joining',
+);
+assert.match(
+  manifestSource,
   /new URL\(value, document\.baseURI\)\.href/,
   'root-relative KayKit model paths must become standards-compliant absolute runtime URLs',
 );
@@ -42,5 +57,13 @@ assert.equal(
 assert.equal(new URL('example.bin', resolvedModel).origin, 'http://127.0.0.1:4173');
 assert.equal(new URL('dungeon_texture.png', resolvedModel).origin, 'http://127.0.0.1:4173');
 assert.ok(!resolvedModel.startsWith('/127.0.0.1:'), 'the runtime URL must retain its protocol');
+
+const schemeLessRoot = '/127.0.0.1:4173/DungeonVeil/assets/kaykit';
+const repairedRoot = schemeLessRoot.replace(/^\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?\/(.+)$/i, '/$1');
+assert.equal(repairedRoot, '/DungeonVeil/assets/kaykit');
+assert.equal(
+  new URL(`${repairedRoot}/dungeon/example.gltf`, previewBase).href,
+  'http://127.0.0.1:4173/DungeonVeil/assets/kaykit/dungeon/example.gltf',
+);
 
 console.log('KayKit runtime model URL contract passed.');
