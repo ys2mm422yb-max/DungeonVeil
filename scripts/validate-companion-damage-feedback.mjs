@@ -40,19 +40,27 @@ assert.match(runtime, /@media \(prefers-reduced-motion: reduce\)/,
 assert.match(journey, /const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';/,
   'the focused browser journey must subscribe to the authoritative companion action event');
 assert.match(journey, /async function armCompanionActionObservation\(page\)/,
-  'the focused browser journey must arm observation before waiting for a transient hit');
-assert.match(journey, /async function waitForCorrelatedCompanionHit\(page, role\)/,
-  'the focused browser journey must correlate visual acceptance to a concrete companion hit');
-assert.match(journey, /entry\.role === expectedRole && entry\.kind === 'attack' && entry\.targetId/,
-  'the correlated observation must identify role, attack kind and struck enemy');
-assert.match(journey, /const observedHit = await waitForCorrelatedCompanionHit\(page, 'shield'\);/,
-  'the shield journey must wait for the exact authoritative hit under review');
+  'the focused browser journey must arm observation before combat begins');
+assert.match(journey, /await armCompanionActionObservation\(page\);\s*await startFreshRun\(page\);/,
+  'the observer must be active before the run can emit the first companion hit');
+assert.doesNotMatch(journey, /page\.waitForTimeout\(10_000\)/,
+  'a fixed post-entry delay must not consume the room before transient hit feedback is observed');
+assert.match(journey, /async function waitForCorrelatedCompanionFeedback\(page, role\)/,
+  'the focused browser journey must correlate an authoritative hit with a simultaneously visible node');
+assert.match(journey, /for \(let index = log\.length - 1; index >= 0; index -= 1\)/,
+  'correlation must inspect the newest captured companion attacks first');
+assert.match(journey, /element\.dataset\.companionRole === expectedRole && element\.dataset\.targetId === entry\.targetId/,
+  'the live node must match both the companion role and struck enemy');
+assert.match(journey, /rect\.width <= 0 \|\| rect\.height <= 0/,
+  'the correlated node must have a real rendered footprint');
+assert.match(journey, /const observedFeedback = await waitForCorrelatedCompanionFeedback\(page, 'shield'\);/,
+  'the shield journey must wait for the exact visible authoritative hit under review');
 assert.match(journey, /getByTestId\('companion-damage-feedback-layer'\)/,
   'the focused browser journey must inspect the real feedback layer');
-assert.match(journey, /data-target-id="\$\{observedHit\.targetId\}"/,
-  'the rendered value locator must be tied to the same struck enemy as the observed event');
+assert.match(journey, /getByTestId\(observedFeedback\.feedbackId\)/,
+  'the rendered value locator must use the exact node correlated in the browser');
 assert.match(journey, /toHaveAttribute\('data-companion-role', 'shield'\)/);
-assert.match(journey, /toHaveAttribute\('data-target-id', observedHit\.targetId\)/);
+assert.match(journey, /toHaveAttribute\('data-target-id', observedFeedback\.targetId\)/);
 assert.match(journey, /toContainText\(\/◆\\s\*-\\d\+\//);
 assert.match(journey, /damageMetrics\.fontSize\)\.toBeGreaterThanOrEqual\(21\)/,
   'the browser journey must enforce the actual computed mobile font size');
