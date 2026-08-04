@@ -6,13 +6,15 @@ const journeyPath = 'artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs';
 const workflowPath = '.github/workflows/product-autopilot-qa.yml';
 const readabilityPath = 'artifacts/dungeon-rpg/src/components/companionDamageFeedback.css';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
+const manifestGeneratorPath = 'artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs';
 
-const [runtime, journey, workflow, readability, app] = await Promise.all([
+const [runtime, journey, workflow, readability, app, manifestGenerator] = await Promise.all([
   readFile(runtimePath, 'utf8'),
   readFile(journeyPath, 'utf8'),
   readFile(workflowPath, 'utf8'),
   readFile(readabilityPath, 'utf8'),
   readFile(appPath, 'utf8'),
+  readFile(manifestGeneratorPath, 'utf8'),
 ]);
 
 assert.match(runtime, /const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;/,
@@ -100,5 +102,11 @@ assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/,
   'Product Autopilot must run the focused feedback journey on all four portrait projects');
 assert.match(workflow, /companion-damage-feedback-\$\{\{ matrix\.project \}\}\.png/,
   'Product Autopilot must upload the dedicated feedback screenshot');
+assert.match(manifestGenerator, /'companion-damage-feedback-',/,
+  'the dedicated feedback screenshot must be included in every SHA-256 product evidence manifest');
+assert.match(manifestGenerator, /await fs\.writeFile\(path\.join\(root, 'companion-damage-feedback-device\.png'\), png\);/,
+  'the manifest generator self-test must exercise the dedicated feedback prefix');
+assert.match(manifestGenerator, /const companionEntry = manifest\.files\.find\(\(entry\) => entry\.path === 'companion-damage-feedback-device\.png'\);/,
+  'the self-test must prove companion feedback receives dimensions and a SHA-256 entry');
 
 console.log('Companion damage feedback contract passed.');
