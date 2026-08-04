@@ -4,6 +4,10 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
 const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
+const DEFAULT_COMPANION_STATE = {
+  activeId: 'single-target',
+  companions: { 'single-target': { level: 1, unlockedAt: 1 } },
+};
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
@@ -11,8 +15,8 @@ async function pressPointerUi(locator) {
   await locator.click();
 }
 
-async function openMenu(page, projectName) {
-  await page.addInitScript(({ ipad }) => {
+async function openMenu(page, projectName, companionState = DEFAULT_COMPANION_STATE) {
+  await page.addInitScript(({ ipad, initialCompanionState }) => {
     localStorage.clear();
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-player-profile-v1', JSON.stringify({
@@ -31,12 +35,12 @@ async function openMenu(page, projectName) {
     }));
     localStorage.setItem('dungeon-veil-companion-collection-v5', JSON.stringify({
       version: 1,
-      activeId: 'single-target',
-      companions: { 'single-target': { level: 1, unlockedAt: 1 } },
+      activeId: initialCompanionState.activeId,
+      companions: initialCompanionState.companions,
       updatedAt: 1,
     }));
     if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
-  }, { ipad: projectName.includes('ipad') });
+  }, { ipad: projectName.includes('ipad'), initialCompanionState: companionState });
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
 }
@@ -76,15 +80,19 @@ async function armCompanionActionObservation(page) {
   }, { eventName: COMPANION_ACTION_EVENT, logKey: COMPANION_ACTION_LOG, listenerKey: COMPANION_ACTION_LISTENER });
 }
 
-async function waitForCorrelatedCompanionFeedback(page, role) {
-  const handle = await page.waitForFunction(({ logKey, expectedRole }) => {
+async function waitForCorrelatedCompanionFeedback(page, role, expectedCritical = false) {
+  const handle = await page.waitForFunction(({ logKey, expectedRole, critical }) => {
     const log = window[logKey] || [];
     const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
     const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
     for (let index = log.length - 1; index >= 0; index -= 1) {
       const entry = log[index];
       if (entry.role !== expectedRole || entry.kind !== 'attack' || !entry.targetId) continue;
-      const node = nodes.find(element => element.dataset.companionRole === expectedRole && element.dataset.targetId === entry.targetId);
+      const node = nodes.find(element => (
+        element.dataset.companionRole === expectedRole
+        && element.dataset.targetId === entry.targetId
+        && element.dataset.critical === String(critical)
+      ));
       if (!node) continue;
       const style = getComputedStyle(node);
       const rect = node.getBoundingClientRect();
@@ -104,8 +112,22 @@ async function waitForCorrelatedCompanionFeedback(page, role) {
       };
     }
     return false;
-  }, { logKey: COMPANION_ACTION_LOG, expectedRole: role }, { timeout: 20_000 });
+  }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, critical: expectedCritical }, { timeout: 20_000 });
   return handle.jsonValue();
+}
+
+function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
+  expect(observedFeedback).toBeTruthy();
+  expect(observedFeedback.feedbackId).toMatch(/^companion-damage-number-/);
+  expect(observedFeedback.feedbackRole).toBe(role);
+  expect(observedFeedback.feedbackTargetId).toBe(observedFeedback.targetId);
+  expect(observedFeedback.critical).toBe(String(critical));
+  expect(observedFeedback.text).toMatch(marker);
+  expect(observedFeedback.visibleCount).toBe('1');
+  expect(observedFeedback.width).toBeGreaterThanOrEqual(82);
+  expect(observedFeedback.height).toBeGreaterThanOrEqual(38);
+  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(21);
+  expect(observedFeedback.pointerEvents).toBe('none');
 }
 
 test('companions are found and upgraded before a run, then remain fixed with articulated combat motion', async ({ page }, testInfo) => {
@@ -175,18 +197,8 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(runtime).toHaveAttribute('data-ai-hz', '10');
   await expect(runtime).toHaveAttribute('data-revive-target', 'false');
 
-  const observedFeedback = await waitForCorrelatedCompanionFeedback(page, 'shield');
-  expect(observedFeedback).toBeTruthy();
-  expect(observedFeedback.feedbackId).toMatch(/^companion-damage-number-/);
-  expect(observedFeedback.feedbackRole).toBe('shield');
-  expect(observedFeedback.feedbackTargetId).toBe(observedFeedback.targetId);
-  expect(observedFeedback.critical).toBe('false');
-  expect(observedFeedback.text).toMatch(/◆\s*-\d+/);
-  expect(observedFeedback.visibleCount).toBe('1');
-  expect(observedFeedback.width).toBeGreaterThanOrEqual(82);
-  expect(observedFeedback.height).toBeGreaterThanOrEqual(38);
-  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(21);
-  expect(observedFeedback.pointerEvents).toBe('none');
+  const observedFeedback = await waitForCorrelatedCompanionFeedback(page, 'shield', false);
+  assertReadableFeedback(observedFeedback, { role: 'shield', critical: false, marker: /◆\s*-\d+/ });
   await page.screenshot({ path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`, fullPage: false });
   await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
 
@@ -213,6 +225,41 @@ test('companions are found and upgraded before a run, then remain fixed with art
   const storedAfterClick = await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-companion-collection-v5') || '{}'));
   expect(storedAfterClick.activeId).toBe('shield');
   expect(storedAfterClick.companions.shield.level).toBe(2);
+
+  const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
+  expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
+  expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+});
+
+test('critical-support proc renders one readable value on its actual target', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const runtimeErrors = [];
+  page.on('pageerror', error => runtimeErrors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error' && /companion|lynx|raven|sentinel|wisp|drake|TypeError|ReferenceError|Cannot read/i.test(message.text())) runtimeErrors.push(message.text());
+  });
+
+  await openMenu(page, testInfo.project.name, {
+    activeId: 'critical-support',
+    companions: { 'critical-support': { level: 2, unlockedAt: 1 } },
+  });
+  await armCompanionActionObservation(page);
+  await startFreshRun(page);
+
+  const runtime = page.getByTestId('companion-runtime-bridge');
+  const chip = page.getByTestId('run-companion-chip');
+  await expect(runtime).toHaveAttribute('data-role', 'critical-support');
+  await expect(runtime).toHaveAttribute('data-level', '2');
+  await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
+  await expect(chip).toHaveAttribute('data-companion-role', 'critical-support');
+  await expect(chip).toHaveAttribute('data-companion-level', '2');
+
+  const observedCritical = await waitForCorrelatedCompanionFeedback(page, 'critical-support', true);
+  assertReadableFeedback(observedCritical, { role: 'critical-support', critical: true, marker: /✦\s*-\d+/ });
+  await page.screenshot({
+    path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
+    fullPage: false,
+  });
 
   const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
   expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
