@@ -137,8 +137,19 @@ function makeRaidController(currentUserId, withIncoming = false) {
 }
 
 async function installApiMocks(page, controller) {
+  const corsHeaders = {
+    'access-control-allow-origin': new URL(APP_URL).origin,
+    'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'access-control-allow-headers': 'authorization, apikey, content-profile, content-type, prefer, x-client-info',
+    'access-control-expose-headers': 'content-location, content-range',
+    vary: 'Origin',
+  };
   await page.route(`${SUPABASE_REST}**`, async route => {
     const request = route.request();
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: corsHeaders, body: '' });
+      return;
+    }
     const url = new URL(request.url());
     const resource = url.pathname.split('/').pop() || '';
     const select = url.searchParams.get('select') || '';
@@ -153,7 +164,7 @@ async function installApiMocks(page, controller) {
       try { requestBody = request.postDataJSON() ?? {}; } catch {}
       body = controller.handleRpc(resource, requestBody);
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    await route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: JSON.stringify(body) });
   });
 }
 
