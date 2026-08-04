@@ -57,8 +57,10 @@ assert.match(journey, /await armCompanionActionObservation\(page\);\s*await star
   'the observer must be active before a run can emit the first companion hit');
 assert.doesNotMatch(journey, /page\.waitForTimeout\(10_000\)/,
   'a fixed post-entry delay must not consume the room before transient hit feedback is observed');
-assert.match(journey, /async function waitForCorrelatedCompanionFeedback\(page, role, expectedCritical = false\)/,
-  'the focused journey must support independent basic and critical correlation');
+assert.match(journey, /async function waitForCorrelatedCompanionFeedback\(page, role, expectedCritical = false, notBefore = 0\)/,
+  'the focused journey must support independent basic and critical correlation with an input epoch');
+assert.match(journey, /entry\.role !== expectedRole \|\| entry\.kind !== 'attack' \|\| !entry\.targetId \|\| entry\.at < minimumAt/,
+  'critical correlation must reject companion actions that predate the supported player input');
 assert.match(journey, /for \(let index = log\.length - 1; index >= 0; index -= 1\)/,
   'correlation must inspect the newest captured companion attacks first');
 assert.match(journey, /element\.dataset\.companionRole === expectedRole[\s\S]*element\.dataset\.targetId === entry\.targetId[\s\S]*element\.dataset\.critical === String\(critical\)/,
@@ -96,14 +98,14 @@ assert.match(journey, /test\('critical-support proc renders one readable value o
   'Issue #407 critical-support acceptance must have a real browser journey');
 assert.match(journey, /activeId: 'critical-support',[\s\S]*'critical-support': \{ level: 2, unlockedAt: 1 \}/,
   'the critical journey must use the actual pre-run companion selection state');
-assert.match(journey, /async function triggerConfirmedPlayerAttack\(page\)[\s\S]*data-basic-attack-count[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*data-hit-flash[\s\S]*active/,
-  'the critical journey must prove a live target, issue a real player attack and observe its rendered hit feedback');
-assert.match(journey, /await triggerConfirmedPlayerAttack\(page\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback\(page, 'critical-support', true\);/,
-  'critical feedback observation must begin only after the deterministic player-attack stimulus succeeds');
+assert.match(journey, /async function triggerConfirmedPlayerAttack\(page\)[\s\S]*data-basic-attack-count[\s\S]*const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*return attackIssuedAt;/,
+  'the critical journey must prove a live target, issue supported real input and retain a monotonic input epoch');
+assert.doesNotMatch(journey, /data-hit-flash/,
+  'short-lived visual hit pulses must never be used as authoritative player-attack confirmation');
+assert.match(journey, /const attackIssuedAt = await triggerConfirmedPlayerAttack\(page\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback\(page, 'critical-support', true, attackIssuedAt\);/,
+  'critical feedback observation must be limited to actions emitted after the deterministic player input');
 assert.doesNotMatch(journey, /data-companion-level', '2'\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback/,
   'the critical journey must never regress to passive waiting after run entry');
-assert.match(journey, /waitForCorrelatedCompanionFeedback\(page, 'critical-support', true\)/,
-  'the critical journey must wait for a critical node from the real combat loop');
 assert.match(journey, /assertReadableFeedback\(observedCritical, \{ role: 'critical-support', critical: true, marker: \/✦\\s\*-\\d\+\/ \}\)/,
   'the critical proof must require the star marker and critical identity');
 assert.match(journey, /companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png/,
