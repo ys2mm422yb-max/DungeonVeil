@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
+const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
+const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
@@ -51,6 +54,35 @@ async function startFreshRun(page) {
   if (await skipIntro.isVisible({ timeout: 8_000 }).catch(() => false)) await skipIntro.click({ force: true });
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
   await page.waitForTimeout(10_000);
+}
+
+async function armCompanionActionObservation(page) {
+  await page.evaluate(({ eventName, logKey, listenerKey }) => {
+    const scope = window;
+    scope[logKey] = [];
+    if (scope[listenerKey]) return;
+    scope[listenerKey] = true;
+    window.addEventListener(eventName, event => {
+      const detail = event.detail;
+      if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
+      const log = scope[logKey];
+      log.push({
+        role: detail.role,
+        kind: detail.kind,
+        targetId: detail.targetId,
+        at: detail.at,
+      });
+      if (log.length > 16) log.splice(0, log.length - 16);
+    });
+  }, { eventName: COMPANION_ACTION_EVENT, logKey: COMPANION_ACTION_LOG, listenerKey: COMPANION_ACTION_LISTENER });
+}
+
+async function waitForCorrelatedCompanionHit(page, role) {
+  const handle = await page.waitForFunction(({ logKey, expectedRole }) => {
+    const log = window[logKey] || [];
+    return log.find(entry => entry.role === expectedRole && entry.kind === 'attack' && entry.targetId) || false;
+  }, { logKey: COMPANION_ACTION_LOG, expectedRole: role }, { timeout: 20_000 });
+  return handle.jsonValue();
 }
 
 test('companions are found and upgraded before a run, then remain fixed with articulated combat motion', async ({ page }, testInfo) => {
@@ -118,14 +150,18 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(runtime).toHaveAttribute('data-selection', 'pre-run-frozen');
   await expect(runtime).toHaveAttribute('data-ai-hz', '10');
   await expect(runtime).toHaveAttribute('data-revive-target', 'false');
+
+  await armCompanionActionObservation(page);
+  const observedHit = await waitForCorrelatedCompanionHit(page, 'shield');
+  expect(observedHit).toBeTruthy();
   await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
 
   const damageLayer = page.getByTestId('companion-damage-feedback-layer');
-  const damageNumber = page.locator('[data-testid^="companion-damage-number-"]').first();
+  const damageNumber = page.locator(`[data-testid^="companion-damage-number-"][data-companion-role="shield"][data-target-id="${observedHit.targetId}"]`).first();
   await expect(damageLayer).toHaveAttribute('data-visible-count', '1', { timeout: 30_000 });
   await expect(damageNumber).toBeVisible({ timeout: 30_000 });
   await expect(damageNumber).toHaveAttribute('data-companion-role', 'shield');
-  await expect(damageNumber).toHaveAttribute('data-target-id', /.+/);
+  await expect(damageNumber).toHaveAttribute('data-target-id', observedHit.targetId);
   await expect(damageNumber).toHaveAttribute('data-critical', 'false');
   await expect(damageNumber).toContainText(/◆\s*-\d+/);
   const damageMetrics = await damageNumber.evaluate(element => {
