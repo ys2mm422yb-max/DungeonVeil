@@ -40,8 +40,10 @@ assert.match(runtime, /min-h-\[38px\] min-w-\[82px\]/,
   'the component must retain its semantic minimum footprint');
 assert.match(readability, /\[data-testid\^="companion-damage-number-"\]\s*\{[\s\S]*min-width:\s*88px\s*!important;/,
   'the untransformed width must compensate for the 0.94 exit scale and keep the rendered box at or above 82px');
+assert.match(readability, /\[data-testid\^="companion-damage-number-"\]\s*\{[\s\S]*min-height:\s*41px\s*!important;/,
+  'the untransformed height must compensate for the 0.94 exit scale and keep the rendered box at or above 38px');
 assert.match(app, /import '\.\/components\/companionDamageFeedback\.css';/,
-  'the transformed-width contract must be loaded in every app mode');
+  'the transformed width and height contract must be loaded in every app mode');
 assert.match(runtime, /fontSize: 'clamp\(21px, 5\.4vw, 29px\)'/,
   'companion values need a mobile-readable font floor');
 assert.match(runtime, /@media \(prefers-reduced-motion: reduce\)/,
