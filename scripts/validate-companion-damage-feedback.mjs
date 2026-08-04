@@ -49,7 +49,7 @@ assert.match(journey, /const observedHit = await waitForCorrelatedCompanionHit\(
   'the shield journey must wait for the exact authoritative hit under review');
 assert.match(journey, /getByTestId\('companion-damage-feedback-layer'\)/,
   'the focused browser journey must inspect the real feedback layer');
-assert.match(journey, /data-target-id=\\"\$\{observedHit\.targetId\}\\"/,
+assert.match(journey, /data-target-id="\$\{observedHit\.targetId\}"/,
   'the rendered value locator must be tied to the same struck enemy as the observed event');
 assert.match(journey, /toHaveAttribute\('data-companion-role', 'shield'\)/);
 assert.match(journey, /toHaveAttribute\('data-target-id', observedHit\.targetId\)/);
