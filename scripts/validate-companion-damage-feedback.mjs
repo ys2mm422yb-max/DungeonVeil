@@ -61,24 +61,40 @@ assert.match(journey, /element\.dataset\.companionRole === expectedRole && eleme
   'the live node must match both the companion role and struck enemy');
 assert.match(journey, /rect\.width <= 0 \|\| rect\.height <= 0/,
   'the correlated node must have a real rendered footprint');
+assert.match(journey, /const layer = document\.querySelector\('\[data-testid="companion-damage-feedback-layer"\]'\);/,
+  'the same-tick browser snapshot must inspect the real feedback layer');
+assert.match(journey, /feedbackId: node\.getAttribute\('data-testid'\),/,
+  'the atomic snapshot must retain the exact rendered feedback identity');
+assert.match(journey, /feedbackRole: node\.dataset\.companionRole \|\| '',/);
+assert.match(journey, /feedbackTargetId: node\.dataset\.targetId \|\| '',/);
+assert.match(journey, /text: node\.textContent \|\| '',/);
+assert.match(journey, /width: rect\.width,/);
+assert.match(journey, /fontSize: Number\.parseFloat\(style\.fontSize\),/);
+assert.match(journey, /visibleCount: layer\?\.getAttribute\('data-visible-count'\) \|\| '',/,
+  'layer visibility and node geometry must be captured in the same browser tick');
 assert.match(journey, /const observedFeedback = await waitForCorrelatedCompanionFeedback\(page, 'shield'\);/,
   'the shield journey must wait for the exact visible authoritative hit under review');
-assert.match(journey, /getByTestId\('companion-damage-feedback-layer'\)/,
-  'the focused browser journey must inspect the real feedback layer');
-assert.match(journey, /getByTestId\(observedFeedback\.feedbackId\)/,
-  'the rendered value locator must use the exact node correlated in the browser');
-assert.match(journey, /toHaveAttribute\('data-companion-role', 'shield'\)/);
-assert.match(journey, /toHaveAttribute\('data-target-id', observedFeedback\.targetId\)/);
-assert.match(journey, /toContainText\(\/◆\\s\*-\\d\+\//);
-assert.match(journey, /damageMetrics\.width\)\.toBeGreaterThanOrEqual\(82\)/,
-  'the browser journey must enforce the actual transformed mobile width');
-assert.match(journey, /damageMetrics\.fontSize\)\.toBeGreaterThanOrEqual\(21\)/,
-  'the browser journey must enforce the actual computed mobile font size');
+assert.match(journey, /expect\(observedFeedback\.feedbackId\)\.toMatch\(\/\^companion-damage-number-\/\);/);
+assert.match(journey, /expect\(observedFeedback\.feedbackRole\)\.toBe\('shield'\);/);
+assert.match(journey, /expect\(observedFeedback\.feedbackTargetId\)\.toBe\(observedFeedback\.targetId\);/);
+assert.match(journey, /expect\(observedFeedback\.critical\)\.toBe\('false'\);/);
+assert.match(journey, /expect\(observedFeedback\.text\)\.toMatch\(\/◆\\s\*-\\d\+\/\);/);
+assert.match(journey, /expect\(observedFeedback\.visibleCount\)\.toBe\('1'\);/);
+assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(82\);/,
+  'the atomic browser snapshot must enforce the actual transformed mobile width');
+assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(38\);/);
+assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(21\);/,
+  'the atomic browser snapshot must enforce the actual computed mobile font size');
+assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\);/);
+assert.doesNotMatch(journey, /getByTestId\(observedFeedback\.feedbackId\)/,
+  'a short-lived feedback node must not be reacquired after the atomic snapshot');
+assert.doesNotMatch(journey, /const damageNumber = page\.getByTestId/,
+  'the transient node must not be queried again after its lifecycle can expire');
 assert.match(journey, /companion-damage-feedback-\$\{testInfo\.project\.name\}\.png/,
   'the browser journey must produce criterion-specific evidence');
 assert.doesNotMatch(journey,
-  /data-basic-attack-count[\s\S]{0,500}toBeGreaterThan\(0\);[\s\S]{0,250}getByTestId\('companion-damage-feedback-layer'\)/,
-  'a monotonic attack-counter wait must not precede observation of a short-lived feedback node');
+  /data-basic-attack-count[\s\S]{0,500}toBeGreaterThan\(0\);[\s\S]{0,250}(?:getByTestId|querySelector)\([^\n]*companion-damage-feedback-layer/,
+  'a monotonic attack-counter wait must not precede observation of short-lived feedback');
 
 assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/,
   'Product Autopilot must run the focused feedback journey on all four portrait projects');
