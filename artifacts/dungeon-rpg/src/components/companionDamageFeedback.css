@@ -1,3 +1,4 @@
 [data-testid^="companion-damage-number-"] {
   min-width: 88px !important;
+  min-height: 41px !important;
 }
