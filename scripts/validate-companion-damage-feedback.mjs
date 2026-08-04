@@ -37,17 +37,30 @@ assert.match(runtime, /fontSize: 'clamp\(21px, 5\.4vw, 29px\)'/,
 assert.match(runtime, /@media \(prefers-reduced-motion: reduce\)/,
   'damage feedback must retain a static fade fallback for Reduced Motion');
 
+assert.match(journey, /const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';/,
+  'the focused browser journey must subscribe to the authoritative companion action event');
+assert.match(journey, /async function armCompanionActionObservation\(page\)/,
+  'the focused browser journey must arm observation before waiting for a transient hit');
+assert.match(journey, /async function waitForCorrelatedCompanionHit\(page, role\)/,
+  'the focused browser journey must correlate visual acceptance to a concrete companion hit');
+assert.match(journey, /entry\.role === expectedRole && entry\.kind === 'attack' && entry\.targetId/,
+  'the correlated observation must identify role, attack kind and struck enemy');
+assert.match(journey, /const observedHit = await waitForCorrelatedCompanionHit\(page, 'shield'\);/,
+  'the shield journey must wait for the exact authoritative hit under review');
 assert.match(journey, /getByTestId\('companion-damage-feedback-layer'\)/,
   'the focused browser journey must inspect the real feedback layer');
-assert.match(journey, /locator\('\[data-testid\^="companion-damage-number-"\]'\)/,
-  'the focused browser journey must inspect the rendered companion value');
+assert.match(journey, /data-target-id=\\"\$\{observedHit\.targetId\}\\"/,
+  'the rendered value locator must be tied to the same struck enemy as the observed event');
 assert.match(journey, /toHaveAttribute\('data-companion-role', 'shield'\)/);
-assert.match(journey, /toHaveAttribute\('data-target-id', \/\.\+\//);
+assert.match(journey, /toHaveAttribute\('data-target-id', observedHit\.targetId\)/);
 assert.match(journey, /toContainText\(\/◆\\s\*-\\d\+\//);
 assert.match(journey, /damageMetrics\.fontSize\)\.toBeGreaterThanOrEqual\(21\)/,
   'the browser journey must enforce the actual computed mobile font size');
 assert.match(journey, /companion-damage-feedback-\$\{testInfo\.project\.name\}\.png/,
   'the browser journey must produce criterion-specific evidence');
+assert.doesNotMatch(journey,
+  /data-basic-attack-count[\s\S]{0,500}toBeGreaterThan\(0\);[\s\S]{0,250}getByTestId\('companion-damage-feedback-layer'\)/,
+  'a monotonic attack-counter wait must not precede observation of a short-lived feedback node');
 
 assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/,
   'Product Autopilot must run the focused feedback journey on all four portrait projects');
