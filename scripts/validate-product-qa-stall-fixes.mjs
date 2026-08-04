@@ -19,14 +19,18 @@ assert.match(guildRaidJourney, /route\.fulfill\(\{ status: 200, headers: corsHea
 assert.doesNotMatch(guildRaidJourney, /access control checks[\s\S]*ignore|issues\.filter/,
   'the journey must fix cross-origin behavior rather than suppress the resulting runtime error');
 
-assert.match(companionJourney, /let pendingCaptureFrames = 0;/,
-  'the transient feedback observer must use a bounded rendered-frame capture budget');
-assert.match(companionJourney, /pendingCaptureFrames = 12;\s*queueMicrotask\(captureRenderedFeedback\);/,
-  'each authoritative companion attack must arm the bounded frame capture before the adjacent microtask');
-assert.match(companionJourney, /if \(pendingCaptureFrames > 0\) \{\s*pendingCaptureFrames -= 1;\s*requestAnimationFrame\(captureRenderedFeedback\);\s*\}/,
-  'the observer must sample real rendered frames while the fixed animation becomes visible');
-assert.doesNotMatch(companionJourney, /pendingCaptureFrames = (?:[2-9]\d|\d{3,})/,
-  'the rendered-frame budget must stay small and bounded');
+assert.match(companionJourney, /let captureUntil = 0;\s*let captureFrameScheduled = false;/,
+  'the transient feedback observer must own one serialized time-bounded frame loop');
+assert.match(companionJourney, /const scheduleRenderedFeedbackCapture = \(\) => \{[\s\S]*if \(captureFrameScheduled \|\| performance\.now\(\) >= captureUntil\) return;[\s\S]*captureFrameScheduled = true;[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*captureFrameScheduled = false;[\s\S]*captureRenderedFeedback\(\);[\s\S]*scheduleRenderedFeedbackCapture\(\);/,
+  'the observer must serialize requestAnimationFrame work instead of consuming a shared budget through parallel chains');
+assert.match(companionJourney, /captureUntil = Math\.max\(captureUntil, performance\.now\(\) \+ 420\);/,
+  'each authoritative companion attack must keep real rendered-frame observation active beyond the 15% fade-in boundary');
+assert.match(companionJourney, /new MutationObserver\(\(\) => \{\s*captureRenderedFeedback\(\);\s*scheduleRenderedFeedbackCapture\(\);\s*\}\)\.observe/,
+  'React commit mutations must both capture immediately and join the single bounded frame loop');
+assert.match(companionJourney, /queueMicrotask\(\(\) => \{\s*captureRenderedFeedback\(\);\s*scheduleRenderedFeedbackCapture\(\);\s*\}\);/,
+  'the authoritative event-adjacent microtask must join the same serialized frame loop');
+assert.doesNotMatch(companionJourney, /pendingCaptureFrames|requestAnimationFrame\(captureRenderedFeedback\)/,
+  'parallel frame-budget chains must not return');
 assert.match(companionJourney, /Number\(style\.opacity\) <= 0/,
   'the observer must still reject an inserted but not-yet-visible frame');
 assert.match(companionJourney, /snapshot\.feedbackTargetId === snapshot\.targetId[\s\S]*snapshot\.critical === String\(critical\)/,
