@@ -59,6 +59,17 @@ async function startFreshRun(page) {
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
 }
 
+async function triggerConfirmedPlayerAttack(page) {
+  const runtime = page.getByTestId('companion-runtime-bridge');
+  await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
+  const hitFlash = page.getByTestId('run-visual-viewport');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => (
+    document.querySelector('[data-testid="run-visual-viewport"]')?.getAttribute('data-hit-flash') === 'active'
+  ), undefined, { timeout: 5_000 });
+  await expect(hitFlash).toHaveAttribute('data-hit-flash', /active|idle/);
+}
+
 async function armCompanionActionObservation(page) {
   await page.evaluate(({ eventName, logKey, listenerKey }) => {
     const scope = window;
@@ -254,6 +265,7 @@ test('critical-support proc renders one readable value on its actual target', as
   await expect(chip).toHaveAttribute('data-companion-role', 'critical-support');
   await expect(chip).toHaveAttribute('data-companion-level', '2');
 
+  await triggerConfirmedPlayerAttack(page);
   const observedCritical = await waitForCorrelatedCompanionFeedback(page, 'critical-support', true);
   assertReadableFeedback(observedCritical, { role: 'critical-support', critical: true, marker: /✦\s*-\d+/ });
   await page.screenshot({
