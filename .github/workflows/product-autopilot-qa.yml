@@ -150,6 +150,7 @@ jobs:
             tests/autopilot-outside-guild.spec.mjs \
             tests/guild-mail-equipment-visual.spec.mjs \
             tests/mobile-resource-upgrade.spec.mjs \
+            tests/companion-runtime.spec.mjs \
             tests/upgrade-prestige-visual.spec.mjs \
             tests/kaykit-chapter-evidence.spec.mjs \
             tests/guild-raid-lobby-mobile.spec.mjs \
@@ -204,6 +205,7 @@ jobs:
             artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/mobile-resource-upgrade-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/companion-damage-feedback-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/visual-upgrade-prestige-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
