@@ -81,7 +81,8 @@ function isRootRelativeAssetPath(value: string): boolean {
 }
 
 function stripSchemeLessRuntimeHost(value: string): string {
-  const match = value.match(/^\/(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?\/(.+)$/i);
+  if (/^https?:\/\//i.test(value)) return value;
+  const match = value.match(/^(?:https?:\/?)?\/{0,2}(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?\/(.+)$/i);
   return match ? `/${match[1]}` : value;
 }
 
@@ -170,10 +171,11 @@ export function loadKayKitManifest(): Promise<KayKitManifest> {
 
 function absoluteRuntimeModelUrl(value: string): string {
   if (typeof document === 'undefined') return value;
+  const repaired = stripSchemeLessRuntimeHost(value.trim());
   try {
-    return new URL(value, document.baseURI).href;
+    return new URL(repaired, document.baseURI).href;
   } catch {
-    return value;
+    return repaired;
   }
 }
 
