@@ -206,6 +206,7 @@ jobs:
             artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/mobile-resource-upgrade-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/companion-damage-feedback-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/companion-damage-feedback-critical-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/visual-upgrade-prestige-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
