@@ -120,6 +120,30 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(runtime).toHaveAttribute('data-revive-target', 'false');
   await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
 
+  const damageLayer = page.getByTestId('companion-damage-feedback-layer');
+  const damageNumber = page.locator('[data-testid^="companion-damage-number-"]').first();
+  await expect(damageLayer).toHaveAttribute('data-visible-count', '1', { timeout: 30_000 });
+  await expect(damageNumber).toBeVisible({ timeout: 30_000 });
+  await expect(damageNumber).toHaveAttribute('data-companion-role', 'shield');
+  await expect(damageNumber).toHaveAttribute('data-target-id', /.+/);
+  await expect(damageNumber).toHaveAttribute('data-critical', 'false');
+  await expect(damageNumber).toContainText(/◆\s*-\d+/);
+  const damageMetrics = await damageNumber.evaluate(element => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return {
+      width: rect.width,
+      height: rect.height,
+      fontSize: Number.parseFloat(style.fontSize),
+      pointerEvents: style.pointerEvents,
+    };
+  });
+  expect(damageMetrics.width).toBeGreaterThanOrEqual(82);
+  expect(damageMetrics.height).toBeGreaterThanOrEqual(38);
+  expect(damageMetrics.fontSize).toBeGreaterThanOrEqual(21);
+  expect(damageMetrics.pointerEvents).toBe('none');
+  await page.screenshot({ path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`, fullPage: false });
+
   await expect(scene).toHaveAttribute('data-scene-hook', 'object3d-add');
   await expect(scene).toHaveAttribute('data-model-source', 'procedural-distinct-companion-v5');
   await expect(scene).toHaveAttribute('data-animation-source', 'articulated-locomotion-and-attacks');
