@@ -104,18 +104,22 @@ assert.match(journey, /test\('critical-support proc renders one readable value o
 assert.match(journey, /activeId: 'critical-support',[\s\S]*'critical-support': \{ level: 2, unlockedAt: 1 \}/,
   'the critical journey must use the actual pre-run companion selection state');
 const playerAttackTrigger = journey.match(/async function triggerConfirmedPlayerAttack\(page\) \{[\s\S]*?\n\}/)?.[0] ?? '';
-assert.match(playerAttackTrigger, /data-basic-attack-count[\s\S]*const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);[\s\S]*const inputBurst = 6;[\s\S]*for \(let attempt = 0; attempt < inputBurst; attempt \+= 1\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*page\.waitForTimeout\(240\)[\s\S]*return attackIssuedAt;/,
-  'the critical journey must prove a live target, retain one monotonic input epoch and use a small bounded burst of real supported player attacks for slower portrait tablets');
+assert.match(playerAttackTrigger, /const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);[\s\S]*const inputBurst = 6;[\s\S]*for \(let attempt = 0; attempt < inputBurst; attempt \+= 1\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*page\.waitForTimeout\(240\)[\s\S]*return attackIssuedAt;/,
+  'the critical journey must retain one monotonic input epoch and use a small bounded burst of real supported player attacks');
+assert.doesNotMatch(playerAttackTrigger, /data-basic-attack-count|expect\.poll/,
+  'the critical input burst must not wait for a companion basic attack that can clear the only target first');
 assert.doesNotMatch(playerAttackTrigger, /const inputBurst = (?:[7-9]|\d{2,});/,
   'the deterministic real-input burst must remain small and bounded');
 assert.doesNotMatch(playerAttackTrigger, /page\.waitForTimeout\((?:[3-9]\d{2}|\d{4,})\)/,
   'the input cadence must not hide a product stall behind long fixed delays');
 assert.doesNotMatch(journey, /data-hit-flash/,
   'short-lived visual hit pulses must never be used as authoritative player-attack confirmation');
-assert.match(journey, /const attackIssuedAt = await triggerConfirmedPlayerAttack\(page\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback\(page, 'critical-support', true, attackIssuedAt\);/,
+assert.match(journey, /await startFreshRun\(page\);\s*const runtime = page\.getByTestId\('companion-runtime-bridge'\);\s*await expect\(runtime\)\.toHaveAttribute\('data-role', 'critical-support'\);\s*const attackIssuedAt = await triggerConfirmedPlayerAttack\(page\);/,
+  'the real critical-support input must be issued immediately after room entry and role confirmation, before slower metadata assertions can outlive the target');
+assert.match(journey, /const attackIssuedAt = await triggerConfirmedPlayerAttack\(page\);[\s\S]*const observedCritical = await waitForCorrelatedCompanionFeedback\(page, 'critical-support', true, attackIssuedAt\);/,
   'critical feedback observation must be limited to actions emitted after the deterministic player input epoch');
-assert.doesNotMatch(journey, /data-companion-level', '2'\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback/,
-  'the critical journey must never regress to passive waiting after run entry');
+assert.doesNotMatch(journey, /data-companion-level', '2'\);\s*const attackIssuedAt = await triggerConfirmedPlayerAttack/,
+  'the critical journey must not wait for all companion metadata before preserving the room-one target lifetime');
 assert.match(journey, /assertReadableFeedback\(observedCritical, \{ role: 'critical-support', critical: true, marker: \/✦\\s\*-\\d\+\/ \}\)/,
   'the critical proof must require the star marker and critical identity');
 assert.match(journey, /companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png/,
