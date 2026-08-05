@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [guildRaidJourney, companionJourney] = await Promise.all([
+const [guildRaidJourney, companionJourney, visualReadiness] = await Promise.all([
   readFile('artifacts/dungeon-rpg/tests/guild-raid-lobby-mobile.spec.mjs', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs', 'utf8'),
+  readFile('artifacts/dungeon-rpg/tests/visual-render-readiness.mjs', 'utf8'),
 ]);
 
 assert.match(guildRaidJourney, /const corsHeaders = \{/,
@@ -54,5 +55,14 @@ assert.match(companionJourney, /Companion feedback diagnostics: \$\{JSON\.string
   'a failed live capture must emit bounded runtime, action and node diagnostics');
 assert.doesNotMatch(companionJourney, /waitForCorrelatedCompanionFeedback|captureCorrelatedCompanionFeedbackEvidence/,
   'the expired-ID historical-snapshot sequence must not return');
+
+assert.match(visualReadiness, /function isNavigationTransitionError\(error\) \{[\s\S]*document\\\.\(\?:body\|documentElement\)\\\.scrollWidth/,
+  'visual capture must classify WebKit body attachment as a navigation transition, not as a product overflow failure');
+assert.match(visualReadiness, /async function waitForDocumentBody\(page, timeout\) \{[\s\S]*waitForLoadState\('domcontentloaded'[\s\S]*locator\('body'\)\.waitFor\(\{ state: 'attached', timeout \}\)/,
+  'the replacement document must prove both DOMContentLoaded and body attachment before capture resumes');
+assert.match(visualReadiness, /if \(!isNavigationTransitionError\(error\)\) throw error;[\s\S]*await waitForDocumentBody\(page, timeout\);[\s\S]*return originalEvaluate\(\.\.\.args\);/,
+  'only known navigation-transition errors may repeat the identical evaluation once');
+assert.doesNotMatch(visualReadiness, /catch \(error\) \{\s*await waitForDocumentBody/,
+  'the navigation guard must not swallow arbitrary page evaluation failures');
 
 console.log('Product QA anti-stall fixture contracts passed.');
