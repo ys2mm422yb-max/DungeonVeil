@@ -80,10 +80,12 @@ assert.match(journey, /timeout: 20_000,[\s\S]*polling: 'raf'/,
   'the unchanged 20 second criterion must sample the short live window inside requestAnimationFrame');
 assert.doesNotMatch(journey, /feedback\.count\(\)|feedback\.evaluate\(/,
   'slow cross-process count/evaluate sequencing must not return');
-assert.match(journey, /observedFeedback = await handle\.jsonValue\(\);[\s\S]*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);[\s\S]*await page\.screenshot\(\{ path, fullPage: false \}\);/,
-  'the same browser-frame result must be validated and immediately photographed');
-assert.match(journey, /const exactFeedback = page\.getByTestId\(observedFeedback\.feedbackId\);[\s\S]*const visibleAfterCapture = await exactFeedback\.evaluate[\s\S]*expect\(visibleAfterCapture\)\.toBe\(true\);/,
-  'the exact correlated node must still be connected after the full-context screenshot');
+assert.match(journey, /observedFeedback = await handle\.jsonValue\(\);[\s\S]*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);[\s\S]*const screenshot = await page\.screenshot\(\{ path, fullPage: false \}\);[\s\S]*assertFullViewportPng\(screenshot, viewport\);/,
+  'the same browser-frame result must be validated and immediately written as full-context PNG evidence');
+assert.match(journey, /function assertFullViewportPng\(screenshot, viewport\) \{[\s\S]*screenshot\.subarray\(0, 8\)[\s\S]*screenshot\.length\)\.toBeGreaterThan\(10_000\)[\s\S]*readUInt32BE\(16\)[\s\S]*readUInt32BE\(20\)[\s\S]*toBeGreaterThanOrEqual\(viewport\.width\)[\s\S]*toBeGreaterThanOrEqual\(viewport\.height\)/,
+  'saved evidence must be a non-empty PNG covering the complete configured portrait viewport');
+assert.doesNotMatch(journey, /visibleAfterCapture|exactFeedback\.evaluate/,
+  'the test must not require a deliberately transient 1050ms node to survive screenshot encoding');
 assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(82\);/);
 assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(38\);/);
 assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(21\);/);
