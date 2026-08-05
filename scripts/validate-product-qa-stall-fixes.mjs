@@ -24,18 +24,22 @@ assert.doesNotMatch(companionJourney,
   'the evidence path must not reintroduce a historical frame buffer that can outlive the real feedback node');
 assert.match(companionJourney, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
   'the focused journey must own one direct live-node capture helper');
-assert.match(companionJourney, /const feedback = page\.locator\(selector\)\.last\(\);[\s\S]*await expect\.poll\(async \(\) => \{/,
-  'the waiter must be armed on the live locator before the qualifying hit arrives');
-assert.match(companionJourney, /feedback\.evaluate\(\(node, \{ logKey, expectedRole, expectedCritical, minimumAt \}\) => \{/,
-  'role, target, critical identity and event time must be checked in the browser while the node is connected');
+assert.match(companionJourney, /const handle = await page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt \}\) => \{/,
+  'one browser-side waiter must own discovery and validation of the transient feedback node');
+assert.match(companionJourney, /const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
+  'the browser-side waiter must inspect the currently rendered damage nodes without locator round trips');
+assert.match(companionJourney, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
+  'role and critical identity must be filtered inside the same browser frame');
 assert.match(companionJourney, /entry\.role === expectedRole[\s\S]*entry\.targetId === targetId[\s\S]*entry\.at >= minimumAt/,
   'the live node must remain correlated with the authoritative attack after the requested epoch');
 assert.match(companionJourney, /opacity < 0\.9/,
   'capture must reject inserted or fading frames that are not clearly painted');
-assert.match(companionJourney, /intervals: \[16, 32, 64, 100\]/,
-  'the short 1050ms feedback window must be sampled promptly without increasing the 20 second outer criterion');
-assert.match(companionJourney, /const exactFeedback = page\.getByTestId\(observedFeedback\.feedbackId\);[\s\S]*visibleBeforeCapture[\s\S]*await page\.screenshot\(\{ path, fullPage: false \}\);[\s\S]*visibleAfterCapture/,
-  'the exact correlated node must bracket the full-context screenshot');
+assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 'raf'/,
+  'the unchanged 20 second criterion must sample the 1050ms feedback window within the browser animation loop');
+assert.doesNotMatch(companionJourney, /feedback\.count\(\)|feedback\.evaluate\(/,
+  'separate locator count and evaluate round trips must not return');
+assert.match(companionJourney, /observedFeedback = await handle\.jsonValue\(\);[\s\S]*assertReadableFeedback\(observedFeedback,[\s\S]*await page\.screenshot\(\{ path, fullPage: false \}\);[\s\S]*visibleAfterCapture/,
+  'the correlated browser-frame result must be validated and photographed immediately before its post-capture liveness check');
 assert.match(companionJourney, /const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*const \[, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise/,
   'critical evidence capture must be armed before the real input burst');
 assert.match(companionJourney, /observedAt: performance\.now\(\)/,
