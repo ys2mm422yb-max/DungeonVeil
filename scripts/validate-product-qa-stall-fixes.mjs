@@ -19,23 +19,30 @@ assert.match(guildRaidJourney, /route\.fulfill\(\{ status: 200, headers: corsHea
 assert.doesNotMatch(guildRaidJourney, /access control checks[\s\S]*ignore|issues\.filter/,
   'the journey must fix cross-origin behavior rather than suppress the resulting runtime error');
 
-assert.match(companionJourney, /let captureUntil = 0;\s*let captureFrameScheduled = false;/,
-  'the transient feedback observer must own one serialized time-bounded frame loop');
-assert.match(companionJourney, /const scheduleRenderedFeedbackCapture = \(\) => \{[\s\S]*if \(captureFrameScheduled \|\| performance\.now\(\) >= captureUntil\) return;[\s\S]*captureFrameScheduled = true;[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*captureFrameScheduled = false;[\s\S]*captureRenderedFeedback\(\);[\s\S]*scheduleRenderedFeedbackCapture\(\);/,
-  'the observer must serialize requestAnimationFrame work instead of consuming a shared budget through parallel chains');
-assert.match(companionJourney, /captureUntil = Math\.max\(captureUntil, performance\.now\(\) \+ 1_200\);/,
-  'each authoritative companion attack must keep rendered-frame observation active across the complete 1050ms feedback lifetime plus a small scheduling margin');
-assert.doesNotMatch(companionJourney, /captureUntil = Math\.max\(captureUntil, performance\.now\(\) \+ (?:[2-9]_?\d{3}|\d{5,})\);/,
-  'the rendered-frame observation window must remain tightly bounded and must not become a hidden long wait');
-assert.match(companionJourney, /new MutationObserver\(\(\) => \{\s*captureRenderedFeedback\(\);\s*scheduleRenderedFeedbackCapture\(\);\s*\}\)\.observe/,
-  'React commit mutations must both capture immediately and join the single bounded frame loop');
-assert.match(companionJourney, /queueMicrotask\(\(\) => \{\s*captureRenderedFeedback\(\);\s*scheduleRenderedFeedbackCapture\(\);\s*\}\);/,
-  'the authoritative event-adjacent microtask must join the same serialized frame loop');
-assert.doesNotMatch(companionJourney, /pendingCaptureFrames|requestAnimationFrame\(captureRenderedFeedback\)/,
-  'parallel frame-budget chains must not return');
-assert.match(companionJourney, /Number\(style\.opacity\) <= 0/,
-  'the observer must still reject an inserted but not-yet-visible frame');
-assert.match(companionJourney, /snapshot\.feedbackTargetId === snapshot\.targetId[\s\S]*snapshot\.critical === String\(critical\)/,
-  'frame sampling must not weaken role, target or critical correlation');
+assert.doesNotMatch(companionJourney,
+  /COMPANION_ACTION_SNAPSHOTS|captureRenderedFeedback|scheduleRenderedFeedbackCapture|captureUntil|captureFrameScheduled/,
+  'the evidence path must not reintroduce a historical frame buffer that can outlive the real feedback node');
+assert.match(companionJourney, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
+  'the focused journey must own one direct live-node capture helper');
+assert.match(companionJourney, /const feedback = page\.locator\(selector\)\.last\(\);[\s\S]*await expect\.poll\(async \(\) => \{/,
+  'the waiter must be armed on the live locator before the qualifying hit arrives');
+assert.match(companionJourney, /feedback\.evaluate\(\(node, \{ logKey, expectedRole, expectedCritical, minimumAt \}\) => \{/,
+  'role, target, critical identity and event time must be checked in the browser while the node is connected');
+assert.match(companionJourney, /entry\.role === expectedRole[\s\S]*entry\.targetId === targetId[\s\S]*entry\.at >= minimumAt/,
+  'the live node must remain correlated with the authoritative attack after the requested epoch');
+assert.match(companionJourney, /opacity < 0\.9/,
+  'capture must reject inserted or fading frames that are not clearly painted');
+assert.match(companionJourney, /intervals: \[16, 32, 64, 100\]/,
+  'the short 1050ms feedback window must be sampled promptly without increasing the 20 second outer criterion');
+assert.match(companionJourney, /const exactFeedback = page\.getByTestId\(observedFeedback\.feedbackId\);[\s\S]*visibleBeforeCapture[\s\S]*await page\.screenshot\(\{ path, fullPage: false \}\);[\s\S]*visibleAfterCapture/,
+  'the exact correlated node must bracket the full-context screenshot');
+assert.match(companionJourney, /const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*const \[, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise/,
+  'critical evidence capture must be armed before the real input burst');
+assert.match(companionJourney, /observedAt: performance\.now\(\)/,
+  'device failures must retain the browser event timestamp');
+assert.match(companionJourney, /Companion feedback diagnostics: \$\{JSON\.stringify\(diagnostics, null, 2\)\}/,
+  'a failed live capture must emit bounded runtime, action and node diagnostics');
+assert.doesNotMatch(companionJourney, /waitForCorrelatedCompanionFeedback|captureCorrelatedCompanionFeedbackEvidence/,
+  'the expired-ID historical-snapshot sequence must not return');
 
 console.log('Product QA anti-stall fixture contracts passed.');
