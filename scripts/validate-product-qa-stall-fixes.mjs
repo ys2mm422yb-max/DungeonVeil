@@ -47,8 +47,12 @@ assert.match(companionJourney, /function assertFullViewportPng\(screenshot, view
   'the artifact itself must be validated instead of asking an expired transient node to remain alive after encoding');
 assert.doesNotMatch(companionJourney, /visibleAfterCapture|exactFeedback\.evaluate/,
   'post-screenshot DOM liveness checks must not reintroduce the 1050ms race');
-assert.match(companionJourney, /const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*const \[confirmedPlayerHitAt, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise[\s\S]*expect\(confirmedPlayerHitAt\)\.toBeGreaterThanOrEqual\(attackIssuedAt\)/,
-  'critical evidence capture must be armed before input and must require a post-epoch real player hit');
+assert.match(companionJourney, /const basicEvidenceEpoch = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*await waitForStableRoom\(page\);\s*await captureLiveCompanionFeedbackEvidence/,
+  'the basic feedback epoch must be armed before title settling so a live post-epoch node cannot be excluded by cross-process delay');
+assert.doesNotMatch(companionJourney, /PLAYER_HIT_LOG|PLAYER_HIT_OBSERVER|armPlayerHitObservation|data-hit-flash/,
+  'the critical path must not depend on a non-authoritative visual hit signal');
+assert.match(companionJourney, /const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*const \[, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerPlayerAttackInputs\(page\),[\s\S]*capturePromise[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThanOrEqual\(attackIssuedAt\)/,
+  'critical evidence capture must be armed before the bounded input burst and accept only the real post-epoch critical companion action');
 assert.match(companionJourney, /observedAt: performance\.now\(\)/,
   'device failures must retain the browser event timestamp');
 assert.match(companionJourney, /Companion feedback diagnostics: \$\{JSON\.stringify\(diagnostics, null, 2\)\}/,
