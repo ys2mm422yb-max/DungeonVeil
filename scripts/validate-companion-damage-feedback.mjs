@@ -20,6 +20,20 @@ const [runtime, journey, workflow, readability, app, manifestGenerator] = await 
 assert.match(runtime, /const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;/,
   'portrait feedback lifetime must remain the fixed product contract');
 assert.match(runtime, /function projectCompanionDamage\(state: GameState, feedback: CompanionDamageFeedback\)/);
+assert.match(runtime, /if \(depth <= 0\.1\) return null;/,
+  'only a point behind the camera may be rejected');
+assert.doesNotMatch(runtime, /if \(ndcX[^\n]*return null|if \(ndcY[^\n]*return null/,
+  'positive-depth companion damage must not disappear merely because raw projection is outside the theoretical viewport');
+assert.match(runtime, /const rawLeft = \(ndcX \* 0\.5 \+ 0\.5\) \* 100;[\s\S]*const rawTop = \(-ndcY \* 0\.5 \+ 0\.5\) \* 100;/,
+  'projection must preserve the raw enemy position before applying portrait safety bounds');
+assert.match(runtime, /left: clamp\(rawLeft, 8, 92\),[\s\S]*top: clamp\(rawTop, 13, 86\),[\s\S]*clamped: rawLeft < 8 \|\| rawLeft > 92 \|\| rawTop < 13 \|\| rawTop > 86/,
+  'positive-depth feedback must remain visible inside the safe portrait viewport and disclose edge clamping');
+assert.match(runtime, /worldY: target\.enemyType === 'boss' \? 1\.35 : 0\.82/,
+  'companion values must use the established enemy marker projection heights');
+assert.match(runtime, /data-feedback-active=\{damageFeedback \? 'true' : 'false'\}/);
+assert.match(runtime, /data-feedback-projected=\{projectedFeedback \? 'true' : 'false'\}/);
+assert.match(runtime, /data-feedback-target=\{damageFeedback\?\.targetId \?\? ''\}/);
+assert.match(runtime, /data-projection-clamped=\{projectedFeedback\.clamped \? 'true' : 'false'\}/);
 assert.match(runtime, /publishDamageFeedback\(activeRole, target, damage\.damage, definition\.accent, false, now\)/);
 assert.match(runtime, /publishDamageFeedback\(activeRole, target, damage\.damage, definition\.accent, true, now\)/);
 assert.match(runtime, /if \(canWriteEnemies && damage\.damage > 0\)/);
