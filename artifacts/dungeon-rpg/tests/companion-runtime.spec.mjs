@@ -224,12 +224,12 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       timeout: 20_000,
       polling: 'raf',
     });
-    observedFeedback = await handle.jsonValue();
-    assertReadableFeedback(observedFeedback, { role, critical, marker });
 
     const viewport = page.viewportSize();
     expect(viewport).toBeTruthy();
     const screenshot = await page.screenshot({ path, fullPage: false });
+    observedFeedback = await handle.jsonValue();
+    assertReadableFeedback(observedFeedback, { role, critical, marker });
     assertFullViewportPng(screenshot, viewport);
     return observedFeedback;
   } catch (error) {
