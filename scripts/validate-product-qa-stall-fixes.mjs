@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [guildRaidJourney, companionJourney, visualReadiness] = await Promise.all([
+const [guildRaidJourney, companionJourney, runtimeEvidence, visualReadiness] = await Promise.all([
   readFile('artifacts/dungeon-rpg/tests/guild-raid-lobby-mobile.spec.mjs', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs', 'utf8'),
+  readFile('artifacts/dungeon-rpg/src/game/runtimeEvidenceBridge.ts', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/visual-render-readiness.mjs', 'utf8'),
 ]);
 
@@ -51,8 +52,25 @@ assert.match(companionJourney, /const basicEvidenceEpoch = await page\.evaluate\
   'the basic feedback epoch must be armed before title settling so a live post-epoch node cannot be excluded by cross-process delay');
 assert.doesNotMatch(companionJourney, /PLAYER_HIT_LOG|PLAYER_HIT_OBSERVER|armPlayerHitObservation|data-hit-flash/,
   'the critical path must not depend on a non-authoritative visual hit signal');
-assert.match(companionJourney, /const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*const \[, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerPlayerAttackInputs\(page\),[\s\S]*capturePromise[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThanOrEqual\(attackIssuedAt\)/,
-  'critical evidence capture must be armed before the bounded input burst and accept only the real post-epoch critical companion action');
+
+assert.match(runtimeEvidence, /playerLastAttackTime: state\.player\.lastAttackTime/,
+  'localhost-only telemetry must expose the exact authoritative player timestamp consumed by the proc');
+assert.match(runtimeEvidence, /livingEnemyPositions: livingEnemies\.map/,
+  'localhost-only telemetry must expose read-only target positions for supported input navigation');
+assert.match(companionJourney, /sessionStorage\.setItem\(runtimeEvidenceMarker, '1'\)/,
+  'authoritative telemetry must be enabled before the runtime bridge installs');
+assert.match(companionJourney, /async function triggerConfirmedPlayerAttack\(page, attackIssuedAt\)/,
+  'the critical path must independently prove a real player attack');
+assert.match(companionJourney, /const inputBurst = 6;[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*livingEnemyPositions[\s\S]*moveWithKeyboard\(page, keys, durationMs\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*confirmedAt >= attackIssuedAt/,
+  'the bounded search must use real keyboard movement and finish only after authoritative attack time advances');
+assert.match(companionJourney, /const phase = attempt % 3;[\s\S]*\{ x: dx, y: dy \}[\s\S]*\{ x: -dy, y: dx \}[\s\S]*\{ x: dy, y: -dx \}/,
+  'the search must try the target line and both lateral paths instead of one device-specific guess');
+assert.doesNotMatch(companionJourney, /__dungeonVeilRuntimeEvidence\?\.(?:loadRoom|killLivingEnemies|moveToExit|chooseFirstGift|setMode|setPlayerStats|setLivingEnemyFamilies)/,
+  'the companion journey may read the localhost snapshot but must not mutate combat through QA controls');
+assert.match(companionJourney, /const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*const \[confirmedPlayerAttackAt, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThanOrEqual\(attackIssuedAt\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThanOrEqual\(attackIssuedAt\)/,
+  'critical evidence must be armed first and prove both the causal player attack and rendered companion action');
+assert.match(companionJourney, /runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null/,
+  'device failures must include the authoritative player and target snapshot');
 assert.match(companionJourney, /observedAt: performance\.now\(\)/,
   'device failures must retain the browser event timestamp');
 assert.match(companionJourney, /Companion feedback diagnostics: \$\{JSON\.stringify\(diagnostics, null, 2\)\}/,
