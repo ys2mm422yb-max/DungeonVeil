@@ -38,7 +38,7 @@ type CompanionDamageFeedback = {
   critical: boolean;
 };
 
-type ProjectedPoint = { left: number; top: number };
+type ProjectedPoint = { left: number; top: number; clamped: boolean };
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
 
@@ -98,10 +98,12 @@ function projectCompanionDamage(state: GameState, feedback: CompanionDamageFeedb
   const focal = 1 / Math.tan(RUN_CAMERA.fov * Math.PI / 360);
   const ndcX = dot(relative, right) / depth * focal / aspect;
   const ndcY = dot(relative, up) / depth * focal;
-  if (ndcX < -1.18 || ndcX > 1.18 || ndcY < -1.22 || ndcY > 1.22) return null;
+  const rawLeft = (ndcX * 0.5 + 0.5) * 100;
+  const rawTop = (-ndcY * 0.5 + 0.5) * 100;
   return {
-    left: clamp((ndcX * 0.5 + 0.5) * 100, 8, 92),
-    top: clamp((-ndcY * 0.5 + 0.5) * 100, 13, 86),
+    left: clamp(rawLeft, 8, 92),
+    top: clamp(rawTop, 13, 86),
+    clamped: rawLeft < 8 || rawLeft > 92 || rawTop < 13 || rawTop > 86,
   };
 }
 
@@ -217,7 +219,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         color,
         x: target.x + target.width / 2,
         y: target.y + target.height / 2,
-        worldY: target.enemyType === 'boss' ? 1.65 : 1.08,
+        worldY: target.enemyType === 'boss' ? 1.35 : 0.82,
         critical,
       };
       if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
@@ -407,11 +409,17 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         data-revive-target="false"
         data-blocks-players="false"
         data-blocks-enemies="false"
+        data-feedback-active={damageFeedback ? 'true' : 'false'}
+        data-feedback-projected={projectedFeedback ? 'true' : 'false'}
+        data-feedback-target={damageFeedback?.targetId ?? ''}
+        data-feedback-critical={damageFeedback ? String(damageFeedback.critical) : ''}
       />
       <div
         className="pointer-events-none fixed inset-0 z-[34] overflow-hidden"
         data-testid="companion-damage-feedback-layer"
         data-visible-count={damageFeedback && projectedFeedback ? '1' : '0'}
+        data-feedback-active={damageFeedback ? 'true' : 'false'}
+        data-feedback-projected={projectedFeedback ? 'true' : 'false'}
         aria-hidden="true"
       >
         {damageFeedback && projectedFeedback && <div
@@ -420,6 +428,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           data-companion-role={damageFeedback.role}
           data-target-id={damageFeedback.targetId}
           data-critical={damageFeedback.critical ? 'true' : 'false'}
+          data-projection-clamped={projectedFeedback.clamped ? 'true' : 'false'}
           className="absolute flex min-h-[38px] min-w-[82px] items-center justify-center rounded-full border-2 bg-black/85 px-3 py-1 font-black tracking-wide text-white shadow-2xl"
           style={{
             left: `${projectedFeedback.left}%`,
