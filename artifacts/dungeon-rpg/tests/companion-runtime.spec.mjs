@@ -145,7 +145,7 @@ async function armCompanionActionObservation(page) {
         at: detail.at,
       });
       if (log.length > 16) log.splice(0, log.length - 16);
-      captureUntil = Math.max(captureUntil, performance.now() + 420);
+      captureUntil = Math.max(captureUntil, performance.now() + 1_200);
       queueMicrotask(() => {
         captureRenderedFeedback();
         scheduleRenderedFeedbackCapture();
