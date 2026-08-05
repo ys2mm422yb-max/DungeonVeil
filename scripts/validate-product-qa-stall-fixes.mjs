@@ -38,8 +38,12 @@ assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 'raf'/,
   'the unchanged 20 second criterion must sample the 1050ms feedback window within the browser animation loop');
 assert.doesNotMatch(companionJourney, /feedback\.count\(\)|feedback\.evaluate\(/,
   'separate locator count and evaluate round trips must not return');
-assert.match(companionJourney, /observedFeedback = await handle\.jsonValue\(\);[\s\S]*assertReadableFeedback\(observedFeedback,[\s\S]*await page\.screenshot\(\{ path, fullPage: false \}\);[\s\S]*visibleAfterCapture/,
-  'the correlated browser-frame result must be validated and photographed immediately before its post-capture liveness check');
+assert.match(companionJourney, /observedFeedback = await handle\.jsonValue\(\);[\s\S]*assertReadableFeedback\(observedFeedback,[\s\S]*const screenshot = await page\.screenshot\(\{ path, fullPage: false \}\);[\s\S]*assertFullViewportPng\(screenshot, viewport\);/,
+  'the correlated browser-frame result must be validated and immediately persisted as full-context PNG evidence');
+assert.match(companionJourney, /function assertFullViewportPng\(screenshot, viewport\) \{[\s\S]*screenshot\.subarray\(0, 8\)[\s\S]*screenshot\.length\)\.toBeGreaterThan\(10_000\)[\s\S]*readUInt32BE\(16\)[\s\S]*readUInt32BE\(20\)/,
+  'the artifact itself must be validated instead of asking an expired transient node to remain alive after encoding');
+assert.doesNotMatch(companionJourney, /visibleAfterCapture|exactFeedback\.evaluate/,
+  'post-screenshot DOM liveness checks must not reintroduce the 1050ms race');
 assert.match(companionJourney, /const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*const \[, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise/,
   'critical evidence capture must be armed before the real input burst');
 assert.match(companionJourney, /observedAt: performance\.now\(\)/,
