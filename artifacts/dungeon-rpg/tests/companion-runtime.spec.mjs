@@ -4,6 +4,7 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
 const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
+const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';
 const DEFAULT_COMPANION_STATE = {
   activeId: 'single-target',
   companions: { 'single-target': { level: 1, unlockedAt: 1 } },
@@ -16,8 +17,9 @@ async function pressPointerUi(locator) {
 }
 
 async function openMenu(page, projectName, companionState = DEFAULT_COMPANION_STATE) {
-  await page.addInitScript(({ ipad, initialCompanionState }) => {
+  await page.addInitScript(({ ipad, initialCompanionState, runtimeEvidenceMarker }) => {
     localStorage.clear();
+    sessionStorage.setItem(runtimeEvidenceMarker, '1');
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-player-profile-v1', JSON.stringify({
       version: 1,
@@ -40,7 +42,11 @@ async function openMenu(page, projectName, companionState = DEFAULT_COMPANION_ST
       updatedAt: 1,
     }));
     if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
-  }, { ipad: projectName.includes('ipad'), initialCompanionState: companionState });
+  }, {
+    ipad: projectName.includes('ipad'),
+    initialCompanionState: companionState,
+    runtimeEvidenceMarker: RUNTIME_EVIDENCE_MARKER,
+  });
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
 }
@@ -59,25 +65,87 @@ async function startFreshRun(page) {
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
 }
 
+async function readRuntimeCombatSnapshot(page) {
+  return page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
+}
+
 async function prepareLivePlayerAttackLine(page) {
   const enemyStatus = page.getByTestId('run-enemy-status');
   await expect(enemyStatus).toBeVisible();
   await expect(enemyStatus).not.toHaveText(/RAUM FREI|ROOM CLEAR/i);
-  await page.keyboard.down('ArrowUp');
-  try {
-    await page.waitForTimeout(650);
-  } finally {
-    await page.keyboard.up('ArrowUp');
-  }
-  await expect(enemyStatus).not.toHaveText(/RAUM FREI|ROOM CLEAR/i);
+  await expect.poll(async () => Number((await readRuntimeCombatSnapshot(page))?.livingEnemies || 0), {
+    timeout: 10_000,
+    intervals: [50, 100, 250],
+    message: 'localhost runtime evidence must expose at least one living target before critical proc capture',
+  }).toBeGreaterThan(0);
 }
 
-async function triggerPlayerAttackInputs(page) {
-  const inputBurst = 6;
-  for (let attempt = 0; attempt < inputBurst; attempt += 1) {
-    await page.keyboard.press('Space');
-    if (attempt < inputBurst - 1) await page.waitForTimeout(240);
+function keysForVector(dx, dy) {
+  const keys = [];
+  if (Math.abs(dx) >= 18) keys.push(dx < 0 ? 'ArrowLeft' : 'ArrowRight');
+  if (Math.abs(dy) >= 18) keys.push(dy < 0 ? 'ArrowUp' : 'ArrowDown');
+  return keys.length ? keys : ['ArrowUp'];
+}
+
+async function moveWithKeyboard(page, keys, durationMs) {
+  for (const key of keys) await page.keyboard.down(key);
+  try {
+    await page.waitForTimeout(durationMs);
+  } finally {
+    for (const key of [...keys].reverse()) await page.keyboard.up(key);
   }
+}
+
+async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
+  const inputBurst = 6;
+  const attempts = [];
+
+  for (let attempt = 0; attempt < inputBurst; attempt += 1) {
+    const before = await readRuntimeCombatSnapshot(page);
+    const previousAttackAt = Number(before?.playerLastAttackTime || 0);
+    if (previousAttackAt >= attackIssuedAt) return previousAttackAt;
+
+    const enemies = Array.isArray(before?.livingEnemyPositions) ? before.livingEnemyPositions : [];
+    if (!enemies.length) break;
+    const playerX = Number(before?.playerX || 0) + 16;
+    const playerY = Number(before?.playerY || 0) + 16;
+    const target = [...enemies].sort((left, right) => (
+      Math.hypot(Number(left.x) - playerX, Number(left.y) - playerY)
+      - Math.hypot(Number(right.x) - playerX, Number(right.y) - playerY)
+    ))[0];
+    const dx = Number(target.x) - playerX;
+    const dy = Number(target.y) - playerY;
+    const phase = attempt % 3;
+    const vector = phase === 0 ? { x: dx, y: dy }
+      : phase === 1 ? { x: -dy, y: dx }
+        : { x: dy, y: -dx };
+    const keys = keysForVector(vector.x, vector.y);
+    const durationMs = phase === 0 ? 430 : 320;
+
+    await moveWithKeyboard(page, keys, durationMs);
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(160);
+
+    const after = await readRuntimeCombatSnapshot(page);
+    const confirmedAt = Number(after?.playerLastAttackTime || 0);
+    attempts.push({
+      attempt,
+      keys,
+      durationMs,
+      playerX,
+      playerY,
+      targetId: target.id,
+      targetX: target.x,
+      targetY: target.y,
+      previousAttackAt,
+      confirmedAt,
+      livingEnemies: Number(after?.livingEnemies || 0),
+    });
+    if (confirmedAt >= attackIssuedAt) return confirmedAt;
+  }
+
+  const finalSnapshot = await readRuntimeCombatSnapshot(page);
+  throw new Error(`No authoritative player attack occurred after ${attackIssuedAt}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
 }
 
 async function readTransientRoomTitleState(page) {
@@ -172,6 +240,7 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
       expectedCritical: String(expectedCritical),
       minimumAt,
       runtime: runtime ? { ...runtime.dataset } : null,
+      runtimeEvidence: window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null,
       actions: (window[actionLogKey] || []).slice(-12),
       liveFeedback: [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')].map(node => {
         const style = getComputedStyle(node);
@@ -368,10 +437,11 @@ test('critical-support proc renders one readable value on its actual target', as
     marker: /✦\s*-\d+/,
     path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
   });
-  const [, observedCritical] = await Promise.all([
-    triggerPlayerAttackInputs(page),
+  const [confirmedPlayerAttackAt, observedCritical] = await Promise.all([
+    triggerConfirmedPlayerAttack(page, attackIssuedAt),
     capturePromise,
   ]);
+  expect(confirmedPlayerAttackAt).toBeGreaterThanOrEqual(attackIssuedAt);
   expect(observedCritical.at).toBeGreaterThanOrEqual(attackIssuedAt);
   const chip = page.getByTestId('run-companion-chip');
   await expect(runtime).toHaveAttribute('data-level', '2');
