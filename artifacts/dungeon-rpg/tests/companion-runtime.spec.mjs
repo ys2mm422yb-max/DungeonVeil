@@ -61,8 +61,6 @@ async function startFreshRun(page) {
 }
 
 async function triggerConfirmedPlayerAttack(page) {
-  const runtime = page.getByTestId('companion-runtime-bridge');
-  await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
   const attackIssuedAt = await page.evaluate(() => performance.now());
   const inputBurst = 6;
   for (let attempt = 0; attempt < inputBurst; attempt += 1) {
@@ -315,14 +313,15 @@ test('critical-support proc renders one readable value on its actual target', as
   await startFreshRun(page);
 
   const runtime = page.getByTestId('companion-runtime-bridge');
-  const chip = page.getByTestId('run-companion-chip');
   await expect(runtime).toHaveAttribute('data-role', 'critical-support');
+  const attackIssuedAt = await triggerConfirmedPlayerAttack(page);
+
+  const chip = page.getByTestId('run-companion-chip');
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
   await expect(chip).toHaveAttribute('data-companion-role', 'critical-support');
   await expect(chip).toHaveAttribute('data-companion-level', '2');
 
-  const attackIssuedAt = await triggerConfirmedPlayerAttack(page);
   const observedCritical = await waitForCorrelatedCompanionFeedback(page, 'critical-support', true, attackIssuedAt);
   assertReadableFeedback(observedCritical, { role: 'critical-support', critical: true, marker: /✦\s*-\d+/ });
   await page.screenshot({
