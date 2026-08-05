@@ -2,14 +2,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const runtimePath = 'artifacts/dungeon-rpg/src/components/CompanionRuntimeBridge.tsx';
+const runtimeEvidencePath = 'artifacts/dungeon-rpg/src/game/runtimeEvidenceBridge.ts';
 const journeyPath = 'artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs';
 const workflowPath = '.github/workflows/product-autopilot-qa.yml';
 const readabilityPath = 'artifacts/dungeon-rpg/src/components/companionDamageFeedback.css';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 const manifestGeneratorPath = 'artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs';
 
-const [runtime, journey, workflow, readability, app, manifestGenerator] = await Promise.all([
+const [runtime, runtimeEvidence, journey, workflow, readability, app, manifestGenerator] = await Promise.all([
   readFile(runtimePath, 'utf8'),
+  readFile(runtimeEvidencePath, 'utf8'),
   readFile(journeyPath, 'utf8'),
   readFile(workflowPath, 'utf8'),
   readFile(readabilityPath, 'utf8'),
@@ -54,8 +56,20 @@ assert.match(app, /import '\.\/components\/companionDamageFeedback\.css';/);
 assert.match(runtime, /fontSize: 'clamp\(21px, 5\.4vw, 29px\)'/);
 assert.match(runtime, /@media \(prefers-reduced-motion: reduce\)/);
 
+assert.match(runtimeEvidence, /const MARKER = 'dungeon-veil-runtime-evidence-v1';/);
+assert.match(runtimeEvidence, /const local = window\.location\.hostname === '127\.0\.0\.1' \|\| window\.location\.hostname === 'localhost';/,
+  'authoritative combat telemetry must remain localhost-only');
+assert.match(runtimeEvidence, /playerLastAttackTime: state\.player\.lastAttackTime/,
+  'the test bridge must expose the same authoritative timestamp consumed by the critical companion proc');
+assert.match(runtimeEvidence, /playerAttackCooldown: state\.player\.attackCooldown/);
+assert.match(runtimeEvidence, /livingEnemyPositions: livingEnemies\.map\(enemy => \(\{[\s\S]*id: enemy\.id,[\s\S]*x: enemy\.x \+ enemy\.width \/ 2,[\s\S]*y: enemy\.y \+ enemy\.height \/ 2/,
+  'localhost evidence must expose target positions without mutating the room');
+
 assert.match(journey, /const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';/);
 assert.match(journey, /const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';/);
+assert.match(journey, /const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';/);
+assert.match(journey, /sessionStorage\.setItem\(runtimeEvidenceMarker, '1'\)/,
+  'the localhost-only authoritative snapshot must be enabled before the application installs its bridge');
 assert.doesNotMatch(journey, /PLAYER_HIT_LOG|PLAYER_HIT_OBSERVER|armPlayerHitObservation|data-hit-flash/,
   'evidence must not invent a separate player-hit signal that is unrelated to the authoritative critical proc');
 assert.doesNotMatch(journey, /COMPANION_ACTION_SNAPSHOTS|waitForCorrelatedCompanionFeedback|captureCorrelatedCompanionFeedbackEvidence/,
@@ -68,9 +82,12 @@ assert.match(journey, /observedAt: performance\.now\(\)/,
 assert.match(journey, /if \(log\.length > 24\) log\.splice\(0, log\.length - 24\);/,
   'the diagnostic attack log must remain bounded');
 
+assert.match(journey, /async function readRuntimeCombatSnapshot\(page\) \{[\s\S]*window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null/);
 assert.match(journey, /async function prepareLivePlayerAttackLine\(page\)/);
-assert.match(journey, /getByTestId\('run-enemy-status'\)[\s\S]*not\.toHaveText\(\/RAUM FREI\|ROOM CLEAR\/i\)[\s\S]*keyboard\.down\('ArrowUp'\)[\s\S]*waitForTimeout\(650\)[\s\S]*keyboard\.up\('ArrowUp'\)[\s\S]*not\.toHaveText\(\/RAUM FREI\|ROOM CLEAR\/i\)/,
-  'the tablet path must establish a live target and a supported movement line before arming the critical epoch');
+assert.match(journey, /getByTestId\('run-enemy-status'\)[\s\S]*not\.toHaveText\(\/RAUM FREI\|ROOM CLEAR\/i\)[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*toBeGreaterThan\(0\)/,
+  'critical setup must prove a living target through the localhost-only authoritative snapshot');
+assert.match(journey, /function keysForVector\(dx, dy\)/);
+assert.match(journey, /async function moveWithKeyboard\(page, keys, durationMs\)/);
 
 assert.match(journey, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
   'one helper must own live correlation, readability validation and screenshot capture');
@@ -103,8 +120,8 @@ assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\)
 assert.match(journey, /expect\(observedFeedback\.opacity\)\.toBeGreaterThanOrEqual\(0\.9\);/);
 
 assert.match(journey, /async function readCompanionFeedbackDiagnostics\(page, \{ role, critical, notBefore \}\)/);
-assert.match(journey, /now: performance\.now\(\),[\s\S]*minimumAt,[\s\S]*runtime:[\s\S]*actions:[\s\S]*liveFeedback:/,
-  'a failed device must report input epoch, runtime state, event timestamps and current nodes');
+assert.match(journey, /now: performance\.now\(\),[\s\S]*minimumAt,[\s\S]*runtime:[\s\S]*runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null,[\s\S]*actions:[\s\S]*liveFeedback:/,
+  'a failed device must report input epoch, component state, authoritative player state, event timestamps and current nodes');
 assert.match(journey, /Companion feedback diagnostics: \$\{JSON\.stringify\(diagnostics, null, 2\)\}/);
 
 assert.match(journey, /async function waitForStableRoom\(page\)/);
@@ -113,13 +130,19 @@ assert.match(journey, /timeout: 120_000,[\s\S]*intervals: \[100, 250, 500\]/);
 assert.match(journey, /const basicEvidenceEpoch = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*await waitForStableRoom\(page\);\s*await captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'shield',[\s\S]*critical: false,[\s\S]*notBefore: basicEvidenceEpoch,[\s\S]*marker: \/◆\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-\$\{testInfo\.project\.name\}\.png/,
   'normal-hit evidence must arm its epoch before room-title settling so an already painted post-epoch frame is not excluded');
 
-const playerAttackTrigger = journey.match(/async function triggerPlayerAttackInputs\(page\) \{[\s\S]*?\n\}/)?.[0] ?? '';
-assert.match(playerAttackTrigger, /const inputBurst = 6;[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*page\.waitForTimeout\(240\)/,
-  'the supported Space burst must remain bounded and unchanged');
-assert.doesNotMatch(playerAttackTrigger, /PLAYER_HIT_LOG|data-hit-flash|waitForFunction|const inputBurst = (?:[7-9]|\d{2,})|page\.waitForTimeout\((?:[3-9]\d{2}|\d{4,})\)/,
-  'input delivery must not depend on an unrelated visual flash or weaken the bounded input contract');
-assert.match(journey, /await prepareLivePlayerAttackLine\(page\);\s*const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support',[\s\S]*critical: true,[\s\S]*notBefore: attackIssuedAt,[\s\S]*marker: \/✦\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png[\s\S]*const \[, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerPlayerAttackInputs\(page\),[\s\S]*capturePromise/,
-  'critical evidence capture must be armed after a live attack line is established and before the bounded player input burst');
+const playerAttackTrigger = journey.match(/async function triggerConfirmedPlayerAttack\(page, attackIssuedAt\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+assert.match(playerAttackTrigger, /const inputBurst = 6;[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*playerLastAttackTime[\s\S]*livingEnemyPositions[\s\S]*moveWithKeyboard\(page, keys, durationMs\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*confirmedAt >= attackIssuedAt[\s\S]*No authoritative player attack occurred/,
+  'the bounded input search must finish only after the same authoritative player timestamp consumed by the product advances');
+assert.match(playerAttackTrigger, /const phase = attempt % 3;[\s\S]*phase === 0 \? \{ x: dx, y: dy \}[\s\S]*phase === 1 \? \{ x: -dy, y: dx \}[\s\S]*\{ x: dy, y: -dx \}/,
+  'the device-independent search must alternate target approach and both lateral paths rather than guessing one fixed direction');
+assert.doesNotMatch(playerAttackTrigger, /PLAYER_HIT_LOG|data-hit-flash|window\.__dungeonVeilRuntimeEvidence\.[a-zA-Z]+\([^)]/,
+  'the test may read authoritative state but must not mutate combat through the QA bridge');
+assert.doesNotMatch(playerAttackTrigger, /const inputBurst = (?:[7-9]|\d{2,})|durationMs = (?:[7-9]\d{2}|\d{4,})|waitForTimeout\((?:[3-9]\d{2}|\d{4,})\)/,
+  'the adaptive search must remain short and bounded');
+assert.match(journey, /await prepareLivePlayerAttackLine\(page\);\s*const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support',[\s\S]*critical: true,[\s\S]*notBefore: attackIssuedAt,[\s\S]*marker: \/✦\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png[\s\S]*const \[confirmedPlayerAttackAt, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise/,
+  'critical capture must be armed before the adaptive supported-input search');
+assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThanOrEqual\(attackIssuedAt\);/,
+  'the test must independently prove the authoritative player attack that causes the proc');
 assert.match(journey, /expect\(observedCritical\.at\)\.toBeGreaterThanOrEqual\(attackIssuedAt\);/,
   'the accepted critical value must be an authoritative post-epoch companion action');
 
