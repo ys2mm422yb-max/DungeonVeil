@@ -3,7 +3,6 @@ import { test, expect } from '@playwright/test';
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
-const COMPANION_ACTION_SNAPSHOTS = '__dungeonVeilCompanionActionSnapshots';
 const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
 const DEFAULT_COMPANION_STATE = {
   activeId: 'single-target',
@@ -60,8 +59,7 @@ async function startFreshRun(page) {
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
 }
 
-async function triggerConfirmedPlayerAttack(page) {
-  const attackIssuedAt = await page.evaluate(() => performance.now());
+async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
   const inputBurst = 6;
   for (let attempt = 0; attempt < inputBurst; attempt += 1) {
     await page.keyboard.press('Space');
@@ -108,69 +106,25 @@ async function waitForStableRoom(page) {
 }
 
 async function armCompanionActionObservation(page) {
-  await page.evaluate(({ eventName, logKey, snapshotKey, listenerKey }) => {
+  await page.evaluate(({ eventName, logKey, listenerKey }) => {
     const scope = window;
     scope[logKey] = [];
-    scope[snapshotKey] = [];
     if (scope[listenerKey]) return;
     scope[listenerKey] = true;
-    let captureUntil = 0;
-    let captureFrameScheduled = false;
-    const captureRenderedFeedback = () => {
-      const log = scope[logKey] || [];
-      const snapshots = scope[snapshotKey] || [];
-      const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
-      const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
-      for (const node of nodes) {
-        const entry = [...log].reverse().find(candidate => candidate.role === node.dataset.companionRole && candidate.targetId === node.dataset.targetId);
-        if (!entry) continue;
-        const feedbackId = node.getAttribute('data-testid') || '';
-        if (snapshots.some(snapshot => snapshot.feedbackId === feedbackId && snapshot.at === entry.at)) continue;
-        const style = getComputedStyle(node);
-        const rect = node.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) <= 0) continue;
-        snapshots.push(Object.freeze({ ...entry, feedbackId, feedbackRole: node.dataset.companionRole || '', feedbackTargetId: node.dataset.targetId || '', critical: node.dataset.critical || '', text: node.textContent || '', width: rect.width, height: rect.height, fontSize: Number.parseFloat(style.fontSize), pointerEvents: style.pointerEvents, visibleCount: layer?.getAttribute('data-visible-count') || '' }));
-        if (snapshots.length > 16) snapshots.splice(0, snapshots.length - 16);
-      }
-    };
-    const scheduleRenderedFeedbackCapture = () => {
-      if (captureFrameScheduled || performance.now() >= captureUntil) return;
-      captureFrameScheduled = true;
-      requestAnimationFrame(() => {
-        captureFrameScheduled = false;
-        captureRenderedFeedback();
-        scheduleRenderedFeedbackCapture();
-      });
-    };
-    new MutationObserver(() => {
-      captureRenderedFeedback();
-      scheduleRenderedFeedbackCapture();
-    }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-visible-count'] });
     window.addEventListener(eventName, event => {
       const detail = event.detail;
       if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
       const log = scope[logKey];
-      log.push({ role: detail.role, kind: detail.kind, targetId: detail.targetId, at: detail.at });
-      if (log.length > 16) log.splice(0, log.length - 16);
-      captureUntil = Math.max(captureUntil, performance.now() + 1_200);
-      queueMicrotask(() => {
-        captureRenderedFeedback();
-        scheduleRenderedFeedbackCapture();
+      log.push({
+        role: detail.role,
+        kind: detail.kind,
+        targetId: detail.targetId,
+        at: detail.at,
+        observedAt: performance.now(),
       });
+      if (log.length > 24) log.splice(0, log.length - 24);
     });
-  }, { eventName: COMPANION_ACTION_EVENT, logKey: COMPANION_ACTION_LOG, snapshotKey: COMPANION_ACTION_SNAPSHOTS, listenerKey: COMPANION_ACTION_LISTENER });
-}
-
-async function waitForCorrelatedCompanionFeedback(page, role, expectedCritical = false, notBefore = 0) {
-  const handle = await page.waitForFunction(({ snapshotKey, expectedRole, critical, minimumAt }) => {
-    const snapshots = window[snapshotKey] || [];
-    for (let index = snapshots.length - 1; index >= 0; index -= 1) {
-      const snapshot = snapshots[index];
-      if (snapshot.role === expectedRole && snapshot.kind === 'attack' && snapshot.targetId && snapshot.at >= minimumAt && snapshot.feedbackRole === expectedRole && snapshot.feedbackTargetId === snapshot.targetId && snapshot.critical === String(critical)) return snapshot;
-    }
-    return false;
-  }, { snapshotKey: COMPANION_ACTION_SNAPSHOTS, expectedRole: role, critical: expectedCritical, minimumAt: notBefore }, { timeout: 20_000 });
-  return handle.jsonValue();
+  }, { eventName: COMPANION_ACTION_EVENT, logKey: COMPANION_ACTION_LOG, listenerKey: COMPANION_ACTION_LISTENER });
 }
 
 function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
@@ -185,15 +139,106 @@ function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
   expect(observedFeedback.height).toBeGreaterThanOrEqual(38);
   expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(21);
   expect(observedFeedback.pointerEvents).toBe('none');
+  expect(observedFeedback.opacity).toBeGreaterThanOrEqual(0.9);
 }
 
-async function captureCorrelatedCompanionFeedbackEvidence(page, observedFeedback, path) {
-  const feedback = page.getByTestId(observedFeedback.feedbackId);
-  await expect(feedback).toBeVisible();
-  await expect(feedback).toHaveAttribute('data-companion-role', observedFeedback.feedbackRole);
-  await expect(feedback).toHaveAttribute('data-target-id', observedFeedback.targetId);
-  await expect(feedback).toHaveAttribute('data-critical', observedFeedback.critical);
-  await page.screenshot({ path, fullPage: false });
+async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }) {
+  return page.evaluate(({ logKey, expectedRole, expectedCritical, minimumAt }) => {
+    const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+    return {
+      now: performance.now(),
+      expectedRole,
+      expectedCritical: String(expectedCritical),
+      minimumAt,
+      runtime: runtime ? { ...runtime.dataset } : null,
+      actions: (window[logKey] || []).slice(-12),
+      liveFeedback: [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')].map(node => {
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return {
+          feedbackId: node.getAttribute('data-testid') || '',
+          role: node.dataset.companionRole || '',
+          targetId: node.dataset.targetId || '',
+          critical: node.dataset.critical || '',
+          text: node.textContent || '',
+          connected: node.isConnected,
+          opacity: Number(style.opacity),
+          width: rect.width,
+          height: rect.height,
+        };
+      }),
+    };
+  }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore });
+}
+
+async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notBefore, marker, path }) {
+  const selector = `[data-testid^="companion-damage-number-"][data-companion-role="${role}"][data-critical="${String(critical)}"]`;
+  const feedback = page.locator(selector).last();
+  let observedFeedback = null;
+
+  try {
+    await expect.poll(async () => {
+      if (await feedback.count() === 0) return false;
+      observedFeedback = await feedback.evaluate((node, { logKey, expectedRole, expectedCritical, minimumAt }) => {
+        const targetId = node.dataset.targetId || '';
+        const action = [...(window[logKey] || [])].reverse().find(entry => (
+          entry.role === expectedRole
+          && entry.kind === 'attack'
+          && entry.targetId === targetId
+          && entry.at >= minimumAt
+        ));
+        if (!action || !node.isConnected) return null;
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        const opacity = Number(style.opacity);
+        if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || opacity < 0.9) return null;
+        const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
+        return {
+          ...action,
+          capturedAt: performance.now(),
+          feedbackId: node.getAttribute('data-testid') || '',
+          feedbackRole: node.dataset.companionRole || '',
+          feedbackTargetId: targetId,
+          critical: node.dataset.critical || '',
+          text: node.textContent || '',
+          width: rect.width,
+          height: rect.height,
+          fontSize: Number.parseFloat(style.fontSize),
+          pointerEvents: style.pointerEvents,
+          opacity,
+          visibleCount: layer?.getAttribute('data-visible-count') || '',
+          expectedCritical: String(expectedCritical),
+        };
+      }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore }).catch(() => null);
+      return Boolean(observedFeedback);
+    }, {
+      timeout: 20_000,
+      intervals: [16, 32, 64, 100],
+      message: `a live ${role} companion feedback node must correlate with the authoritative attack before it expires`,
+    }).toBe(true);
+
+    const exactFeedback = page.getByTestId(observedFeedback.feedbackId);
+    const visibleBeforeCapture = await exactFeedback.evaluate(node => {
+      const style = getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return node.isConnected && rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) >= 0.9;
+    }).catch(() => false);
+    expect(visibleBeforeCapture).toBe(true);
+
+    await page.screenshot({ path, fullPage: false });
+
+    const visibleAfterCapture = await exactFeedback.evaluate(node => {
+      const style = getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return node.isConnected && rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0;
+    }).catch(() => false);
+    expect(visibleAfterCapture).toBe(true);
+    assertReadableFeedback(observedFeedback, { role, critical, marker });
+    return observedFeedback;
+  } catch (error) {
+    const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\nCompanion feedback diagnostics: ${JSON.stringify(diagnostics, null, 2)}`);
+  }
 }
 
 test('companions are found and upgraded before a run, then remain fixed with articulated combat motion', async ({ page }, testInfo) => {
@@ -255,9 +300,13 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(runtime).toHaveAttribute('data-revive-target', 'false');
   await waitForStableRoom(page);
   const basicEvidenceEpoch = await page.evaluate(() => performance.now());
-  const observedFeedback = await waitForCorrelatedCompanionFeedback(page, 'shield', false, basicEvidenceEpoch);
-  assertReadableFeedback(observedFeedback, { role: 'shield', critical: false, marker: /◆\s*-\d+/ });
-  await captureCorrelatedCompanionFeedbackEvidence(page, observedFeedback, `test-results/companion-damage-feedback-${testInfo.project.name}.png`);
+  await captureLiveCompanionFeedbackEvidence(page, {
+    role: 'shield',
+    critical: false,
+    notBefore: basicEvidenceEpoch,
+    marker: /◆\s*-\d+/,
+    path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`,
+  });
   await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(scene).toHaveAttribute('data-scene-hook', 'object3d-add');
   await expect(scene).toHaveAttribute('data-model-source', 'procedural-distinct-companion-v5');
@@ -296,15 +345,24 @@ test('critical-support proc renders one readable value on its actual target', as
   await startFreshRun(page);
   const runtime = page.getByTestId('companion-runtime-bridge');
   await expect(runtime).toHaveAttribute('data-role', 'critical-support');
-  const attackIssuedAt = await triggerConfirmedPlayerAttack(page);
+  const attackIssuedAt = await page.evaluate(() => performance.now());
+  const capturePromise = captureLiveCompanionFeedbackEvidence(page, {
+    role: 'critical-support',
+    critical: true,
+    notBefore: attackIssuedAt,
+    marker: /✦\s*-\d+/,
+    path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
+  });
+  const [, observedCritical] = await Promise.all([
+    triggerConfirmedPlayerAttack(page, attackIssuedAt),
+    capturePromise,
+  ]);
+  expect(observedCritical.at).toBeGreaterThanOrEqual(attackIssuedAt);
   const chip = page.getByTestId('run-companion-chip');
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
   await expect(chip).toHaveAttribute('data-companion-role', 'critical-support');
   await expect(chip).toHaveAttribute('data-companion-level', '2');
-  const observedCritical = await waitForCorrelatedCompanionFeedback(page, 'critical-support', true, attackIssuedAt);
-  assertReadableFeedback(observedCritical, { role: 'critical-support', critical: true, marker: /✦\s*-\d+/ });
-  await captureCorrelatedCompanionFeedbackEvidence(page, observedCritical, `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`);
   const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
   expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
