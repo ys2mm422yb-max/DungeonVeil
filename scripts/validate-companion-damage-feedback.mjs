@@ -61,8 +61,8 @@ assert.doesNotMatch(journey, /page\.waitForTimeout\(10_000\)/,
   'a fixed post-entry delay must not consume the room before transient hit feedback is observed');
 assert.match(journey, /const captureRenderedFeedback = \(\) => \{/,
   'the armed browser observer must own rendered-node capture');
-assert.match(journey, /new MutationObserver\(captureRenderedFeedback\)\.observe\(document\.documentElement,/,
-  'rendered feedback must be captured at React commit time rather than by a later locator scan');
+assert.match(journey, /new MutationObserver\(\(\) => \{[\s\S]*captureRenderedFeedback\(\);[\s\S]*scheduleRenderedFeedbackCapture\(\);[\s\S]*\}\)\.observe\(document\.documentElement,/,
+  'rendered feedback must be captured at React commit time and continue through the bounded visible-frame window');
 assert.match(journey, /snapshots\.push\(Object\.freeze\(\{/,
   'the first matching rendered-node criterion snapshot must be immutable');
 assert.match(journey, /feedbackId,[\s\S]*feedbackRole: node\.dataset\.companionRole[\s\S]*feedbackTargetId: node\.dataset\.targetId[\s\S]*critical: node\.dataset\.critical/,
@@ -71,8 +71,8 @@ assert.match(journey, /width: rect\.width,[\s\S]*height: rect\.height,[\s\S]*fon
   'the immutable snapshot must retain the exact rendered readability metrics');
 assert.match(journey, /visibleCount: layer\?\.getAttribute\('data-visible-count'\) \|\| '',/,
   'layer visibility and node geometry must be captured in the same browser observer turn');
-assert.match(journey, /queueMicrotask\(captureRenderedFeedback\);/,
-  'an event-adjacent capture attempt must complement the React mutation observer');
+assert.match(journey, /queueMicrotask\(\(\) => \{[\s\S]*captureRenderedFeedback\(\);[\s\S]*scheduleRenderedFeedbackCapture\(\);[\s\S]*\}\);/,
+  'an event-adjacent capture attempt must complement the React mutation observer and arm the bounded frame sampler');
 assert.match(journey, /async function waitForCorrelatedCompanionFeedback\(page, role, expectedCritical = false, notBefore = 0\)/,
   'the focused journey must support independent basic and critical correlation with an input epoch');
 assert.match(journey, /const snapshots = window\[snapshotKey\] \|\| \[\];/,
