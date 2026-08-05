@@ -172,14 +172,14 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
 }
 
 async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notBefore, marker, path }) {
-  const selector = `[data-testid^="companion-damage-number-"][data-companion-role="${role}"][data-critical="${String(critical)}"]`;
-  const feedback = page.locator(selector).last();
   let observedFeedback = null;
 
   try {
-    await expect.poll(async () => {
-      if (await feedback.count() === 0) return false;
-      observedFeedback = await feedback.evaluate((node, { logKey, expectedRole, expectedCritical, minimumAt }) => {
+    const handle = await page.waitForFunction(({ logKey, expectedRole, expectedCritical, minimumAt }) => {
+      const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
+      for (let index = nodes.length - 1; index >= 0; index -= 1) {
+        const node = nodes[index];
+        if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) continue;
         const targetId = node.dataset.targetId || '';
         const action = [...(window[logKey] || [])].reverse().find(entry => (
           entry.role === expectedRole
@@ -187,11 +187,11 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           && entry.targetId === targetId
           && entry.at >= minimumAt
         ));
-        if (!action || !node.isConnected) return null;
+        if (!action || !node.isConnected) continue;
         const style = getComputedStyle(node);
         const rect = node.getBoundingClientRect();
         const opacity = Number(style.opacity);
-        if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || opacity < 0.9) return null;
+        if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || opacity < 0.9) continue;
         const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
         return {
           ...action,
@@ -209,31 +209,24 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           visibleCount: layer?.getAttribute('data-visible-count') || '',
           expectedCritical: String(expectedCritical),
         };
-      }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore }).catch(() => null);
-      return Boolean(observedFeedback);
-    }, {
+      }
+      return false;
+    }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore }, {
       timeout: 20_000,
-      intervals: [16, 32, 64, 100],
-      message: `a live ${role} companion feedback node must correlate with the authoritative attack before it expires`,
-    }).toBe(true);
-
-    const exactFeedback = page.getByTestId(observedFeedback.feedbackId);
-    const visibleBeforeCapture = await exactFeedback.evaluate(node => {
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return node.isConnected && rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) >= 0.9;
-    }).catch(() => false);
-    expect(visibleBeforeCapture).toBe(true);
+      polling: 'raf',
+    });
+    observedFeedback = await handle.jsonValue();
+    assertReadableFeedback(observedFeedback, { role, critical, marker });
 
     await page.screenshot({ path, fullPage: false });
 
+    const exactFeedback = page.getByTestId(observedFeedback.feedbackId);
     const visibleAfterCapture = await exactFeedback.evaluate(node => {
       const style = getComputedStyle(node);
       const rect = node.getBoundingClientRect();
       return node.isConnected && rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0;
     }).catch(() => false);
     expect(visibleAfterCapture).toBe(true);
-    assertReadableFeedback(observedFeedback, { role, critical, marker });
     return observedFeedback;
   } catch (error) {
     const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
