@@ -37,6 +37,8 @@ assert.match(runtime, /data-projection-clamped=\{projectedFeedback\.clamped \? '
 assert.match(runtime, /publishDamageFeedback\(activeRole, target, damage\.damage, definition\.accent, false, now\)/);
 assert.match(runtime, /publishDamageFeedback\(activeRole, target, damage\.damage, definition\.accent, true, now\)/);
 assert.match(runtime, /if \(canWriteEnemies && damage\.damage > 0\)/);
+assert.match(runtime, /const playerAttack = state\.player\.lastAttackTime;[\s\S]*playerAttack > lastPlayerAttackRef\.current[\s\S]*publishDamageFeedback\(activeRole, target, damage\.damage, definition\.accent, true, now\)/,
+  'critical-support feedback must remain causally gated by a monotonic authoritative player attack');
 assert.equal((runtime.match(/state\.damageNumbers\.push\(/g) ?? []).length, 1,
   'dedicated companion values must not be duplicated in the legacy number layer');
 assert.match(runtime, /data-testid="companion-damage-feedback-layer"/);
@@ -54,15 +56,32 @@ assert.match(runtime, /@media \(prefers-reduced-motion: reduce\)/);
 
 assert.match(journey, /const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';/);
 assert.match(journey, /const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';/);
+assert.match(journey, /const PLAYER_HIT_LOG = '__dungeonVeilPlayerHitLog';/);
+assert.match(journey, /const PLAYER_HIT_OBSERVER = '__dungeonVeilPlayerHitObserverInstalled';/);
 assert.doesNotMatch(journey, /COMPANION_ACTION_SNAPSHOTS|waitForCorrelatedCompanionFeedback|captureCorrelatedCompanionFeedbackEvidence/,
   'evidence must not return to historical snapshots followed by DOM reacquisition');
 assert.match(journey, /async function armCompanionActionObservation\(page\)/);
 assert.match(journey, /await armCompanionActionObservation\(page\);\s*await startFreshRun\(page\);/,
-  'the authoritative event log must be armed before combat starts');
+  'the authoritative event log must be armed before normal combat starts');
 assert.match(journey, /observedAt: performance\.now\(\)/,
   'failure diagnostics must retain the browser observation timestamp');
 assert.match(journey, /if \(log\.length > 24\) log\.splice\(0, log\.length - 24\);/,
   'the diagnostic attack log must remain bounded');
+
+assert.match(journey, /async function armPlayerHitObservation\(page\)/,
+  'critical evidence must own a pre-run observer for the actual player-hit transition');
+assert.match(journey, /new MutationObserver\(capture\)[\s\S]*attributeFilter: \['data-hit-flash'\]/,
+  'the short player-hit signal must be captured atomically rather than polled after it expires');
+assert.match(journey, /log\.push\(Object\.freeze\(\{ at: performance\.now\(\) \}\)\)/,
+  'player-hit confirmation must persist one immutable browser timestamp');
+assert.match(journey, /if \(log\.length > 12\) log\.splice\(0, log\.length - 12\);/,
+  'player-hit diagnostics must remain bounded');
+assert.match(journey, /await armCompanionActionObservation\(page\);\s*await armPlayerHitObservation\(page\);\s*await startFreshRun\(page\);/,
+  'both authoritative observers must be armed before critical combat starts');
+
+assert.match(journey, /async function prepareLivePlayerAttackLine\(page\)/);
+assert.match(journey, /getByTestId\('run-enemy-status'\)[\s\S]*not\.toHaveText\(\/RAUM FREI\|ROOM CLEAR\/i\)[\s\S]*keyboard\.down\('ArrowUp'\)[\s\S]*waitForTimeout\(650\)[\s\S]*keyboard\.up\('ArrowUp'\)[\s\S]*not\.toHaveText\(\/RAUM FREI\|ROOM CLEAR\/i\)/,
+  'the tablet path must establish a live target and a supported movement line before arming the critical epoch');
 
 assert.match(journey, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
   'one helper must own live correlation, readability validation and screenshot capture');
@@ -95,8 +114,8 @@ assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\)
 assert.match(journey, /expect\(observedFeedback\.opacity\)\.toBeGreaterThanOrEqual\(0\.9\);/);
 
 assert.match(journey, /async function readCompanionFeedbackDiagnostics\(page, \{ role, critical, notBefore \}\)/);
-assert.match(journey, /now: performance\.now\(\),[\s\S]*minimumAt,[\s\S]*runtime:[\s\S]*actions:[\s\S]*liveFeedback:/,
-  'a failed device must report input epoch, runtime state, event timestamps and current nodes');
+assert.match(journey, /now: performance\.now\(\),[\s\S]*minimumAt,[\s\S]*runtime:[\s\S]*playerHits:[\s\S]*actions:[\s\S]*liveFeedback:/,
+  'a failed device must report input epoch, runtime state, confirmed player hits, event timestamps and current nodes');
 assert.match(journey, /Companion feedback diagnostics: \$\{JSON\.stringify\(diagnostics, null, 2\)\}/);
 
 assert.match(journey, /async function waitForStableRoom\(page\)/);
@@ -106,12 +125,14 @@ assert.match(journey, /await waitForStableRoom\(page\);\s*const basicEvidenceEpo
   'normal-hit evidence must arm a fresh live capture after the room-title transition');
 
 const playerAttackTrigger = journey.match(/async function triggerConfirmedPlayerAttack\(page, attackIssuedAt\) \{[\s\S]*?\n\}/)?.[0] ?? '';
-assert.match(playerAttackTrigger, /const inputBurst = 6;[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*page\.waitForTimeout\(240\)[\s\S]*return attackIssuedAt;/,
-  'the supported real-input burst and cadence must remain unchanged');
+assert.match(playerAttackTrigger, /const inputBurst = 6;[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*PLAYER_HIT_LOG[\s\S]*confirmedAt >= attackIssuedAt[\s\S]*page\.waitForTimeout\(240\)[\s\S]*timeout: 2_000[\s\S]*return handle\.jsonValue\(\);/,
+  'the supported Space burst must return only after an atomically observed real player hit');
+assert.doesNotMatch(playerAttackTrigger, /return attackIssuedAt;/,
+  'the helper must not claim confirmation merely because input was sent');
 assert.doesNotMatch(playerAttackTrigger, /const inputBurst = (?:[7-9]|\d{2,})|page\.waitForTimeout\((?:[3-9]\d{2}|\d{4,})\)/);
-assert.doesNotMatch(journey, /data-hit-flash|data-basic-attack-count[\s\S]{0,400}triggerConfirmedPlayerAttack/);
-assert.match(journey, /const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support',[\s\S]*critical: true,[\s\S]*notBefore: attackIssuedAt,[\s\S]*marker: \/✦\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png[\s\S]*const \[, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise/,
-  'critical evidence capture must be armed before the first real player input');
+assert.match(journey, /await prepareLivePlayerAttackLine\(page\);\s*const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support',[\s\S]*critical: true,[\s\S]*notBefore: attackIssuedAt,[\s\S]*marker: \/✦\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png[\s\S]*const \[confirmedPlayerHitAt, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise/,
+  'critical evidence capture must be armed after a live attack line is established and before the first real player input');
+assert.match(journey, /expect\(confirmedPlayerHitAt\)\.toBeGreaterThanOrEqual\(attackIssuedAt\);/);
 assert.match(journey, /expect\(observedCritical\.at\)\.toBeGreaterThanOrEqual\(attackIssuedAt\);/);
 
 assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/);
