@@ -4,6 +4,8 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
 const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
+const PLAYER_HIT_LOG = '__dungeonVeilPlayerHitLog';
+const PLAYER_HIT_OBSERVER = '__dungeonVeilPlayerHitObserverInstalled';
 const DEFAULT_COMPANION_STATE = {
   activeId: 'single-target',
   companions: { 'single-target': { level: 1, unlockedAt: 1 } },
@@ -59,13 +61,34 @@ async function startFreshRun(page) {
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
 }
 
+async function prepareLivePlayerAttackLine(page) {
+  const enemyStatus = page.getByTestId('run-enemy-status');
+  await expect(enemyStatus).toBeVisible();
+  await expect(enemyStatus).not.toHaveText(/RAUM FREI|ROOM CLEAR/i);
+  await page.keyboard.down('ArrowUp');
+  try {
+    await page.waitForTimeout(650);
+  } finally {
+    await page.keyboard.up('ArrowUp');
+  }
+  await expect(enemyStatus).not.toHaveText(/RAUM FREI|ROOM CLEAR/i);
+}
+
 async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
   const inputBurst = 6;
   for (let attempt = 0; attempt < inputBurst; attempt += 1) {
     await page.keyboard.press('Space');
+    const confirmedAt = await page.evaluate(({ logKey, minimumAt }) => {
+      const hit = [...(window[logKey] || [])].reverse().find(entry => entry.at >= minimumAt);
+      return hit?.at ?? 0;
+    }, { logKey: PLAYER_HIT_LOG, minimumAt: attackIssuedAt });
+    if (confirmedAt >= attackIssuedAt) return confirmedAt;
     if (attempt < inputBurst - 1) await page.waitForTimeout(240);
   }
-  return attackIssuedAt;
+  const handle = await page.waitForFunction(({ logKey, minimumAt }) => (
+    [...(window[logKey] || [])].reverse().find(entry => entry.at >= minimumAt)?.at || false
+  ), { logKey: PLAYER_HIT_LOG, minimumAt: attackIssuedAt }, { timeout: 2_000, polling: 'raf' });
+  return handle.jsonValue();
 }
 
 async function readTransientRoomTitleState(page) {
@@ -127,6 +150,34 @@ async function armCompanionActionObservation(page) {
   }, { eventName: COMPANION_ACTION_EVENT, logKey: COMPANION_ACTION_LOG, listenerKey: COMPANION_ACTION_LISTENER });
 }
 
+async function armPlayerHitObservation(page) {
+  await page.evaluate(({ logKey, observerKey }) => {
+    const scope = window;
+    scope[logKey] = [];
+    if (scope[observerKey]) return;
+    scope[observerKey] = true;
+    let active = false;
+    const capture = () => {
+      const viewport = document.querySelector('[data-testid="run-visual-viewport"]');
+      const nextActive = viewport?.getAttribute('data-hit-flash') === 'active';
+      if (nextActive && !active) {
+        const log = scope[logKey];
+        log.push(Object.freeze({ at: performance.now() }));
+        if (log.length > 12) log.splice(0, log.length - 12);
+      }
+      active = nextActive;
+    };
+    const observer = new MutationObserver(capture);
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-hit-flash'],
+    });
+    capture();
+  }, { logKey: PLAYER_HIT_LOG, observerKey: PLAYER_HIT_OBSERVER });
+}
+
 function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
   expect(observedFeedback).toBeTruthy();
   expect(observedFeedback.feedbackId).toMatch(/^companion-damage-number-/);
@@ -152,7 +203,7 @@ function assertFullViewportPng(screenshot, viewport) {
 }
 
 async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }) {
-  return page.evaluate(({ logKey, expectedRole, expectedCritical, minimumAt }) => {
+  return page.evaluate(({ actionLogKey, playerHitLogKey, expectedRole, expectedCritical, minimumAt }) => {
     const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
     return {
       now: performance.now(),
@@ -160,7 +211,8 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
       expectedCritical: String(expectedCritical),
       minimumAt,
       runtime: runtime ? { ...runtime.dataset } : null,
-      actions: (window[logKey] || []).slice(-12),
+      playerHits: (window[playerHitLogKey] || []).slice(-12),
+      actions: (window[actionLogKey] || []).slice(-12),
       liveFeedback: [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')].map(node => {
         const style = getComputedStyle(node);
         const rect = node.getBoundingClientRect();
@@ -177,7 +229,13 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
         };
       }),
     };
-  }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore });
+  }, {
+    actionLogKey: COMPANION_ACTION_LOG,
+    playerHitLogKey: PLAYER_HIT_LOG,
+    expectedRole: role,
+    expectedCritical: critical,
+    minimumAt: notBefore,
+  });
 }
 
 async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notBefore, marker, path }) {
@@ -339,9 +397,11 @@ test('critical-support proc renders one readable value on its actual target', as
   page.on('console', message => { if (message.type() === 'error' && /companion|lynx|raven|sentinel|wisp|drake|TypeError|ReferenceError|Cannot read/i.test(message.text())) runtimeErrors.push(message.text()); });
   await openMenu(page, testInfo.project.name, { activeId: 'critical-support', companions: { 'critical-support': { level: 2, unlockedAt: 1 } } });
   await armCompanionActionObservation(page);
+  await armPlayerHitObservation(page);
   await startFreshRun(page);
   const runtime = page.getByTestId('companion-runtime-bridge');
   await expect(runtime).toHaveAttribute('data-role', 'critical-support');
+  await prepareLivePlayerAttackLine(page);
   const attackIssuedAt = await page.evaluate(() => performance.now());
   const capturePromise = captureLiveCompanionFeedbackEvidence(page, {
     role: 'critical-support',
@@ -350,10 +410,11 @@ test('critical-support proc renders one readable value on its actual target', as
     marker: /✦\s*-\d+/,
     path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
   });
-  const [, observedCritical] = await Promise.all([
+  const [confirmedPlayerHitAt, observedCritical] = await Promise.all([
     triggerConfirmedPlayerAttack(page, attackIssuedAt),
     capturePromise,
   ]);
+  expect(confirmedPlayerHitAt).toBeGreaterThanOrEqual(attackIssuedAt);
   expect(observedCritical.at).toBeGreaterThanOrEqual(attackIssuedAt);
   const chip = page.getByTestId('run-companion-chip');
   await expect(runtime).toHaveAttribute('data-level', '2');
