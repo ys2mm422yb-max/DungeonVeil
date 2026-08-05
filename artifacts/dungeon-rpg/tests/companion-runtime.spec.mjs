@@ -364,11 +364,11 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(management).toBeHidden();
   await expect(page.getByRole('heading', { name: 'DUNGEON VEIL' })).toBeVisible({ timeout: 60_000 });
   await armCompanionActionObservation(page);
+  const basicEvidenceEpoch = await page.evaluate(() => performance.now());
   await startFreshRun(page);
   const chip = page.getByTestId('run-companion-chip');
   const runtime = page.getByTestId('companion-runtime-bridge');
   const scene = page.getByTestId('run-companion-scene');
-  const basicEvidenceEpoch = await page.evaluate(() => performance.now());
   await waitForStableRoom(page);
   await captureLiveCompanionFeedbackEvidence(page, {
     role: 'shield',
