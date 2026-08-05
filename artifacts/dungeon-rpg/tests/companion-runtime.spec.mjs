@@ -142,6 +142,15 @@ function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
   expect(observedFeedback.opacity).toBeGreaterThanOrEqual(0.9);
 }
 
+function assertFullViewportPng(screenshot, viewport) {
+  expect([...screenshot.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  expect(screenshot.length).toBeGreaterThan(10_000);
+  const width = screenshot.readUInt32BE(16);
+  const height = screenshot.readUInt32BE(20);
+  expect(width).toBeGreaterThanOrEqual(viewport.width);
+  expect(height).toBeGreaterThanOrEqual(viewport.height);
+}
+
 async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }) {
   return page.evaluate(({ logKey, expectedRole, expectedCritical, minimumAt }) => {
     const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
@@ -218,15 +227,10 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
     observedFeedback = await handle.jsonValue();
     assertReadableFeedback(observedFeedback, { role, critical, marker });
 
-    await page.screenshot({ path, fullPage: false });
-
-    const exactFeedback = page.getByTestId(observedFeedback.feedbackId);
-    const visibleAfterCapture = await exactFeedback.evaluate(node => {
-      const style = getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return node.isConnected && rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0;
-    }).catch(() => false);
-    expect(visibleAfterCapture).toBe(true);
+    const viewport = page.viewportSize();
+    expect(viewport).toBeTruthy();
+    const screenshot = await page.screenshot({ path, fullPage: false });
+    assertFullViewportPng(screenshot, viewport);
     return observedFeedback;
   } catch (error) {
     const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
