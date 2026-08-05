@@ -66,21 +66,24 @@ assert.match(journey, /if \(log\.length > 24\) log\.splice\(0, log\.length - 24\
 
 assert.match(journey, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
   'one helper must own live correlation, readability validation and screenshot capture');
-assert.match(journey, /const selector = `\[data-testid\^="companion-damage-number-"\]\[data-companion-role="\$\{role\}"\]\[data-critical="\$\{String\(critical\)\}"\]`;/,
-  'the waiter must be armed directly against the expected live role and critical identity');
-assert.match(journey, /await expect\.poll\(async \(\) => \{[\s\S]*feedback\.evaluate\(\(node, \{ logKey, expectedRole, expectedCritical, minimumAt \}\) => \{/,
-  'the criterion must poll the currently rendered node rather than a historical object');
+assert.match(journey, /const handle = await page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt \}\) => \{/,
+  'the criterion must execute as one browser-side wait rather than separate locator calls');
+assert.match(journey, /const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
+  'the browser-side wait must inspect only currently rendered feedback nodes');
+assert.match(journey, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
+  'role and critical identity must be filtered in the same browser frame');
 assert.match(journey, /entry\.role === expectedRole[\s\S]*entry\.kind === 'attack'[\s\S]*entry\.targetId === targetId[\s\S]*entry\.at >= minimumAt/,
   'the live node must correlate to the authoritative role, target and input epoch');
 assert.match(journey, /opacity < 0\.9/,
   'capture must wait for a clearly painted animation frame');
-assert.match(journey, /timeout: 20_000,[\s\S]*intervals: \[16, 32, 64, 100\]/,
-  'the unchanged 20 second criterion must sample the short live window promptly');
-assert.match(journey, /const exactFeedback = page\.getByTestId\(observedFeedback\.feedbackId\);/,
-  'the screenshot must bind to the exact correlated live identity');
-assert.match(journey, /const visibleBeforeCapture = await exactFeedback\.evaluate[\s\S]*expect\(visibleBeforeCapture\)\.toBe\(true\);[\s\S]*await page\.screenshot\(\{ path, fullPage: false \}\);[\s\S]*const visibleAfterCapture = await exactFeedback\.evaluate[\s\S]*expect\(visibleAfterCapture\)\.toBe\(true\);/,
-  'the exact feedback node must remain painted immediately before and after the full-context screenshot');
-assert.match(journey, /assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);/);
+assert.match(journey, /timeout: 20_000,[\s\S]*polling: 'raf'/,
+  'the unchanged 20 second criterion must sample the short live window inside requestAnimationFrame');
+assert.doesNotMatch(journey, /feedback\.count\(\)|feedback\.evaluate\(/,
+  'slow cross-process count/evaluate sequencing must not return');
+assert.match(journey, /observedFeedback = await handle\.jsonValue\(\);[\s\S]*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);[\s\S]*await page\.screenshot\(\{ path, fullPage: false \}\);/,
+  'the same browser-frame result must be validated and immediately photographed');
+assert.match(journey, /const exactFeedback = page\.getByTestId\(observedFeedback\.feedbackId\);[\s\S]*const visibleAfterCapture = await exactFeedback\.evaluate[\s\S]*expect\(visibleAfterCapture\)\.toBe\(true\);/,
+  'the exact correlated node must still be connected after the full-context screenshot');
 assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(82\);/);
 assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(38\);/);
 assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(21\);/);
