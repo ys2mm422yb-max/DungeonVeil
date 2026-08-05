@@ -64,7 +64,11 @@ async function triggerConfirmedPlayerAttack(page) {
   const runtime = page.getByTestId('companion-runtime-bridge');
   await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
   const attackIssuedAt = await page.evaluate(() => performance.now());
-  await page.keyboard.press('Space');
+  const inputBurst = 6;
+  for (let attempt = 0; attempt < inputBurst; attempt += 1) {
+    await page.keyboard.press('Space');
+    if (attempt < inputBurst - 1) await page.waitForTimeout(240);
+  }
   return attackIssuedAt;
 }
 
