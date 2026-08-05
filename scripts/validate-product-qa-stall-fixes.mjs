@@ -48,8 +48,8 @@ assert.match(companionJourney, /function assertFullViewportPng\(screenshot, view
   'the artifact itself must be validated instead of asking an expired transient node to remain alive after encoding');
 assert.doesNotMatch(companionJourney, /visibleAfterCapture|exactFeedback\.evaluate/,
   'post-screenshot DOM liveness checks must not reintroduce the 1050ms race');
-assert.match(companionJourney, /const basicEvidenceEpoch = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*await waitForStableRoom\(page\);\s*await captureLiveCompanionFeedbackEvidence/,
-  'the basic feedback epoch must be armed before title settling so a live post-epoch node cannot be excluded by cross-process delay');
+assert.match(companionJourney, /await armCompanionActionObservation\(page\);\s*const basicEvidenceEpoch = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*await startFreshRun\(page\);[\s\S]*await waitForStableRoom\(page\);\s*await captureLiveCompanionFeedbackEvidence/,
+  'the empty action log and basic feedback epoch must be armed before combat starts, while capture still waits for the room-title transition to settle');
 assert.doesNotMatch(companionJourney, /PLAYER_HIT_LOG|PLAYER_HIT_OBSERVER|armPlayerHitObservation|data-hit-flash/,
   'the critical path must not depend on a non-authoritative visual hit signal');
 
