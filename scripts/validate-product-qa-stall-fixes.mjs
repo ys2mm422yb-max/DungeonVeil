@@ -23,8 +23,10 @@ assert.match(companionJourney, /let captureUntil = 0;\s*let captureFrameSchedule
   'the transient feedback observer must own one serialized time-bounded frame loop');
 assert.match(companionJourney, /const scheduleRenderedFeedbackCapture = \(\) => \{[\s\S]*if \(captureFrameScheduled \|\| performance\.now\(\) >= captureUntil\) return;[\s\S]*captureFrameScheduled = true;[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*captureFrameScheduled = false;[\s\S]*captureRenderedFeedback\(\);[\s\S]*scheduleRenderedFeedbackCapture\(\);/,
   'the observer must serialize requestAnimationFrame work instead of consuming a shared budget through parallel chains');
-assert.match(companionJourney, /captureUntil = Math\.max\(captureUntil, performance\.now\(\) \+ 420\);/,
-  'each authoritative companion attack must keep real rendered-frame observation active beyond the 15% fade-in boundary');
+assert.match(companionJourney, /captureUntil = Math\.max\(captureUntil, performance\.now\(\) \+ 1_200\);/,
+  'each authoritative companion attack must keep rendered-frame observation active across the complete 1050ms feedback lifetime plus a small scheduling margin');
+assert.doesNotMatch(companionJourney, /captureUntil = Math\.max\(captureUntil, performance\.now\(\) \+ (?:[2-9]_?\d{3}|\d{5,})\);/,
+  'the rendered-frame observation window must remain tightly bounded and must not become a hidden long wait');
 assert.match(companionJourney, /new MutationObserver\(\(\) => \{\s*captureRenderedFeedback\(\);\s*scheduleRenderedFeedbackCapture\(\);\s*\}\)\.observe/,
   'React commit mutations must both capture immediately and join the single bounded frame loop');
 assert.match(companionJourney, /queueMicrotask\(\(\) => \{\s*captureRenderedFeedback\(\);\s*scheduleRenderedFeedbackCapture\(\);\s*\}\);/,
