@@ -282,6 +282,15 @@ test('companions are found and upgraded before a run, then remain fixed with art
   const chip = page.getByTestId('run-companion-chip');
   const runtime = page.getByTestId('companion-runtime-bridge');
   const scene = page.getByTestId('run-companion-scene');
+  await waitForStableRoom(page);
+  const basicEvidenceEpoch = await page.evaluate(() => performance.now());
+  await captureLiveCompanionFeedbackEvidence(page, {
+    role: 'shield',
+    critical: false,
+    notBefore: basicEvidenceEpoch,
+    marker: /◆\s*-\d+/,
+    path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`,
+  });
   await expect(chip).toBeVisible();
   await expect(chip).toHaveAttribute('data-presentation', 'read-only-companion-status');
   await expect(chip).toHaveAttribute('data-companion-role', 'shield');
@@ -295,15 +304,6 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(runtime).toHaveAttribute('data-selection', 'pre-run-frozen');
   await expect(runtime).toHaveAttribute('data-ai-hz', '10');
   await expect(runtime).toHaveAttribute('data-revive-target', 'false');
-  await waitForStableRoom(page);
-  const basicEvidenceEpoch = await page.evaluate(() => performance.now());
-  await captureLiveCompanionFeedbackEvidence(page, {
-    role: 'shield',
-    critical: false,
-    notBefore: basicEvidenceEpoch,
-    marker: /◆\s*-\d+/,
-    path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`,
-  });
   await expect.poll(async () => Number(await runtime.getAttribute('data-basic-attack-count') || 0), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect(scene).toHaveAttribute('data-scene-hook', 'object3d-add');
   await expect(scene).toHaveAttribute('data-model-source', 'procedural-distinct-companion-v5');
