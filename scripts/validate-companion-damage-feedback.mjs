@@ -103,12 +103,16 @@ assert.match(journey, /test\('critical-support proc renders one readable value o
   'Issue #407 critical-support acceptance must have a real browser journey');
 assert.match(journey, /activeId: 'critical-support',[\s\S]*'critical-support': \{ level: 2, unlockedAt: 1 \}/,
   'the critical journey must use the actual pre-run companion selection state');
-assert.match(journey, /async function triggerConfirmedPlayerAttack\(page\)[\s\S]*data-basic-attack-count[\s\S]*const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*return attackIssuedAt;/,
-  'the critical journey must prove a live target, issue supported real input and retain a monotonic input epoch');
+assert.match(journey, /async function triggerConfirmedPlayerAttack\(page\)[\s\S]*data-basic-attack-count[\s\S]*const attackIssuedAt = await page\.evaluate\(\(\) => performance\.now\(\)\);[\s\S]*const inputBurst = 6;[\s\S]*for \(let attempt = 0; attempt < inputBurst; attempt \+= 1\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*page\.waitForTimeout\(240\)[\s\S]*return attackIssuedAt;/,
+  'the critical journey must prove a live target, retain one monotonic input epoch and use a small bounded burst of real supported player attacks for slower portrait tablets');
+assert.doesNotMatch(journey, /const inputBurst = (?:[7-9]|\d{2,});/,
+  'the deterministic real-input burst must remain small and bounded');
+assert.doesNotMatch(journey, /page\.waitForTimeout\((?:[3-9]\d{2}|\d{4,})\)/,
+  'the input cadence must not hide a product stall behind long fixed delays');
 assert.doesNotMatch(journey, /data-hit-flash/,
   'short-lived visual hit pulses must never be used as authoritative player-attack confirmation');
 assert.match(journey, /const attackIssuedAt = await triggerConfirmedPlayerAttack\(page\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback\(page, 'critical-support', true, attackIssuedAt\);/,
-  'critical feedback observation must be limited to actions emitted after the deterministic player input');
+  'critical feedback observation must be limited to actions emitted after the deterministic player input epoch');
 assert.doesNotMatch(journey, /data-companion-level', '2'\);\s*const observedCritical = await waitForCorrelatedCompanionFeedback/,
   'the critical journey must never regress to passive waiting after run entry');
 assert.match(journey, /assertReadableFeedback\(observedCritical, \{ role: 'critical-support', critical: true, marker: \/✦\\s\*-\\d\+\/ \}\)/,
