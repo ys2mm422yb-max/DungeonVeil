@@ -38,16 +38,26 @@ function allowed(): boolean {
 function stateSnapshot(engine = currentEngine): Record<string, unknown> | null {
   if (!engine) return null;
   const state = engine.state;
+  const livingEnemies = state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead);
   return {
     floor: state.floor,
     chapter: state.chapter,
     status: state.status,
     hp: state.player.hp,
     maxHp: state.player.maxHp,
-    livingEnemies: state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead).length,
-    livingEnemyFamilies: state.enemies
-      .filter(enemy => enemy.hp > 0 && !enemy.isDead)
-      .map(enemy => enemy.enemyFamilyId ?? null),
+    playerX: state.player.x,
+    playerY: state.player.y,
+    playerFacingX: state.player.facing.x,
+    playerFacingY: state.player.facing.y,
+    playerLastAttackTime: state.player.lastAttackTime,
+    playerAttackCooldown: state.player.attackCooldown,
+    livingEnemies: livingEnemies.length,
+    livingEnemyFamilies: livingEnemies.map(enemy => enemy.enemyFamilyId ?? null),
+    livingEnemyPositions: livingEnemies.map(enemy => ({
+      id: enemy.id,
+      x: enemy.x + enemy.width / 2,
+      y: enemy.y + enemy.height / 2,
+    })),
     deadEnemies: state.enemies.filter(enemy => enemy.isDead || enemy.hp <= 0).length,
     roomClearReady: state.roomClearReady,
     effects: state.effects.map(effect => effect.id),
