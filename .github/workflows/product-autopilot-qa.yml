@@ -152,6 +152,7 @@ jobs:
             tests/mobile-resource-upgrade.spec.mjs \
             tests/companion-runtime.spec.mjs \
             tests/upgrade-prestige-visual.spec.mjs \
+            tests/upgrade-prestige-mobile-hotfix.spec.mjs \
             tests/kaykit-chapter-evidence.spec.mjs \
             tests/guild-raid-lobby-mobile.spec.mjs \
             tests/armor-cloud-restore-render.spec.mjs \
