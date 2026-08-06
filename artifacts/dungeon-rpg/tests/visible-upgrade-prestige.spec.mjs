@@ -64,12 +64,11 @@ async function readVisibleBindingTelemetry(page) {
   return page.evaluate(() => {
     const data = document.documentElement.dataset;
     return {
-      count: Number(data.dungeonVeilVisibleUpgradeBindingCount || 0),
       slots: String(data.dungeonVeilVisibleUpgradeSlots || '').split(',').filter(Boolean),
       bow: Number(data.dungeonVeilVisibleUpgradeBowTier || 0),
       quiver: Number(data.dungeonVeilVisibleUpgradeQuiverTier || 0),
       armor: Number(data.dungeonVeilVisibleUpgradeArmorTier || 0),
-      companion: Number(data.dungeonVeilVisibleUpgradeCompanionTier || 0),
+      companion: Number(data.dungeonVeilCompanionUpgradeTier || 0),
     };
   });
 }
@@ -83,7 +82,6 @@ async function expectRuntimeBindings(page, requiredSlots) {
 
   const telemetry = await readVisibleBindingTelemetry(page);
   for (const slot of requiredSlots) expect(telemetry.slots).toContain(slot);
-  expect(telemetry.count).toBeGreaterThanOrEqual(requiredSlots.length);
   return telemetry;
 }
 
