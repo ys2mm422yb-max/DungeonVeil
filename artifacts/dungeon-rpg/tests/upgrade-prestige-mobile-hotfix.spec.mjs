@@ -56,6 +56,14 @@ async function openEquipment(page) {
   await expect(page.getByTestId('equipment-category-tabs')).toBeVisible({ timeout: 60_000 });
 }
 
+async function waitForRenderedPreview(page, itemId) {
+  const preview = page.getByTestId('equipment-model-preview');
+  await expect(preview).toHaveAttribute('data-equipment-preview-state', 'ready', { timeout: 120_000 });
+  await expect(preview).toHaveAttribute('data-equipment-preview-rendered-item', itemId, { timeout: 120_000 });
+  await waitForPaintedCanvas(page, preview.locator('canvas'), 120_000);
+  return preview;
+}
+
 async function expectPreviewBinding(page, itemId, tier) {
   const preview = page.getByTestId('equipment-model-preview');
   await expect(preview).toBeVisible({ timeout: 60_000 });
@@ -64,6 +72,7 @@ async function expectPreviewBinding(page, itemId, tier) {
     message: `selected preview must bind exactly to ${itemId}`,
   }).toBe(`equipment:${itemId}`);
   await expect(preview).toHaveAttribute('data-upgrade-tier', String(tier));
+  await waitForRenderedPreview(page, itemId);
   return preview;
 }
 
@@ -77,7 +86,7 @@ test('mobile prestige stays local, item-accurate and below the iPhone safe area'
   await page.screenshot({ path: `test-results/visual-upgrade-hotfix-bow5-${testInfo.project.name}.png`, fullPage: false });
 
   await tap(page.getByRole('button', { name: /Glutbogen|Ember Bow/i }).first());
-  const preview = page.getByTestId('equipment-model-preview');
+  const preview = await waitForRenderedPreview(page, 'ember-bow');
   await expect.poll(async () => preview.getAttribute('data-upgrade-binding'), { timeout: 60_000 }).toBe(null);
   await expect(preview).not.toHaveAttribute('data-upgrade-tier', /.+/);
   await expect(page.getByTestId('equipment-upgrade-preview')).not.toHaveAttribute('data-upgrade-binding', /.+/);
@@ -90,6 +99,7 @@ test('mobile prestige stays local, item-accurate and below the iPhone safe area'
   await tap(page.getByTestId('inventory-tab-armor'));
   await expectPreviewBinding(page, 'ash-armor', 3);
   await tap(page.getByRole('button', { name: /Waldläufermantel|Ranger Cloak/i }).first());
+  await waitForRenderedPreview(page, 'ranger-cloak');
   await expect.poll(async () => preview.getAttribute('data-upgrade-binding'), { timeout: 60_000 }).toBe(null);
   await expect(preview).not.toHaveAttribute('data-upgrade-tier', /.+/);
 
