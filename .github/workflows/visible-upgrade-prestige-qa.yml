@@ -9,6 +9,7 @@ on:
       - '.github/workflows/visible-upgrade-prestige-qa.yml'
       - 'package.json'
       - 'scripts/validate-visible-upgrade-prestige.mjs'
+      - 'artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs'
       - 'artifacts/dungeon-rpg/src/App.tsx'
       - 'artifacts/dungeon-rpg/src/components/bowRig.ts'
       - 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts'
@@ -25,6 +26,7 @@ on:
       - '.github/workflows/visible-upgrade-prestige-qa.yml'
       - 'package.json'
       - 'scripts/validate-visible-upgrade-prestige.mjs'
+      - 'artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs'
       - 'artifacts/dungeon-rpg/src/App.tsx'
       - 'artifacts/dungeon-rpg/src/components/bowRig.ts'
       - 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts'
@@ -62,6 +64,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Validate visible prestige safety contract
         run: pnpm run audit:visible-upgrade-prestige
+      - name: Validate evidence manifest contract
+        run: node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs --self-test
       - name: Verify TypeScript and existing source contracts
         run: pnpm run typecheck
       - name: Build production output
@@ -125,6 +129,12 @@ jobs:
             tests/upgrade-prestige-visual.spec.mjs \
             --config=playwright.visible-prestige.config.mjs \
             --project=${{ matrix.project }}
+      - name: Create exact-head evidence manifest
+        if: always()
+        run: |
+          node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs \
+            artifacts/dungeon-rpg/test-results \
+            artifacts/dungeon-rpg/test-results/visible-prestige-evidence-manifest-${{ matrix.project }}.json
       - name: Upload exact-head visible prestige evidence
         if: always()
         uses: actions/upload-artifact@v4
