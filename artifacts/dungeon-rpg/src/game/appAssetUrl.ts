@@ -10,6 +10,7 @@ export function appAssetUrl(path: string): string {
     && (stripped === BASE_SEGMENT || stripped.startsWith(`${BASE_SEGMENT}/`));
   const pathname = alreadyBased ? `/${stripped}` : `${NORMALIZED_BASE_URL}${stripped}`;
 
-  if (typeof window === 'undefined') return pathname;
-  return new URL(pathname, window.location.origin).toString();
+  // Keep bundled assets root-relative. WebKit otherwise treats nested GLTF resources
+  // derived from absolute localhost URLs as cross-origin during fast page transitions.
+  return pathname.startsWith('/') ? pathname : `/${pathname}`;
 }
