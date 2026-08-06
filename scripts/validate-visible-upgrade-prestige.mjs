@@ -56,9 +56,18 @@ assert.match(bowRig, /visibleBinding\.update\(attackPulse\)/,
   'bow prestige must react to the actual attack pulse');
 assert.match(bowRig, /armorVisibleBinding\.update\(activityPulse\)/);
 assert.match(bowRig, /quiverVisibleBinding\?\.update\(activityPulse\)/);
-assert.match(bowRig, /publishVisibleUpgradeTier\('bow', tier\)/);
-assert.match(bowRig, /publishVisibleUpgradeTier\('armor'/);
-assert.match(bowRig, /publishVisibleUpgradeTier\('quiver'/);
+assert.match(bowRig, /visibleBinding\.dispose\(\)/,
+  'the live bow must release its bounded prestige geometry');
+assert.match(bowRig, /armorVisibleBinding\.dispose\(\)/,
+  'the live armor must release its bounded prestige geometry');
+assert.match(bowRig, /quiverVisibleBinding\?\.dispose\(\)/,
+  'the attached quiver must release its bounded prestige geometry');
+assert.match(bowRig, /lifecycleRoot\.addEventListener\?\.\('removed', dispose\)/,
+  'player prestige must follow the real player-root removal lifecycle');
+assert.match(bowRig, /dispose: \(\) => void/,
+  'the ranger bow rig must expose explicit idempotent cleanup');
+assert.doesNotMatch(bowRig, /publishVisibleUpgradeTier/,
+  'only the shared factual registry may publish active visible slots');
 assert.doesNotMatch(bowRig, /Object3D\.prototype\.add|patchedAdd|visiblePrestigeCapture/,
   'visible player prestige must not depend on global Three.js prototype interception');
 
