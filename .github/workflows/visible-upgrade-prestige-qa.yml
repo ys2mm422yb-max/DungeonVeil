@@ -1,0 +1,133 @@
+name: Visible Upgrade Prestige QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'fix/**'
+    paths:
+      - '.github/workflows/visible-upgrade-prestige-qa.yml'
+      - 'package.json'
+      - 'scripts/validate-visible-upgrade-prestige.mjs'
+      - 'artifacts/dungeon-rpg/src/App.tsx'
+      - 'artifacts/dungeon-rpg/src/components/VisibleUpgradeRuntimeBindings.tsx'
+      - 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige.css'
+      - 'artifacts/dungeon-rpg/tests/visible-upgrade-prestige.spec.mjs'
+      - 'artifacts/dungeon-rpg/playwright.visible-prestige.config.mjs'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/visible-upgrade-prestige-qa.yml'
+      - 'package.json'
+      - 'scripts/validate-visible-upgrade-prestige.mjs'
+      - 'artifacts/dungeon-rpg/src/App.tsx'
+      - 'artifacts/dungeon-rpg/src/components/VisibleUpgradeRuntimeBindings.tsx'
+      - 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige3D.ts'
+      - 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige.css'
+      - 'artifacts/dungeon-rpg/tests/visible-upgrade-prestige.spec.mjs'
+      - 'artifacts/dungeon-rpg/playwright.visible-prestige.config.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visible-upgrade-prestige-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}
+  cancel-in-progress: true
+
+env:
+  DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+  BASE_PATH: /DungeonVeil/
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Validate visible prestige safety contract
+        run: pnpm run audit:visible-upgrade-prestige
+      - name: Verify TypeScript and existing source contracts
+        run: pnpm run typecheck
+      - name: Build production output
+        run: pnpm --dir artifacts/dungeon-rpg run build
+      - name: Upload focused production output
+        uses: actions/upload-artifact@v4
+        with:
+          name: visible-prestige-build-${{ github.sha }}
+          path: artifacts/dungeon-rpg/dist/public
+          if-no-files-found: error
+          retention-days: 1
+
+  portrait-evidence:
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+          - project: android-chromium
+            browser: chromium
+          - project: ipad-portrait-webkit
+            browser: webkit
+          - project: android-tablet-chromium
+            browser: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install browser and dependencies
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Download focused production output
+        uses: actions/download-artifact@v4
+        with:
+          name: visible-prestige-build-${{ github.sha }}
+          path: artifacts/dungeon-rpg/dist/public
+      - name: Run visible prestige portrait journey
+        shell: bash
+        run: |
+          set -o pipefail
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/visible-prestige-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent "$DUNGEON_VEIL_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          pnpm --dir artifacts/dungeon-rpg exec playwright test tests/visible-upgrade-prestige.spec.mjs \
+            --config=playwright.visible-prestige.config.mjs \
+            --project=${{ matrix.project }}
+      - name: Upload exact-head visible prestige evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visible-prestige-evidence-${{ matrix.project }}
+          path: |
+            artifacts/dungeon-rpg/test-results/*.png
+            artifacts/dungeon-rpg/test-results/*.json
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/video.webm
+          if-no-files-found: error
+          retention-days: 14
