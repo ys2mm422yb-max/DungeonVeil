@@ -1,6 +1,7 @@
 import { loadMetaProgression } from '../game/metaProgression';
 import { getUpgradeVisualProfile, normalizeUpgradeVisualTier } from '../lib/upgradeVisualTiers';
 import { attachEquipmentUpgradePrestige3D, type EquipmentUpgradeBinding3D } from './equipmentUpgradePrestige3D';
+import { createVisibleUpgradePrestige3D, type VisibleUpgradePrestigeBinding3D } from './visibleUpgradePrestige3D';
 
 export type BowRig = {
   bow: any;
@@ -11,6 +12,17 @@ export type BowRig = {
 };
 
 const normalizeName = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+function publishVisibleUpgradeTier(slot: 'bow' | 'quiver' | 'armor', tier: number) {
+  if (typeof document === 'undefined') return;
+  const data = document.documentElement.dataset;
+  const key = `dungeonVeilVisibleUpgrade${slot[0].toUpperCase()}${slot.slice(1)}Tier`;
+  data[key] = String(tier);
+  const slots = new Set(String(data.dungeonVeilVisibleUpgradeSlots || '').split(',').filter(Boolean));
+  if (tier >= 3) slots.add(slot);
+  else slots.delete(slot);
+  data.dungeonVeilVisibleUpgradeSlots = [...slots].sort().join(',');
+}
 
 function scoreLeftHand(name: string) {
   if (name === 'handslotl' || name.endsWith('handslotl')) return 140;
@@ -76,6 +88,7 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
   const tier = normalizeUpgradeVisualTier(Number(meta.owned[bowId]?.level ?? 1));
   const profile = getUpgradeVisualProfile(tier);
   const staticFallbackActive = () => prefersReducedMotion() || rendererRecoveryActive();
+  publishVisibleUpgradeTier('bow', tier);
 
   bow.userData = {
     ...(bow.userData ?? {}),
@@ -91,11 +104,16 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
 
   if (tier < 3) return { update: (_attackPulse: number) => undefined };
 
+  const visibleBinding = createVisibleUpgradePrestige3D(THREE, bow, {
+    slot: 'bow',
+    level: tier,
+    binding: 'visible:player-bow',
+  });
   const glowColor = new THREE.Color(tier === 5 ? 0xf6d778 : tier === 4 ? 0xc4a7ff : 0x9f8be8);
   const materialStates: Array<{ material: any; baseEmissive: any; baseIntensity: number }> = [];
 
   bow.traverse?.((node: any) => {
-    if (!node.isMesh || !node.material) return;
+    if (!node.isMesh || !node.material || String(node.name ?? '').startsWith('DungeonVeilVisibleUpgrade')) return;
     const sourceMaterials = Array.isArray(node.material) ? node.material : [node.material];
     const clonedMaterials = sourceMaterials.map((material: any) => material?.clone?.() ?? material);
     node.material = Array.isArray(node.material) ? clonedMaterials : clonedMaterials[0];
@@ -142,6 +160,7 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
       state.material.emissiveIntensity = state.baseIntensity + strength * 0.22;
     }
     glowLight.intensity = Math.min(0.18, strength * 0.2);
+    visibleBinding.update(attackPulse);
   };
 
   update(0);
@@ -157,11 +176,18 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
   const quiverId = meta.equipped.quiver;
   const armorLevel = Number(meta.owned[armorId]?.level ?? 1);
   const quiverLevel = Number(meta.owned[quiverId]?.level ?? 1);
+  publishVisibleUpgradeTier('armor', normalizeUpgradeVisualTier(armorLevel));
+  publishVisibleUpgradeTier('quiver', normalizeUpgradeVisualTier(quiverLevel));
 
   const armorBinding = attachEquipmentUpgradePrestige3D(THREE, heroRoot, {
     slot: 'armor',
     level: armorLevel,
     binding: 'in-run-player-armor-model-local-motes',
+  });
+  const armorVisibleBinding = createVisibleUpgradePrestige3D(THREE, heroRoot, {
+    slot: 'armor',
+    level: armorLevel,
+    binding: 'visible:player-armor',
   });
   heroRoot.userData = {
     ...(heroRoot.userData ?? {}),
@@ -171,6 +197,7 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
   };
 
   let quiverBinding: EquipmentUpgradeBinding3D | null = null;
+  let quiverVisibleBinding: VisibleUpgradePrestigeBinding3D | null = null;
   let remainingQuiverSearches = 16;
 
   const bindQuiverWhenAttached = () => {
@@ -188,13 +215,20 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
       level: quiverLevel,
       binding: 'in-run-player-quiver-mesh',
     });
+    quiverVisibleBinding = createVisibleUpgradePrestige3D(THREE, equippedQuiver, {
+      slot: 'quiver',
+      level: quiverLevel,
+      binding: 'visible:player-quiver',
+    });
   };
 
   return {
     update(activityPulse: number) {
       bindQuiverWhenAttached();
       armorBinding.update(activityPulse);
+      armorVisibleBinding.update(activityPulse);
       quiverBinding?.update(activityPulse);
+      quiverVisibleBinding?.update(activityPulse);
     },
   };
 }
