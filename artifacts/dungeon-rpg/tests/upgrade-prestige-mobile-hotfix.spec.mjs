@@ -107,6 +107,8 @@ test('mobile prestige stays local, item-accurate and below the iPhone safe area'
   expect(safeAreaState.topStyle).not.toBe('auto');
   await page.screenshot({ path: `test-results/visual-upgrade-hotfix-safe-area-${testInfo.project.name}.png`, fullPage: false });
 
+  await scrollRoot.evaluate(element => element.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.waitForTimeout(150);
   await tap(page.getByRole('button', { name: /Zurück|Back/i }).first());
   await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
   await tap(page.getByRole('button', { name: /SPIELEN|PLAY/i }).first());
