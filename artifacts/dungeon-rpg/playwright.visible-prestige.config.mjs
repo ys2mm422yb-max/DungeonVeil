@@ -4,7 +4,7 @@ const baseURL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVe
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /visible-upgrade-prestige\.spec\.mjs/,
+  testMatch: /(?:visible-upgrade-prestige|upgrade-prestige-visual)\.spec\.mjs/,
   timeout: 420_000,
   expect: { timeout: 120_000 },
   fullyParallel: false,
