@@ -62,11 +62,18 @@ assert.match(bowRig, /publishVisibleUpgradeTier\('quiver'/);
 assert.doesNotMatch(bowRig, /Object3D\.prototype\.add|patchedAdd|visiblePrestigeCapture/,
   'visible player prestige must not depend on global Three.js prototype interception');
 
-assert.match(companion, /createCompanionUpgradePrestigeBinding/);
-assert.match(companion, /visual\.add\(particleGroup\)/,
-  'companion prestige must remain attached to the real companion visual');
+assert.match(companion, /import \{ createVisibleUpgradePrestige3D \}/,
+  'companion prestige must use the same bounded model-local helper');
+assert.match(companion, /createVisibleUpgradePrestige3D\(THREE, visual,[\s\S]*slot: 'companion'/,
+  'the real companion visual must own its bounded prestige binding');
+assert.match(companion, /visibleBinding\.update\(staticFallback \? 0 : actionPulse\)/,
+  'companion prestige must react to the actual companion action pulse');
+assert.match(companion, /visibleBinding\.dispose\(\)/,
+  'companion prestige geometry must be disposed with the companion visual');
 assert.match(companion, /if \(tier < 3\)/,
   'companion levels one and two must remain effect-free');
+assert.doesNotMatch(companion, /visual\.traverse|RingGeometry|material\.emissive|CompanionUpgradePrestigeAura/,
+  'companion prestige must not recolor the complete model or create a broad ring aura');
 assert.doesNotMatch(companion, /document\.createElement|appendChild|position:\s*fixed/,
   'companion prestige must not create a screen-space surrogate');
 
