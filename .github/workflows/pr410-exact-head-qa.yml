@@ -1,0 +1,215 @@
+name: PR 410 Exact-Head Prestige QA
+
+on:
+  push:
+    branches:
+      - fix/visible-bounded-upgrade-prestige
+    paths:
+      - '.github/workflows/pr410-exact-head-qa.yml'
+      - 'package.json'
+      - 'scripts/validate-visible-upgrade-prestige.mjs'
+      - 'scripts/validate-companion-combat-prestige.mjs'
+      - 'scripts/validate-upgrade-visual-tiers.mjs'
+      - 'artifacts/dungeon-rpg/**'
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr410-exact-head-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_PATH: /DungeonVeil/
+  DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish factual run beacon
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- pr410-exact-head-qa -->';
+            const body = `${marker}\nstatus: running\nhead: ${context.sha}\nrun_id: ${context.runId}\nrun_url: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\nscope: contracts, production build and four-device portrait prestige evidence`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 410,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: 410,
+                body,
+              });
+            }
+
+  contracts:
+    needs: announce
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Validate visible prestige contract
+        run: pnpm run audit:visible-upgrade-prestige
+      - name: Validate evidence manifest contract
+        run: node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs --self-test
+      - name: Verify TypeScript and existing source contracts
+        run: pnpm run typecheck
+      - name: Build production output
+        run: pnpm --dir artifacts/dungeon-rpg run build
+      - name: Upload exact-head production output
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr410-build-${{ github.sha }}
+          path: artifacts/dungeon-rpg/dist/public
+          if-no-files-found: error
+          retention-days: 1
+
+  portrait-evidence:
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+          - project: android-chromium
+            browser: chromium
+          - project: ipad-portrait-webkit
+            browser: webkit
+          - project: android-tablet-chromium
+            browser: chromium
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install browser and system dependencies
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Download exact-head production output
+        uses: actions/download-artifact@v4
+        with:
+          name: pr410-build-${{ github.sha }}
+          path: artifacts/dungeon-rpg/dist/public
+      - name: Run both prestige journeys on the real portrait project
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > /tmp/pr410-preview-${{ matrix.project }}.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent "$DUNGEON_VEIL_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/visible-upgrade-prestige.spec.mjs \
+            tests/upgrade-prestige-visual.spec.mjs \
+            --config=playwright.visible-prestige.config.mjs \
+            --project=${{ matrix.project }}
+      - name: Normalize exact-head video evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          index=0
+          for video in artifacts/dungeon-rpg/test-results/**/video.webm; do
+            index=$((index + 1))
+            mv "$video" "artifacts/dungeon-rpg/test-results/visible-prestige-video-${{ matrix.project }}-${index}.webm"
+          done
+          test "$index" -ge 1
+      - name: Create exact-head evidence manifest
+        if: always()
+        run: |
+          node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs \
+            artifacts/dungeon-rpg/test-results \
+            artifacts/dungeon-rpg/test-results/visible-prestige-evidence-manifest-${{ matrix.project }}.json
+      - name: Enforce evidence budget
+        if: always()
+        run: >-
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --max-mb 100
+          --label "pr410-${{ matrix.project }}"
+          artifacts/dungeon-rpg/test-results
+          /tmp/pr410-preview-${{ matrix.project }}.log
+      - name: Upload exact-head portrait evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr410-prestige-evidence-${{ matrix.project }}
+          path: |
+            artifacts/dungeon-rpg/test-results/*.png
+            artifacts/dungeon-rpg/test-results/*.webm
+            artifacts/dungeon-rpg/test-results/*.json
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/test-failed-*.png
+            /tmp/pr410-preview-${{ matrix.project }}.log
+          if-no-files-found: error
+          retention-days: 14
+
+  report:
+    if: always()
+    needs: [announce, contracts, portrait-evidence]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish exact run result
+        uses: actions/github-script@v7
+        env:
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          PORTRAIT_RESULT: ${{ needs.portrait-evidence.result }}
+        with:
+          script: |
+            const marker = '<!-- pr410-exact-head-qa -->';
+            const successful = process.env.CONTRACTS_RESULT === 'success' && process.env.PORTRAIT_RESULT === 'success';
+            const body = `${marker}\nstatus: ${successful ? 'success' : 'failure'}\nhead: ${context.sha}\nrun_id: ${context.runId}\nrun_url: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\ncontracts: ${process.env.CONTRACTS_RESULT}\nfour_device_portrait_evidence: ${process.env.PORTRAIT_RESULT}\nnext: ${successful ? 'download and manually inspect every hash-distinct screenshot and video before Ready' : 'inspect failed jobs and fix the deterministic exact-head defect'}`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 410,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (!existing) throw new Error('Exact-head run beacon comment is missing');
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+            if (!successful) core.setFailed('Exact-head PR 410 QA failed');
