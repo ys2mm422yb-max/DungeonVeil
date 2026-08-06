@@ -6,6 +6,7 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 const INCLUDED_PREFIXES = [
   'autopilot-',
   'visual-',
+  'visible-prestige-',
   'chapter-evidence-',
   'mobile-resource-upgrade-',
   'companion-damage-feedback-',
@@ -97,20 +98,21 @@ async function selfTest() {
     png.writeUInt32BE(390, 16);
     png.writeUInt32BE(844, 20);
     await fs.writeFile(path.join(root, 'visual-z-device.png'), png);
+    await fs.writeFile(path.join(root, 'visible-prestige-device.png'), png);
     await fs.writeFile(path.join(root, 'companion-damage-feedback-device.png'), png);
     await fs.writeFile(path.join(root, 'autopilot-a-device.webm'), Buffer.from('video'));
     await fs.writeFile(path.join(root, 'autopilot-b-device.webm'), Buffer.from('video'));
     const output = path.join(root, 'manifest.json');
     const manifest = await createManifest(root, output);
-    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,autopilot-b-device.webm,companion-damage-feedback-device.png,visual-z-device.png') {
-      throw new Error('Manifest ordering or companion damage inclusion is not deterministic');
+    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,autopilot-b-device.webm,companion-damage-feedback-device.png,visible-prestige-device.png,visual-z-device.png') {
+      throw new Error('Manifest ordering or visible prestige inclusion is not deterministic');
     }
-    if (manifest.mediaFiles !== 4 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 2) {
+    if (manifest.mediaFiles !== 5 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 2) {
       throw new Error('Manifest duplicate hash summary is invalid');
     }
-    const companionEntry = manifest.files.find((entry) => entry.path === 'companion-damage-feedback-device.png');
-    if (!companionEntry || companionEntry.png.width !== 390 || companionEntry.png.height !== 844 || companionEntry.sha256.length !== 64) {
-      throw new Error('Companion damage evidence is not manifest-backed with valid PNG metadata');
+    const prestigeEntry = manifest.files.find((entry) => entry.path === 'visible-prestige-device.png');
+    if (!prestigeEntry || prestigeEntry.png.width !== 390 || prestigeEntry.png.height !== 844 || prestigeEntry.sha256.length !== 64) {
+      throw new Error('Visible prestige evidence is not manifest-backed with valid PNG metadata');
     }
     await fs.writeFile(path.join(root, 'visual-invalid.png'), Buffer.from('not-png'));
     let rejected = false;
