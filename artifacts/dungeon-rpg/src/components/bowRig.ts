@@ -100,7 +100,10 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any): Upg
     dungeonVeilBowUpgradeTier: tier,
   };
 
-  if (tier < 3) return emptyUpgradeBinding();
+  if (tier < 3) return {
+    update: (_attackPulse: number) => undefined,
+    dispose: () => undefined,
+  };
 
   const visibleBinding = createVisibleUpgradePrestige3D(THREE, bow, {
     slot: 'bow',
