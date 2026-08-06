@@ -1,0 +1,30 @@
+/* Mobile correction for the upgrade-prestige regressions reported after PR #406. */
+
+/* A stale cached overlay must never paint full-screen equipment silhouettes. */
+[data-testid="equipped-upgrade-prestige-overlay"] {
+  display: none !important;
+}
+
+/* Keep the equipment scroller below the iOS status-bar safe area even after scrolling. */
+[data-testid="forge-mark-chamber-wrapper"] > div.fixed.inset-0 {
+  top: env(safe-area-inset-top) !important;
+  bottom: 0 !important;
+  height: auto !important;
+}
+
+/* Equipment prestige may decorate only an explicit local item surface. */
+[data-upgrade-binding^="equipment:"] {
+  overflow: hidden;
+}
+
+/* Generic upgrade-stat panels must never inherit an equipment prestige treatment. */
+[data-testid="equipment-upgrade-preview"][data-upgrade-binding],
+[data-testid="equipment-upgrade-max"][data-upgrade-binding] {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+[data-testid="equipment-upgrade-preview"][data-upgrade-binding]::after,
+[data-testid="equipment-upgrade-max"][data-upgrade-binding]::after {
+  display: none !important;
+}
