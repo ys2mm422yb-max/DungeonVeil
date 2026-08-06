@@ -34,9 +34,6 @@ function authoredBowAxisCorrection(THREE: any, bow: any) {
   bow.traverse?.((node: any) => names.push(normalizeName(node.name)));
   const key = names.join('|');
 
-  // Ranger weapon loading wraps authored X-axis Fantasy Weapons bows and
-  // rotates the child by -90 degrees. The wrapper remains at identity so the
-  // same normalized model works in player, enemy, Codex and menu hand slots.
   const alreadyNormalized = bow.userData?.dungeonVeilBowNormalized === true;
   const namedFantasyBow = /(?:^|\|)bow[a-z](?:withstring)?(?:\||$)/.test(key);
   const majorAxisIsX = size.x > Math.max(size.z, size.y) * 1.3;
@@ -92,12 +89,10 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
     dungeonVeilBowUpgradeTier: tier,
   };
 
-  // Levels one and two stay byte-for-byte visually normal: no material clone,
-  // light or animation is created until the first prestige tier is reached.
   if (tier < 3) return { update: (_attackPulse: number) => undefined };
 
-  const glowColor = tier === 5 ? 0xfef08a : tier === 4 ? 0xd8b4fe : 0xa78bfa;
-  const materialStates: Array<{ material: any; baseIntensity: number }> = [];
+  const glowColor = new THREE.Color(tier === 5 ? 0xf6d778 : tier === 4 ? 0xc4a7ff : 0x9f8be8);
+  const materialStates: Array<{ material: any; baseEmissive: any; baseIntensity: number }> = [];
 
   bow.traverse?.((node: any) => {
     if (!node.isMesh || !node.material) return;
@@ -106,23 +101,25 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
     node.material = Array.isArray(node.material) ? clonedMaterials : clonedMaterials[0];
 
     for (const material of clonedMaterials) {
-      if (!material?.emissive?.setHex) continue;
-      const baseIntensity = Number(material.emissiveIntensity ?? 0);
-      material.emissive.setHex(glowColor);
-      material.emissiveIntensity = baseIntensity + profile.edgeGlow * 0.72;
+      if (!material?.emissive?.copy) continue;
+      materialStates.push({
+        material,
+        baseEmissive: material.emissive.clone?.() ?? null,
+        baseIntensity: Number(material.emissiveIntensity ?? 0),
+      });
       material.needsUpdate = true;
-      materialStates.push({ material, baseIntensity });
     }
   });
 
   const glowLight = new THREE.PointLight(
-    glowColor,
-    0.18 + profile.edgeGlow * 0.82,
-    tier === 5 ? 2.4 : tier === 4 ? 1.9 : 1.45,
+    glowColor.getHex(),
+    0,
+    tier === 5 ? 1.05 : tier === 4 ? 0.88 : 0.72,
     2,
   );
   glowLight.name = 'DungeonVeilBowUpgradePrestige';
   glowLight.position.set(0, 0.08, 0);
+  glowLight.castShadow = false;
   bow.add(glowLight);
 
   const update = (attackPulse: number) => {
@@ -132,14 +129,19 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
     const edgeGlow = staticFallback ? profile.staticFallbackStrength : profile.edgeGlow;
     const ambientPulse = staticFallback || profile.pulseStrength === 0
       ? 0
-      : Math.sin(now * (0.0016 + profile.lightSweepSpeed * 0.003)) * profile.pulseStrength;
-    const attackBoost = staticFallback ? 0 : Math.max(0, Math.min(1, attackPulse)) * profile.pulseStrength;
-    const strength = edgeGlow * Math.max(0.58, 0.78 + ambientPulse + attackBoost);
+      : Math.sin(now * (0.001 + profile.lightSweepSpeed * 0.0018)) * profile.pulseStrength * 0.4;
+    const attackBoost = staticFallback ? 0 : Math.max(0, Math.min(1, attackPulse)) * profile.pulseStrength * 0.55;
+    const strength = Math.max(0, edgeGlow * (0.42 + ambientPulse + attackBoost));
+    const blend = Math.min(0.2, strength * 0.24);
 
     for (const state of materialStates) {
-      state.material.emissiveIntensity = state.baseIntensity + strength;
+      if (state.baseEmissive && state.material.emissive?.copy) {
+        state.material.emissive.copy(state.baseEmissive);
+        state.material.emissive.lerp(glowColor, blend);
+      }
+      state.material.emissiveIntensity = state.baseIntensity + strength * 0.22;
     }
-    glowLight.intensity = 0.12 + strength * (tier === 5 ? 1.45 : 1.12);
+    glowLight.intensity = Math.min(0.18, strength * 0.2);
   };
 
   update(0);
@@ -156,16 +158,15 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
   const armorLevel = Number(meta.owned[armorId]?.level ?? 1);
   const quiverLevel = Number(meta.owned[quiverId]?.level ?? 1);
 
-  // This runs before the bow is parented, so the armor traversal cannot clone
-  // or tint bow/quiver materials and each equipped slot remains independent.
   const armorBinding = attachEquipmentUpgradePrestige3D(THREE, heroRoot, {
     slot: 'armor',
     level: armorLevel,
-    binding: 'in-run-player-armor-mesh',
+    binding: 'in-run-player-armor-model-local-motes',
   });
   heroRoot.userData = {
     ...(heroRoot.userData ?? {}),
     dungeonVeilArmorUpgradeTier: armorBinding.tier,
+    dungeonVeilArmorUpgradeMaterialTint: false,
     dungeonVeilQuiverUpgradeTier: normalizeUpgradeVisualTier(quiverLevel),
   };
 
@@ -247,7 +248,6 @@ export function attachBowToRanger(
       bow.position.copy(basePosition);
       bow.rotation.copy(baseRotation);
 
-      // Keep the grip fixed. The character animation sells the shot; only add a tiny recoil.
       bow.position.z -= pulse * 0.012;
       bow.rotation.x -= pulse * 0.018;
 
