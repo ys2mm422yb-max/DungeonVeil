@@ -18,7 +18,7 @@ export default defineConfig({
     serviceWorkers: 'block',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
-    video: 'retain-on-failure',
+    video: 'on',
   },
   projects: [
     {
