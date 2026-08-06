@@ -21,6 +21,8 @@ const [runtime, runtimeEvidence, journey, workflow, readability, app, manifestGe
 
 assert.match(runtime, /const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;/,
   'portrait feedback lifetime must remain the fixed product contract');
+assert.match(runtime, /const RECENT_COMBAT_TARGET_MS = 1_200;/,
+  'critical support must retain only a short bounded target memory for a same-frame killing blow');
 assert.match(runtime, /function projectCompanionDamage\(state: GameState, feedback: CompanionDamageFeedback\)/);
 assert.match(runtime, /if \(depth <= 0\.1\) return null;/,
   'only a point behind the camera may be rejected');
@@ -37,10 +39,16 @@ assert.match(runtime, /data-feedback-projected=\{projectedFeedback \? 'true' : '
 assert.match(runtime, /data-feedback-target=\{damageFeedback\?\.targetId \?\? ''\}/);
 assert.match(runtime, /data-projection-clamped=\{projectedFeedback\.clamped \? 'true' : 'false'\}/);
 assert.match(runtime, /publishDamageFeedback\(activeRole, target, damage\.damage, definition\.accent, false, now\)/);
-assert.match(runtime, /publishDamageFeedback\(activeRole, target, damage\.damage, definition\.accent, true, now\)/);
+assert.match(runtime, /publishDamageFeedback\(activeRole, criticalTarget, damage\.damage, definition\.accent, true, now\)/);
 assert.match(runtime, /if \(canWriteEnemies && damage\.damage > 0\)/);
-assert.match(runtime, /const playerAttack = state\.player\.lastAttackTime;[\s\S]*playerAttack > lastPlayerAttackRef\.current[\s\S]*publishDamageFeedback\(activeRole, target, damage\.damage, definition\.accent, true, now\)/,
+assert.match(runtime, /const recentCombatTargetRef = useRef<RecentCombatTarget \| null>\(null\);[\s\S]*recentCombatTargetRef\.current = null;/,
+  'recent target memory must be explicit and reset with companion lifecycle changes');
+assert.match(runtime, /const previousCombatTarget = recentCombatTargetRef\.current;[\s\S]*const recentTarget = previousCombatTarget && now - previousCombatTarget\.observedAt <= RECENT_COMBAT_TARGET_MS[\s\S]*const criticalTarget = recentTarget \?\? target;/,
+  'critical support must prefer the immediately preceding real combat target while the bounded window is valid');
+assert.match(runtime, /const playerAttack = state\.player\.lastAttackTime;[\s\S]*playerAttack > lastPlayerAttackRef\.current[\s\S]*publishDamageFeedback\(activeRole, criticalTarget, damage\.damage, definition\.accent, true, now\)/,
   'critical-support feedback must remain causally gated by a monotonic authoritative player attack');
+assert.match(runtime, /if \(!criticalTarget\.isDead && criticalTarget\.hp > 0\)[\s\S]*publishDamageFeedback\(activeRole, criticalTarget, damage\.damage, definition\.accent, true, now\)/,
+  'a killing blow may retain readable feedback without applying duplicate damage to an already defeated target');
 assert.equal((runtime.match(/state\.damageNumbers\.push\(/g) ?? []).length, 1,
   'dedicated companion values must not be duplicated in the legacy number layer');
 assert.match(runtime, /data-testid="companion-damage-feedback-layer"/);
