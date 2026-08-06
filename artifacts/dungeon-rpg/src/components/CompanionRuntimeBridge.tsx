@@ -17,6 +17,7 @@ export const COMPANION_ACTION_EVENT_V4 = 'dungeon-veil-companion-action-v4';
 
 const TILE = 40;
 const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;
+const RECENT_COMBAT_TARGET_MS = 1_200;
 type CompanionAuthority = 'solo' | 'host' | 'guest' | 'unknown';
 
 type Props = {
@@ -39,6 +40,11 @@ type CompanionDamageFeedback = {
 };
 
 type ProjectedPoint = { left: number; top: number; clamped: boolean };
+
+type RecentCombatTarget = {
+  target: GameState['enemies'][number];
+  observedAt: number;
+};
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
 
@@ -166,7 +172,9 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   const basicAttackCountRef = useRef(0);
   const lastSpecialActionRef = useRef(0);
   const lastPlayerAttackRef = useRef(gameState.player.lastAttackTime);
+  const recentCombatTargetRef = useRef<RecentCombatTarget | null>(null);
   const feedbackTimerRef = useRef<number | null>(null);
+  const feedbackPaintTokenRef = useRef(0);
   const [damageFeedback, setDamageFeedback] = useState<CompanionDamageFeedback | null>(null);
   stateRef.current = gameState;
   roleRef.current = role;
@@ -179,6 +187,8 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     basicAttackCountRef.current = 0;
     lastSpecialActionRef.current = 0;
     lastPlayerAttackRef.current = gameState.player.lastAttackTime;
+    recentCombatTargetRef.current = null;
+    feedbackPaintTokenRef.current += 1;
     if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
     feedbackTimerRef.current = null;
     setDamageFeedback(null);
@@ -222,12 +232,20 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         worldY: target.enemyType === 'boss' ? 1.35 : 0.82,
         critical,
       };
+      const paintToken = ++feedbackPaintTokenRef.current;
       if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
       setDamageFeedback(feedback);
-      feedbackTimerRef.current = window.setTimeout(() => {
-        setDamageFeedback(current => current?.id === feedback.id ? null : current);
-        feedbackTimerRef.current = null;
-      }, COMPANION_DAMAGE_FEEDBACK_MS);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (feedbackPaintTokenRef.current !== paintToken) return;
+          feedbackTimerRef.current = window.setTimeout(() => {
+            if (feedbackPaintTokenRef.current !== paintToken) return;
+            setDamageFeedback(current => current?.id === feedback.id ? null : current);
+            feedbackTimerRef.current = null;
+          }, COMPANION_DAMAGE_FEEDBACK_MS);
+        });
+      });
     };
 
     const tick = () => {
@@ -245,12 +263,17 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       });
       const canWriteEnemies = modeRef.current === 'solo' || authorityRef.current === 'host';
       const target = nearestEnemy(state);
+      const previousCombatTarget = recentCombatTargetRef.current;
 
       if (state.status !== 'playing' || state.player.hp <= 0) {
         previousHpRef.current = state.player.hp;
         lastPlayerAttackRef.current = state.player.lastAttackTime;
+        recentCombatTargetRef.current = null;
         return;
       }
+
+      if (target) recentCombatTargetRef.current = { target, observedAt: now };
+      else if (previousCombatTarget && now - previousCombatTarget.observedAt > RECENT_COMBAT_TARGET_MS) recentCombatTargetRef.current = null;
 
       if (target && now - lastBasicAttackRef.current >= companionAttackIntervalV5(activeLevel)) {
         const origin = localCompanionOrigin(state);
@@ -292,18 +315,24 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
 
       if (activeRole === 'critical-support') {
         const playerAttack = state.player.lastAttackTime;
-        if (target && playerAttack > lastPlayerAttackRef.current && now - lastSpecialActionRef.current >= 2_600) {
+        const recentTarget = previousCombatTarget && now - previousCombatTarget.observedAt <= RECENT_COMBAT_TARGET_MS
+          ? previousCombatTarget.target
+          : null;
+        const criticalTarget = recentTarget ?? target;
+        if (criticalTarget && playerAttack > lastPlayerAttackRef.current && now - lastSpecialActionRef.current >= 2_600) {
           const damage = companionDamageAttributionV4(reservation, state.player.attack * power * 0.72);
           if (canWriteEnemies && damage.damage > 0) {
-            target.hp -= damage.damage;
-            target.flashUntil = now + 110;
-            target.lastHitTime = now;
-            publishDamageFeedback(activeRole, target, damage.damage, definition.accent, true, now);
+            if (!criticalTarget.isDead && criticalTarget.hp > 0) {
+              criticalTarget.hp -= damage.damage;
+              criticalTarget.flashUntil = now + 110;
+              criticalTarget.lastHitTime = now;
+            }
+            publishDamageFeedback(activeRole, criticalTarget, damage.damage, definition.accent, true, now);
           }
           pushBoundedCompanionEffect(state, 2, {
             id: `companion-v5-critical-${now}`,
-            x: target.x + target.width / 2,
-            y: target.y + target.height / 2,
+            x: criticalTarget.x + criticalTarget.width / 2,
+            y: criticalTarget.y + criticalTarget.height / 2,
             radius: 0,
             maxRadius: 50,
             color: definition.accent,
@@ -312,7 +341,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
             type: 'circle',
             element: 'arcane',
           });
-          emitCompanionAction(activeRole, activeLevel, 'attack', target.id);
+          emitCompanionAction(activeRole, activeLevel, 'attack', criticalTarget.id);
           lastSpecialActionRef.current = now;
         }
         lastPlayerAttackRef.current = playerAttack;
@@ -383,6 +412,8 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     const interval = window.setInterval(tick, 100);
     return () => {
       window.clearInterval(interval);
+      recentCombatTargetRef.current = null;
+      feedbackPaintTokenRef.current += 1;
       if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
       feedbackTimerRef.current = null;
     };
