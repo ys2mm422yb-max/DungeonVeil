@@ -34,6 +34,14 @@ assert.match(helper, /prefersReducedMotion/,
   'Reduced Motion must retain a static fallback');
 assert.match(helper, /rendererRecoveryActive\(\)/,
   'renderer recovery must be reevaluated while the binding is alive');
+assert.match(helper, /const ACTIVE_VISIBLE_BINDINGS = new Map/,
+  'direct renderer bindings must own a shared factual registry');
+assert.match(helper, /dungeonVeilVisibleUpgradeBindingCount = String\(active\.length\)/,
+  'the registry must expose the real active 3D binding count');
+assert.match(helper, /registerVisibleBinding\(registryKey, options\.slot, tier\)/,
+  'each real level 3-5 model binding must register itself');
+assert.match(helper, /unregisterVisibleBinding\(registryKey\)/,
+  'disposed models must leave the visible prestige registry');
 assert.doesNotMatch(helper, /document\.createElement|appendChild|position:\s*fixed|inset:\s*0|canvas/,
   '3D prestige must never create a DOM, canvas or viewport overlay');
 
