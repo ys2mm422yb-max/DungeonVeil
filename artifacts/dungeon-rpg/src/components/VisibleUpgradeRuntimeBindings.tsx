@@ -15,6 +15,7 @@ const THREE_URLS = [
 
 type RuntimeBinding = {
   object: any;
+  slot: VisibleUpgradePrestigeSlot;
   binding: VisibleUpgradePrestigeBinding3D;
   lastAttackSignal: number;
   attackPulseUntil: number;
@@ -58,6 +59,29 @@ export function VisibleUpgradeRuntimeBindings() {
     const bindings = new Map<any, RuntimeBinding>();
     const contexts: CaptureContext[] = [];
 
+    const publishTelemetry = () => {
+      const data = document.documentElement.dataset;
+      const slots = [...new Set([...bindings.values()].map(entry => entry.slot))].sort();
+      data.dungeonVeilVisibleUpgradeBindingCount = String(bindings.size);
+      data.dungeonVeilVisibleUpgradeSlots = slots.join(',');
+      for (const slot of ['bow', 'quiver', 'armor', 'companion'] as const) {
+        const entry = [...bindings.values()].find(candidate => candidate.slot === slot);
+        const key = `dungeonVeilVisibleUpgrade${slot[0].toUpperCase()}${slot.slice(1)}Tier`;
+        if (entry) data[key] = String(entry.binding.tier);
+        else delete data[key];
+      }
+    };
+
+    const clearTelemetry = () => {
+      const data = document.documentElement.dataset;
+      delete data.dungeonVeilVisibleUpgradeBindingCount;
+      delete data.dungeonVeilVisibleUpgradeSlots;
+      delete data.dungeonVeilVisibleUpgradeBowTier;
+      delete data.dungeonVeilVisibleUpgradeQuiverTier;
+      delete data.dungeonVeilVisibleUpgradeArmorTier;
+      delete data.dungeonVeilVisibleUpgradeCompanionTier;
+    };
+
     const remember = (THREE: any, object: any) => {
       if (!object || typeof object !== 'object') return;
       candidates.set(object, THREE);
@@ -71,10 +95,12 @@ export function VisibleUpgradeRuntimeBindings() {
       const binding = createVisibleUpgradePrestige3D(THREE, object, descriptor);
       bindings.set(object, {
         object,
+        slot: descriptor.slot,
         binding,
         lastAttackSignal: Number(object.userData?.rangerAttackSignal ?? 0),
         attackPulseUntil: 0,
       });
+      publishTelemetry();
     };
 
     const bindCompanionRoot = (THREE: any, root: any) => {
@@ -91,7 +117,8 @@ export function VisibleUpgradeRuntimeBindings() {
         binding: `visible:companion:${role}`,
         accentHex: definition.accentHex,
       });
-      bindings.set(visual, { object: visual, binding, lastAttackSignal: 0, attackPulseUntil: 0 });
+      bindings.set(visual, { object: visual, slot: 'companion', binding, lastAttackSignal: 0, attackPulseUntil: 0 });
+      publishTelemetry();
     };
 
     const scanCandidate = (THREE: any, candidate: any) => {
@@ -124,12 +151,14 @@ export function VisibleUpgradeRuntimeBindings() {
       if (now >= nextScanAt) {
         nextScanAt = now + 250;
         for (const [candidate, THREE] of candidates) scanCandidate(THREE, candidate);
+        publishTelemetry();
       }
 
       for (const [object, entry] of bindings) {
         if (!object.parent && !String(object.name ?? '').startsWith('KayKitPlayerBody_')) {
           entry.binding.dispose();
           bindings.delete(object);
+          publishTelemetry();
           continue;
         }
         const attackSignal = Number(object.userData?.rangerAttackSignal ?? 0);
@@ -166,6 +195,7 @@ export function VisibleUpgradeRuntimeBindings() {
       window.removeEventListener('dungeon-veil-cloud-save-restored', rescan);
       bindings.forEach(entry => entry.binding.dispose());
       bindings.clear();
+      clearTelemetry();
       for (const context of contexts) {
         const prototype = context.THREE.Object3D?.prototype;
         if (prototype?.add === context.patchedAdd) prototype.add = context.originalAdd;
