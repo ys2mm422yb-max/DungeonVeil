@@ -9,20 +9,19 @@ export type BowRig = {
   basePosition: any;
   baseRotation: any;
   updateShotPose: (pulse: number) => void;
+  dispose: () => void;
+};
+
+type UpgradeBinding = {
+  update: (activityPulse: number) => void;
+  dispose: () => void;
 };
 
 const normalizeName = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-function publishVisibleUpgradeTier(slot: 'bow' | 'quiver' | 'armor', tier: number) {
-  if (typeof document === 'undefined') return;
-  const data = document.documentElement.dataset;
-  const key = `dungeonVeilVisibleUpgrade${slot[0].toUpperCase()}${slot.slice(1)}Tier`;
-  data[key] = String(tier);
-  const slots = new Set(String(data.dungeonVeilVisibleUpgradeSlots || '').split(',').filter(Boolean));
-  if (tier >= 3) slots.add(slot);
-  else slots.delete(slot);
-  data.dungeonVeilVisibleUpgradeSlots = [...slots].sort().join(',');
-}
+const emptyUpgradeBinding = (): UpgradeBinding => ({
+  update: (_activityPulse: number) => undefined,
+  dispose: () => undefined,
+});
 
 function scoreLeftHand(name: string) {
   if (name === 'handslotl' || name.endsWith('handslotl')) return 140;
@@ -79,16 +78,15 @@ function rendererRecoveryActive() {
       || document.documentElement.dataset.dungeonVeilRendererRecovery === '1');
 }
 
-function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
+function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any): UpgradeBinding {
   const isPlayerBow = String(heroRoot?.name ?? '').startsWith('KayKitPlayerBody_');
-  if (!isPlayerBow) return { update: (_attackPulse: number) => undefined };
+  if (!isPlayerBow) return emptyUpgradeBinding();
 
   const meta = loadMetaProgression();
   const bowId = meta.equipped.bow;
   const tier = normalizeUpgradeVisualTier(Number(meta.owned[bowId]?.level ?? 1));
   const profile = getUpgradeVisualProfile(tier);
   const staticFallbackActive = () => prefersReducedMotion() || rendererRecoveryActive();
-  publishVisibleUpgradeTier('bow', tier);
 
   bow.userData = {
     ...(bow.userData ?? {}),
@@ -102,7 +100,7 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
     dungeonVeilBowUpgradeTier: tier,
   };
 
-  if (tier < 3) return { update: (_attackPulse: number) => undefined };
+  if (tier < 3) return emptyUpgradeBinding();
 
   const visibleBinding = createVisibleUpgradePrestige3D(THREE, bow, {
     slot: 'bow',
@@ -140,7 +138,9 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
   glowLight.castShadow = false;
   bow.add(glowLight);
 
+  let disposed = false;
   const update = (attackPulse: number) => {
+    if (disposed) return;
     const staticFallback = staticFallbackActive();
     bow.userData.dungeonVeilUpgradeStaticFallback = staticFallback;
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
@@ -164,20 +164,30 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
   };
 
   update(0);
-  return { update };
+  return {
+    update,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      visibleBinding.dispose();
+      bow.remove?.(glowLight);
+      for (const state of materialStates) {
+        if (state.baseEmissive && state.material.emissive?.copy) state.material.emissive.copy(state.baseEmissive);
+        state.material.emissiveIntensity = state.baseIntensity;
+      }
+    },
+  };
 }
 
-function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
+function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any): UpgradeBinding {
   const isPlayerBody = String(heroRoot?.name ?? '').startsWith('KayKitPlayerBody_');
-  if (!isPlayerBody) return { update: (_activityPulse: number) => undefined };
+  if (!isPlayerBody) return emptyUpgradeBinding();
 
   const meta = loadMetaProgression();
   const armorId = meta.equipped.armor;
   const quiverId = meta.equipped.quiver;
   const armorLevel = Number(meta.owned[armorId]?.level ?? 1);
   const quiverLevel = Number(meta.owned[quiverId]?.level ?? 1);
-  publishVisibleUpgradeTier('armor', normalizeUpgradeVisualTier(armorLevel));
-  publishVisibleUpgradeTier('quiver', normalizeUpgradeVisualTier(quiverLevel));
 
   const armorBinding = attachEquipmentUpgradePrestige3D(THREE, heroRoot, {
     slot: 'armor',
@@ -199,9 +209,10 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
   let quiverBinding: EquipmentUpgradeBinding3D | null = null;
   let quiverVisibleBinding: VisibleUpgradePrestigeBinding3D | null = null;
   let remainingQuiverSearches = 16;
+  let disposed = false;
 
   const bindQuiverWhenAttached = () => {
-    if (quiverBinding || remainingQuiverSearches <= 0) return;
+    if (disposed || quiverBinding || remainingQuiverSearches <= 0) return;
     remainingQuiverSearches -= 1;
     let equippedQuiver: any = null;
     heroRoot.traverse?.((node: any) => {
@@ -224,11 +235,18 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
 
   return {
     update(activityPulse: number) {
+      if (disposed) return;
       bindQuiverWhenAttached();
       armorBinding.update(activityPulse);
       armorVisibleBinding.update(activityPulse);
       quiverBinding?.update(activityPulse);
       quiverVisibleBinding?.update(activityPulse);
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      armorVisibleBinding.dispose();
+      quiverVisibleBinding?.dispose();
     },
   };
 }
@@ -242,6 +260,7 @@ export function attachBowToRanger(
   let anchor = heroRoot;
   let bestScore = 0;
   let previousPulse = 0;
+  let disposed = false;
 
   heroRoot.traverse((node: any) => {
     const score = scoreLeftHand(normalizeName(node.name));
@@ -270,6 +289,16 @@ export function attachBowToRanger(
   const basePosition = bow.position.clone();
   const baseRotation = bow.rotation.clone();
   const upgradeBinding = createPlayerBowUpgradeBinding(THREE, heroRoot, bow);
+  const lifecycleRoot = heroRoot.parent ?? heroRoot;
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    lifecycleRoot.removeEventListener?.('removed', dispose);
+    upgradeBinding.dispose();
+    equipmentUpgradeBinding.dispose();
+  };
+  lifecycleRoot.addEventListener?.('removed', dispose);
 
   return {
     bow,
@@ -277,6 +306,7 @@ export function attachBowToRanger(
     basePosition,
     baseRotation,
     updateShotPose(pulse: number) {
+      if (disposed) return;
       if (pulse > 0.82 && previousPulse <= 0.82) heroRoot.userData.rangerAttackSignal = (heroRoot.userData.rangerAttackSignal ?? 0) + 1;
       previousPulse = pulse;
       bow.position.copy(basePosition);
@@ -292,5 +322,6 @@ export function attachBowToRanger(
       upgradeBinding.update(pulse);
       equipmentUpgradeBinding.update(pulse);
     },
+    dispose,
   };
 }
