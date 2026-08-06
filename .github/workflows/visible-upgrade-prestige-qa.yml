@@ -10,10 +10,12 @@ on:
       - 'package.json'
       - 'scripts/validate-visible-upgrade-prestige.mjs'
       - 'artifacts/dungeon-rpg/src/App.tsx'
-      - 'artifacts/dungeon-rpg/src/components/VisibleUpgradeRuntimeBindings.tsx'
+      - 'artifacts/dungeon-rpg/src/components/bowRig.ts'
+      - 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts'
       - 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige3D.ts'
       - 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige.css'
       - 'artifacts/dungeon-rpg/tests/visible-upgrade-prestige.spec.mjs'
+      - 'artifacts/dungeon-rpg/tests/upgrade-prestige-visual.spec.mjs'
       - 'artifacts/dungeon-rpg/playwright.visible-prestige.config.mjs'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -24,10 +26,12 @@ on:
       - 'package.json'
       - 'scripts/validate-visible-upgrade-prestige.mjs'
       - 'artifacts/dungeon-rpg/src/App.tsx'
-      - 'artifacts/dungeon-rpg/src/components/VisibleUpgradeRuntimeBindings.tsx'
+      - 'artifacts/dungeon-rpg/src/components/bowRig.ts'
+      - 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts'
       - 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige3D.ts'
       - 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige.css'
       - 'artifacts/dungeon-rpg/tests/visible-upgrade-prestige.spec.mjs'
+      - 'artifacts/dungeon-rpg/tests/upgrade-prestige-visual.spec.mjs'
       - 'artifacts/dungeon-rpg/playwright.visible-prestige.config.mjs'
 
 permissions:
@@ -104,7 +108,7 @@ jobs:
         with:
           name: visible-prestige-build-${{ github.sha }}
           path: artifacts/dungeon-rpg/dist/public
-      - name: Run visible prestige portrait journey
+      - name: Run visible prestige portrait journeys
         shell: bash
         run: |
           set -o pipefail
@@ -116,7 +120,9 @@ jobs:
             sleep 1
           done
           curl --fail "$DUNGEON_VEIL_URL" > /dev/null
-          pnpm --dir artifacts/dungeon-rpg exec playwright test tests/visible-upgrade-prestige.spec.mjs \
+          pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/visible-upgrade-prestige.spec.mjs \
+            tests/upgrade-prestige-visual.spec.mjs \
             --config=playwright.visible-prestige.config.mjs \
             --project=${{ matrix.project }}
       - name: Upload exact-head visible prestige evidence
