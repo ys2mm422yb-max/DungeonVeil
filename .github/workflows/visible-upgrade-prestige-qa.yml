@@ -129,6 +129,18 @@ jobs:
             tests/upgrade-prestige-visual.spec.mjs \
             --config=playwright.visible-prestige.config.mjs \
             --project=${{ matrix.project }}
+      - name: Normalize prestige video evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          index=0
+          for video in artifacts/dungeon-rpg/test-results/**/video.webm; do
+            index=$((index + 1))
+            mv "$video" "artifacts/dungeon-rpg/test-results/visible-prestige-video-${{ matrix.project }}-${index}.webm"
+          done
+          test "$index" -ge 1
       - name: Create exact-head evidence manifest
         if: always()
         run: |
@@ -142,6 +154,7 @@ jobs:
           name: visible-prestige-evidence-${{ matrix.project }}
           path: |
             artifacts/dungeon-rpg/test-results/*.png
+            artifacts/dungeon-rpg/test-results/*.webm
             artifacts/dungeon-rpg/test-results/*.json
             artifacts/dungeon-rpg/test-results/**/trace.zip
             artifacts/dungeon-rpg/test-results/**/video.webm
