@@ -385,6 +385,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     },
     stop() {
       if (typeof window !== 'undefined') window.removeEventListener(PLAYER_BOW_EVENT, handleBowEvent);
+      bowRig.dispose();
       mixer.stopAllAction();
     },
   };
