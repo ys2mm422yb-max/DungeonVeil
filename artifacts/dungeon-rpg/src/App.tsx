@@ -8,8 +8,10 @@ import { LootVisualQaStage } from './components/LootVisualQaStage';
 import { GuildRaidModePortal } from './components/GuildRaidModePortal';
 import { GuildRaidRunPortal } from './components/GuildRaidRunPortal';
 import { UpgradeTierSurfaceBindings } from './components/UpgradeTierSurfaceBindings';
+import { VisibleUpgradeRuntimeBindings } from './components/VisibleUpgradeRuntimeBindings';
 import './components/companionDamageFeedback.css';
 import './components/upgradePrestigeMobileHotfix.css';
+import './components/visibleUpgradePrestige.css';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <TooltipProvider>
+          <VisibleUpgradeRuntimeBindings />
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
             <Router />
           </WouterRouter>
