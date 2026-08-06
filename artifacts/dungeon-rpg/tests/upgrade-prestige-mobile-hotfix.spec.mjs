@@ -109,10 +109,15 @@ test('mobile prestige stays local, item-accurate and below the iPhone safe area'
 
   await scrollRoot.evaluate(element => element.scrollTo({ top: 0, behavior: 'instant' }));
   await page.waitForTimeout(150);
-  await tap(page.getByRole('button', { name: /Zurück|Back/i }).first());
-  await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
-  await tap(page.getByRole('button', { name: /SPIELEN|PLAY/i }).first());
-  await tap(page.getByRole('button', { name: /Solo-Run|Solo Run/i }));
+  const equipmentBack = page.getByRole('button', { name: /^(Zurück|Back)$/i }).first();
+  await expect(equipmentBack).toBeVisible({ timeout: 60_000 });
+  await equipmentBack.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, isPrimary: true });
+  await expect(page.getByTestId('equipment-category-tabs')).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.getByTestId('player-profile-panel')).toHaveCount(0, { timeout: 60_000 });
+  const menuControls = page.getByTestId('main-menu-control-stack');
+  await expect(menuControls).toBeVisible({ timeout: 60_000 });
+  await tap(menuControls.getByRole('button', { name: /^(SPIELEN|PLAY)\b/i }).first());
+  await tap(page.getByRole('button', { name: /^(Solo-Run|Solo Run)\b/i }).first());
   const runHud = page.getByTestId('run-hud');
   const namePrompt = page.getByTestId('run-name-prompt');
   await expect(namePrompt.or(runHud).first()).toBeVisible({ timeout: 60_000 });
