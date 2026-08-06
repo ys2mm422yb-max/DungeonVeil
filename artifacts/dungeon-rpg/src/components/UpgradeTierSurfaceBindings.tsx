@@ -5,6 +5,7 @@ import {
   loadCompanionCollectionV5,
 } from '../game/companionCollectionV5';
 import { EQUIPMENT, loadMetaProgression, type EquipmentId } from '../game/metaProgression';
+import { equipmentVisualProfile } from '../game/equipmentVisuals';
 import { getUpgradeVisualProfile, normalizeUpgradeVisualTier } from '../lib/upgradeVisualTiers';
 import { createCompanionUpgradePrestigeBinding } from './companionUpgradePrestige3D';
 
@@ -12,13 +13,15 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const BOUND_CLASS = 'dungeon-veil-upgrade-bound-surface';
 const STYLE_ID = 'dungeon-veil-upgrade-surface-style';
-const EQUIPMENT_CARD_SELECTORS = [
+const EQUIPMENT_SURFACE_SELECTORS = [
   '[data-testid="equipment-model-preview"]',
-  '[data-testid="equipment-upgrade-preview"]',
+  '[data-equipment-id]',
   '[data-testid^="equipment-card-"]',
   '[data-testid^="equipment-item-"]',
   '[data-testid^="inventory-item-"]',
 ].join(',');
+
+const EQUIPMENT_IDS = Object.keys(EQUIPMENT) as EquipmentId[];
 
 type CompanionCombatBinding = {
   role: keyof typeof COMPANION_DEFINITIONS_V5;
@@ -27,15 +30,40 @@ type CompanionCombatBinding = {
   actionEndsAt: number;
 };
 
+function validOwnedEquipmentId(value: string | undefined, meta: ReturnType<typeof loadMetaProgression>): EquipmentId | null {
+  if (!value || !Object.prototype.hasOwnProperty.call(EQUIPMENT, value)) return null;
+  const id = value as EquipmentId;
+  return meta.owned[id] ? id : null;
+}
+
 function equipmentForSurface(surface: HTMLElement, meta: ReturnType<typeof loadMetaProgression>) {
+  const explicit = validOwnedEquipmentId(surface.dataset.equipmentId, meta);
+  if (explicit) return { id: explicit, level: meta.owned[explicit]?.level ?? 1 };
+
   const testId = surface.dataset.testid ?? '';
-  const direct = Object.keys(EQUIPMENT).find(id => testId.includes(id)) as EquipmentId | undefined;
+  const direct = EQUIPMENT_IDS.find(id =>
+    testId === id
+    || testId.endsWith(`-${id}`)
+    || testId === `equipment-card-${id}`
+    || testId === `equipment-item-${id}`
+    || testId === `inventory-item-${id}`
+  );
   if (direct && meta.owned[direct]) return { id: direct, level: meta.owned[direct]?.level ?? 1 };
 
-  const readable = surface.closest('section')?.textContent ?? surface.parentElement?.textContent ?? surface.textContent ?? '';
-  const match = Object.values(EQUIPMENT).find(item => readable.includes(item.nameDe) || readable.includes(item.nameEn));
-  if (!match) return null;
-  return { id: match.id, level: meta.owned[match.id]?.level ?? 1 };
+  if (testId === 'equipment-model-preview') {
+    const modelPath = surface.dataset.equipmentPreviewModel;
+    if (!modelPath) return null;
+    const matched = EQUIPMENT_IDS.find(id => {
+      const item = EQUIPMENT[id];
+      const visual = equipmentVisualProfile(id);
+      return modelPath === visual.primaryPath
+        || modelPath === visual.fallbackPath
+        || modelPath === item.assetPath;
+    });
+    if (matched && meta.owned[matched]) return { id: matched, level: meta.owned[matched]?.level ?? 1 };
+  }
+
+  return null;
 }
 
 function clearSurface(surface: HTMLElement) {
@@ -68,39 +96,42 @@ function installStyle() {
     .${BOUND_CLASS} {
       position: relative;
       isolation: isolate;
-      transition: box-shadow 180ms ease, filter 180ms ease;
+      transition: box-shadow 180ms ease;
     }
     .${BOUND_CLASS}[data-upgrade-tier="3"] {
-      box-shadow: inset 0 0 0 1px rgba(167,139,250,.24), 0 0 18px rgba(139,92,246,.18);
+      box-shadow: inset 0 0 0 1px rgba(167,139,250,.18), 0 0 12px rgba(139,92,246,.1);
     }
     .${BOUND_CLASS}[data-upgrade-tier="4"] {
-      box-shadow: inset 0 0 0 1px rgba(216,180,254,.42), 0 0 24px rgba(168,85,247,.34), 0 0 38px rgba(245,158,11,.12);
+      box-shadow: inset 0 0 0 1px rgba(216,180,254,.3), 0 0 16px rgba(168,85,247,.2), 0 0 24px rgba(245,158,11,.07);
     }
     .${BOUND_CLASS}[data-upgrade-tier="5"] {
-      box-shadow: inset 0 0 0 1px rgba(254,240,138,.62), 0 0 30px rgba(245,158,11,.46), 0 0 52px rgba(168,85,247,.28);
+      box-shadow: inset 0 0 0 1px rgba(254,240,138,.46), 0 0 20px rgba(245,158,11,.26), 0 0 30px rgba(168,85,247,.14);
     }
-    .${BOUND_CLASS}[data-upgrade-tier="4"]::after,
-    .${BOUND_CLASS}[data-upgrade-tier="5"]::after {
+    .${BOUND_CLASS}[data-testid="equipment-model-preview"] {
+      overflow: hidden;
+    }
+    .${BOUND_CLASS}[data-testid="equipment-model-preview"][data-upgrade-tier="4"]::after,
+    .${BOUND_CLASS}[data-testid="equipment-model-preview"][data-upgrade-tier="5"]::after {
       content: '';
       pointer-events: none;
       position: absolute;
       inset: 0;
       z-index: 4;
       border-radius: inherit;
-      background: linear-gradient(112deg, transparent 24%, rgba(255,255,255,.2) 46%, transparent 67%);
-      transform: translateX(-135%);
-      animation: dungeon-veil-upgrade-surface-sweep 5.4s linear infinite;
+      background: linear-gradient(112deg, transparent 30%, rgba(255,255,255,.12) 48%, transparent 66%);
+      transform: translateX(-140%);
+      animation: dungeon-veil-upgrade-surface-sweep 6.2s linear infinite;
       mix-blend-mode: screen;
     }
-    .${BOUND_CLASS}[data-upgrade-tier="5"]::after {
-      background: linear-gradient(112deg, transparent 18%, rgba(254,240,138,.28) 43%, rgba(216,180,254,.22) 52%, transparent 72%);
-      animation-duration: 3.8s;
+    .${BOUND_CLASS}[data-testid="equipment-model-preview"][data-upgrade-tier="5"]::after {
+      background: linear-gradient(112deg, transparent 24%, rgba(254,240,138,.16) 45%, rgba(216,180,254,.12) 54%, transparent 72%);
+      animation-duration: 4.8s;
     }
     .${BOUND_CLASS}[data-upgrade-static-fallback="true"]::after { display: none; }
     @keyframes dungeon-veil-upgrade-surface-sweep {
-      0%, 42% { transform: translateX(-135%); opacity: 0; }
-      50% { opacity: .72; }
-      68%, 100% { transform: translateX(135%); opacity: 0; }
+      0%, 52% { transform: translateX(-140%); opacity: 0; }
+      60% { opacity: .52; }
+      76%, 100% { transform: translateX(140%); opacity: 0; }
     }
     @media (prefers-reduced-motion: reduce) {
       .${BOUND_CLASS} { transition: none; }
@@ -222,9 +253,12 @@ export function UpgradeTierSurfaceBindings() {
       const collection = loadCompanionCollectionV5();
       const current = new Set<HTMLElement>();
 
-      document.querySelectorAll<HTMLElement>(EQUIPMENT_CARD_SELECTORS).forEach(surface => {
+      document.querySelectorAll<HTMLElement>(EQUIPMENT_SURFACE_SELECTORS).forEach(surface => {
         const resolved = equipmentForSurface(surface, meta);
-        if (!resolved) return;
+        if (!resolved) {
+          clearSurface(surface);
+          return;
+        }
         bindSurface(surface, resolved.level, `equipment:${resolved.id}`, media.matches, rendererRecovery);
         current.add(surface);
       });
