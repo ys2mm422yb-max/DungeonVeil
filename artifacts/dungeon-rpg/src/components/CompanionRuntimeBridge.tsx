@@ -167,6 +167,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   const lastSpecialActionRef = useRef(0);
   const lastPlayerAttackRef = useRef(gameState.player.lastAttackTime);
   const feedbackTimerRef = useRef<number | null>(null);
+  const feedbackPaintTokenRef = useRef(0);
   const [damageFeedback, setDamageFeedback] = useState<CompanionDamageFeedback | null>(null);
   stateRef.current = gameState;
   roleRef.current = role;
@@ -179,6 +180,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     basicAttackCountRef.current = 0;
     lastSpecialActionRef.current = 0;
     lastPlayerAttackRef.current = gameState.player.lastAttackTime;
+    feedbackPaintTokenRef.current += 1;
     if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
     feedbackTimerRef.current = null;
     setDamageFeedback(null);
@@ -222,12 +224,20 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         worldY: target.enemyType === 'boss' ? 1.35 : 0.82,
         critical,
       };
+      const paintToken = ++feedbackPaintTokenRef.current;
       if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
       setDamageFeedback(feedback);
-      feedbackTimerRef.current = window.setTimeout(() => {
-        setDamageFeedback(current => current?.id === feedback.id ? null : current);
-        feedbackTimerRef.current = null;
-      }, COMPANION_DAMAGE_FEEDBACK_MS);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (feedbackPaintTokenRef.current !== paintToken) return;
+          feedbackTimerRef.current = window.setTimeout(() => {
+            if (feedbackPaintTokenRef.current !== paintToken) return;
+            setDamageFeedback(current => current?.id === feedback.id ? null : current);
+            feedbackTimerRef.current = null;
+          }, COMPANION_DAMAGE_FEEDBACK_MS);
+        });
+      });
     };
 
     const tick = () => {
@@ -383,6 +393,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     const interval = window.setInterval(tick, 100);
     return () => {
       window.clearInterval(interval);
+      feedbackPaintTokenRef.current += 1;
       if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
       feedbackTimerRef.current = null;
     };
