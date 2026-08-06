@@ -6,15 +6,15 @@ const ROLES = ['single-target', 'critical-support', 'shield', 'loot-comfort', 'd
 const CORE_VARIANTS = [
   { role: 'single-target', level: 1, prestige: 'none', particles: 0 },
   { role: 'critical-support', level: 2, prestige: 'none', particles: 0 },
-  { role: 'shield', level: 3, prestige: 'refined', particles: 2 },
-  { role: 'loot-comfort', level: 4, prestige: 'strong', particles: 4 },
-  { role: 'distraction', level: 5, prestige: 'maximum', particles: 6 },
+  { role: 'shield', level: 3, prestige: 'refined', particles: 4 },
+  { role: 'loot-comfort', level: 4, prestige: 'strong', particles: 6 },
+  { role: 'distraction', level: 5, prestige: 'maximum', particles: 8 },
 ];
 const MAX_ROLE_VARIANTS = ROLES.slice(0, -1).map(role => ({
   role,
   level: 5,
   prestige: 'maximum',
-  particles: 6,
+  particles: 8,
 }));
 
 test.use({ video: 'on' });
@@ -144,6 +144,7 @@ async function activateVariant(page, variant, reload) {
   await expect.poll(() => telemetry('dungeonVeilCompanionUpgradeParticleCount')).toBe(String(variant.particles));
   await expect.poll(() => telemetry('dungeonVeilCompanionUpgradeStaticFallback')).toBe('false');
   await expect.poll(() => telemetry('dungeonVeilCompanionUpgradeParticlesActive')).toBe(variant.level >= 3 ? 'true' : 'false');
+  await expect.poll(() => telemetry('dungeonVeilVisibleUpgradeCompanionTier')).toBe(variant.level >= 3 ? String(variant.level) : undefined);
 
   await page.keyboard.down('ArrowRight');
   await page.waitForTimeout(550);
