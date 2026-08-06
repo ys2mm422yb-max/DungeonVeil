@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const REQUIRED_VISIBLE_SLOTS = ['bow', 'quiver', 'armor', 'companion'];
 
 async function tap(locator) {
   await expect(locator).toBeVisible({ timeout: 60_000 });
@@ -64,24 +65,26 @@ async function readVisibleBindingTelemetry(page) {
   return page.evaluate(() => {
     const data = document.documentElement.dataset;
     return {
+      count: Number(data.dungeonVeilVisibleUpgradeBindingCount || 0),
       slots: String(data.dungeonVeilVisibleUpgradeSlots || '').split(',').filter(Boolean),
       bow: Number(data.dungeonVeilVisibleUpgradeBowTier || 0),
       quiver: Number(data.dungeonVeilVisibleUpgradeQuiverTier || 0),
       armor: Number(data.dungeonVeilVisibleUpgradeArmorTier || 0),
-      companion: Number(data.dungeonVeilCompanionUpgradeTier || 0),
+      companion: Number(data.dungeonVeilVisibleUpgradeCompanionTier || 0),
     };
   });
 }
 
-async function expectRuntimeBindings(page, requiredSlots) {
+async function expectRuntimeBindings(page, requiredSlots = REQUIRED_VISIBLE_SLOTS) {
   await expect.poll(async () => readVisibleBindingTelemetry(page), {
     timeout: 120_000,
     intervals: [100, 250, 500],
     message: `visible prestige must bind ${requiredSlots.join(', ')} to real 3D objects`,
-  }).toMatchObject({ bow: 5, quiver: 4, armor: 3 });
+  }).toMatchObject({ bow: 5, quiver: 4, armor: 3, companion: 5 });
 
   const telemetry = await readVisibleBindingTelemetry(page);
   for (const slot of requiredSlots) expect(telemetry.slots).toContain(slot);
+  expect(telemetry.count).toBeGreaterThanOrEqual(requiredSlots.length);
   return telemetry;
 }
 
@@ -113,8 +116,8 @@ test('visible prestige is clear and bounded in menu, preview and live run', asyn
   await seedVisiblePrestigeLoadout(page);
   await waitForMenu(page);
 
-  const menuTelemetry = await expectRuntimeBindings(page, ['bow', 'quiver', 'armor']);
-  expect(menuTelemetry.companion === 0 || menuTelemetry.companion === 5).toBeTruthy();
+  const menuTelemetry = await expectRuntimeBindings(page);
+  expect(menuTelemetry.companion).toBe(5);
   await page.screenshot({ path: `test-results/visible-prestige-menu-${testInfo.project.name}.png`, fullPage: false });
 
   await tap(page.getByTestId('main-menu-equipment-navigation').getByRole('button'));
@@ -162,10 +165,18 @@ test('visible prestige is clear and bounded in menu, preview and live run', asyn
   await expect(runHud).toBeVisible({ timeout: 120_000 });
   await waitForPaintedCanvas(page, page.locator('canvas').first(), 120_000);
 
-  const runTelemetry = await expectRuntimeBindings(page, ['bow', 'quiver', 'armor']);
+  const companionScene = page.getByTestId('run-companion-scene');
+  await expect(companionScene).toHaveAttribute('data-local-level', '5', { timeout: 120_000 });
+  await expect.poll(async () => Number(await companionScene.getAttribute('data-visible-count') ?? 0), {
+    timeout: 120_000,
+    message: 'level-five companion must be visible in the shared live-run renderer',
+  }).toBeGreaterThan(0);
+
+  const runTelemetry = await expectRuntimeBindings(page);
   expect(runTelemetry.bow).toBe(5);
   expect(runTelemetry.quiver).toBe(4);
   expect(runTelemetry.armor).toBe(3);
+  expect(runTelemetry.companion).toBe(5);
   await page.waitForTimeout(2_000);
   await page.screenshot({ path: `test-results/visible-prestige-live-run-${testInfo.project.name}.png`, fullPage: false });
 });
