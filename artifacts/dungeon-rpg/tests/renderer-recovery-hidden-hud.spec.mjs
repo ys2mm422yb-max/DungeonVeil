@@ -31,6 +31,7 @@ async function startSolo(page) {
   await page.goto(qaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
   await page.getByRole('button', { name: /Spielen|Play/i }).first().click({ force: true });
+  await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first().click({ force: true });
   const input = page.getByRole('textbox').first();
   await expect(input).toBeVisible({ timeout: 30_000 });

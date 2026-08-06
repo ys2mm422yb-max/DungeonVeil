@@ -80,9 +80,15 @@ function isRootRelativeAssetPath(value: string): boolean {
   return value.charCodeAt(0) === 47 && value.slice(1).startsWith('assets/');
 }
 
+function stripSchemeLessRuntimeHost(value: string): string {
+  if (/^https?:\/\//i.test(value)) return value;
+  const match = value.match(/^(?:https?:\/?)?\/{0,2}(?:localhost|127(?:\.\d{1,3}){3})(?::\d+)?\/(.+)$/i);
+  return match ? `/${match[1]}` : value;
+}
+
 function normalizeManifestRoot(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return appAssetUrl('assets/kaykit').replace(/\/$/, '');
-  const root = value.trim().replace(/\/$/, '');
+  const root = stripSchemeLessRuntimeHost(value.trim().replace(/\/$/, ''));
   if (isRootRelativeAssetPath(root) || root.startsWith('assets/')) return appAssetUrl(root).replace(/\/$/, '');
   return root;
 }
@@ -163,8 +169,19 @@ export function loadKayKitManifest(): Promise<KayKitManifest> {
   return manifestPromise;
 }
 
+function absoluteRuntimeModelUrl(value: string): string {
+  if (typeof document === 'undefined') return value;
+  const repaired = stripSchemeLessRuntimeHost(value.trim());
+  try {
+    return new URL(repaired, document.baseURI).href;
+  } catch {
+    return repaired;
+  }
+}
+
 export function modelUrl(manifest: KayKitManifest, relativePath: string) {
-  return `${manifest.root.replace(/\/$/, '')}/${relativePath.replace(/^\/+/, '')}`;
+  const joined = `${manifest.root.replace(/\/$/, '')}/${relativePath.replace(/^\/+/, '')}`;
+  return absoluteRuntimeModelUrl(joined);
 }
 
 export function findKayKitModels(

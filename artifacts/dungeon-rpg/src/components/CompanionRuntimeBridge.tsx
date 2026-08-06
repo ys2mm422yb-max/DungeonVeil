@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import { getMyCoopLobby } from '../game/coopLobbyOnline';
 import {
@@ -11,10 +11,12 @@ import {
   companionAttackIntervalV5,
   companionEffectivePowerV5,
 } from '../game/companionCollectionV5';
+import { RUN_CAMERA } from './RunCameraRig';
 
 export const COMPANION_ACTION_EVENT_V4 = 'dungeon-veil-companion-action-v4';
 
 const TILE = 40;
+const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;
 type CompanionAuthority = 'solo' | 'host' | 'guest' | 'unknown';
 
 type Props = {
@@ -23,6 +25,87 @@ type Props = {
   level: number;
   mode: 'solo' | 'duo';
 };
+
+type CompanionDamageFeedback = {
+  id: string;
+  role: CompanionRoleV4;
+  targetId: string;
+  value: number;
+  color: string;
+  x: number;
+  y: number;
+  worldY: number;
+  critical: boolean;
+};
+
+type ProjectedPoint = { left: number; top: number; clamped: boolean };
+
+const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
+
+function normalize(vector: [number, number, number]): [number, number, number] {
+  const length = Math.hypot(vector[0], vector[1], vector[2]) || 1;
+  return [vector[0] / length, vector[1] / length, vector[2] / length];
+}
+
+function cross(a: [number, number, number], b: [number, number, number]): [number, number, number] {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+function dot(a: [number, number, number], b: [number, number, number]): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function cameraFocus(state: GameState): { x: number; z: number } {
+  const playerX = state.player.x / TILE - state.map.width / 2 + 0.5;
+  const playerZ = state.player.y / TILE - state.map.height / 2 + 0.5;
+  const centeredPlayerX = playerX + RUN_CAMERA.playerCenterOffset;
+  const centeredPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
+  const minZ = state.roomClearReady ? RUN_CAMERA.clearMinFollowZ : RUN_CAMERA.minFollowZ;
+  const maxZ = state.roomClearReady ? RUN_CAMERA.clearMaxFollowZ : RUN_CAMERA.maxFollowZ;
+
+  let focusX = clamp(centeredPlayerX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX);
+  let focusZ = clamp(centeredPlayerZ - 0.7, minZ, maxZ);
+  const offsetX = centeredPlayerX - focusX;
+  if (offsetX > RUN_CAMERA.safeHalfX) focusX += offsetX - RUN_CAMERA.safeHalfX;
+  else if (offsetX < -RUN_CAMERA.safeHalfX) focusX += offsetX + RUN_CAMERA.safeHalfX;
+  const offsetZ = centeredPlayerZ - focusZ;
+  if (offsetZ > RUN_CAMERA.safeForwardZ) focusZ += offsetZ - RUN_CAMERA.safeForwardZ;
+  else if (offsetZ < -RUN_CAMERA.safeRearZ) focusZ += offsetZ + RUN_CAMERA.safeRearZ;
+  return {
+    x: clamp(focusX, RUN_CAMERA.minFollowX, RUN_CAMERA.maxFollowX),
+    z: clamp(focusZ, minZ, maxZ),
+  };
+}
+
+function projectCompanionDamage(state: GameState, feedback: CompanionDamageFeedback): ProjectedPoint | null {
+  if (typeof window === 'undefined') return null;
+  const focus = cameraFocus(state);
+  const camera: [number, number, number] = [focus.x, RUN_CAMERA.height, focus.z + RUN_CAMERA.distance];
+  const target: [number, number, number] = [focus.x, RUN_CAMERA.lookHeight, focus.z - 2.85];
+  const forward = normalize([target[0] - camera[0], target[1] - camera[1], target[2] - camera[2]]);
+  const right = normalize(cross(forward, [0, 1, 0]));
+  const up = normalize(cross(right, forward));
+  const worldX = feedback.x / TILE - state.map.width / 2 + 0.5;
+  const worldZ = feedback.y / TILE - state.map.height / 2 + 0.5;
+  const relative: [number, number, number] = [worldX - camera[0], feedback.worldY - camera[1], worldZ - camera[2]];
+  const depth = dot(relative, forward);
+  if (depth <= 0.1) return null;
+  const aspect = Math.max(0.45, window.innerWidth / Math.max(1, window.innerHeight));
+  const focal = 1 / Math.tan(RUN_CAMERA.fov * Math.PI / 360);
+  const ndcX = dot(relative, right) / depth * focal / aspect;
+  const ndcY = dot(relative, up) / depth * focal;
+  const rawLeft = (ndcX * 0.5 + 0.5) * 100;
+  const rawTop = (-ndcY * 0.5 + 0.5) * 100;
+  return {
+    left: clamp(rawLeft, 8, 92),
+    top: clamp(rawTop, 13, 86),
+    clamped: rawLeft < 8 || rawLeft > 92 || rawTop < 13 || rawTop > 86,
+  };
+}
 
 function livingEnemies(state: GameState) {
   return state.enemies.filter(enemy => !enemy.isDead && enemy.hp > 0);
@@ -83,6 +166,8 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   const basicAttackCountRef = useRef(0);
   const lastSpecialActionRef = useRef(0);
   const lastPlayerAttackRef = useRef(gameState.player.lastAttackTime);
+  const feedbackTimerRef = useRef<number | null>(null);
+  const [damageFeedback, setDamageFeedback] = useState<CompanionDamageFeedback | null>(null);
   stateRef.current = gameState;
   roleRef.current = role;
   levelRef.current = level;
@@ -94,6 +179,9 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     basicAttackCountRef.current = 0;
     lastSpecialActionRef.current = 0;
     lastPlayerAttackRef.current = gameState.player.lastAttackTime;
+    if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = null;
+    setDamageFeedback(null);
   }, [role, level]);
 
   useEffect(() => {
@@ -115,6 +203,33 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   }, [mode]);
 
   useEffect(() => {
+    const publishDamageFeedback = (
+      activeRole: CompanionRoleV4,
+      target: GameState['enemies'][number],
+      value: number,
+      color: string,
+      critical: boolean,
+      now: number,
+    ) => {
+      const feedback: CompanionDamageFeedback = {
+        id: `companion-damage-${activeRole}-${now}-${target.id}`,
+        role: activeRole,
+        targetId: target.id,
+        value,
+        color,
+        x: target.x + target.width / 2,
+        y: target.y + target.height / 2,
+        worldY: target.enemyType === 'boss' ? 1.35 : 0.82,
+        critical,
+      };
+      if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+      setDamageFeedback(feedback);
+      feedbackTimerRef.current = window.setTimeout(() => {
+        setDamageFeedback(current => current?.id === feedback.id ? null : current);
+        feedbackTimerRef.current = null;
+      }, COMPANION_DAMAGE_FEEDBACK_MS);
+    };
+
     const tick = () => {
       const state = stateRef.current;
       const activeRole = roleRef.current;
@@ -153,16 +268,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
             target.frostSlow = Math.max(target.frostSlow ?? 0, Math.min(0.16, power + 0.03));
             target.frostUntil = Math.max(target.frostUntil ?? 0, now + 920);
           }
-          state.damageNumbers.push({
-            id: `${damage.source}-basic-${now}-${target.id}`,
-            x: toX,
-            y: target.y - 9,
-            value: `-${damage.damage}`,
-            color: definition.accent,
-            lifeTime: 0,
-            maxLifeTime: 720,
-            scale: activeRole === 'single-target' ? 1.0 : 0.84,
-          });
+          publishDamageFeedback(activeRole, target, damage.damage, definition.accent, false, now);
         }
         pushBoundedCompanionEffect(state, Math.max(2, reservation.projectileBudget), {
           id: `companion-v5-attack-${activeRole}-${now}`,
@@ -192,16 +298,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
             target.hp -= damage.damage;
             target.flashUntil = now + 110;
             target.lastHitTime = now;
-            state.damageNumbers.push({
-              id: `${damage.source}-critical-${now}-${target.id}`,
-              x: target.x + target.width / 2,
-              y: target.y - 12,
-              value: `✦${damage.damage}`,
-              color: definition.accent,
-              lifeTime: 0,
-              maxLifeTime: 760,
-              scale: 0.94,
-            });
+            publishDamageFeedback(activeRole, target, damage.damage, definition.accent, true, now);
           }
           pushBoundedCompanionEffect(state, 2, {
             id: `companion-v5-critical-${now}`,
@@ -284,28 +381,91 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     };
 
     const interval = window.setInterval(tick, 100);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(interval);
+      if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    };
   }, []);
 
   const definition = COMPANION_DEFINITIONS_V5[role];
+  const projectedFeedback = damageFeedback ? projectCompanionDamage(gameState, damageFeedback) : null;
   return (
-    <span
-      ref={markerRef}
-      className="hidden"
-      aria-hidden="true"
-      data-testid="companion-runtime-bridge"
-      data-role={role}
-      data-level={level}
-      data-species={definition.species}
-      data-mode={mode}
-      data-authority={mode === 'solo' ? 'solo' : 'unknown'}
-      data-ai-hz="10"
-      data-basic-attacks="true"
-      data-basic-attack-count="0"
-      data-selection="pre-run-frozen"
-      data-revive-target="false"
-      data-blocks-players="false"
-      data-blocks-enemies="false"
-    />
+    <>
+      <span
+        ref={markerRef}
+        className="hidden"
+        aria-hidden="true"
+        data-testid="companion-runtime-bridge"
+        data-role={role}
+        data-level={level}
+        data-species={definition.species}
+        data-mode={mode}
+        data-authority={mode === 'solo' ? 'solo' : 'unknown'}
+        data-ai-hz="10"
+        data-basic-attacks="true"
+        data-basic-attack-count="0"
+        data-selection="pre-run-frozen"
+        data-revive-target="false"
+        data-blocks-players="false"
+        data-blocks-enemies="false"
+        data-feedback-active={damageFeedback ? 'true' : 'false'}
+        data-feedback-projected={projectedFeedback ? 'true' : 'false'}
+        data-feedback-target={damageFeedback?.targetId ?? ''}
+        data-feedback-critical={damageFeedback ? String(damageFeedback.critical) : ''}
+      />
+      <div
+        className="pointer-events-none fixed inset-0 z-[34] overflow-hidden"
+        data-testid="companion-damage-feedback-layer"
+        data-visible-count={damageFeedback && projectedFeedback ? '1' : '0'}
+        data-feedback-active={damageFeedback ? 'true' : 'false'}
+        data-feedback-projected={projectedFeedback ? 'true' : 'false'}
+        aria-hidden="true"
+      >
+        {damageFeedback && projectedFeedback && <div
+          key={damageFeedback.id}
+          data-testid={`companion-damage-number-${damageFeedback.id}`}
+          data-companion-role={damageFeedback.role}
+          data-target-id={damageFeedback.targetId}
+          data-critical={damageFeedback.critical ? 'true' : 'false'}
+          data-projection-clamped={projectedFeedback.clamped ? 'true' : 'false'}
+          className="absolute flex min-h-[38px] min-w-[82px] items-center justify-center rounded-full border-2 bg-black/85 px-3 py-1 font-black tracking-wide text-white shadow-2xl"
+          style={{
+            left: `${projectedFeedback.left}%`,
+            top: `${projectedFeedback.top}%`,
+            transform: 'translate(-50%, -50%)',
+            borderColor: damageFeedback.color,
+            color: damageFeedback.critical ? '#fff4c4' : '#ffffff',
+            fontSize: 'clamp(21px, 5.4vw, 29px)',
+            lineHeight: 1,
+            textShadow: `0 2px 0 #000, 0 0 8px ${damageFeedback.color}, 0 0 14px rgba(0,0,0,.9)`,
+            boxShadow: `0 0 0 2px rgba(0,0,0,.86), 0 0 18px ${damageFeedback.color}99`,
+            animation: 'dvCompanionDamageReadable 1.05s cubic-bezier(.16,.84,.28,1) both',
+          }}
+        >
+          <span aria-hidden="true">{damageFeedback.critical ? '✦' : '◆'}</span>
+          <span className="ml-1">-{damageFeedback.value}</span>
+        </div>}
+        <style>{`
+          @keyframes dvCompanionDamageReadable {
+            0% { opacity: 0; transform: translate(-50%, -24%) scale(.72); }
+            15% { opacity: 1; transform: translate(-50%, -50%) scale(1.14); }
+            34% { transform: translate(-50%, -58%) scale(1); }
+            74% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -112%) scale(.94); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            [data-testid^="companion-damage-number-"] {
+              animation-name: dvCompanionDamageReadableReduced !important;
+            }
+          }
+          @keyframes dvCompanionDamageReadableReduced {
+            0% { opacity: 0; }
+            14%, 78% { opacity: 1; }
+            100% { opacity: 0; }
+          }
+        `}</style>
+      </div>
+    </>
   );
 }

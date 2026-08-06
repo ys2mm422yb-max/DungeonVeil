@@ -7,9 +7,14 @@
     "dev": "pnpm --filter @workspace/dungeon-rpg dev",
     "start:mobile": "bash scripts/start-replit-mobile.sh",
     "audit:adaptive-test-policy": "node scripts/validate-adaptive-test-plan.mjs --policy-only",
+    "audit:upgrade-visual-tiers": "node scripts/validate-upgrade-visual-tiers.mjs",
+    "audit:companion-combat-prestige": "node scripts/validate-companion-combat-prestige.mjs",
+    "audit:companion-damage-feedback": "node scripts/validate-companion-damage-feedback.mjs",
+    "audit:kaykit-model-urls": "node scripts/validate-kaykit-model-urls.mjs",
+    "audit:product-qa-stall-fixes": "node scripts/validate-product-qa-stall-fixes.mjs",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run audit:adaptive-test-policy && pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run audit:adaptive-test-policy && pnpm run audit:upgrade-visual-tiers && pnpm run audit:companion-combat-prestige && pnpm run audit:companion-damage-feedback && pnpm run audit:kaykit-model-urls && pnpm run audit:product-qa-stall-fixes && pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
   "devDependencies": {

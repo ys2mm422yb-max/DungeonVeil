@@ -8,6 +8,7 @@ const INCLUDED_PREFIXES = [
   'visual-',
   'chapter-evidence-',
   'mobile-resource-upgrade-',
+  'companion-damage-feedback-',
   'armor-cloud-restore-painted-',
 ];
 const INCLUDED_EXTENSIONS = new Set(['.png', '.webm', '.mp4']);
@@ -96,22 +97,20 @@ async function selfTest() {
     png.writeUInt32BE(390, 16);
     png.writeUInt32BE(844, 20);
     await fs.writeFile(path.join(root, 'visual-z-device.png'), png);
+    await fs.writeFile(path.join(root, 'companion-damage-feedback-device.png'), png);
     await fs.writeFile(path.join(root, 'autopilot-a-device.webm'), Buffer.from('video'));
     await fs.writeFile(path.join(root, 'autopilot-b-device.webm'), Buffer.from('video'));
     const output = path.join(root, 'manifest.json');
     const manifest = await createManifest(root, output);
-    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,autopilot-b-device.webm,visual-z-device.png') {
-      throw new Error('Manifest ordering is not deterministic');
+    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,autopilot-b-device.webm,companion-damage-feedback-device.png,visual-z-device.png') {
+      throw new Error('Manifest ordering or companion damage inclusion is not deterministic');
     }
-    if (manifest.mediaFiles !== 3 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 1) {
+    if (manifest.mediaFiles !== 4 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 2) {
       throw new Error('Manifest duplicate hash summary is invalid');
     }
-    if (manifest.duplicateHashes[0].paths.join(',') !== 'autopilot-a-device.webm,autopilot-b-device.webm') {
-      throw new Error('Duplicate evidence paths are not deterministic');
-    }
-    const pngEntry = manifest.files.find((entry) => entry.path.endsWith('.png'));
-    if (pngEntry.png.width !== 390 || pngEntry.png.height !== 844 || pngEntry.sha256.length !== 64) {
-      throw new Error('PNG dimensions or SHA-256 are invalid');
+    const companionEntry = manifest.files.find((entry) => entry.path === 'companion-damage-feedback-device.png');
+    if (!companionEntry || companionEntry.png.width !== 390 || companionEntry.png.height !== 844 || companionEntry.sha256.length !== 64) {
+      throw new Error('Companion damage evidence is not manifest-backed with valid PNG metadata');
     }
     await fs.writeFile(path.join(root, 'visual-invalid.png'), Buffer.from('not-png'));
     let rejected = false;

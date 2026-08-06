@@ -7,6 +7,9 @@ import { LanguageProvider } from './i18n/LanguageContext';
 import { LootVisualQaStage } from './components/LootVisualQaStage';
 import { GuildRaidModePortal } from './components/GuildRaidModePortal';
 import { GuildRaidRunPortal } from './components/GuildRaidRunPortal';
+import { EquippedUpgradePrestigeOverlay } from './components/EquippedUpgradePrestigeOverlay';
+import { UpgradeTierSurfaceBindings } from './components/UpgradeTierSurfaceBindings';
+import './components/companionDamageFeedback.css';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +36,8 @@ function App() {
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
             <Router />
           </WouterRouter>
+          <EquippedUpgradePrestigeOverlay />
+          <UpgradeTierSurfaceBindings />
           <GuildRaidModePortal />
           <GuildRaidRunPortal />
           <Toaster />

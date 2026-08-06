@@ -72,6 +72,17 @@ async function waitForRoomRendererReady(page, timeout) {
   ).toBe(true);
 }
 
+function isNavigationTransitionError(error) {
+  const message = String(error?.message || error);
+  return /execution context was destroyed|most likely because of a navigation/i.test(message)
+    || /null is not an object \(evaluating 'document\.(?:body|documentElement)\.scrollWidth'\)/i.test(message);
+}
+
+async function waitForDocumentBody(page, timeout) {
+  await page.waitForLoadState('domcontentloaded', { timeout });
+  await page.locator('body').waitFor({ state: 'attached', timeout });
+}
+
 function installNavigationSafeEvaluate(page, timeout) {
   if (page[NAVIGATION_SAFE_EVALUATE_GUARD]) return;
   const originalEvaluate = page.evaluate.bind(page);
@@ -79,8 +90,11 @@ function installNavigationSafeEvaluate(page, timeout) {
     try {
       return await originalEvaluate(...args);
     } catch (error) {
-      if (!/execution context was destroyed|most likely because of a navigation/i.test(String(error?.message || error))) throw error;
-      await page.waitForLoadState('domcontentloaded', { timeout });
+      if (!isNavigationTransitionError(error)) throw error;
+      // WebKit can expose the new document between context creation and body
+      // attachment. Prove the replacement document is ready, then repeat the
+      // identical evaluation once; all original assertions remain unchanged.
+      await waitForDocumentBody(page, timeout);
       return originalEvaluate(...args);
     }
   };
