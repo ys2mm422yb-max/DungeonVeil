@@ -184,7 +184,24 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
   propsRef.current = { accent, itemId };
   const visual = equipmentVisualProfile(itemId);
 
+  const markLoading = (requestedItemId: EquipmentId) => {
+    const host = hostRef.current;
+    if (!host) return null;
+    host.dataset.equipmentPreviewState = 'loading';
+    host.dataset.equipmentPreviewRequestedItem = requestedItemId;
+    delete host.dataset.equipmentPreviewRenderedItem;
+    return host;
+  };
+
+  const markError = (requestedItemId: EquipmentId) => {
+    const host = hostRef.current;
+    if (!host || host.dataset.equipmentPreviewRequestedItem !== requestedItemId) return;
+    host.dataset.equipmentPreviewState = 'error';
+    delete host.dataset.equipmentPreviewRenderedItem;
+  };
+
   const renderCurrent = async (runtime: Runtime, nextItemId: EquipmentId, nextAccent: string) => {
+    const host = markLoading(nextItemId);
     const token = ++runtime.loadToken;
     const built = await buildDisplay(runtime.THREE, runtime.loader, nextItemId, nextAccent);
     if (token !== runtime.loadToken) {
@@ -203,6 +220,11 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
     runtime.root.add(built.display);
     fitDisplay(runtime.THREE, built.display, nextItemId, runtime.width, runtime.height);
     runtime.renderer.render(runtime.scene, runtime.camera);
+
+    if (host && hostRef.current === host && token === runtime.loadToken) {
+      host.dataset.equipmentPreviewState = 'ready';
+      host.dataset.equipmentPreviewRenderedItem = nextItemId;
+    }
   };
 
   useEffect(() => {
@@ -288,7 +310,11 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
       };
       window.addEventListener('resize', resize);
       removeResize = () => window.removeEventListener('resize', resize);
-      await renderCurrent(runtime, propsRef.current.itemId, propsRef.current.accent);
+      const initialItemId = propsRef.current.itemId;
+      await renderCurrent(runtime, initialItemId, propsRef.current.accent).catch(error => {
+        markError(initialItemId);
+        throw error;
+      });
     };
 
     boot().catch(error => console.error('KayKit equipment preview failed', error));
@@ -296,6 +322,9 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
     return () => {
       disposed = true;
       removeResize();
+      delete host.dataset.equipmentPreviewState;
+      delete host.dataset.equipmentPreviewRequestedItem;
+      delete host.dataset.equipmentPreviewRenderedItem;
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
       if (!runtime) return;
@@ -311,7 +340,10 @@ export function KayKitEquipmentPreview({ assetPath: _assetPath, accent, itemId }
   useEffect(() => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    void renderCurrent(runtime, itemId, accent).catch(error => console.error('KayKit equipment preview update failed', error));
+    void renderCurrent(runtime, itemId, accent).catch(error => {
+      markError(itemId);
+      console.error('KayKit equipment preview update failed', error);
+    });
   }, [accent, itemId]);
 
   return <div
