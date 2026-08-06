@@ -3,13 +3,15 @@ import { readFile } from 'node:fs/promises';
 
 const helperPath = 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige3D.ts';
 const bowRigPath = 'artifacts/dungeon-rpg/src/components/bowRig.ts';
+const playerPath = 'artifacts/dungeon-rpg/src/components/kaykitPlayer3D.ts';
 const companionPath = 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts';
 const cssPath = 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige.css';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 
-const [helper, bowRig, companion, css, app] = await Promise.all([
+const [helper, bowRig, player, companion, css, app] = await Promise.all([
   readFile(helperPath, 'utf8'),
   readFile(bowRigPath, 'utf8'),
+  readFile(playerPath, 'utf8'),
   readFile(companionPath, 'utf8'),
   readFile(cssPath, 'utf8'),
   readFile(appPath, 'utf8'),
@@ -70,6 +72,9 @@ assert.doesNotMatch(bowRig, /publishVisibleUpgradeTier/,
   'only the shared factual registry may publish active visible slots');
 assert.doesNotMatch(bowRig, /Object3D\.prototype\.add|patchedAdd|visiblePrestigeCapture/,
   'visible player prestige must not depend on global Three.js prototype interception');
+
+assert.match(player, /stop\(\) \{[\s\S]*bowRig\.dispose\(\);[\s\S]*mixer\.stopAllAction\(\);/,
+  'aborted or unmounted player rigs must explicitly release all visible prestige bindings');
 
 assert.match(companion, /import \{ createVisibleUpgradePrestige3D \}/,
   'companion prestige must use the same bounded model-local helper');
