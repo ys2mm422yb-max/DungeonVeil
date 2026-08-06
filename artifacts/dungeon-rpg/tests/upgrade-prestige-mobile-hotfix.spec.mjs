@@ -51,8 +51,9 @@ async function openEquipment(page) {
   const boot = page.getByTestId('app-boot-loading-screen');
   if (await boot.count()) await expect(boot).toBeHidden({ timeout: 60_000 });
   await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
-  await tap(page.getByRole('button', { name: /AUSRÜSTUNG|EQUIPMENT/i }).first());
-  await expect(page.getByTestId('forge-mark-chamber-wrapper')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 30_000 });
+  await tap(page.getByTestId('main-menu-equipment-navigation').getByRole('button'));
+  await expect(page.getByTestId('equipment-category-tabs')).toBeVisible({ timeout: 60_000 });
 }
 
 async function expectPreviewBinding(page, itemId, tier) {
@@ -92,8 +93,8 @@ test('mobile prestige stays local, item-accurate and below the iPhone safe area'
   await expect.poll(async () => preview.getAttribute('data-upgrade-binding'), { timeout: 60_000 }).toBe(null);
   await expect(preview).not.toHaveAttribute('data-upgrade-tier', /.+/);
 
-  const scrollRoot = page.locator('[data-testid="forge-mark-chamber-wrapper"] > div.fixed.inset-0').first();
-  await expect(scrollRoot).toBeVisible();
+  const scrollRoot = page.locator('[data-testid="forge-mark-chamber-wrapper"] > div.fixed.inset-0:visible').first();
+  await expect(scrollRoot).toBeVisible({ timeout: 60_000 });
   await scrollRoot.evaluate(element => element.scrollTo({ top: 420, behavior: 'instant' }));
   await page.waitForTimeout(250);
   const safeAreaState = await scrollRoot.evaluate(element => {
