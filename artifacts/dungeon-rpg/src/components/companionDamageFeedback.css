@@ -2,3 +2,30 @@
   min-width: 88px !important;
   min-height: 41px !important;
 }
+
+[data-testid^="companion-damage-number-"][data-critical="true"] {
+  animation-name: dvCompanionDamageCriticalReadable !important;
+}
+
+@keyframes dvCompanionDamageCriticalReadable {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -38%) scale(0.94);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.14);
+  }
+  34% {
+    opacity: 1;
+    transform: translate(-50%, -58%) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: translate(-50%, -78%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -112%) scale(0.94);
+  }
+}
