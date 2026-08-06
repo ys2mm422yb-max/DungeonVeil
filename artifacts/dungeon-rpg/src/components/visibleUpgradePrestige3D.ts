@@ -17,6 +17,42 @@ type VisibleUpgradePrestigeOptions = {
   lowGpu?: boolean;
 };
 
+type ActiveVisibleBinding = {
+  slot: VisibleUpgradePrestigeSlot;
+  tier: ReturnType<typeof normalizeUpgradeVisualTier>;
+};
+
+const ACTIVE_VISIBLE_BINDINGS = new Map<string, ActiveVisibleBinding>();
+let visibleBindingSequence = 0;
+
+function publishActiveBindings() {
+  if (typeof document === 'undefined') return;
+  const data = document.documentElement.dataset;
+  const active = [...ACTIVE_VISIBLE_BINDINGS.values()];
+  const slots = [...new Set(active.map(entry => entry.slot))].sort();
+  data.dungeonVeilVisibleUpgradeBindingCount = String(active.length);
+  data.dungeonVeilVisibleUpgradeSlots = slots.join(',');
+
+  for (const slot of ['bow', 'quiver', 'armor', 'companion'] as const) {
+    const tier = active
+      .filter(entry => entry.slot === slot)
+      .reduce((highest, entry) => Math.max(highest, entry.tier), 0);
+    const key = `dungeonVeilVisibleUpgrade${slot[0].toUpperCase()}${slot.slice(1)}Tier`;
+    if (tier > 0) data[key] = String(tier);
+    else delete data[key];
+  }
+}
+
+function registerVisibleBinding(key: string, slot: VisibleUpgradePrestigeSlot, tier: ReturnType<typeof normalizeUpgradeVisualTier>) {
+  ACTIVE_VISIBLE_BINDINGS.set(key, { slot, tier });
+  publishActiveBindings();
+}
+
+function unregisterVisibleBinding(key: string) {
+  ACTIVE_VISIBLE_BINDINGS.delete(key);
+  publishActiveBindings();
+}
+
 function prefersReducedMotion() {
   return typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -84,6 +120,7 @@ export function createVisibleUpgradePrestige3D(
   const profile = getUpgradeVisualProfile(tier);
   const staticFallbackActive = () => (options.reducedMotion ?? prefersReducedMotion())
     || (options.lowGpu ?? rendererRecoveryActive());
+  const registryKey = `${options.binding}:${String(object?.uuid ?? ++visibleBindingSequence)}`;
 
   object.userData = {
     ...(object.userData ?? {}),
@@ -158,6 +195,7 @@ export function createVisibleUpgradePrestige3D(
 
   object.add(group);
   object.userData.dungeonVeilVisibleUpgradeParticleCount = particleCount + 1;
+  registerVisibleBinding(registryKey, options.slot, tier);
 
   const placeParticle = (particle: any, index: number, now: number, staticFallback: boolean) => {
     const phase = Number(particle.userData.dungeonVeilUpgradePhase ?? 0);
@@ -257,6 +295,7 @@ export function createVisibleUpgradePrestige3D(
     tier,
     update,
     dispose() {
+      unregisterVisibleBinding(registryKey);
       object.remove?.(group);
       particleGeometry.dispose?.();
       particleMaterial.dispose?.();
