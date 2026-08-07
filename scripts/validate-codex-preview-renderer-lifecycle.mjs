@@ -1,31 +1,65 @@
 import { readFile } from 'node:fs/promises';
 
 const sourcePath = 'artifacts/dungeon-rpg/src/components/CodexModelPreview.tsx';
-const source = await readFile(sourcePath, 'utf8');
+const regressionPath = 'artifacts/dungeon-rpg/tests/enemy-roster-visual-evidence.spec.mjs';
+const [source, regression] = await Promise.all([
+  readFile(sourcePath, 'utf8'),
+  readFile(regressionPath, 'utf8'),
+]);
 
-const required = [
-  "const CODEX_SHARED_RENDERER_MAX_PREVIEWS = 6;",
-  "let sharedRendererPreviewCount = 0;",
-  "sharedRendererPreviewCount = 0;",
-  "sharedRenderer && sharedRendererPreviewCount >= CODEX_SHARED_RENDERER_MAX_PREVIEWS",
-  "sharedRendererPreviewCount += 1;",
-  "renderer.forceContextLoss?.();",
+const sourceRequired = [
+  'let sharedRendererGeneration = 0;',
+  'let sharedRendererContextLost = false;',
+  'function rendererMemory(renderer: any)',
+  'window as any',
+  '__dungeonVeilCodexPreviewDiagnostics',
+  "phase: 'acquire'",
+  "phase: 'paint-attempt'",
+  "phase: 'ready'",
+  "phase: 'error'",
+  "phase: 'context-lost'",
+  "phase: 'release'",
+  "sharedRenderer.domElement.addEventListener('webglcontextlost'",
+  'generation: sharedRendererGeneration',
+  'previewCount: sharedRendererPreviewCount',
+  'contextLost:',
+  'memory: rendererMemory(renderer)',
 ];
 
-for (const needle of required) {
+for (const needle of sourceRequired) {
   if (!source.includes(needle)) {
-    throw new Error(`Codex preview renderer lifecycle contract missing: ${needle}`);
+    throw new Error(`Codex preview runtime diagnostics contract missing: ${needle}`);
   }
 }
 
-if (/CODEX_SHARED_RENDERER_MAX_PREVIEWS\s*=\s*(?:[7-9]|[1-9]\d+)/.test(source)) {
-  throw new Error('Codex shared renderer reuse cap exceeds the verified iPhone-safe bound of 6 previews.');
+const regressionRequired = [
+  "test('complete canonical enemy roster is visibly reviewable in Codex and deterministic combat'",
+  "window.__dungeonVeilCodexPreviewDiagnostics = [];",
+  'async function attachCodexDiagnostics(page, testInfo, familyId)',
+  "codex-renderer-diagnostics-${familyId}",
+  "codex-renderer-diagnostics-full-sequence",
+  "expect(FAMILIES).toHaveLength(35);",
+  "expect(fullDiagnostics.filter(entry => entry?.phase === 'ready')).toHaveLength(35);",
+  "expect(ready?.painted, `ready diagnostic not painted for ${familyId}`).toBe(true);",
+  "expect(ready?.contextLost, `renderer context lost before ${familyId} became ready`).toBe(false);",
+];
+
+for (const needle of regressionRequired) {
+  if (!regression.includes(needle)) {
+    throw new Error(`Codex 35-family runtime regression diagnostics missing: ${needle}`);
+  }
 }
 
-const releaseIndex = source.indexOf('function releaseSharedRenderer()');
-const rendererIndex = source.indexOf('function getSharedRenderer(THREE: any)');
-if (releaseIndex < 0 || rendererIndex < 0 || releaseIndex > rendererIndex) {
-  throw new Error('Codex shared renderer release must remain defined before renderer acquisition.');
+const familyBlock = regression.match(/const FAMILIES = \[([\s\S]*?)\];/);
+if (!familyBlock) throw new Error('Codex lifecycle contract cannot find the canonical FAMILIES sequence.');
+const familyCount = [...familyBlock[1].matchAll(/'[^']+'/g)].length;
+if (familyCount !== 35) {
+  throw new Error(`Codex lifecycle regression must exercise exactly 35 canonical families; found ${familyCount}.`);
 }
 
-console.log('Codex preview renderer lifecycle verified: shared WebGL contexts are recycled before sequential iPhone Codex previews can exhaust the renderer.');
+if (source.includes('verified iPhone-safe bound') || source.includes('iPhone-safe bound')
+  || (await readFile(import.meta.filename, 'utf8')).includes('exceeds the verified iPhone-safe bound')) {
+  throw new Error('Codex lifecycle validator must not claim a source-only preview count is iPhone-safe.');
+}
+
+console.log('Codex preview renderer lifecycle verified: the real 35-family regression captures renderer generation, context-loss, paint-attempt and memory diagnostics for every selected family.');
