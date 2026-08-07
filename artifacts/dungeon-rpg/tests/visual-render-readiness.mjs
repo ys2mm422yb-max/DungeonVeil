@@ -109,16 +109,23 @@ function installNavigationSafeEvaluate(page, timeout) {
   page[NAVIGATION_SAFE_EVALUATE_GUARD] = true;
 }
 
+function shouldGuardRunScreenshot(options) {
+  const path = typeof options?.path === 'string' ? options.path : '';
+  return /(?:^|[/\\])autopilot-solo-run-[^/\\]+\.png$/i.test(path);
+}
+
 function installRestoredArmorScreenshotGuard(page, timeout) {
   if (page[RESTORED_ARMOR_SCREENSHOT_GUARD]) return;
   const originalScreenshot = page.screenshot.bind(page);
   page[RAW_PAGE_SCREENSHOT] = originalScreenshot;
   page.screenshot = async options => {
-    const runRenderer = page.getByTestId('run-three-host');
-    if (await runRenderer.count()) {
-      const runCanvas = runRenderer.locator('canvas').first();
-      if (await runCanvas.count()) {
-        await waitForPaintedCanvas(page, runCanvas, timeout);
+    if (shouldGuardRunScreenshot(options)) {
+      const runRenderer = page.getByTestId('run-three-host');
+      if (await runRenderer.count()) {
+        const runCanvas = runRenderer.locator('canvas').first();
+        if (await runCanvas.count()) {
+          await waitForPaintedCanvas(page, runCanvas, timeout);
+        }
       }
     }
     return originalScreenshot(options);
