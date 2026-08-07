@@ -4,14 +4,16 @@ import { readFile } from 'node:fs/promises';
 const helperPath = 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige3D.ts';
 const bowRigPath = 'artifacts/dungeon-rpg/src/components/bowRig.ts';
 const playerPath = 'artifacts/dungeon-rpg/src/components/kaykitPlayer3D.ts';
+const villagePlayerPath = 'artifacts/dungeon-rpg/src/components/kaykitVillagePlayer3D.ts';
 const companionPath = 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts';
 const cssPath = 'artifacts/dungeon-rpg/src/components/visibleUpgradePrestige.css';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 
-const [helper, bowRig, player, companion, css, app] = await Promise.all([
+const [helper, bowRig, player, villagePlayer, companion, css, app] = await Promise.all([
   readFile(helperPath, 'utf8'),
   readFile(bowRigPath, 'utf8'),
   readFile(playerPath, 'utf8'),
+  readFile(villagePlayerPath, 'utf8'),
   readFile(companionPath, 'utf8'),
   readFile(cssPath, 'utf8'),
   readFile(appPath, 'utf8'),
@@ -75,6 +77,21 @@ assert.doesNotMatch(bowRig, /Object3D\.prototype\.add|patchedAdd|visiblePrestige
 
 assert.match(player, /stop\(\) \{[\s\S]*bowRig\.dispose\(\);[\s\S]*mixer\.stopAllAction\(\);/,
   'aborted or unmounted player rigs must explicitly release all visible prestige bindings');
+
+assert.match(villagePlayer, /createVisibleUpgradePrestige3D\(THREE, visual,[\s\S]*slot: 'armor'[\s\S]*visible:menu-player-armor/,
+  'the real menu player body must own the menu armor prestige binding');
+assert.match(villagePlayer, /createVisibleUpgradePrestige3D\(THREE, bowHolder,[\s\S]*slot: 'bow'[\s\S]*visible:menu-player-bow/,
+  'the real menu bow holder must own the menu bow prestige binding');
+assert.match(villagePlayer, /createVisibleUpgradePrestige3D\(THREE, quiverHolder,[\s\S]*slot: 'quiver'[\s\S]*visible:menu-player-quiver/,
+  'the real menu quiver holder must own the menu quiver prestige binding');
+assert.match(villagePlayer, /MainMenuCompanion_[\s\S]*MenuCompanionVisual_[\s\S]*createVisibleUpgradePrestige3D\(THREE, companionVisual,[\s\S]*slot: 'companion'/,
+  'the actual menu companion visual must receive a bounded companion prestige binding');
+assert.match(villagePlayer, /syncMenuCompanionPrestige\(\);[\s\S]*visibleBindings\.forEach\(binding => binding\.update\(0\)\)[\s\S]*menuCompanionBinding\?\.update\(0\)/,
+  'menu bindings must stay alive through the real renderer update loop');
+assert.match(villagePlayer, /visibleBindings\.forEach\(binding => binding\.dispose\(\)\)[\s\S]*menuCompanionBinding\?\.dispose\(\)/,
+  'menu prestige geometry must be released on renderer teardown');
+assert.doesNotMatch(villagePlayer, /document\.createElement|appendChild|position:\s*fixed/,
+  'menu prestige must not use a DOM surrogate');
 
 assert.match(companion, /import \{ createVisibleUpgradePrestige3D \}/,
   'companion prestige must use the same bounded model-local helper');
