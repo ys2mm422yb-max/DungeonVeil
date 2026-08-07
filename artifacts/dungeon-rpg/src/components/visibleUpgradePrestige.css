@@ -70,6 +70,10 @@
     0 0 5px var(--dv-visible-prestige-primary),
     0 0 10px var(--dv-visible-prestige-secondary);
   opacity: 0.82;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="3"]::after,
+[data-testid="equipment-model-preview"][data-upgrade-tier="4"]::after {
   animation: dungeon-veil-visible-prestige-crest 3.4s ease-in-out infinite;
 }
 
@@ -84,7 +88,6 @@
   font-size: 16px;
   letter-spacing: 10px;
   opacity: 1;
-  animation: none;
 }
 
 [data-testid="equipment-model-preview"][data-upgrade-static-fallback="true"]::before,
