@@ -37,8 +37,8 @@ const regressionRequired = [
   "window.__dungeonVeilCodexPreviewDiagnostics = [];",
   'async function attachCodexDiagnostics(page, testInfo, familyId)',
   "codex-renderer-diagnostics-${familyId}",
-  "codex-renderer-diagnostics-full-sequence",
-  "expect(FAMILIES).toHaveLength(35);",
+  'codex-renderer-diagnostics-full-sequence',
+  'expect(FAMILIES).toHaveLength(35);',
   "expect(fullDiagnostics.filter(entry => entry?.phase === 'ready')).toHaveLength(35);",
   "expect(ready?.painted, `ready diagnostic not painted for ${familyId}`).toBe(true);",
   "expect(ready?.contextLost, `renderer context lost before ${familyId} became ready`).toBe(false);",
@@ -57,9 +57,8 @@ if (familyCount !== 35) {
   throw new Error(`Codex lifecycle regression must exercise exactly 35 canonical families; found ${familyCount}.`);
 }
 
-if (source.includes('verified iPhone-safe bound') || source.includes('iPhone-safe bound')
-  || (await readFile(import.meta.filename, 'utf8')).includes('exceeds the verified iPhone-safe bound')) {
-  throw new Error('Codex lifecycle validator must not claim a source-only preview count is iPhone-safe.');
+if (source.includes('verified iPhone-safe bound') || source.includes('iPhone-safe bound')) {
+  throw new Error('Codex lifecycle source must not claim a preview-count constant is proven iPhone-safe.');
 }
 
 console.log('Codex preview renderer lifecycle verified: the real 35-family regression captures renderer generation, context-loss, paint-attempt and memory diagnostics for every selected family.');
