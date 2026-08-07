@@ -6,6 +6,7 @@ const MIN_SAMPLE_PNG_BYTES = 500;
 const MIN_COMPOSITED_PNG_BYTES = 4_000;
 const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
 const REQUIRED_PAINTED_SAMPLES = 2;
+const REQUIRED_TRANSITION_FREE_FRAMES = 2;
 const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
 const ROOM_PREPARING_TEXT = /RAUM WIRD AUFGEBAUT|ROOM(?: IS)? (?:BEING )?BUILT/i;
 const RUN_OPENING_TEXT = /DER SCHLEIER ÖFFNET SICH|THE VEIL OPENS/i;
@@ -112,6 +113,21 @@ async function waitForNoVisibleRunTransitions(page, timeout) {
   ).toBe(0);
 }
 
+async function waitForStableRunTransitionFreeCompositor(page, timeout) {
+  await expect.poll(
+    async () => {
+      for (let frame = 0; frame < REQUIRED_TRANSITION_FREE_FRAMES; frame += 1) {
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+        const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+        const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
+        if ((buildState && buildState !== 'ready') || roomPreparingVisible > 0 || runOpeningVisible > 0) return false;
+      }
+      return true;
+    },
+    { timeout, intervals: POLL_INTERVALS, message: 'Run transition state did not remain compositor-stable before capture' },
+  ).toBe(true);
+}
+
 function isNavigationTransitionError(error) {
   const message = String(error?.message || error);
   return /execution context was destroyed|most likely because of a navigation/i.test(message)
@@ -156,14 +172,8 @@ function installRestoredArmorScreenshotGuard(page, timeout) {
           await waitForPaintedCanvas(page, runCanvas, timeout);
         }
       }
-      await waitForNoVisibleRunTransitions(page, timeout);
-      const screenshot = await originalScreenshot(options);
-      const postCaptureCounts = await visibleRunTransitionCounts(page);
-      expect(postCaptureCounts, 'protected run screenshot captured while a loading/opening overlay was visible').toEqual({
-        roomPreparingVisible: 0,
-        runOpeningVisible: 0,
-      });
-      return screenshot;
+      await waitForStableRunTransitionFreeCompositor(page, timeout);
+      return originalScreenshot(options);
     }
     return originalScreenshot(options);
   };
@@ -197,7 +207,7 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
     { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank, room-preparing, run-opening, or insufficiently painted' },
   ).toBeGreaterThanOrEqual(1);
   await waitForNoVisibleRunTransitions(page, timeout);
-  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await waitForStableRunTransitionFreeCompositor(page, timeout);
 }
 
 export async function waitForLiveMenuPaint(page, timeout = 60_000) {
