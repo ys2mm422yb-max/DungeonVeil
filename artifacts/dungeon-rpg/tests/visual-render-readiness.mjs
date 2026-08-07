@@ -7,7 +7,8 @@ const MIN_COMPOSITED_PNG_BYTES = 4_000;
 const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
 const REQUIRED_PAINTED_SAMPLES = 2;
 const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
-const ROOM_PREPARING_TEXT = 'RAUM WIRD AUFGEBAUT…';
+const ROOM_PREPARING_TEXT = /RAUM WIRD AUFGEBAUT|ROOM(?: IS)? (?:BEING )?BUILT/i;
+const RUN_OPENING_TEXT = /DER SCHLEIER ÖFFNET SICH|THE VEIL OPENS/i;
 const RESTORED_ARMOR_SCREENSHOT_GUARD = Symbol('restoredArmorScreenshotGuard');
 const NAVIGATION_SAFE_EVALUATE_GUARD = Symbol('navigationSafeEvaluateGuard');
 const RAW_PAGE_SCREENSHOT = Symbol('rawPageScreenshot');
@@ -128,6 +129,14 @@ function installRestoredArmorScreenshotGuard(page, timeout) {
           await waitForPaintedCanvas(page, runCanvas, timeout);
         }
       }
+      const roomPreparingOverlay = page.getByText(ROOM_PREPARING_TEXT).first();
+      const runOpeningOverlay = page.getByText(RUN_OPENING_TEXT).first();
+      await expect(roomPreparingOverlay).toBeHidden({ timeout });
+      await expect(runOpeningOverlay).toBeHidden({ timeout });
+      const screenshot = await originalScreenshot(options);
+      await expect(roomPreparingOverlay).toBeHidden({ timeout });
+      await expect(runOpeningOverlay).toBeHidden({ timeout });
+      return screenshot;
     }
     return originalScreenshot(options);
   };
@@ -139,13 +148,15 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
   installRestoredArmorScreenshotGuard(page, timeout);
   await expect(canvas).toBeVisible({ timeout });
   await waitForRoomRendererReady(page, timeout);
-  const roomPreparingOverlay = page.getByText(ROOM_PREPARING_TEXT, { exact: true }).first();
+  const roomPreparingOverlay = page.getByText(ROOM_PREPARING_TEXT).first();
+  const runOpeningOverlay = page.getByText(RUN_OPENING_TEXT).first();
   let paintedSamples = 0;
   await expect.poll(
     async () => {
       const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
       const roomPreparingVisible = await roomPreparingOverlay.isVisible().catch(() => false);
-      if ((buildState && buildState !== 'ready') || roomPreparingVisible) {
+      const runOpeningVisible = await runOpeningOverlay.isVisible().catch(() => false);
+      if ((buildState && buildState !== 'ready') || roomPreparingVisible || runOpeningVisible) {
         paintedSamples = 0;
         return 0;
       }
@@ -159,9 +170,10 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
       paintedSamples = painted ? paintedSamples + 1 : 0;
       return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
     },
-    { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank, room-preparing, or insufficiently painted' },
+    { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank, room-preparing, run-opening, or insufficiently painted' },
   ).toBeGreaterThanOrEqual(1);
   await expect(roomPreparingOverlay).toBeHidden({ timeout });
+  await expect(runOpeningOverlay).toBeHidden({ timeout });
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
