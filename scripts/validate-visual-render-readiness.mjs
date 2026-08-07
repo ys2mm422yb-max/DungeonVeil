@@ -14,6 +14,8 @@ assert.match(source, /const MIN_COMPOSITED_BYTES_PER_PIXEL = 0\.012;/,
   'painted-canvas evidence must retain the compositor bytes-per-pixel threshold');
 assert.match(source, /const REQUIRED_PAINTED_SAMPLES = 2;/,
   'painted-canvas evidence must still require two consecutive painted samples');
+assert.match(source, /const ROOM_PREPARING_TEXT = 'RAUM WIRD AUFGEBAUT…';/,
+  'run evidence readiness must recognize the authoritative visible room-preparing overlay');
 assert.match(source, /const RAW_PAGE_SCREENSHOT = Symbol\('rawPageScreenshot'\);/,
   'the readiness guard must own a recursion-safe raw compositor screenshot handle');
 assert.match(source, /page\[RAW_PAGE_SCREENSHOT\] = originalScreenshot;/,
@@ -30,6 +32,14 @@ assert.match(source, /if \(shouldGuardRunScreenshot\(options\)\) \{/,
   'the run-canvas readiness guard must execute only for protected run screenshots');
 assert.doesNotMatch(source, /page\.screenshot = async options => \{\s*const runRenderer/,
   'generic page screenshots must not be globally blocked by run-canvas readiness');
+assert.match(source, /const roomPreparingOverlay = page\.getByText\(ROOM_PREPARING_TEXT, \{ exact: true \}\)\.first\(\);/,
+  'paint readiness must observe the visible room-preparing overlay independently of renderer dataset state');
+assert.match(source, /const roomPreparingVisible = await roomPreparingOverlay\.isVisible\(\)\.catch\(\(\) => false\);/,
+  'each consecutive painted sample must reject a still-visible room-preparing overlay');
+assert.match(source, /if \(\(buildState && buildState !== 'ready'\) \|\| roomPreparingVisible\) \{[\s\S]*paintedSamples = 0;/,
+  'room-preparing visibility must reset consecutive painted-sample evidence instead of accepting HUD or overlay pixels');
+assert.match(source, /await expect\(roomPreparingOverlay\)\.toBeHidden\(\{ timeout \}\);/,
+  'protected visual evidence must finish with the room-preparing overlay hidden');
 assert.match(source, /const composited = await compositedCanvasEvidence\(page, canvas\);/,
   'paint readiness must consult compositor-visible evidence before the raw canvas fallback');
 assert.doesNotMatch(source, /canvas\.screenshot\(/,
