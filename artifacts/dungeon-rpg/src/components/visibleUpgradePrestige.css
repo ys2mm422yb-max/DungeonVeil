@@ -87,7 +87,8 @@
   top: 15%;
   font-size: 16px;
   letter-spacing: 10px;
-  opacity: 1;
+  opacity: 1 !important;
+  animation: none !important;
 }
 
 [data-testid="equipment-model-preview"][data-upgrade-static-fallback="true"]::before,
