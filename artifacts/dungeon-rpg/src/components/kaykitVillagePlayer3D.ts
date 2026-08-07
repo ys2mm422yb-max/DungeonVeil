@@ -3,6 +3,7 @@ import { resolveEquippedPlayerBody } from '../game/equippedPlayerBody';
 import { isOptionalEquipmentSlotEquipped } from '../game/optionalEquipmentState';
 import { KAYKIT_PLAYER_ASSETS, type KayKitPlayerRig } from './kaykitPlayer3D';
 import { loadKayKitRangerWeapons } from './kaykitWeapons3D';
+import { createVisibleUpgradePrestige3D, type VisibleUpgradePrestigeBinding3D } from './visibleUpgradePrestige3D';
 
 const APP_BASE_URL = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_APP_BASE_URL = APP_BASE_URL.endsWith('/') ? APP_BASE_URL : `${APP_BASE_URL}/`;
@@ -182,6 +183,46 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     arrows: arrowCount,
   };
 
+  const visibleBindings: VisibleUpgradePrestigeBinding3D[] = [];
+  const armorLevel = Number(meta.owned[meta.equipped.armor]?.level ?? 1);
+  const bowLevel = Number(meta.owned[meta.equipped.bow]?.level ?? 1);
+  const quiverLevel = Number(meta.owned[meta.equipped.quiver]?.level ?? 1);
+  visibleBindings.push(createVisibleUpgradePrestige3D(THREE, visual, {
+    slot: 'armor',
+    level: armorLevel,
+    binding: 'visible:menu-player-armor',
+  }));
+  if (bowHolder) visibleBindings.push(createVisibleUpgradePrestige3D(THREE, bowHolder, {
+    slot: 'bow',
+    level: bowLevel,
+    binding: 'visible:menu-player-bow',
+  }));
+  if (quiverHolder) visibleBindings.push(createVisibleUpgradePrestige3D(THREE, quiverHolder, {
+    slot: 'quiver',
+    level: quiverLevel,
+    binding: 'visible:menu-player-quiver',
+  }));
+
+  let menuCompanionRoot: any = null;
+  let menuCompanionBinding: VisibleUpgradePrestigeBinding3D | null = null;
+  const syncMenuCompanionPrestige = () => {
+    const scene = root.parent?.parent;
+    if (!scene?.children) return;
+    const nextRoot = scene.children.find((child: any) => String(child?.name ?? '').startsWith('MainMenuCompanion_')) ?? null;
+    if (nextRoot === menuCompanionRoot) return;
+    menuCompanionBinding?.dispose();
+    menuCompanionBinding = null;
+    menuCompanionRoot = nextRoot;
+    if (!nextRoot) return;
+    const companionVisual = nextRoot.children?.find((child: any) => String(child?.name ?? '').startsWith('MenuCompanionVisual_'));
+    if (!companionVisual) return;
+    menuCompanionBinding = createVisibleUpgradePrestige3D(THREE, companionVisual, {
+      slot: 'companion',
+      level: Number(nextRoot.userData?.companionLevel ?? 1),
+      binding: 'visible:menu-companion',
+    });
+  };
+
   if (typeof window !== 'undefined') {
     (window as any).__DUNGEON_VEIL_MENU_RANGER__ = {
       presentation: root.userData.presentation,
@@ -199,6 +240,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   }
 
   let elapsed = 0;
+  let stopped = false;
   return {
     root,
     arrowPrototype: weapons.arrow ?? new THREE.Group(),
@@ -207,6 +249,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     triggerAttack: () => undefined,
     triggerDash: () => undefined,
     update(delta: number) {
+      if (stopped) return;
       elapsed += delta;
       mixer.update(delta);
       root.position.x = 0;
@@ -214,8 +257,18 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       root.position.z = -1.82;
       root.rotation.y = -0.025;
       root.scale.setScalar(0.72);
+      syncMenuCompanionPrestige();
+      visibleBindings.forEach(binding => binding.update(0));
+      menuCompanionBinding?.update(0);
     },
     stop() {
+      if (stopped) return;
+      stopped = true;
+      visibleBindings.forEach(binding => binding.dispose());
+      visibleBindings.length = 0;
+      menuCompanionBinding?.dispose();
+      menuCompanionBinding = null;
+      menuCompanionRoot = null;
       mixer.stopAllAction();
     },
   };
