@@ -11,12 +11,43 @@ const CODEX_SHARED_RENDERER_MAX_PREVIEWS = 6;
 let sharedRenderer: any = null;
 let sharedRendererPagehideInstalled = false;
 let sharedRendererPreviewCount = 0;
+let sharedRendererGeneration = 0;
+let sharedRendererContextLost = false;
 
-function releaseSharedRenderer() {
+function rendererMemory(renderer: any) {
+  return {
+    geometries: Number(renderer?.info?.memory?.geometries ?? 0),
+    textures: Number(renderer?.info?.memory?.textures ?? 0),
+    programs: Array.isArray(renderer?.info?.programs) ? renderer.info.programs.length : 0,
+  };
+}
+
+function recordCodexPreviewDiagnostic(entry: Record<string, unknown>) {
+  if (typeof window === 'undefined') return;
+  const target = window as any;
+  const diagnostics = Array.isArray(target.__dungeonVeilCodexPreviewDiagnostics)
+    ? target.__dungeonVeilCodexPreviewDiagnostics
+    : [];
+  diagnostics.push({ timestamp: Date.now(), ...entry });
+  if (diagnostics.length > 256) diagnostics.splice(0, diagnostics.length - 256);
+  target.__dungeonVeilCodexPreviewDiagnostics = diagnostics;
+}
+
+function releaseSharedRenderer(reason = 'release') {
   const renderer = sharedRenderer;
+  const generation = sharedRendererGeneration;
+  const previewCount = sharedRendererPreviewCount;
+  if (renderer) {
+    recordCodexPreviewDiagnostic({
+      phase: 'release', reason, generation, previewCount,
+      contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+      memory: rendererMemory(renderer),
+    });
+  }
   sharedRenderer = null;
   sharedRendererPagehideInstalled = false;
   sharedRendererPreviewCount = 0;
+  sharedRendererContextLost = false;
   if (!renderer) return;
   renderer.renderLists?.dispose?.();
   renderer.dispose?.();
@@ -24,9 +55,9 @@ function releaseSharedRenderer() {
   renderer.domElement?.remove?.();
 }
 
-function getSharedRenderer(THREE: any) {
-  if (sharedRenderer?.getContext?.().isContextLost?.()) releaseSharedRenderer();
-  if (sharedRenderer && sharedRendererPreviewCount >= CODEX_SHARED_RENDERER_MAX_PREVIEWS) releaseSharedRenderer();
+function getSharedRenderer(THREE: any, enemyType: EnemyType) {
+  if (sharedRenderer?.getContext?.().isContextLost?.()) releaseSharedRenderer('context-lost-before-acquire');
+  if (sharedRenderer && sharedRendererPreviewCount >= CODEX_SHARED_RENDERER_MAX_PREVIEWS) releaseSharedRenderer('preview-cap');
   if (!sharedRenderer) {
     sharedRenderer = new THREE.WebGLRenderer({
       antialias: !IS_MOBILE,
@@ -34,11 +65,30 @@ function getSharedRenderer(THREE: any) {
       powerPreference: 'high-performance',
       preserveDrawingBuffer: true,
     });
+    sharedRendererGeneration += 1;
+    sharedRendererContextLost = false;
+    const generation = sharedRendererGeneration;
+    sharedRenderer.domElement.addEventListener('webglcontextlost', (event: Event) => {
+      event.preventDefault?.();
+      sharedRendererContextLost = true;
+      recordCodexPreviewDiagnostic({
+        phase: 'context-lost', generation, enemyType,
+        previewCount: sharedRendererPreviewCount,
+        contextLost: true,
+        memory: rendererMemory(sharedRenderer),
+      });
+    });
   }
   sharedRendererPreviewCount += 1;
+  recordCodexPreviewDiagnostic({
+    phase: 'acquire', enemyType, generation: sharedRendererGeneration,
+    previewCount: sharedRendererPreviewCount,
+    contextLost: Boolean(sharedRenderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+    memory: rendererMemory(sharedRenderer),
+  });
   if (!sharedRendererPagehideInstalled) {
     sharedRendererPagehideInstalled = true;
-    window.addEventListener('pagehide', releaseSharedRenderer, { once: true });
+    window.addEventListener('pagehide', () => releaseSharedRenderer('pagehide'), { once: true });
   }
   return sharedRenderer;
 }
@@ -107,6 +157,8 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
     let visual: any = null;
     let removeResize = () => {};
     let lastFrame = 0;
+    let generation = 0;
+    let previewCount = 0;
     setStatus('loading');
     setPainted(false);
 
@@ -118,7 +170,9 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       scene = new THREE.Scene();
       scene.background = null;
       scene.fog = new THREE.FogExp2(0x080510, 0.055);
-      renderer = getSharedRenderer(THREE);
+      renderer = getSharedRenderer(THREE, enemyType);
+      generation = sharedRendererGeneration;
+      previewCount = sharedRendererPreviewCount;
       renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, IS_MOBILE ? 1 : 1.35));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -165,9 +219,6 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       scene.add(visual.root);
       visual.root.updateMatrixWorld(true);
 
-      // Frame only the authored character scene. Runtime roots also contain
-      // shadows, status halos and safety helpers whose bounds can dwarf a model
-      // (the Rift Beast previously collapsed to a tiny body behind the sigil).
       const framingObject = visual.scene ?? visual.root;
       const initial = new THREE.Box3().setFromObject(framingObject);
       const size = initial.getSize(new THREE.Vector3());
@@ -194,10 +245,21 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       for (let attempt = 0; attempt < 5 && !disposed && !framePainted; attempt += 1) {
         renderer.render(scene, camera);
         framePainted = renderedFrameHasVisiblePixels(renderer);
+        recordCodexPreviewDiagnostic({
+          phase: 'paint-attempt', enemyType, generation, previewCount, attempt: attempt + 1,
+          painted: framePainted,
+          contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+          memory: rendererMemory(renderer),
+        });
         if (!framePainted) await nextAnimationFrame();
       }
       if (disposed) return;
       if (!framePainted) throw new Error(`Codex preview framebuffer remained blank: ${enemyType}`);
+      recordCodexPreviewDiagnostic({
+        phase: 'ready', enemyType, generation, previewCount, painted: true,
+        contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+        memory: rendererMemory(renderer),
+      });
       setPainted(true);
       setStatus('ready');
 
@@ -220,6 +282,12 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
     };
 
     boot().catch(error => {
+      recordCodexPreviewDiagnostic({
+        phase: 'error', enemyType, generation, previewCount,
+        error: error instanceof Error ? error.message : String(error),
+        contextLost: Boolean(renderer?.getContext?.().isContextLost?.() || sharedRendererContextLost),
+        memory: rendererMemory(renderer),
+      });
       console.error('Codex shared model preview failed', error);
       if (!disposed) {
         setPainted(false);
