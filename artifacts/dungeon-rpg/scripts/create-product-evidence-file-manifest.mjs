@@ -110,6 +110,10 @@ async function selfTest() {
     if (manifest.mediaFiles !== 5 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 2) {
       throw new Error('Manifest duplicate hash summary is invalid');
     }
+    const companionEntry = manifest.files.find((entry) => entry.path === 'companion-damage-feedback-device.png');
+    if (!companionEntry || companionEntry.png.width !== 390 || companionEntry.png.height !== 844 || companionEntry.sha256.length !== 64) {
+      throw new Error('Companion damage evidence is not manifest-backed with valid PNG metadata');
+    }
     const prestigeEntry = manifest.files.find((entry) => entry.path === 'visible-prestige-device.png');
     if (!prestigeEntry || prestigeEntry.png.width !== 390 || prestigeEntry.png.height !== 844 || prestigeEntry.sha256.length !== 64) {
       throw new Error('Visible prestige evidence is not manifest-backed with valid PNG metadata');
