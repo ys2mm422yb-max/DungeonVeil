@@ -110,6 +110,10 @@ assert.doesNotMatch(companion, /document\.createElement|appendChild|position:\s*
 
 assert.match(css, /\[data-testid="equipment-model-preview"\]\[data-upgrade-tier="3"\]/);
 assert.match(css, /\[data-testid="equipment-model-preview"\]\[data-upgrade-tier="5"\]/);
+assert.match(css, /\[data-testid="equipment-model-preview"\]\[data-upgrade-tier="5"\]::after\s*\{[\s\S]*?opacity:\s*1\s*;[\s\S]*?\}/,
+  'tier-5 preview crest must remain fully visible');
+assert.doesNotMatch(css, /\[data-testid="equipment-model-preview"\]\[data-upgrade-tier="5"\]::after\s*,[\s\S]*?animation:\s*dungeon-veil-visible-prestige-crest/,
+  'tier-5 preview crest must not participate in the animated shared crest selector');
 assert.match(css, /pointer-events: none/,
   'preview accents must never intercept touch input');
 assert.match(css, /prefers-reduced-motion: reduce/);
