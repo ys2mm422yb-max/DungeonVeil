@@ -14,6 +14,8 @@ assert.match(source, /const MIN_COMPOSITED_BYTES_PER_PIXEL = 0\.012;/,
   'painted-canvas evidence must retain the compositor bytes-per-pixel threshold');
 assert.match(source, /const REQUIRED_PAINTED_SAMPLES = 2;/,
   'painted-canvas evidence must still require two consecutive painted samples');
+assert.match(source, /const REQUIRED_TRANSITION_FREE_FRAMES = 2;/,
+  'protected run evidence must require two consecutive transition-free compositor frames');
 assert.match(source, /const ROOM_PREPARING_TEXT = \/RAUM WIRD AUFGEBAUT\|ROOM\(\?: IS\)\? \(\?:BEING \)\?BUILT\/i;/,
   'run evidence readiness must recognize room-preparing text independent of ellipsis rendering');
 assert.match(source, /const RUN_OPENING_TEXT = \/DER SCHLEIER ÖFFNET SICH\|THE VEIL OPENS\/i;/,
@@ -27,11 +29,15 @@ assert.doesNotMatch(source, /getByText\(ROOM_PREPARING_TEXT\)\.first\(\)/,
 assert.doesNotMatch(source, /getByText\(RUN_OPENING_TEXT\)\.first\(\)/,
   'run-opening evidence guards must never collapse to the first matching node');
 assert.match(source, /async function waitForNoVisibleRunTransitions\(page, timeout\) \{[\s\S]*counts\.roomPreparingVisible \+ counts\.runOpeningVisible[\s\S]*\.toBe\(0\);/,
-  'pre-capture readiness must require zero visible loading/opening matches');
+  'run readiness must require zero visible loading/opening matches');
+assert.match(source, /async function waitForStableRunTransitionFreeCompositor\(page, timeout\) \{[\s\S]*frame < REQUIRED_TRANSITION_FREE_FRAMES[\s\S]*requestAnimationFrame[\s\S]*dungeonVeilRoomBuildState[\s\S]*visibleRunTransitionCounts\(page\)[\s\S]*return false;[\s\S]*\.toBe\(true\);/,
+  'protected run evidence must remain build-ready and transition-free across consecutive compositor frames');
 assert.match(source, /const \{ roomPreparingVisible, runOpeningVisible \} = await visibleRunTransitionCounts\(page\);[\s\S]*roomPreparingVisible > 0 \|\| runOpeningVisible > 0[\s\S]*paintedSamples = 0;/,
   'each consecutive painted sample must reset when any loading/opening match is visible');
-assert.match(source, /await waitForNoVisibleRunTransitions\(page, timeout\);[\s\S]*const screenshot = await originalScreenshot\(options\);[\s\S]*const postCaptureCounts = await visibleRunTransitionCounts\(page\);[\s\S]*roomPreparingVisible: 0,[\s\S]*runOpeningVisible: 0,/,
-  'protected run evidence must check zero visible transitions immediately before and immediately after capture');
+assert.match(source, /await waitForStableRunTransitionFreeCompositor\(page, timeout\);\s*return originalScreenshot\(options\);/,
+  'protected run screenshots must capture immediately after the stable compositor window');
+assert.doesNotMatch(source, /postCaptureCounts|protected run screenshot captured while a loading\/opening overlay was visible/,
+  'protected evidence must not reject a captured frame because DOM state changes after capture');
 assert.match(source, /const RAW_PAGE_SCREENSHOT = Symbol\('rawPageScreenshot'\);/,
   'the readiness guard must own a recursion-safe raw compositor screenshot handle');
 assert.match(source, /page\[RAW_PAGE_SCREENSHOT\] = originalScreenshot;/,
