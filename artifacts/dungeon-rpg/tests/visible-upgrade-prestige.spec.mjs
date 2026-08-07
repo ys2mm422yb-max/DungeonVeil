@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
+import { waitForLiveMenuPaint, waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const REQUIRED_VISIBLE_SLOTS = ['bow', 'quiver', 'armor', 'companion'];
@@ -115,6 +115,15 @@ test('visible prestige is clear and bounded in menu, preview and live run', asyn
   test.setTimeout(420_000);
   await seedVisiblePrestigeLoadout(page);
   await waitForMenu(page);
+
+  const liveMenuScene = await waitForLiveMenuPaint(page, 120_000);
+  await expect(liveMenuScene).toHaveAttribute('data-companion-level', '5');
+  const menuDiagnostics = await page.evaluate(() => window.__DUNGEON_VEIL_MENU_RANGER__ || null);
+  expect(menuDiagnostics).toMatchObject({
+    cleanSingleBody: true,
+    depthTestedEquipment: true,
+    visibleEquipment: { bow: true, quiver: true, armor: true },
+  });
 
   const menuTelemetry = await expectRuntimeBindings(page);
   expect(menuTelemetry.companion).toBe(5);
