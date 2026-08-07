@@ -22,6 +22,14 @@ assert.match(source, /const rawScreenshot = page\[RAW_PAGE_SCREENSHOT\] \|\| pag
   'composited evidence must use the unwrapped page-level compositor capture');
 assert.match(source, /rawScreenshot\(\{[\s\S]*type: 'png',[\s\S]*animations: 'allow',[\s\S]*clip: \{[\s\S]*x: Math\.max\(0, box\.x\),[\s\S]*y: Math\.max\(0, box\.y\),[\s\S]*width: box\.width,[\s\S]*height: box\.height,/,
   'composited evidence must sample user-visible pixels clipped to the real canvas bounds');
+assert.match(source, /function shouldGuardRunScreenshot\(options\)/,
+  'the screenshot guard must have an explicit evidence-scope predicate');
+assert.match(source, /autopilot-solo-run-/,
+  'the screenshot guard must be limited to Product Autopilot solo-run evidence');
+assert.match(source, /if \(shouldGuardRunScreenshot\(options\)\) \{/,
+  'the run-canvas readiness guard must execute only for protected run screenshots');
+assert.doesNotMatch(source, /page\.screenshot = async options => \{\s*const runRenderer/,
+  'generic page screenshots must not be globally blocked by run-canvas readiness');
 assert.match(source, /const composited = await compositedCanvasEvidence\(page, canvas\);/,
   'paint readiness must consult compositor-visible evidence before the raw canvas fallback');
 assert.doesNotMatch(source, /canvas\.screenshot\(/,
