@@ -8,7 +8,7 @@
     "start:mobile": "bash scripts/start-replit-mobile.sh",
     "audit:adaptive-test-policy": "node scripts/validate-adaptive-test-plan.mjs --policy-only",
     "audit:upgrade-visual-tiers": "node scripts/validate-upgrade-visual-tiers.mjs",
-    "audit:visible-upgrade-prestige": "node scripts/validate-visible-upgrade-prestige.mjs",
+    "audit:visible-upgrade-prestige": "node scripts/validate-visible-upgrade-prestige.mjs && node scripts/validate-visual-render-readiness.mjs",
     "audit:companion-combat-prestige": "node scripts/validate-companion-combat-prestige.mjs",
     "audit:companion-damage-feedback": "node scripts/validate-companion-damage-feedback.mjs",
     "audit:kaykit-model-urls": "node scripts/validate-kaykit-model-urls.mjs",
