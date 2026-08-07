@@ -85,6 +85,33 @@ async function waitForRoomRendererReady(page, timeout) {
   ).toBe(true);
 }
 
+async function visibleMatchCount(locator) {
+  const count = await locator.count();
+  let visible = 0;
+  for (let index = 0; index < count; index += 1) {
+    if (await locator.nth(index).isVisible().catch(() => false)) visible += 1;
+  }
+  return visible;
+}
+
+async function visibleRunTransitionCounts(page) {
+  const [roomPreparingVisible, runOpeningVisible] = await Promise.all([
+    visibleMatchCount(page.getByText(ROOM_PREPARING_TEXT)),
+    visibleMatchCount(page.getByText(RUN_OPENING_TEXT)),
+  ]);
+  return { roomPreparingVisible, runOpeningVisible };
+}
+
+async function waitForNoVisibleRunTransitions(page, timeout) {
+  await expect.poll(
+    async () => {
+      const counts = await visibleRunTransitionCounts(page);
+      return counts.roomPreparingVisible + counts.runOpeningVisible;
+    },
+    { timeout, intervals: POLL_INTERVALS, message: 'Run transition overlay remained visible' },
+  ).toBe(0);
+}
+
 function isNavigationTransitionError(error) {
   const message = String(error?.message || error);
   return /execution context was destroyed|most likely because of a navigation/i.test(message)
@@ -129,13 +156,13 @@ function installRestoredArmorScreenshotGuard(page, timeout) {
           await waitForPaintedCanvas(page, runCanvas, timeout);
         }
       }
-      const roomPreparingOverlay = page.getByText(ROOM_PREPARING_TEXT).first();
-      const runOpeningOverlay = page.getByText(RUN_OPENING_TEXT).first();
-      await expect(roomPreparingOverlay).toBeHidden({ timeout });
-      await expect(runOpeningOverlay).toBeHidden({ timeout });
+      await waitForNoVisibleRunTransitions(page, timeout);
       const screenshot = await originalScreenshot(options);
-      await expect(roomPreparingOverlay).toBeHidden({ timeout });
-      await expect(runOpeningOverlay).toBeHidden({ timeout });
+      const postCaptureCounts = await visibleRunTransitionCounts(page);
+      expect(postCaptureCounts, 'protected run screenshot captured while a loading/opening overlay was visible').toEqual({
+        roomPreparingVisible: 0,
+        runOpeningVisible: 0,
+      });
       return screenshot;
     }
     return originalScreenshot(options);
@@ -148,15 +175,12 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
   installRestoredArmorScreenshotGuard(page, timeout);
   await expect(canvas).toBeVisible({ timeout });
   await waitForRoomRendererReady(page, timeout);
-  const roomPreparingOverlay = page.getByText(ROOM_PREPARING_TEXT).first();
-  const runOpeningOverlay = page.getByText(RUN_OPENING_TEXT).first();
   let paintedSamples = 0;
   await expect.poll(
     async () => {
       const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
-      const roomPreparingVisible = await roomPreparingOverlay.isVisible().catch(() => false);
-      const runOpeningVisible = await runOpeningOverlay.isVisible().catch(() => false);
-      if ((buildState && buildState !== 'ready') || roomPreparingVisible || runOpeningVisible) {
+      const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
+      if ((buildState && buildState !== 'ready') || roomPreparingVisible > 0 || runOpeningVisible > 0) {
         paintedSamples = 0;
         return 0;
       }
@@ -172,8 +196,7 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
     },
     { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank, room-preparing, run-opening, or insufficiently painted' },
   ).toBeGreaterThanOrEqual(1);
-  await expect(roomPreparingOverlay).toBeHidden({ timeout });
-  await expect(runOpeningOverlay).toBeHidden({ timeout });
+  await waitForNoVisibleRunTransitions(page, timeout);
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
