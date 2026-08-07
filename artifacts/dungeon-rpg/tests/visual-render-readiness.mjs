@@ -9,6 +9,7 @@ const REQUIRED_PAINTED_SAMPLES = 2;
 const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
 const RESTORED_ARMOR_SCREENSHOT_GUARD = Symbol('restoredArmorScreenshotGuard');
 const NAVIGATION_SAFE_EVALUATE_GUARD = Symbol('navigationSafeEvaluateGuard');
+const RAW_PAGE_SCREENSHOT = Symbol('rawPageScreenshot');
 
 async function canvasFrameEvidence(canvas) {
   return canvas.evaluate(async (element, sampleSize) => {
@@ -50,11 +51,21 @@ async function canvasFrameEvidence(canvas) {
   }, SAMPLE_SIZE);
 }
 
-async function compositedCanvasEvidence(canvas) {
+async function compositedCanvasEvidence(page, canvas) {
   try {
     const box = await canvas.boundingBox();
     if (!box || box.width < 1 || box.height < 1) return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
-    const png = await canvas.screenshot({ type: 'png', animations: 'allow' });
+    const rawScreenshot = page[RAW_PAGE_SCREENSHOT] || page.screenshot.bind(page);
+    const png = await rawScreenshot({
+      type: 'png',
+      animations: 'allow',
+      clip: {
+        x: Math.max(0, box.x),
+        y: Math.max(0, box.y),
+        width: box.width,
+        height: box.height,
+      },
+    });
     const area = Math.max(1, Math.round(box.width) * Math.round(box.height));
     return { pngBytes: png.length, requiredBytes: Math.max(MIN_COMPOSITED_PNG_BYTES, Math.floor(area * MIN_COMPOSITED_BYTES_PER_PIXEL)) };
   } catch {
@@ -91,9 +102,6 @@ function installNavigationSafeEvaluate(page, timeout) {
       return await originalEvaluate(...args);
     } catch (error) {
       if (!isNavigationTransitionError(error)) throw error;
-      // WebKit can expose the new document between context creation and body
-      // attachment. Prove the replacement document is ready, then repeat the
-      // identical evaluation once; all original assertions remain unchanged.
       await waitForDocumentBody(page, timeout);
       return originalEvaluate(...args);
     }
@@ -104,16 +112,12 @@ function installNavigationSafeEvaluate(page, timeout) {
 function installRestoredArmorScreenshotGuard(page, timeout) {
   if (page[RESTORED_ARMOR_SCREENSHOT_GUARD]) return;
   const originalScreenshot = page.screenshot.bind(page);
+  page[RAW_PAGE_SCREENSHOT] = originalScreenshot;
   page.screenshot = async options => {
     const runRenderer = page.getByTestId('run-three-host');
     if (await runRenderer.count()) {
       const runCanvas = runRenderer.locator('canvas').first();
       if (await runCanvas.count()) {
-        // A correct armor binding is not sufficient visual evidence: WebKit can
-        // expose the new rig state while the composited room canvas is still
-        // blank. Require two independently painted canvas samples before every
-        // in-run page capture so black or renderer-transition frames can never
-        // be accepted as successful evidence.
         await waitForPaintedCanvas(page, runCanvas, timeout);
       }
     }
@@ -135,7 +139,7 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
         paintedSamples = 0;
         return 0;
       }
-      const composited = await compositedCanvasEvidence(canvas);
+      const composited = await compositedCanvasEvidence(page, canvas);
       let paintScore = composited.pngBytes / composited.requiredBytes;
       if (paintScore < 1) {
         const evidence = await canvasFrameEvidence(canvas);
