@@ -107,14 +107,14 @@ function installRestoredArmorScreenshotGuard(page, timeout) {
   page.screenshot = async options => {
     const runRenderer = page.getByTestId('run-three-host');
     if (await runRenderer.count()) {
-      const equippedArmor = await runRenderer.getAttribute('data-equipped-armor');
-      if (equippedArmor === 'warden-armor') {
-        // The cloud-restore journey can switch the visible rig before WebKit starts
-        // its delayed room-intro portal. Settle only the actual Warden evidence
-        // screenshot instead of blocking unrelated painted-room readiness checks.
-        await page.waitForTimeout(13_000);
-        await waitForRoomRendererReady(page, timeout);
-        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const runCanvas = runRenderer.locator('canvas').first();
+      if (await runCanvas.count()) {
+        // A correct armor binding is not sufficient visual evidence: WebKit can
+        // expose the new rig state while the composited room canvas is still
+        // blank. Require two independently painted canvas samples before every
+        // in-run page capture so black or renderer-transition frames can never
+        // be accepted as successful evidence.
+        await waitForPaintedCanvas(page, runCanvas, timeout);
       }
     }
     return originalScreenshot(options);
