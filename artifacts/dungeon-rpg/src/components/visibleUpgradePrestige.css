@@ -84,7 +84,7 @@
   font-size: 16px;
   letter-spacing: 10px;
   opacity: 1;
-  animation-duration: 2.5s;
+  animation: none;
 }
 
 [data-testid="equipment-model-preview"][data-upgrade-static-fallback="true"]::before,
