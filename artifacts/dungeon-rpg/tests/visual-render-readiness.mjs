@@ -7,6 +7,7 @@ const MIN_COMPOSITED_PNG_BYTES = 4_000;
 const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
 const REQUIRED_PAINTED_SAMPLES = 2;
 const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
+const ROOM_PREPARING_TEXT = 'RAUM WIRD AUFGEBAUT…';
 const RESTORED_ARMOR_SCREENSHOT_GUARD = Symbol('restoredArmorScreenshotGuard');
 const NAVIGATION_SAFE_EVALUATE_GUARD = Symbol('navigationSafeEvaluateGuard');
 const RAW_PAGE_SCREENSHOT = Symbol('rawPageScreenshot');
@@ -138,11 +139,13 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
   installRestoredArmorScreenshotGuard(page, timeout);
   await expect(canvas).toBeVisible({ timeout });
   await waitForRoomRendererReady(page, timeout);
+  const roomPreparingOverlay = page.getByText(ROOM_PREPARING_TEXT, { exact: true }).first();
   let paintedSamples = 0;
   await expect.poll(
     async () => {
       const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
-      if (buildState && buildState !== 'ready') {
+      const roomPreparingVisible = await roomPreparingOverlay.isVisible().catch(() => false);
+      if ((buildState && buildState !== 'ready') || roomPreparingVisible) {
         paintedSamples = 0;
         return 0;
       }
@@ -156,8 +159,9 @@ export async function waitForPaintedCanvas(page, canvas = page.locator('canvas')
       paintedSamples = painted ? paintedSamples + 1 : 0;
       return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
     },
-    { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank or insufficiently painted' },
+    { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank, room-preparing, or insufficiently painted' },
   ).toBeGreaterThanOrEqual(1);
+  await expect(roomPreparingOverlay).toBeHidden({ timeout });
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
