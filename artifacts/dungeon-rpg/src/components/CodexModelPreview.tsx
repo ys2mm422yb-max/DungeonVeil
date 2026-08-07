@@ -6,14 +6,17 @@ import { EnemyArtwork } from './CodexArtwork';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const IS_MOBILE = typeof navigator !== 'undefined'
   && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const CODEX_SHARED_RENDERER_MAX_PREVIEWS = 6;
 
 let sharedRenderer: any = null;
 let sharedRendererPagehideInstalled = false;
+let sharedRendererPreviewCount = 0;
 
 function releaseSharedRenderer() {
   const renderer = sharedRenderer;
   sharedRenderer = null;
   sharedRendererPagehideInstalled = false;
+  sharedRendererPreviewCount = 0;
   if (!renderer) return;
   renderer.renderLists?.dispose?.();
   renderer.dispose?.();
@@ -22,7 +25,8 @@ function releaseSharedRenderer() {
 }
 
 function getSharedRenderer(THREE: any) {
-  if (sharedRenderer?.getContext?.().isContextLost?.()) sharedRenderer = null;
+  if (sharedRenderer?.getContext?.().isContextLost?.()) releaseSharedRenderer();
+  if (sharedRenderer && sharedRendererPreviewCount >= CODEX_SHARED_RENDERER_MAX_PREVIEWS) releaseSharedRenderer();
   if (!sharedRenderer) {
     sharedRenderer = new THREE.WebGLRenderer({
       antialias: !IS_MOBILE,
@@ -31,6 +35,7 @@ function getSharedRenderer(THREE: any) {
       preserveDrawingBuffer: true,
     });
   }
+  sharedRendererPreviewCount += 1;
   if (!sharedRendererPagehideInstalled) {
     sharedRendererPagehideInstalled = true;
     window.addEventListener('pagehide', releaseSharedRenderer, { once: true });
