@@ -48,11 +48,16 @@ function duplicateHashGroups(entries) {
     .sort((a, b) => a.sha256.localeCompare(b.sha256));
 }
 
+function evidencePriority(relativePath) {
+  if (relativePath.startsWith('companion-damage-feedback-')) return 0;
+  if (relativePath.startsWith('visible-prestige-')) return 1;
+  return 2;
+}
+
 function canonicalEvidencePath(paths) {
   return [...paths].sort((left, right) => {
-    const leftVisible = left.startsWith('visible-prestige-') ? 0 : 1;
-    const rightVisible = right.startsWith('visible-prestige-') ? 0 : 1;
-    if (leftVisible !== rightVisible) return leftVisible - rightVisible;
+    const priorityDelta = evidencePriority(left) - evidencePriority(right);
+    if (priorityDelta !== 0) return priorityDelta;
     return left.localeCompare(right);
   })[0];
 }
