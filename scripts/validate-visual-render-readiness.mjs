@@ -22,8 +22,8 @@ assert.match(source, /async function waitForStableRestoredArmorEvidence\(page, t
 assert.match(source, /const snapshot = \{ buildState, roomPreparingVisible, runOpeningVisible, roomTitleVisible \};[\s\S]*lastReset = \{ \.\.\.snapshot, elapsedStableMs: stableSince === 0 \? 0 : now - stableSince \};[\s\S]*stableSince = 0;/,
   'every stability reset must retain all predicate values and elapsed stable duration');
 assert.match(source, /const diagnostic = \{ lastSnapshot, lastReset, elapsedStableMs, requiredStableMs: RESTORED_ARMOR_STABLE_MS \};[\s\S]*Restored armour evidence stability diagnostics:/,
-  'timeout must report the final snapshot, reset reason values and elapsed/required stability');
-assert.match(source, /Date\.now\(\) - stableSince >= RESTORED_ARMOR_STABLE_MS/,
+  'timeout must report the final snapshot, reset reason values and elapsed\/required stability');
+assert.match(source, /const now = Date\.now\(\);[\s\S]*now - stableSince >= RESTORED_ARMOR_STABLE_MS/,
   'three-second continuous stability threshold must remain unchanged');
 assert.match(source, /function shouldRequireRestoredArmorStability\(options\)[\s\S]*autopilot-solo-run-warden-armor-cloud-restored-/);
 assert.match(source, /if \(shouldRequireRestoredArmorStability\(options\)\) await waitForStableRestoredArmorEvidence\(page, timeout\);/);
