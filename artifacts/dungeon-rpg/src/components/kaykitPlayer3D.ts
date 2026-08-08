@@ -17,6 +17,21 @@ export const KAYKIT_PLAYER_ASSETS = {
   ranged: `${KAYKIT_ROOT}/animations/KayKit_Character_Animations_1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatRanged.glb`,
 } as const;
 
+const SHARED_ANIMATION_CLIPS = new Map<string, Promise<any[]>>();
+
+function loadSharedAnimationClips(loader: any, url: string): Promise<any[]> {
+  const cached = SHARED_ANIMATION_CLIPS.get(url);
+  if (cached) return cached;
+  const pending = loader.loadAsync(url)
+    .then((gltf: any) => gltf.animations ?? [])
+    .catch((error: unknown) => {
+      SHARED_ANIMATION_CLIPS.delete(url);
+      throw error;
+    });
+  SHARED_ANIMATION_CLIPS.set(url, pending);
+  return pending;
+}
+
 export type KayKitPlayerRig = {
   root: any;
   arrowPrototype: any;
@@ -159,13 +174,13 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const talismanId = meta.equipped.talisman;
   const quiverDefinition = quiverEquipped ? EQUIPMENT[quiverId] : null;
   const talismanDefinition = EQUIPMENT[talismanId];
-  const [rangerGltf, quiverGltf, generalGltf, movementGltf, advancedGltf, rangedGltf, weapons, talismanGltf] = await Promise.all([
+  const [rangerGltf, quiverGltf, generalClips, movementClips, advancedClips, rangedClips, weapons, talismanGltf] = await Promise.all([
     loader.loadAsync(`${KAYKIT_ROOT}/${equippedBody.assetPath}`),
     quiverDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${quiverDefinition.assetPath}`) : Promise.resolve(null),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.general),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movement),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.movementAdvanced),
-    loader.loadAsync(KAYKIT_PLAYER_ASSETS.ranged),
+    loadSharedAnimationClips(loader, KAYKIT_PLAYER_ASSETS.general),
+    loadSharedAnimationClips(loader, KAYKIT_PLAYER_ASSETS.movement),
+    loadSharedAnimationClips(loader, KAYKIT_PLAYER_ASSETS.movementAdvanced),
+    loadSharedAnimationClips(loader, KAYKIT_PLAYER_ASSETS.ranged),
     loadKayKitRangerWeapons(),
     talismanDefinition ? loader.loadAsync(`${KAYKIT_ROOT}/${talismanDefinition.assetPath}`) : Promise.resolve(null),
   ]);
@@ -184,10 +199,10 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
 
   const clips = [
     ...(rangerGltf.animations ?? []),
-    ...(generalGltf.animations ?? []),
-    ...(movementGltf.animations ?? []),
-    ...(advancedGltf.animations ?? []),
-    ...(rangedGltf.animations ?? []),
+    ...generalClips,
+    ...movementClips,
+    ...advancedClips,
+    ...rangedClips,
   ];
   const idleClip = chooseClip(clips, [['ranged', 'bow', 'aiming', 'idle'], ['ranged', 'bow', 'idle'], ['idle', 'a'], ['idle']], ['crouch', 'sit', 'sleep']);
   const runClip = chooseClip(clips, [['running', 'holding', 'bow'], ['run'], ['jog'], ['walk']], ['back', 'left', 'right', 'crouch', 'aim']);
@@ -385,6 +400,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     },
     stop() {
       if (typeof window !== 'undefined') window.removeEventListener(PLAYER_BOW_EVENT, handleBowEvent);
+      bowRig.dispose();
       mixer.stopAllAction();
     },
   };

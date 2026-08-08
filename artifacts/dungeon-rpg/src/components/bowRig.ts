@@ -1,6 +1,7 @@
 import { loadMetaProgression } from '../game/metaProgression';
 import { getUpgradeVisualProfile, normalizeUpgradeVisualTier } from '../lib/upgradeVisualTiers';
 import { attachEquipmentUpgradePrestige3D, type EquipmentUpgradeBinding3D } from './equipmentUpgradePrestige3D';
+import { createVisibleUpgradePrestige3D, type VisibleUpgradePrestigeBinding3D } from './visibleUpgradePrestige3D';
 
 export type BowRig = {
   bow: any;
@@ -8,9 +9,19 @@ export type BowRig = {
   basePosition: any;
   baseRotation: any;
   updateShotPose: (pulse: number) => void;
+  dispose: () => void;
+};
+
+type UpgradeBinding = {
+  update: (activityPulse: number) => void;
+  dispose: () => void;
 };
 
 const normalizeName = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const emptyUpgradeBinding = (): UpgradeBinding => ({
+  update: (_activityPulse: number) => undefined,
+  dispose: () => undefined,
+});
 
 function scoreLeftHand(name: string) {
   if (name === 'handslotl' || name.endsWith('handslotl')) return 140;
@@ -67,9 +78,9 @@ function rendererRecoveryActive() {
       || document.documentElement.dataset.dungeonVeilRendererRecovery === '1');
 }
 
-function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
+function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any): UpgradeBinding {
   const isPlayerBow = String(heroRoot?.name ?? '').startsWith('KayKitPlayerBody_');
-  if (!isPlayerBow) return { update: (_attackPulse: number) => undefined };
+  if (!isPlayerBow) return emptyUpgradeBinding();
 
   const meta = loadMetaProgression();
   const bowId = meta.equipped.bow;
@@ -89,13 +100,18 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
     dungeonVeilBowUpgradeTier: tier,
   };
 
-  if (tier < 3) return { update: (_attackPulse: number) => undefined };
+  if (tier < 3) return { update: (_attackPulse: number) => undefined, dispose: () => undefined };
 
+  const visibleBinding = createVisibleUpgradePrestige3D(THREE, bow, {
+    slot: 'bow',
+    level: tier,
+    binding: 'visible:player-bow',
+  });
   const glowColor = new THREE.Color(tier === 5 ? 0xf6d778 : tier === 4 ? 0xc4a7ff : 0x9f8be8);
   const materialStates: Array<{ material: any; baseEmissive: any; baseIntensity: number }> = [];
 
   bow.traverse?.((node: any) => {
-    if (!node.isMesh || !node.material) return;
+    if (!node.isMesh || !node.material || String(node.name ?? '').startsWith('DungeonVeilVisibleUpgrade')) return;
     const sourceMaterials = Array.isArray(node.material) ? node.material : [node.material];
     const clonedMaterials = sourceMaterials.map((material: any) => material?.clone?.() ?? material);
     node.material = Array.isArray(node.material) ? clonedMaterials : clonedMaterials[0];
@@ -122,7 +138,9 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
   glowLight.castShadow = false;
   bow.add(glowLight);
 
+  let disposed = false;
   const update = (attackPulse: number) => {
+    if (disposed) return;
     const staticFallback = staticFallbackActive();
     bow.userData.dungeonVeilUpgradeStaticFallback = staticFallback;
     const now = typeof performance !== 'undefined' ? performance.now() : 0;
@@ -142,15 +160,28 @@ function createPlayerBowUpgradeBinding(THREE: any, heroRoot: any, bow: any) {
       state.material.emissiveIntensity = state.baseIntensity + strength * 0.22;
     }
     glowLight.intensity = Math.min(0.18, strength * 0.2);
+    visibleBinding.update(attackPulse);
   };
 
   update(0);
-  return { update };
+  return {
+    update,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      visibleBinding.dispose();
+      bow.remove?.(glowLight);
+      for (const state of materialStates) {
+        if (state.baseEmissive && state.material.emissive?.copy) state.material.emissive.copy(state.baseEmissive);
+        state.material.emissiveIntensity = state.baseIntensity;
+      }
+    },
+  };
 }
 
-function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
+function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any): UpgradeBinding {
   const isPlayerBody = String(heroRoot?.name ?? '').startsWith('KayKitPlayerBody_');
-  if (!isPlayerBody) return { update: (_activityPulse: number) => undefined };
+  if (!isPlayerBody) return emptyUpgradeBinding();
 
   const meta = loadMetaProgression();
   const armorId = meta.equipped.armor;
@@ -163,6 +194,11 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
     level: armorLevel,
     binding: 'in-run-player-armor-model-local-motes',
   });
+  const armorVisibleBinding = createVisibleUpgradePrestige3D(THREE, heroRoot, {
+    slot: 'armor',
+    level: armorLevel,
+    binding: 'visible:player-armor',
+  });
   heroRoot.userData = {
     ...(heroRoot.userData ?? {}),
     dungeonVeilArmorUpgradeTier: armorBinding.tier,
@@ -171,10 +207,12 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
   };
 
   let quiverBinding: EquipmentUpgradeBinding3D | null = null;
+  let quiverVisibleBinding: VisibleUpgradePrestigeBinding3D | null = null;
   let remainingQuiverSearches = 16;
+  let disposed = false;
 
   const bindQuiverWhenAttached = () => {
-    if (quiverBinding || remainingQuiverSearches <= 0) return;
+    if (disposed || quiverBinding || remainingQuiverSearches <= 0) return;
     remainingQuiverSearches -= 1;
     let equippedQuiver: any = null;
     heroRoot.traverse?.((node: any) => {
@@ -188,13 +226,27 @@ function createPlayerArmorAndQuiverUpgradeBinding(THREE: any, heroRoot: any) {
       level: quiverLevel,
       binding: 'in-run-player-quiver-mesh',
     });
+    quiverVisibleBinding = createVisibleUpgradePrestige3D(THREE, equippedQuiver, {
+      slot: 'quiver',
+      level: quiverLevel,
+      binding: 'visible:player-quiver',
+    });
   };
 
   return {
     update(activityPulse: number) {
+      if (disposed) return;
       bindQuiverWhenAttached();
       armorBinding.update(activityPulse);
+      armorVisibleBinding.update(activityPulse);
       quiverBinding?.update(activityPulse);
+      quiverVisibleBinding?.update(activityPulse);
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      armorVisibleBinding.dispose();
+      quiverVisibleBinding?.dispose();
     },
   };
 }
@@ -208,6 +260,7 @@ export function attachBowToRanger(
   let anchor = heroRoot;
   let bestScore = 0;
   let previousPulse = 0;
+  let disposed = false;
 
   heroRoot.traverse((node: any) => {
     const score = scoreLeftHand(normalizeName(node.name));
@@ -236,6 +289,16 @@ export function attachBowToRanger(
   const basePosition = bow.position.clone();
   const baseRotation = bow.rotation.clone();
   const upgradeBinding = createPlayerBowUpgradeBinding(THREE, heroRoot, bow);
+  const lifecycleRoot = heroRoot.parent ?? heroRoot;
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    lifecycleRoot.removeEventListener?.('removed', dispose);
+    upgradeBinding.dispose();
+    equipmentUpgradeBinding.dispose();
+  };
+  lifecycleRoot.addEventListener?.('removed', dispose);
 
   return {
     bow,
@@ -243,6 +306,7 @@ export function attachBowToRanger(
     basePosition,
     baseRotation,
     updateShotPose(pulse: number) {
+      if (disposed) return;
       if (pulse > 0.82 && previousPulse <= 0.82) heroRoot.userData.rangerAttackSignal = (heroRoot.userData.rangerAttackSignal ?? 0) + 1;
       previousPulse = pulse;
       bow.position.copy(basePosition);
@@ -258,5 +322,6 @@ export function attachBowToRanger(
       upgradeBinding.update(pulse);
       equipmentUpgradeBinding.update(pulse);
     },
+    dispose,
   };
 }

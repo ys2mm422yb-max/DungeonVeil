@@ -153,6 +153,7 @@ jobs:
             tests/companion-runtime.spec.mjs \
             tests/upgrade-prestige-visual.spec.mjs \
             tests/upgrade-prestige-mobile-hotfix.spec.mjs \
+            tests/visible-upgrade-prestige.spec.mjs \
             tests/kaykit-chapter-evidence.spec.mjs \
             tests/guild-raid-lobby-mobile.spec.mjs \
             tests/armor-cloud-restore-render.spec.mjs \
@@ -204,6 +205,7 @@ jobs:
           path: |
             artifacts/dungeon-rpg/test-results/autopilot-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/visible-prestige-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/mobile-resource-upgrade-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/companion-damage-feedback-${{ matrix.project }}.png

@@ -151,17 +151,26 @@ assert.match(companionBinding, /normalizeUpgradeVisualTier\(level\)/);
 assert.match(companionBinding, /dungeonVeilUpgradeBinding = 'in-run-companion-combat-mesh'/);
 assert.match(companionBinding, /if \(tier < 3\) \{[\s\S]*publishRuntimeTelemetry\(role, tier, 'none', 0, false, false\)/,
   'companion levels one and two must stay effect-free while exposing factual telemetry');
-assert.match(companionBinding, /material\?\.clone\?\.\(\)/);
-assert.match(companionBinding, /new THREE\.PointLight\(/);
-assert.match(companionBinding, /const accentColor = new THREE\.Color\(accentHex\);/);
+assert.match(companionBinding, /import \{ createVisibleUpgradePrestige3D \} from '\.\/visibleUpgradePrestige3D';/,
+  'companion prestige must use the canonical bounded model-local helper');
+assert.match(companionBinding, /createVisibleUpgradePrestige3D\(THREE, visual,[\s\S]*slot: 'companion'/,
+  'the prestige binding must attach directly to the actual companion visual');
+assert.match(companionBinding, /binding: `visible:companion:\$\{role\}`/,
+  'the visible companion binding must retain factual role identity');
 assert.match(companionBinding, /prefersReducedMotion\(\) \|\| rendererRecoveryActive\(\)/);
 assert.match(companionBinding, /dungeonVeilRendererRecovery === 'true'[\s\S]*dungeonVeilRendererRecovery === '1'/);
 assert.match(companionBinding, /dungeonVeilLowGpu === 'true'[\s\S]*dungeonVeilLowGpu === '1'/);
 assert.match(companionBinding, /const movingProfile = getUpgradeVisualProfile\(tier\);/);
-assert.match(companionBinding, /const staticProfile = \(\(\) => \{[\s\S]*const staticFallback = true;/);
+assert.match(companionBinding, /const staticProfile = getUpgradeVisualProfile\(tier, \{[\s\S]*reducedMotion: true,[\s\S]*lowGpu: true/);
 assert.match(companionBinding, /const profile = staticFallback \? staticProfile : movingProfile;/);
+assert.match(companionBinding, /visibleBinding\.update\(staticFallback \? 0 : actionPulse\)/,
+  'moving companion prestige must stop in Reduced Motion and renderer recovery');
 assert.match(companionBinding, /visual\.userData\.dungeonVeilUpgradeStaticFallback = staticFallback;/);
-assert.match(companionBinding, /publishRuntimeTelemetry\([\s\S]*particleGroup\.visible,[\s\S]*staticFallback,/);
+assert.match(companionBinding, /publishRuntimeTelemetry\([\s\S]*!staticFallback && particleCount > 0,[\s\S]*staticFallback,/);
+assert.match(companionBinding, /visibleBinding\.dispose\(\)/,
+  'bounded companion prestige must release its real Three.js resources');
+assert.doesNotMatch(companionBinding, /visual\.traverse|RingGeometry|material\.emissive|CompanionUpgradePrestigeAura/,
+  'companion prestige must not recolor the whole model or create a broad ring aura');
 assert.doesNotMatch(companionBinding, /document\.createElement|appendChild|canvas/,
   'companion combat prestige must not create a DOM or second-canvas surrogate');
 

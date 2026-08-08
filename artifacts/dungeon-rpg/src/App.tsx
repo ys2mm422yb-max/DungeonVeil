@@ -10,6 +10,7 @@ import { GuildRaidRunPortal } from './components/GuildRaidRunPortal';
 import { UpgradeTierSurfaceBindings } from './components/UpgradeTierSurfaceBindings';
 import './components/companionDamageFeedback.css';
 import './components/upgradePrestigeMobileHotfix.css';
+import './components/visibleUpgradePrestige.css';
 
 const queryClient = new QueryClient();
 

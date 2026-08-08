@@ -1,0 +1,114 @@
+[data-testid="equipment-model-preview"][data-upgrade-tier="3"],
+[data-testid="equipment-model-preview"][data-upgrade-tier="4"],
+[data-testid="equipment-model-preview"][data-upgrade-tier="5"] {
+  --dv-visible-prestige-primary: rgba(167, 139, 250, 0.72);
+  --dv-visible-prestige-secondary: rgba(129, 184, 233, 0.62);
+  position: relative;
+  isolation: isolate;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="4"] {
+  --dv-visible-prestige-primary: rgba(196, 167, 255, 0.82);
+  --dv-visible-prestige-secondary: rgba(165, 180, 252, 0.74);
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="5"] {
+  --dv-visible-prestige-primary: rgba(246, 215, 120, 0.92);
+  --dv-visible-prestige-secondary: rgba(216, 180, 254, 0.82);
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="3"]::before,
+[data-testid="equipment-model-preview"][data-upgrade-tier="4"]::before,
+[data-testid="equipment-model-preview"][data-upgrade-tier="5"]::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 51%;
+  width: 42%;
+  height: 58%;
+  transform: translate(-50%, -50%);
+  border-radius: 34%;
+  background:
+    radial-gradient(circle at 12% 58%, var(--dv-visible-prestige-primary) 0 2px, transparent 3.5px),
+    radial-gradient(circle at 88% 38%, var(--dv-visible-prestige-secondary) 0 2px, transparent 3.5px),
+    radial-gradient(circle at 76% 78%, var(--dv-visible-prestige-primary) 0 1.6px, transparent 3px),
+    radial-gradient(circle at 26% 22%, var(--dv-visible-prestige-secondary) 0 1.6px, transparent 3px);
+  filter: drop-shadow(0 0 5px var(--dv-visible-prestige-primary));
+  opacity: 0.78;
+  animation: dungeon-veil-visible-prestige-float 2.8s ease-in-out infinite alternate;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="4"]::before {
+  width: 48%;
+  height: 64%;
+  opacity: 0.9;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="5"]::before {
+  width: 54%;
+  height: 70%;
+  opacity: 1;
+  animation-duration: 2.1s;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="3"]::after,
+[data-testid="equipment-model-preview"][data-upgrade-tier="4"]::after,
+[data-testid="equipment-model-preview"][data-upgrade-tier="5"]::after {
+  content: '◆';
+  pointer-events: none;
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%) scale(0.72) rotate(0deg);
+  color: var(--dv-visible-prestige-primary);
+  font-size: 12px;
+  line-height: 1;
+  text-shadow:
+    0 0 5px var(--dv-visible-prestige-primary),
+    0 0 10px var(--dv-visible-prestige-secondary);
+  opacity: 0.82;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="3"]::after,
+[data-testid="equipment-model-preview"][data-upgrade-tier="4"]::after {
+  animation: dungeon-veil-visible-prestige-crest 3.4s ease-in-out infinite;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="4"]::after {
+  font-size: 15px;
+  opacity: 0.94;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-tier="5"]::after {
+  content: '◆  ◆';
+  top: 15%;
+  font-size: 16px;
+  letter-spacing: 10px;
+  opacity: 1 !important;
+  animation: none !important;
+}
+
+[data-testid="equipment-model-preview"][data-upgrade-static-fallback="true"]::before,
+[data-testid="equipment-model-preview"][data-upgrade-static-fallback="true"]::after {
+  animation: none !important;
+}
+
+@keyframes dungeon-veil-visible-prestige-float {
+  from { transform: translate(-50%, -50%) translateY(3px) scale(0.98); }
+  to { transform: translate(-50%, -50%) translateY(-4px) scale(1.03); }
+}
+
+@keyframes dungeon-veil-visible-prestige-crest {
+  0%, 100% { transform: translateX(-50%) scale(0.74) rotate(-8deg); }
+  50% { transform: translateX(-50%) scale(1.02) rotate(8deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="equipment-model-preview"][data-upgrade-tier]::before,
+  [data-testid="equipment-model-preview"][data-upgrade-tier]::after {
+    animation: none !important;
+  }
+}

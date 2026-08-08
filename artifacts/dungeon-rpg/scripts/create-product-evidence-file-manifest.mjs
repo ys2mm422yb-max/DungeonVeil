@@ -6,6 +6,7 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 const INCLUDED_PREFIXES = [
   'autopilot-',
   'visual-',
+  'visible-prestige-',
   'chapter-evidence-',
   'mobile-resource-upgrade-',
   'companion-damage-feedback-',
@@ -47,8 +48,21 @@ function duplicateHashGroups(entries) {
     .sort((a, b) => a.sha256.localeCompare(b.sha256));
 }
 
-async function createManifest(root, outputPath) {
-  const rootPath = path.resolve(root);
+function evidencePriority(relativePath) {
+  if (relativePath.startsWith('companion-damage-feedback-')) return 0;
+  if (relativePath.startsWith('visible-prestige-')) return 1;
+  return 2;
+}
+
+function canonicalEvidencePath(paths) {
+  return [...paths].sort((left, right) => {
+    const priorityDelta = evidencePriority(left) - evidencePriority(right);
+    if (priorityDelta !== 0) return priorityDelta;
+    return left.localeCompare(right);
+  })[0];
+}
+
+async function collectEntries(rootPath) {
   const names = await fs.readdir(rootPath);
   const entries = [];
 
@@ -73,15 +87,44 @@ async function createManifest(root, outputPath) {
     entries.push(entry);
   }
 
-  if (entries.length === 0) throw new Error(`No product evidence media found in ${rootPath}`);
+  return entries.sort((a, b) => a.path.localeCompare(b.path));
+}
 
-  const files = entries.sort((a, b) => a.path.localeCompare(b.path));
+async function deduplicateEvidence(rootPath, entries) {
+  const duplicateHashes = duplicateHashGroups(entries);
+  const removed = [];
+
+  for (const group of duplicateHashes) {
+    const keep = canonicalEvidencePath(group.paths);
+    for (const duplicatePath of group.paths) {
+      if (duplicatePath === keep) continue;
+      await fs.unlink(path.join(rootPath, duplicatePath));
+      removed.push({ sha256: group.sha256, kept: keep, removed: duplicatePath });
+    }
+  }
+
+  return removed.sort((a, b) => a.removed.localeCompare(b.removed));
+}
+
+async function createManifest(root, outputPath) {
+  const rootPath = path.resolve(root);
+  let files = await collectEntries(rootPath);
+  if (files.length === 0) throw new Error(`No product evidence media found in ${rootPath}`);
+
+  const deduplicatedFiles = await deduplicateEvidence(rootPath, files);
+  if (deduplicatedFiles.length > 0) files = await collectEntries(rootPath);
+
   const duplicateHashes = duplicateHashGroups(files);
+  if (duplicateHashes.length > 0) {
+    throw new Error(`Product evidence remains SHA-256-duplicated after deterministic deduplication: ${JSON.stringify(duplicateHashes)}`);
+  }
+
   const manifest = {
     version: 1,
     mediaFiles: files.length,
-    uniqueMediaFiles: files.length - duplicateHashes.reduce((count, group) => count + group.paths.length - 1, 0),
-    duplicateHashes,
+    uniqueMediaFiles: files.length,
+    duplicateHashes: [],
+    deduplicatedFiles,
     files,
   };
   await fs.writeFile(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
@@ -97,16 +140,29 @@ async function selfTest() {
     png.writeUInt32BE(390, 16);
     png.writeUInt32BE(844, 20);
     await fs.writeFile(path.join(root, 'visual-z-device.png'), png);
+    await fs.writeFile(path.join(root, 'visible-prestige-device.png'), png);
     await fs.writeFile(path.join(root, 'companion-damage-feedback-device.png'), png);
     await fs.writeFile(path.join(root, 'autopilot-a-device.webm'), Buffer.from('video'));
     await fs.writeFile(path.join(root, 'autopilot-b-device.webm'), Buffer.from('video'));
     const output = path.join(root, 'manifest.json');
     const manifest = await createManifest(root, output);
-    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,autopilot-b-device.webm,companion-damage-feedback-device.png,visual-z-device.png') {
-      throw new Error('Manifest ordering or companion damage inclusion is not deterministic');
+    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,companion-damage-feedback-device.png') {
+      throw new Error('Manifest deterministic SHA-256 deduplication is invalid');
     }
-    if (manifest.mediaFiles !== 4 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 2) {
-      throw new Error('Manifest duplicate hash summary is invalid');
+    if (manifest.mediaFiles !== 2 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 0 || manifest.deduplicatedFiles.length !== 3) {
+      throw new Error('Manifest duplicate evidence was not deterministically removed');
+    }
+    const removedPaths = manifest.deduplicatedFiles.map((entry) => entry.removed).sort();
+    if (removedPaths.join(',') !== 'autopilot-b-device.webm,visible-prestige-device.png,visual-z-device.png') {
+      throw new Error(`Unexpected deterministic deduplication result: ${removedPaths.join(',')}`);
+    }
+    for (const removedPath of removedPaths) {
+      try {
+        await fs.access(path.join(root, removedPath));
+        throw new Error(`Duplicate evidence still exists after deduplication: ${removedPath}`);
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
     }
     const companionEntry = manifest.files.find((entry) => entry.path === 'companion-damage-feedback-device.png');
     if (!companionEntry || companionEntry.png.width !== 390 || companionEntry.png.height !== 844 || companionEntry.sha256.length !== 64) {
@@ -136,5 +192,5 @@ if (args.includes('--self-test')) {
     throw new Error('Usage: create-product-evidence-file-manifest.mjs <evidence-root> <output-json>');
   }
   const manifest = await createManifest(root, output);
-  console.log(`Wrote ${manifest.files.length} evidence entries to ${output}`);
+  console.log(`Wrote ${manifest.files.length} SHA-256-distinct evidence entries to ${output}`);
 }

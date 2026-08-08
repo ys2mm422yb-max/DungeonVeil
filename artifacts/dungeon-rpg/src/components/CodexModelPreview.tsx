@@ -6,14 +6,56 @@ import { EnemyArtwork } from './CodexArtwork';
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const IS_MOBILE = typeof navigator !== 'undefined'
   && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const CODEX_SHARED_RENDERER_MAX_PREVIEWS = 6;
+const CODEX_BLANK_FRAMEBUFFER_RECOVERY_LIMIT = 1;
+const CODEX_FRAMEBUFFER_PAINT_ATTEMPTS = 5;
 
 let sharedRenderer: any = null;
 let sharedRendererPagehideInstalled = false;
+let sharedRendererPreviewCount = 0;
+let sharedRendererGeneration = 0;
+let sharedRendererContextLost = false;
 
-function releaseSharedRenderer() {
+function rendererMemory(renderer: any) {
+  return {
+    geometries: Number(renderer?.info?.memory?.geometries ?? 0),
+    textures: Number(renderer?.info?.memory?.textures ?? 0),
+    programs: Array.isArray(renderer?.info?.programs) ? renderer.info.programs.length : 0,
+  };
+}
+
+function recordCodexPreviewDiagnostic(entry: Record<string, unknown>) {
+  if (typeof window === 'undefined') return;
+  const target = window as any;
+  const diagnostics = Array.isArray(target.__dungeonVeilCodexPreviewDiagnostics)
+    ? target.__dungeonVeilCodexPreviewDiagnostics
+    : [];
+  diagnostics.push({ timestamp: Date.now(), ...entry });
+  if (diagnostics.length > 256) diagnostics.splice(0, diagnostics.length - 256);
+  target.__dungeonVeilCodexPreviewDiagnostics = diagnostics;
+}
+
+function currentCodexSelectionIdentity() {
+  if (typeof document === 'undefined') return '';
+  const selected = document.querySelector<HTMLElement>('[data-testid^="codex-card-"][data-selected="true"]');
+  return selected?.getAttribute('data-testid')?.replace(/^codex-card-/, '') ?? '';
+}
+
+function releaseSharedRenderer(reason = 'release') {
   const renderer = sharedRenderer;
+  const generation = sharedRendererGeneration;
+  const previewCount = sharedRendererPreviewCount;
+  if (renderer) {
+    recordCodexPreviewDiagnostic({
+      phase: 'release', reason, generation, previewCount,
+      contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+      memory: rendererMemory(renderer),
+    });
+  }
   sharedRenderer = null;
   sharedRendererPagehideInstalled = false;
+  sharedRendererPreviewCount = 0;
+  sharedRendererContextLost = false;
   if (!renderer) return;
   renderer.renderLists?.dispose?.();
   renderer.dispose?.();
@@ -21,8 +63,9 @@ function releaseSharedRenderer() {
   renderer.domElement?.remove?.();
 }
 
-function getSharedRenderer(THREE: any) {
-  if (sharedRenderer?.getContext?.().isContextLost?.()) sharedRenderer = null;
+function getSharedRenderer(THREE: any, enemyType: EnemyType) {
+  if (sharedRenderer?.getContext?.().isContextLost?.()) releaseSharedRenderer('context-lost-before-acquire');
+  if (sharedRenderer && sharedRendererPreviewCount >= CODEX_SHARED_RENDERER_MAX_PREVIEWS) releaseSharedRenderer('preview-cap');
   if (!sharedRenderer) {
     sharedRenderer = new THREE.WebGLRenderer({
       antialias: !IS_MOBILE,
@@ -30,10 +73,34 @@ function getSharedRenderer(THREE: any) {
       powerPreference: 'high-performance',
       preserveDrawingBuffer: true,
     });
+    sharedRendererGeneration += 1;
+    sharedRendererContextLost = false;
+    const generation = sharedRendererGeneration;
+    const rendererForGeneration = sharedRenderer;
+    const previewCountAtCreation = sharedRendererPreviewCount;
+    rendererForGeneration.domElement.addEventListener('webglcontextlost', (event: Event) => {
+      event.preventDefault?.();
+      const ownsCurrentGeneration = sharedRenderer === rendererForGeneration && sharedRendererGeneration === generation;
+      if (ownsCurrentGeneration) sharedRendererContextLost = true;
+      recordCodexPreviewDiagnostic({
+        phase: 'context-lost', generation, enemyType,
+        previewCount: ownsCurrentGeneration ? sharedRendererPreviewCount : previewCountAtCreation,
+        contextLost: true,
+        staleGeneration: !ownsCurrentGeneration,
+        memory: rendererMemory(rendererForGeneration),
+      });
+    });
   }
+  sharedRendererPreviewCount += 1;
+  recordCodexPreviewDiagnostic({
+    phase: 'acquire', enemyType, generation: sharedRendererGeneration,
+    previewCount: sharedRendererPreviewCount,
+    contextLost: Boolean(sharedRenderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+    memory: rendererMemory(sharedRenderer),
+  });
   if (!sharedRendererPagehideInstalled) {
     sharedRendererPagehideInstalled = true;
-    window.addEventListener('pagehide', releaseSharedRenderer, { once: true });
+    window.addEventListener('pagehide', () => releaseSharedRenderer('pagehide'), { once: true });
   }
   return sharedRenderer;
 }
@@ -87,14 +154,35 @@ function renderedFrameHasVisiblePixels(renderer: any) {
   return false;
 }
 
+function configureRendererForPreview(renderer: any, THREE: any, host: HTMLDivElement) {
+  renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, IS_MOBILE ? 1 : 1.35));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = IS_MOBILE ? 1.42 : 1.32;
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
+  renderer.domElement.style.display = 'block';
+  renderer.domElement.setAttribute('data-codex-preview-canvas', 'true');
+  host.replaceChildren(renderer.domElement);
+}
+
 export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { enemyType: EnemyType; room: number; accent?: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [painted, setPainted] = useState(false);
+  const [selectionIdentity, setSelectionIdentity] = useState('');
+
+  useEffect(() => {
+    const syncIdentity = () => setSelectionIdentity(currentCodexSelectionIdentity());
+    syncIdentity();
+    const observer = new MutationObserver(syncIdentity);
+    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-selected'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host || !selectionIdentity) return;
     let disposed = false;
     let raf = 0;
     let renderer: any = null;
@@ -102,6 +190,8 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
     let visual: any = null;
     let removeResize = () => {};
     let lastFrame = 0;
+    let generation = 0;
+    let previewCount = 0;
     setStatus('loading');
     setPainted(false);
 
@@ -113,16 +203,10 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       scene = new THREE.Scene();
       scene.background = null;
       scene.fog = new THREE.FogExp2(0x080510, 0.055);
-      renderer = getSharedRenderer(THREE);
-      renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, IS_MOBILE ? 1 : 1.35));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = IS_MOBILE ? 1.42 : 1.32;
-      renderer.domElement.style.width = '100%';
-      renderer.domElement.style.height = '100%';
-      renderer.domElement.style.display = 'block';
-      renderer.domElement.setAttribute('data-codex-preview-canvas', 'true');
-      host.replaceChildren(renderer.domElement);
+      renderer = getSharedRenderer(THREE, enemyType);
+      generation = sharedRendererGeneration;
+      previewCount = sharedRendererPreviewCount;
+      configureRendererForPreview(renderer, THREE, host);
 
       const camera = new THREE.PerspectiveCamera(31, 1, 0.1, 40);
       camera.position.set(0, 1.45, 5.5);
@@ -160,9 +244,6 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       scene.add(visual.root);
       visual.root.updateMatrixWorld(true);
 
-      // Frame only the authored character scene. Runtime roots also contain
-      // shadows, status halos and safety helpers whose bounds can dwarf a model
-      // (the Rift Beast previously collapsed to a tiny body behind the sigil).
       const framingObject = visual.scene ?? visual.root;
       const initial = new THREE.Box3().setFromObject(framingObject);
       const size = initial.getSize(new THREE.Vector3());
@@ -185,14 +266,49 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       };
       resize();
 
-      let framePainted = false;
-      for (let attempt = 0; attempt < 5 && !disposed && !framePainted; attempt += 1) {
-        renderer.render(scene, camera);
-        framePainted = renderedFrameHasVisiblePixels(renderer);
-        if (!framePainted) await nextAnimationFrame();
+      const paintCurrentRenderer = async () => {
+        let framePainted = false;
+        for (let attempt = 0; attempt < CODEX_FRAMEBUFFER_PAINT_ATTEMPTS && !disposed && !framePainted; attempt += 1) {
+          renderer.render(scene, camera);
+          framePainted = renderedFrameHasVisiblePixels(renderer);
+          recordCodexPreviewDiagnostic({
+            phase: 'paint-attempt', enemyType, familyId: selectionIdentity, generation, previewCount, attempt: attempt + 1,
+            painted: framePainted,
+            contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+            memory: rendererMemory(renderer),
+          });
+          if (!framePainted) await nextAnimationFrame();
+        }
+        return framePainted;
+      };
+
+      let framePainted = await paintCurrentRenderer();
+      for (let recoveryAttempt = 0; recoveryAttempt < CODEX_BLANK_FRAMEBUFFER_RECOVERY_LIMIT && !disposed && !framePainted; recoveryAttempt += 1) {
+        recordCodexPreviewDiagnostic({
+          phase: 'paint-recovery', enemyType, familyId: selectionIdentity, generation, previewCount,
+          recoveryAttempt: recoveryAttempt + 1,
+          reason: 'blank-framebuffer',
+          contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+          memory: rendererMemory(renderer),
+        });
+        releaseSharedRenderer('blank-framebuffer');
+        await nextAnimationFrame();
+        await nextAnimationFrame();
+        if (disposed) return;
+        renderer = getSharedRenderer(THREE, enemyType);
+        generation = sharedRendererGeneration;
+        previewCount = sharedRendererPreviewCount;
+        configureRendererForPreview(renderer, THREE, host);
+        resize();
+        framePainted = await paintCurrentRenderer();
       }
       if (disposed) return;
       if (!framePainted) throw new Error(`Codex preview framebuffer remained blank: ${enemyType}`);
+      recordCodexPreviewDiagnostic({
+        phase: 'ready', enemyType, familyId: selectionIdentity, generation, previewCount, painted: true,
+        contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+        memory: rendererMemory(renderer),
+      });
       setPainted(true);
       setStatus('ready');
 
@@ -215,6 +331,12 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
     };
 
     boot().catch(error => {
+      recordCodexPreviewDiagnostic({
+        phase: 'error', enemyType, familyId: selectionIdentity, generation, previewCount,
+        error: error instanceof Error ? error.message : String(error),
+        contextLost: Boolean(renderer?.getContext?.().isContextLost?.() || sharedRendererContextLost),
+        memory: rendererMemory(renderer),
+      });
       console.error('Codex shared model preview failed', error);
       if (!disposed) {
         setPainted(false);
@@ -231,13 +353,14 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       renderer?.renderLists?.dispose?.();
       renderer?.domElement?.remove?.();
     };
-  }, [enemyType, room, accent]);
+  }, [enemyType, room, accent, selectionIdentity]);
 
   return <div
     data-testid="codex-shared-model-preview"
     data-preview-renderers="1"
     data-preview-status={status}
     data-preview-painted={painted ? 'true' : 'false'}
+    data-preview-family={selectionIdentity}
     className="relative min-h-[250px] overflow-hidden rounded-[1.75rem] border border-violet-200/15 bg-[radial-gradient(circle_at_50%_35%,rgba(115,70,190,.18),rgba(5,3,10,.96)_72%)]"
   >
     <div ref={hostRef} className="absolute inset-0" />

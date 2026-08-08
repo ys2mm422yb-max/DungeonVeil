@@ -8,26 +8,26 @@ const [helper, bindings] = await Promise.all([
   readFile(bindingsPath, 'utf8'),
 ]);
 
-assert.match(helper, /const particleCount = tier === 5 \? 6 : tier === 4 \? 4 : 2;/,
-  'tiers 3, 4 and 5 need bounded, visibly increasing particle counts');
-assert.match(helper, /for \(let index = 0; index < particleCount; index \+= 1\)/,
-  'companion particles must be allocated once when the live rig is bound');
-assert.match(helper, /particleGroup\.add\(particle\);[\s\S]*visual\.add\(particleGroup\);/,
-  'prestige particles must be children of the actual companion model so movement cannot leave trails behind');
-assert.match(helper, /new THREE\.RingGeometry\(/,
-  'strong and maximum companion tiers need one restrained model-local prestige aura');
-assert.match(helper, /aura\.visible = tier >= 4;/,
-  'the stronger aura must remain exclusive to tiers 4 and 5');
-assert.match(helper, /particleGroup\.visible = !staticFallback && profile\.particleDensity > 0;/,
-  'Reduced Motion and renderer recovery must disable moving particles');
-assert.match(helper, /if \(!staticFallback\) aura\.rotation\.z = now/,
-  'Reduced Motion and recovery must stop the moving aura while retaining a static refinement');
-assert.match(helper, /visual\.userData\.dungeonVeilUpgradeParticleCount = particleCount;/,
-  'the real model must expose its bounded particle budget for runtime evidence');
-assert.match(helper, /const accentColor = new THREE\.Color\(accentHex\);/,
-  'the role accent must be allocated once rather than once per frame');
+assert.match(helper, /import \{ createVisibleUpgradePrestige3D \} from '\.\/visibleUpgradePrestige3D';/,
+  'live companion prestige must reuse the bounded model-local prestige helper');
+assert.match(helper, /if \(tier < 3\)/,
+  'companion tiers one and two must remain effect-free');
+assert.match(helper, /createVisibleUpgradePrestige3D\(THREE, visual,[\s\S]*slot: 'companion'/,
+  'prestige geometry must be attached to the real moving companion model');
+assert.match(helper, /binding: `visible:companion:\$\{role\}`/,
+  'each live companion role must have a factual model binding identity');
+assert.match(helper, /const particleCount = Number\(visual\.userData\.dungeonVeilVisibleUpgradeParticleCount \?\? 0\);/,
+  'the real model must expose the bounded helper particle budget for runtime evidence');
+assert.match(helper, /visibleBinding\.update\(staticFallback \? 0 : actionPulse\);/,
+  'the bounded companion effect must react to actual companion activity and stop moving in fallback modes');
+assert.match(helper, /visibleBinding\.dispose\(\);/,
+  'removed companion rigs must dispose all bounded prestige geometry and materials');
+assert.match(helper, /publishRuntimeTelemetry\([\s\S]*!staticFallback && particleCount > 0/,
+  'runtime evidence must distinguish moving prestige from static Reduced Motion and renderer recovery');
+assert.doesNotMatch(helper, /visual\.traverse|RingGeometry|material\.emissive|CompanionUpgradePrestigeAura/,
+  'companion prestige must not recolor the complete model or create a broad ring aura');
 
-const updateStart = helper.indexOf('update(now: number, actionPulse: number)');
+const updateStart = helper.indexOf('const update = (_now: number, actionPulse: number) =>');
 assert.notEqual(updateStart, -1, 'the live companion binding needs an update loop');
 const updateBody = helper.slice(updateStart);
 assert.doesNotMatch(updateBody, /new THREE\./,

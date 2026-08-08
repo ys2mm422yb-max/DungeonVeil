@@ -2,58 +2,23 @@ import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
 const [entry, panel, lobbyCss, client, evidence, migrationBase, migrationActionsA, migrationActionsB, migrationStart] = await Promise.all([
-  read('../src/components/GuildSocialPanel.tsx'),
-  read('../src/components/GuildRaidLobbyPanel.tsx'),
-  read('../src/components/guildRaidLobby.css'),
-  read('../src/game/guildRaidLobbyOnline.ts'),
-  read('../tests/guild-raid-lobby-mobile.spec.mjs'),
-  read('../../../supabase/migrations/20260726113000_guild_raid_lobby_block_10.sql'),
-  read('../../../supabase/migrations/20260726113100_guild_raid_lobby_actions_a.sql'),
-  read('../../../supabase/migrations/20260726113200_guild_raid_lobby_actions_b.sql'),
-  read('../../../supabase/migrations/20260726113300_guild_raid_lobby_start_realtime.sql'),
+  read('../src/components/GuildSocialPanel.tsx'), read('../src/components/GuildRaidLobbyPanel.tsx'), read('../src/components/guildRaidLobby.css'), read('../src/game/guildRaidLobbyOnline.ts'), read('../tests/guild-raid-lobby-mobile.spec.mjs'), read('../../../supabase/migrations/20260726113000_guild_raid_lobby_block_10.sql'), read('../../../supabase/migrations/20260726113100_guild_raid_lobby_actions_a.sql'), read('../../../supabase/migrations/20260726113200_guild_raid_lobby_actions_b.sql'), read('../../../supabase/migrations/20260726113300_guild_raid_lobby_start_realtime.sql'),
 ]);
 const migration = [migrationBase, migrationActionsA, migrationActionsB, migrationStart].join('\n');
-
-const publicFunctions = [
-  'guild_raid_get_snapshot',
-  'guild_raid_list_my_invitations',
-  'guild_raid_create_lobby',
-  'guild_raid_invite_member',
-  'guild_raid_cancel_invite',
-  'guild_raid_respond_invite',
-  'guild_raid_set_ready',
-  'guild_raid_remove_member',
-  'guild_raid_leave_lobby',
-  'guild_raid_dissolve_lobby',
-  'guild_raid_start',
-];
+const publicFunctions = ['guild_raid_get_snapshot','guild_raid_list_my_invitations','guild_raid_create_lobby','guild_raid_invite_member','guild_raid_cancel_invite','guild_raid_respond_invite','guild_raid_set_ready','guild_raid_remove_member','guild_raid_leave_lobby','guild_raid_dissolve_lobby','guild_raid_start'];
 const securityDefiners = (migration.match(/security definer/gi) ?? []).length;
 const emptySearchPaths = (migration.match(/set search_path = ''/gi) ?? []).length;
-const mutationIdempotency = [
-  'guild_raid_create_lobby(p_idempotency_key uuid)',
-  'p_target_user_id uuid,\n  p_idempotency_key uuid',
-  'guild_raid_cancel_invite(\n  p_invitation_id uuid,\n  p_idempotency_key uuid',
-  'p_accept boolean,\n  p_idempotency_key uuid',
-  'p_ready boolean,\n  p_idempotency_key uuid',
-  'guild_raid_remove_member(',
-  'guild_raid_leave_lobby(',
-  'guild_raid_dissolve_lobby(',
-  'guild_raid_start(',
-].every(fragment => migration.includes(fragment));
-
-const germanVisualCopy = [
-  "de ? 'Live-Sync' : 'Live'",
-  "de ? 'Serverstand' : 'Snapshot'",
-  "de ? 'Bereit' : 'Ready'",
-  "de ? 'Stand' : 'Server'",
-  "de ? `Platz ${index + 1}` : `Slot ${index + 1}`",
-  "member.ready ? (de ? 'Bereit' : 'Ready') : (de ? 'Nicht bereit' : 'Not ready')",
-  "de ? 'Raid-Übergabe bereit' : 'Raid handoff ready'",
-].every(fragment => panel.includes(fragment));
-const noCssTranslationMask = !lobbyCss.includes("[aria-label='Gildenraid-Lobby']")
-  && !lobbyCss.includes("content: 'Bereit'")
-  && !lobbyCss.includes("content: 'Platz 1'");
-
+const mutationIdempotency = ['guild_raid_create_lobby(p_idempotency_key uuid)','p_target_user_id uuid,\n  p_idempotency_key uuid','guild_raid_cancel_invite(\n  p_invitation_id uuid,\n  p_idempotency_key uuid','p_accept boolean,\n  p_idempotency_key uuid','p_ready boolean,\n  p_idempotency_key uuid','guild_raid_remove_member(','guild_raid_leave_lobby(','guild_raid_dissolve_lobby(','guild_raid_start('].every(fragment => migration.includes(fragment));
+const germanVisualCopy = ["de ? 'Live-Sync' : 'Live'","de ? 'Serverstand' : 'Snapshot'","de ? 'Bereit' : 'Ready'","de ? 'Stand' : 'Server'","de ? `Platz ${index + 1}` : `Slot ${index + 1}`","member.ready ? (de ? 'Bereit' : 'Ready') : (de ? 'Nicht bereit' : 'Not ready')","de ? 'Raid-Übergabe bereit' : 'Raid handoff ready'"].every(fragment => panel.includes(fragment));
+const noCssTranslationMask = !lobbyCss.includes("[aria-label='Gildenraid-Lobby']") && !lobbyCss.includes("content: 'Bereit'") && !lobbyCss.includes("content: 'Platz 1'");
+const navigationMonitorContract = evidence.includes('page.__dungeonVeilIntentionalNavigation = false')
+  && evidence.includes('const intentionallyNavigating = () => page.__dungeonVeilIntentionalNavigation === true')
+  && evidence.includes("if (!intentionallyNavigating()) issues.push(`pageerror: ${error.message}`)")
+  && evidence.includes("message.type() !== 'error' || intentionallyNavigating()")
+  && evidence.includes('if (intentionallyNavigating()) return;')
+  && evidence.includes('page.__dungeonVeilIntentionalNavigation = true;')
+  && evidence.includes("try { await page.reload({ waitUntil: 'domcontentloaded' }); } finally { page.__dungeonVeilIntentionalNavigation = false; }")
+  && evidence.includes("expect(issues, issues.join('\\n')).toEqual([])");
 const checks = [
   [entry.includes('guild-raid-entry') && entry.includes('<GuildRaidLobbyPanel') && !entry.includes('!qaMode && raidOpen'), 'guild raid entry is not mounted consistently inside the guild surface'],
   [panel.includes('guild-raid-guildless-blocked') && panel.includes('guild-raid-incoming-invitations'), 'guildless or invitation states are missing'],
@@ -76,12 +41,8 @@ const checks = [
   [!client.toLowerCase().includes('duo') && !panel.toLowerCase().includes('duo') && !migration.includes('coop_lobb'), 'guild raid lobby improperly reuses Duo state'],
   [evidence.includes('iphone-webkit') || evidence.includes('testInfo.project.name'), 'mobile evidence is not project-specific'],
   [evidence.includes('guild-raid-landscape-blocker') && evidence.includes('guild-raid-started-handoff') && evidence.includes('guild-raid-incoming-invitations'), 'required runtime states are not covered by evidence'],
+  [navigationMonitorContract, 'guild raid runtime monitor must suppress errors only during explicitly flagged intentional reload navigation while keeping strict issue assertions'],
 ];
-
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
-if (failures.length) {
-  console.error(`Block 10 guild raid lobby audit failed with ${failures.length} error(s):`);
-  failures.forEach(message => console.error(`  - ${message}`));
-  process.exit(1);
-}
-console.log(`Block 10 guild raid lobby audit passed: ${securityDefiners} hardened functions, four stable same-guild slots, React-localized German copy, complete lobby controls, Realtime reconciliation and exact-once server start are present.`);
+if (failures.length) { console.error(`Block 10 guild raid lobby audit failed with ${failures.length} error(s):`); failures.forEach(message => console.error(`  - ${message}`)); process.exit(1); }
+console.log(`Block 10 guild raid lobby audit passed: ${securityDefiners} hardened functions, four stable same-guild slots, React-localized German copy, complete lobby controls, strict intentional-navigation runtime monitoring, Realtime reconciliation and exact-once server start are present.`);
