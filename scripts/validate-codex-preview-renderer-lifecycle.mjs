@@ -43,6 +43,29 @@ for (const needle of sourceRequired) {
   }
 }
 
+const contextLossListenerIndex = source.indexOf("rendererForGeneration.domElement.addEventListener('webglcontextlost'");
+const ownershipGuardIndex = source.indexOf(
+  'const ownsCurrentGeneration = sharedRenderer === rendererForGeneration && sharedRendererGeneration === generation;',
+  contextLossListenerIndex,
+);
+const guardedAssignmentIndex = source.indexOf(
+  'if (ownsCurrentGeneration) sharedRendererContextLost = true;',
+  ownershipGuardIndex,
+);
+const contextLossDiagnosticIndex = source.indexOf('recordCodexPreviewDiagnostic', guardedAssignmentIndex);
+if (
+  contextLossListenerIndex < 0 ||
+  ownershipGuardIndex < contextLossListenerIndex ||
+  guardedAssignmentIndex < ownershipGuardIndex ||
+  contextLossDiagnosticIndex < guardedAssignmentIndex
+) {
+  throw new Error('Codex renderer context-loss handler must establish renderer-generation ownership before mutating shared context-loss state and recording diagnostics.');
+}
+const contextLossAssignments = source.match(/sharedRendererContextLost = true;/g) ?? [];
+if (contextLossAssignments.length !== 1) {
+  throw new Error(`Codex renderer lifecycle must have exactly one context-loss mutation and it must be generation-guarded; found ${contextLossAssignments.length}.`);
+}
+
 const regressionRequired = [
   "test('complete canonical enemy roster is visibly reviewable in Codex and deterministic combat'",
   "window.__dungeonVeilCodexPreviewDiagnostics = [];",
@@ -93,14 +116,8 @@ for (const needle of forbiddenRegressionPatterns) {
   }
 }
 
-const forbiddenSourcePatterns = [
-  'sharedRenderer.domElement.addEventListener',
-  'sharedRendererContextLost = true;\n      recordCodexPreviewDiagnostic',
-];
-for (const needle of forbiddenSourcePatterns) {
-  if (source.includes(needle)) {
-    throw new Error(`Codex renderer lifecycle must bind context-loss to its owning renderer generation: ${needle}`);
-  }
+if (source.includes('sharedRenderer.domElement.addEventListener')) {
+  throw new Error('Codex renderer lifecycle must bind context-loss to rendererForGeneration, not the mutable sharedRenderer reference.');
 }
 
 const familyBlock = regression.match(/const FAMILIES = \[([\s\S]*?)\];/);
