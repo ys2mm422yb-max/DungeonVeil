@@ -60,6 +60,28 @@ function clearRuntimeTelemetry(role: string) {
   delete data.dungeonVeilCompanionUpgradeStaticFallback;
 }
 
+function compactLiveCompanionPrestige(visual: any, tier: number) {
+  const prestigeGroup = visual.children?.find((child: any) =>
+    child?.name === `DungeonVeilVisibleUpgrade_companion_Tier${tier}`
+  );
+  if (!prestigeGroup) return;
+
+  const groupScale = tier >= 5 ? 0.54 : tier === 4 ? 0.58 : 0.64;
+  prestigeGroup.scale.setScalar(groupScale);
+  if (!prestigeGroup.userData.dungeonVeilCombatBoundsApplied) {
+    prestigeGroup.position.y *= 0.94;
+    prestigeGroup.userData.dungeonVeilCombatBoundsApplied = true;
+  }
+
+  const crest = prestigeGroup.children?.find((child: any) =>
+    String(child?.name ?? '').startsWith('DungeonVeilVisibleUpgradeCrest_companion_')
+  );
+  if (crest) crest.scale.setScalar(tier >= 5 ? 0.52 : tier === 4 ? 0.56 : 0.6);
+
+  visual.userData.dungeonVeilUpgradeCombatScale = groupScale;
+  visual.userData.dungeonVeilUpgradeCombatCrestScale = tier >= 5 ? 0.52 : tier === 4 ? 0.56 : 0.6;
+}
+
 export function createCompanionUpgradePrestigeBinding(
   THREE: any,
   visual: any,
@@ -104,6 +126,7 @@ export function createCompanionUpgradePrestigeBinding(
     const staticFallback = prefersReducedMotion() || rendererRecoveryActive();
     const profile = staticFallback ? staticProfile : movingProfile;
     visibleBinding.update(staticFallback ? 0 : actionPulse);
+    compactLiveCompanionPrestige(visual, tier);
 
     visual.userData.dungeonVeilUpgradePrestige = profile.prestige;
     visual.userData.dungeonVeilUpgradeStaticFallback = staticFallback;
@@ -130,6 +153,8 @@ export function createCompanionUpgradePrestigeBinding(
       delete visual.userData.dungeonVeilUpgradePrestige;
       delete visual.userData.dungeonVeilUpgradeParticleCount;
       delete visual.userData.dungeonVeilUpgradeStaticFallback;
+      delete visual.userData.dungeonVeilUpgradeCombatScale;
+      delete visual.userData.dungeonVeilUpgradeCombatCrestScale;
     },
   };
 }

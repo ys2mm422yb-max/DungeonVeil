@@ -20,6 +20,16 @@ assert.match(helper, /const particleCount = Number\(visual\.userData\.dungeonVei
   'the real model must expose the bounded helper particle budget for runtime evidence');
 assert.match(helper, /visibleBinding\.update\(staticFallback \? 0 : actionPulse\);/,
   'the bounded companion effect must react to actual companion activity and stop moving in fallback modes');
+assert.match(helper, /compactLiveCompanionPrestige\(visual, tier\);/,
+  'every live companion update must reassert compact model-local prestige bounds after the shared helper animates');
+assert.match(helper, /const groupScale = tier >= 5 \? 0\.54 : tier === 4 \? 0\.58 : 0\.64;/,
+  'live combat companion prestige must stay substantially tighter than the generic preview geometry');
+assert.match(helper, /prestigeGroup\.position\.y \*= 0\.94;/,
+  'live combat prestige must remain pulled toward the companion body rather than hovering above it');
+assert.match(helper, /crest\.scale\.setScalar\(tier >= 5 \? 0\.52 : tier === 4 \? 0\.56 : 0\.6\);/,
+  'the octahedral companion crest must be explicitly reduced so it cannot read as detached wings or sails');
+assert.match(helper, /dungeonVeilUpgradeCombatScale = groupScale/,
+  'runtime evidence must expose the applied combat-local scale');
 assert.match(helper, /visibleBinding\.dispose\(\);/,
   'removed companion rigs must dispose all bounded prestige geometry and materials');
 assert.match(helper, /publishRuntimeTelemetry\([\s\S]*!staticFallback && particleCount > 0/,
