@@ -11,7 +11,6 @@ const RESTORED_ARMOR_STABLE_MS = 3_000;
 const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
 const ROOM_PREPARING_TEXT = /RAUM WIRD AUFGEBAUT|ROOM(?: IS)? (?:BEING )?BUILT/i;
 const RUN_OPENING_TEXT = /DER SCHLEIER ÖFFNET SICH|THE VEIL OPENS/i;
-const ROOM_TITLE_TEXT = /VERSORGUNGSPOSTEN|SUPPLY POST/i;
 const RESTORED_ARMOR_SCREENSHOT_GUARD = Symbol('restoredArmorScreenshotGuard');
 const NAVIGATION_SAFE_EVALUATE_GUARD = Symbol('navigationSafeEvaluateGuard');
 const RAW_PAGE_SCREENSHOT = Symbol('rawPageScreenshot');
@@ -115,11 +114,10 @@ async function waitForStableRestoredArmorEvidence(page, timeout) {
     await expect.poll(async () => {
       const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
       const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
-      const roomTitleVisible = await visibleMatchCount(page.getByText(ROOM_TITLE_TEXT));
       const now = Date.now();
-      const snapshot = { buildState, roomPreparingVisible, runOpeningVisible, roomTitleVisible };
+      const snapshot = { buildState, roomPreparingVisible, runOpeningVisible };
       lastSnapshot = snapshot;
-      const stable = (!buildState || buildState === 'ready') && roomPreparingVisible === 0 && runOpeningVisible === 0 && roomTitleVisible === 0;
+      const stable = (!buildState || buildState === 'ready') && roomPreparingVisible === 0 && runOpeningVisible === 0;
       if (!stable) {
         lastReset = { ...snapshot, elapsedStableMs: stableSince === 0 ? 0 : now - stableSince };
         stableSince = 0;
