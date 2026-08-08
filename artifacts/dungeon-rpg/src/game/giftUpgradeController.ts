@@ -16,7 +16,10 @@ type EngineInternals = {
 
 export function prepareGiftChoices(state: RunGameState): void {
   if (state.status !== 'levelup') return;
-  state.upgradeChoices = buildRunGiftChoices(state.runSkills);
+  state.upgradeChoices = buildRunGiftChoices(state.runSkills, undefined, {
+    currentHp: state.player.hp,
+    maxHp: state.player.maxHp,
+  });
 }
 
 export function applyGiftUpgrade(engine: GameEngine, choice: UpgradeKey): boolean {
