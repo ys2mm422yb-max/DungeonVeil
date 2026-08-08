@@ -37,6 +37,13 @@ const regressionRequired = [
   "window.__dungeonVeilCodexPreviewDiagnostics = [];",
   'async function resetCodexDiagnostics(page)',
   'async function attachCodexDiagnostics(page, testInfo, familyId)',
+  'async function primeCodexSelectionForDiagnostics(page)',
+  'const firstFamily = FAMILIES[0];',
+  'const secondFamily = FAMILIES[1];',
+  'expect(firstFamily).not.toBe(secondFamily);',
+  'await page.getByTestId(`codex-card-${firstFamily}`).click();',
+  'await page.getByTestId(`codex-card-${secondFamily}`).click();',
+  'await primeCodexSelectionForDiagnostics(page);',
   "codex-renderer-diagnostics-${familyId}",
   'codex-renderer-diagnostics-full-sequence',
   'expect(FAMILIES).toHaveLength(35);',
@@ -51,6 +58,17 @@ for (const needle of regressionRequired) {
   if (!regression.includes(needle)) {
     throw new Error(`Codex 35-family runtime regression diagnostics missing: ${needle}`);
   }
+}
+
+const primerCallIndex = regression.indexOf('await primeCodexSelectionForDiagnostics(page);');
+const loopIndex = regression.indexOf('for (const familyId of FAMILIES) {');
+const resetIndex = regression.indexOf('await resetCodexDiagnostics(page);', loopIndex);
+const targetClickIndex = regression.indexOf('await page.getByTestId(`codex-card-${familyId}`).click();', loopIndex);
+if (primerCallIndex < 0 || loopIndex < 0 || primerCallIndex > loopIndex) {
+  throw new Error('Codex lifecycle regression must prime a different mounted selection before the 35-family diagnostic loop.');
+}
+if (resetIndex < loopIndex || targetClickIndex < resetIndex) {
+  throw new Error('Codex lifecycle regression must reset diagnostics before each guaranteed state-changing target selection.');
 }
 
 const forbiddenRegressionPatterns = [
@@ -75,4 +93,4 @@ if (source.includes('verified iPhone-safe bound') || source.includes('iPhone-saf
   throw new Error('Codex lifecycle source must not claim a preview-count constant is proven iPhone-safe.');
 }
 
-console.log('Codex preview renderer lifecycle verified: each canonical selection owns a fresh diagnostic window and must yield exactly one ready, painted, context-safe rendered preview without assuming familyId equals rendered enemyType.');
+console.log('Codex preview renderer lifecycle verified: the first family is forced through a real selection transition before diagnostics are reset, and all 35 canonical selections must yield exactly one ready, painted, context-safe rendered preview without assuming familyId equals rendered enemyType.');
