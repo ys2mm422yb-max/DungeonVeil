@@ -12,6 +12,11 @@ export type MasteryGiftKey = 'hunterBlessing' | 'vitalSpark';
 export type OverflowGiftKey = InstantGiftKey | MasteryGiftKey;
 export type BaseCombatGiftKey = 'multishot' | 'ricochet' | 'fireArrow' | 'iceArrow' | 'attackSpeed' | 'piercing';
 
+export type RunGiftChoiceContext = {
+  currentHp?: number;
+  maxHp?: number;
+};
+
 export const DEFAULT_RUN_UPGRADE_POOL: UpgradeKey[] = [
   'multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing',
   'attack', 'maxHp', 'speed', 'defense',
@@ -175,18 +180,33 @@ export function availableRunSkills(skills: Partial<Record<UpgradeKey, number>>, 
   });
 }
 
-function availableOverflowGifts(skills: Partial<Record<UpgradeKey, number>>): OverflowGiftKey[] {
-  return OVERFLOW_GIFTS.filter(key => isInstantGift(key) || rawSkillRank(skills, key) < RUN_SKILL_DEFS[key].maxRank);
+function recoveryWouldHaveValue(context: RunGiftChoiceContext): boolean {
+  const currentHp = Number(context.currentHp);
+  const maxHp = Number(context.maxHp);
+  if (!Number.isFinite(currentHp) || !Number.isFinite(maxHp) || maxHp <= 0) return true;
+  return currentHp < maxHp - 0.001;
+}
+
+function availableOverflowGifts(skills: Partial<Record<UpgradeKey, number>>, context: RunGiftChoiceContext): OverflowGiftKey[] {
+  const allowRecovery = recoveryWouldHaveValue(context);
+  return OVERFLOW_GIFTS.filter(key => {
+    if (key === 'heal' && !allowRecovery) return false;
+    return isInstantGift(key) || rawSkillRank(skills, key) < RUN_SKILL_DEFS[key].maxRank;
+  });
 }
 
 function shuffled<T>(items: T[]): T[] {
   return [...items].sort(() => Math.random() - 0.5);
 }
 
-export function buildRunGiftChoices(skills: Partial<Record<UpgradeKey, number>>, pool: UpgradeKey[] = DEFAULT_RUN_UPGRADE_POOL): UpgradeKey[] {
+export function buildRunGiftChoices(
+  skills: Partial<Record<UpgradeKey, number>>,
+  pool: UpgradeKey[] = DEFAULT_RUN_UPGRADE_POOL,
+  context: RunGiftChoiceContext = {},
+): UpgradeKey[] {
   const fusions = shuffled<UpgradeKey>(availableFusionSkills(skills));
   const regular = shuffled(availableRunSkills(skills, pool));
-  const overflow = shuffled<UpgradeKey>(availableOverflowGifts(skills));
+  const overflow = shuffled<UpgradeKey>(availableOverflowGifts(skills, context));
   const choices: UpgradeKey[] = [];
 
   for (const fusion of fusions) if (choices.length < 3) choices.push(fusion);
