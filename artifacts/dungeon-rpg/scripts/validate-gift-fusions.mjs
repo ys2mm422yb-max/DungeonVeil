@@ -38,6 +38,8 @@ const checks = [
   [skills.includes('hunterBlessing: {\n    maxRank: 3') && skills.includes('vitalSpark: {\n    maxRank: 3'), 'Hunter Blessing or Vital Spark is not capped at mastery rank III'],
   [skills.includes("OVERFLOW_GIFTS: OverflowGiftKey[] = ['hunterBlessing', 'vitalSpark', 'heal', 'veilCache', 'goldCache']"), 'late choices do not include bounded masteries, recovery and currency rewards'],
   [skills.includes("return key === 'heal' || key === 'veilCache' || key === 'goldCache';") && skills.includes('isMasteryGift'), 'instant rewards and persistent masteries are not separated'],
+  [skills.includes('function recoveryWouldHaveValue') && skills.includes("if (key === 'heal' && !allowRecovery) return false;"), 'full-health runs can still receive a worthless recovery choice'],
+  [controller.includes('currentHp: state.player.hp') && controller.includes('maxHp: state.player.maxHp'), 'gift choice generation is not using live player health to suppress worthless recovery'],
   [controller.includes('player.maxHp * 0.2') && !controller.includes('player.maxHp * 0.5'), 'recovery is not limited to 20%'],
   [controller.includes("choice === 'hunterBlessing'") && controller.includes('player.attack += 2') && controller.includes("choice === 'vitalSpark'") && controller.includes('player.maxHp += 8'), 'bounded mastery effects are not applied with the intended values'],
   [controller.includes("choice === 'veilCache'") && controller.includes('grantMetaDust(30)') && controller.includes("choice === 'goldCache'") && controller.includes('grantMetaGold(300)'), 'late non-power reward choices are not granted safely'],
@@ -59,4 +61,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Gift progression audit passed: bounded milestones and masteries remain intact, while all three fusions provide distinct capped combat effects.');
+console.log('Gift progression audit passed: bounded milestones and masteries remain intact, while all three fusions provide distinct capped combat effects and recovery is only offered when it has gameplay value.');
