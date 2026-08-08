@@ -8,6 +8,8 @@ const [source, regression] = await Promise.all([
 ]);
 
 const sourceRequired = [
+  'const CODEX_BLANK_FRAMEBUFFER_RECOVERY_LIMIT = 1;',
+  'const CODEX_FRAMEBUFFER_PAINT_ATTEMPTS = 5;',
   'let sharedRendererGeneration = 0;',
   'let sharedRendererContextLost = false;',
   'function rendererMemory(renderer: any)',
@@ -15,17 +17,20 @@ const sourceRequired = [
   '__dungeonVeilCodexPreviewDiagnostics',
   "phase: 'acquire'",
   "phase: 'paint-attempt'",
+  "phase: 'paint-recovery'",
   "phase: 'ready'",
   "phase: 'error'",
   "phase: 'context-lost'",
   "phase: 'release'",
-  "rendererForGeneration.domElement.addEventListener('webglcontextlost'",
+  "reason: 'blank-framebuffer'",
+  "releaseSharedRenderer('blank-framebuffer')",
+  'rendererForGeneration.domElement.addEventListener(\'webglcontextlost\'',
   'const ownsCurrentGeneration = sharedRenderer === rendererForGeneration && sharedRendererGeneration === generation;',
   'if (ownsCurrentGeneration) sharedRendererContextLost = true;',
   'staleGeneration: !ownsCurrentGeneration',
   'memory: rendererMemory(rendererForGeneration)',
   'function currentCodexSelectionIdentity()',
-  "[data-testid^=\"codex-card-\"][data-selected=\"true\"]",
+  '[data-testid^="codex-card-"][data-selected="true"]',
   'const [selectionIdentity, setSelectionIdentity] = useState',
   'new MutationObserver(syncIdentity)',
   "attributeFilter: ['data-selected']",
@@ -35,6 +40,8 @@ const sourceRequired = [
   'previewCount: sharedRendererPreviewCount',
   'contextLost:',
   'memory: rendererMemory(renderer)',
+  'configureRendererForPreview(renderer, THREE, host);',
+  'framePainted = await paintCurrentRenderer();',
 ];
 
 for (const needle of sourceRequired) {
@@ -64,6 +71,33 @@ if (
 const contextLossAssignments = source.match(/sharedRendererContextLost = true;/g) ?? [];
 if (contextLossAssignments.length !== 1) {
   throw new Error(`Codex renderer lifecycle must have exactly one context-loss mutation and it must be generation-guarded; found ${contextLossAssignments.length}.`);
+}
+
+const recoveryLoopIndex = source.indexOf('for (let recoveryAttempt = 0; recoveryAttempt < CODEX_BLANK_FRAMEBUFFER_RECOVERY_LIMIT');
+const recoveryDiagnosticIndex = source.indexOf("phase: 'paint-recovery'", recoveryLoopIndex);
+const recoveryReleaseIndex = source.indexOf("releaseSharedRenderer('blank-framebuffer')", recoveryDiagnosticIndex);
+const firstRecoveryYieldIndex = source.indexOf('await nextAnimationFrame();', recoveryReleaseIndex);
+const secondRecoveryYieldIndex = source.indexOf('await nextAnimationFrame();', firstRecoveryYieldIndex + 1);
+const recoveryAcquireIndex = source.indexOf('renderer = getSharedRenderer(THREE, enemyType);', secondRecoveryYieldIndex);
+const recoveryConfigureIndex = source.indexOf('configureRendererForPreview(renderer, THREE, host);', recoveryAcquireIndex);
+const recoveryResizeIndex = source.indexOf('resize();', recoveryConfigureIndex);
+const recoveryPaintIndex = source.indexOf('framePainted = await paintCurrentRenderer();', recoveryResizeIndex);
+if (
+  recoveryLoopIndex < 0 ||
+  recoveryDiagnosticIndex < recoveryLoopIndex ||
+  recoveryReleaseIndex < recoveryDiagnosticIndex ||
+  firstRecoveryYieldIndex < recoveryReleaseIndex ||
+  secondRecoveryYieldIndex < firstRecoveryYieldIndex ||
+  recoveryAcquireIndex < secondRecoveryYieldIndex ||
+  recoveryConfigureIndex < recoveryAcquireIndex ||
+  recoveryResizeIndex < recoveryConfigureIndex ||
+  recoveryPaintIndex < recoveryResizeIndex
+) {
+  throw new Error('Codex blank-framebuffer recovery must be bounded, diagnostic, retire the failed renderer, yield before reacquire, reattach/resize the fresh renderer and rerun the unchanged paint proof.');
+}
+const blankRecoveryReleases = source.match(/releaseSharedRenderer\('blank-framebuffer'\)/g) ?? [];
+if (blankRecoveryReleases.length !== 1) {
+  throw new Error(`Codex blank-framebuffer recovery must have exactly one bounded release path; found ${blankRecoveryReleases.length}.`);
 }
 
 const regressionRequired = [
@@ -131,4 +165,4 @@ if (source.includes('verified iPhone-safe bound') || source.includes('iPhone-saf
   throw new Error('Codex lifecycle source must not claim a preview-count constant is proven iPhone-safe.');
 }
 
-console.log('Codex preview renderer lifecycle verified: canonical card identity participates in preview lifecycle even when rendered props are shared, retired renderer generations cannot poison current context-loss state, and all 35 canonical selections still require exactly one ready, painted, context-safe preview.');
+console.log('Codex preview renderer lifecycle verified: canonical card identity participates in preview lifecycle even when rendered props are shared, retired renderer generations cannot poison current context-loss state, one bounded renderer replacement can recover an isolated blank framebuffer without weakening the five-attempt paint proof, and all 35 canonical selections still require exactly one ready, painted, context-safe preview.');
