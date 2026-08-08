@@ -50,17 +50,20 @@ async function paintedCodexPreview(page) {
   await waitForPaintedCanvas(page, preview.locator('canvas[data-codex-preview-canvas="true"]'), 30_000);
 }
 
-async function codexDiagnostics(page, familyId) {
-  return page.evaluate(family => {
-    const diagnostics = Array.isArray(window.__dungeonVeilCodexPreviewDiagnostics)
-      ? window.__dungeonVeilCodexPreviewDiagnostics
-      : [];
-    return diagnostics.filter(entry => !family || entry?.enemyType === family || entry?.phase === 'release');
-  }, familyId);
+async function resetCodexDiagnostics(page) {
+  await page.evaluate(() => {
+    window.__dungeonVeilCodexPreviewDiagnostics = [];
+  });
+}
+
+async function codexDiagnostics(page) {
+  return page.evaluate(() => Array.isArray(window.__dungeonVeilCodexPreviewDiagnostics)
+    ? window.__dungeonVeilCodexPreviewDiagnostics
+    : []);
 }
 
 async function attachCodexDiagnostics(page, testInfo, familyId) {
-  const diagnostics = await codexDiagnostics(page, familyId);
+  const diagnostics = await codexDiagnostics(page);
   await testInfo.attach(`codex-renderer-diagnostics-${familyId}`, {
     body: Buffer.from(JSON.stringify({ familyId, diagnostics }, null, 2)),
     contentType: 'application/json',
@@ -105,28 +108,33 @@ test('complete canonical enemy roster is visibly reviewable in Codex and determi
   await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: /Kodex|Codex/i }).click();
   await expect(page.getByTestId('codex-count-beasts')).toHaveText('35/35');
+  const selectionDiagnostics = [];
   for (const familyId of FAMILIES) {
+    await resetCodexDiagnostics(page);
     await page.getByTestId(`codex-card-${familyId}`).click();
     try {
       await paintedCodexPreview(page);
-      const diagnostics = await codexDiagnostics(page, familyId);
-      const ready = diagnostics.findLast(entry => entry?.phase === 'ready' && entry?.enemyType === familyId);
-      expect(ready, `missing ready diagnostic for ${familyId}`).toBeTruthy();
+      const diagnostics = await codexDiagnostics(page);
+      const readyEntries = diagnostics.filter(entry => entry?.phase === 'ready');
+      expect(readyEntries, `expected exactly one ready diagnostic for selected family ${familyId}`).toHaveLength(1);
+      const ready = readyEntries[0];
+      expect(typeof ready?.enemyType, `ready diagnostic missing rendered enemyType for ${familyId}`).toBe('string');
       expect(ready?.painted, `ready diagnostic not painted for ${familyId}`).toBe(true);
       expect(ready?.contextLost, `renderer context lost before ${familyId} became ready`).toBe(false);
+      selectionDiagnostics.push({ familyId, ready });
       await page.screenshot({ path: `${OUTPUT}/codex-${familyId}-${testInfo.project.name}.png`, fullPage: false });
     } finally {
       await attachCodexDiagnostics(page, testInfo, familyId);
     }
   }
 
-  const fullDiagnostics = await page.evaluate(() => window.__dungeonVeilCodexPreviewDiagnostics || []);
   await testInfo.attach('codex-renderer-diagnostics-full-sequence', {
-    body: Buffer.from(JSON.stringify({ families: FAMILIES, diagnostics: fullDiagnostics }, null, 2)),
+    body: Buffer.from(JSON.stringify({ families: FAMILIES, selections: selectionDiagnostics }, null, 2)),
     contentType: 'application/json',
   });
   expect(FAMILIES).toHaveLength(35);
-  expect(fullDiagnostics.filter(entry => entry?.phase === 'ready')).toHaveLength(35);
+  expect(selectionDiagnostics).toHaveLength(35);
+  expect(selectionDiagnostics.every(entry => entry?.ready?.painted === true && entry?.ready?.contextLost === false)).toBe(true);
 
   await startRuntime(page);
   for (let index = 0; index < FAMILIES.length; index += 4) {
