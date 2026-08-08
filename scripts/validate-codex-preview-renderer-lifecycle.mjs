@@ -35,11 +35,14 @@ for (const needle of sourceRequired) {
 const regressionRequired = [
   "test('complete canonical enemy roster is visibly reviewable in Codex and deterministic combat'",
   "window.__dungeonVeilCodexPreviewDiagnostics = [];",
+  'async function resetCodexDiagnostics(page)',
   'async function attachCodexDiagnostics(page, testInfo, familyId)',
   "codex-renderer-diagnostics-${familyId}",
   'codex-renderer-diagnostics-full-sequence',
   'expect(FAMILIES).toHaveLength(35);',
-  "expect(fullDiagnostics.filter(entry => entry?.phase === 'ready')).toHaveLength(35);",
+  'expect(selectionDiagnostics).toHaveLength(35);',
+  "expect(readyEntries, `expected exactly one ready diagnostic for selected family ${familyId}`).toHaveLength(1);",
+  "expect(typeof ready?.enemyType, `ready diagnostic missing rendered enemyType for ${familyId}`).toBe('string');",
   "expect(ready?.painted, `ready diagnostic not painted for ${familyId}`).toBe(true);",
   "expect(ready?.contextLost, `renderer context lost before ${familyId} became ready`).toBe(false);",
 ];
@@ -47,6 +50,17 @@ const regressionRequired = [
 for (const needle of regressionRequired) {
   if (!regression.includes(needle)) {
     throw new Error(`Codex 35-family runtime regression diagnostics missing: ${needle}`);
+  }
+}
+
+const forbiddenRegressionPatterns = [
+  "entry?.enemyType === family",
+  "entry?.enemyType === familyId",
+  "entry?.phase === 'ready' && entry?.enemyType === familyId",
+];
+for (const needle of forbiddenRegressionPatterns) {
+  if (regression.includes(needle)) {
+    throw new Error(`Codex lifecycle regression must not equate canonical familyId with rendered enemyType: ${needle}`);
   }
 }
 
@@ -61,4 +75,4 @@ if (source.includes('verified iPhone-safe bound') || source.includes('iPhone-saf
   throw new Error('Codex lifecycle source must not claim a preview-count constant is proven iPhone-safe.');
 }
 
-console.log('Codex preview renderer lifecycle verified: the real 35-family regression captures renderer generation, context-loss, paint-attempt and memory diagnostics for every selected family.');
+console.log('Codex preview renderer lifecycle verified: each canonical selection owns a fresh diagnostic window and must yield exactly one ready, painted, context-safe rendered preview without assuming familyId equals rendered enemyType.');
