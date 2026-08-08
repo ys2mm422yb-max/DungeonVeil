@@ -33,6 +33,12 @@ function recordCodexPreviewDiagnostic(entry: Record<string, unknown>) {
   target.__dungeonVeilCodexPreviewDiagnostics = diagnostics;
 }
 
+function currentCodexSelectionIdentity() {
+  if (typeof document === 'undefined') return '';
+  const selected = document.querySelector<HTMLElement>('[data-testid^="codex-card-"][data-selected="true"]');
+  return selected?.getAttribute('data-testid')?.replace(/^codex-card-/, '') ?? '';
+}
+
 function releaseSharedRenderer(reason = 'release') {
   const renderer = sharedRenderer;
   const generation = sharedRendererGeneration;
@@ -68,14 +74,18 @@ function getSharedRenderer(THREE: any, enemyType: EnemyType) {
     sharedRendererGeneration += 1;
     sharedRendererContextLost = false;
     const generation = sharedRendererGeneration;
-    sharedRenderer.domElement.addEventListener('webglcontextlost', (event: Event) => {
+    const rendererForGeneration = sharedRenderer;
+    const previewCountAtCreation = sharedRendererPreviewCount;
+    rendererForGeneration.domElement.addEventListener('webglcontextlost', (event: Event) => {
       event.preventDefault?.();
-      sharedRendererContextLost = true;
+      const ownsCurrentGeneration = sharedRenderer === rendererForGeneration && sharedRendererGeneration === generation;
+      if (ownsCurrentGeneration) sharedRendererContextLost = true;
       recordCodexPreviewDiagnostic({
         phase: 'context-lost', generation, enemyType,
-        previewCount: sharedRendererPreviewCount,
+        previewCount: ownsCurrentGeneration ? sharedRendererPreviewCount : previewCountAtCreation,
         contextLost: true,
-        memory: rendererMemory(sharedRenderer),
+        staleGeneration: !ownsCurrentGeneration,
+        memory: rendererMemory(rendererForGeneration),
       });
     });
   }
@@ -146,10 +156,19 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [painted, setPainted] = useState(false);
+  const [selectionIdentity, setSelectionIdentity] = useState('');
+
+  useEffect(() => {
+    const syncIdentity = () => setSelectionIdentity(currentCodexSelectionIdentity());
+    syncIdentity();
+    const observer = new MutationObserver(syncIdentity);
+    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-selected'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host || !selectionIdentity) return;
     let disposed = false;
     let raf = 0;
     let renderer: any = null;
@@ -246,7 +265,7 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
         renderer.render(scene, camera);
         framePainted = renderedFrameHasVisiblePixels(renderer);
         recordCodexPreviewDiagnostic({
-          phase: 'paint-attempt', enemyType, generation, previewCount, attempt: attempt + 1,
+          phase: 'paint-attempt', enemyType, familyId: selectionIdentity, generation, previewCount, attempt: attempt + 1,
           painted: framePainted,
           contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
           memory: rendererMemory(renderer),
@@ -256,7 +275,7 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       if (disposed) return;
       if (!framePainted) throw new Error(`Codex preview framebuffer remained blank: ${enemyType}`);
       recordCodexPreviewDiagnostic({
-        phase: 'ready', enemyType, generation, previewCount, painted: true,
+        phase: 'ready', enemyType, familyId: selectionIdentity, generation, previewCount, painted: true,
         contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
         memory: rendererMemory(renderer),
       });
@@ -283,7 +302,7 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
 
     boot().catch(error => {
       recordCodexPreviewDiagnostic({
-        phase: 'error', enemyType, generation, previewCount,
+        phase: 'error', enemyType, familyId: selectionIdentity, generation, previewCount,
         error: error instanceof Error ? error.message : String(error),
         contextLost: Boolean(renderer?.getContext?.().isContextLost?.() || sharedRendererContextLost),
         memory: rendererMemory(renderer),
@@ -304,13 +323,14 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       renderer?.renderLists?.dispose?.();
       renderer?.domElement?.remove?.();
     };
-  }, [enemyType, room, accent]);
+  }, [enemyType, room, accent, selectionIdentity]);
 
   return <div
     data-testid="codex-shared-model-preview"
     data-preview-renderers="1"
     data-preview-status={status}
     data-preview-painted={painted ? 'true' : 'false'}
+    data-preview-family={selectionIdentity}
     className="relative min-h-[250px] overflow-hidden rounded-[1.75rem] border border-violet-200/15 bg-[radial-gradient(circle_at_50%_35%,rgba(115,70,190,.18),rgba(5,3,10,.96)_72%)]"
   >
     <div ref={hostRef} className="absolute inset-0" />
