@@ -37,7 +37,7 @@ test('own and public profiles use responsive equipment and companion layouts', a
   const ownBounds = await ownShell.boundingBox();
   expect(ownBounds).toBeTruthy();
   if (wide) expect(ownBounds.width).toBeGreaterThan(700); else expect(ownBounds.width).toBeLessThanOrEqual((await page.viewportSize()).width + 1);
-  expect(await columnCount(ownOverview)).toBe(wide ? 2 : 1);
+  await expect.poll(() => columnCount(ownOverview)).toBe(wide ? 2 : 1);
   await assertNoHorizontalOverflow(page);
   await page.getByRole('button', { name: 'Statistik', exact: true }).click();
   await expect(page.getByTestId('profile-lifetime-equipment-rewards')).toContainText('14');
@@ -54,7 +54,7 @@ test('own and public profiles use responsive equipment and companion layouts', a
   const publicBounds = await publicCard.boundingBox();
   expect(publicBounds).toBeTruthy();
   if (wide) expect(publicBounds.width).toBeGreaterThan(700);
-  expect(await columnCount(publicColumns)).toBe(wide ? 2 : 1);
+  await expect.poll(() => columnCount(publicColumns)).toBe(wide ? 2 : 1);
   const loadout = page.getByTestId('public-player-profile-equipment');
   await expect(loadout).toContainText('3/3');
   await expect(page.getByTestId('public-player-profile-equipment-slot-bow')).toHaveAttribute('data-equipped', 'true');

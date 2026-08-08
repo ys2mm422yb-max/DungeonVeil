@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 
-const [encounterSource, engineSource, curveSource, spawnSource] = await Promise.all([
+const [encounterSource, engineSource, curveSource, spawnSource, enemyAiSource] = await Promise.all([
   readFile(new URL('../src/game/encounterPlan.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/combatCurveV4.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/roomSpawn3D.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/enemyRunAI.ts', import.meta.url), 'utf8'),
 ]);
 
 function assert(condition, message) {
@@ -160,6 +161,21 @@ assert(engineSource.includes('completedChapter ? 1 : this.state.floor + 1') && e
 assert(spawnSource.includes('getRoomSpawnPoints') && spawnSource.includes('sceneSpawnToGame'), 'authored room spawn mapping is missing');
 assert(curveSource.includes('BOSS_TARGETS_V4') && curveSource.includes('supportCap'), 'five-boss target contract is missing');
 
+const recoveryStart = enemyAiSource.indexOf('function recoveryMove');
+const recoveryEnd = enemyAiSource.indexOf('export function planEnemyMove', recoveryStart);
+assert(recoveryStart >= 0 && recoveryEnd > recoveryStart, 'enemy recovery movement contract is missing');
+const recoverySource = enemyAiSource.slice(recoveryStart, recoveryEnd);
+assert(
+  !/enemy\.lastProgress(?:X|Y|Time)\s*=/.test(recoverySource),
+  'temporary enemy recovery must not reset the authoritative hard-stall progress clock or baseline',
+);
+assert(
+  engineSource.includes('const UNSTUCK_MS = 7000')
+    && engineSource.includes('time - enemy.lastProgressTime >= UNSTUCK_MS')
+    && engineSource.includes('this.relocateStuckEnemy(enemy, time)'),
+  '7000ms hard-un-stuck relocation contract is missing or weakened',
+);
+
 console.log(JSON.stringify({
   rooms: 50,
   normalRooms: 45,
@@ -173,4 +189,4 @@ console.log(JSON.stringify({
   openingRoomTargetCycles: rows.find(row => row.chapter === 1 && row.room === 1)?.targetCycles,
   scenarios: rows.length,
 }, null, 2));
-console.log('Room 1–50 V4 audit passed: authored runtime compositions, canonical family selection, staged boss milestones, target cycles, spawn guards, retry/transition paths and mobile caps remain bounded.');
+console.log('Room 1–50 V4 audit passed: authored runtime compositions, canonical family selection, staged boss milestones, target cycles, spawn guards, retry/transition paths, hard-stall recovery and mobile caps remain bounded.');
