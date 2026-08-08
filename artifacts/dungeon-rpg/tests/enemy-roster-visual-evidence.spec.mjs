@@ -71,6 +71,16 @@ async function attachCodexDiagnostics(page, testInfo, familyId) {
   return diagnostics;
 }
 
+async function primeCodexSelectionForDiagnostics(page) {
+  const firstFamily = FAMILIES[0];
+  const secondFamily = FAMILIES[1];
+  expect(firstFamily).not.toBe(secondFamily);
+  await page.getByTestId(`codex-card-${firstFamily}`).click();
+  await paintedCodexPreview(page);
+  await page.getByTestId(`codex-card-${secondFamily}`).click();
+  await paintedCodexPreview(page);
+}
+
 async function startRuntime(page) {
   await seed(page);
   const url = new URL(APP_URL);
@@ -109,6 +119,7 @@ test('complete canonical enemy roster is visibly reviewable in Codex and determi
   await page.getByRole('button', { name: /Kodex|Codex/i }).click();
   await expect(page.getByTestId('codex-count-beasts')).toHaveText('35/35');
   const selectionDiagnostics = [];
+  await primeCodexSelectionForDiagnostics(page);
   for (const familyId of FAMILIES) {
     await resetCodexDiagnostics(page);
     await page.getByTestId(`codex-card-${familyId}`).click();
