@@ -7,6 +7,8 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module
 const IS_MOBILE = typeof navigator !== 'undefined'
   && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 const CODEX_SHARED_RENDERER_MAX_PREVIEWS = 6;
+const CODEX_BLANK_FRAMEBUFFER_RECOVERY_LIMIT = 1;
+const CODEX_FRAMEBUFFER_PAINT_ATTEMPTS = 5;
 
 let sharedRenderer: any = null;
 let sharedRendererPagehideInstalled = false;
@@ -152,6 +154,18 @@ function renderedFrameHasVisiblePixels(renderer: any) {
   return false;
 }
 
+function configureRendererForPreview(renderer: any, THREE: any, host: HTMLDivElement) {
+  renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, IS_MOBILE ? 1 : 1.35));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = IS_MOBILE ? 1.42 : 1.32;
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
+  renderer.domElement.style.display = 'block';
+  renderer.domElement.setAttribute('data-codex-preview-canvas', 'true');
+  host.replaceChildren(renderer.domElement);
+}
+
 export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { enemyType: EnemyType; room: number; accent?: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -192,15 +206,7 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       renderer = getSharedRenderer(THREE, enemyType);
       generation = sharedRendererGeneration;
       previewCount = sharedRendererPreviewCount;
-      renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, IS_MOBILE ? 1 : 1.35));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = IS_MOBILE ? 1.42 : 1.32;
-      renderer.domElement.style.width = '100%';
-      renderer.domElement.style.height = '100%';
-      renderer.domElement.style.display = 'block';
-      renderer.domElement.setAttribute('data-codex-preview-canvas', 'true');
-      host.replaceChildren(renderer.domElement);
+      configureRendererForPreview(renderer, THREE, host);
 
       const camera = new THREE.PerspectiveCamera(31, 1, 0.1, 40);
       camera.position.set(0, 1.45, 5.5);
@@ -260,17 +266,41 @@ export function CodexModelPreview({ enemyType, room, accent = '#a78bfa' }: { ene
       };
       resize();
 
-      let framePainted = false;
-      for (let attempt = 0; attempt < 5 && !disposed && !framePainted; attempt += 1) {
-        renderer.render(scene, camera);
-        framePainted = renderedFrameHasVisiblePixels(renderer);
+      const paintCurrentRenderer = async () => {
+        let framePainted = false;
+        for (let attempt = 0; attempt < CODEX_FRAMEBUFFER_PAINT_ATTEMPTS && !disposed && !framePainted; attempt += 1) {
+          renderer.render(scene, camera);
+          framePainted = renderedFrameHasVisiblePixels(renderer);
+          recordCodexPreviewDiagnostic({
+            phase: 'paint-attempt', enemyType, familyId: selectionIdentity, generation, previewCount, attempt: attempt + 1,
+            painted: framePainted,
+            contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
+            memory: rendererMemory(renderer),
+          });
+          if (!framePainted) await nextAnimationFrame();
+        }
+        return framePainted;
+      };
+
+      let framePainted = await paintCurrentRenderer();
+      for (let recoveryAttempt = 0; recoveryAttempt < CODEX_BLANK_FRAMEBUFFER_RECOVERY_LIMIT && !disposed && !framePainted; recoveryAttempt += 1) {
         recordCodexPreviewDiagnostic({
-          phase: 'paint-attempt', enemyType, familyId: selectionIdentity, generation, previewCount, attempt: attempt + 1,
-          painted: framePainted,
+          phase: 'paint-recovery', enemyType, familyId: selectionIdentity, generation, previewCount,
+          recoveryAttempt: recoveryAttempt + 1,
+          reason: 'blank-framebuffer',
           contextLost: Boolean(renderer.getContext?.().isContextLost?.() || sharedRendererContextLost),
           memory: rendererMemory(renderer),
         });
-        if (!framePainted) await nextAnimationFrame();
+        releaseSharedRenderer('blank-framebuffer');
+        await nextAnimationFrame();
+        await nextAnimationFrame();
+        if (disposed) return;
+        renderer = getSharedRenderer(THREE, enemyType);
+        generation = sharedRendererGeneration;
+        previewCount = sharedRendererPreviewCount;
+        configureRendererForPreview(renderer, THREE, host);
+        resize();
+        framePainted = await paintCurrentRenderer();
       }
       if (disposed) return;
       if (!framePainted) throw new Error(`Codex preview framebuffer remained blank: ${enemyType}`);
