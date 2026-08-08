@@ -94,6 +94,19 @@ async function loadRoom(page, room) {
   return snapshot;
 }
 
+async function captureRoom11StallSequence(page, projectName) {
+  await page.waitForTimeout(4_100);
+  await page.screenshot({
+    path: `${OUTPUT}/chapter-evidence-room-11-after-4s-${projectName}.png`,
+    fullPage: false,
+  });
+  await page.waitForTimeout(4_100);
+  await page.screenshot({
+    path: `${OUTPUT}/chapter-evidence-room-11-after-8s-${projectName}.png`,
+    fullPage: false,
+  });
+}
+
 test('compact chapter and boss evidence stays readable on the supported portrait device', async ({ page }, testInfo) => {
   test.setTimeout(480_000);
   const issues = [];
@@ -113,6 +126,7 @@ test('compact chapter and boss evidence stays readable on the supported portrait
       path: `${OUTPUT}/chapter-evidence-room-${String(room).padStart(2, '0')}-${testInfo.project.name}.png`,
       fullPage: false,
     });
+    if (room === 11) await captureRoom11StallSequence(page, testInfo.project.name);
   }
 
   expect(issues, issues.join('\n')).toEqual([]);
