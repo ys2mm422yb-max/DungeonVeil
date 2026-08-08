@@ -7,9 +7,11 @@ const MIN_COMPOSITED_PNG_BYTES = 4_000;
 const MIN_COMPOSITED_BYTES_PER_PIXEL = 0.012;
 const REQUIRED_PAINTED_SAMPLES = 2;
 const REQUIRED_TRANSITION_FREE_FRAMES = 2;
+const RESTORED_ARMOR_STABLE_MS = 3_000;
 const POLL_INTERVALS = [100, 200, 350, 500, 750, 1_000];
 const ROOM_PREPARING_TEXT = /RAUM WIRD AUFGEBAUT|ROOM(?: IS)? (?:BEING )?BUILT/i;
 const RUN_OPENING_TEXT = /DER SCHLEIER ÖFFNET SICH|THE VEIL OPENS/i;
+const ROOM_TITLE_TEXT = /VERSORGUNGSPOSTEN|SUPPLY POST/i;
 const RESTORED_ARMOR_SCREENSHOT_GUARD = Symbol('restoredArmorScreenshotGuard');
 const NAVIGATION_SAFE_EVALUATE_GUARD = Symbol('navigationSafeEvaluateGuard');
 const RAW_PAGE_SCREENSHOT = Symbol('rawPageScreenshot');
@@ -128,6 +130,28 @@ async function waitForStableRunTransitionFreeCompositor(page, timeout) {
   ).toBe(true);
 }
 
+async function waitForStableRestoredArmorEvidence(page, timeout) {
+  let stableSince = 0;
+  await expect.poll(
+    async () => {
+      const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+      const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
+      const roomTitleVisible = await visibleMatchCount(page.getByText(ROOM_TITLE_TEXT));
+      const stable = (!buildState || buildState === 'ready')
+        && roomPreparingVisible === 0
+        && runOpeningVisible === 0
+        && roomTitleVisible === 0;
+      if (!stable) {
+        stableSince = 0;
+        return false;
+      }
+      if (stableSince === 0) stableSince = Date.now();
+      return Date.now() - stableSince >= RESTORED_ARMOR_STABLE_MS;
+    },
+    { timeout, intervals: POLL_INTERVALS, message: 'Restored armour evidence did not remain uncovered and transition-free' },
+  ).toBe(true);
+}
+
 function isNavigationTransitionError(error) {
   const message = String(error?.message || error);
   return /execution context was destroyed|most likely because of a navigation/i.test(message)
@@ -159,6 +183,11 @@ function shouldGuardRunScreenshot(options) {
   return /(?:^|[/\\])autopilot-solo-run-[^/\\]+\.png$/i.test(path);
 }
 
+function shouldRequireRestoredArmorStability(options) {
+  const path = typeof options?.path === 'string' ? options.path : '';
+  return /(?:^|[/\\])autopilot-solo-run-warden-armor-cloud-restored-[^/\\]+\.png$/i.test(path);
+}
+
 function installRestoredArmorScreenshotGuard(page, timeout) {
   if (page[RESTORED_ARMOR_SCREENSHOT_GUARD]) return;
   const originalScreenshot = page.screenshot.bind(page);
@@ -171,6 +200,9 @@ function installRestoredArmorScreenshotGuard(page, timeout) {
         if (await runCanvas.count()) {
           await waitForPaintedCanvas(page, runCanvas, timeout);
         }
+      }
+      if (shouldRequireRestoredArmorStability(options)) {
+        await waitForStableRestoredArmorEvidence(page, timeout);
       }
       await waitForStableRunTransitionFreeCompositor(page, timeout);
       return originalScreenshot(options);
