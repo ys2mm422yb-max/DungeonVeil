@@ -61,149 +61,101 @@ async function compositedCanvasEvidence(page, canvas) {
     const box = await canvas.boundingBox();
     if (!box || box.width < 1 || box.height < 1) return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
     const rawScreenshot = page[RAW_PAGE_SCREENSHOT] || page.screenshot.bind(page);
-    const png = await rawScreenshot({
-      type: 'png',
-      animations: 'allow',
-      clip: {
-        x: Math.max(0, box.x),
-        y: Math.max(0, box.y),
-        width: box.width,
-        height: box.height,
-      },
-    });
+    const png = await rawScreenshot({ type: 'png', animations: 'allow', clip: { x: Math.max(0, box.x), y: Math.max(0, box.y), width: box.width, height: box.height } });
     const area = Math.max(1, Math.round(box.width) * Math.round(box.height));
     return { pngBytes: png.length, requiredBytes: Math.max(MIN_COMPOSITED_PNG_BYTES, Math.floor(area * MIN_COMPOSITED_BYTES_PER_PIXEL)) };
-  } catch {
-    return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY };
-  }
+  } catch { return { pngBytes: 0, requiredBytes: Number.POSITIVE_INFINITY }; }
 }
 
 async function waitForRoomRendererReady(page, timeout) {
-  await expect.poll(
-    async () => {
-      const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
-      return !buildState || buildState === 'ready';
-    },
-    { timeout, intervals: POLL_INTERVALS, message: 'Room renderer did not reach ready state' },
-  ).toBe(true);
+  await expect.poll(async () => {
+    const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+    return !buildState || buildState === 'ready';
+  }, { timeout, intervals: POLL_INTERVALS, message: 'Room renderer did not reach ready state' }).toBe(true);
 }
 
 async function visibleMatchCount(locator) {
   const count = await locator.count();
   let visible = 0;
-  for (let index = 0; index < count; index += 1) {
-    if (await locator.nth(index).isVisible().catch(() => false)) visible += 1;
-  }
+  for (let index = 0; index < count; index += 1) if (await locator.nth(index).isVisible().catch(() => false)) visible += 1;
   return visible;
 }
 
 async function visibleRunTransitionCounts(page) {
   const [roomPreparingVisible, runOpeningVisible] = await Promise.all([
-    visibleMatchCount(page.getByText(ROOM_PREPARING_TEXT)),
-    visibleMatchCount(page.getByText(RUN_OPENING_TEXT)),
+    visibleMatchCount(page.getByText(ROOM_PREPARING_TEXT)), visibleMatchCount(page.getByText(RUN_OPENING_TEXT)),
   ]);
   return { roomPreparingVisible, runOpeningVisible };
 }
 
 async function waitForNoVisibleRunTransitions(page, timeout) {
-  await expect.poll(
-    async () => {
-      const counts = await visibleRunTransitionCounts(page);
-      return counts.roomPreparingVisible + counts.runOpeningVisible;
-    },
-    { timeout, intervals: POLL_INTERVALS, message: 'Run transition overlay remained visible' },
-  ).toBe(0);
+  await expect.poll(async () => {
+    const counts = await visibleRunTransitionCounts(page);
+    return counts.roomPreparingVisible + counts.runOpeningVisible;
+  }, { timeout, intervals: POLL_INTERVALS, message: 'Run transition overlay remained visible' }).toBe(0);
 }
 
 async function waitForStableRunTransitionFreeCompositor(page, timeout) {
-  await expect.poll(
-    async () => {
-      for (let frame = 0; frame < REQUIRED_TRANSITION_FREE_FRAMES; frame += 1) {
-        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
-        const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
-        const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
-        if ((buildState && buildState !== 'ready') || roomPreparingVisible > 0 || runOpeningVisible > 0) return false;
-      }
-      return true;
-    },
-    { timeout, intervals: POLL_INTERVALS, message: 'Run transition state did not remain compositor-stable before capture' },
-  ).toBe(true);
+  await expect.poll(async () => {
+    for (let frame = 0; frame < REQUIRED_TRANSITION_FREE_FRAMES; frame += 1) {
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+      const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+      const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
+      if ((buildState && buildState !== 'ready') || roomPreparingVisible > 0 || runOpeningVisible > 0) return false;
+    }
+    return true;
+  }, { timeout, intervals: POLL_INTERVALS, message: 'Run transition state did not remain compositor-stable before capture' }).toBe(true);
 }
 
 async function waitForStableRestoredArmorEvidence(page, timeout) {
   let stableSince = 0;
-  await expect.poll(
-    async () => {
+  let lastSnapshot = null;
+  let lastReset = null;
+  try {
+    await expect.poll(async () => {
       const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
       const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
       const roomTitleVisible = await visibleMatchCount(page.getByText(ROOM_TITLE_TEXT));
-      const stable = (!buildState || buildState === 'ready')
-        && roomPreparingVisible === 0
-        && runOpeningVisible === 0
-        && roomTitleVisible === 0;
+      const now = Date.now();
+      const snapshot = { buildState, roomPreparingVisible, runOpeningVisible, roomTitleVisible };
+      lastSnapshot = snapshot;
+      const stable = (!buildState || buildState === 'ready') && roomPreparingVisible === 0 && runOpeningVisible === 0 && roomTitleVisible === 0;
       if (!stable) {
+        lastReset = { ...snapshot, elapsedStableMs: stableSince === 0 ? 0 : now - stableSince };
         stableSince = 0;
         return false;
       }
-      if (stableSince === 0) stableSince = Date.now();
-      return Date.now() - stableSince >= RESTORED_ARMOR_STABLE_MS;
-    },
-    { timeout, intervals: POLL_INTERVALS, message: 'Restored armour evidence did not remain uncovered and transition-free' },
-  ).toBe(true);
+      if (stableSince === 0) stableSince = now;
+      return now - stableSince >= RESTORED_ARMOR_STABLE_MS;
+    }, { timeout, intervals: POLL_INTERVALS, message: 'Restored armour evidence did not remain uncovered and transition-free' }).toBe(true);
+  } catch (error) {
+    const elapsedStableMs = stableSince === 0 ? 0 : Date.now() - stableSince;
+    const diagnostic = { lastSnapshot, lastReset, elapsedStableMs, requiredStableMs: RESTORED_ARMOR_STABLE_MS };
+    throw new Error(`Restored armour evidence stability diagnostics: ${JSON.stringify(diagnostic)}`, { cause: error });
+  }
 }
 
 function isNavigationTransitionError(error) {
   const message = String(error?.message || error);
-  return /execution context was destroyed|most likely because of a navigation/i.test(message)
-    || /null is not an object \(evaluating 'document\.(?:body|documentElement)\.scrollWidth'\)/i.test(message);
+  return /execution context was destroyed|most likely because of a navigation/i.test(message) || /null is not an object \(evaluating 'document\.(?:body|documentElement)\.scrollWidth'\)/i.test(message);
 }
-
-async function waitForDocumentBody(page, timeout) {
-  await page.waitForLoadState('domcontentloaded', { timeout });
-  await page.locator('body').waitFor({ state: 'attached', timeout });
-}
-
+async function waitForDocumentBody(page, timeout) { await page.waitForLoadState('domcontentloaded', { timeout }); await page.locator('body').waitFor({ state: 'attached', timeout }); }
 function installNavigationSafeEvaluate(page, timeout) {
   if (page[NAVIGATION_SAFE_EVALUATE_GUARD]) return;
   const originalEvaluate = page.evaluate.bind(page);
-  page.evaluate = async (...args) => {
-    try {
-      return await originalEvaluate(...args);
-    } catch (error) {
-      if (!isNavigationTransitionError(error)) throw error;
-      await waitForDocumentBody(page, timeout);
-      return originalEvaluate(...args);
-    }
-  };
+  page.evaluate = async (...args) => { try { return await originalEvaluate(...args); } catch (error) { if (!isNavigationTransitionError(error)) throw error; await waitForDocumentBody(page, timeout); return originalEvaluate(...args); } };
   page[NAVIGATION_SAFE_EVALUATE_GUARD] = true;
 }
-
-function shouldGuardRunScreenshot(options) {
-  const path = typeof options?.path === 'string' ? options.path : '';
-  return /(?:^|[/\\])autopilot-solo-run-[^/\\]+\.png$/i.test(path);
-}
-
-function shouldRequireRestoredArmorStability(options) {
-  const path = typeof options?.path === 'string' ? options.path : '';
-  return /(?:^|[/\\])autopilot-solo-run-warden-armor-cloud-restored-[^/\\]+\.png$/i.test(path);
-}
-
+function shouldGuardRunScreenshot(options) { const path = typeof options?.path === 'string' ? options.path : ''; return /(?:^|[/\\])autopilot-solo-run-[^/\\]+\.png$/i.test(path); }
+function shouldRequireRestoredArmorStability(options) { const path = typeof options?.path === 'string' ? options.path : ''; return /(?:^|[/\\])autopilot-solo-run-warden-armor-cloud-restored-[^/\\]+\.png$/i.test(path); }
 function installRestoredArmorScreenshotGuard(page, timeout) {
   if (page[RESTORED_ARMOR_SCREENSHOT_GUARD]) return;
-  const originalScreenshot = page.screenshot.bind(page);
-  page[RAW_PAGE_SCREENSHOT] = originalScreenshot;
+  const originalScreenshot = page.screenshot.bind(page); page[RAW_PAGE_SCREENSHOT] = originalScreenshot;
   page.screenshot = async options => {
     if (shouldGuardRunScreenshot(options)) {
       const runRenderer = page.getByTestId('run-three-host');
-      if (await runRenderer.count()) {
-        const runCanvas = runRenderer.locator('canvas').first();
-        if (await runCanvas.count()) {
-          await waitForPaintedCanvas(page, runCanvas, timeout);
-        }
-      }
-      if (shouldRequireRestoredArmorStability(options)) {
-        await waitForStableRestoredArmorEvidence(page, timeout);
-      }
+      if (await runRenderer.count()) { const runCanvas = runRenderer.locator('canvas').first(); if (await runCanvas.count()) await waitForPaintedCanvas(page, runCanvas, timeout); }
+      if (shouldRequireRestoredArmorStability(options)) await waitForStableRestoredArmorEvidence(page, timeout);
       await waitForStableRunTransitionFreeCompositor(page, timeout);
       return originalScreenshot(options);
     }
@@ -213,43 +165,22 @@ function installRestoredArmorScreenshotGuard(page, timeout) {
 }
 
 export async function waitForPaintedCanvas(page, canvas = page.locator('canvas').first(), timeout = 60_000) {
-  installNavigationSafeEvaluate(page, timeout);
-  installRestoredArmorScreenshotGuard(page, timeout);
-  await expect(canvas).toBeVisible({ timeout });
-  await waitForRoomRendererReady(page, timeout);
+  installNavigationSafeEvaluate(page, timeout); installRestoredArmorScreenshotGuard(page, timeout); await expect(canvas).toBeVisible({ timeout }); await waitForRoomRendererReady(page, timeout);
   let paintedSamples = 0;
-  await expect.poll(
-    async () => {
-      const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
-      const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
-      if ((buildState && buildState !== 'ready') || roomPreparingVisible > 0 || runOpeningVisible > 0) {
-        paintedSamples = 0;
-        return 0;
-      }
-      const composited = await compositedCanvasEvidence(page, canvas);
-      let paintScore = composited.pngBytes / composited.requiredBytes;
-      if (paintScore < 1) {
-        const evidence = await canvasFrameEvidence(canvas);
-        paintScore = Math.max(paintScore, evidence.coverage / MIN_LIT_COVERAGE, evidence.pngBytes / MIN_SAMPLE_PNG_BYTES);
-      }
-      const painted = Number.isFinite(paintScore) && paintScore >= 1;
-      paintedSamples = painted ? paintedSamples + 1 : 0;
-      return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
-    },
-    { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank, room-preparing, run-opening, or insufficiently painted' },
-  ).toBeGreaterThanOrEqual(1);
-  await waitForNoVisibleRunTransitions(page, timeout);
-  await waitForStableRunTransitionFreeCompositor(page, timeout);
+  await expect.poll(async () => {
+    const buildState = await page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState || '');
+    const { roomPreparingVisible, runOpeningVisible } = await visibleRunTransitionCounts(page);
+    if ((buildState && buildState !== 'ready') || roomPreparingVisible > 0 || runOpeningVisible > 0) { paintedSamples = 0; return 0; }
+    const composited = await compositedCanvasEvidence(page, canvas); let paintScore = composited.pngBytes / composited.requiredBytes;
+    if (paintScore < 1) { const evidence = await canvasFrameEvidence(canvas); paintScore = Math.max(paintScore, evidence.coverage / MIN_LIT_COVERAGE, evidence.pngBytes / MIN_SAMPLE_PNG_BYTES); }
+    const painted = Number.isFinite(paintScore) && paintScore >= 1; paintedSamples = painted ? paintedSamples + 1 : 0; return paintedSamples >= REQUIRED_PAINTED_SAMPLES ? paintScore : 0;
+  }, { timeout, intervals: POLL_INTERVALS, message: 'WebGL canvas remained blank, room-preparing, run-opening, or insufficiently painted' }).toBeGreaterThanOrEqual(1);
+  await waitForNoVisibleRunTransitions(page, timeout); await waitForStableRunTransitionFreeCompositor(page, timeout);
 }
 
 export async function waitForLiveMenuPaint(page, timeout = 60_000) {
   const scene = page.getByTestId('live-hybrid-main-menu-scene');
-  await expect(scene).toHaveAttribute('data-ranger-loaded', 'true', { timeout });
-  await expect(scene).toHaveAttribute('data-animation-state', 'running', { timeout });
-  await expect.poll(
-    async () => Number(await scene.getAttribute('data-animation-frames') || 0),
-    { timeout, intervals: POLL_INTERVALS, message: 'Live menu animation did not advance far enough for visual evidence' },
-  ).toBeGreaterThanOrEqual(10);
-  await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), timeout);
-  return scene;
+  await expect(scene).toHaveAttribute('data-ranger-loaded', 'true', { timeout }); await expect(scene).toHaveAttribute('data-animation-state', 'running', { timeout });
+  await expect.poll(async () => Number(await scene.getAttribute('data-animation-frames') || 0), { timeout, intervals: POLL_INTERVALS, message: 'Live menu animation did not advance far enough for visual evidence' }).toBeGreaterThanOrEqual(10);
+  await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), timeout); return scene;
 }
