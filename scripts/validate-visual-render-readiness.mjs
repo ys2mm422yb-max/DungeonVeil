@@ -13,14 +13,15 @@ assert.match(source, /const REQUIRED_TRANSITION_FREE_FRAMES = 2;/);
 assert.match(source, /const RESTORED_ARMOR_STABLE_MS = 3_000;/);
 assert.match(source, /const ROOM_PREPARING_TEXT = \/RAUM WIRD AUFGEBAUT\|ROOM\(\?: IS\)\? \(\?:BEING \)\?BUILT\/i;/);
 assert.match(source, /const RUN_OPENING_TEXT = \/DER SCHLEIER ÖFFNET SICH\|THE VEIL OPENS\/i;/);
-assert.match(source, /const ROOM_TITLE_TEXT = \/VERSORGUNGSPOSTEN\|SUPPLY POST\/i;/);
 assert.match(source, /async function visibleMatchCount\(locator\) \{[\s\S]*const count = await locator\.count\(\);[\s\S]*locator\.nth\(index\)\.isVisible\(\)/);
 assert.doesNotMatch(source, /getByText\(ROOM_PREPARING_TEXT\)\.first\(\)|getByText\(RUN_OPENING_TEXT\)\.first\(\)/);
 assert.match(source, /async function waitForStableRunTransitionFreeCompositor\(page, timeout\) \{[\s\S]*frame < REQUIRED_TRANSITION_FREE_FRAMES[\s\S]*requestAnimationFrame[\s\S]*dungeonVeilRoomBuildState[\s\S]*visibleRunTransitionCounts\(page\)[\s\S]*return false;/);
 assert.match(source, /async function waitForStableRestoredArmorEvidence\(page, timeout\) \{[\s\S]*let stableSince = 0;[\s\S]*let lastSnapshot = null;[\s\S]*let lastReset = null;/,
   'restored armour stability must retain exact predicate diagnostics');
-assert.match(source, /const snapshot = \{ buildState, roomPreparingVisible, runOpeningVisible, roomTitleVisible \};[\s\S]*lastReset = \{ \.\.\.snapshot, elapsedStableMs: stableSince === 0 \? 0 : now - stableSince \};[\s\S]*stableSince = 0;/,
-  'every stability reset must retain all predicate values and elapsed stable duration');
+assert.match(source, /const snapshot = \{ buildState, roomPreparingVisible, runOpeningVisible \};[\s\S]*const stable = \(!buildState \|\| buildState === 'ready'\) && roomPreparingVisible === 0 && runOpeningVisible === 0;[\s\S]*lastReset = \{ \.\.\.snapshot, elapsedStableMs: stableSince === 0 \? 0 : now - stableSince \};[\s\S]*stableSince = 0;/,
+  'every stability reset must retain the renderer and actual transition predicate values plus elapsed stable duration');
+assert.doesNotMatch(source, /ROOM_TITLE_TEXT|roomTitleVisible|VERSORGUNGSPOSTEN|SUPPLY POST/,
+  'persistent room-label text must never be treated as a transition-state predicate');
 assert.match(source, /const diagnostic = \{ lastSnapshot, lastReset, elapsedStableMs, requiredStableMs: RESTORED_ARMOR_STABLE_MS \};[\s\S]*Restored armour evidence stability diagnostics:/,
   'timeout must report the final snapshot, reset reason values and elapsed\/required stability');
 assert.match(source, /const now = Date\.now\(\);[\s\S]*now - stableSince >= RESTORED_ARMOR_STABLE_MS/,
