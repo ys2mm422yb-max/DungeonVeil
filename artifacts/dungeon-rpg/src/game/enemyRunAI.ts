@@ -244,14 +244,12 @@ function recoveryMove(enemy: Enemy, player: Player, speed: number, time: number,
   if (!enemy.stuckSince) return null;
   const age = time - enemy.stuckSince;
   if (progress >= 6.5 || age >= 1550) {
+    // The authoritative hard-stall clock lives in runEngine.checkEnemyStuck.
+    // Recovery may stop/retry, but only real movement may refresh that clock.
     enemy.stuckSince = undefined;
-    enemy.lastProgressX = enemy.x;
-    enemy.lastProgressY = enemy.y;
-    enemy.lastProgressTime = time;
     return null;
   }
 
-  enemy.lastProgressTime = time;
   const storedSideX = enemy.targetX || -ny;
   const storedSideY = enemy.targetY || nx;
   let moveX: number;
