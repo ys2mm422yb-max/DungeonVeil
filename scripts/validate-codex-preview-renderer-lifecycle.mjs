@@ -19,7 +19,18 @@ const sourceRequired = [
   "phase: 'error'",
   "phase: 'context-lost'",
   "phase: 'release'",
-  "sharedRenderer.domElement.addEventListener('webglcontextlost'",
+  "rendererForGeneration.domElement.addEventListener('webglcontextlost'",
+  'const ownsCurrentGeneration = sharedRenderer === rendererForGeneration && sharedRendererGeneration === generation;',
+  'if (ownsCurrentGeneration) sharedRendererContextLost = true;',
+  'staleGeneration: !ownsCurrentGeneration',
+  'memory: rendererMemory(rendererForGeneration)',
+  'function currentCodexSelectionIdentity()',
+  "[data-testid^=\"codex-card-\"][data-selected=\"true\"]",
+  'const [selectionIdentity, setSelectionIdentity] = useState',
+  'new MutationObserver(syncIdentity)',
+  "attributeFilter: ['data-selected']",
+  'familyId: selectionIdentity',
+  '[enemyType, room, accent, selectionIdentity]',
   'generation: sharedRendererGeneration',
   'previewCount: sharedRendererPreviewCount',
   'contextLost:',
@@ -82,6 +93,16 @@ for (const needle of forbiddenRegressionPatterns) {
   }
 }
 
+const forbiddenSourcePatterns = [
+  'sharedRenderer.domElement.addEventListener',
+  'sharedRendererContextLost = true;\n      recordCodexPreviewDiagnostic',
+];
+for (const needle of forbiddenSourcePatterns) {
+  if (source.includes(needle)) {
+    throw new Error(`Codex renderer lifecycle must bind context-loss to its owning renderer generation: ${needle}`);
+  }
+}
+
 const familyBlock = regression.match(/const FAMILIES = \[([\s\S]*?)\];/);
 if (!familyBlock) throw new Error('Codex lifecycle contract cannot find the canonical FAMILIES sequence.');
 const familyCount = [...familyBlock[1].matchAll(/'[^']+'/g)].length;
@@ -93,4 +114,4 @@ if (source.includes('verified iPhone-safe bound') || source.includes('iPhone-saf
   throw new Error('Codex lifecycle source must not claim a preview-count constant is proven iPhone-safe.');
 }
 
-console.log('Codex preview renderer lifecycle verified: the first family is forced through a real selection transition before diagnostics are reset, and all 35 canonical selections must yield exactly one ready, painted, context-safe rendered preview without assuming familyId equals rendered enemyType.');
+console.log('Codex preview renderer lifecycle verified: canonical card identity participates in preview lifecycle even when rendered props are shared, retired renderer generations cannot poison current context-loss state, and all 35 canonical selections still require exactly one ready, painted, context-safe preview.');
