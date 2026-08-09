@@ -151,26 +151,30 @@ assert.match(companionBinding, /normalizeUpgradeVisualTier\(level\)/);
 assert.match(companionBinding, /dungeonVeilUpgradeBinding = 'in-run-companion-combat-mesh'/);
 assert.match(companionBinding, /if \(tier < 3\) \{[\s\S]*publishRuntimeTelemetry\(role, tier, 'none', 0, false, false\)/,
   'companion levels one and two must stay effect-free while exposing factual telemetry');
-assert.match(companionBinding, /import \{ createVisibleUpgradePrestige3D \} from '\.\/visibleUpgradePrestige3D';/,
-  'companion prestige must use the canonical bounded model-local helper');
-assert.match(companionBinding, /createVisibleUpgradePrestige3D\(THREE, visual,[\s\S]*slot: 'companion'/,
-  'the prestige binding must attach directly to the actual companion visual');
-assert.match(companionBinding, /binding: `visible:companion:\$\{role\}`/,
-  'the visible companion binding must retain factual role identity');
+assert.doesNotMatch(companionBinding, /createVisibleUpgradePrestige3D|OctahedronGeometry|DungeonVeilVisibleUpgradeCrest|RingGeometry/,
+  'the rejected generic companion crest/orbit geometry must never return to live combat');
+assert.match(companionBinding, /function createLiveCompanionPrestige\([\s\S]*new THREE\.SphereGeometry\(particleRadius, 8, 6\)/,
+  'live companion prestige must use its dedicated compact spark implementation');
+assert.match(companionBinding, /const particleCount = tier >= 5 \? 7 : tier === 4 \? 5 : 3;/,
+  'live companion tiers three through five must remain visibly distinct by bounded spark count');
+assert.match(companionBinding, /const horizontalRadius = bounds\.width \* \(tier >= 5 \? 0\.18 : tier === 4 \? 0\.155 : 0\.13\);/,
+  'live companion prestige must stay within a strict model-local radius');
+assert.match(companionBinding, /visual\.add\(group\)/,
+  'the dedicated prestige group must attach directly to the actual moving companion visual');
 assert.match(companionBinding, /prefersReducedMotion\(\) \|\| rendererRecoveryActive\(\)/);
 assert.match(companionBinding, /dungeonVeilRendererRecovery === 'true'[\s\S]*dungeonVeilRendererRecovery === '1'/);
 assert.match(companionBinding, /dungeonVeilLowGpu === 'true'[\s\S]*dungeonVeilLowGpu === '1'/);
 assert.match(companionBinding, /const movingProfile = getUpgradeVisualProfile\(tier\);/);
 assert.match(companionBinding, /const staticProfile = getUpgradeVisualProfile\(tier, \{[\s\S]*reducedMotion: true,[\s\S]*lowGpu: true/);
 assert.match(companionBinding, /const profile = staticFallback \? staticProfile : movingProfile;/);
-assert.match(companionBinding, /visibleBinding\.update\(staticFallback \? 0 : actionPulse\)/,
+assert.match(companionBinding, /livePrestige\.update\(staticFallback \? 0 : actionPulse, staticFallback\)/,
   'moving companion prestige must stop in Reduced Motion and renderer recovery');
 assert.match(companionBinding, /visual\.userData\.dungeonVeilUpgradeStaticFallback = staticFallback;/);
 assert.match(companionBinding, /publishRuntimeTelemetry\([\s\S]*!staticFallback && particleCount > 0,[\s\S]*staticFallback,/);
-assert.match(companionBinding, /visibleBinding\.dispose\(\)/,
-  'bounded companion prestige must release its real Three.js resources');
-assert.doesNotMatch(companionBinding, /visual\.traverse|RingGeometry|material\.emissive|CompanionUpgradePrestigeAura/,
-  'companion prestige must not recolor the whole model or create a broad ring aura');
+assert.match(companionBinding, /livePrestige\.dispose\(\)/,
+  'dedicated companion prestige must release its real Three.js resources');
+assert.doesNotMatch(companionBinding, /visual\.traverse|material\.emissive|CompanionUpgradePrestigeAura/,
+  'companion prestige must not recolor the whole model or create a broad aura');
 assert.doesNotMatch(companionBinding, /document\.createElement|appendChild|canvas/,
   'companion combat prestige must not create a DOM or second-canvas surrogate');
 
