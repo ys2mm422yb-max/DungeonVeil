@@ -381,7 +381,7 @@ export default function Game() {
       return;
     }
     void continueNewRunFlow();
-  }, [continueNewRunFlow]);
+  }, [continueNewRunFlow, saveData]);
 
   const handleContinue = useCallback(() => {
     const save = loadGame();
