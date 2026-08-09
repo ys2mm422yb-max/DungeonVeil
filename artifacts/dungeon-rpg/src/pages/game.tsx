@@ -43,6 +43,7 @@ import { getMyCoopRunCheckpoint } from '../game/coopRunPersistenceOnline';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 const RUN_ENTRY_PRELOAD_ATTEMPTS = 4;
+const RUN_ENTRY_PRELOAD_DEADLINE_MS = 8_000;
 
 type UiState = 'lang_select' | 'main_menu' | 'run_name' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
 type MoveVector = { x: number; y: number };
@@ -77,24 +78,37 @@ async function preloadRequiredRunRoom(floor: number) {
   const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
   const enemyTypes = plannedRoomEnemyTypes(safeFloor);
   const enemyFamilyIds = plannedRoomEnemyFamilyIds(safeFloor);
-  let lastError: unknown = null;
 
-  for (let attempt = 1; attempt <= RUN_ENTRY_PRELOAD_ATTEMPTS; attempt++) {
-    try {
-      await Promise.all([
-        preloadKayKitDungeonRoom(safeFloor),
-        preloadKayKitRoomTheme(safeFloor),
-        preloadKayKitEnemyVisuals(enemyTypes, enemyFamilyIds),
-      ]);
-      return;
-    } catch (error) {
-      lastError = error;
-      console.error(`Run room ${safeFloor} preload attempt ${attempt} failed`, error);
-      if (attempt < RUN_ENTRY_PRELOAD_ATTEMPTS) await wait(attempt * 500);
+  const preload = (async () => {
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= RUN_ENTRY_PRELOAD_ATTEMPTS; attempt++) {
+      try {
+        await Promise.all([
+          preloadKayKitDungeonRoom(safeFloor),
+          preloadKayKitRoomTheme(safeFloor),
+          preloadKayKitEnemyVisuals(enemyTypes, enemyFamilyIds),
+        ]);
+        return;
+      } catch (error) {
+        lastError = error;
+        console.error(`Run room ${safeFloor} preload attempt ${attempt} failed`, error);
+        if (attempt < RUN_ENTRY_PRELOAD_ATTEMPTS) await wait(attempt * 500);
+      }
     }
-  }
+    throw lastError instanceof Error ? lastError : new Error(`Run room ${safeFloor} could not be prepared`);
+  })();
 
-  throw lastError instanceof Error ? lastError : new Error(`Run room ${safeFloor} could not be prepared`);
+  const result = await Promise.race([
+    preload.then(() => 'ready' as const).catch(error => {
+      console.error(`Run room ${safeFloor} preload exhausted; continuing with runtime fallbacks`, error);
+      return 'failed' as const;
+    }),
+    wait(RUN_ENTRY_PRELOAD_DEADLINE_MS).then(() => 'deadline' as const),
+  ]);
+
+  if (result === 'deadline') {
+    console.warn(`Run room ${safeFloor} preload exceeded ${RUN_ENTRY_PRELOAD_DEADLINE_MS}ms; continuing with runtime fallbacks`);
+  }
 }
 
 function hasActiveRunSession(): boolean {
@@ -289,13 +303,15 @@ export default function Game() {
     setRemotePlayer(null);
     setCoopStatus('offline');
     document.documentElement.dataset.dungeonVeilRunMode = 'solo';
-    const optionalPreload = Promise.allSettled([
+    void Promise.allSettled([
       preloadKayKitHealingPotion(),
       preloadKayKitOuterWorld(),
-    ]);
+    ]).then(results => {
+      const failures = results.filter(result => result.status === 'rejected');
+      if (failures.length) console.warn('Optional run warmup failed; continuing without blocking entry', failures);
+    });
     try {
       await preloadRequiredRunRoom(1);
-      await optionalPreload;
       beginMetaRun();
       engine.startNewGame(name, 'archer');
       beginPlayerProfileRun(engine.state.chapter, engine.state.floor);
