@@ -89,6 +89,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   const preloadKeyRef = useRef('');
   const recoveringRef = useRef(false);
   const recoveryReadyTimerRef = useRef<number | null>(null);
+  const handledLostCanvasesRef = useRef(new WeakSet<HTMLCanvasElement>());
   const [renderState, setRenderState] = useState(gameState);
   const [rendererGeneration, setRendererGeneration] = useState(0);
   const liveRoomKey = roomKey(gameState);
@@ -112,9 +113,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
       const touch = event.changedTouches[0];
       const now = performance.now();
       const closeToLastTap = Math.hypot(touch.clientX - lastTouchX, touch.clientY - lastTouchY) <= DOUBLE_TAP_ZOOM_DISTANCE_PX;
-      if (now - lastTouchEndedAt <= DOUBLE_TAP_ZOOM_WINDOW_MS && closeToLastTap && event.cancelable) {
-        event.preventDefault();
-      }
+      if (now - lastTouchEndedAt <= DOUBLE_TAP_ZOOM_WINDOW_MS && closeToLastTap && event.cancelable) event.preventDefault();
       lastTouchEndedAt = now;
       lastTouchX = touch.clientX;
       lastTouchY = touch.clientY;
@@ -165,8 +164,6 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
           if (roomKey(latest) !== liveRoomKey) return;
           renderedRoomKeyRef.current = liveRoomKey;
           setRenderState(latest);
-          // GameCanvasKayKit3D owns the only normal room-ready signal. It emits only
-          // after the complete Three.js room root has been built and added atomically.
           return;
         } catch (error) {
           attempt += 1;
@@ -177,9 +174,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     };
 
     void stageRoom();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [liveRoomKey, gameState.floor]);
 
   useEffect(() => {
@@ -240,7 +235,10 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
 
     const handleContextLost = (event: Event) => {
       event.preventDefault();
+      const lostCanvas = event.currentTarget instanceof HTMLCanvasElement ? event.currentTarget : null;
+      if (lostCanvas && (!lostCanvas.isConnected || handledLostCanvasesRef.current.has(lostCanvas))) return;
       if (recoveringRef.current) return;
+      if (lostCanvas) handledLostCanvasesRef.current.add(lostCanvas);
       recoveringRef.current = true;
       let webglContextLosses = 1;
       try { webglContextLosses = (JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY) || '{}').webglContextLosses || 0) + 1; } catch {}
@@ -279,12 +277,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   }, [rendererGeneration]);
 
   return (
-    <div
-      ref={hostRef}
-      className="absolute inset-0 overflow-hidden"
-      data-testid="run-canvas-host"
-      style={{ width: '100%', height: '100%', touchAction: 'none', WebkitUserSelect: 'none' }}
-    >
+    <div ref={hostRef} className="absolute inset-0 overflow-hidden" data-testid="run-canvas-host" style={{ width: '100%', height: '100%', touchAction: 'none', WebkitUserSelect: 'none' }}>
       <GameCanvasKayKit3D key={rendererGeneration} gameState={renderState} />
       <CombatFeedbackOverlay gameState={gameState} />
     </div>
