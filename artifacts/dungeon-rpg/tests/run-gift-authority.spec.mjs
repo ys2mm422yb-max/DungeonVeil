@@ -65,10 +65,34 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
     { timeout: 30_000, intervals: [100, 200, 350, 500, 750, 1_000] },
   ).toBe('levelup');
 
-  await expect(page.getByText(/WÄHLE DEINE GABE|CHOOSE YOUR GIFT/i)).toBeVisible({ timeout: 30_000 });
+  const heading = page.getByText(/WÄHLE DEINE GABE|CHOOSE YOUR GIFT/i);
+  await expect(heading).toBeVisible({ timeout: 30_000 });
   const choices = page.locator('[data-testid^="gift-choice-"]');
   await expect(choices).toHaveCount(3);
   await expect(choices.first()).toBeVisible();
+
+  // WebKit on tablet can report the modal visible while its entrance animation is
+  // still dimmed/blurred. Evidence is captured only after the same visible UI has
+  // remained geometrically stable and fully rendered for several animation frames.
+  await expect.poll(async () => {
+    const snapshot = await choices.evaluateAll(nodes => nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return {
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        opacity: Number.parseFloat(style.opacity || '1'),
+        filter: style.filter,
+        visibility: style.visibility,
+      };
+    }));
+    return snapshot.length === 3 && snapshot.every(item =>
+      item.width > 0 && item.height > 0 && item.opacity >= 0.99 &&
+      item.filter === 'none' && item.visibility === 'visible'
+    );
+  }, { timeout: 30_000, intervals: [100, 200, 350, 500, 750] }).toBe(true);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))));
+
   await page.screenshot({
     path: `test-results/autopilot-gift-levelup-${testInfo.project.name}.png`,
     fullPage: false,
@@ -80,6 +104,6 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
     () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.status),
     { timeout: 10_000 },
   ).toBe('playing');
-  await expect(page.getByText(/WÄHLE DEINE GABE|CHOOSE YOUR GIFT/i)).toBeHidden({ timeout: 10_000 });
+  await expect(heading).toBeHidden({ timeout: 10_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 10_000 });
 });
