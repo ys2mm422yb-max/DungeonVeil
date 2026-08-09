@@ -25,6 +25,12 @@ async function startNamedRun(page, name) {
   return startedAt;
 }
 
+async function expectActualRunRoomReady(page, timeout = 20_000) {
+  await expect(page.getByTestId('run-canvas-host')).toBeVisible({ timeout });
+  await expect(page.locator('[data-testid="run-canvas-host"] canvas').first()).toBeVisible({ timeout });
+  await expect(page.getByText(/RAUM WIRD AUFGEBAUT/i)).toBeHidden({ timeout });
+}
+
 test('a stalled later creature model cannot trap room 1 loading', async ({ page }) => {
   test.setTimeout(120_000);
   await page.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
@@ -78,6 +84,7 @@ test('a failed required room 1 model cannot permanently block a fresh solo run',
 
   const startedAt = await startNamedRun(page, 'Fallback Ranger');
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 20_000 });
+  await expectActualRunRoomReady(page);
   expect(Date.now() - startedAt).toBeLessThan(18_000);
   await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
 });
@@ -98,6 +105,7 @@ test('a failed required model cannot permanently block Continue for an existing 
   const continuedAt = Date.now();
   await clickUi(continueButton);
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 20_000 });
+  await expectActualRunRoomReady(page);
   expect(Date.now() - continuedAt).toBeLessThan(18_000);
   await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
 });
