@@ -8,41 +8,43 @@ const [helper, bindings] = await Promise.all([
   readFile(bindingsPath, 'utf8'),
 ]);
 
-assert.match(helper, /import \{ createVisibleUpgradePrestige3D \} from '\.\/visibleUpgradePrestige3D';/,
-  'live companion prestige must reuse the bounded model-local prestige helper');
+assert.doesNotMatch(helper, /createVisibleUpgradePrestige3D/,
+  'live companion combat must not reuse the generic crest/orbit prestige geometry rejected on the real iPhone');
+assert.doesNotMatch(helper, /OctahedronGeometry|DungeonVeilVisibleUpgradeCrest|RingGeometry|CompanionUpgradePrestigeAura/,
+  'live companion prestige must not contain octahedral crest, broad ring, wing or sail-like geometry');
 assert.match(helper, /if \(tier < 3\)/,
   'companion tiers one and two must remain effect-free');
-assert.match(helper, /createVisibleUpgradePrestige3D\(THREE, visual,[\s\S]*slot: 'companion'/,
-  'prestige geometry must be attached to the real moving companion model');
-assert.match(helper, /binding: `visible:companion:\$\{role\}`/,
-  'each live companion role must have a factual model binding identity');
-assert.match(helper, /const particleCount = Number\(visual\.userData\.dungeonVeilVisibleUpgradeParticleCount \?\? 0\);/,
-  'the real model must expose the bounded helper particle budget for runtime evidence');
-assert.match(helper, /visibleBinding\.update\(staticFallback \? 0 : actionPulse\);/,
-  'the bounded companion effect must react to actual companion activity and stop moving in fallback modes');
-assert.match(helper, /compactLiveCompanionPrestige\(visual, tier\);/,
-  'every live companion update must reassert compact model-local prestige bounds after the shared helper animates');
-assert.match(helper, /const groupScale = tier >= 5 \? 0\.54 : tier === 4 \? 0\.58 : 0\.64;/,
-  'live combat companion prestige must stay substantially tighter than the generic preview geometry');
-assert.match(helper, /prestigeGroup\.position\.y \*= 0\.94;/,
-  'live combat prestige must remain pulled toward the companion body rather than hovering above it');
-assert.match(helper, /crest\.scale\.setScalar\(tier >= 5 \? 0\.52 : tier === 4 \? 0\.56 : 0\.6\);/,
-  'the octahedral companion crest must be explicitly reduced so it cannot read as detached wings or sails');
-assert.match(helper, /dungeonVeilUpgradeCombatScale = groupScale/,
-  'runtime evidence must expose the applied combat-local scale');
-assert.match(helper, /visibleBinding\.dispose\(\);/,
-  'removed companion rigs must dispose all bounded prestige geometry and materials');
+assert.match(helper, /function createLiveCompanionPrestige\([\s\S]*new THREE\.SphereGeometry\(particleRadius, 8, 6\)/,
+  'live companion prestige must use dedicated compact round spark geometry');
+assert.match(helper, /const particleCount = tier >= 5 \? 7 : tier === 4 \? 5 : 3;/,
+  'L3, L4 and L5 must have visibly distinct bounded spark counts');
+assert.match(helper, /tier >= 5 \? 0\.028 : tier === 4 \? 0\.025 : 0\.022/,
+  'spark size must increase by tier without growing into broad shapes');
+assert.match(helper, /const horizontalRadius = bounds\.width \* \(tier >= 5 \? 0\.18 : tier === 4 \? 0\.155 : 0\.13\);/,
+  'all companion sparks must remain inside a tight body-local horizontal radius');
+assert.match(helper, /dungeonVeilUpgradeCombatStyle = 'compact-body-sparks'/,
+  'runtime evidence must expose the dedicated compact companion combat style');
+assert.match(helper, /dungeonVeilUpgradeCombatMaxRadius = Number\(\(bounds\.width \* 0\.18\)\.toFixed\(3\)\)/,
+  'runtime evidence must expose the strict maximum companion effect radius');
+assert.match(helper, /color: 0xf4d58d/,
+  'tier five must gain a controlled premium warm accent without recoloring the model');
+assert.match(helper, /livePrestige\.update\(staticFallback \? 0 : actionPulse, staticFallback\);/,
+  'the compact companion effect must react to actual activity and stop moving in Reduced Motion/recovery');
+assert.match(helper, /livePrestige\.dispose\(\);/,
+  'removed companion rigs must dispose all dedicated prestige geometry and materials');
 assert.match(helper, /publishRuntimeTelemetry\([\s\S]*!staticFallback && particleCount > 0/,
   'runtime evidence must distinguish moving prestige from static Reduced Motion and renderer recovery');
-assert.doesNotMatch(helper, /visual\.traverse|RingGeometry|material\.emissive|CompanionUpgradePrestigeAura/,
-  'companion prestige must not recolor the complete model or create a broad ring aura');
+assert.doesNotMatch(helper, /visual\.traverse|material\.emissive/,
+  'companion prestige must not recolor the complete companion model');
 
-const updateStart = helper.indexOf('const update = (_now: number, actionPulse: number) =>');
-assert.notEqual(updateStart, -1, 'the live companion binding needs an update loop');
-const updateBody = helper.slice(updateStart);
-assert.doesNotMatch(updateBody, /new THREE\./,
+const liveUpdateStart = helper.indexOf('const update = (actionPulse: number, staticFallback: boolean) =>');
+assert.notEqual(liveUpdateStart, -1, 'the dedicated live companion prestige needs an update loop');
+const bindingStart = helper.indexOf('export function createCompanionUpgradePrestigeBinding');
+assert.notEqual(bindingStart, -1, 'the live companion binding export must remain present');
+const liveUpdateBody = helper.slice(liveUpdateStart, bindingStart);
+assert.doesNotMatch(liveUpdateBody, /new THREE\./,
   'the companion prestige update loop must not allocate Three.js objects per frame');
-assert.doesNotMatch(updateBody, /document\.createElement|appendChild|canvas/,
+assert.doesNotMatch(liveUpdateBody, /document\.createElement|appendChild|canvas/,
   'the combat effect must not create a DOM or second-canvas surrogate');
 
 assert.match(bindings, /root\?\.userData\?\.dungeonVeilCompanionV5/,
