@@ -33,6 +33,37 @@ function setTelemetryValue(data: DOMStringMap, key: string, value: string) {
   if (data[key] !== value) data[key] = value;
 }
 
+function publishSharedVisibleCompanionBinding(tier: number) {
+  if (typeof document === 'undefined') return;
+  const data = document.documentElement.dataset;
+  const slots = new Set(String(data.dungeonVeilVisibleUpgradeSlots || '').split(',').filter(Boolean));
+  if (tier >= 3) slots.add('companion');
+  else slots.delete('companion');
+
+  if (tier >= 3) data.dungeonVeilVisibleUpgradeCompanionTier = String(tier);
+  else delete data.dungeonVeilVisibleUpgradeCompanionTier;
+
+  const normalizedSlots = [...slots].sort();
+  data.dungeonVeilVisibleUpgradeSlots = normalizedSlots.join(',');
+  const currentCount = Math.max(0, Number(data.dungeonVeilVisibleUpgradeBindingCount || 0));
+  data.dungeonVeilVisibleUpgradeBindingCount = String(
+    tier >= 3 ? Math.max(currentCount, normalizedSlots.length) : Math.min(currentCount, normalizedSlots.length),
+  );
+}
+
+function clearSharedVisibleCompanionBinding() {
+  if (typeof document === 'undefined') return;
+  const data = document.documentElement.dataset;
+  const slots = String(data.dungeonVeilVisibleUpgradeSlots || '')
+    .split(',')
+    .filter(Boolean)
+    .filter(slot => slot !== 'companion');
+  delete data.dungeonVeilVisibleUpgradeCompanionTier;
+  data.dungeonVeilVisibleUpgradeSlots = [...new Set(slots)].sort().join(',');
+  const currentCount = Math.max(0, Number(data.dungeonVeilVisibleUpgradeBindingCount || 0));
+  data.dungeonVeilVisibleUpgradeBindingCount = String(Math.min(currentCount, slots.length));
+}
+
 function publishRuntimeTelemetry(
   role: string,
   tierLabel: string | number,
@@ -54,6 +85,7 @@ function publishRuntimeTelemetry(
   setTelemetryValue(data, 'dungeonVeilCompanionUpgradeParticleCount', normalizedParticleCount);
   setTelemetryValue(data, 'dungeonVeilCompanionUpgradeParticlesActive', particlesActive ? 'true' : 'false');
   setTelemetryValue(data, 'dungeonVeilCompanionUpgradeStaticFallback', staticFallback ? 'true' : 'false');
+  publishSharedVisibleCompanionBinding(Number(normalizedTierLabel) || 0);
 }
 
 function clearRuntimeTelemetry(role: string) {
@@ -67,6 +99,7 @@ function clearRuntimeTelemetry(role: string) {
   delete data.dungeonVeilCompanionUpgradeParticleCount;
   delete data.dungeonVeilCompanionUpgradeParticlesActive;
   delete data.dungeonVeilCompanionUpgradeStaticFallback;
+  clearSharedVisibleCompanionBinding();
 }
 
 function localBounds(THREE: any, object: any) {
