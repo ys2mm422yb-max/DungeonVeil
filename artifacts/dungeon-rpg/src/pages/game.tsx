@@ -128,6 +128,7 @@ export default function Game() {
   const settingsReturnRef = useRef<UiState>('main_menu');
   const resumeSessionOnBootRef = useRef(hasActiveRunSession());
   const roomVisualReadyRef = useRef(true);
+  const rendererRecoveryHoldRef = useRef(false);
   const [roomPreparing, setRoomPreparing] = useState(false);
   const [startingRun, setStartingRun] = useState(false);
   const [confirmingNewRun, setConfirmingNewRun] = useState(false);
@@ -248,6 +249,7 @@ export default function Game() {
   useEffect(() => {
     const handleRendererLost = () => {
       if (!isDuoRun(runContext)) markActiveRun(true);
+      rendererRecoveryHoldRef.current = true;
       roomVisualReadyRef.current = false;
       setRoomPreparing(true);
       resetMovement();
@@ -258,12 +260,19 @@ export default function Game() {
   }, [resetMovement, runContext, saveCurrentGame]);
 
   useEffect(() => {
-    const handleRoomPreparing = () => {
+    const handleRoomPreparing = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail ?? {} : {};
+      if (detail.rendererRecovery || detail.owner === 'game-canvas-recovery' || detail.reason === 'webglcontextlost') {
+        rendererRecoveryHoldRef.current = true;
+      }
       roomVisualReadyRef.current = false;
       setRoomPreparing(true);
       resetMovement();
     };
-    const handleRoomReady = () => {
+    const handleRoomReady = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail ?? {} : {};
+      if (rendererRecoveryHoldRef.current && !detail.recovered) return;
+      if (detail.recovered) rendererRecoveryHoldRef.current = false;
       roomVisualReadyRef.current = true;
       setRoomPreparing(false);
       if (engineRef.current) engineRef.current.lastTime = performance.now();
@@ -372,7 +381,7 @@ export default function Game() {
       return;
     }
     void continueNewRunFlow();
-  }, [continueNewRunFlow, saveData]);
+  }, [continueNewRunFlow]);
 
   const handleContinue = useCallback(() => {
     const save = loadGame();
