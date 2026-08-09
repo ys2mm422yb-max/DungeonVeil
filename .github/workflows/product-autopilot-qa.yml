@@ -147,6 +147,7 @@ jobs:
           curl --fail "$DUNGEON_VEIL_URL" > /dev/null
           timeout --signal=TERM --kill-after=30s 55m pnpm --dir artifacts/dungeon-rpg exec playwright test \
             tests/autopilot-product-journeys.spec.mjs \
+            tests/run-gift-authority.spec.mjs \
             tests/autopilot-outside-guild.spec.mjs \
             tests/guild-mail-equipment-visual.spec.mjs \
             tests/mobile-resource-upgrade.spec.mjs \
