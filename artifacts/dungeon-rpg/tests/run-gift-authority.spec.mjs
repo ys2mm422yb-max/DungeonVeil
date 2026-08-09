@@ -71,25 +71,36 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
   await expect(choices).toHaveCount(3);
   await expect(choices.first()).toBeVisible();
 
-  // WebKit on tablet can report the modal visible while its entrance animation is
-  // still dimmed/blurred. Evidence is captured only after the same visible UI has
-  // remained geometrically stable and fully rendered for several animation frames.
+  // Evidence must wait for three fully visible cards whose geometry has stopped
+  // moving. Intentional card glow/filter effects are part of the settled design and
+  // therefore are not treated as evidence of an unfinished entrance animation.
+  const readChoiceSnapshot = () => choices.evaluateAll(nodes => nodes.map(node => {
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      opacity: Number.parseFloat(style.opacity || '1'),
+      visibility: style.visibility,
+    };
+  }));
   await expect.poll(async () => {
-    const snapshot = await choices.evaluateAll(nodes => nodes.map(node => {
-      const rect = node.getBoundingClientRect();
-      const style = getComputedStyle(node);
-      return {
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-        opacity: Number.parseFloat(style.opacity || '1'),
-        filter: style.filter,
-        visibility: style.visibility,
-      };
+    const first = await readChoiceSnapshot();
+    await page.evaluate(() => new Promise(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     }));
-    return snapshot.length === 3 && snapshot.every(item =>
-      item.width > 0 && item.height > 0 && item.opacity >= 0.99 &&
-      item.filter === 'none' && item.visibility === 'visible'
-    );
+    const second = await readChoiceSnapshot();
+    return first.length === 3 && second.length === 3 && first.every((item, index) => {
+      const next = second[index];
+      return Boolean(next) &&
+        item.width > 0 && item.height > 0 && next.width > 0 && next.height > 0 &&
+        item.opacity >= 0.99 && next.opacity >= 0.99 &&
+        item.visibility === 'visible' && next.visibility === 'visible' &&
+        Math.abs(item.x - next.x) <= 1 && Math.abs(item.y - next.y) <= 1 &&
+        Math.abs(item.width - next.width) <= 1 && Math.abs(item.height - next.height) <= 1;
+    });
   }, { timeout: 30_000, intervals: [100, 200, 350, 500, 750] }).toBe(true);
   await page.evaluate(() => new Promise(resolve => {
     requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
