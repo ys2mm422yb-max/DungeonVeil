@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [skills, controller, progression, fusionEffects, levelUp, hud, translations, saveManager, game, bridge, currency, runEngine] = await Promise.all([
+const [skills, controller, progression, fusionEffects, levelUp, hud, translations, saveManager, game, bridge, currency, runEngine, regressionConfig] = await Promise.all([
   read('../src/game/runSkills.ts'),
   read('../src/game/giftUpgradeController.ts'),
   read('../src/game/runGiftProgression.ts'),
@@ -14,6 +14,7 @@ const [skills, controller, progression, fusionEffects, levelUp, hud, translation
   read('../src/components/GameSessionBridge.tsx'),
   read('../src/game/metaCurrency.ts'),
   read('../src/game/runEngine.ts'),
+  read('../playwright.regression.config.mjs'),
 ]);
 
 const checks = [
@@ -48,6 +49,7 @@ const checks = [
   [!runEngine.includes('this.generateUpgradeChoices();'), 'runEngine still performs legacy gift generation before the authoritative gift controller, consuming duplicate RNG'],
   [!runEngine.includes('private generateUpgradeChoices(): void'), 'runEngine still owns a second legacy gift-choice generator'],
   [!runEngine.includes('applyUpgrade(choice: UpgradeKey): void'), 'runEngine still exposes a second divergent gift-application authority'],
+  [regressionConfig.includes('run-gift-authority'), 'the focused run-gift authority journey is silently excluded from the regression testMatch'],
   [bridge.includes('installBoundedRunGiftProgression') && bridge.includes('shouldRestorePendingGift') && bridge.includes('buildRunGiftChoices'), 'active runs do not use the bounded schedule and fusion-aware restoration'],
   [levelUp.includes('MEISTERSCHAFT · RANG') && levelUp.includes('SCHLEIERVORRAT') && levelUp.includes('JÄGERTRUHE') && !levelUp.includes('WIEDERHOLBARER SEGEN'), 'gift cards still describe unlimited blessings or omit currency rewards'],
   [hud.includes('elementalStorm') && hud.includes('arrowStorm') && hud.includes('veilChain') && hud.includes('isInstantGift'), 'fused gifts are not represented as single HUD slots'],
