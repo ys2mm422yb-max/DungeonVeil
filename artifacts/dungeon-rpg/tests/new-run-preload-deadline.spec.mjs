@@ -70,3 +70,34 @@ test('room 1 stays on the run loading screen until its rat model is ready', asyn
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
 });
+
+test('a failed required room 1 model cannot permanently block a fresh solo run', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
+  await page.route('**/assets/imported/enemies/Rat.glb', route => route.abort('failed'));
+
+  const startedAt = await startNamedRun(page, 'Fallback Ranger');
+  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 20_000 });
+  expect(Date.now() - startedAt).toBeLessThan(18_000);
+  await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
+});
+
+test('a failed required model cannot permanently block Continue for an existing save', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
+
+  await startNamedRun(page, 'Continue Fallback Ranger');
+  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 30_000 });
+  await page.evaluate(() => sessionStorage.removeItem('dungeon-veil-active-run-session'));
+
+  await page.route('**/assets/imported/enemies/Rat.glb', route => route.abort('failed'));
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
+
+  const continueButton = page.getByRole('button', { name: /Fortsetzen|Continue/i }).first();
+  const continuedAt = Date.now();
+  await clickUi(continueButton);
+  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 20_000 });
+  expect(Date.now() - continuedAt).toBeLessThan(18_000);
+  await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
+});
