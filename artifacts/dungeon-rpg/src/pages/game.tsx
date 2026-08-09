@@ -43,6 +43,7 @@ import { getMyCoopRunCheckpoint } from '../game/coopRunPersistenceOnline';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 const RUN_ENTRY_PRELOAD_ATTEMPTS = 4;
+const RENDERER_RECOVERY_PLAYER_HAZARD_PREFIXES = ['rune-warning-', 'rune-impact-', 'forge-warn-', 'forge-hit-', 'arc-warn-', 'arc-charge-', 'arc-fire-', 'arc-source-'];
 
 type UiState = 'lang_select' | 'main_menu' | 'run_name' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
 type MoveVector = { x: number; y: number };
@@ -129,6 +130,7 @@ export default function Game() {
   const resumeSessionOnBootRef = useRef(hasActiveRunSession());
   const roomVisualReadyRef = useRef(true);
   const rendererRecoveryHoldRef = useRef(false);
+  const rendererRecoveryHpRef = useRef<number | null>(null);
   const [roomPreparing, setRoomPreparing] = useState(false);
   const [startingRun, setStartingRun] = useState(false);
   const [confirmingNewRun, setConfirmingNewRun] = useState(false);
@@ -235,8 +237,16 @@ export default function Game() {
 
     let animationId = 0;
     const loop = (time: number) => {
-      if (roomVisualReadyRef.current) engine.update(time);
-      else engine.lastTime = time;
+      if (roomVisualReadyRef.current) {
+        engine.update(time);
+      } else {
+        engine.lastTime = time;
+        if (rendererRecoveryHoldRef.current) {
+          if (rendererRecoveryHpRef.current !== null) engine.state.player.hp = rendererRecoveryHpRef.current;
+          engine.state.effects = engine.state.effects.filter(effect => !RENDERER_RECOVERY_PLAYER_HAZARD_PREFIXES.some(prefix => effect.id.startsWith(prefix)));
+          engine.state.damageNumbers = engine.state.damageNumbers.filter(number => !number.id.startsWith('rune-hit-') && !number.id.startsWith('forge-hit-') && !number.id.startsWith('arc-hit-'));
+        }
+      }
       animationId = requestAnimationFrame(loop);
     };
     animationId = requestAnimationFrame(loop);
@@ -249,7 +259,9 @@ export default function Game() {
   useEffect(() => {
     const handleRendererLost = () => {
       if (!isDuoRun(runContext)) markActiveRun(true);
+      const engine = engineRef.current;
       rendererRecoveryHoldRef.current = true;
+      if (engine && rendererRecoveryHpRef.current === null) rendererRecoveryHpRef.current = engine.state.player.hp;
       roomVisualReadyRef.current = false;
       setRoomPreparing(true);
       resetMovement();
@@ -264,6 +276,8 @@ export default function Game() {
       const detail = event instanceof CustomEvent ? event.detail ?? {} : {};
       if (detail.rendererRecovery || detail.owner === 'game-canvas-recovery' || detail.reason === 'webglcontextlost') {
         rendererRecoveryHoldRef.current = true;
+        const engine = engineRef.current;
+        if (engine && rendererRecoveryHpRef.current === null) rendererRecoveryHpRef.current = engine.state.player.hp;
       }
       roomVisualReadyRef.current = false;
       setRoomPreparing(true);
@@ -272,7 +286,10 @@ export default function Game() {
     const handleRoomReady = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail ?? {} : {};
       if (rendererRecoveryHoldRef.current && !detail.recovered) return;
-      if (detail.recovered) rendererRecoveryHoldRef.current = false;
+      if (detail.recovered) {
+        rendererRecoveryHoldRef.current = false;
+        rendererRecoveryHpRef.current = null;
+      }
       roomVisualReadyRef.current = true;
       setRoomPreparing(false);
       if (engineRef.current) engineRef.current.lastTime = performance.now();
