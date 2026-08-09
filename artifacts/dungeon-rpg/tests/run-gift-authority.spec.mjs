@@ -51,7 +51,7 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
   await startSolo(page);
 
   await page.evaluate(() => {
-    window.__dungeonVeilRuntimeEvidence.loadRoom(1, 'solo');
+    window.__dungeonVeilRuntimeEvidence.loadRoom(3, 'solo');
     window.__dungeonVeilRuntimeEvidence.killLivingEnemies();
   });
   await expect.poll(
