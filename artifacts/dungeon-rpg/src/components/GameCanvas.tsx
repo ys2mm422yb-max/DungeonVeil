@@ -152,13 +152,15 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
     }));
 
     const stageRoom = async () => {
+      void preloadKayKitEnemyVisuals(requiredEnemyTypes, requiredEnemyFamilyIds).catch(error => {
+        console.error('Dungeon Veil enemy warmup failed; continuing room staging with renderer fallbacks', error);
+      });
       let attempt = 0;
       while (!cancelled && token === transitionTokenRef.current) {
         try {
           await Promise.all([
             preloadKayKitDungeonRoom(gameState.floor),
             preloadKayKitRoomTheme(gameState.floor),
-            preloadKayKitEnemyVisuals(requiredEnemyTypes, requiredEnemyFamilyIds),
           ]);
           if (cancelled || token !== transitionTokenRef.current) return;
           const latest = latestStateRef.current;
