@@ -91,7 +91,9 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
       item.filter === 'none' && item.visibility === 'visible'
     );
   }, { timeout: 30_000, intervals: [100, 200, 350, 500, 750] }).toBe(true);
-  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))));
+  await page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }));
 
   await page.screenshot({
     path: `test-results/autopilot-gift-levelup-${testInfo.project.name}.png`,
