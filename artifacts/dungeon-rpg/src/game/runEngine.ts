@@ -8,7 +8,7 @@ import { UpgradeKey } from '../i18n/translations';
 import { enemyArchetype, planEnemyMove } from './enemyRunAI';
 import { collidesWithRoomProp, shotBlockedByRoomProp } from './roomCollision3D';
 import { getRoomSpawnPoints, sceneSpawnToGame } from './roomSpawn3D';
-import { availableRunSkills, nextSkillRank, skillRank } from './runSkills';
+import { skillRank } from './runSkills';
 import { getEncounterPlan } from './encounterPlan';
 import { bossCombatProfile } from './enemyRegionalIdentity';
 
@@ -67,7 +67,6 @@ const ENEMY_STATS: Record<EnemyType, { hp: number; attack: number; defense: numb
   boss: { hp: 520, attack: 24, defense: 7, speed: 54, size: 74, xp: 180, color: '#ff493a' },
 };
 
-const RUN_UPGRADES: UpgradeKey[] = ['multishot', 'ricochet', 'fireArrow', 'iceArrow', 'attackSpeed', 'piercing', 'attack', 'maxHp', 'speed', 'defense'];
 const NORMAL_DEATH_MS = 680;
 const BOSS_DEATH_MS = 1650;
 const UNSTUCK_MS = 7000;
@@ -160,34 +159,6 @@ export class GameEngine {
     this.saveNow('leave-run');
     this.state.status = 'paused';
     this.emit();
-  }
-
-  applyUpgrade(choice: UpgradeKey): void {
-    if (this.state.status !== 'levelup' || !this.state.upgradeChoices.includes(choice)) return;
-    const p = this.state.player;
-    const rank = nextSkillRank(this.state.runSkills, choice);
-    this.state.runSkills[choice] = rank;
-    if (choice === 'maxHp') {
-      const gain = rank === 1 ? 20 : rank === 2 ? 25 : 30;
-      p.maxHp += gain;
-      p.hp = Math.min(p.maxHp, p.hp + gain);
-    } else if (choice === 'attack') p.attack += rank === 3 ? 5 : 4;
-    else if (choice === 'speed') p.speed += rank === 1 ? 12 : rank === 2 ? 10 : 8;
-    else if (choice === 'defense') p.defense += rank === 1 ? 1 : 2;
-    else if (choice === 'heal') p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.5);
-    p.lastGiftTime = Date.now();
-    p.lastGiftKey = choice;
-    this.state.upgradeChoices = [];
-    this.state.status = 'playing';
-    this.captureRoomEntrySnapshot();
-    this.saveNow('ability');
-    this.emit();
-  }
-
-  private generateUpgradeChoices(): void {
-    const available = availableRunSkills(this.state.runSkills, RUN_UPGRADES);
-    const pool = available.length >= 3 ? available : [...available, 'heal' as UpgradeKey];
-    this.state.upgradeChoices = [...pool].sort(() => Math.random() - 0.5).slice(0, 3);
   }
 
   private captureRoomEntrySnapshot(): void {
@@ -775,7 +746,6 @@ export class GameEngine {
     this.roomAnnouncedClear = false;
     this.enemyWindups.clear();
     this.spawnRoom();
-    this.generateUpgradeChoices();
     this.state.status = 'levelup';
     this.saveNow(completedChapter ? 'chapter-complete' : 'room-complete');
     this.emit();
