@@ -6,30 +6,43 @@ function isCompanionV5Root(object: any): boolean {
     || /^CompanionV5_/.test(String(object?.name ?? ''));
 }
 
-function compactDuskDrake(root: any): void {
+function disposeDetachedVisual(node: any): void {
+  node?.geometry?.dispose?.();
+  const materials = Array.isArray(node?.material) ? node.material : [node?.material];
+  materials.filter(Boolean).forEach((material: any) => material.dispose?.());
+}
+
+function compactLiveCompanion(root: any): void {
   root.traverse?.((node: any) => {
-    if (node?.name === 'DuskDrakeWing') {
-      node.scale.setScalar(0.66);
-      node.position.x *= 0.72;
-      node.userData = { ...(node.userData ?? {}), dungeonVeilCompanionBoundedWingV5: true };
-    }
+    if (node?.name !== 'DuskDrakeWing') return;
+    node.scale.setScalar(0.66);
+    node.position.x *= 0.72;
+    node.userData = { ...(node.userData ?? {}), dungeonVeilCompanionBoundedWingV5: true };
   });
+
+  const attackTrail = root.getObjectByName?.('CompanionV5AttackTrail');
+  if (attackTrail?.parent) {
+    attackTrail.parent.remove(attackTrail);
+    disposeDetachedVisual(attackTrail);
+    root.userData.dungeonVeilCompanionOversizedAttackTrailRemovedV5 = true;
+  }
 }
 
 function protectAuthoredCompanion(root: any): void {
   if (!isCompanionV5Root(root)) return;
 
-  // The legacy readability hook runs through Object3D.add and used to multiply the
-  // whole live companion root, recolor every material toward the role accent and
-  // add an extra light/core. Mark the real rig as already handled before that hook
-  // sees it so authored model scale/materials stay authoritative.
+  // A legacy global readability hook also runs through Object3D.add. It used to
+  // multiply the complete live companion root, recolor every material toward the
+  // role accent and add a large accent light/core. Mark the actual combat rig as
+  // already handled before that hook can see it so authored scale/materials stay
+  // authoritative and prestige remains a separate model-local layer.
   root.userData = {
     ...(root.userData ?? {}),
     companionReadabilityAppliedV5: true,
     dungeonVeilCompanionAuthoredBoundsV5: true,
   };
 
-  compactDuskDrake(root);
+  compactLiveCompanion(root);
 }
 
 export function installCompanionLiveBoundsRuntime(): void {
