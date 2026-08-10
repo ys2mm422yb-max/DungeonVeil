@@ -23,7 +23,7 @@ assert.match(helper, /export type VisibleUpgradePrestigeSlot = 'bow' \| 'quiver'
 assert.match(helper, /if \(tier < 3\)[\s\S]*update: \(_activityPulse = 0\) => undefined/,
   'levels one and two must remain effect-free');
 assert.match(helper, /new THREE\.OctahedronGeometry/,
-  'visible prestige must use bounded model-local geometry');
+  'visible prestige must use bounded model-local geometry on the still-supported generic surfaces');
 assert.match(helper, /object\.add\(group\)/,
   'prestige geometry must attach to the actual 3D object');
 assert.match(helper, /object\.worldToLocal/,
@@ -31,7 +31,7 @@ assert.match(helper, /object\.worldToLocal/,
 assert.match(helper, /options\.slot === 'armor'[\s\S]*bounds\.width/,
   'armor accents must stay around the chest and shoulders');
 assert.match(helper, /ceiling = options\.slot === 'companion'[\s\S]*0\.48/,
-  'companion light must remain below the mobile ceiling');
+  'menu/preview companion light must remain below the mobile ceiling');
 assert.match(helper, /tier === 5 \? 0\.42 : tier === 4 \? 0\.32 : 0\.22/,
   'equipment light must remain bounded');
 assert.match(helper, /prefersReducedMotion/,
@@ -39,13 +39,13 @@ assert.match(helper, /prefersReducedMotion/,
 assert.match(helper, /rendererRecoveryActive\(\)/,
   'renderer recovery must be reevaluated while the binding is alive');
 assert.match(helper, /const ACTIVE_VISIBLE_BINDINGS = new Map/,
-  'direct renderer bindings must own a shared factual registry');
+  'direct generic renderer bindings must own a shared factual registry');
 assert.match(helper, /dungeonVeilVisibleUpgradeBindingCount = String\(active\.length\)/,
-  'the registry must expose the real active 3D binding count');
+  'the registry must expose the real active generic 3D binding count');
 assert.match(helper, /registerVisibleBinding\(registryKey, options\.slot, tier\)/,
-  'each real level 3-5 model binding must register itself');
+  'each real level 3-5 generic model binding must register itself');
 assert.match(helper, /unregisterVisibleBinding\(registryKey\)/,
-  'disposed models must leave the visible prestige registry');
+  'disposed generic models must leave the visible prestige registry');
 assert.doesNotMatch(helper, /document\.createElement|appendChild|position:\s*fixed|inset:\s*0|canvas/,
   '3D prestige must never create a DOM, canvas or viewport overlay');
 
@@ -71,7 +71,7 @@ assert.match(bowRig, /lifecycleRoot\.addEventListener\?\.\('removed', dispose\)/
 assert.match(bowRig, /dispose: \(\) => void/,
   'the ranger bow rig must expose explicit idempotent cleanup');
 assert.doesNotMatch(bowRig, /publishVisibleUpgradeTier/,
-  'only the shared factual registry may publish active visible slots');
+  'only the shared factual registry may publish active generic visible slots');
 assert.doesNotMatch(bowRig, /Object3D\.prototype\.add|patchedAdd|visiblePrestigeCapture/,
   'visible player prestige must not depend on global Three.js prototype interception');
 
@@ -85,7 +85,7 @@ assert.match(villagePlayer, /createVisibleUpgradePrestige3D\(THREE, bowHolder,[\
 assert.match(villagePlayer, /createVisibleUpgradePrestige3D\(THREE, quiverHolder,[\s\S]*slot: 'quiver'[\s\S]*visible:menu-player-quiver/,
   'the real menu quiver holder must own the menu quiver prestige binding');
 assert.match(villagePlayer, /MainMenuCompanion_[\s\S]*MenuCompanionVisual_[\s\S]*createVisibleUpgradePrestige3D\(THREE, companionVisual,[\s\S]*slot: 'companion'/,
-  'the actual menu companion visual must receive a bounded companion prestige binding');
+  'the actual menu companion visual must retain its already accepted bounded companion prestige binding');
 assert.match(villagePlayer, /syncMenuCompanionPrestige\(\);[\s\S]*visibleBindings\.forEach\(binding => binding\.update\(0\)\)[\s\S]*menuCompanionBinding\?\.update\(0\)/,
   'menu bindings must stay alive through the real renderer update loop');
 assert.match(villagePlayer, /visibleBindings\.forEach\(binding => binding\.dispose\(\)\)[\s\S]*menuCompanionBinding\?\.dispose\(\)/,
@@ -93,18 +93,24 @@ assert.match(villagePlayer, /visibleBindings\.forEach\(binding => binding\.dispo
 assert.doesNotMatch(villagePlayer, /document\.createElement|appendChild|position:\s*fixed/,
   'menu prestige must not use a DOM surrogate');
 
-assert.match(companion, /import \{ createVisibleUpgradePrestige3D \}/,
-  'companion prestige must use the same bounded model-local helper');
-assert.match(companion, /createVisibleUpgradePrestige3D\(THREE, visual,[\s\S]*slot: 'companion'/,
-  'the real companion visual must own its bounded prestige binding');
-assert.match(companion, /visibleBinding\.update\(staticFallback \? 0 : actionPulse\)/,
-  'companion prestige must react to the actual companion action pulse');
-assert.match(companion, /visibleBinding\.dispose\(\)/,
+assert.doesNotMatch(companion, /createVisibleUpgradePrestige3D|OctahedronGeometry|DungeonVeilVisibleUpgradeCrest|RingGeometry/,
+  'live companion combat must never reuse the rejected generic crest/orbit/wing geometry');
+assert.match(companion, /function createLiveCompanionPrestige\([\s\S]*new THREE\.SphereGeometry\(particleRadius, 8, 6\)/,
+  'live companion combat must use its dedicated compact round sparks');
+assert.match(companion, /const particleCount = tier >= 5 \? 7 : tier === 4 \? 5 : 3;/,
+  'live companion L3/L4/L5 must be explicitly tier-distinct');
+assert.match(companion, /const horizontalRadius = bounds\.width \* \(tier >= 5 \? 0\.18 : tier === 4 \? 0\.155 : 0\.13\);/,
+  'live companion sparks must stay within tight model-local bounds');
+assert.match(companion, /visual\.add\(group\)/,
+  'the dedicated live companion effect must attach to the actual moving visual');
+assert.match(companion, /livePrestige\.update\(staticFallback \? 0 : actionPulse, staticFallback\)/,
+  'companion prestige must react to the actual companion action pulse and freeze during fallback');
+assert.match(companion, /livePrestige\.dispose\(\)/,
   'companion prestige geometry must be disposed with the companion visual');
 assert.match(companion, /if \(tier < 3\)/,
   'companion levels one and two must remain effect-free');
-assert.doesNotMatch(companion, /visual\.traverse|RingGeometry|material\.emissive|CompanionUpgradePrestigeAura/,
-  'companion prestige must not recolor the complete model or create a broad ring aura');
+assert.doesNotMatch(companion, /visual\.traverse|material\.emissive|CompanionUpgradePrestigeAura/,
+  'companion prestige must not recolor the complete model or create a broad aura');
 assert.doesNotMatch(companion, /document\.createElement|appendChild|position:\s*fixed/,
   'companion prestige must not create a screen-space surrogate');
 
