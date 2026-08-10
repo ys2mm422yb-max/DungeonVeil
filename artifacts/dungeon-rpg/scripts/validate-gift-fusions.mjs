@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [skills, controller, progression, fusionEffects, levelUp, hud, translations, saveManager, game, bridge, currency] = await Promise.all([
+const [skills, controller, progression, fusionEffects, levelUp, hud, translations, saveManager, game, bridge, currency, recoveryBaseline, main] = await Promise.all([
   read('../src/game/runSkills.ts'),
   read('../src/game/giftUpgradeController.ts'),
   read('../src/game/runGiftProgression.ts'),
@@ -13,6 +13,8 @@ const [skills, controller, progression, fusionEffects, levelUp, hud, translation
   read('../src/pages/game.tsx'),
   read('../src/components/GameSessionBridge.tsx'),
   read('../src/game/metaCurrency.ts'),
+  read('../src/game/rendererRecoveryStableBaseline.ts'),
+  read('../src/main.tsx'),
 ]);
 
 const checks = [
@@ -52,6 +54,10 @@ const checks = [
   [translations.includes('JÄGERSEGEN · Meisterschaft I–III') && translations.includes('SCHLEIERVORRAT · +30 Schleierstaub') && translations.includes('JÄGERTRUHE · +300 Gold'), 'German bounded gift copy is incomplete'],
   [!saveManager.includes('delete persistent.hunterBlessing') && !saveManager.includes('delete persistent.vitalSpark'), 'bounded mastery ranks are still removed from saves'],
   [saveManager.includes('delete persistent.heal') && saveManager.includes('delete persistent.veilCache') && saveManager.includes('delete persistent.goldCache'), 'instant gift choices are incorrectly persisted as run skills'],
+  [recoveryBaseline.includes('preUpdateHp = this.state.player.hp;') && recoveryBaseline.indexOf('preUpdateHp = this.state.player.hp;') < recoveryBaseline.indexOf('originalUpdate.call(this, timestamp)'), 'renderer recovery does not capture the stable pre-update HP baseline before mutable combat advances'],
+  [recoveryBaseline.includes("window.addEventListener('dungeon-veil-renderer-lost', restoreStablePreRecoveryHp)") && recoveryBaseline.includes("window.addEventListener('dungeon-veil-room-preparing', restoreStablePreRecoveryHp)"), 'stable renderer recovery baseline is not installed before both recovery event paths'],
+  [recoveryBaseline.includes('liveHp < preUpdateHp') && recoveryBaseline.includes('activeEngine.state.player.hp = preUpdateHp'), 'renderer recovery baseline does not restore only downward HP drift from the last stable frame'],
+  [main.includes('installRendererRecoveryStableBaseline();'), 'stable renderer recovery baseline is not installed before the app begins recovery handling'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
@@ -61,4 +67,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Gift progression audit passed: bounded milestones and masteries remain intact, while all three fusions provide distinct capped combat effects and recovery is only offered when it has gameplay value.');
+console.log('Gift progression audit passed: bounded milestones and masteries remain intact, recovery is only offered when it has gameplay value, and renderer recovery preserves the last stable pre-update HP baseline.');
