@@ -15,6 +15,7 @@ import { UnlockPresentationLayer } from './components/UnlockPresentationLayer';
 import { WorldBossVisualQa } from './components/WorldBossVisualQa';
 import { installAccessibilitySettings } from './game/accessibilitySettings';
 import { installCloudAccountSyncRuntime } from './game/cloudAccountSyncRuntime';
+import { installCompanionLiveBoundsRuntime } from './game/companionLiveBoundsRuntime';
 import { installControlSettings } from './game/controlSettings';
 import { installControlledKayKitRuntime } from './game/controlledKayKitRuntime';
 import { installDailyQuestRotationRuntime } from './game/dailyQuestRotationRuntime';
@@ -53,6 +54,7 @@ if (!visualQaMode) installCloudAccountSyncRuntime();
 installEmailConfirmationRedirect();
 installRunRendererRecovery();
 installRuntimeEvidenceBridge();
+installCompanionLiveBoundsRuntime();
 
 if (qaMode === 'states') localStorage.setItem('dungeon-veil-language', 'de');
 if (!qaMode) startVersionGuard();
