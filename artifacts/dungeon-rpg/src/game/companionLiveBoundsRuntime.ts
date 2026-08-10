@@ -31,6 +31,11 @@ function compactLiveCompanion(root: any): void {
 function protectAuthoredCompanion(root: any): void {
   if (!isCompanionV5Root(root)) return;
 
+  // A legacy global readability hook also runs through Object3D.add. It used to
+  // multiply the complete live companion root, recolor every material toward the
+  // role accent and add a large accent light/core. Mark the actual combat rig as
+  // already handled before that hook can see it so authored scale/materials stay
+  // authoritative and prestige remains a separate model-local layer.
   root.userData = {
     ...(root.userData ?? {}),
     companionReadabilityAppliedV5: true,
