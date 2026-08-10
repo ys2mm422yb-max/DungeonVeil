@@ -3,9 +3,13 @@ import { readFile } from 'node:fs/promises';
 
 const helperPath = 'artifacts/dungeon-rpg/src/components/companionUpgradePrestige3D.ts';
 const bindingsPath = 'artifacts/dungeon-rpg/src/components/UpgradeTierSurfaceBindings.tsx';
-const [helper, bindings] = await Promise.all([
+const liveBoundsPath = 'artifacts/dungeon-rpg/src/game/companionLiveBoundsRuntime.ts';
+const mainPath = 'artifacts/dungeon-rpg/src/main.tsx';
+const [helper, bindings, liveBounds, main] = await Promise.all([
   readFile(helperPath, 'utf8'),
   readFile(bindingsPath, 'utf8'),
+  readFile(liveBoundsPath, 'utf8'),
+  readFile(mainPath, 'utf8'),
 ]);
 
 assert.doesNotMatch(helper, /createVisibleUpgradePrestige3D/,
@@ -57,5 +61,18 @@ assert.match(bindings, /if \(!root\.parent\) \{[\s\S]*combatBindings\.delete\(ro
   'removed rigs must be released from the live binding registry');
 assert.match(bindings, /THREE = await import\(\/\* @vite-ignore \*\/ THREE_URL\);[\s\S]*originalAdd = THREE\.Object3D\.prototype\.add;[\s\S]*armSceneCapture\(\);[\s\S]*if \(document\.documentElement\.dataset\.dungeonVeilActiveRun === '1'\) armSceneCapture\(\);/,
   'the narrow CompanionV5 capture must be armed immediately after the shared Three module resolves, before active-run state can race past installation');
+
+assert.match(main, /installCompanionLiveBoundsRuntime/,
+  'the live companion bounds guard must be installed by the real application entry point');
+assert.match(liveBounds, /companionReadabilityAppliedV5: true/,
+  'the real CompanionV5 root must bypass legacy whole-root readability scaling and recoloring');
+assert.match(liveBounds, /dungeonVeilCompanionAuthoredBoundsV5: true/,
+  'runtime telemetry must expose that authored companion bounds are authoritative');
+assert.match(liveBounds, /node\.name !== 'DuskDrakeWing'[\s\S]*node\.scale\.setScalar\(0\.66\)[\s\S]*node\.position\.x \*= 0\.72/,
+  'the Dusk Drake wings must remain compact enough to preserve the companion silhouette');
+assert.match(liveBounds, /getObjectByName\?\.\('CompanionV5AttackTrail'\)[\s\S]*attackTrail\.parent\.remove\(attackTrail\)[\s\S]*disposeDetachedVisual\(attackTrail\)/,
+  'the oversized generic companion attack plane must be removed and disposed from the real live rig');
+assert.doesNotMatch(liveBounds, /multiplyScalar\(1\.34\)|multiplyScalar\(1\.2\)|CompanionReadabilityLightV5|CompanionReadabilityCoreV5/,
+  'the bounds guard must never recreate the rejected global scale, accent light or accent core');
 
 console.log('Companion combat prestige contract passed.');
