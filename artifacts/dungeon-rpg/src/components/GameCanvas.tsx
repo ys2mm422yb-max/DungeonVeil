@@ -89,6 +89,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   const preloadKeyRef = useRef('');
   const recoveringRef = useRef(false);
   const recoveryReadyTimerRef = useRef<number | null>(null);
+  const handledLostCanvasesRef = useRef(new WeakSet<HTMLCanvasElement>());
   const [renderState, setRenderState] = useState(gameState);
   const [rendererGeneration, setRendererGeneration] = useState(0);
   const liveRoomKey = roomKey(gameState);
@@ -242,7 +243,10 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
 
     const handleContextLost = (event: Event) => {
       event.preventDefault();
+      const lostCanvas = event.currentTarget instanceof HTMLCanvasElement ? event.currentTarget : null;
+      if (lostCanvas && (!lostCanvas.isConnected || handledLostCanvasesRef.current.has(lostCanvas))) return;
       if (recoveringRef.current) return;
+      if (lostCanvas) handledLostCanvasesRef.current.add(lostCanvas);
       recoveringRef.current = true;
       let webglContextLosses = 1;
       try { webglContextLosses = (JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY) || '{}').webglContextLosses || 0) + 1; } catch {}

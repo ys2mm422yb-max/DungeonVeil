@@ -24,6 +24,7 @@ import { installPortraitOrientationRuntime } from './game/portraitOrientationRun
 import { installPostCombatHazardGuard } from './game/postCombatHazardGuard';
 import { repairLegacyProfileStats } from './game/profileStatsRepair';
 import { installProfileStorageIntegrity } from './game/profileStorageIntegrity';
+import { installRendererRecoveryStableBaseline } from './game/rendererRecoveryStableBaseline';
 import { installRoomReadyFailureGuard } from './game/roomReadyFailureGuard';
 import { installRunRendererRecovery } from './game/runRendererRecovery';
 import { installRuntimeEvidenceBridge } from './game/runtimeEvidenceBridge';
@@ -55,6 +56,7 @@ installEmailConfirmationRedirect();
 installRunRendererRecovery();
 installRuntimeEvidenceBridge();
 installCompanionLiveBoundsRuntime();
+installRendererRecoveryStableBaseline();
 
 if (qaMode === 'states') localStorage.setItem('dungeon-veil-language', 'de');
 if (!qaMode) startVersionGuard();
