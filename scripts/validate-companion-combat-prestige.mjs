@@ -68,7 +68,7 @@ assert.match(liveBounds, /companionReadabilityAppliedV5: true/,
   'the real CompanionV5 root must bypass legacy whole-root readability scaling and recoloring');
 assert.match(liveBounds, /dungeonVeilCompanionAuthoredBoundsV5: true/,
   'runtime telemetry must expose that authored companion bounds are authoritative');
-assert.match(liveBounds, /node\.name !== 'DuskDrakeWing'[\s\S]*node\.scale\.setScalar\(0\.66\)[\s\S]*node\.position\.x \*= 0\.72/,
+assert.match(liveBounds, /node\?\.name !== 'DuskDrakeWing'[\s\S]*node\.scale\.setScalar\(0\.66\)[\s\S]*node\.position\.x \*= 0\.72/,
   'the Dusk Drake wings must remain compact enough to preserve the companion silhouette');
 assert.match(liveBounds, /getObjectByName\?\.\('CompanionV5AttackTrail'\)[\s\S]*attackTrail\.parent\.remove\(attackTrail\)[\s\S]*disposeDetachedVisual\(attackTrail\)/,
   'the oversized generic companion attack plane must be removed and disposed from the real live rig');
