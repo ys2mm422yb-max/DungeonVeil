@@ -330,7 +330,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
 
     const viewport = page.viewportSize();
     expect(viewport).toBeTruthy();
-    const screenshot = await page.screenshot({ path, fullPage: false });
+    const screenshot = await page.screenshot({ path, fullPage: false, scale: 'css' });
     observedFeedback = await handle.jsonValue();
     assertReadableFeedback(observedFeedback, { role, critical, marker });
     assertFullViewportPng(screenshot, viewport);
