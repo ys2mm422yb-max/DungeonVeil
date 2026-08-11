@@ -109,8 +109,8 @@ assert.match(journey, /entry\.role === expectedRole[\s\S]*entry\.kind === 'attac
   'the live node must correlate to the authoritative role, target and input epoch');
 assert.match(journey, /opacity < 0\.9/,
   'capture must wait for a clearly painted animation frame');
-assert.match(journey, /timeout: 20_000,[\s\S]*polling: 'raf'/,
-  'the unchanged 20 second criterion must sample the short live window inside requestAnimationFrame');
+assert.match(journey, /timeout: 20_000,[\s\S]*polling: 16/,
+  'the unchanged 20 second criterion must sample the transient live window at the accepted deterministic 16ms observer cadence');
 assert.doesNotMatch(journey, /feedback\.count\(\)|feedback\.evaluate\(/,
   'slow cross-process count/evaluate sequencing must not return');
 assert.match(journey, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);\s*assertFullViewportPng\(screenshot, viewport\);/,
