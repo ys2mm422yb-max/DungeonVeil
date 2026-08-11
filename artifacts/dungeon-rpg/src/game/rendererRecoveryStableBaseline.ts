@@ -27,13 +27,17 @@ function isRendererRecoveryEvent(event: Event) {
 
 function restoreStablePreRecoveryHp(event: Event) {
   if (!isRendererRecoveryEvent(event) || !activeEngine || preUpdateHp === null) return;
-  const stableHp = retainedPreMutationHp ?? preUpdateHp;
   const liveHp = activeEngine.state.player.hp;
   // Recovery is a full gameplay freeze boundary. A mutation can complete one frame
   // before the browser dispatches the recovery event, followed by one no-op frame.
-  // Retain that pre-mutation baseline across the no-op so React cannot latch drift.
-  if (Number.isFinite(liveHp) && Number.isFinite(stableHp) && liveHp !== stableHp) {
-    activeEngine.state.player.hp = stableHp;
+  // Prefer that retained pre-mutation baseline; otherwise preserve the original
+  // single-frame fallback contract used by the earlier recovery fix.
+  if (retainedPreMutationHp !== null) {
+    if (Number.isFinite(liveHp) && Number.isFinite(retainedPreMutationHp) && liveHp !== retainedPreMutationHp) {
+      activeEngine.state.player.hp = retainedPreMutationHp;
+    }
+  } else if (Number.isFinite(liveHp) && liveHp !== preUpdateHp) {
+    activeEngine.state.player.hp = preUpdateHp;
   }
 }
 
@@ -48,7 +52,7 @@ export function installRendererRecoveryStableBaseline() {
   prototype.update = function patchedStableRecoveryUpdate(timestamp: number) {
     activeEngine = this;
     const beforeHp = this.state.player.hp;
-    preUpdateHp = beforeHp;
+    preUpdateHp = this.state.player.hp;
     const result = originalUpdate.call(this, timestamp);
     const afterHp = this.state.player.hp;
 
