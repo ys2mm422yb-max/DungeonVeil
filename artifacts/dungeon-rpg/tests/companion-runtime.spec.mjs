@@ -454,6 +454,7 @@ test('critical-support proc renders one readable value on its actual target', as
     marker: /✦\s*-\d+/,
     path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
   });
+  await page.waitForTimeout(2_700);
   const [confirmedPlayerAttackAt, observedCritical] = await Promise.all([
     triggerConfirmedPlayerAttack(page, attackIssuedAt),
     capturePromise,
