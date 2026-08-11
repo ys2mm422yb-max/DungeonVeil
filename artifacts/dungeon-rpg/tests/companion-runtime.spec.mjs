@@ -257,7 +257,6 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
           role: node.dataset.companionRole || '',
           targetId: node.dataset.targetId || '',
           critical: node.dataset.critical || '',
-          text: node.textContent || '',
           connected: node.isConnected,
           opacity: Number(style.opacity),
           width: rect.width,
@@ -318,7 +317,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       return false;
     }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore }, {
       timeout: 20_000,
-      polling: 'raf',
+      polling: 16,
     });
 
     const viewport = page.viewportSize();
@@ -330,7 +329,8 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
     return observedFeedback;
   } catch (error) {
     const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
-    throw new Error(`${error instanceof Error ? error.message : String(error)}\nCompanion feedback diagnostics: ${JSON.stringify(diagnostics, null, 2)}`);
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\
+Companion feedback diagnostics: ${JSON.stringify(diagnostics, null, 2)}`);
   }
 }
 
@@ -424,7 +424,8 @@ test('companions are found and upgraded before a run, then remain fixed with art
   expect(storedAfterClick.companions.shield.level).toBe(2);
   const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
   expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
-  expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+  expect(runtimeErrors, runtimeErrors.join('\
+')).toEqual([]);
 });
 
 test('critical-support proc renders one readable value on its actual target', async ({ page }, testInfo) => {
@@ -460,5 +461,6 @@ test('critical-support proc renders one readable value on its actual target', as
   await expect(chip).toHaveAttribute('data-companion-level', '2');
   const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
   expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
-  expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
+  expect(runtimeErrors, runtimeErrors.join('\
+')).toEqual([]);
 });
