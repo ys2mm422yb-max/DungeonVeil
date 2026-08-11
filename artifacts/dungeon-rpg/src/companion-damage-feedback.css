@@ -13,7 +13,7 @@
   line-height: 1.05 !important;
   letter-spacing: 0.01em !important;
   text-shadow: 0 1px 1px #000, 0 0 3px rgba(0, 0, 0, 0.92) !important;
-  animation: dvCompanionDamageCompact 820ms cubic-bezier(.16,.84,.28,1) both !important;
+  animation: dvCompanionDamageCompact 1050ms cubic-bezier(.16,.84,.28,1) both !important;
 }
 
 [data-testid^="companion-damage-number-"][data-critical="true"] {
@@ -40,7 +40,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   [data-testid^="companion-damage-number-"] {
-    animation: dvCompanionDamageCompactReduced 820ms linear both !important;
+    animation: dvCompanionDamageCompactReduced 1050ms linear both !important;
   }
 
   [data-testid^="companion-damage-number-"][data-critical="true"] {
