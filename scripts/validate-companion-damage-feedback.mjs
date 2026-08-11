@@ -121,9 +121,15 @@ assert.match(journey, /function assertFullViewportPng\(screenshot, viewport\) \{
   'saved evidence must be a non-empty PNG covering the complete configured portrait viewport');
 assert.doesNotMatch(journey, /visibleAfterCapture|exactFeedback\.evaluate/,
   'the test must not require a deliberately transient 1050ms node to survive screenshot encoding');
-assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(82\);/);
-assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(38\);/);
-assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(21\);/);
+assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(24\);/);
+assert.match(journey, /expect\(observedFeedback\.width\)\.toBeLessThanOrEqual\(72\);/);
+assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(15\);/);
+assert.match(journey, /expect\(observedFeedback\.height\)\.toBeLessThanOrEqual\(32\);/);
+assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(critical \? 17 : 15\);/);
+assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeLessThanOrEqual\(critical \? 20\.5 : 18\);/);
+assert.match(journey, /expect\(observedFeedback\.backgroundColor\)\.toMatch\(\/rgba\\\(0, 0, 0, 0\\\)\|transparent\/i\);/);
+assert.match(journey, /expect\(observedFeedback\.borderTopWidth\)\.toBe\('0px'\);/);
+assert.match(journey, /expect\(observedFeedback\.boxShadow\)\.toBe\('none'\);/);
 assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\);/);
 assert.match(journey, /expect\(observedFeedback\.opacity\)\.toBeGreaterThanOrEqual\(0\.9\);/);
 
