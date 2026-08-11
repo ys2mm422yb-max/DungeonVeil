@@ -37,8 +37,8 @@ assert.match(companionJourney, /entry\.role === expectedRole[\s\S]*entry\.target
   'the live node must remain correlated with the authoritative attack after the requested epoch');
 assert.match(companionJourney, /opacity < 0\.9/,
   'capture must reject inserted or fading frames that are not clearly painted');
-assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 'raf'/,
-  'the unchanged 20 second criterion must sample the 1050ms feedback window within the browser animation loop');
+assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 16/,
+  'the unchanged 20 second criterion must sample the 1050ms feedback window at the accepted deterministic 16ms observer cadence');
 assert.doesNotMatch(companionJourney, /feedback\.count\(\)|feedback\.evaluate\(/,
   'separate locator count and evaluate round trips must not return');
 assert.match(companionJourney, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback,[\s\S]*assertFullViewportPng\(screenshot, viewport\);/,
