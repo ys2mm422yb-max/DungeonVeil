@@ -40,8 +40,8 @@ assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 'raf'/,
   'the unchanged 20 second criterion must sample the 1050ms feedback window within the browser animation loop');
 assert.doesNotMatch(companionJourney, /feedback\.count\(\)|feedback\.evaluate\(/,
   'separate locator count and evaluate round trips must not return');
-assert.match(companionJourney, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback,[\s\S]*assertFullViewportPng\(screenshot, viewport\);/,
-  'screenshot capture must begin directly after the qualifying browser frame, before object transfer and assertions can consume the transient visual window');
+assert.match(companionJourney, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback,[\s\S]*assertFullViewportPng\(screenshot, viewport\);/,
+  'CSS-pixel screenshot capture must begin directly after the qualifying browser frame, before object transfer and assertions can consume the transient visual window');
 assert.doesNotMatch(companionJourney, /handle\.jsonValue\(\)[\s\S]{0,300}page\.screenshot/,
   'cross-process object transfer must not occur before the full-context evidence capture starts');
 assert.match(companionJourney, /function assertFullViewportPng\(screenshot, viewport\) \{[\s\S]*screenshot\.subarray\(0, 8\)[\s\S]*screenshot\.length\)\.toBeGreaterThan\(10_000\)[\s\S]*readUInt32BE\(16\)[\s\S]*readUInt32BE\(20\)/,
