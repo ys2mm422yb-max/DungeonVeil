@@ -1,0 +1,55 @@
+/* Issue #407: keep companion attribution readable without turning combat feedback into a HUD pill. */
+[data-testid^="companion-damage-number-"] {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 1px 3px !important;
+  border-width: 0 !important;
+  border-radius: 3px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: clamp(15px, 4vw, 17px) !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0.01em !important;
+  text-shadow: 0 1px 1px #000, 0 0 3px rgba(0, 0, 0, 0.92) !important;
+  animation: dvCompanionDamageCompact 820ms cubic-bezier(.16,.84,.28,1) both !important;
+}
+
+[data-testid^="companion-damage-number-"][data-critical="true"] {
+  font-size: clamp(17px, 4.5vw, 20px) !important;
+  text-shadow: 0 1px 1px #000, 0 0 4px currentColor, 0 0 5px rgba(0, 0, 0, 0.9) !important;
+  animation-name: dvCompanionDamageCompactCritical !important;
+}
+
+@keyframes dvCompanionDamageCompact {
+  0% { opacity: 0; transform: translate(-50%, -34%) scale(.88); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  45% { transform: translate(-50%, -60%) scale(1); }
+  78% { opacity: 1; transform: translate(-50%, -70%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -82%) scale(.98); }
+}
+
+@keyframes dvCompanionDamageCompactCritical {
+  0% { opacity: 0; transform: translate(-50%, -34%) scale(.88); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  45% { transform: translate(-50%, -60%) scale(1); }
+  78% { opacity: 1; transform: translate(-50%, -70%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -82%) scale(.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-testid^="companion-damage-number-"] {
+    animation: dvCompanionDamageCompactReduced 820ms linear both !important;
+  }
+
+  [data-testid^="companion-damage-number-"][data-critical="true"] {
+    animation-name: dvCompanionDamageCompactReduced !important;
+  }
+}
+
+@keyframes dvCompanionDamageCompactReduced {
+  0% { opacity: 0; }
+  16%, 76% { opacity: 1; }
+  100% { opacity: 0; }
+}
