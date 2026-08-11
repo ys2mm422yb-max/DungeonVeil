@@ -1,5 +1,6 @@
 import { CHAPTER_ROOMS } from './chapterRun';
 import { TileType } from './dungeon';
+import { applyGiftUpgrade } from './giftUpgradeController';
 import type { GameState } from './runEngine';
 import { GameEngine } from './runEngine';
 import { isEnemyFamilyId, runtimeEnemyTypeForFamily, type EnemyFamilyId } from './enemyRegistry';
@@ -177,7 +178,7 @@ function attachApi(): void {
       const engine = currentEngine;
       if (!engine) return null;
       const choice = engine.state.upgradeChoices[0];
-      if (choice) engine.applyUpgrade(choice);
+      if (choice) applyGiftUpgrade(engine, choice);
       emit(engine);
       return stateSnapshot(engine);
     },

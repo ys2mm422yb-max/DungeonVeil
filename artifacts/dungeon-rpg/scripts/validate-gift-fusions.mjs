@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [skills, controller, progression, fusionEffects, levelUp, hud, translations, saveManager, game, bridge, currency, recoveryBaseline, main] = await Promise.all([
+const [skills, controller, progression, fusionEffects, levelUp, hud, translations, saveManager, game, bridge, currency, recoveryBaseline, main, runEngine, regressionConfig] = await Promise.all([
   read('../src/game/runSkills.ts'),
   read('../src/game/giftUpgradeController.ts'),
   read('../src/game/runGiftProgression.ts'),
@@ -15,6 +15,8 @@ const [skills, controller, progression, fusionEffects, levelUp, hud, translation
   read('../src/game/metaCurrency.ts'),
   read('../src/game/rendererRecoveryStableBaseline.ts'),
   read('../src/main.tsx'),
+  read('../src/game/runEngine.ts'),
+  read('../playwright.regression.config.mjs'),
 ]);
 
 const checks = [
@@ -48,6 +50,10 @@ const checks = [
   [currency.includes('export function grantMetaGold') && currency.includes('meta.gold += value'), 'safe meta gold grant is missing'],
   [controller.includes('consumeFusionComponents(state.runSkills, choice)') && controller.includes('captureRoomEntrySnapshot') && controller.includes("saveNow('ability')"), 'fusion or mastery choices do not persist safely across room restart'],
   [game.includes('prepareGiftChoices(live)') && game.includes('applyGiftUpgrade(engine, choice)'), 'the run flow is not using the fusion-aware gift controller'],
+  [!runEngine.includes('this.generateUpgradeChoices();'), 'runEngine still performs legacy gift generation before the authoritative gift controller, consuming duplicate RNG'],
+  [!runEngine.includes('private generateUpgradeChoices(): void'), 'runEngine still owns a second legacy gift-choice generator'],
+  [!runEngine.includes('applyUpgrade(choice: UpgradeKey): void'), 'runEngine still exposes a second divergent gift-application authority'],
+  [regressionConfig.includes('run-gift-authority'), 'the focused run-gift authority journey is silently excluded from the regression testMatch'],
   [bridge.includes('installBoundedRunGiftProgression') && bridge.includes('shouldRestorePendingGift') && bridge.includes('buildRunGiftChoices'), 'active runs do not use the bounded schedule and fusion-aware restoration'],
   [levelUp.includes('MEISTERSCHAFT · RANG') && levelUp.includes('SCHLEIERVORRAT') && levelUp.includes('JÄGERTRUHE') && !levelUp.includes('WIEDERHOLBARER SEGEN'), 'gift cards still describe unlimited blessings or omit currency rewards'],
   [hud.includes('elementalStorm') && hud.includes('arrowStorm') && hud.includes('veilChain') && hud.includes('isInstantGift'), 'fused gifts are not represented as single HUD slots'],
@@ -67,4 +73,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Gift progression audit passed: bounded milestones and masteries remain intact, recovery is only offered when it has gameplay value, and renderer recovery preserves the last stable pre-update HP baseline against any finite drift.');
+console.log('Gift progression audit passed: bounded milestones and masteries remain intact, recovery is only offered when it has gameplay value, renderer recovery preserves the last stable pre-update HP baseline against any finite drift, and run-gift generation/application has one authoritative path.');
