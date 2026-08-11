@@ -24,7 +24,9 @@ function isRendererRecoveryEvent(event: Event) {
 function restoreStablePreRecoveryHp(event: Event) {
   if (!isRendererRecoveryEvent(event) || !activeEngine || preUpdateHp === null) return;
   const liveHp = activeEngine.state.player.hp;
-  if (Number.isFinite(liveHp) && liveHp < preUpdateHp) activeEngine.state.player.hp = preUpdateHp;
+  // Recovery is a full gameplay freeze boundary. Restore both damage and healing
+  // drift before React recovery handlers latch the authoritative hold HP.
+  if (Number.isFinite(liveHp) && liveHp !== preUpdateHp) activeEngine.state.player.hp = preUpdateHp;
 }
 
 export function installRendererRecoveryStableBaseline() {
