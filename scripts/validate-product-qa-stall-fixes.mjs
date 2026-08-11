@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [guildRaidJourney, companionJourney, runtimeEvidence, visualReadiness] = await Promise.all([
+const [guildRaidJourney, companionJourney, runtimeEvidence, visualReadiness, recoveryBaseline] = await Promise.all([
   readFile('artifacts/dungeon-rpg/tests/guild-raid-lobby-mobile.spec.mjs', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs', 'utf8'),
   readFile('artifacts/dungeon-rpg/src/game/runtimeEvidenceBridge.ts', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/visual-render-readiness.mjs', 'utf8'),
+  readFile('artifacts/dungeon-rpg/src/game/rendererRecoveryStableBaseline.ts', 'utf8'),
 ]);
 
 assert.match(guildRaidJourney, /const corsHeaders = \{/,
@@ -86,5 +87,14 @@ assert.match(visualReadiness, /if \(!isNavigationTransitionError\(error\)\) thro
   'only known navigation-transition errors may repeat the identical evaluation once');
 assert.doesNotMatch(visualReadiness, /catch \(error\) \{\s*await waitForDocumentBody/,
   'the navigation guard must not swallow arbitrary page evaluation failures');
+
+assert.match(recoveryBaseline, /const RETAINED_NOOP_UPDATE_LIMIT = 1;/,
+  'renderer recovery must retain a mutation baseline across exactly one intervening no-op update');
+assert.match(recoveryBaseline, /afterHp !== beforeHp[\s\S]*retainedPreMutationHp = beforeHp;[\s\S]*retainedNoopUpdates = RETAINED_NOOP_UPDATE_LIMIT;/,
+  'an HP-mutating update must retain its pre-mutation baseline for the recovery boundary');
+assert.match(recoveryBaseline, /else if \(retainedPreMutationHp !== null\) \{[\s\S]*if \(retainedNoopUpdates > 0\) retainedNoopUpdates -= 1;[\s\S]*else retainedPreMutationHp = null;/,
+  'one no-op update must preserve the pending recovery baseline and the following no-op must expire it');
+assert.match(recoveryBaseline, /if \(retainedPreMutationHp !== null\) \{[\s\S]*liveHp !== retainedPreMutationHp[\s\S]*activeEngine\.state\.player\.hp = retainedPreMutationHp;[\s\S]*else if \(Number\.isFinite\(liveHp\) && liveHp !== preUpdateHp\)[\s\S]*activeEngine\.state\.player\.hp = preUpdateHp;/,
+  'recovery must prefer the retained pre-mutation baseline while preserving the original single-frame fallback');
 
 console.log('Product QA anti-stall fixture contracts passed.');
