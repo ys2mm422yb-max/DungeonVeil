@@ -24,17 +24,17 @@
 
 @keyframes dvCompanionDamageCompact {
   0% { opacity: 0; transform: translate(-50%, -34%) scale(.88); }
-  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  6% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
   45% { transform: translate(-50%, -60%) scale(1); }
-  78% { opacity: 1; transform: translate(-50%, -70%) scale(1); }
+  90% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -82%) scale(.98); }
 }
 
 @keyframes dvCompanionDamageCompactCritical {
   0% { opacity: 0; transform: translate(-50%, -34%) scale(.88); }
-  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  6% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
   45% { transform: translate(-50%, -60%) scale(1); }
-  78% { opacity: 1; transform: translate(-50%, -70%) scale(1); }
+  90% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -82%) scale(.98); }
 }
 
@@ -50,6 +50,6 @@
 
 @keyframes dvCompanionDamageCompactReduced {
   0% { opacity: 0; }
-  16%, 76% { opacity: 1; }
+  8%, 90% { opacity: 1; }
   100% { opacity: 0; }
 }
