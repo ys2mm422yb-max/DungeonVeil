@@ -113,8 +113,8 @@ assert.match(journey, /timeout: 20_000,[\s\S]*polling: 'raf'/,
   'the unchanged 20 second criterion must sample the short live window inside requestAnimationFrame');
 assert.doesNotMatch(journey, /feedback\.count\(\)|feedback\.evaluate\(/,
   'slow cross-process count/evaluate sequencing must not return');
-assert.match(journey, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);\s*assertFullViewportPng\(screenshot, viewport\);/,
-  'full-context capture must start immediately after the qualifying browser frame, before any cross-process object transfer or assertion work');
+assert.match(journey, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);\s*assertFullViewportPng\(screenshot, viewport\);/,
+  'full-context CSS-pixel capture must start immediately after the qualifying browser frame, before any cross-process object transfer or assertion work');
 assert.doesNotMatch(journey, /handle\.jsonValue\(\)[\s\S]{0,300}page\.screenshot/,
   'object transfer and assertions must not consume the 1050ms visual window before screenshot capture begins');
 assert.match(journey, /function assertFullViewportPng\(screenshot, viewport\) \{[\s\S]*screenshot\.subarray\(0, 8\)[\s\S]*screenshot\.length\)\.toBeGreaterThan\(10_000\)[\s\S]*readUInt32BE\(16\)[\s\S]*readUInt32BE\(20\)[\s\S]*toBeGreaterThanOrEqual\(viewport\.width\)[\s\S]*toBeGreaterThanOrEqual\(viewport\.height\)/,
