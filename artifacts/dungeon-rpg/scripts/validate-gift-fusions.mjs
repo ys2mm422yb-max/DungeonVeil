@@ -56,7 +56,7 @@ const checks = [
   [saveManager.includes('delete persistent.heal') && saveManager.includes('delete persistent.veilCache') && saveManager.includes('delete persistent.goldCache'), 'instant gift choices are incorrectly persisted as run skills'],
   [recoveryBaseline.includes('preUpdateHp = this.state.player.hp;') && recoveryBaseline.indexOf('preUpdateHp = this.state.player.hp;') < recoveryBaseline.indexOf('originalUpdate.call(this, timestamp)'), 'renderer recovery does not capture the stable pre-update HP baseline before mutable combat advances'],
   [recoveryBaseline.includes("window.addEventListener('dungeon-veil-renderer-lost', restoreStablePreRecoveryHp)") && recoveryBaseline.includes("window.addEventListener('dungeon-veil-room-preparing', restoreStablePreRecoveryHp)"), 'stable renderer recovery baseline is not installed before both recovery event paths'],
-  [recoveryBaseline.includes('liveHp < preUpdateHp') && recoveryBaseline.includes('activeEngine.state.player.hp = preUpdateHp'), 'renderer recovery baseline does not restore only downward HP drift from the last stable frame'],
+  [recoveryBaseline.includes('liveHp !== preUpdateHp') && recoveryBaseline.includes('activeEngine.state.player.hp = preUpdateHp'), 'renderer recovery baseline does not restore any finite HP drift from the last stable frame'],
   [main.includes('installRendererRecoveryStableBaseline();'), 'stable renderer recovery baseline is not installed before the app begins recovery handling'],
 ];
 
@@ -67,4 +67,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Gift progression audit passed: bounded milestones and masteries remain intact, recovery is only offered when it has gameplay value, and renderer recovery preserves the last stable pre-update HP baseline.');
+console.log('Gift progression audit passed: bounded milestones and masteries remain intact, recovery is only offered when it has gameplay value, and renderer recovery preserves the last stable pre-update HP baseline against any finite drift.');
