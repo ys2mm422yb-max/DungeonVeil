@@ -108,12 +108,6 @@ async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
     const enemies = Array.isArray(before?.livingEnemyPositions) ? before.livingEnemyPositions : [];
     if (!enemies.length) break;
 
-    await page.keyboard.press('Space');
-    await page.waitForTimeout(90);
-    const immediate = await readRuntimeCombatSnapshot(page);
-    const immediateAttackAt = Number(immediate?.playerLastAttackTime || 0);
-    if (immediateAttackAt >= attackIssuedAt) return immediateAttackAt;
-
     const playerX = Number(before?.playerX || 0) + 16;
     const playerY = Number(before?.playerY || 0) + 16;
     const target = [...enemies].sort((left, right) => (
@@ -145,7 +139,6 @@ async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
       targetX: target.x,
       targetY: target.y,
       previousAttackAt,
-      immediateAttackAt,
       confirmedAt,
       livingEnemies: Number(after?.livingEnemies || 0),
     });
