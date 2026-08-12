@@ -652,7 +652,7 @@ export class GameEngine {
   }
 
   private checkEnemyStuck(enemy: Enemy, time: number, dist: number, attackRange: number) {
-    if (enemy.state !== 'chase' || dist <= attackRange + 20) {
+    if (enemy.state !== 'chase') {
       enemy.lastProgressX = enemy.x;
       enemy.lastProgressY = enemy.y;
       enemy.lastProgressTime = time;
