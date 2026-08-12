@@ -140,8 +140,8 @@ assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\)
 assert.match(journey, /expect\(observedFeedback\.opacity\)\.toBeGreaterThanOrEqual\(0\.9\);/);
 assert.match(journey, /getByTestId\('run-companion-chip'\)[\s\S]*toHaveCount\(0\)/,
   'the focused runtime journey must prove the deprecated run companion chip is absent');
-assert.doesNotMatch(journey, /await chip\.click|toHaveAttribute\('data-presentation', 'read-only-companion-status'\)|toHaveAttribute\('data-companion-role', 'shield'\)/,
-  'the journey must not preserve the old chip-present/click acceptance');
+assert.doesNotMatch(journey, /(?:const chip\s*=\s*page\.getByTestId\('run-companion-chip'\)[\s\S]{0,800}(?:chip\.click|expect\(chip\)\.toHaveAttribute)|getByTestId\('run-companion-chip'\)[\s\S]{0,500}toHaveAttribute\()/,
+  'the journey must not preserve chip-specific present/attribute/click acceptance');
 assert.match(journey, /async function readCompanionFeedbackDiagnostics\(page, \{ role, critical, notBefore \}\)/);
 assert.match(journey, /now: performance\.now\(\),[\s\S]*minimumAt,[\s\S]*runtime:[\s\S]*runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null,[\s\S]*actions:[\s\S]*liveFeedback:/,
   'a failed device must report input epoch, component state, authoritative player state, event timestamps and current nodes');
