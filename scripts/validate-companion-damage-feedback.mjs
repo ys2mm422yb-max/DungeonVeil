@@ -5,16 +5,20 @@ const runtimePath = 'artifacts/dungeon-rpg/src/components/CompanionRuntimeBridge
 const runtimeEvidencePath = 'artifacts/dungeon-rpg/src/game/runtimeEvidenceBridge.ts';
 const journeyPath = 'artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs';
 const workflowPath = '.github/workflows/product-autopilot-qa.yml';
-const readabilityPath = 'artifacts/dungeon-rpg/src/components/companionDamageFeedback.css';
+const readabilityPath = 'artifacts/dungeon-rpg/src/companion-damage-feedback.css';
+const componentReadabilityPath = 'artifacts/dungeon-rpg/src/components/companionDamageFeedback.css';
+const combatStagePath = 'artifacts/dungeon-rpg/src/components/CombatStage.tsx';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 const manifestGeneratorPath = 'artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs';
 
-const [runtime, runtimeEvidence, journey, workflow, readability, app, manifestGenerator] = await Promise.all([
+const [runtime, runtimeEvidence, journey, workflow, readability, componentReadability, combatStage, app, manifestGenerator] = await Promise.all([
   readFile(runtimePath, 'utf8'),
   readFile(runtimeEvidencePath, 'utf8'),
   readFile(journeyPath, 'utf8'),
   readFile(workflowPath, 'utf8'),
   readFile(readabilityPath, 'utf8'),
+  readFile(componentReadabilityPath, 'utf8'),
+  readFile(combatStagePath, 'utf8'),
   readFile(appPath, 'utf8'),
   readFile(manifestGeneratorPath, 'utf8'),
 ]);
@@ -57,11 +61,19 @@ assert.match(runtime, /data-companion-role=\{damageFeedback\.role\}/);
 assert.match(runtime, /data-target-id=\{damageFeedback\.targetId\}/);
 assert.match(runtime, /data-critical=\{damageFeedback\.critical \? 'true' : 'false'\}/);
 assert.match(runtime, /pointer-events-none fixed inset-0 z-\[34\]/);
-assert.match(runtime, /min-h-\[38px\] min-w-\[82px\]/);
-assert.match(readability, /\[data-testid\^="companion-damage-number-"\]\s*\{[\s\S]*min-width:\s*88px\s*!important;/);
-assert.match(readability, /\[data-testid\^="companion-damage-number-"\]\s*\{[\s\S]*min-height:\s*41px\s*!important;/);
+assert.doesNotMatch(runtime, /min-h-\[38px\] min-w-\[82px\]/,
+  'companion feedback must not restore the superseded large HUD-like minimum footprint');
+assert.match(readability, /font-size:\s*clamp\(8px,\s*2\.2vw,\s*10\.5px\)\s*!important;/,
+  'phone Basic feedback must stay deliberately secondary to ordinary player damage');
+assert.match(readability, /data-critical="true"\][\s\S]*font-size:\s*clamp\(9\.5px,\s*2\.55vw,\s*12px\)\s*!important;/,
+  'phone Critical feedback may be stronger than Basic but must remain bounded below the player hierarchy');
+assert.match(readability, /@media \(min-width:\s*600px\) and \(orientation:\s*portrait\)[\s\S]*clamp\(11px,\s*1\.6vw,\s*13px\)[\s\S]*clamp\(13px,\s*1\.85vw,\s*16px\)/,
+  'portrait tablets must retain a bounded stepped hierarchy instead of the historical 88x41 minimum');
+assert.doesNotMatch(componentReadability, /min-width:\s*88px|min-height:\s*41px/,
+  'the secondary component stylesheet must not resurrect the historical footprint');
+assert.doesNotMatch(combatStage, /CompanionStatusChip|run-companion-chip/,
+  'the live CombatStage must not render or reserve the deprecated companion status chip');
 assert.match(app, /import '\.\/components\/companionDamageFeedback\.css';/);
-assert.match(runtime, /fontSize: 'clamp\(21px, 5\.4vw, 29px\)'/);
 assert.match(runtime, /@media \(prefers-reduced-motion: reduce\)/);
 
 assert.match(runtimeEvidence, /const MARKER = 'dungeon-veil-runtime-evidence-v1';/);
@@ -89,14 +101,12 @@ assert.match(journey, /observedAt: performance\.now\(\)/,
   'failure diagnostics must retain the browser observation timestamp');
 assert.match(journey, /if \(log\.length > 24\) log\.splice\(0, log\.length - 24\);/,
   'the diagnostic attack log must remain bounded');
-
 assert.match(journey, /async function readRuntimeCombatSnapshot\(page\) \{[\s\S]*window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null/);
 assert.match(journey, /async function prepareLivePlayerAttackLine\(page\)/);
 assert.match(journey, /getByTestId\('run-enemy-status'\)[\s\S]*not\.toHaveText\(\/RAUM FREI\|ROOM CLEAR\/i\)[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*toBeGreaterThan\(0\)/,
   'critical setup must prove a living target through the localhost-only authoritative snapshot');
 assert.match(journey, /function keysForVector\(dx, dy\)/);
 assert.match(journey, /async function moveWithKeyboard\(page, keys, durationMs\)/);
-
 assert.match(journey, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
   'one helper must own live correlation, readability validation and screenshot capture');
 assert.match(journey, /const handle = await page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt \}\) => \{/,
@@ -121,23 +131,21 @@ assert.match(journey, /function assertFullViewportPng\(screenshot, viewport\) \{
   'saved evidence must be a non-empty PNG covering the complete configured portrait viewport');
 assert.doesNotMatch(journey, /visibleAfterCapture|exactFeedback\.evaluate/,
   'the test must not require a deliberately transient 1050ms node to survive screenshot encoding');
-assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(24\);/);
-assert.match(journey, /expect\(observedFeedback\.width\)\.toBeLessThanOrEqual\(72\);/);
-assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(15\);/);
-assert.match(journey, /expect\(observedFeedback\.height\)\.toBeLessThanOrEqual\(32\);/);
-assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(critical \? 17 : 15\);/);
-assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeLessThanOrEqual\(critical \? 20\.5 : 18\);/);
+assert.doesNotMatch(journey, /toBeGreaterThanOrEqual\(24\)|toBeLessThanOrEqual\(72\)|toBeGreaterThanOrEqual\(critical \? 17 : 15\)|toBeLessThanOrEqual\(critical \? 20\.5 : 18\)/,
+  'the runtime journey must not restore the rejected oversized absolute companion footprint');
 assert.match(journey, /expect\(observedFeedback\.backgroundColor\)\.toMatch\(\/rgba\\\(0, 0, 0, 0\\\)\|transparent\/i\);/);
 assert.match(journey, /expect\(observedFeedback\.borderTopWidth\)\.toBe\('0px'\);/);
 assert.match(journey, /expect\(observedFeedback\.boxShadow\)\.toBe\('none'\);/);
 assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\);/);
 assert.match(journey, /expect\(observedFeedback\.opacity\)\.toBeGreaterThanOrEqual\(0\.9\);/);
-
+assert.match(journey, /getByTestId\('run-companion-chip'\)[\s\S]*toHaveCount\(0\)/,
+  'the focused runtime journey must prove the deprecated run companion chip is absent');
+assert.doesNotMatch(journey, /await chip\.click|toHaveAttribute\('data-presentation', 'read-only-companion-status'\)|toHaveAttribute\('data-companion-role', 'shield'\)/,
+  'the journey must not preserve the old chip-present/click acceptance');
 assert.match(journey, /async function readCompanionFeedbackDiagnostics\(page, \{ role, critical, notBefore \}\)/);
 assert.match(journey, /now: performance\.now\(\),[\s\S]*minimumAt,[\s\S]*runtime:[\s\S]*runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null,[\s\S]*actions:[\s\S]*liveFeedback:/,
   'a failed device must report input epoch, component state, authoritative player state, event timestamps and current nodes');
 assert.match(journey, /Companion feedback diagnostics: \$\{JSON\.stringify\(diagnostics, null, 2\)\}/);
-
 assert.match(journey, /async function waitForStableRoom\(page\)/);
 assert.match(journey, /Date\.now\(\) - hiddenSince >= 1_200 \? 'stable' : 'settling'/);
 assert.match(journey, /timeout: 120_000,[\s\S]*intervals: \[100, 250, 500\]/);
@@ -159,7 +167,6 @@ assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThanOrEqual
   'the test must independently prove the authoritative player attack that causes the proc');
 assert.match(journey, /expect\(observedCritical\.at\)\.toBeGreaterThanOrEqual\(attackIssuedAt\);/,
   'the accepted critical value must be an authoritative post-epoch companion action');
-
 assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/);
 assert.match(workflow, /companion-damage-feedback-\$\{\{ matrix\.project \}\}\.png/);
 assert.match(workflow, /companion-damage-feedback-critical-\$\{\{ matrix\.project \}\}\.png/);
