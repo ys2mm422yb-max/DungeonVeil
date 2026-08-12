@@ -278,7 +278,7 @@ export class GameEngine {
       const stepDelay = speedRank >= 2 ? 150 : 250;
       if (time - this.lastStepTime > stepDelay) {
         this.lastStepTime = time;
-        this.state.particles.push(...makeStepDust(p.x + 16, p.y + 27, speedRank >= 2 ? '#d9f7ff' : undefined));
+        this.state.particles.push(...makeStepDust(p.x + 16, p.y + 27, speedRank >= 2 ? '#d9f7ff' : '#efb44f'));
       }
     } else {
       p.state = 'idle';
@@ -652,7 +652,7 @@ export class GameEngine {
   }
 
   private checkEnemyStuck(enemy: Enemy, time: number, dist: number, attackRange: number) {
-    if (enemy.state !== 'chase' || dist <= attackRange + 20) {
+    if (enemy.state !== 'chase') {
       enemy.lastProgressX = enemy.x;
       enemy.lastProgressY = enemy.y;
       enemy.lastProgressTime = time;
