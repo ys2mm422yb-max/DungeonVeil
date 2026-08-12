@@ -140,8 +140,12 @@ assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\)
 assert.match(journey, /expect\(observedFeedback\.opacity\)\.toBeGreaterThanOrEqual\(0\.9\);/);
 assert.match(journey, /getByTestId\('run-companion-chip'\)[\s\S]*toHaveCount\(0\)/,
   'the focused runtime journey must prove the deprecated run companion chip is absent');
-assert.doesNotMatch(journey, /(?:const chip\s*=\s*page\.getByTestId\('run-companion-chip'\)[\s\S]{0,800}(?:chip\.click|expect\(chip\)\.toHaveAttribute)|getByTestId\('run-companion-chip'\)[\s\S]{0,500}toHaveAttribute\()/,
-  'the journey must not preserve chip-specific present/attribute/click acceptance');
+assert.doesNotMatch(journey, /const chip\s*=\s*page\.getByTestId\('run-companion-chip'\)\s*;[\s\S]*?chip\.click\(/,
+  'the journey must not click the removed run companion chip');
+assert.doesNotMatch(journey, /expect\(chip\)\.toHaveAttribute\(/,
+  'the journey must not assert attributes on a removed run companion chip locator');
+assert.doesNotMatch(journey, /expect\(page\.getByTestId\('run-companion-chip'\)\)\.toHaveAttribute\(/,
+  'the journey must not assert attributes on an inline removed run companion chip locator');
 assert.match(journey, /async function readCompanionFeedbackDiagnostics\(page, \{ role, critical, notBefore \}\)/);
 assert.match(journey, /now: performance\.now\(\),[\s\S]*minimumAt,[\s\S]*runtime:[\s\S]*runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null,[\s\S]*actions:[\s\S]*liveFeedback:/,
   'a failed device must report input epoch, component state, authoritative player state, event timestamps and current nodes');
