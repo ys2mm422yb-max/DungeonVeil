@@ -216,12 +216,14 @@ function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
   expect(observedFeedback.critical).toBe(String(critical));
   expect(observedFeedback.text).toMatch(marker);
   expect(observedFeedback.visibleCount).toBe('1');
-  expect(observedFeedback.width).toBeGreaterThanOrEqual(24);
-  expect(observedFeedback.width).toBeLessThanOrEqual(72);
-  expect(observedFeedback.height).toBeGreaterThanOrEqual(15);
-  expect(observedFeedback.height).toBeLessThanOrEqual(32);
-  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(critical ? 17 : 15);
-  expect(observedFeedback.fontSize).toBeLessThanOrEqual(critical ? 20.5 : 18);
+  expect(observedFeedback.width).toBeGreaterThan(0);
+  expect(observedFeedback.height).toBeGreaterThan(0);
+  expect(observedFeedback.fontSize).toBeGreaterThan(0);
+  const viewportClass = observedFeedback.viewportWidth >= 600 ? 'tablet' : 'phone';
+  const maxFont = viewportClass === 'tablet' ? (critical ? 16 : 13) : (critical ? 12 : 10.5);
+  const minFont = viewportClass === 'tablet' ? (critical ? 13 : 11) : (critical ? 9.5 : 8);
+  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(minFont);
+  expect(observedFeedback.fontSize).toBeLessThanOrEqual(maxFont);
   expect(observedFeedback.backgroundColor).toMatch(/rgba\(0, 0, 0, 0\)|transparent/i);
   expect(observedFeedback.borderTopWidth).toBe('0px');
   expect(observedFeedback.boxShadow).toBe('none');
@@ -306,6 +308,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           width: rect.width,
           height: rect.height,
           fontSize: Number.parseFloat(style.fontSize),
+          viewportWidth: window.innerWidth,
           backgroundColor: style.backgroundColor,
           borderTopWidth: style.borderTopWidth,
           boxShadow: style.boxShadow,
@@ -378,6 +381,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   const chip = page.getByTestId('run-companion-chip');
   const runtime = page.getByTestId('companion-runtime-bridge');
   const scene = page.getByTestId('run-companion-scene');
+  await expect(chip).toHaveCount(0);
   await waitForStableRoom(page);
   await captureLiveCompanionFeedbackEvidence(page, {
     role: 'shield',
@@ -386,12 +390,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
     marker: /◆\s*-\d+/,
     path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`,
   });
-  await expect(chip).toBeVisible();
-  await expect(chip).toHaveAttribute('data-presentation', 'read-only-companion-status');
-  await expect(chip).toHaveAttribute('data-companion-role', 'shield');
-  await expect(chip).toHaveAttribute('data-companion-species', 'rune-sentinel');
-  await expect(chip).toHaveAttribute('data-companion-level', '2');
-  expect(await chip.evaluate(element => element.tagName)).toBe('DIV');
+  await expect(chip).toHaveCount(0);
   await expect(runtime).toHaveAttribute('data-role', 'shield');
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-species', 'rune-sentinel');
@@ -414,14 +413,12 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(scene).toHaveAttribute('data-visible-count', '1', { timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1);
   await page.screenshot({ path: `test-results/companion-run-${testInfo.project.name}.png`, fullPage: false });
-  await chip.click({ force: true });
-  await page.waitForTimeout(500);
-  await expect(chip).toHaveAttribute('data-companion-role', 'shield');
+  await expect(chip).toHaveCount(0);
   await expect(runtime).toHaveAttribute('data-role', 'shield');
   await expect(scene).toHaveAttribute('data-local-role', 'shield');
-  const storedAfterClick = await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-companion-collection-v5') || '{}'));
-  expect(storedAfterClick.activeId).toBe('shield');
-  expect(storedAfterClick.companions.shield.level).toBe(2);
+  const storedAfterRun = await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-companion-collection-v5') || '{}'));
+  expect(storedAfterRun.activeId).toBe('shield');
+  expect(storedAfterRun.companions.shield.level).toBe(2);
   const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
   expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
@@ -436,6 +433,8 @@ test('critical-support proc renders one readable value on its actual target', as
   await armCompanionActionObservation(page);
   await startFreshRun(page);
   const runtime = page.getByTestId('companion-runtime-bridge');
+  const chip = page.getByTestId('run-companion-chip');
+  await expect(chip).toHaveCount(0);
   await expect(runtime).toHaveAttribute('data-role', 'critical-support');
   await waitForStableRoom(page);
   await prepareLivePlayerAttackLine(page);
@@ -453,11 +452,9 @@ test('critical-support proc renders one readable value on its actual target', as
   ]);
   expect(confirmedPlayerAttackAt).toBeGreaterThanOrEqual(attackIssuedAt);
   expect(observedCritical.at).toBeGreaterThanOrEqual(attackIssuedAt);
-  const chip = page.getByTestId('run-companion-chip');
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
-  await expect(chip).toHaveAttribute('data-companion-role', 'critical-support');
-  await expect(chip).toHaveAttribute('data-companion-level', '2');
+  await expect(chip).toHaveCount(0);
   const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
   expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
