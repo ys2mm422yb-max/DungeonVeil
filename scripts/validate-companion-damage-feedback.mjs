@@ -109,21 +109,27 @@ assert.match(journey, /entry\.role === expectedRole[\s\S]*entry\.kind === 'attac
   'the live node must correlate to the authoritative role, target and input epoch');
 assert.match(journey, /opacity < 0\.9/,
   'capture must wait for a clearly painted animation frame');
-assert.match(journey, /timeout: 20_000,[\s\S]*polling: 'raf'/,
-  'the unchanged 20 second criterion must sample the short live window inside requestAnimationFrame');
+assert.match(journey, /timeout: 20_000,[\s\S]*polling: 16/,
+  'the unchanged 20 second criterion must sample the transient live window at the accepted deterministic 16ms observer cadence');
 assert.doesNotMatch(journey, /feedback\.count\(\)|feedback\.evaluate\(/,
   'slow cross-process count/evaluate sequencing must not return');
-assert.match(journey, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);\s*assertFullViewportPng\(screenshot, viewport\);/,
-  'full-context capture must start immediately after the qualifying browser frame, before any cross-process object transfer or assertion work');
+assert.match(journey, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);\s*assertFullViewportPng\(screenshot, viewport\);/,
+  'full-context CSS-pixel capture must start immediately after the qualifying browser frame, before any cross-process object transfer or assertion work');
 assert.doesNotMatch(journey, /handle\.jsonValue\(\)[\s\S]{0,300}page\.screenshot/,
   'object transfer and assertions must not consume the 1050ms visual window before screenshot capture begins');
 assert.match(journey, /function assertFullViewportPng\(screenshot, viewport\) \{[\s\S]*screenshot\.subarray\(0, 8\)[\s\S]*screenshot\.length\)\.toBeGreaterThan\(10_000\)[\s\S]*readUInt32BE\(16\)[\s\S]*readUInt32BE\(20\)[\s\S]*toBeGreaterThanOrEqual\(viewport\.width\)[\s\S]*toBeGreaterThanOrEqual\(viewport\.height\)/,
   'saved evidence must be a non-empty PNG covering the complete configured portrait viewport');
 assert.doesNotMatch(journey, /visibleAfterCapture|exactFeedback\.evaluate/,
   'the test must not require a deliberately transient 1050ms node to survive screenshot encoding');
-assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(82\);/);
-assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(38\);/);
-assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(21\);/);
+assert.match(journey, /expect\(observedFeedback\.width\)\.toBeGreaterThanOrEqual\(24\);/);
+assert.match(journey, /expect\(observedFeedback\.width\)\.toBeLessThanOrEqual\(72\);/);
+assert.match(journey, /expect\(observedFeedback\.height\)\.toBeGreaterThanOrEqual\(15\);/);
+assert.match(journey, /expect\(observedFeedback\.height\)\.toBeLessThanOrEqual\(32\);/);
+assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeGreaterThanOrEqual\(critical \? 17 : 15\);/);
+assert.match(journey, /expect\(observedFeedback\.fontSize\)\.toBeLessThanOrEqual\(critical \? 20\.5 : 18\);/);
+assert.match(journey, /expect\(observedFeedback\.backgroundColor\)\.toMatch\(\/rgba\\\(0, 0, 0, 0\\\)\|transparent\/i\);/);
+assert.match(journey, /expect\(observedFeedback\.borderTopWidth\)\.toBe\('0px'\);/);
+assert.match(journey, /expect\(observedFeedback\.boxShadow\)\.toBe\('none'\);/);
 assert.match(journey, /expect\(observedFeedback\.pointerEvents\)\.toBe\('none'\);/);
 assert.match(journey, /expect\(observedFeedback\.opacity\)\.toBeGreaterThanOrEqual\(0\.9\);/);
 

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [guildRaidJourney, companionJourney, runtimeEvidence, visualReadiness] = await Promise.all([
+const [guildRaidJourney, companionJourney, runtimeEvidence, visualReadiness, recoveryBaseline] = await Promise.all([
   readFile('artifacts/dungeon-rpg/tests/guild-raid-lobby-mobile.spec.mjs', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs', 'utf8'),
   readFile('artifacts/dungeon-rpg/src/game/runtimeEvidenceBridge.ts', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/visual-render-readiness.mjs', 'utf8'),
+  readFile('artifacts/dungeon-rpg/src/game/rendererRecoveryStableBaseline.ts', 'utf8'),
 ]);
 
 assert.match(guildRaidJourney, /const corsHeaders = \{/,
@@ -36,12 +37,12 @@ assert.match(companionJourney, /entry\.role === expectedRole[\s\S]*entry\.target
   'the live node must remain correlated with the authoritative attack after the requested epoch');
 assert.match(companionJourney, /opacity < 0\.9/,
   'capture must reject inserted or fading frames that are not clearly painted');
-assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 'raf'/,
-  'the unchanged 20 second criterion must sample the 1050ms feedback window within the browser animation loop');
+assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 16/,
+  'the unchanged 20 second criterion must sample the 1050ms feedback window at the accepted deterministic 16ms observer cadence');
 assert.doesNotMatch(companionJourney, /feedback\.count\(\)|feedback\.evaluate\(/,
   'separate locator count and evaluate round trips must not return');
-assert.match(companionJourney, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback,[\s\S]*assertFullViewportPng\(screenshot, viewport\);/,
-  'screenshot capture must begin directly after the qualifying browser frame, before object transfer and assertions can consume the transient visual window');
+assert.match(companionJourney, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback,[\s\S]*assertFullViewportPng\(screenshot, viewport\);/,
+  'CSS-pixel screenshot capture must begin directly after the qualifying browser frame, before object transfer and assertions can consume the transient visual window');
 assert.doesNotMatch(companionJourney, /handle\.jsonValue\(\)[\s\S]{0,300}page\.screenshot/,
   'cross-process object transfer must not occur before the full-context evidence capture starts');
 assert.match(companionJourney, /function assertFullViewportPng\(screenshot, viewport\) \{[\s\S]*screenshot\.subarray\(0, 8\)[\s\S]*screenshot\.length\)\.toBeGreaterThan\(10_000\)[\s\S]*readUInt32BE\(16\)[\s\S]*readUInt32BE\(20\)/,
@@ -86,5 +87,14 @@ assert.match(visualReadiness, /if \(!isNavigationTransitionError\(error\)\) thro
   'only known navigation-transition errors may repeat the identical evaluation once');
 assert.doesNotMatch(visualReadiness, /catch \(error\) \{\s*await waitForDocumentBody/,
   'the navigation guard must not swallow arbitrary page evaluation failures');
+
+assert.match(recoveryBaseline, /const RETAINED_NOOP_UPDATE_LIMIT = 1;/,
+  'renderer recovery must retain a mutation baseline across exactly one intervening no-op update');
+assert.match(recoveryBaseline, /afterHp !== beforeHp[\s\S]*retainedPreMutationHp = beforeHp;[\s\S]*retainedNoopUpdates = RETAINED_NOOP_UPDATE_LIMIT;/,
+  'an HP-mutating update must retain its pre-mutation baseline for the recovery boundary');
+assert.match(recoveryBaseline, /else if \(retainedPreMutationHp !== null\) \{[\s\S]*if \(retainedNoopUpdates > 0\) retainedNoopUpdates -= 1;[\s\S]*else retainedPreMutationHp = null;/,
+  'one no-op update must preserve the pending recovery baseline and the following no-op must expire it');
+assert.match(recoveryBaseline, /if \(retainedPreMutationHp !== null\) \{[\s\S]*liveHp !== retainedPreMutationHp[\s\S]*activeEngine\.state\.player\.hp = retainedPreMutationHp;[\s\S]*else if \(Number\.isFinite\(liveHp\) && liveHp !== preUpdateHp\)[\s\S]*activeEngine\.state\.player\.hp = preUpdateHp;/,
+  'recovery must prefer the retained pre-mutation baseline while preserving the original single-frame fallback');
 
 console.log('Product QA anti-stall fixture contracts passed.');

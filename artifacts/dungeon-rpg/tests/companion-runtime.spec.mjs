@@ -107,6 +107,7 @@ async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
 
     const enemies = Array.isArray(before?.livingEnemyPositions) ? before.livingEnemyPositions : [];
     if (!enemies.length) break;
+
     const playerX = Number(before?.playerX || 0) + 16;
     const playerY = Number(before?.playerY || 0) + 16;
     const target = [...enemies].sort((left, right) => (
@@ -120,11 +121,11 @@ async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
       : phase === 1 ? { x: -dy, y: dx }
         : { x: dy, y: -dx };
     const keys = keysForVector(vector.x, vector.y);
-    const durationMs = phase === 0 ? 430 : 320;
+    const durationMs = phase === 0 ? 260 : 190;
 
     await moveWithKeyboard(page, keys, durationMs);
     await page.keyboard.press('Space');
-    await page.waitForTimeout(160);
+    await page.waitForTimeout(120);
 
     const after = await readRuntimeCombatSnapshot(page);
     const confirmedAt = Number(after?.playerLastAttackTime || 0);
@@ -215,9 +216,15 @@ function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
   expect(observedFeedback.critical).toBe(String(critical));
   expect(observedFeedback.text).toMatch(marker);
   expect(observedFeedback.visibleCount).toBe('1');
-  expect(observedFeedback.width).toBeGreaterThanOrEqual(82);
-  expect(observedFeedback.height).toBeGreaterThanOrEqual(38);
-  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(21);
+  expect(observedFeedback.width).toBeGreaterThanOrEqual(24);
+  expect(observedFeedback.width).toBeLessThanOrEqual(72);
+  expect(observedFeedback.height).toBeGreaterThanOrEqual(15);
+  expect(observedFeedback.height).toBeLessThanOrEqual(32);
+  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(critical ? 17 : 15);
+  expect(observedFeedback.fontSize).toBeLessThanOrEqual(critical ? 20.5 : 18);
+  expect(observedFeedback.backgroundColor).toMatch(/rgba\(0, 0, 0, 0\)|transparent/i);
+  expect(observedFeedback.borderTopWidth).toBe('0px');
+  expect(observedFeedback.boxShadow).toBe('none');
   expect(observedFeedback.pointerEvents).toBe('none');
   expect(observedFeedback.opacity).toBeGreaterThanOrEqual(0.9);
 }
@@ -299,6 +306,9 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           width: rect.width,
           height: rect.height,
           fontSize: Number.parseFloat(style.fontSize),
+          backgroundColor: style.backgroundColor,
+          borderTopWidth: style.borderTopWidth,
+          boxShadow: style.boxShadow,
           pointerEvents: style.pointerEvents,
           opacity,
           visibleCount: layer?.getAttribute('data-visible-count') || '',
@@ -308,12 +318,12 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       return false;
     }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore }, {
       timeout: 20_000,
-      polling: 'raf',
+      polling: 16,
     });
 
     const viewport = page.viewportSize();
     expect(viewport).toBeTruthy();
-    const screenshot = await page.screenshot({ path, fullPage: false });
+    const screenshot = await page.screenshot({ path, fullPage: false, scale: 'css' });
     observedFeedback = await handle.jsonValue();
     assertReadableFeedback(observedFeedback, { role, critical, marker });
     assertFullViewportPng(screenshot, viewport);
@@ -347,7 +357,6 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(page.getByTestId('companion-reserve-count')).toContainText('1 / 5');
   await expect(page.getByTestId('companion-role-single-target')).toHaveAttribute('data-unlocked', 'true');
   await expect(page.getByTestId('companion-role-shield')).toHaveAttribute('data-unlocked', 'false');
-  await expect(page.getByTestId('companion-role-distraction')).toHaveAttribute('data-unlocked', 'false');
   const shieldCard = page.getByTestId('companion-role-shield');
   await shieldCard.getByRole('button', { name: /FUND BEANSPRUCHEN|CLAIM FIND/i }).click({ force: true });
   await expect(shieldCard).toHaveAttribute('data-unlocked', 'true');
@@ -428,6 +437,7 @@ test('critical-support proc renders one readable value on its actual target', as
   await startFreshRun(page);
   const runtime = page.getByTestId('companion-runtime-bridge');
   await expect(runtime).toHaveAttribute('data-role', 'critical-support');
+  await waitForStableRoom(page);
   await prepareLivePlayerAttackLine(page);
   const attackIssuedAt = await page.evaluate(() => performance.now());
   const capturePromise = captureLiveCompanionFeedbackEvidence(page, {

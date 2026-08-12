@@ -175,6 +175,8 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   const recentCombatTargetRef = useRef<RecentCombatTarget | null>(null);
   const feedbackTimerRef = useRef<number | null>(null);
   const feedbackPaintTokenRef = useRef(0);
+  const activeDamageFeedbackRef = useRef<CompanionDamageFeedback | null>(null);
+  const feedbackVisibleUntilRef = useRef(0);
   const [damageFeedback, setDamageFeedback] = useState<CompanionDamageFeedback | null>(null);
   stateRef.current = gameState;
   roleRef.current = role;
@@ -191,6 +193,8 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     feedbackPaintTokenRef.current += 1;
     if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
     feedbackTimerRef.current = null;
+    activeDamageFeedbackRef.current = null;
+    feedbackVisibleUntilRef.current = 0;
     setDamageFeedback(null);
   }, [role, level]);
 
@@ -221,6 +225,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       critical: boolean,
       now: number,
     ) => {
+      if (!critical && activeDamageFeedbackRef.current?.critical && now < feedbackVisibleUntilRef.current) return;
       const feedback: CompanionDamageFeedback = {
         id: `companion-damage-${activeRole}-${now}-${target.id}`,
         role: activeRole,
@@ -235,6 +240,8 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       const paintToken = ++feedbackPaintTokenRef.current;
       if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
       feedbackTimerRef.current = null;
+      activeDamageFeedbackRef.current = feedback;
+      feedbackVisibleUntilRef.current = now + COMPANION_DAMAGE_FEEDBACK_MS;
       setDamageFeedback(feedback);
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
@@ -242,6 +249,10 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           feedbackTimerRef.current = window.setTimeout(() => {
             if (feedbackPaintTokenRef.current !== paintToken) return;
             setDamageFeedback(current => current?.id === feedback.id ? null : current);
+            if (activeDamageFeedbackRef.current?.id === feedback.id) {
+              activeDamageFeedbackRef.current = null;
+              feedbackVisibleUntilRef.current = 0;
+            }
             feedbackTimerRef.current = null;
           }, COMPANION_DAMAGE_FEEDBACK_MS);
         });
@@ -416,6 +427,8 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       feedbackPaintTokenRef.current += 1;
       if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
       feedbackTimerRef.current = null;
+      activeDamageFeedbackRef.current = null;
+      feedbackVisibleUntilRef.current = 0;
     };
   }, []);
 

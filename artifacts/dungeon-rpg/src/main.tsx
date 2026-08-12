@@ -37,6 +37,7 @@ import './readability.css';
 import './equipment-polish.css';
 import './equipment-mobile-detail.css';
 import './tablet-layout.css';
+import './companion-damage-feedback.css';
 
 const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 const qaMode = searchParams?.get('qa') ?? null;
