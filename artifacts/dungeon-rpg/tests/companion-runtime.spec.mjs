@@ -96,14 +96,14 @@ async function moveWithKeyboard(page, keys, durationMs) {
   }
 }
 
-async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
+async function triggerConfirmedPlayerAttack(page, attackBoundary) {
   const inputBurst = 6;
   const attempts = [];
 
   for (let attempt = 0; attempt < inputBurst; attempt += 1) {
     const before = await readRuntimeCombatSnapshot(page);
     const previousAttackAt = Number(before?.playerLastAttackTime || 0);
-    if (previousAttackAt >= attackIssuedAt) return previousAttackAt;
+    if (previousAttackAt > attackBoundary) return previousAttackAt;
 
     const enemies = Array.isArray(before?.livingEnemyPositions) ? before.livingEnemyPositions : [];
     if (!enemies.length) break;
@@ -142,11 +142,11 @@ async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
       confirmedAt,
       livingEnemies: Number(after?.livingEnemies || 0),
     });
-    if (confirmedAt >= attackIssuedAt) return confirmedAt;
+    if (confirmedAt > attackBoundary) return confirmedAt;
   }
 
   const finalSnapshot = await readRuntimeCombatSnapshot(page);
-  throw new Error(`No authoritative player attack occurred after ${attackIssuedAt}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
+  throw new Error(`No authoritative player attack occurred after ${attackBoundary}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
 }
 
 async function readTransientRoomTitleState(page) {
@@ -289,7 +289,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           entry.role === expectedRole
           && entry.kind === 'attack'
           && entry.targetId === targetId
-          && entry.at >= minimumAt
+          && entry.at > minimumAt
         ));
         if (!action || !node.isConnected) continue;
         const style = getComputedStyle(node);
@@ -438,20 +438,20 @@ test('critical-support proc renders one readable value on its actual target', as
   await expect(runtime).toHaveAttribute('data-role', 'critical-support');
   await waitForStableRoom(page);
   await prepareLivePlayerAttackLine(page);
-  const attackIssuedAt = await page.evaluate(() => performance.now());
+  const attackBoundary = Number((await readRuntimeCombatSnapshot(page))?.playerLastAttackTime || 0);
   const capturePromise = captureLiveCompanionFeedbackEvidence(page, {
     role: 'critical-support',
     critical: true,
-    notBefore: attackIssuedAt,
+    notBefore: attackBoundary,
     marker: /✦\s*-\d+/,
     path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
   });
   const [confirmedPlayerAttackAt, observedCritical] = await Promise.all([
-    triggerConfirmedPlayerAttack(page, attackIssuedAt),
+    triggerConfirmedPlayerAttack(page, attackBoundary),
     capturePromise,
   ]);
-  expect(confirmedPlayerAttackAt).toBeGreaterThanOrEqual(attackIssuedAt);
-  expect(observedCritical.at).toBeGreaterThanOrEqual(attackIssuedAt);
+  expect(confirmedPlayerAttackAt).toBeGreaterThan(attackBoundary);
+  expect(observedCritical.at).toBeGreaterThan(attackBoundary);
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
   await expect(chip).toHaveCount(0);
