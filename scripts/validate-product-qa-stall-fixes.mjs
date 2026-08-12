@@ -33,8 +33,8 @@ assert.match(companionJourney, /const nodes = \[\.\.\.document\.querySelectorAll
   'the browser-side waiter must inspect the currently rendered damage nodes without locator round trips');
 assert.match(companionJourney, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
   'role and critical identity must be filtered inside the same browser frame');
-assert.match(companionJourney, /entry\.role === expectedRole[\s\S]*entry\.targetId === targetId[\s\S]*entry\.at >= minimumAt/,
-  'the live node must remain correlated with the authoritative attack after the requested epoch');
+assert.match(companionJourney, /entry\.role === expectedRole[\s\S]*entry\.targetId === targetId[\s\S]*entry\.at > minimumAt/,
+  'the live node must remain correlated with a strictly newer authoritative attack after the requested boundary');
 assert.match(companionJourney, /opacity < 0\.9/,
   'capture must reject inserted or fading frames that are not clearly painted');
 assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 16/,
@@ -60,16 +60,16 @@ assert.match(runtimeEvidence, /livingEnemyPositions: livingEnemies\.map/,
   'localhost-only telemetry must expose read-only target positions for supported input navigation');
 assert.match(companionJourney, /sessionStorage\.setItem\(runtimeEvidenceMarker, '1'\)/,
   'authoritative telemetry must be enabled before the runtime bridge installs');
-assert.match(companionJourney, /async function triggerConfirmedPlayerAttack\(page, attackIssuedAt\)/,
-  'the critical path must independently prove a real player attack');
-assert.match(companionJourney, /const inputBurst = 6;[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*livingEnemyPositions[\s\S]*moveWithKeyboard\(page, keys, durationMs\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*confirmedAt >= attackIssuedAt/,
-  'the bounded search must use real keyboard movement and finish only after authoritative attack time advances');
+assert.match(companionJourney, /async function triggerConfirmedPlayerAttack\(page, attackBoundary\)/,
+  'the critical path must independently prove a real player attack strictly after the authoritative boundary');
+assert.match(companionJourney, /const inputBurst = 6;[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*livingEnemyPositions[\s\S]*moveWithKeyboard\(page, keys, durationMs\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*confirmedAt > attackBoundary/,
+  'the bounded search must use real keyboard movement and finish only after authoritative attack time advances strictly beyond the captured boundary');
 assert.match(companionJourney, /const phase = attempt % 3;[\s\S]*\{ x: dx, y: dy \}[\s\S]*\{ x: -dy, y: dx \}[\s\S]*\{ x: dy, y: -dx \}/,
   'the search must try the target line and both lateral paths instead of one device-specific guess');
 assert.doesNotMatch(companionJourney, /__dungeonVeilRuntimeEvidence\?\.(?:loadRoom|killLivingEnemies|moveToExit|chooseFirstGift|setMode|setPlayerStats|setLivingEnemyFamilies)/,
   'the companion journey may read the localhost snapshot but must not mutate combat through QA controls');
-assert.match(companionJourney, /const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*const \[confirmedPlayerAttackAt, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackIssuedAt\),[\s\S]*capturePromise[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThanOrEqual\(attackIssuedAt\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThanOrEqual\(attackIssuedAt\)/,
-  'critical evidence must be armed first and prove both the causal player attack and rendered companion action');
+assert.match(companionJourney, /const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*notBefore: attackBoundary[\s\S]*const \[confirmedPlayerAttackAt, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackBoundary\),[\s\S]*capturePromise[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(attackBoundary\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThan\(attackBoundary\)/,
+  'critical evidence must bind to the last authoritative player-attack boundary and prove both causal actions are strictly newer');
 assert.match(companionJourney, /runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null/,
   'device failures must include the authoritative player and target snapshot');
 assert.match(companionJourney, /observedAt: performance\.now\(\)/,
