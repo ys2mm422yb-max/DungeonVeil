@@ -473,17 +473,13 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           data-target-id={damageFeedback.targetId}
           data-critical={damageFeedback.critical ? 'true' : 'false'}
           data-projection-clamped={projectedFeedback.clamped ? 'true' : 'false'}
-          className="absolute flex min-h-[38px] min-w-[82px] items-center justify-center rounded-full border-2 bg-black/85 px-3 py-1 font-black tracking-wide text-white shadow-2xl"
+          className="absolute flex items-center justify-center font-black tracking-wide"
           style={{
             left: `${projectedFeedback.left}%`,
             top: `${projectedFeedback.top}%`,
             transform: 'translate(-50%, -50%)',
-            borderColor: damageFeedback.color,
             color: damageFeedback.critical ? '#fff4c4' : '#ffffff',
-            fontSize: 'clamp(21px, 5.4vw, 29px)',
             lineHeight: 1,
-            textShadow: `0 2px 0 #000, 0 0 8px ${damageFeedback.color}, 0 0 14px rgba(0,0,0,.9)`,
-            boxShadow: `0 0 0 2px rgba(0,0,0,.86), 0 0 18px ${damageFeedback.color}99`,
             animation: 'dvCompanionDamageReadable 1.05s cubic-bezier(.16,.84,.28,1) both',
           }}
         >
