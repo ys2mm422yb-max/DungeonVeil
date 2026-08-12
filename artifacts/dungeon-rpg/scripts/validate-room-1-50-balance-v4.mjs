@@ -176,6 +176,15 @@ assert(
   '7000ms hard-un-stuck relocation contract is missing or weakened',
 );
 
+const hardStallStart = engineSource.indexOf('private checkEnemyStuck');
+const hardStallEnd = engineSource.indexOf('private relocateStuckEnemy', hardStallStart);
+assert(hardStallStart >= 0 && hardStallEnd > hardStallStart, 'authoritative hard-stall checker is missing');
+const hardStallSource = engineSource.slice(hardStallStart, hardStallEnd);
+assert(
+  !/dist\s*<=\s*attackRange\s*\+\s*20/.test(hardStallSource),
+  'a chasing enemy blocked from attack by line of sight must not refresh its 7000ms hard-stall clock merely because it is geometrically inside attackRange+20',
+);
+
 console.log(JSON.stringify({
   rooms: 50,
   normalRooms: 45,
