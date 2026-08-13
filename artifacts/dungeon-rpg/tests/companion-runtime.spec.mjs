@@ -5,6 +5,7 @@ const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
 const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
 const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';
+const COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS = 250;
 const DEFAULT_COMPANION_STATE = {
   activeId: 'single-target',
   companions: { 'single-target': { level: 1, unlockedAt: 1 } },
@@ -229,6 +230,8 @@ function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
   expect(observedFeedback.boxShadow).toBe('none');
   expect(observedFeedback.pointerEvents).toBe('none');
   expect(observedFeedback.opacity).toBeGreaterThanOrEqual(0.9);
+  expect(observedFeedback.actionAgeMs).toBeGreaterThanOrEqual(0);
+  expect(observedFeedback.actionAgeMs).toBeLessThanOrEqual(COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS);
 }
 
 function assertFullViewportPng(screenshot, viewport) {
@@ -279,7 +282,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
   let observedFeedback = null;
 
   try {
-    const handle = await page.waitForFunction(({ logKey, expectedRole, expectedCritical, minimumAt }) => {
+    const handle = await page.waitForFunction(({ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs }) => {
       const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
       for (let index = nodes.length - 1; index >= 0; index -= 1) {
         const node = nodes[index];
@@ -292,6 +295,9 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           && entry.at > minimumAt
         ));
         if (!action || !node.isConnected) continue;
+        const captureNow = performance.now();
+        const actionAgeMs = captureNow - Number(action.at);
+        if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) continue;
         const style = getComputedStyle(node);
         const rect = node.getBoundingClientRect();
         const opacity = Number(style.opacity);
@@ -299,7 +305,8 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
         return {
           ...action,
-          capturedAt: performance.now(),
+          capturedAt: captureNow,
+          actionAgeMs,
           feedbackId: node.getAttribute('data-testid') || '',
           feedbackRole: node.dataset.companionRole || '',
           feedbackTargetId: targetId,
@@ -319,7 +326,13 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         };
       }
       return false;
-    }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore }, {
+    }, {
+      logKey: COMPANION_ACTION_LOG,
+      expectedRole: role,
+      expectedCritical: critical,
+      minimumAt: notBefore,
+      maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS,
+    }, {
       timeout: 20_000,
       polling: 16,
     });
