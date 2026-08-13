@@ -88,6 +88,8 @@ assert.match(runtimeEvidence, /livingEnemyPositions: livingEnemies\.map\(enemy =
 assert.match(journey, /const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';/);
 assert.match(journey, /const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';/);
 assert.match(journey, /const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';/);
+assert.match(journey, /const COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS = 250;/,
+  'stored full-context evidence must require a fresh action with at least 800ms of the fixed 1050ms visual lifetime reserved for capture');
 assert.match(journey, /sessionStorage\.setItem\(runtimeEvidenceMarker, '1'\)/,
   'the localhost-only authoritative snapshot must be enabled before the application installs its bridge');
 assert.doesNotMatch(journey, /PLAYER_HIT_LOG|PLAYER_HIT_OBSERVER|armPlayerHitObservation|data-hit-flash/,
@@ -109,14 +111,20 @@ assert.match(journey, /function keysForVector\(dx, dy\)/);
 assert.match(journey, /async function moveWithKeyboard\(page, keys, durationMs\)/);
 assert.match(journey, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
   'one helper must own live correlation, readability validation and screenshot capture');
-assert.match(journey, /const handle = await page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt \}\) => \{/,
-  'the criterion must execute as one browser-side wait rather than separate locator calls');
+assert.match(journey, /const handle = await page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs \}\) => \{/,
+  'the criterion must execute as one browser-side wait with the bounded freshness reserve rather than separate locator calls');
 assert.match(journey, /const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
   'the browser-side wait must inspect only currently rendered feedback nodes');
 assert.match(journey, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
   'role and critical identity must be filtered in the same browser frame');
 assert.match(journey, /entry\.role === expectedRole[\s\S]*entry\.kind === 'attack'[\s\S]*entry\.targetId === targetId[\s\S]*entry\.at > minimumAt/,
   'the live node must correlate to a strictly newer authoritative role, target and attack boundary');
+assert.match(journey, /const captureNow = performance\.now\(\);\s*const actionAgeMs = captureNow - Number\(action\.at\);\s*if \(!Number\.isFinite\(actionAgeMs\) \|\| actionAgeMs < 0 \|\| actionAgeMs > maxActionAgeMs\) continue;/,
+  'the browser waiter must reject late-life feedback before full-context screenshot capture begins');
+assert.match(journey, /maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS/,
+  'the bounded 250ms action-age reserve must be passed into the same browser-side criterion');
+assert.match(journey, /expect\(observedFeedback\.actionAgeMs\)\.toBeGreaterThanOrEqual\(0\);[\s\S]*toBeLessThanOrEqual\(COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS\)/,
+  'accepted evidence metadata must prove it came from the strict freshness window');
 assert.match(journey, /opacity < 0\.9/,
   'capture must wait for a clearly painted animation frame');
 assert.match(journey, /timeout: 20_000,[\s\S]*polling: 16/,
