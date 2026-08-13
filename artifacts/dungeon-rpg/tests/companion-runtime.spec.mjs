@@ -306,6 +306,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       const scope = window;
       scope[observation] = null;
       scope[observer]?.disconnect?.();
+      let paintReinspectionPending = false;
 
       const inspect = () => {
         if (scope[observation]) return true;
@@ -327,7 +328,17 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           const style = getComputedStyle(node);
           const rect = node.getBoundingClientRect();
           const opacity = Number(style.opacity);
-          if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || opacity < 0.9) continue;
+          if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') continue;
+          if (opacity < 0.9) {
+            if (!paintReinspectionPending) {
+              paintReinspectionPending = true;
+              requestAnimationFrame(() => {
+                paintReinspectionPending = false;
+                inspect();
+              });
+            }
+            continue;
+          }
           const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
           const payload = {
             ...action,
