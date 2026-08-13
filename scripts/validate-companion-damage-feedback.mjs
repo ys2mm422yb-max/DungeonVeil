@@ -115,8 +115,8 @@ assert.match(journey, /await page\.exposeBinding\(bindingName, async \(\{ page: 
   'the qualifying browser observation must hand off directly to an exposed Playwright screenshot binding');
 assert.match(journey, /const screenshot = await boundPage\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);[\s\S]*resolveScreenshot\(\{ screenshot, viewport, payload \}\)/,
   'the binding must start the full-context CSS-pixel screenshot before cross-process assertion work');
-assert.match(journey, /await page\.evaluate\(\(\{ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer \}\) => \{/,
-  'the browser must install the correlation observer with the bounded freshness reserve');
+assert.match(journey, /await page\.evaluate\(\(\{ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer \}\) => \{/,
+  'the browser must install the correlation observer with the companion action event and bounded freshness reserve');
 assert.match(journey, /const inspect = \(\) => \{[\s\S]*const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
   'the atomic observer must inspect only currently rendered feedback nodes');
 assert.match(journey, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
@@ -125,6 +125,10 @@ assert.match(journey, /entry\.role === expectedRole[\s\S]*entry\.kind === 'attac
   'the live node must correlate to a strictly newer authoritative role, target and attack boundary');
 assert.match(journey, /const captureNow = performance\.now\(\);\s*const actionAgeMs = captureNow - Number\(action\.at\);\s*if \(!Number\.isFinite\(actionAgeMs\) \|\| actionAgeMs < 0 \|\| actionAgeMs > maxActionAgeMs\) continue;/,
   'the atomic browser observer must reject late-life feedback before screenshot handoff');
+assert.match(journey, /const cleanup = \(\) => \{[\s\S]*mutationObserver\?\.disconnect\(\);[\s\S]*window\.removeEventListener\(eventName, actionListener\);[\s\S]*cancelAnimationFrame\(paintReinspectionFrame\);[\s\S]*scope\[observer\] = \{ disconnect: cleanup \};/,
+  'capture cleanup must jointly release the mutation observer, companion action listener and paint reinspection frame');
+assert.match(journey, /actionListener = event => \{[\s\S]*detail\.role !== expectedRole \|\| Number\(detail\.at\) <= minimumAt[\s\S]*inspect\(\);[\s\S]*window\.addEventListener\(eventName, actionListener\);/,
+  'COMPANION_ACTION_EVENT must re-inspect a still-connected pending node when the authoritative action arrives');
 assert.match(journey, /scope\[observation\] = payload;[\s\S]*scope\[observer\]\?\.disconnect\?\.\(\);[\s\S]*void scope\[binding\]\(payload\);/,
   'the accepted payload must be frozen and handed to Playwright in the same observer turn');
 assert.match(journey, /const mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,

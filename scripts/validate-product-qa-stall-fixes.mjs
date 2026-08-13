@@ -33,8 +33,8 @@ assert.match(companionJourney, /await page\.exposeBinding\(bindingName, async \(
   'the qualifying observation must trigger the Playwright screenshot binding directly');
 assert.match(companionJourney, /const screenshot = await boundPage\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);[\s\S]*resolveScreenshot\(\{ screenshot, viewport, payload \}\)/,
   'full-context screenshot capture must begin inside the binding before assertion round trips');
-assert.match(companionJourney, /await page\.evaluate\(\(\{ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer \}\) => \{/,
-  'one browser-side observer installation must own discovery, validation and freshness of transient feedback');
+assert.match(companionJourney, /await page\.evaluate\(\(\{ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer \}\) => \{/,
+  'one browser-side observer installation must own discovery, event correlation, validation and freshness of transient feedback');
 assert.match(companionJourney, /const inspect = \(\) => \{[\s\S]*const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
   'the atomic browser observer must inspect currently rendered damage nodes without locator round trips');
 assert.match(companionJourney, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
@@ -43,6 +43,10 @@ assert.match(companionJourney, /entry\.role === expectedRole[\s\S]*entry\.target
   'the live node must remain correlated with a strictly newer authoritative attack after the requested boundary');
 assert.match(companionJourney, /const captureNow = performance\.now\(\);\s*const actionAgeMs = captureNow - Number\(action\.at\);\s*if \(!Number\.isFinite\(actionAgeMs\) \|\| actionAgeMs < 0 \|\| actionAgeMs > maxActionAgeMs\) continue;/,
   'the atomic observer must reject feedback already too late in the fixed visual lifetime for reliable stored evidence');
+assert.match(companionJourney, /const cleanup = \(\) => \{[\s\S]*mutationObserver\?\.disconnect\(\);[\s\S]*window\.removeEventListener\(eventName, actionListener\);[\s\S]*cancelAnimationFrame\(paintReinspectionFrame\);[\s\S]*scope\[observer\] = \{ disconnect: cleanup \};/,
+  'observer cleanup must jointly release the DOM observer, companion-action listener and paint reinspection frame');
+assert.match(companionJourney, /actionListener = event => \{[\s\S]*detail\.role !== expectedRole \|\| Number\(detail\.at\) <= minimumAt[\s\S]*inspect\(\);[\s\S]*window\.addEventListener\(eventName, actionListener\);/,
+  'a qualifying COMPANION_ACTION_EVENT must re-inspect any still-connected pending feedback node');
 assert.match(companionJourney, /scope\[observation\] = payload;[\s\S]*scope\[observer\]\?\.disconnect\?\.\(\);[\s\S]*void scope\[binding\]\(payload\);/,
   'the accepted payload must be frozen and handed to the screenshot binding in the same observer turn');
 assert.match(companionJourney, /const mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
