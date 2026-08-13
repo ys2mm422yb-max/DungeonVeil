@@ -198,4 +198,13 @@ assert.match(manifestGenerator, /'companion-damage-feedback-',/);
 assert.match(manifestGenerator, /await fs\.writeFile\(path\.join\(root, 'companion-damage-feedback-device\.png'\), png\);/);
 assert.match(manifestGenerator, /const companionEntry = manifest\.files\.find\(\(entry\) => entry\.path === 'companion-damage-feedback-device\.png'\);/);
 
+assert.match(journey, /const COMPANION_FEEDBACK_REJECTION_LOG = '__dungeonVeilCompanionFeedbackRejectionLog';/,
+  'the exact-head capture must keep a dedicated bounded rejection log for causal device diagnostics');
+assert.match(journey, /const recordRejection = \(reason, node, extra = \{\}\) => \{[\s\S]*if \(log\.length > 32\) log\.splice\(0, log\.length - 32\);/,
+  'rejection diagnostics must be bounded and must not grow with a long run');
+assert.match(journey, /'identity-mismatch'|'disconnected'|'no-correlated-action'|'action-age'|'not-visible-geometry'|'opacity-below-threshold'/,
+  'the capture must distinguish the first causal rejection boundary without changing acceptance');
+assert.match(journey, /rejections: \(window\[rejectionLogKey\] \|\| \[\]\)\.slice\(-32\)/,
+  'failure diagnostics must surface the bounded historical rejection trail');
+
 console.log('Companion damage feedback contract passed.');
