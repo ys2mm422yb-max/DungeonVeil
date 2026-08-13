@@ -131,7 +131,7 @@ assert.match(journey, /actionListener = event => \{[\s\S]*detail\.role !== expec
   'COMPANION_ACTION_EVENT must re-inspect a still-connected pending node when the authoritative action arrives');
 assert.match(journey, /scope\[observation\] = payload;[\s\S]*scope\[observer\]\?\.disconnect\?\.\(\);[\s\S]*void scope\[binding\]\(payload\);/,
   'the accepted payload must be frozen and handed to Playwright in the same observer turn');
-assert.match(journey, /const mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
+assert.match(journey, /mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
   'transient feedback discovery must use one atomic MutationObserver instead of post-observation DOM reacquisition');
 assert.match(journey, /maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS/,
   'the bounded 250ms action-age reserve must be passed into the atomic browser criterion');
