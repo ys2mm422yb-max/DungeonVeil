@@ -302,11 +302,29 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       }
     });
 
-    await page.evaluate(({ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer }) => {
+    await page.evaluate(({ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer }) => {
       const scope = window;
       scope[observation] = null;
       scope[observer]?.disconnect?.();
-      let paintReinspectionPending = false;
+      let paintReinspectionFrame = 0;
+      let mutationObserver = null;
+      let actionListener = null;
+
+      const cleanup = () => {
+        mutationObserver?.disconnect();
+        if (actionListener) window.removeEventListener(eventName, actionListener);
+        if (paintReinspectionFrame) cancelAnimationFrame(paintReinspectionFrame);
+        paintReinspectionFrame = 0;
+      };
+      scope[observer] = { disconnect: cleanup };
+
+      const schedulePaintReinspection = () => {
+        if (paintReinspectionFrame || scope[observation]) return;
+        paintReinspectionFrame = requestAnimationFrame(() => {
+          paintReinspectionFrame = 0;
+          inspect();
+        });
+      };
 
       const inspect = () => {
         if (scope[observation]) return true;
@@ -315,13 +333,14 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           const node = nodes[index];
           if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) continue;
           const targetId = node.dataset.targetId || '';
+          if (!node.isConnected) continue;
           const action = [...(scope[logKey] || [])].reverse().find(entry => (
             entry.role === expectedRole
             && entry.kind === 'attack'
             && entry.targetId === targetId
             && entry.at > minimumAt
           ));
-          if (!action || !node.isConnected) continue;
+          if (!action) continue;
           const captureNow = performance.now();
           const actionAgeMs = captureNow - Number(action.at);
           if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) continue;
@@ -330,13 +349,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           const opacity = Number(style.opacity);
           if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') continue;
           if (opacity < 0.9) {
-            if (!paintReinspectionPending) {
-              paintReinspectionPending = true;
-              requestAnimationFrame(() => {
-                paintReinspectionPending = false;
-                inspect();
-              });
-            }
+            schedulePaintReinspection();
             continue;
           }
           const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
@@ -369,8 +382,15 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         return false;
       };
 
-      const mutationObserver = new MutationObserver(() => inspect());
-      scope[observer] = mutationObserver;
+      actionListener = event => {
+        const detail = event.detail;
+        if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
+        if (detail.role !== expectedRole || Number(detail.at) <= minimumAt) return;
+        inspect();
+      };
+      window.addEventListener(eventName, actionListener);
+
+      mutationObserver = new MutationObserver(() => inspect());
       mutationObserver.observe(document.documentElement, {
         childList: true,
         subtree: true,
@@ -379,6 +399,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       });
       inspect();
     }, {
+      eventName: COMPANION_ACTION_EVENT,
       logKey: COMPANION_ACTION_LOG,
       expectedRole: role,
       expectedCritical: critical,
