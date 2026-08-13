@@ -25,16 +25,24 @@ assert.doesNotMatch(guildRaidJourney, /access control checks[\s\S]*ignore|issues
 assert.doesNotMatch(companionJourney,
   /COMPANION_ACTION_SNAPSHOTS|captureRenderedFeedback|scheduleRenderedFeedbackCapture|captureUntil|captureFrameScheduled/,
   'the evidence path must not reintroduce a historical frame buffer that can outlive the real feedback node');
+assert.match(companionJourney, /const COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS = 250;/,
+  'stored companion evidence must reserve at least 800ms of the unchanged 1050ms lifetime for full-context capture');
 assert.match(companionJourney, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
   'the focused journey must own one direct live-node capture helper');
-assert.match(companionJourney, /const handle = await page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt \}\) => \{/,
-  'one browser-side waiter must own discovery and validation of the transient feedback node');
+assert.match(companionJourney, /const handle = await page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs \}\) => \{/,
+  'one browser-side waiter must own discovery, validation and freshness of the transient feedback node');
 assert.match(companionJourney, /const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
   'the browser-side waiter must inspect the currently rendered damage nodes without locator round trips');
 assert.match(companionJourney, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
   'role and critical identity must be filtered inside the same browser frame');
 assert.match(companionJourney, /entry\.role === expectedRole[\s\S]*entry\.targetId === targetId[\s\S]*entry\.at > minimumAt/,
   'the live node must remain correlated with a strictly newer authoritative attack after the requested boundary');
+assert.match(companionJourney, /const captureNow = performance\.now\(\);\s*const actionAgeMs = captureNow - Number\(action\.at\);\s*if \(!Number\.isFinite\(actionAgeMs\) \|\| actionAgeMs < 0 \|\| actionAgeMs > maxActionAgeMs\) continue;/,
+  'the browser-side waiter must reject feedback that is already too late in the fixed visual lifetime for reliable stored evidence');
+assert.match(companionJourney, /maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS/,
+  'the fixed freshness reserve must be supplied to the browser-side criterion');
+assert.match(companionJourney, /expect\(observedFeedback\.actionAgeMs\)\.toBeGreaterThanOrEqual\(0\);[\s\S]*toBeLessThanOrEqual\(COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS\)/,
+  'accepted metadata must prove the screenshot candidate came from the strict freshness window');
 assert.match(companionJourney, /opacity < 0\.9/,
   'capture must reject inserted or fading frames that are not clearly painted');
 assert.match(companionJourney, /timeout: 20_000,[\s\S]*polling: 16/,
