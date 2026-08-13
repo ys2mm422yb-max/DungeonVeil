@@ -49,7 +49,7 @@ assert.match(companionJourney, /actionListener = event => \{[\s\S]*detail\.role 
   'a qualifying COMPANION_ACTION_EVENT must re-inspect any still-connected pending feedback node');
 assert.match(companionJourney, /scope\[observation\] = payload;[\s\S]*scope\[observer\]\?\.disconnect\?\.\(\);[\s\S]*void scope\[binding\]\(payload\);/,
   'the accepted payload must be frozen and handed to the screenshot binding in the same observer turn');
-assert.match(companionJourney, /const mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
+assert.match(companionJourney, /mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
   'transient feedback discovery must use one atomic MutationObserver');
 assert.match(companionJourney, /maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS/,
   'the fixed freshness reserve must be supplied to the browser-side criterion');
