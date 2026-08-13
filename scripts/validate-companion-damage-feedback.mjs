@@ -111,30 +111,38 @@ assert.match(journey, /function keysForVector\(dx, dy\)/);
 assert.match(journey, /async function moveWithKeyboard\(page, keys, durationMs\)/);
 assert.match(journey, /async function captureLiveCompanionFeedbackEvidence\(page, \{ role, critical, notBefore, marker, path \}\)/,
   'one helper must own live correlation, readability validation and screenshot capture');
-assert.match(journey, /const handle = await page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs \}\) => \{/,
-  'the criterion must execute as one browser-side wait with the bounded freshness reserve rather than separate locator calls');
-assert.match(journey, /const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
-  'the browser-side wait must inspect only currently rendered feedback nodes');
+assert.match(journey, /await page\.exposeBinding\(bindingName, async \(\{ page: boundPage \}, payload\) => \{/,
+  'the qualifying browser observation must hand off directly to an exposed Playwright screenshot binding');
+assert.match(journey, /const screenshot = await boundPage\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);[\s\S]*resolveScreenshot\(\{ screenshot, viewport, payload \}\)/,
+  'the binding must start the full-context CSS-pixel screenshot before cross-process assertion work');
+assert.match(journey, /await page\.evaluate\(\(\{ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer \}\) => \{/,
+  'the browser must install the correlation observer with the bounded freshness reserve');
+assert.match(journey, /const inspect = \(\) => \{[\s\S]*const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
+  'the atomic observer must inspect only currently rendered feedback nodes');
 assert.match(journey, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
   'role and critical identity must be filtered in the same browser frame');
 assert.match(journey, /entry\.role === expectedRole[\s\S]*entry\.kind === 'attack'[\s\S]*entry\.targetId === targetId[\s\S]*entry\.at > minimumAt/,
   'the live node must correlate to a strictly newer authoritative role, target and attack boundary');
 assert.match(journey, /const captureNow = performance\.now\(\);\s*const actionAgeMs = captureNow - Number\(action\.at\);\s*if \(!Number\.isFinite\(actionAgeMs\) \|\| actionAgeMs < 0 \|\| actionAgeMs > maxActionAgeMs\) continue;/,
-  'the browser waiter must reject late-life feedback before full-context screenshot capture begins');
+  'the atomic browser observer must reject late-life feedback before screenshot handoff');
+assert.match(journey, /scope\[observation\] = payload;[\s\S]*scope\[observer\]\?\.disconnect\?\.\(\);[\s\S]*void scope\[binding\]\(payload\);/,
+  'the accepted payload must be frozen and handed to Playwright in the same observer turn');
+assert.match(journey, /const mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
+  'transient feedback discovery must use one atomic MutationObserver instead of post-observation DOM reacquisition');
 assert.match(journey, /maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS/,
-  'the bounded 250ms action-age reserve must be passed into the same browser-side criterion');
+  'the bounded 250ms action-age reserve must be passed into the atomic browser criterion');
 assert.match(journey, /expect\(observedFeedback\.actionAgeMs\)\.toBeGreaterThanOrEqual\(0\);[\s\S]*toBeLessThanOrEqual\(COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS\)/,
   'accepted evidence metadata must prove it came from the strict freshness window');
 assert.match(journey, /opacity < 0\.9/,
   'capture must wait for a clearly painted animation frame');
-assert.match(journey, /timeout: 20_000,[\s\S]*polling: 16/,
-  'the unchanged 20 second criterion must sample the transient live window at the accepted deterministic 16ms observer cadence');
+assert.match(journey, /const handle = await page\.waitForFunction\(\(\{ observation \}\) => window\[observation\] \|\| false,[\s\S]*timeout: 20_000,[\s\S]*polling: 16/,
+  'the unchanged 20 second wait and 16ms cadence must remain while awaiting the atomically frozen observation');
+assert.doesNotMatch(journey, /page\.waitForFunction\(\(\{ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs \}\)/,
+  'the stale polling callback must not own transient discovery after atomic capture is installed');
 assert.doesNotMatch(journey, /feedback\.count\(\)|feedback\.evaluate\(/,
   'slow cross-process count/evaluate sequencing must not return');
-assert.match(journey, /const viewport = page\.viewportSize\(\);\s*expect\(viewport\)\.toBeTruthy\(\);\s*const screenshot = await page\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);\s*observedFeedback = await handle\.jsonValue\(\);\s*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);\s*assertFullViewportPng\(screenshot, viewport\);/,
-  'full-context CSS-pixel capture must start immediately after the qualifying browser frame, before any cross-process object transfer or assertion work');
-assert.doesNotMatch(journey, /handle\.jsonValue\(\)[\s\S]{0,300}page\.screenshot/,
-  'object transfer and assertions must not consume the 1050ms visual window before screenshot capture begins');
+assert.match(journey, /const \{ screenshot, viewport, payload \} = await screenshotPromise;\s*observedFeedback = await handle\.jsonValue\(\);\s*expect\(payload\.feedbackId\)\.toBe\(observedFeedback\.feedbackId\);\s*expect\(payload\.capturedAt\)\.toBe\(observedFeedback\.capturedAt\);\s*assertReadableFeedback\(observedFeedback, \{ role, critical, marker \}\);\s*assertFullViewportPng\(screenshot, viewport\);/,
+  'the completed atomic screenshot must be validated against the exact frozen observation payload');
 assert.match(journey, /function assertFullViewportPng\(screenshot, viewport\) \{[\s\S]*screenshot\.subarray\(0, 8\)[\s\S]*screenshot\.length\)\.toBeGreaterThan\(10_000\)[\s\S]*readUInt32BE\(16\)[\s\S]*readUInt32BE\(20\)[\s\S]*toBeGreaterThanOrEqual\(viewport\.width\)[\s\S]*toBeGreaterThanOrEqual\(viewport\.height\)/,
   'saved evidence must be a non-empty PNG covering the complete configured portrait viewport');
 assert.doesNotMatch(journey, /visibleAfterCapture|exactFeedback\.evaluate/,
