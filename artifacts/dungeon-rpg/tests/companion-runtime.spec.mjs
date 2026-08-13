@@ -280,73 +280,126 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
 
 async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notBefore, marker, path }) {
   let observedFeedback = null;
+  const bindingName = critical ? '__dungeonVeilCaptureCriticalCompanionFeedback' : '__dungeonVeilCaptureBasicCompanionFeedback';
+  const observationKey = critical ? '__dungeonVeilCriticalCompanionFeedbackObservation' : '__dungeonVeilBasicCompanionFeedbackObservation';
+  const observerKey = `${observationKey}Observer`;
+  let resolveScreenshot;
+  let rejectScreenshot;
+  const screenshotPromise = new Promise((resolve, reject) => {
+    resolveScreenshot = resolve;
+    rejectScreenshot = reject;
+  });
 
   try {
-    const handle = await page.waitForFunction(({ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs }) => {
-      const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
-      for (let index = nodes.length - 1; index >= 0; index -= 1) {
-        const node = nodes[index];
-        if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) continue;
-        const targetId = node.dataset.targetId || '';
-        const action = [...(window[logKey] || [])].reverse().find(entry => (
-          entry.role === expectedRole
-          && entry.kind === 'attack'
-          && entry.targetId === targetId
-          && entry.at > minimumAt
-        ));
-        if (!action || !node.isConnected) continue;
-        const captureNow = performance.now();
-        const actionAgeMs = captureNow - Number(action.at);
-        if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) continue;
-        const style = getComputedStyle(node);
-        const rect = node.getBoundingClientRect();
-        const opacity = Number(style.opacity);
-        if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || opacity < 0.9) continue;
-        const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
-        return {
-          ...action,
-          capturedAt: captureNow,
-          actionAgeMs,
-          feedbackId: node.getAttribute('data-testid') || '',
-          feedbackRole: node.dataset.companionRole || '',
-          feedbackTargetId: targetId,
-          critical: node.dataset.critical || '',
-          text: node.textContent || '',
-          width: rect.width,
-          height: rect.height,
-          fontSize: Number.parseFloat(style.fontSize),
-          viewportWidth: window.innerWidth,
-          backgroundColor: style.backgroundColor,
-          borderTopWidth: style.borderTopWidth,
-          boxShadow: style.boxShadow,
-          pointerEvents: style.pointerEvents,
-          opacity,
-          visibleCount: layer?.getAttribute('data-visible-count') || '',
-          expectedCritical: String(expectedCritical),
-        };
+    await page.exposeBinding(bindingName, async ({ page: boundPage }, payload) => {
+      try {
+        const viewport = boundPage.viewportSize();
+        expect(viewport).toBeTruthy();
+        const screenshot = await boundPage.screenshot({ path, fullPage: false, scale: 'css' });
+        resolveScreenshot({ screenshot, viewport, payload });
+      } catch (error) {
+        rejectScreenshot(error);
       }
-      return false;
+    });
+
+    await page.evaluate(({ logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer }) => {
+      const scope = window;
+      scope[observation] = null;
+      scope[observer]?.disconnect?.();
+
+      const inspect = () => {
+        if (scope[observation]) return true;
+        const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
+        for (let index = nodes.length - 1; index >= 0; index -= 1) {
+          const node = nodes[index];
+          if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) continue;
+          const targetId = node.dataset.targetId || '';
+          const action = [...(scope[logKey] || [])].reverse().find(entry => (
+            entry.role === expectedRole
+            && entry.kind === 'attack'
+            && entry.targetId === targetId
+            && entry.at > minimumAt
+          ));
+          if (!action || !node.isConnected) continue;
+          const captureNow = performance.now();
+          const actionAgeMs = captureNow - Number(action.at);
+          if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) continue;
+          const style = getComputedStyle(node);
+          const rect = node.getBoundingClientRect();
+          const opacity = Number(style.opacity);
+          if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || opacity < 0.9) continue;
+          const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
+          const payload = {
+            ...action,
+            capturedAt: captureNow,
+            actionAgeMs,
+            feedbackId: node.getAttribute('data-testid') || '',
+            feedbackRole: node.dataset.companionRole || '',
+            feedbackTargetId: targetId,
+            critical: node.dataset.critical || '',
+            text: node.textContent || '',
+            width: rect.width,
+            height: rect.height,
+            fontSize: Number.parseFloat(style.fontSize),
+            viewportWidth: window.innerWidth,
+            backgroundColor: style.backgroundColor,
+            borderTopWidth: style.borderTopWidth,
+            boxShadow: style.boxShadow,
+            pointerEvents: style.pointerEvents,
+            opacity,
+            visibleCount: layer?.getAttribute('data-visible-count') || '',
+            expectedCritical: String(expectedCritical),
+          };
+          scope[observation] = payload;
+          scope[observer]?.disconnect?.();
+          void scope[binding](payload);
+          return true;
+        }
+        return false;
+      };
+
+      const mutationObserver = new MutationObserver(() => inspect());
+      scope[observer] = mutationObserver;
+      mutationObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-visible-count', 'data-critical', 'data-target-id', 'data-companion-role'],
+      });
+      inspect();
     }, {
       logKey: COMPANION_ACTION_LOG,
       expectedRole: role,
       expectedCritical: critical,
       minimumAt: notBefore,
       maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS,
+      binding: bindingName,
+      observation: observationKey,
+      observer: observerKey,
+    });
+
+    const handle = await page.waitForFunction(({ observation }) => window[observation] || false, {
+      observation: observationKey,
     }, {
       timeout: 20_000,
       polling: 16,
     });
 
-    const viewport = page.viewportSize();
-    expect(viewport).toBeTruthy();
-    const screenshot = await page.screenshot({ path, fullPage: false, scale: 'css' });
+    const { screenshot, viewport, payload } = await screenshotPromise;
     observedFeedback = await handle.jsonValue();
+    expect(payload.feedbackId).toBe(observedFeedback.feedbackId);
+    expect(payload.capturedAt).toBe(observedFeedback.capturedAt);
     assertReadableFeedback(observedFeedback, { role, critical, marker });
     assertFullViewportPng(screenshot, viewport);
     return observedFeedback;
   } catch (error) {
     const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
     throw new Error(`${error instanceof Error ? error.message : String(error)}\nCompanion feedback diagnostics: ${JSON.stringify(diagnostics, null, 2)}`);
+  } finally {
+    await page.evaluate(observer => {
+      window[observer]?.disconnect?.();
+      delete window[observer];
+    }, observerKey).catch(() => {});
   }
 }
 
