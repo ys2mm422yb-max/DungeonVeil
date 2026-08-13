@@ -99,6 +99,15 @@ assert.match(companionJourney, /Companion feedback diagnostics: \$\{JSON\.string
 assert.doesNotMatch(companionJourney, /waitForCorrelatedCompanionFeedback|captureCorrelatedCompanionFeedbackEvidence/,
   'the expired-ID historical-snapshot sequence must not return');
 
+assert.match(companionJourney, /const COMPANION_FEEDBACK_REJECTION_LOG = '__dungeonVeilCompanionFeedbackRejectionLog';/,
+  'Product QA must retain an exact-head browser rejection log for the transient companion capture');
+assert.match(companionJourney, /const recordRejection = \(reason, node, extra = \{\}\) => \{[\s\S]*if \(log\.length > 32\) log\.splice\(0, log\.length - 32\);/,
+  'rejection telemetry must stay bounded during longer browser runs');
+assert.match(companionJourney, /'identity-mismatch'|'disconnected'|'no-correlated-action'|'action-age'|'not-visible-geometry'|'opacity-below-threshold'/,
+  'Product QA must distinguish the exact capture rejection predicate before changing acceptance behavior');
+assert.match(companionJourney, /rejections: \(window\[rejectionLogKey\] \|\| \[\]\)\.slice\(-32\)/,
+  'the final failure diagnostics must include historical capture rejection reasons');
+
 assert.match(visualReadiness, /function isNavigationTransitionError\(error\) \{[\s\S]*document\\\.\(\?:body\|documentElement\)\\\.scrollWidth/,
   'visual capture must classify WebKit body attachment as a navigation transition, not as a product overflow failure');
 assert.match(visualReadiness, /async function waitForDocumentBody\(page, timeout\) \{[\s\S]*waitForLoadState\('domcontentloaded'[\s\S]*locator\('body'\)\.waitFor\(\{ state: 'attached', timeout \}\)/,
