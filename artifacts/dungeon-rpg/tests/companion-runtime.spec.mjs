@@ -380,8 +380,8 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           const actionAgeMs = captureNow - Number(action.at);
           if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) {
             recordRejection('action-age', node, { actionAt: action.at, actionAgeMs, maxActionAgeMs });
-            continue;
           }
+          if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) continue;
           const style = getComputedStyle(node);
           const rect = node.getBoundingClientRect();
           const opacity = Number(style.opacity);
