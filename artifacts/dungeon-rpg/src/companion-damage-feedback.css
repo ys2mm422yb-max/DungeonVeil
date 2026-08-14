@@ -44,7 +44,7 @@
 }
 
 @keyframes dvCompanionDamageCompact {
-  0% { opacity: 0; transform: translate(-50%, -34%) scale(.88); }
+  0% { opacity: 1; transform: translate(-50%, -34%) scale(.88); }
   6% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
   45% { transform: translate(-50%, -60%) scale(1); }
   90% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
@@ -52,7 +52,7 @@
 }
 
 @keyframes dvCompanionDamageCompactCritical {
-  0% { opacity: 0; transform: translate(-50%, -34%) scale(.88); }
+  0% { opacity: 1; transform: translate(-50%, -34%) scale(.88); }
   6% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
   45% { transform: translate(-50%, -60%) scale(1); }
   90% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
@@ -70,7 +70,7 @@
 }
 
 @keyframes dvCompanionDamageCompactReduced {
-  0% { opacity: 0; }
+  0% { opacity: 1; }
   8%, 90% { opacity: 1; }
   100% { opacity: 0; }
 }
