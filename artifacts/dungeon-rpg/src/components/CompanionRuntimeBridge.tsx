@@ -500,7 +500,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
             }
           }
           @keyframes dvCompanionDamageReadableReduced {
-            0% { opacity: 0; }
+            0% { opacity: 1; }
             14%, 78% { opacity: 1; }
             100% { opacity: 0; }
           }
