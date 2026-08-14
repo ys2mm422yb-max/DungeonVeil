@@ -197,6 +197,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     feedbackVisibleUntilRef.current = 0;
     setDamageFeedback(null);
   }, [role, level]);
+
   useEffect(() => {
     let cancelled = false;
     authorityRef.current = mode === 'solo' ? 'solo' : 'unknown';
