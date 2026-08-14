@@ -197,7 +197,6 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     feedbackVisibleUntilRef.current = 0;
     setDamageFeedback(null);
   }, [role, level]);
-
   useEffect(() => {
     let cancelled = false;
     authorityRef.current = mode === 'solo' ? 'solo' : 'unknown';
@@ -488,7 +487,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         </div>}
         <style>{`
           @keyframes dvCompanionDamageReadable {
-            0% { opacity: 0; transform: translate(-50%, -24%) scale(.72); }
+            0% { opacity: 1; transform: translate(-50%, -24%) scale(.72); }
             15% { opacity: 1; transform: translate(-50%, -50%) scale(1.14); }
             34% { transform: translate(-50%, -58%) scale(1); }
             74% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
