@@ -4,6 +4,7 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
 const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
+const COMPANION_FEEDBACK_REJECTION_LOG = '__dungeonVeilCompanionFeedbackRejectionLog';
 const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';
 const COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS = 250;
 const DEFAULT_COMPANION_STATE = {
@@ -244,7 +245,7 @@ function assertFullViewportPng(screenshot, viewport) {
 }
 
 async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }) {
-  return page.evaluate(({ actionLogKey, expectedRole, expectedCritical, minimumAt }) => {
+  return page.evaluate(({ actionLogKey, rejectionLogKey, expectedRole, expectedCritical, minimumAt }) => {
     const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
     return {
       now: performance.now(),
@@ -254,6 +255,7 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
       runtime: runtime ? { ...runtime.dataset } : null,
       runtimeEvidence: window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null,
       actions: (window[actionLogKey] || []).slice(-12),
+      rejections: (window[rejectionLogKey] || []).slice(-32),
       liveFeedback: [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')].map(node => {
         const style = getComputedStyle(node);
         const rect = node.getBoundingClientRect();
@@ -272,6 +274,7 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
     };
   }, {
     actionLogKey: COMPANION_ACTION_LOG,
+    rejectionLogKey: COMPANION_FEEDBACK_REJECTION_LOG,
     expectedRole: role,
     expectedCritical: critical,
     minimumAt: notBefore,
@@ -302,13 +305,35 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       }
     });
 
-    await page.evaluate(({ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer }) => {
+    await page.evaluate(({ eventName, logKey, rejectionLogKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer }) => {
       const scope = window;
       scope[observation] = null;
+      scope[rejectionLogKey] = [];
       scope[observer]?.disconnect?.();
       let paintReinspectionFrame = 0;
       let mutationObserver = null;
       let actionListener = null;
+
+      const recordRejection = (reason, node, extra = {}) => {
+        const log = scope[rejectionLogKey];
+        const style = node ? getComputedStyle(node) : null;
+        const rect = node?.getBoundingClientRect?.();
+        log.push({
+          reason,
+          at: performance.now(),
+          feedbackId: node?.getAttribute?.('data-testid') || '',
+          role: node?.dataset?.companionRole || '',
+          targetId: node?.dataset?.targetId || '',
+          critical: node?.dataset?.critical || '',
+          text: node?.textContent || '',
+          connected: Boolean(node?.isConnected),
+          opacity: style ? Number(style.opacity) : null,
+          width: rect?.width ?? null,
+          height: rect?.height ?? null,
+          ...extra,
+        });
+        if (log.length > 32) log.splice(0, log.length - 32);
+      };
 
       const cleanup = () => {
         mutationObserver?.disconnect();
@@ -322,33 +347,49 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         if (paintReinspectionFrame || scope[observation]) return;
         paintReinspectionFrame = requestAnimationFrame(() => {
           paintReinspectionFrame = 0;
-          inspect();
+          inspect('rAF');
         });
       };
 
-      const inspect = () => {
+      const inspect = (trigger = 'initial') => {
         if (scope[observation]) return true;
         const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
         for (let index = nodes.length - 1; index >= 0; index -= 1) {
           const node = nodes[index];
-          if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) continue;
+          if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) {
+            recordRejection('identity-mismatch', node, { trigger, expectedRole, expectedCritical: String(expectedCritical) });
+            continue;
+          }
           const targetId = node.dataset.targetId || '';
-          if (!node.isConnected) continue;
+          if (!node.isConnected) {
+            recordRejection('disconnected', node, { trigger });
+            continue;
+          }
           const action = [...(scope[logKey] || [])].reverse().find(entry => (
             entry.role === expectedRole
             && entry.kind === 'attack'
             && entry.targetId === targetId
             && entry.at > minimumAt
           ));
-          if (!action) continue;
+          if (!action) {
+            recordRejection('no-correlated-action', node, { trigger, minimumAt, targetId });
+            continue;
+          }
           const captureNow = performance.now();
           const actionAgeMs = captureNow - Number(action.at);
-          if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) continue;
+          if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) {
+            recordRejection('action-age', node, { trigger, actionAt: action.at, actionAgeMs, maxActionAgeMs });
+            continue;
+          }
           const style = getComputedStyle(node);
           const rect = node.getBoundingClientRect();
           const opacity = Number(style.opacity);
-          if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') continue;
+          if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') {
+            recordRejection('not-visible-geometry', node, { trigger, visibility: style.visibility, display: style.display });
+            continue;
+          }
           if (opacity < 0.9) {
+            recordRejection('opacity-below-threshold', node, { trigger, opacity });
             schedulePaintReinspection();
             continue;
           }
@@ -386,21 +427,22 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         const detail = event.detail;
         if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
         if (detail.role !== expectedRole || Number(detail.at) <= minimumAt) return;
-        inspect();
+        inspect('action');
       };
       window.addEventListener(eventName, actionListener);
 
-      mutationObserver = new MutationObserver(() => inspect());
+      mutationObserver = new MutationObserver(() => inspect('mutation'));
       mutationObserver.observe(document.documentElement, {
         childList: true,
         subtree: true,
         attributes: true,
         attributeFilter: ['class', 'style', 'data-visible-count', 'data-critical', 'data-target-id', 'data-companion-role'],
       });
-      inspect();
+      inspect('initial');
     }, {
       eventName: COMPANION_ACTION_EVENT,
       logKey: COMPANION_ACTION_LOG,
+      rejectionLogKey: COMPANION_FEEDBACK_REJECTION_LOG,
       expectedRole: role,
       expectedCritical: critical,
       minimumAt: notBefore,
