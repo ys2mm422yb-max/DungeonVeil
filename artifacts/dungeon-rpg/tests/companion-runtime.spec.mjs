@@ -305,8 +305,9 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       }
     });
 
-    await page.evaluate(({ eventName, logKey, rejectionLogKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer }) => {
+    await page.evaluate(({ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer }) => {
       const scope = window;
+      const rejectionLogKey = '__dungeonVeilCompanionFeedbackRejectionLog';
       scope[observation] = null;
       scope[rejectionLogKey] = [];
       scope[observer]?.disconnect?.();
@@ -347,22 +348,22 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         if (paintReinspectionFrame || scope[observation]) return;
         paintReinspectionFrame = requestAnimationFrame(() => {
           paintReinspectionFrame = 0;
-          inspect('rAF');
+          inspect();
         });
       };
 
-      const inspect = (trigger = 'initial') => {
+      const inspect = () => {
         if (scope[observation]) return true;
         const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
         for (let index = nodes.length - 1; index >= 0; index -= 1) {
           const node = nodes[index];
           if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) {
-            recordRejection('identity-mismatch', node, { trigger, expectedRole, expectedCritical: String(expectedCritical) });
+            recordRejection('identity-mismatch', node, { expectedRole, expectedCritical: String(expectedCritical) });
             continue;
           }
           const targetId = node.dataset.targetId || '';
           if (!node.isConnected) {
-            recordRejection('disconnected', node, { trigger });
+            recordRejection('disconnected', node);
             continue;
           }
           const action = [...(scope[logKey] || [])].reverse().find(entry => (
@@ -372,24 +373,24 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             && entry.at > minimumAt
           ));
           if (!action) {
-            recordRejection('no-correlated-action', node, { trigger, minimumAt, targetId });
+            recordRejection('no-correlated-action', node, { minimumAt, targetId });
             continue;
           }
           const captureNow = performance.now();
           const actionAgeMs = captureNow - Number(action.at);
           if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) {
-            recordRejection('action-age', node, { trigger, actionAt: action.at, actionAgeMs, maxActionAgeMs });
+            recordRejection('action-age', node, { actionAt: action.at, actionAgeMs, maxActionAgeMs });
             continue;
           }
           const style = getComputedStyle(node);
           const rect = node.getBoundingClientRect();
           const opacity = Number(style.opacity);
           if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') {
-            recordRejection('not-visible-geometry', node, { trigger, visibility: style.visibility, display: style.display });
+            recordRejection('not-visible-geometry', node, { visibility: style.visibility, display: style.display });
             continue;
           }
           if (opacity < 0.9) {
-            recordRejection('opacity-below-threshold', node, { trigger, opacity });
+            recordRejection('opacity-below-threshold', node, { opacity });
             schedulePaintReinspection();
             continue;
           }
@@ -427,22 +428,21 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         const detail = event.detail;
         if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
         if (detail.role !== expectedRole || Number(detail.at) <= minimumAt) return;
-        inspect('action');
+        inspect();
       };
       window.addEventListener(eventName, actionListener);
 
-      mutationObserver = new MutationObserver(() => inspect('mutation'));
+      mutationObserver = new MutationObserver(() => inspect());
       mutationObserver.observe(document.documentElement, {
         childList: true,
         subtree: true,
         attributes: true,
         attributeFilter: ['class', 'style', 'data-visible-count', 'data-critical', 'data-target-id', 'data-companion-role'],
       });
-      inspect('initial');
+      inspect();
     }, {
       eventName: COMPANION_ACTION_EVENT,
       logKey: COMPANION_ACTION_LOG,
-      rejectionLogKey: COMPANION_FEEDBACK_REJECTION_LOG,
       expectedRole: role,
       expectedCritical: critical,
       minimumAt: notBefore,
