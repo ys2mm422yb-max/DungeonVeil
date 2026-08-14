@@ -376,11 +376,13 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             recordRejection('no-correlated-action', node, { minimumAt, targetId });
             continue;
           }
+          const diagnosticCaptureNow = performance.now();
+          const diagnosticActionAgeMs = diagnosticCaptureNow - Number(action.at);
+          if (!Number.isFinite(diagnosticActionAgeMs) || diagnosticActionAgeMs < 0 || diagnosticActionAgeMs > maxActionAgeMs) {
+            recordRejection('action-age', node, { actionAt: action.at, actionAgeMs: diagnosticActionAgeMs, maxActionAgeMs });
+          }
           const captureNow = performance.now();
           const actionAgeMs = captureNow - Number(action.at);
-          if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) {
-            recordRejection('action-age', node, { actionAt: action.at, actionAgeMs, maxActionAgeMs });
-          }
           if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) continue;
           const style = getComputedStyle(node);
           const rect = node.getBoundingClientRect();
