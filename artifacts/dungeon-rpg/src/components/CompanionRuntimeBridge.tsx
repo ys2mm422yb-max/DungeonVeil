@@ -177,6 +177,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   const feedbackPaintTokenRef = useRef(0);
   const activeDamageFeedbackRef = useRef<CompanionDamageFeedback | null>(null);
   const feedbackVisibleUntilRef = useRef(0);
+  const runtimeFrozenRef = useRef(false);
   const [damageFeedback, setDamageFeedback] = useState<CompanionDamageFeedback | null>(null);
   stateRef.current = gameState;
   roleRef.current = role;
@@ -215,6 +216,34 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     }
     return () => { cancelled = true; };
   }, [mode]);
+
+  useEffect(() => {
+    const syncFrozenBaseline = () => {
+      const state = stateRef.current;
+      previousHpRef.current = state.player.hp;
+      lastPlayerAttackRef.current = state.player.lastAttackTime;
+      recentCombatTargetRef.current = null;
+    };
+    const freezeRuntime = () => {
+      runtimeFrozenRef.current = true;
+      syncFrozenBaseline();
+      if (markerRef.current) markerRef.current.dataset.runtimeFrozen = 'true';
+    };
+    const resumeRuntime = () => {
+      syncFrozenBaseline();
+      runtimeFrozenRef.current = false;
+      if (markerRef.current) markerRef.current.dataset.runtimeFrozen = 'false';
+    };
+    if (markerRef.current) markerRef.current.dataset.runtimeFrozen = 'false';
+    window.addEventListener('dungeon-veil-room-preparing', freezeRuntime);
+    window.addEventListener('dungeon-veil-renderer-lost', freezeRuntime);
+    window.addEventListener('dungeon-veil-room-ready', resumeRuntime);
+    return () => {
+      window.removeEventListener('dungeon-veil-room-preparing', freezeRuntime);
+      window.removeEventListener('dungeon-veil-renderer-lost', freezeRuntime);
+      window.removeEventListener('dungeon-veil-room-ready', resumeRuntime);
+    };
+  }, []);
 
   useEffect(() => {
     const publishDamageFeedback = (
@@ -275,6 +304,13 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       const canWriteEnemies = modeRef.current === 'solo' || authorityRef.current === 'host';
       const target = nearestEnemy(state);
       const previousCombatTarget = recentCombatTargetRef.current;
+
+      if (runtimeFrozenRef.current) {
+        previousHpRef.current = state.player.hp;
+        lastPlayerAttackRef.current = state.player.lastAttackTime;
+        recentCombatTargetRef.current = null;
+        return;
+      }
 
       if (state.status !== 'playing' || state.player.hp <= 0) {
         previousHpRef.current = state.player.hp;
@@ -453,6 +489,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         data-revive-target="false"
         data-blocks-players="false"
         data-blocks-enemies="false"
+        data-runtime-frozen="false"
         data-feedback-active={damageFeedback ? 'true' : 'false'}
         data-feedback-projected={projectedFeedback ? 'true' : 'false'}
         data-feedback-target={damageFeedback?.targetId ?? ''}
