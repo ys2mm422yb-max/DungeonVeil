@@ -49,6 +49,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let playerRigGeneration = 0;
     let arrowPrototype: any = null;
     let roomRoot: any = null;
+    let roomPaintRoot: any = null;
+    let roomPaintKey = '';
     let portal: any = null;
     let playerLight: any = null;
     let playerPulse: any = null;
@@ -85,6 +87,15 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
     const mapX = (state: GameState, value: number) => value / TILE - state.map.width / 2 + 0.5;
     const mapZ = (state: GameState, value: number) => value / TILE - state.map.height / 2 + 0.5;
+
+    const clearRoomPaintState = (key?: string) => {
+      if (!key || host.dataset.roomPaintExpectedKey === key) delete host.dataset.roomPaintExpectedKey;
+      if (!key || host.dataset.roomPaintReadyKey === key) delete host.dataset.roomPaintReadyKey;
+      if (!key || roomPaintKey === key) {
+        roomPaintRoot = null;
+        roomPaintKey = '';
+      }
+    };
 
     const applyRoomEnvironment = (activeRoom: any) => {
       const environment = activeRoom?.userData?.theme?.userData?.environment;
@@ -194,6 +205,10 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const key = `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
       if (key === lastRoomKey || key === pendingRoomKey) return;
       pendingRoomKey = key;
+      host.dataset.roomPaintExpectedKey = key;
+      delete host.dataset.roomPaintReadyKey;
+      roomPaintRoot = null;
+      roomPaintKey = '';
       const generation = ++roomGeneration;
       window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { key, floor: state.floor } }));
 
@@ -210,6 +225,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         const live = stateRef.current;
         const liveKey = `${live.chapter}:${live.floor}:${live.map.width}x${live.map.height}`;
         if (disposed || generation !== roomGeneration || liveKey !== key) {
+          clearRoomPaintState(key);
           room.userData?.dispose?.();
           theme.userData?.dispose?.();
           disposeObject(root);
@@ -220,6 +236,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         roomRoot = root;
         applyRoomEnvironment(root);
         scene.add(root);
+        roomPaintRoot = root;
+        roomPaintKey = key;
         lastRoomKey = key;
         pendingRoomKey = '';
 
@@ -232,7 +250,10 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
 
         window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key, floor: live.floor } }));
       }).catch(error => {
-        if (generation === roomGeneration) pendingRoomKey = '';
+        if (generation === roomGeneration) {
+          pendingRoomKey = '';
+          clearRoomPaintState(key);
+        }
         console.error('KayKit atomic room build failed', error);
         window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key, floor: state.floor, failed: true } }));
       });
@@ -962,6 +983,11 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       camera.userData.dungeonPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
       updateRunCamera(camera, cameraGoal, playerX, playerZ, state.roomClearReady);
       renderer.render(scene, camera);
+      if (roomPaintRoot === roomRoot && roomPaintKey && host.dataset.roomPaintExpectedKey === roomPaintKey) {
+        host.dataset.roomPaintReadyKey = roomPaintKey;
+        roomPaintRoot = null;
+        roomPaintKey = '';
+      }
       updatePerformanceDiagnostics(gameNow);
       raf = requestAnimationFrame(renderLoop);
     };
@@ -1040,6 +1066,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     return () => {
       disposed = true;
       roomGeneration += 1;
+      clearRoomPaintState();
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       window.removeEventListener('dungeon-veil-meta-changed', refreshEquippedPlayerRig);
