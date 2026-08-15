@@ -51,6 +51,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let roomRoot: any = null;
     let roomPaintRoot: any = null;
     let roomPaintKey = '';
+    let roomPaintPresentationFrames = 0;
     let portal: any = null;
     let playerLight: any = null;
     let playerPulse: any = null;
@@ -92,6 +93,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       if (!key || host.dataset.roomPaintExpectedKey === key) delete host.dataset.roomPaintExpectedKey;
       if (!key || host.dataset.roomPaintReadyKey === key) delete host.dataset.roomPaintReadyKey;
       if (!key || roomPaintKey === key) {
+        roomPaintPresentationFrames = 0;
         roomPaintRoot = null;
         roomPaintKey = '';
       }
@@ -207,6 +209,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       pendingRoomKey = key;
       host.dataset.roomPaintExpectedKey = key;
       delete host.dataset.roomPaintReadyKey;
+      roomPaintPresentationFrames = 0;
       roomPaintRoot = null;
       roomPaintKey = '';
       const generation = ++roomGeneration;
@@ -236,6 +239,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         roomRoot = root;
         applyRoomEnvironment(root);
         scene.add(root);
+        roomPaintPresentationFrames = 0;
         roomPaintRoot = root;
         roomPaintKey = key;
         lastRoomKey = key;
@@ -984,9 +988,15 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       updateRunCamera(camera, cameraGoal, playerX, playerZ, state.roomClearReady);
       renderer.render(scene, camera);
       if (roomPaintRoot === roomRoot && roomPaintKey && host.dataset.roomPaintExpectedKey === roomPaintKey) {
-        host.dataset.roomPaintReadyKey = roomPaintKey;
-        roomPaintRoot = null;
-        roomPaintKey = '';
+        roomPaintPresentationFrames += 1;
+        if (roomPaintPresentationFrames >= 2) {
+          host.dataset.roomPaintReadyKey = roomPaintKey;
+          roomPaintPresentationFrames = 0;
+          roomPaintRoot = null;
+          roomPaintKey = '';
+        }
+      } else {
+        roomPaintPresentationFrames = 0;
       }
       updatePerformanceDiagnostics(gameNow);
       raf = requestAnimationFrame(renderLoop);
