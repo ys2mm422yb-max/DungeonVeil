@@ -33,8 +33,10 @@ assert.match(companionJourney, /await page\.exposeBinding\(bindingName, async \(
   'the qualifying observation must trigger the Playwright screenshot binding directly');
 assert.match(companionJourney, /const screenshot = await boundPage\.screenshot\(\{ path, fullPage: false, scale: 'css' \}\);[\s\S]*resolveScreenshot\(\{ screenshot, viewport, payload \}\)/,
   'full-context screenshot capture must begin inside the binding before assertion round trips');
-assert.match(companionJourney, /await page\.evaluate\(\(\{ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer \}\) => \{/,
-  'one browser-side observer installation must own discovery, event correlation, validation and freshness of transient feedback');
+assert.match(companionJourney, /await page\.evaluate\(\(\{ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer, armed \}\) => \{/,
+  'one browser-side observer installation must own discovery, event correlation, validation, freshness and explicit armed state');
+assert.match(companionJourney, /scope\[armed\] = false;[\s\S]*window\.addEventListener\(eventName, actionListener\);[\s\S]*mutationObserver\.observe\(document\.documentElement,[\s\S]*inspect\(\);\s*scope\[armed\] = true;/,
+  'the critical capture may be triggered only after the action listener, DOM observer and initial inspection are all armed');
 assert.match(companionJourney, /const inspect = \(\) => \{[\s\S]*const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
   'the atomic browser observer must inspect currently rendered damage nodes without locator round trips');
 assert.match(companionJourney, /node\.dataset\.companionRole !== expectedRole \|\| node\.dataset\.critical !== String\(expectedCritical\)/,
@@ -88,8 +90,8 @@ assert.match(companionJourney, /const phase = attempt % 3;[\s\S]*\{ x: dx, y: dy
   'the search must try the target line and both lateral paths instead of one device-specific guess');
 assert.doesNotMatch(companionJourney, /__dungeonVeilRuntimeEvidence\?\.(?:loadRoom|killLivingEnemies|moveToExit|chooseFirstGift|setMode|setPlayerStats|setLivingEnemyFamilies)/,
   'the companion journey may read the localhost snapshot but must not mutate combat through QA controls');
-assert.match(companionJourney, /const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*notBefore: attackBoundary[\s\S]*const \[confirmedPlayerAttackAt, observedCritical\] = await Promise\.all\(\[[\s\S]*triggerConfirmedPlayerAttack\(page, attackBoundary\),[\s\S]*capturePromise[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(attackBoundary\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThan\(attackBoundary\)/,
-  'critical evidence must bind to the last authoritative player-attack boundary and prove both causal actions are strictly newer');
+assert.match(companionJourney, /const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*notBefore: attackBoundary[\s\S]*await page\.waitForFunction\([\s\S]*window\[armed\] === true[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*timeout: 20_000, polling: 16[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\(page, attackBoundary\);[\s\S]*const observedCritical = await capturePromise;[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(attackBoundary\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThan\(attackBoundary\)/,
+  'critical evidence must bind to the last authoritative player-attack boundary and prove the browser capture is armed before both causal actions occur');
 assert.match(companionJourney, /runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null/,
   'device failures must include the authoritative player and target snapshot');
 assert.match(companionJourney, /observedAt: performance\.now\(\)/,
