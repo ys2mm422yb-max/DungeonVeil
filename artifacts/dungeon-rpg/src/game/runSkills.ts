@@ -33,8 +33,8 @@ export const OVERFLOW_GIFTS: OverflowGiftKey[] = ['hunterBlessing', 'vitalSpark'
 export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   multishot: {
     maxRank: 3,
-    rankTextDe: ['2 Pfeile im Fächer · Zusatzpfeil 82% Schaden', '3 Pfeile im Fächer · Zusatzpfeile 82% Schaden', '4 Pfeile im breiten Fächer · Zusatzpfeile 82% Schaden'],
-    rankTextEn: ['2 arrows in a fan · extra arrow 82% damage', '3 arrows in a fan · extra arrows 82% damage', '4 arrows in a wide fan · extra arrows 82% damage'],
+    rankTextDe: ['Bis zu 2 Ziele/Pfeile · Zusatzpfeil 82% Schaden', 'Bis zu 3 Ziele/Pfeile · Zusatzpfeile 82% Schaden', 'Bis zu 4 Ziele/Pfeile · Zusatzpfeile 82% Schaden'],
+    rankTextEn: ['Up to 2 targets/arrows · extra arrow 82% damage', 'Up to 3 targets/arrows · extra arrows 82% damage', 'Up to 4 targets/arrows · extra arrows 82% damage'],
   },
   ricochet: {
     maxRank: 3,
@@ -43,8 +43,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   fireArrow: {
     maxRank: 3,
-    rankTextDe: ['2 Brandschaden × 3', '3 Brandschaden × 4', '4 Brandschaden × 5 + Feuerburst beim Tod'],
-    rankTextEn: ['2 burn damage × 3', '3 burn damage × 4', '4 burn damage × 5 + death fire burst'],
+    rankTextDe: ['2 Brandschaden × 3', '3 Brandschaden × 4', '4 Brandschaden × 5 + visueller Feuerburst beim Tod'],
+    rankTextEn: ['2 burn damage × 3', '3 burn damage × 4', '4 burn damage × 5 + visual fire burst on death'],
   },
   iceArrow: {
     maxRank: 3,
@@ -53,8 +53,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   attackSpeed: {
     maxRank: 3,
-    rankTextDe: ['16% schneller', '30% schneller', '42% schneller'],
-    rankTextEn: ['16% faster', '30% faster', '42% faster'],
+    rankTextDe: ['Angriffs-Cooldown -16%', 'Angriffs-Cooldown -30%', 'Angriffs-Cooldown -42%'],
+    rankTextEn: ['Attack cooldown -16%', 'Attack cooldown -30%', 'Attack cooldown -42%'],
   },
   piercing: {
     maxRank: 3,
@@ -63,8 +63,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   elementalStorm: {
     maxRank: 1,
-    rankTextDe: ['Feuerpfeil III + Frostpfeil III · jeder fünfte Elementartreffer entfesselt einen kleinen Ausbruch'],
-    rankTextEn: ['Fire Arrow III + Frost Arrow III · every fifth elemental hit unleashes a small burst'],
+    rankTextDe: ['Feuerpfeil III + Frostpfeil III · jeder 5. Elementartreffer: 35% Angriff · Radius 92 · max. 3 weitere Ziele'],
+    rankTextEn: ['Fire Arrow III + Frost Arrow III · every 5th elemental hit: 35% attack · radius 92 · max 3 additional targets'],
   },
   arrowStorm: {
     maxRank: 1,
