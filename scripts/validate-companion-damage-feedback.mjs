@@ -171,7 +171,12 @@ assert.match(journey, /now: performance\.now\(\),[\s\S]*minimumAt,[\s\S]*runtime
   'a failed device must report input epoch, component state, authoritative player state, event timestamps and current nodes');
 assert.match(journey, /Companion feedback diagnostics: \$\{JSON\.stringify\(diagnostics, null, 2\)\}/);
 assert.match(journey, /async function waitForStableRoom\(page\)/);
-assert.match(journey, /Date\.now\(\) - hiddenSince >= 1_200 \? 'stable' : 'settling'/);
+assert.match(journey, /const titleStable = Date\.now\(\) - hiddenSince >= 1_200;/,
+  'the original continuous 1200ms hidden-title threshold must remain unchanged');
+assert.match(journey, /const rendererHost = document\.querySelector\('\[data-testid="run-three-host"\]'\);[\s\S]*data-room-paint-expected-key[\s\S]*data-room-paint-ready-key/,
+  'room stability must read renderer-owned expected and paint-ready keys from the live run renderer host');
+assert.match(journey, /!expectedPaintKey \|\| paintReadyKey !== expectedPaintKey[\s\S]*'renderer-pending'[\s\S]*return titleStable \? 'stable' : 'settling'/,
+  'room stability must require a non-empty matching renderer paint key in addition to the unchanged 1200ms title contract');
 assert.match(journey, /timeout: 120_000,[\s\S]*intervals: \[100, 250, 500\]/);
 assert.match(journey, /await armCompanionActionObservation\(page\);\s*const basicEvidenceEpoch = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*await startFreshRun\(page\);[\s\S]*await waitForStableRoom\(page\);\s*await captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'shield',[\s\S]*critical: false,[\s\S]*notBefore: basicEvidenceEpoch,[\s\S]*marker: \/◆\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-\$\{testInfo\.project\.name\}\.png/,
   'normal-hit evidence must arm an empty event log and its epoch before combat starts, while still waiting for the room-title transition before capture');
