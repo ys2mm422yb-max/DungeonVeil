@@ -166,25 +166,30 @@ async function readTransientRoomTitleState(page) {
       const bounds = candidate.getBoundingClientRect();
       if (style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || '1') > 0 && bounds.width > 0 && bounds.height > 0) visibleOwners.push(testId);
     }
-    return { owners, visibleOwners };
+    const rendererHost = document.querySelector('[data-testid="run-three-host"]');
+    const expectedPaintKey = rendererHost?.getAttribute('data-room-paint-expected-key') ?? '';
+    const paintReadyKey = rendererHost?.getAttribute('data-room-paint-ready-key') ?? '';
+    return { owners, visibleOwners, expectedPaintKey, paintReadyKey };
   });
 }
 
 async function waitForStableRoom(page) {
   let hiddenSince = 0;
   await expect.poll(async () => {
-    const { owners, visibleOwners } = await readTransientRoomTitleState(page);
+    const { owners, visibleOwners, expectedPaintKey, paintReadyKey } = await readTransientRoomTitleState(page);
     if (owners.length > 1 || visibleOwners.length > 1) return 'duplicate';
     if (visibleOwners.length === 1) {
       hiddenSince = 0;
       return 'active';
     }
     if (hiddenSince === 0) hiddenSince = Date.now();
-    return Date.now() - hiddenSince >= 1_200 ? 'stable' : 'settling';
+    const titleStable = Date.now() - hiddenSince >= 1_200;
+    if (!expectedPaintKey || paintReadyKey !== expectedPaintKey) return titleStable ? 'renderer-pending' : 'settling';
+    return titleStable ? 'stable' : 'settling';
   }, {
     timeout: 120_000,
     intervals: [100, 250, 500],
-    message: 'the authoritative room-title transition must be absent or continuously hidden before companion feedback evidence capture',
+    message: 'the authoritative room-title transition must be continuously hidden and the current renderer world root must be paint-ready before companion feedback evidence capture',
   }).toBe('stable');
 }
 
