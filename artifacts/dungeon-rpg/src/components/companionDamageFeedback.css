@@ -1,8 +1,3 @@
-[data-testid^="companion-damage-number-"] {
-  min-width: 88px !important;
-  min-height: 41px !important;
-}
-
 [data-testid^="companion-damage-number-"][data-critical="false"] {
   animation-name: dvCompanionDamageReadable !important;
 }

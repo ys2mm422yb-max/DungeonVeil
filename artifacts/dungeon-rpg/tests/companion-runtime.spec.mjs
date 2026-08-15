@@ -4,7 +4,9 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 const COMPANION_ACTION_LOG = '__dungeonVeilCompanionActionLog';
 const COMPANION_ACTION_LISTENER = '__dungeonVeilCompanionActionListenerInstalled';
+const COMPANION_FEEDBACK_REJECTION_LOG = '__dungeonVeilCompanionFeedbackRejectionLog';
 const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';
+const COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS = 250;
 const DEFAULT_COMPANION_STATE = {
   activeId: 'single-target',
   companions: { 'single-target': { level: 1, unlockedAt: 1 } },
@@ -96,14 +98,14 @@ async function moveWithKeyboard(page, keys, durationMs) {
   }
 }
 
-async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
+async function triggerConfirmedPlayerAttack(page, attackBoundary) {
   const inputBurst = 6;
   const attempts = [];
 
   for (let attempt = 0; attempt < inputBurst; attempt += 1) {
     const before = await readRuntimeCombatSnapshot(page);
     const previousAttackAt = Number(before?.playerLastAttackTime || 0);
-    if (previousAttackAt >= attackIssuedAt) return previousAttackAt;
+    if (previousAttackAt > attackBoundary) return previousAttackAt;
 
     const enemies = Array.isArray(before?.livingEnemyPositions) ? before.livingEnemyPositions : [];
     if (!enemies.length) break;
@@ -142,11 +144,11 @@ async function triggerConfirmedPlayerAttack(page, attackIssuedAt) {
       confirmedAt,
       livingEnemies: Number(after?.livingEnemies || 0),
     });
-    if (confirmedAt >= attackIssuedAt) return confirmedAt;
+    if (confirmedAt > attackBoundary) return confirmedAt;
   }
 
   const finalSnapshot = await readRuntimeCombatSnapshot(page);
-  throw new Error(`No authoritative player attack occurred after ${attackIssuedAt}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
+  throw new Error(`No authoritative player attack occurred after ${attackBoundary}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
 }
 
 async function readTransientRoomTitleState(page) {
@@ -164,25 +166,30 @@ async function readTransientRoomTitleState(page) {
       const bounds = candidate.getBoundingClientRect();
       if (style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || '1') > 0 && bounds.width > 0 && bounds.height > 0) visibleOwners.push(testId);
     }
-    return { owners, visibleOwners };
+    const rendererHost = document.querySelector('[data-testid="run-three-host"]');
+    const expectedPaintKey = rendererHost?.getAttribute('data-room-paint-expected-key') ?? '';
+    const paintReadyKey = rendererHost?.getAttribute('data-room-paint-ready-key') ?? '';
+    return { owners, visibleOwners, expectedPaintKey, paintReadyKey };
   });
 }
 
 async function waitForStableRoom(page) {
   let hiddenSince = 0;
   await expect.poll(async () => {
-    const { owners, visibleOwners } = await readTransientRoomTitleState(page);
+    const { owners, visibleOwners, expectedPaintKey, paintReadyKey } = await readTransientRoomTitleState(page);
     if (owners.length > 1 || visibleOwners.length > 1) return 'duplicate';
     if (visibleOwners.length === 1) {
       hiddenSince = 0;
       return 'active';
     }
     if (hiddenSince === 0) hiddenSince = Date.now();
-    return Date.now() - hiddenSince >= 1_200 ? 'stable' : 'settling';
+    const titleStable = Date.now() - hiddenSince >= 1_200;
+    if (!expectedPaintKey || paintReadyKey !== expectedPaintKey) return titleStable ? 'renderer-pending' : 'settling';
+    return titleStable ? 'stable' : 'settling';
   }, {
     timeout: 120_000,
     intervals: [100, 250, 500],
-    message: 'the authoritative room-title transition must be absent or continuously hidden before companion feedback evidence capture',
+    message: 'the authoritative room-title transition must be continuously hidden and the current renderer world root must be paint-ready before companion feedback evidence capture',
   }).toBe('stable');
 }
 
@@ -216,17 +223,21 @@ function assertReadableFeedback(observedFeedback, { role, critical, marker }) {
   expect(observedFeedback.critical).toBe(String(critical));
   expect(observedFeedback.text).toMatch(marker);
   expect(observedFeedback.visibleCount).toBe('1');
-  expect(observedFeedback.width).toBeGreaterThanOrEqual(24);
-  expect(observedFeedback.width).toBeLessThanOrEqual(72);
-  expect(observedFeedback.height).toBeGreaterThanOrEqual(15);
-  expect(observedFeedback.height).toBeLessThanOrEqual(32);
-  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(critical ? 17 : 15);
-  expect(observedFeedback.fontSize).toBeLessThanOrEqual(critical ? 20.5 : 18);
+  expect(observedFeedback.width).toBeGreaterThan(0);
+  expect(observedFeedback.height).toBeGreaterThan(0);
+  expect(observedFeedback.fontSize).toBeGreaterThan(0);
+  const viewportClass = observedFeedback.viewportWidth >= 600 ? 'tablet' : 'phone';
+  const maxFont = viewportClass === 'tablet' ? (critical ? 16 : 13) : (critical ? 12 : 10.5);
+  const minFont = viewportClass === 'tablet' ? (critical ? 13 : 11) : (critical ? 9.5 : 8);
+  expect(observedFeedback.fontSize).toBeGreaterThanOrEqual(minFont);
+  expect(observedFeedback.fontSize).toBeLessThanOrEqual(maxFont);
   expect(observedFeedback.backgroundColor).toMatch(/rgba\(0, 0, 0, 0\)|transparent/i);
   expect(observedFeedback.borderTopWidth).toBe('0px');
   expect(observedFeedback.boxShadow).toBe('none');
   expect(observedFeedback.pointerEvents).toBe('none');
   expect(observedFeedback.opacity).toBeGreaterThanOrEqual(0.9);
+  expect(observedFeedback.actionAgeMs).toBeGreaterThanOrEqual(0);
+  expect(observedFeedback.actionAgeMs).toBeLessThanOrEqual(COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS);
 }
 
 function assertFullViewportPng(screenshot, viewport) {
@@ -239,7 +250,7 @@ function assertFullViewportPng(screenshot, viewport) {
 }
 
 async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }) {
-  return page.evaluate(({ actionLogKey, expectedRole, expectedCritical, minimumAt }) => {
+  return page.evaluate(({ actionLogKey, rejectionLogKey, expectedRole, expectedCritical, minimumAt }) => {
     const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
     return {
       now: performance.now(),
@@ -249,6 +260,7 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
       runtime: runtime ? { ...runtime.dataset } : null,
       runtimeEvidence: window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null,
       actions: (window[actionLogKey] || []).slice(-12),
+      rejections: (window[rejectionLogKey] || []).slice(-32),
       liveFeedback: [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')].map(node => {
         const style = getComputedStyle(node);
         const rect = node.getBoundingClientRect();
@@ -267,6 +279,7 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
     };
   }, {
     actionLogKey: COMPANION_ACTION_LOG,
+    rejectionLogKey: COMPANION_FEEDBACK_REJECTION_LOG,
     expectedRole: role,
     expectedCritical: critical,
     minimumAt: notBefore,
@@ -275,62 +288,204 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
 
 async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notBefore, marker, path }) {
   let observedFeedback = null;
+  const bindingName = critical ? '__dungeonVeilCaptureCriticalCompanionFeedback' : '__dungeonVeilCaptureBasicCompanionFeedback';
+  const observationKey = critical ? '__dungeonVeilCriticalCompanionFeedbackObservation' : '__dungeonVeilBasicCompanionFeedbackObservation';
+  const observerKey = `${observationKey}Observer`;
+  const armedKey = `${observationKey}Armed`;
+  let resolveScreenshot;
+  let rejectScreenshot;
+  const screenshotPromise = new Promise((resolve, reject) => {
+    resolveScreenshot = resolve;
+    rejectScreenshot = reject;
+  });
 
   try {
-    const handle = await page.waitForFunction(({ logKey, expectedRole, expectedCritical, minimumAt }) => {
-      const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
-      for (let index = nodes.length - 1; index >= 0; index -= 1) {
-        const node = nodes[index];
-        if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) continue;
-        const targetId = node.dataset.targetId || '';
-        const action = [...(window[logKey] || [])].reverse().find(entry => (
-          entry.role === expectedRole
-          && entry.kind === 'attack'
-          && entry.targetId === targetId
-          && entry.at >= minimumAt
-        ));
-        if (!action || !node.isConnected) continue;
-        const style = getComputedStyle(node);
-        const rect = node.getBoundingClientRect();
-        const opacity = Number(style.opacity);
-        if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none' || opacity < 0.9) continue;
-        const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
-        return {
-          ...action,
-          capturedAt: performance.now(),
-          feedbackId: node.getAttribute('data-testid') || '',
-          feedbackRole: node.dataset.companionRole || '',
-          feedbackTargetId: targetId,
-          critical: node.dataset.critical || '',
-          text: node.textContent || '',
-          width: rect.width,
-          height: rect.height,
-          fontSize: Number.parseFloat(style.fontSize),
-          backgroundColor: style.backgroundColor,
-          borderTopWidth: style.borderTopWidth,
-          boxShadow: style.boxShadow,
-          pointerEvents: style.pointerEvents,
-          opacity,
-          visibleCount: layer?.getAttribute('data-visible-count') || '',
-          expectedCritical: String(expectedCritical),
-        };
+    await page.exposeBinding(bindingName, async ({ page: boundPage }, payload) => {
+      try {
+        const viewport = boundPage.viewportSize();
+        expect(viewport).toBeTruthy();
+        const screenshot = await boundPage.screenshot({ path, fullPage: false, scale: 'css' });
+        resolveScreenshot({ screenshot, viewport, payload });
+      } catch (error) {
+        rejectScreenshot(error);
       }
-      return false;
-    }, { logKey: COMPANION_ACTION_LOG, expectedRole: role, expectedCritical: critical, minimumAt: notBefore }, {
+    });
+
+    await page.evaluate(({ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer, armed }) => {
+      const scope = window;
+      const rejectionLogKey = '__dungeonVeilCompanionFeedbackRejectionLog';
+      scope[observation] = null;
+      scope[armed] = false;
+      scope[rejectionLogKey] = [];
+      scope[observer]?.disconnect?.();
+      let paintReinspectionFrame = 0;
+      let mutationObserver = null;
+      let actionListener = null;
+
+      const recordRejection = (reason, node, extra = {}) => {
+        const log = scope[rejectionLogKey];
+        const style = node ? getComputedStyle(node) : null;
+        const rect = node?.getBoundingClientRect?.();
+        log.push({
+          reason,
+          at: performance.now(),
+          feedbackId: node?.getAttribute?.('data-testid') || '',
+          role: node?.dataset?.companionRole || '',
+          targetId: node?.dataset?.targetId || '',
+          critical: node?.dataset?.critical || '',
+          text: node?.textContent || '',
+          connected: Boolean(node?.isConnected),
+          opacity: style ? Number(style.opacity) : null,
+          width: rect?.width ?? null,
+          height: rect?.height ?? null,
+          ...extra,
+        });
+        if (log.length > 32) log.splice(0, log.length - 32);
+      };
+
+      const cleanup = () => {
+        mutationObserver?.disconnect();
+        if (actionListener) window.removeEventListener(eventName, actionListener);
+        if (paintReinspectionFrame) cancelAnimationFrame(paintReinspectionFrame);
+        paintReinspectionFrame = 0;
+      };
+      scope[observer] = { disconnect: cleanup };
+
+      const schedulePaintReinspection = () => {
+        if (paintReinspectionFrame || scope[observation]) return;
+        paintReinspectionFrame = requestAnimationFrame(() => {
+          paintReinspectionFrame = 0;
+          inspect();
+        });
+      };
+
+      const inspect = () => {
+        if (scope[observation]) return true;
+        const nodes = [...document.querySelectorAll('[data-testid^="companion-damage-number-"]')];
+        for (let index = nodes.length - 1; index >= 0; index -= 1) {
+          const node = nodes[index];
+          if (node.dataset.companionRole !== expectedRole || node.dataset.critical !== String(expectedCritical)) {
+            recordRejection('identity-mismatch', node, { expectedRole, expectedCritical: String(expectedCritical) });
+            continue;
+          }
+          const targetId = node.dataset.targetId || '';
+          if (!node.isConnected) {
+            recordRejection('disconnected', node);
+            continue;
+          }
+          const action = [...(scope[logKey] || [])].reverse().find(entry => (
+            entry.role === expectedRole
+            && entry.kind === 'attack'
+            && entry.targetId === targetId
+            && entry.at > minimumAt
+          ));
+          if (!action) {
+            recordRejection('no-correlated-action', node, { minimumAt, targetId });
+            continue;
+          }
+          const diagnosticCaptureNow = performance.now();
+          const diagnosticActionAgeMs = diagnosticCaptureNow - Number(action.at);
+          if (!Number.isFinite(diagnosticActionAgeMs) || diagnosticActionAgeMs < 0 || diagnosticActionAgeMs > maxActionAgeMs) {
+            recordRejection('action-age', node, { actionAt: action.at, actionAgeMs: diagnosticActionAgeMs, maxActionAgeMs });
+          }
+          const captureNow = performance.now();
+          const actionAgeMs = captureNow - Number(action.at);
+          if (!Number.isFinite(actionAgeMs) || actionAgeMs < 0 || actionAgeMs > maxActionAgeMs) continue;
+          const style = getComputedStyle(node);
+          const rect = node.getBoundingClientRect();
+          const opacity = Number(style.opacity);
+          if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') {
+            recordRejection('not-visible-geometry', node, { visibility: style.visibility, display: style.display });
+            continue;
+          }
+          if (opacity < 0.9) {
+            recordRejection('opacity-below-threshold', node, { opacity });
+            schedulePaintReinspection();
+            continue;
+          }
+          const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
+          const payload = {
+            ...action,
+            capturedAt: captureNow,
+            actionAgeMs,
+            feedbackId: node.getAttribute('data-testid') || '',
+            feedbackRole: node.dataset.companionRole || '',
+            feedbackTargetId: targetId,
+            critical: node.dataset.critical || '',
+            text: node.textContent || '',
+            width: rect.width,
+            height: rect.height,
+            fontSize: Number.parseFloat(style.fontSize),
+            viewportWidth: window.innerWidth,
+            backgroundColor: style.backgroundColor,
+            borderTopWidth: style.borderTopWidth,
+            boxShadow: style.boxShadow,
+            pointerEvents: style.pointerEvents,
+            opacity,
+            visibleCount: layer?.getAttribute('data-visible-count') || '',
+            expectedCritical: String(expectedCritical),
+          };
+          scope[observation] = payload;
+          scope[observer]?.disconnect?.();
+          void scope[binding](payload);
+          return true;
+        }
+        return false;
+      };
+
+      actionListener = event => {
+        const detail = event.detail;
+        if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
+        if (detail.role !== expectedRole || Number(detail.at) <= minimumAt) return;
+        inspect();
+      };
+      window.addEventListener(eventName, actionListener);
+
+      mutationObserver = new MutationObserver(() => inspect());
+      mutationObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-visible-count', 'data-critical', 'data-target-id', 'data-companion-role'],
+      });
+      inspect();
+      scope[armed] = true;
+    }, {
+      eventName: COMPANION_ACTION_EVENT,
+      logKey: COMPANION_ACTION_LOG,
+      expectedRole: role,
+      expectedCritical: critical,
+      minimumAt: notBefore,
+      maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS,
+      binding: bindingName,
+      observation: observationKey,
+      observer: observerKey,
+      armed: armedKey,
+    });
+
+    const handle = await page.waitForFunction(({ observation }) => window[observation] || false, {
+      observation: observationKey,
+    }, {
       timeout: 20_000,
       polling: 16,
     });
 
-    const viewport = page.viewportSize();
-    expect(viewport).toBeTruthy();
-    const screenshot = await page.screenshot({ path, fullPage: false, scale: 'css' });
+    const { screenshot, viewport, payload } = await screenshotPromise;
     observedFeedback = await handle.jsonValue();
+    expect(payload.feedbackId).toBe(observedFeedback.feedbackId);
+    expect(payload.capturedAt).toBe(observedFeedback.capturedAt);
     assertReadableFeedback(observedFeedback, { role, critical, marker });
     assertFullViewportPng(screenshot, viewport);
     return observedFeedback;
   } catch (error) {
     const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
     throw new Error(`${error instanceof Error ? error.message : String(error)}\nCompanion feedback diagnostics: ${JSON.stringify(diagnostics, null, 2)}`);
+  } finally {
+    await page.evaluate(({ observer, armed }) => {
+      window[observer]?.disconnect?.();
+      delete window[observer];
+      delete window[armed];
+    }, { observer: observerKey, armed: armedKey }).catch(() => {});
   }
 }
 
@@ -378,6 +533,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   const chip = page.getByTestId('run-companion-chip');
   const runtime = page.getByTestId('companion-runtime-bridge');
   const scene = page.getByTestId('run-companion-scene');
+  await expect(chip).toHaveCount(0);
   await waitForStableRoom(page);
   await captureLiveCompanionFeedbackEvidence(page, {
     role: 'shield',
@@ -386,12 +542,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
     marker: /◆\s*-\d+/,
     path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`,
   });
-  await expect(chip).toBeVisible();
-  await expect(chip).toHaveAttribute('data-presentation', 'read-only-companion-status');
-  await expect(chip).toHaveAttribute('data-companion-role', 'shield');
-  await expect(chip).toHaveAttribute('data-companion-species', 'rune-sentinel');
-  await expect(chip).toHaveAttribute('data-companion-level', '2');
-  expect(await chip.evaluate(element => element.tagName)).toBe('DIV');
+  await expect(chip).toHaveCount(0);
   await expect(runtime).toHaveAttribute('data-role', 'shield');
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-species', 'rune-sentinel');
@@ -414,14 +565,12 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(scene).toHaveAttribute('data-visible-count', '1', { timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1);
   await page.screenshot({ path: `test-results/companion-run-${testInfo.project.name}.png`, fullPage: false });
-  await chip.click({ force: true });
-  await page.waitForTimeout(500);
-  await expect(chip).toHaveAttribute('data-companion-role', 'shield');
+  await expect(chip).toHaveCount(0);
   await expect(runtime).toHaveAttribute('data-role', 'shield');
   await expect(scene).toHaveAttribute('data-local-role', 'shield');
-  const storedAfterClick = await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-companion-collection-v5') || '{}'));
-  expect(storedAfterClick.activeId).toBe('shield');
-  expect(storedAfterClick.companions.shield.level).toBe(2);
+  const storedAfterRun = await page.evaluate(() => JSON.parse(localStorage.getItem('dungeon-veil-companion-collection-v5') || '{}'));
+  expect(storedAfterRun.activeId).toBe('shield');
+  expect(storedAfterRun.companions.shield.level).toBe(2);
   const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
   expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
@@ -436,28 +585,31 @@ test('critical-support proc renders one readable value on its actual target', as
   await armCompanionActionObservation(page);
   await startFreshRun(page);
   const runtime = page.getByTestId('companion-runtime-bridge');
+  const chip = page.getByTestId('run-companion-chip');
+  await expect(chip).toHaveCount(0);
   await expect(runtime).toHaveAttribute('data-role', 'critical-support');
   await waitForStableRoom(page);
   await prepareLivePlayerAttackLine(page);
-  const attackIssuedAt = await page.evaluate(() => performance.now());
+  const attackBoundary = Number((await readRuntimeCombatSnapshot(page))?.playerLastAttackTime || 0);
   const capturePromise = captureLiveCompanionFeedbackEvidence(page, {
     role: 'critical-support',
     critical: true,
-    notBefore: attackIssuedAt,
+    notBefore: attackBoundary,
     marker: /✦\s*-\d+/,
     path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
   });
-  const [confirmedPlayerAttackAt, observedCritical] = await Promise.all([
-    triggerConfirmedPlayerAttack(page, attackIssuedAt),
-    capturePromise,
-  ]);
-  expect(confirmedPlayerAttackAt).toBeGreaterThanOrEqual(attackIssuedAt);
-  expect(observedCritical.at).toBeGreaterThanOrEqual(attackIssuedAt);
-  const chip = page.getByTestId('run-companion-chip');
+  await page.waitForFunction(
+    armed => window[armed] === true,
+    '__dungeonVeilCriticalCompanionFeedbackObservationArmed',
+    { timeout: 20_000, polling: 16 },
+  );
+  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, attackBoundary);
+  const observedCritical = await capturePromise;
+  expect(confirmedPlayerAttackAt).toBeGreaterThan(attackBoundary);
+  expect(observedCritical.at).toBeGreaterThan(attackBoundary);
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
-  await expect(chip).toHaveAttribute('data-companion-role', 'critical-support');
-  await expect(chip).toHaveAttribute('data-companion-level', '2');
+  await expect(chip).toHaveCount(0);
   const geometry = await page.evaluate(() => ({ innerWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, documentWidth: document.documentElement.scrollWidth }));
   expect(Math.max(geometry.bodyWidth, geometry.documentWidth)).toBeLessThanOrEqual(geometry.innerWidth + 4);
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);

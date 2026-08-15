@@ -177,6 +177,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
   const feedbackPaintTokenRef = useRef(0);
   const activeDamageFeedbackRef = useRef<CompanionDamageFeedback | null>(null);
   const feedbackVisibleUntilRef = useRef(0);
+  const runtimeFrozenRef = useRef(false);
   const [damageFeedback, setDamageFeedback] = useState<CompanionDamageFeedback | null>(null);
   stateRef.current = gameState;
   roleRef.current = role;
@@ -215,6 +216,34 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     }
     return () => { cancelled = true; };
   }, [mode]);
+
+  useEffect(() => {
+    const syncFrozenBaseline = () => {
+      const state = stateRef.current;
+      previousHpRef.current = state.player.hp;
+      lastPlayerAttackRef.current = state.player.lastAttackTime;
+      recentCombatTargetRef.current = null;
+    };
+    const freezeRuntime = () => {
+      runtimeFrozenRef.current = true;
+      syncFrozenBaseline();
+      if (markerRef.current) markerRef.current.dataset.runtimeFrozen = 'true';
+    };
+    const resumeRuntime = () => {
+      syncFrozenBaseline();
+      runtimeFrozenRef.current = false;
+      if (markerRef.current) markerRef.current.dataset.runtimeFrozen = 'false';
+    };
+    if (markerRef.current) markerRef.current.dataset.runtimeFrozen = 'false';
+    window.addEventListener('dungeon-veil-room-preparing', freezeRuntime);
+    window.addEventListener('dungeon-veil-renderer-lost', freezeRuntime);
+    window.addEventListener('dungeon-veil-room-ready', resumeRuntime);
+    return () => {
+      window.removeEventListener('dungeon-veil-room-preparing', freezeRuntime);
+      window.removeEventListener('dungeon-veil-renderer-lost', freezeRuntime);
+      window.removeEventListener('dungeon-veil-room-ready', resumeRuntime);
+    };
+  }, []);
 
   useEffect(() => {
     const publishDamageFeedback = (
@@ -275,6 +304,13 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       const canWriteEnemies = modeRef.current === 'solo' || authorityRef.current === 'host';
       const target = nearestEnemy(state);
       const previousCombatTarget = recentCombatTargetRef.current;
+
+      if (runtimeFrozenRef.current) {
+        previousHpRef.current = state.player.hp;
+        lastPlayerAttackRef.current = state.player.lastAttackTime;
+        recentCombatTargetRef.current = null;
+        return;
+      }
 
       if (state.status !== 'playing' || state.player.hp <= 0) {
         previousHpRef.current = state.player.hp;
@@ -453,6 +489,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         data-revive-target="false"
         data-blocks-players="false"
         data-blocks-enemies="false"
+        data-runtime-frozen="false"
         data-feedback-active={damageFeedback ? 'true' : 'false'}
         data-feedback-projected={projectedFeedback ? 'true' : 'false'}
         data-feedback-target={damageFeedback?.targetId ?? ''}
@@ -473,17 +510,13 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           data-target-id={damageFeedback.targetId}
           data-critical={damageFeedback.critical ? 'true' : 'false'}
           data-projection-clamped={projectedFeedback.clamped ? 'true' : 'false'}
-          className="absolute flex min-h-[38px] min-w-[82px] items-center justify-center rounded-full border-2 bg-black/85 px-3 py-1 font-black tracking-wide text-white shadow-2xl"
+          className="absolute flex items-center justify-center font-black tracking-wide"
           style={{
             left: `${projectedFeedback.left}%`,
             top: `${projectedFeedback.top}%`,
             transform: 'translate(-50%, -50%)',
-            borderColor: damageFeedback.color,
             color: damageFeedback.critical ? '#fff4c4' : '#ffffff',
-            fontSize: 'clamp(21px, 5.4vw, 29px)',
             lineHeight: 1,
-            textShadow: `0 2px 0 #000, 0 0 8px ${damageFeedback.color}, 0 0 14px rgba(0,0,0,.9)`,
-            boxShadow: `0 0 0 2px rgba(0,0,0,.86), 0 0 18px ${damageFeedback.color}99`,
             animation: 'dvCompanionDamageReadable 1.05s cubic-bezier(.16,.84,.28,1) both',
           }}
         >
@@ -492,7 +525,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         </div>}
         <style>{`
           @keyframes dvCompanionDamageReadable {
-            0% { opacity: 0; transform: translate(-50%, -24%) scale(.72); }
+            0% { opacity: 1; transform: translate(-50%, -24%) scale(.72); }
             15% { opacity: 1; transform: translate(-50%, -50%) scale(1.14); }
             34% { transform: translate(-50%, -58%) scale(1); }
             74% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
@@ -504,7 +537,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
             }
           }
           @keyframes dvCompanionDamageReadableReduced {
-            0% { opacity: 0; }
+            0% { opacity: 1; }
             14%, 78% { opacity: 1; }
             100% { opacity: 0; }
           }

@@ -1,38 +1,59 @@
-/* Issue #407: keep companion attribution readable without turning combat feedback into a HUD pill. */
+/* Issues #407/#428: companion damage is secondary to the player's 3D damage language. */
 [data-testid^="companion-damage-number-"] {
   min-width: 0 !important;
   min-height: 0 !important;
   width: auto !important;
   height: auto !important;
-  padding: 1px 3px !important;
+  padding: 0 1px !important;
   border-width: 0 !important;
-  border-radius: 3px !important;
+  border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  font-size: clamp(15px, 4vw, 17px) !important;
-  line-height: 1.05 !important;
-  letter-spacing: 0.01em !important;
-  text-shadow: 0 1px 1px #000, 0 0 3px rgba(0, 0, 0, 0.92) !important;
+  font-size: clamp(8px, 2.2vw, 10.5px) !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  text-shadow: 0 1px 1px #000, 0 0 2px rgba(0, 0, 0, 0.9) !important;
   animation: dvCompanionDamageCompact 1050ms cubic-bezier(.16,.84,.28,1) both !important;
 }
 
+[data-testid^="companion-damage-number-"] > span:first-child {
+  font-size: .72em !important;
+  line-height: 1 !important;
+}
+
+[data-testid^="companion-damage-number-"] > span + span {
+  margin-left: 1px !important;
+}
+
 [data-testid^="companion-damage-number-"][data-critical="true"] {
-  font-size: clamp(17px, 4.5vw, 20px) !important;
-  text-shadow: 0 1px 1px #000, 0 0 4px currentColor, 0 0 5px rgba(0, 0, 0, 0.9) !important;
+  font-size: clamp(9.5px, 2.55vw, 12px) !important;
+  text-shadow: 0 1px 1px #000, 0 0 2px currentColor, 0 0 3px rgba(0, 0, 0, 0.88) !important;
   animation-name: dvCompanionDamageCompactCritical !important;
 }
 
+/* Player damage is perspective-projected and grows materially on portrait tablets.
+   Match that hierarchy without imposing another large global absolute minimum. */
+@media (min-width: 600px) and (orientation: portrait) {
+  [data-testid^="companion-damage-number-"] {
+    font-size: clamp(11px, 1.6vw, 13px) !important;
+  }
+
+  [data-testid^="companion-damage-number-"][data-critical="true"] {
+    font-size: clamp(13px, 1.85vw, 16px) !important;
+  }
+}
+
 @keyframes dvCompanionDamageCompact {
-  0% { opacity: 0; transform: translate(-50%, -34%) scale(.88); }
-  6% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  0% { opacity: 1; transform: translate(-50%, -34%) scale(.88); }
+  6% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
   45% { transform: translate(-50%, -60%) scale(1); }
   90% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -82%) scale(.98); }
 }
 
 @keyframes dvCompanionDamageCompactCritical {
-  0% { opacity: 0; transform: translate(-50%, -34%) scale(.88); }
-  6% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  0% { opacity: 1; transform: translate(-50%, -34%) scale(.88); }
+  6% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
   45% { transform: translate(-50%, -60%) scale(1); }
   90% { opacity: 1; transform: translate(-50%, -74%) scale(1); }
   100% { opacity: 1; transform: translate(-50%, -82%) scale(.98); }
@@ -49,7 +70,7 @@
 }
 
 @keyframes dvCompanionDamageCompactReduced {
-  0% { opacity: 0; }
+  0% { opacity: 1; }
   8%, 90% { opacity: 1; }
   100% { opacity: 0; }
 }

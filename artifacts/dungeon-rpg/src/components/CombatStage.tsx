@@ -9,7 +9,6 @@ import { CoopTeammateScene3D } from './CoopTeammateScene3D';
 import { CoopTeammateUI } from './CoopTeammateUI';
 import { CompanionRuntimeBridge } from './CompanionRuntimeBridge';
 import { CompanionScene3D } from './CompanionScene3D';
-import { CompanionStatusChip } from './CompanionStatusChip';
 
 type ViewportBox = { width: number; height: number; left: number; top: number };
 
@@ -181,7 +180,6 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
         {remotePlayer && <CoopProjectileRealtimeBridge gameState={gameState} remotePlayer={remotePlayer} />}
       </div>
       {remotePlayer && <CoopTeammateUI gameState={gameState} remotePlayer={remotePlayer} />}
-      {runCompanion && <CompanionStatusChip role={runCompanion.id} level={runCompanion.level} language={language} />}
       <div className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-200 ${hurtFlash ? 'opacity-100' : 'opacity-0'}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_38%,rgba(185,22,27,.48)_100%)]" />
       </div>
