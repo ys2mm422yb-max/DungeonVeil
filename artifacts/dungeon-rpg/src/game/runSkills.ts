@@ -63,8 +63,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   elementalStorm: {
     maxRank: 1,
-    rankTextDe: ['Feuerpfeil III + Frostpfeil III · jeder 5. Elementartreffer: 35% Angriff · Radius 92 · max. 3 weitere Ziele'],
-    rankTextEn: ['Fire Arrow III + Frost Arrow III · every 5th elemental hit: 35% attack · radius 92 · max 3 additional targets'],
+    rankTextDe: ['Feuerpfeil III + Frostpfeil III · jeder fünfte Elementartreffer: 35% Angriff · Radius 92 · max. 3 weitere Ziele'],
+    rankTextEn: ['Fire Arrow III + Frost Arrow III · every fifth elemental hit: 35% attack · radius 92 · max 3 additional targets'],
   },
   arrowStorm: {
     maxRank: 1,
