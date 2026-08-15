@@ -131,7 +131,7 @@ function createLiveCompanionPrestige(
 
   const particleCount = tier >= 5 ? 7 : tier === 4 ? 5 : 3;
   const particleRadius = clamp(
-    Math.min(bounds.width, bounds.height) * (tier >= 5 ? 0.028 : tier === 4 ? 0.025 : 0.022),
+    Math.min(bounds.width, bounds.height) * (tier >= 5 ? 0.034 : tier === 4 ? 0.029 : 0.024),
     0.012,
     0.038,
   );
@@ -183,8 +183,10 @@ function createLiveCompanionPrestige(
     const normalizedActivity = clamp(actionPulse, 0, 1);
     const horizontalRadius = bounds.width * (tier >= 5 ? 0.18 : tier === 4 ? 0.155 : 0.13);
     const depthRadius = Math.max(bounds.depth * 0.13, particleRadius * 1.3);
-    const baseOpacity = tier >= 5 ? 0.72 : tier === 4 ? 0.6 : 0.46;
-    const activityOpacity = staticFallback ? 0 : normalizedActivity * (tier >= 5 ? 0.18 : 0.12);
+    const baseOpacity = tier >= 5 ? 0.86 : tier === 4 ? 0.7 : 0.56;
+    const activityOpacity = staticFallback
+      ? 0
+      : normalizedActivity * (tier >= 5 ? 0.2 : tier === 4 ? 0.15 : 0.1);
 
     sparks.forEach((spark, index) => {
       const phase = Number(spark.userData.dungeonVeilCompanionSparkPhase ?? 0);
@@ -200,13 +202,13 @@ function createLiveCompanionPrestige(
       );
       const pulse = staticFallback ? 1 : 0.92 + Math.sin(motion * 1.35) * 0.08 + normalizedActivity * 0.08;
       spark.scale.setScalar(pulse);
-      spark.material.opacity = clamp(baseOpacity + activityOpacity, 0.34, tier >= 5 ? 0.9 : 0.74);
+      spark.material.opacity = clamp(baseOpacity + activityOpacity, 0.42, tier >= 5 ? 0.96 : tier === 4 ? 0.84 : 0.7);
     });
 
     light.intensity = clamp(
-      (tier >= 5 ? 0.22 : tier === 4 ? 0.15 : 0.09) + normalizedActivity * 0.07,
-      0.06,
-      tier >= 5 ? 0.34 : tier === 4 ? 0.24 : 0.15,
+      (tier >= 5 ? 0.3 : tier === 4 ? 0.2 : 0.12) + normalizedActivity * 0.08,
+      0.08,
+      tier >= 5 ? 0.4 : tier === 4 ? 0.3 : 0.2,
     );
     group.visible = true;
   };

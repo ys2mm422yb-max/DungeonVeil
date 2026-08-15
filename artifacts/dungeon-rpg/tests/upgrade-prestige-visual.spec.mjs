@@ -5,12 +5,12 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const ROLES = ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction'];
 const CORE_VARIANTS = [
   { role: 'single-target', level: 1, prestige: 'none', particles: 0 },
-  { role: 'critical-support', level: 2, prestige: 'none', particles: 0 },
-  { role: 'shield', level: 3, prestige: 'refined', particles: 3 },
-  { role: 'loot-comfort', level: 4, prestige: 'strong', particles: 5 },
-  { role: 'distraction', level: 5, prestige: 'maximum', particles: 7 },
+  { role: 'single-target', level: 2, prestige: 'none', particles: 0 },
+  { role: 'single-target', level: 3, prestige: 'refined', particles: 3 },
+  { role: 'single-target', level: 4, prestige: 'strong', particles: 5 },
+  { role: 'single-target', level: 5, prestige: 'maximum', particles: 7 },
 ];
-const MAX_ROLE_VARIANTS = ROLES.slice(0, -1).map(role => ({
+const MAX_ROLE_VARIANTS = ROLES.filter(role => role !== 'single-target').map(role => ({
   role,
   level: 5,
   prestige: 'maximum',

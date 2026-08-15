@@ -22,8 +22,12 @@ assert.match(helper, /function createLiveCompanionPrestige\([\s\S]*new THREE\.Sp
   'live companion prestige must use dedicated compact round spark geometry');
 assert.match(helper, /const particleCount = tier >= 5 \? 7 : tier === 4 \? 5 : 3;/,
   'L3, L4 and L5 must have visibly distinct bounded spark counts');
-assert.match(helper, /tier >= 5 \? 0\.028 : tier === 4 \? 0\.025 : 0\.022/,
-  'spark size must increase by tier without growing into broad shapes');
+assert.match(helper, /tier >= 5 \? 0\.034 : tier === 4 \? 0\.029 : 0\.024/,
+  'spark size must increase materially by tier without growing into broad shapes');
+assert.match(helper, /const baseOpacity = tier >= 5 \? 0\.86 : tier === 4 \? 0\.7 : 0\.56;/,
+  'L3, L4 and L5 must retain a materially ordered static spark visibility floor');
+assert.match(helper, /tier >= 5 \? 0\.3 : tier === 4 \? 0\.2 : 0\.12/,
+  'L3, L4 and L5 local glow intensity must remain visibly ordered');
 assert.match(helper, /const horizontalRadius = bounds\.width \* \(tier >= 5 \? 0\.18 : tier === 4 \? 0\.155 : 0\.13\);/,
   'all companion sparks must remain inside a tight body-local horizontal radius');
 assert.match(helper, /dungeonVeilUpgradeCombatStyle = 'compact-body-sparks'/,
