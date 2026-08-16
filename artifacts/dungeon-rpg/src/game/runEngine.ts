@@ -418,11 +418,11 @@ export class GameEngine {
     if (element === 'fire') {
       const rank = skillRank(this.state.runSkills, 'fireArrow');
       const ticks = rank === 1 ? 3 : rank === 2 ? 4 : 5;
-      const hasActiveBurnSchedule = (enemy.burnUntil ?? 0) > time && (enemy.nextBurnTick ?? 0) > 0;
+      const hadActiveBurnSchedule = Boolean(enemy.burnUntil && enemy.nextBurnTick && time < enemy.burnUntil);
       enemy.burnRanks = rank;
       enemy.burnDamage = rank + 1;
       enemy.burnUntil = time + ticks * 520;
-      if (!hasActiveBurnSchedule) enemy.nextBurnTick = time + 520;
+      if (!hadActiveBurnSchedule) enemy.nextBurnTick = time + 520;
     } else if (element === 'ice') {
       const rank = skillRank(this.state.runSkills, 'iceArrow');
       const slows = [0, 0.2, 0.32, 0.45];
