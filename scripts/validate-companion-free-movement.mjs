@@ -15,18 +15,25 @@ assert(scene.includes('minPlayerDistance'), 'minimum player separation is missin
 assert(scene.includes('leashRadius'), 'hard player leash is missing');
 assert(scene.includes('movementTarget'), 'independent companion target selection is missing');
 assert(scene.includes('roamPhase'), 'movement target evolution is missing');
+assert(scene.includes('isWalkable('), 'movement targets do not reject non-walkable map tiles');
+assert(scene.includes('collidesWithRoomProp('), 'movement targets do not reject visible room-prop colliders');
+assert(scene.includes('movementPathBlockedByRoomProp('), 'movement path does not reject visible room-prop blockers');
+assert(scene.includes('acceleration') && scene.includes('deceleration'), 'role movement profiles do not define acceleration/deceleration');
+assert(scene.includes('velocityX') && scene.includes('velocityZ'), 'smooth companion velocity state is missing');
 assert(scene.includes('data-follow-placement="role-aware-roam"'), 'scene marker does not expose role-aware roam');
 assert(scene.includes("marker.dataset.followPlacement = 'role-aware-roam'"), 'runtime marker does not expose role-aware roam');
 assert(!scene.includes("marker.dataset.followPlacement = 'inward-side'"), 'legacy fixed inward-side formation is still active');
 assert(scene.includes('Math.atan2(movementX, movementZ)'), 'moving companion must face actual travel direction');
 assert(scene.includes('binding.initialized'), 'scene rebuild/rebind initialization contract is missing');
-assert(scene.includes('maxStep = (5.8 + binding.level * 0.42) * delta'), 'bounded acceleration/step contract changed unexpectedly');
+assert(scene.includes('maxSpeed = 5.8 + binding.level * 0.42'), 'bounded companion maximum locomotion speed changed unexpectedly');
 
 console.log(JSON.stringify({
   roles: 5,
   roleAwareRoam: true,
   minimumPlayerDistance: true,
   hardLeash: true,
+  walkabilityAndVisibleProps: true,
+  smoothAccelerationAndDeceleration: true,
   movementFacing: true,
   rebuildInitialization: true,
 }, null, 2));
