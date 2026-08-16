@@ -92,7 +92,7 @@ export function GamePausePanel(props: GamePausePanelProps) {
           <button onPointerDown={e => trigger(e, props.onMainMenu)} className="w-full rounded-xl border border-white/8 bg-transparent py-3 text-xs font-bold tracking-widest text-white/30 active:scale-95">{de ? 'ZUM HAUPTMENÜ' : 'MAIN MENU'}</button>
         </div>
 
-        <div className="mt-5 flex items-center justify-center gap-3">{(['en', 'de'] as Language[]).map(lang => <button key={lang} onPointerDown={e => trigger(e, () => props.onLanguage(lang))} className={`rounded-lg border-2 px-4 py-2 text-xs font-bold tracking-widest active:scale-95 ${props.language === lang ? 'border-primary bg-primary/15 text-primary' : 'border-white/10 text-white/30 active:scale-95'}`}>{lang === 'en' ? '🇬🇧 EN' : '🇩🇪 DE'}</button>)}</div>
+        <div className="mt-5 flex items-center justify-center gap-3">{(['en', 'de'] as Language[]).map(lang => <button key={lang} onPointerDown={e => trigger(e, () => props.onLanguage(lang))} className={`rounded-lg border-2 px-4 py-2 text-xs font-bold tracking-widest active:scale-95 ${props.language === lang ? 'border-primary bg-primary/15 text-primary' : 'border-white/10 text-white/30'}`}>{lang === 'en' ? '🇬🇧 EN' : '🇩🇪 DE'}</button>)}</div>
       </div>
     </div>
   );
