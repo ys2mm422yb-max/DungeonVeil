@@ -278,7 +278,7 @@ export class GameEngine {
       const stepDelay = speedRank >= 2 ? 150 : 250;
       if (time - this.lastStepTime > stepDelay) {
         this.lastStepTime = time;
-        this.state.particles.push(...makeStepDust(p.x + 16, p.y + 27, speedRank >= 2 ? '#d9f7ff' : '#efb44f'));
+        this.state.particles.push(...makeStepDust(p.x + 16, p.y + 27, speedRank >= 2 ? '#d9f7ff' : undefined));
       }
     } else {
       p.state = 'idle';
