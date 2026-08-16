@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'http://127.0.0.1:4173/DungeonVeil/';
@@ -119,4 +120,32 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
   ).toBe('playing');
   await expect(heading).toBeHidden({ timeout: 10_000 });
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 10_000 });
+});
+
+test('Fire Arrow reapplication preserves the scheduled burn tick at every real autofire cadence', async () => {
+  const runEngine = await readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8');
+
+  expect(runEngine).toContain('const hadActiveBurnSchedule = Boolean(enemy.burnUntil && enemy.nextBurnTick && time < enemy.burnUntil);');
+  expect(runEngine).toContain('if (!hadActiveBurnSchedule) enemy.nextBurnTick = time + 520;');
+  expect(runEngine).not.toContain('enemy.burnUntil = time + ticks * 520;\n      enemy.nextBurnTick = time + 520;');
+
+  const cadencesMs = [270, 226.8, 189, 156.6];
+  for (const cadenceMs of cadencesMs) {
+    let burnUntil = 0;
+    let nextBurnTick = 0;
+    let ticks = 0;
+    for (let time = 0; time <= 4_000; time += 1) {
+      if (Math.abs(time / cadenceMs - Math.round(time / cadenceMs)) < 0.003) {
+        const hadActiveBurnSchedule = burnUntil > time && nextBurnTick > 0;
+        burnUntil = time + 3 * 520;
+        if (!hadActiveBurnSchedule) nextBurnTick = time + 520;
+      }
+      if (burnUntil > time && nextBurnTick > 0 && time >= nextBurnTick) {
+        ticks += 1;
+        nextBurnTick += 520;
+      }
+    }
+    expect(ticks, `cadence ${cadenceMs}ms should produce burn ticks under continuous fire`).toBeGreaterThan(0);
+    expect(ticks, `cadence ${cadenceMs}ms must not stack/explode burn ticks`).toBeLessThanOrEqual(8);
+  }
 });
