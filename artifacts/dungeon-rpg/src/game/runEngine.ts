@@ -278,7 +278,7 @@ export class GameEngine {
       const stepDelay = speedRank >= 2 ? 150 : 250;
       if (time - this.lastStepTime > stepDelay) {
         this.lastStepTime = time;
-        this.state.particles.push(...makeStepDust(p.x + 16, p.y + 27, speedRank >= 2 ? '#d9f7ff' : undefined));
+        this.state.particles.push(...makeStepDust(p.x + 16, p.y + 27, speedRank >= 2 ? '#d9f7ff' : '#efb44f'));
       }
     } else {
       p.state = 'idle';
@@ -418,10 +418,11 @@ export class GameEngine {
     if (element === 'fire') {
       const rank = skillRank(this.state.runSkills, 'fireArrow');
       const ticks = rank === 1 ? 3 : rank === 2 ? 4 : 5;
+      const hasActiveBurnSchedule = (enemy.burnUntil ?? 0) > time && (enemy.nextBurnTick ?? 0) > 0;
       enemy.burnRanks = rank;
       enemy.burnDamage = rank + 1;
       enemy.burnUntil = time + ticks * 520;
-      enemy.nextBurnTick = time + 520;
+      if (!hasActiveBurnSchedule) enemy.nextBurnTick = time + 520;
     } else if (element === 'ice') {
       const rank = skillRank(this.state.runSkills, 'iceArrow');
       const slows = [0, 0.2, 0.32, 0.45];
