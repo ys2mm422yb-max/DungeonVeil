@@ -15,6 +15,7 @@ type RuntimeEvidenceApi = {
   killLivingEnemies: () => Record<string, unknown> | null;
   moveToExit: () => Record<string, unknown> | null;
   chooseFirstGift: () => Record<string, unknown> | null;
+  prepareAttackGiftEvidence: () => Record<string, unknown> | null;
   saturateRunGiftsAtFullHp: () => Record<string, unknown> | null;
   setMode: (mode: EvidenceMode) => void;
   setPlayerStats: (attack: number, defense: number) => Record<string, unknown> | null;
@@ -180,6 +181,14 @@ function attachApi(): void {
       if (!engine) return null;
       const choice = engine.state.upgradeChoices[0];
       if (choice) applyGiftUpgrade(engine, choice);
+      emit(engine);
+      return stateSnapshot(engine);
+    },
+    prepareAttackGiftEvidence: () => {
+      const engine = currentEngine;
+      if (!engine) return null;
+      engine.state.upgradeChoices = ['attack', 'attackSpeed', 'maxHp'];
+      engine.state.status = 'levelup';
       emit(engine);
       return stateSnapshot(engine);
     },
