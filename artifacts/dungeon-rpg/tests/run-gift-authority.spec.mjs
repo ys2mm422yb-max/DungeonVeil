@@ -147,7 +147,8 @@ test('Fire Arrow reapplication preserves the scheduled burn tick at every real a
   }
 });
 
-test('fully saturated full-HP runs still expose three distinct meaningful gift choices', async () => {
+test('fully saturated full-HP runs still expose three distinct meaningful gift choices', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
   const skills = await readFile(new URL('../src/game/runSkills.ts', import.meta.url), 'utf8');
   const controller = await readFile(new URL('../src/game/giftUpgradeController.ts', import.meta.url), 'utf8');
   const translations = await readFile(new URL('../src/i18n/translations.ts', import.meta.url), 'utf8');
@@ -161,8 +162,50 @@ test('fully saturated full-HP runs still expose three distinct meaningful gift c
   expect(translations).toContain('SCHLEIERWACHT · 1,5s Startschutz');
   expect(translations).toContain('VEIL WARD · 1.5s entry protection');
 
-  const saturatedFullHpChoices = ['veilCache', 'goldCache', 'veilWard'];
-  expect(new Set(saturatedFullHpChoices).size).toBe(3);
-  expect(saturatedFullHpChoices).not.toContain('heal');
-  expect(saturatedFullHpChoices.some(choice => choice === 'veilWard')).toBe(true);
+  await startSolo(page);
+  await page.evaluate(() => {
+    window.__dungeonVeilRuntimeEvidence.loadRoom(3, 'solo');
+    window.__dungeonVeilRuntimeEvidence.saturateRunGiftsAtFullHp();
+    window.__dungeonVeilRuntimeEvidence.killLivingEnemies();
+  });
+  const saturated = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
+  expect(saturated?.hp).toBe(saturated?.maxHp);
+
+  await expect.poll(
+    () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.roomClearReady),
+    { timeout: 30_000, intervals: [100, 200, 350, 500, 750, 1_000] },
+  ).toBe(true);
+  await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.moveToExit());
+  await expect.poll(
+    () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.status),
+    { timeout: 30_000, intervals: [100, 200, 350, 500, 750, 1_000] },
+  ).toBe('levelup');
+
+  const choices = page.locator('[data-testid^="gift-choice-"]');
+  await expect(choices).toHaveCount(3);
+  await expect(page.getByTestId('gift-choice-heal')).toHaveCount(0);
+  const veilWard = page.getByTestId('gift-choice-veilWard');
+  await expect(veilWard).toBeVisible({ timeout: 30_000 });
+  await expect(veilWard).toContainText(/SCHLEIERWACHT|VEIL WARD/i);
+  await expect(veilWard).toContainText(/1,5s|1\.5s/i);
+
+  const choiceIds = await choices.evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')));
+  expect(new Set(choiceIds).size).toBe(3);
+  expect(choiceIds).toContain('gift-choice-veilWard');
+  expect(choiceIds).not.toContain('gift-choice-heal');
+
+  await expect.poll(async () => choices.evaluateAll(nodes => nodes.every(node => {
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= innerWidth + 1 && rect.top >= 0 && rect.bottom <= innerHeight + 1 &&
+      Number.parseFloat(style.opacity || '1') >= 0.99 && style.visibility === 'visible';
+  })), { timeout: 30_000, intervals: [100, 200, 350, 500, 750] }).toBe(true);
+  await page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }));
+
+  await page.screenshot({
+    path: `test-results/autopilot-gift-saturated-full-hp-${testInfo.project.name}.png`,
+    fullPage: false,
+  });
 });
