@@ -46,6 +46,7 @@ export function applyGiftUpgrade(engine: GameEngine, choice: UpgradeKey): boolea
     player.hp = Math.min(player.maxHp, player.hp + 8);
   } else if (choice === 'veilCache') grantMetaDust(30);
   else if (choice === 'goldCache') grantMetaGold(300);
+  else if (choice === 'veilWard') state.player.invincibleUntil = Math.max(state.player.invincibleUntil, performance.now() + 1500);
 
   player.lastGiftTime = Date.now();
   player.lastGiftKey = choice;

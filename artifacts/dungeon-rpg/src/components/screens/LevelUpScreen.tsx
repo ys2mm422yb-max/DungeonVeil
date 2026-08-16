@@ -54,6 +54,7 @@ const CARD_STYLES: Record<UpgradeKey, CardStyle> = {
   vitalSpark: { Icon: HeartPulse, accent: '#ff8da0', glow: 'rgba(255,141,160,.46)', labelDe: 'LEBENSFUNKE', labelEn: 'VITAL SPARK', tierDe: 'MEISTERSCHAFT', tierEn: 'MASTERY', rune: '✦' },
   veilCache: { Icon: Gem, accent: '#b793ff', glow: 'rgba(183,147,255,.46)', labelDe: 'SCHLEIERVORRAT', labelEn: 'VEIL CACHE', tierDe: 'BELOHNUNG', tierEn: 'REWARD', rune: '◇' },
   goldCache: { Icon: Coins, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERTRUHE', labelEn: 'HUNTER CACHE', tierDe: 'BELOHNUNG', tierEn: 'REWARD', rune: '¤' },
+  veilWard: { Icon: Shield, accent: '#8fd8ff', glow: 'rgba(143,216,255,.46)', labelDe: 'SCHLEIERWACHT', labelEn: 'VEIL WARD', tierDe: 'SOFORT', tierEn: 'INSTANT', rune: '⬢' },
   attack: { Icon: Swords, accent: '#f2c76f', glow: 'rgba(242,199,111,.46)', labelDe: 'JÄGERINSTINKT', labelEn: 'HUNTER INSTINCT', tierDe: 'ANGRIFF', tierEn: 'ATTACK', rune: 'X' },
   speed: { Icon: WandSparkles, accent: '#69cbff', glow: 'rgba(105,203,255,.44)', labelDe: 'WINDLÄUFER', labelEn: 'WINDRUNNER', tierDe: 'TEMPO', tierEn: 'TEMPO', rune: '≈' },
   defense: { Icon: Shield, accent: '#8eb2ff', glow: 'rgba(142,178,255,.44)', labelDe: 'WALDHAUT', labelEn: 'FOREST SKIN', tierDe: 'SCHUTZ', tierEn: 'GUARD', rune: '⬡' },
