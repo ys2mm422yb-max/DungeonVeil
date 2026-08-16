@@ -119,6 +119,40 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 10_000 });
 });
 
+test('Attack I +2 copy is rendered deterministically for portrait evidence', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  await startSolo(page);
+
+  const prepared = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.prepareAttackGiftEvidence());
+  expect(prepared?.status, JSON.stringify(prepared)).toBe('levelup');
+
+  const heading = page.getByText(/WÄHLE DEINE GABE|CHOOSE YOUR GIFT/i);
+  await expect(heading).toBeVisible({ timeout: 30_000 });
+  const choices = page.locator('[data-testid^="gift-choice-"]');
+  await expect(choices).toHaveCount(3);
+
+  const attack = page.getByTestId('gift-choice-attack');
+  await expect(attack).toBeVisible({ timeout: 30_000 });
+  await expect(attack).toContainText(/\+2 Angriff|\+2 Attack/i);
+
+  await expect.poll(async () => choices.evaluateAll(nodes => nodes.every(node => {
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return rect.width > 0 && rect.height > 0 &&
+      rect.left >= 0 && rect.right <= innerWidth + 1 &&
+      rect.top >= 0 && rect.bottom <= innerHeight + 1 &&
+      Number.parseFloat(style.opacity || '1') >= 0.99 && style.visibility === 'visible';
+  })), { timeout: 30_000, intervals: [100, 200, 350, 500, 750] }).toBe(true);
+  await page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }));
+
+  await page.screenshot({
+    path: `test-results/autopilot-gift-attack-balance-${testInfo.project.name}.png`,
+    fullPage: false,
+  });
+});
+
 test('Fire Arrow reapplication preserves the scheduled burn tick at every real autofire cadence', async () => {
   const runEngine = await readFile(new URL('../src/game/runEngine.ts', import.meta.url), 'utf8');
 
