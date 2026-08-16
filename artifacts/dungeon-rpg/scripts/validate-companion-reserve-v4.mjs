@@ -56,6 +56,14 @@ for (const part of ['VeilLynxLeg', 'EmberRavenWing', 'RuneSentinelLeg', 'Lantern
 }
 assert(scene.includes('CompanionV5AttackTrail') && scene.includes('CompanionV5AttackRing') && scene.includes('triggerAction(detail?.kind'), 'visible attack trail or action event binding missing');
 assert(scene.includes('maxStep = (5.8 + binding.level * 0.42) * delta') && scene.includes('speed > 0.025'), 'bounded locomotion still slides by positional interpolation');
+assert(scene.includes('COMPANION_MOVEMENT_PROFILES_V5'), 'role-aware companion movement profiles are missing');
+for (const role of ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction']) {
+  assert(scene.includes(`'${role}'`), `movement profile for ${role} is missing`);
+}
+assert(scene.includes('roamRadius') && scene.includes('minPlayerDistance') && scene.includes('leashRadius'), 'bounded roam, player separation or leash contract is missing');
+assert(scene.includes('movementTarget') && scene.includes('roamPhase'), 'independent companion target selection is missing');
+assert(scene.includes('data-follow-placement="role-aware-roam"') && scene.includes("marker.dataset.followPlacement = 'role-aware-roam'"), 'runtime does not advertise role-aware free movement');
+assert(!scene.includes("marker.dataset.followPlacement = 'inward-side'"), 'legacy fixed inward-side formation is still active');
 assert(scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"') && scene.includes('THREE.Object3D.prototype.add'), 'companion renderer must reuse the active run scene');
 assert(readability.includes('root.scale.multiplyScalar(IS_MOBILE ? 1.34 : 1.2)') && readability.includes("light.name = 'CompanionReadabilityLightV5'") && readability.includes("core.name = 'CompanionReadabilityCoreV5'"), 'dark-room companion scale, local light or readable core is missing');
 assert(readability.includes('companionOnlyLight = true') && readability.includes('material.emissiveIntensity') && readability.includes('node.frustumCulled = false'), 'bounded companion-only readability treatment is incomplete');
@@ -72,5 +80,5 @@ const hasSimulatorReserve = progression.includes('requiredWithoutCompanion: true
   && ((progression.includes('average: 1.10') && progression.includes('maximum: 1.12'))
     || progression.includes('average: COMPANION_RESERVE_V4.averageEffectivePower'));
 assert(hasSimulatorReserve, 'base-game completeness reserve missing');
-console.log(JSON.stringify({ companions: 5, firstFindChapter: 2, maxLevel: 5, preRunSelection: true, inRunSwitching: false, basicAttacks: true, articulatedMotion: true, readableInDarkRooms: true, soloCap: 1, duoCap: 2, aiHz: 10, sharedRunRenderer: true }, null, 2));
-console.log('Companion collection V5 passed: rare unlocks, dust upgrades, fixed run selection and five distinct readable animated allies are present.');
+console.log(JSON.stringify({ companions: 5, firstFindChapter: 2, maxLevel: 5, preRunSelection: true, inRunSwitching: false, basicAttacks: true, articulatedMotion: true, freeRoleAwareMovement: true, readableInDarkRooms: true, soloCap: 1, duoCap: 2, aiHz: 10, sharedRunRenderer: true }, null, 2));
+console.log('Companion collection V5 passed: rare unlocks, dust upgrades, fixed run selection, free role-aware movement and five distinct readable animated allies are present.');
