@@ -15,6 +15,7 @@ type RuntimeEvidenceApi = {
   killLivingEnemies: () => Record<string, unknown> | null;
   moveToExit: () => Record<string, unknown> | null;
   chooseFirstGift: () => Record<string, unknown> | null;
+  saturateRunGiftsAtFullHp: () => Record<string, unknown> | null;
   setMode: (mode: EvidenceMode) => void;
   setPlayerStats: (attack: number, defense: number) => Record<string, unknown> | null;
   setLivingEnemyFamilies: (families: string[]) => Record<string, unknown> | null;
@@ -179,6 +180,24 @@ function attachApi(): void {
       if (!engine) return null;
       const choice = engine.state.upgradeChoices[0];
       if (choice) applyGiftUpgrade(engine, choice);
+      emit(engine);
+      return stateSnapshot(engine);
+    },
+    saturateRunGiftsAtFullHp: () => {
+      const engine = currentEngine;
+      if (!engine) return null;
+      engine.state.runSkills = {
+        elementalStorm: 1,
+        arrowStorm: 1,
+        veilChain: 1,
+        attack: 3,
+        maxHp: 3,
+        speed: 3,
+        defense: 3,
+        hunterBlessing: 3,
+        vitalSpark: 3,
+      };
+      engine.state.player.hp = engine.state.player.maxHp;
       emit(engine);
       return stateSnapshot(engine);
     },

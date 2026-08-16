@@ -1,5 +1,5 @@
 export type Language = 'de' | 'en';
-export type UpgradeKey = 'maxHp' | 'attack' | 'speed' | 'defense' | 'heal' | 'multishot' | 'ricochet' | 'fireArrow' | 'iceArrow' | 'attackSpeed' | 'piercing' | 'elementalStorm' | 'arrowStorm' | 'veilChain' | 'hunterBlessing' | 'vitalSpark' | 'veilCache' | 'goldCache';
+export type UpgradeKey = 'maxHp' | 'attack' | 'speed' | 'defense' | 'heal' | 'multishot' | 'ricochet' | 'fireArrow' | 'iceArrow' | 'attackSpeed' | 'piercing' | 'elementalStorm' | 'arrowStorm' | 'veilChain' | 'hunterBlessing' | 'vitalSpark' | 'veilCache' | 'goldCache' | 'veilWard';
 
 const en = {
   selectLanguage: 'Select Language', selectLanguageSubtitle: 'Choose your preferred language', continueInEnglish: 'English', continueInGerman: 'Deutsch',
@@ -18,7 +18,7 @@ const en = {
   upgrades: {
     maxHp: '+20 Max HP', attack: '+4 Attack', speed: '+12 Move Speed', defense: '+1 Defense', heal: 'Heal 20%',
     multishot: 'MULTISHOT · Up to +1 target/arrow', ricochet: 'RICOCHET · Hit another enemy', fireArrow: 'FIRE ARROW · Burn damage', iceArrow: 'FROST ARROW · Ice damage', attackSpeed: 'QUICK DRAW · Lower attack cooldown', piercing: 'PIERCING · Arrow hits through targets',
-    elementalStorm: 'ELEMENTAL STORM · Fire III + Frost III', arrowStorm: 'ARROW STORM · Multishot III + Quick Draw III', veilChain: 'VEIL CHAIN · Ricochet III + Piercing III', hunterBlessing: 'HUNTER BLESSING · Mastery I–III', vitalSpark: 'VITAL SPARK · Mastery I–III', veilCache: 'VEIL CACHE · +30 Veil Dust', goldCache: 'HUNTER CACHE · +300 Gold',
+    elementalStorm: 'ELEMENTAL STORM · Fire III + Frost III', arrowStorm: 'ARROW STORM · Multishot III + Quick Draw III', veilChain: 'VEIL CHAIN · Ricochet III + Piercing III', hunterBlessing: 'HUNTER BLESSING · Mastery I–III', vitalSpark: 'VITAL SPARK · Mastery I–III', veilCache: 'VEIL CACHE · +30 Veil Dust', goldCache: 'HUNTER CACHE · +300 Gold', veilWard: 'VEIL WARD · 1.5s entry protection',
   } as Record<UpgradeKey, string>,
 };
 
@@ -39,7 +39,7 @@ const de: typeof en = {
   upgrades: {
     maxHp: '+20 Max LP', attack: '+4 Angriff', speed: '+12 Bewegung', defense: '+1 Verteidigung', heal: '20% Heilung',
     multishot: 'MEHRFACHPFEIL · Bis zu +1 Ziel/Pfeil', ricochet: 'ABPRALLER · Trifft weiteren Gegner', fireArrow: 'FEUERPFEIL · Brandschaden', iceArrow: 'FROSTPFEIL · Eisschaden', attackSpeed: 'SCHNELLZUG · Weniger Angriffs-Cooldown', piercing: 'DURCHBOHREN · Pfeile treffen durch',
-    elementalStorm: 'ELEMENTARSTURM · Feuer III + Frost III', arrowStorm: 'PFEILSTURM · Mehrfachpfeil III + Schnellzug III', veilChain: 'SCHLEIERKETTE · Abpraller III + Durchbohren III', hunterBlessing: 'JÄGERSEGEN · Meisterschaft I–III', vitalSpark: 'LEBENSFUNKE · Meisterschaft I–III', veilCache: 'SCHLEIERVORRAT · +30 Schleierstaub', goldCache: 'JÄGERTRUHE · +300 Gold',
+    elementalStorm: 'ELEMENTARSTURM · Feuer III + Frost III', arrowStorm: 'PFEILSTURM · Mehrfachpfeil III + Schnellzug III', veilChain: 'SCHLEIERKETTE · Abpraller III + Durchbohren III', hunterBlessing: 'JÄGERSEGEN · Meisterschaft I–III', vitalSpark: 'LEBENSFUNKE · Meisterschaft I–III', veilCache: 'SCHLEIERVORRAT · +30 Schleierstaub', goldCache: 'JÄGERTRUHE · +300 Gold', veilWard: 'SCHLEIERWACHT · 1,5s Startschutz',
   } as Record<UpgradeKey, string>,
 };
 

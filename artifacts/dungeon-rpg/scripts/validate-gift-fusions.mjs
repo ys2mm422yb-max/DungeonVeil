@@ -46,12 +46,15 @@ const checks = [
   [progression.includes('installBoundedRunGiftProgression') && progression.includes("engine.state.status = 'playing'") && progression.includes('engine.state.upgradeChoices = []'), 'unscheduled rooms still force a gift screen'],
   [skills.includes('hunterBlessing: {\n    maxRank: 3') && skills.includes('vitalSpark: {\n    maxRank: 3'), 'Hunter Blessing or Vital Spark is not capped at mastery rank III'],
   [skills.includes("OVERFLOW_GIFTS: OverflowGiftKey[] = ['hunterBlessing', 'vitalSpark', 'heal', 'veilCache', 'goldCache']"), 'late choices do not include bounded masteries, recovery and currency rewards'],
-  [skills.includes("return key === 'heal' || key === 'veilCache' || key === 'goldCache';") && skills.includes('isMasteryGift'), 'instant rewards and persistent masteries are not separated'],
+  [skills.includes("export type InstantGiftKey = 'heal' | 'veilCache' | 'goldCache' | 'veilWard';") && !skills.includes("'goldCache', 'veilWard']"), 'Veil Ward must remain an emergency saturation gap-filler instead of entering the normal overflow rotation'],
+  [skills.includes('persistentProgressionExhausted') && skills.includes("if (choices.length < 3 && !choices.includes('veilWard')) choices.push('veilWard');"), 'fully saturated late runs can still collapse below three distinct choices'],
+  [skills.includes("return key === 'heal' || key === 'veilCache' || key === 'goldCache' || key === 'veilWard';") && skills.includes('isMasteryGift'), 'instant rewards and persistent masteries are not separated'],
   [skills.includes('function recoveryWouldHaveValue') && skills.includes("if (key === 'heal' && !allowRecovery) return false;"), 'full-health runs can still receive a worthless recovery choice'],
   [controller.includes('currentHp: state.player.hp') && controller.includes('maxHp: state.player.maxHp'), 'gift choice generation is not using live player health to suppress worthless recovery'],
   [controller.includes('player.maxHp * 0.2') && !controller.includes('player.maxHp * 0.5'), 'recovery is not limited to 20%'],
   [controller.includes("choice === 'hunterBlessing'") && controller.includes('player.attack += 2') && controller.includes("choice === 'vitalSpark'") && controller.includes('player.maxHp += 8'), 'bounded mastery effects are not applied with the intended values'],
   [controller.includes("choice === 'veilCache'") && controller.includes('grantMetaDust(30)') && controller.includes("choice === 'goldCache'") && controller.includes('grantMetaGold(300)'), 'late non-power reward choices are not granted safely'],
+  [controller.includes("choice === 'veilWard'") && controller.includes('performance.now() + 1500') && levelUp.includes("labelDe: 'SCHLEIERWACHT'") && translations.includes('SCHLEIERWACHT · 1,5s Startschutz') && translations.includes('VEIL WARD · 1.5s entry protection'), 'saturation fallback does not provide the bounded 1.5s current-room protection promised by DE/EN UI copy'],
   [currency.includes('export function grantMetaGold') && currency.includes('meta.gold += value'), 'safe meta gold grant is missing'],
   [controller.includes('consumeFusionComponents(state.runSkills, choice)') && controller.includes('captureRoomEntrySnapshot') && controller.includes("saveNow('ability')"), 'fusion or mastery choices do not persist safely across room restart'],
   [game.includes('prepareGiftChoices(live)') && game.includes('applyGiftUpgrade(engine, choice)'), 'the run flow is not using the fusion-aware gift controller'],
@@ -60,9 +63,9 @@ const checks = [
   [!runEngine.includes('applyUpgrade(choice: UpgradeKey): void'), 'runEngine still exposes a second divergent gift-application authority'],
   [regressionConfig.includes('run-gift-authority'), 'the focused run-gift authority journey is silently excluded from the regression testMatch'],
   [bridge.includes('installBoundedRunGiftProgression') && bridge.includes('shouldRestorePendingGift') && bridge.includes('buildRunGiftChoices'), 'active runs do not use the bounded schedule and fusion-aware restoration'],
-  [levelUp.includes('MEISTERSCHAFT · RANG') && levelUp.includes('SCHLEIERVORRAT') && levelUp.includes('JÄGERTRUHE') && !levelUp.includes('WIEDERHOLBARER SEGEN'), 'gift cards still describe unlimited blessings or omit currency rewards'],
+  [levelUp.includes('MEISTERSCHAFT · RANG') && levelUp.includes('SCHLEIERVORRAT') && levelUp.includes('JÄGERTRUHE') && levelUp.includes('SCHLEIERWACHT') && !levelUp.includes('WIEDERHOLBARER SEGEN'), 'gift cards still describe unlimited blessings or omit bounded late-run rewards'],
   [hud.includes('elementalStorm') && hud.includes('arrowStorm') && hud.includes('veilChain') && hud.includes('isInstantGift'), 'fused gifts are not represented as single HUD slots'],
-  [translations.includes('JÄGERSEGEN · Meisterschaft I–III') && translations.includes('SCHLEIERVORRAT · +30 Schleierstaub') && translations.includes('JÄGERTRUHE · +300 Gold'), 'German bounded gift copy is incomplete'],
+  [translations.includes('JÄGERSEGEN · Meisterschaft I–III') && translations.includes('SCHLEIERVORRAT · +30 Schleierstaub') && translations.includes('JÄGERTRUHE · +300 Gold') && translations.includes('SCHLEIERWACHT · 1,5s Startschutz'), 'German bounded gift copy is incomplete'],
   [!saveManager.includes('delete persistent.hunterBlessing') && !saveManager.includes('delete persistent.vitalSpark'), 'bounded mastery ranks are still removed from saves'],
   [saveManager.includes('delete persistent.heal') && saveManager.includes('delete persistent.veilCache') && saveManager.includes('delete persistent.goldCache'), 'instant gift choices are incorrectly persisted as run skills'],
   [recoveryBaseline.includes('preUpdateHp = this.state.player.hp;') && recoveryBaseline.indexOf('preUpdateHp = this.state.player.hp;') < recoveryBaseline.indexOf('originalUpdate.call(this, timestamp)'), 'renderer recovery does not capture the stable pre-update HP baseline before mutable combat advances'],
@@ -78,4 +81,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Gift progression audit passed: bounded milestones and masteries remain intact, recovery is only offered when it has gameplay value, renderer recovery preserves the last stable pre-update HP baseline against any finite drift, and run-gift generation/application has one authoritative path.');
+console.log('Gift progression audit passed: bounded milestones and masteries remain intact, saturated late runs retain three meaningful choices without restoring worthless full-HP Recovery, Veil Ward stays a bounded gap-filler, renderer recovery preserves the last stable pre-update HP baseline against any finite drift, and run-gift generation/application has one authoritative path.');

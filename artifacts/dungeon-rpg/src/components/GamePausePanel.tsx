@@ -23,13 +23,13 @@ const NAMES_DE: Record<UpgradeKey, string> = {
   multishot: 'MEHRFACHPFEIL', ricochet: 'ABPRALLER', fireArrow: 'FEUERPFEIL', iceArrow: 'FROSTPFEIL', attackSpeed: 'SCHNELLZUG', piercing: 'DURCHBOHREN',
   elementalStorm: 'ELEMENTARSTURM', arrowStorm: 'PFEILSTURM', veilChain: 'SCHLEIERKETTE',
   attack: 'JÄGERINSTINKT', maxHp: 'LEBENSKRAFT', speed: 'WINDLÄUFER', defense: 'WALDHAUT',
-  heal: 'ERHOLUNG', hunterBlessing: 'JÄGERSEGEN', vitalSpark: 'LEBENSFUNKE', veilCache: 'SCHLEIERVORRAT', goldCache: 'JÄGERTRUHE',
+  heal: 'ERHOLUNG', hunterBlessing: 'JÄGERSEGEN', vitalSpark: 'LEBENSFUNKE', veilCache: 'SCHLEIERVORRAT', goldCache: 'JÄGERTRUHE', veilWard: 'SCHLEIERWACHT',
 };
 const NAMES_EN: Record<UpgradeKey, string> = {
   multishot: 'MULTISHOT', ricochet: 'RICOCHET', fireArrow: 'FIRE ARROW', iceArrow: 'FROST ARROW', attackSpeed: 'QUICK DRAW', piercing: 'PIERCING',
   elementalStorm: 'ELEMENTAL STORM', arrowStorm: 'ARROW STORM', veilChain: 'VEIL CHAIN',
   attack: 'HUNTER INSTINCT', maxHp: 'VITALITY', speed: 'WINDRUNNER', defense: 'FOREST SKIN',
-  heal: 'RECOVERY', hunterBlessing: 'HUNTER BLESSING', vitalSpark: 'VITAL SPARK', veilCache: 'VEIL CACHE', goldCache: 'HUNTER CACHE',
+  heal: 'RECOVERY', hunterBlessing: 'HUNTER BLESSING', vitalSpark: 'VITAL SPARK', veilCache: 'VEIL CACHE', goldCache: 'HUNTER CACHE', veilWard: 'VEIL WARD',
 };
 const roman = (rank: number) => rank === 1 ? 'I' : rank === 2 ? 'II' : rank === 3 ? 'III' : String(rank);
 

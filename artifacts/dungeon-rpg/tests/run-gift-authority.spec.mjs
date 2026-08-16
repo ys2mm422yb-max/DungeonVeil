@@ -72,9 +72,6 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
   await expect(choices).toHaveCount(3);
   await expect(choices.first()).toBeVisible();
 
-  // Evidence must wait for three fully visible cards whose geometry has stopped
-  // moving. Intentional card glow/filter effects are part of the settled design and
-  // therefore are not treated as evidence of an unfinished entrance animation.
   const readChoiceSnapshot = () => choices.evaluateAll(nodes => nodes.map(node => {
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
@@ -148,4 +145,67 @@ test('Fire Arrow reapplication preserves the scheduled burn tick at every real a
     expect(ticks, `cadence ${cadenceMs}ms should produce burn ticks under continuous fire`).toBeGreaterThan(0);
     expect(ticks, `cadence ${cadenceMs}ms must not stack/explode burn ticks`).toBeLessThanOrEqual(8);
   }
+});
+
+test('fully saturated full-HP runs still expose three distinct meaningful gift choices', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const skills = await readFile(new URL('../src/game/runSkills.ts', import.meta.url), 'utf8');
+  const controller = await readFile(new URL('../src/game/giftUpgradeController.ts', import.meta.url), 'utf8');
+  const translations = await readFile(new URL('../src/i18n/translations.ts', import.meta.url), 'utf8');
+
+  expect(skills).toContain("export type InstantGiftKey = 'heal' | 'veilCache' | 'goldCache' | 'veilWard';");
+  expect(skills).toContain("if (choices.length < 3 && !choices.includes('veilWard')) choices.push('veilWard');");
+  expect(skills).toContain("if (key === 'heal' && !allowRecovery) return false;");
+  expect(skills).not.toContain("OVERFLOW_GIFTS: OverflowGiftKey[] = ['hunterBlessing', 'vitalSpark', 'heal', 'veilCache', 'goldCache', 'veilWard']");
+  expect(controller).toContain("choice === 'veilWard'");
+  expect(controller).toContain('state.player.invincibleUntil = Math.max(state.player.invincibleUntil, performance.now() + 1500);');
+  expect(translations).toContain('SCHLEIERWACHT · 1,5s Startschutz');
+  expect(translations).toContain('VEIL WARD · 1.5s entry protection');
+
+  await startSolo(page);
+  await page.evaluate(() => {
+    window.__dungeonVeilRuntimeEvidence.loadRoom(3, 'solo');
+    window.__dungeonVeilRuntimeEvidence.saturateRunGiftsAtFullHp();
+    window.__dungeonVeilRuntimeEvidence.killLivingEnemies();
+  });
+  const saturated = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
+  expect(saturated?.hp).toBe(saturated?.maxHp);
+
+  await expect.poll(
+    () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.roomClearReady),
+    { timeout: 30_000, intervals: [100, 200, 350, 500, 750, 1_000] },
+  ).toBe(true);
+  await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.moveToExit());
+  await expect.poll(
+    () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.status),
+    { timeout: 30_000, intervals: [100, 200, 350, 500, 750, 1_000] },
+  ).toBe('levelup');
+
+  const choices = page.locator('[data-testid^="gift-choice-"]');
+  await expect(choices).toHaveCount(3);
+  await expect(page.getByTestId('gift-choice-heal')).toHaveCount(0);
+  const veilWard = page.getByTestId('gift-choice-veilWard');
+  await expect(veilWard).toBeVisible({ timeout: 30_000 });
+  await expect(veilWard).toContainText(/SCHLEIERWACHT|VEIL WARD/i);
+  await expect(veilWard).toContainText(/1,5s|1\.5s/i);
+
+  const choiceIds = await choices.evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')));
+  expect(new Set(choiceIds).size).toBe(3);
+  expect(choiceIds).toContain('gift-choice-veilWard');
+  expect(choiceIds).not.toContain('gift-choice-heal');
+
+  await expect.poll(async () => choices.evaluateAll(nodes => nodes.every(node => {
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.right <= innerWidth + 1 && rect.top >= 0 && rect.bottom <= innerHeight + 1 &&
+      Number.parseFloat(style.opacity || '1') >= 0.99 && style.visibility === 'visible';
+  })), { timeout: 30_000, intervals: [100, 200, 350, 500, 750] }).toBe(true);
+  await page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }));
+
+  await page.screenshot({
+    path: `test-results/autopilot-gift-saturated-full-hp-${testInfo.project.name}.png`,
+    fullPage: false,
+  });
 });

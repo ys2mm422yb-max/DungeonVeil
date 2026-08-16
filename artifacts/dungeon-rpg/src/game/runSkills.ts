@@ -7,9 +7,9 @@ export type SkillRankDef = {
 };
 
 export type FusionKey = 'elementalStorm' | 'arrowStorm' | 'veilChain';
-export type InstantGiftKey = 'heal' | 'veilCache' | 'goldCache';
+export type InstantGiftKey = 'heal' | 'veilCache' | 'goldCache' | 'veilWard';
 export type MasteryGiftKey = 'hunterBlessing' | 'vitalSpark';
-export type OverflowGiftKey = InstantGiftKey | MasteryGiftKey;
+export type OverflowGiftKey = Exclude<InstantGiftKey, 'veilWard'> | MasteryGiftKey;
 export type BaseCombatGiftKey = 'multishot' | 'ricochet' | 'fireArrow' | 'iceArrow' | 'attackSpeed' | 'piercing';
 
 export type RunGiftChoiceContext = {
@@ -121,6 +121,11 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
     rankTextDe: ['Sofort +300 Gold erhalten'],
     rankTextEn: ['Instantly gain +300 gold'],
   },
+  veilWard: {
+    maxRank: 1,
+    rankTextDe: ['1,5s unverwundbar beim Raumstart'],
+    rankTextEn: ['1.5s invulnerable on room entry'],
+  },
 };
 
 function rawSkillRank(skills: Partial<Record<UpgradeKey, number>>, key: UpgradeKey) {
@@ -132,7 +137,7 @@ export function isFusionKey(key: UpgradeKey): key is FusionKey {
 }
 
 export function isInstantGift(key: UpgradeKey): key is InstantGiftKey {
-  return key === 'heal' || key === 'veilCache' || key === 'goldCache';
+  return key === 'heal' || key === 'veilCache' || key === 'goldCache' || key === 'veilWard';
 }
 
 export function isMasteryGift(key: UpgradeKey): key is MasteryGiftKey {
@@ -207,11 +212,17 @@ export function buildRunGiftChoices(
   const fusions = shuffled<UpgradeKey>(availableFusionSkills(skills));
   const regular = shuffled(availableRunSkills(skills, pool));
   const overflow = shuffled<UpgradeKey>(availableOverflowGifts(skills, context));
+  const persistentProgressionExhausted = fusions.length === 0 && regular.length === 0 &&
+    rawSkillRank(skills, 'hunterBlessing') >= RUN_SKILL_DEFS.hunterBlessing.maxRank &&
+    rawSkillRank(skills, 'vitalSpark') >= RUN_SKILL_DEFS.vitalSpark.maxRank;
   const choices: UpgradeKey[] = [];
 
   for (const fusion of fusions) if (choices.length < 3) choices.push(fusion);
   for (const gift of regular) if (choices.length < 3 && !choices.includes(gift)) choices.push(gift);
   for (const fallback of overflow) if (choices.length < 3 && !choices.includes(fallback)) choices.push(fallback);
+  if (persistentProgressionExhausted) {
+    if (choices.length < 3 && !choices.includes('veilWard')) choices.push('veilWard');
+  }
 
   return choices.slice(0, 3);
 }
