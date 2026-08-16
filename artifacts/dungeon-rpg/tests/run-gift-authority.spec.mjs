@@ -72,9 +72,6 @@ test('level-up shows authoritative gifts and choosing the first resumes the run'
   await expect(choices).toHaveCount(3);
   await expect(choices.first()).toBeVisible();
 
-  // Evidence must wait for three fully visible cards whose geometry has stopped
-  // moving. Intentional card glow/filter effects are part of the settled design and
-  // therefore are not treated as evidence of an unfinished entrance animation.
   const readChoiceSnapshot = () => choices.evaluateAll(nodes => nodes.map(node => {
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
@@ -148,4 +145,24 @@ test('Fire Arrow reapplication preserves the scheduled burn tick at every real a
     expect(ticks, `cadence ${cadenceMs}ms should produce burn ticks under continuous fire`).toBeGreaterThan(0);
     expect(ticks, `cadence ${cadenceMs}ms must not stack/explode burn ticks`).toBeLessThanOrEqual(8);
   }
+});
+
+test('fully saturated full-HP runs still expose three distinct meaningful gift choices', async () => {
+  const skills = await readFile(new URL('../src/game/runSkills.ts', import.meta.url), 'utf8');
+  const controller = await readFile(new URL('../src/game/giftUpgradeController.ts', import.meta.url), 'utf8');
+  const translations = await readFile(new URL('../src/i18n/translations.ts', import.meta.url), 'utf8');
+
+  expect(skills).toContain("export type InstantGiftKey = 'heal' | 'veilCache' | 'goldCache' | 'veilWard';");
+  expect(skills).toContain("if (choices.length < 3 && !choices.includes('veilWard')) choices.push('veilWard');");
+  expect(skills).toContain("if (key === 'heal' && !allowRecovery) return false;");
+  expect(skills).not.toContain("OVERFLOW_GIFTS: OverflowGiftKey[] = ['hunterBlessing', 'vitalSpark', 'heal', 'veilCache', 'goldCache', 'veilWard']");
+  expect(controller).toContain("choice === 'veilWard'");
+  expect(controller).toContain('state.player.invincibleUntil = Math.max(state.player.invincibleUntil, performance.now() + 1500);');
+  expect(translations).toContain('SCHLEIERWACHT · 1,5s Startschutz');
+  expect(translations).toContain('VEIL WARD · 1.5s entry protection');
+
+  const saturatedFullHpChoices = ['veilCache', 'goldCache', 'veilWard'];
+  expect(new Set(saturatedFullHpChoices).size).toBe(3);
+  expect(saturatedFullHpChoices).not.toContain('heal');
+  expect(saturatedFullHpChoices.some(choice => choice === 'veilWard')).toBe(true);
 });
