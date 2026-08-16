@@ -15,6 +15,7 @@ type RuntimeEvidenceApi = {
   killLivingEnemies: () => Record<string, unknown> | null;
   moveToExit: () => Record<string, unknown> | null;
   chooseFirstGift: () => Record<string, unknown> | null;
+  prepareAttackGiftEvidence: () => Record<string, unknown> | null;
   saturateRunGiftsAtFullHp: () => Record<string, unknown> | null;
   setMode: (mode: EvidenceMode) => void;
   setPlayerStats: (attack: number, defense: number) => Record<string, unknown> | null;
@@ -64,6 +65,7 @@ function stateSnapshot(engine = currentEngine): Record<string, unknown> | null {
     roomClearReady: state.roomClearReady,
     effects: state.effects.map(effect => effect.id),
     damageNumbers: state.damageNumbers.map(number => number.id),
+    upgradeChoices: [...state.upgradeChoices],
     runMode: document.documentElement.dataset.dungeonVeilRunMode ?? 'solo',
     orientation: document.documentElement.dataset.dungeonVeilOrientation ?? 'portrait',
   };
@@ -181,6 +183,31 @@ function attachApi(): void {
       const choice = engine.state.upgradeChoices[0];
       if (choice) applyGiftUpgrade(engine, choice);
       emit(engine);
+      return stateSnapshot(engine);
+    },
+    prepareAttackGiftEvidence: () => {
+      const engine = currentEngine;
+      if (!engine) return null;
+      // Keep the real prepareGiftChoices authority in charge. Saturate every
+      // regular path except Attack, Quick Draw and Max HP without opening a
+      // fusion, so the normal randomized builder has exactly these three valid
+      // regular candidates and therefore cannot overwrite the QA setup with a
+      // different card set.
+      engine.state.runSkills = {
+        elementalStorm: 1,
+        veilChain: 1,
+        multishot: 3,
+        speed: 3,
+        defense: 3,
+      };
+      engine.state.upgradeChoices = [];
+      engine.state.status = 'levelup';
+      emit(engine);
+      const expectedChoices = ['attack', 'attackSpeed', 'maxHp'] as const;
+      const actualChoices = engine.state.upgradeChoices;
+      if (actualChoices.length !== expectedChoices.length || expectedChoices.some(choice => !actualChoices.includes(choice))) {
+        throw new Error(`Attack gift evidence preparation drifted: ${actualChoices.join(',')}`);
+      }
       return stateSnapshot(engine);
     },
     saturateRunGiftsAtFullHp: () => {

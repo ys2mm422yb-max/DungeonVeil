@@ -16,7 +16,7 @@ const en = {
   language: 'Language', languageShort: 'EN', sound: 'Sound', soundOn: 'On', soundOff: 'Off', deleteSave: 'Delete Save', deleteSaveConfirm: 'Are you sure? This cannot be undone.', confirm: 'Confirm', cancel: 'Cancel', version: 'Version 1.0',
   creditsTitle: 'Credits', creditsGame: 'DUNGEON VEIL', creditsTagline: 'A room-run action roguelite', creditsBuiltWith: 'Built with React + TypeScript', creditsDesign: 'Design & Game Dev', creditsSpecialThanks: 'Special Thanks', creditsThanksText: 'To every adventurer brave enough to enter the Veil.', creditsClose: 'Back',
   upgrades: {
-    maxHp: '+20 Max HP', attack: '+4 Attack', speed: '+12 Move Speed', defense: '+1 Defense', heal: 'Heal 20%',
+    maxHp: '+20 Max HP', attack: '+2 Attack', speed: '+12 Move Speed', defense: '+1 Defense', heal: 'Heal 20%',
     multishot: 'MULTISHOT · Up to +1 target/arrow', ricochet: 'RICOCHET · Hit another enemy', fireArrow: 'FIRE ARROW · Burn damage', iceArrow: 'FROST ARROW · Ice damage', attackSpeed: 'QUICK DRAW · Lower attack cooldown', piercing: 'PIERCING · Arrow hits through targets',
     elementalStorm: 'ELEMENTAL STORM · Fire III + Frost III', arrowStorm: 'ARROW STORM · Multishot III + Quick Draw III', veilChain: 'VEIL CHAIN · Ricochet III + Piercing III', hunterBlessing: 'HUNTER BLESSING · Mastery I–III', vitalSpark: 'VITAL SPARK · Mastery I–III', veilCache: 'VEIL CACHE · +30 Veil Dust', goldCache: 'HUNTER CACHE · +300 Gold', veilWard: 'VEIL WARD · 1.5s entry protection',
   } as Record<UpgradeKey, string>,
@@ -37,7 +37,7 @@ const de: typeof en = {
   language: 'Sprache', languageShort: 'DE', sound: 'Sound', soundOn: 'An', soundOff: 'Aus', deleteSave: 'Speicher löschen', deleteSaveConfirm: 'Bist du sicher? Das kann nicht rückgängig gemacht werden.', confirm: 'Bestätigen', cancel: 'Abbrechen', version: 'Version 1.0',
   creditsTitle: 'Credits', creditsGame: 'DUNGEON VEIL', creditsTagline: 'Ein Raum-Run Action-Roguelite', creditsBuiltWith: 'Erstellt mit React + TypeScript', creditsDesign: 'Design & Spielentwicklung', creditsSpecialThanks: 'Besonderer Dank', creditsThanksText: 'An jeden Abenteurer, der den Schleier betritt.', creditsClose: 'Zurück',
   upgrades: {
-    maxHp: '+20 Max LP', attack: '+4 Angriff', speed: '+12 Bewegung', defense: '+1 Verteidigung', heal: '20% Heilung',
+    maxHp: '+20 Max LP', attack: '+2 Angriff', speed: '+12 Bewegung', defense: '+1 Verteidigung', heal: '20% Heilung',
     multishot: 'MEHRFACHPFEIL · Bis zu +1 Ziel/Pfeil', ricochet: 'ABPRALLER · Trifft weiteren Gegner', fireArrow: 'FEUERPFEIL · Brandschaden', iceArrow: 'FROSTPFEIL · Eisschaden', attackSpeed: 'SCHNELLZUG · Weniger Angriffs-Cooldown', piercing: 'DURCHBOHREN · Pfeile treffen durch',
     elementalStorm: 'ELEMENTARSTURM · Feuer III + Frost III', arrowStorm: 'PFEILSTURM · Mehrfachpfeil III + Schnellzug III', veilChain: 'SCHLEIERKETTE · Abpraller III + Durchbohren III', hunterBlessing: 'JÄGERSEGEN · Meisterschaft I–III', vitalSpark: 'LEBENSFUNKE · Meisterschaft I–III', veilCache: 'SCHLEIERVORRAT · +30 Schleierstaub', goldCache: 'JÄGERTRUHE · +300 Gold', veilWard: 'SCHLEIERWACHT · 1,5s Startschutz',
   } as Record<UpgradeKey, string>,

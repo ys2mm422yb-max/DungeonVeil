@@ -7,6 +7,7 @@ import {
   isFusionKey,
   isInstantGift,
   nextSkillRank,
+  RUN_ATTACK_GAINS,
 } from './runSkills';
 
 type EngineInternals = {
@@ -36,7 +37,7 @@ export function applyGiftUpgrade(engine: GameEngine, choice: UpgradeKey): boolea
     const gain = rank === 1 ? 20 : rank === 2 ? 25 : 30;
     player.maxHp += gain;
     player.hp = Math.min(player.maxHp, player.hp + gain);
-  } else if (choice === 'attack') player.attack += rank === 3 ? 5 : 4;
+  } else if (choice === 'attack') player.attack += RUN_ATTACK_GAINS[rank] ?? 0;
   else if (choice === 'speed') player.speed += rank === 1 ? 12 : rank === 2 ? 10 : 8;
   else if (choice === 'defense') player.defense += rank === 1 ? 1 : 2;
   else if (choice === 'heal') player.hp = Math.min(player.maxHp, player.hp + player.maxHp * 0.2);

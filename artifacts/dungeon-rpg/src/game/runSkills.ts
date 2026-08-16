@@ -29,6 +29,7 @@ export const FUSION_RECIPES: Record<FusionKey, readonly [BaseCombatGiftKey, Base
 };
 
 export const OVERFLOW_GIFTS: OverflowGiftKey[] = ['hunterBlessing', 'vitalSpark', 'heal', 'veilCache', 'goldCache'];
+export const RUN_ATTACK_GAINS = Object.freeze([0, 2, 2, 2] as const);
 
 export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   multishot: {
@@ -78,8 +79,8 @@ export const RUN_SKILL_DEFS: Record<UpgradeKey, SkillRankDef> = {
   },
   attack: {
     maxRank: 3,
-    rankTextDe: ['+4 Angriff', '+4 Angriff · stärkerer Einschlag', '+5 Angriff · maximaler Einschlag'],
-    rankTextEn: ['+4 attack', '+4 attack · heavier impact', '+5 attack · maximum impact'],
+    rankTextDe: ['+2 Angriff', '+2 Angriff · stärkerer Einschlag', '+2 Angriff · maximaler Einschlag'],
+    rankTextEn: ['+2 attack', '+2 attack · heavier impact', '+2 attack · maximum impact'],
   },
   maxHp: {
     maxRank: 3,
