@@ -27,6 +27,13 @@ assert(scene.includes('collidesWithRoomProp('), 'movement targets do not reject 
 assert(scene.includes('movementPathBlockedByRoomProp('), 'movement path does not reject visible room-prop blockers');
 assert(scene.includes('acceleration') && scene.includes('deceleration'), 'role movement profiles do not define acceleration/deceleration');
 assert(scene.includes('velocityX') && scene.includes('velocityZ'), 'smooth companion velocity state is missing');
+assert(scene.includes("matchMedia('(prefers-reduced-motion: reduce)')"), 'Reduced Motion does not follow the browser/OS motion preference');
+assert(scene.includes('REDUCED_MOTION_ROAM_SCALE = 0.58'), 'Reduced Motion decorative roam scaling is missing or changed unexpectedly');
+assert(scene.includes('REDUCED_MOTION_REPLAN_SCALE = 2.2'), 'Reduced Motion replan throttling is missing or changed unexpectedly');
+assert(scene.includes('effectiveRoamRadius') && scene.includes('effectiveReplanMs'), 'Reduced Motion is not applied to decorative target radius and replanning');
+assert(scene.includes('profile.leashRadius'), 'Reduced Motion must preserve the hard leash rather than replacing it');
+assert(scene.includes('profile.minPlayerDistance'), 'Reduced Motion must preserve minimum player separation');
+assert(scene.includes('data-reduced-motion={PREFERS_REDUCED_MOTION'), 'scene marker does not expose Reduced Motion mode for runtime evidence');
 assert(scene.includes('data-follow-placement="role-aware-roam"'), 'scene marker does not expose role-aware roam');
 assert(scene.includes("marker.dataset.followPlacement = 'role-aware-roam'"), 'runtime marker does not expose role-aware roam');
 assert(!scene.includes("marker.dataset.followPlacement = 'inward-side'"), 'legacy fixed inward-side formation is still active');
@@ -43,5 +50,10 @@ console.log(JSON.stringify({
   smoothAccelerationAndDeceleration: true,
   movementFacing: true,
   rebuildInitialization: true,
+  reducedMotion: {
+    decorativeRoamScale: 0.58,
+    replanScale: 2.2,
+    preservesLeashAndSeparation: true,
+  },
 }, null, 2));
 console.log('Companion free movement contract passed.');
