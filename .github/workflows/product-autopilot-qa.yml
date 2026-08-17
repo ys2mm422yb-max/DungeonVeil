@@ -190,36 +190,59 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          while IFS= read -r -d '' png; do
-            tmp="$(mktemp --suffix=.png)"
-            before_size="$(stat -c '%s' "$png")"
+          declare -a pngs=()
+          mapfile -d '' -t pngs < <(find artifacts/dungeon-rpg/test-results -type f -name '*.png' -print0) || true
+          for png in "${pngs[@]}"; do
+            if [[ ! -f "$png" ]]; then
+              echo "::warning file=$png::Skipping PNG compaction because the source file disappeared."
+              continue
+            fi
+            tmp=""
+            if ! tmp="$(mktemp --suffix=.png)"; then
+              echo "::warning file=$png::Skipping PNG compaction because temporary file creation failed."
+              continue
+            fi
+            if ! before_size="$(stat -c '%s' "$png")"; then
+              echo "::warning file=$png::Skipping PNG compaction because source size lookup failed."
+              rm -f "$tmp" || true
+              continue
+            fi
             if ! before_pixels="$(ffmpeg -hide_banner -loglevel error -i "$png" -vf format=rgba -f framemd5 - | tail -n 1)"; then
               echo "::warning file=$png::Skipping PNG compaction because canonical decode failed."
-              rm -f "$tmp"
+              rm -f "$tmp" || true
               continue
             fi
             if ! ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 "$tmp"; then
               echo "::warning file=$png::Skipping PNG compaction because lossless re-encode failed."
-              rm -f "$tmp"
+              rm -f "$tmp" || true
               continue
             fi
             if ! after_pixels="$(ffmpeg -hide_banner -loglevel error -i "$tmp" -vf format=rgba -f framemd5 - | tail -n 1)"; then
               echo "::warning file=$png::Skipping PNG compaction because compacted decode failed."
-              rm -f "$tmp"
+              rm -f "$tmp" || true
               continue
             fi
             if [[ "$before_pixels" != "$after_pixels" ]]; then
               echo "::warning file=$png::Skipping PNG compaction because decoded RGBA pixels differ."
-              rm -f "$tmp"
+              rm -f "$tmp" || true
               continue
             fi
-            after_size="$(stat -c '%s' "$tmp")"
-            if (( after_size < before_size )); then
-              mv "$tmp" "$png"
-            else
-              rm -f "$tmp"
+            if ! after_size="$(stat -c '%s' "$tmp")"; then
+              echo "::warning file=$png::Skipping PNG compaction because compacted size lookup failed."
+              rm -f "$tmp" || true
+              continue
             fi
-          done < <(find artifacts/dungeon-rpg/test-results -type f -name '*.png' -print0)
+            if (( after_size < before_size )); then
+              if ! mv "$tmp" "$png"; then
+                echo "::warning file=$png::Skipping PNG compaction because replacement failed."
+                rm -f "$tmp" || true
+                continue
+              fi
+            else
+              rm -f "$tmp" || true
+            fi
+          done
+          exit 0
       - name: Upload compact product result manifest
         if: always()
         uses: actions/upload-artifact@v4
