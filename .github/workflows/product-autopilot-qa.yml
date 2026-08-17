@@ -191,11 +191,11 @@ jobs:
         run: |
           set -euo pipefail
           while IFS= read -r -d '' png; do
-            tmp="${png}.compact.png"
+            tmp="$(mktemp --suffix=.png)"
             before_size="$(stat -c '%s' "$png")"
-            rm -f "$tmp"
             if ! before_pixels="$(ffmpeg -hide_banner -loglevel error -i "$png" -vf format=rgba -f framemd5 - | tail -n 1)"; then
               echo "::warning file=$png::Skipping PNG compaction because canonical decode failed."
+              rm -f "$tmp"
               continue
             fi
             if ! ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 "$tmp"; then
