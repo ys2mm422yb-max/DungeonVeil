@@ -57,8 +57,15 @@ for (const part of ['VeilLynxLeg', 'EmberRavenWing', 'RuneSentinelLeg', 'Lantern
 assert(scene.includes('CompanionV5AttackTrail') && scene.includes('CompanionV5AttackRing') && scene.includes('triggerAction(detail?.kind'), 'visible attack trail or action event binding missing');
 assert(scene.includes('maxSpeed = 5.8 + binding.level * 0.42') && scene.includes('speed > 0.025'), 'bounded locomotion speed contract is missing');
 assert(scene.includes('COMPANION_MOVEMENT_PROFILES_V5'), 'role-aware companion movement profiles are missing');
-for (const role of ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction']) {
-  assert(scene.includes(`'${role}'`), `movement profile for ${role} is missing`);
+const movementProfileKeys = {
+  'single-target': "'single-target':",
+  'critical-support': "'critical-support':",
+  shield: 'shield:',
+  'loot-comfort': "'loot-comfort':",
+  distraction: 'distraction:',
+};
+for (const [role, profileKey] of Object.entries(movementProfileKeys)) {
+  assert(scene.includes(profileKey), `movement profile for ${role} is missing`);
 }
 assert(scene.includes('roamRadius') && scene.includes('minPlayerDistance') && scene.includes('leashRadius'), 'bounded roam, player separation or leash contract is missing');
 assert(scene.includes('movementTarget') && scene.includes('roamPhase'), 'independent companion target selection is missing');
