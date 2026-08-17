@@ -189,7 +189,7 @@ jobs:
         if: steps.product-tests.outcome == 'success'
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           while IFS= read -r -d '' png; do
             tmp="$(mktemp --suffix=.png)"
             before_size="$(stat -c '%s' "$png")"
