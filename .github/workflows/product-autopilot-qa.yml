@@ -193,10 +193,26 @@ jobs:
           while IFS= read -r -d '' png; do
             tmp="${png}.compact.png"
             before_size="$(stat -c '%s' "$png")"
-            before_pixels="$(ffmpeg -hide_banner -loglevel error -i "$png" -f framemd5 - | tail -n 1)"
-            ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 "$tmp"
-            after_pixels="$(ffmpeg -hide_banner -loglevel error -i "$tmp" -f framemd5 - | tail -n 1)"
-            test "$before_pixels" = "$after_pixels"
+            rm -f "$tmp"
+            if ! before_pixels="$(ffmpeg -hide_banner -loglevel error -i "$png" -vf format=rgba -f framemd5 - | tail -n 1)"; then
+              echo "::warning file=$png::Skipping PNG compaction because canonical decode failed."
+              continue
+            fi
+            if ! ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 "$tmp"; then
+              echo "::warning file=$png::Skipping PNG compaction because lossless re-encode failed."
+              rm -f "$tmp"
+              continue
+            fi
+            if ! after_pixels="$(ffmpeg -hide_banner -loglevel error -i "$tmp" -vf format=rgba -f framemd5 - | tail -n 1)"; then
+              echo "::warning file=$png::Skipping PNG compaction because compacted decode failed."
+              rm -f "$tmp"
+              continue
+            fi
+            if [[ "$before_pixels" != "$after_pixels" ]]; then
+              echo "::warning file=$png::Skipping PNG compaction because decoded RGBA pixels differ."
+              rm -f "$tmp"
+              continue
+            fi
             after_size="$(stat -c '%s' "$tmp")"
             if (( after_size < before_size )); then
               mv "$tmp" "$png"
