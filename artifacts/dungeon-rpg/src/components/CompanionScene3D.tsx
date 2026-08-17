@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { GameState } from '../game/runEngine';
 import { remotePresenceIsFresh, type CoopPlayerPresence } from '../game/coopRealtimePresence';
+import { isWalkable } from '../game/dungeon';
+import { collidesWithRoomProp, movementPathBlockedByRoomProp } from '../game/roomCollision3D';
 import {
   createCompanionReservationV4,
   normalizeCompanionRosterV4,
@@ -41,6 +43,24 @@ type CompanionCandidate = {
   level: number;
 };
 
+type CompanionMovementProfile = {
+  roamRadius: number;
+  minPlayerDistance: number;
+  leashRadius: number;
+  acceleration: number;
+  deceleration: number;
+  replanMs: number;
+  angleOffset: number;
+};
+
+const COMPANION_MOVEMENT_PROFILES_V5: Record<CompanionRoleV4, CompanionMovementProfile> = {
+  'single-target': { roamRadius: 92, minPlayerDistance: 52, leashRadius: 170, acceleration: 13.5, deceleration: 17, replanMs: 1180, angleOffset: 0.15 },
+  'critical-support': { roamRadius: 116, minPlayerDistance: 72, leashRadius: 188, acceleration: 12, deceleration: 15.5, replanMs: 1480, angleOffset: 1.35 },
+  shield: { roamRadius: 78, minPlayerDistance: 48, leashRadius: 154, acceleration: 10.5, deceleration: 14.5, replanMs: 1320, angleOffset: 2.45 },
+  'loot-comfort': { roamRadius: 104, minPlayerDistance: 64, leashRadius: 180, acceleration: 11.5, deceleration: 15, replanMs: 1640, angleOffset: 3.55 },
+  distraction: { roamRadius: 126, minPlayerDistance: 76, leashRadius: 198, acceleration: 14.5, deceleration: 18, replanMs: 1080, angleOffset: 4.65 },
+};
+
 type CompanionBinding = {
   reservation: CompanionReservationV4;
   level: number;
@@ -51,6 +71,11 @@ type CompanionBinding = {
   initialized: boolean;
   lastFrame: number;
   lastRemoteAttack: number;
+  movementTarget: { x: number; z: number } | null;
+  roamPhase: number;
+  nextRoamAt: number;
+  velocityX: number;
+  velocityZ: number;
 };
 
 function standardMaterial(THREE: any, color: number, emissive: number, intensity: number, roughness = 0.62) {
@@ -461,6 +486,20 @@ function createCompanionRig(THREE: any, role: CompanionRoleV4, level: number): C
   };
 }
 
+function sceneToMapCenter(value: number, mapTiles: number) {
+  return (value + mapTiles / 2 - 0.5) * TILE;
+}
+
+function mapCenterToScene(value: number, mapTiles: number) {
+  return value / TILE - mapTiles / 2 + 0.5;
+}
+
+function approach(current: number, target: number, maxDelta: number) {
+  const delta = target - current;
+  if (Math.abs(delta) <= maxDelta) return target;
+  return current + Math.sign(delta) * maxDelta;
+}
+
 export function CompanionScene3D({ gameState, localCompanion, remotePlayer = null }: Props) {
   const markerRef = useRef<HTMLSpanElement>(null);
   const stateRef = useRef(gameState);
@@ -497,7 +536,7 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
       marker.dataset.localLevel = String(local?.level ?? 0);
       marker.dataset.localSpecies = local ? COMPANION_DEFINITIONS_V5[local.role].species : 'none';
       marker.dataset.sceneCaptured = desiredScene ? 'true' : 'false';
-      marker.dataset.followPlacement = 'inward-side';
+      marker.dataset.followPlacement = 'role-aware-roam';
     };
 
     const removeBinding = (ownerPlayerId: string) => {
@@ -569,6 +608,11 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
         initialized: false,
         lastFrame: performance.now(),
         lastRemoteAttack: 0,
+        movementTarget: null,
+        roamPhase: candidate.reservation.role.length + (ownerId === 'player' ? 0 : 7),
+        nextRoamAt: 0,
+        velocityX: 0,
+        velocityZ: 0,
       });
       updateMarker();
     };
@@ -607,34 +651,112 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
       const ownerY = isRemote && remote ? remote.y : state.player.y + state.player.height / 2;
       const facingX = isRemote && remote ? remote.facingX : state.player.facing.x;
       const facingY = isRemote && remote ? remote.facingY : state.player.facing.y;
-      const side = isRemote ? -1 : 1;
-      const mapCenterX = state.map.width * TILE / 2;
-      const mapCenterY = state.map.height * TILE / 2;
-      const centerDeltaX = mapCenterX - ownerX;
-      const centerDeltaY = mapCenterY - ownerY;
-      const centerDistance = Math.hypot(centerDeltaX, centerDeltaY);
-      const inwardX = centerDistance > 80 ? centerDeltaX / centerDistance : facingX;
-      const inwardY = centerDistance > 80 ? centerDeltaY / centerDistance : facingY;
-      const followX = ownerX + inwardX * 64 - inwardY * 40 * side;
-      const followY = ownerY + inwardY * 64 + inwardX * 40 * side;
-      const targetX = followX / TILE - state.map.width / 2 + 0.5;
-      const targetZ = followY / TILE - state.map.height / 2 + 0.5;
-      if (!binding.initialized || Math.hypot(targetX - binding.x, targetZ - binding.z) > 7.5) {
-        binding.x = targetX;
-        binding.z = targetZ;
+      const profile = COMPANION_MOVEMENT_PROFILES_V5[binding.reservation.role];
+      const ownerSceneX = mapCenterToScene(ownerX, state.map.width);
+      const ownerSceneZ = mapCenterToScene(ownerY, state.map.height);
+      const maxSpeed = 5.8 + binding.level * 0.42;
+      const bodySize = 24;
+
+      const candidateValid = (sceneX: number, sceneZ: number, requireClearPath: boolean) => {
+        const centerX = sceneToMapCenter(sceneX, state.map.width);
+        const centerY = sceneToMapCenter(sceneZ, state.map.height);
+        const originX = centerX - bodySize / 2;
+        const originY = centerY - bodySize / 2;
+        if (!isWalkable(state.map, centerX, centerY)) return false;
+        if (collidesWithRoomProp(state.floor, state.map.width, state.map.height, originX, originY, bodySize, bodySize, 0.08)) return false;
+        if (!requireClearPath || !binding.initialized) return true;
+        const currentCenterX = sceneToMapCenter(binding.x, state.map.width);
+        const currentCenterY = sceneToMapCenter(binding.z, state.map.height);
+        return !movementPathBlockedByRoomProp(
+          state.floor,
+          state.map.width,
+          state.map.height,
+          currentCenterX - bodySize / 2,
+          currentCenterY - bodySize / 2,
+          originX,
+          originY,
+          bodySize,
+          bodySize,
+          0.1,
+        );
+      };
+
+      const selectMovementTarget = (requireClearPath = true) => {
+        const remoteOffset = isRemote ? Math.PI : 0;
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+          const phase = binding.roamPhase + attempt;
+          const angle = profile.angleOffset + remoteOffset + phase * 2.399963229728653;
+          const radiusFactor = 0.72 + ((phase * 37) % 29) / 100;
+          const radius = Math.max(profile.minPlayerDistance, profile.roamRadius * radiusFactor);
+          const centerX = ownerX + Math.cos(angle) * radius;
+          const centerY = ownerY + Math.sin(angle) * radius;
+          const sceneX = mapCenterToScene(centerX, state.map.width);
+          const sceneZ = mapCenterToScene(centerY, state.map.height);
+          if (!candidateValid(sceneX, sceneZ, requireClearPath)) continue;
+          binding.roamPhase = phase + 1;
+          return { x: sceneX, z: sceneZ };
+        }
+        return null;
+      };
+
+      const ownerDistance = binding.initialized
+        ? Math.hypot(binding.x - ownerSceneX, binding.z - ownerSceneZ) * TILE
+        : Number.POSITIVE_INFINITY;
+      const leashBroken = binding.initialized && ownerDistance > profile.leashRadius;
+
+      if (!binding.initialized || leashBroken) {
+        const recoveryTarget = selectMovementTarget(false);
+        const fallbackAngle = profile.angleOffset + (isRemote ? Math.PI : 0);
+        const fallbackRadius = profile.minPlayerDistance;
+        binding.x = recoveryTarget?.x ?? mapCenterToScene(ownerX + Math.cos(fallbackAngle) * fallbackRadius, state.map.width);
+        binding.z = recoveryTarget?.z ?? mapCenterToScene(ownerY + Math.sin(fallbackAngle) * fallbackRadius, state.map.height);
+        binding.velocityX = 0;
+        binding.velocityZ = 0;
+        binding.movementTarget = null;
+        binding.nextRoamAt = now;
         binding.initialized = true;
       }
+
+      const currentOwnerDistance = Math.hypot(binding.x - ownerSceneX, binding.z - ownerSceneZ) * TILE;
+      const targetReached = binding.movementTarget
+        ? Math.hypot(binding.movementTarget.x - binding.x, binding.movementTarget.z - binding.z) < 0.22
+        : true;
+      if (!binding.movementTarget
+        || now >= binding.nextRoamAt
+        || targetReached
+        || currentOwnerDistance < profile.minPlayerDistance * 0.82) {
+        binding.movementTarget = selectMovementTarget(true);
+        binding.nextRoamAt = now + profile.replanMs + (binding.roamPhase % 5) * 83;
+      }
+
       const previousX = binding.x;
       const previousZ = binding.z;
-      const dx = targetX - binding.x;
-      const dz = targetZ - binding.z;
+      const target = binding.movementTarget;
+      const dx = target ? target.x - binding.x : 0;
+      const dz = target ? target.z - binding.z : 0;
       const distance = Math.hypot(dx, dz);
-      const maxStep = (5.8 + binding.level * 0.42) * delta;
-      if (distance > 0.001) {
-        const step = Math.min(distance, maxStep);
-        binding.x += dx / distance * step;
-        binding.z += dz / distance * step;
+      const slowingDistance = Math.max(0.38, maxSpeed * 0.18);
+      const speedScale = distance <= 0.001 ? 0 : Math.min(1, distance / slowingDistance);
+      const desiredVelocityX = distance > 0.001 ? dx / distance * maxSpeed * speedScale : 0;
+      const desiredVelocityZ = distance > 0.001 ? dz / distance * maxSpeed * speedScale : 0;
+      const accelerating = Math.hypot(desiredVelocityX, desiredVelocityZ) > Math.hypot(binding.velocityX, binding.velocityZ);
+      const velocityRate = accelerating ? profile.acceleration : profile.deceleration;
+      binding.velocityX = approach(binding.velocityX, desiredVelocityX, velocityRate * delta);
+      binding.velocityZ = approach(binding.velocityZ, desiredVelocityZ, velocityRate * delta);
+
+      let nextX = binding.x + binding.velocityX * delta;
+      let nextZ = binding.z + binding.velocityZ * delta;
+      if (!candidateValid(nextX, nextZ, true)) {
+        binding.velocityX = 0;
+        binding.velocityZ = 0;
+        binding.movementTarget = null;
+        binding.nextRoamAt = now;
+        nextX = binding.x;
+        nextZ = binding.z;
       }
+      binding.x = nextX;
+      binding.z = nextZ;
+
       const movementX = binding.x - previousX;
       const movementZ = binding.z - previousZ;
       const speed = delta > 0 ? Math.hypot(movementX, movementZ) / delta : 0;
@@ -707,7 +829,7 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
     data-model-source="procedural-distinct-companion-v5"
     data-animation-source="articulated-locomotion-and-attacks"
     data-selection-surface="pre-run-only"
-    data-follow-placement="inward-side"
+    data-follow-placement="role-aware-roam"
     data-shared-renderer="true"
     data-extra-canvas="false"
   />;
