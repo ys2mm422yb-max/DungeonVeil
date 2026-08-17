@@ -115,13 +115,18 @@ async function openRoleRun(page, testInfo, role, reducedMotion = false) {
   return testInfo.project.name;
 }
 
+async function captureEvidenceScreenshot(page, path) {
+  // Preserve the full CSS viewport while avoiding redundant DPR upsampling in stored evidence.
+  await page.screenshot({ path, fullPage: false, scale: 'css' });
+}
+
 for (const role of ROLES) {
   test(`companion ${role} visibly changes its free-roam position`, async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     const project = await openRoleRun(page, testInfo, role, false);
-    await page.screenshot({ path: `test-results/autopilot-companion-movement-${role}-normal-start-${project}.png`, fullPage: false });
+    await captureEvidenceScreenshot(page, `test-results/autopilot-companion-movement-${role}-normal-start-${project}.png`);
     await page.waitForTimeout(1_350);
-    await page.screenshot({ path: `test-results/autopilot-companion-movement-${role}-normal-roam-${project}.png`, fullPage: false });
+    await captureEvidenceScreenshot(page, `test-results/autopilot-companion-movement-${role}-normal-roam-${project}.png`);
   });
 }
 
@@ -130,18 +135,18 @@ test('companion leash recovery, obstacle room and rebuild remain visually cohere
   const project = await openRoleRun(page, testInfo, 'shield', false);
   await movePlayer(page, ['ArrowRight', 'ArrowDown'], 1_900);
   await page.waitForTimeout(420);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-shield-leash-return-${project}.png`, fullPage: false });
+  await captureEvidenceScreenshot(page, `test-results/autopilot-companion-movement-shield-leash-return-${project}.png`);
 
   await loadEvidenceRoom(page, 13);
   await waitForCompanionScene(page, 'shield', false);
   await movePlayer(page, ['ArrowLeft', 'ArrowUp'], 1_050);
   await page.waitForTimeout(650);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-shield-obstacle-room13-${project}.png`, fullPage: false });
+  await captureEvidenceScreenshot(page, `test-results/autopilot-companion-movement-shield-obstacle-room13-${project}.png`);
 
   await loadEvidenceRoom(page, 21);
   await waitForCompanionScene(page, 'shield', false);
   await page.waitForTimeout(900);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-shield-rebuild-room21-${project}.png`, fullPage: false });
+  await captureEvidenceScreenshot(page, `test-results/autopilot-companion-movement-shield-rebuild-room21-${project}.png`);
   const runtime = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(runtime?.floor || 0)).toBe(21);
   expect(Number(runtime?.livingEnemies || 0)).toBeGreaterThan(0);
@@ -150,10 +155,10 @@ test('companion leash recovery, obstacle room and rebuild remain visually cohere
 test('Reduced Motion keeps functional movement with less decorative roaming', async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const project = await openRoleRun(page, testInfo, 'loot-comfort', true);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-loot-comfort-reduced-start-${project}.png`, fullPage: false });
+  await captureEvidenceScreenshot(page, `test-results/autopilot-companion-movement-loot-comfort-reduced-start-${project}.png`);
   await page.waitForTimeout(2_600);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-loot-comfort-reduced-roam-${project}.png`, fullPage: false });
+  await captureEvidenceScreenshot(page, `test-results/autopilot-companion-movement-loot-comfort-reduced-roam-${project}.png`);
   await movePlayer(page, ['ArrowRight', 'ArrowDown'], 1_900);
   await page.waitForTimeout(420);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-loot-comfort-reduced-leash-return-${project}.png`, fullPage: false });
+  await captureEvidenceScreenshot(page, `test-results/autopilot-companion-movement-loot-comfort-reduced-leash-return-${project}.png`);
 });
