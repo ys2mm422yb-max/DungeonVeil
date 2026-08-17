@@ -557,7 +557,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(scene).toHaveAttribute('data-selection-surface', 'pre-run-only');
   await expect(scene).toHaveAttribute('data-local-species', 'rune-sentinel');
   await expect(scene).toHaveAttribute('data-local-level', '2');
-  await expect(scene).toHaveAttribute('data-follow-placement', 'inward-side');
+  await expect(scene).toHaveAttribute('data-follow-placement', 'role-aware-roam');
   await expect(scene).toHaveAttribute('data-shared-renderer', 'true');
   await expect(scene).toHaveAttribute('data-extra-canvas', 'false');
   await expect(scene).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
