@@ -55,13 +55,18 @@ for (const part of ['VeilLynxLeg', 'EmberRavenWing', 'RuneSentinelLeg', 'Lantern
   assert(scene.includes(part), `articulated ${part} rig missing`);
 }
 assert(scene.includes('CompanionV5AttackTrail') && scene.includes('CompanionV5AttackRing') && scene.includes('triggerAction(detail?.kind'), 'visible attack trail or action event binding missing');
-assert(scene.includes('maxStep = (5.8 + binding.level * 0.42) * delta') && scene.includes('speed > 0.025'), 'bounded locomotion still slides by positional interpolation');
+assert(scene.includes('maxSpeed = 5.8 + binding.level * 0.42') && scene.includes('speed > 0.025'), 'bounded locomotion speed contract is missing');
 assert(scene.includes('COMPANION_MOVEMENT_PROFILES_V5'), 'role-aware companion movement profiles are missing');
 for (const role of ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction']) {
   assert(scene.includes(`'${role}'`), `movement profile for ${role} is missing`);
 }
 assert(scene.includes('roamRadius') && scene.includes('minPlayerDistance') && scene.includes('leashRadius'), 'bounded roam, player separation or leash contract is missing');
 assert(scene.includes('movementTarget') && scene.includes('roamPhase'), 'independent companion target selection is missing');
+assert(scene.includes('isWalkable('), 'movement targets do not reject non-walkable map tiles');
+assert(scene.includes('collidesWithRoomProp('), 'movement targets do not reject visible room-prop colliders');
+assert(scene.includes('movementPathBlockedByRoomProp('), 'movement path does not reject visible room-prop blockers');
+assert(scene.includes('acceleration') && scene.includes('deceleration'), 'role movement profiles do not define acceleration/deceleration');
+assert(scene.includes('velocityX') && scene.includes('velocityZ'), 'smooth companion velocity state is missing');
 assert(scene.includes('data-follow-placement="role-aware-roam"') && scene.includes("marker.dataset.followPlacement = 'role-aware-roam'"), 'runtime does not advertise role-aware free movement');
 assert(!scene.includes("marker.dataset.followPlacement = 'inward-side'"), 'legacy fixed inward-side formation is still active');
 assert(scene.includes('data-shared-renderer="true"') && scene.includes('data-extra-canvas="false"') && scene.includes('THREE.Object3D.prototype.add'), 'companion renderer must reuse the active run scene');
