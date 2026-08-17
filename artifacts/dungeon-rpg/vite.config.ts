@@ -179,6 +179,23 @@ async function inlineGltfSidecars(gltfPath: string) {
   if (changed) await fs.writeFile(gltfPath, `${JSON.stringify(source)}\n`, 'utf8');
 }
 
+async function validateNoExternalGltfSidecars(gltfPath: string) {
+  const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
+    buffers?: Array<{ uri?: string }>;
+    images?: Array<{ uri?: string }>;
+  };
+  for (const buffer of source.buffers ?? []) {
+    if (buffer.uri && !buffer.uri.startsWith('data:')) {
+      throw new Error(`Required production glTF still references an external buffer: ${gltfPath}`);
+    }
+  }
+  for (const image of source.images ?? []) {
+    if (image.uri && !image.uri.startsWith('data:')) {
+      throw new Error(`Required production glTF still references an external image: ${gltfPath}`);
+    }
+  }
+}
+
 async function validateRequiredQuiverPackaging(gltfPath: string) {
   const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
     buffers?: Array<{ uri?: string }>;
@@ -201,13 +218,23 @@ async function validateRequiredQuiverPackaging(gltfPath: string) {
 }
 
 async function inlineRequiredKayKitSidecars(outDir: string) {
-  const gltfPaths = [
-    path.join(outDir, 'assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf'),
-  ];
-  for (const gltfPath of gltfPaths) {
+  const relativeGltfPaths = [
+    'assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf',
+    'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/table_long_decorated_A.gltf',
+    'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/chair.gltf',
+    'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/banner_shield_red.gltf',
+    'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/candle_lit.gltf',
+    'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/banner_patternC_red.gltf',
+    'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/chest_gold.gltf',
+    'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/sword_shield_gold.gltf',
+    'assets/kaykit/tools/Assets/gltf/map.gltf',
+  ] as const;
+  for (const relativeGltfPath of relativeGltfPaths) {
+    const gltfPath = path.join(outDir, relativeGltfPath);
     if (!(await hasContent(gltfPath))) throw new Error(`Required KayKit glTF is missing from the production build: ${gltfPath}`);
     await inlineGltfSidecars(gltfPath);
-    await validateRequiredQuiverPackaging(gltfPath);
+    await validateNoExternalGltfSidecars(gltfPath);
+    if (relativeGltfPath.endsWith('/quiver.gltf')) await validateRequiredQuiverPackaging(gltfPath);
   }
 }
 
