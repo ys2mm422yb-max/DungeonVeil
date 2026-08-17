@@ -114,25 +114,26 @@ async function captureRoleSequence(page, testInfo, role, reducedMotion = false) 
   await startFreshRun(page);
   await waitForCompanionScene(page, role, reducedMotion);
 
-  const suffix = `${role}-${reducedMotion ? 'reduced' : 'normal'}-${testInfo.project.name}`;
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-${suffix}-start.png`, fullPage: false });
+  const mode = reducedMotion ? 'reduced' : 'normal';
+  const project = testInfo.project.name;
+  await page.screenshot({ path: `test-results/autopilot-companion-movement-${role}-${mode}-start-${project}.png`, fullPage: false });
   await page.waitForTimeout(reducedMotion ? 2_600 : 1_350);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-${suffix}-roam.png`, fullPage: false });
+  await page.screenshot({ path: `test-results/autopilot-companion-movement-${role}-${mode}-roam-${project}.png`, fullPage: false });
 
   await movePlayer(page, ['ArrowRight', 'ArrowDown'], 1_900);
   await page.waitForTimeout(420);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-${suffix}-leash-return.png`, fullPage: false });
+  await page.screenshot({ path: `test-results/autopilot-companion-movement-${role}-${mode}-leash-return-${project}.png`, fullPage: false });
 
   await loadEvidenceRoom(page, 13);
   await waitForCompanionScene(page, role, reducedMotion);
   await movePlayer(page, ['ArrowLeft', 'ArrowUp'], 1_050);
   await page.waitForTimeout(650);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-${suffix}-obstacle-room13.png`, fullPage: false });
+  await page.screenshot({ path: `test-results/autopilot-companion-movement-${role}-${mode}-obstacle-room13-${project}.png`, fullPage: false });
 
   await loadEvidenceRoom(page, 21);
   await waitForCompanionScene(page, role, reducedMotion);
   await page.waitForTimeout(reducedMotion ? 1_600 : 900);
-  await page.screenshot({ path: `test-results/autopilot-companion-movement-${suffix}-rebuild-room21.png`, fullPage: false });
+  await page.screenshot({ path: `test-results/autopilot-companion-movement-${role}-${mode}-rebuild-room21-${project}.png`, fullPage: false });
 
   const runtime = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(runtime?.floor || 0)).toBe(21);
