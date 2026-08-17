@@ -20,6 +20,10 @@ const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module
 const TILE = 40;
 const IS_MOBILE = typeof navigator !== 'undefined'
   && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
+const PREFERS_REDUCED_MOTION = typeof window !== 'undefined'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const REDUCED_MOTION_ROAM_SCALE = 0.58;
+const REDUCED_MOTION_REPLAN_SCALE = 2.2;
 
 type LocalCompanion = { role: CompanionRoleV4; level: number };
 
@@ -537,6 +541,7 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
       marker.dataset.localSpecies = local ? COMPANION_DEFINITIONS_V5[local.role].species : 'none';
       marker.dataset.sceneCaptured = desiredScene ? 'true' : 'false';
       marker.dataset.followPlacement = 'role-aware-roam';
+      marker.dataset.reducedMotion = PREFERS_REDUCED_MOTION ? 'reduce' : 'no-preference';
     };
 
     const removeBinding = (ownerPlayerId: string) => {
@@ -652,6 +657,12 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
       const facingX = isRemote && remote ? remote.facingX : state.player.facing.x;
       const facingY = isRemote && remote ? remote.facingY : state.player.facing.y;
       const profile = COMPANION_MOVEMENT_PROFILES_V5[binding.reservation.role];
+      const effectiveRoamRadius = PREFERS_REDUCED_MOTION
+        ? Math.max(profile.minPlayerDistance + 12, profile.roamRadius * REDUCED_MOTION_ROAM_SCALE)
+        : profile.roamRadius;
+      const effectiveReplanMs = PREFERS_REDUCED_MOTION
+        ? profile.replanMs * REDUCED_MOTION_REPLAN_SCALE
+        : profile.replanMs;
       const ownerSceneX = mapCenterToScene(ownerX, state.map.width);
       const ownerSceneZ = mapCenterToScene(ownerY, state.map.height);
       const maxSpeed = 5.8 + binding.level * 0.42;
@@ -687,7 +698,7 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
           const phase = binding.roamPhase + attempt;
           const angle = profile.angleOffset + remoteOffset + phase * 2.399963229728653;
           const radiusFactor = 0.72 + ((phase * 37) % 29) / 100;
-          const radius = Math.max(profile.minPlayerDistance, profile.roamRadius * radiusFactor);
+          const radius = Math.max(profile.minPlayerDistance, effectiveRoamRadius * radiusFactor);
           const centerX = ownerX + Math.cos(angle) * radius;
           const centerY = ownerY + Math.sin(angle) * radius;
           const sceneX = mapCenterToScene(centerX, state.map.width);
@@ -726,7 +737,7 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
         || targetReached
         || currentOwnerDistance < profile.minPlayerDistance * 0.82) {
         binding.movementTarget = selectMovementTarget(true);
-        binding.nextRoamAt = now + profile.replanMs + (binding.roamPhase % 5) * 83;
+        binding.nextRoamAt = now + effectiveReplanMs + (binding.roamPhase % 5) * 83;
       }
 
       const previousX = binding.x;
@@ -830,6 +841,7 @@ export function CompanionScene3D({ gameState, localCompanion, remotePlayer = nul
     data-animation-source="articulated-locomotion-and-attacks"
     data-selection-surface="pre-run-only"
     data-follow-placement="role-aware-roam"
+    data-reduced-motion={PREFERS_REDUCED_MOTION ? 'reduce' : 'no-preference'}
     data-shared-renderer="true"
     data-extra-canvas="false"
   />;
