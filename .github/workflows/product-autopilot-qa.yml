@@ -185,6 +185,25 @@ jobs:
             -c:v libvpx-vp9 -crf 36 -b:v 0 -an "$output"
           rm -f "${raw_videos[0]}"
           test -s "$output"
+      - name: Losslessly compact successful PNG evidence
+        if: steps.product-tests.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' png; do
+            tmp="${png}.compact.png"
+            before_size="$(stat -c '%s' "$png")"
+            before_pixels="$(ffmpeg -hide_banner -loglevel error -i "$png" -f framemd5 - | tail -n 1)"
+            ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 "$tmp"
+            after_pixels="$(ffmpeg -hide_banner -loglevel error -i "$tmp" -f framemd5 - | tail -n 1)"
+            test "$before_pixels" = "$after_pixels"
+            after_size="$(stat -c '%s' "$tmp")"
+            if (( after_size < before_size )); then
+              mv "$tmp" "$png"
+            else
+              rm -f "$tmp"
+            fi
+          done < <(find artifacts/dungeon-rpg/test-results -type f -name '*.png' -print0)
       - name: Upload compact product result manifest
         if: always()
         uses: actions/upload-artifact@v4
