@@ -4,7 +4,7 @@ const baseURL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|profile-layout|companion-runtime|loading-continuity|codex-visual-library|main-menu-reference|block-20-main-menu|visual-audit|visual-room-chunks|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu|guild-mail-equipment-visual|mobile-resource-upgrade|upgrade-prestige-visual|upgrade-prestige-mobile-hotfix|visible-upgrade-prestige|autopilot-product-journeys|autopilot-outside-guild|kaykit-chapter-evidence|guild-raid-lobby-mobile|run-gift-authority)\.spec\.mjs/,
+  testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|profile-layout|companion-runtime|companion-free-movement-evidence|loading-continuity|codex-visual-library|main-menu-reference|block-20-main-menu|visual-audit|visual-room-chunks|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu|guild-mail-equipment-visual|mobile-resource-upgrade|upgrade-prestige-visual|upgrade-prestige-mobile-hotfix|visible-upgrade-prestige|autopilot-product-journeys|autopilot-outside-guild|kaykit-chapter-evidence|guild-raid-lobby-mobile|run-gift-authority)\.spec\.mjs/,
   timeout: 120_000,
   expect: { timeout: 20_000 },
   fullyParallel: false,
