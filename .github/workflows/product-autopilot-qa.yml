@@ -152,6 +152,7 @@ jobs:
             tests/guild-mail-equipment-visual.spec.mjs \
             tests/mobile-resource-upgrade.spec.mjs \
             tests/companion-runtime.spec.mjs \
+            tests/companion-free-movement-evidence.spec.mjs \
             tests/upgrade-prestige-visual.spec.mjs \
             tests/upgrade-prestige-mobile-hotfix.spec.mjs \
             tests/visible-upgrade-prestige.spec.mjs \
