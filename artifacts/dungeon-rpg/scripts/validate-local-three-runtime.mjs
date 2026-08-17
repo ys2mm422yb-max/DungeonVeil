@@ -23,6 +23,69 @@ const remoteCore = 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.modul
 const remoteAddons = 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/';
 const remoteGltf = `${remoteAddons}loaders/GLTFLoader.js`;
 
+const requiredKayKitGltfPaths = [
+  'assets/kaykit/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf',
+  'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/table_long_decorated_A.gltf',
+  'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/chair.gltf',
+  'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/banner_shield_red.gltf',
+  'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/candle_lit.gltf',
+  'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/banner_patternC_red.gltf',
+  'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/chest_gold.gltf',
+  'assets/kaykit/dungeon/KayKit_DungeonRemastered_1.1_FREE/Assets/gltf/sword_shield_gold.gltf',
+  'assets/kaykit/tools/Assets/gltf/map.gltf',
+];
+
+function validateGlbContainer(file, bytes) {
+  if (bytes.length < 20 || bytes.readUInt32LE(0) !== 0x46546c67) {
+    throw new Error(`${file} is not a valid GLB container`);
+  }
+  if (bytes.readUInt32LE(4) !== 2) throw new Error(`${file} is not GLB version 2`);
+  if (bytes.readUInt32LE(8) !== bytes.length) throw new Error(`${file} has an invalid GLB byte length`);
+  if (bytes.readUInt32LE(16) !== 0x4e4f534a) throw new Error(`${file} is missing its JSON chunk`);
+}
+
+function packEmbeddedGltfBufferAsGlb(file) {
+  const original = fs.readFileSync(file);
+  if (original.length >= 4 && original.readUInt32LE(0) === 0x46546c67) {
+    validateGlbContainer(file, original);
+    return;
+  }
+
+  const source = JSON.parse(original.toString('utf8'));
+  const buffers = source.buffers ?? [];
+  if (buffers.length !== 1) throw new Error(`${file} must contain exactly one required production buffer`);
+  const buffer = buffers[0];
+  const match = /^data:(application\/(?:octet-stream|gltf-buffer));base64,([A-Za-z0-9+/=]+)$/.exec(buffer.uri ?? '');
+  if (!match) throw new Error(`${file} buffer must be embedded before GLB packing`);
+
+  const binary = Buffer.from(match[2], 'base64');
+  if (binary.length < (buffer.byteLength ?? 0)) throw new Error(`${file} embedded buffer is shorter than declared byteLength`);
+  delete buffer.uri;
+
+  const json = Buffer.from(JSON.stringify(source), 'utf8');
+  const jsonPadding = (4 - (json.length % 4)) % 4;
+  const binaryPadding = (4 - (binary.length % 4)) % 4;
+  const jsonChunkLength = json.length + jsonPadding;
+  const binaryChunkLength = binary.length + binaryPadding;
+  const totalLength = 12 + 8 + jsonChunkLength + 8 + binaryChunkLength;
+  const glb = Buffer.alloc(totalLength, 0);
+
+  glb.writeUInt32LE(0x46546c67, 0);
+  glb.writeUInt32LE(2, 4);
+  glb.writeUInt32LE(totalLength, 8);
+  glb.writeUInt32LE(jsonChunkLength, 12);
+  glb.writeUInt32LE(0x4e4f534a, 16);
+  json.copy(glb, 20);
+  glb.fill(0x20, 20 + json.length, 20 + jsonChunkLength);
+  const binaryHeaderOffset = 20 + jsonChunkLength;
+  glb.writeUInt32LE(binaryChunkLength, binaryHeaderOffset);
+  glb.writeUInt32LE(0x004e4942, binaryHeaderOffset + 4);
+  binary.copy(glb, binaryHeaderOffset + 8);
+
+  fs.writeFileSync(file, glb);
+  validateGlbContainer(file, glb);
+}
+
 requireText(index, `"three": "${localCore}"`, 'Bare Three.js imports are not routed locally');
 requireText(index, `"three/addons/": "${localAddons}"`, 'Three.js addon imports are not routed locally');
 requireText(index, `"${remoteCore}": "${localCore}"`, 'Existing Three.js dynamic imports are not redirected locally');
@@ -57,6 +120,12 @@ if (process.argv.includes('--dist')) {
   requireText(distIndex, 'assets/vendor/three/examples/jsm/loaders/GLTFLoader.js', 'Built page does not reference the local GLTFLoader');
   requireText(distIndex, 'assets/vendor/three/examples/jsm/', 'Built page does not reference local addons');
 
+  for (const relativePath of requiredKayKitGltfPaths) {
+    const file = path.join(distRoot, relativePath);
+    if (!fs.existsSync(file)) throw new Error(`Required production KayKit asset is missing: ${relativePath}`);
+    packEmbeddedGltfBufferAsGlb(file);
+  }
+
   const expectedFiles = new Map([
     ['assets/vendor/three/LICENSE', 500],
     ['assets/vendor/three/build/three.module.js', 500_000],
@@ -77,4 +146,4 @@ if (process.argv.includes('--dist')) {
   }
 }
 
-console.log('Local Three.js runtime verified, including exact WebKit mappings, module preloads and the pinned FBX loader dependencies.');
+console.log('Local Three.js runtime verified, including exact WebKit mappings, module preloads, GLB-packed required KayKit buffers and the pinned FBX loader dependencies.');
