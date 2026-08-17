@@ -152,6 +152,7 @@ jobs:
             tests/guild-mail-equipment-visual.spec.mjs \
             tests/mobile-resource-upgrade.spec.mjs \
             tests/companion-runtime.spec.mjs \
+            tests/companion-free-movement-evidence.spec.mjs \
             tests/upgrade-prestige-visual.spec.mjs \
             tests/upgrade-prestige-mobile-hotfix.spec.mjs \
             tests/visible-upgrade-prestige.spec.mjs \
@@ -165,14 +166,83 @@ jobs:
         if: steps.product-tests.outcome == 'success'
         shell: bash
         run: |
+          set -euo pipefail
           mapfile -t raw_videos < <(find artifacts/dungeon-rpg/test-results -type f -name video.webm -print)
           test "${#raw_videos[@]}" -eq 1
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            git fetch --no-tags --depth=1 origin "$base_sha"
+            mapfile -t changed_files < <(git diff --name-only "$base_sha" "$GITHUB_SHA")
+            if ! printf '%s\n' "${changed_files[@]}" | grep -Eiq 'prestige|companionUpgradePrestige3D|upgrade-prestige|visible-upgrade'; then
+              rm -f "${raw_videos[@]}"
+              echo "No prestige-affecting PR changes; omitting unrelated prestige review video from success evidence."
+              exit 0
+            fi
+          fi
           output="artifacts/dungeon-rpg/test-results/visual-upgrade-prestige-${BROWSER_PROJECT}.webm"
           ffmpeg -hide_banner -loglevel error -y -i "${raw_videos[0]}" \
             -vf "scale='min(540,iw)':-2:flags=lanczos" \
             -c:v libvpx-vp9 -crf 36 -b:v 0 -an "$output"
           rm -f "${raw_videos[0]}"
           test -s "$output"
+      - name: Losslessly compact successful PNG evidence
+        if: steps.product-tests.outcome == 'success'
+        shell: bash
+        run: |
+          set -uo pipefail
+          declare -a pngs=()
+          mapfile -d '' -t pngs < <(find artifacts/dungeon-rpg/test-results -type f -name '*.png' -print0) || true
+          for png in "${pngs[@]}"; do
+            if [[ ! -f "$png" ]]; then
+              echo "::warning file=$png::Skipping PNG compaction because the source file disappeared."
+              continue
+            fi
+            tmp=""
+            if ! tmp="$(mktemp --suffix=.png)"; then
+              echo "::warning file=$png::Skipping PNG compaction because temporary file creation failed."
+              continue
+            fi
+            if ! before_size="$(stat -c '%s' "$png")"; then
+              echo "::warning file=$png::Skipping PNG compaction because source size lookup failed."
+              rm -f "$tmp" || true
+              continue
+            fi
+            if ! before_pixels="$(ffmpeg -hide_banner -loglevel error -i "$png" -vf format=rgba -f framemd5 - | tail -n 1)"; then
+              echo "::warning file=$png::Skipping PNG compaction because canonical decode failed."
+              rm -f "$tmp" || true
+              continue
+            fi
+            if ! ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 "$tmp"; then
+              echo "::warning file=$png::Skipping PNG compaction because lossless re-encode failed."
+              rm -f "$tmp" || true
+              continue
+            fi
+            if ! after_pixels="$(ffmpeg -hide_banner -loglevel error -i "$tmp" -vf format=rgba -f framemd5 - | tail -n 1)"; then
+              echo "::warning file=$png::Skipping PNG compaction because compacted decode failed."
+              rm -f "$tmp" || true
+              continue
+            fi
+            if [[ "$before_pixels" != "$after_pixels" ]]; then
+              echo "::warning file=$png::Skipping PNG compaction because decoded RGBA pixels differ."
+              rm -f "$tmp" || true
+              continue
+            fi
+            if ! after_size="$(stat -c '%s' "$tmp")"; then
+              echo "::warning file=$png::Skipping PNG compaction because compacted size lookup failed."
+              rm -f "$tmp" || true
+              continue
+            fi
+            if (( after_size < before_size )); then
+              if ! mv "$tmp" "$png"; then
+                echo "::warning file=$png::Skipping PNG compaction because replacement failed."
+                rm -f "$tmp" || true
+                continue
+              fi
+            else
+              rm -f "$tmp" || true
+            fi
+          done
+          exit 0
       - name: Upload compact product result manifest
         if: always()
         uses: actions/upload-artifact@v4
