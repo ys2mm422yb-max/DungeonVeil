@@ -7,8 +7,15 @@ const assert = (condition, message) => {
 };
 
 assert(scene.includes('COMPANION_MOVEMENT_PROFILES_V5'), 'role-aware movement profiles are missing');
-for (const role of ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction']) {
-  assert(scene.includes(`'${role}'`), `movement profile for ${role} is missing`);
+const movementProfileKeys = {
+  'single-target': "'single-target':",
+  'critical-support': "'critical-support':",
+  shield: 'shield:',
+  'loot-comfort': "'loot-comfort':",
+  distraction: 'distraction:',
+};
+for (const [role, profileKey] of Object.entries(movementProfileKeys)) {
+  assert(scene.includes(profileKey), `movement profile for ${role} is missing`);
 }
 assert(scene.includes('roamRadius'), 'bounded roam radius is missing');
 assert(scene.includes('minPlayerDistance'), 'minimum player separation is missing');
