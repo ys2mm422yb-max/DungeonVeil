@@ -115,7 +115,8 @@ function ensureCompanionActionCapture() {
   if (companionActionCaptureInstalled || typeof window === 'undefined') return;
   companionActionCaptureInstalled = true;
   window.addEventListener(COMPANION_ACTION_EVENT, event => {
-    const detail = (event as CustomEvent<{ role?: unknown; level?: unknown; kind?: unknown; targetId?: unknown; at?: unknown }>).detail;
+    const detail = (event as CustomEvent<{ role?: unknown; level?: unknown; kind?: unknown; targetId?: unknown; at?: unknown; spectatorPlayback?: unknown }>).detail;
+    if (detail?.spectatorPlayback === true) return;
     if (!publishedCompanionIdentity || !publishedCompanionRoomKey || !isCompanionRole(detail?.role)) return;
     if (detail.role !== publishedCompanionIdentity.role) return;
     const kind = detail.kind;
