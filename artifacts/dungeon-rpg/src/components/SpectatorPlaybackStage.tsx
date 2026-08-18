@@ -6,6 +6,7 @@ import { CompanionScene3D } from './CompanionScene3D';
 
 type ViewportBox = { width: number; height: number; left: number; top: number };
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
+const SPECTATOR_QA_RECONNECT_EVENT = 'dungeon-veil-spectator-qa-reconnect-v1';
 
 function readViewport(): ViewportBox {
   const viewport = window.visualViewport;
@@ -25,6 +26,7 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
   const lastActionSequenceRef = useRef(0);
   const [lastActionSequence, setLastActionSequence] = useState(0);
   const [actionDispatchCount, setActionDispatchCount] = useState(0);
+  const [reconnectEpoch, setReconnectEpoch] = useState(0);
 
   useEffect(() => {
     let frame = 0;
@@ -43,6 +45,17 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
       window.visualViewport?.removeEventListener('resize', updateViewport);
       window.visualViewport?.removeEventListener('scroll', updateViewport);
     };
+  }, []);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('qa') !== 'spectator') return;
+    const reconnect = () => {
+      streamRef.current = '';
+      roomRef.current = '';
+      setReconnectEpoch(epoch => epoch + 1);
+    };
+    window.addEventListener(SPECTATOR_QA_RECONNECT_EVENT, reconnect);
+    return () => window.removeEventListener(SPECTATOR_QA_RECONNECT_EVENT, reconnect);
   }, []);
 
   useEffect(() => {
@@ -76,7 +89,7 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
       setLastActionSequence(action.sequence);
       setActionDispatchCount(count => count + 1);
     }
-  }, [companion]);
+  }, [companion, reconnectEpoch]);
 
   return <div
     data-testid="spectator-playback-stage"
@@ -98,6 +111,7 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
       data-action-dedup="monotonic-sequence-high-water"
       data-last-action-sequence={lastActionSequence}
       data-action-dispatch-count={actionDispatchCount}
+      data-reconnect-epoch={reconnectEpoch}
       data-stream-id={companion?.streamId ?? ''}
       data-room-key={companion?.roomKey ?? ''}
     />
