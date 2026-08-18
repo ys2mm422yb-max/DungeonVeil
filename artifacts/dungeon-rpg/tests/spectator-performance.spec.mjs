@@ -14,8 +14,6 @@ async function stableRendererMetrics(page) {
     await page.waitForTimeout(250);
     const current = await rendererMetrics(page);
     const currentAt = Number(current.at || 0);
-    // GameCanvas publishes memory metrics once per two-second render window.
-    // Re-reading the same localStorage object is not a new stability sample.
     if (!Number.isFinite(currentAt) || currentAt <= previousAt) continue;
     const sameGeometry = Number.isFinite(previous.geometries)
       && Number.isFinite(current.geometries)
@@ -26,8 +24,6 @@ async function stableRendererMetrics(page) {
     stablePublishedSamples = sameGeometry && sameTextures ? stablePublishedSamples + 1 : 0;
     previous = current;
     previousAt = currentAt;
-    // Three consecutive newly published windows prove the asynchronous model and
-    // texture preload has settled before the bounded-growth interval begins.
     if (stablePublishedSamples >= 3) return current;
   }
   return previous;
@@ -50,6 +46,12 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   await expect(spectatorCompanion).toHaveAttribute('data-companion-source', 'leader-snapshot');
   await expect(spectatorCompanion).not.toHaveAttribute('data-companion-id', 'spectator-playback-fallback');
   await expect(spectatorCompanion).toHaveAttribute('data-action-dedup', 'monotonic-sequence');
+  const companionId = await spectatorCompanion.getAttribute('data-companion-id');
+  await page.evaluate(role => {
+    window.dispatchEvent(new CustomEvent('dungeon-veil-companion-action-v4', {
+      detail: { ownerPlayerId: 'player', role, level: 1, kind: 'attack', targetId: 'spectator-qa-goblin', at: performance.now() },
+    }));
+  }, companionId);
   await expect.poll(() => numberAttr(spectatorCompanion, 'data-last-action-sequence'), { timeout: 45_000 }).toBeGreaterThan(0);
   await expect.poll(() => numberAttr(spectatorCompanion, 'data-replayed-action-count'), { timeout: 45_000 }).toBe(0);
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
