@@ -1,7 +1,10 @@
 import type { RunGameState } from './runEngine';
+import type { CompanionRoleV4 } from './companionReserveV4';
+import { activeCompanionV5 } from './companionCollectionV5';
 import { authenticatedSupabaseRest, currentOnlineSession } from './supabaseOnline';
 
 const SPECTATING_ALLOWED_KEY = 'dungeon-veil-spectating-allowed-v1';
+const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 export const SPECTATOR_PUBLISH_MS = 125;
 export const SPECTATOR_POLL_MS = 125;
 export const SPECTATOR_REFRESH_MS = SPECTATOR_POLL_MS;
@@ -16,8 +19,27 @@ const SPECTATOR_DAMAGE_LIMIT = 8;
 const SPECTATOR_PARTICLE_LIMIT = 12;
 const SPECTATOR_EFFECT_LIMIT = 14;
 const SPECTATOR_VISUAL_RADIUS = 920;
+const SPECTATOR_COMPANION_ACTION_LIMIT = 24;
+const SPECTATOR_COMPANION_ROLES: readonly CompanionRoleV4[] = ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction'];
+const spectatorCompanionStreamId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 export type OnlineActivityState = 'menu' | 'run' | 'paused';
+export type SpectatorCompanionIdentity = { role: CompanionRoleV4; level: number };
+export type SpectatorCompanionAction = {
+  sequence: number;
+  roomKey: string;
+  role: CompanionRoleV4;
+  level: number;
+  kind: 'attack' | 'guard' | 'collect' | 'distract';
+  targetId?: string;
+  at: number;
+};
+export type SpectatorCompanionEnvelope = {
+  streamId: string;
+  roomKey: string;
+  identity: SpectatorCompanionIdentity | null;
+  actions: SpectatorCompanionAction[];
+};
 
 type SpectatorNetworkState = Omit<RunGameState, 'map'> & { map?: RunGameState['map'] };
 
@@ -34,6 +56,7 @@ type SpectatorSnapshotV2 = {
   roomKey: string;
   keyframe: boolean;
   state: SpectatorNetworkState;
+  companion?: SpectatorCompanionEnvelope | null;
 };
 
 type RawSpectatorSnapshot = SpectatorSnapshotV1 | SpectatorSnapshotV2;
@@ -45,6 +68,7 @@ export type SpectatorSnapshot = {
   roomKey: string;
   keyframe: boolean;
   state: RunGameState;
+  companion: SpectatorCompanionEnvelope | null;
 };
 
 export type FriendSpectatorFeed = {
@@ -60,7 +84,61 @@ type RawFriendSpectatorFeed = Omit<FriendSpectatorFeed, 'snapshot'> & { snapshot
 let publishSequence = 0;
 let lastPublishedRoomKey = '';
 let lastKeyframeAt = 0;
+let companionActionSequence = 0;
+let companionActionCaptureInstalled = false;
+let publishedCompanionRoomKey = '';
+let publishedCompanionIdentity: SpectatorCompanionIdentity | null = null;
+let publishedCompanionActions: SpectatorCompanionAction[] = [];
+let latestSpectatorCompanion: SpectatorCompanionEnvelope | null = null;
+const spectatorCompanionSubscribers = new Set<() => void>();
 const spectatorMapCache = new Map<string, { roomKey: string; map: RunGameState['map']; at: number }>();
+
+function isCompanionRole(value: unknown): value is CompanionRoleV4 {
+  return typeof value === 'string' && SPECTATOR_COMPANION_ROLES.includes(value as CompanionRoleV4);
+}
+
+function setLatestSpectatorCompanion(value: SpectatorCompanionEnvelope | null) {
+  latestSpectatorCompanion = value;
+  spectatorCompanionSubscribers.forEach(listener => listener());
+}
+
+export function subscribeSpectatorCompanion(listener: () => void): () => void {
+  spectatorCompanionSubscribers.add(listener);
+  return () => spectatorCompanionSubscribers.delete(listener);
+}
+
+export function getLatestSpectatorCompanion(): SpectatorCompanionEnvelope | null {
+  return latestSpectatorCompanion;
+}
+
+function ensureCompanionActionCapture() {
+  if (companionActionCaptureInstalled || typeof window === 'undefined') return;
+  companionActionCaptureInstalled = true;
+  window.addEventListener(COMPANION_ACTION_EVENT, event => {
+    const detail = (event as CustomEvent<{ role?: unknown; level?: unknown; kind?: unknown; targetId?: unknown; at?: unknown }>).detail;
+    if (!publishedCompanionIdentity || !publishedCompanionRoomKey || !isCompanionRole(detail?.role)) return;
+    if (detail.role !== publishedCompanionIdentity.role) return;
+    const kind = detail.kind;
+    if (kind !== 'attack' && kind !== 'guard' && kind !== 'collect' && kind !== 'distract') return;
+    const action: SpectatorCompanionAction = {
+      sequence: ++companionActionSequence,
+      roomKey: publishedCompanionRoomKey,
+      role: detail.role,
+      level: Math.max(1, Math.floor(Number(detail.level) || publishedCompanionIdentity.level)),
+      kind,
+      ...(typeof detail.targetId === 'string' && detail.targetId ? { targetId: detail.targetId } : {}),
+      at: Number.isFinite(Number(detail.at)) ? Number(detail.at) : performance.now(),
+    };
+    publishedCompanionActions.push(action);
+    publishedCompanionActions = publishedCompanionActions.slice(-SPECTATOR_COMPANION_ACTION_LIMIT);
+    setLatestSpectatorCompanion({
+      streamId: spectatorCompanionStreamId,
+      roomKey: publishedCompanionRoomKey,
+      identity: publishedCompanionIdentity,
+      actions: publishedCompanionActions.filter(entry => entry.roomKey === publishedCompanionRoomKey),
+    });
+  });
+}
 
 async function rpc<T>(name: string, body: Record<string, unknown> = {}): Promise<T> {
   if (!currentOnlineSession()) throw new Error('Nicht angemeldet');
@@ -100,7 +178,39 @@ function compactMap(map: RunGameState['map']): RunGameState['map'] {
   };
 }
 
+function normalizeCompanionEnvelope(raw: unknown, roomKey: string): SpectatorCompanionEnvelope | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = raw as Partial<SpectatorCompanionEnvelope>;
+  if (typeof value.streamId !== 'string' || !value.streamId || value.roomKey !== roomKey) return null;
+  const identity = value.identity && isCompanionRole(value.identity.role)
+    ? { role: value.identity.role, level: Math.max(1, Math.floor(Number(value.identity.level) || 1)) }
+    : null;
+  if (!identity) return null;
+  const bySequence = new Map<number, SpectatorCompanionAction>();
+  for (const entry of Array.isArray(value.actions) ? value.actions : []) {
+    if (!entry || !Number.isFinite(Number(entry.sequence)) || entry.roomKey !== roomKey || !isCompanionRole(entry.role)) continue;
+    if (entry.kind !== 'attack' && entry.kind !== 'guard' && entry.kind !== 'collect' && entry.kind !== 'distract') continue;
+    const sequence = Math.max(1, Math.floor(Number(entry.sequence)));
+    bySequence.set(sequence, {
+      sequence,
+      roomKey,
+      role: entry.role,
+      level: Math.max(1, Math.floor(Number(entry.level) || identity.level)),
+      kind: entry.kind,
+      ...(typeof entry.targetId === 'string' && entry.targetId ? { targetId: entry.targetId } : {}),
+      at: Number(entry.at) || 0,
+    });
+  }
+  return {
+    streamId: value.streamId,
+    roomKey,
+    identity,
+    actions: [...bySequence.values()].sort((a, b) => a.sequence - b.sequence).slice(-SPECTATOR_COMPANION_ACTION_LIMIT),
+  };
+}
+
 export function buildSpectatorSnapshot(state: RunGameState, now = Date.now()): SpectatorSnapshotV2 {
+  ensureCompanionActionCapture();
   const currentRoomKey = `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
   const keyframe = currentRoomKey !== lastPublishedRoomKey || now - lastKeyframeAt >= SPECTATOR_KEYFRAME_MS;
   if (keyframe) {
@@ -108,6 +218,20 @@ export function buildSpectatorSnapshot(state: RunGameState, now = Date.now()): S
     lastKeyframeAt = now;
   }
   publishSequence += 1;
+
+  const activeCompanion = activeCompanionV5();
+  publishedCompanionIdentity = activeCompanion ? { role: activeCompanion.id, level: activeCompanion.level } : null;
+  if (publishedCompanionRoomKey !== currentRoomKey) {
+    publishedCompanionRoomKey = currentRoomKey;
+    publishedCompanionActions = publishedCompanionActions.filter(entry => entry.roomKey === currentRoomKey);
+  }
+  const companion: SpectatorCompanionEnvelope | null = publishedCompanionIdentity ? {
+    streamId: spectatorCompanionStreamId,
+    roomKey: currentRoomKey,
+    identity: publishedCompanionIdentity,
+    actions: publishedCompanionActions.filter(entry => entry.roomKey === currentRoomKey).slice(-SPECTATOR_COMPANION_ACTION_LIMIT),
+  } : null;
+  setLatestSpectatorCompanion(companion);
 
   const { map, ...stateWithoutMap } = state;
   const safeState: SpectatorNetworkState = {
@@ -134,6 +258,7 @@ export function buildSpectatorSnapshot(state: RunGameState, now = Date.now()): S
     roomKey: currentRoomKey,
     keyframe,
     state: safeState,
+    companion,
   };
 }
 
@@ -160,17 +285,26 @@ export async function publishMenuActivity(chapter = 1, room = 1): Promise<boolea
 }
 
 function normalizeSnapshot(userId: string, raw: RawSpectatorSnapshot | null): SpectatorSnapshot | null {
-  if (!raw || !raw.state || !Number.isFinite(raw.emittedAt)) return null;
+  if (!raw || !raw.state || !Number.isFinite(raw.emittedAt)) {
+    setLatestSpectatorCompanion(null);
+    return null;
+  }
   if (raw.version === 1) {
     const roomKey = `${raw.state.chapter}:${raw.state.floor}:${raw.state.map.width}x${raw.state.map.height}`;
     spectatorMapCache.set(userId, { roomKey, map: raw.state.map, at: Date.now() });
-    return { version: 2, emittedAt: raw.emittedAt, sequence: 0, roomKey, keyframe: true, state: raw.state };
+    setLatestSpectatorCompanion(null);
+    return { version: 2, emittedAt: raw.emittedAt, sequence: 0, roomKey, keyframe: true, state: raw.state, companion: null };
   }
-  if (raw.version !== 2 || !raw.roomKey) return null;
+  if (raw.version !== 2 || !raw.roomKey) {
+    setLatestSpectatorCompanion(null);
+    return null;
+  }
   if (raw.state.map) spectatorMapCache.set(userId, { roomKey: raw.roomKey, map: raw.state.map, at: Date.now() });
   const cached = spectatorMapCache.get(userId);
   const map = raw.state.map ?? (cached?.roomKey === raw.roomKey ? cached.map : null);
   if (!map) return null;
+  const companion = normalizeCompanionEnvelope(raw.companion, raw.roomKey);
+  setLatestSpectatorCompanion(companion);
   return {
     version: 2,
     emittedAt: raw.emittedAt,
@@ -178,6 +312,7 @@ function normalizeSnapshot(userId: string, raw: RawSpectatorSnapshot | null): Sp
     roomKey: raw.roomKey,
     keyframe: Boolean(raw.keyframe),
     state: { ...raw.state, map } as RunGameState,
+    companion,
   };
 }
 
@@ -189,6 +324,7 @@ export async function loadFriendSpectatorFeed(userId: string): Promise<FriendSpe
   const updatedAt = new Date(feed.updated_at).getTime();
   const stale = !Number.isFinite(updatedAt) || Date.now() - updatedAt > SPECTATOR_STALE_MS;
   if ((feed.activity_state === 'run' || feed.activity_state === 'paused') && (!snapshot || stale)) {
+    setLatestSpectatorCompanion(null);
     return { ...feed, snapshot: null };
   }
   return { ...feed, snapshot };
