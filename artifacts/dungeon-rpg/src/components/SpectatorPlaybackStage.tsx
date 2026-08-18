@@ -24,6 +24,7 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
   const roomRef = useRef('');
   const lastActionSequenceRef = useRef(0);
   const [lastActionSequence, setLastActionSequence] = useState(0);
+  const [actionDispatchCount, setActionDispatchCount] = useState(0);
 
   useEffect(() => {
     let frame = 0;
@@ -51,9 +52,11 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
     if (streamChanged || roomChanged) {
       streamRef.current = companion.streamId;
       roomRef.current = companion.roomKey;
-      const firstSequence = companion.actions[0]?.sequence ?? 1;
-      lastActionSequenceRef.current = Math.max(0, firstSequence - 1);
-      setLastActionSequence(lastActionSequenceRef.current);
+      const highWaterSequence = companion.actions.reduce((maximum, action) => Math.max(maximum, action.sequence), 0);
+      lastActionSequenceRef.current = highWaterSequence;
+      setLastActionSequence(highWaterSequence);
+      setActionDispatchCount(0);
+      return;
     }
     for (const action of companion.actions) {
       if (action.sequence <= lastActionSequenceRef.current) continue;
@@ -71,6 +74,7 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
       }));
       lastActionSequenceRef.current = action.sequence;
       setLastActionSequence(action.sequence);
+      setActionDispatchCount(count => count + 1);
     }
   }, [companion]);
 
@@ -91,9 +95,9 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
       data-model-source="procedural-distinct-companion-v5"
       data-companion-source={companion?.identity ? 'leader-snapshot' : 'none'}
       data-companion-id={companion?.identity?.role ?? ''}
-      data-action-dedup="monotonic-sequence"
+      data-action-dedup="monotonic-sequence-high-water"
       data-last-action-sequence={lastActionSequence}
-      data-replayed-action-count="0"
+      data-action-dispatch-count={actionDispatchCount}
       data-stream-id={companion?.streamId ?? ''}
       data-room-key={companion?.roomKey ?? ''}
     />
