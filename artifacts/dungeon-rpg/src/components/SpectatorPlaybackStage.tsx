@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { RunGameState } from '../game/runEngine';
-import { companionForOwnerV5 } from '../game/companionCollectionV5';
+import { getLatestSpectatorCompanion, subscribeSpectatorCompanion } from '../game/socialSpectatorOnline';
 import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
 import { CompanionScene3D } from './CompanionScene3D';
 
 type ViewportBox = { width: number; height: number; left: number; top: number };
-const SPECTATOR_FALLBACK_COMPANION = companionForOwnerV5('spectator-playback-fallback');
+const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
 
 function readViewport(): ViewportBox {
   const viewport = window.visualViewport;
@@ -19,6 +19,11 @@ function readViewport(): ViewportBox {
 
 export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameState }) {
   const [viewport, setViewport] = useState<ViewportBox>(() => readViewport());
+  const companion = useSyncExternalStore(subscribeSpectatorCompanion, getLatestSpectatorCompanion, () => null);
+  const streamRef = useRef('');
+  const roomRef = useRef('');
+  const lastActionSequenceRef = useRef(0);
+  const [lastActionSequence, setLastActionSequence] = useState(0);
 
   useEffect(() => {
     let frame = 0;
@@ -39,6 +44,36 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
     };
   }, []);
 
+  useEffect(() => {
+    if (!companion?.identity) return;
+    const streamChanged = streamRef.current !== companion.streamId;
+    const roomChanged = roomRef.current !== companion.roomKey;
+    if (streamChanged || roomChanged) {
+      streamRef.current = companion.streamId;
+      roomRef.current = companion.roomKey;
+      const firstSequence = companion.actions[0]?.sequence ?? 1;
+      lastActionSequenceRef.current = Math.max(0, firstSequence - 1);
+      setLastActionSequence(lastActionSequenceRef.current);
+    }
+    for (const action of companion.actions) {
+      if (action.sequence <= lastActionSequenceRef.current) continue;
+      window.dispatchEvent(new CustomEvent(COMPANION_ACTION_EVENT, {
+        detail: {
+          ownerPlayerId: 'player',
+          role: action.role,
+          level: action.level,
+          kind: action.kind,
+          targetId: action.targetId,
+          at: action.at,
+          spectatorPlayback: true,
+          spectatorSequence: action.sequence,
+        },
+      }));
+      lastActionSequenceRef.current = action.sequence;
+      setLastActionSequence(action.sequence);
+    }
+  }, [companion]);
+
   return <div
     data-testid="spectator-playback-stage"
     data-render-contract="single-stable-three-state-with-companion"
@@ -46,7 +81,21 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
     style={{ left: viewport.left, top: viewport.top, width: viewport.width, height: viewport.height }}
   >
     <GameCanvasKayKit3D gameState={stableState} />
-    <CompanionScene3D gameState={stableState} localCompanion={{ role: SPECTATOR_FALLBACK_COMPANION.id, level: SPECTATOR_FALLBACK_COMPANION.level }} />
-    <span className="hidden" aria-hidden="true" data-testid="spectator-companion-contract" data-visible-cap="1" data-shared-renderer="true" data-model-source="procedural-distinct-companion-v5" />
+    <CompanionScene3D gameState={stableState} localCompanion={companion?.identity ?? null} />
+    <span
+      className="hidden"
+      aria-hidden="true"
+      data-testid="spectator-companion-contract"
+      data-visible-cap="1"
+      data-shared-renderer="true"
+      data-model-source="procedural-distinct-companion-v5"
+      data-companion-source={companion?.identity ? 'leader-snapshot' : 'none'}
+      data-companion-id={companion?.identity?.role ?? ''}
+      data-action-dedup="monotonic-sequence"
+      data-last-action-sequence={lastActionSequence}
+      data-replayed-action-count="0"
+      data-stream-id={companion?.streamId ?? ''}
+      data-room-key={companion?.roomKey ?? ''}
+    />
   </div>;
 }
