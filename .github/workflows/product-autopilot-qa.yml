@@ -163,6 +163,19 @@ jobs:
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
+      - name: Collect focused spectator review screenshots
+        if: steps.product-tests.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' -t spectator_pngs < <(find artifacts/dungeon-rpg/test-results -type f -name "autopilot-spectator-companion-*-${BROWSER_PROJECT}.png" -print0)
+          test "${#spectator_pngs[@]}" -eq 7
+          for png in "${spectator_pngs[@]}"; do
+            target="artifacts/dungeon-rpg/test-results/$(basename "$png")"
+            if [[ "$png" != "$target" ]]; then
+              mv "$png" "$target"
+            fi
+          done
       - name: Prepare compact companion prestige review video
         if: steps.product-tests.outcome == 'success'
         shell: bash
@@ -276,7 +289,6 @@ jobs:
           compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/autopilot-*-${{ matrix.project }}.png
-            artifacts/dungeon-rpg/test-results/**/autopilot-spectator-companion-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/visual-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/visible-prestige-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/chapter-evidence-*-${{ matrix.project }}.png
