@@ -3,7 +3,24 @@ import { test, expect } from '@playwright/test';
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 function qaUrl() { const url = new URL(APP_URL); url.searchParams.set('qa', 'spectator'); return url.toString(); }
 const numberAttr = (locator, name) => locator.getAttribute(name).then(value => Number(value || 0));
+const SPECTATOR_ROLE_CASES = [
+  { role: 'single-target', kind: 'attack' },
+  { role: 'critical-support', kind: 'attack' },
+  { role: 'shield', kind: 'guard' },
+  { role: 'loot-comfort', kind: 'collect' },
+  { role: 'distraction', kind: 'distract' },
+];
 async function rendererMetrics(page) { return page.evaluate(() => { try { return JSON.parse(localStorage.getItem('dungeon-veil-performance') || '{}'); } catch { return {}; } }); }
+async function dispatchQaControl(page, detail) {
+  await page.evaluate(value => window.dispatchEvent(new CustomEvent('dungeon-veil-spectator-qa-control-v1', { detail: value })), detail);
+}
+async function dispatchCompanionAction(page, role, kind) {
+  await page.evaluate(({ actionRole, actionKind }) => {
+    window.dispatchEvent(new CustomEvent('dungeon-veil-companion-action-v4', {
+      detail: { ownerPlayerId: 'player', role: actionRole, level: 1, kind: actionKind, targetId: 'spectator-qa-goblin', at: performance.now() },
+    }));
+  }, { actionRole: role, actionKind: kind });
+}
 
 async function stableRendererMetrics(page) {
   const deadline = Date.now() + 8_000;
@@ -56,11 +73,7 @@ test('spectator playback and its companion stay smooth and bounded through jitte
     });
   });
   const companionId = await spectatorCompanion.getAttribute('data-companion-id');
-  await page.evaluate(role => {
-    window.dispatchEvent(new CustomEvent('dungeon-veil-companion-action-v4', {
-      detail: { ownerPlayerId: 'player', role, level: 1, kind: 'attack', targetId: 'spectator-qa-goblin', at: performance.now() },
-    }));
-  }, companionId);
+  await dispatchCompanionAction(page, companionId, 'attack');
   await expect.poll(() => numberAttr(spectatorCompanion, 'data-last-action-sequence'), { timeout: 45_000 }).toBeGreaterThan(0);
   await expect.poll(() => numberAttr(spectatorCompanion, 'data-action-dispatch-count'), { timeout: 45_000 }).toBe(1);
   const firstSequence = await numberAttr(spectatorCompanion, 'data-last-action-sequence');
@@ -73,15 +86,32 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   expect(await page.evaluate(() => window.__dungeonVeilSpectatorPlaybackSequences.length), 'spectator reconnect replayed buffered companion actions').toBe(1);
   await expect(spectatorCompanion).toHaveAttribute('data-action-dispatch-count', '0');
 
-  await page.evaluate(role => {
-    window.dispatchEvent(new CustomEvent('dungeon-veil-companion-action-v4', {
-      detail: { ownerPlayerId: 'player', role, level: 1, kind: 'attack', targetId: 'spectator-qa-goblin', at: performance.now() },
-    }));
-  }, companionId);
+  await dispatchCompanionAction(page, companionId, 'attack');
   await expect.poll(() => numberAttr(spectatorCompanion, 'data-last-action-sequence'), { timeout: 45_000 }).toBeGreaterThan(firstSequence);
   await expect.poll(() => page.evaluate(() => window.__dungeonVeilSpectatorPlaybackSequences.length), { timeout: 45_000 }).toBe(2);
   await expect.poll(() => numberAttr(spectatorCompanion, 'data-action-dispatch-count'), { timeout: 45_000 }).toBe(1);
   await page.screenshot({ path: testInfo.outputPath(`autopilot-spectator-companion-reconnect-${testInfo.project.name}.png`), fullPage: true });
+
+  for (const entry of SPECTATOR_ROLE_CASES) {
+    await dispatchQaControl(page, { role: entry.role });
+    await expect(spectatorCompanion).toHaveAttribute('data-companion-id', entry.role, { timeout: 15_000 });
+    await expect(spectatorCompanion).toHaveAttribute('data-companion-source', 'leader-snapshot');
+    const beforeSequence = await numberAttr(spectatorCompanion, 'data-last-action-sequence');
+    await dispatchCompanionAction(page, entry.role, entry.kind);
+    await expect.poll(() => numberAttr(spectatorCompanion, 'data-last-action-sequence'), { timeout: 45_000 }).toBeGreaterThan(beforeSequence);
+    await expect(page.getByTestId('run-companion-scene')).toHaveAttribute('data-visible-count', '1', { timeout: 45_000 });
+    await page.screenshot({ path: testInfo.outputPath(`autopilot-spectator-companion-role-${entry.role}-${testInfo.project.name}.png`), fullPage: true });
+  }
+
+  const roomKeyBefore = await spectatorCompanion.getAttribute('data-room-key');
+  await dispatchQaControl(page, { roomDelta: 1 });
+  await expect.poll(() => spectatorCompanion.getAttribute('data-room-key'), { timeout: 15_000 }).not.toBe(roomKeyBefore);
+  await expect(spectatorCompanion).toHaveAttribute('data-companion-id', 'distraction');
+  await expect(spectatorCompanion).toHaveAttribute('data-action-dispatch-count', '0');
+  const roomSequenceBefore = await numberAttr(spectatorCompanion, 'data-last-action-sequence');
+  await dispatchCompanionAction(page, 'distraction', 'distract');
+  await expect.poll(() => numberAttr(spectatorCompanion, 'data-last-action-sequence'), { timeout: 45_000 }).toBeGreaterThan(roomSequenceBefore);
+  await page.screenshot({ path: testInfo.outputPath(`autopilot-spectator-companion-room-transition-${testInfo.project.name}.png`), fullPage: true });
 
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   const companion = page.getByTestId('run-companion-scene');
