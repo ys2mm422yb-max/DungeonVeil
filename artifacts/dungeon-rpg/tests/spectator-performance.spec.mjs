@@ -56,6 +56,7 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   const spectatorQa = page.getByTestId('spectator-performance-qa');
   await expect(spectatorQa).toBeVisible();
   await expect(spectatorQa).toHaveAttribute('data-assets-ready', 'true');
+  await dispatchQaControl(page, { role: 'single-target' });
   await expect(page.getByTestId('spectator-playback-stage')).toHaveAttribute('data-render-contract', 'single-stable-three-state-with-companion');
   await expect(page.getByTestId('spectator-performance-diagnostics')).toHaveAttribute('data-contract', 'jitter-loss-layout-long-run-v5');
   const spectatorCompanion = page.getByTestId('spectator-companion-contract');
