@@ -22,6 +22,19 @@ async function dispatchCompanionAction(page, role, kind) {
   }, { actionRole: role, actionKind: kind });
 }
 
+async function waitForFreshReconnectPresentation(page) {
+  const rendererHost = page.getByTestId('run-three-host');
+  const expectedKey = await rendererHost.getAttribute('data-room-paint-expected-key');
+  const readyKey = await rendererHost.getAttribute('data-room-paint-ready-key');
+  expect(expectedKey, 'spectator reconnect evidence has no active room-paint key').toBeTruthy();
+  expect(readyKey, 'spectator reconnect evidence captured before the current room became paint-ready').toBe(expectedKey);
+  await page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+  await expect(rendererHost).toHaveAttribute('data-room-paint-expected-key', expectedKey);
+  await expect(rendererHost).toHaveAttribute('data-room-paint-ready-key', expectedKey);
+}
+
 async function stableRendererMetrics(page) {
   const deadline = Date.now() + 8_000;
   let previous = await rendererMetrics(page);
@@ -161,6 +174,7 @@ test('spectator companion identity and actions survive reconnect, role changes a
   await expect.poll(() => numberAttr(spectatorCompanion, 'data-last-action-sequence'), { timeout: 45_000 }).toBeGreaterThan(firstSequence);
   await expect.poll(() => page.evaluate(() => window.__dungeonVeilSpectatorPlaybackSequences.length), { timeout: 45_000 }).toBe(2);
   await expect.poll(() => numberAttr(spectatorCompanion, 'data-action-dispatch-count'), { timeout: 45_000 }).toBe(1);
+  await waitForFreshReconnectPresentation(page);
   await page.screenshot({ path: testInfo.outputPath(`autopilot-spectator-companion-reconnect-${testInfo.project.name}.png`), fullPage: true });
 
   for (const entry of SPECTATOR_ROLE_CASES) {
