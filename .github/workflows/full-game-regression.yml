@@ -145,7 +145,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
       - name: Install browser system dependencies
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install-deps ${{ matrix.browser }}
+        run: bash .github/scripts/install-playwright-deps-bounded.sh ${{ matrix.browser }}
       - name: Install browser engine
         if: steps.browser-cache.outputs.cache-hit != 'true'
         run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
@@ -234,7 +234,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
       - name: Install browser system dependencies
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install-deps ${{ matrix.browser }}
+        run: bash .github/scripts/install-playwright-deps-bounded.sh ${{ matrix.browser }}
       - name: Install browser engine
         if: steps.browser-cache.outputs.cache-hit != 'true'
         run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
