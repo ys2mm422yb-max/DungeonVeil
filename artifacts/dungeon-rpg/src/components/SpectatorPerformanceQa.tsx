@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameEngine, type RunGameState } from '../game/runEngine';
+import type { CompanionRoleV4 } from '../game/companionReserveV4';
+import { loadCompanionCollectionV5, saveCompanionCollectionV5 } from '../game/companionCollectionV5';
 import { buildSpectatorSnapshot } from '../game/socialSpectatorOnline';
 import { SpectatorSnapshotBuffer } from '../game/spectatorInterpolation';
 import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
@@ -13,6 +15,8 @@ const OUTAGE_START_PACKET = 20;
 const OUTAGE_PACKET_COUNT = 4;
 const MEASUREMENT_WARMUP_MS = 2_500;
 const SOURCE_SPEED_PX_PER_MS = 0.13;
+const SPECTATOR_QA_CONTROL_EVENT = 'dungeon-veil-spectator-qa-control-v1';
+const SPECTATOR_QA_ROLES: readonly CompanionRoleV4[] = ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction'];
 
 function cloneState(state: RunGameState): RunGameState {
   return structuredClone(state);
@@ -80,6 +84,28 @@ export function SpectatorPerformanceQa() {
     bufferRef.current.push(initialAt.current - 125, second, initialAt.current - 35);
   }
   const [stableState] = useState<RunGameState>(() => bufferRef.current.sample(initialAt.current) ?? cloneState(sourceRef.current));
+
+  useEffect(() => {
+    const handleQaControl = (event: Event) => {
+      const detail = (event as CustomEvent<{ role?: CompanionRoleV4; roomDelta?: number }>).detail;
+      const role = detail?.role;
+      if (role && SPECTATOR_QA_ROLES.includes(role)) {
+        const current = loadCompanionCollectionV5();
+        const companions = { ...current.companions };
+        const now = Date.now();
+        for (const entry of SPECTATOR_QA_ROLES) companions[entry] ??= { level: 1, unlockedAt: now };
+        saveCompanionCollectionV5({ version: 1, activeId: role, companions, updatedAt: now });
+      }
+      const roomDelta = Math.trunc(Number(detail?.roomDelta) || 0);
+      if (roomDelta !== 0) {
+        sourceRef.current.floor = Math.max(1, sourceRef.current.floor + roomDelta);
+        stableState.floor = sourceRef.current.floor;
+      }
+      buildSpectatorSnapshot(cloneState(sourceRef.current), Date.now());
+    };
+    window.addEventListener(SPECTATOR_QA_CONTROL_EVENT, handleQaControl);
+    return () => window.removeEventListener(SPECTATOR_QA_CONTROL_EVENT, handleQaControl);
+  }, [stableState]);
 
   useEffect(() => {
     if (!assetsReady) return;
