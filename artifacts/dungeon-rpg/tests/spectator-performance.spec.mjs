@@ -45,7 +45,13 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   await expect(spectatorQa).toHaveAttribute('data-assets-ready', 'true');
   await expect(page.getByTestId('spectator-playback-stage')).toHaveAttribute('data-render-contract', 'single-stable-three-state-with-companion');
   await expect(page.getByTestId('spectator-performance-diagnostics')).toHaveAttribute('data-contract', 'jitter-loss-layout-long-run-v5');
-  await expect(page.getByTestId('spectator-companion-contract')).toHaveAttribute('data-shared-renderer', 'true');
+  const spectatorCompanion = page.getByTestId('spectator-companion-contract');
+  await expect(spectatorCompanion).toHaveAttribute('data-shared-renderer', 'true');
+  await expect(spectatorCompanion).toHaveAttribute('data-companion-source', 'leader-snapshot');
+  await expect(spectatorCompanion).not.toHaveAttribute('data-companion-id', 'spectator-playback-fallback');
+  await expect(spectatorCompanion).toHaveAttribute('data-action-dedup', 'monotonic-sequence');
+  await expect.poll(() => numberAttr(spectatorCompanion, 'data-last-action-sequence'), { timeout: 45_000 }).toBeGreaterThan(0);
+  await expect.poll(() => numberAttr(spectatorCompanion, 'data-replayed-action-count'), { timeout: 45_000 }).toBe(0);
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
   const companion = page.getByTestId('run-companion-scene');
   await expect(companion).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
