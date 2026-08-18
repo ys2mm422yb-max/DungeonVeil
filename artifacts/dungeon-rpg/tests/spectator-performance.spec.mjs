@@ -25,9 +25,8 @@ async function dispatchCompanionAction(page, role, kind) {
 async function waitForFreshReconnectPresentation(page) {
   const rendererHost = page.getByTestId('run-three-host');
   const expectedKey = await rendererHost.getAttribute('data-room-paint-expected-key');
-  const readyKey = await rendererHost.getAttribute('data-room-paint-ready-key');
   expect(expectedKey, 'spectator reconnect evidence has no active room-paint key').toBeTruthy();
-  expect(readyKey, 'spectator reconnect evidence captured before the current room became paint-ready').toBe(expectedKey);
+  await expect(rendererHost).toHaveAttribute('data-room-paint-ready-key', expectedKey);
   await page.evaluate(() => new Promise(resolve => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   }));
