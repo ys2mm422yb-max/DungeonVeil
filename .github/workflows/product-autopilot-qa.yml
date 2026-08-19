@@ -114,7 +114,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
       - name: Install browser system dependencies
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install-deps ${{ matrix.browser }}
+        run: .github/scripts/install-playwright-deps-bounded.sh "${{ matrix.browser }}"
       - name: Install browser engine
         if: steps.browser-cache.outputs.cache-hit != 'true'
         run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
@@ -188,8 +188,11 @@ jobs:
             git fetch --no-tags --depth=1 origin "$base_sha"
             mapfile -t changed_files < <(git diff --name-only "$base_sha" "$GITHUB_SHA")
             if ! printf '%s\n' "${changed_files[@]}" | grep -Eiq 'prestige|companionUpgradePrestige3D|upgrade-prestige|visible-upgrade'; then
+              find artifacts/dungeon-rpg/test-results -type f \
+                \( -name "visual-upgrade-prestige-*-${BROWSER_PROJECT}.png" -o -name "visible-prestige-*-${BROWSER_PROJECT}.png" \) \
+                -delete
               rm -f "${raw_videos[@]}"
-              echo "No prestige-affecting PR changes; omitting unrelated prestige review video from success evidence."
+              echo "No prestige-affecting PR changes; omitting unrelated prestige review media from success evidence."
               exit 0
             fi
           fi
