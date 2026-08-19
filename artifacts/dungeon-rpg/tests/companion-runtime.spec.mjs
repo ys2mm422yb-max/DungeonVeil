@@ -270,7 +270,7 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
           targetId: node.dataset.targetId || '',
           critical: node.dataset.critical || '',
           text: node.textContent || '',
-          connected: node.isConnected,
+          connected: Boolean(node.isConnected),
           opacity: Number(style.opacity),
           width: rect.width,
           height: rect.height,
@@ -646,15 +646,22 @@ test('critical-support proc renders one readable value on its actual target', as
     '__dungeonVeilCriticalCompanionFeedbackObservationArmed',
     { timeout: 20_000, polling: 16 },
   );
-  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, attackBoundary);
+  await page.waitForFunction(() => (
+    document.querySelector('[data-testid="companion-runtime-bridge"]')?.getAttribute('data-critical-special-ready') === 'true'
+  ), null, {
+    timeout: 20_000,
+    polling: 16,
+  });
+  const readyAttackBoundary = Number((await readRuntimeCombatSnapshot(page))?.playerLastAttackTime || 0);
+  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, readyAttackBoundary);
   const boundaryAdvanced = await page.evaluate(({ setter, confirmedAt }) => window[setter]?.(confirmedAt) === true, {
     setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt',
     confirmedAt: confirmedPlayerAttackAt,
   });
   expect(boundaryAdvanced).toBe(true);
   const observedCritical = await capturePromise;
-  expect(confirmedPlayerAttackAt).toBeGreaterThan(attackBoundary);
-  expect(observedCritical.at).toBeGreaterThan(attackBoundary);
+  expect(readyAttackBoundary).toBeGreaterThanOrEqual(attackBoundary);
+  expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
   expect(observedCritical.at).toBeGreaterThan(confirmedPlayerAttackAt);
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
