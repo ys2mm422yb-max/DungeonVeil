@@ -286,7 +286,7 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
   });
 }
 
-async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notBefore, marker, path }) {
+async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notBefore, marker, path, afterArmed = null }) {
   let observedFeedback = null;
   const bindingName = critical ? '__dungeonVeilCaptureCriticalCompanionFeedback' : '__dungeonVeilCaptureBasicCompanionFeedback';
   const observationKey = critical ? '__dungeonVeilCriticalCompanionFeedbackObservation' : '__dungeonVeilBasicCompanionFeedbackObservation';
@@ -474,6 +474,15 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       armed: armedKey,
     });
 
+    if (afterArmed) {
+      const nextMinimumAt = await afterArmed();
+      const boundaryAdvanced = await page.evaluate(({ setter, boundary }) => window[setter]?.(boundary) === true, {
+        setter: minimumAtSetterKey,
+        boundary: nextMinimumAt,
+      });
+      expect(boundaryAdvanced).toBe(true);
+    }
+
     const handle = await page.waitForFunction(({ observation }) => window[observation] || false, {
       observation: observationKey,
     }, {
@@ -622,25 +631,23 @@ test('critical-support proc renders one readable value on its actual target', as
   await waitForStableRoom(page);
   await prepareLivePlayerAttackLine(page);
   const attackBoundary = Number((await readRuntimeCombatSnapshot(page))?.playerLastAttackTime || 0);
-  const capturePromise = captureLiveCompanionFeedbackEvidence(page, {
+  let confirmedPlayerAttackAt = 0;
+  const observedCritical = await captureLiveCompanionFeedbackEvidence(page, {
     role: 'critical-support',
     critical: true,
     notBefore: attackBoundary,
     marker: /✦\s*-\d+/,
     path: `test-results/companion-damage-feedback-critical-${testInfo.project.name}.png`,
+    afterArmed: async () => {
+      await page.waitForFunction(
+        armed => window[armed] === true,
+        '__dungeonVeilCriticalCompanionFeedbackObservationArmed',
+        { timeout: 20_000, polling: 16 },
+      );
+      confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, attackBoundary);
+      return confirmedPlayerAttackAt;
+    },
   });
-  await page.waitForFunction(
-    armed => window[armed] === true,
-    '__dungeonVeilCriticalCompanionFeedbackObservationArmed',
-    { timeout: 20_000, polling: 16 },
-  );
-  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, attackBoundary);
-  const boundaryAdvanced = await page.evaluate(({ setter, confirmedAt }) => window[setter]?.(confirmedAt) === true, {
-    setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt',
-    confirmedAt: confirmedPlayerAttackAt,
-  });
-  expect(boundaryAdvanced).toBe(true);
-  const observedCritical = await capturePromise;
   expect(confirmedPlayerAttackAt).toBeGreaterThan(attackBoundary);
   expect(observedCritical.at).toBeGreaterThan(attackBoundary);
   expect(observedCritical.at).toBeGreaterThan(confirmedPlayerAttackAt);
