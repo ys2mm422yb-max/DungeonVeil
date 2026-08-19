@@ -613,6 +613,8 @@ test('critical-support proc renders one readable value on its actual target', as
   await openMenu(page, testInfo.project.name, { activeId: 'critical-support', companions: { 'critical-support': { level: 2, unlockedAt: 1 } } });
   await armCompanionActionObservation(page);
   await startFreshRun(page);
+  const durableCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+  expect(Number(durableCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
   const runtime = page.getByTestId('companion-runtime-bridge');
   const chip = page.getByTestId('run-companion-chip');
   await expect(chip).toHaveCount(0);
