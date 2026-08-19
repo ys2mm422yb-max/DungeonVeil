@@ -44,16 +44,16 @@ wait_for_package_manager() {
 terminate_install_session() {
   local session_pid="$1"
 
-  kill -TERM -- "-$session_pid" >/dev/null 2>&1 || true
+  sudo kill -TERM -- "-$session_pid" >/dev/null 2>&1 || true
   for _ in {1..10}; do
-    if ! kill -0 "$session_pid" >/dev/null 2>&1; then
+    if ! sudo kill -0 -- "-$session_pid" >/dev/null 2>&1; then
       break
     fi
     sleep 1
   done
 
-  if kill -0 "$session_pid" >/dev/null 2>&1; then
-    kill -KILL -- "-$session_pid" >/dev/null 2>&1 || true
+  if sudo kill -0 -- "-$session_pid" >/dev/null 2>&1; then
+    sudo kill -KILL -- "-$session_pid" >/dev/null 2>&1 || true
   fi
   wait "$session_pid" >/dev/null 2>&1 || true
 }
