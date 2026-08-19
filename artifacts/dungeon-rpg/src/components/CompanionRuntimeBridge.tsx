@@ -18,6 +18,7 @@ export const COMPANION_ACTION_EVENT_V4 = 'dungeon-veil-companion-action-v4';
 const TILE = 40;
 const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;
 const RECENT_COMBAT_TARGET_MS = 1_200;
+const CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS = 2_600;
 type CompanionAuthority = 'solo' | 'host' | 'guest' | 'unknown';
 
 type Props = {
@@ -305,6 +306,16 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       const target = nearestEnemy(state);
       const previousCombatTarget = recentCombatTargetRef.current;
 
+      if (markerRef.current) {
+        markerRef.current.dataset.criticalSpecialReady = String(
+          activeRole === 'critical-support'
+          && !runtimeFrozenRef.current
+          && state.status === 'playing'
+          && state.player.hp > 0
+          && now - lastSpecialActionRef.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS
+        );
+      }
+
       if (runtimeFrozenRef.current) {
         previousHpRef.current = state.player.hp;
         lastPlayerAttackRef.current = state.player.lastAttackTime;
@@ -366,7 +377,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           ? previousCombatTarget.target
           : null;
         const criticalTarget = recentTarget ?? target;
-        if (criticalTarget && playerAttack > lastPlayerAttackRef.current && now - lastSpecialActionRef.current >= 2_600) {
+        if (criticalTarget && playerAttack > lastPlayerAttackRef.current && now - lastSpecialActionRef.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS) {
           const damage = companionDamageAttributionV4(reservation, state.player.attack * power * 0.72);
           if (canWriteEnemies && damage.damage > 0) {
             if (!criticalTarget.isDead && criticalTarget.hp > 0) {
@@ -490,6 +501,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         data-blocks-players="false"
         data-blocks-enemies="false"
         data-runtime-frozen="false"
+        data-critical-special-ready="false"
         data-feedback-active={damageFeedback ? 'true' : 'false'}
         data-feedback-projected={projectedFeedback ? 'true' : 'false'}
         data-feedback-target={damageFeedback?.targetId ?? ''}
