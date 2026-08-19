@@ -80,6 +80,8 @@ assert.match(runtimeEvidence, /playerLastAttackTime: state\.player\.lastAttackTi
   'localhost-only telemetry must expose the exact authoritative player timestamp consumed by the proc');
 assert.match(runtimeEvidence, /livingEnemyPositions: livingEnemies\.map/,
   'localhost-only telemetry must expose read-only target positions for supported input navigation');
+assert.match(runtimeEvidence, /loadRoom:[\s\S]*attack: 1,[\s\S]*defense: 5_000/,
+  'localhost-only room reload must keep player damage low and targets durable for causal feedback evidence');
 assert.match(companionJourney, /sessionStorage\.setItem\(runtimeEvidenceMarker, '1'\)/,
   'authoritative telemetry must be enabled before the runtime bridge installs');
 assert.match(companionJourney, /async function triggerConfirmedPlayerAttack\(page, attackBoundary\)/,
@@ -88,8 +90,10 @@ assert.match(companionJourney, /const inputBurst = 6;[\s\S]*readRuntimeCombatSna
   'the bounded search must use real keyboard movement and finish only after authoritative attack time advances strictly beyond the captured boundary');
 assert.match(companionJourney, /const phase = attempt % 3;[\s\S]*\{ x: dx, y: dy \}[\s\S]*\{ x: -dy, y: dx \}[\s\S]*\{ x: dy, y: -dx \}/,
   'the search must try the target line and both lateral paths instead of one device-specific guess');
-assert.doesNotMatch(companionJourney, /__dungeonVeilRuntimeEvidence\?\.(?:loadRoom|killLivingEnemies|moveToExit|chooseFirstGift|setMode|setPlayerStats|setLivingEnemyFamilies)/,
-  'the companion journey may read the localhost snapshot but must not mutate combat through QA controls');
+assert.match(companionJourney, /const durableCriticalRoom = await page\.evaluate\(\(\) => window\.__dungeonVeilRuntimeEvidence\?\.loadRoom\(1, 'solo'\) \?\? null\);[\s\S]*expect\(Number\(durableCriticalRoom\?\.livingEnemies \|\| 0\)\)\.toBeGreaterThan\(0\);/,
+  'critical evidence may use only the localhost room reload to preserve a living target before the strict causal capture');
+assert.doesNotMatch(companionJourney, /__dungeonVeilRuntimeEvidence\?\.(?:killLivingEnemies|moveToExit|chooseFirstGift|setMode|setPlayerStats|setLivingEnemyFamilies)/,
+  'the companion journey must not mutate combat through any other QA control');
 assert.match(companionJourney, /const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*notBefore: attackBoundary[\s\S]*await page\.waitForFunction\([\s\S]*window\[armed\] === true[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*timeout: 20_000, polling: 16[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\(page, attackBoundary\);[\s\S]*const observedCritical = await capturePromise;[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(attackBoundary\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThan\(attackBoundary\)/,
   'critical evidence must bind to the last authoritative player-attack boundary and prove the browser capture is armed before both causal actions occur');
 assert.match(companionJourney, /runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null/,
