@@ -117,6 +117,8 @@ assert.match(journey, /const screenshot = await boundPage\.screenshot\(\{ path, 
   'the binding must start the full-context CSS-pixel screenshot before cross-process assertion work');
 assert.match(journey, /await page\.evaluate\(\(\{ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer, armed \}\) => \{/,
   'the browser must install the correlation observer and explicit armed signal with the companion action event and bounded freshness reserve');
+assert.match(journey, /const initialMinimumAt = minimumAt;\s*minimumAt = Number\.POSITIVE_INFINITY;/,
+  'both Basic and Critical capture must start with a closed acceptance boundary until the browser observer is armed');
 assert.match(journey, /scope\[armed\] = false;[\s\S]*window\.addEventListener\(eventName, actionListener\);[\s\S]*mutationObserver\.observe\(document\.documentElement,[\s\S]*inspect\(\);\s*scope\[armed\] = true;/,
   'the browser observer must publish armed only after action listener, MutationObserver and initial inspection are installed');
 assert.match(journey, /const inspect = \(\) => \{[\s\S]*const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
@@ -180,8 +182,8 @@ assert.match(journey, /const rendererHost = document\.querySelector\('\[data-tes
 assert.match(journey, /!expectedPaintKey \|\| paintReadyKey !== expectedPaintKey[\s\S]*'renderer-pending'[\s\S]*return titleStable \? 'stable' : 'settling'/,
   'room stability must require a non-empty matching renderer paint key in addition to the unchanged 1200ms title contract');
 assert.match(journey, /timeout: 120_000,[\s\S]*intervals: \[100, 250, 500\]/);
-assert.match(journey, /await armCompanionActionObservation\(page\);\s*const basicEvidenceEpoch = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*await startFreshRun\(page\);[\s\S]*await waitForStableRoom\(page\);\s*await captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'shield',[\s\S]*critical: false,[\s\S]*notBefore: basicEvidenceEpoch,[\s\S]*marker: \/◆\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-\$\{testInfo\.project\.name\}\.png/,
-  'normal-hit evidence must arm an empty event log and its epoch before combat starts, while still waiting for the room-title transition before capture');
+assert.match(journey, /await waitForStableRoom\(page\);\s*await prepareLivePlayerAttackLine\(page\);\s*const basicEvidenceBoundary = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*const basicCapturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'shield',[\s\S]*critical: false,[\s\S]*notBefore: basicEvidenceBoundary,[\s\S]*companion-damage-feedback-\$\{testInfo\.project\.name\}\.png[\s\S]*__dungeonVeilBasicCompanionFeedbackObservationArmed[\s\S]*timeout: 20_000, polling: 16[\s\S]*const basicPostArmBoundary = await page\.evaluate[\s\S]*__dungeonVeilBasicCompanionFeedbackObservationSetMinimumAt[\s\S]*expect\(basicBoundaryAdvanced\)\.toBe\(true\);[\s\S]*const observedBasic = await basicCapturePromise;[\s\S]*expect\(observedBasic\.at\)\.toBeGreaterThan\(basicPostArmBoundary\);/,
+  'normal-hit evidence must arm the browser observer before opening a fresh post-arm action boundary and must accept only a strictly newer Shield action');
 
 const playerAttackTrigger = journey.match(/async function triggerConfirmedPlayerAttack\(page, attackBoundary\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 assert.match(playerAttackTrigger, /const inputBurst = 6;[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*playerLastAttackTime[\s\S]*livingEnemyPositions[\s\S]*moveWithKeyboard\(page, keys, durationMs\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*confirmedAt > attackBoundary[\s\S]*No authoritative player attack occurred/,
