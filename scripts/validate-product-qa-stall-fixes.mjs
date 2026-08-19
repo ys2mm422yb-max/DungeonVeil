@@ -71,8 +71,8 @@ assert.match(companionJourney, /function assertFullViewportPng\(screenshot, view
   'the artifact itself must be validated instead of asking an expired transient node to remain alive after encoding');
 assert.doesNotMatch(companionJourney, /visibleAfterCapture|exactFeedback\.evaluate/,
   'post-screenshot DOM liveness checks must not reintroduce the 1050ms race');
-assert.match(companionJourney, /await armCompanionActionObservation\(page\);\s*const basicEvidenceEpoch = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*await startFreshRun\(page\);[\s\S]*await waitForStableRoom\(page\);\s*await captureLiveCompanionFeedbackEvidence/,
-  'the empty action log and basic feedback epoch must be armed before combat starts, while capture still waits for the room-title transition to settle');
+assert.match(companionJourney, /await armCompanionActionObservation\(page\);\s*await startFreshRun\(page\);[\s\S]*await waitForStableRoom\(page\);[\s\S]*const basicEvidenceBoundary = await page\.evaluate\(\(\) => performance\.now\(\)\);[\s\S]*const basicCapturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'shield'[\s\S]*notBefore: basicEvidenceBoundary[\s\S]*__dungeonVeilBasicCompanionFeedbackObservationArmed[\s\S]*const basicPostArmBoundary = await page\.evaluate\(logKey => \{[\s\S]*Math\.max\(performance\.now\(\), \.\.\.log\.map[\s\S]*__dungeonVeilBasicCompanionFeedbackObservationSetMinimumAt[\s\S]*const observedBasic = await basicCapturePromise;[\s\S]*expect\(observedBasic\.at\)\.toBeGreaterThan\(basicPostArmBoundary\)/,
+  'basic Shield evidence must arm the browser observer first, then close over a post-arm high-water boundary and accept only a strictly newer action');
 assert.doesNotMatch(companionJourney, /PLAYER_HIT_LOG|PLAYER_HIT_OBSERVER|armPlayerHitObservation|data-hit-flash/,
   'the critical path must not depend on a non-authoritative visual hit signal');
 
