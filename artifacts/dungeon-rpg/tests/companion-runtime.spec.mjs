@@ -316,7 +316,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       const scope = window;
       const rejectionLogKey = '__dungeonVeilCompanionFeedbackRejectionLog';
       const initialMinimumAt = minimumAt;
-      if (expectedCritical) minimumAt = Number.POSITIVE_INFINITY;
+      minimumAt = Number.POSITIVE_INFINITY;
       scope[observation] = null;
       scope[armed] = false;
       scope[rejectionLogKey] = [];
@@ -540,20 +540,37 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(management).toBeHidden();
   await expect(page.getByRole('heading', { name: 'DUNGEON VEIL' })).toBeVisible({ timeout: 60_000 });
   await armCompanionActionObservation(page);
-  const basicEvidenceEpoch = await page.evaluate(() => performance.now());
   await startFreshRun(page);
   const chip = page.getByTestId('run-companion-chip');
   const runtime = page.getByTestId('companion-runtime-bridge');
   const scene = page.getByTestId('run-companion-scene');
   await expect(chip).toHaveCount(0);
   await waitForStableRoom(page);
-  await captureLiveCompanionFeedbackEvidence(page, {
+  await prepareLivePlayerAttackLine(page);
+  const basicEvidenceBoundary = await page.evaluate(() => performance.now());
+  const basicCapturePromise = captureLiveCompanionFeedbackEvidence(page, {
     role: 'shield',
     critical: false,
-    notBefore: basicEvidenceEpoch,
+    notBefore: basicEvidenceBoundary,
     marker: /◆\s*-\d+/,
     path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`,
   });
+  await page.waitForFunction(
+    armed => window[armed] === true,
+    '__dungeonVeilBasicCompanionFeedbackObservationArmed',
+    { timeout: 20_000, polling: 16 },
+  );
+  const basicPostArmBoundary = await page.evaluate(logKey => {
+    const log = window[logKey] || [];
+    return Math.max(performance.now(), ...log.map(entry => Number(entry?.at) || 0));
+  }, COMPANION_ACTION_LOG);
+  const basicBoundaryAdvanced = await page.evaluate(({ setter, boundary }) => window[setter]?.(boundary) === true, {
+    setter: '__dungeonVeilBasicCompanionFeedbackObservationSetMinimumAt',
+    boundary: basicPostArmBoundary,
+  });
+  expect(basicBoundaryAdvanced).toBe(true);
+  const observedBasic = await basicCapturePromise;
+  expect(observedBasic.at).toBeGreaterThan(basicPostArmBoundary);
   await expect(chip).toHaveCount(0);
   await expect(runtime).toHaveAttribute('data-role', 'shield');
   await expect(runtime).toHaveAttribute('data-level', '2');
