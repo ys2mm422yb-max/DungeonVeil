@@ -27,6 +27,10 @@ assert.match(runtime, /const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;/,
   'portrait feedback lifetime must remain the fixed product contract');
 assert.match(runtime, /const RECENT_COMBAT_TARGET_MS = 1_200;/,
   'critical support must retain only a short bounded target memory for a same-frame killing blow');
+assert.match(runtime, /const CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS = 2_600;/,
+  'critical-support readiness must derive from the unchanged real special cooldown');
+assert.match(runtime, /markerRef\.current\.dataset\.criticalSpecialReady = String\([\s\S]*activeRole === 'critical-support'[\s\S]*now - lastSpecialActionRef\.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS[\s\S]*\);/,
+  'the diagnostic readiness marker must expose the same real cooldown gate used by the critical proc');
 assert.match(runtime, /function projectCompanionDamage\(state: GameState, feedback: CompanionDamageFeedback\)/);
 assert.match(runtime, /if \(depth <= 0\.1\) return null;/,
   'only a point behind the camera may be rejected');
@@ -194,12 +198,14 @@ assert.doesNotMatch(playerAttackTrigger, /PLAYER_HIT_LOG|data-hit-flash|window\.
   'the test may read authoritative state but must not mutate combat through the QA bridge');
 assert.doesNotMatch(playerAttackTrigger, /const inputBurst = (?:[7-9]|\d{2,})|durationMs = (?:[7-9]\d{2}|\d{4,})|waitForTimeout\((?:[3-9]\d{2}|\d{4,})\)/,
   'the adaptive search must remain short and bounded');
-assert.match(journey, /await prepareLivePlayerAttackLine\(page\);\s*const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);\s*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support',[\s\S]*critical: true,[\s\S]*notBefore: attackBoundary,[\s\S]*marker: \/✦\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png[\s\S]*await page\.waitForFunction\([\s\S]*window\[armed\] === true[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*timeout: 20_000, polling: 16[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\(page, attackBoundary\);[\s\S]*const observedCritical = await capturePromise;/,
-  'critical capture must be fully browser-observer-armed before the supported-input attack can begin');
-assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(attackBoundary\);/,
-  'the test must independently prove a strictly newer authoritative player attack that causes the proc');
-assert.match(journey, /expect\(observedCritical\.at\)\.toBeGreaterThan\(attackBoundary\);/,
-  'the accepted critical value must be a strictly newer authoritative companion action');
+assert.match(journey, /await prepareLivePlayerAttackLine\(page\);\s*const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);\s*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support',[\s\S]*critical: true,[\s\S]*notBefore: attackBoundary,[\s\S]*marker: \/✦\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png[\s\S]*await page\.waitForFunction\([\s\S]*window\[armed\] === true[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*timeout: 20_000, polling: 16[\s\S]*data-critical-special-ready[\s\S]*timeout: 20_000,[\s\S]*polling: 16[\s\S]*const readyAttackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\(page, readyAttackBoundary\);[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt[\s\S]*expect\(boundaryAdvanced\)\.toBe\(true\);[\s\S]*const observedCritical = await capturePromise;/,
+  'critical capture must be browser-observer-armed, wait for the real runtime cooldown readiness, and only then permit the authoritative player attack');
+assert.match(journey, /expect\(readyAttackBoundary\)\.toBeGreaterThanOrEqual\(attackBoundary\);/,
+  'the readiness boundary must not move behind the original authoritative player-attack boundary');
+assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(readyAttackBoundary\);/,
+  'the test must independently prove a strictly newer authoritative player attack after cooldown readiness');
+assert.match(journey, /expect\(observedCritical\.at\)\.toBeGreaterThan\(confirmedPlayerAttackAt\);/,
+  'the accepted critical value must be a strictly newer authoritative companion action than the confirmed player attack');
 assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/);
 assert.match(workflow, /companion-damage-feedback-\$\{\{ matrix\.project \}\}\.png/);
 assert.match(workflow, /companion-damage-feedback-critical-\$\{\{ matrix\.project \}\}\.png/);
