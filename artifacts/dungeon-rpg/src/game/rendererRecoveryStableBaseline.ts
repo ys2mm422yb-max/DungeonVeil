@@ -60,11 +60,10 @@ function keepRecoveryHpFrozen() {
 function beginStableRecoveryHpHold(event: Event) {
   if (!isRendererRecoveryEvent(event) || !activeEngine || preUpdateHp === null) return;
 
-  // First restore the already-proven synchronous recovery boundary. Multiple
+  // The original recovery listener restores the proven boundary first. Multiple
   // lifecycle events may describe the same recovery, so the first held value
   // remains authoritative until room-ready and later events cannot rebase it.
   if (recoveryHeldHp === null) {
-    restoreStablePreRecoveryHp(event);
     const restoredHp = activeEngine.state.player.hp;
     if (!Number.isFinite(restoredHp)) return;
     recoveryHeldHp = restoredHp;
@@ -93,7 +92,7 @@ export function installRendererRecoveryStableBaseline() {
   prototype.update = function patchedStableRecoveryUpdate(timestamp: number) {
     activeEngine = this;
     const beforeHp = this.state.player.hp;
-    preUpdateHp = beforeHp;
+    preUpdateHp = this.state.player.hp;
     const result = originalUpdate.call(this, timestamp);
     const afterHp = this.state.player.hp;
 
@@ -116,10 +115,10 @@ export function installRendererRecoveryStableBaseline() {
     return result;
   };
 
-  // Registered before React mounts so the authoritative pre-frame baseline is
-  // restored before Game's recovery handlers latch the hold HP. The rAF guard
-  // then preserves that exact baseline for the complete recovery interval instead
-  // of only correcting the first lifecycle event task.
+  // Preserve the permanent synchronous recovery contract first, then extend it
+  // with an rAF hold for asynchronous runtime effects until room-ready resumes play.
+  window.addEventListener('dungeon-veil-renderer-lost', restoreStablePreRecoveryHp);
+  window.addEventListener('dungeon-veil-room-preparing', restoreStablePreRecoveryHp);
   window.addEventListener('dungeon-veil-renderer-lost', beginStableRecoveryHpHold);
   window.addEventListener('dungeon-veil-room-preparing', beginStableRecoveryHpHold);
   window.addEventListener('dungeon-veil-room-ready', endStableRecoveryHpHold);
