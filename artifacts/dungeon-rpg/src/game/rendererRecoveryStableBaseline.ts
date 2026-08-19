@@ -27,6 +27,21 @@ function isRendererRecoveryEvent(event: Event) {
     || detail.reason === 'webglcontextlost';
 }
 
+function restoreStablePreRecoveryHp(event: Event) {
+  if (!isRendererRecoveryEvent(event) || !activeEngine || preUpdateHp === null) return;
+  const liveHp = activeEngine.state.player.hp;
+  // Preserve the original boundary contract: prefer the retained pre-mutation
+  // baseline, then fall back to the last pre-update HP when no mutation baseline
+  // is retained.
+  if (retainedPreMutationHp !== null) {
+    if (Number.isFinite(liveHp) && Number.isFinite(retainedPreMutationHp) && liveHp !== retainedPreMutationHp) {
+      activeEngine.state.player.hp = retainedPreMutationHp;
+    }
+  } else if (Number.isFinite(liveHp) && liveHp !== preUpdateHp) {
+    activeEngine.state.player.hp = preUpdateHp;
+  }
+}
+
 function restoreHeldHp() {
   if (!activeEngine || recoveryHeldHp === null) return;
   const liveHp = activeEngine.state.player.hp;
@@ -45,15 +60,18 @@ function keepRecoveryHpFrozen() {
 function beginStableRecoveryHpHold(event: Event) {
   if (!isRendererRecoveryEvent(event) || !activeEngine || preUpdateHp === null) return;
 
-  // Multiple recovery lifecycle events may describe the same recovery. The first
-  // boundary owns the baseline until room-ready; later events must not rebase it.
+  // First restore the already-proven synchronous recovery boundary. Multiple
+  // lifecycle events may describe the same recovery, so the first held value
+  // remains authoritative until room-ready and later events cannot rebase it.
   if (recoveryHeldHp === null) {
-    const candidate = retainedPreMutationHp !== null ? retainedPreMutationHp : preUpdateHp;
-    if (!Number.isFinite(candidate)) return;
-    recoveryHeldHp = candidate;
+    restoreStablePreRecoveryHp(event);
+    const restoredHp = activeEngine.state.player.hp;
+    if (!Number.isFinite(restoredHp)) return;
+    recoveryHeldHp = restoredHp;
+  } else {
+    restoreHeldHp();
   }
 
-  restoreHeldHp();
   if (!recoveryHoldFrame) recoveryHoldFrame = window.requestAnimationFrame(keepRecoveryHpFrozen);
 }
 
