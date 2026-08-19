@@ -68,9 +68,10 @@ install_deps() {
     bash -c 'pid="$1"; while kill -0 "$pid" >/dev/null 2>&1; do sleep 1; done' bash "$session_pid"; then
     wait "$session_pid"
     return $?
+  else
+    watcher_status=$?
   fi
 
-  watcher_status=$?
   echo "Playwright install-deps exceeded the bounded attempt; terminating its complete process group before fallback." >&2
   terminate_install_session "$session_pid"
   wait_for_package_manager
