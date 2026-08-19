@@ -3,6 +3,7 @@ set -euo pipefail
 
 browser="${1:?browser is required}"
 readonly apt_bounds_file="/etc/apt/apt.conf.d/99dungeon-veil-network-bounds"
+readonly apt_mirrors_file="/etc/apt/apt-mirrors.txt"
 readonly fallback_mirror="http://us.archive.ubuntu.com/ubuntu/"
 readonly install_timeout_seconds=300
 readonly package_lock_wait_seconds=90
@@ -86,6 +87,13 @@ echo "Default Ubuntu package source did not complete Playwright install-deps wit
 
 # The failed attempt must be completely quiescent before package metadata or dpkg state is touched.
 wait_for_package_manager
+
+# Ubuntu 24.04 hosted runners may source archive URIs through mirror+file:/etc/apt/apt-mirrors.txt.
+# Replacing only sources.list/ubuntu.sources leaves that indirection on the Azure mirror, so make the
+# mirrorlist itself deterministic before the second bounded install attempt.
+if [[ -f "$apt_mirrors_file" ]]; then
+  printf '%s\n' "$fallback_mirror" | sudo tee "$apt_mirrors_file" >/dev/null
+fi
 
 for sources_file in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
   [[ -f "$sources_file" ]] || continue
