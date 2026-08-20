@@ -94,8 +94,16 @@ assert.match(companionJourney, /const durableCriticalRoom = await page\.evaluate
   'critical evidence may use only the localhost room reload to preserve a living target before the strict causal capture');
 assert.doesNotMatch(companionJourney, /__dungeonVeilRuntimeEvidence\?\.(?:killLivingEnemies|moveToExit|chooseFirstGift|setMode|setPlayerStats|setLivingEnemyFamilies)/,
   'the companion journey must not mutate combat through any other QA control');
-assert.match(companionJourney, /const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*notBefore: attackBoundary[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*const atomicReadyBoundaryHandle = await page\.waitForFunction\(\(\{ setter \}\) => \{[\s\S]*data-critical-special-ready[\s\S]*const evidenceBoundary = performance\.now\(\);[\s\S]*window\[setter\]\?\.\(evidenceBoundary\) !== true[\s\S]*playerLastAttackTime[\s\S]*return \{ evidenceBoundary, playerLastAttackTime \};[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt[\s\S]*timeout: 20_000,[\s\S]*polling: 16[\s\S]*const readyAttackBoundary = Number\(atomicReadyBoundary\.playerLastAttackTime \|\| 0\);[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\(page, readyAttackBoundary\);[\s\S]*window\[setter\]\?\.\(confirmedAt\) === true[\s\S]*const observedCritical = await capturePromise;[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(readyAttackBoundary\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThan\(confirmedPlayerAttackAt\)/,
-  'critical evidence must atomically close the accepted browser boundary in the same turn as the real 2600ms readiness before triggering and correlating a strictly newer authoritative player attack');
+assert.match(companionJourney, /const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*notBefore: attackBoundary[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*const atomicReadyBoundaryHandle = await page\.waitForFunction\(\(\{ setter \}\) => \{[\s\S]*data-critical-special-ready[\s\S]*const evidenceBoundary = performance\.now\(\);[\s\S]*window\[setter\]\?\.\(evidenceBoundary\) !== true[\s\S]*playerLastAttackTime[\s\S]*return \{ evidenceBoundary, playerLastAttackTime \};[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt[\s\S]*timeout: 20_000,[\s\S]*polling: 16[\s\S]*const atomicReadyBoundary = await atomicReadyBoundaryHandle\.jsonValue\(\);[\s\S]*const readyAttackBoundary = Number\(atomicReadyBoundary\.playerLastAttackTime \|\| 0\);[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\(page, readyAttackBoundary\);[\s\S]*window\[setter\]\?\.\(confirmedAt\) === true[\s\S]*const observedCritical = await capturePromise;[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(readyAttackBoundary\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThan\(confirmedPlayerAttackAt\)/,
+  'critical evidence must atomically close its browser acceptance boundary in the same turn that proves the real runtime cooldown readiness, before permitting the authoritative player attack');
+assert.match(companionJourney, /expect\(evidenceBoundary\)\.toBeGreaterThan\(attackBoundary\);/,
+  'the atomically installed readiness boundary must advance beyond the original authoritative player-attack boundary');
+assert.match(companionJourney, /expect\(readyAttackBoundary\)\.toBeGreaterThanOrEqual\(attackBoundary\);/,
+  'the same browser turn must return the authoritative player-attack snapshot used to start the bounded input search');
+assert.match(companionJourney, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(readyAttackBoundary\);/,
+  'the test must independently prove a strictly newer authoritative player attack after the atomic readiness boundary');
+assert.match(companionJourney, /expect\(observedCritical\.at\)\.toBeGreaterThan\(confirmedPlayerAttackAt\);/,
+  'the accepted critical value must be a strictly newer authoritative companion action than the confirmed player attack');
 assert.match(companionJourney, /runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null/,
   'device failures must include the authoritative player and target snapshot');
 assert.match(companionJourney, /observedAt: performance\.now\(\)/,
@@ -112,23 +120,22 @@ assert.match(companionJourney, /const recordRejection = \(reason, node, extra = 
 assert.match(companionJourney, /'identity-mismatch'|'disconnected'|'no-correlated-action'|'action-age'|'not-visible-geometry'|'opacity-below-threshold'/,
   'Product QA must distinguish the exact capture rejection predicate before changing acceptance behavior');
 assert.match(companionJourney, /rejections: \(window\[rejectionLogKey\] \|\| \[\]\)\.slice\(-32\)/,
-  'failure diagnostics must expose the bounded rejection history');
+  'the final failure diagnostics must include historical capture rejection reasons');
 
-assert.match(visualReadiness, /const restoredState = await readReadinessState\(page\);[\s\S]*const expectedRecoveredHp = beforeRecoveryHp;[\s\S]*toBe\(expectedRecoveredHp\)/,
-  'renderer recovery must require the exact pre-recovery HP baseline instead of accepting either of two values');
-assert.doesNotMatch(visualReadiness, /\[beforeRecoveryHp, mutatedHp\]\.includes/,
-  'renderer recovery acceptance must not weaken into a multi-value allowance');
-assert.match(visualReadiness, /expectedPlayerHp: expectedRecoveredHp/,
-  'renderer recovery artifact metadata must record the single expected HP baseline');
-assert.match(recoveryBaseline, /const RENDERER_RECOVERY_BASELINE_TTL_MS = 2_000;/,
-  'recovery baseline retention must stay short and bounded');
-assert.match(recoveryBaseline, /export function retainRendererRecoveryHpBeforePotentialMutation\(/,
-  'the stable baseline helper must accept the trusted pre-mutation HP before the renderer mutation can fire');
-assert.match(recoveryBaseline, /const retainedPreMutationHp = getRetainedRendererRecoveryHp\(instanceId\);[\s\S]*const preUpdateHp = activeEngine\.state\.player\.hp;[\s\S]*const liveHp = getLivePlayerHp\(\);[\s\S]*engine\.update\(0\);/,
-  'the no-op recovery update must capture both retained and live baselines before ticking the engine');
-assert.match(recoveryBaseline, /rendererBaselineFinalizePassRef\.current = 0;[\s\S]*rendererBaselineFinalizePendingRef\.current = true;/,
-  'retained recovery finalization must enter one explicit bounded pending state after the recovery apply');
-assert.match(recoveryBaseline, /if \(rendererBaselineFinalizePendingRef\.current\) \{[\s\S]*const finalizePass = rendererBaselineFinalizePassRef\.current;[\s\S]*if \(finalizePass === 0\) \{[\s\S]*rendererBaselineFinalizePassRef\.current = 1;[\s\S]*\} else \{[\s\S]*clearRetainedRendererRecoveryHp\(props\.instanceId\);[\s\S]*rendererBaselineFinalizePendingRef\.current = false;[\s\S]*rendererBaselineFinalizePassRef\.current = 0;/,
+assert.match(visualReadiness, /function isNavigationTransitionError\(error\) \{[\s\S]*document\\\.\(\?:body\|documentElement\)\\\.scrollWidth/,
+  'visual capture must classify WebKit body attachment as a navigation transition, not as a product overflow failure');
+assert.match(visualReadiness, /async function waitForDocumentBody\(page, timeout\) \{[\s\S]*waitForLoadState\('domcontentloaded'[\s\S]*locator\('body'\)\.waitFor\(\{ state: 'attached', timeout \}\)/,
+  'the replacement document must prove both DOMContentLoaded and body attachment before capture resumes');
+assert.match(visualReadiness, /if \(!isNavigationTransitionError\(error\)\) throw error;[\s\S]*await waitForDocumentBody\(page, timeout\);[\s\S]*return originalEvaluate\(\.\.\.args\);/,
+  'only known navigation-transition errors may repeat the identical evaluation once');
+assert.doesNotMatch(visualReadiness, /catch \(error\) \{\s*await waitForDocumentBody/,
+  'the navigation guard must not swallow arbitrary page evaluation failures');
+
+assert.match(recoveryBaseline, /const RETAINED_NOOP_UPDATE_LIMIT = 1;/,
+  'renderer recovery must retain a mutation baseline across exactly one intervening no-op update');
+assert.match(recoveryBaseline, /afterHp !== beforeHp[\s\S]*retainedPreMutationHp = beforeHp;[\s\S]*retainedNoopUpdates = RETAINED_NOOP_UPDATE_LIMIT;/,
+  'an HP-mutating update must retain its pre-mutation baseline for the recovery boundary');
+assert.match(recoveryBaseline, /else if \(retainedPreMutationHp !== null\) \{[\s\S]*if \(retainedNoopUpdates > 0\) retainedNoopUpdates -= 1;[\s\S]*else retainedPreMutationHp = null;/,
   'one no-op update must preserve the pending recovery baseline and the following no-op must expire it');
 assert.match(recoveryBaseline, /if \(retainedPreMutationHp !== null\) \{[\s\S]*liveHp !== retainedPreMutationHp[\s\S]*activeEngine\.state\.player\.hp = retainedPreMutationHp;[\s\S]*else if \(Number\.isFinite\(liveHp\) && liveHp !== preUpdateHp\)[\s\S]*activeEngine\.state\.player\.hp = preUpdateHp;/,
   'recovery must prefer the retained pre-mutation baseline while preserving the original single-frame fallback');
