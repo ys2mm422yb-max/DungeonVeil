@@ -198,6 +198,11 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     activeDamageFeedbackRef.current = null;
     feedbackVisibleUntilRef.current = 0;
     setDamageFeedback(null);
+    if (markerRef.current) {
+      markerRef.current.dataset.lastCriticalSpecialAt = '';
+      markerRef.current.dataset.lastCriticalSpecialTarget = '';
+      markerRef.current.dataset.lastCriticalSpecialPlayerAttackAt = '';
+    }
   }, [role, level]);
 
   useEffect(() => {
@@ -400,6 +405,11 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
             element: 'arcane',
           });
           emitCompanionAction(activeRole, activeLevel, 'attack', criticalTarget.id);
+          if (markerRef.current) {
+            markerRef.current.dataset.lastCriticalSpecialAt = String(now);
+            markerRef.current.dataset.lastCriticalSpecialTarget = criticalTarget.id;
+            markerRef.current.dataset.lastCriticalSpecialPlayerAttackAt = String(playerAttack);
+          }
           lastSpecialActionRef.current = now;
         }
         lastPlayerAttackRef.current = playerAttack;
@@ -502,6 +512,9 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         data-blocks-enemies="false"
         data-runtime-frozen="false"
         data-critical-special-ready="false"
+        data-last-critical-special-at=""
+        data-last-critical-special-target=""
+        data-last-critical-special-player-attack-at=""
         data-feedback-active={damageFeedback ? 'true' : 'false'}
         data-feedback-projected={projectedFeedback ? 'true' : 'false'}
         data-feedback-target={damageFeedback?.targetId ?? ''}
