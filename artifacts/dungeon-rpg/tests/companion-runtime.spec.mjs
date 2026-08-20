@@ -461,7 +461,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         const detail = event.detail;
         if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
         if (detail.role !== expectedRole || Number(detail.at) <= minimumAt) return;
-        inspect();
+        queueMicrotask(() => inspect());
       };
       window.addEventListener(eventName, actionListener);
 
@@ -590,6 +590,22 @@ test('companions are found and upgraded before a run, then remain fixed with art
     boundary: basicPostArmBoundary,
   });
   expect(basicBoundaryAdvanced).toBe(true);
+  const freshShieldActionHandle = await page.waitForFunction(({ logKey, boundary }) => {
+    const actions = window[logKey] || [];
+    return [...actions].reverse().find(entry => (
+      entry.role === 'shield'
+      && entry.kind === 'attack'
+      && Number(entry.at) > boundary
+    )) || false;
+  }, {
+    logKey: COMPANION_ACTION_LOG,
+    boundary: basicPostArmBoundary,
+  }, {
+    timeout: 20_000,
+    polling: 16,
+  });
+  const freshShieldAction = await freshShieldActionHandle.jsonValue();
+  expect(Number(freshShieldAction?.at || 0)).toBeGreaterThan(basicPostArmBoundary);
   const observedBasic = await basicCapturePromise;
   expect(observedBasic.at).toBeGreaterThan(basicPostArmBoundary);
   await expect(chip).toHaveCount(0);
@@ -674,7 +690,7 @@ test('critical-support proc renders one readable value on its actual target', as
   const readyAttackBoundary = Number(atomicReadyBoundary.playerLastAttackTime || 0);
   expect(evidenceBoundary).toBeGreaterThan(attackBoundary);
   expect(readyAttackBoundary).toBeGreaterThanOrEqual(attackBoundary);
-  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, readyAttackBoundary);
+  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, evidenceBoundary));
   const boundaryAdvanced = await page.evaluate(({ setter, confirmedAt }) => window[setter]?.(confirmedAt) === true, {
     setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt',
     confirmedAt: confirmedPlayerAttackAt,
@@ -682,6 +698,7 @@ test('critical-support proc renders one readable value on its actual target', as
   expect(boundaryAdvanced).toBe(true);
   const observedCritical = await capturePromise;
   expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
+  expect(confirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
   expect(observedCritical.at).toBeGreaterThan(confirmedPlayerAttackAt);
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
