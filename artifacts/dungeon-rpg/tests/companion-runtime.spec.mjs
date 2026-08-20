@@ -388,6 +388,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           ));
           if (!action) {
             recordRejection('no-correlated-action', node, { minimumAt, targetId });
+            schedulePaintReinspection();
             continue;
           }
           const diagnosticCaptureNow = performance.now();
