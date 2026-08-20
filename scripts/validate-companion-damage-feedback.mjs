@@ -135,8 +135,8 @@ assert.match(journey, /const captureNow = performance\.now\(\);\s*const actionAg
   'the atomic browser observer must reject late-life feedback before screenshot handoff');
 assert.match(journey, /const cleanup = \(\) => \{[\s\S]*mutationObserver\?\.disconnect\(\);[\s\S]*window\.removeEventListener\(eventName, actionListener\);[\s\S]*cancelAnimationFrame\(paintReinspectionFrame\);[\s\S]*scope\[observer\] = \{ disconnect: cleanup \};/,
   'capture cleanup must jointly release the mutation observer, companion action listener and paint reinspection frame');
-assert.match(journey, /actionListener = event => \{[\s\S]*detail\.role !== expectedRole \|\| Number\(detail\.at\) <= minimumAt[\s\S]*inspect\(\);[\s\S]*window\.addEventListener\(eventName, actionListener\);/,
-  'COMPANION_ACTION_EVENT must re-inspect a still-connected pending node when the authoritative action arrives');
+assert.match(journey, /actionListener = event => \{[\s\S]*detail\.role !== expectedRole \|\| Number\(detail\.at\) <= minimumAt[\s\S]*queueMicrotask\(\(\) => inspect\(\)\);[\s\S]*window\.addEventListener\(eventName, actionListener\);/,
+  'COMPANION_ACTION_EVENT must re-inspect a still-connected pending node after the authoritative action dispatch completes');
 assert.match(journey, /scope\[observation\] = payload;[\s\S]*scope\[observer\]\?\.disconnect\?\.\(\);[\s\S]*void scope\[binding\]\(payload\);/,
   'the accepted payload must be frozen and handed to Playwright in the same observer turn');
 assert.match(journey, /mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
