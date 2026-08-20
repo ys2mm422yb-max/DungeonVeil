@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [guildRaidJourney, companionJourney, runtimeEvidence, visualReadiness, recoveryBaseline] = await Promise.all([
+const [guildRaidJourney, companionJourney, companionRuntime, runtimeEvidence, visualReadiness, recoveryBaseline] = await Promise.all([
   readFile('artifacts/dungeon-rpg/tests/guild-raid-lobby-mobile.spec.mjs', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs', 'utf8'),
+  readFile('artifacts/dungeon-rpg/src/components/CompanionRuntimeBridge.tsx', 'utf8'),
   readFile('artifacts/dungeon-rpg/src/game/runtimeEvidenceBridge.ts', 'utf8'),
   readFile('artifacts/dungeon-rpg/tests/visual-render-readiness.mjs', 'utf8'),
   readFile('artifacts/dungeon-rpg/src/game/rendererRecoveryStableBaseline.ts', 'utf8'),
@@ -76,12 +77,14 @@ assert.match(companionJourney, /await armCompanionActionObservation\(page\);\s*a
 assert.doesNotMatch(companionJourney, /PLAYER_HIT_LOG|PLAYER_HIT_OBSERVER|armPlayerHitObservation|data-hit-flash/,
   'the critical path must not depend on a non-authoritative visual hit signal');
 
+assert.match(companionRuntime, /if \(activeRole === 'critical-support'\)[\s\S]*if \(criticalTarget && playerAttack > lastPlayerAttackRef\.current[\s\S]*const damage = companionDamageAttributionV4[\s\S]*if \(damage\.damage > 0\) \{[\s\S]*pushBoundedCompanionEffect\(state, 2,[\s\S]*emitCompanionAction\(activeRole, activeLevel, 'attack', criticalTarget\.id\);[\s\S]*lastSpecialActionRef\.current = now;[\s\S]*\}/,
+  'zero-rounded Critical Support damage must not emit special bookkeeping or consume the special cooldown');
 assert.match(runtimeEvidence, /playerLastAttackTime: state\.player\.lastAttackTime/,
   'localhost-only telemetry must expose the exact authoritative player timestamp consumed by the proc');
 assert.match(runtimeEvidence, /livingEnemyPositions: livingEnemies\.map/,
   'localhost-only telemetry must expose read-only target positions for supported input navigation');
-assert.match(runtimeEvidence, /loadRoom:[\s\S]*attack: 1,[\s\S]*defense: 5_000/,
-  'localhost-only room reload must keep player damage low and targets durable for causal feedback evidence');
+assert.match(runtimeEvidence, /loadRoom:[\s\S]*attack: 9,[\s\S]*defense: 5_000/,
+  'localhost-only room reload must keep targets durable while making the real level-2 Critical Support proc minimally publishable');
 assert.match(companionJourney, /sessionStorage\.setItem\(runtimeEvidenceMarker, '1'\)/,
   'authoritative telemetry must be enabled before the runtime bridge installs');
 assert.match(companionJourney, /async function triggerConfirmedPlayerAttack\(page, attackBoundary\)/,
