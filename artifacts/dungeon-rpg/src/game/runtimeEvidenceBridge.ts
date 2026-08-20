@@ -102,10 +102,6 @@ function attachApi(): void {
       document.documentElement.dataset.dungeonVeilRoomBuildState = 'preparing';
       document.documentElement.dataset.dungeonVeilRoomBuildFloor = String(room);
       if (!roomChanges) {
-        // Same-room QA reloads do not change the renderer key, so GameCanvas will
-        // correctly keep the already painted room and emit no lifecycle event.
-        // Restart the localhost-only runtime systems explicitly around the fresh
-        // engine state so hazards are re-armed deterministically after recovery.
         window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', {
           detail: { key: sameRoomQaKey, floor: room, qaReload: true },
         }));
@@ -119,9 +115,9 @@ function attachApi(): void {
         xp: 0,
         hp: 9_999,
         maxHp: 9_999,
-        // Evidence rooms must keep their enemies alive until the test explicitly
-        // defeats them. The former 50,000 attack made Android timing nondeterministic.
-        attack: 1,
+        // Keep the evidence target durable while still allowing level-2 Critical Support
+        // to round its real Special to the minimum publishable one damage.
+        attack: 9,
         defense: 5_000,
         speed: Math.max(220, player.speed),
         attackRange: 520,
@@ -140,7 +136,7 @@ function attachApi(): void {
       });
       engine.state.player.hp = 9_999;
       engine.state.player.maxHp = 9_999;
-      engine.state.player.attack = 1;
+      engine.state.player.attack = 9;
       engine.state.player.defense = 5_000;
       engine.state.status = 'playing';
       engine.lastTime = performance.now();
@@ -188,11 +184,6 @@ function attachApi(): void {
     prepareAttackGiftEvidence: () => {
       const engine = currentEngine;
       if (!engine) return null;
-      // Keep the real prepareGiftChoices authority in charge. Saturate every
-      // regular path except Attack, Quick Draw and Max HP without opening a
-      // fusion, so the normal randomized builder has exactly these three valid
-      // regular candidates and therefore cannot overwrite the QA setup with a
-      // different card set.
       engine.state.runSkills = {
         elementalStorm: 1,
         veilChain: 1,
