@@ -396,33 +396,35 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         const criticalTarget = recentTarget ?? target;
         if (criticalTarget && playerAttack > lastPlayerAttackRef.current && now - lastSpecialActionRef.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS) {
           const damage = companionDamageAttributionV4(reservation, state.player.attack * power * 0.72);
-          if (canWriteEnemies && damage.damage > 0) {
-            if (!criticalTarget.isDead && criticalTarget.hp > 0) {
-              criticalTarget.hp -= damage.damage;
-              criticalTarget.flashUntil = now + 110;
-              criticalTarget.lastHitTime = now;
+          if (damage.damage > 0) {
+            if (canWriteEnemies) {
+              if (!criticalTarget.isDead && criticalTarget.hp > 0) {
+                criticalTarget.hp -= damage.damage;
+                criticalTarget.flashUntil = now + 110;
+                criticalTarget.lastHitTime = now;
+              }
+              publishDamageFeedback(activeRole, criticalTarget, damage.damage, definition.accent, true, now);
             }
-            publishDamageFeedback(activeRole, criticalTarget, damage.damage, definition.accent, true, now);
+            pushBoundedCompanionEffect(state, 2, {
+              id: `companion-v5-critical-${now}`,
+              x: criticalTarget.x + criticalTarget.width / 2,
+              y: criticalTarget.y + criticalTarget.height / 2,
+              radius: 0,
+              maxRadius: 50,
+              color: definition.accent,
+              lifeTime: 0,
+              maxLifeTime: 320,
+              type: 'circle',
+              element: 'arcane',
+            });
+            emitCompanionAction(activeRole, activeLevel, 'attack', criticalTarget.id);
+            if (markerRef.current) {
+              markerRef.current.dataset.lastCriticalSpecialAt = String(now);
+              markerRef.current.dataset.lastCriticalSpecialTarget = criticalTarget.id;
+              markerRef.current.dataset.lastCriticalSpecialPlayerAttackAt = String(playerAttack);
+            }
+            lastSpecialActionRef.current = now;
           }
-          pushBoundedCompanionEffect(state, 2, {
-            id: `companion-v5-critical-${now}`,
-            x: criticalTarget.x + criticalTarget.width / 2,
-            y: criticalTarget.y + criticalTarget.height / 2,
-            radius: 0,
-            maxRadius: 50,
-            color: definition.accent,
-            lifeTime: 0,
-            maxLifeTime: 320,
-            type: 'circle',
-            element: 'arcane',
-          });
-          emitCompanionAction(activeRole, activeLevel, 'attack', criticalTarget.id);
-          if (markerRef.current) {
-            markerRef.current.dataset.lastCriticalSpecialAt = String(now);
-            markerRef.current.dataset.lastCriticalSpecialTarget = criticalTarget.id;
-            markerRef.current.dataset.lastCriticalSpecialPlayerAttackAt = String(playerAttack);
-          }
-          lastSpecialActionRef.current = now;
         }
         lastPlayerAttackRef.current = playerAttack;
       }
