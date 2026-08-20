@@ -327,6 +327,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       let paintReinspectionFrame = 0;
       let mutationObserver = null;
       let actionListener = null;
+      let criticalBoundaryPrimed = !expectedCritical;
 
       const recordRejection = (reason, node, extra = {}) => {
         const log = scope[rejectionLogKey];
@@ -442,6 +443,13 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       scope[`${observation}SetMinimumAt`] = nextMinimumAt => {
         const candidate = Number(nextMinimumAt);
         if (!Number.isFinite(candidate) || candidate <= initialMinimumAt) return false;
+        if (!criticalBoundaryPrimed) {
+          criticalBoundaryPrimed = true;
+          scope[minimumAtStateKey] = candidate;
+          return true;
+        }
+        const previousMinimumAt = Number(scope[minimumAtStateKey]);
+        if (Number.isFinite(previousMinimumAt) && candidate <= previousMinimumAt) return false;
         minimumAt = candidate;
         scope[minimumAtStateKey] = minimumAt;
         inspect();
