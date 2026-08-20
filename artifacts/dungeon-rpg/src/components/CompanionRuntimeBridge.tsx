@@ -202,6 +202,11 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       markerRef.current.dataset.lastCriticalSpecialAt = '';
       markerRef.current.dataset.lastCriticalSpecialTarget = '';
       markerRef.current.dataset.lastCriticalSpecialPlayerAttackAt = '';
+      markerRef.current.dataset.lastCriticalFeedbackPublishedAt = '';
+      markerRef.current.dataset.lastCriticalFeedbackTarget = '';
+      markerRef.current.dataset.lastCriticalFeedbackValue = '';
+      markerRef.current.dataset.lastCriticalFeedbackVisibleUntil = '';
+      markerRef.current.dataset.lastCriticalFeedbackPaintToken = '';
     }
   }, [role, level]);
 
@@ -277,6 +282,13 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       feedbackTimerRef.current = null;
       activeDamageFeedbackRef.current = feedback;
       feedbackVisibleUntilRef.current = now + COMPANION_DAMAGE_FEEDBACK_MS;
+      if (critical && markerRef.current) {
+        markerRef.current.dataset.lastCriticalFeedbackPublishedAt = String(now);
+        markerRef.current.dataset.lastCriticalFeedbackTarget = target.id;
+        markerRef.current.dataset.lastCriticalFeedbackValue = String(value);
+        markerRef.current.dataset.lastCriticalFeedbackVisibleUntil = String(feedbackVisibleUntilRef.current);
+        markerRef.current.dataset.lastCriticalFeedbackPaintToken = String(paintToken);
+      }
       setDamageFeedback(feedback);
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
@@ -515,6 +527,11 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         data-last-critical-special-at=""
         data-last-critical-special-target=""
         data-last-critical-special-player-attack-at=""
+        data-last-critical-feedback-published-at=""
+        data-last-critical-feedback-target=""
+        data-last-critical-feedback-value=""
+        data-last-critical-feedback-visible-until=""
+        data-last-critical-feedback-paint-token=""
         data-feedback-active={damageFeedback ? 'true' : 'false'}
         data-feedback-projected={projectedFeedback ? 'true' : 'false'}
         data-feedback-target={damageFeedback?.targetId ?? ''}
