@@ -324,6 +324,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       scope[armed] = false;
       scope[rejectionLogKey] = [];
       scope[observer]?.disconnect?.();
+      const captureActions = [];
       let paintReinspectionFrame = 0;
       let mutationObserver = null;
       let actionListener = null;
@@ -380,7 +381,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             recordRejection('disconnected', node);
             continue;
           }
-          const action = [...(scope[logKey] || [])].reverse().find(entry => (
+          const action = [...captureActions].reverse().find(entry => (
             entry.role === expectedRole
             && entry.kind === 'attack'
             && entry.targetId === targetId
@@ -461,6 +462,14 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         const detail = event.detail;
         if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
         if (detail.role !== expectedRole || Number(detail.at) <= minimumAt) return;
+        captureActions.push({
+          role: detail.role,
+          kind: detail.kind,
+          targetId: detail.targetId,
+          at: Number(detail.at),
+          observedAt: performance.now(),
+        });
+        if (captureActions.length > 24) captureActions.splice(0, captureActions.length - 24);
         queueMicrotask(() => inspect());
       };
       window.addEventListener(eventName, actionListener);
