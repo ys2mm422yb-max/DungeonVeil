@@ -14,9 +14,12 @@ const OUTAGE_CYCLE_PACKETS = 32;
 const OUTAGE_START_PACKET = 20;
 const OUTAGE_PACKET_COUNT = 4;
 const MEASUREMENT_WARMUP_MS = 2_500;
-const SOURCE_PATH_HALF_RANGE_PX = 180;
-const SOURCE_PATH_HALF_CYCLE_MS = 64_000;
-const SOURCE_SPEED_PX_PER_MS = (SOURCE_PATH_HALF_RANGE_PX * 2) / SOURCE_PATH_HALF_CYCLE_MS;
+const SOURCE_DRIFT_HALF_RANGE_PX = 160;
+const SOURCE_DRIFT_HALF_CYCLE_MS = 64_000;
+const SOURCE_DITHER_HALF_RANGE_PX = 15;
+const SOURCE_DITHER_HALF_CYCLE_MS = 600;
+const SOURCE_SPEED_PX_PER_MS = (SOURCE_DRIFT_HALF_RANGE_PX * 2) / SOURCE_DRIFT_HALF_CYCLE_MS
+  + (SOURCE_DITHER_HALF_RANGE_PX * 2) / SOURCE_DITHER_HALF_CYCLE_MS;
 const SPECTATOR_QA_CONTROL_EVENT = 'dungeon-veil-spectator-qa-control-v1';
 const SPECTATOR_QA_ROLES: readonly CompanionRoleV4[] = ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction'];
 
@@ -149,9 +152,13 @@ export function SpectatorPerformanceQa() {
       const elapsed = emittedAt - startedAt;
       const source = sourceRef.current;
       const sourceCenterX = source.map.startX * 40 + 4;
-      const pathPhase = (elapsed % (SOURCE_PATH_HALF_CYCLE_MS * 2)) / SOURCE_PATH_HALF_CYCLE_MS;
-      const pathUnit = pathPhase <= 1 ? -1 + pathPhase * 2 : 3 - pathPhase * 2;
-      source.player.x = sourceCenterX + SOURCE_PATH_HALF_RANGE_PX * pathUnit;
+      const driftPhase = (elapsed % (SOURCE_DRIFT_HALF_CYCLE_MS * 2)) / SOURCE_DRIFT_HALF_CYCLE_MS;
+      const driftUnit = driftPhase <= 1 ? -1 + driftPhase * 2 : 3 - driftPhase * 2;
+      const ditherPhase = (elapsed % (SOURCE_DITHER_HALF_CYCLE_MS * 2)) / SOURCE_DITHER_HALF_CYCLE_MS;
+      const ditherUnit = ditherPhase <= 1 ? -1 + ditherPhase * 2 : 3 - ditherPhase * 2;
+      source.player.x = sourceCenterX
+        + SOURCE_DRIFT_HALF_RANGE_PX * driftUnit
+        + SOURCE_DITHER_HALF_RANGE_PX * ditherUnit;
       source.player.y = source.map.startY * 40 + 4 + Math.sin(elapsed * 0.0022) * 55;
       source.player.facing = { x: 1, y: Math.cos(elapsed * 0.0022) * 0.25 };
       source.player.state = 'moving';
