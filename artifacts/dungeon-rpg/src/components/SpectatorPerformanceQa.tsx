@@ -14,7 +14,9 @@ const OUTAGE_CYCLE_PACKETS = 32;
 const OUTAGE_START_PACKET = 20;
 const OUTAGE_PACKET_COUNT = 4;
 const MEASUREMENT_WARMUP_MS = 2_500;
-const SOURCE_SPEED_PX_PER_MS = 0.13;
+const SOURCE_PATH_MAX_X_PX = 240;
+const SOURCE_PATH_EASING_MS = 12_000;
+const SOURCE_SPEED_PX_PER_MS = SOURCE_PATH_MAX_X_PX / SOURCE_PATH_EASING_MS;
 const SPECTATOR_QA_CONTROL_EVENT = 'dungeon-veil-spectator-qa-control-v1';
 const SPECTATOR_QA_ROLES: readonly CompanionRoleV4[] = ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction'];
 
@@ -146,7 +148,8 @@ export function SpectatorPerformanceQa() {
       const emittedAt = Date.now();
       const elapsed = emittedAt - startedAt;
       const source = sourceRef.current;
-      source.player.x = source.map.startX * 40 + 4 + elapsed * SOURCE_SPEED_PX_PER_MS;
+      const sourceCenterX = source.map.startX * 40 + 4;
+      source.player.x = sourceCenterX + SOURCE_PATH_MAX_X_PX * elapsed / (elapsed + SOURCE_PATH_EASING_MS);
       source.player.y = source.map.startY * 40 + 4 + Math.sin(elapsed * 0.0022) * 55;
       source.player.facing = { x: 1, y: Math.cos(elapsed * 0.0022) * 0.25 };
       source.player.state = 'moving';
