@@ -599,6 +599,10 @@ test('companions are found and upgraded before a run, then remain fixed with art
     boundary: basicPostArmBoundary,
   });
   expect(basicBoundaryAdvanced).toBe(true);
+  const durableBasicRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+  expect(Number(durableBasicRoom?.livingEnemies || 0)).toBeGreaterThan(0);
+  await waitForStableRoom(page);
+  await prepareLivePlayerAttackLine(page);
   const freshShieldActionHandle = await page.waitForFunction(({ logKey, boundary }) => {
     const actions = window[logKey] || [];
     return [...actions].reverse().find(entry => (
