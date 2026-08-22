@@ -76,13 +76,8 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   const companion = page.getByTestId('run-companion-scene');
   await expect(companion).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
   await expect(companion).toHaveAttribute('data-visible-count', '1', { timeout: 60_000 });
-  const earlyRenderer = await stableRendererMetrics(page);
-
-  // Start a fresh source/diagnostic epoch only after the current world is actually presented.
-  // Keep the renderer alive so the fixed 12s smoothness window cannot inherit a reload rebuild.
+  // Keep the renderer alive while its current world and diagnostic heartbeat settle.
   await waitForFreshReconnectPresentation(page);
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('dungeon-veil-spectator-qa-measurement-reset-v1')));
-
   const diagnostics = page.getByTestId('spectator-performance-diagnostics');
   await expect.poll(() => numberAttr(diagnostics, 'data-frames'), { timeout: 45_000 }).toBeGreaterThan(8);
   await expect.poll(() => numberAttr(diagnostics, 'data-measured-frames'), { timeout: 45_000 }).toBeGreaterThan(1);
@@ -91,6 +86,11 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   const deltaBytes = await numberAttr(diagnostics, 'data-delta-bytes');
   expect(keyframeBytes).toBeGreaterThan(1_000);
   expect(deltaBytes, 'spectator delta packet was not smaller than its room keyframe').toBeLessThan(keyframeBytes * 0.85);
+
+  // Rebase the live sender, interpolation buffer, diagnostics and renderer baseline together.
+  // This keeps the fixed 12s window independent of setup/poll wall time without rebuilding the canvas.
+  const earlyRenderer = await stableRendererMetrics(page);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('dungeon-veil-spectator-qa-measurement-reset-v1')));
   const startX = await numberAttr(diagnostics, 'data-player-x');
   const startFrames = await numberAttr(diagnostics, 'data-frames');
   const startMeasuredFrames = await numberAttr(diagnostics, 'data-measured-frames');

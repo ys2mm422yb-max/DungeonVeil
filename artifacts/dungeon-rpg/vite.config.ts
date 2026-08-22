@@ -111,12 +111,13 @@ async function ensureLocalThreeRuntime() {
 }
 
 function dedicatedEnemyModelsOnly(code: string) {
+  const normalizedCode = code.replaceAll('\r\n', '\n');
   const safetyNeedle = '        const requiresPermanentSafety = state.floor >= 13 && !enemy.isDead;';
-  if (!code.includes(safetyNeedle)) throw new Error('Enemy safety-shell contract changed; refusing to build generic enemy bodies');
-  if (!code.includes(ENEMY_FALLBACK_BLOCK)) throw new Error('Enemy fallback creation contract changed; refusing to build generic enemy bodies');
-  if (!code.includes(ENEMY_FALLBACK_ERROR)) throw new Error('Enemy fallback error contract changed; refusing to build generic enemy bodies');
+  if (!normalizedCode.includes(safetyNeedle)) throw new Error('Enemy safety-shell contract changed; refusing to build generic enemy bodies');
+  if (!normalizedCode.includes(ENEMY_FALLBACK_BLOCK)) throw new Error('Enemy fallback creation contract changed; refusing to build generic enemy bodies');
+  if (!normalizedCode.includes(ENEMY_FALLBACK_ERROR)) throw new Error('Enemy fallback error contract changed; refusing to build generic enemy bodies');
 
-  return code
+  return normalizedCode
     .replace(safetyNeedle, '        const requiresPermanentSafety = false;')
     .replace(ENEMY_FALLBACK_BLOCK, ENEMY_DEDICATED_MODEL_BLOCK)
     .replace(ENEMY_FALLBACK_ERROR, ENEMY_DEDICATED_MODEL_ERROR);

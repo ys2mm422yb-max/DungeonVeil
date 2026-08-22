@@ -29,12 +29,14 @@ function createQaState(): RunGameState {
   const engine = new GameEngine();
   const state = cloneState(engine.state);
   const centerX = state.map.startX * 40 + 4;
-  const centerY = state.map.startY * 40 + 4;
+  const centerY = (state.map.startY - 4) * 40 + 4;
   state.status = 'playing';
   state.player.playerName = '';
   state.player.x = centerX;
   state.player.y = centerY;
   state.player.state = 'moving';
+  state.camera.x = centerX;
+  state.camera.y = centerY;
   state.runSkills = { multishot: 2, speed: 1, fireArrow: 1 };
   state.enemies = [{
     id: 'spectator-qa-goblin', type: 'enemy', enemyType: 'goblin', enemyFamilyId: 'goblin',
@@ -116,6 +118,10 @@ export function SpectatorPerformanceQa() {
     window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: true } }));
     let startedAt = Date.now();
     let startedPerformanceAt = performance.now();
+    let sourcePathOriginX = sourceRef.current.player.x;
+    let sourcePathOriginY = sourceRef.current.player.y;
+    let nextPacketAt = startedAt + PACKET_MS;
+    let packetTimer = 0;
     let packetIndex = 0;
     let frame = 0;
     let lastX = stableState.player.x;
@@ -137,19 +143,29 @@ export function SpectatorPerformanceQa() {
       const now = Date.now();
       const performanceAt = performance.now();
       const source = sourceRef.current;
-      const sourceCenterX = source.map.startX * 40 + 4;
-      const sourceCenterY = source.map.startY * 40 + 4;
       pendingTimers.forEach(timer => window.clearTimeout(timer));
       pendingTimers.clear();
       startedAt = now;
       startedPerformanceAt = performanceAt;
+      sourcePathOriginX = stableState.player.x;
+      sourcePathOriginY = stableState.player.y;
+      nextPacketAt = now + PACKET_MS;
       packetIndex = 0;
-      source.player.x = sourceCenterX;
-      source.player.y = sourceCenterY;
+      source.player.x = sourcePathOriginX;
+      source.player.y = sourcePathOriginY;
       source.player.facing = { x: 1, y: 0 };
       source.player.state = 'moving';
-      source.camera.x = sourceCenterX;
-      source.camera.y = sourceCenterY;
+      source.camera.x = stableState.camera.x;
+      source.camera.y = stableState.camera.y;
+      for (const enemy of source.enemies) {
+        const visibleEnemy = stableState.enemies.find(candidate => candidate.id === enemy.id);
+        if (!visibleEnemy) continue;
+        enemy.x = visibleEnemy.x;
+        enemy.y = visibleEnemy.y;
+        enemy.targetX = sourcePathOriginX;
+        enemy.targetY = sourcePathOriginY;
+      }
+      bufferRef.current.rebaseTimeline(now - 72, source, now);
       lastX = stableState.player.x;
       lastFrameAt = performanceAt;
       maxFrameStep = 0;
@@ -163,10 +179,26 @@ export function SpectatorPerformanceQa() {
       outagePackets = 0;
       layoutChanges = 0;
       lastExtraEnemyActive = source.enemies.some(enemy => enemy.id === 'spectator-qa-layout-enemy');
+      const host = diagnosticsRef.current;
+      if (host) {
+        host.dataset.playerX = stableState.player.x.toFixed(3);
+        host.dataset.playerY = stableState.player.y.toFixed(3);
+        host.dataset.frames = '0';
+        host.dataset.measuredFrames = '0';
+        host.dataset.maxFrameStep = '0.000';
+        host.dataset.maxExcessStepPx = '0.000';
+        host.dataset.maxFrameIntervalMs = '0.0';
+        host.dataset.maxStagnantMs = '0.0';
+        host.dataset.outagePackets = '0';
+        host.dataset.layoutChanges = '0';
+        host.dataset.elapsedMs = '0';
+      }
+      window.clearTimeout(packetTimer);
+      packetTimer = window.setTimeout(pumpPackets, PACKET_MS);
     };
     window.addEventListener(SPECTATOR_QA_MEASUREMENT_RESET_EVENT, resetMeasurementEpoch);
 
-    const emitPacket = () => {
+    const emitPacket = (emittedAt: number) => {
       packetIndex += 1;
       const outagePhase = packetIndex % OUTAGE_CYCLE_PACKETS;
       const outageEndPacket = OUTAGE_START_PACKET + OUTAGE_PACKET_COUNT;
@@ -179,10 +211,8 @@ export function SpectatorPerformanceQa() {
         outagePackets += 1;
         return;
       }
-      const emittedAt = Date.now();
       const elapsed = emittedAt - startedAt;
       const source = sourceRef.current;
-      const sourceCenterX = source.map.startX * 40 + 4;
       const driftPhase = (elapsed % SOURCE_DRIFT_CYCLE_MS) / SOURCE_DRIFT_CYCLE_MS;
       const driftUnit = driftPhase < 0.25
         ? driftPhase * 4
@@ -190,8 +220,8 @@ export function SpectatorPerformanceQa() {
           ? 2 - driftPhase * 4
           : driftPhase * 4 - 4;
       const driftDirection = driftPhase < 0.25 || driftPhase >= 0.75 ? 1 : -1;
-      source.player.x = sourceCenterX + SOURCE_DRIFT_HALF_RANGE_PX * driftUnit;
-      source.player.y = source.map.startY * 40 + 4 + Math.sin(elapsed * 0.0022) * 55;
+      source.player.x = sourcePathOriginX + SOURCE_DRIFT_HALF_RANGE_PX * driftUnit;
+      source.player.y = sourcePathOriginY + Math.sin(elapsed * 0.0022) * 55;
       source.player.facing = { x: driftDirection, y: Math.cos(elapsed * 0.0022) * 0.25 };
       source.player.state = 'moving';
       source.camera.x = source.player.x;
@@ -242,11 +272,21 @@ export function SpectatorPerformanceQa() {
       const timer = window.setTimeout(() => {
         pendingTimers.delete(timer);
         bufferRef.current.push(emittedAt, snapshot, Date.now());
-      }, Math.max(0, 72 + jitter));
+      }, Math.max(0, emittedAt + 72 + jitter - Date.now()));
       pendingTimers.add(timer);
     };
 
-    const packetTimer = window.setInterval(emitPacket, PACKET_MS);
+    function pumpPackets() {
+      const now = Date.now();
+      let catchUpSlots = 0;
+      while (nextPacketAt <= now && catchUpSlots < 32) {
+        emitPacket(nextPacketAt);
+        nextPacketAt += PACKET_MS;
+        catchUpSlots += 1;
+      }
+      packetTimer = window.setTimeout(pumpPackets, Math.max(1, nextPacketAt - Date.now()));
+    }
+    packetTimer = window.setTimeout(pumpPackets, PACKET_MS);
     const animate = (time: number) => {
       const frameIntervalMs = Math.max(1, time - lastFrameAt);
       lastFrameAt = time;
@@ -306,7 +346,7 @@ export function SpectatorPerformanceQa() {
     frame = requestAnimationFrame(animate);
 
     return () => {
-      window.clearInterval(packetTimer);
+      window.clearTimeout(packetTimer);
       pendingTimers.forEach(timer => window.clearTimeout(timer));
       window.removeEventListener(SPECTATOR_QA_MEASUREMENT_RESET_EVENT, resetMeasurementEpoch);
       cancelAnimationFrame(frame);
