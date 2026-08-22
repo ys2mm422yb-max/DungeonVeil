@@ -412,11 +412,19 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             schedulePaintReinspection();
             continue;
           }
+          const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+          const criticalPlayerAttackAt = Number(runtime?.getAttribute('data-last-critical-special-player-attack-at') || 0);
+          if (expectedCritical && criticalPlayerAttackAt <= minimumAt) {
+            recordRejection('critical-player-attack-boundary', node, { criticalPlayerAttackAt, minimumAt });
+            schedulePaintReinspection();
+            continue;
+          }
           const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
           const payload = {
             ...action,
             capturedAt: captureNow,
             actionAgeMs,
+            criticalPlayerAttackAt,
             feedbackId: node.getAttribute('data-testid') || '',
             feedbackRole: node.dataset.companionRole || '',
             feedbackTargetId: targetId,
@@ -703,15 +711,24 @@ test('critical-support proc renders one readable value on its actual target', as
   const readyAttackBoundary = Number(atomicReadyBoundary.playerLastAttackTime || 0);
   expect(evidenceBoundary).toBeGreaterThan(attackBoundary);
   expect(readyAttackBoundary).toBeGreaterThanOrEqual(attackBoundary);
-  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, evidenceBoundary));
-  const boundaryAdvanced = await page.evaluate(({ setter, confirmedAt }) => window[setter]?.(confirmedAt) === true, {
+  const captureBoundaryState = await page.evaluate(({ setter }) => {
+    const captureBoundary = performance.now();
+    return {
+      captureBoundary,
+      advanced: window[setter]?.(captureBoundary) === true,
+    };
+  }, {
     setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt',
-    confirmedAt: confirmedPlayerAttackAt,
   });
-  expect(boundaryAdvanced).toBe(true);
+  const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
+  expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
+  expect(captureBoundaryState.advanced).toBe(true);
+  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, captureBoundary));
   const observedCritical = await capturePromise;
   expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
   expect(confirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
+  expect(confirmedPlayerAttackAt).toBeGreaterThan(captureBoundary);
+  expect(observedCritical.criticalPlayerAttackAt).toBe(confirmedPlayerAttackAt);
   expect(observedCritical.at).toBeGreaterThan(confirmedPlayerAttackAt);
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
