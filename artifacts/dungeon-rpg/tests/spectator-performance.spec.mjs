@@ -77,6 +77,12 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   await expect(companion).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
   await expect(companion).toHaveAttribute('data-visible-count', '1', { timeout: 60_000 });
 
+  // Reset the QA source/metrics immediately before the fixed 12s measurement window so
+  // the positive-progress contract cannot accidentally straddle the bounded ping-pong turn.
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(spectatorQa).toHaveAttribute('data-assets-ready', 'true');
+  await dispatchQaControl(page, { role: 'single-target' });
+
   const diagnostics = page.getByTestId('spectator-performance-diagnostics');
   await expect.poll(() => numberAttr(diagnostics, 'data-frames'), { timeout: 45_000 }).toBeGreaterThan(8);
   await expect.poll(() => numberAttr(diagnostics, 'data-measured-frames'), { timeout: 45_000 }).toBeGreaterThan(1);
