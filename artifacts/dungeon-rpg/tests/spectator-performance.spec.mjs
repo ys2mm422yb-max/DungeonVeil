@@ -76,9 +76,10 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   const companion = page.getByTestId('run-companion-scene');
   await expect(companion).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
   await expect(companion).toHaveAttribute('data-visible-count', '1', { timeout: 60_000 });
+  const earlyRenderer = await stableRendererMetrics(page);
 
-  // Reset the QA source/metrics immediately before the fixed 12s measurement window so
-  // the positive-progress contract cannot accidentally straddle the bounded ping-pong turn.
+  // Start a fresh source/buffer/diagnostic epoch only after renderer stability so the fixed
+  // 12s progress window cannot inherit renderer-warmup delay or straddle the ping-pong turn.
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(spectatorQa).toHaveAttribute('data-assets-ready', 'true');
   await dispatchQaControl(page, { role: 'single-target' });
@@ -94,7 +95,6 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   const startX = await numberAttr(diagnostics, 'data-player-x');
   const startFrames = await numberAttr(diagnostics, 'data-frames');
   const startMeasuredFrames = await numberAttr(diagnostics, 'data-measured-frames');
-  const earlyRenderer = await stableRendererMetrics(page);
   await page.waitForTimeout(12_000);
   const finalX = await numberAttr(diagnostics, 'data-player-x');
   const frames = await numberAttr(diagnostics, 'data-frames');
