@@ -78,11 +78,10 @@ test('spectator playback and its companion stay smooth and bounded through jitte
   await expect(companion).toHaveAttribute('data-visible-count', '1', { timeout: 60_000 });
   const earlyRenderer = await stableRendererMetrics(page);
 
-  // Start a fresh source/buffer/diagnostic epoch only after renderer stability so the fixed
-  // 12s progress window cannot inherit renderer-warmup delay or straddle the ping-pong turn.
-  await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await expect(spectatorQa).toHaveAttribute('data-assets-ready', 'true');
-  await dispatchQaControl(page, { role: 'single-target' });
+  // Start a fresh source/diagnostic epoch only after the current world is actually presented.
+  // Keep the renderer alive so the fixed 12s smoothness window cannot inherit a reload rebuild.
+  await waitForFreshReconnectPresentation(page);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('dungeon-veil-spectator-qa-measurement-reset-v1')));
 
   const diagnostics = page.getByTestId('spectator-performance-diagnostics');
   await expect.poll(() => numberAttr(diagnostics, 'data-frames'), { timeout: 45_000 }).toBeGreaterThan(8);
