@@ -18,6 +18,7 @@ const SOURCE_DRIFT_HALF_RANGE_PX = 160;
 const SOURCE_DRIFT_CYCLE_MS = 100_000;
 const SOURCE_SPEED_PX_PER_MS = (SOURCE_DRIFT_HALF_RANGE_PX * 4) / SOURCE_DRIFT_CYCLE_MS;
 const SPECTATOR_QA_CONTROL_EVENT = 'dungeon-veil-spectator-qa-control-v1';
+const SPECTATOR_QA_MEASUREMENT_RESET_EVENT = 'dungeon-veil-spectator-qa-measurement-reset-v1';
 const SPECTATOR_QA_ROLES: readonly CompanionRoleV4[] = ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction'];
 
 function cloneState(state: RunGameState): RunGameState {
@@ -113,8 +114,8 @@ export function SpectatorPerformanceQa() {
     if (!assetsReady) return;
     document.documentElement.dataset.dungeonVeilSpectating = '1';
     window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: true } }));
-    const startedAt = Date.now();
-    const startedPerformanceAt = performance.now();
+    let startedAt = Date.now();
+    let startedPerformanceAt = performance.now();
     let packetIndex = 0;
     let frame = 0;
     let lastX = stableState.player.x;
@@ -131,6 +132,39 @@ export function SpectatorPerformanceQa() {
     let layoutChanges = 0;
     let lastExtraEnemyActive = false;
     const pendingTimers = new Set<number>();
+
+    const resetMeasurementEpoch = () => {
+      const now = Date.now();
+      const performanceAt = performance.now();
+      const source = sourceRef.current;
+      const sourceCenterX = source.map.startX * 40 + 4;
+      const sourceCenterY = source.map.startY * 40 + 4;
+      pendingTimers.forEach(timer => window.clearTimeout(timer));
+      pendingTimers.clear();
+      startedAt = now;
+      startedPerformanceAt = performanceAt;
+      packetIndex = 0;
+      source.player.x = sourceCenterX;
+      source.player.y = sourceCenterY;
+      source.player.facing = { x: 1, y: 0 };
+      source.player.state = 'moving';
+      source.camera.x = sourceCenterX;
+      source.camera.y = sourceCenterY;
+      lastX = stableState.player.x;
+      lastFrameAt = performanceAt;
+      maxFrameStep = 0;
+      maxExcessStepPx = 0;
+      maxFrameIntervalMs = 0;
+      stagnantSince = performanceAt;
+      maxStagnantMs = 0;
+      frameCount = 0;
+      measuredFrameCount = 0;
+      measurementStarted = false;
+      outagePackets = 0;
+      layoutChanges = 0;
+      lastExtraEnemyActive = source.enemies.some(enemy => enemy.id === 'spectator-qa-layout-enemy');
+    };
+    window.addEventListener(SPECTATOR_QA_MEASUREMENT_RESET_EVENT, resetMeasurementEpoch);
 
     const emitPacket = () => {
       packetIndex += 1;
@@ -274,6 +308,7 @@ export function SpectatorPerformanceQa() {
     return () => {
       window.clearInterval(packetTimer);
       pendingTimers.forEach(timer => window.clearTimeout(timer));
+      window.removeEventListener(SPECTATOR_QA_MEASUREMENT_RESET_EVENT, resetMeasurementEpoch);
       cancelAnimationFrame(frame);
       window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: false } }));
       delete document.documentElement.dataset.dungeonVeilSpectating;
