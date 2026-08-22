@@ -32,6 +32,48 @@ Before implementation is considered complete, the PR body must contain the struc
 
 A relevant red, cancelled, stale, or missing check cannot be reclassified as irrelevant after failure. Fix the cause or expand the plan.
 
+## Executable Product Autopilot selection
+
+Product Autopilot is no longer intended to execute its complete browser-spec bundle on every pull request merely because one product file changed.
+
+When Product Autopilot is selected for a PR, the implementer must add this additional PR-body block and list the exact Product specs that prove the changed contracts:
+
+```md
+<!-- product-autopilot-selection:start -->
+### Selected Product Autopilot specs
+- `tests/example.spec.mjs`
+
+### Selection rationale
+Explain which acceptance criterion each selected spec proves and why omitted Product specs are technically unrelated.
+<!-- product-autopilot-selection:end -->
+```
+
+Rules:
+
+- The selection is PR-specific and must follow the risk/acceptance mapping above.
+- Missing selection fails closed to the historical full Product Autopilot suite; existing PRs therefore do not silently lose coverage.
+- Target-branch Product Autopilot runs remain full-suite runs. Final Block 17 / Issue #429 certification remains fully comprehensive.
+- Only known Product Autopilot specs may be selected. Invalid or empty declarations are errors.
+- A directly relevant failed, cancelled, stale, missing, user-required, issue-required or review-required spec cannot be removed from the selection after the fact.
+- Current failure history is part of relevance. If a spec exposed the active blocker on the current PR, it remains mandatory until the blocker is causally fixed and revalidated.
+- Central browser/workflow changes still need a genuine browser journey; they are not proven only by metadata validation.
+- The verifier independently compares the declared selection against the actual diff, issue requirements, failure history and evidence plan. It must expand understated selection before Ready.
+- No selected test may be weakened to make a smaller set pass. Retries, assertions, thresholds, timeouts and evidence budgets stay unchanged.
+- If the executable selector cannot safely interpret the declaration, it must use full coverage rather than silently skipping tests.
+
+The purpose is to remove unrelated work, not relevant work. A spectator-only change should not spend time on Guild Raid, Run Gifts, unrelated upgrade prestige and chapter evidence unless those contracts are actually affected; a Guild Raid, Supabase, renderer or final-release change can still legitimately require broad coverage.
+
+## GitHub and Supabase maintenance
+
+Adaptive testing does not reduce repository or backend hygiene.
+
+- GitHub remains the durable source of truth for exact heads, PR/issue state, test plans, evidence, blockers and next operations.
+- Dungeon Veil production Supabase is project `hfndwqfghyomwapqsked`. The DokoHilf project `efifbuqctylsujiauabg` must never be used for Dungeon Veil.
+- Any Supabase migration, SQL, RPC, RLS policy, Realtime contract or Edge Function change must be represented by repository code where applicable and documented in the relevant PR/issue/#376 handoff.
+- Backend documentation must include project ref, purpose, security impact, rollback/recovery path and production verification.
+- After DDL/RLS/RPC changes, security/performance advisors and relevant logs/functions must be checked as applicable.
+- Silent production-only database changes are not acceptable.
+
 ## Risk levels
 
 ### `low`
