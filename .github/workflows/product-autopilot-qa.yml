@@ -182,7 +182,6 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t raw_videos < <(find artifacts/dungeon-rpg/test-results -type f -name video.webm -print)
-          test "${#raw_videos[@]}" -eq 1
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             base_sha="${{ github.event.pull_request.base.sha }}"
             git fetch --no-tags --depth=1 origin "$base_sha"
@@ -196,6 +195,7 @@ jobs:
               exit 0
             fi
           fi
+          test "${#raw_videos[@]}" -eq 1
           output="artifacts/dungeon-rpg/test-results/visual-upgrade-prestige-${BROWSER_PROJECT}.webm"
           ffmpeg -hide_banner -loglevel error -y -i "${raw_videos[0]}" \
             -vf "scale='min(540,iw)':-2:flags=lanczos" \
