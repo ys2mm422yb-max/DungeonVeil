@@ -717,6 +717,10 @@ test('critical-support proc renders one readable value on its actual target', as
   expect(readyAttackBoundary).toBeGreaterThanOrEqual(attackBoundary);
   await page.keyboard.down('KeyW');
   try {
+    const replenishedCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+    expect(Number(replenishedCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
+    await waitForStableRoom(page);
+    await prepareLivePlayerAttackLine(page);
     const captureBoundaryHandle = await page.waitForFunction(({ setter }) => {
       const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
       if (runtime?.getAttribute('data-critical-special-ready') !== 'true') return false;
@@ -736,9 +740,6 @@ test('critical-support proc renders one readable value on its actual target', as
     const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
     expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
     expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
-    const replenishedCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
-    expect(Number(replenishedCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
-    await prepareLivePlayerAttackLine(page);
     await expect.poll(async () => Number((await readRuntimeCombatSnapshot(page))?.playerAttackCooldown ?? Number.POSITIVE_INFINITY), {
       timeout: 20_000,
       intervals: [16, 50, 100],
