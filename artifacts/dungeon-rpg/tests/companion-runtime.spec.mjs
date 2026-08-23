@@ -126,6 +126,10 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
     const durationMs = phase === 0 ? 260 : 190;
 
     await moveWithKeyboard(page, keys, durationMs);
+    const afterMovement = await readRuntimeCombatSnapshot(page);
+    const movementAttackAt = Number(afterMovement?.playerLastAttackTime || 0);
+    if (movementAttackAt > attackBoundary) return movementAttackAt;
+
     await page.keyboard.press('Space');
     await page.waitForTimeout(120);
 
@@ -270,7 +274,7 @@ async function readCompanionFeedbackDiagnostics(page, { role, critical, notBefor
           targetId: node.dataset.targetId || '',
           critical: node.dataset.critical || '',
           text: node.textContent || '',
-          connected: node.isConnected,
+          connected: Boolean(node.isConnected),
           opacity: Number(style.opacity),
           width: rect.width,
           height: rect.height,
@@ -292,6 +296,8 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
   const observationKey = critical ? '__dungeonVeilCriticalCompanionFeedbackObservation' : '__dungeonVeilBasicCompanionFeedbackObservation';
   const observerKey = `${observationKey}Observer`;
   const armedKey = `${observationKey}Armed`;
+  const minimumAtSetterKey = `${observationKey}SetMinimumAt`;
+  const minimumAtStateKey = `${observationKey}MinimumAt`;
   let resolveScreenshot;
   let rejectScreenshot;
   const screenshotPromise = new Promise((resolve, reject) => {
@@ -314,13 +320,19 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
     await page.evaluate(({ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer, armed }) => {
       const scope = window;
       const rejectionLogKey = '__dungeonVeilCompanionFeedbackRejectionLog';
+      const minimumAtStateKey = `${observation}MinimumAt`;
+      const initialMinimumAt = minimumAt;
+      minimumAt = Number.POSITIVE_INFINITY;
+      scope[minimumAtStateKey] = minimumAt;
       scope[observation] = null;
       scope[armed] = false;
       scope[rejectionLogKey] = [];
       scope[observer]?.disconnect?.();
+      const captureActions = [];
       let paintReinspectionFrame = 0;
       let mutationObserver = null;
       let actionListener = null;
+      let criticalBoundaryPrimed = !expectedCritical;
 
       const recordRejection = (reason, node, extra = {}) => {
         const log = scope[rejectionLogKey];
@@ -373,7 +385,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             recordRejection('disconnected', node);
             continue;
           }
-          const action = [...(scope[logKey] || [])].reverse().find(entry => (
+          const action = [...captureActions].reverse().find(entry => (
             entry.role === expectedRole
             && entry.kind === 'attack'
             && entry.targetId === targetId
@@ -381,6 +393,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           ));
           if (!action) {
             recordRejection('no-correlated-action', node, { minimumAt, targetId });
+            schedulePaintReinspection();
             continue;
           }
           const diagnosticCaptureNow = performance.now();
@@ -403,11 +416,19 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             schedulePaintReinspection();
             continue;
           }
+          const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+          const criticalPlayerAttackAt = Number(runtime?.getAttribute('data-last-critical-special-player-attack-at') || 0);
+          if (expectedCritical && criticalPlayerAttackAt <= minimumAt) {
+            recordRejection('critical-player-attack-boundary', node, { criticalPlayerAttackAt, minimumAt });
+            schedulePaintReinspection();
+            continue;
+          }
           const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
           const payload = {
             ...action,
             capturedAt: captureNow,
             actionAgeMs,
+            criticalPlayerAttackAt,
             feedbackId: node.getAttribute('data-testid') || '',
             feedbackRole: node.dataset.companionRole || '',
             feedbackTargetId: targetId,
@@ -433,11 +454,35 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         return false;
       };
 
+      scope[`${observation}SetMinimumAt`] = nextMinimumAt => {
+        const candidate = Number(nextMinimumAt);
+        if (!Number.isFinite(candidate) || candidate <= initialMinimumAt) return false;
+        if (!criticalBoundaryPrimed) {
+          criticalBoundaryPrimed = true;
+          scope[minimumAtStateKey] = candidate;
+          return true;
+        }
+        const previousMinimumAt = Number(scope[minimumAtStateKey]);
+        if (Number.isFinite(previousMinimumAt) && candidate <= previousMinimumAt) return false;
+        minimumAt = candidate;
+        scope[minimumAtStateKey] = minimumAt;
+        inspect();
+        return true;
+      };
+
       actionListener = event => {
         const detail = event.detail;
         if (!detail || detail.kind !== 'attack' || !detail.targetId) return;
         if (detail.role !== expectedRole || Number(detail.at) <= minimumAt) return;
-        inspect();
+        captureActions.push({
+          role: detail.role,
+          kind: detail.kind,
+          targetId: detail.targetId,
+          at: Number(detail.at),
+          observedAt: performance.now(),
+        });
+        if (captureActions.length > 24) captureActions.splice(0, captureActions.length - 24);
+        queueMicrotask(() => inspect());
       };
       window.addEventListener(eventName, actionListener);
 
@@ -463,6 +508,13 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       armed: armedKey,
     });
 
+    await page.waitForFunction(({ minimumAtState }) => Number.isFinite(window[minimumAtState]), {
+      minimumAtState: minimumAtStateKey,
+    }, {
+      timeout: 20_000,
+      polling: 16,
+    });
+
     const handle = await page.waitForFunction(({ observation }) => window[observation] || false, {
       observation: observationKey,
     }, {
@@ -481,11 +533,13 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
     const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
     throw new Error(`${error instanceof Error ? error.message : String(error)}\nCompanion feedback diagnostics: ${JSON.stringify(diagnostics, null, 2)}`);
   } finally {
-    await page.evaluate(({ observer, armed }) => {
+    await page.evaluate(({ observer, armed, minimumAtSetter, minimumAtState }) => {
       window[observer]?.disconnect?.();
       delete window[observer];
       delete window[armed];
-    }, { observer: observerKey, armed: armedKey }).catch(() => {});
+      delete window[minimumAtSetter];
+      delete window[minimumAtState];
+    }, { observer: observerKey, armed: armedKey, minimumAtSetter: minimumAtSetterKey, minimumAtState: minimumAtStateKey }).catch(() => {});
   }
 }
 
@@ -528,20 +582,57 @@ test('companions are found and upgraded before a run, then remain fixed with art
   await expect(management).toBeHidden();
   await expect(page.getByRole('heading', { name: 'DUNGEON VEIL' })).toBeVisible({ timeout: 60_000 });
   await armCompanionActionObservation(page);
-  const basicEvidenceEpoch = await page.evaluate(() => performance.now());
   await startFreshRun(page);
   const chip = page.getByTestId('run-companion-chip');
   const runtime = page.getByTestId('companion-runtime-bridge');
   const scene = page.getByTestId('run-companion-scene');
   await expect(chip).toHaveCount(0);
   await waitForStableRoom(page);
-  await captureLiveCompanionFeedbackEvidence(page, {
+  await prepareLivePlayerAttackLine(page);
+  const basicEvidenceBoundary = await page.evaluate(() => performance.now());
+  const basicCapturePromise = captureLiveCompanionFeedbackEvidence(page, {
     role: 'shield',
     critical: false,
-    notBefore: basicEvidenceEpoch,
+    notBefore: basicEvidenceBoundary,
     marker: /◆\s*-\d+/,
     path: `test-results/companion-damage-feedback-${testInfo.project.name}.png`,
   });
+  await page.waitForFunction(
+    armed => window[armed] === true,
+    '__dungeonVeilBasicCompanionFeedbackObservationArmed',
+    { timeout: 20_000, polling: 16 },
+  );
+  const basicPostArmBoundary = await page.evaluate(logKey => {
+    const log = window[logKey] || [];
+    return Math.max(performance.now(), ...log.map(entry => Number(entry?.at) || 0));
+  }, COMPANION_ACTION_LOG);
+  const basicBoundaryAdvanced = await page.evaluate(({ setter, boundary }) => window[setter]?.(boundary) === true, {
+    setter: '__dungeonVeilBasicCompanionFeedbackObservationSetMinimumAt',
+    boundary: basicPostArmBoundary,
+  });
+  expect(basicBoundaryAdvanced).toBe(true);
+  const durableBasicRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+  expect(Number(durableBasicRoom?.livingEnemies || 0)).toBeGreaterThan(0);
+  await waitForStableRoom(page);
+  await prepareLivePlayerAttackLine(page);
+  const freshShieldActionHandle = await page.waitForFunction(({ logKey, boundary }) => {
+    const actions = window[logKey] || [];
+    return [...actions].reverse().find(entry => (
+      entry.role === 'shield'
+      && entry.kind === 'attack'
+      && Number(entry.at) > boundary
+    )) || false;
+  }, {
+    logKey: COMPANION_ACTION_LOG,
+    boundary: basicPostArmBoundary,
+  }, {
+    timeout: 20_000,
+    polling: 16,
+  });
+  const freshShieldAction = await freshShieldActionHandle.jsonValue();
+  expect(Number(freshShieldAction?.at || 0)).toBeGreaterThan(basicPostArmBoundary);
+  const observedBasic = await basicCapturePromise;
+  expect(observedBasic.at).toBeGreaterThan(basicPostArmBoundary);
   await expect(chip).toHaveCount(0);
   await expect(runtime).toHaveAttribute('data-role', 'shield');
   await expect(runtime).toHaveAttribute('data-level', '2');
@@ -584,6 +675,8 @@ test('critical-support proc renders one readable value on its actual target', as
   await openMenu(page, testInfo.project.name, { activeId: 'critical-support', companions: { 'critical-support': { level: 2, unlockedAt: 1 } } });
   await armCompanionActionObservation(page);
   await startFreshRun(page);
+  const durableCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+  expect(Number(durableCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
   const runtime = page.getByTestId('companion-runtime-bridge');
   const chip = page.getByTestId('run-companion-chip');
   await expect(chip).toHaveCount(0);
@@ -603,10 +696,65 @@ test('critical-support proc renders one readable value on its actual target', as
     '__dungeonVeilCriticalCompanionFeedbackObservationArmed',
     { timeout: 20_000, polling: 16 },
   );
-  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, attackBoundary);
-  const observedCritical = await capturePromise;
-  expect(confirmedPlayerAttackAt).toBeGreaterThan(attackBoundary);
-  expect(observedCritical.at).toBeGreaterThan(attackBoundary);
+  const atomicReadyBoundaryHandle = await page.waitForFunction(({ setter }) => {
+    const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+    if (runtime?.getAttribute('data-critical-special-ready') !== 'true') return false;
+    const evidenceBoundary = performance.now();
+    if (window[setter]?.(evidenceBoundary) !== true) return false;
+    const playerLastAttackTime = Number(window.__dungeonVeilRuntimeEvidence?.snapshot()?.playerLastAttackTime || 0);
+    return { evidenceBoundary, playerLastAttackTime };
+  }, {
+    setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt',
+  }, {
+    timeout: 20_000,
+    polling: 16,
+  });
+  const atomicReadyBoundary = await atomicReadyBoundaryHandle.jsonValue();
+  expect(atomicReadyBoundary).toBeTruthy();
+  const evidenceBoundary = Number(atomicReadyBoundary.evidenceBoundary || 0);
+  const readyAttackBoundary = Number(atomicReadyBoundary.playerLastAttackTime || 0);
+  expect(evidenceBoundary).toBeGreaterThan(attackBoundary);
+  expect(readyAttackBoundary).toBeGreaterThanOrEqual(attackBoundary);
+  const replenishedCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+  expect(Number(replenishedCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
+  await waitForStableRoom(page);
+  await prepareLivePlayerAttackLine(page);
+  await page.keyboard.down('KeyW');
+  try {
+    const captureBoundaryHandle = await page.waitForFunction(({ setter }) => {
+      const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+      if (runtime?.getAttribute('data-critical-special-ready') !== 'true') return false;
+      const playerLastAttackTime = Number(window.__dungeonVeilRuntimeEvidence?.snapshot()?.playerLastAttackTime || 0);
+      const observedPlayerAttackAt = Number(runtime.getAttribute('data-last-observed-player-attack-at') || 0);
+      if (playerLastAttackTime !== observedPlayerAttackAt) return false;
+      const captureBoundary = performance.now();
+      if (window[setter]?.(captureBoundary) !== true) return false;
+      return { captureBoundary, playerLastAttackTime, observedPlayerAttackAt };
+    }, {
+      setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt',
+    }, {
+      timeout: 20_000,
+      polling: 16,
+    });
+    const captureBoundaryState = await captureBoundaryHandle.jsonValue();
+    const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
+    expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
+    expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
+    await expect.poll(async () => Number((await readRuntimeCombatSnapshot(page))?.playerAttackCooldown ?? Number.POSITIVE_INFINITY), {
+      timeout: 20_000,
+      intervals: [16, 50, 100],
+      message: 'critical-support confirmed source attack must wait for real player attack cooldown eligibility while movement suppresses idle autofire',
+    }).toBeLessThanOrEqual(0);
+    const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime));
+    const observedCritical = await capturePromise;
+    expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
+    expect(confirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
+    expect(confirmedPlayerAttackAt).toBeGreaterThan(captureBoundary);
+    expect(observedCritical.criticalPlayerAttackAt).toBe(confirmedPlayerAttackAt);
+    expect(observedCritical.at).toBeGreaterThan(confirmedPlayerAttackAt);
+  } finally {
+    await page.keyboard.up('KeyW').catch(() => {});
+  }
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
   await expect(chip).toHaveCount(0);

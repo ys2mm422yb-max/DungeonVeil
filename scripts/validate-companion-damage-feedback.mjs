@@ -27,6 +27,18 @@ assert.match(runtime, /const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;/,
   'portrait feedback lifetime must remain the fixed product contract');
 assert.match(runtime, /const RECENT_COMBAT_TARGET_MS = 1_200;/,
   'critical support must retain only a short bounded target memory for a same-frame killing blow');
+assert.match(runtime, /const CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS = 2_600;/,
+  'critical-support readiness must derive from the unchanged real special cooldown');
+assert.match(runtime, /markerRef\.current\.dataset\.criticalSpecialReady = String\([\s\S]*activeRole === 'critical-support'[\s\S]*now - lastSpecialActionRef\.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS[\s\S]*\);/,
+  'the diagnostic readiness marker must expose the same real cooldown gate used by the critical proc');
+const readinessPublishAt = runtime.indexOf('markerRef.current.dataset.criticalSpecialReady = String(');
+const lastSpecialMutationAt = runtime.lastIndexOf('lastSpecialActionRef.current = now;');
+assert.ok(readinessPublishAt > lastSpecialMutationAt,
+  'critical-support readiness must be published after every tick branch that can consume the special cooldown');
+assert.match(runtime, /markerRef\.current\.dataset\.lastObservedPlayerAttackAt = String\(lastPlayerAttackRef\.current\);/,
+  'the runtime bridge must expose the last player attack consumed by its 10 Hz companion tick');
+assert.match(runtime, /data-last-observed-player-attack-at=""/,
+  'the runtime marker must initialize the consumed-player-attack synchronization contract');
 assert.match(runtime, /function projectCompanionDamage\(state: GameState, feedback: CompanionDamageFeedback\)/);
 assert.match(runtime, /if \(depth <= 0\.1\) return null;/,
   'only a point behind the camera may be rejected');
@@ -117,6 +129,8 @@ assert.match(journey, /const screenshot = await boundPage\.screenshot\(\{ path, 
   'the binding must start the full-context CSS-pixel screenshot before cross-process assertion work');
 assert.match(journey, /await page\.evaluate\(\(\{ eventName, logKey, expectedRole, expectedCritical, minimumAt, maxActionAgeMs, binding, observation, observer, armed \}\) => \{/,
   'the browser must install the correlation observer and explicit armed signal with the companion action event and bounded freshness reserve');
+assert.match(journey, /const initialMinimumAt = minimumAt;\s*minimumAt = Number\.POSITIVE_INFINITY;/,
+  'both Basic and Critical capture must start with a closed acceptance boundary until the browser observer is armed');
 assert.match(journey, /scope\[armed\] = false;[\s\S]*window\.addEventListener\(eventName, actionListener\);[\s\S]*mutationObserver\.observe\(document\.documentElement,[\s\S]*inspect\(\);\s*scope\[armed\] = true;/,
   'the browser observer must publish armed only after action listener, MutationObserver and initial inspection are installed');
 assert.match(journey, /const inspect = \(\) => \{[\s\S]*const nodes = \[\.\.\.document\.querySelectorAll\('\[data-testid\^="companion-damage-number-"\]'\)\];/,
@@ -129,8 +143,8 @@ assert.match(journey, /const captureNow = performance\.now\(\);\s*const actionAg
   'the atomic browser observer must reject late-life feedback before screenshot handoff');
 assert.match(journey, /const cleanup = \(\) => \{[\s\S]*mutationObserver\?\.disconnect\(\);[\s\S]*window\.removeEventListener\(eventName, actionListener\);[\s\S]*cancelAnimationFrame\(paintReinspectionFrame\);[\s\S]*scope\[observer\] = \{ disconnect: cleanup \};/,
   'capture cleanup must jointly release the mutation observer, companion action listener and paint reinspection frame');
-assert.match(journey, /actionListener = event => \{[\s\S]*detail\.role !== expectedRole \|\| Number\(detail\.at\) <= minimumAt[\s\S]*inspect\(\);[\s\S]*window\.addEventListener\(eventName, actionListener\);/,
-  'COMPANION_ACTION_EVENT must re-inspect a still-connected pending node when the authoritative action arrives');
+assert.match(journey, /actionListener = event => \{[\s\S]*detail\.role !== expectedRole \|\| Number\(detail\.at\) <= minimumAt[\s\S]*queueMicrotask\(\(\) => inspect\(\)\);[\s\S]*window\.addEventListener\(eventName, actionListener\);/,
+  'COMPANION_ACTION_EVENT must re-inspect a still-connected pending node after the authoritative action dispatch completes');
 assert.match(journey, /scope\[observation\] = payload;[\s\S]*scope\[observer\]\?\.disconnect\?\.\(\);[\s\S]*void scope\[binding\]\(payload\);/,
   'the accepted payload must be frozen and handed to Playwright in the same observer turn');
 assert.match(journey, /mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
@@ -180,24 +194,51 @@ assert.match(journey, /const rendererHost = document\.querySelector\('\[data-tes
 assert.match(journey, /!expectedPaintKey \|\| paintReadyKey !== expectedPaintKey[\s\S]*'renderer-pending'[\s\S]*return titleStable \? 'stable' : 'settling'/,
   'room stability must require a non-empty matching renderer paint key in addition to the unchanged 1200ms title contract');
 assert.match(journey, /timeout: 120_000,[\s\S]*intervals: \[100, 250, 500\]/);
-assert.match(journey, /await armCompanionActionObservation\(page\);\s*const basicEvidenceEpoch = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*await startFreshRun\(page\);[\s\S]*await waitForStableRoom\(page\);\s*await captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'shield',[\s\S]*critical: false,[\s\S]*notBefore: basicEvidenceEpoch,[\s\S]*marker: \/◆\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-\$\{testInfo\.project\.name\}\.png/,
-  'normal-hit evidence must arm an empty event log and its epoch before combat starts, while still waiting for the room-title transition before capture');
+assert.match(journey, /await waitForStableRoom\(page\);\s*await prepareLivePlayerAttackLine\(page\);\s*const basicEvidenceBoundary = await page\.evaluate\(\(\) => performance\.now\(\)\);\s*const basicCapturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'shield',[\s\S]*critical: false,[\s\S]*notBefore: basicEvidenceBoundary,[\s\S]*companion-damage-feedback-\$\{testInfo\.project\.name\}\.png[\s\S]*__dungeonVeilBasicCompanionFeedbackObservationArmed[\s\S]*timeout: 20_000, polling: 16[\s\S]*const basicPostArmBoundary = await page\.evaluate[\s\S]*__dungeonVeilBasicCompanionFeedbackObservationSetMinimumAt[\s\S]*expect\(basicBoundaryAdvanced\)\.toBe\(true\);[\s\S]*const observedBasic = await basicCapturePromise;[\s\S]*expect\(observedBasic\.at\)\.toBeGreaterThan\(basicPostArmBoundary\);/,
+  'normal-hit evidence must arm the browser observer before opening a fresh post-arm action boundary and must accept only a strictly newer Shield action');
 
 const playerAttackTrigger = journey.match(/async function triggerConfirmedPlayerAttack\(page, attackBoundary\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 assert.match(playerAttackTrigger, /const inputBurst = 6;[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*playerLastAttackTime[\s\S]*livingEnemyPositions[\s\S]*moveWithKeyboard\(page, keys, durationMs\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*confirmedAt > attackBoundary[\s\S]*No authoritative player attack occurred/,
   'the bounded input search must finish only after the same authoritative player timestamp consumed by the product advances strictly beyond the captured boundary');
+assert.match(playerAttackTrigger, /await moveWithKeyboard\(page, keys, durationMs\);[\s\S]*const afterMovement = await readRuntimeCombatSnapshot\(page\);[\s\S]*const movementAttackAt = Number\(afterMovement\?\.playerLastAttackTime \|\| 0\);[\s\S]*if \(movementAttackAt > attackBoundary\) return movementAttackAt;[\s\S]*await page\.keyboard\.press\('Space'\);/,
+  'the input search must return the first authoritative attack produced during target approach before issuing another attack input');
 assert.match(playerAttackTrigger, /const phase = attempt % 3;[\s\S]*phase === 0 \? \{ x: dx, y: dy \}[\s\S]*phase === 1 \? \{ x: -dy, y: dx \}[\s\S]*\{ x: dy, y: -dx \}/,
   'the device-independent search must alternate target approach and both lateral paths rather than guessing one fixed direction');
 assert.doesNotMatch(playerAttackTrigger, /PLAYER_HIT_LOG|data-hit-flash|window\.__dungeonVeilRuntimeEvidence\.[a-zA-Z]+\([^)]/,
   'the test may read authoritative state but must not mutate combat through the QA bridge');
 assert.doesNotMatch(playerAttackTrigger, /const inputBurst = (?:[7-9]|\d{2,})|durationMs = (?:[7-9]\d{2}|\d{4,})|waitForTimeout\((?:[3-9]\d{2}|\d{4,})\)/,
   'the adaptive search must remain short and bounded');
-assert.match(journey, /await prepareLivePlayerAttackLine\(page\);\s*const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);\s*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support',[\s\S]*critical: true,[\s\S]*notBefore: attackBoundary,[\s\S]*marker: \/✦\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png[\s\S]*await page\.waitForFunction\([\s\S]*window\[armed\] === true[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*timeout: 20_000, polling: 16[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\(page, attackBoundary\);[\s\S]*const observedCritical = await capturePromise;/,
-  'critical capture must be fully browser-observer-armed before the supported-input attack can begin');
-assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(attackBoundary\);/,
-  'the test must independently prove a strictly newer authoritative player attack that causes the proc');
-assert.match(journey, /expect\(observedCritical\.at\)\.toBeGreaterThan\(attackBoundary\);/,
-  'the accepted critical value must be a strictly newer authoritative companion action');
+assert.match(journey, /await prepareLivePlayerAttackLine\(page\);\s*const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);\s*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support',[\s\S]*critical: true,[\s\S]*notBefore: attackBoundary,[\s\S]*marker: \/✦\\s\*-\\d\+\/[\s\S]*companion-damage-feedback-critical-\$\{testInfo\.project\.name\}\.png[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*const atomicReadyBoundaryHandle = await page\.waitForFunction\(\(\{ setter \}\) => \{[\s\S]*data-critical-special-ready[\s\S]*const evidenceBoundary = performance\.now\(\);[\s\S]*window\[setter\]\?\.\(evidenceBoundary\) !== true[\s\S]*playerLastAttackTime[\s\S]*return \{ evidenceBoundary, playerLastAttackTime \};[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt[\s\S]*timeout: 20_000,[\s\S]*polling: 16[\s\S]*const atomicReadyBoundary = await atomicReadyBoundaryHandle\.jsonValue\(\);[\s\S]*const readyAttackBoundary = Number\(atomicReadyBoundary\.playerLastAttackTime \|\| 0\);[\s\S]*const replenishedCriticalRoom = await page\.evaluate\(\(\) => window\.__dungeonVeilRuntimeEvidence\?\.loadRoom\(1, 'solo'\) \?\? null\);[\s\S]*expect\(Number\(replenishedCriticalRoom\?\.livingEnemies \|\| 0\)\)\.toBeGreaterThan\(0\);[\s\S]*await waitForStableRoom\(page\);[\s\S]*await prepareLivePlayerAttackLine\(page\);[\s\S]*const captureBoundaryHandle = await page\.waitForFunction[\s\S]*data-critical-special-ready[\s\S]*data-last-observed-player-attack-at[\s\S]*playerLastAttackTime !== observedPlayerAttackAt[\s\S]*window\[setter\]\?\.\(captureBoundary\) !== true[\s\S]*const captureBoundaryState = await captureBoundaryHandle\.jsonValue\(\);[\s\S]*expect\(captureBoundaryState\.playerLastAttackTime\)\.toBe\(captureBoundaryState\.observedPlayerAttackAt\);[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\(page, Math\.max\(readyAttackBoundary, captureBoundary, captureBoundaryState\.playerLastAttackTime\)\);[\s\S]*const observedCritical = await capturePromise;[\s\S]*expect\(observedCritical\.criticalPlayerAttackAt\)\.toBe\(confirmedPlayerAttackAt\);/,
+  'critical capture must replenish and re-stabilize the durable room before closing its final browser boundary, then accept only feedback sourced by the exact confirmed player attack');
+assert.match(journey, /data-last-critical-special-player-attack-at[\s\S]*criticalPlayerAttackAt <= minimumAt[\s\S]*critical-player-attack-boundary[\s\S]*criticalPlayerAttackAt,/,
+  'critical capture must reject feedback whose runtime source player attack predates the final boundary');
+assert.match(journey, /expect\(evidenceBoundary\)\.toBeGreaterThan\(attackBoundary\);/,
+  'the atomically installed readiness boundary must advance beyond the original authoritative player-attack boundary');
+assert.match(journey, /expect\(readyAttackBoundary\)\.toBeGreaterThanOrEqual\(attackBoundary\);/,
+  'the same browser turn must return the authoritative player-attack snapshot used to start the bounded input search');
+assert.match(journey, /const replenishedCriticalRoom = await page\.evaluate\(\(\) => window\.__dungeonVeilRuntimeEvidence\?\.loadRoom\(1, 'solo'\) \?\? null\);[\s\S]*expect\(Number\(replenishedCriticalRoom\?\.livingEnemies \|\| 0\)\)\.toBeGreaterThan\(0\);[\s\S]*await waitForStableRoom\(page\);[\s\S]*await prepareLivePlayerAttackLine\(page\);[\s\S]*const captureBoundaryState = await captureBoundaryHandle\.jsonValue\(\);[\s\S]*expect\(captureBoundaryState\.playerLastAttackTime\)\.toBe\(captureBoundaryState\.observedPlayerAttackAt\);[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack/,
+  'critical capture must replenish and re-prove a durable authoritative target before the final strict capture boundary and confirmed input');
+const criticalReadyBoundaryAt = journey.indexOf('const atomicReadyBoundary = await atomicReadyBoundaryHandle.jsonValue();');
+const criticalRoomReplenishAt = journey.indexOf('const replenishedCriticalRoom = await page.evaluate');
+const criticalCaptureBoundaryAt = journey.indexOf('const captureBoundaryHandle = await page.waitForFunction');
+const criticalInputAt = journey.indexOf('const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack');
+assert.ok(
+  criticalReadyBoundaryAt >= 0
+  && criticalRoomReplenishAt > criticalReadyBoundaryAt
+  && criticalCaptureBoundaryAt > criticalRoomReplenishAt
+  && criticalInputAt > criticalCaptureBoundaryAt,
+  'target replenishment and re-stabilization must finish before the final strict pre-input boundary so reload lifecycle cannot inject stale source history',
+);
+assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(readyAttackBoundary\);/,
+  'the test must independently prove a strictly newer authoritative player attack after the atomic readiness boundary');
+assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(evidenceBoundary\);/,
+  'the confirmed player attack must also advance beyond the atomically installed evidence boundary');
+assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(captureBoundary\);/,
+  'the confirmed player attack must advance beyond the final pre-input capture boundary');
+assert.match(journey, /expect\(observedCritical\.criticalPlayerAttackAt\)\.toBe\(confirmedPlayerAttackAt\);/,
+  'the accepted critical feedback must name the exact confirmed player attack as its authoritative source');
+assert.match(journey, /expect\(observedCritical\.at\)\.toBeGreaterThan\(confirmedPlayerAttackAt\);/,
+  'the accepted critical value must be a strictly newer authoritative companion action than the confirmed player attack');
 assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/);
 assert.match(workflow, /companion-damage-feedback-\$\{\{ matrix\.project \}\}\.png/);
 assert.match(workflow, /companion-damage-feedback-critical-\$\{\{ matrix\.project \}\}\.png/);

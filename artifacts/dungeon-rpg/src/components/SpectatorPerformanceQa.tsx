@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameEngine, type RunGameState } from '../game/runEngine';
+import type { CompanionRoleV4 } from '../game/companionReserveV4';
+import { loadCompanionCollectionV5, saveCompanionCollectionV5 } from '../game/companionCollectionV5';
 import { buildSpectatorSnapshot } from '../game/socialSpectatorOnline';
 import { SpectatorSnapshotBuffer } from '../game/spectatorInterpolation';
 import { SPECTATOR_RENDERER_EVENT } from './MainMenuDungeonScene';
@@ -12,7 +14,12 @@ const OUTAGE_CYCLE_PACKETS = 32;
 const OUTAGE_START_PACKET = 20;
 const OUTAGE_PACKET_COUNT = 4;
 const MEASUREMENT_WARMUP_MS = 2_500;
-const SOURCE_SPEED_PX_PER_MS = 0.13;
+const SOURCE_DRIFT_HALF_RANGE_PX = 160;
+const SOURCE_DRIFT_CYCLE_MS = 100_000;
+const SOURCE_SPEED_PX_PER_MS = (SOURCE_DRIFT_HALF_RANGE_PX * 4) / SOURCE_DRIFT_CYCLE_MS;
+const SPECTATOR_QA_CONTROL_EVENT = 'dungeon-veil-spectator-qa-control-v1';
+const SPECTATOR_QA_MEASUREMENT_RESET_EVENT = 'dungeon-veil-spectator-qa-measurement-reset-v1';
+const SPECTATOR_QA_ROLES: readonly CompanionRoleV4[] = ['single-target', 'critical-support', 'shield', 'loot-comfort', 'distraction'];
 
 function cloneState(state: RunGameState): RunGameState {
   return structuredClone(state);
@@ -22,12 +29,14 @@ function createQaState(): RunGameState {
   const engine = new GameEngine();
   const state = cloneState(engine.state);
   const centerX = state.map.startX * 40 + 4;
-  const centerY = state.map.startY * 40 + 4;
+  const centerY = (state.map.startY - 4) * 40 + 4;
   state.status = 'playing';
   state.player.playerName = '';
   state.player.x = centerX;
   state.player.y = centerY;
   state.player.state = 'moving';
+  state.camera.x = centerX;
+  state.camera.y = centerY;
   state.runSkills = { multishot: 2, speed: 1, fireArrow: 1 };
   state.enemies = [{
     id: 'spectator-qa-goblin', type: 'enemy', enemyType: 'goblin', enemyFamilyId: 'goblin',
@@ -82,11 +91,37 @@ export function SpectatorPerformanceQa() {
   const [stableState] = useState<RunGameState>(() => bufferRef.current.sample(initialAt.current) ?? cloneState(sourceRef.current));
 
   useEffect(() => {
+    const handleQaControl = (event: Event) => {
+      const detail = (event as CustomEvent<{ role?: CompanionRoleV4; roomDelta?: number }>).detail;
+      const role = detail?.role;
+      if (role && SPECTATOR_QA_ROLES.includes(role)) {
+        const current = loadCompanionCollectionV5();
+        const companions = { ...current.companions };
+        const now = Date.now();
+        for (const entry of SPECTATOR_QA_ROLES) companions[entry] ??= { level: 1, unlockedAt: now };
+        saveCompanionCollectionV5({ version: 1, activeId: role, companions, updatedAt: now });
+      }
+      const roomDelta = Math.trunc(Number(detail?.roomDelta) || 0);
+      if (roomDelta !== 0) {
+        sourceRef.current.floor = Math.max(1, sourceRef.current.floor + roomDelta);
+        stableState.floor = sourceRef.current.floor;
+      }
+      buildSpectatorSnapshot(cloneState(sourceRef.current), Date.now());
+    };
+    window.addEventListener(SPECTATOR_QA_CONTROL_EVENT, handleQaControl);
+    return () => window.removeEventListener(SPECTATOR_QA_CONTROL_EVENT, handleQaControl);
+  }, [stableState]);
+
+  useEffect(() => {
     if (!assetsReady) return;
     document.documentElement.dataset.dungeonVeilSpectating = '1';
     window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: true } }));
-    const startedAt = Date.now();
-    const startedPerformanceAt = performance.now();
+    let startedAt = Date.now();
+    let startedPerformanceAt = performance.now();
+    let sourcePathOriginX = sourceRef.current.player.x;
+    let sourcePathOriginY = sourceRef.current.player.y;
+    let nextPacketAt = startedAt + PACKET_MS;
+    let packetTimer = 0;
     let packetIndex = 0;
     let frame = 0;
     let lastX = stableState.player.x;
@@ -104,7 +139,66 @@ export function SpectatorPerformanceQa() {
     let lastExtraEnemyActive = false;
     const pendingTimers = new Set<number>();
 
-    const emitPacket = () => {
+    const resetMeasurementEpoch = () => {
+      const now = Date.now();
+      const performanceAt = performance.now();
+      const source = sourceRef.current;
+      pendingTimers.forEach(timer => window.clearTimeout(timer));
+      pendingTimers.clear();
+      startedAt = now;
+      startedPerformanceAt = performanceAt;
+      sourcePathOriginX = stableState.player.x;
+      sourcePathOriginY = stableState.player.y;
+      nextPacketAt = now + PACKET_MS;
+      packetIndex = 0;
+      source.player.x = sourcePathOriginX;
+      source.player.y = sourcePathOriginY;
+      source.player.facing = { x: 1, y: 0 };
+      source.player.state = 'moving';
+      source.camera.x = stableState.camera.x;
+      source.camera.y = stableState.camera.y;
+      for (const enemy of source.enemies) {
+        const visibleEnemy = stableState.enemies.find(candidate => candidate.id === enemy.id);
+        if (!visibleEnemy) continue;
+        enemy.x = visibleEnemy.x;
+        enemy.y = visibleEnemy.y;
+        enemy.targetX = sourcePathOriginX;
+        enemy.targetY = sourcePathOriginY;
+      }
+      bufferRef.current.rebaseTimeline(now - 72, source, now);
+      lastX = stableState.player.x;
+      lastFrameAt = performanceAt;
+      maxFrameStep = 0;
+      maxExcessStepPx = 0;
+      maxFrameIntervalMs = 0;
+      stagnantSince = performanceAt;
+      maxStagnantMs = 0;
+      frameCount = 0;
+      measuredFrameCount = 0;
+      measurementStarted = false;
+      outagePackets = 0;
+      layoutChanges = 0;
+      lastExtraEnemyActive = source.enemies.some(enemy => enemy.id === 'spectator-qa-layout-enemy');
+      const host = diagnosticsRef.current;
+      if (host) {
+        host.dataset.playerX = stableState.player.x.toFixed(3);
+        host.dataset.playerY = stableState.player.y.toFixed(3);
+        host.dataset.frames = '0';
+        host.dataset.measuredFrames = '0';
+        host.dataset.maxFrameStep = '0.000';
+        host.dataset.maxExcessStepPx = '0.000';
+        host.dataset.maxFrameIntervalMs = '0.0';
+        host.dataset.maxStagnantMs = '0.0';
+        host.dataset.outagePackets = '0';
+        host.dataset.layoutChanges = '0';
+        host.dataset.elapsedMs = '0';
+      }
+      window.clearTimeout(packetTimer);
+      packetTimer = window.setTimeout(pumpPackets, PACKET_MS);
+    };
+    window.addEventListener(SPECTATOR_QA_MEASUREMENT_RESET_EVENT, resetMeasurementEpoch);
+
+    const emitPacket = (emittedAt: number) => {
       packetIndex += 1;
       const outagePhase = packetIndex % OUTAGE_CYCLE_PACKETS;
       const outageEndPacket = OUTAGE_START_PACKET + OUTAGE_PACKET_COUNT;
@@ -117,12 +211,18 @@ export function SpectatorPerformanceQa() {
         outagePackets += 1;
         return;
       }
-      const emittedAt = Date.now();
       const elapsed = emittedAt - startedAt;
       const source = sourceRef.current;
-      source.player.x = source.map.startX * 40 + 4 + elapsed * SOURCE_SPEED_PX_PER_MS;
-      source.player.y = source.map.startY * 40 + 4 + Math.sin(elapsed * 0.0022) * 55;
-      source.player.facing = { x: 1, y: Math.cos(elapsed * 0.0022) * 0.25 };
+      const driftPhase = (elapsed % SOURCE_DRIFT_CYCLE_MS) / SOURCE_DRIFT_CYCLE_MS;
+      const driftUnit = driftPhase < 0.25
+        ? driftPhase * 4
+        : driftPhase < 0.75
+          ? 2 - driftPhase * 4
+          : driftPhase * 4 - 4;
+      const driftDirection = driftPhase < 0.25 || driftPhase >= 0.75 ? 1 : -1;
+      source.player.x = sourcePathOriginX + SOURCE_DRIFT_HALF_RANGE_PX * driftUnit;
+      source.player.y = sourcePathOriginY + Math.sin(elapsed * 0.0022) * 55;
+      source.player.facing = { x: driftDirection, y: Math.cos(elapsed * 0.0022) * 0.25 };
       source.player.state = 'moving';
       source.camera.x = source.player.x;
       source.camera.y = source.player.y;
@@ -172,11 +272,21 @@ export function SpectatorPerformanceQa() {
       const timer = window.setTimeout(() => {
         pendingTimers.delete(timer);
         bufferRef.current.push(emittedAt, snapshot, Date.now());
-      }, Math.max(0, 72 + jitter));
+      }, Math.max(0, emittedAt + 72 + jitter - Date.now()));
       pendingTimers.add(timer);
     };
 
-    const packetTimer = window.setInterval(emitPacket, PACKET_MS);
+    function pumpPackets() {
+      const now = Date.now();
+      let catchUpSlots = 0;
+      while (nextPacketAt <= now && catchUpSlots < 32) {
+        emitPacket(nextPacketAt);
+        nextPacketAt += PACKET_MS;
+        catchUpSlots += 1;
+      }
+      packetTimer = window.setTimeout(pumpPackets, Math.max(1, nextPacketAt - Date.now()));
+    }
+    packetTimer = window.setTimeout(pumpPackets, PACKET_MS);
     const animate = (time: number) => {
       const frameIntervalMs = Math.max(1, time - lastFrameAt);
       lastFrameAt = time;
@@ -236,8 +346,9 @@ export function SpectatorPerformanceQa() {
     frame = requestAnimationFrame(animate);
 
     return () => {
-      window.clearInterval(packetTimer);
+      window.clearTimeout(packetTimer);
       pendingTimers.forEach(timer => window.clearTimeout(timer));
+      window.removeEventListener(SPECTATOR_QA_MEASUREMENT_RESET_EVENT, resetMeasurementEpoch);
       cancelAnimationFrame(frame);
       window.dispatchEvent(new CustomEvent(SPECTATOR_RENDERER_EVENT, { detail: { active: false } }));
       delete document.documentElement.dataset.dungeonVeilSpectating;

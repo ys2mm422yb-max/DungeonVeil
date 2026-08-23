@@ -18,6 +18,7 @@ export const COMPANION_ACTION_EVENT_V4 = 'dungeon-veil-companion-action-v4';
 const TILE = 40;
 const COMPANION_DAMAGE_FEEDBACK_MS = 1_050;
 const RECENT_COMBAT_TARGET_MS = 1_200;
+const CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS = 2_600;
 type CompanionAuthority = 'solo' | 'host' | 'guest' | 'unknown';
 
 type Props = {
@@ -197,6 +198,16 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
     activeDamageFeedbackRef.current = null;
     feedbackVisibleUntilRef.current = 0;
     setDamageFeedback(null);
+    if (markerRef.current) {
+      markerRef.current.dataset.lastCriticalSpecialAt = '';
+      markerRef.current.dataset.lastCriticalSpecialTarget = '';
+      markerRef.current.dataset.lastCriticalSpecialPlayerAttackAt = '';
+      markerRef.current.dataset.lastCriticalFeedbackPublishedAt = '';
+      markerRef.current.dataset.lastCriticalFeedbackTarget = '';
+      markerRef.current.dataset.lastCriticalFeedbackValue = '';
+      markerRef.current.dataset.lastCriticalFeedbackVisibleUntil = '';
+      markerRef.current.dataset.lastCriticalFeedbackPaintToken = '';
+    }
   }, [role, level]);
 
   useEffect(() => {
@@ -271,6 +282,13 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       feedbackTimerRef.current = null;
       activeDamageFeedbackRef.current = feedback;
       feedbackVisibleUntilRef.current = now + COMPANION_DAMAGE_FEEDBACK_MS;
+      if (critical && markerRef.current) {
+        markerRef.current.dataset.lastCriticalFeedbackPublishedAt = String(now);
+        markerRef.current.dataset.lastCriticalFeedbackTarget = target.id;
+        markerRef.current.dataset.lastCriticalFeedbackValue = String(value);
+        markerRef.current.dataset.lastCriticalFeedbackVisibleUntil = String(feedbackVisibleUntilRef.current);
+        markerRef.current.dataset.lastCriticalFeedbackPaintToken = String(paintToken);
+      }
       setDamageFeedback(feedback);
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
@@ -306,6 +324,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       const previousCombatTarget = recentCombatTargetRef.current;
 
       if (runtimeFrozenRef.current) {
+        if (markerRef.current) markerRef.current.dataset.criticalSpecialReady = 'false';
         previousHpRef.current = state.player.hp;
         lastPlayerAttackRef.current = state.player.lastAttackTime;
         recentCombatTargetRef.current = null;
@@ -313,6 +332,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       }
 
       if (state.status !== 'playing' || state.player.hp <= 0) {
+        if (markerRef.current) markerRef.current.dataset.criticalSpecialReady = 'false';
         previousHpRef.current = state.player.hp;
         lastPlayerAttackRef.current = state.player.lastAttackTime;
         recentCombatTargetRef.current = null;
@@ -366,30 +386,37 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           ? previousCombatTarget.target
           : null;
         const criticalTarget = recentTarget ?? target;
-        if (criticalTarget && playerAttack > lastPlayerAttackRef.current && now - lastSpecialActionRef.current >= 2_600) {
+        if (criticalTarget && playerAttack > lastPlayerAttackRef.current && now - lastSpecialActionRef.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS) {
           const damage = companionDamageAttributionV4(reservation, state.player.attack * power * 0.72);
-          if (canWriteEnemies && damage.damage > 0) {
-            if (!criticalTarget.isDead && criticalTarget.hp > 0) {
-              criticalTarget.hp -= damage.damage;
-              criticalTarget.flashUntil = now + 110;
-              criticalTarget.lastHitTime = now;
+          if (damage.damage > 0) {
+            if (canWriteEnemies) {
+              if (!criticalTarget.isDead && criticalTarget.hp > 0) {
+                criticalTarget.hp -= damage.damage;
+                criticalTarget.flashUntil = now + 110;
+                criticalTarget.lastHitTime = now;
+              }
+              publishDamageFeedback(activeRole, criticalTarget, damage.damage, definition.accent, true, now);
             }
-            publishDamageFeedback(activeRole, criticalTarget, damage.damage, definition.accent, true, now);
+            pushBoundedCompanionEffect(state, 2, {
+              id: `companion-v5-critical-${now}`,
+              x: criticalTarget.x + criticalTarget.width / 2,
+              y: criticalTarget.y + criticalTarget.height / 2,
+              radius: 0,
+              maxRadius: 50,
+              color: definition.accent,
+              lifeTime: 0,
+              maxLifeTime: 320,
+              type: 'circle',
+              element: 'arcane',
+            });
+            emitCompanionAction(activeRole, activeLevel, 'attack', criticalTarget.id);
+            if (markerRef.current) {
+              markerRef.current.dataset.lastCriticalSpecialAt = String(now);
+              markerRef.current.dataset.lastCriticalSpecialTarget = criticalTarget.id;
+              markerRef.current.dataset.lastCriticalSpecialPlayerAttackAt = String(playerAttack);
+            }
+            lastSpecialActionRef.current = now;
           }
-          pushBoundedCompanionEffect(state, 2, {
-            id: `companion-v5-critical-${now}`,
-            x: criticalTarget.x + criticalTarget.width / 2,
-            y: criticalTarget.y + criticalTarget.height / 2,
-            radius: 0,
-            maxRadius: 50,
-            color: definition.accent,
-            lifeTime: 0,
-            maxLifeTime: 320,
-            type: 'circle',
-            element: 'arcane',
-          });
-          emitCompanionAction(activeRole, activeLevel, 'attack', criticalTarget.id);
-          lastSpecialActionRef.current = now;
         }
         lastPlayerAttackRef.current = playerAttack;
       }
@@ -447,6 +474,11 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
 
       previousHpRef.current = state.player.hp;
       if (markerRef.current) {
+        markerRef.current.dataset.criticalSpecialReady = String(
+          activeRole === 'critical-support'
+          && now - lastSpecialActionRef.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS
+        );
+        markerRef.current.dataset.lastObservedPlayerAttackAt = String(lastPlayerAttackRef.current);
         markerRef.current.dataset.role = activeRole;
         markerRef.current.dataset.level = String(activeLevel);
         markerRef.current.dataset.species = definition.species;
@@ -490,6 +522,16 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         data-blocks-players="false"
         data-blocks-enemies="false"
         data-runtime-frozen="false"
+        data-critical-special-ready="false"
+        data-last-observed-player-attack-at=""
+        data-last-critical-special-at=""
+        data-last-critical-special-target=""
+        data-last-critical-special-player-attack-at=""
+        data-last-critical-feedback-published-at=""
+        data-last-critical-feedback-target=""
+        data-last-critical-feedback-value=""
+        data-last-critical-feedback-visible-until=""
+        data-last-critical-feedback-paint-token=""
         data-feedback-active={damageFeedback ? 'true' : 'false'}
         data-feedback-projected={projectedFeedback ? 'true' : 'false'}
         data-feedback-target={damageFeedback?.targetId ?? ''}

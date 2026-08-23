@@ -49,7 +49,16 @@ const checks = [
   [menu.includes('main-menu-equipment-navigation') && menu.includes('props.onVeilChamber') && menu.includes("language === 'de' ? 'Ausrüstung' : 'Equipment'"), 'equipment remains inaccessible from the live menu'],
   [menu.includes('data-testid="main-menu-control-stack"') && menu.includes('grid-cols-2') && menu.includes('action(t.continueGame') && menu.includes("'Spielen' : 'Play'") && menu.includes("'Kodex' : 'Codex'"), 'four-action mobile control stack is incomplete'],
   [villagePlayer.includes('loadMetaProgression') && villagePlayer.includes('meta.equipped.bow') && villagePlayer.includes('meta.equipped.quiver') && villagePlayer.includes('meta.equipped.armor'), 'menu Ranger does not expose the current equipped loadout'],
-  [villagePlayer.includes('idleAction.reset().play()') && villagePlayer.includes('mixer.update(delta)'), 'menu Ranger idle animation is missing'],
+  [villagePlayer.includes('idleAction.reset().play()')
+    && villagePlayer.includes('idleAction.paused = true')
+    && villagePlayer.includes("animationDriver: 'stable-root-idle-v1'")
+    && villagePlayer.includes("skeletalPlayback: 'frozen-after-pose-sample'")
+    && villagePlayer.includes('function bakeStablePose(')
+    && villagePlayer.includes("meshPipeline: 'baked-static-pose-v1'")
+    && villagePlayer.includes('skinnedMeshCount !== 0')
+    && villagePlayer.includes('Math.sin(elapsed * 1.18)')
+    && villagePlayer.includes('Math.sin(elapsed * 0.72)')
+    && !villagePlayer.includes('mixer.update(delta)'), 'menu Ranger stable root idle animation is missing'],
   [player.includes('resolveEquippedPlayerBody(meta.equipped.armor)') && equippedBody.includes("DEFAULT_ARMOR_ID: EquipmentId = 'ranger-cloak'") && equippedBody.includes('Ranger.glb'), 'the shared in-run Ranger fallback is no longer available'],
   [weapons.includes('const cacheKey = equipped?.bowId') && weapons.includes("definition?.slot === 'bow'"), 'equipped bow selection is not wired to the run model loader'],
   [weapons.includes('loader.loadAsync(modelUrl(manifest, bowPath))') && weapons.includes('loader.loadAsync(modelUrl(manifest, arrowPath))'), 'equipped weapon loader is not using manifest URLs'],

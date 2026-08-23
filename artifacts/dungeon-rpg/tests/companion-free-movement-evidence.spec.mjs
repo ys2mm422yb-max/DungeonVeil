@@ -57,6 +57,15 @@ async function pressPointerUi(locator) {
   await locator.click();
 }
 
+async function waitForRoomPaintReady(page) {
+  const host = page.getByTestId('run-three-host');
+  await expect.poll(async () => {
+    const expected = await host.getAttribute('data-room-paint-expected-key');
+    const ready = await host.getAttribute('data-room-paint-ready-key');
+    return Boolean(expected && ready === expected);
+  }, { timeout: 60_000, intervals: [100, 250, 500] }).toBe(true);
+}
+
 async function startFreshRun(page) {
   await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
   await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 20_000 });
@@ -82,6 +91,7 @@ async function waitForCompanionScene(page, role, reducedMotion = false) {
   await expect(scene).toHaveAttribute('data-scene-captured', 'true', { timeout: 60_000 });
   await expect(scene).toHaveAttribute('data-visible-count', '1', { timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1);
+  await waitForRoomPaintReady(page);
 }
 
 async function movePlayer(page, keys, durationMs) {
@@ -100,12 +110,7 @@ async function loadEvidenceRoom(page, room) {
     timeout: 20_000,
     intervals: [50, 100, 250],
   }).toBe(room);
-  const host = page.getByTestId('run-three-host');
-  await expect.poll(async () => {
-    const expected = await host.getAttribute('data-room-paint-expected-key');
-    const ready = await host.getAttribute('data-room-paint-ready-key');
-    return Boolean(expected && ready === expected);
-  }, { timeout: 60_000, intervals: [100, 250, 500] }).toBe(true);
+  await waitForRoomPaintReady(page);
 }
 
 async function openRoleRun(page, testInfo, role, reducedMotion = false) {

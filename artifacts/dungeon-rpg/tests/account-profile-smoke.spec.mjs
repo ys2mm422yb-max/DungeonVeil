@@ -25,11 +25,17 @@ test('restored collections, account entry and weekly elite contracts are visible
   await page.getByTestId('main-menu-profile-badge').click({ force: true, noWaitAfter: true });
   await expect(page.getByTestId('player-profile-panel')).toBeVisible();
   await expect(page.getByTestId('profile-collection-summary')).toBeVisible();
-  await page.getByRole('button', { name: /Visitenkarten|Calling Cards/i }).click({ force: true, noWaitAfter: true });
+  const callingCardsTab = page.getByRole('button', { name: /Visitenkarten|Calling Cards/i });
+  await expect(callingCardsTab).toBeVisible();
+  await callingCardsTab.click();
   await expect(page.getByText(/Glutriss|Ember Rift/i).first()).toBeVisible();
-  await page.getByRole('button', { name: /Avatare|Avatars/i }).click({ force: true, noWaitAfter: true });
+  const avatarsTab = page.getByRole('button', { name: /Avatare|Avatars/i });
+  await expect(avatarsTab).toBeVisible();
+  await avatarsTab.click();
   await expect(page.getByText(/Aschenmaske|Ash Mask/i).first()).toBeVisible();
-  await page.getByRole('button', { name: /Titel|Titles/i }).click({ force: true, noWaitAfter: true });
+  const titlesTab = page.getByRole('button', { name: /Titel|Titles/i });
+  await expect(titlesTab).toBeVisible();
+  await titlesTab.click();
   await expect(page.getByText(/Dungeonläufer|Dungeon Runner/i).first()).toBeVisible();
 
   await reloadMenu(page);

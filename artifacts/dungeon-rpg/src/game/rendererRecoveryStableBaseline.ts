@@ -16,6 +16,8 @@ let activeEngine: GameEngine | null = null;
 let preUpdateHp: number | null = null;
 let retainedPreMutationHp: number | null = null;
 let retainedNoopUpdates = 0;
+let recoveryHeldHp: number | null = null;
+let recoveryHoldFrame = 0;
 
 function isRendererRecoveryEvent(event: Event) {
   if (event.type === 'dungeon-veil-renderer-lost') return true;
@@ -28,10 +30,9 @@ function isRendererRecoveryEvent(event: Event) {
 function restoreStablePreRecoveryHp(event: Event) {
   if (!isRendererRecoveryEvent(event) || !activeEngine || preUpdateHp === null) return;
   const liveHp = activeEngine.state.player.hp;
-  // Recovery is a full gameplay freeze boundary. A mutation can complete one frame
-  // before the browser dispatches the recovery event, followed by one no-op frame.
-  // Prefer that retained pre-mutation baseline; otherwise preserve the original
-  // single-frame fallback contract used by the earlier recovery fix.
+  // Preserve the original boundary contract: prefer the retained pre-mutation
+  // baseline, then fall back to the last pre-update HP when no mutation baseline
+  // is retained.
   if (retainedPreMutationHp !== null) {
     if (Number.isFinite(liveHp) && Number.isFinite(retainedPreMutationHp) && liveHp !== retainedPreMutationHp) {
       activeEngine.state.player.hp = retainedPreMutationHp;
@@ -39,6 +40,45 @@ function restoreStablePreRecoveryHp(event: Event) {
   } else if (Number.isFinite(liveHp) && liveHp !== preUpdateHp) {
     activeEngine.state.player.hp = preUpdateHp;
   }
+}
+
+function restoreHeldHp() {
+  if (!activeEngine || recoveryHeldHp === null) return;
+  const liveHp = activeEngine.state.player.hp;
+  if (Number.isFinite(liveHp) && liveHp !== recoveryHeldHp) {
+    activeEngine.state.player.hp = recoveryHeldHp;
+  }
+}
+
+function keepRecoveryHpFrozen() {
+  recoveryHoldFrame = 0;
+  if (recoveryHeldHp === null) return;
+  restoreHeldHp();
+  recoveryHoldFrame = window.requestAnimationFrame(keepRecoveryHpFrozen);
+}
+
+function beginStableRecoveryHpHold(event: Event) {
+  if (!isRendererRecoveryEvent(event) || !activeEngine || preUpdateHp === null) return;
+
+  // The original recovery listener restores the proven boundary first. Multiple
+  // lifecycle events may describe the same recovery, so the first held value
+  // remains authoritative until room-ready and later events cannot rebase it.
+  if (recoveryHeldHp === null) {
+    const restoredHp = activeEngine.state.player.hp;
+    if (!Number.isFinite(restoredHp)) return;
+    recoveryHeldHp = restoredHp;
+  } else {
+    restoreHeldHp();
+  }
+
+  if (!recoveryHoldFrame) recoveryHoldFrame = window.requestAnimationFrame(keepRecoveryHpFrozen);
+}
+
+function endStableRecoveryHpHold() {
+  restoreHeldHp();
+  recoveryHeldHp = null;
+  if (recoveryHoldFrame) window.cancelAnimationFrame(recoveryHoldFrame);
+  recoveryHoldFrame = 0;
 }
 
 export function installRendererRecoveryStableBaseline() {
@@ -56,6 +96,14 @@ export function installRendererRecoveryStableBaseline() {
     const result = originalUpdate.call(this, timestamp);
     const afterHp = this.state.player.hp;
 
+    // The normal Game loop is paused during renderer recovery, but asynchronous
+    // runtime effects can still resolve after the recovery boundary. Keep the
+    // authoritative HP frozen until the matching room-ready lifecycle resumes play.
+    if (recoveryHeldHp !== null) {
+      if (Number.isFinite(afterHp) && afterHp !== recoveryHeldHp) this.state.player.hp = recoveryHeldHp;
+      return result;
+    }
+
     if (Number.isFinite(beforeHp) && Number.isFinite(afterHp) && afterHp !== beforeHp) {
       retainedPreMutationHp = beforeHp;
       retainedNoopUpdates = RETAINED_NOOP_UPDATE_LIMIT;
@@ -67,10 +115,11 @@ export function installRendererRecoveryStableBaseline() {
     return result;
   };
 
-  // Registered before React mounts so the authoritative pre-frame baseline is
-  // restored before Game's recovery handlers latch the hold HP. This closes the
-  // browser-task gap where one combat frame, plus one intervening no-op update,
-  // can land between QA/renderer state observation and the recovery event.
+  // Preserve the permanent synchronous recovery contract first, then extend it
+  // with an rAF hold for asynchronous runtime effects until room-ready resumes play.
   window.addEventListener('dungeon-veil-renderer-lost', restoreStablePreRecoveryHp);
   window.addEventListener('dungeon-veil-room-preparing', restoreStablePreRecoveryHp);
+  window.addEventListener('dungeon-veil-renderer-lost', beginStableRecoveryHpHold);
+  window.addEventListener('dungeon-veil-room-preparing', beginStableRecoveryHpHold);
+  window.addEventListener('dungeon-veil-room-ready', endStableRecoveryHpHold);
 }

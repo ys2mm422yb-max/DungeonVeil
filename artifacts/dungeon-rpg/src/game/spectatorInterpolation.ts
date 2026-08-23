@@ -26,6 +26,23 @@ export type SpectatorInterpolationMetrics = {
   mode: 'waiting' | 'hold' | 'interpolate' | 'extrapolate';
 };
 
+function createMetrics(roomResets = 0): SpectatorInterpolationMetrics {
+  return {
+    receivedSnapshots: 0,
+    duplicateSnapshots: 0,
+    outOfOrderSnapshots: 0,
+    bufferDepth: 0,
+    interpolationFrames: 0,
+    extrapolationFrames: 0,
+    heldFrames: 0,
+    roomResets,
+    maxCorrectionPx: 0,
+    clockOffsetMs: 0,
+    latestPacketAgeMs: 0,
+    mode: 'waiting',
+  };
+}
+
 const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
 const roomKey = (state: RunGameState) => `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
 
@@ -85,20 +102,7 @@ export class SpectatorSnapshotBuffer {
   private cachedClockOffsetMs = 0;
   private previousEnemyXById = new Map<string, number>();
   private previousEnemyYById = new Map<string, number>();
-  private metrics: SpectatorInterpolationMetrics = {
-    receivedSnapshots: 0,
-    duplicateSnapshots: 0,
-    outOfOrderSnapshots: 0,
-    bufferDepth: 0,
-    interpolationFrames: 0,
-    extrapolationFrames: 0,
-    heldFrames: 0,
-    roomResets: 0,
-    maxCorrectionPx: 0,
-    clockOffsetMs: 0,
-    latestPacketAgeMs: 0,
-    mode: 'waiting',
-  };
+  private metrics = createMetrics();
 
   push(emittedAt: number, state: RunGameState, receivedAt = Date.now()): boolean {
     if (!Number.isFinite(emittedAt) || emittedAt <= 0) return false;
@@ -136,6 +140,36 @@ export class SpectatorSnapshotBuffer {
     this.previousEnemyYById.clear();
     this.metrics.bufferDepth = 0;
     this.metrics.mode = 'waiting';
+  }
+
+  rebaseTimeline(emittedAt: number, state: RunGameState, receivedAt = Date.now()): RunGameState {
+    this.packets.length = 0;
+    this.offsetSamples.length = 0;
+    this.lastSampleAt = 0;
+    this.cachedClockOffsetMs = 0;
+    this.previousEnemyXById.clear();
+    this.previousEnemyYById.clear();
+
+    const replacement = cloneState(state);
+    if (!this.output) {
+      this.output = replacement;
+    } else {
+      Object.assign(this.output, replacement);
+      this.output.player = replacement.player;
+      this.output.camera = replacement.camera;
+      this.output.enemies = replacement.enemies;
+      this.output.items = replacement.items;
+      this.output.chests = replacement.chests;
+      this.output.damageNumbers = replacement.damageNumbers;
+      this.output.particles = replacement.particles;
+      this.output.effects = replacement.effects;
+      this.output.upgradeChoices = replacement.upgradeChoices;
+      this.output.runSkills = replacement.runSkills;
+    }
+    this.outputRoomKey = roomKey(replacement);
+    this.metrics = createMetrics(this.metrics.roomResets + 1);
+    this.push(emittedAt, cloneState(state), receivedAt);
+    return this.output;
   }
 
   private ensureOutput(target: RunGameState): RunGameState {
