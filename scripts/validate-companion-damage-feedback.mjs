@@ -212,6 +212,19 @@ assert.match(journey, /expect\(evidenceBoundary\)\.toBeGreaterThan\(attackBounda
   'the atomically installed readiness boundary must advance beyond the original authoritative player-attack boundary');
 assert.match(journey, /expect\(readyAttackBoundary\)\.toBeGreaterThanOrEqual\(attackBoundary\);/,
   'the same browser turn must return the authoritative player-attack snapshot used to start the bounded input search');
+assert.match(journey, /const replenishedCriticalRoom = await page\.evaluate\(\(\) => window\.__dungeonVeilRuntimeEvidence\?\.loadRoom\(1, 'solo'\) \?\? null\);[\s\S]*expect\(Number\(replenishedCriticalRoom\?\.livingEnemies \|\| 0\)\)\.toBeGreaterThan\(0\);[\s\S]*await prepareLivePlayerAttackLine\(page\);[\s\S]*await expect\(runtime\)\.toHaveAttribute\('data-critical-special-ready', 'true'\);/,
+  'critical capture must replenish and re-prove a durable authoritative target after readiness waiting can let the real companion clear the room');
+const criticalReadyBoundaryAt = journey.indexOf('const atomicReadyBoundary = await atomicReadyBoundaryHandle.jsonValue();');
+const criticalRoomReplenishAt = journey.indexOf('const replenishedCriticalRoom = await page.evaluate');
+const criticalCaptureBoundaryAt = journey.indexOf('const captureBoundaryState = await page.evaluate');
+const criticalInputAt = journey.indexOf('const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack');
+assert.ok(
+  criticalReadyBoundaryAt >= 0
+  && criticalRoomReplenishAt > criticalReadyBoundaryAt
+  && criticalCaptureBoundaryAt > criticalRoomReplenishAt
+  && criticalInputAt > criticalCaptureBoundaryAt,
+  'target replenishment must happen after real special readiness and before the final strict pre-input boundary',
+);
 assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(readyAttackBoundary\);/,
   'the test must independently prove a strictly newer authoritative player attack after the atomic readiness boundary');
 assert.match(journey, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(evidenceBoundary\);/,
