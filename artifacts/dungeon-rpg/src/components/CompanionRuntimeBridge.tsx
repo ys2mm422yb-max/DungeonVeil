@@ -323,17 +323,8 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       const target = nearestEnemy(state);
       const previousCombatTarget = recentCombatTargetRef.current;
 
-      if (markerRef.current) {
-        markerRef.current.dataset.criticalSpecialReady = String(
-          activeRole === 'critical-support'
-          && !runtimeFrozenRef.current
-          && state.status === 'playing'
-          && state.player.hp > 0
-          && now - lastSpecialActionRef.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS
-        );
-      }
-
       if (runtimeFrozenRef.current) {
+        if (markerRef.current) markerRef.current.dataset.criticalSpecialReady = 'false';
         previousHpRef.current = state.player.hp;
         lastPlayerAttackRef.current = state.player.lastAttackTime;
         recentCombatTargetRef.current = null;
@@ -341,6 +332,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
       }
 
       if (state.status !== 'playing' || state.player.hp <= 0) {
+        if (markerRef.current) markerRef.current.dataset.criticalSpecialReady = 'false';
         previousHpRef.current = state.player.hp;
         lastPlayerAttackRef.current = state.player.lastAttackTime;
         recentCombatTargetRef.current = null;
@@ -482,6 +474,10 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
 
       previousHpRef.current = state.player.hp;
       if (markerRef.current) {
+        markerRef.current.dataset.criticalSpecialReady = String(
+          activeRole === 'critical-support'
+          && now - lastSpecialActionRef.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS
+        );
         markerRef.current.dataset.role = activeRole;
         markerRef.current.dataset.level = String(activeLevel);
         markerRef.current.dataset.species = definition.species;

@@ -44,6 +44,40 @@ function validateGlbContainer(file, bytes) {
   if (bytes.readUInt32LE(16) !== 0x4e4f534a) throw new Error(`${file} is missing its JSON chunk`);
 }
 
+function validateRequiredKayKitPackaging(file, relativePath, distRoot) {
+  const source = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const buffers = source.buffers ?? [];
+  if (buffers.length !== 1 || !buffers[0].uri?.startsWith('data:application/octet-stream;base64,')) {
+    throw new Error(`${relativePath} must keep its binary buffer embedded before GLB packing`);
+  }
+
+  const images = source.images ?? [];
+  if (images.length === 0) throw new Error(`${relativePath} has no packaged production texture`);
+  const isQuiver = relativePath.endsWith('/quiver.gltf');
+  for (const image of images) {
+    const uri = image.uri ?? '';
+    if (isQuiver) {
+      if (image.bufferView !== undefined || image.mimeType !== 'image/png' || !uri.startsWith('data:image/png;base64,')) {
+        throw new Error(`${relativePath} must keep its validated PNG texture data URI`);
+      }
+      continue;
+    }
+
+    if (!uri || uri.startsWith('/') || uri.startsWith('//') || uri.includes('://') || uri.startsWith('data:') || uri.includes('?') || uri.includes('#')) {
+      throw new Error(`${relativePath} texture must use a relative local production sidecar`);
+    }
+    const decodedUri = decodeURIComponent(uri);
+    if (!decodedUri || decodedUri.includes('..') || decodedUri.includes('\\')) {
+      throw new Error(`${relativePath} texture has an unsafe relative production path: ${uri}`);
+    }
+    const assetFile = path.resolve(path.dirname(file), ...decodedUri.split('/'));
+    const assetRelative = path.relative(distRoot, assetFile);
+    if (assetRelative.startsWith('..') || path.isAbsolute(assetRelative) || !fs.existsSync(assetFile) || fs.statSync(assetFile).size === 0) {
+      throw new Error(`${relativePath} texture is missing from the production build: ${uri}`);
+    }
+  }
+}
+
 function packEmbeddedGltfBufferAsGlb(file) {
   const original = fs.readFileSync(file);
   if (original.length >= 4 && original.readUInt32LE(0) === 0x46546c67) {
@@ -123,6 +157,7 @@ if (process.argv.includes('--dist')) {
   for (const relativePath of requiredKayKitGltfPaths) {
     const file = path.join(distRoot, relativePath);
     if (!fs.existsSync(file)) throw new Error(`Required production KayKit asset is missing: ${relativePath}`);
+    validateRequiredKayKitPackaging(file, relativePath, distRoot);
     packEmbeddedGltfBufferAsGlb(file);
   }
 

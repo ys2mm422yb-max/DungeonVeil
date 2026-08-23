@@ -141,7 +141,20 @@ async function resolveGltfSidecar(gltfPath: string, uri: string) {
   return sidecarPath;
 }
 
-async function inlineGltfSidecars(gltfPath: string) {
+function emittedSidecarUri(gltfPath: string, sidecarPath: string) {
+  const relative = path.relative(path.dirname(gltfPath), sidecarPath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Refusing production sidecar outside its glTF asset directory: ${sidecarPath}`);
+  }
+  return relative.split(path.sep).map(segment => encodeURIComponent(segment)).join('/');
+}
+
+type GltfImagePackaging = 'inline' | 'relative';
+
+async function inlineGltfSidecars(
+  gltfPath: string,
+  imagePackaging: GltfImagePackaging,
+) {
   const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
     buffers?: Array<{ uri?: string; byteLength?: number }>;
     images?: Array<{ uri?: string; mimeType?: string; bufferView?: number }>;
@@ -162,9 +175,13 @@ async function inlineGltfSidecars(gltfPath: string) {
     const uri = entry.uri;
     if (!uri || uri.startsWith('data:') || uri.includes('://')) continue;
     const imagePath = await resolveGltfSidecar(gltfPath, uri);
-    const imageBytes = await fs.readFile(imagePath);
     const mimeType = sidecarMimeType(uri, entry.mimeType);
-    entry.uri = `data:${mimeType};base64,${imageBytes.toString('base64')}`;
+    if (imagePackaging === 'inline') {
+      const imageBytes = await fs.readFile(imagePath);
+      entry.uri = `data:${mimeType};base64,${imageBytes.toString('base64')}`;
+    } else {
+      entry.uri = emittedSidecarUri(gltfPath, imagePath);
+    }
     entry.mimeType = mimeType;
     delete entry.bufferView;
     changed = true;
@@ -180,7 +197,10 @@ async function inlineGltfSidecars(gltfPath: string) {
   if (changed) await fs.writeFile(gltfPath, `${JSON.stringify(source)}\n`, 'utf8');
 }
 
-async function validateNoExternalGltfSidecars(gltfPath: string) {
+async function validateRequiredGltfPackaging(
+  gltfPath: string,
+  imagePackaging: GltfImagePackaging,
+) {
   const source = JSON.parse(await fs.readFile(gltfPath, 'utf8')) as {
     buffers?: Array<{ uri?: string }>;
     images?: Array<{ uri?: string }>;
@@ -191,9 +211,20 @@ async function validateNoExternalGltfSidecars(gltfPath: string) {
     }
   }
   for (const image of source.images ?? []) {
-    if (image.uri && !image.uri.startsWith('data:')) {
-      throw new Error(`Required production glTF still references an external image: ${gltfPath}`);
+    const uri = image.uri;
+    if (!uri) throw new Error(`Required production glTF image has no URI: ${gltfPath}`);
+    if (imagePackaging === 'inline') {
+      if (!uri.startsWith('data:')) throw new Error(`Required production glTF image is not embedded: ${gltfPath}`);
+      continue;
     }
+    if (uri.startsWith('/') || uri.startsWith('data:') || uri.includes('://') || uri.startsWith('//') || uri.includes('?') || uri.includes('#')) {
+      throw new Error(`Required production glTF image is not a relative local sidecar: ${gltfPath}`);
+    }
+    const relativeUri = decodeURIComponent(uri);
+    if (!relativeUri || relativeUri.includes('..') || relativeUri.includes('\\')) {
+      throw new Error(`Required production glTF image has an unsafe relative path: ${uri}`);
+    }
+    await resolveGltfSidecar(gltfPath, uri);
   }
 }
 
@@ -233,9 +264,10 @@ async function inlineRequiredKayKitSidecars(outDir: string) {
   for (const relativeGltfPath of relativeGltfPaths) {
     const gltfPath = path.join(outDir, relativeGltfPath);
     if (!(await hasContent(gltfPath))) throw new Error(`Required KayKit glTF is missing from the production build: ${gltfPath}`);
-    await inlineGltfSidecars(gltfPath);
-    await validateNoExternalGltfSidecars(gltfPath);
-    if (relativeGltfPath.endsWith('/quiver.gltf')) await validateRequiredQuiverPackaging(gltfPath);
+    const imagePackaging: GltfImagePackaging = relativeGltfPath.endsWith('/quiver.gltf') ? 'inline' : 'relative';
+    await inlineGltfSidecars(gltfPath, imagePackaging);
+    await validateRequiredGltfPackaging(gltfPath, imagePackaging);
+    if (imagePackaging === 'inline') await validateRequiredQuiverPackaging(gltfPath);
   }
 }
 

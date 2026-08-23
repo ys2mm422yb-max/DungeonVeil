@@ -126,6 +126,10 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
     const durationMs = phase === 0 ? 260 : 190;
 
     await moveWithKeyboard(page, keys, durationMs);
+    const afterMovement = await readRuntimeCombatSnapshot(page);
+    const movementAttackAt = Number(afterMovement?.playerLastAttackTime || 0);
+    if (movementAttackAt > attackBoundary) return movementAttackAt;
+
     await page.keyboard.press('Space');
     await page.waitForTimeout(120);
 

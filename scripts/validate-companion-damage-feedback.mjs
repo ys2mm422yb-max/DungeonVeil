@@ -31,6 +31,10 @@ assert.match(runtime, /const CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS = 2_600;/,
   'critical-support readiness must derive from the unchanged real special cooldown');
 assert.match(runtime, /markerRef\.current\.dataset\.criticalSpecialReady = String\([\s\S]*activeRole === 'critical-support'[\s\S]*now - lastSpecialActionRef\.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS[\s\S]*\);/,
   'the diagnostic readiness marker must expose the same real cooldown gate used by the critical proc');
+const readinessPublishAt = runtime.indexOf('markerRef.current.dataset.criticalSpecialReady = String(');
+const lastSpecialMutationAt = runtime.lastIndexOf('lastSpecialActionRef.current = now;');
+assert.ok(readinessPublishAt > lastSpecialMutationAt,
+  'critical-support readiness must be published after every tick branch that can consume the special cooldown');
 assert.match(runtime, /function projectCompanionDamage\(state: GameState, feedback: CompanionDamageFeedback\)/);
 assert.match(runtime, /if \(depth <= 0\.1\) return null;/,
   'only a point behind the camera may be rejected');
@@ -192,6 +196,8 @@ assert.match(journey, /await waitForStableRoom\(page\);\s*await prepareLivePlaye
 const playerAttackTrigger = journey.match(/async function triggerConfirmedPlayerAttack\(page, attackBoundary\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 assert.match(playerAttackTrigger, /const inputBurst = 6;[\s\S]*readRuntimeCombatSnapshot\(page\)[\s\S]*playerLastAttackTime[\s\S]*livingEnemyPositions[\s\S]*moveWithKeyboard\(page, keys, durationMs\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*confirmedAt > attackBoundary[\s\S]*No authoritative player attack occurred/,
   'the bounded input search must finish only after the same authoritative player timestamp consumed by the product advances strictly beyond the captured boundary');
+assert.match(playerAttackTrigger, /await moveWithKeyboard\(page, keys, durationMs\);[\s\S]*const afterMovement = await readRuntimeCombatSnapshot\(page\);[\s\S]*const movementAttackAt = Number\(afterMovement\?\.playerLastAttackTime \|\| 0\);[\s\S]*if \(movementAttackAt > attackBoundary\) return movementAttackAt;[\s\S]*await page\.keyboard\.press\('Space'\);/,
+  'the input search must return the first authoritative attack produced during target approach before issuing another attack input');
 assert.match(playerAttackTrigger, /const phase = attempt % 3;[\s\S]*phase === 0 \? \{ x: dx, y: dy \}[\s\S]*phase === 1 \? \{ x: -dy, y: dx \}[\s\S]*\{ x: dy, y: -dx \}/,
   'the device-independent search must alternate target approach and both lateral paths rather than guessing one fixed direction');
 assert.doesNotMatch(playerAttackTrigger, /PLAYER_HIT_LOG|data-hit-flash|window\.__dungeonVeilRuntimeEvidence\.[a-zA-Z]+\([^)]/,
