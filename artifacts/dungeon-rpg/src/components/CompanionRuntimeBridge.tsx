@@ -478,6 +478,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
           activeRole === 'critical-support'
           && now - lastSpecialActionRef.current >= CRITICAL_SUPPORT_SPECIAL_COOLDOWN_MS
         );
+        markerRef.current.dataset.lastObservedPlayerAttackAt = String(lastPlayerAttackRef.current);
         markerRef.current.dataset.role = activeRole;
         markerRef.current.dataset.level = String(activeLevel);
         markerRef.current.dataset.species = definition.species;
@@ -522,6 +523,7 @@ export function CompanionRuntimeBridge({ gameState, role, level, mode }: Props) 
         data-blocks-enemies="false"
         data-runtime-frozen="false"
         data-critical-special-ready="false"
+        data-last-observed-player-attack-at=""
         data-last-critical-special-at=""
         data-last-critical-special-target=""
         data-last-critical-special-player-attack-at=""
