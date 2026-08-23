@@ -158,6 +158,10 @@ async function rangerDiagnostics(page) {
   return page.evaluate(() => window.__DUNGEON_VEIL_MENU_RANGER__ || null);
 }
 
+function expectStableRangerIdle(diagnostics) {
+  expect(diagnostics?.animationDriver).toBe('Idle_A');
+}
+
 async function closeGenericOverlay(page) {
   const close = page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).last();
   await expect(close).toBeVisible({ timeout: 20_000 });
@@ -180,6 +184,7 @@ test('Block 20 preserves animated Ranger, equipment combinations and companion s
   const standard = await rangerDiagnostics(page);
   expect(standard?.loadout).toEqual(STANDARD_LOADOUT);
   expect(standard?.visibleEquipment).toMatchObject({ bow: true, quiver: true, armor: true, arrows: 3 });
+  expectStableRangerIdle(standard);
   await capture(page, 'no-companion-standard-loadout', testInfo.project.name);
 
   const firstFrames = Number(await scene.getAttribute('data-animation-frames') || 0);
@@ -207,6 +212,7 @@ test('Block 20 preserves animated Ranger, equipment combinations and companion s
   const alternate = await rangerDiagnostics(page);
   expect(alternate?.loadout).toEqual(ALTERNATE_LOADOUT);
   expect(alternate?.visibleEquipment).toMatchObject({ bow: true, quiver: true, armor: true, arrows: 3 });
+  expectStableRangerIdle(alternate);
   await capture(page, 'alternate-loadout-with-quiver', testInfo.project.name);
 
   await updateEquipment(page, ALTERNATE_LOADOUT, false);
@@ -214,6 +220,7 @@ test('Block 20 preserves animated Ranger, equipment combinations and companion s
   const withoutQuiver = await rangerDiagnostics(page);
   expect(withoutQuiver?.loadout).toEqual({ ...ALTERNATE_LOADOUT, quiver: null });
   expect(withoutQuiver?.visibleEquipment).toMatchObject({ bow: true, quiver: false, armor: true, arrows: 0 });
+  expectStableRangerIdle(withoutQuiver);
   await capture(page, 'alternate-loadout-without-quiver', testInfo.project.name);
 
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);

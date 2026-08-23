@@ -108,8 +108,8 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const root = new THREE.Group();
   root.name = 'VillageEquippedPlayer';
   root.userData.canonicalFallbackAsset = KAYKIT_PLAYER_ASSETS.ranger;
-  root.userData.presentation = 'village-showcase-v14-player-focus';
-  root.userData.showcasePose = 'v14-idle-b-readable-loadout';
+  root.userData.presentation = 'village-showcase-v15-player-focus';
+  root.userData.showcasePose = 'v15-idle-a-stable-readable-loadout';
   root.userData.equipmentPose = quiverEquipped ? 'left-hand-bow-right-shoulder-quiver' : 'left-hand-bow-no-quiver';
   root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
@@ -126,9 +126,11 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   root.add(visual);
 
   const clips = [...(rangerGltf.animations ?? []), ...(idleGltf.animations ?? [])];
-  const idleClip = clips.find((clip: any) => clipKey(clip).includes('idle_b'))
-    ?? clips.find((clip: any) => clipKey(clip).includes('idle_a'))
-    ?? clips.find((clip: any) => clipKey(clip).includes('idle'));
+  const idleClip = clips.find((clip: any) => clipKey(clip).includes('idle_a'))
+    ?? clips.find((clip: any) => {
+      const key = clipKey(clip);
+      return key.includes('idle') && !key.includes('idle_b');
+    });
   if (!idleClip) throw new Error('KayKit idle animation is missing for the equipped village player');
 
   const mixer = new THREE.AnimationMixer(visual);
