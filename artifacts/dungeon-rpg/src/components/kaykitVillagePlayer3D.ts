@@ -109,7 +109,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   root.name = 'VillageEquippedPlayer';
   root.userData.canonicalFallbackAsset = KAYKIT_PLAYER_ASSETS.ranger;
   root.userData.presentation = 'village-showcase-v14-player-focus';
-  root.userData.showcasePose = 'v15-idle-a-stable-readable-loadout';
+  root.userData.showcasePose = 'v16-sampled-idle-a-root-motion-loadout';
   root.userData.equipmentPose = quiverEquipped ? 'left-hand-bow-right-shoulder-quiver' : 'left-hand-bow-no-quiver';
   root.userData.equippedLoadout = {
     bow: meta.equipped.bow,
@@ -137,6 +137,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const idleAction = mixer.clipAction(idleClip);
   idleAction.reset().play();
   mixer.update(0.01);
+  idleAction.paused = true;
 
   const equipmentRoot = new THREE.Group();
   equipmentRoot.name = 'VillageReadableLoadout';
@@ -230,7 +231,9 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       presentation: root.userData.presentation,
       pose: root.userData.showcasePose,
       equipmentPose: root.userData.equipmentPose,
-      animationDriver: idleClip.name,
+      animationDriver: 'stable-root-idle-v1',
+      stablePoseSource: idleClip.name,
+      skeletalPlayback: 'frozen-after-pose-sample',
       loadout: root.userData.equippedLoadout,
       resolvedArmor: root.userData.resolvedArmor,
       armorFallback: root.userData.armorFallback,
@@ -253,11 +256,10 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
     update(delta: number) {
       if (stopped) return;
       elapsed += delta;
-      mixer.update(delta);
       root.position.x = 0;
       root.position.y = -0.08 + Math.sin(elapsed * 1.18) * 0.008;
       root.position.z = -1.82;
-      root.rotation.y = -0.025;
+      root.rotation.y = -0.025 + Math.sin(elapsed * 0.72) * 0.008;
       root.scale.setScalar(0.72);
       syncMenuCompanionPrestige();
       visibleBindings.forEach(binding => binding.update(0));

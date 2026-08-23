@@ -159,7 +159,9 @@ async function rangerDiagnostics(page) {
 }
 
 function expectStableRangerIdle(diagnostics) {
-  expect(diagnostics?.animationDriver).toBe('Idle_A');
+  expect(diagnostics?.animationDriver).toBe('stable-root-idle-v1');
+  expect(diagnostics?.stablePoseSource).toBe('Idle_A');
+  expect(diagnostics?.skeletalPlayback).toBe('frozen-after-pose-sample');
 }
 
 async function closeGenericOverlay(page) {
