@@ -715,35 +715,45 @@ test('critical-support proc renders one readable value on its actual target', as
   const readyAttackBoundary = Number(atomicReadyBoundary.playerLastAttackTime || 0);
   expect(evidenceBoundary).toBeGreaterThan(attackBoundary);
   expect(readyAttackBoundary).toBeGreaterThanOrEqual(attackBoundary);
-  const captureBoundaryHandle = await page.waitForFunction(({ setter }) => {
-    const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
-    if (runtime?.getAttribute('data-critical-special-ready') !== 'true') return false;
-    const playerLastAttackTime = Number(window.__dungeonVeilRuntimeEvidence?.snapshot()?.playerLastAttackTime || 0);
-    const observedPlayerAttackAt = Number(runtime.getAttribute('data-last-observed-player-attack-at') || 0);
-    if (playerLastAttackTime !== observedPlayerAttackAt) return false;
-    const captureBoundary = performance.now();
-    if (window[setter]?.(captureBoundary) !== true) return false;
-    return { captureBoundary, playerLastAttackTime, observedPlayerAttackAt };
-  }, {
-    setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt',
-  }, {
-    timeout: 20_000,
-    polling: 16,
-  });
-  const captureBoundaryState = await captureBoundaryHandle.jsonValue();
-  const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
-  expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
-  expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
-  const replenishedCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
-  expect(Number(replenishedCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
-  await prepareLivePlayerAttackLine(page);
-  const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime));
-  const observedCritical = await capturePromise;
-  expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
-  expect(confirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
-  expect(confirmedPlayerAttackAt).toBeGreaterThan(captureBoundary);
-  expect(observedCritical.criticalPlayerAttackAt).toBe(confirmedPlayerAttackAt);
-  expect(observedCritical.at).toBeGreaterThan(confirmedPlayerAttackAt);
+  await page.keyboard.down('KeyW');
+  try {
+    const captureBoundaryHandle = await page.waitForFunction(({ setter }) => {
+      const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+      if (runtime?.getAttribute('data-critical-special-ready') !== 'true') return false;
+      const playerLastAttackTime = Number(window.__dungeonVeilRuntimeEvidence?.snapshot()?.playerLastAttackTime || 0);
+      const observedPlayerAttackAt = Number(runtime.getAttribute('data-last-observed-player-attack-at') || 0);
+      if (playerLastAttackTime !== observedPlayerAttackAt) return false;
+      const captureBoundary = performance.now();
+      if (window[setter]?.(captureBoundary) !== true) return false;
+      return { captureBoundary, playerLastAttackTime, observedPlayerAttackAt };
+    }, {
+      setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt',
+    }, {
+      timeout: 20_000,
+      polling: 16,
+    });
+    const captureBoundaryState = await captureBoundaryHandle.jsonValue();
+    const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
+    expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
+    expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
+    const replenishedCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+    expect(Number(replenishedCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
+    await prepareLivePlayerAttackLine(page);
+    await expect.poll(async () => Number((await readRuntimeCombatSnapshot(page))?.playerAttackCooldown ?? Number.POSITIVE_INFINITY), {
+      timeout: 20_000,
+      intervals: [16, 50, 100],
+      message: 'critical-support confirmed source attack must wait for real player attack cooldown eligibility while movement suppresses idle autofire',
+    }).toBeLessThanOrEqual(0);
+    const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime));
+    const observedCritical = await capturePromise;
+    expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
+    expect(confirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
+    expect(confirmedPlayerAttackAt).toBeGreaterThan(captureBoundary);
+    expect(observedCritical.criticalPlayerAttackAt).toBe(confirmedPlayerAttackAt);
+    expect(observedCritical.at).toBeGreaterThan(confirmedPlayerAttackAt);
+  } finally {
+    await page.keyboard.up('KeyW').catch(() => {});
+  }
   await expect(runtime).toHaveAttribute('data-level', '2');
   await expect(runtime).toHaveAttribute('data-basic-attacks', 'true');
   await expect(chip).toHaveCount(0);
