@@ -53,6 +53,9 @@ const checks = [
     && villagePlayer.includes('idleAction.paused = true')
     && villagePlayer.includes("animationDriver: 'stable-root-idle-v1'")
     && villagePlayer.includes("skeletalPlayback: 'frozen-after-pose-sample'")
+    && villagePlayer.includes('function bakeStablePose(')
+    && villagePlayer.includes("meshPipeline: 'baked-static-pose-v1'")
+    && villagePlayer.includes('skinnedMeshCount !== 0')
     && villagePlayer.includes('Math.sin(elapsed * 1.18)')
     && villagePlayer.includes('Math.sin(elapsed * 0.72)')
     && !villagePlayer.includes('mixer.update(delta)'), 'menu Ranger stable root idle animation is missing'],

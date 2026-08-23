@@ -50,6 +50,56 @@ function prepareModel(object: any): void {
   });
 }
 
+function bakeStablePose(THREE: any, object: any): number {
+  object.updateMatrixWorld(true);
+  const replacements: Array<{ node: any; baked: any; parent: any; index: number }> = [];
+  const vertex = new THREE.Vector3();
+
+  object.traverse?.((node: any) => {
+    if (!node.isSkinnedMesh || !node.geometry?.attributes?.position || !node.parent) return;
+    const sourceGeometry = node.geometry;
+    const geometry = sourceGeometry.clone();
+    const position = geometry.getAttribute('position');
+    for (let index = 0; index < position.count; index++) {
+      node.getVertexPosition(index, vertex);
+      position.setXYZ(index, vertex.x, vertex.y, vertex.z);
+    }
+    position.needsUpdate = true;
+    geometry.deleteAttribute('skinIndex');
+    geometry.deleteAttribute('skinWeight');
+    geometry.deleteAttribute('tangent');
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+
+    const baked = new THREE.Mesh(geometry, node.material);
+    baked.name = `${node.name || 'VillageRangerMesh'}_BakedPose`;
+    baked.position.copy(node.position);
+    baked.quaternion.copy(node.quaternion);
+    baked.scale.copy(node.scale);
+    baked.visible = node.visible;
+    baked.renderOrder = node.renderOrder;
+    baked.castShadow = false;
+    baked.receiveShadow = false;
+    baked.frustumCulled = false;
+    baked.layers.mask = node.layers.mask;
+    baked.userData = { ...node.userData, dungeonVeilBakedPose: true };
+    replacements.push({ node, baked, parent: node.parent, index: node.parent.children.indexOf(node) });
+  });
+
+  replacements.forEach(({ node, baked, parent, index }) => {
+    [...node.children].forEach(child => baked.add(child));
+    parent.remove(node);
+    parent.add(baked);
+    const addedIndex = parent.children.indexOf(baked);
+    parent.children.splice(addedIndex, 1);
+    parent.children.splice(index, 0, baked);
+    node.geometry.dispose?.();
+  });
+  object.updateMatrixWorld(true);
+  return replacements.length;
+}
+
 function addPresentationModel(
   THREE: any,
   parent: any,
@@ -138,6 +188,14 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   idleAction.reset().play();
   mixer.update(0.01);
   idleAction.paused = true;
+  const bakedMeshCount = bakeStablePose(THREE, visual);
+  let skinnedMeshCount = 0;
+  visual.traverse?.((node: any) => {
+    if (node.isSkinnedMesh) skinnedMeshCount += 1;
+  });
+  if (bakedMeshCount === 0 || skinnedMeshCount !== 0) {
+    throw new Error('KayKit village Ranger pose could not be baked without residual skinned meshes');
+  }
 
   const equipmentRoot = new THREE.Group();
   equipmentRoot.name = 'VillageReadableLoadout';
@@ -234,6 +292,9 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
       animationDriver: 'stable-root-idle-v1',
       stablePoseSource: idleClip.name,
       skeletalPlayback: 'frozen-after-pose-sample',
+      meshPipeline: 'baked-static-pose-v1',
+      bakedMeshCount,
+      skinnedMeshCount,
       loadout: root.userData.equippedLoadout,
       resolvedArmor: root.userData.resolvedArmor,
       armorFallback: root.userData.armorFallback,

@@ -162,6 +162,9 @@ function expectStableRangerIdle(diagnostics) {
   expect(diagnostics?.animationDriver).toBe('stable-root-idle-v1');
   expect(diagnostics?.stablePoseSource).toBe('Idle_A');
   expect(diagnostics?.skeletalPlayback).toBe('frozen-after-pose-sample');
+  expect(diagnostics?.meshPipeline).toBe('baked-static-pose-v1');
+  expect(diagnostics?.bakedMeshCount).toBeGreaterThan(0);
+  expect(diagnostics?.skinnedMeshCount).toBe(0);
 }
 
 async function closeGenericOverlay(page) {
