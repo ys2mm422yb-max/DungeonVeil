@@ -715,9 +715,6 @@ test('critical-support proc renders one readable value on its actual target', as
   const readyAttackBoundary = Number(atomicReadyBoundary.playerLastAttackTime || 0);
   expect(evidenceBoundary).toBeGreaterThan(attackBoundary);
   expect(readyAttackBoundary).toBeGreaterThanOrEqual(attackBoundary);
-  const replenishedCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
-  expect(Number(replenishedCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
-  await prepareLivePlayerAttackLine(page);
   const captureBoundaryHandle = await page.waitForFunction(({ setter }) => {
     const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
     if (runtime?.getAttribute('data-critical-special-ready') !== 'true') return false;
@@ -737,6 +734,9 @@ test('critical-support proc renders one readable value on its actual target', as
   const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
   expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
   expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
+  const replenishedCriticalRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+  expect(Number(replenishedCriticalRoom?.livingEnemies || 0)).toBeGreaterThan(0);
+  await prepareLivePlayerAttackLine(page);
   const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime));
   const observedCritical = await capturePromise;
   expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
