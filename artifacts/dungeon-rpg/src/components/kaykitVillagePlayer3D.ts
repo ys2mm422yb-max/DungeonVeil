@@ -108,7 +108,7 @@ export async function loadKayKitVillageArcher(THREE: any, GLTFLoader: any): Prom
   const root = new THREE.Group();
   root.name = 'VillageEquippedPlayer';
   root.userData.canonicalFallbackAsset = KAYKIT_PLAYER_ASSETS.ranger;
-  root.userData.presentation = 'village-showcase-v15-player-focus';
+  root.userData.presentation = 'village-showcase-v14-player-focus';
   root.userData.showcasePose = 'v15-idle-a-stable-readable-loadout';
   root.userData.equipmentPose = quiverEquipped ? 'left-hand-bow-right-shoulder-quiver' : 'left-hand-bow-no-quiver';
   root.userData.equippedLoadout = {
