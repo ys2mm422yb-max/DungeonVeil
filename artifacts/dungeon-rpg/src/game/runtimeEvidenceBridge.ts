@@ -4,7 +4,7 @@ import { applyGiftUpgrade } from './giftUpgradeController';
 import type { GameState } from './runEngine';
 import { GameEngine } from './runEngine';
 import { isEnemyFamilyId, runtimeEnemyTypeForFamily, type EnemyFamilyId } from './enemyRegistry';
-import { consumeVeilHeartForCurrentRun } from './veilRelics';
+import { ensureVeilHeartConsumedForCurrentRun } from './veilRelics';
 
 const MARKER = 'dungeon-veil-runtime-evidence-v1';
 
@@ -96,7 +96,9 @@ function attachApi(): void {
     forcePlayerDeath: () => {
       const engine = currentEngine;
       if (!engine) return null;
-      consumeVeilHeartForCurrentRun();
+      if (!ensureVeilHeartConsumedForCurrentRun()) {
+        throw new Error('Terminal death evidence requires a current run id before forcing 0 HP');
+      }
       engine.state.player.hp = 0;
       engine.update(performance.now() + 17);
       emit(engine);

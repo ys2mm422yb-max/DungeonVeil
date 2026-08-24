@@ -132,6 +132,15 @@ export function activateWorldCoreForCurrentRun(): boolean {
   if (profile.activatedWorldCoreRuns.includes(runId)) return false;
   profile.activatedWorldCoreRuns.push(runId); saveVeilRelicProfile(profile); return true;
 }
+export function ensureVeilHeartConsumedForCurrentRun(): boolean {
+  const runId = currentRunId(); if (!runId) return false;
+  const profile = loadVeilRelicProfile();
+  if (!profile.consumedHeartRuns.includes(runId)) {
+    profile.consumedHeartRuns.push(runId);
+    saveVeilRelicProfile(profile);
+  }
+  return true;
+}
 export function consumeVeilHeartForCurrentRun(): boolean {
   if (!hasEquippedVeilRelic('veil-heart')) return false;
   const runId = currentRunId(); if (!runId) return false;
