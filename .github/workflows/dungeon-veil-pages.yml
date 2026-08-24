@@ -168,11 +168,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Persist exact deployment receipt in autopilot control issue
-        if: needs.build.result == 'success' && needs.deploy.result == 'success'
+        if: needs.build.result == 'success' && needs.deploy.result == 'success' && github.ref == 'refs/heads/fix/mobile-telegraphs-room-21-50-balance'
         uses: actions/github-script@v7
         env:
           PRODUCT_SHA: ${{ needs.build.outputs.product_sha }}
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -180,7 +181,9 @@ jobs:
             const issueNumber = 376;
             const productSha = process.env.PRODUCT_SHA;
             const pageUrl = process.env.PAGE_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+            const runAttempt = process.env.WORKFLOW_RUN_ATTEMPT;
             if (!productSha) throw new Error('Missing deployed product SHA; refusing to write a success receipt.');
+            if (!runAttempt || !/^\d+$/.test(runAttempt)) throw new Error('Missing concrete workflow run attempt; refusing to write a success receipt.');
 
             const marker = `<!-- dungeon-veil-pages-deployment-receipt:${productSha} -->`;
             const body = [
@@ -189,12 +192,12 @@ jobs:
               `- status: \`success\``,
               `- product_sha: \`${productSha}\``,
               `- workflow_run_id: \`${context.runId}\``,
-              `- workflow_run_attempt: \`${context.runAttempt}\``,
+              `- workflow_run_attempt: \`${runAttempt}\``,
               `- ref: \`${context.ref}\``,
               `- page_url: ${pageUrl}`,
               `- recorded_at: \`${new Date().toISOString()}\``,
               '',
-              'This receipt is emitted only after both the existing Pages build and deploy jobs succeed. A rerun for the same product SHA updates this receipt instead of creating a duplicate.',
+              'This receipt is emitted only after both the existing Pages build and deploy jobs succeed on the fixed target branch. A rerun for the same product SHA updates this receipt instead of creating a duplicate.',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {
