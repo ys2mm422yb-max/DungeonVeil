@@ -7,6 +7,9 @@ import { isEnemyFamilyId, runtimeEnemyTypeForFamily, type EnemyFamilyId } from '
 import { ensureVeilHeartConsumedForCurrentRun } from './veilRelics';
 
 const MARKER = 'dungeon-veil-runtime-evidence-v1';
+const META_KEY = 'dungeon-veil-meta';
+const RELIC_KEY = 'dungeon-veil-relics-v2';
+const TERMINAL_DEATH_EVIDENCE_RUN_KEY = 'dungeon-veil-terminal-death-evidence-run-v1';
 
 type EvidenceMode = 'solo' | 'duo';
 
@@ -38,6 +41,24 @@ function allowed(): boolean {
   const local = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
   try { return local && sessionStorage.getItem(MARKER) === '1'; }
   catch { return false; }
+}
+
+function terminalDeathRunDiagnostics(): Record<string, unknown> {
+  let currentRunId = '';
+  let terminalDeathEvidenceRunId = '';
+  let equipped: unknown = null;
+  let consumedHeartRuns: unknown[] = [];
+  try {
+    const meta = JSON.parse(localStorage.getItem(META_KEY) ?? '{}') as { currentRunId?: unknown };
+    currentRunId = typeof meta.currentRunId === 'string' ? meta.currentRunId : '';
+  } catch {}
+  try { terminalDeathEvidenceRunId = sessionStorage.getItem(TERMINAL_DEATH_EVIDENCE_RUN_KEY) ?? ''; } catch {}
+  try {
+    const profile = JSON.parse(localStorage.getItem(RELIC_KEY) ?? '{}') as { equipped?: unknown; consumedHeartRuns?: unknown };
+    equipped = profile.equipped ?? null;
+    consumedHeartRuns = Array.isArray(profile.consumedHeartRuns) ? profile.consumedHeartRuns.slice(-30) : [];
+  } catch {}
+  return { currentRunId, terminalDeathEvidenceRunId, equipped, consumedHeartRuns };
 }
 
 function stateSnapshot(engine = currentEngine): Record<string, unknown> | null {
@@ -96,13 +117,20 @@ function attachApi(): void {
     forcePlayerDeath: () => {
       const engine = currentEngine;
       if (!engine) return null;
+      const beforeEnsure = terminalDeathRunDiagnostics();
       if (!ensureVeilHeartConsumedForCurrentRun()) {
-        throw new Error('Terminal death evidence requires a current run id before forcing 0 HP');
+        throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ beforeEnsure })}`);
       }
+      const afterEnsure = terminalDeathRunDiagnostics();
       engine.state.player.hp = 0;
       engine.update(performance.now() + 17);
+      const afterUpdate = terminalDeathRunDiagnostics();
       emit(engine);
-      return stateSnapshot(engine);
+      const snapshot = stateSnapshot(engine);
+      if (engine.state.status !== 'gameover' || engine.state.player.hp > 0) {
+        throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
+      }
+      return snapshot;
     },
     loadRoom: (requestedRoom, mode = 'solo') => {
       const engine = currentEngine;
