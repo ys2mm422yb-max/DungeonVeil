@@ -26,17 +26,19 @@ Task-specific product, gameplay, visual, and acceptance requirements belong in t
 
 ## Active operating model: exactly two regular workers
 
-Dungeon Veil uses exactly two regular ChatGPT automation roles in `Europe/Berlin`:
+Dungeon Veil uses exactly two regular ChatGPT automation roles in `Europe/Berlin`. Their actual enabled schedules are external automation state and must be read live; do not hard-code clock times here or infer them from historical comments.
 
-1. **`:00` — Master implementer** (`worker: primary`)
+1. **Master implementer** (`worker: primary`)
    - owns the highest-priority free product task;
    - implements, tests, commits, pushes, and maintains its PR;
    - generates and actually inspects required runtime and visual evidence;
    - may carry a fully accepted exact head through Ready, merge, and publication.
-2. **`:30` — Master verifier** (`worker: verifier`)
+2. **Master verifier** (`worker: verifier`)
    - verifies exact-head gates, reviews, threads, artifacts, and evidence;
    - may safely implement a focused correction when it does not overlap the primary lease;
    - performs final acceptance, Expected-Head merge without auto-merge, retains branches, and verifies publication.
+
+The actual enabled automation configuration is authoritative for execution times. If repository text and live automation state disagree only about schedule, correct the stale documentation; do not change worker scope or create an extra regular worker just to match an old clock time.
 
 There are no scheduled `secondary` or `visual` workers. Historical comments using those names are audit records only and do not authorize new leases or work. Do not create additional regular workers unless the user explicitly changes this operating model.
 
