@@ -4,6 +4,7 @@ import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { activeCompanionV5 } from '../game/companionCollectionV5';
 import { roomIdentity } from '../game/roomIdentity';
 import { GameCanvas } from './GameCanvas';
+import { PLAYER_DEATH_EVENT } from './kaykitPlayer3D';
 import { CoopProjectileRealtimeBridge } from './CoopProjectileRealtimeBridge';
 import { CoopTeammateScene3D } from './CoopTeammateScene3D';
 import { CoopTeammateUI } from './CoopTeammateUI';
@@ -57,6 +58,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const runMode = readRunMode();
   const language = readLanguage();
   const hasLivingEnemies = gameState.enemies.some(enemy => enemy.hp > 0);
+  const playerDead = gameState.player.hp <= 0 || gameState.status === 'gameover';
   const [roomTitle, setRoomTitle] = useState(() => roomTitleFor(gameState.floor, language));
   const [showRoomTitle, setShowRoomTitle] = useState(true);
 
@@ -68,6 +70,13 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       shakeTimerRef.current = window.setTimeout(() => setShakeClass(''), heavy ? 200 : 110);
     });
   };
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: playerDead } }));
+    return () => {
+      if (playerDead) window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+    };
+  }, [playerDead]);
 
   useEffect(() => {
     let frame = 0;
@@ -169,6 +178,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       data-viewport-height={viewport.height}
       data-run-companion={runCompanion?.definition.species ?? 'none'}
       data-room-title={roomTitle}
+      data-player-death-state={playerDead ? 'active' : 'idle'}
       data-hurt-flash={hurtFlash ? 'active' : 'idle'}
       data-hit-flash={hitFlash ? 'active' : 'idle'}
     >
