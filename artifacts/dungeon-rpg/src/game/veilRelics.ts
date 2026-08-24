@@ -23,6 +23,7 @@ export const VEIL_RELICS: Record<VeilRelicId, VeilRelicDefinition> = {
 const RELIC_KEY = 'dungeon-veil-relics-v2';
 const LEGACY_RELIC_KEY = 'dungeon-veil-relics-v1';
 const META_KEY = 'dungeon-veil-meta';
+const TERMINAL_DEATH_EVIDENCE_RUN_KEY = 'dungeon-veil-terminal-death-evidence-run-v1';
 export const RELIC_PITY_MISSES = 10;
 export const RELIC_PITY_BY_SOURCE = Object.freeze({ hunt: 9, boss: 11 });
 export const RELIC_UNOWNED_PREFERENCE = 0.65;
@@ -134,6 +135,7 @@ export function activateWorldCoreForCurrentRun(): boolean {
 }
 export function ensureVeilHeartConsumedForCurrentRun(): boolean {
   const runId = currentRunId(); if (!runId) return false;
+  try { sessionStorage.setItem(TERMINAL_DEATH_EVIDENCE_RUN_KEY, runId); } catch {}
   const profile = loadVeilRelicProfile();
   if (!profile.consumedHeartRuns.includes(runId)) {
     profile.consumedHeartRuns.push(runId);
@@ -142,8 +144,9 @@ export function ensureVeilHeartConsumedForCurrentRun(): boolean {
   return true;
 }
 export function consumeVeilHeartForCurrentRun(): boolean {
-  if (!hasEquippedVeilRelic('veil-heart')) return false;
   const runId = currentRunId(); if (!runId) return false;
+  try { if (sessionStorage.getItem(TERMINAL_DEATH_EVIDENCE_RUN_KEY) === runId) return false; } catch {}
+  if (!hasEquippedVeilRelic('veil-heart')) return false;
   const profile = loadVeilRelicProfile();
   if (profile.consumedHeartRuns.includes(runId)) return false;
   profile.consumedHeartRuns.push(runId); saveVeilRelicProfile(profile); return true;
