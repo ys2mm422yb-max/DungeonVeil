@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { GameState } from '../../game/engine';
 import { useLanguage } from '../../i18n/LanguageContext';
 
@@ -9,18 +9,44 @@ interface Props {
 }
 
 const DEATH_BEAT_MS = 1_100;
+const DEATH_BEAT_CACHE_TTL_MS = 60_000;
+
+const deathBeatStartedAtByRun = new Map<string, number>();
 
 type DeathSequence = 'settling' | 'settled';
+
+function resolveDeathBeatStartedAt(key: string): number {
+  const now = performance.now();
+  for (const [cachedKey, startedAt] of deathBeatStartedAtByRun) {
+    if (now - startedAt > DEATH_BEAT_CACHE_TTL_MS) deathBeatStartedAtByRun.delete(cachedKey);
+  }
+
+  const existing = deathBeatStartedAtByRun.get(key);
+  if (existing !== undefined) return existing;
+  deathBeatStartedAtByRun.set(key, now);
+  return now;
+}
 
 export function GameOverScreen({ gameState, onRetry, onMainMenu }: Props) {
   const { t } = useLanguage();
   const { player } = gameState;
-  const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
+  const deathBeatKey = `${player.spawnTime}:${gameState.chapter}:${gameState.floor}:${gameState.killCount}`;
+  const deathBeatStartedAt = useMemo(() => resolveDeathBeatStartedAt(deathBeatKey), [deathBeatKey]);
+  const [deathSequence, setDeathSequence] = useState<DeathSequence>(() =>
+    performance.now() - deathBeatStartedAt >= DEATH_BEAT_MS ? 'settled' : 'settling',
+  );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDeathSequence('settled'), DEATH_BEAT_MS);
+    const remaining = Math.max(0, DEATH_BEAT_MS - (performance.now() - deathBeatStartedAt));
+    if (remaining <= 0) {
+      setDeathSequence('settled');
+      return;
+    }
+
+    setDeathSequence('settling');
+    const timer = window.setTimeout(() => setDeathSequence('settled'), remaining);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [deathBeatStartedAt]);
 
   const settled = deathSequence === 'settled';
 
