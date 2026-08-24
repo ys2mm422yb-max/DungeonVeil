@@ -37,6 +37,7 @@ export function GameOverScreen({ gameState, onRetry, onMainMenu }: Props) {
   );
 
   useEffect(() => {
+    let frame = 0;
     const remaining = Math.max(0, DEATH_BEAT_MS - (performance.now() - deathBeatStartedAt));
     if (remaining <= 0) {
       setDeathSequence('settled');
@@ -44,8 +45,19 @@ export function GameOverScreen({ gameState, onRetry, onMainMenu }: Props) {
     }
 
     setDeathSequence('settling');
+    const settleWhenDue = () => {
+      if (performance.now() - deathBeatStartedAt >= DEATH_BEAT_MS) {
+        setDeathSequence('settled');
+        return;
+      }
+      frame = window.requestAnimationFrame(settleWhenDue);
+    };
+    frame = window.requestAnimationFrame(settleWhenDue);
     const timer = window.setTimeout(() => setDeathSequence('settled'), remaining);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      window.cancelAnimationFrame(frame);
+    };
   }, [deathBeatStartedAt]);
 
   const settled = deathSequence === 'settled';
