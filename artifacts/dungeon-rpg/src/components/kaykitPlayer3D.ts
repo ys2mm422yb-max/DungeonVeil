@@ -8,6 +8,8 @@ import { PLAYER_BOW_EVENT, type PlayerBowEventDetail } from '../game/playerBowAt
 const KAYKIT_ROOT = '/assets/kaykit';
 const IS_MOBILE = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1);
 
+export const PLAYER_DEATH_EVENT = 'dungeon-veil-player-death-v1';
+
 export const KAYKIT_PLAYER_ASSETS = {
   ranger: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Characters/gltf/Ranger.glb`,
   quiver: `${KAYKIT_ROOT}/adventurers/KayKit_Adventurers_2.0_FREE/Assets/gltf/quiver.gltf`,
@@ -233,6 +235,9 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   const arrowPrototype = buildArrowPrototype(THREE);
 
   let moving = false;
+  let dead = false;
+  let deathElapsed = 0;
+  let reducedDeathMotion = false;
   let attackPhase: 'none' | 'draw' | 'hold' | 'release' = 'none';
   let attackRemaining = 0;
   let defaultReleaseDuration = 0.086;
@@ -266,7 +271,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   };
 
   const playBase = () => {
-    if (attackPhase !== 'none' || dashRemaining > 0) return;
+    if (dead || attackPhase !== 'none' || dashRemaining > 0) return;
     const next = moving ? run : idle;
     bowRig.updateShotPose(moving ? 0 : 1);
     if (!next || next === current) return;
@@ -284,7 +289,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   };
 
   const beginDraw = (durationMs?: number) => {
-    if (dashRemaining > 0) return;
+    if (dead || dashRemaining > 0) return;
     drawDuration = durationMs && durationMs > 0 ? durationMs / 1000 : defaultDrawDuration;
     attackPhase = 'draw';
     attackRemaining = drawDuration;
@@ -297,7 +302,7 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
   };
 
   const beginRelease = (durationMs?: number) => {
-    if (dashRemaining > 0 || attackPhase === 'release') return;
+    if (dead || dashRemaining > 0 || attackPhase === 'release') return;
     releaseDuration = durationMs && durationMs > 0 ? durationMs / 1000 : defaultReleaseDuration;
     attackPhase = 'release';
     attackRemaining = releaseDuration;
@@ -309,19 +314,53 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
     }
   };
 
+  const resetDeathPose = () => {
+    visual.position.set(0, 0, 0);
+    visual.rotation.x = 0;
+    visual.rotation.z = 0;
+    visual.scale.setScalar(1);
+  };
+
+  const handleDeathEvent = (event: Event) => {
+    const detail = (event as CustomEvent<{ dead?: boolean }>).detail;
+    const nextDead = Boolean(detail?.dead);
+    if (nextDead === dead) return;
+    dead = nextDead;
+    deathElapsed = 0;
+    reducedDeathMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    moving = false;
+    attackPhase = 'none';
+    attackRemaining = 0;
+    dashRemaining = 0;
+    bowRig.updateShotPose(0);
+    mixer.stopAllAction();
+    current = null;
+    if (!dead) {
+      resetDeathPose();
+      base?.reset().play();
+      current = base;
+      playBase();
+    }
+  };
+
   const handleBowEvent = (event: Event) => {
+    if (dead) return;
     const detail = (event as CustomEvent<PlayerBowEventDetail>).detail;
     if (!detail) return;
     if (detail.phase === 'draw') beginDraw(detail.drawMs);
     else if (detail.phase === 'release') beginRelease(detail.releaseMs);
     else cancelAttack();
   };
-  if (typeof window !== 'undefined') window.addEventListener(PLAYER_BOW_EVENT, handleBowEvent);
+  if (typeof window !== 'undefined') {
+    window.addEventListener(PLAYER_BOW_EVENT, handleBowEvent);
+    window.addEventListener(PLAYER_DEATH_EVENT, handleDeathEvent);
+  }
 
   return {
     root,
     arrowPrototype,
     setMoving(value: boolean) {
+      if (dead) return;
       moving = value;
       playBase();
     },
@@ -331,9 +370,11 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       applySpeeds();
     },
     triggerAttack() {
+      if (dead) return;
       beginRelease();
     },
     triggerDash() {
+      if (dead) return;
       cancelAttack();
       bowRig.updateShotPose(0);
       dashDuration = dash ? Math.max(0.2, Math.min(0.34, dashClip!.duration / dash.timeScale)) : 0.24;
@@ -341,6 +382,24 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       if (dash) transition(dash, 0.025);
     },
     update(delta: number) {
+      if (dead) {
+        deathElapsed += delta;
+        const duration = reducedDeathMotion ? 0.18 : 0.72;
+        const progress = Math.min(1, deathElapsed / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const tilt = reducedDeathMotion ? -0.22 : -1.08;
+        const sink = reducedDeathMotion ? -0.08 : -0.28;
+        visual.rotation.z = tilt * eased;
+        visual.rotation.x = (reducedDeathMotion ? -0.04 : -0.14) * eased;
+        visual.position.y = sink * eased;
+        visual.position.z = (reducedDeathMotion ? 0.02 : 0.12) * eased;
+        visual.scale.y = 1 - (reducedDeathMotion ? 0.025 : 0.08) * eased;
+        visual.scale.x = 1 + (reducedDeathMotion ? 0.01 : 0.035) * eased;
+        visual.scale.z = 1 + (reducedDeathMotion ? 0.01 : 0.035) * eased;
+        bowRig.updateShotPose(0);
+        return;
+      }
+
       if (dashRemaining > 0) {
         dashRemaining = Math.max(0, dashRemaining - delta);
         const progress = 1 - dashRemaining / Math.max(0.001, dashDuration);
@@ -399,7 +458,10 @@ export async function loadKayKitRanger(THREE: any, GLTFLoader: any): Promise<Kay
       }
     },
     stop() {
-      if (typeof window !== 'undefined') window.removeEventListener(PLAYER_BOW_EVENT, handleBowEvent);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(PLAYER_BOW_EVENT, handleBowEvent);
+        window.removeEventListener(PLAYER_DEATH_EVENT, handleDeathEvent);
+      }
       bowRig.dispose();
       mixer.stopAllAction();
     },
