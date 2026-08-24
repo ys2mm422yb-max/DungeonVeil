@@ -49,6 +49,12 @@ test('solo death uses an explicit visual death state before the final overlay', 
   const before = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(before?.hp || 0)).toBeGreaterThan(0);
 
+  // This criterion proves a terminal Solo death. A legitimate once-per-run Veil Heart
+  // revival is a different lifecycle and must not turn the death-state test into a revive test.
+  await page.evaluate(() => {
+    localStorage.removeItem('dungeon-veil-relics-v2');
+    localStorage.removeItem('dungeon-veil-relics-v1');
+  });
   await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.forcePlayerDeath());
 
   const playerRenderer = page.locator('[data-player-death-state="active"]');
