@@ -147,6 +147,9 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     needs: [build, deploy]
+    permissions:
+      contents: read
+      issues: write
     steps:
       - name: Summarize deployment result without modifying repository branches
         shell: bash
@@ -163,3 +166,48 @@ jobs:
             echo "- Deployment: \`${DEPLOY_RESULT}\`"
             echo "- Page URL: ${PAGE_URL:-https://ys2mm422yb-max.github.io/DungeonVeil/}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Persist exact deployment receipt in autopilot control issue
+        if: needs.build.result == 'success' && needs.deploy.result == 'success'
+        uses: actions/github-script@v7
+        env:
+          PRODUCT_SHA: ${{ needs.build.outputs.product_sha }}
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const issueNumber = 376;
+            const productSha = process.env.PRODUCT_SHA;
+            const pageUrl = process.env.PAGE_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+            if (!productSha) throw new Error('Missing deployed product SHA; refusing to write a success receipt.');
+
+            const marker = `<!-- dungeon-veil-pages-deployment-receipt:${productSha} -->`;
+            const body = [
+              marker,
+              '### Dungeon Veil Pages deployment receipt',
+              `- status: \`success\``,
+              `- product_sha: \`${productSha}\``,
+              `- workflow_run_id: \`${context.runId}\``,
+              `- workflow_run_attempt: \`${context.runAttempt}\``,
+              `- ref: \`${context.ref}\``,
+              `- page_url: ${pageUrl}`,
+              `- recorded_at: \`${new Date().toISOString()}\``,
+              '',
+              'This receipt is emitted only after both the existing Pages build and deploy jobs succeed. A rerun for the same product SHA updates this receipt instead of creating a duplicate.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const existing = comments.find(comment => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              core.info(`Updated deployment receipt for ${productSha} in #${issueNumber}`);
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
+              core.info(`Created deployment receipt for ${productSha} in #${issueNumber}`);
+            }
