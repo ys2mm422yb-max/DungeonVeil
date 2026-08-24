@@ -11,6 +11,7 @@ type EvidenceMode = 'solo' | 'duo';
 
 type RuntimeEvidenceApi = {
   snapshot: () => Record<string, unknown> | null;
+  forcePlayerDeath: () => Record<string, unknown> | null;
   loadRoom: (room: number, mode?: EvidenceMode) => Record<string, unknown> | null;
   killLivingEnemies: () => Record<string, unknown> | null;
   moveToExit: () => Record<string, unknown> | null;
@@ -91,6 +92,14 @@ function attachApi(): void {
   if (!allowed()) return;
   window.__dungeonVeilRuntimeEvidence = {
     snapshot: () => stateSnapshot(),
+    forcePlayerDeath: () => {
+      const engine = currentEngine;
+      if (!engine) return null;
+      engine.state.player.hp = 0;
+      engine.update(performance.now() + 17);
+      emit(engine);
+      return stateSnapshot(engine);
+    },
     loadRoom: (requestedRoom, mode = 'solo') => {
       const engine = currentEngine;
       if (!engine) return null;
