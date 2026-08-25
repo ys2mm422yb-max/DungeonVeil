@@ -4,6 +4,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 
 interface Props {
   gameState: GameState;
+  deathBeatStartedAt: number;
   onRetry: () => void;
   onMainMenu: () => void;
 }
@@ -15,7 +16,7 @@ const deathBeatStartedAtByRun = new Map<string, number>();
 
 type DeathSequence = 'settling' | 'settled';
 
-function resolveDeathBeatStartedAt(key: string): number {
+function resolveDeathBeatStartedAt(key: string, transitionStartedAt: number): number {
   const now = performance.now();
   for (const [cachedKey, startedAt] of deathBeatStartedAtByRun) {
     if (now - startedAt > DEATH_BEAT_CACHE_TTL_MS) deathBeatStartedAtByRun.delete(cachedKey);
@@ -23,25 +24,31 @@ function resolveDeathBeatStartedAt(key: string): number {
 
   const existing = deathBeatStartedAtByRun.get(key);
   if (existing !== undefined) return existing;
-  deathBeatStartedAtByRun.set(key, now);
-  return now;
+  const startedAt = Number.isFinite(transitionStartedAt) && transitionStartedAt > 0 && transitionStartedAt <= now
+    ? transitionStartedAt
+    : now;
+  deathBeatStartedAtByRun.set(key, startedAt);
+  return startedAt;
 }
 
-export function GameOverScreen({ gameState, onRetry, onMainMenu }: Props) {
+export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStartedAt, onRetry, onMainMenu }: Props) {
   const { t } = useLanguage();
   const { player } = gameState;
   const deathBeatKey = `${player.spawnTime}`;
-  const deathBeatStartedAt = useMemo(() => resolveDeathBeatStartedAt(deathBeatKey), [deathBeatKey]);
-  const [deathSequence, setDeathSequence] = useState<DeathSequence>(() =>
-    performance.now() - deathBeatStartedAt >= DEATH_BEAT_MS ? 'settled' : 'settling',
+  const deathBeatStartedAt = useMemo(
+    () => resolveDeathBeatStartedAt(deathBeatKey, transitionStartedAt),
+    [deathBeatKey, transitionStartedAt],
   );
+  // Always commit the explicit settling state once. If React was delayed beyond the
+  // 1100 ms beat, the next animation frame settles immediately without restarting it.
+  const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
 
   useEffect(() => {
     let frame = 0;
     const remaining = Math.max(0, DEATH_BEAT_MS - (performance.now() - deathBeatStartedAt));
     if (remaining <= 0) {
-      setDeathSequence('settled');
-      return;
+      frame = window.requestAnimationFrame(() => setDeathSequence('settled'));
+      return () => window.cancelAnimationFrame(frame);
     }
 
     setDeathSequence('settling');
