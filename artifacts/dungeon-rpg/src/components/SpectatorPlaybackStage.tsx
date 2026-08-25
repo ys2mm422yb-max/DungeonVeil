@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { RunGameState } from '../game/runEngine';
 import { getLatestSpectatorCompanion, subscribeSpectatorCompanion } from '../game/socialSpectatorOnline';
+import { useLanguage } from '../i18n/LanguageContext';
 import { GameCanvasKayKit3D } from './GameCanvasKayKit3D';
 import { CompanionScene3D } from './CompanionScene3D';
+import { PLAYER_DEATH_EVENT } from './kaykitPlayer3D';
 
 type ViewportBox = { width: number; height: number; left: number; top: number };
 const COMPANION_ACTION_EVENT = 'dungeon-veil-companion-action-v4';
@@ -18,8 +20,15 @@ function readViewport(): ViewportBox {
   };
 }
 
+function readSpectatorDead(state: RunGameState): boolean {
+  const qaDeath = new URLSearchParams(window.location.search).get('death') === '1';
+  return qaDeath || state.player.hp <= 0 || state.status === 'gameover';
+}
+
 export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameState }) {
+  const { language } = useLanguage();
   const [viewport, setViewport] = useState<ViewportBox>(() => readViewport());
+  const [spectatorDead, setSpectatorDead] = useState(() => readSpectatorDead(stableState));
   const companion = useSyncExternalStore(subscribeSpectatorCompanion, getLatestSpectatorCompanion, () => null);
   const streamRef = useRef('');
   const roomRef = useRef('');
@@ -46,6 +55,29 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
       window.visualViewport?.removeEventListener('scroll', updateViewport);
     };
   }, []);
+
+  useEffect(() => {
+    let frame = 0;
+    let previous = readSpectatorDead(stableState);
+    setSpectatorDead(previous);
+    const observeDeathState = () => {
+      const next = readSpectatorDead(stableState);
+      if (next !== previous) {
+        previous = next;
+        setSpectatorDead(next);
+      }
+      frame = window.requestAnimationFrame(observeDeathState);
+    };
+    frame = window.requestAnimationFrame(observeDeathState);
+    return () => window.cancelAnimationFrame(frame);
+  }, [stableState]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: spectatorDead } }));
+    return () => {
+      if (spectatorDead) window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+    };
+  }, [spectatorDead]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('qa') !== 'spectator') return;
@@ -94,11 +126,17 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
   return <div
     data-testid="spectator-playback-stage"
     data-render-contract="single-stable-three-state-with-companion"
+    data-spectator-death-state={spectatorDead ? 'active' : 'idle'}
     className="fixed overflow-hidden bg-black"
     style={{ left: viewport.left, top: viewport.top, width: viewport.width, height: viewport.height }}
   >
     <GameCanvasKayKit3D gameState={stableState} />
     <CompanionScene3D gameState={stableState} localCompanion={companion?.identity ?? null} />
+    {spectatorDead && <div data-testid="spectator-death-overlay" className="pointer-events-none absolute inset-x-0 top-[14%] z-[72] mx-auto w-[min(86vw,380px)] rounded-2xl border border-red-200/25 bg-black/82 px-5 py-4 text-center shadow-2xl backdrop-blur-md">
+      <div className="text-[9px] font-black uppercase tracking-[.24em] text-red-200/55">{language === 'de' ? 'ZUSCHAUERANSICHT' : 'SPECTATOR VIEW'}</div>
+      <div className="mt-1 font-serif text-2xl text-red-50">{language === 'de' ? 'SPIELER GEFALLEN' : 'PLAYER FALLEN'}</div>
+      <div className="mt-2 text-[10px] leading-relaxed text-red-100/62">{language === 'de' ? 'Du beobachtest den gefallenen Spieler. Der Kampfzustand der übrigen Welt läuft weiter.' : 'You are watching a fallen player. The rest of the combat world continues.'}</div>
+    </div>}
     <span
       className="hidden"
       aria-hidden="true"
