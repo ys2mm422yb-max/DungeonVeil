@@ -30,7 +30,7 @@ function resolveDeathBeatStartedAt(key: string): number {
 export function GameOverScreen({ gameState, onRetry, onMainMenu }: Props) {
   const { t } = useLanguage();
   const { player } = gameState;
-  const deathBeatKey = `${player.spawnTime}:${gameState.floor}:${gameState.killCount}`;
+  const deathBeatKey = `${player.spawnTime}`;
   const deathBeatStartedAt = useMemo(() => resolveDeathBeatStartedAt(deathBeatKey), [deathBeatKey]);
   const [deathSequence, setDeathSequence] = useState<DeathSequence>(() =>
     performance.now() - deathBeatStartedAt >= DEATH_BEAT_MS ? 'settled' : 'settling',
