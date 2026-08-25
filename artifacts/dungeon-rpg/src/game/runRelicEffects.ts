@@ -20,6 +20,11 @@ export function updateRunRelicEffects(engine: GameEngine, state: RunRelicEffectS
   if (player.lastAttackTime > state.lastAttackTime) state.lastAttackTime = player.lastAttackTime;
 
   if (engine.state.status === 'gameover' && player.hp <= 0 && consumeVeilHeartForCurrentRun()) {
+    let runtimeEvidenceSession = false;
+    try { runtimeEvidenceSession = sessionStorage.getItem('dungeon-veil-runtime-evidence-v1') === '1'; } catch {}
+    if (runtimeEvidenceSession) {
+      throw new Error(`[DungeonVeil terminal-death diagnostic] runRelicEffects accepted Veil Heart revive: time=${time}; relic=${relic ?? 'none'}; hp=${player.hp}; maxHp=${player.maxHp}`);
+    }
     player.hp = Math.max(1, Math.round(player.maxHp * 0.25));
     player.invincibleUntil = time + 1000;
     player.state = 'idle';
