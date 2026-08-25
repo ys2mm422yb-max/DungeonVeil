@@ -53,12 +53,22 @@ test('solo death uses an explicit visual death state before the final overlay', 
   // equipped current-run Veil Heart through the real relic contract before the lethal update.
   await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.forcePlayerDeath());
 
+  // Observe the first staged overlay state immediately after the real lethal transition.
+  // On slower renderers, waiting for the 3D death-pose assertion first can legitimately consume
+  // the unchanged 1100 ms death beat and turn a correct settled overlay into a false negative.
+  const overlay = page.getByTestId('game-over-screen');
+  await expect(overlay).toHaveAttribute('data-death-sequence', 'settling', { timeout: 1_000 });
+
   const playerRenderer = page.locator('[data-player-death-state="active"]');
   await expect(playerRenderer, 'renderer must publish an active death-state instead of freezing in idle/run').toBeVisible({ timeout: 2_000 });
 
-  const overlay = page.getByTestId('game-over-screen');
-  await expect(overlay).toHaveAttribute('data-death-sequence', 'settling', { timeout: 1_000 });
-  await expect.poll(async () => overlay.getAttribute('data-death-sequence'), {
+  // Sample after a browser presentation boundary so WebKit cannot spend almost the whole
+  // unchanged 2 s acceptance window inside one getAttribute protocol call while the due
+  // 1100 ms timer/rAF transition is queued on the page main thread.
+  await expect.poll(async () => overlay.evaluate(async element => {
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    return element.getAttribute('data-death-sequence');
+  }), {
     timeout: 2_000,
     intervals: [50, 100],
     message: 'death overlay must transition from the visual death beat to a settled defeat state',
