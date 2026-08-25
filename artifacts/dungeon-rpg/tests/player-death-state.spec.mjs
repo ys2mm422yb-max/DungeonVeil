@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';
 
+test.use({ video: 'on', trace: 'on' });
+
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
   await locator.scrollIntoViewIfNeeded();
