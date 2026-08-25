@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';
+const POST_DEATH_ATTACK_BLOCK_WINDOW_MS = 750;
 
 test.use({ video: 'on' });
 
@@ -82,22 +83,35 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(after?.status).toBe('gameover');
   expect(Number(after?.hp ?? 1)).toBeLessThanOrEqual(0);
 
-  const attackAt = Number(after?.playerLastAttackTime || 0);
+  const postDeathAttackObservation = await page.evaluate(() => ({
+    attackAt: Number(window.__dungeonVeilRuntimeEvidence?.snapshot()?.playerLastAttackTime || 0),
+    startedAt: performance.now(),
+  }));
   await page.keyboard.press('Space');
-  await expect.poll(async () => Number((await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null))?.playerLastAttackTime || 0), {
-    timeout: 750,
-    intervals: [50, 100],
-    message: 'player attacks must stay blocked after death',
-  }).toBe(attackAt);
+  const postDeathAttackAfterWindow = await page.evaluate(async ({ startedAt, windowMs }) => {
+    while (performance.now() - startedAt < windowMs) {
+      await new Promise(resolve => requestAnimationFrame(resolve));
+    }
+    return {
+      elapsedMs: performance.now() - startedAt,
+      attackAt: Number(window.__dungeonVeilRuntimeEvidence?.snapshot()?.playerLastAttackTime || 0),
+    };
+  }, {
+    startedAt: postDeathAttackObservation.startedAt,
+    windowMs: POST_DEATH_ATTACK_BLOCK_WINDOW_MS,
+  });
+  expect(postDeathAttackAfterWindow.elapsedMs, 'post-death input proof must observe the full 750 ms block window').toBeGreaterThanOrEqual(POST_DEATH_ATTACK_BLOCK_WINDOW_MS);
+  expect(postDeathAttackAfterWindow.attackAt, 'player attacks must stay blocked after death').toBe(postDeathAttackObservation.attackAt);
 
   const deathSequence = await overlay.getAttribute('data-death-sequence');
   const rendererDeathState = await playerRenderer.getAttribute('data-player-death-state');
   await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({
     project: testInfo.project.name,
     before: { status: before?.status ?? null, hp: Number(before?.hp || 0) },
-    after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: attackAt },
+    after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt },
     deathSequence,
     rendererDeathState,
+    postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs,
     postDeathAttackBlocked: true,
   }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
