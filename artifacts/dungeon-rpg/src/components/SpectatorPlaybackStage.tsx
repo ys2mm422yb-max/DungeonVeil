@@ -20,15 +20,15 @@ function readViewport(): ViewportBox {
   };
 }
 
-function readSpectatorDead(state: RunGameState): boolean {
-  const qaDeath = new URLSearchParams(window.location.search).get('death') === '1';
-  return qaDeath || state.player.hp <= 0 || state.status === 'gameover';
+function playerIsDead(state: RunGameState): boolean {
+  return state.player.hp <= 0 || state.status === 'gameover';
 }
 
 export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameState }) {
   const { language } = useLanguage();
+  const qaDeathRef = useRef(new URLSearchParams(window.location.search).get('death') === '1');
   const [viewport, setViewport] = useState<ViewportBox>(() => readViewport());
-  const [spectatorDead, setSpectatorDead] = useState(() => readSpectatorDead(stableState));
+  const [spectatorDead, setSpectatorDead] = useState(() => qaDeathRef.current || playerIsDead(stableState));
   const companion = useSyncExternalStore(subscribeSpectatorCompanion, getLatestSpectatorCompanion, () => null);
   const streamRef = useRef('');
   const roomRef = useRef('');
@@ -58,10 +58,10 @@ export function SpectatorPlaybackStage({ stableState }: { stableState: RunGameSt
 
   useEffect(() => {
     let frame = 0;
-    let previous = readSpectatorDead(stableState);
+    let previous = qaDeathRef.current || playerIsDead(stableState);
     setSpectatorDead(previous);
     const observeDeathState = () => {
-      const next = readSpectatorDead(stableState);
+      const next = qaDeathRef.current || playerIsDead(stableState);
       if (next !== previous) {
         previous = next;
         setSpectatorDead(next);
