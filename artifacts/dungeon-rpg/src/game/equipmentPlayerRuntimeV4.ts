@@ -65,6 +65,10 @@ function initializeLoadout(engine: GameEngine) {
 
 function reconcileIncomingDamage(engine: GameEngine, state: EquipmentPlayerRuntimeState) {
   const player = engine.state.player;
+  if (engine.state.status === 'gameover' && player.hp <= 0) {
+    state.lastHp = 0;
+    return;
+  }
   if (state.lastHp === null) { state.lastHp = player.hp; return; }
   if (player.hp >= state.lastHp) { state.lastHp = player.hp; return; }
   const observedDamage = Math.max(1, Math.round(state.lastHp - player.hp));
