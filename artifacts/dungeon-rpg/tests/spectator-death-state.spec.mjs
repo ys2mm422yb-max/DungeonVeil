@@ -15,7 +15,7 @@ test('spectator shows a localized fallen-player state while the world renderer r
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
   page.on('console', message => {
-    if (message.type() === 'error' && !/favicon/i.test(message.text())) runtimeErrors.push(`console: ${message.text()}`));
+    if (message.type() === 'error' && !/favicon/i.test(message.text())) runtimeErrors.push(`console: ${message.text()}`);
   });
 
   await page.goto(spectatorDeathQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
