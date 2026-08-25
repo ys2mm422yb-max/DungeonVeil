@@ -15,7 +15,7 @@ test('spectator shows a localized fallen-player state while the world renderer r
   const runtimeErrors = [];
   page.on('pageerror', error => runtimeErrors.push(`pageerror: ${error.message}`));
   page.on('console', message => {
-    if (message.type() === 'error' && !/favicon/i.test(message.text())) runtimeErrors.push(`console: ${message.text()}`);
+    if (message.type() === 'error' && !/favicon/i.test(message.text())) runtimeErrors.push(`console: ${message.text()}`));
   });
 
   await page.goto(spectatorDeathQaUrl(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -31,6 +31,6 @@ test('spectator shows a localized fallen-player state while the world renderer r
   await expect(page.getByTestId('button-retry')).toHaveCount(0);
   await expect(page.getByTestId('coop-revive-control')).toHaveCount(0);
 
-  await page.screenshot({ path: testInfo.outputPath(`spectator-death-state-${testInfo.project.name}.png`), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath(`autopilot-spectator-death-state-${testInfo.project.name}.png`), fullPage: true });
   expect(runtimeErrors, runtimeErrors.join('\n')).toEqual([]);
 });
