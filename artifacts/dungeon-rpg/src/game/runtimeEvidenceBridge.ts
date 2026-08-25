@@ -12,6 +12,14 @@ const RELIC_KEY = 'dungeon-veil-relics-v2';
 const TERMINAL_DEATH_EVIDENCE_RUN_KEY = 'dungeon-veil-terminal-death-evidence-run-v1';
 
 type EvidenceMode = 'solo' | 'duo';
+type TerminalDeathTransitionArm = {
+  armedAt: number;
+  updateIndex: number;
+  lastObservedStatus: GameState['status'];
+  lastObservedHp: number;
+  sourceDiagnostics: Record<string, unknown>;
+  sourceSnapshot: Record<string, unknown>;
+};
 
 type RuntimeEvidenceApi = {
   snapshot: () => Record<string, unknown> | null;
@@ -35,6 +43,7 @@ declare global {
 
 let currentEngine: GameEngine | null = null;
 let installed = false;
+let terminalDeathTransitionArm: TerminalDeathTransitionArm | null = null;
 
 function allowed(): boolean {
   if (typeof window === 'undefined') return false;
@@ -117,6 +126,7 @@ function attachApi(): void {
     forcePlayerDeath: () => {
       const engine = currentEngine;
       if (!engine) return null;
+      terminalDeathTransitionArm = null;
       const beforeEnsure = terminalDeathRunDiagnostics();
       if (!ensureVeilHeartConsumedForCurrentRun()) {
         throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ beforeEnsure })}`);
@@ -130,11 +140,20 @@ function attachApi(): void {
       if (engine.state.status !== 'gameover' || engine.state.player.hp > 0) {
         throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
       }
+      terminalDeathTransitionArm = {
+        armedAt: performance.now(),
+        updateIndex: 0,
+        lastObservedStatus: engine.state.status,
+        lastObservedHp: engine.state.player.hp,
+        sourceDiagnostics: afterUpdate,
+        sourceSnapshot: snapshot ?? {},
+      };
       return snapshot;
     },
     loadRoom: (requestedRoom, mode = 'solo') => {
       const engine = currentEngine;
       if (!engine) return null;
+      terminalDeathTransitionArm = null;
       const room = Math.max(1, Math.min(CHAPTER_ROOMS, Math.floor(Number(requestedRoom) || 1)));
       const player = engine.state.player;
       const roomChanges = engine.state.floor !== room || engine.state.chapter !== 1;
@@ -303,12 +322,14 @@ export function installRuntimeEvidenceBridge(): void {
   const update = prototype.update;
 
   prototype.startNewGame = function (this: GameEngine, ...args: any[]) {
+    terminalDeathTransitionArm = null;
     currentEngine = this;
     const result = start.apply(this, args);
     attachApi();
     return result;
   };
   prototype.continueGame = function (this: GameEngine, ...args: any[]) {
+    terminalDeathTransitionArm = null;
     currentEngine = this;
     const result = resume.apply(this, args);
     attachApi();
@@ -316,6 +337,61 @@ export function installRuntimeEvidenceBridge(): void {
   };
   prototype.update = function (this: GameEngine, ...args: any[]) {
     currentEngine = this;
-    return update.apply(this, args);
+    const armed = terminalDeathTransitionArm;
+    if (armed) {
+      const currentStatus = this.state.status;
+      const currentHp = this.state.player.hp;
+      if (armed.lastObservedStatus === 'gameover' && armed.lastObservedHp <= 0 && (currentStatus !== 'gameover' || currentHp > 0)) {
+        terminalDeathTransitionArm = null;
+        throw new Error(`Terminal death evidence transitioned between GameEngine updates: ${JSON.stringify({
+          phase: 'before-next-GameEngine.update',
+          armedAt: armed.armedAt,
+          updateIndex: armed.updateIndex,
+          updateTime: args[0] ?? null,
+          previous: { status: armed.lastObservedStatus, hp: armed.lastObservedHp },
+          current: { status: currentStatus, hp: currentHp, playerState: this.state.player.state, invincibleUntil: this.state.player.invincibleUntil },
+          sourceDiagnostics: armed.sourceDiagnostics,
+          currentDiagnostics: terminalDeathRunDiagnostics(),
+          sourceSnapshot: armed.sourceSnapshot,
+          currentSnapshot: stateSnapshot(this),
+        })}`);
+      }
+    }
+
+    const beforeStatus = this.state.status;
+    const beforeHp = this.state.player.hp;
+    const beforeDiagnostics = armed ? terminalDeathRunDiagnostics() : null;
+    const beforeEffects = armed ? this.state.effects.map(effect => effect.id) : [];
+    const beforeDamageNumbers = armed ? this.state.damageNumbers.map(number => number.id) : [];
+    const result = update.apply(this, args);
+
+    if (armed && terminalDeathTransitionArm === armed) {
+      armed.updateIndex += 1;
+      const afterStatus = this.state.status;
+      const afterHp = this.state.player.hp;
+      if (beforeStatus === 'gameover' && beforeHp <= 0 && (afterStatus !== 'gameover' || afterHp > 0)) {
+        terminalDeathTransitionArm = null;
+        throw new Error(`Terminal death evidence transitioned inside GameEngine.update: ${JSON.stringify({
+          phase: 'inside-GameEngine.update',
+          armedAt: armed.armedAt,
+          updateIndex: armed.updateIndex,
+          updateTime: args[0] ?? null,
+          before: { status: beforeStatus, hp: beforeHp },
+          after: { status: afterStatus, hp: afterHp, playerState: this.state.player.state, invincibleUntil: this.state.player.invincibleUntil },
+          beforeDiagnostics,
+          afterDiagnostics: terminalDeathRunDiagnostics(),
+          sourceDiagnostics: armed.sourceDiagnostics,
+          sourceSnapshot: armed.sourceSnapshot,
+          effectsBefore: beforeEffects,
+          effectsAfter: this.state.effects.map(effect => effect.id),
+          damageNumbersBefore: beforeDamageNumbers,
+          damageNumbersAfter: this.state.damageNumbers.map(number => number.id),
+          afterSnapshot: stateSnapshot(this),
+        })}`);
+      }
+      armed.lastObservedStatus = afterStatus;
+      armed.lastObservedHp = afterHp;
+    }
+    return result;
   };
 }
