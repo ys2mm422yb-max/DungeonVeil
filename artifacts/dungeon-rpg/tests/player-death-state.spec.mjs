@@ -66,17 +66,22 @@ test('solo death uses an explicit visual death state before the final overlay', 
   const playerRenderer = page.locator('[data-player-death-state="active"]');
   await expect(playerRenderer, 'renderer must publish an active death-state instead of freezing in idle/run').toBeVisible({ timeout: 2_000 });
 
-  // Sample after a browser presentation boundary so WebKit cannot spend almost the whole
-  // unchanged 2 s acceptance window inside one getAttribute protocol call while the due
-  // 1100 ms timer/rAF transition is queued on the page main thread.
-  await expect.poll(async () => overlay.evaluate(async element => {
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    return element.getAttribute('data-death-sequence');
-  }), {
-    timeout: 2_000,
-    intervals: [50, 100],
-    message: 'death overlay must transition from the visual death beat to a settled defeat state',
-  }).toBe('settled');
+  // Keep the unchanged <=2 s acceptance entirely on the browser clock. A repeated Playwright
+  // protocol poll can itself consume most of that window on slower WebKit/Chromium devices even
+  // when the 1100 ms product transition has already committed on the page main thread.
+  const deathSequenceObservation = await overlay.evaluate(async (element) => {
+    const startedAt = performance.now();
+    let state = element.getAttribute('data-death-sequence');
+    while (state !== 'settled') {
+      const elapsedMs = performance.now() - startedAt;
+      if (elapsedMs >= 2_000) return { state, elapsedMs };
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      state = element.getAttribute('data-death-sequence');
+    }
+    return { state, elapsedMs: performance.now() - startedAt };
+  });
+  expect(deathSequenceObservation.state, 'death overlay must transition from the visual death beat to a settled defeat state').toBe('settled');
+  expect(deathSequenceObservation.elapsedMs, 'death overlay must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
   await expect(overlay).toBeVisible();
 
   const after = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
