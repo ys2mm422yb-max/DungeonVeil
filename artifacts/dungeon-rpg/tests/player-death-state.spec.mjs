@@ -67,7 +67,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
 
   const after = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(after?.status).toBe('gameover');
-  expect(Number(after?.hp || 1)).toBeLessThanOrEqual(0);
+  expect(Number(after?.hp ?? 1)).toBeLessThanOrEqual(0);
 
   const attackAt = Number(after?.playerLastAttackTime || 0);
   await page.keyboard.press('Space');
