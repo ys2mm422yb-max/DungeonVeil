@@ -721,6 +721,11 @@ test('critical-support proc renders one readable value on its actual target', as
   await prepareLivePlayerAttackLine(page);
   await page.keyboard.down('KeyW');
   try {
+    await expect.poll(async () => Number((await readRuntimeCombatSnapshot(page))?.playerAttackCooldown ?? Number.POSITIVE_INFINITY), {
+      timeout: 20_000,
+      intervals: [16, 50, 100],
+      message: 'critical-support confirmed source attack must wait for real player attack cooldown eligibility while movement suppresses idle autofire',
+    }).toBeLessThanOrEqual(0);
     const captureBoundaryHandle = await page.waitForFunction(({ setter }) => {
       const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
       if (runtime?.getAttribute('data-critical-special-ready') !== 'true') return false;
@@ -740,11 +745,6 @@ test('critical-support proc renders one readable value on its actual target', as
     const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
     expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
     expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
-    await expect.poll(async () => Number((await readRuntimeCombatSnapshot(page))?.playerAttackCooldown ?? Number.POSITIVE_INFINITY), {
-      timeout: 20_000,
-      intervals: [16, 50, 100],
-      message: 'critical-support confirmed source attack must wait for real player attack cooldown eligibility while movement suppresses idle autofire',
-    }).toBeLessThanOrEqual(0);
     const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime));
     const observedCritical = await capturePromise;
     expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
