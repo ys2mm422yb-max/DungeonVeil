@@ -1,9 +1,10 @@
+import { writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';
 
-test.use({ video: 'on', trace: 'on' });
+test.use({ video: 'on' });
 
 async function pressPointerUi(locator) {
   await expect(locator).toBeVisible();
@@ -89,5 +90,15 @@ test('solo death uses an explicit visual death state before the final overlay', 
     message: 'player attacks must stay blocked after death',
   }).toBe(attackAt);
 
+  const deathSequence = await overlay.getAttribute('data-death-sequence');
+  const rendererDeathState = await playerRenderer.getAttribute('data-player-death-state');
+  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({
+    project: testInfo.project.name,
+    before: { status: before?.status ?? null, hp: Number(before?.hp || 0) },
+    after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: attackAt },
+    deathSequence,
+    rendererDeathState,
+    postDeathAttackBlocked: true,
+  }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
 });
