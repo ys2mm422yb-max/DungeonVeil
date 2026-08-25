@@ -184,13 +184,13 @@ jobs:
           set -euo pipefail
           mapfile -d '' -t death_pngs < <(find artifacts/dungeon-rpg/test-results -type f -name "player-death-solo-${BROWSER_PROJECT}.png" -print0)
           mapfile -d '' -t death_videos < <(find artifacts/dungeon-rpg/test-results -type f -path '*player-death-state*' -name 'video.webm' -print0)
-          mapfile -d '' -t death_traces < <(find artifacts/dungeon-rpg/test-results -type f -path '*player-death-state*' -name 'trace.zip' -print0)
+          mapfile -d '' -t death_traces < <(find artifacts/dungeon-rpg/test-results -type f -name "player-death-solo-${BROWSER_PROJECT}.trace.json" -print0)
           test "${#death_pngs[@]}" -eq 1
           test "${#death_videos[@]}" -eq 1
           test "${#death_traces[@]}" -eq 1
           mv "${death_pngs[0]}" "artifacts/dungeon-rpg/test-results/player-death-solo-${BROWSER_PROJECT}.png"
           mv "${death_videos[0]}" "artifacts/dungeon-rpg/test-results/player-death-solo-${BROWSER_PROJECT}.webm"
-          mv "${death_traces[0]}" "artifacts/dungeon-rpg/test-results/player-death-solo-${BROWSER_PROJECT}.trace.zip"
+          mv "${death_traces[0]}" "artifacts/dungeon-rpg/test-results/player-death-solo-${BROWSER_PROJECT}.trace.json"
       - name: Prepare compact companion prestige review video
         if: steps.product-tests.outcome == 'success'
         shell: bash
@@ -316,7 +316,7 @@ jobs:
             artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.webm
-            artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.trace.zip
+            artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.trace.json
             artifacts/dungeon-rpg/test-results/visual-upgrade-prestige-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
       - name: Enforce focused product failure budget
