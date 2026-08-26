@@ -1,0 +1,8 @@
+{
+  "pr_number": 449,
+  "exact_head": "85ed345b92055916ea2fe0fd43408d71dc7332c5",
+  "blocked_fgr_run": 32986337661,
+  "blocked_complete_runtime_run": 32986337655,
+  "requested_at": "2026-08-27T01:42:00+02:00",
+  "reason": "Mandatory Ready gates are queued with jobs=[] before repository execution; issue #450 authorizes one durable unchanged-head replacement without product-head churn."
+}
