@@ -53,36 +53,70 @@ test('solo death uses an explicit visual death state before the final overlay', 
   const before = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(before?.hp || 0)).toBeGreaterThan(0);
 
-  // This criterion proves a terminal Solo death. The localhost evidence API consumes an
-  // equipped current-run Veil Heart through the real relic contract before the lethal update.
-  await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.forcePlayerDeath());
+  // Observe the complete staged overlay sequence on the browser clock. The MutationObserver is
+  // installed before the real lethal transition, so slow Playwright/WebKit protocol round-trips
+  // cannot miss a valid 1100 ms settling state that already occurred on the page main thread.
+  const deathSequenceObservation = await page.evaluate(async () => {
+    const startedAt = performance.now();
+    const states = [];
+    let settledAt = null;
+    let finished = false;
 
-  // Observe the first staged overlay state immediately after the real lethal transition.
-  // On slower renderers, waiting for the 3D death-pose assertion first can legitimately consume
-  // the unchanged 1100 ms death beat and turn a correct settled overlay into a false negative.
+    const recordState = (element) => {
+      if (!(element instanceof HTMLElement) || element.dataset.testid !== 'game-over-screen') return;
+      const state = element.getAttribute('data-death-sequence');
+      if (state && states.at(-1) !== state) states.push(state);
+      if (state === 'settled' && settledAt === null) settledAt = performance.now() - startedAt;
+    };
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes') recordState(mutation.target);
+        for (const node of mutation.addedNodes) {
+          if (!(node instanceof HTMLElement)) continue;
+          recordState(node);
+          node.querySelectorAll?.('[data-testid="game-over-screen"]').forEach(recordState);
+        }
+      }
+    });
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-death-sequence'],
+    });
+
+    window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
+
+    while (!finished) {
+      const overlay = document.querySelector('[data-testid="game-over-screen"]');
+      if (overlay instanceof HTMLElement) recordState(overlay);
+      if (settledAt !== null) break;
+      if (performance.now() - startedAt >= 2_000) {
+        finished = true;
+        break;
+      }
+      await new Promise(resolve => requestAnimationFrame(resolve));
+    }
+
+    observer.disconnect();
+    return {
+      states,
+      state: states.at(-1) ?? null,
+      sawSettling: states.includes('settling'),
+      elapsedMs: settledAt ?? performance.now() - startedAt,
+    };
+  });
+
+  expect(deathSequenceObservation.sawSettling, 'death overlay must expose the explicit visual settling state before final defeat').toBe(true);
+  expect(deathSequenceObservation.state, 'death overlay must transition from the visual death beat to a settled defeat state').toBe('settled');
+  expect(deathSequenceObservation.elapsedMs, 'death overlay must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
+
   const overlay = page.getByTestId('game-over-screen');
-  await expect(overlay).toHaveAttribute('data-death-sequence', 'settling', { timeout: 1_000 });
+  await expect(overlay).toBeVisible();
 
   const playerRenderer = page.locator('[data-player-death-state="active"]');
   await expect(playerRenderer, 'renderer must publish an active death-state instead of freezing in idle/run').toBeVisible({ timeout: 2_000 });
-
-  // Keep the unchanged <=2 s acceptance entirely on the browser clock. A repeated Playwright
-  // protocol poll can itself consume most of that window on slower WebKit/Chromium devices even
-  // when the 1100 ms product transition has already committed on the page main thread.
-  const deathSequenceObservation = await overlay.evaluate(async (element) => {
-    const startedAt = performance.now();
-    let state = element.getAttribute('data-death-sequence');
-    while (state !== 'settled') {
-      const elapsedMs = performance.now() - startedAt;
-      if (elapsedMs >= 2_000) return { state, elapsedMs };
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      state = element.getAttribute('data-death-sequence');
-    }
-    return { state, elapsedMs: performance.now() - startedAt };
-  });
-  expect(deathSequenceObservation.state, 'death overlay must transition from the visual death beat to a settled defeat state').toBe('settled');
-  expect(deathSequenceObservation.elapsedMs, 'death overlay must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
-  await expect(overlay).toBeVisible();
 
   const after = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(after?.status).toBe('gameover');
@@ -115,6 +149,8 @@ test('solo death uses an explicit visual death state before the final overlay', 
     before: { status: before?.status ?? null, hp: Number(before?.hp || 0) },
     after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt },
     deathSequence,
+    deathSequenceStates: deathSequenceObservation.states,
+    deathSequenceObservedMs: deathSequenceObservation.elapsedMs,
     rendererDeathState,
     postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs,
     postDeathAttackBlocked: true,

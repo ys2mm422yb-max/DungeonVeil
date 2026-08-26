@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { GameState } from '../../game/engine';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 interface Props {
   gameState: GameState;
+  deathBeatStartedAt?: number;
   onRetry: () => void;
   onMainMenu: () => void;
 }
@@ -15,7 +17,7 @@ const deathBeatStartedAtByRun = new Map<string, number>();
 
 type DeathSequence = 'settling' | 'settled';
 
-function resolveDeathBeatStartedAt(key: string): number {
+function resolveDeathBeatStartedAt(key: string, transitionStartedAt?: number): number {
   const now = performance.now();
   for (const [cachedKey, startedAt] of deathBeatStartedAtByRun) {
     if (now - startedAt > DEATH_BEAT_CACHE_TTL_MS) deathBeatStartedAtByRun.delete(cachedKey);
@@ -23,41 +25,46 @@ function resolveDeathBeatStartedAt(key: string): number {
 
   const existing = deathBeatStartedAtByRun.get(key);
   if (existing !== undefined) return existing;
-  deathBeatStartedAtByRun.set(key, now);
-  return now;
+  const startedAt = Number.isFinite(transitionStartedAt) && Number(transitionStartedAt) > 0 && Number(transitionStartedAt) <= now
+    ? Number(transitionStartedAt)
+    : now;
+  deathBeatStartedAtByRun.set(key, startedAt);
+  return startedAt;
 }
 
-export function GameOverScreen({ gameState, onRetry, onMainMenu }: Props) {
+export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStartedAt, onRetry, onMainMenu }: Props) {
   const { t } = useLanguage();
   const { player } = gameState;
   const deathBeatKey = `${player.spawnTime}`;
-  const deathBeatStartedAt = useMemo(() => resolveDeathBeatStartedAt(deathBeatKey), [deathBeatKey]);
-  const [deathSequence, setDeathSequence] = useState<DeathSequence>(() =>
-    performance.now() - deathBeatStartedAt >= DEATH_BEAT_MS ? 'settled' : 'settling',
+  // Enemy damage stamps player.lastHitTime with the same engine-frame timestamp that
+  // can make HP lethal. Reuse that authoritative transition origin so React mount/main-
+  // thread delay cannot restart the fixed 1100 ms presentation beat. Explicit callers
+  // may still provide an even more specific transition timestamp for non-hit deaths.
+  const lethalHitStartedAt = player.hp <= 0 && Number.isFinite(player.lastHitTime) && Number(player.lastHitTime) > 0
+    ? Number(player.lastHitTime)
+    : undefined;
+  const authoritativeTransitionStartedAt = transitionStartedAt ?? lethalHitStartedAt;
+  const deathBeatStartedAt = useMemo(
+    () => resolveDeathBeatStartedAt(deathBeatKey, authoritativeTransitionStartedAt),
+    [deathBeatKey, authoritativeTransitionStartedAt],
   );
+  // Always commit the explicit settling state once. The fixed 1100 ms beat is governed
+  // by the browser clock, not animation-frame delivery. When its timer fires, commit the
+  // settled presentation synchronously so React scheduling cannot add another frame/task
+  // backlog after the authoritative deadline before data-death-sequence becomes observable.
+  const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
 
   useEffect(() => {
-    let frame = 0;
+    const settle = () => flushSync(() => setDeathSequence('settled'));
     const remaining = Math.max(0, DEATH_BEAT_MS - (performance.now() - deathBeatStartedAt));
     if (remaining <= 0) {
-      setDeathSequence('settled');
+      settle();
       return;
     }
 
     setDeathSequence('settling');
-    const settleWhenDue = () => {
-      if (performance.now() - deathBeatStartedAt >= DEATH_BEAT_MS) {
-        setDeathSequence('settled');
-        return;
-      }
-      frame = window.requestAnimationFrame(settleWhenDue);
-    };
-    frame = window.requestAnimationFrame(settleWhenDue);
-    const timer = window.setTimeout(() => setDeathSequence('settled'), remaining);
-    return () => {
-      window.clearTimeout(timer);
-      window.cancelAnimationFrame(frame);
-    };
+    const timer = window.setTimeout(settle, remaining);
+    return () => window.clearTimeout(timer);
   }, [deathBeatStartedAt]);
 
   const settled = deathSequence === 'settled';

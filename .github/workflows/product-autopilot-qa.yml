@@ -154,6 +154,7 @@ jobs:
             tests/companion-runtime.spec.mjs \
             tests/companion-free-movement-evidence.spec.mjs \
             tests/spectator-performance.spec.mjs \
+            tests/spectator-death-state.spec.mjs \
             tests/player-death-state.spec.mjs \
             tests/upgrade-prestige-visual.spec.mjs \
             tests/upgrade-prestige-mobile-hotfix.spec.mjs \
@@ -177,6 +178,17 @@ jobs:
               mv "$png" "$target"
             fi
           done
+      - name: Collect focused spectator death review screenshot
+        if: steps.product-tests.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' -t spectator_death_pngs < <(find artifacts/dungeon-rpg/test-results -type f -name "autopilot-spectator-death-state-${BROWSER_PROJECT}.png" -print0)
+          test "${#spectator_death_pngs[@]}" -eq 1
+          target="artifacts/dungeon-rpg/test-results/autopilot-spectator-death-state-${BROWSER_PROJECT}.png"
+          if [[ "${spectator_death_pngs[0]}" != "$target" ]]; then
+            mv "${spectator_death_pngs[0]}" "$target"
+          fi
       - name: Collect focused player death review evidence
         if: steps.product-tests.outcome == 'success'
         shell: bash
