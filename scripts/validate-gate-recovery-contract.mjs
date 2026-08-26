@@ -11,6 +11,7 @@ const requireText = (text, needle, label) => {
 };
 
 requireText(recovery, 'actions: write', 'authenticated Actions dispatch permission');
+requireText(recovery, 'pull-requests: write', 'durable PR receipt permission');
 requireText(recovery, "'fix/mobile-telegraphs-room-21-50-balance'", 'fixed target branch guard');
 requireText(recovery, "run.status !== 'queued'", 'queued-state guard');
 requireText(recovery, 'jobs.total_count !== 0', 'jobs=[] pre-job zombie guard');
@@ -19,6 +20,8 @@ requireText(recovery, "workflow_id: 'full-game-regression.yml'", 'FGR dispatch')
 requireText(recovery, "full_evidence: 'true'", 'mandatory FGR full evidence');
 requireText(recovery, "workflow_id: 'complete-runtime-evidence-qa.yml'", 'Complete Runtime dispatch');
 requireText(recovery, 'assertNoReplacement', 'replacement deduplication');
+requireText(recovery, "has_request=false", 'validation-only path without accidental dispatch');
+requireText(recovery, "steps.request.outputs.has_request == 'true'", 'dispatch guard');
 requireText(recovery, 'issues.createComment', 'durable recovery receipt');
 
 requireText(fgr, 'workflow_dispatch:', 'FGR manual recovery entrypoint');
@@ -33,4 +36,4 @@ for (const project of ['iphone-webkit', 'android-chromium', 'ipad-portrait-webki
 
 requireText(playwright, 'retries: 0', 'Playwright retries=0');
 
-console.log('Gate recovery contract OK: unchanged-head guards, jobs=[] classification, full FGR evidence, four-device Complete Runtime, durable receipts, retries=0.');
+console.log('Gate recovery contract OK: unchanged-head guards, jobs=[] classification, no-request validation path, full FGR evidence, four-device Complete Runtime, durable PR receipts, retries=0.');
