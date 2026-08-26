@@ -4,7 +4,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 
 interface Props {
   gameState: GameState;
-  deathBeatStartedAt: number;
+  deathBeatStartedAt?: number;
   onRetry: () => void;
   onMainMenu: () => void;
 }
@@ -16,7 +16,7 @@ const deathBeatStartedAtByRun = new Map<string, number>();
 
 type DeathSequence = 'settling' | 'settled';
 
-function resolveDeathBeatStartedAt(key: string, transitionStartedAt: number): number {
+function resolveDeathBeatStartedAt(key: string, transitionStartedAt?: number): number {
   const now = performance.now();
   for (const [cachedKey, startedAt] of deathBeatStartedAtByRun) {
     if (now - startedAt > DEATH_BEAT_CACHE_TTL_MS) deathBeatStartedAtByRun.delete(cachedKey);
@@ -24,8 +24,8 @@ function resolveDeathBeatStartedAt(key: string, transitionStartedAt: number): nu
 
   const existing = deathBeatStartedAtByRun.get(key);
   if (existing !== undefined) return existing;
-  const startedAt = Number.isFinite(transitionStartedAt) && transitionStartedAt > 0 && transitionStartedAt <= now
-    ? transitionStartedAt
+  const startedAt = Number.isFinite(transitionStartedAt) && Number(transitionStartedAt) > 0 && Number(transitionStartedAt) <= now
+    ? Number(transitionStartedAt)
     : now;
   deathBeatStartedAtByRun.set(key, startedAt);
   return startedAt;
