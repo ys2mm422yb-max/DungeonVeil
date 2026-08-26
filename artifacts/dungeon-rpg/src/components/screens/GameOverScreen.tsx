@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { GameState } from '../../game/engine';
 import { useLanguage } from '../../i18n/LanguageContext';
 
@@ -48,19 +49,21 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
     [deathBeatKey, authoritativeTransitionStartedAt],
   );
   // Always commit the explicit settling state once. The fixed 1100 ms beat is governed
-  // by the browser clock, not animation-frame delivery, so a throttled/starved rAF can
-  // no longer strand the overlay in settling after the deadline has already elapsed.
+  // by the browser clock, not animation-frame delivery. When its timer fires, commit the
+  // settled presentation synchronously so React scheduling cannot add another frame/task
+  // backlog after the authoritative deadline before data-death-sequence becomes observable.
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
 
   useEffect(() => {
+    const settle = () => flushSync(() => setDeathSequence('settled'));
     const remaining = Math.max(0, DEATH_BEAT_MS - (performance.now() - deathBeatStartedAt));
     if (remaining <= 0) {
-      setDeathSequence('settled');
+      settle();
       return;
     }
 
     setDeathSequence('settling');
-    const timer = window.setTimeout(() => setDeathSequence('settled'), remaining);
+    const timer = window.setTimeout(settle, remaining);
     return () => window.clearTimeout(timer);
   }, [deathBeatStartedAt]);
 
