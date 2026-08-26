@@ -123,13 +123,13 @@ test('renderer recovery saves and freezes a real Solo run while the transition H
     () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.effects.some(id => id.startsWith('rune-warning-'))),
     { timeout: 8_000 },
   ).toBe(true);
-  const armed = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
-
-  await page.evaluate(() => {
+  const armed = await page.evaluate(() => {
+    const snapshot = window.__dungeonVeilRuntimeEvidence.snapshot();
     const hud = document.querySelector('[data-testid="run-hud"]');
     if (hud instanceof HTMLElement) hud.style.display = 'none';
     document.documentElement.dataset.dungeonVeilRendererState = 'recovering';
     window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { rendererRecovery: true, prolongedEvidence: true } }));
+    return snapshot;
   });
   await page.waitForTimeout(1_400);
   const frozen = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot());
