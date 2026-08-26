@@ -209,8 +209,13 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t raw_videos < <(find artifacts/dungeon-rpg/test-results -type f -name video.webm -print)
+          base_sha=""
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             base_sha="${{ github.event.pull_request.base.sha }}"
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            base_sha="${{ github.event.before }}"
+          fi
+          if [[ -n "$base_sha" && "$base_sha" != "0000000000000000000000000000000000000000" ]]; then
             git fetch --no-tags --depth=1 origin "$base_sha"
             mapfile -t changed_files < <(git diff --name-only "$base_sha" "$GITHUB_SHA")
             if ! printf '%s\n' "${changed_files[@]}" | grep -Eiq 'prestige|companionUpgradePrestige3D|upgrade-prestige|visible-upgrade'; then
@@ -218,7 +223,7 @@ jobs:
                 \( -name "visual-upgrade-prestige-*-${BROWSER_PROJECT}.png" -o -name "visible-prestige-*-${BROWSER_PROJECT}.png" \) \
                 -delete
               rm -f "${raw_videos[@]}"
-              echo "No prestige-affecting PR changes; omitting unrelated prestige review media from success evidence."
+              echo "No prestige-affecting changes; omitting unrelated prestige review media from success evidence."
               exit 0
             fi
           fi

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { GameState } from '../../game/engine';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -48,20 +48,17 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
     () => resolveDeathBeatStartedAt(deathBeatKey, authoritativeTransitionStartedAt),
     [deathBeatKey, authoritativeTransitionStartedAt],
   );
-  // Always commit the explicit settling state once. The fixed 1100 ms beat is governed
-  // by the browser clock, not animation-frame delivery. When its timer fires, commit the
-  // settled presentation synchronously so React scheduling cannot add another frame/task
-  // backlog after the authoritative deadline before data-death-sequence becomes observable.
+  // Always commit the explicit settling state once. Arm the browser-clock deadline in a
+  // layout effect so a loaded mobile browser cannot defer timer creation behind passive
+  // effects after the settling DOM has committed. Even an already-expired deadline uses
+  // a zero-delay task, preserving an observable settling state before the synchronous
+  // settled commit. The fixed 1100 ms beat and all external acceptance thresholds stay
+  // unchanged.
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const settle = () => flushSync(() => setDeathSequence('settled'));
     const remaining = Math.max(0, DEATH_BEAT_MS - (performance.now() - deathBeatStartedAt));
-    if (remaining <= 0) {
-      settle();
-      return;
-    }
-
     setDeathSequence('settling');
     const timer = window.setTimeout(settle, remaining);
     return () => window.clearTimeout(timer);

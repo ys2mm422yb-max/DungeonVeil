@@ -87,8 +87,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install deterministic browser runner
         run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@1.55.0 --lockfile=false
+      - name: Install browser system dependencies
+        run: .github/scripts/install-playwright-deps-bounded.sh "${{ matrix.browser }}"
       - name: Install browser engine
-        run: pnpm --dir artifacts/dungeon-rpg exec playwright install --with-deps ${{ matrix.browser }}
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
       - name: Build current branch
         run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
       - name: Validate Solo and Duo rooms 1-100 with compact four-device evidence
