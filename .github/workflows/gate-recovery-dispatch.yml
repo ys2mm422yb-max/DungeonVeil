@@ -18,7 +18,7 @@ permissions:
   actions: write
   contents: read
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 concurrency:
   group: gate-recovery-${{ github.ref }}
@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 2
       - name: Validate permanent recovery contract
         run: node scripts/validate-gate-recovery-contract.mjs
-      - name: Resolve exactly one request
+      - name: Resolve recovery request when present
         id: request
         shell: bash
         env:
@@ -43,18 +43,31 @@ jobs:
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             REQUEST="$MANUAL_REQUEST"
-          else
-            mapfile -t REQUESTS < <(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- '.ci/gate-recovery-requests/*.json')
-            if [[ ${#REQUESTS[@]} -ne 1 ]]; then
-              echo "Expected exactly one changed gate recovery request, got ${#REQUESTS[@]}" >&2
-              exit 1
-            fi
-            REQUEST="${REQUESTS[0]}"
+            [[ "$REQUEST" == .ci/gate-recovery-requests/*.json ]]
+            [[ -f "$REQUEST" ]]
+            echo "has_request=true" >> "$GITHUB_OUTPUT"
+            echo "path=$REQUEST" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          mapfile -t REQUESTS < <(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- '.ci/gate-recovery-requests/*.json')
+          if [[ ${#REQUESTS[@]} -gt 1 ]]; then
+            echo "Expected at most one changed gate recovery request, got ${#REQUESTS[@]}" >&2
+            exit 1
+          fi
+          if [[ ${#REQUESTS[@]} -eq 0 ]]; then
+            echo "has_request=false" >> "$GITHUB_OUTPUT"
+            echo "No recovery request changed; static contract validation only."
+            exit 0
+          fi
+
+          REQUEST="${REQUESTS[0]}"
           [[ "$REQUEST" == .ci/gate-recovery-requests/*.json ]]
           [[ -f "$REQUEST" ]]
+          echo "has_request=true" >> "$GITHUB_OUTPUT"
           echo "path=$REQUEST" >> "$GITHUB_OUTPUT"
       - name: Validate zombie receipts and dispatch unchanged-head gates
+        if: steps.request.outputs.has_request == 'true'
         uses: actions/github-script@v7
         env:
           REQUEST_PATH: ${{ steps.request.outputs.path }}
