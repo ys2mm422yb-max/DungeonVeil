@@ -48,20 +48,43 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
     () => resolveDeathBeatStartedAt(deathBeatKey, authoritativeTransitionStartedAt),
     [deathBeatKey, authoritativeTransitionStartedAt],
   );
-  // Always commit the explicit settling state once. Arm the browser-clock deadline in a
-  // layout effect so a loaded mobile browser cannot defer timer creation behind passive
-  // effects after the settling DOM has committed. Even an already-expired deadline uses
-  // a zero-delay task, preserving an observable settling state before the synchronous
-  // settled commit. The fixed 1100 ms beat and all external acceptance thresholds stay
-  // unchanged.
+  // Always commit the explicit settling state once. Arm the unchanged browser-clock
+  // deadline with two independent schedulers: the existing timeout and a rAF watchdog.
+  // Current iPhone/WebKit target evidence proves animation frames can keep advancing while
+  // a timer callback is delayed past the 2 s acceptance window. The watchdog checks the
+  // same fixed 1100 ms deadline on each delivered frame, so either scheduler may perform
+  // the one synchronous settled commit. No presentation duration or external threshold is
+  // changed, and an already-expired deadline still remains settling until the next task or
+  // animation frame so the explicit intermediate state stays observable.
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
 
   useLayoutEffect(() => {
-    const settle = () => flushSync(() => setDeathSequence('settled'));
-    const remaining = Math.max(0, DEATH_BEAT_MS - (performance.now() - deathBeatStartedAt));
+    let settledOnce = false;
+    let frame = 0;
+    const deadline = deathBeatStartedAt + DEATH_BEAT_MS;
+    const settle = () => {
+      if (settledOnce) return;
+      settledOnce = true;
+      flushSync(() => setDeathSequence('settled'));
+    };
+    const watchDeadline = () => {
+      if (settledOnce) return;
+      if (performance.now() >= deadline) {
+        settle();
+        return;
+      }
+      frame = window.requestAnimationFrame(watchDeadline);
+    };
+
     setDeathSequence('settling');
+    const remaining = Math.max(0, deadline - performance.now());
     const timer = window.setTimeout(settle, remaining);
-    return () => window.clearTimeout(timer);
+    frame = window.requestAnimationFrame(watchDeadline);
+    return () => {
+      settledOnce = true;
+      window.clearTimeout(timer);
+      window.cancelAnimationFrame(frame);
+    };
   }, [deathBeatStartedAt]);
 
   const settled = deathSequence === 'settled';
