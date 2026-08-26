@@ -35,9 +35,17 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
   const { t } = useLanguage();
   const { player } = gameState;
   const deathBeatKey = `${player.spawnTime}`;
+  // Enemy damage stamps player.lastHitTime with the same engine-frame timestamp that
+  // can make HP lethal. Reuse that authoritative transition origin so React mount/main-
+  // thread delay cannot restart the fixed 1100 ms presentation beat. Explicit callers
+  // may still provide an even more specific transition timestamp for non-hit deaths.
+  const lethalHitStartedAt = player.hp <= 0 && Number.isFinite(player.lastHitTime) && Number(player.lastHitTime) > 0
+    ? Number(player.lastHitTime)
+    : undefined;
+  const authoritativeTransitionStartedAt = transitionStartedAt ?? lethalHitStartedAt;
   const deathBeatStartedAt = useMemo(
-    () => resolveDeathBeatStartedAt(deathBeatKey, transitionStartedAt),
-    [deathBeatKey, transitionStartedAt],
+    () => resolveDeathBeatStartedAt(deathBeatKey, authoritativeTransitionStartedAt),
+    [deathBeatKey, authoritativeTransitionStartedAt],
   );
   // Always commit the explicit settling state once. If React was delayed beyond the
   // 1100 ms beat, the next animation frame settles immediately without restarting it.
