@@ -298,6 +298,8 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
   const armedKey = `${observationKey}Armed`;
   const minimumAtSetterKey = `${observationKey}SetMinimumAt`;
   const minimumAtStateKey = `${observationKey}MinimumAt`;
+  const expectedPlayerAttackSetterKey = `${observationKey}SetExpectedPlayerAttackAt`;
+  const expectedPlayerAttackStateKey = `${observationKey}ExpectedPlayerAttackAt`;
   let resolveScreenshot;
   let rejectScreenshot;
   const screenshotPromise = new Promise((resolve, reject) => {
@@ -321,9 +323,11 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       const scope = window;
       const rejectionLogKey = '__dungeonVeilCompanionFeedbackRejectionLog';
       const minimumAtStateKey = `${observation}MinimumAt`;
+      const expectedPlayerAttackStateKey = `${observation}ExpectedPlayerAttackAt`;
       const initialMinimumAt = minimumAt;
       minimumAt = Number.POSITIVE_INFINITY;
       scope[minimumAtStateKey] = minimumAt;
+      scope[expectedPlayerAttackStateKey] = Number.NaN;
       scope[observation] = null;
       scope[armed] = false;
       scope[rejectionLogKey] = [];
@@ -423,6 +427,17 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             schedulePaintReinspection();
             continue;
           }
+          const expectedPlayerAttackAt = Number(scope[expectedPlayerAttackStateKey]);
+          if (expectedCritical && !Number.isFinite(expectedPlayerAttackAt)) {
+            recordRejection('critical-player-attack-unarmed', node, { criticalPlayerAttackAt });
+            schedulePaintReinspection();
+            continue;
+          }
+          if (expectedCritical && criticalPlayerAttackAt !== expectedPlayerAttackAt) {
+            recordRejection('critical-player-attack-mismatch', node, { criticalPlayerAttackAt, expectedPlayerAttackAt });
+            schedulePaintReinspection();
+            continue;
+          }
           const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
           const payload = {
             ...action,
@@ -466,6 +481,14 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         if (Number.isFinite(previousMinimumAt) && candidate <= previousMinimumAt) return false;
         minimumAt = candidate;
         scope[minimumAtStateKey] = minimumAt;
+        inspect();
+        return true;
+      };
+
+      scope[`${observation}SetExpectedPlayerAttackAt`] = nextPlayerAttackAt => {
+        const candidate = Number(nextPlayerAttackAt);
+        if (!expectedCritical || !Number.isFinite(candidate) || candidate <= minimumAt) return false;
+        scope[expectedPlayerAttackStateKey] = candidate;
         inspect();
         return true;
       };
@@ -533,13 +556,22 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
     const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
     throw new Error(`${error instanceof Error ? error.message : String(error)}\nCompanion feedback diagnostics: ${JSON.stringify(diagnostics, null, 2)}`);
   } finally {
-    await page.evaluate(({ observer, armed, minimumAtSetter, minimumAtState }) => {
+    await page.evaluate(({ observer, armed, minimumAtSetter, minimumAtState, expectedPlayerAttackSetter, expectedPlayerAttackState }) => {
       window[observer]?.disconnect?.();
       delete window[observer];
       delete window[armed];
       delete window[minimumAtSetter];
       delete window[minimumAtState];
-    }, { observer: observerKey, armed: armedKey, minimumAtSetter: minimumAtSetterKey, minimumAtState: minimumAtStateKey }).catch(() => {});
+      delete window[expectedPlayerAttackSetter];
+      delete window[expectedPlayerAttackState];
+    }, {
+      observer: observerKey,
+      armed: armedKey,
+      minimumAtSetter: minimumAtSetterKey,
+      minimumAtState: minimumAtStateKey,
+      expectedPlayerAttackSetter: expectedPlayerAttackSetterKey,
+      expectedPlayerAttackState: expectedPlayerAttackStateKey,
+    }).catch(() => {});
   }
 }
 
@@ -746,6 +778,11 @@ test('critical-support proc renders one readable value on its actual target', as
     expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
     expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
     const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(page, Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime));
+    const confirmedAttackArmed = await page.evaluate(({ setter, attackAt }) => window[setter]?.(attackAt) === true, {
+      setter: '__dungeonVeilCriticalCompanionFeedbackObservationSetExpectedPlayerAttackAt',
+      attackAt: confirmedPlayerAttackAt,
+    });
+    expect(confirmedAttackArmed).toBe(true);
     const observedCritical = await capturePromise;
     expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
     expect(confirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
