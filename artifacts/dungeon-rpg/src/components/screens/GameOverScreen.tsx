@@ -48,19 +48,20 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
     () => resolveDeathBeatStartedAt(deathBeatKey, authoritativeTransitionStartedAt),
     [deathBeatKey, authoritativeTransitionStartedAt],
   );
-  // Always commit the explicit settling state once. Arm the unchanged browser-clock
-  // deadline through three independent browser scheduling paths. The timeout and rAF
-  // watchdog remain as fallbacks; the no-op Web Animation uses the rendering timeline as
-  // an additional deadline signal for loaded Chromium runs where target evidence showed
-  // both ordinary callbacks missing the 2 s acceptance window even though rendering kept
-  // advancing. Every path checks the same fixed 1100 ms deadline and performs the same
-  // one-shot synchronous commit. No presentation duration or external threshold changes.
+  // Always commit the explicit settling state once. For a live beat, arm the unchanged
+  // browser-clock deadline through the existing timeout, rAF watchdog and render-timeline
+  // signal. If the authoritative 1100 ms deadline already expired before this layout
+  // effect mounts under sustained main-thread load, do not add another task/frame delay:
+  // a microtask runs after the initial DOM mutation checkpoint, preserving the observable
+  // `settling` insertion while synchronously committing `settled` before another loaded
+  // scheduler turn can push the unchanged <=2000 ms acceptance window over its deadline.
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
   const overlayRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
     let settledOnce = false;
     let frame = 0;
+    let timer: number | null = null;
     let deadlineAnimation: Animation | null = null;
     const deadline = deathBeatStartedAt + DEATH_BEAT_MS;
     const settle = () => {
@@ -79,27 +80,29 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
 
     setDeathSequence('settling');
     const remaining = Math.max(0, deadline - performance.now());
-    const timer = window.setTimeout(settle, remaining);
-    frame = window.requestAnimationFrame(watchDeadline);
 
-    // Keep already-expired deadlines on the existing task/frame path so `settling` remains
-    // observable at least once. For a live beat, a compositor/render-timeline completion is
-    // an independent signal without changing the fixed browser-clock deadline.
-    if (remaining > 0 && overlayRef.current?.animate) {
-      deadlineAnimation = overlayRef.current.animate(
-        [{ opacity: 1 }, { opacity: 1 }],
-        { duration: remaining, easing: 'linear', iterations: 1 },
-      );
-      void deadlineAnimation.finished.then(() => {
-        if (performance.now() >= deadline) settle();
-      }).catch(() => {
-        // Cancellation during unmount/retry is expected and must not create a late settle.
-      });
+    if (remaining === 0) {
+      queueMicrotask(settle);
+    } else {
+      timer = window.setTimeout(settle, remaining);
+      frame = window.requestAnimationFrame(watchDeadline);
+
+      if (overlayRef.current?.animate) {
+        deadlineAnimation = overlayRef.current.animate(
+          [{ opacity: 1 }, { opacity: 1 }],
+          { duration: remaining, easing: 'linear', iterations: 1 },
+        );
+        void deadlineAnimation.finished.then(() => {
+          if (performance.now() >= deadline) settle();
+        }).catch(() => {
+          // Cancellation during unmount/retry is expected and must not create a late settle.
+        });
+      }
     }
 
     return () => {
       settledOnce = true;
-      window.clearTimeout(timer);
+      if (timer !== null) window.clearTimeout(timer);
       window.cancelAnimationFrame(frame);
       deadlineAnimation?.cancel();
     };
