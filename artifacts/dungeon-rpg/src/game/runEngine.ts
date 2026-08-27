@@ -216,8 +216,20 @@ export class GameEngine {
     this.lastTime = timestamp;
     if (this.state.status !== 'playing') return;
 
+    // Forced/test deaths and any externally applied lethal state must not execute a full
+    // gameplay frame before the authoritative gameover emit. Under sustained mobile load
+    // that pre-death work can consume the entire <=2000 ms presentation acceptance window.
+    if (this.enterGameOverIfLethal()) return;
+
     this.updatePlayer(dt, timestamp);
     this.updateEnemies(dt, timestamp);
+
+    // Enemy attacks can make the player lethal inside updateEnemies. Preserve the hit
+    // particles/damage-number state that was just produced, then stop the rest of the
+    // simulation frame before effects, room-flow and other non-death work compete with
+    // the synchronous gameover handoff.
+    if (this.enterGameOverIfLethal()) return;
+
     this.updateEffects(dt);
     this.updateParticles(dt);
     if (this.state.damageNumbers.length > 32) this.state.damageNumbers.splice(0, this.state.damageNumbers.length - 32);
@@ -227,16 +239,17 @@ export class GameEngine {
     this.state.camera.x = this.state.player.x + 16;
     this.state.camera.y = this.state.player.y + 16;
 
-    if (this.state.player.hp <= 0) {
-      this.state.status = 'gameover';
-      this.emit();
-      return;
-    }
-
     if (timestamp - this.lastUiEmitTime >= UI_EMIT_MS) {
       this.lastUiEmitTime = timestamp;
       this.emit();
     }
+  }
+
+  private enterGameOverIfLethal(): boolean {
+    if (this.state.player.hp > 0) return false;
+    this.state.status = 'gameover';
+    this.emit();
+    return true;
   }
 
   private updatePlayer(dt: number, time: number): void {
