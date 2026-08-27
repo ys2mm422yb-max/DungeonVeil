@@ -29,7 +29,7 @@ requireText(mechanics, /clearPendingHazards\(engine, state\)/, 'Pending room haz
 requireText(mechanics, /engine\.state\.roomClearReady \|\| !hasLivingEnemies\(engine\)/, 'Room-clear and living-enemy guards must share the final hazard cleanup path.');
 requireText(mechanics, /arc-warn-|forge-warn-/, 'Arc and forge warnings must be explicitly removable.');
 requireText(gameCanvas, /addEventListener\('webglcontextlost'/, 'GameCanvas must remain the single synchronous WebGL context-loss owner.');
-requireText(gameCanvas, /if \(recoveringRef\.current\) return;/, 'The primary WebGL owner must ignore duplicate native loss delivery.');
+requireText(gameCanvas, /if \(recoveringRef\.current \|\| activeRendererRecoveryEpisode !== null\) return;/, 'The primary WebGL owner must ignore duplicate native loss delivery across overlapping canvas listeners.');
 requireText(recovery, /WEBGL_lose_context/, 'The global renderer fallback must retain direct context restoration.');
 requireText(recovery, /dungeon-veil-room-preparing/, 'Renderer fallback must use the existing room save and input-freeze lifecycle.');
 requireText(recovery, /dungeon-veil-renderer-lost/, 'Renderer recovery must expose a diagnostic event.');
@@ -79,7 +79,7 @@ requireText(spec, /\['solo', 'duo'\]/, 'The evidence suite must cover both Solo 
 requireText(spec, /one renderer survives uninterrupted rooms 1-100/, 'Solo and Duo must each traverse all 100 rooms without replacing the page or renderer test session.');
 requireText(spec, /for \(let room = 1; room <= CHAPTER_ROOMS; room \+= 1\)/, 'The uninterrupted evidence must visit every room in sequence.');
 requireText(spec, /new RegExp\(`RAUM\\\\s\*\$\{room\}\/\$\{CHAPTER_ROOMS\}`/, 'The evidence suite must verify the 100-room HUD contract through the shared chapter-room constant.');
-requireText(spec, /unexpected page reload/, 'The uninterrupted evidence must reject silent recovery reloads.');
+requireText(spec, /unexpected page reload/, 'The evidence suite must reject silent recovery reloads.');
 requireText(spec, /warningPrefix[\s\S]*expect\.poll/s, 'The room hazard regression must wait for a real visible warning instead of assuming a fixed load delay.');
 if (/waitForTimeout\(3_650\)/.test(spec)) throw new Error('Fixed room-hazard timing is not reliable across mobile renderers.');
 requireText(spec, /room hazards stop before the final enemy death animation finishes/, 'The ghost-damage regression must be tested.');
