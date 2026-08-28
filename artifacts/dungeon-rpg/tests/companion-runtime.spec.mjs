@@ -102,9 +102,16 @@ async function readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPla
   return page.evaluate(({ boundary, setterKey }) => {
     const snapshot = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
     const confirmedAt = Number(snapshot?.playerLastAttackTime || 0);
-    if (confirmedAt <= boundary) return { snapshot, confirmedAt, armed: false };
-    const armed = setterKey ? window[setterKey]?.(confirmedAt) === true : true;
-    return { snapshot, confirmedAt, armed };
+    if (confirmedAt <= boundary) return { snapshot, confirmedAt, criticalSpecialAt: 0, observedPlayerAttackAt: 0, armed: false };
+    if (!setterKey) return { snapshot, confirmedAt, criticalSpecialAt: 0, observedPlayerAttackAt: 0, armed: true };
+    const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+    const criticalSpecialAt = Number(runtime?.getAttribute('data-last-critical-special-player-attack-at') || 0);
+    const observedPlayerAttackAt = Number(runtime?.getAttribute('data-last-observed-player-attack-at') || 0);
+    const runtimeConfirmed = criticalSpecialAt > boundary
+      && criticalSpecialAt === confirmedAt
+      && observedPlayerAttackAt === criticalSpecialAt;
+    const armed = runtimeConfirmed && window[setterKey]?.(criticalSpecialAt) === true;
+    return { snapshot, confirmedAt, criticalSpecialAt, observedPlayerAttackAt, armed };
   }, { boundary: attackBoundary, setterKey: expectedPlayerAttackSetterKey });
 }
 
@@ -116,10 +123,7 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary, expectedPlayer
     const beforeState = await readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPlayerAttackSetterKey);
     const before = beforeState.snapshot;
     const previousAttackAt = Number(beforeState.confirmedAt || 0);
-    if (previousAttackAt > attackBoundary) {
-      if (!beforeState.armed) throw new Error(`Authoritative player attack ${previousAttackAt} could not be armed atomically.`);
-      return previousAttackAt;
-    }
+    if (previousAttackAt > attackBoundary && beforeState.armed) return Number(beforeState.criticalSpecialAt || previousAttackAt);
 
     const enemies = Array.isArray(before?.livingEnemyPositions) ? before.livingEnemyPositions : [];
     if (!enemies.length) break;
@@ -142,10 +146,7 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary, expectedPlayer
     await moveWithKeyboard(page, keys, durationMs);
     const movementState = await readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPlayerAttackSetterKey);
     const movementAttackAt = Number(movementState.confirmedAt || 0);
-    if (movementAttackAt > attackBoundary) {
-      if (!movementState.armed) throw new Error(`Authoritative player attack ${movementAttackAt} could not be armed atomically.`);
-      return movementAttackAt;
-    }
+    if (movementAttackAt > attackBoundary && movementState.armed) return Number(movementState.criticalSpecialAt || movementAttackAt);
 
     await page.keyboard.press('Space');
     await page.waitForTimeout(120);
@@ -164,16 +165,15 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary, expectedPlayer
       targetY: target.y,
       previousAttackAt,
       confirmedAt,
+      criticalSpecialAt: Number(afterState.criticalSpecialAt || 0),
+      observedPlayerAttackAt: Number(afterState.observedPlayerAttackAt || 0),
       livingEnemies: Number(after?.livingEnemies || 0),
     });
-    if (confirmedAt > attackBoundary) {
-      if (!afterState.armed) throw new Error(`Authoritative player attack ${confirmedAt} could not be armed atomically.`);
-      return confirmedAt;
-    }
+    if (confirmedAt > attackBoundary && afterState.armed) return Number(afterState.criticalSpecialAt || confirmedAt);
   }
 
   const finalSnapshot = await readRuntimeCombatSnapshot(page);
-  throw new Error(`No authoritative player attack occurred after ${attackBoundary}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
+  throw new Error(`No runtime-confirmed authoritative critical-support player attack occurred after ${attackBoundary}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
 }
 
 async function readTransientRoomTitleState(page) {
