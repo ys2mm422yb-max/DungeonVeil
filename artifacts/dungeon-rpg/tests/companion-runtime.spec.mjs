@@ -586,14 +586,16 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
     const diagnostics = await readCompanionFeedbackDiagnostics(page, { role, critical, notBefore }).catch(diagnosticError => ({ diagnosticError: String(diagnosticError) }));
     throw new Error(`${error instanceof Error ? error.message : String(error)}\nCompanion feedback diagnostics: ${JSON.stringify(diagnostics, null, 2)}`);
   } finally {
-    await page.evaluate(({ observer, armed, minimumAtSetter, minimumAtState, expectedPlayerAttackSetter, expectedPlayerAttackState }) => {
+    await page.evaluate(({ observer, armed, minimumAtSetter, minimumAtState, expectedPlayerAttackSetter, expectedPlayerAttackState, expectedCritical }) => {
       window[observer]?.disconnect?.();
       delete window[observer];
       delete window[armed];
       delete window[minimumAtSetter];
       delete window[minimumAtState];
-      delete window[expectedPlayerAttackSetter];
-      delete window[expectedPlayerAttackState];
+      if (!expectedCritical) {
+        delete window[expectedPlayerAttackSetter];
+        delete window[expectedPlayerAttackState];
+      }
     }, {
       observer: observerKey,
       armed: armedKey,
@@ -601,6 +603,7 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
       minimumAtState: minimumAtStateKey,
       expectedPlayerAttackSetter: expectedPlayerAttackSetterKey,
       expectedPlayerAttackState: expectedPlayerAttackStateKey,
+      expectedCritical: critical,
     }).catch(() => {});
   }
 }
@@ -783,6 +786,7 @@ test('critical-support proc renders one readable value on its actual target', as
   await prepareLivePlayerAttackLine(page);
   await page.keyboard.down('KeyW');
   const expectedPlayerAttackSetterKey = '__dungeonVeilCriticalCompanionFeedbackObservationSetExpectedPlayerAttackAt';
+  const expectedPlayerAttackStateKey = '__dungeonVeilCriticalCompanionFeedbackObservationExpectedPlayerAttackAt';
   const confirmationWatcherKey = '__dungeonVeilCriticalSupportPlayerAttackConfirmationWatcher';
   const confirmationStateKey = '__dungeonVeilCriticalSupportPlayerAttackConfirmedAt';
   const confirmationObservationKey = '__dungeonVeilCriticalCompanionFeedbackObservation';
@@ -865,11 +869,18 @@ test('critical-support proc renders one readable value on its actual target', as
     expect(observedCritical.criticalPlayerAttackAt).toBe(finalConfirmedPlayerAttackAt);
     expect(observedCritical.at).toBeGreaterThan(finalConfirmedPlayerAttackAt);
   } finally {
-    await page.evaluate(({ watcherKey, stateKey }) => {
+    await page.evaluate(({ watcherKey, stateKey, expectedSetterKey, expectedStateKey }) => {
       window[watcherKey]?.disconnect?.();
       delete window[watcherKey];
       delete window[stateKey];
-    }, { watcherKey: confirmationWatcherKey, stateKey: confirmationStateKey }).catch(() => {});
+      delete window[expectedSetterKey];
+      delete window[expectedStateKey];
+    }, {
+      watcherKey: confirmationWatcherKey,
+      stateKey: confirmationStateKey,
+      expectedSetterKey: expectedPlayerAttackSetterKey,
+      expectedStateKey: expectedPlayerAttackStateKey,
+    }).catch(() => {});
     await page.keyboard.up('KeyW').catch(() => {});
   }
   await expect(runtime).toHaveAttribute('data-level', '2');
