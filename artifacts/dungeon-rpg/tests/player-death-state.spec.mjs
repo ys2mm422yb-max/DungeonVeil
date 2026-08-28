@@ -336,8 +336,6 @@ test('solo death uses an explicit visual death state before the final overlay', 
 });
 
 test.describe('compact Duo lifecycle screenshots', () => {
-  test.use({ video: 'off' });
-
   for (const language of ['de', 'en']) {
     test(`duo ${language} renders downed, revive, fallen and final team defeat through the real lifecycle bridge`, async ({ page }, testInfo) => {
       test.setTimeout(180_000);
