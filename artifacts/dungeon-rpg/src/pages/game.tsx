@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { GameEngine, GameState } from '../game/runEngine';
 import type { EnemyType } from '../game/entities';
 import type { EnemyFamilyId } from '../game/enemyRegistry';
@@ -83,11 +84,13 @@ async function preloadRequiredRunRoom(floor: number) {
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= RUN_ENTRY_PRELOAD_ATTEMPTS; attempt++) {
       try {
-        await Promise.all([
-          preloadKayKitDungeonRoom(safeFloor),
-          preloadKayKitRoomTheme(safeFloor),
-          preloadKayKitEnemyVisuals(enemyTypes, enemyFamilyIds),
-        ]);
+        // Keep the three required KayKit families on one decode lane. WebKit can otherwise
+        // overlap multiple independent GLTFLoader/image decode bursts for the same shared
+        // dungeon/tools textures during long Product journeys. This preserves the exact
+        // required assets, retry count and 8s entry deadline while removing that race.
+        await preloadKayKitDungeonRoom(safeFloor);
+        await preloadKayKitRoomTheme(safeFloor);
+        await preloadKayKitEnemyVisuals(enemyTypes, enemyFamilyIds);
         return;
       } catch (error) {
         lastError = error;
@@ -200,7 +203,7 @@ export default function Game() {
     engine.onStateChange = state => {
       const live = engine.state;
       prepareGiftChoices(live);
-      setGameState({
+      const nextState = {
         ...state,
         player: live.player,
         enemies: live.enemies,
@@ -211,7 +214,14 @@ export default function Game() {
         camera: live.camera,
         upgradeChoices: live.upgradeChoices,
         runSkills: live.runSkills,
-      });
+      };
+      // The death overlay cannot honor its fixed 1100 ms browser-clock beat until React
+      // has mounted it. Under sustained Product/FGR work an ordinary queued state update
+      // can consume the remaining <=2000 ms acceptance before GameOverScreen even exists.
+      // Prioritize only the authoritative gameover handoff; normal simulation updates stay
+      // batched exactly as before.
+      if (live.status === 'gameover') flushSync(() => setGameState(nextState));
+      else setGameState(nextState);
     };
 
     const sessionSave = resumeSessionOnBootRef.current ? loadGame() : null;

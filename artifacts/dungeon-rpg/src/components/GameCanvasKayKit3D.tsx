@@ -953,36 +953,52 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const renderLoop = () => {
       if (disposed || !renderer || !scene || !camera || !clock) return;
       const state = stateRef.current;
+      const gameover = state.status === 'gameover';
       const wallNow = Date.now();
       const gameNow = performance.now();
       const delta = Math.min(clock.getDelta(), 0.05);
       const playerX = mapX(state, state.player.x);
       const playerZ = mapZ(state, state.player.y);
 
+      // Keep the current room and its presentation contract alive through the death beat,
+      // but stop speculative next-room work once the authoritative run is over.
       buildRoom(state);
       applyRoomEnvironment(roomRoot);
-      preloadNextRoom(state);
+      if (!gameover) preloadNextRoom(state);
+
       if (playerRig) {
         playerRig.root.position.set(playerX, 0, playerZ);
-        if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) playerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
-        playerRig.setMoving(state.player.state === 'moving');
-        const moveRank = skillRank(state.runSkills, 'speed');
-        const attackRank = skillRank(state.runSkills, 'attackSpeed');
-        playerRig.setMotionSpeed([1, 1.12, 1.24, 1.34][moveRank], [1, 1.16, 1.3, 1.42][attackRank]);
-        if (state.player.lastAttackTime > lastAttack) { lastAttack = state.player.lastAttackTime; playerRig.triggerAttack(); }
-        if (state.player.lastDodgeTime > lastDodge) { lastDodge = state.player.lastDodgeTime; playerRig.triggerDash(); }
+        if (!gameover) {
+          if (Math.hypot(state.player.facing.x, state.player.facing.y) > 0.1) playerRig.root.rotation.y = Math.atan2(state.player.facing.x, state.player.facing.y);
+          playerRig.setMoving(state.player.state === 'moving');
+          const moveRank = skillRank(state.runSkills, 'speed');
+          const attackRank = skillRank(state.runSkills, 'attackSpeed');
+          playerRig.setMotionSpeed([1, 1.12, 1.24, 1.34][moveRank], [1, 1.16, 1.3, 1.42][attackRank]);
+          if (state.player.lastAttackTime > lastAttack) { lastAttack = state.player.lastAttackTime; playerRig.triggerAttack(); }
+          if (state.player.lastDodgeTime > lastDodge) { lastDodge = state.player.lastDodgeTime; playerRig.triggerDash(); }
+        }
+        // The rig mixer must keep advancing so an already-started death/final animation
+        // cannot freeze merely because the run reached gameover.
         playerRig.update(delta);
       }
 
-      if (playerLight) playerLight.position.set(playerX, 4.2, playerZ + 1.2);
-      syncEnemies(state, delta, gameNow);
-      syncArrows(state, wallNow);
-      syncCircleEffects(state);
-      syncParticles(state);
-      syncDamageNumbers(state);
-      syncLoot(state, wallNow);
-      syncPortal(state, gameNow, wallNow);
-      syncPlayerFeedback(state, wallNow, gameNow);
+      if (!gameover) {
+        if (playerLight) playerLight.position.set(playerX, 4.2, playerZ + 1.2);
+        syncEnemies(state, delta, gameNow);
+        syncArrows(state, wallNow);
+        syncCircleEffects(state);
+        syncParticles(state);
+        syncDamageNumbers(state);
+        syncLoot(state, wallNow);
+        syncPortal(state, gameNow, wallNow);
+        syncPlayerFeedback(state, wallNow, gameNow);
+      } else {
+        // Preserve ambient enemy rig motion without re-running spawn/fallback/state-sync
+        // machinery. This keeps the death scene visually alive while removing the heavy
+        // post-gameover main-thread competitor that delayed the React `settled` commit.
+        for (const visual of enemyVisuals.values()) visual.mixer?.update?.(delta);
+      }
+
       camera.userData.dungeonPlayerX = playerX + RUN_CAMERA.playerCenterOffset;
       camera.userData.dungeonPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
       updateRunCamera(camera, cameraGoal, playerX, playerZ, state.roomClearReady);
@@ -998,7 +1014,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       } else {
         roomPaintPresentationFrames = 0;
       }
-      updatePerformanceDiagnostics(gameNow);
+      if (!gameover) updatePerformanceDiagnostics(gameNow);
       raf = requestAnimationFrame(renderLoop);
     };
 
