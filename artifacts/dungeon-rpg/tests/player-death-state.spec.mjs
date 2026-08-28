@@ -335,59 +335,63 @@ test('solo death uses an explicit visual death state before the final overlay', 
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
 });
 
-for (const language of ['de', 'en']) {
-  test(`duo ${language} renders downed, revive, fallen and final team defeat through the real lifecycle bridge`, async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
-    const harness = await installDuoProductHarness(page);
-    await openMenu(page, testInfo.project.name, { language, signedIn: true });
-    await startDuoRun(page);
+test.describe('compact Duo lifecycle screenshots', () => {
+  test.use({ video: 'off' });
 
-    await expect.poll(() => Boolean(harness.localPresence), {
-      timeout: 20_000,
-      message: 'Duo run must publish authoritative local presence after the realtime join',
-    }).toBe(true);
+  for (const language of ['de', 'en']) {
+    test(`duo ${language} renders downed, revive, fallen and final team defeat through the real lifecycle bridge`, async ({ page }, testInfo) => {
+      test.setTimeout(180_000);
+      const harness = await installDuoProductHarness(page);
+      await openMenu(page, testInfo.project.name, { language, signedIn: true });
+      await startDuoRun(page);
 
-    harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
-    const teammatePanel = page.getByTestId('coop-team-health-panel');
-    await expect(teammatePanel).toHaveAttribute('data-life-state', 'downed', { timeout: 5_000 });
-    await expect(page.getByTestId('coop-revive-proximity')).toHaveAttribute('data-in-range', 'true');
-    const reviveControl = page.getByTestId('coop-revive-control');
-    await expect(reviveControl).toBeVisible();
-    await expect(teammatePanel).toContainText(language === 'de' ? 'NIEDERGESCHLAGEN' : 'DOWNED');
-    await expect(reviveControl).toContainText(language === 'de' ? 'WIEDERBELEBEN HALTEN' : 'HOLD TO REVIVE');
-    await captureDuo(page, testInfo, language, 'downed-revive-ready');
+      await expect.poll(() => Boolean(harness.localPresence), {
+        timeout: 20_000,
+        message: 'Duo run must publish authoritative local presence after the realtime join',
+      }).toBe(true);
 
-    await reviveControl.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 });
-    await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS);
-    await reviveControl.dispatchEvent('pointerup', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 0 });
-    expect(harness.reviveConfirms, 'Host must publish exactly one authoritative revive confirmation after the full production hold').toHaveLength(1);
-    expect(harness.reviveConfirms[0]?.targetUserId).toBe(DUO_PARTNER_ID);
+      harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
+      const teammatePanel = page.getByTestId('coop-team-health-panel');
+      await expect(teammatePanel).toHaveAttribute('data-life-state', 'downed', { timeout: 5_000 });
+      await expect(page.getByTestId('coop-revive-proximity')).toHaveAttribute('data-in-range', 'true');
+      const reviveControl = page.getByTestId('coop-revive-control');
+      await expect(reviveControl).toBeVisible();
+      await expect(teammatePanel).toContainText(language === 'de' ? 'NIEDERGESCHLAGEN' : 'DOWNED');
+      await expect(reviveControl).toContainText(language === 'de' ? 'WIEDERBELEBEN HALTEN' : 'HOLD TO REVIVE');
+      await captureDuo(page, testInfo, language, 'downed-revive-ready');
 
-    const maxHp = Math.max(1, Number(harness.localPresence?.maxHp) || 100);
-    const revivedHp = Math.max(1, Math.ceil(maxHp * 0.35));
-    harness.sendRemotePresence({ lifeState: 'alive', revivesUsed: 1, hp: revivedHp });
-    await expect(teammatePanel).toHaveAttribute('data-life-state', 'alive', { timeout: 5_000 });
-    await expect(reviveControl).toHaveCount(0);
-    await captureDuo(page, testInfo, language, 'revived-35-percent');
+      await reviveControl.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 });
+      await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS);
+      await reviveControl.dispatchEvent('pointerup', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 0 });
+      expect(harness.reviveConfirms, 'Host must publish exactly one authoritative revive confirmation after the full production hold').toHaveLength(1);
+      expect(harness.reviveConfirms[0]?.targetUserId).toBe(DUO_PARTNER_ID);
 
-    harness.sendRemotePresence({ lifeState: 'fallen', revivesUsed: 1, hp: 0 });
-    await expect(teammatePanel).toHaveAttribute('data-life-state', 'fallen', { timeout: 5_000 });
-    await expect(teammatePanel).toContainText(language === 'de' ? 'GEFALLEN' : 'FALLEN');
-    await expect(reviveControl).toHaveCount(0);
-    await captureDuo(page, testInfo, language, 'fallen-revive-spent');
+      const maxHp = Math.max(1, Number(harness.localPresence?.maxHp) || 100);
+      const revivedHp = Math.max(1, Math.ceil(maxHp * 0.35));
+      harness.sendRemotePresence({ lifeState: 'alive', revivesUsed: 1, hp: revivedHp });
+      await expect(teammatePanel).toHaveAttribute('data-life-state', 'alive', { timeout: 5_000 });
+      await expect(reviveControl).toHaveCount(0);
+      await captureDuo(page, testInfo, language, 'revived-35-percent');
 
-    const capability = await page.evaluate(() => ({
-      forcePlayerDeath: typeof window.__dungeonVeilRuntimeEvidence?.forcePlayerDeath === 'function',
-    }));
-    expect(capability.forcePlayerDeath, 'Duo evidence must use the real lethal runtime transition for the local player').toBe(true);
-    await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.forcePlayerDeath());
+      harness.sendRemotePresence({ lifeState: 'fallen', revivesUsed: 1, hp: 0 });
+      await expect(teammatePanel).toHaveAttribute('data-life-state', 'fallen', { timeout: 5_000 });
+      await expect(teammatePanel).toContainText(language === 'de' ? 'GEFALLEN' : 'FALLEN');
+      await expect(reviveControl).toHaveCount(0);
+      await captureDuo(page, testInfo, language, 'fallen-revive-spent');
 
-    const teamDefeat = page.getByTestId('coop-team-game-over');
-    await expect(teamDefeat).toBeVisible({ timeout: 5_000 });
-    await expect(teamDefeat).toContainText(language === 'de' ? 'BEIDE GEFALLEN' : 'BOTH HAVE FALLEN');
-    const retry = page.getByTestId('coop-team-retry');
-    await expect(retry).toBeVisible();
-    await expect(retry).toContainText(language === 'de' ? 'GEMEINSAM NEU STARTEN' : 'RESTART TOGETHER');
-    await captureDuo(page, testInfo, language, 'team-defeat');
-  });
-}
+      const capability = await page.evaluate(() => ({
+        forcePlayerDeath: typeof window.__dungeonVeilRuntimeEvidence?.forcePlayerDeath === 'function',
+      }));
+      expect(capability.forcePlayerDeath, 'Duo evidence must use the real lethal runtime transition for the local player').toBe(true);
+      await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.forcePlayerDeath());
+
+      const teamDefeat = page.getByTestId('coop-team-game-over');
+      await expect(teamDefeat).toBeVisible({ timeout: 5_000 });
+      await expect(teamDefeat).toContainText(language === 'de' ? 'BEIDE GEFALLEN' : 'BOTH HAVE FALLEN');
+      const retry = page.getByTestId('coop-team-retry');
+      await expect(retry).toBeVisible();
+      await expect(retry).toContainText(language === 'de' ? 'GEMEINSAM NEU STARTEN' : 'RESTART TOGETHER');
+      await captureDuo(page, testInfo, language, 'team-defeat');
+    });
+  }
+});
