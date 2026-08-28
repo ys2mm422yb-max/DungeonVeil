@@ -363,7 +363,7 @@ test.describe('compact Duo lifecycle screenshots', () => {
       await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS / 2);
       harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
       await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS / 2);
-      await reviveControl.dispatchEvent('pointerup', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 0 });
+      await expect(reviveControl, 'Completed full hold must consume the revive control before a release event can target it').toHaveCount(0);
       expect(harness.reviveConfirms, 'Host must publish exactly one authoritative revive confirmation after the full production hold').toHaveLength(1);
       expect(harness.reviveConfirms[0]?.targetUserId).toBe(DUO_PARTNER_ID);
 
