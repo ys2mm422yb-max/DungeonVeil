@@ -2,8 +2,13 @@ import { writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const SUPABASE_REST = 'https://hfndwqfghyomwapqsked.supabase.co/rest/v1/';
 const RUNTIME_EVIDENCE_MARKER = 'dungeon-veil-runtime-evidence-v1';
 const POST_DEATH_ATTACK_BLOCK_WINDOW_MS = 750;
+const DUO_LOBBY_ID = 'qa-duo-lobby';
+const DUO_RUN_SEED = 424242;
+const DUO_PARTNER_ID = 'qa-partner';
+const DUO_REVIVE_HOLD_OBSERVATION_MS = 3_200;
 
 test.use({ video: 'on' });
 
@@ -13,15 +18,28 @@ async function pressPointerUi(locator) {
   await locator.click();
 }
 
-async function openMenu(page, projectName) {
-  await page.addInitScript(({ ipad, runtimeEvidenceMarker }) => {
+async function openMenu(page, projectName, { language = 'de', signedIn = false } = {}) {
+  await page.addInitScript(({ ipad, runtimeEvidenceMarker, selectedLanguage, online }) => {
     localStorage.clear();
+    sessionStorage.clear();
     sessionStorage.setItem(runtimeEvidenceMarker, '1');
-    localStorage.setItem('dungeon-veil-language', 'de');
+    localStorage.setItem('dungeon-veil-language', selectedLanguage);
+    localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
+    if (online) {
+      localStorage.setItem('dungeon-veil-supabase-session-v1', JSON.stringify({
+        access_token: 'qa-access-token',
+        refresh_token: 'qa-refresh-token',
+        expires_at: 4102444800,
+        token_type: 'bearer',
+        user: { id: 'qa-owner', email: 'qa@dungeonveil.invalid' },
+      }));
+    }
     if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
   }, {
     ipad: projectName.includes('ipad'),
     runtimeEvidenceMarker: RUNTIME_EVIDENCE_MARKER,
+    selectedLanguage: language,
+    online: signedIn,
   });
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
@@ -39,6 +57,165 @@ async function startFreshRun(page) {
   const skipIntro = page.getByRole('button', { name: /ÜBERSPRINGEN|SKIP/i });
   if (await skipIntro.isVisible({ timeout: 8_000 }).catch(() => false)) await skipIntro.click({ force: true });
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
+}
+
+async function installDuoProductHarness(page) {
+  let created = false;
+  let hostReady = false;
+  let started = false;
+  let remoteSequence = 0;
+  const harness = {
+    socket: null,
+    localPresence: null,
+    reviveConfirms: [],
+  };
+
+  const lobby = () => ({
+    lobby_id: DUO_LOBBY_ID,
+    invite_code: 'QA4242',
+    status: started ? 'in_run' : hostReady ? 'ready' : 'waiting',
+    run_seed: DUO_RUN_SEED,
+    role: 'host',
+    ready: hostReady,
+    host_user_id: 'qa-owner',
+    created_at: '2026-08-28T18:00:00.000Z',
+    expires_at: '2026-08-28T22:00:00.000Z',
+    started_at: started ? '2026-08-28T18:01:00.000Z' : null,
+    server_now: '2026-08-28T18:01:00.000Z',
+  });
+
+  const members = () => [
+    {
+      user_id: 'qa-owner',
+      role: 'host',
+      ready: hostReady,
+      display_name: 'Ranger QA',
+      avatar_key: 'ranger',
+      joined_at: '2026-08-28T18:00:00.000Z',
+      last_seen_at: '2026-08-28T18:01:00.000Z',
+    },
+    {
+      user_id: DUO_PARTNER_ID,
+      role: 'guest',
+      ready: true,
+      display_name: 'Nyra',
+      avatar_key: 'veil',
+      joined_at: '2026-08-28T18:00:05.000Z',
+      last_seen_at: '2026-08-28T18:01:00.000Z',
+    },
+  ];
+
+  await page.route(`${SUPABASE_REST}**`, async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const rpcName = url.pathname.includes('/rpc/') ? url.pathname.split('/rpc/')[1] : '';
+    let body = [];
+
+    if (rpcName === 'get_my_coop_lobby') body = created ? [lobby()] : [];
+    else if (rpcName === 'create_coop_lobby') {
+      created = true;
+      body = [lobby()];
+    } else if (rpcName === 'list_my_coop_lobby_members') body = created ? members() : [];
+    else if (rpcName === 'list_coop_invite_candidates') body = [];
+    else if (rpcName === 'set_coop_lobby_ready') {
+      hostReady = Boolean(JSON.parse(request.postData() || '{}').p_ready);
+      body = [lobby()];
+    } else if (rpcName === 'start_coop_lobby') {
+      started = true;
+      body = [lobby()];
+    } else if (rpcName === 'get_my_coop_run_checkpoint') body = [];
+    else if (rpcName === 'save_my_coop_run_checkpoint') body = [{ run_attempt: 1, revision: 1, updated_at: new Date().toISOString() }];
+    else if (rpcName === 'list_my_pending_coop_room_rewards') body = [];
+    else if (rpcName === 'get_my_coop_room_reward_state') body = [];
+    else if (rpcName === 'prepare_coop_room_rewards') body = 0;
+    else if (rpcName === 'heartbeat_coop_lobby' || rpcName === 'leave_coop_lobby' || rpcName === 'ack_coop_room_reward') body = true;
+
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+
+  await page.routeWebSocket('**/realtime/v1/websocket**', socket => {
+    harness.socket = socket;
+    socket.onMessage(message => {
+      let parsed;
+      try { parsed = JSON.parse(String(message)); }
+      catch { return; }
+      if (parsed.event === 'phx_join') {
+        socket.send(JSON.stringify({
+          topic: parsed.topic,
+          event: 'phx_reply',
+          payload: { status: 'ok', response: {} },
+          ref: parsed.ref,
+        }));
+        return;
+      }
+      if (parsed.event !== 'broadcast') return;
+      if (parsed.payload?.event === 'player_state') harness.localPresence = parsed.payload.payload;
+      if (parsed.payload?.event === 'revive_confirm') harness.reviveConfirms.push(parsed.payload.payload);
+    });
+  });
+
+  harness.sendRemotePresence = ({ lifeState, revivesUsed, hp }) => {
+    expect(harness.socket, 'Duo realtime mock must have an active socket').toBeTruthy();
+    expect(harness.localPresence, 'Duo realtime mock must observe authoritative local presence before injecting a teammate').toBeTruthy();
+    const local = harness.localPresence;
+    const maxHp = Math.max(1, Number(local.maxHp) || 100);
+    const payload = {
+      version: 1,
+      lobbyId: DUO_LOBBY_ID,
+      runSeed: DUO_RUN_SEED,
+      userId: DUO_PARTNER_ID,
+      displayName: 'Nyra',
+      chapter: Number(local.chapter) || 1,
+      room: Number(local.room) || 1,
+      x: Number(local.x) || 0,
+      y: Number(local.y) || 0,
+      facingX: 0,
+      facingY: -1,
+      state: 'idle',
+      lifeState,
+      revivesUsed,
+      downedUntil: lifeState === 'downed' ? Date.now() + 20_000 : 0,
+      hp: lifeState === 'alive' ? Math.max(1, hp ?? maxHp) : 0,
+      maxHp,
+      defense: 0,
+      lastAttackTime: 0,
+      lastDodgeTime: 0,
+      sequence: ++remoteSequence,
+      sentAt: Date.now(),
+    };
+    harness.socket.send(JSON.stringify({
+      topic: `realtime:duo-run:${DUO_LOBBY_ID}`,
+      event: 'broadcast',
+      payload: { type: 'broadcast', event: 'player_state', payload },
+      ref: null,
+    }));
+    return payload;
+  };
+
+  return harness;
+}
+
+async function startDuoRun(page) {
+  await pressPointerUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await expect(page.getByText(/Spielmodus wählen|Choose game mode/i)).toBeVisible({ timeout: 20_000 });
+  await pressPointerUi(page.getByRole('button', { name: /Duo-Run|Duo Run/i }));
+  await expect(page.getByTestId('coop-create-lobby')).toBeVisible({ timeout: 20_000 });
+  await pressPointerUi(page.getByTestId('coop-create-lobby'));
+  await expect(page.getByTestId('coop-lobby-members')).toBeVisible({ timeout: 20_000 });
+  await pressPointerUi(page.getByTestId('coop-ready-toggle'));
+  await expect(page.getByTestId('coop-start-run')).toBeEnabled({ timeout: 20_000 });
+  await pressPointerUi(page.getByTestId('coop-start-run'));
+  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 90_000 });
+  const skipIntro = page.getByRole('button', { name: /ÜBERSPRINGEN|SKIP/i });
+  if (await skipIntro.isVisible({ timeout: 8_000 }).catch(() => false)) await skipIntro.click({ force: true });
+  await expect(skipIntro).toBeHidden({ timeout: 20_000 });
+}
+
+async function captureDuo(page, testInfo, language, state) {
+  await page.screenshot({
+    path: `test-results/autopilot-duo-${language}-${state}-${testInfo.project.name}.png`,
+    fullPage: false,
+  });
 }
 
 test('solo death uses an explicit visual death state before the final overlay', async ({ page }, testInfo) => {
@@ -157,3 +334,60 @@ test('solo death uses an explicit visual death state before the final overlay', 
   }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
 });
+
+for (const language of ['de', 'en']) {
+  test(`duo ${language} renders downed, revive, fallen and final team defeat through the real lifecycle bridge`, async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const harness = await installDuoProductHarness(page);
+    await openMenu(page, testInfo.project.name, { language, signedIn: true });
+    await startDuoRun(page);
+
+    await expect.poll(() => Boolean(harness.localPresence), {
+      timeout: 20_000,
+      message: 'Duo run must publish authoritative local presence after the realtime join',
+    }).toBe(true);
+
+    harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
+    const teammatePanel = page.getByTestId('coop-team-health-panel');
+    await expect(teammatePanel).toHaveAttribute('data-life-state', 'downed', { timeout: 5_000 });
+    await expect(page.getByTestId('coop-revive-proximity')).toHaveAttribute('data-in-range', 'true');
+    const reviveControl = page.getByTestId('coop-revive-control');
+    await expect(reviveControl).toBeVisible();
+    await expect(teammatePanel).toContainText(language === 'de' ? 'NIEDERGESCHLAGEN' : 'DOWNED');
+    await expect(reviveControl).toContainText(language === 'de' ? 'WIEDERBELEBEN HALTEN' : 'HOLD TO REVIVE');
+    await captureDuo(page, testInfo, language, 'downed-revive-ready');
+
+    await reviveControl.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 });
+    await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS);
+    await reviveControl.dispatchEvent('pointerup', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 0 });
+    expect(harness.reviveConfirms, 'Host must publish exactly one authoritative revive confirmation after the full production hold').toHaveLength(1);
+    expect(harness.reviveConfirms[0]?.targetUserId).toBe(DUO_PARTNER_ID);
+
+    const maxHp = Math.max(1, Number(harness.localPresence?.maxHp) || 100);
+    const revivedHp = Math.max(1, Math.ceil(maxHp * 0.35));
+    harness.sendRemotePresence({ lifeState: 'alive', revivesUsed: 1, hp: revivedHp });
+    await expect(teammatePanel).toHaveAttribute('data-life-state', 'alive', { timeout: 5_000 });
+    await expect(reviveControl).toHaveCount(0);
+    await captureDuo(page, testInfo, language, 'revived-35-percent');
+
+    harness.sendRemotePresence({ lifeState: 'fallen', revivesUsed: 1, hp: 0 });
+    await expect(teammatePanel).toHaveAttribute('data-life-state', 'fallen', { timeout: 5_000 });
+    await expect(teammatePanel).toContainText(language === 'de' ? 'GEFALLEN' : 'FALLEN');
+    await expect(reviveControl).toHaveCount(0);
+    await captureDuo(page, testInfo, language, 'fallen-revive-spent');
+
+    const capability = await page.evaluate(() => ({
+      forcePlayerDeath: typeof window.__dungeonVeilRuntimeEvidence?.forcePlayerDeath === 'function',
+    }));
+    expect(capability.forcePlayerDeath, 'Duo evidence must use the real lethal runtime transition for the local player').toBe(true);
+    await page.evaluate(() => window.__dungeonVeilRuntimeEvidence.forcePlayerDeath());
+
+    const teamDefeat = page.getByTestId('coop-team-game-over');
+    await expect(teamDefeat).toBeVisible({ timeout: 5_000 });
+    await expect(teamDefeat).toContainText(language === 'de' ? 'BEIDE GEFALLEN' : 'BOTH HAVE FALLEN');
+    const retry = page.getByTestId('coop-team-retry');
+    await expect(retry).toBeVisible();
+    await expect(retry).toContainText(language === 'de' ? 'GEMEINSAM NEU STARTEN' : 'RESTART TOGETHER');
+    await captureDuo(page, testInfo, language, 'team-defeat');
+  });
+}
