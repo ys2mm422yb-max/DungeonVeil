@@ -358,8 +358,11 @@ test.describe('compact Duo lifecycle screenshots', () => {
       await expect(reviveControl).toContainText(language === 'de' ? 'WIEDERBELEBEN HALTEN' : 'HOLD TO REVIVE');
       await captureDuo(page, testInfo, language, 'downed-revive-ready');
 
+      harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
       await reviveControl.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 });
-      await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS);
+      await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS / 2);
+      harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
+      await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS / 2);
       await reviveControl.dispatchEvent('pointerup', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 0 });
       expect(harness.reviveConfirms, 'Host must publish exactly one authoritative revive confirmation after the full production hold').toHaveLength(1);
       expect(harness.reviveConfirms[0]?.targetUserId).toBe(DUO_PARTNER_ID);
