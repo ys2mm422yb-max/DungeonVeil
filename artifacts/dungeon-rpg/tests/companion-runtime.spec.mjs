@@ -782,6 +782,10 @@ test('critical-support proc renders one readable value on its actual target', as
   await waitForStableRoom(page);
   await prepareLivePlayerAttackLine(page);
   await page.keyboard.down('KeyW');
+  const expectedPlayerAttackSetterKey = '__dungeonVeilCriticalCompanionFeedbackObservationSetExpectedPlayerAttackAt';
+  const confirmationWatcherKey = '__dungeonVeilCriticalSupportPlayerAttackConfirmationWatcher';
+  const confirmationStateKey = '__dungeonVeilCriticalSupportPlayerAttackConfirmedAt';
+  const confirmationObservationKey = '__dungeonVeilCriticalCompanionFeedbackObservation';
   try {
     await expect.poll(async () => Number((await readRuntimeCombatSnapshot(page))?.playerAttackCooldown ?? Number.POSITIVE_INFINITY), {
       timeout: 20_000,
@@ -807,19 +811,65 @@ test('critical-support proc renders one readable value on its actual target', as
     const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
     expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
     expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
-    const expectedPlayerAttackSetterKey = '__dungeonVeilCriticalCompanionFeedbackObservationSetExpectedPlayerAttackAt';
-    const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(
+    const confirmationBoundary = Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime);
+    const confirmationWatcherInstalled = await page.evaluate(({ setterKey, watcherKey, stateKey, observationKey, boundary }) => {
+      const scope = window;
+      const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+      if (!runtime || typeof scope[setterKey] !== 'function') return false;
+      scope[watcherKey]?.disconnect?.();
+      scope[stateKey] = 0;
+      const confirmRuntimeSource = () => {
+        if (scope[observationKey]) return false;
+        const snapshot = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
+        const authoritativeAt = Number(snapshot?.playerLastAttackTime || 0);
+        const criticalSpecialAt = Number(runtime.getAttribute('data-last-critical-special-player-attack-at') || 0);
+        const observedPlayerAttackAt = Number(runtime.getAttribute('data-last-observed-player-attack-at') || 0);
+        const previousConfirmedAt = Number(scope[stateKey] || 0);
+        const runtimeConfirmed = criticalSpecialAt > boundary
+          && criticalSpecialAt > previousConfirmedAt
+          && criticalSpecialAt === authoritativeAt
+          && observedPlayerAttackAt === criticalSpecialAt;
+        if (!runtimeConfirmed) return false;
+        if (scope[setterKey]?.(criticalSpecialAt) !== true) return false;
+        scope[stateKey] = criticalSpecialAt;
+        return true;
+      };
+      const observer = new MutationObserver(() => confirmRuntimeSource());
+      observer.observe(runtime, {
+        attributes: true,
+        attributeFilter: ['data-last-critical-special-player-attack-at', 'data-last-observed-player-attack-at'],
+      });
+      scope[watcherKey] = { disconnect: () => observer.disconnect() };
+      confirmRuntimeSource();
+      return true;
+    }, {
+      setterKey: expectedPlayerAttackSetterKey,
+      watcherKey: confirmationWatcherKey,
+      stateKey: confirmationStateKey,
+      observationKey: confirmationObservationKey,
+      boundary: confirmationBoundary,
+    });
+    expect(confirmationWatcherInstalled).toBe(true);
+    const initialConfirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(
       page,
-      Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime),
+      confirmationBoundary,
       expectedPlayerAttackSetterKey,
     );
     const observedCritical = await capturePromise;
-    expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
-    expect(confirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
-    expect(confirmedPlayerAttackAt).toBeGreaterThan(captureBoundary);
-    expect(observedCritical.criticalPlayerAttackAt).toBe(confirmedPlayerAttackAt);
-    expect(observedCritical.at).toBeGreaterThan(confirmedPlayerAttackAt);
+    const finalConfirmedPlayerAttackAt = await page.evaluate(stateKey => Number(window[stateKey] || 0), confirmationStateKey);
+    expect(initialConfirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
+    expect(initialConfirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
+    expect(initialConfirmedPlayerAttackAt).toBeGreaterThan(captureBoundary);
+    expect(finalConfirmedPlayerAttackAt).toBeGreaterThanOrEqual(initialConfirmedPlayerAttackAt);
+    expect(finalConfirmedPlayerAttackAt).toBeGreaterThan(captureBoundary);
+    expect(observedCritical.criticalPlayerAttackAt).toBe(finalConfirmedPlayerAttackAt);
+    expect(observedCritical.at).toBeGreaterThan(finalConfirmedPlayerAttackAt);
   } finally {
+    await page.evaluate(({ watcherKey, stateKey }) => {
+      window[watcherKey]?.disconnect?.();
+      delete window[watcherKey];
+      delete window[stateKey];
+    }, { watcherKey: confirmationWatcherKey, stateKey: confirmationStateKey }).catch(() => {});
     await page.keyboard.up('KeyW').catch(() => {});
   }
   await expect(runtime).toHaveAttribute('data-level', '2');
