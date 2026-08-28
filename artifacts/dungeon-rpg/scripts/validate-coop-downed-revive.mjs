@@ -50,11 +50,26 @@ assert(bridge.includes('playerAtExit(engine.state, remote.x, remote.y)'), 'Host 
 assert(bridge.includes('advanceGuestForSnapshot') && bridge.includes('coopNextRoom'), 'Guest does not follow the host into the next room.');
 assert(bridge.includes('clearEngineInput(engine)') && bridge.includes("localLifeRef.current !== 'alive'"), 'Downed/fallen players can still fight or move.');
 
+assert(bridge.includes("import { useLanguage } from '../i18n/LanguageContext'"), 'Duo lifecycle overlay is not connected to the selected language.');
+assert(bridge.includes('const COOP_LIFE_COPY = {') && bridge.includes("de: {") && bridge.includes("en: {"), 'Duo lifecycle copy is not explicitly defined for DE and EN.');
+for (const label of ['NIEDERGESCHLAGEN', 'GEFALLEN', 'WIEDERBELEBEN HALTEN', 'BEIDE GEFALLEN', 'GEMEINSAM NEU STARTEN']) {
+  assert(bridge.includes(label), `German Duo lifecycle copy is missing ${label}.`);
+}
+for (const label of ['DOWNED', 'FALLEN', 'HOLD TO REVIVE', 'BOTH HAVE FALLEN', 'RESTART TOGETHER']) {
+  assert(bridge.includes(label), `English Duo lifecycle copy is missing ${label}.`);
+}
+assert(!bridge.includes('NIEDERGESCHLAGEN · DOWNED') && !bridge.includes('WIEDERBELEBEN HALTEN · HOLD TO REVIVE'), 'Duo lifecycle overlay still renders mixed-language labels.');
+assert(bridge.includes('{copy.pausedEyebrow}') && bridge.includes('{copy.disconnectedTitle}') && bridge.includes('copy.downedBody(downedSeconds)') && bridge.includes('{copy.reviveHold}') && bridge.includes('{copy.teamDefeatTitle}'), 'Duo lifecycle UI does not consistently render the selected-language copy.');
+
 assert(teammateUi.includes('COOP_REVIVE_RANGE') && teammateUi.includes('distance <= COOP_REVIVE_RANGE'), 'Revive proximity UI does not use the authoritative revive range.');
 assert(teammateUi.includes('data-testid="coop-revive-proximity"') && teammateUi.includes("data-in-range={inRange ? 'true' : 'false'}"), 'Revive proximity state is not visibly exposed.');
-assert(teammateUi.includes('3 SEKUNDEN HALTEN') && teammateUi.includes('NÄHER ZU'), 'Players are not told whether to hold revive or move closer.');
-assert(teammateUi.includes('WIEDERBELEBUNG FÜR DIESEN RAUM VERBRAUCHT'), 'Spent room revive is not explained.');
-assert(teammateUi.includes('NIEDERGESCHLAGEN') && teammateUi.includes('GEFALLEN · NÄCHSTER RAUM'), 'Remote downed and fallen states are not clearly labelled.');
+assert(teammateUi.includes("import { useLanguage } from '../i18n/LanguageContext'"), 'Teammate revive HUD is not connected to the selected language.');
+assert(teammateUi.includes('const COOP_TEAMMATE_COPY = {') && teammateUi.includes("de: {") && teammateUi.includes("en: {"), 'Teammate revive HUD is not explicitly defined for DE and EN.');
+assert(teammateUi.includes('3 SEKUNDEN HALTEN') && teammateUi.includes('NÄHER ZU') && teammateUi.includes('WIEDERBELEBUNG FÜR DIESEN RAUM VERBRAUCHT'), 'German teammate revive guidance is incomplete.');
+assert(teammateUi.includes('HOLD FOR 3 SECONDS') && teammateUi.includes('MOVE ${tiles} TILE') && teammateUi.includes('REVIVE USED FOR THIS ROOM'), 'English teammate revive guidance is incomplete.');
+assert(teammateUi.includes('NIEDERGESCHLAGEN') && teammateUi.includes('GEFALLEN · NÄCHSTER RAUM'), 'German remote downed and fallen states are not clearly labelled.');
+assert(teammateUi.includes('DOWNED') && teammateUi.includes('FALLEN · NEXT ROOM'), 'English remote downed and fallen states are not clearly labelled.');
+assert(teammateUi.includes('{copy.teammate} · {teammateName}') && teammateUi.includes('copy.inRange(teammateName)') && teammateUi.includes('copy.approach(distanceTiles, teammateName)') && teammateUi.includes('{copy.reviveSpent}'), 'Teammate HUD does not consistently render selected-language copy.');
 
 assert(page.includes("active={uiState === 'game' && Boolean(duoContext)}"), 'Lifecycle bridge can activate outside a duo run.');
 assert(engine.includes("status: 'playing' | 'gameover' | 'levelup' | 'paused'"), 'Solo engine status contract was modified for duo lifecycle.');
@@ -93,4 +108,4 @@ try {
   await server.close();
 }
 
-console.log('Coop lifecycle keeps its bounded revive contract and now explains range, hold timing, downed state and spent room revives.');
+console.log('Coop lifecycle keeps its bounded revive contract and presents downed, revive, proximity and team defeat states in explicit German and English copy.');
