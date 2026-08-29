@@ -218,14 +218,55 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -d '' -t death_pngs < <(find artifacts/dungeon-rpg/test-results -type f -name "player-death-solo-${BROWSER_PROJECT}.png" -print0)
-          mapfile -d '' -t death_videos < <(find artifacts/dungeon-rpg/test-results -type f -path '*player-death-state*' -name 'video.webm' -print0)
           mapfile -d '' -t death_traces < <(find artifacts/dungeon-rpg/test-results -type f -name "player-death-solo-${BROWSER_PROJECT}.trace.json" -print0)
           test "${#death_pngs[@]}" -eq 1
-          test "${#death_videos[@]}" -eq 1
           test "${#death_traces[@]}" -eq 1
           mv "${death_pngs[0]}" "artifacts/dungeon-rpg/test-results/player-death-solo-${BROWSER_PROJECT}.png"
-          mv "${death_videos[0]}" "artifacts/dungeon-rpg/test-results/player-death-solo-${BROWSER_PROJECT}.webm"
           mv "${death_traces[0]}" "artifacts/dungeon-rpg/test-results/player-death-solo-${BROWSER_PROJECT}.trace.json"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifestPath = 'artifacts/dungeon-rpg/test-results/full-game-results.json';
+          const outputRoot = 'artifacts/dungeon-rpg/test-results';
+          const browserProject = process.env.BROWSER_PROJECT;
+          const report = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const videos = new Map();
+          const classify = title => {
+            const normalized = String(title || '').toLowerCase();
+            if (normalized === 'solo death uses an explicit visual death state before the final overlay') return 'solo';
+            if (normalized === 'duo de renders downed, revive, fallen and final team defeat through the real lifecycle bridge') return 'duo-de';
+            if (normalized === 'duo en renders downed, revive, fallen and final team defeat through the real lifecycle bridge') return 'duo-en';
+            return null;
+          };
+          const visit = (suites = []) => {
+            for (const suite of suites) {
+              for (const spec of suite.specs || []) {
+                if (!String(spec.file || suite.file || '').endsWith('player-death-state.spec.mjs')) continue;
+                const kind = classify(spec.title);
+                if (!kind) continue;
+                const attachments = [];
+                for (const test of spec.tests || []) {
+                  for (const result of test.results || []) {
+                    for (const attachment of result.attachments || []) {
+                      if (attachment.name === 'video' && attachment.contentType === 'video/webm' && attachment.path) attachments.push(attachment.path);
+                    }
+                  }
+                }
+                if (attachments.length !== 1) throw new Error(`${kind} must have exactly one video attachment, found ${attachments.length}`);
+                if (videos.has(kind)) throw new Error(`duplicate ${kind} player-death result`);
+                videos.set(kind, attachments[0]);
+              }
+              visit(suite.suites);
+            }
+          };
+          visit(report.suites);
+          for (const kind of ['solo', 'duo-de', 'duo-en']) {
+            const source = videos.get(kind);
+            if (!source || !fs.existsSync(source)) throw new Error(`missing ${kind} player-death video attachment`);
+            const target = path.join(outputRoot, `player-death-${kind}-${browserProject}.webm`);
+            fs.renameSync(source, target);
+          }
+          NODE
       - name: Prepare compact companion prestige review video
         if: steps.product-tests.outcome == 'success'
         shell: bash
@@ -356,6 +397,8 @@ jobs:
             artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.webm
+            artifacts/dungeon-rpg/test-results/player-death-duo-de-${{ matrix.project }}.webm
+            artifacts/dungeon-rpg/test-results/player-death-duo-en-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.trace.json
             artifacts/dungeon-rpg/test-results/visual-upgrade-prestige-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
