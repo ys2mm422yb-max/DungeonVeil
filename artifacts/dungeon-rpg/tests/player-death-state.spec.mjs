@@ -9,6 +9,7 @@ const DUO_LOBBY_ID = 'qa-duo-lobby';
 const DUO_RUN_SEED = 424242;
 const DUO_PARTNER_ID = 'qa-partner';
 const DUO_REVIVE_HOLD_OBSERVATION_MS = 3_200;
+const DUO_MOCK_PRESENCE_HEARTBEAT_MS = 500;
 
 test.use({ video: 'on' });
 
@@ -192,6 +193,13 @@ async function installDuoProductHarness(page) {
     return payload;
   };
 
+  harness.keepRemoteDownedFreshUntilRevived = async () => {
+    while (harness.reviveConfirms.length === 0) {
+      harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
+      await page.waitForTimeout(DUO_MOCK_PRESENCE_HEARTBEAT_MS);
+    }
+  };
+
   return harness;
 }
 
@@ -230,9 +238,6 @@ test('solo death uses an explicit visual death state before the final overlay', 
   const before = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(before?.hp || 0)).toBeGreaterThan(0);
 
-  // Observe the complete staged overlay sequence on the browser clock. The MutationObserver is
-  // installed before the real lethal transition, so slow Playwright/WebKit protocol round-trips
-  // cannot miss a valid 1100 ms settling state that already occurred on the page main thread.
   const deathSequenceObservation = await page.evaluate(async () => {
     const startedAt = performance.now();
     const states = [];
@@ -360,12 +365,12 @@ test.describe('compact Duo lifecycle screenshots', () => {
 
       harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
       await reviveControl.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 });
-      await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS / 2);
-      harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
-      await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS / 2);
+      const keepDownedFresh = harness.keepRemoteDownedFreshUntilRevived();
+      await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS);
       await expect(reviveControl, 'Completed full hold must consume the revive control before a release event can target it').toHaveCount(0);
       expect(harness.reviveConfirms, 'Host must publish exactly one authoritative revive confirmation after the full production hold').toHaveLength(1);
       expect(harness.reviveConfirms[0]?.targetUserId).toBe(DUO_PARTNER_ID);
+      await keepDownedFresh;
 
       const maxHp = Math.max(1, Number(harness.localPresence?.maxHp) || 100);
       const revivedHp = Math.max(1, Math.ceil(maxHp * 0.35));
