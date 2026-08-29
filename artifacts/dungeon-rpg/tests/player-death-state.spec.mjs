@@ -69,7 +69,7 @@ async function installDuoProductHarness(page) {
   const harnessIsoAt = (offsetMs = 0) => new Date(harnessOpenedAt + offsetMs).toISOString();
   const freshNowIso = () => new Date().toISOString();
   const harness = {
-    socket: null,
+    joinedSockets: new Set(),
     localPresence: null,
     reviveConfirms: [],
     downedHeartbeat: null,
@@ -145,18 +145,22 @@ async function installDuoProductHarness(page) {
   };
 
   await page.routeWebSocket('**/realtime/v1/websocket**', socket => {
-    harness.socket = socket;
     socket.onMessage(message => {
       let parsed;
       try { parsed = JSON.parse(String(message)); }
       catch { return; }
       if (parsed.event === 'phx_join') {
+        if (parsed.topic === `realtime:duo-run:${DUO_LOBBY_ID}`) harness.joinedSockets.add(socket);
         socket.send(JSON.stringify({
           topic: parsed.topic,
           event: 'phx_reply',
           payload: { status: 'ok', response: {} },
           ref: parsed.ref,
         }));
+        return;
+      }
+      if (parsed.event === 'phx_leave') {
+        harness.joinedSockets.delete(socket);
         return;
       }
       if (parsed.event !== 'broadcast') return;
@@ -169,7 +173,7 @@ async function installDuoProductHarness(page) {
   });
 
   harness.sendRemotePresence = ({ lifeState, revivesUsed, hp }) => {
-    expect(harness.socket, 'Duo realtime mock must have an active socket').toBeTruthy();
+    expect(harness.joinedSockets.size, 'Duo realtime mock must have at least one joined Duo socket').toBeGreaterThan(0);
     expect(harness.localPresence, 'Duo realtime mock must observe authoritative local presence before injecting a teammate').toBeTruthy();
     const local = harness.localPresence;
     const maxHp = Math.max(1, Number(local.maxHp) || 100);
@@ -197,12 +201,13 @@ async function installDuoProductHarness(page) {
       sequence: ++remoteSequence,
       sentAt: Date.now(),
     };
-    harness.socket.send(JSON.stringify({
+    const message = JSON.stringify({
       topic: `realtime:duo-run:${DUO_LOBBY_ID}`,
       event: 'broadcast',
       payload: { type: 'broadcast', event: 'player_state', payload },
       ref: null,
-    }));
+    });
+    for (const joinedSocket of harness.joinedSockets) joinedSocket.send(message);
     return payload;
   };
 
