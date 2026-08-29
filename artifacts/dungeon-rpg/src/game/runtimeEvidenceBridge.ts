@@ -23,6 +23,7 @@ type TerminalDeathTransitionArm = {
 
 type RuntimeEvidenceApi = {
   snapshot: () => Record<string, unknown> | null;
+  prepareTerminalDeathEvidence: () => Record<string, unknown> | null;
   forcePlayerDeath: () => Record<string, unknown> | null;
   loadRoom: (room: number, mode?: EvidenceMode) => Record<string, unknown> | null;
   killLivingEnemies: () => Record<string, unknown> | null;
@@ -123,6 +124,20 @@ function attachApi(): void {
   if (!allowed()) return;
   window.__dungeonVeilRuntimeEvidence = {
     snapshot: () => stateSnapshot(),
+    prepareTerminalDeathEvidence: () => {
+      const engine = currentEngine;
+      if (!engine) return null;
+      terminalDeathTransitionArm = null;
+      const beforeEnsure = terminalDeathRunDiagnostics();
+      if (!ensureVeilHeartConsumedForCurrentRun()) {
+        throw new Error(`Terminal death evidence requires a current run id before preparation: ${JSON.stringify({ beforeEnsure })}`);
+      }
+      return {
+        beforeEnsure,
+        afterEnsure: terminalDeathRunDiagnostics(),
+        snapshot: stateSnapshot(engine),
+      };
+    },
     forcePlayerDeath: () => {
       const engine = currentEngine;
       if (!engine) return null;
