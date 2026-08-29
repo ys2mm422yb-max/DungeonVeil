@@ -143,8 +143,9 @@ function attachApi(): void {
       if (!engine) return null;
       terminalDeathTransitionArm = null;
       const beforeEnsure = terminalDeathRunDiagnostics();
-      if (!ensureVeilHeartConsumedForCurrentRun()) {
-        throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ beforeEnsure })}`);
+      const runMode: EvidenceMode = document.documentElement.dataset.dungeonVeilRunMode === 'duo' ? 'duo' : 'solo';
+      if (runMode === 'solo' && !ensureVeilHeartConsumedForCurrentRun()) {
+        throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ runMode, beforeEnsure })}`);
       }
       const afterEnsure = terminalDeathRunDiagnostics();
       engine.state.player.hp = 0;
@@ -153,7 +154,7 @@ function attachApi(): void {
       emit(engine);
       const snapshot = stateSnapshot(engine);
       if (engine.state.status !== 'gameover' || engine.state.player.hp > 0) {
-        throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
+        throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ runMode, beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
       }
       terminalDeathTransitionArm = {
         armedAt: performance.now(),
