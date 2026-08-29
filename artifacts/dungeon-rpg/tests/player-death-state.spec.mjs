@@ -65,6 +65,9 @@ async function installDuoProductHarness(page) {
   let hostReady = false;
   let started = false;
   let remoteSequence = 0;
+  const harnessOpenedAt = Date.now();
+  const harnessIsoAt = (offsetMs = 0) => new Date(harnessOpenedAt + offsetMs).toISOString();
+  const freshNowIso = () => new Date().toISOString();
   const harness = {
     socket: null,
     localPresence: null,
@@ -79,10 +82,10 @@ async function installDuoProductHarness(page) {
     role: 'host',
     ready: hostReady,
     host_user_id: 'qa-owner',
-    created_at: '2026-08-28T18:00:00.000Z',
-    expires_at: '2026-08-28T22:00:00.000Z',
-    started_at: started ? '2026-08-28T18:01:00.000Z' : null,
-    server_now: '2026-08-28T18:01:00.000Z',
+    created_at: harnessIsoAt(-60_000),
+    expires_at: harnessIsoAt(4 * 60 * 60_000),
+    started_at: started ? harnessIsoAt() : null,
+    server_now: freshNowIso(),
   });
 
   const members = () => [
@@ -92,8 +95,8 @@ async function installDuoProductHarness(page) {
       ready: hostReady,
       display_name: 'Ranger QA',
       avatar_key: 'ranger',
-      joined_at: '2026-08-28T18:00:00.000Z',
-      last_seen_at: '2026-08-28T18:01:00.000Z',
+      joined_at: harnessIsoAt(-60_000),
+      last_seen_at: freshNowIso(),
     },
     {
       user_id: DUO_PARTNER_ID,
@@ -101,8 +104,8 @@ async function installDuoProductHarness(page) {
       ready: true,
       display_name: 'Nyra',
       avatar_key: 'veil',
-      joined_at: '2026-08-28T18:00:05.000Z',
-      last_seen_at: '2026-08-28T18:01:00.000Z',
+      joined_at: harnessIsoAt(-55_000),
+      last_seen_at: freshNowIso(),
     },
   ];
 
