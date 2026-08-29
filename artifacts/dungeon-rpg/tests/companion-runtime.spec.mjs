@@ -99,22 +99,44 @@ async function moveWithKeyboard(page, keys, durationMs) {
 }
 
 async function readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPlayerAttackSetterKey) {
-  return page.evaluate(({ boundary, setterKey }) => {
-    const snapshot = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
-    const confirmedAt = Number(snapshot?.playerLastAttackTime || 0);
-    if (setterKey) {
-      const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+  return page.evaluate(async ({ boundary, setterKey, maxMirrorWaitMs }) => {
+    const readState = () => {
+      const snapshot = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
+      const confirmedAt = Number(snapshot?.playerLastAttackTime || 0);
+      const runtime = setterKey ? document.querySelector('[data-testid="companion-runtime-bridge"]') : null;
       const criticalSpecialAt = Number(runtime?.getAttribute('data-last-critical-special-player-attack-at') || 0);
       const observedPlayerAttackAt = Number(runtime?.getAttribute('data-last-observed-player-attack-at') || 0);
-      const runtimeConfirmed = criticalSpecialAt > boundary
-        && criticalSpecialAt === confirmedAt
-        && observedPlayerAttackAt === criticalSpecialAt;
-      if (!runtimeConfirmed) return { snapshot, confirmedAt: 0, armed: false };
+      return {
+        snapshot,
+        confirmedAt,
+        runtimeConfirmed: !setterKey || (
+          criticalSpecialAt > boundary
+          && criticalSpecialAt === confirmedAt
+          && observedPlayerAttackAt === criticalSpecialAt
+        ),
+      };
+    };
+
+    let state = readState();
+    if (state.confirmedAt <= boundary) return { snapshot: state.snapshot, confirmedAt: state.confirmedAt, armed: false };
+    if (setterKey && !state.runtimeConfirmed) {
+      const startedAt = performance.now();
+      while (performance.now() - startedAt <= maxMirrorWaitMs) {
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        state = readState();
+        if (state.confirmedAt <= boundary || state.runtimeConfirmed) break;
+      }
     }
-    if (confirmedAt <= boundary) return { snapshot, confirmedAt, armed: false };
-    const armed = setterKey ? window[setterKey]?.(confirmedAt) === true : true;
-    return { snapshot, confirmedAt, armed };
-  }, { boundary: attackBoundary, setterKey: expectedPlayerAttackSetterKey });
+    if (state.confirmedAt <= boundary || !state.runtimeConfirmed) {
+      return { snapshot: state.snapshot, confirmedAt: state.confirmedAt, armed: false };
+    }
+    const armed = setterKey ? window[setterKey]?.(state.confirmedAt) === true : true;
+    return { snapshot: state.snapshot, confirmedAt: state.confirmedAt, armed };
+  }, {
+    boundary: attackBoundary,
+    setterKey: expectedPlayerAttackSetterKey,
+    maxMirrorWaitMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS,
+  });
 }
 
 async function triggerConfirmedPlayerAttack(page, attackBoundary, expectedPlayerAttackSetterKey = '') {
