@@ -320,7 +320,14 @@ function installDuoLifeCycle(
       engine.lastTime = timestamp;
       return;
     }
-    if (localLifeRef.current !== 'alive' || teamGameOverRef.current) {
+    if (teamGameOverRef.current) {
+      clearEngineInput(engine);
+      engine.state.player.hp = 0;
+      engine.state.player.state = 'dead';
+      engine.lastTime = timestamp;
+      return;
+    }
+    if (localLifeRef.current !== 'alive') {
       const player = engine.state.player;
       player.hp = 1;
       player.invincibleUntil = Number.POSITIVE_INFINITY;
@@ -332,10 +339,11 @@ function installDuoLifeCycle(
     }
     originalUpdate.call(engine, timestamp);
     if (engine.state.status === 'gameover') {
+      onDowned();
+      if (teamGameOverRef.current) return;
       engine.state.status = 'playing';
       engine.state.player.hp = 0;
       engine.state.player.state = 'dead';
-      onDowned();
       originalOnStateChange({ ...engine.state, player: { ...engine.state.player } });
     }
   };
@@ -522,6 +530,14 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
       clearEngineInput(engine);
       engine.state.player.hp = 0;
       engine.state.player.state = 'dead';
+      const remote = latestRemoteRef.current;
+      const remoteAlreadyFallen = Boolean(remote && remotePresenceIsFresh(remote) && remote.lifeState === 'fallen');
+      if (remoteAlreadyFallen) {
+        setLife('fallen');
+        setTeamDefeated(true);
+        if (context.role === 'host') clientRef.current?.publishTeamGameOver(engine.state.chapter, engine.state.floor);
+        return;
+      }
       if (revivesUsedRef.current >= COOP_MAX_REVIVES_PER_ROOM) setLife('fallen');
       else setLife('downed', coopDownedUntil());
     };
