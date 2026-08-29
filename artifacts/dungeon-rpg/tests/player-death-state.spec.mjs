@@ -72,6 +72,7 @@ async function installDuoProductHarness(page) {
     socket: null,
     localPresence: null,
     reviveConfirms: [],
+    downedHeartbeat: null,
   };
 
   const lobby = () => ({
@@ -137,6 +138,12 @@ async function installDuoProductHarness(page) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
 
+  const stopDownedHeartbeat = () => {
+    if (!harness.downedHeartbeat) return;
+    clearInterval(harness.downedHeartbeat);
+    harness.downedHeartbeat = null;
+  };
+
   await page.routeWebSocket('**/realtime/v1/websocket**', socket => {
     harness.socket = socket;
     socket.onMessage(message => {
@@ -154,7 +161,10 @@ async function installDuoProductHarness(page) {
       }
       if (parsed.event !== 'broadcast') return;
       if (parsed.payload?.event === 'player_state') harness.localPresence = parsed.payload.payload;
-      if (parsed.payload?.event === 'revive_confirm') harness.reviveConfirms.push(parsed.payload.payload);
+      if (parsed.payload?.event === 'revive_confirm') {
+        harness.reviveConfirms.push(parsed.payload.payload);
+        stopDownedHeartbeat();
+      }
     });
   });
 
@@ -196,11 +206,17 @@ async function installDuoProductHarness(page) {
     return payload;
   };
 
-  harness.keepRemoteDownedFreshUntilRevived = async () => {
-    while (harness.reviveConfirms.length === 0) {
+  harness.keepRemoteDownedFreshUntilRevived = () => {
+    stopDownedHeartbeat();
+    harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
+    harness.downedHeartbeat = setInterval(() => {
+      if (harness.reviveConfirms.length > 0) {
+        stopDownedHeartbeat();
+        return;
+      }
       harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
-      await page.waitForTimeout(DUO_MOCK_PRESENCE_HEARTBEAT_MS);
-    }
+    }, DUO_MOCK_PRESENCE_HEARTBEAT_MS);
+    return stopDownedHeartbeat;
   };
 
   return harness;
@@ -374,12 +390,12 @@ test.describe('compact Duo lifecycle screenshots', () => {
 
       harness.sendRemotePresence({ lifeState: 'downed', revivesUsed: 0, hp: 0 });
       await reviveControl.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 });
-      const keepDownedFresh = harness.keepRemoteDownedFreshUntilRevived();
+      const stopKeepDownedFresh = harness.keepRemoteDownedFreshUntilRevived();
       await page.waitForTimeout(DUO_REVIVE_HOLD_OBSERVATION_MS);
       await expect(reviveControl, 'Completed full hold must consume the revive control before a release event can target it').toHaveCount(0);
       expect(harness.reviveConfirms, 'Host must publish exactly one authoritative revive confirmation after the full production hold').toHaveLength(1);
       expect(harness.reviveConfirms[0]?.targetUserId).toBe(DUO_PARTNER_ID);
-      await keepDownedFresh;
+      stopKeepDownedFresh();
 
       const maxHp = Math.max(1, Number(harness.localPresence?.maxHp) || 100);
       const revivedHp = Math.max(1, Math.ceil(maxHp * 0.35));
