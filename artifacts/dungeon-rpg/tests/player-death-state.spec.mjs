@@ -231,12 +231,18 @@ test('solo death uses an explicit visual death state before the final overlay', 
   await startFreshRun(page);
 
   const capability = await page.evaluate(() => ({
+    prepareTerminalDeathEvidence: typeof window.__dungeonVeilRuntimeEvidence?.prepareTerminalDeathEvidence === 'function',
     forcePlayerDeath: typeof window.__dungeonVeilRuntimeEvidence?.forcePlayerDeath === 'function',
   }));
+  expect(capability.prepareTerminalDeathEvidence, 'localhost evidence API must expose terminal-death preconditioning outside the measured lethal transition').toBe(true);
   expect(capability.forcePlayerDeath, 'localhost evidence API must expose a real player-death trigger').toBe(true);
 
   const before = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(before?.hp || 0)).toBeGreaterThan(0);
+
+  const terminalDeathPreparation = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.prepareTerminalDeathEvidence?.() ?? null);
+  expect(terminalDeathPreparation, 'terminal-death evidence preconditioning must complete before the unchanged browser-clock acceptance timer starts').toBeTruthy();
+  expect(Number(terminalDeathPreparation?.snapshot?.hp || 0), 'preconditioning must leave the live player alive before the measured lethal transition').toBeGreaterThan(0);
 
   const deathSequenceObservation = await page.evaluate(async () => {
     const startedAt = performance.now();
