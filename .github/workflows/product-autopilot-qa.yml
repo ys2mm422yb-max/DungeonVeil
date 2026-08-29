@@ -160,8 +160,36 @@ jobs:
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
-      - name: Collect focused spectator review screenshots
+      - name: Resolve executed Product evidence specs
+        id: executed-specs
         if: steps.product-tests.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const manifestPath = 'artifacts/dungeon-rpg/test-results/full-game-results.json';
+          const report = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const executed = new Set();
+          const visit = (suites = []) => {
+            for (const suite of suites) {
+              if (suite.file) executed.add(suite.file);
+              visit(suite.suites);
+            }
+          };
+          visit(report.suites);
+          const evidenceSpecs = {
+            spectator_performance: 'spectator-performance.spec.mjs',
+            spectator_death_state: 'spectator-death-state.spec.mjs',
+            player_death_state: 'player-death-state.spec.mjs',
+          };
+          for (const [output, spec] of Object.entries(evidenceSpecs)) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${output}=${executed.has(spec) ? 'true' : 'false'}\n`);
+          }
+          console.log(`Executed Product specs: ${[...executed].sort().join(', ')}`);
+          NODE
+      - name: Collect focused spectator review screenshots
+        if: steps.product-tests.outcome == 'success' && steps.executed-specs.outputs.spectator_performance == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -174,7 +202,7 @@ jobs:
             fi
           done
       - name: Collect focused spectator death review screenshot
-        if: steps.product-tests.outcome == 'success'
+        if: steps.product-tests.outcome == 'success' && steps.executed-specs.outputs.spectator_death_state == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -185,7 +213,7 @@ jobs:
             mv "${spectator_death_pngs[0]}" "$target"
           fi
       - name: Collect focused player death review evidence
-        if: steps.product-tests.outcome == 'success'
+        if: steps.product-tests.outcome == 'success' && steps.executed-specs.outputs.player_death_state == 'true'
         shell: bash
         run: |
           set -euo pipefail
