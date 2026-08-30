@@ -41,10 +41,17 @@ jobs:
           MANUAL_REQUEST: ${{ inputs.request_path }}
         run: |
           set -euo pipefail
+
+          request_status() {
+            node -e "const fs=require('node:fs'); const r=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(String(r.status || ''));" "$1"
+          }
+
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             REQUEST="$MANUAL_REQUEST"
             [[ "$REQUEST" == .ci/gate-recovery-requests/*.json ]]
             [[ -f "$REQUEST" ]]
+            STATUS="$(request_status "$REQUEST")"
+            [[ "$STATUS" == "pending" ]] || { echo "Manual recovery requires status=pending, got: ${STATUS:-missing}" >&2; exit 1; }
             echo "has_request=true" >> "$GITHUB_OUTPUT"
             echo "path=$REQUEST" >> "$GITHUB_OUTPUT"
             exit 0
@@ -64,6 +71,13 @@ jobs:
           REQUEST="${REQUESTS[0]}"
           [[ "$REQUEST" == .ci/gate-recovery-requests/*.json ]]
           [[ -f "$REQUEST" ]]
+          STATUS="$(request_status "$REQUEST")"
+          if [[ "$STATUS" == "archived" ]]; then
+            echo "has_request=false" >> "$GITHUB_OUTPUT"
+            echo "Archived recovery receipt changed; validation only, no dispatch."
+            exit 0
+          fi
+          [[ "$STATUS" == "pending" ]] || { echo "Changed recovery request requires status=pending or archived, got: ${STATUS:-missing}" >&2; exit 1; }
           echo "has_request=true" >> "$GITHUB_OUTPUT"
           echo "path=$REQUEST" >> "$GITHUB_OUTPUT"
       - name: Validate zombie receipts and dispatch unchanged-head gates
@@ -78,6 +92,7 @@ jobs:
             const requiredTarget = 'fix/mobile-telegraphs-room-21-50-balance';
             const requiredKeys = ['pr_number', 'exact_head', 'blocked_fgr_run', 'blocked_complete_runtime_run', 'requested_at'];
             for (const key of requiredKeys) if (!request[key]) throw new Error(`Missing request key: ${key}`);
+            if (request.status !== 'pending') throw new Error(`Recovery request must be pending, got ${request.status || 'missing'}`);
             if (!/^[0-9a-f]{40}$/.test(request.exact_head)) throw new Error('exact_head must be a full 40-char SHA');
 
             const { owner, repo } = context.repo;
