@@ -148,8 +148,10 @@ function attachApi(): void {
         throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ runMode, beforeEnsure })}`);
       }
       const afterEnsure = terminalDeathRunDiagnostics();
+      const lethalTime = performance.now();
+      engine.state.player.lastHitTime = lethalTime;
       engine.state.player.hp = 0;
-      engine.update(performance.now() + 17);
+      engine.update(lethalTime + 17);
       const afterUpdate = terminalDeathRunDiagnostics();
       emit(engine);
       const snapshot = stateSnapshot(engine);
