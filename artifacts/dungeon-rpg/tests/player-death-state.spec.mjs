@@ -72,6 +72,7 @@ async function installDuoProductHarness(page) {
     joinedSockets: new Set(),
     localPresence: null,
     reviveConfirms: [],
+    revivedPresence: null,
     downedHeartbeat: null,
   };
 
@@ -166,8 +167,17 @@ async function installDuoProductHarness(page) {
       if (parsed.event !== 'broadcast') return;
       if (parsed.payload?.event === 'player_state') harness.localPresence = parsed.payload.payload;
       if (parsed.payload?.event === 'revive_confirm') {
-        harness.reviveConfirms.push(parsed.payload.payload);
+        const confirm = parsed.payload.payload;
+        harness.reviveConfirms.push(confirm);
         stopDownedHeartbeat();
+        if (harness.reviveConfirms.length === 1 && confirm?.targetUserId === DUO_PARTNER_ID) {
+          const maxHp = Math.max(1, Number(harness.localPresence?.maxHp) || 100);
+          harness.revivedPresence = harness.sendRemotePresence({
+            lifeState: 'alive',
+            revivesUsed: 1,
+            hp: Math.max(1, Math.ceil(maxHp * 0.35)),
+          });
+        }
       }
     });
   });
@@ -183,6 +193,7 @@ async function installDuoProductHarness(page) {
       runSeed: DUO_RUN_SEED,
       userId: DUO_PARTNER_ID,
       displayName: 'Nyra',
+      avatarKey: 'veil',
       chapter: Number(local.chapter) || 1,
       room: Number(local.room) || 1,
       x: Number(local.x) || 0,
@@ -404,7 +415,8 @@ test.describe('compact Duo lifecycle screenshots', () => {
 
       const maxHp = Math.max(1, Number(harness.localPresence?.maxHp) || 100);
       const revivedHp = Math.max(1, Math.ceil(maxHp * 0.35));
-      harness.sendRemotePresence({ lifeState: 'alive', revivesUsed: 1, hp: revivedHp });
+      expect(harness.revivedPresence, 'Mock peer must acknowledge the first authoritative revive confirmation immediately with fresh alive presence').toBeTruthy();
+      expect(Number(harness.revivedPresence?.hp), 'Mock peer revive acknowledgement must use the exact production 35% HP contract').toBe(revivedHp);
       await expect(teammatePanel).toHaveAttribute('data-life-state', 'alive', { timeout: 5_000 });
       await expect(reviveControl).toHaveCount(0);
       await captureDuo(page, testInfo, language, 'revived-35-percent');
