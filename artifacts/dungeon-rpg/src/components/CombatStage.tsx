@@ -42,6 +42,11 @@ function roomTitleFor(floor: number, language: string): string {
   return (language === 'en' ? identity.nameEn : identity.nameDe).toUpperCase();
 }
 
+const TerminalStableGameCanvas = React.memo(
+  GameCanvas,
+  (previous, next) => next.gameState.status === 'gameover' || previous.gameState === next.gameState,
+);
+
 export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const previousHpRef = useRef(gameState.player.hp);
   const previousFloorRef = useRef(gameState.floor);
@@ -184,7 +189,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     >
       {runCompanion && <CompanionRuntimeBridge gameState={gameState} role={runCompanion.id} level={runCompanion.level} mode={runMode} />}
       <div className={`absolute inset-0 ${shakeClass}`}>
-        <GameCanvas gameState={gameState} />
+        <TerminalStableGameCanvas gameState={gameState} />
         {remotePlayer && <CoopTeammateScene3D gameState={gameState} remotePlayer={remotePlayer} />}
         {(runCompanion || remotePlayer) && <CompanionScene3D gameState={gameState} localCompanion={runCompanion ? { role: runCompanion.id, level: runCompanion.level } : null} remotePlayer={remotePlayer} />}
         {remotePlayer && <CoopProjectileRealtimeBridge gameState={gameState} remotePlayer={remotePlayer} />}
