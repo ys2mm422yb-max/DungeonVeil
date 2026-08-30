@@ -193,7 +193,6 @@ async function installDuoProductHarness(page) {
       runSeed: DUO_RUN_SEED,
       userId: DUO_PARTNER_ID,
       displayName: 'Nyra',
-      avatarKey: 'veil',
       chapter: Number(local.chapter) || 1,
       room: Number(local.room) || 1,
       x: Number(local.x) || 0,
