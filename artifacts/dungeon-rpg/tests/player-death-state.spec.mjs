@@ -10,6 +10,7 @@ const DUO_RUN_SEED = 424242;
 const DUO_PARTNER_ID = 'qa-partner';
 const DUO_REVIVE_HOLD_OBSERVATION_MS = 3_200;
 const DUO_MOCK_PRESENCE_HEARTBEAT_MS = 500;
+const DUO_TEAM_DEFEAT_VIDEO_HOLD_MS = 1_000;
 
 test.use({ video: 'on' });
 
@@ -439,6 +440,9 @@ test.describe('compact Duo lifecycle screenshots', () => {
       await expect(retry).toBeVisible();
       await expect(retry).toContainText(language === 'de' ? 'GEMEINSAM NEU STARTEN' : 'RESTART TOGETHER');
       await captureDuo(page, testInfo, language, 'team-defeat');
+      await page.waitForTimeout(DUO_TEAM_DEFEAT_VIDEO_HOLD_MS);
+      await expect(teamDefeat, 'Final Team Defeat must remain visibly rendered through the video evidence tail').toBeVisible();
+      await expect(teamDefeat).toContainText(language === 'de' ? 'BEIDE GEFALLEN' : 'BOTH HAVE FALLEN');
     });
   }
 });
