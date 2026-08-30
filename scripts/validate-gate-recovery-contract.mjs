@@ -5,6 +5,7 @@ const recovery = read('.github/workflows/gate-recovery-dispatch.yml');
 const fgr = read('.github/workflows/full-game-regression.yml');
 const runtime = read('.github/workflows/complete-runtime-evidence-qa.yml');
 const playwright = read('artifacts/dungeon-rpg/playwright.regression.config.mjs');
+const historicalRequest = JSON.parse(read('.ci/gate-recovery-requests/pr-449-85ed345b.json'));
 
 const requireText = (text, needle, label) => {
   if (!text.includes(needle)) throw new Error(`Gate recovery contract missing ${label}: ${needle}`);
@@ -23,6 +24,17 @@ requireText(recovery, 'assertNoReplacement', 'replacement deduplication');
 requireText(recovery, "has_request=false", 'validation-only path without accidental dispatch');
 requireText(recovery, "steps.request.outputs.has_request == 'true'", 'dispatch guard');
 requireText(recovery, 'issues.createComment', 'durable recovery receipt');
+requireText(recovery, 'STATUS="$(request_status "$REQUEST")"', 'request status classification');
+requireText(recovery, '[[ "$STATUS" == "pending" ]]', 'pending-only dispatch guard');
+requireText(recovery, 'if [[ "$STATUS" == "archived" ]]', 'archived receipt validation-only guard');
+requireText(recovery, "request.status !== 'pending'", 'server-side pending request guard');
+
+if (historicalRequest.status !== 'archived') {
+  throw new Error(`Historical PR #449 recovery receipt must be archived, got ${historicalRequest.status || 'missing'}`);
+}
+if (historicalRequest.exact_head !== '85ed345b92055916ea2fe0fd43408d71dc7332c5') {
+  throw new Error('Historical PR #449 recovery receipt exact head changed unexpectedly');
+}
 
 requireText(fgr, 'workflow_dispatch:', 'FGR manual recovery entrypoint');
 requireText(fgr, 'full_evidence:', 'FGR full-evidence input');
@@ -36,4 +48,4 @@ for (const project of ['iphone-webkit', 'android-chromium', 'ipad-portrait-webki
 
 requireText(playwright, 'retries: 0', 'Playwright retries=0');
 
-console.log('Gate recovery contract OK: unchanged-head guards, jobs=[] classification, no-request validation path, full FGR evidence, four-device Complete Runtime, durable PR receipts, retries=0.');
+console.log('Gate recovery contract OK: pending-only unchanged-head dispatch, archived receipts are validation-only, jobs=[] classification, full FGR evidence, four-device Complete Runtime, durable PR receipts, retries=0.');
