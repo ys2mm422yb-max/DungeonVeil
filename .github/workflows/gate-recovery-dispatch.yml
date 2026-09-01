@@ -9,9 +9,15 @@ on:
       - 'scripts/validate-gate-recovery-contract.mjs'
   workflow_dispatch:
     inputs:
+      validation_only:
+        description: Validate the permanent recovery contract without resolving or dispatching a recovery request
+        required: false
+        default: false
+        type: boolean
       request_path:
         description: Repository path to one gate recovery request JSON
-        required: true
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -39,6 +45,7 @@ jobs:
         shell: bash
         env:
           MANUAL_REQUEST: ${{ inputs.request_path }}
+          VALIDATION_ONLY: ${{ inputs.validation_only }}
         run: |
           set -euo pipefail
 
@@ -47,6 +54,13 @@ jobs:
           }
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "$VALIDATION_ONLY" == "true" ]]; then
+              [[ -z "$MANUAL_REQUEST" ]] || { echo "validation_only forbids request_path" >&2; exit 1; }
+              echo "has_request=false" >> "$GITHUB_OUTPUT"
+              echo "Manual validation-only run; recovery dispatch is disabled."
+              exit 0
+            fi
+
             REQUEST="$MANUAL_REQUEST"
             [[ "$REQUEST" == .ci/gate-recovery-requests/*.json ]]
             [[ -f "$REQUEST" ]]

@@ -21,6 +21,10 @@ requireText(recovery, "workflow_id: 'full-game-regression.yml'", 'FGR dispatch')
 requireText(recovery, "full_evidence: 'true'", 'mandatory FGR full evidence');
 requireText(recovery, "workflow_id: 'complete-runtime-evidence-qa.yml'", 'Complete Runtime dispatch');
 requireText(recovery, 'assertNoReplacement', 'replacement deduplication');
+requireText(recovery, 'validation_only:', 'explicit manual validation-only input');
+requireText(recovery, '[[ "$VALIDATION_ONLY" == "true" ]]', 'manual validation-only branch');
+requireText(recovery, '[[ -z "$MANUAL_REQUEST" ]]', 'validation-only request-path exclusion');
+requireText(recovery, 'Manual validation-only run; recovery dispatch is disabled.', 'validation-only non-dispatch marker');
 requireText(recovery, "has_request=false", 'validation-only path without accidental dispatch');
 requireText(recovery, "steps.request.outputs.has_request == 'true'", 'dispatch guard');
 requireText(recovery, 'issues.createComment', 'durable recovery receipt');
@@ -48,4 +52,4 @@ for (const project of ['iphone-webkit', 'android-chromium', 'ipad-portrait-webki
 
 requireText(playwright, 'retries: 0', 'Playwright retries=0');
 
-console.log('Gate recovery contract OK: pending-only unchanged-head dispatch, archived receipts are validation-only, jobs=[] classification, full FGR evidence, four-device Complete Runtime, durable PR receipts, retries=0.');
+console.log('Gate recovery contract OK: explicit non-dispatch validation-only mode, pending-only unchanged-head dispatch, archived receipts are validation-only, jobs=[] classification, full FGR evidence, four-device Complete Runtime, durable PR receipts, retries=0.');
