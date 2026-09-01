@@ -25,6 +25,7 @@ const DIAGNOSTICS_KEY = 'dungeon-veil-runtime-diagnostics';
 const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 const DOUBLE_TAP_ZOOM_WINDOW_MS = 360;
 const DOUBLE_TAP_ZOOM_DISTANCE_PX = 44;
+let activeRendererRecoveryEpisode: string | null = null;
 
 function roomKey(state: GameState) {
   return `${state.chapter}:${state.floor}:${state.map.width}x${state.map.height}`;
@@ -88,6 +89,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
   const transitionTokenRef = useRef(0);
   const preloadKeyRef = useRef('');
   const recoveringRef = useRef(false);
+  const recoveryEpisodeRef = useRef<string | null>(null);
   const recoveryReadyTimerRef = useRef<number | null>(null);
   const handledLostCanvasesRef = useRef(new WeakSet<HTMLCanvasElement>());
   const [renderState, setRenderState] = useState(gameState);
@@ -136,6 +138,17 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
       document.removeEventListener('gesturechange', preventBrowserZoom);
       document.removeEventListener('gestureend', preventBrowserZoom);
     };
+  }, []);
+
+  useEffect(() => () => {
+    const episode = recoveryEpisodeRef.current;
+    if (episode && activeRendererRecoveryEpisode === episode) activeRendererRecoveryEpisode = null;
+    recoveryEpisodeRef.current = null;
+    recoveringRef.current = false;
+    if (recoveryReadyTimerRef.current !== null) {
+      window.clearTimeout(recoveryReadyTimerRef.current);
+      recoveryReadyTimerRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -233,9 +246,14 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
 
     const finishRecoveryWhenCanvasIsBack = () => {
       if (!recoveringRef.current) return;
+      const episode = recoveryEpisodeRef.current;
+      if (!episode || activeRendererRecoveryEpisode !== episode) return;
       if (recoveryReadyTimerRef.current !== null) window.clearTimeout(recoveryReadyTimerRef.current);
       recoveryReadyTimerRef.current = window.setTimeout(() => {
+        if (activeRendererRecoveryEpisode !== episode || recoveryEpisodeRef.current !== episode) return;
         recoveringRef.current = false;
+        recoveryEpisodeRef.current = null;
+        activeRendererRecoveryEpisode = null;
         recoveryReadyTimerRef.current = null;
         window.dispatchEvent(new CustomEvent('dungeon-veil-room-ready', { detail: { key: roomKey(latestStateRef.current), floor: latestStateRef.current.floor, recovered: true, owner: 'game-canvas-recovery' } }));
       }, 900);
@@ -245,8 +263,11 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
       event.preventDefault();
       const lostCanvas = event.currentTarget instanceof HTMLCanvasElement ? event.currentTarget : null;
       if (lostCanvas && (!lostCanvas.isConnected || handledLostCanvasesRef.current.has(lostCanvas))) return;
-      if (recoveringRef.current) return;
+      if (recoveringRef.current || activeRendererRecoveryEpisode !== null) return;
       if (lostCanvas) handledLostCanvasesRef.current.add(lostCanvas);
+      const episode = `${Date.now()}-${Math.random()}`;
+      activeRendererRecoveryEpisode = episode;
+      recoveryEpisodeRef.current = episode;
       recoveringRef.current = true;
       let webglContextLosses = 1;
       try { webglContextLosses = (JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY) || '{}').webglContextLosses || 0) + 1; } catch {}
@@ -256,6 +277,7 @@ export function GameCanvas({ gameState }: { gameState: GameState }) {
       window.dispatchEvent(new CustomEvent('dungeon-veil-renderer-lost', { detail: { webglContextLosses } }));
       if (recoveryTimer !== null) window.clearTimeout(recoveryTimer);
       recoveryTimer = window.setTimeout(() => {
+        if (activeRendererRecoveryEpisode !== episode || recoveryEpisodeRef.current !== episode) return;
         let rendererRecoveries = 1;
         try { rendererRecoveries = (JSON.parse(localStorage.getItem(DIAGNOSTICS_KEY) || '{}').rendererRecoveries || 0) + 1; } catch {}
         updateDiagnostics('renderer-recovery', { rendererRecoveries });

@@ -1,3 +1,5 @@
+import { ensureKayKitGltfLoadLifecycle } from './kaykitGltfLoadLifecycle3D';
+
 export type KayKitPackName =
   | 'adventurers'
   | 'animations'
@@ -69,6 +71,7 @@ const SKELETON_EXTRA_FILES = [
 const PACK_NAMES: KayKitPackName[] = ['adventurers', 'animations', 'dungeon', 'weapons', 'forest', 'halloween', 'resources', 'skeletons', 'furniture', 'tools'];
 const APP_BASE_URL = String(import.meta.env.BASE_URL || '/');
 const NORMALIZED_APP_BASE_URL = APP_BASE_URL.endsWith('/') ? APP_BASE_URL : `${APP_BASE_URL}/`;
+const kayKitGltfLoadLifecycle = ensureKayKitGltfLoadLifecycle();
 
 let manifestPromise: Promise<KayKitManifest> | null = null;
 
@@ -159,7 +162,8 @@ function includeSkeletonExtras(manifest: KayKitManifest): KayKitManifest {
 
 export function loadKayKitManifest(): Promise<KayKitManifest> {
   if (!manifestPromise) {
-    manifestPromise = fetch(appAssetUrl('assets/kaykit/manifest.json'), { cache: 'no-cache' })
+    manifestPromise = kayKitGltfLoadLifecycle
+      .then(() => fetch(appAssetUrl('assets/kaykit/manifest.json'), { cache: 'no-cache' }))
       .then(response => {
         if (!response.ok) throw new Error(`KayKit manifest ${response.status}`);
         return response.json();
