@@ -160,6 +160,33 @@ jobs:
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
+      - name: Prove post-rearm runtime monitor fails closed
+        if: steps.product-tests.outcome == 'success' && (matrix.project == 'iphone-webkit' || matrix.project == 'android-chromium')
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_log="/tmp/dungeon-veil-runtime-monitor-negative-probe-${BROWSER_PROJECT}.log"
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > "/tmp/dungeon-veil-negative-probe-preview-${BROWSER_PROJECT}.log" 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent "$DUNGEON_VEIL_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          set +e
+          DUNGEON_VEIL_RUNTIME_MONITOR_NEGATIVE_PROBE=1 \
+            timeout --signal=TERM --kill-after=30s 12m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/autopilot-product-journeys.spec.mjs \
+            --config=playwright.regression.config.mjs \
+            --project="$BROWSER_PROJECT" \
+            --grep "signed-out hub, solo run and duo entry remain functional" \
+            --reporter=line \
+            2>&1 | tee "$probe_log"
+          probe_status=${PIPESTATUS[0]}
+          set -e
+          test "$probe_status" -eq 1
+          grep -F "pageerror: dungeon-veil-post-reload-runtime-monitor-probe" "$probe_log"
       - name: Resolve focused evidence requirements
         id: evidence-requirements
         if: steps.product-tests.outcome == 'success'
