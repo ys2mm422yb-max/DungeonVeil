@@ -187,6 +187,39 @@ jobs:
           set -e
           test "$probe_status" -eq 1
           grep -F "pageerror: dungeon-veil-post-reload-runtime-monitor-probe" "$probe_log"
+      - name: Package post-rearm runtime monitor evidence
+        if: steps.product-tests.outcome == 'success' && (matrix.project == 'iphone-webkit' || matrix.project == 'android-chromium')
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_root="${RUNNER_TEMP}/dungeon-veil-runtime-monitor-negative-probe-${BROWSER_PROJECT}"
+          probe_log="/tmp/dungeon-veil-runtime-monitor-negative-probe-${BROWSER_PROJECT}.log"
+          evidence_dir="artifacts/dungeon-rpg/test-results/runtime-monitor-negative-probe-${BROWSER_PROJECT}"
+          mapfile -d '' -t probe_videos < <(find "$probe_root" -type f -name 'video.webm' -print0)
+          mapfile -d '' -t probe_traces < <(find "$probe_root" -type f -name 'trace.zip' -print0)
+          test "${#probe_videos[@]}" -eq 1
+          test "${#probe_traces[@]}" -eq 1
+          test -s "$probe_log"
+          mkdir -p "$evidence_dir"
+          cp "${probe_videos[0]}" "$evidence_dir/runtime-monitor-negative-probe-${BROWSER_PROJECT}.webm"
+          cp "${probe_traces[0]}" "$evidence_dir/runtime-monitor-negative-probe-${BROWSER_PROJECT}.trace.zip"
+          cp "$probe_log" "$evidence_dir/runtime-monitor-negative-probe-${BROWSER_PROJECT}.log"
+          node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs \
+            "$evidence_dir" \
+            "$evidence_dir/runtime-monitor-negative-probe-manifest-${BROWSER_PROJECT}.json"
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs \
+            --max-mb 100 \
+            --label "runtime-monitor-negative-probe-${BROWSER_PROJECT}" \
+            "$evidence_dir"
+      - name: Upload post-rearm runtime monitor evidence
+        if: steps.product-tests.outcome == 'success' && (matrix.project == 'iphone-webkit' || matrix.project == 'android-chromium')
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-monitor-negative-probe-evidence-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+          path: artifacts/dungeon-rpg/test-results/runtime-monitor-negative-probe-${{ matrix.project }}
       - name: Resolve focused evidence requirements
         id: evidence-requirements
         if: steps.product-tests.outcome == 'success'
