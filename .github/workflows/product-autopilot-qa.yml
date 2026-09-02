@@ -160,8 +160,47 @@ jobs:
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
-      - name: Collect focused spectator review screenshots
+      - name: Resolve focused evidence requirements
+        id: evidence-requirements
         if: steps.product-tests.outcome == 'success'
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          let selected = null;
+          if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
+            const eventPath = process.env.GITHUB_EVENT_PATH;
+            if (eventPath && fs.existsSync(eventPath)) {
+              const payload = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
+              const body = payload?.pull_request?.body ?? '';
+              const startMarker = '<!-- product-autopilot-selection:start -->';
+              const endMarker = '<!-- product-autopilot-selection:end -->';
+              const start = body.indexOf(startMarker);
+              const end = body.indexOf(endMarker);
+              if (start >= 0 && end > start) {
+                const block = body.slice(start + startMarker.length, end);
+                if (!/\bFULL_PRODUCT_AUTOPILOT\b/.test(block)) {
+                  const specs = [...block.matchAll(/`tests\/([A-Za-z0-9._/-]+\.spec\.mjs)`/g)].map((match) => match[1]);
+                  if (specs.length > 0) selected = new Set(specs);
+                }
+              }
+            }
+          }
+
+          const required = (spec) => selected === null || selected.has(spec);
+          const outputs = [
+            `spectator_performance=${required('spectator-performance.spec.mjs')}`,
+            `spectator_death=${required('spectator-death-state.spec.mjs')}`,
+            `player_death=${required('player-death-state.spec.mjs')}`,
+          ];
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
+          console.log(selected === null
+            ? 'Product evidence requirements: full fail-closed suite.'
+            : `Product evidence requirements: adaptive selection (${[...selected].join(', ')}).`);
+          NODE
+      - name: Collect focused spectator review screenshots
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.spectator_performance == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -174,7 +213,7 @@ jobs:
             fi
           done
       - name: Collect focused spectator death review screenshot
-        if: steps.product-tests.outcome == 'success'
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.spectator_death == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -185,7 +224,7 @@ jobs:
             mv "${spectator_death_pngs[0]}" "$target"
           fi
       - name: Collect focused player death review evidence
-        if: steps.product-tests.outcome == 'success'
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.player_death == 'true'
         shell: bash
         run: |
           set -euo pipefail
