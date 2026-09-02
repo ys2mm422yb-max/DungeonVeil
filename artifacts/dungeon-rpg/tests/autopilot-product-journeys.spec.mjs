@@ -14,12 +14,16 @@ function runtimeMonitor(page) {
   const issues = [];
   const appOrigin = new URL(APP_URL).origin;
   page.__dungeonVeilIntentionalNavigation = false;
-  const intentionallyNavigating = () => page.__dungeonVeilIntentionalNavigation === true;
+  page.__dungeonVeilIntentionalReloadTeardown = false;
+  const intentionallySuppressingRuntime = () => (
+    page.__dungeonVeilIntentionalNavigation === true
+    || page.__dungeonVeilIntentionalReloadTeardown === true
+  );
   page.on('pageerror', error => {
-    if (!intentionallyNavigating()) issues.push(`pageerror: ${error.message}`);
+    if (!intentionallySuppressingRuntime()) issues.push(`pageerror: ${error.message}`);
   });
   page.on('console', message => {
-    if (message.type() !== 'error' || intentionallyNavigating()) return;
+    if (message.type() !== 'error' || intentionallySuppressingRuntime()) return;
     const text = message.text();
     if (/favicon|supabase.*(?:401|403)/i.test(text)) return;
     issues.push(`console: ${text}`);
@@ -30,10 +34,28 @@ function runtimeMonitor(page) {
     }
   });
   page.on('response', response => {
-    if (intentionallyNavigating()) return;
+    if (intentionallySuppressingRuntime()) return;
     if (response.url().startsWith(appOrigin) && response.status() >= 400) issues.push(`http ${response.status()}: ${response.url()}`);
   });
   return issues;
+}
+
+async function reloadWithScopedRuntimeSuppression(page) {
+  page.__dungeonVeilIntentionalReloadTeardown = true;
+  let rearmedAtMainFrameCommit = false;
+  const rearmRuntimeMonitor = frame => {
+    if (frame !== page.mainFrame()) return;
+    page.__dungeonVeilIntentionalReloadTeardown = false;
+    rearmedAtMainFrameCommit = true;
+  };
+  page.on('framenavigated', rearmRuntimeMonitor);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    expect(rearmedAtMainFrameCommit).toBe(true);
+  } finally {
+    page.off('framenavigated', rearmRuntimeMonitor);
+    page.__dungeonVeilIntentionalReloadTeardown = false;
+  }
 }
 
 async function seedBaseState(page, { signedIn = false } = {}) {
@@ -254,10 +276,22 @@ test('signed-out hub, solo run and duo entry remain functional', async ({ page }
   await expect(runRenderer).toHaveAttribute('data-equipped-armor', 'ash-armor');
   await capture(page, 'solo-run-ash-armor', testInfo.project.name);
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await reloadWithScopedRuntimeSuppression(page);
   await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 120_000 });
   await waitForPlayableRoom(page);
   await expect(page.getByTestId('run-three-host')).toHaveAttribute('data-equipped-armor', 'ash-armor');
+  if (process.env.DUNGEON_VEIL_RUNTIME_MONITOR_NEGATIVE_PROBE === '1') {
+    const marker = 'dungeon-veil-post-reload-runtime-monitor-probe';
+    await page.evaluate(probeMarker => {
+      queueMicrotask(() => {
+        throw new Error(probeMarker);
+      });
+    }, marker);
+    await expect.poll(
+      () => issues.some(issue => issue.includes(marker)),
+      { timeout: 5_000, intervals: [50, 100, 200] },
+    ).toBe(true);
+  }
   await page.evaluate(() => {
     const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
     localStorage.setItem('dungeon-veil-meta', JSON.stringify({ ...meta, equipped: { ...meta.equipped, armor: 'warden-armor' } }));
