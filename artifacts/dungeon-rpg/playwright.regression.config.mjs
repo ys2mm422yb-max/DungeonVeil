@@ -130,7 +130,7 @@ export default defineConfig({
         deviceScaleFactor: 2.625,
         isMobile: true,
         hasTouch: true,
-        userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/138.0.0.0 Mobile Safari/604.1',
+        userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/138.0.0.0 Mobile Safari/537.36',
       },
     },
     {
