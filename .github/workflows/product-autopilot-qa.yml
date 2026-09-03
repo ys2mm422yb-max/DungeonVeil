@@ -160,8 +160,107 @@ jobs:
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
-      - name: Collect focused spectator review screenshots
+      - name: Prove post-rearm runtime monitor fails closed
+        if: steps.product-tests.outcome == 'success' && (matrix.project == 'iphone-webkit' || matrix.project == 'android-chromium')
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_log="/tmp/dungeon-veil-runtime-monitor-negative-probe-${BROWSER_PROJECT}.log"
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > "/tmp/dungeon-veil-negative-probe-preview-${BROWSER_PROJECT}.log" 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent "$DUNGEON_VEIL_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          set +e
+          DUNGEON_VEIL_RUNTIME_MONITOR_NEGATIVE_PROBE=1 \
+            timeout --signal=TERM --kill-after=30s 12m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/autopilot-product-journeys.spec.mjs \
+            --config=playwright.regression.config.mjs \
+            --project="$BROWSER_PROJECT" \
+            --grep "signed-out hub, solo run and duo entry remain functional" \
+            --reporter=line \
+            2>&1 | tee "$probe_log"
+          probe_status=${PIPESTATUS[0]}
+          set -e
+          test "$probe_status" -eq 1
+          grep -F "pageerror: dungeon-veil-post-reload-runtime-monitor-probe" "$probe_log"
+      - name: Package post-rearm runtime monitor evidence
+        if: steps.product-tests.outcome == 'success' && (matrix.project == 'iphone-webkit' || matrix.project == 'android-chromium')
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_root="${RUNNER_TEMP}/dungeon-veil-runtime-monitor-negative-probe-${BROWSER_PROJECT}"
+          probe_log="/tmp/dungeon-veil-runtime-monitor-negative-probe-${BROWSER_PROJECT}.log"
+          evidence_dir="artifacts/dungeon-rpg/test-results/runtime-monitor-negative-probe-${BROWSER_PROJECT}"
+          mapfile -d '' -t probe_videos < <(find "$probe_root" -type f -name 'video.webm' -print0)
+          mapfile -d '' -t probe_traces < <(find "$probe_root" -type f -name 'trace.zip' -print0)
+          test "${#probe_videos[@]}" -eq 1
+          test "${#probe_traces[@]}" -eq 1
+          test -s "$probe_log"
+          mkdir -p "$evidence_dir"
+          cp "${probe_videos[0]}" "$evidence_dir/runtime-monitor-negative-probe-${BROWSER_PROJECT}.webm"
+          cp "${probe_traces[0]}" "$evidence_dir/runtime-monitor-negative-probe-${BROWSER_PROJECT}.trace.zip"
+          cp "$probe_log" "$evidence_dir/runtime-monitor-negative-probe-${BROWSER_PROJECT}.log"
+          node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs \
+            "$evidence_dir" \
+            "$evidence_dir/runtime-monitor-negative-probe-manifest-${BROWSER_PROJECT}.json"
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs \
+            --max-mb 100 \
+            --label "runtime-monitor-negative-probe-${BROWSER_PROJECT}" \
+            "$evidence_dir"
+      - name: Upload post-rearm runtime monitor evidence
+        if: steps.product-tests.outcome == 'success' && (matrix.project == 'iphone-webkit' || matrix.project == 'android-chromium')
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-monitor-negative-probe-evidence-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+          path: artifacts/dungeon-rpg/test-results/runtime-monitor-negative-probe-${{ matrix.project }}
+      - name: Resolve focused evidence requirements
+        id: evidence-requirements
         if: steps.product-tests.outcome == 'success'
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          let selected = null;
+          if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
+            const eventPath = process.env.GITHUB_EVENT_PATH;
+            if (eventPath && fs.existsSync(eventPath)) {
+              const payload = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
+              const body = payload?.pull_request?.body ?? '';
+              const startMarker = '<!-- product-autopilot-selection:start -->';
+              const endMarker = '<!-- product-autopilot-selection:end -->';
+              const start = body.indexOf(startMarker);
+              const end = body.indexOf(endMarker);
+              if (start >= 0 && end > start) {
+                const block = body.slice(start + startMarker.length, end);
+                if (!/\bFULL_PRODUCT_AUTOPILOT\b/.test(block)) {
+                  const specs = [...block.matchAll(/`tests\/([A-Za-z0-9._/-]+\.spec\.mjs)`/g)].map((match) => match[1]);
+                  if (specs.length > 0) selected = new Set(specs);
+                }
+              }
+            }
+          }
+
+          const required = (spec) => selected === null || selected.has(spec);
+          const outputs = [
+            `spectator_performance=${required('spectator-performance.spec.mjs')}`,
+            `spectator_death=${required('spectator-death-state.spec.mjs')}`,
+            `player_death=${required('player-death-state.spec.mjs')}`,
+          ];
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
+          console.log(selected === null
+            ? 'Product evidence requirements: full fail-closed suite.'
+            : `Product evidence requirements: adaptive selection (${[...selected].join(', ')}).`);
+          NODE
+      - name: Collect focused spectator review screenshots
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.spectator_performance == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -174,7 +273,7 @@ jobs:
             fi
           done
       - name: Collect focused spectator death review screenshot
-        if: steps.product-tests.outcome == 'success'
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.spectator_death == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -185,7 +284,7 @@ jobs:
             mv "${spectator_death_pngs[0]}" "$target"
           fi
       - name: Collect focused player death review evidence
-        if: steps.product-tests.outcome == 'success'
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.player_death == 'true'
         shell: bash
         run: |
           set -euo pipefail

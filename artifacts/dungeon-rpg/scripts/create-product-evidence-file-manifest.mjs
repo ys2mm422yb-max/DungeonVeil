@@ -13,6 +13,8 @@ const INCLUDED_PREFIXES = [
   'armor-cloud-restore-painted-',
 ];
 const INCLUDED_EXTENSIONS = new Set(['.png', '.webm', '.mp4']);
+const RUNTIME_MONITOR_PROBE_PREFIX = 'runtime-monitor-negative-probe-';
+const RUNTIME_MONITOR_PROBE_SUFFIXES = ['.webm', '.trace.zip', '.log'];
 
 function normalizeRelativePath(root, filePath) {
   const relative = path.relative(root, filePath).split(path.sep).join('/');
@@ -62,14 +64,21 @@ function canonicalEvidencePath(paths) {
   })[0];
 }
 
+function isIncludedEvidence(name) {
+  if (name.startsWith(RUNTIME_MONITOR_PROBE_PREFIX)) {
+    return RUNTIME_MONITOR_PROBE_SUFFIXES.some((suffix) => name.endsWith(suffix));
+  }
+  if (!INCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix))) return false;
+  return INCLUDED_EXTENSIONS.has(path.extname(name).toLowerCase());
+}
+
 async function collectEntries(rootPath) {
   const names = await fs.readdir(rootPath);
   const entries = [];
 
   for (const name of names.sort((a, b) => a.localeCompare(b))) {
-    if (!INCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix))) continue;
+    if (!isIncludedEvidence(name)) continue;
     const extension = path.extname(name).toLowerCase();
-    if (!INCLUDED_EXTENSIONS.has(extension)) continue;
 
     const filePath = path.join(rootPath, name);
     const stat = await fs.lstat(filePath);
@@ -144,13 +153,23 @@ async function selfTest() {
     await fs.writeFile(path.join(root, 'companion-damage-feedback-device.png'), png);
     await fs.writeFile(path.join(root, 'autopilot-a-device.webm'), Buffer.from('video'));
     await fs.writeFile(path.join(root, 'autopilot-b-device.webm'), Buffer.from('video'));
+    await fs.writeFile(path.join(root, 'runtime-monitor-negative-probe-device.webm'), Buffer.from('runtime-probe-video'));
+    await fs.writeFile(path.join(root, 'runtime-monitor-negative-probe-device.trace.zip'), Buffer.from('runtime-probe-trace'));
+    await fs.writeFile(path.join(root, 'runtime-monitor-negative-probe-device.log'), Buffer.from('runtime-probe-log'));
     const output = path.join(root, 'manifest.json');
     const manifest = await createManifest(root, output);
-    if (manifest.files.map((entry) => entry.path).join(',') !== 'autopilot-a-device.webm,companion-damage-feedback-device.png') {
-      throw new Error('Manifest deterministic SHA-256 deduplication is invalid');
+    const expectedPaths = [
+      'autopilot-a-device.webm',
+      'companion-damage-feedback-device.png',
+      'runtime-monitor-negative-probe-device.log',
+      'runtime-monitor-negative-probe-device.trace.zip',
+      'runtime-monitor-negative-probe-device.webm',
+    ];
+    if (manifest.files.map((entry) => entry.path).join(',') !== expectedPaths.join(',')) {
+      throw new Error('Manifest deterministic SHA-256 deduplication or runtime-monitor probe coverage is invalid');
     }
-    if (manifest.mediaFiles !== 2 || manifest.uniqueMediaFiles !== 2 || manifest.duplicateHashes.length !== 0 || manifest.deduplicatedFiles.length !== 3) {
-      throw new Error('Manifest duplicate evidence was not deterministically removed');
+    if (manifest.mediaFiles !== 5 || manifest.uniqueMediaFiles !== 5 || manifest.duplicateHashes.length !== 0 || manifest.deduplicatedFiles.length !== 3) {
+      throw new Error('Manifest duplicate evidence or runtime-monitor probe coverage was not deterministic');
     }
     const removedPaths = manifest.deduplicatedFiles.map((entry) => entry.removed).sort();
     if (removedPaths.join(',') !== 'autopilot-b-device.webm,visible-prestige-device.png,visual-z-device.png') {
@@ -167,6 +186,10 @@ async function selfTest() {
     const companionEntry = manifest.files.find((entry) => entry.path === 'companion-damage-feedback-device.png');
     if (!companionEntry || companionEntry.png.width !== 390 || companionEntry.png.height !== 844 || companionEntry.sha256.length !== 64) {
       throw new Error('Companion damage evidence is not manifest-backed with valid PNG metadata');
+    }
+    const runtimeProbeEntries = manifest.files.filter((entry) => entry.path.startsWith(RUNTIME_MONITOR_PROBE_PREFIX));
+    if (runtimeProbeEntries.length !== 3 || runtimeProbeEntries.some((entry) => entry.sha256.length !== 64)) {
+      throw new Error('Runtime-monitor negative-probe video, trace and log are not all SHA-256 manifest-backed');
     }
     await fs.writeFile(path.join(root, 'visual-invalid.png'), Buffer.from('not-png'));
     let rejected = false;
