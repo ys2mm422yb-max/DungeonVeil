@@ -30,6 +30,10 @@ function escapeRegex(value) {
 }
 
 function adaptiveProductAutopilotIgnore() {
+  if (process.env.DUNGEON_VEIL_RUNTIME_MONITOR_NEGATIVE_PROBE === '1') {
+    console.log('Product Autopilot adaptive selection: runtime-monitor negative probe explicitly bypasses PR spec filtering.');
+    return [];
+  }
   if (process.env.GITHUB_WORKFLOW !== 'Product Autopilot QA' || process.env.GITHUB_EVENT_NAME !== 'pull_request') {
     return [];
   }
@@ -126,7 +130,7 @@ export default defineConfig({
         deviceScaleFactor: 2.625,
         isMobile: true,
         hasTouch: true,
-        userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/138.0.0.0 Mobile Safari/537.36',
+        userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/138.0.0.0 Mobile Safari/604.1',
       },
     },
     {
