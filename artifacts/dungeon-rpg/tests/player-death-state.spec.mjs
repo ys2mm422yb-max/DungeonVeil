@@ -41,6 +41,25 @@ async function startFreshRun(page) {
   await expect(skipIntro).toBeHidden({ timeout: 20_000 });
 }
 
+async function openDuoLifecycleQa(page, projectName, language) {
+  await page.addInitScript(({ ipad, runtimeEvidenceMarker, language }) => {
+    localStorage.clear();
+    sessionStorage.setItem(runtimeEvidenceMarker, '1');
+    localStorage.setItem('dungeon-veil-language', language);
+    if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
+  }, {
+    ipad: projectName.includes('ipad'),
+    runtimeEvidenceMarker: RUNTIME_EVIDENCE_MARKER,
+    language,
+  });
+  const url = new URL(APP_URL);
+  url.searchParams.set('qa', 'runtime-duo');
+  url.searchParams.set('duoLifecycle', '1');
+  await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await expect(page.getByTestId('runtime-duo-evidence-qa')).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId('runtime-duo-lifecycle-start').click();
+}
+
 test('solo death uses an explicit visual death state before the final overlay', async ({ page }, testInfo) => {
   await openMenu(page, testInfo.project.name);
   await startFreshRun(page);
@@ -53,9 +72,6 @@ test('solo death uses an explicit visual death state before the final overlay', 
   const before = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(before?.hp || 0)).toBeGreaterThan(0);
 
-  // Observe the complete staged overlay sequence on the browser clock. The MutationObserver is
-  // installed before the real lethal transition, so slow Playwright/WebKit protocol round-trips
-  // cannot miss a valid 1100 ms settling state that already occurred on the page main thread.
   const deathSequenceObservation = await page.evaluate(async () => {
     const startedAt = performance.now();
     const states = [];
@@ -157,3 +173,54 @@ test('solo death uses an explicit visual death state before the final overlay', 
   }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
 });
+
+for (const language of ['de', 'en']) {
+  test(`duo lifecycle emits Downed -> Revived -> Fallen -> Team Defeat temporal evidence (${language})`, async ({ page }, testInfo) => {
+    await openDuoLifecycleQa(page, testInfo.project.name, language);
+
+    const observation = await page.evaluate(async () => {
+      const host = document.querySelector('[data-testid="runtime-duo-evidence-qa"]');
+      if (!(host instanceof HTMLElement)) throw new Error('runtime duo evidence host missing');
+      const phases = [];
+      const remoteLifeStates = [];
+      const startedAt = performance.now();
+      const record = () => {
+        const phase = host.dataset.lifecyclePhase;
+        if (phase && phases.at(-1) !== phase) phases.push(phase);
+        const teamPanel = document.querySelector('[data-testid="coop-team-health-panel"]');
+        if (teamPanel instanceof HTMLElement) {
+          const life = teamPanel.dataset.lifeState;
+          if (life && remoteLifeStates.at(-1) !== life) remoteLifeStates.push(life);
+        }
+      };
+      while (performance.now() - startedAt < 7_000) {
+        record();
+        if (host.dataset.lifecyclePhase === 'team-defeat') break;
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+      record();
+      return { phases, remoteLifeStates, elapsedMs: performance.now() - startedAt };
+    });
+
+    expect(observation.phases).toEqual(['alive', 'downed', 'revived', 'fallen', 'team-defeat']);
+    expect(observation.remoteLifeStates).toEqual(['alive', 'downed', 'alive', 'fallen']);
+    await expect(page.getByTestId('runtime-duo-team-game-over')).toBeVisible();
+    await expect(page.getByTestId('coop-team-health-panel')).toHaveAttribute('data-life-state', 'fallen');
+
+    await writeFile(
+      testInfo.outputPath(`player-death-duo-${language}-${testInfo.project.name}.trace.json`),
+      JSON.stringify({
+        project: testInfo.project.name,
+        language,
+        phases: observation.phases,
+        remoteLifeStates: observation.remoteLifeStates,
+        elapsedMs: observation.elapsedMs,
+        finalTeamDefeatVisible: true,
+      }, null, 2),
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`player-death-duo-${language}-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
+  });
+}
