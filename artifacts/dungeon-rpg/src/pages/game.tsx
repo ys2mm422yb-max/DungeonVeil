@@ -33,6 +33,7 @@ import { preloadKayKitRoomTheme } from '../components/kaykitRoomThemes3D';
 import { preloadKayKitEnemyVisuals } from '../components/kaykitEnemy3D';
 import { preloadKayKitHealingPotion } from '../components/kaykitLoot3D';
 import { preloadKayKitOuterWorld } from '../components/kaykitOuterWorld3D';
+import { PLAYER_DEATH_EVENT } from '../components/kaykitPlayer3D';
 import { applyMetaLoadoutToNewRun, beginMetaRun } from '../game/metaProgression';
 import { beginPlayerProfileRun } from '../game/playerProfile';
 import { rememberRunName, resolvePreferredRunName, sanitizeRunName } from '../game/runIdentity';
@@ -135,6 +136,11 @@ function connectionLabel(status: CoopRealtimeStatus, language: string, remote: C
   return de ? 'DUO OFFLINE' : 'DUO OFFLINE';
 }
 
+const TerminalStableCombatStage = React.memo(
+  CombatStage,
+  (previous, next) => previous.gameState === next.gameState && previous.remotePlayer === next.remotePlayer,
+);
+
 export default function Game() {
   const { t, language, setLanguage, hasChosen } = useLanguage();
   const engineRef = useRef<GameEngine | null>(null);
@@ -149,12 +155,18 @@ export default function Game() {
   const [startingRun, setStartingRun] = useState(false);
   const [confirmingNewRun, setConfirmingNewRun] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [terminalGameState, setTerminalGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [uiState, setUiState] = useState<UiState>(() => !hasChosen ? 'lang_select' : 'main_menu');
   const [runContext, setRunContext] = useState<RunContext>(() => createSoloRunContext());
   const [activeCoopLobby, setActiveCoopLobby] = useState<CoopLobbySnapshot | null>(null);
   const [remotePlayer, setRemotePlayer] = useState<CoopPlayerPresence | null>(null);
   const [coopStatus, setCoopStatus] = useState<CoopRealtimeStatus>('offline');
+
+  const clearTerminalGameState = useCallback(() => {
+    setTerminalGameState(null);
+    window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+  }, []);
 
   const setSoloPersistence = useCallback((engine: GameEngine, enabled: boolean) => {
     const original = originalSaveNowRef.current;
@@ -215,13 +227,18 @@ export default function Game() {
         upgradeChoices: live.upgradeChoices,
         runSkills: live.runSkills,
       };
-      // The death overlay cannot honor its fixed 1100 ms browser-clock beat until React
-      // has mounted it. Under sustained Product/FGR work an ordinary queued state update
-      // can consume the remaining <=2000 ms acceptance before GameOverScreen even exists.
-      // Prioritize only the authoritative gameover handoff; normal simulation updates stay
-      // batched exactly as before.
-      if (live.status === 'gameover') flushSync(() => setGameState(nextState));
-      else setGameState(nextState);
+      // Mount the terminal presentation without synchronously reconciling the whole run
+      // tree. The engine is already authoritative gameover here, so keep the previous
+      // gameplay snapshot stable under the overlay and publish the player death signal
+      // directly. This lets the fixed 1100 ms browser-clock beat start immediately while
+      // preserving the unchanged <=2000 ms acceptance and post-death input blocking.
+      if (live.status === 'gameover') {
+        window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true } }));
+        flushSync(() => setTerminalGameState(nextState));
+        return;
+      }
+      setTerminalGameState(null);
+      setGameState(nextState);
     };
 
     const sessionSave = resumeSessionOnBootRef.current ? loadGame() : null;
@@ -306,6 +323,7 @@ export default function Game() {
     const name = rememberRunName(sanitizeRunName(requestedName));
     const engine = engineRef.current;
     if (!engine || name.length < 2) return;
+    clearTerminalGameState();
     setStartingRun(true);
     setSoloPersistence(engine, true);
     setRunContext(createSoloRunContext());
@@ -335,13 +353,14 @@ export default function Game() {
     } finally {
       setStartingRun(false);
     }
-  }, [setSoloPersistence]);
+  }, [clearTerminalGameState, setSoloPersistence]);
 
   const beginDuoRun = useCallback(async (lobby: CoopLobbySnapshot, force = false) => {
     const engine = engineRef.current;
     if (!engine || lobby.status !== 'in_run') return;
     const context = createDuoRunContext(lobby.lobby_id, lobby.run_seed, lobby.role);
     if (!force && isDuoRun(runContext) && runContext.lobbyId === context.lobbyId && uiState === 'game') return;
+    clearTerminalGameState();
     setStartingRun(true);
     try {
       const checkpoint = await getMyCoopRunCheckpoint(lobby.lobby_id, lobby.run_seed).catch(() => null);
@@ -379,7 +398,7 @@ export default function Game() {
     } finally {
       setStartingRun(false);
     }
-  }, [language, runContext, saveData, setSoloPersistence, uiState]);
+  }, [clearTerminalGameState, language, runContext, saveData, setSoloPersistence, uiState]);
 
   const continueNewRunFlow = useCallback(async () => {
     setConfirmingNewRun(false);
@@ -404,6 +423,7 @@ export default function Game() {
     const save = loadGame();
     const engine = engineRef.current;
     if (!save || !engine) return;
+    clearTerminalGameState();
     setStartingRun(true);
     setSoloPersistence(engine, true);
     setRunContext(createSoloRunContext());
@@ -425,20 +445,22 @@ export default function Game() {
         setStartingRun(false);
       }
     })();
-  }, [setSoloPersistence]);
+  }, [clearTerminalGameState, setSoloPersistence]);
 
   const handleRetry = useCallback(() => {
     const name = sanitizeRunName(engineRef.current?.state.player.playerName || saveData?.playerName) || (language === 'de' ? 'Waldläufer' : 'Ranger');
+    clearTerminalGameState();
     markActiveRun(false);
     if (isDuoRun(runContext) && activeCoopLobby) {
       void beginDuoRun(activeCoopLobby, true);
       return;
     }
     void beginFreshRun(name);
-  }, [activeCoopLobby, beginDuoRun, beginFreshRun, language, runContext, saveData?.playerName]);
+  }, [activeCoopLobby, beginDuoRun, beginFreshRun, clearTerminalGameState, language, runContext, saveData?.playerName]);
 
   const handleMainMenu = useCallback(() => {
     const leavingDuo = isDuoRun(runContext);
+    clearTerminalGameState();
     saveCurrentGame();
     resetMovement();
     markActiveRun(false);
@@ -449,7 +471,7 @@ export default function Game() {
     setActiveCoopLobby(null);
     document.documentElement.dataset.dungeonVeilRunMode = 'solo';
     if (leavingDuo) void leaveCoopLobby().catch(error => console.error('Duo lobby leave failed', error));
-  }, [resetMovement, runContext, saveCurrentGame]);
+  }, [clearTerminalGameState, resetMovement, runContext, saveCurrentGame]);
 
   const handleSettingsBack = useCallback(() => {
     const returnTo = settingsReturnRef.current;
@@ -549,10 +571,9 @@ export default function Game() {
       {uiState === 'veil_chamber' && <VeilChamberScreen onBack={() => setUiState('main_menu')} />}
       {uiState === 'codex' && <CodexScreen onBack={() => setUiState('main_menu')} />}
       {uiState === 'game' && gameState && <>
-        <CombatStage gameState={gameState} remotePlayer={duoContext ? remotePlayer : null} />
+        <TerminalStableCombatStage gameState={gameState} remotePlayer={duoContext ? remotePlayer : null} />
         {duoContext && <div data-testid="coop-run-connection" data-status={coopStatus} className={`pointer-events-none absolute left-1/2 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-40 -translate-x-1/2 rounded-full border px-3 py-1.5 text-[6px] font-black uppercase tracking-[.16em] backdrop-blur-md ${coopStatus === 'connected' ? 'border-cyan-200/22 bg-cyan-950/55 text-cyan-50/86' : 'border-amber-200/20 bg-black/68 text-amber-100/76'}`}>{connectionLabel(coopStatus, language, remotePlayer)} · SEED {duoContext.runSeed}</div>}
         {roomPreparing && <div className="pointer-events-none absolute left-1/2 top-[31%] z-40 -translate-x-1/2 rounded-full border border-violet-300/25 bg-black/72 px-4 py-2 text-[9px] font-black tracking-[.28em] text-violet-100/80 backdrop-blur-md">RAUM WIRD AUFGEBAUT…</div>}
-        {gameState.status === 'gameover' && <GameOverScreen gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />}
         {gameState.status === 'levelup' && <LevelUpScreen choices={gameState.upgradeChoices} runSkills={gameState.runSkills} onSelect={handleLevelUpSelect} />}
         {gameState.status === 'paused' && <GamePausePanel gameState={gameState} language={language as Language} paused={t.paused} resume={t.resume} settings={t.settings} classNameText={t.className.archer} onResume={handleResume} onSettings={() => goSettings('game')} onMainMenu={handleMainMenu} onLanguage={setLanguage} onRestartRoom={handleRestartRoom} />}
         {(gameState.status === 'playing' || gameState.status === 'paused') && <>
@@ -561,6 +582,9 @@ export default function Game() {
           <ActionButtons gameState={gameState} onDodge={handleDodge} />
         </>}
       </>}
+      {terminalGameState && <div data-player-death-state="active" data-terminal-death-host="active">
+        <GameOverScreen gameState={terminalGameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />
+      </div>}
       {confirmingNewRun && saveData && <NewRunConfirmDialog
         language={language}
         chapter={saveData.chapter ?? 1}
