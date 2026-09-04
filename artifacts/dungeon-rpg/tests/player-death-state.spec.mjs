@@ -170,5 +170,7 @@ for (const language of ['de', 'en']) {
     await expect(advance).toHaveCount(0);
     await writeFile(testInfo.outputPath(`player-death-duo-${language}-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, language, phases, remoteLifeStates, elapsedMs, finalTeamDefeatVisible: true, finalTeamDefeatTitle: TEAM_DEFEAT_COPY[language].title, finalTeamDefeatBody: TEAM_DEFEAT_COPY[language].body }, null, 2));
     await page.screenshot({ path: testInfo.outputPath(`player-death-duo-${language}-${testInfo.project.name}.png`), fullPage: true });
+    // Keep the verified terminal card on-screen long enough to be encoded into the temporal evidence EOF.
+    await page.waitForTimeout(1_000);
   });
 }
