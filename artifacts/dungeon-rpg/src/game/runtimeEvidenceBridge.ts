@@ -153,7 +153,6 @@ function attachApi(): void {
       engine.state.player.hp = 0;
       engine.update(lethalTime + 17);
       const afterUpdate = terminalDeathRunDiagnostics();
-      emit(engine);
       const snapshot = stateSnapshot(engine);
       if (engine.state.status !== 'gameover' || engine.state.player.hp > 0) {
         throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ runMode, beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
