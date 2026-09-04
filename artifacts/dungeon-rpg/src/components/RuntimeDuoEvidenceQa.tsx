@@ -5,7 +5,7 @@ import { HUD } from './HUD';
 import { GameEngine, type GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { attachRuntimeEvidenceEngine } from '../game/runtimeEvidenceBridge';
-import { LanguageProvider } from '../i18n/LanguageContext';
+import { LanguageProvider, useLanguage } from '../i18n/LanguageContext';
 
 type DuoLifecyclePhase = 'alive' | 'downed' | 'revived' | 'fallen' | 'team-defeat';
 
@@ -34,6 +34,7 @@ function cloneState(engine: GameEngine): GameState {
 }
 
 function RuntimeDuoEvidenceScene() {
+  const { language } = useLanguage();
   const engineRef = useRef<GameEngine | null>(null);
   if (!engineRef.current) engineRef.current = new GameEngine();
   const [state, setState] = useState<GameState>(() => cloneState(engineRef.current!));
@@ -43,6 +44,15 @@ function RuntimeDuoEvidenceScene() {
   );
   const [lifecyclePhase, setLifecyclePhase] = useState<DuoLifecyclePhase>('alive');
   const [lifecycleStarted, setLifecycleStarted] = useState(false);
+  const teamDefeatCopy = language === 'de'
+    ? {
+      title: 'BEIDE GEFALLEN',
+      body: 'Der gemeinsame Run ist beendet. Nur der Host kann beide Spieler zusammen neu starten.',
+    }
+    : {
+      title: 'BOTH FALLEN',
+      body: 'The shared run is over. Only the host can restart both players together.',
+    };
 
   useEffect(() => {
     document.documentElement.dataset.dungeonVeilRunMode = 'duo';
@@ -145,9 +155,9 @@ function RuntimeDuoEvidenceScene() {
     >
       <div className="w-[min(88vw,420px)] rounded-3xl border border-red-200/25 bg-[#130d12]/96 p-7 text-center shadow-2xl">
         <div className="text-[9px] font-black uppercase tracking-[.28em] text-red-200/55">DUO-RUN</div>
-        <div className="mt-2 font-serif text-3xl text-red-50">BEIDE GEFALLEN</div>
+        <div className="mt-2 font-serif text-3xl text-red-50">{teamDefeatCopy.title}</div>
         <div className="mt-3 text-[10px] leading-relaxed text-red-100/62">
-          Der gemeinsame Run ist beendet. Nur der Host kann beide Spieler zusammen neu starten.
+          {teamDefeatCopy.body}
         </div>
       </div>
     </div>}
