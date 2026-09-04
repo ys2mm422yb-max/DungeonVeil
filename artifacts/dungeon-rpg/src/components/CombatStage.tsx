@@ -93,7 +93,9 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     if (!playerDeadFromGameState) return undefined;
     setPlayerDead(true);
     window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true } }));
-    return () => window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+    };
   }, [playerDeadFromGameState]);
 
   useEffect(() => {
