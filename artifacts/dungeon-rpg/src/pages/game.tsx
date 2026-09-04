@@ -582,7 +582,7 @@ export default function Game() {
           <ActionButtons gameState={gameState} onDodge={handleDodge} />
         </>}
       </>}
-      {terminalGameState && <div data-player-death-state="active" data-terminal-death-host="active">
+      {terminalGameState && <div data-terminal-death-host="active">
         <GameOverScreen gameState={terminalGameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />
       </div>}
       {confirmingNewRun && saveData && <NewRunConfirmDialog

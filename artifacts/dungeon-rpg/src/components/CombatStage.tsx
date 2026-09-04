@@ -63,7 +63,11 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const runMode = readRunMode();
   const language = readLanguage();
   const hasLivingEnemies = gameState.enemies.some(enemy => enemy.hp > 0);
-  const playerDead = gameState.player.hp <= 0 || gameState.status === 'gameover';
+  const playerDeadFromGameState = gameState.player.hp <= 0 || gameState.status === 'gameover';
+  // Terminal gameover intentionally keeps the broad run snapshot stable in Game.tsx. Keep
+  // the lightweight renderer marker responsive to the authoritative death event instead
+  // of requiring that heavy snapshot to reconcile first.
+  const [playerDead, setPlayerDead] = useState(playerDeadFromGameState);
   const [roomTitle, setRoomTitle] = useState(() => roomTitleFor(gameState.floor, language));
   const [showRoomTitle, setShowRoomTitle] = useState(true);
 
@@ -77,11 +81,20 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   };
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: playerDead } }));
-    return () => {
-      if (playerDead) window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+    const handlePlayerDeathSignal = (event: Event) => {
+      const detail = (event as CustomEvent<{ dead?: boolean }>).detail;
+      setPlayerDead(Boolean(detail?.dead));
     };
-  }, [playerDead]);
+    window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal);
+    return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal);
+  }, []);
+
+  useEffect(() => {
+    if (!playerDeadFromGameState) return undefined;
+    setPlayerDead(true);
+    window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true } }));
+    return () => window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+  }, [playerDeadFromGameState]);
 
   useEffect(() => {
     let frame = 0;
