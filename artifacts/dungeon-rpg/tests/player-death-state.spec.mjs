@@ -65,12 +65,18 @@ test('solo death uses an explicit visual death state before the final overlay', 
   await startFreshRun(page);
 
   const capability = await page.evaluate(() => ({
+    prepareTerminalDeathEvidence: typeof window.__dungeonVeilRuntimeEvidence?.prepareTerminalDeathEvidence === 'function',
     forcePlayerDeath: typeof window.__dungeonVeilRuntimeEvidence?.forcePlayerDeath === 'function',
   }));
+  expect(capability.prepareTerminalDeathEvidence, 'localhost evidence API must expose terminal-death preconditioning outside the measured lethal transition').toBe(true);
   expect(capability.forcePlayerDeath, 'localhost evidence API must expose a real player-death trigger').toBe(true);
 
   const before = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(before?.hp || 0)).toBeGreaterThan(0);
+
+  const terminalDeathPreparation = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.prepareTerminalDeathEvidence?.() ?? null);
+  expect(terminalDeathPreparation, 'terminal-death evidence preconditioning must complete before the unchanged browser-clock acceptance timer starts').toBeTruthy();
+  expect(Number(terminalDeathPreparation?.snapshot?.hp || 0), 'preconditioning must leave the live player alive before the measured lethal transition').toBeGreaterThan(0);
 
   const deathSequenceObservation = await page.evaluate(async () => {
     const startedAt = performance.now();
@@ -178,43 +184,45 @@ for (const language of ['de', 'en']) {
   test(`duo lifecycle emits Downed -> Revived -> Fallen -> Team Defeat temporal evidence (${language})`, async ({ page }, testInfo) => {
     await openDuoLifecycleQa(page, testInfo.project.name, language);
 
-    const observation = await page.evaluate(async () => {
-      const host = document.querySelector('[data-testid="runtime-duo-evidence-qa"]');
-      if (!(host instanceof HTMLElement)) throw new Error('runtime duo evidence host missing');
-      const phases = [];
-      const remoteLifeStates = [];
-      const startedAt = performance.now();
-      const record = () => {
-        const phase = host.dataset.lifecyclePhase;
-        if (phase && phases.at(-1) !== phase) phases.push(phase);
-        const teamPanel = document.querySelector('[data-testid="coop-team-health-panel"]');
-        if (teamPanel instanceof HTMLElement) {
-          const life = teamPanel.dataset.lifeState;
-          if (life && remoteLifeStates.at(-1) !== life) remoteLifeStates.push(life);
-        }
-      };
-      while (performance.now() - startedAt < 7_000) {
-        record();
-        if (host.dataset.lifecyclePhase === 'team-defeat') break;
-        await new Promise(resolve => requestAnimationFrame(resolve));
-      }
-      record();
-      return { phases, remoteLifeStates, elapsedMs: performance.now() - startedAt };
-    });
+    const host = page.getByTestId('runtime-duo-evidence-qa');
+    const teamPanel = page.getByTestId('coop-team-health-panel');
+    const advance = page.getByTestId('runtime-duo-lifecycle-advance');
+    const startedAt = await page.evaluate(() => performance.now());
+    const phases = [];
+    const remoteLifeStates = [];
 
-    expect(observation.phases).toEqual(['alive', 'downed', 'revived', 'fallen', 'team-defeat']);
-    expect(observation.remoteLifeStates).toEqual(['alive', 'downed', 'alive', 'fallen']);
+    const observe = async (phase, lifeState) => {
+      await expect(host).toHaveAttribute('data-lifecycle-phase', phase, { timeout: 5_000 });
+      await expect(teamPanel).toHaveAttribute('data-life-state', lifeState, { timeout: 5_000 });
+      phases.push(phase);
+      if (remoteLifeStates.at(-1) !== lifeState) remoteLifeStates.push(lifeState);
+    };
+
+    await observe('alive', 'alive');
+    await advance.click();
+    await observe('downed', 'downed');
+    await advance.click();
+    await observe('revived', 'alive');
+    await advance.click();
+    await observe('fallen', 'fallen');
+    await advance.click();
+    await observe('team-defeat', 'fallen');
+
+    const elapsedMs = await page.evaluate(start => performance.now() - start, startedAt);
+    expect(phases).toEqual(['alive', 'downed', 'revived', 'fallen', 'team-defeat']);
+    expect(remoteLifeStates).toEqual(['alive', 'downed', 'alive', 'fallen']);
     await expect(page.getByTestId('runtime-duo-team-game-over')).toBeVisible();
     await expect(page.getByTestId('coop-team-health-panel')).toHaveAttribute('data-life-state', 'fallen');
+    await expect(advance).toHaveCount(0);
 
     await writeFile(
       testInfo.outputPath(`player-death-duo-${language}-${testInfo.project.name}.trace.json`),
       JSON.stringify({
         project: testInfo.project.name,
         language,
-        phases: observation.phases,
-        remoteLifeStates: observation.remoteLifeStates,
-        elapsedMs: observation.elapsedMs,
+        phases,
+        remoteLifeStates,
+        elapsedMs,
         finalTeamDefeatVisible: true,
       }, null, 2),
     );

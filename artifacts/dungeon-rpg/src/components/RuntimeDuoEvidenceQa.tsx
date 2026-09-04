@@ -9,6 +9,18 @@ import { LanguageProvider } from '../i18n/LanguageContext';
 
 type DuoLifecyclePhase = 'alive' | 'downed' | 'revived' | 'fallen' | 'team-defeat';
 
+const DUO_LIFECYCLE_SEQUENCE: DuoLifecyclePhase[] = ['alive', 'downed', 'revived', 'fallen', 'team-defeat'];
+
+function nextLifecyclePhase(current: DuoLifecyclePhase): DuoLifecyclePhase {
+  switch (current) {
+    case 'alive': return 'downed';
+    case 'downed': return 'revived';
+    case 'revived': return 'fallen';
+    case 'fallen': return 'team-defeat';
+    case 'team-defeat': return 'team-defeat';
+  }
+}
+
 function cloneState(engine: GameEngine): GameState {
   return {
     ...engine.state,
@@ -62,18 +74,6 @@ function RuntimeDuoEvidenceScene() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!lifecycleEnabled || !lifecycleStarted) return undefined;
-    const schedule: Array<[DuoLifecyclePhase, number]> = [
-      ['downed', 900],
-      ['revived', 1_800],
-      ['fallen', 2_700],
-      ['team-defeat', 3_600],
-    ];
-    const timers = schedule.map(([phase, delay]) => window.setTimeout(() => setLifecyclePhase(phase), delay));
-    return () => timers.forEach(timer => window.clearTimeout(timer));
-  }, [lifecycleEnabled, lifecycleStarted]);
-
   const remotePlayer = useMemo<CoopPlayerPresence>(() => {
     const lifeState = lifecyclePhase === 'downed'
       ? 'downed'
@@ -110,7 +110,7 @@ function RuntimeDuoEvidenceScene() {
       defense: state.player.defense,
       lastAttackTime: state.player.lastAttackTime,
       lastDodgeTime: state.player.lastDodgeTime,
-      sequence: 1,
+      sequence: DUO_LIFECYCLE_SEQUENCE.indexOf(lifecyclePhase) + 1,
       sentAt: Date.now(),
       receivedAt: Date.now(),
     };
@@ -130,6 +130,12 @@ function RuntimeDuoEvidenceScene() {
       onClick={() => { setLifecyclePhase('alive'); setLifecycleStarted(true); }}
       className="pointer-events-auto absolute left-1/2 top-4 z-[95] -translate-x-1/2 rounded-xl border border-cyan-200/40 bg-black/80 px-4 py-3 text-[9px] font-black uppercase tracking-[.16em] text-cyan-50"
     >START DUO LIFECYCLE</button>}
+    {lifecycleEnabled && lifecycleStarted && lifecyclePhase !== 'team-defeat' && <button
+      type="button"
+      data-testid="runtime-duo-lifecycle-advance"
+      onClick={() => setLifecyclePhase(current => nextLifecyclePhase(current))}
+      className="pointer-events-auto absolute right-4 top-4 z-[95] rounded-xl border border-cyan-200/40 bg-black/80 px-3 py-2 text-[8px] font-black uppercase tracking-[.14em] text-cyan-50"
+    >ADVANCE DUO LIFECYCLE</button>}
     <div className="pointer-events-none absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-cyan-200/25 bg-black/72 px-4 py-2 text-[8px] font-black tracking-[.18em] text-cyan-100">
       DUO RUNTIME EVIDENCE · {lifecyclePhase.toUpperCase()} · ROOM {state.floor}/50
     </div>
