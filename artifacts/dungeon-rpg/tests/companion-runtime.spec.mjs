@@ -72,6 +72,12 @@ async function readRuntimeCombatSnapshot(page) {
 }
 
 async function prepareLivePlayerAttackLine(page) {
+  const initialSnapshot = await readRuntimeCombatSnapshot(page);
+  if (Number(initialSnapshot?.livingEnemies || 0) <= 0) {
+    const replenishedRoom = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.loadRoom(1, 'solo') ?? null);
+    expect(Number(replenishedRoom?.livingEnemies || 0)).toBeGreaterThan(0);
+    await waitForStableRoom(page);
+  }
   const enemyStatus = page.getByTestId('run-enemy-status');
   await expect(enemyStatus).toBeVisible();
   await expect(enemyStatus).not.toHaveText(/RAUM FREI|ROOM CLEAR/i);
@@ -641,6 +647,7 @@ test('companions are found and upgraded before a run, then remain fixed with art
   const scene = page.getByTestId('run-companion-scene');
   await expect(chip).toHaveCount(0);
   await waitForStableRoom(page);
+  await prepareLivePlayerAttackLine(page);
   const basicEvidenceBoundary = await page.evaluate(() => performance.now());
   const basicCapturePromise = captureLiveCompanionFeedbackEvidence(page, {
     role: 'shield',
