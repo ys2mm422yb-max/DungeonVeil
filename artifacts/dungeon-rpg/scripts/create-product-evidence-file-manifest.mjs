@@ -11,6 +11,7 @@ const INCLUDED_PREFIXES = [
   'mobile-resource-upgrade-',
   'companion-damage-feedback-',
   'armor-cloud-restore-painted-',
+  'player-death-',
 ];
 const INCLUDED_EXTENSIONS = new Set(['.png', '.webm', '.mp4']);
 const RUNTIME_MONITOR_PROBE_PREFIX = 'runtime-monitor-negative-probe-';
@@ -153,6 +154,7 @@ async function selfTest() {
     await fs.writeFile(path.join(root, 'companion-damage-feedback-device.png'), png);
     await fs.writeFile(path.join(root, 'autopilot-a-device.webm'), Buffer.from('video'));
     await fs.writeFile(path.join(root, 'autopilot-b-device.webm'), Buffer.from('video'));
+    await fs.writeFile(path.join(root, 'player-death-solo-device.webm'), Buffer.from('player-death-video'));
     await fs.writeFile(path.join(root, 'runtime-monitor-negative-probe-device.webm'), Buffer.from('runtime-probe-video'));
     await fs.writeFile(path.join(root, 'runtime-monitor-negative-probe-device.trace.zip'), Buffer.from('runtime-probe-trace'));
     await fs.writeFile(path.join(root, 'runtime-monitor-negative-probe-device.log'), Buffer.from('runtime-probe-log'));
@@ -161,15 +163,16 @@ async function selfTest() {
     const expectedPaths = [
       'autopilot-a-device.webm',
       'companion-damage-feedback-device.png',
+      'player-death-solo-device.webm',
       'runtime-monitor-negative-probe-device.log',
       'runtime-monitor-negative-probe-device.trace.zip',
       'runtime-monitor-negative-probe-device.webm',
     ];
     if (manifest.files.map((entry) => entry.path).join(',') !== expectedPaths.join(',')) {
-      throw new Error('Manifest deterministic SHA-256 deduplication or runtime-monitor probe coverage is invalid');
+      throw new Error('Manifest deterministic SHA-256 deduplication, player-death evidence coverage or runtime-monitor probe coverage is invalid');
     }
-    if (manifest.mediaFiles !== 5 || manifest.uniqueMediaFiles !== 5 || manifest.duplicateHashes.length !== 0 || manifest.deduplicatedFiles.length !== 3) {
-      throw new Error('Manifest duplicate evidence or runtime-monitor probe coverage was not deterministic');
+    if (manifest.mediaFiles !== 6 || manifest.uniqueMediaFiles !== 6 || manifest.duplicateHashes.length !== 0 || manifest.deduplicatedFiles.length !== 3) {
+      throw new Error('Manifest duplicate evidence, player-death evidence or runtime-monitor probe coverage was not deterministic');
     }
     const removedPaths = manifest.deduplicatedFiles.map((entry) => entry.removed).sort();
     if (removedPaths.join(',') !== 'autopilot-b-device.webm,visible-prestige-device.png,visual-z-device.png') {
@@ -186,6 +189,10 @@ async function selfTest() {
     const companionEntry = manifest.files.find((entry) => entry.path === 'companion-damage-feedback-device.png');
     if (!companionEntry || companionEntry.png.width !== 390 || companionEntry.png.height !== 844 || companionEntry.sha256.length !== 64) {
       throw new Error('Companion damage evidence is not manifest-backed with valid PNG metadata');
+    }
+    const playerDeathEntry = manifest.files.find((entry) => entry.path === 'player-death-solo-device.webm');
+    if (!playerDeathEntry || playerDeathEntry.sha256.length !== 64) {
+      throw new Error('Player-death temporal evidence is not SHA-256 manifest-backed');
     }
     const runtimeProbeEntries = manifest.files.filter((entry) => entry.path.startsWith(RUNTIME_MONITOR_PROBE_PREFIX));
     if (runtimeProbeEntries.length !== 3 || runtimeProbeEntries.some((entry) => entry.sha256.length !== 64)) {

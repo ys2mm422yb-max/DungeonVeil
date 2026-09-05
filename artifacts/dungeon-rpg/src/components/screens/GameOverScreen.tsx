@@ -1,5 +1,4 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { GameState } from '../../game/engine';
 import { useLanguage } from '../../i18n/LanguageContext';
 
@@ -48,15 +47,15 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
     () => resolveDeathBeatStartedAt(deathBeatKey, authoritativeTransitionStartedAt),
     [deathBeatKey, authoritativeTransitionStartedAt],
   );
-  // Always commit the explicit settling state once. For a live beat, arm the unchanged
-  // browser-clock deadline through the existing timeout, rAF watchdog and render-timeline
-  // signal. If the authoritative 1100 ms deadline already expired before this layout
-  // effect mounts under sustained main-thread load, do not add another task/frame delay:
-  // a microtask runs after the initial DOM mutation checkpoint, preserving the observable
-  // `settling` insertion while synchronously committing `settled` before another loaded
-  // scheduler turn can push the unchanged <=2000 ms acceptance window over its deadline.
+  // Always commit the explicit settling state once. The fixed browser-clock deadline still
+  // uses the timeout, rAF watchdog and render-timeline signal. When that deadline fires,
+  // publish the already-due terminal DOM presentation before asking React to reconcile the
+  // same state. Loaded WebKit can delay a React commit even after the deadline callback gets
+  // a browser turn; the direct DOM commit removes that extra scheduler dependency without
+  // shortening the 1100 ms visual beat or changing the <=2000 ms acceptance contract.
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
     let settledOnce = false;
@@ -67,7 +66,20 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
     const settle = () => {
       if (settledOnce) return;
       settledOnce = true;
-      flushSync(() => setDeathSequence('settled'));
+
+      const overlay = overlayRef.current;
+      const content = contentRef.current;
+      if (overlay) {
+        overlay.dataset.deathSequence = 'settled';
+        overlay.classList.remove('bg-black/35', 'backdrop-blur-[1px]');
+        overlay.classList.add('bg-black/92', 'backdrop-blur-sm');
+      }
+      if (content) {
+        content.classList.remove('pointer-events-none', 'opacity-0');
+        content.classList.add('opacity-100');
+      }
+
+      setDeathSequence('settled');
     };
     const watchDeadline = () => {
       if (settledOnce) return;
@@ -117,7 +129,10 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       data-testid="game-over-screen"
       data-death-sequence={deathSequence}
     >
-      <div className={`flex w-full flex-col items-center justify-center transition-opacity duration-500 ${settled ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+      <div
+        ref={contentRef}
+        className={`flex w-full flex-col items-center justify-center transition-opacity duration-500 ${settled ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      >
         <h1 className="font-serif text-6xl md:text-8xl text-destructive font-black tracking-widest drop-shadow-[0_0_32px_rgba(192,57,43,0.6)] text-center mb-2">
           {t.youDied}
         </h1>

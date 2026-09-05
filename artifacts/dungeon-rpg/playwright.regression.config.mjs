@@ -30,6 +30,15 @@ function escapeRegex(value) {
 }
 
 function adaptiveProductAutopilotIgnore() {
+  if (process.env.DUNGEON_VEIL_RUNTIME_MONITOR_NEGATIVE_PROBE === '1') {
+    console.log('Product Autopilot adaptive selection: runtime-monitor negative probe explicitly bypasses PR spec filtering.');
+    return [];
+  }
+  const runAttempt = Number.parseInt(process.env.GITHUB_RUN_ATTEMPT || '1', 10);
+  if (Number.isFinite(runAttempt) && runAttempt > 1) {
+    console.log('Product Autopilot adaptive selection: rerun attempt uses the full fail-closed suite instead of potentially stale PR event metadata.');
+    return [];
+  }
   if (process.env.GITHUB_WORKFLOW !== 'Product Autopilot QA' || process.env.GITHUB_EVENT_NAME !== 'pull_request') {
     return [];
   }

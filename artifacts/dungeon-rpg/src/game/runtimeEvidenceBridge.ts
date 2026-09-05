@@ -23,6 +23,7 @@ type TerminalDeathTransitionArm = {
 
 type RuntimeEvidenceApi = {
   snapshot: () => Record<string, unknown> | null;
+  prepareTerminalDeathEvidence: () => Record<string, unknown> | null;
   forcePlayerDeath: () => Record<string, unknown> | null;
   loadRoom: (room: number, mode?: EvidenceMode) => Record<string, unknown> | null;
   killLivingEnemies: () => Record<string, unknown> | null;
@@ -123,22 +124,38 @@ function attachApi(): void {
   if (!allowed()) return;
   window.__dungeonVeilRuntimeEvidence = {
     snapshot: () => stateSnapshot(),
-    forcePlayerDeath: () => {
+    prepareTerminalDeathEvidence: () => {
       const engine = currentEngine;
       if (!engine) return null;
       terminalDeathTransitionArm = null;
       const beforeEnsure = terminalDeathRunDiagnostics();
       if (!ensureVeilHeartConsumedForCurrentRun()) {
-        throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ beforeEnsure })}`);
+        throw new Error(`Terminal death evidence requires a current run id before preparation: ${JSON.stringify({ beforeEnsure })}`);
+      }
+      return {
+        beforeEnsure,
+        afterEnsure: terminalDeathRunDiagnostics(),
+        snapshot: stateSnapshot(engine),
+      };
+    },
+    forcePlayerDeath: () => {
+      const engine = currentEngine;
+      if (!engine) return null;
+      terminalDeathTransitionArm = null;
+      const beforeEnsure = terminalDeathRunDiagnostics();
+      const runMode: EvidenceMode = document.documentElement.dataset.dungeonVeilRunMode === 'duo' ? 'duo' : 'solo';
+      if (runMode === 'solo' && !ensureVeilHeartConsumedForCurrentRun()) {
+        throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ runMode, beforeEnsure })}`);
       }
       const afterEnsure = terminalDeathRunDiagnostics();
+      const lethalTime = performance.now();
+      engine.state.player.lastHitTime = lethalTime;
       engine.state.player.hp = 0;
-      engine.update(performance.now() + 17);
+      engine.update(lethalTime + 17);
       const afterUpdate = terminalDeathRunDiagnostics();
-      emit(engine);
       const snapshot = stateSnapshot(engine);
       if (engine.state.status !== 'gameover' || engine.state.player.hp > 0) {
-        throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
+        throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ runMode, beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
       }
       terminalDeathTransitionArm = {
         armedAt: performance.now(),

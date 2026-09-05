@@ -42,6 +42,11 @@ function roomTitleFor(floor: number, language: string): string {
   return (language === 'en' ? identity.nameEn : identity.nameDe).toUpperCase();
 }
 
+const TerminalStableGameCanvas = React.memo(
+  GameCanvas,
+  (previous, next) => next.gameState.status === 'gameover' || previous.gameState === next.gameState,
+);
+
 export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const previousHpRef = useRef(gameState.player.hp);
   const previousFloorRef = useRef(gameState.floor);
@@ -58,7 +63,11 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const runMode = readRunMode();
   const language = readLanguage();
   const hasLivingEnemies = gameState.enemies.some(enemy => enemy.hp > 0);
-  const playerDead = gameState.player.hp <= 0 || gameState.status === 'gameover';
+  const playerDeadFromGameState = gameState.player.hp <= 0 || gameState.status === 'gameover';
+  // Terminal gameover intentionally keeps the broad run snapshot stable in Game.tsx. Keep
+  // the lightweight renderer marker responsive to the authoritative death event instead
+  // of requiring that heavy snapshot to reconcile first.
+  const [playerDead, setPlayerDead] = useState(playerDeadFromGameState);
   const [roomTitle, setRoomTitle] = useState(() => roomTitleFor(gameState.floor, language));
   const [showRoomTitle, setShowRoomTitle] = useState(true);
 
@@ -72,11 +81,22 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   };
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: playerDead } }));
-    return () => {
-      if (playerDead) window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+    const handlePlayerDeathSignal = (event: Event) => {
+      const detail = (event as CustomEvent<{ dead?: boolean }>).detail;
+      setPlayerDead(Boolean(detail?.dead));
     };
-  }, [playerDead]);
+    window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal);
+    return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal);
+  }, []);
+
+  useEffect(() => {
+    if (!playerDeadFromGameState) return undefined;
+    setPlayerDead(true);
+    window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
+    };
+  }, [playerDeadFromGameState]);
 
   useEffect(() => {
     let frame = 0;
@@ -184,7 +204,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     >
       {runCompanion && <CompanionRuntimeBridge gameState={gameState} role={runCompanion.id} level={runCompanion.level} mode={runMode} />}
       <div className={`absolute inset-0 ${shakeClass}`}>
-        <GameCanvas gameState={gameState} />
+        <TerminalStableGameCanvas gameState={gameState} />
         {remotePlayer && <CoopTeammateScene3D gameState={gameState} remotePlayer={remotePlayer} />}
         {(runCompanion || remotePlayer) && <CompanionScene3D gameState={gameState} localCompanion={runCompanion ? { role: runCompanion.id, level: runCompanion.level } : null} remotePlayer={remotePlayer} />}
         {remotePlayer && <CoopProjectileRealtimeBridge gameState={gameState} remotePlayer={remotePlayer} />}
