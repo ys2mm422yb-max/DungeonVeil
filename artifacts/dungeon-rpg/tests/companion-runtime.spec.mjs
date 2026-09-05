@@ -641,7 +641,6 @@ test('companions are found and upgraded before a run, then remain fixed with art
   const scene = page.getByTestId('run-companion-scene');
   await expect(chip).toHaveCount(0);
   await waitForStableRoom(page);
-  await prepareLivePlayerAttackLine(page);
   const basicEvidenceBoundary = await page.evaluate(() => performance.now());
   const basicCapturePromise = captureLiveCompanionFeedbackEvidence(page, {
     role: 'shield',
