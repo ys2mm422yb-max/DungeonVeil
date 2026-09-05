@@ -1,6 +1,10 @@
 import { readdir, realpath, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+const INDEPENDENT_NESTED_ARTIFACT_DIR_PREFIXES = [
+  'runtime-monitor-negative-probe-',
+];
+
 function parseArgs(argv) {
   const args = [...argv];
   let maxMb = null;
@@ -30,7 +34,11 @@ function parseArgs(argv) {
   return { maxBytes: Math.floor(maxMb * 1024 * 1024), maxMb, label, paths };
 }
 
-async function collectFiles(inputPath, files, missing) {
+function isIndependentNestedArtifactDirectory(name) {
+  return INDEPENDENT_NESTED_ARTIFACT_DIR_PREFIXES.some((prefix) => name.startsWith(prefix));
+}
+
+async function collectFiles(inputPath, files, missing, skippedIndependentArtifacts) {
   const absolute = resolve(inputPath);
   let metadata;
   try {
@@ -45,7 +53,17 @@ async function collectFiles(inputPath, files, missing) {
 
   if (metadata.isDirectory()) {
     for (const entry of await readdir(absolute, { withFileTypes: true })) {
-      await collectFiles(`${absolute}/${entry.name}`, files, missing);
+      const childPath = `${absolute}/${entry.name}`;
+      // Product Autopilot packages the runtime-monitor negative probe as its own
+      // independently budgeted/uploaded artifact before measuring the parent success
+      // evidence. Do not charge that nested artifact a second time when a parent
+      // directory is budgeted. Passing the probe directory itself still measures every
+      // file inside it, so its dedicated fail-closed budget is unchanged.
+      if (entry.isDirectory() && isIndependentNestedArtifactDirectory(entry.name)) {
+        skippedIndependentArtifacts.push(childPath);
+        continue;
+      }
+      await collectFiles(childPath, files, missing, skippedIndependentArtifacts);
     }
     return;
   }
@@ -58,8 +76,9 @@ async function collectFiles(inputPath, files, missing) {
 const { maxBytes, maxMb, label, paths } = parseArgs(process.argv.slice(2));
 const files = [];
 const missing = [];
+const skippedIndependentArtifacts = [];
 for (const inputPath of paths) {
-  await collectFiles(inputPath, files, missing);
+  await collectFiles(inputPath, files, missing, skippedIndependentArtifacts);
 }
 
 if (files.length === 0) {
@@ -77,6 +96,7 @@ const result = {
   maxBytes,
   maxMiB: maxMb,
   missingPaths: missing,
+  skippedIndependentArtifacts,
 };
 
 console.log(JSON.stringify(result, null, 2));

@@ -69,36 +69,57 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(Number(terminalDeathPreparation?.snapshot?.hp || 0), 'preconditioning must leave the live player alive before the measured lethal transition').toBeGreaterThan(0);
   const deathSequenceObservation = await page.evaluate(async () => {
     const startedAt = performance.now();
+    const deadline = startedAt + 2_000;
     const states = [];
     let settledAt = null;
-    let finished = false;
-    const recordState = (element) => {
-      if (!(element instanceof HTMLElement) || element.dataset.testid !== 'game-over-screen') return;
-      const state = element.getAttribute('data-death-sequence');
-      if (state && states.at(-1) !== state) states.push(state);
-      if (state === 'settled' && settledAt === null) settledAt = performance.now() - startedAt;
-    };
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'attributes') recordState(mutation.target);
-        for (const node of mutation.addedNodes) {
-          if (!(node instanceof HTMLElement)) continue;
-          recordState(node);
-          node.querySelectorAll?.('[data-testid="game-over-screen"]').forEach(recordState);
+
+    return await new Promise(resolve => {
+      let finished = false;
+      let timeoutId = null;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        observer.disconnect();
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+        resolve({
+          states,
+          state: states.at(-1) ?? null,
+          sawSettling: states.includes('settling'),
+          elapsedMs: settledAt ?? performance.now() - startedAt,
+        });
+      };
+      const recordState = (element) => {
+        if (!(element instanceof HTMLElement) || element.dataset.testid !== 'game-over-screen') return;
+        const state = element.getAttribute('data-death-sequence');
+        if (state && states.at(-1) !== state) states.push(state);
+        if (state === 'settled' && settledAt === null) {
+          settledAt = performance.now() - startedAt;
+          finish();
         }
-      }
-    });
-    observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-death-sequence'] });
-    window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
-    while (!finished) {
+      };
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'attributes') recordState(mutation.target);
+          for (const node of mutation.addedNodes) {
+            if (!(node instanceof HTMLElement)) continue;
+            recordState(node);
+            node.querySelectorAll?.('[data-testid="game-over-screen"]').forEach(recordState);
+          }
+        }
+      });
+      observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-death-sequence'] });
+      window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
       const overlay = document.querySelector('[data-testid="game-over-screen"]');
       if (overlay instanceof HTMLElement) recordState(overlay);
-      if (settledAt !== null) break;
-      if (performance.now() - startedAt >= 2_000) { finished = true; break; }
-      await new Promise(resolve => requestAnimationFrame(resolve));
-    }
-    observer.disconnect();
-    return { states, state: states.at(-1) ?? null, sawSettling: states.includes('settling'), elapsedMs: settledAt ?? performance.now() - startedAt };
+      if (finished) return;
+      // Do not poll with requestAnimationFrame here. The product's fixed 1100 ms death
+      // beat itself uses render-timeline signals; a test-owned rAF loop can compete for the
+      // same loaded mobile rendering turns. The observer is the actual acceptance sensor,
+      // while this unchanged browser-clock 2000 ms watchdog still fails closed if settled
+      // is not published in time. A delayed watchdog reports the true elapsed time, so the
+      // <=2000 ms assertion below is never relaxed.
+      timeoutId = window.setTimeout(finish, Math.max(0, deadline - performance.now()));
+    });
   });
   expect(deathSequenceObservation.sawSettling, 'death overlay must expose the explicit visual settling state before final defeat').toBe(true);
   expect(deathSequenceObservation.state, 'death overlay must transition from the visual death beat to a settled defeat state').toBe('settled');
