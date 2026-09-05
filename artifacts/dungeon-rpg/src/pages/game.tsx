@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { GameEngine, GameState } from '../game/runEngine';
 import type { EnemyType } from '../game/entities';
 import type { EnemyFamilyId } from '../game/enemyRegistry';
@@ -234,7 +233,7 @@ export default function Game() {
       // preserving the unchanged <=2000 ms acceptance and post-death input blocking.
       if (live.status === 'gameover') {
         window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true } }));
-        flushSync(() => setTerminalGameState(nextState));
+        setTerminalGameState(nextState);
         return;
       }
       setTerminalGameState(null);
