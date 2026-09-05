@@ -49,6 +49,7 @@ const RUN_ENTRY_PRELOAD_DEADLINE_MS = 8_000;
 type UiState = 'lang_select' | 'main_menu' | 'run_name' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
 type MoveVector = { x: number; y: number };
 type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
+type PlayerDeathEventDetail = { dead?: boolean; gameState?: GameState };
 
 function normalizeMove({ x, y }: MoveVector): MoveVector {
   const length = Math.hypot(x, y);
@@ -140,6 +141,28 @@ const TerminalStableCombatStage = React.memo(
   (previous, next) => previous.gameState === next.gameState && previous.remotePlayer === next.remotePlayer,
 );
 
+function TerminalDeathOverlay({ onRetry, onMainMenu }: { onRetry: () => void; onMainMenu: () => void }) {
+  const [terminalGameState, setTerminalGameState] = useState<GameState | null>(null);
+
+  useEffect(() => {
+    const handleDeathState = (event: Event) => {
+      const detail = (event as CustomEvent<PlayerDeathEventDetail>).detail;
+      if (!detail?.dead) {
+        setTerminalGameState(null);
+        return;
+      }
+      if (detail.gameState) setTerminalGameState(detail.gameState);
+    };
+    window.addEventListener(PLAYER_DEATH_EVENT, handleDeathState);
+    return () => window.removeEventListener(PLAYER_DEATH_EVENT, handleDeathState);
+  }, []);
+
+  if (!terminalGameState) return null;
+  return <div data-terminal-death-host="active">
+    <GameOverScreen gameState={terminalGameState} onRetry={onRetry} onMainMenu={onMainMenu} />
+  </div>;
+}
+
 export default function Game() {
   const { t, language, setLanguage, hasChosen } = useLanguage();
   const engineRef = useRef<GameEngine | null>(null);
@@ -154,7 +177,6 @@ export default function Game() {
   const [startingRun, setStartingRun] = useState(false);
   const [confirmingNewRun, setConfirmingNewRun] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [terminalGameState, setTerminalGameState] = useState<GameState | null>(null);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [uiState, setUiState] = useState<UiState>(() => !hasChosen ? 'lang_select' : 'main_menu');
   const [runContext, setRunContext] = useState<RunContext>(() => createSoloRunContext());
@@ -163,7 +185,6 @@ export default function Game() {
   const [coopStatus, setCoopStatus] = useState<CoopRealtimeStatus>('offline');
 
   const clearTerminalGameState = useCallback(() => {
-    setTerminalGameState(null);
     window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
   }, []);
 
@@ -226,17 +247,14 @@ export default function Game() {
         upgradeChoices: live.upgradeChoices,
         runSkills: live.runSkills,
       };
-      // Mount the terminal presentation without synchronously reconciling the whole run
-      // tree. The engine is already authoritative gameover here, so keep the previous
-      // gameplay snapshot stable under the overlay and publish the player death signal
-      // directly. This lets the fixed 1100 ms browser-clock beat start immediately while
-      // preserving the unchanged <=2000 ms acceptance and post-death input blocking.
+      // Keep the Game parent completely out of the lethal presentation update. The
+      // permanently mounted terminal child owns the overlay state and receives the exact
+      // terminal snapshot through the existing death event, so loaded mobile runtimes do
+      // not need to reconcile this large parent tree before the fixed 1100 ms beat can run.
       if (live.status === 'gameover') {
-        window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true } }));
-        setTerminalGameState(nextState);
+        window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true, gameState: nextState } }));
         return;
       }
-      setTerminalGameState(null);
       setGameState(nextState);
     };
 
@@ -581,9 +599,7 @@ export default function Game() {
           <ActionButtons gameState={gameState} onDodge={handleDodge} />
         </>}
       </>}
-      {terminalGameState && <div data-terminal-death-host="active">
-        <GameOverScreen gameState={terminalGameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />
-      </div>}
+      <TerminalDeathOverlay onRetry={handleRetry} onMainMenu={handleMainMenu} />
       {confirmingNewRun && saveData && <NewRunConfirmDialog
         language={language}
         chapter={saveData.chapter ?? 1}
