@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { GameEngine, GameState } from '../game/runEngine';
 import type { EnemyType } from '../game/entities';
 import type { EnemyFamilyId } from '../game/enemyRegistry';
@@ -151,7 +152,8 @@ function TerminalDeathOverlay({ onRetry, onMainMenu }: { onRetry: () => void; on
         setTerminalGameState(null);
         return;
       }
-      if (detail.gameState) setTerminalGameState(detail.gameState);
+      const terminalSnapshot = detail.gameState;
+      if (terminalSnapshot) flushSync(() => setTerminalGameState(terminalSnapshot));
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handleDeathState);
     return () => window.removeEventListener(PLAYER_DEATH_EVENT, handleDeathState);
