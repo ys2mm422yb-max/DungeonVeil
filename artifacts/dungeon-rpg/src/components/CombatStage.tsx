@@ -91,8 +91,12 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       const detail = (event as CustomEvent<{ dead?: boolean }>).detail;
       setPlayerDead(Boolean(detail?.dead));
     };
-    window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal);
-    return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal);
+    // TerminalDeathOverlay is mounted before the in-run CombatStage and performs a
+    // synchronous terminal commit. Capture ordering guarantees the renderer receives the
+    // authoritative death signal first, so its existing gameover fast path is queued before
+    // that synchronous overlay work can block normal same-target listener propagation.
+    window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
+    return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
   }, []);
 
   useEffect(() => {
