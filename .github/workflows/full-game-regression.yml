@@ -333,6 +333,8 @@ jobs:
           compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/full-game-results.json
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.webm
             /tmp/dungeon-veil-preview.log
       - name: Upload failure traces for device
         if: steps.browser-tests.outcome == 'failure'
