@@ -76,6 +76,31 @@ const COOP_LIFE_COPY = {
   },
 } as const;
 
+type CoopTeamDefeatOverlayProps = {
+  role: DuoRunContext['role'];
+  restartBusy?: boolean;
+  onRestart?: () => void;
+  testId?: string;
+};
+
+export function CoopTeamDefeatOverlay({
+  role,
+  restartBusy = false,
+  onRestart,
+  testId = 'coop-team-game-over',
+}: CoopTeamDefeatOverlayProps) {
+  const { language } = useLanguage();
+  const copy = COOP_LIFE_COPY[language];
+  return <div data-testid={testId} className="pointer-events-auto absolute inset-0 z-[90] flex items-center justify-center bg-black/78 px-5 backdrop-blur-sm">
+    <div className="w-[min(88vw,420px)] rounded-3xl border border-red-200/25 bg-[#130d12]/96 p-7 text-center shadow-2xl">
+      <div className="text-[9px] font-black uppercase tracking-[.28em] text-red-200/55">{copy.teamEyebrow}</div>
+      <div className="mt-2 font-serif text-3xl text-red-50">{copy.teamDefeatTitle}</div>
+      <div className="mt-3 text-[10px] leading-relaxed text-red-100/62">{copy.teamDefeatBody}</div>
+      {role === 'host' ? <button type="button" data-testid="coop-team-retry" disabled={restartBusy} onClick={onRestart} className="mt-6 min-h-12 w-full rounded-xl border border-amber-200/35 bg-amber-300/16 px-4 py-3 text-[10px] font-black uppercase tracking-[.2em] text-amber-50 disabled:opacity-45">{restartBusy ? copy.retryBusy : copy.retry}</button> : <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[9px] font-black uppercase tracking-[.18em] text-white/55">{copy.waitForHost}</div>}
+    </div>
+  </div>;
+}
+
 type Props = {
   active: boolean;
   context: DuoRunContext | null;
@@ -700,10 +725,10 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
       if (!latestRemoteRef.current) return;
       latestRemoteRef.current = null;
       setRemotePresence(null);
-       onRemotePlayerRef.current(null);
-       stopReviveHold();
-       setConnectionPaused(true);
-     }, STALE_CHECK_MS);
+      onRemotePlayerRef.current(null);
+      stopReviveHold();
+      setConnectionPaused(true);
+    }, STALE_CHECK_MS);
 
     const lifeTick = window.setInterval(() => {
       const liveEngine = getEngineRef.current();
@@ -786,13 +811,10 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
       <span className="absolute inset-y-0 left-0 bg-cyan-300/22" style={{ width: `${Math.round(reviveProgress * 100)}%` }} />
     </button>}
 
-    {active && context && teamGameOver && <div data-testid="coop-team-game-over" className="pointer-events-auto absolute inset-0 z-[90] flex items-center justify-center bg-black/78 px-5 backdrop-blur-sm">
-      <div className="w-[min(88vw,420px)] rounded-3xl border border-red-200/25 bg-[#130d12]/96 p-7 text-center shadow-2xl">
-        <div className="text-[9px] font-black uppercase tracking-[.28em] text-red-200/55">{copy.teamEyebrow}</div>
-        <div className="mt-2 font-serif text-3xl text-red-50">{copy.teamDefeatTitle}</div>
-        <div className="mt-3 text-[10px] leading-relaxed text-red-100/62">{copy.teamDefeatBody}</div>
-        {context.role === 'host' ? <button type="button" data-testid="coop-team-retry" disabled={restartBusy} onClick={() => void restartTeam()} className="mt-6 min-h-12 w-full rounded-xl border border-amber-200/35 bg-amber-300/16 px-4 py-3 text-[10px] font-black uppercase tracking-[.2em] text-amber-50 disabled:opacity-45">{restartBusy ? copy.retryBusy : copy.retry}</button> : <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[9px] font-black uppercase tracking-[.18em] text-white/55">{copy.waitForHost}</div>}
-      </div>
-    </div>}
+    {active && context && teamGameOver && <CoopTeamDefeatOverlay
+      role={context.role}
+      restartBusy={restartBusy}
+      onRestart={() => void restartTeam()}
+    />}
   </>;
 }
