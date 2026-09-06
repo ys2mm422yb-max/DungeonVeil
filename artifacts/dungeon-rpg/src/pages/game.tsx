@@ -112,7 +112,10 @@ async function preloadRequiredRunRoom(floor: number) {
   ]);
 
   if (result === 'deadline') {
-    console.warn(`Run room ${safeFloor} preload exceeded ${RUN_ENTRY_PRELOAD_DEADLINE_MS}ms; continuing with runtime fallbacks`);
+    console.warn(`Run room ${safeFloor} preload exceeded ${RUN_ENTRY_PRELOAD_DEADLINE_MS}ms; waiting for required assets to resolve`);
+    await preload.catch(error => {
+      console.error(`Run room ${safeFloor} preload exhausted after deadline; continuing with runtime fallbacks`, error);
+    });
   }
 }
 

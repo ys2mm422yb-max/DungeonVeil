@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { activeCompanionV5 } from '../game/companionCollectionV5';
@@ -44,7 +44,7 @@ function roomTitleFor(floor: number, language: string): string {
 
 const TerminalStableGameCanvas = React.memo(
   GameCanvas,
-  (previous, next) => next.gameState.status === 'gameover' || previous.gameState === next.gameState,
+  (previous, next) => previous.gameState === next.gameState,
 );
 
 export function CombatStage({ gameState, remotePlayer = null }: Props) {
@@ -68,6 +68,12 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   // the lightweight renderer marker responsive to the authoritative death event instead
   // of requiring that heavy snapshot to reconcile first.
   const [playerDead, setPlayerDead] = useState(playerDeadFromGameState);
+  const rendererGameState = useMemo<GameState>(
+    () => playerDead && gameState.status !== 'gameover'
+      ? { ...gameState, status: 'gameover' }
+      : gameState,
+    [gameState, playerDead],
+  );
   const [roomTitle, setRoomTitle] = useState(() => roomTitleFor(gameState.floor, language));
   const [showRoomTitle, setShowRoomTitle] = useState(true);
 
@@ -204,7 +210,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     >
       {runCompanion && <CompanionRuntimeBridge gameState={gameState} role={runCompanion.id} level={runCompanion.level} mode={runMode} />}
       <div className={`absolute inset-0 ${shakeClass}`}>
-        <TerminalStableGameCanvas gameState={gameState} />
+        <TerminalStableGameCanvas gameState={rendererGameState} />
         {remotePlayer && <CoopTeammateScene3D gameState={gameState} remotePlayer={remotePlayer} />}
         {(runCompanion || remotePlayer) && <CompanionScene3D gameState={gameState} localCompanion={runCompanion ? { role: runCompanion.id, level: runCompanion.level } : null} remotePlayer={remotePlayer} />}
         {remotePlayer && <CoopProjectileRealtimeBridge gameState={gameState} remotePlayer={remotePlayer} />}
