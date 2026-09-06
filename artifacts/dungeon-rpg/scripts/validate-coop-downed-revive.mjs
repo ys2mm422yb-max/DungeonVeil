@@ -10,6 +10,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const lifecycle = read('src/game/coopLifeCycle.ts');
 const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
+const runtimeDuoEvidence = read('src/components/RuntimeDuoEvidenceQa.tsx');
 const teammateUi = read('src/components/CoopTeammateUI.tsx');
 const page = read('src/pages/game.tsx');
 const engine = read('src/game/runEngine.ts');
@@ -42,8 +43,8 @@ assert(bridge.includes('coopReviveHp(player.maxHp)') && bridge.includes('coopRoo
 assert(bridge.includes('player.invincibleUntil = performance.now() + COOP_REVIVE_INVULNERABLE_MS'), 'Revive protection is not applied.');
 assert(bridge.includes('data-testid="coop-revive-control"') && bridge.includes('onPointerDown={startReviveHold}'), 'Mobile hold-to-revive control is missing.');
 assert(bridge.includes('COOP_REVIVE_HOLD_MS') && bridge.includes('canReviveCurrentRemote()'), 'Revive hold is not continuously range-validated.');
-assert(bridge.includes('data-testid="coop-local-life-state"') && bridge.includes('data-testid="coop-team-game-over"'), 'Downed/fallen or shared defeat UI is missing.');
-assert(bridge.includes("context.role === 'host'") && bridge.includes('data-testid="coop-team-retry"'), 'Only the host is not clearly responsible for shared retry.');
+assert(bridge.includes('data-testid="coop-local-life-state"') && bridge.includes("testId = 'coop-team-game-over'"), 'Downed/fallen or shared defeat UI is missing.');
+assert(bridge.includes("role === 'host'") && bridge.includes('data-testid="coop-team-retry"'), 'Only the host is not clearly responsible for shared retry.');
 assert(bridge.includes('publishTeamRetry') && bridge.includes('onTeamRetry'), 'Shared retry is not synchronized.');
 assert(bridge.includes('publishRoomAdvanceRequest') && bridge.includes('onRoomAdvanceRequest'), 'Guest-to-host room advance is missing.');
 assert(bridge.includes('playerAtExit(engine.state, remote.x, remote.y)'), 'Host accepts room advance without verifying the guest at the exit.');
@@ -60,6 +61,10 @@ for (const label of ['DOWNED', 'FALLEN', 'HOLD TO REVIVE', 'BOTH HAVE FALLEN', '
 }
 assert(!bridge.includes('NIEDERGESCHLAGEN · DOWNED') && !bridge.includes('WIEDERBELEBEN HALTEN · HOLD TO REVIVE'), 'Duo lifecycle overlay still renders mixed-language labels.');
 assert(bridge.includes('{copy.pausedEyebrow}') && bridge.includes('{copy.disconnectedTitle}') && bridge.includes('copy.downedBody(downedSeconds)') && bridge.includes('{copy.reviveHold}') && bridge.includes('{copy.teamDefeatTitle}'), 'Duo lifecycle UI does not consistently render the selected-language copy.');
+assert(bridge.includes('export function CoopTeamDefeatOverlay') && bridge.includes('<CoopTeamDefeatOverlay'), 'Production Duo team defeat does not render through the shared presentation component.');
+assert(runtimeDuoEvidence.includes("import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge'"), 'Runtime Duo evidence does not import the production team-defeat presentation.');
+assert(runtimeDuoEvidence.includes('<CoopTeamDefeatOverlay') && runtimeDuoEvidence.includes('testId="runtime-duo-team-game-over"'), 'Runtime Duo evidence does not render the production team-defeat presentation.');
+assert(!runtimeDuoEvidence.includes('teamDefeatCopy') && !runtimeDuoEvidence.includes('BOTH FALLEN'), 'Runtime Duo evidence still contains duplicated team-defeat copy.');
 
 assert(teammateUi.includes('COOP_REVIVE_RANGE') && teammateUi.includes('distance <= COOP_REVIVE_RANGE'), 'Revive proximity UI does not use the authoritative revive range.');
 assert(teammateUi.includes('data-testid="coop-revive-proximity"') && teammateUi.includes("data-in-range={inRange ? 'true' : 'false'}"), 'Revive proximity state is not visibly exposed.');
@@ -108,4 +113,4 @@ try {
   await server.close();
 }
 
-console.log('Coop lifecycle keeps its bounded revive contract and presents downed, revive, proximity and team defeat states in explicit German and English copy.');
+console.log('Coop lifecycle keeps its bounded revive contract, presents explicit DE/EN copy, and reuses the production team-defeat presentation in deterministic runtime evidence.');
