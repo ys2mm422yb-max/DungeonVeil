@@ -154,7 +154,7 @@ jobs:
         with:
           name: dungeon-veil-pages-build-${{ github.sha }}
           path: artifacts/dungeon-rpg/dist/public
-      - name: Run compact portrait mobile menu, combat and world-boss smoke
+      - name: Run compact portrait mobile menu, combat, world-boss and required-preload evidence smoke
         id: smoke-tests
         continue-on-error: true
         shell: bash
@@ -167,12 +167,30 @@ jobs:
             sleep 1
           done
           curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          TEST_FILES="tests/full-game-smoke.spec.mjs tests/worldboss-block1.spec.mjs"
+          GREP_PATTERN='new run renders responsive combat controls and stays stable|world boss'
+          if [[ "$BROWSER_PROJECT" == "iphone-webkit" ]]; then
+            TEST_FILES="$TEST_FILES tests/new-run-preload-deadline.spec.mjs"
+            GREP_PATTERN="$GREP_PATTERN|room 1 stays on the run loading screen until its rat model is ready"
+          fi
           timeout --signal=TERM --kill-after=30s 22m pnpm --dir artifacts/dungeon-rpg exec playwright test \
-            tests/full-game-smoke.spec.mjs \
-            tests/worldboss-block1.spec.mjs \
+            $TEST_FILES \
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
-            --grep='new run renders responsive combat controls and stays stable|world boss'
+            --grep="$GREP_PATTERN"
+      - name: Upload successful iPhone required-preload temporal evidence
+        if: steps.smoke-tests.outcome == 'success' && matrix.project == 'iphone-webkit'
+        uses: actions/upload-artifact@v4
+        with:
+          name: required-preload-temporal-evidence-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/full-game-results.json
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.webm
+            /tmp/dungeon-veil-preview.log
       - name: Upload smoke failure evidence
         if: steps.smoke-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
@@ -333,6 +351,8 @@ jobs:
           compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/full-game-results.json
+            artifacts/dungeon-rpg/test-results/**/trace.zip
+            artifacts/dungeon-rpg/test-results/**/*.webm
             /tmp/dungeon-veil-preview.log
       - name: Upload failure traces for device
         if: steps.browser-tests.outcome == 'failure'

@@ -53,28 +53,36 @@ test('a stalled later creature model cannot trap room 1 loading', async ({ page 
   }
 });
 
-test('room 1 stays on the run loading screen until its rat model is ready', async ({ page }) => {
-  test.setTimeout(120_000);
-  await page.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
+test.describe('required preload temporal evidence', () => {
+  test.use({ video: 'on', trace: 'on' });
 
-  let releaseRequiredModel = () => undefined;
-  const requiredModelGate = new Promise(resolve => { releaseRequiredModel = resolve; });
-  await page.route('**/assets/imported/enemies/Rat.glb', async route => {
-    await requiredModelGate;
-    await route.continue();
+  test('room 1 stays on the run loading screen until its rat model is ready', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.addInitScript(() => localStorage.setItem('dungeon-veil-language', 'de'));
+
+    let releaseRequiredModel = () => undefined;
+    const requiredModelGate = new Promise(resolve => { releaseRequiredModel = resolve; });
+    await page.route('**/assets/imported/enemies/Rat.glb', async route => {
+      await requiredModelGate;
+      await route.continue();
+    });
+
+    const startedAt = await startNamedRun(page, 'Model Gate Ranger');
+    try {
+      await expect(page.getByTestId('new-run-loading-screen')).toBeVisible({ timeout: 5_000 });
+      await expect(page.getByTestId('run-hud')).toBeHidden();
+      await page.waitForTimeout(8_500);
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(8_000);
+      await expect(page.getByTestId('new-run-loading-screen')).toBeVisible();
+      await expect(page.getByTestId('run-hud')).toBeHidden();
+    } finally {
+      releaseRequiredModel();
+    }
+
+    await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 40_000 });
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
   });
-
-  try {
-    await startNamedRun(page, 'Model Gate Ranger');
-    await expect(page.getByTestId('new-run-loading-screen')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId('run-hud')).toBeHidden();
-  } finally {
-    releaseRequiredModel();
-  }
-
-  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 40_000 });
-  await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId('new-run-loading-screen')).toBeHidden();
 });
 
 test('a failed required room 1 model cannot permanently block a fresh solo run', async ({ page }) => {
