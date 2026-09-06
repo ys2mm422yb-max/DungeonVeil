@@ -77,6 +77,10 @@ function wait(milliseconds: number) {
   return new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
 }
 
+function isExhaustedImportedEnemyPreloadError(error: unknown): boolean {
+  return error instanceof Error && /^Local enemy asset failed to load: /.test(error.message);
+}
+
 async function preloadRequiredRunRoom(floor: number) {
   const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
   const enemyTypes = plannedRoomEnemyTypes(safeFloor);
@@ -97,6 +101,11 @@ async function preloadRequiredRunRoom(floor: number) {
       } catch (error) {
         lastError = error;
         console.error(`Run room ${safeFloor} preload attempt ${attempt} failed`, error);
+        // Imported enemy assets already exhaust their own four fetch attempts before this
+        // error escapes. Re-running the entire room preload would multiply that exhausted
+        // retry lane and turn a confirmed loader failure into an indefinite entry block.
+        // Other transient room/theme failures keep the existing outer retry contract.
+        if (isExhaustedImportedEnemyPreloadError(error)) break;
         if (attempt < RUN_ENTRY_PRELOAD_ATTEMPTS) await wait(attempt * 500);
       }
     }
