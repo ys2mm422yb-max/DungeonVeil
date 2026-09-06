@@ -1,0 +1,159 @@
+name: Mandatory Gate Recovery Dispatcher
+
+on:
+  push:
+    branches: ['fix/**', 'work/**']
+    paths:
+      - '.ci/gate-recovery-requests/*.json'
+      - '.github/workflows/gate-recovery-dispatch.yml'
+      - 'scripts/validate-gate-recovery-contract.mjs'
+  workflow_dispatch:
+    inputs:
+      validation_only:
+        description: Validate the permanent recovery contract without resolving or dispatching a recovery request
+        required: false
+        default: false
+        type: boolean
+      request_path:
+        description: Repository path to one gate recovery request JSON
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: gate-recovery-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-and-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Validate permanent recovery contract
+        run: node scripts/validate-gate-recovery-contract.mjs
+      - name: Resolve recovery request when present
+        id: request
+        shell: bash
+        env:
+          MANUAL_REQUEST: ${{ inputs.request_path }}
+          VALIDATION_ONLY: ${{ inputs.validation_only }}
+        run: |
+          set -euo pipefail
+
+          request_status() {
+            node -e "const fs=require('node:fs'); const r=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); process.stdout.write(String(r.status || ''));" "$1"
+          }
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "$VALIDATION_ONLY" == "true" ]]; then
+              [[ -z "$MANUAL_REQUEST" ]] || { echo "validation_only forbids request_path" >&2; exit 1; }
+              echo "has_request=false" >> "$GITHUB_OUTPUT"
+              echo "Manual validation-only run; recovery dispatch is disabled."
+              exit 0
+            fi
+
+            REQUEST="$MANUAL_REQUEST"
+            [[ "$REQUEST" == .ci/gate-recovery-requests/*.json ]]
+            [[ -f "$REQUEST" ]]
+            STATUS="$(request_status "$REQUEST")"
+            [[ "$STATUS" == "pending" ]] || { echo "Manual recovery requires status=pending, got: ${STATUS:-missing}" >&2; exit 1; }
+            echo "has_request=true" >> "$GITHUB_OUTPUT"
+            echo "path=$REQUEST" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mapfile -t REQUESTS < <(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- '.ci/gate-recovery-requests/*.json')
+          if [[ ${#REQUESTS[@]} -gt 1 ]]; then
+            echo "Expected at most one changed gate recovery request, got ${#REQUESTS[@]}" >&2
+            exit 1
+          fi
+          if [[ ${#REQUESTS[@]} -eq 0 ]]; then
+            echo "has_request=false" >> "$GITHUB_OUTPUT"
+            echo "No recovery request changed; static contract validation only."
+            exit 0
+          fi
+
+          REQUEST="${REQUESTS[0]}"
+          [[ "$REQUEST" == .ci/gate-recovery-requests/*.json ]]
+          [[ -f "$REQUEST" ]]
+          STATUS="$(request_status "$REQUEST")"
+          if [[ "$STATUS" == "archived" ]]; then
+            echo "has_request=false" >> "$GITHUB_OUTPUT"
+            echo "Archived recovery receipt changed; validation only, no dispatch."
+            exit 0
+          fi
+          [[ "$STATUS" == "pending" ]] || { echo "Changed recovery request requires status=pending or archived, got: ${STATUS:-missing}" >&2; exit 1; }
+          echo "has_request=true" >> "$GITHUB_OUTPUT"
+          echo "path=$REQUEST" >> "$GITHUB_OUTPUT"
+      - name: Validate zombie receipts and dispatch unchanged-head gates
+        if: steps.request.outputs.has_request == 'true'
+        uses: actions/github-script@v7
+        env:
+          REQUEST_PATH: ${{ steps.request.outputs.path }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const request = JSON.parse(fs.readFileSync(process.env.REQUEST_PATH, 'utf8'));
+            const requiredTarget = 'fix/mobile-telegraphs-room-21-50-balance';
+            const requiredKeys = ['pr_number', 'exact_head', 'blocked_fgr_run', 'blocked_complete_runtime_run', 'requested_at'];
+            for (const key of requiredKeys) if (!request[key]) throw new Error(`Missing request key: ${key}`);
+            if (request.status !== 'pending') throw new Error(`Recovery request must be pending, got ${request.status || 'missing'}`);
+            if (!/^[0-9a-f]{40}$/.test(request.exact_head)) throw new Error('exact_head must be a full 40-char SHA');
+
+            const { owner, repo } = context.repo;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: Number(request.pr_number) });
+            if (pr.state !== 'open' || pr.draft) throw new Error('Recovery is only allowed for an open Ready PR');
+            if (pr.base.ref !== requiredTarget) throw new Error(`Wrong target branch: ${pr.base.ref}`);
+            if (pr.head.sha !== request.exact_head) throw new Error(`Head moved: expected ${request.exact_head}, got ${pr.head.sha}`);
+
+            async function assertZombie(runId, expectedName) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: Number(runId) });
+              if (run.name !== expectedName) throw new Error(`Run ${runId} is ${run.name}, expected ${expectedName}`);
+              if (run.head_sha !== request.exact_head) throw new Error(`Run ${runId} head mismatch`);
+              if (run.status !== 'queued') throw new Error(`Run ${runId} is ${run.status}, not queued`);
+              const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({ owner, repo, run_id: Number(runId), per_page: 100 });
+              if (jobs.total_count !== 0) throw new Error(`Run ${runId} has ${jobs.total_count} jobs; it is not a pre-job zombie`);
+            }
+
+            await assertZombie(request.blocked_fgr_run, 'Full Game Regression');
+            await assertZombie(request.blocked_complete_runtime_run, 'Complete Runtime Evidence QA');
+
+            async function assertNoReplacement(workflow_id) {
+              const { data } = await github.rest.actions.listWorkflowRuns({ owner, repo, workflow_id, event: 'workflow_dispatch', branch: pr.head.ref, per_page: 30 });
+              const duplicate = data.workflow_runs.find(run => run.head_sha === request.exact_head);
+              if (duplicate) throw new Error(`Replacement already exists for ${workflow_id}: ${duplicate.id}`);
+            }
+            await assertNoReplacement('full-game-regression.yml');
+            await assertNoReplacement('complete-runtime-evidence-qa.yml');
+
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo, workflow_id: 'full-game-regression.yml', ref: pr.head.ref,
+              inputs: { full_evidence: 'true' },
+            });
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo, workflow_id: 'complete-runtime-evidence-qa.yml', ref: pr.head.ref,
+            });
+
+            const receipt = [
+              '<!-- dungeon-veil-gate-recovery -->',
+              '## Unchanged-head mandatory gate recovery dispatched',
+              '',
+              `Request: \`${process.env.REQUEST_PATH}\``,
+              `Exact head: \`${request.exact_head}\``,
+              `Blocked FGR: \`${request.blocked_fgr_run}\``,
+              `Blocked Complete Runtime: \`${request.blocked_complete_runtime_run}\``,
+              'Replacement FGR contract: `workflow_dispatch` with `full_evidence=true`.',
+              'Replacement Complete Runtime contract: unchanged four-portrait workflow.',
+              '',
+              'The product branch was not modified. Thresholds, timeouts, assertions, evidence budgets and Playwright retries remain unchanged.',
+            ].join('\n');
+            await github.rest.issues.createComment({ owner, repo, issue_number: Number(request.pr_number), body: receipt });
