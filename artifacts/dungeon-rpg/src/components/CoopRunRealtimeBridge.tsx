@@ -3,6 +3,7 @@ import type { Enemy, Player, VisualEffect } from '../game/entities';
 import { TILE_SIZE, TileType } from '../game/dungeon';
 import type { GameEngine, RunGameState } from '../game/runEngine';
 import type { DuoRunContext } from '../game/coopRunMode';
+import { useLanguage } from '../i18n/LanguageContext';
 import {
   applyCoopEnemySnapshot,
   createCoopEnemySnapshot,
@@ -37,6 +38,43 @@ const PUBLISH_MS = 100;
 const ENEMY_PUBLISH_MS = 100;
 const STALE_CHECK_MS = 500;
 const LIFE_TICK_MS = 100;
+
+const COOP_LIFE_COPY = {
+  de: {
+    pausedEyebrow: 'DUO-RUN PAUSIERT',
+    disconnectedTitle: 'MITSTREITER GETRENNT',
+    disconnectedBody: 'Wiederverbindung läuft. Bewegung, Gegner, Schaden und Raumfortschritt bleiben eingefroren, bis beide Spieler wieder verbunden sind.',
+    downedTitle: 'NIEDERGESCHLAGEN',
+    fallenTitle: 'GEFALLEN',
+    downedBody: (seconds: number) => `${seconds}s · Mitspieler kann dich wiederbeleben`,
+    fallenBody: 'Mitspieler muss den Raum beenden',
+    reviveHold: 'WIEDERBELEBEN HALTEN',
+    teamEyebrow: 'DUO-RUN',
+    teamDefeatTitle: 'BEIDE GEFALLEN',
+    teamDefeatBody: 'Der gemeinsame Run ist beendet. Nur der Host kann beide Spieler zusammen neu starten.',
+    retryBusy: 'NEUER VERSUCH WIRD GESICHERT…',
+    retry: 'GEMEINSAM NEU STARTEN',
+    waitForHost: 'WARTE AUF DEN HOST',
+    fallbackName: 'Mitspieler',
+  },
+  en: {
+    pausedEyebrow: 'DUO RUN PAUSED',
+    disconnectedTitle: 'TEAMMATE DISCONNECTED',
+    disconnectedBody: 'Reconnecting. Movement, enemies, damage, and room progress stay frozen until both players are connected again.',
+    downedTitle: 'DOWNED',
+    fallenTitle: 'FALLEN',
+    downedBody: (seconds: number) => `${seconds}s · Your teammate can revive you`,
+    fallenBody: 'Your teammate must finish the room',
+    reviveHold: 'HOLD TO REVIVE',
+    teamEyebrow: 'DUO RUN',
+    teamDefeatTitle: 'BOTH HAVE FALLEN',
+    teamDefeatBody: 'The shared run is over. Only the host can restart both players together.',
+    retryBusy: 'SECURING NEW ATTEMPT…',
+    retry: 'RESTART TOGETHER',
+    waitForHost: 'WAITING FOR HOST',
+    fallbackName: 'Teammate',
+  },
+} as const;
 
 type Props = {
   active: boolean;
@@ -334,6 +372,8 @@ function applyGuestDamage(
 }
 
 export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlayer, onStatus }: Props) {
+  const { language } = useLanguage();
+  const copy = COOP_LIFE_COPY[language];
   const getEngineRef = useRef(getEngine);
   const onRemotePlayerRef = useRef(onRemotePlayer);
   const onStatusRef = useRef(onStatus);
@@ -390,7 +430,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
   };
 
   const resetTeamRun = (engine: GameEngine) => {
-    const name = engine.state.player.playerName || 'Waldläufer';
+    const name = engine.state.player.playerName || (language === 'de' ? 'Waldläufer' : 'Ranger');
     engine.startNewGame(name, 'archer');
     revivesUsedRef.current = 0;
     roomKeyRef.current = `${engine.state.chapter}:${engine.state.floor}`;
@@ -624,7 +664,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
           ? player.state
           : 'idle';
       client.publish({
-        displayName: player.playerName || 'Mitspieler',
+        displayName: player.playerName || copy.fallbackName,
         chapter: liveEngine.state.chapter,
         room: liveEngine.state.floor,
         x: player.x,
@@ -714,7 +754,7 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
       onRemotePlayerRef.current(null);
       onStatusRef.current('offline');
     };
-  }, [active, context?.lobbyId, context?.runSeed, context?.role]);
+  }, [active, context?.lobbyId, context?.runSeed, context?.role, copy, language]);
 
   const canReviveRemote = Boolean(remotePresence && canReviveCurrentRemote());
   const downedSeconds = Math.max(0, Math.ceil(downedRemainingMs / 1000));
@@ -722,15 +762,15 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
   return <>
     {active && context && connectionPaused && !teamGameOver && <div data-testid="coop-teammate-disconnected" className="pointer-events-auto absolute inset-0 z-[88] flex items-center justify-center bg-black/72 px-5 backdrop-blur-sm">
       <div className="w-[min(88vw,420px)] rounded-3xl border border-violet-200/25 bg-[#100d18]/96 p-7 text-center shadow-2xl">
-        <div className="text-[9px] font-black uppercase tracking-[.28em] text-violet-200/55">DUO-RUN PAUSIERT</div>
-        <div className="mt-2 font-serif text-2xl text-violet-50">TEAMMATE GETRENNT</div>
-        <div className="mt-3 text-[10px] leading-relaxed text-violet-100/62">Wiederverbindung läuft. Bewegung, Gegner, Schaden und Raumfortschritt bleiben eingefroren, bis beide Spieler wieder verbunden sind.</div>
+        <div className="text-[9px] font-black uppercase tracking-[.28em] text-violet-200/55">{copy.pausedEyebrow}</div>
+        <div className="mt-2 font-serif text-2xl text-violet-50">{copy.disconnectedTitle}</div>
+        <div className="mt-3 text-[10px] leading-relaxed text-violet-100/62">{copy.disconnectedBody}</div>
       </div>
     </div>}
 
     {active && context && localLifeState !== 'alive' && !teamGameOver && <div data-testid="coop-local-life-state" data-life-state={localLifeState} className="pointer-events-none absolute left-1/2 top-[18%] z-[70] w-[min(86vw,360px)] -translate-x-1/2 rounded-2xl border border-red-200/25 bg-black/82 px-5 py-4 text-center shadow-2xl backdrop-blur-md">
-      <div className="font-serif text-xl text-red-100">{localLifeState === 'downed' ? 'NIEDERGESCHLAGEN · DOWNED' : 'GEFALLEN · FALLEN'}</div>
-      <div className="mt-2 text-[9px] font-black uppercase tracking-[.18em] text-red-100/65">{localLifeState === 'downed' ? `${downedSeconds}s · Mitspieler kann dich wiederbeleben` : 'Mitspieler muss den Raum beenden'}</div>
+      <div className="font-serif text-xl text-red-100">{localLifeState === 'downed' ? copy.downedTitle : copy.fallenTitle}</div>
+      <div className="mt-2 text-[9px] font-black uppercase tracking-[.18em] text-red-100/65">{localLifeState === 'downed' ? copy.downedBody(downedSeconds) : copy.fallenBody}</div>
     </div>}
 
     {active && context && canReviveRemote && !teamGameOver && <button
@@ -742,16 +782,16 @@ export function CoopRunRealtimeBridge({ active, context, getEngine, onRemotePlay
       onPointerLeave={stopReviveHold}
       className="pointer-events-auto absolute bottom-[max(104px,calc(env(safe-area-inset-bottom)+92px))] left-1/2 z-[75] w-[min(78vw,300px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-cyan-100/35 bg-cyan-950/88 px-5 py-4 text-center text-[10px] font-black uppercase tracking-[.18em] text-cyan-50 shadow-[0_14px_44px_rgba(0,0,0,.48)] backdrop-blur-md"
     >
-      <span className="relative z-10">WIEDERBELEBEN HALTEN · HOLD TO REVIVE</span>
+      <span className="relative z-10">{copy.reviveHold}</span>
       <span className="absolute inset-y-0 left-0 bg-cyan-300/22" style={{ width: `${Math.round(reviveProgress * 100)}%` }} />
     </button>}
 
     {active && context && teamGameOver && <div data-testid="coop-team-game-over" className="pointer-events-auto absolute inset-0 z-[90] flex items-center justify-center bg-black/78 px-5 backdrop-blur-sm">
       <div className="w-[min(88vw,420px)] rounded-3xl border border-red-200/25 bg-[#130d12]/96 p-7 text-center shadow-2xl">
-        <div className="text-[9px] font-black uppercase tracking-[.28em] text-red-200/55">DUO-RUN</div>
-        <div className="mt-2 font-serif text-3xl text-red-50">BEIDE GEFALLEN</div>
-        <div className="mt-3 text-[10px] leading-relaxed text-red-100/62">Der gemeinsame Run ist beendet. Nur der Host kann beide Spieler zusammen neu starten.</div>
-        {context.role === 'host' ? <button type="button" data-testid="coop-team-retry" disabled={restartBusy} onClick={() => void restartTeam()} className="mt-6 min-h-12 w-full rounded-xl border border-amber-200/35 bg-amber-300/16 px-4 py-3 text-[10px] font-black uppercase tracking-[.2em] text-amber-50 disabled:opacity-45">{restartBusy ? 'NEUER VERSUCH WIRD GESICHERT…' : 'GEMEINSAM NEU STARTEN'}</button> : <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[9px] font-black uppercase tracking-[.18em] text-white/55">WARTE AUF DEN HOST</div>}
+        <div className="text-[9px] font-black uppercase tracking-[.28em] text-red-200/55">{copy.teamEyebrow}</div>
+        <div className="mt-2 font-serif text-3xl text-red-50">{copy.teamDefeatTitle}</div>
+        <div className="mt-3 text-[10px] leading-relaxed text-red-100/62">{copy.teamDefeatBody}</div>
+        {context.role === 'host' ? <button type="button" data-testid="coop-team-retry" disabled={restartBusy} onClick={() => void restartTeam()} className="mt-6 min-h-12 w-full rounded-xl border border-amber-200/35 bg-amber-300/16 px-4 py-3 text-[10px] font-black uppercase tracking-[.2em] text-amber-50 disabled:opacity-45">{restartBusy ? copy.retryBusy : copy.retry}</button> : <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[9px] font-black uppercase tracking-[.18em] text-white/55">{copy.waitForHost}</div>}
       </div>
     </div>}
   </>;

@@ -2,9 +2,33 @@ import { useEffect, useRef } from 'react';
 import type { GameState } from '../game/runEngine';
 import { COOP_MAX_REVIVES_PER_ROOM, COOP_REVIVE_RANGE } from '../game/coopLifeCycle';
 import { interpolateCoopPresence, remotePresenceIsFresh, type CoopPlayerPresence } from '../game/coopRealtimePresence';
+import { useLanguage } from '../i18n/LanguageContext';
 import { RUN_CAMERA } from './RunCameraRig';
 
 const TILE = 40;
+
+const COOP_TEAMMATE_COPY = {
+  de: {
+    teammate: 'MITSTREITER',
+    fallbackName: 'Mitspieler',
+    downed: (seconds: number) => `NIEDERGESCHLAGEN · ${seconds}s`,
+    fallen: 'GEFALLEN · NÄCHSTER RAUM',
+    hpSuffix: 'LP',
+    inRange: (name: string) => `${name} IN REICHWEITE · 3 SEKUNDEN HALTEN`,
+    approach: (tiles: number, name: string) => `${tiles} FELD${tiles === 1 ? '' : 'ER'} NÄHER ZU ${name} GEHEN`,
+    reviveSpent: 'WIEDERBELEBUNG FÜR DIESEN RAUM VERBRAUCHT',
+  },
+  en: {
+    teammate: 'ALLY',
+    fallbackName: 'Teammate',
+    downed: (seconds: number) => `DOWNED · ${seconds}s`,
+    fallen: 'FALLEN · NEXT ROOM',
+    hpSuffix: 'HP',
+    inRange: (name: string) => `${name} IN RANGE · HOLD FOR 3 SECONDS`,
+    approach: (tiles: number, name: string) => `MOVE ${tiles} TILE${tiles === 1 ? '' : 'S'} CLOSER TO ${name}`,
+    reviveSpent: 'REVIVE USED FOR THIS ROOM',
+  },
+} as const;
 
 type Props = {
   gameState: GameState;
@@ -52,13 +76,9 @@ function normalize3(x: number, y: number, z: number) {
   return { x: x / length, y: y / length, z: z / length };
 }
 
-function lifeLabel(remote: CoopPlayerPresence, remainingSeconds: number) {
-  if (remote.lifeState === 'downed') return `NIEDERGESCHLAGEN · ${remainingSeconds}s`;
-  if (remote.lifeState === 'fallen') return 'GEFALLEN · NÄCHSTER RAUM';
-  return `${Math.ceil(remote.hp)}/${Math.ceil(remote.maxHp)} LP`;
-}
-
 export function CoopTeammateUI({ gameState, remotePlayer }: Props) {
+  const { language } = useLanguage();
+  const copy = COOP_TEAMMATE_COPY[language];
   const hostRef = useRef<HTMLDivElement>(null);
   const plateRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -181,6 +201,12 @@ export function CoopTeammateUI({ gameState, remotePlayer }: Props) {
   const canApproachRevive = sameRoom && gameState.player.hp > 0 && remotePlayer.lifeState === 'downed' && !reviveSpent;
   const inRange = canApproachRevive && distance <= COOP_REVIVE_RANGE;
   const distanceTiles = Math.max(1, Math.ceil(Math.max(0, distance - COOP_REVIVE_RANGE) / TILE));
+  const teammateName = remotePlayer.displayName || copy.fallbackName;
+  const lifeLabel = remotePlayer.lifeState === 'downed'
+    ? copy.downed(remainingSeconds)
+    : remotePlayer.lifeState === 'fallen'
+      ? copy.fallen
+      : `${Math.ceil(remotePlayer.hp)}/${Math.ceil(remotePlayer.maxHp)} ${copy.hpSuffix}`;
 
   return <div ref={hostRef} className="pointer-events-none absolute inset-0 z-[35] overflow-hidden" aria-live="polite">
     <div
@@ -190,8 +216,8 @@ export function CoopTeammateUI({ gameState, remotePlayer }: Props) {
       className="absolute left-3 top-32 rounded-xl border border-cyan-100/18 bg-black/72 px-3 py-2.5 shadow-xl backdrop-blur-md transition-opacity duration-150"
     >
       <div className="flex items-center justify-between gap-2 text-[7px] font-black uppercase tracking-[.14em] text-cyan-50/80">
-        <span className="truncate">MITSTREITER · {remotePlayer.displayName || 'Mitspieler'}</span>
-        <span className={remotePlayer.lifeState === 'alive' ? 'text-cyan-100/70' : remotePlayer.lifeState === 'downed' ? 'text-red-200' : 'text-slate-300'}>{lifeLabel(remotePlayer, remainingSeconds)}</span>
+        <span className="truncate">{copy.teammate} · {teammateName}</span>
+        <span className={remotePlayer.lifeState === 'alive' ? 'text-cyan-100/70' : remotePlayer.lifeState === 'downed' ? 'text-red-200' : 'text-slate-300'}>{lifeLabel}</span>
       </div>
       <div className="relative mt-1.5 h-[11px] overflow-hidden rounded-full border border-white/10 bg-black/75">
         <div className={`absolute inset-y-[2px] left-[2px] rounded-full transition-[width] duration-150 ${remotePlayer.lifeState === 'alive' ? 'bg-cyan-400' : remotePlayer.lifeState === 'downed' ? 'bg-red-500' : 'bg-slate-500'}`} style={{ width: `calc(${hpPercent}% - 4px)` }} />
@@ -205,7 +231,7 @@ export function CoopTeammateUI({ gameState, remotePlayer }: Props) {
       className="absolute left-0 top-0 min-w-[96px] max-w-[150px] opacity-0 will-change-transform"
     >
       <div className={`truncate rounded-full border px-2 py-1 text-center text-[6px] font-black uppercase tracking-[.12em] shadow-lg backdrop-blur-sm ${remotePlayer.lifeState === 'alive' ? 'border-cyan-100/25 bg-cyan-950/78 text-cyan-50' : remotePlayer.lifeState === 'downed' ? 'border-red-200/35 bg-red-950/82 text-red-50' : 'border-slate-200/20 bg-slate-950/82 text-slate-200'}`}>
-        {remotePlayer.displayName || 'Mitspieler'}
+        {teammateName}
       </div>
       <div className="mx-auto mt-1 h-[5px] w-[82px] overflow-hidden rounded-full border border-black/55 bg-black/75">
         <div className={`h-full ${remotePlayer.lifeState === 'alive' ? 'bg-cyan-400' : remotePlayer.lifeState === 'downed' ? 'bg-red-500' : 'bg-slate-500'}`} style={{ width: `${hpPercent}%` }} />
@@ -217,13 +243,11 @@ export function CoopTeammateUI({ gameState, remotePlayer }: Props) {
       data-in-range={inRange ? 'true' : 'false'}
       className={`absolute bottom-[max(176px,calc(env(safe-area-inset-bottom)+164px))] left-1/2 w-[min(84vw,330px)] -translate-x-1/2 rounded-xl border px-4 py-2.5 text-center text-[8px] font-black uppercase tracking-[.14em] shadow-xl backdrop-blur-md ${inRange ? 'border-cyan-200/35 bg-cyan-950/88 text-cyan-50' : 'border-amber-200/30 bg-black/82 text-amber-100'}`}
     >
-      {inRange
-        ? `${remotePlayer.displayName || 'MITSTREITER'} IN REICHWEITE · 3 SEKUNDEN HALTEN`
-        : `${distanceTiles} FELD${distanceTiles === 1 ? '' : 'ER'} NÄHER ZU ${remotePlayer.displayName || 'MITSTREITER'} GEHEN`}
+      {inRange ? copy.inRange(teammateName) : copy.approach(distanceTiles, teammateName)}
     </div>}
 
     {sameRoom && remotePlayer.lifeState === 'downed' && reviveSpent && <div className="absolute bottom-[max(176px,calc(env(safe-area-inset-bottom)+164px))] left-1/2 w-[min(84vw,330px)] -translate-x-1/2 rounded-xl border border-slate-200/18 bg-black/82 px-4 py-2.5 text-center text-[8px] font-black uppercase tracking-[.14em] text-slate-200/70 shadow-xl backdrop-blur-md">
-      WIEDERBELEBUNG FÜR DIESEN RAUM VERBRAUCHT
+      {copy.reviveSpent}
     </div>}
   </div>;
 }
