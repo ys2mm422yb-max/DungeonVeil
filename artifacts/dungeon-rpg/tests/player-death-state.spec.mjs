@@ -129,14 +129,14 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(deathSequenceObservation.state, 'death overlay must transition from the visual death beat to a settled defeat state').toBe('settled');
   expect(Number.isFinite(deathSequenceObservation.settledCommittedAt), 'settled death DOM must publish its exact product commit timestamp').toBe(true);
   expect(deathSequenceObservation.elapsedMs, 'death overlay must not settle before the measured lethal transition').toBeGreaterThanOrEqual(0);
-  expect(deathSequeenceObservation.elapsedMs, 'death overlay must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
+  expect(deathSequenceObservation.elapsedMs, 'death overlay must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
   const overlay = page.getByTestId('game-over-screen');
   await expect(overlay).toBeVisible();
   const playerRenderer = page.locator('[data-player-death-state="active"]');
   await expect(playerRenderer, 'renderer must publish an active death-state instead of freezing in idle/run').toBeVisible({ timeout: 2_000 });
   const after = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(after?.status).toBe('gameover');
-  expect(Number(after?.hp ?? 1)).toBALessThanOrEqual(0);
+  expect(Number(after?.hp ?? 1)).toBeLessThanOrEqual(0);
   const postDeathAttackObservation = await page.evaluate(() => ({ attackAt: Number(window.__dungeonVeilRuntimeEvidence?.snapshot()?.playerLastAttackTime || 0), startedAt: performance.now() }));
   await page.keyboard.press('Space');
   const postDeathAttackAfterWindow = await page.evaluate(async ({ startedAt, windowMs }) => {
