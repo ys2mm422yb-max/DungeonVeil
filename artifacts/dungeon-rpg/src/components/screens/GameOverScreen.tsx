@@ -56,6 +56,7 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const settledAtRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     let settledOnce = false;
@@ -67,9 +68,15 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       if (settledOnce) return;
       settledOnce = true;
 
+      const committedAt = performance.now();
+      settledAtRef.current = committedAt;
       const overlay = overlayRef.current;
       const content = contentRef.current;
       if (overlay) {
+        // Stamp the actual DOM commit clock before publishing `settled`. A loaded mobile
+        // browser may delay MutationObserver delivery after this visible commit; evidence
+        // must measure the product transition itself rather than observer scheduling lag.
+        overlay.dataset.deathSettledAt = String(committedAt);
         overlay.dataset.deathSequence = 'settled';
         overlay.classList.remove('bg-black/35', 'backdrop-blur-[1px]');
         overlay.classList.add('bg-black/92', 'backdrop-blur-sm');
@@ -90,6 +97,8 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       frame = window.requestAnimationFrame(watchDeadline);
     };
 
+    settledAtRef.current = null;
+    if (overlayRef.current) delete overlayRef.current.dataset.deathSettledAt;
     setDeathSequence('settling');
     const remaining = Math.max(0, deadline - performance.now());
 
@@ -128,6 +137,7 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       className={`fixed inset-0 z-50 flex flex-col items-center justify-center text-foreground touch-none select-none transition-[background-color,backdrop-filter] duration-500 ${settled ? 'bg-black/92 backdrop-blur-sm' : 'bg-black/35 backdrop-blur-[1px]'}`}
       data-testid="game-over-screen"
       data-death-sequence={deathSequence}
+      data-death-settled-at={settled ? settledAtRef.current ?? undefined : undefined}
     >
       <div
         ref={contentRef}

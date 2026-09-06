@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { GameEngine, GameState } from '../game/runEngine';
 import type { EnemyType } from '../game/entities';
 import type { EnemyFamilyId } from '../game/enemyRegistry';
@@ -76,6 +77,10 @@ function wait(milliseconds: number) {
   return new Promise<void>(resolve => window.setTimeout(resolve, milliseconds));
 }
 
+function isExhaustedImportedEnemyPreloadError(error: unknown): boolean {
+  return error instanceof Error && /^Local enemy asset failed to load: /.test(error.message);
+}
+
 async function preloadRequiredRunRoom(floor: number) {
   const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
   const enemyTypes = plannedRoomEnemyTypes(safeFloor);
@@ -96,6 +101,11 @@ async function preloadRequiredRunRoom(floor: number) {
       } catch (error) {
         lastError = error;
         console.error(`Run room ${safeFloor} preload attempt ${attempt} failed`, error);
+        // Imported enemy assets already exhaust their own four fetch attempts before this
+        // error escapes. Re-running the entire room preload would multiply that exhausted
+        // retry lane and turn a confirmed loader failure into an indefinite entry block.
+        // Other transient room/theme failures keep the existing outer retry contract.
+        if (isExhaustedImportedEnemyPreloadError(error)) break;
         if (attempt < RUN_ENTRY_PRELOAD_ATTEMPTS) await wait(attempt * 500);
       }
     }
@@ -111,7 +121,10 @@ async function preloadRequiredRunRoom(floor: number) {
   ]);
 
   if (result === 'deadline') {
-    console.warn(`Run room ${safeFloor} preload exceeded ${RUN_ENTRY_PRELOAD_DEADLINE_MS}ms; continuing with runtime fallbacks`);
+    console.warn(`Run room ${safeFloor} preload exceeded ${RUN_ENTRY_PRELOAD_DEADLINE_MS}ms; waiting for required assets to resolve`);
+    await preload.catch(error => {
+      console.error(`Run room ${safeFloor} preload exhausted after deadline; continuing with runtime fallbacks`, error);
+    });
   }
 }
 
@@ -151,7 +164,8 @@ function TerminalDeathOverlay({ onRetry, onMainMenu }: { onRetry: () => void; on
         setTerminalGameState(null);
         return;
       }
-      if (detail.gameState) setTerminalGameState(detail.gameState);
+      const terminalSnapshot = detail.gameState;
+      if (terminalSnapshot) flushSync(() => setTerminalGameState(terminalSnapshot));
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handleDeathState);
     return () => window.removeEventListener(PLAYER_DEATH_EVENT, handleDeathState);

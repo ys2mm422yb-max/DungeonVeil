@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { activeCompanionV5 } from '../game/companionCollectionV5';
@@ -44,7 +44,7 @@ function roomTitleFor(floor: number, language: string): string {
 
 const TerminalStableGameCanvas = React.memo(
   GameCanvas,
-  (previous, next) => next.gameState.status === 'gameover' || previous.gameState === next.gameState,
+  (previous, next) => previous.gameState === next.gameState,
 );
 
 export function CombatStage({ gameState, remotePlayer = null }: Props) {
@@ -68,6 +68,12 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   // the lightweight renderer marker responsive to the authoritative death event instead
   // of requiring that heavy snapshot to reconcile first.
   const [playerDead, setPlayerDead] = useState(playerDeadFromGameState);
+  const rendererGameState = useMemo<GameState>(
+    () => playerDead && gameState.status !== 'gameover'
+      ? { ...gameState, status: 'gameover' }
+      : gameState,
+    [gameState, playerDead],
+  );
   const [roomTitle, setRoomTitle] = useState(() => roomTitleFor(gameState.floor, language));
   const [showRoomTitle, setShowRoomTitle] = useState(true);
 
@@ -85,8 +91,12 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       const detail = (event as CustomEvent<{ dead?: boolean }>).detail;
       setPlayerDead(Boolean(detail?.dead));
     };
-    window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal);
-    return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal);
+    // TerminalDeathOverlay is mounted before the in-run CombatStage and performs a
+    // synchronous terminal commit. Capture ordering guarantees the renderer receives the
+    // authoritative death signal first, so its existing gameover fast path is queued before
+    // that synchronous overlay work can block normal same-target listener propagation.
+    window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
+    return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
   }, []);
 
   useEffect(() => {
@@ -204,7 +214,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
     >
       {runCompanion && <CompanionRuntimeBridge gameState={gameState} role={runCompanion.id} level={runCompanion.level} mode={runMode} />}
       <div className={`absolute inset-0 ${shakeClass}`}>
-        <TerminalStableGameCanvas gameState={gameState} />
+        <TerminalStableGameCanvas gameState={rendererGameState} />
         {remotePlayer && <CoopTeammateScene3D gameState={gameState} remotePlayer={remotePlayer} />}
         {(runCompanion || remotePlayer) && <CompanionScene3D gameState={gameState} localCompanion={runCompanion ? { role: runCompanion.id, level: runCompanion.level } : null} remotePlayer={remotePlayer} />}
         {remotePlayer && <CoopProjectileRealtimeBridge gameState={gameState} remotePlayer={remotePlayer} />}

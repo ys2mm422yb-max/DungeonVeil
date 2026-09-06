@@ -69,39 +69,66 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(Number(terminalDeathPreparation?.snapshot?.hp || 0), 'preconditioning must leave the live player alive before the measured lethal transition').toBeGreaterThan(0);
   const deathSequenceObservation = await page.evaluate(async () => {
     const startedAt = performance.now();
+    const deadline = startedAt + 2_000;
     const states = [];
     let settledAt = null;
-    let finished = false;
-    const recordState = (element) => {
-      if (!(element instanceof HTMLElement) || element.dataset.testid !== 'game-over-screen') return;
-      const state = element.getAttribute('data-death-sequence');
-      if (state && states.at(-1) !== state) states.push(state);
-      if (state === 'settled' && settledAt === null) settledAt = performance.now() - startedAt;
-    };
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'attributes') recordState(mutation.target);
-        for (const node of mutation.addedNodes) {
-          if (!(node instanceof HTMLElement)) continue;
-          recordState(node);
-          node.querySelectorAll?.('[data-testid="game-over-screen"]').forEach(recordState);
+    let settledCommittedAt = null;
+
+    return await new Promise(resolve => {
+      let finished = false;
+      let timeoutId = null;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        observer.disconnect();
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+        resolve({
+          states,
+          state: states.at(-1) ?? null,
+          sawSettling: states.includes('settling'),
+          elapsedMs: settledAt ?? performance.now() - startedAt,
+          settledCommittedAt,
+        });
+      };
+      const recordState = (element) => {
+        if (!(element instanceof HTMLElement) || element.dataset.testid !== 'game-over-screen') return;
+        const state = element.getAttribute('data-death-sequence');
+        if (state && states.at(-1) !== state) states.push(state);
+        if (state === 'settled' && settledAt === null) {
+          const committedAt = Number(element.dataset.deathSettledAt);
+          settledCommittedAt = Number.isFinite(committedAt) ? committedAt : null;
+          settledAt = settledCommittedAt === null ? performance.now() - startedAt : settledCommittedAt - startedAt;
+          finish();
         }
-      }
-    });
-    observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-death-sequence'] });
-    window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
-    while (!finished) {
+      };
+      const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'attributes') recordState(mutation.target);
+          for (const node of mutation.addedNodes) {
+            if (!(node instanceof HTMLElement)) continue;
+            recordState(node);
+            node.querySelectorAll?.('[data-testid="game-over-screen"]').forEach(recordState);
+          }
+        }
+      });
+      observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-death-sequence'] });
+      window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
       const overlay = document.querySelector('[data-testid="game-over-screen"]');
       if (overlay instanceof HTMLElement) recordState(overlay);
-      if (settledAt !== null) break;
-      if (performance.now() - startedAt >= 2_000) { finished = true; break; }
-      await new Promise(resolve => requestAnimationFrame(resolve));
-    }
-    observer.disconnect();
-    return { states, state: states.at(-1) ?? null, sawSettling: states.includes('settling'), elapsedMs: settledAt ?? performance.now() - startedAt };
+      if (finished) return;
+      // Do not poll with requestAnimationFrame here. The product's fixed 1100 ms death
+      // beat itself uses render-timeline signals; a test-owned rAF loop can compete for the
+      // same loaded mobile rendering turns. The observer detects the state transition, while
+      // the product-stamped DOM commit clock records when the visible `settled` mutation
+      // actually happened. This prevents delayed MutationObserver delivery from being counted
+      // as product latency while the unchanged browser-clock 2000 ms watchdog still fails closed.
+      timeoutId = window.setTimeout(finish, Math.max(0, deadline - performance.now()));
+    });
   });
   expect(deathSequenceObservation.sawSettling, 'death overlay must expose the explicit visual settling state before final defeat').toBe(true);
   expect(deathSequenceObservation.state, 'death overlay must transition from the visual death beat to a settled defeat state').toBe('settled');
+  expect(Number.isFinite(deathSequenceObservation.settledCommittedAt), 'settled death DOM must publish its exact product commit timestamp').toBe(true);
+  expect(deathSequenceObservation.elapsedMs, 'death overlay must not settle before the measured lethal transition').toBeGreaterThanOrEqual(0);
   expect(deathSequenceObservation.elapsedMs, 'death overlay must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
   const overlay = page.getByTestId('game-over-screen');
   await expect(overlay).toBeVisible();
@@ -120,7 +147,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(postDeathAttackAfterWindow.attackAt, 'player attacks must stay blocked after death').toBe(postDeathAttackObservation.attackAt);
   const deathSequence = await overlay.getAttribute('data-death-sequence');
   const rendererDeathState = await playerRenderer.getAttribute('data-player-death-state');
-  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, deathSequence, deathSequenceStates: deathSequenceObservation.states, deathSequenceObservedMs: deathSequenceObservation.elapsedMs, rendererDeathState, postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
+  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, deathSequence, deathSequenceStates: deathSequenceObservation.states, deathSequenceObservedMs: deathSequenceObservation.elapsedMs, deathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
 });
 
