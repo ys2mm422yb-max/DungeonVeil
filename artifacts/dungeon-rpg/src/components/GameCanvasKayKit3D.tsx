@@ -962,7 +962,6 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         raf = requestAnimationFrame(renderLoop);
         return;
       }
-      if (gameover) lastGameoverRenderAt = gameNow;
       const delta = Math.min(clock.getDelta(), 0.05);
       const playerX = mapX(state, state.player.x);
       const playerZ = mapZ(state, state.player.y);
@@ -1012,6 +1011,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       camera.userData.dungeonPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
       updateRunCamera(camera, cameraGoal, playerX, playerZ, state.roomClearReady);
       renderer.render(scene, camera);
+      if (gameover) {
+        // Measure the terminal cadence from the end of the expensive draw. If a loaded
+        // software/mobile WebGL frame itself exceeds 40 ms, stamping before render makes
+        // the next rAF immediately eligible and can starve the fixed death-overlay deadline.
+        lastGameoverRenderAt = performance.now();
+      }
       if (roomPaintRoot === roomRoot && roomPaintKey && host.dataset.roomPaintExpectedKey === roomPaintKey) {
         roomPaintPresentationFrames += 1;
         if (roomPaintPresentationFrames >= 2) {
