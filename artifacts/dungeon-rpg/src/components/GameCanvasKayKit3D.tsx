@@ -26,6 +26,7 @@ const MAX_DAMAGE_VISUALS = IS_ANDROID ? 7 : IS_IOS ? 10 : IS_MOBILE ? 12 : 28;
 const PERFORMANCE_KEY = 'dungeon-veil-performance';
 const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 const ENEMY_VISUAL_ABSENCE_GRACE_MS = 5000;
+const GAMEOVER_RENDER_INTERVAL_MS = 40;
 
 export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -70,6 +71,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let perfWindowStarted = performance.now();
     let perfFrames = 0;
     let lowFpsWindows = 0;
+    let lastGameoverRenderAt = -Infinity;
     let resizeObserver: ResizeObserver | null = null;
     let lastRenderWidth = 0;
     let lastRenderHeight = 0;
@@ -956,6 +958,11 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const gameover = state.status === 'gameover';
       const wallNow = Date.now();
       const gameNow = performance.now();
+      if (gameover && gameNow - lastGameoverRenderAt < GAMEOVER_RENDER_INTERVAL_MS) {
+        raf = requestAnimationFrame(renderLoop);
+        return;
+      }
+      if (gameover) lastGameoverRenderAt = gameNow;
       const delta = Math.min(clock.getDelta(), 0.05);
       const playerX = mapX(state, state.player.x);
       const playerZ = mapZ(state, state.player.y);
@@ -963,8 +970,10 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       // Keep the current room and its presentation contract alive through the death beat,
       // but stop speculative next-room work once the authoritative run is over.
       buildRoom(state);
-      applyRoomEnvironment(roomRoot);
-      if (!gameover) preloadNextRoom(state);
+      if (!gameover) {
+        applyRoomEnvironment(roomRoot);
+        preloadNextRoom(state);
+      }
 
       if (playerRig) {
         playerRig.root.position.set(playerX, 0, playerZ);
