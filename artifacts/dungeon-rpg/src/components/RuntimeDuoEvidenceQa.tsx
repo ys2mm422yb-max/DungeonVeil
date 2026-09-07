@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CombatStage } from './CombatStage';
+import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge';
 import { GameSessionBridge } from './GameSessionBridge';
 import { HUD } from './HUD';
 import { GameEngine, type GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { attachRuntimeEvidenceEngine } from '../game/runtimeEvidenceBridge';
-import { LanguageProvider, useLanguage } from '../i18n/LanguageContext';
+import { LanguageProvider } from '../i18n/LanguageContext';
 
 type DuoLifecyclePhase = 'alive' | 'downed' | 'revived' | 'fallen' | 'team-defeat';
 
@@ -34,7 +35,6 @@ function cloneState(engine: GameEngine): GameState {
 }
 
 function RuntimeDuoEvidenceScene() {
-  const { language } = useLanguage();
   const engineRef = useRef<GameEngine | null>(null);
   if (!engineRef.current) engineRef.current = new GameEngine();
   const [state, setState] = useState<GameState>(() => cloneState(engineRef.current!));
@@ -44,15 +44,6 @@ function RuntimeDuoEvidenceScene() {
   );
   const [lifecyclePhase, setLifecyclePhase] = useState<DuoLifecyclePhase>('alive');
   const [lifecycleStarted, setLifecycleStarted] = useState(false);
-  const teamDefeatCopy = language === 'de'
-    ? {
-      title: 'BEIDE GEFALLEN',
-      body: 'Der gemeinsame Run ist beendet. Nur der Host kann beide Spieler zusammen neu starten.',
-    }
-    : {
-      title: 'BOTH FALLEN',
-      body: 'The shared run is over. Only the host can restart both players together.',
-    };
 
   useEffect(() => {
     document.documentElement.dataset.dungeonVeilRunMode = 'duo';
@@ -149,18 +140,12 @@ function RuntimeDuoEvidenceScene() {
     <div className="pointer-events-none absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-cyan-200/25 bg-black/72 px-4 py-2 text-[8px] font-black tracking-[.18em] text-cyan-100">
       DUO RUNTIME EVIDENCE · {lifecyclePhase.toUpperCase()} · ROOM {state.floor}/50
     </div>
-    {lifecycleEnabled && lifecyclePhase === 'team-defeat' && <div
-      data-testid="runtime-duo-team-game-over"
-      className="pointer-events-none absolute inset-0 z-[90] flex items-center justify-center bg-black/78 px-5 backdrop-blur-sm"
-    >
-      <div className="w-[min(88vw,420px)] rounded-3xl border border-red-200/25 bg-[#130d12]/96 p-7 text-center shadow-2xl">
-        <div className="text-[9px] font-black uppercase tracking-[.28em] text-red-200/55">DUO-RUN</div>
-        <div className="mt-2 font-serif text-3xl text-red-50">{teamDefeatCopy.title}</div>
-        <div className="mt-3 text-[10px] leading-relaxed text-red-100/62">
-          {teamDefeatCopy.body}
-        </div>
-      </div>
-    </div>}
+    {lifecycleEnabled && lifecyclePhase === 'team-defeat' && <CoopTeamDefeatOverlay
+      role="host"
+      restartBusy={false}
+      onRestart={() => {}}
+      testId="runtime-duo-team-game-over"
+    />}
   </div>;
 }
 

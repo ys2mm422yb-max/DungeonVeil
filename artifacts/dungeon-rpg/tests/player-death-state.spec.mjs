@@ -157,7 +157,7 @@ const TEAM_DEFEAT_COPY = {
     body: 'Der gemeinsame Run ist beendet. Nur der Host kann beide Spieler zusammen neu starten.',
   },
   en: {
-    title: 'BOTH FALLEN',
+    title: 'BOTH HAVE FALLEN',
     body: 'The shared run is over. Only the host can restart both players together.',
   },
 };

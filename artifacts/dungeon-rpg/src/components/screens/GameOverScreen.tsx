@@ -78,7 +78,7 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
         // must measure the product transition itself rather than observer scheduling lag.
         overlay.dataset.deathSettledAt = String(committedAt);
         overlay.dataset.deathSequence = 'settled';
-        overlay.classList.remove('bg-black/35', 'backdrop-blur-[1px]');
+        overlay.classList.remove('bg-black/35');
         overlay.classList.add('bg-black/92', 'backdrop-blur-sm');
       }
       if (content) {
@@ -134,7 +134,7 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
   return (
     <div
       ref={overlayRef}
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center text-foreground touch-none select-none transition-[background-color,backdrop-filter] duration-500 ${settled ? 'bg-black/92 backdrop-blur-sm' : 'bg-black/35 backdrop-blur-[1px]'}`}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center text-foreground touch-none select-none transition-[background-color,backdrop-filter] duration-500 ${settled ? 'bg-black/92 backdrop-blur-sm' : 'bg-black/35'}`}
       data-testid="game-over-screen"
       data-death-sequence={deathSequence}
       data-death-settled-at={settled ? settledAtRef.current ?? undefined : undefined}
