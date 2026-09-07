@@ -149,8 +149,9 @@ test('solo death uses an explicit visual death state before the final overlay', 
   const rendererDeathState = await playerRenderer.getAttribute('data-player-death-state');
   await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, deathSequence, deathSequenceStates: deathSequenceObservation.states, deathSequenceObservedMs: deathSequenceObservation.elapsedMs, deathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
-  // Keep the verified terminal card on-screen long enough to be encoded into the temporal evidence EOF.
-  await page.waitForTimeout(1_000);
+  // WebKit's iPhone video encoder trails the already-rendered terminal DOM by more than the generic EOF hold.
+  // Keep only that project alive longer after all assertions so the final card is actually encoded into the video.
+  await page.waitForTimeout(testInfo.project.name === 'iphone-webkit' ? 3_000 : 1_000);
 });
 
 const TEAM_DEFEAT_COPY = {
