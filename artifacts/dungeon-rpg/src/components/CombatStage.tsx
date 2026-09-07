@@ -68,6 +68,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   // the lightweight renderer marker responsive to the authoritative death event instead
   // of requiring that heavy snapshot to reconcile first.
   const [playerDead, setPlayerDead] = useState(playerDeadFromGameState);
+  const terminalSoloDeath = runMode === 'solo' && playerDead;
   const rendererGameState = useMemo<GameState>(
     () => playerDead && gameState.status !== 'gameover'
       ? { ...gameState, status: 'gameover' }
@@ -212,11 +213,11 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       data-hurt-flash={hurtFlash ? 'active' : 'idle'}
       data-hit-flash={hitFlash ? 'active' : 'idle'}
     >
-      {runCompanion && <CompanionRuntimeBridge gameState={gameState} role={runCompanion.id} level={runCompanion.level} mode={runMode} />}
+      {runCompanion && !terminalSoloDeath && <CompanionRuntimeBridge gameState={gameState} role={runCompanion.id} level={runCompanion.level} mode={runMode} />}
       <div className={`absolute inset-0 ${shakeClass}`}>
         <TerminalStableGameCanvas gameState={rendererGameState} />
         {remotePlayer && <CoopTeammateScene3D gameState={gameState} remotePlayer={remotePlayer} />}
-        {(runCompanion || remotePlayer) && <CompanionScene3D gameState={gameState} localCompanion={runCompanion ? { role: runCompanion.id, level: runCompanion.level } : null} remotePlayer={remotePlayer} />}
+        {((runCompanion && !terminalSoloDeath) || remotePlayer) && <CompanionScene3D gameState={gameState} localCompanion={runCompanion && !terminalSoloDeath ? { role: runCompanion.id, level: runCompanion.level } : null} remotePlayer={remotePlayer} />}
         {remotePlayer && <CoopProjectileRealtimeBridge gameState={gameState} remotePlayer={remotePlayer} />}
       </div>
       {remotePlayer && <CoopTeammateUI gameState={gameState} remotePlayer={remotePlayer} />}
