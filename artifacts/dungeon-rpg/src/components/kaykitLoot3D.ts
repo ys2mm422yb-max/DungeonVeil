@@ -54,7 +54,12 @@ async function loadBest(score: (path: string) => number) {
 }
 
 function loadPotion() {
-  if (!potionPromise) potionPromise = loadBest(scorePotion);
+  if (!potionPromise) {
+    potionPromise = loadBest(scorePotion).catch(error => {
+      potionPromise = null;
+      throw error;
+    });
+  }
   return potionPromise;
 }
 
