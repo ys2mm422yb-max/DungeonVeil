@@ -91,12 +91,14 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   useEffect(() => {
     const handlePlayerDeathSignal = (event: Event) => {
       const detail = (event as CustomEvent<{ dead?: boolean }>).detail;
-      // This capture listener is the renderer's authoritative terminal-state handoff.
-      // Commit it synchronously before TerminalDeathOverlay performs its own flushSync so
-      // the canvas enters the existing gameover cadence without depending on a later React
-      // scheduling turn on loaded WebKit.
+      // The renderer fast path must be committed before the terminal overlay's synchronous
+      // work begins; otherwise loaded WebKit can keep the canvas on its previous `playing`
+      // snapshot long enough to starve the fixed death-overlay deadline.
       flushSync(() => setPlayerDead(Boolean(detail?.dead)));
     };
+    // TerminalDeathOverlay is mounted before the in-run CombatStage and performs a
+    // synchronous terminal commit. Capture ordering plus this synchronous lightweight
+    // renderer update guarantees the existing gameover cadence is active first.
     window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
     return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
   }, []);
@@ -142,37 +144,58 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   }, [gameState.floor, language]);
 
   useEffect(() => {
-    if (gameState.player.hp < previousHpRef.current) {
+    const previousHp = previousHpRef.current;
+    if (gameState.player.hp < previousHp) {
       if (hurtFlashTimerRef.current !== null) window.clearTimeout(hurtFlashTimerRef.current);
       setHurtFlash(true);
-      const isLethal = gameState.player.hp <= 0;
-      triggerShake(isLethal || gameState.player.hp < previousHpRef.current * 0.75);
-      try { navigator.vibrate?.(isLethal ? [30, 35, 50] : [18, 16, 28]); } catch {}
+      triggerShake(true);
+      try { navigator.vibrate?.([24, 18, 40]); } catch {}
       hurtFlashTimerRef.current = window.setTimeout(() => {
         setHurtFlash(false);
         hurtFlashTimerRef.current = null;
-      }, isLethal ? 280 : 150);
+      }, 220);
+      previousHpRef.current = gameState.player.hp;
+      return undefined;
     }
     previousHpRef.current = gameState.player.hp;
-  }, [gameState.player.hp]);
-
-  useEffect(() => {
     const latest = gameState.damageNumbers[gameState.damageNumbers.length - 1];
-    if (!latest || latest.id === lastDamageIdRef.current) return;
+    if (!latest || latest.id === lastDamageIdRef.current || latest.id.startsWith('clear-')) return undefined;
     lastDamageIdRef.current = latest.id;
-    if (hitFlashTimerRef.current !== null) window.clearTimeout(hitFlashTimerRef.current);
-    setHitFlash(true);
-    hitFlashTimerRef.current = window.setTimeout(() => {
-      setHitFlash(false);
-      hitFlashTimerRef.current = null;
-    }, 70);
-  }, [gameState.damageNumbers]);
+    const isPlayerHit = latest.id.startsWith('hit-');
+    const isHeavy = (latest.scale ?? 1) >= 1.3;
+    if (!isPlayerHit) {
+      triggerShake(isHeavy);
+      if (hitFlashTimerRef.current !== null) window.clearTimeout(hitFlashTimerRef.current);
+      setHitFlash(true);
+      hitFlashTimerRef.current = window.setTimeout(() => {
+        setHitFlash(false);
+        hitFlashTimerRef.current = null;
+      }, isHeavy ? 100 : 55);
+      if (isHeavy) {
+        try { navigator.vibrate?.(28); } catch {}
+      }
+    }
+    return undefined;
+  }, [gameState.damageNumbers, gameState.player.hp]);
 
   useEffect(() => {
-    if (!showRoomTitle) return undefined;
-    const timer = window.setTimeout(() => setShowRoomTitle(false), 1800);
+    if (!gameState.roomClearReady && hasLivingEnemies) return;
+    if (hurtFlashTimerRef.current !== null) {
+      window.clearTimeout(hurtFlashTimerRef.current);
+      hurtFlashTimerRef.current = null;
+    }
+    if (hitFlashTimerRef.current !== null) {
+      window.clearTimeout(hitFlashTimerRef.current);
+      hitFlashTimerRef.current = null;
+    }
+    setHurtFlash(false);
+    setHitFlash(false);
+  }, [gameState.roomClearReady, hasLivingEnemies]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowRoomTitle(false), 1050);
     return () => window.clearTimeout(timer);
-  }, [showRoomTitle]);
+  }, []);
 
   useEffect(() => () => {
     if (shakeTimerRef.current !== null) window.clearTimeout(shakeTimerRef.current);
