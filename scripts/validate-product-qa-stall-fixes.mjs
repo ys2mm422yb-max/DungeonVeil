@@ -54,6 +54,8 @@ assert.match(companionJourney, /scope\[observation\] = payload;[\s\S]*scope\[obs
   'the accepted payload must be frozen and handed to the screenshot binding in the same observer turn');
 assert.match(companionJourney, /mutationObserver = new MutationObserver\(\(\) => inspect\(\)\);[\s\S]*mutationObserver\.observe\(document\.documentElement, \{[\s\S]*childList: true,[\s\S]*subtree: true,[\s\S]*attributes: true/,
   'transient feedback discovery must use one atomic MutationObserver');
+assert.match(companionJourney, /attributeFilter: \[[\s\S]*'data-last-critical-special-player-attack-at'[\s\S]*'data-last-observed-player-attack-at'[\s\S]*\]/,
+  'the atomic observer must re-inspect when the authoritative Critical-Support source markers converge');
 assert.match(companionJourney, /maxActionAgeMs: COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS/,
   'the fixed freshness reserve must be supplied to the browser-side criterion');
 assert.match(companionJourney, /expect\(observedFeedback\.actionAgeMs\)\.toBeGreaterThanOrEqual\(0\);[\s\S]*toBeLessThanOrEqual\(COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS\)/,
@@ -87,24 +89,24 @@ assert.match(runtimeEvidence, /loadRoom:[\s\S]*attack: 9,[\s\S]*defense: 5_000/,
   'localhost-only room reload must keep targets durable while making the real level-2 Critical Support proc minimally publishable');
 assert.match(companionJourney, /sessionStorage\.setItem\(runtimeEvidenceMarker, '1'\)/,
   'authoritative telemetry must be enabled before the runtime bridge installs');
-assert.match(companionJourney, /async function readConfirmedPlayerAttackAndArm\(page, attackBoundary, expectedPlayerAttackSetterKey\) \{[\s\S]*window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null[\s\S]*const confirmedAt = Number\(snapshot\?\.playerLastAttackTime \|\| 0\);[\s\S]*window\[setterKey\]\?\.\(confirmedAt\) === true[\s\S]*return \{ snapshot, confirmedAt, armed \};/,
-  'the critical path must observe the authoritative player attack and atomically arm it as the lower trigger bound inside one browser task');
+assert.match(companionJourney, /async function readConfirmedPlayerAttackAndArm\(page, attackBoundary, expectedPlayerAttackSetterKey\) \{[\s\S]*window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null[\s\S]*companion-runtime-bridge[\s\S]*playerLastAttackTime[\s\S]*observedPlayerAttackAt[\s\S]*criticalPlayerAttackAt[\s\S]*observedPlayerAttackAt === playerLastAttackTime[\s\S]*criticalPlayerAttackAt === playerLastAttackTime[\s\S]*window\[setterKey\]\?\.\(confirmedAt\) === true/,
+  'the critical path may arm only after snapshot, consumed attack marker and actual critical-special source converge exactly in one browser task');
 assert.match(companionJourney, /async function triggerConfirmedPlayerAttack\(page, attackBoundary, expectedPlayerAttackSetterKey = ''\)/,
-  'the critical path must independently prove a real player attack strictly after the authoritative boundary while carrying the atomic lower-bound arming contract');
+  'the critical path must independently prove a real exact special-producing source strictly after the authoritative boundary');
 assert.match(companionJourney, /const inputBurst = 6;[\s\S]*readConfirmedPlayerAttackAndArm\(page, attackBoundary, expectedPlayerAttackSetterKey\)[\s\S]*livingEnemyPositions[\s\S]*moveWithKeyboard\(page, keys, durationMs\)[\s\S]*page\.keyboard\.press\('Space'\)[\s\S]*confirmedAt > attackBoundary/,
-  'the bounded search must use real keyboard movement and finish only after authoritative attack time advances strictly beyond the captured boundary and is atomically armed');
+  'the bounded search must use real keyboard movement and finish only after exact Critical-Support source convergence strictly beyond the captured boundary');
 assert.match(companionJourney, /const phase = attempt % 3;[\s\S]*\{ x: dx, y: dy \}[\s\S]*\{ x: -dy, y: dx \}[\s\S]*\{ x: dy, y: -dx \}/,
   'the search must try the target line and both lateral paths instead of one device-specific guess');
 assert.match(companionJourney, /could not be armed atomically/,
-  'the bounded search must fail closed if the authoritative trigger lower bound cannot be armed');
+  'the bounded search must fail closed if the exact authoritative trigger source cannot be armed');
 assert.match(companionJourney, /const durableCriticalRoom = await page\.evaluate\(\(\) => window\.__dungeonVeilRuntimeEvidence\?\.loadRoom\(1, 'solo'\) \?\? null\);[\s\S]*expect\(Number\(durableCriticalRoom\?\.livingEnemies \|\| 0\)\)\.toBeGreaterThan\(0\);/,
   'critical evidence may use only the localhost room reload to preserve a living target before the strict causal capture');
 assert.doesNotMatch(companionJourney, /__dungeonVeilRuntimeEvidence\?\.(?:killLivingEnemies|moveToExit|chooseFirstGift|setMode|setPlayerStats|setLivingEnemyFamilies)/,
   'the companion journey must not mutate combat through any other QA control');
-assert.match(companionJourney, /const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*notBefore: attackBoundary[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*const atomicReadyBoundaryHandle = await page\.waitForFunction\(\(\{ setter \}\) => \{[\s\S]*data-critical-special-ready[\s\S]*const evidenceBoundary = performance\.now\(\);[\s\S]*window\[setter\]\?\.\(evidenceBoundary\) !== true[\s\S]*playerLastAttackTime[\s\S]*return \{ evidenceBoundary, playerLastAttackTime \};[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt[\s\S]*timeout: 20_000,[\s\S]*polling: 16[\s\S]*const atomicReadyBoundary = await atomicReadyBoundaryHandle\.jsonValue\(\);[\s\S]*const readyAttackBoundary = Number\(atomicReadyBoundary\.playerLastAttackTime \|\| 0\);[\s\S]*const captureBoundaryHandle = await page\.waitForFunction[\s\S]*data-last-observed-player-attack-at[\s\S]*playerLastAttackTime !== observedPlayerAttackAt[\s\S]*window\[setter\]\?\.\(captureBoundary\) !== true[\s\S]*const captureBoundaryState = await captureBoundaryHandle\.jsonValue\(\);[\s\S]*expect\(captureBoundaryState\.playerLastAttackTime\)\.toBe\(captureBoundaryState\.observedPlayerAttackAt\);[\s\S]*const expectedPlayerAttackSetterKey = '__dungeonVeilCriticalCompanionFeedbackObservationSetExpectedPlayerAttackAt';[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\([\s\S]*Math\.max\(readyAttackBoundary, captureBoundary, captureBoundaryState\.playerLastAttackTime\),[\s\S]*expectedPlayerAttackSetterKey,[\s\S]*\);[\s\S]*const observedCritical = await capturePromise;[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(captureBoundary\)[\s\S]*expect\(observedCritical\.criticalPlayerAttackAt\)\.toBeGreaterThanOrEqual\(confirmedPlayerAttackAt\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThan\(observedCritical\.criticalPlayerAttackAt\)/,
-  'critical evidence must close its browser acceptance boundary before input, atomically arm the confirmed trigger lower bound, then require the authoritative runtime proc source at or after it and the companion action after that actual source');
-assert.match(companionJourney, /data-last-critical-special-player-attack-at[\s\S]*criticalPlayerAttackAt <= minimumAt[\s\S]*critical-player-attack-boundary[\s\S]*criticalPlayerAttackAt,/,
-  'critical feedback capture must reject a visually fresh action whose authoritative source player attack predates the acceptance boundary');
+assert.match(companionJourney, /const attackBoundary = Number\(\(await readRuntimeCombatSnapshot\(page\)\)\?\.playerLastAttackTime \|\| 0\);[\s\S]*const capturePromise = captureLiveCompanionFeedbackEvidence\(page, \{[\s\S]*role: 'critical-support'[\s\S]*notBefore: attackBoundary[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationArmed[\s\S]*const atomicReadyBoundaryHandle = await page\.waitForFunction\(\(\{ setter \}\) => \{[\s\S]*data-critical-special-ready[\s\S]*const evidenceBoundary = performance\.now\(\);[\s\S]*window\[setter\]\?\.\(evidenceBoundary\) !== true[\s\S]*playerLastAttackTime[\s\S]*return \{ evidenceBoundary, playerLastAttackTime \};[\s\S]*__dungeonVeilCriticalCompanionFeedbackObservationSetMinimumAt[\s\S]*timeout: 20_000,[\s\S]*polling: 16[\s\S]*const atomicReadyBoundary = await atomicReadyBoundaryHandle\.jsonValue\(\);[\s\S]*const readyAttackBoundary = Number\(atomicReadyBoundary\.playerLastAttackTime \|\| 0\);[\s\S]*const captureBoundaryHandle = await page\.waitForFunction[\s\S]*data-last-observed-player-attack-at[\s\S]*playerLastAttackTime !== observedPlayerAttackAt[\s\S]*window\[setter\]\?\.\(captureBoundary\) !== true[\s\S]*const captureBoundaryState = await captureBoundaryHandle\.jsonValue\(\);[\s\S]*expect\(captureBoundaryState\.playerLastAttackTime\)\.toBe\(captureBoundaryState\.observedPlayerAttackAt\);[\s\S]*const expectedPlayerAttackSetterKey = '__dungeonVeilCriticalCompanionFeedbackObservationSetExpectedPlayerAttackAt';[\s\S]*const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack\([\s\S]*Math\.max\(readyAttackBoundary, captureBoundary, captureBoundaryState\.playerLastAttackTime\),[\s\S]*expectedPlayerAttackSetterKey,[\s\S]*\);[\s\S]*const observedCritical = await capturePromise;[\s\S]*expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(captureBoundary\)[\s\S]*expect\(observedCritical\.criticalPlayerAttackAt\)\.toBe\(confirmedPlayerAttackAt\)[\s\S]*expect\(observedCritical\.playerLastAttackTime\)\.toBe\(confirmedPlayerAttackAt\)[\s\S]*expect\(observedCritical\.observedPlayerAttackAt\)\.toBe\(confirmedPlayerAttackAt\)[\s\S]*expect\(observedCritical\.at\)\.toBeGreaterThan\(observedCritical\.criticalPlayerAttackAt\)/,
+  'critical evidence must close its browser acceptance boundary before input, then require the same exact special-producing source across runtime critical marker, authoritative snapshot and consumed-player marker');
+assert.match(companionJourney, /critical-player-attack-source-mismatch[\s\S]*criticalPlayerAttackAt !== expectedPlayerAttackAt[\s\S]*playerLastAttackTime !== expectedPlayerAttackAt[\s\S]*observedPlayerAttackAt !== expectedPlayerAttackAt/,
+  'critical feedback capture must reject a visually fresh action unless all source authorities converge exactly');
 assert.match(companionJourney, /expect\(evidenceBoundary\)\.toBeGreaterThan\(attackBoundary\);/,
   'the atomically installed readiness boundary must advance beyond the original authoritative player-attack boundary');
 assert.match(companionJourney, /expect\(readyAttackBoundary\)\.toBeGreaterThanOrEqual\(attackBoundary\);/,
@@ -115,8 +117,10 @@ assert.match(companionJourney, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterTh
   'the confirmed player attack must also advance beyond the atomically installed evidence boundary');
 assert.match(companionJourney, /expect\(confirmedPlayerAttackAt\)\.toBeGreaterThan\(captureBoundary\);/,
   'the confirmed player attack must advance beyond the final pre-input capture boundary');
-assert.match(companionJourney, /expect\(observedCritical\.criticalPlayerAttackAt\)\.toBeGreaterThanOrEqual\(confirmedPlayerAttackAt\);/,
-  'the accepted critical feedback must identify an authoritative actual proc source at or after the confirmed trigger lower bound');
+assert.match(companionJourney, /expect\(observedCritical\.criticalPlayerAttackAt\)\.toBe\(confirmedPlayerAttackAt\);/,
+  'the accepted critical feedback must identify the exact independently confirmed special-producing player attack');
+assert.match(companionJourney, /expect\(observedCritical\.playerLastAttackTime\)\.toBe\(confirmedPlayerAttackAt\);[\s\S]*expect\(observedCritical\.observedPlayerAttackAt\)\.toBe\(confirmedPlayerAttackAt\);/,
+  'the accepted critical payload must preserve exact source convergence');
 assert.match(companionJourney, /expect\(observedCritical\.at\)\.toBeGreaterThan\(observedCritical\.criticalPlayerAttackAt\);/,
   'the accepted critical value must be a strictly newer authoritative companion action than the actual proc source');
 assert.match(companionJourney, /runtimeEvidence: window\.__dungeonVeilRuntimeEvidence\?\.snapshot\(\) \?\? null/,
@@ -132,8 +136,8 @@ assert.match(companionJourney, /const COMPANION_FEEDBACK_REJECTION_LOG = '__dung
   'Product QA must retain an exact-head browser rejection log for the transient companion capture');
 assert.match(companionJourney, /const recordRejection = \(reason, node, extra = \{\}\) => \{[\s\S]*if \(log\.length > 32\) log\.splice\(0, log\.length - 32\);/,
   'rejection telemetry must stay bounded during longer browser runs');
-assert.match(companionJourney, /'identity-mismatch'|'disconnected'|'no-correlated-action'|'action-age'|'not-visible-geometry'|'opacity-below-threshold'/,
-  'Product QA must distinguish the exact capture rejection predicate before changing acceptance behavior');
+assert.match(companionJourney, /'identity-mismatch'|'disconnected'|'no-correlated-action'|'action-age'|'not-visible-geometry'|'opacity-below-threshold'|'critical-player-attack-source-mismatch'/,
+  'Product QA must distinguish exact critical-source mismatch in the causal rejection trail without weakening freshness');
 assert.match(companionJourney, /rejections: \(window\[rejectionLogKey\] \|\| \[\]\)\.slice\(-32\)/,
   'the final failure diagnostics must include historical capture rejection reasons');
 
