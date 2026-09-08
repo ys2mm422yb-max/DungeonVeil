@@ -1,5 +1,5 @@
 import { CHAPTER_ROOMS } from './chapterRun';
-import { TileType } from './dungeon';
+import { TILE_SIZE, TileType } from './dungeon';
 import { applyGiftUpgrade } from './giftUpgradeController';
 import type { GameState } from './runEngine';
 import { GameEngine } from './runEngine';
@@ -313,6 +313,51 @@ function attachApi(): void {
       const families = requestedFamilies.filter(isEnemyFamilyId) as EnemyFamilyId[];
       if (!families.length) return stateSnapshot(engine);
       const livingEnemies = engine.state.enemies.filter(enemy => enemy.hp > 0 && !enemy.isDead);
+      if (livingEnemies.length > 0 && livingEnemies.length < families.length) {
+        const templates = [...livingEnemies];
+        const now = performance.now();
+        const playerCenterX = engine.state.player.x + engine.state.player.width / 2;
+        const playerCenterY = engine.state.player.y + engine.state.player.height / 2;
+        const mapWidth = engine.state.map.width * TILE_SIZE;
+        const mapHeight = engine.state.map.height * TILE_SIZE;
+        while (livingEnemies.length < families.length) {
+          const index = livingEnemies.length;
+          const template = templates[index % templates.length];
+          const angle = (Math.PI * 2 * index) / families.length;
+          const radius = TILE_SIZE * 2.4;
+          const x = Math.max(4, Math.min(mapWidth - template.width - 4, playerCenterX + Math.cos(angle) * radius - template.width / 2));
+          const y = Math.max(4, Math.min(mapHeight - template.height - 4, playerCenterY + Math.sin(angle) * radius - template.height / 2));
+          const clone = {
+            ...template,
+            id: `${template.id}-runtime-evidence-${index}`,
+            x,
+            y,
+            vx: 0,
+            vy: 0,
+            hp: Math.max(1, template.maxHp),
+            maxHp: Math.max(1, template.maxHp),
+            state: 'chase' as const,
+            targetX: x,
+            targetY: y,
+            nextAttackTime: now + 500,
+            flashUntil: 0,
+            spawnTime: now + index * 40,
+            lastAttackTime: 0,
+            deathTime: 0,
+            isDead: false,
+            lastHitTime: 0,
+            burnUntil: 0,
+            nextBurnTick: 0,
+            frostUntil: 0,
+            frostSlow: 0,
+            lastProgressX: x,
+            lastProgressY: y,
+            lastProgressTime: now,
+          };
+          engine.state.enemies.push(clone);
+          livingEnemies.push(clone);
+        }
+      }
       for (const [index, enemy] of livingEnemies.entries()) {
         const familyId = families[index % families.length];
         enemy.enemyFamilyId = familyId;
