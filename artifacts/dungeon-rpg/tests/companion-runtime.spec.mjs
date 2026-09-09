@@ -107,10 +107,20 @@ async function moveWithKeyboard(page, keys, durationMs) {
 async function readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPlayerAttackSetterKey) {
   return page.evaluate(({ boundary, setterKey }) => {
     const snapshot = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
-    const confirmedAt = Number(snapshot?.playerLastAttackTime || 0);
-    if (confirmedAt <= boundary) return { snapshot, confirmedAt, armed: false };
+    const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+    const playerLastAttackTime = Number(snapshot?.playerLastAttackTime || 0);
+    const observedPlayerAttackAt = Number(runtime?.getAttribute('data-last-observed-player-attack-at') || 0);
+    const criticalPlayerAttackAt = Number(runtime?.getAttribute('data-last-critical-special-player-attack-at') || 0);
+    const confirmedAt = (
+      playerLastAttackTime > boundary
+      && observedPlayerAttackAt === playerLastAttackTime
+      && criticalPlayerAttackAt === playerLastAttackTime
+    ) ? playerLastAttackTime : 0;
+    if (confirmedAt <= boundary) {
+      return { snapshot, confirmedAt, playerLastAttackTime, observedPlayerAttackAt, criticalPlayerAttackAt, armed: false };
+    }
     const armed = setterKey ? window[setterKey]?.(confirmedAt) === true : true;
-    return { snapshot, confirmedAt, armed };
+    return { snapshot, confirmedAt, playerLastAttackTime, observedPlayerAttackAt, criticalPlayerAttackAt, armed };
   }, { boundary: attackBoundary, setterKey: expectedPlayerAttackSetterKey });
 }
 
@@ -170,6 +180,9 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary, expectedPlayer
       targetY: target.y,
       previousAttackAt,
       confirmedAt,
+      playerLastAttackTime: Number(afterState.playerLastAttackTime || 0),
+      observedPlayerAttackAt: Number(afterState.observedPlayerAttackAt || 0),
+      criticalPlayerAttackAt: Number(afterState.criticalPlayerAttackAt || 0),
       livingEnemies: Number(after?.livingEnemies || 0),
     });
     if (confirmedAt > attackBoundary) {
@@ -448,6 +461,9 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             continue;
           }
           const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+          const runtimeEvidence = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
+          const playerLastAttackTime = Number(runtimeEvidence?.playerLastAttackTime || 0);
+          const observedPlayerAttackAt = Number(runtime?.getAttribute('data-last-observed-player-attack-at') || 0);
           const criticalPlayerAttackAt = Number(runtime?.getAttribute('data-last-critical-special-player-attack-at') || 0);
           if (expectedCritical && criticalPlayerAttackAt <= minimumAt) {
             recordRejection('critical-player-attack-boundary', node, { criticalPlayerAttackAt, minimumAt });
@@ -460,8 +476,17 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             schedulePaintReinspection();
             continue;
           }
-          if (expectedCritical && criticalPlayerAttackAt < expectedPlayerAttackAt) {
-            recordRejection('critical-player-attack-before-confirmed-trigger', node, { criticalPlayerAttackAt, expectedPlayerAttackAt });
+          if (expectedCritical && (
+            criticalPlayerAttackAt !== expectedPlayerAttackAt
+            || playerLastAttackTime !== expectedPlayerAttackAt
+            || observedPlayerAttackAt !== expectedPlayerAttackAt
+          )) {
+            recordRejection('critical-player-attack-source-mismatch', node, {
+              criticalPlayerAttackAt,
+              playerLastAttackTime,
+              observedPlayerAttackAt,
+              expectedPlayerAttackAt,
+            });
             schedulePaintReinspection();
             continue;
           }
@@ -471,6 +496,8 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             capturedAt: captureNow,
             actionAgeMs,
             criticalPlayerAttackAt,
+            playerLastAttackTime,
+            observedPlayerAttackAt,
             feedbackId: node.getAttribute('data-testid') || '',
             feedbackRole: node.dataset.companionRole || '',
             feedbackTargetId: targetId,
@@ -541,7 +568,16 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['class', 'style', 'data-visible-count', 'data-critical', 'data-target-id', 'data-companion-role'],
+        attributeFilter: [
+          'class',
+          'style',
+          'data-visible-count',
+          'data-critical',
+          'data-target-id',
+          'data-companion-role',
+          'data-last-critical-special-player-attack-at',
+          'data-last-observed-player-attack-at',
+        ],
       });
       inspect();
       scope[armed] = true;
@@ -814,7 +850,9 @@ test('critical-support proc renders one readable value on its actual target', as
     expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
     expect(confirmedPlayerAttackAt).toBeGreaterThan(evidenceBoundary);
     expect(confirmedPlayerAttackAt).toBeGreaterThan(captureBoundary);
-    expect(observedCritical.criticalPlayerAttackAt).toBeGreaterThanOrEqual(confirmedPlayerAttackAt);
+    expect(observedCritical.criticalPlayerAttackAt).toBe(confirmedPlayerAttackAt);
+    expect(observedCritical.playerLastAttackTime).toBe(confirmedPlayerAttackAt);
+    expect(observedCritical.observedPlayerAttackAt).toBe(confirmedPlayerAttackAt);
     expect(observedCritical.at).toBeGreaterThan(observedCritical.criticalPlayerAttackAt);
   } finally {
     await page.keyboard.up('KeyW').catch(() => {});
