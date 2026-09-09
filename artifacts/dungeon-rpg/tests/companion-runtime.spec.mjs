@@ -515,9 +515,13 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             ...action,
             capturedAt: captureNow,
             actionAgeMs,
+            diagnosticCaptureNow,
+            diagnosticActionAgeMs,
+            maxActionAgeMs,
             criticalPlayerAttackAt,
             playerLastAttackTime,
             observedPlayerAttackAt,
+            expectedPlayerAttackAt,
             feedbackId: node.getAttribute('data-testid') || '',
             feedbackRole: node.dataset.companionRole || '',
             feedbackTargetId: targetId,
@@ -873,7 +877,30 @@ test('critical-support proc renders one readable value on its actual target', as
     expect(observedCritical.criticalPlayerAttackAt).toBe(confirmedPlayerAttackAt);
     expect(observedCritical.playerLastAttackTime).toBe(confirmedPlayerAttackAt);
     expect(observedCritical.observedPlayerAttackAt).toBe(confirmedPlayerAttackAt);
+    expect(observedCritical.expectedPlayerAttackAt).toBe(confirmedPlayerAttackAt);
     expect(observedCritical.at).toBeGreaterThan(observedCritical.criticalPlayerAttackAt);
+    expect(observedCritical.diagnosticCaptureNow).toBeGreaterThanOrEqual(observedCritical.at);
+    expect(observedCritical.diagnosticActionAgeMs).toBeGreaterThanOrEqual(0);
+    expect(observedCritical.diagnosticActionAgeMs).toBeLessThanOrEqual(COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS);
+    expect(observedCritical.maxActionAgeMs).toBe(COMPANION_FEEDBACK_CAPTURE_MAX_AGE_MS);
+    const timingReceipt = {
+      schema: 'dungeon-veil-critical-support-timing-v1',
+      project: testInfo.project.name,
+      actionAt: observedCritical.at,
+      captureAt: observedCritical.diagnosticCaptureNow,
+      diagnosticActionAgeMs: observedCritical.diagnosticActionAgeMs,
+      maxAgeMs: observedCritical.maxActionAgeMs,
+      criticalPlayerAttackAt: observedCritical.criticalPlayerAttackAt,
+      playerLastAttackTime: observedCritical.playerLastAttackTime,
+      observedPlayerAttackAt: observedCritical.observedPlayerAttackAt,
+      expectedPlayerAttackAt: observedCritical.expectedPlayerAttackAt,
+      actionRole: observedCritical.role,
+      actionTargetId: observedCritical.targetId,
+      feedbackId: observedCritical.feedbackId,
+      feedbackRole: observedCritical.feedbackRole,
+      feedbackTargetId: observedCritical.feedbackTargetId,
+    };
+    console.log(`DUNGEON_VEIL_CRITICAL_SUPPORT_TIMING_RECEIPT ${JSON.stringify(timingReceipt)}`);
   } finally {
     await page.keyboard.up('KeyW').catch(() => {});
   }
