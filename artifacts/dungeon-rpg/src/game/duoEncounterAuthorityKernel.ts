@@ -10,6 +10,8 @@ export type AuthorityEnemyManifestEntry = Readonly<{
   color: string;
 }>;
 
+export const BASIC_HIT_COOLDOWN_MS = 350;
+
 // Mirrors the current runEngine enemy combat constants so the future server reducer has
 // one browser-free manifest to consume. Slice 1 intentionally does not change reward
 // eligibility or claim this module is already the production authority boundary.
@@ -25,9 +27,17 @@ export const CANONICAL_ENEMY_COMBAT_MANIFEST: Readonly<Record<AuthorityEnemyType
   boss: { hp: 520, attack: 24, defense: 7, speed: 54, size: 74, xp: 180, color: '#ff493a' },
 });
 
+export type AuthorityActorInput = Readonly<{
+  actorId: string;
+  attack: number;
+  active?: boolean;
+}>;
+
 export type AuthorityActor = Readonly<{
   actorId: string;
   attack: number;
+  active: boolean;
+  nextBasicHitAtMs: number;
 }>;
 
 export type AuthorityEnemyState = Readonly<{
@@ -81,7 +91,7 @@ export type CreateCanonicalEncounterInput = Readonly<{
   chapter: number;
   room: number;
   seed: number;
-  actors: readonly AuthorityActor[];
+  actors: readonly AuthorityActorInput[];
   enemyTypes: readonly AuthorityEnemyType[];
 }>;
 
@@ -112,7 +122,12 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
     if (actorIds.has(actor.actorId)) throw new Error(`duplicate actorId: ${actor.actorId}`);
     actorIds.add(actor.actorId);
     assertFiniteNonNegative(actor.attack, 'actor.attack');
-    return Object.freeze({ actorId: actor.actorId, attack: actor.attack });
+    return Object.freeze({
+      actorId: actor.actorId,
+      attack: actor.attack,
+      active: actor.active !== false,
+      nextBasicHitAtMs: 0,
+    });
   });
 
   const chapterScale = 1 + (input.chapter - 1) * 0.36;
@@ -147,15 +162,25 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
   });
 }
 
-export function reduceAuthorityIntent(state: CanonicalEncounterState, intent: AuthorityIntent): AuthorityReduceResult {
+export function reduceAuthorityIntent(
+  state: CanonicalEncounterState,
+  intent: AuthorityIntent,
+  authorityNowMs: number,
+): AuthorityReduceResult {
   if (state.completed) throw new Error('encounter already completed');
   if (intent.kind !== 'basic-hit') throw new Error('unsupported intent');
   if (!Number.isInteger(intent.clientSeq) || intent.clientSeq <= 0) throw new Error('clientSeq must be a positive integer');
+  assertFiniteNonNegative(authorityNowMs, 'authorityNowMs');
 
-  const actor = state.actors.find(candidate => candidate.actorId === intent.actorId);
-  if (!actor) throw new Error('actor is not part of the canonical encounter');
+  const actorIndex = state.actors.findIndex(candidate => candidate.actorId === intent.actorId);
+  if (actorIndex < 0) throw new Error('actor is not part of the canonical encounter');
+  const actor = state.actors[actorIndex];
+  if (!actor.active) throw new Error('actor is not active in the canonical encounter');
+
   const previousSeq = state.lastClientSeqByActor[intent.actorId] ?? 0;
   if (intent.clientSeq <= previousSeq) throw new Error('replayed or out-of-order intent');
+  if (intent.clientSeq !== previousSeq + 1) throw new Error('clientSeq gap is not allowed');
+  if (authorityNowMs < actor.nextBasicHitAtMs) throw new Error('basic-hit cadence not ready');
 
   const targetIndex = state.enemies.findIndex(enemy => enemy.enemyId === intent.targetEnemyId && enemy.hp > 0);
   if (targetIndex < 0) throw new Error('target is not a living canonical enemy');
@@ -165,12 +190,16 @@ export function reduceAuthorityIntent(state: CanonicalEncounterState, intent: Au
   const enemies = state.enemies.map((enemy, index) => index === targetIndex
     ? Object.freeze({ ...enemy, hp: nextHp })
     : enemy);
+  const actors = state.actors.map((candidate, index) => index === actorIndex
+    ? Object.freeze({ ...candidate, nextBasicHitAtMs: authorityNowMs + BASIC_HIT_COOLDOWN_MS })
+    : candidate);
   const nextVersion = state.version + 1;
   const completed = enemies.every(enemy => enemy.hp <= 0);
   const lastClientSeqByActor = Object.freeze({ ...state.lastClientSeqByActor, [intent.actorId]: intent.clientSeq });
   const nextState: CanonicalEncounterState = Object.freeze({
     ...state,
     version: nextVersion,
+    actors: Object.freeze(actors),
     enemies: Object.freeze(enemies),
     lastClientSeqByActor,
     completed,
