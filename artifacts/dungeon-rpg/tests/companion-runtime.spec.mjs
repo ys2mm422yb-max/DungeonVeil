@@ -440,6 +440,56 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             schedulePaintReinspection();
             continue;
           }
+
+          let criticalPlayerAttackAt = 0;
+          let playerLastAttackTime = 0;
+          let observedPlayerAttackAt = 0;
+          let expectedPlayerAttackAt = Number(scope[expectedPlayerAttackStateKey]);
+          if (expectedCritical) {
+            const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
+            const runtimeEvidence = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
+            playerLastAttackTime = Number(runtimeEvidence?.playerLastAttackTime || 0);
+            observedPlayerAttackAt = Number(runtime?.getAttribute('data-last-observed-player-attack-at') || 0);
+            criticalPlayerAttackAt = Number(runtime?.getAttribute('data-last-critical-special-player-attack-at') || 0);
+            if (criticalPlayerAttackAt <= minimumAt) {
+              recordRejection('critical-player-attack-boundary', node, { criticalPlayerAttackAt, minimumAt });
+              schedulePaintReinspection();
+              continue;
+            }
+            const exactPlayerAttackAt = (
+              playerLastAttackTime === criticalPlayerAttackAt
+              && observedPlayerAttackAt === criticalPlayerAttackAt
+            ) ? criticalPlayerAttackAt : 0;
+            if (exactPlayerAttackAt <= minimumAt) {
+              recordRejection('critical-player-attack-source-mismatch', node, {
+                criticalPlayerAttackAt,
+                playerLastAttackTime,
+                observedPlayerAttackAt,
+                expectedPlayerAttackAt,
+              });
+              schedulePaintReinspection();
+              continue;
+            }
+            if (!Number.isFinite(expectedPlayerAttackAt)) {
+              scope[expectedPlayerAttackStateKey] = exactPlayerAttackAt;
+              expectedPlayerAttackAt = exactPlayerAttackAt;
+            }
+            if (
+              criticalPlayerAttackAt !== expectedPlayerAttackAt
+              || playerLastAttackTime !== expectedPlayerAttackAt
+              || observedPlayerAttackAt !== expectedPlayerAttackAt
+            ) {
+              recordRejection('critical-player-attack-source-mismatch', node, {
+                criticalPlayerAttackAt,
+                playerLastAttackTime,
+                observedPlayerAttackAt,
+                expectedPlayerAttackAt,
+              });
+              schedulePaintReinspection();
+              continue;
+            }
+          }
+
           const diagnosticCaptureNow = performance.now();
           const diagnosticActionAgeMs = diagnosticCaptureNow - Number(action.at);
           if (!Number.isFinite(diagnosticActionAgeMs) || diagnosticActionAgeMs < 0 || diagnosticActionAgeMs > maxActionAgeMs) {
@@ -457,36 +507,6 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
           }
           if (opacity < 0.9) {
             recordRejection('opacity-below-threshold', node, { opacity });
-            schedulePaintReinspection();
-            continue;
-          }
-          const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
-          const runtimeEvidence = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
-          const playerLastAttackTime = Number(runtimeEvidence?.playerLastAttackTime || 0);
-          const observedPlayerAttackAt = Number(runtime?.getAttribute('data-last-observed-player-attack-at') || 0);
-          const criticalPlayerAttackAt = Number(runtime?.getAttribute('data-last-critical-special-player-attack-at') || 0);
-          if (expectedCritical && criticalPlayerAttackAt <= minimumAt) {
-            recordRejection('critical-player-attack-boundary', node, { criticalPlayerAttackAt, minimumAt });
-            schedulePaintReinspection();
-            continue;
-          }
-          const expectedPlayerAttackAt = Number(scope[expectedPlayerAttackStateKey]);
-          if (expectedCritical && !Number.isFinite(expectedPlayerAttackAt)) {
-            recordRejection('critical-player-attack-unarmed', node, { criticalPlayerAttackAt });
-            schedulePaintReinspection();
-            continue;
-          }
-          if (expectedCritical && (
-            criticalPlayerAttackAt !== expectedPlayerAttackAt
-            || playerLastAttackTime !== expectedPlayerAttackAt
-            || observedPlayerAttackAt !== expectedPlayerAttackAt
-          )) {
-            recordRejection('critical-player-attack-source-mismatch', node, {
-              criticalPlayerAttackAt,
-              playerLastAttackTime,
-              observedPlayerAttackAt,
-              expectedPlayerAttackAt,
-            });
             schedulePaintReinspection();
             continue;
           }
