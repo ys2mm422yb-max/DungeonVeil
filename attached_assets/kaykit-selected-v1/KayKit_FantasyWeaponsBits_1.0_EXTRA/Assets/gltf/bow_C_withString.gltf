@@ -1,0 +1,184 @@
+{
+    "asset" : {
+        "generator" : "Khronos glTF Blender I/O v3.4.50",
+        "version" : "2.0"
+    },
+    "scene" : 0,
+    "scenes" : [
+        {
+            "name" : "Scene",
+            "nodes" : [
+                0
+            ]
+        }
+    ],
+    "nodes" : [
+        {
+            "mesh" : 0,
+            "name" : "bow_C_withString"
+        }
+    ],
+    "materials" : [
+        {
+            "name" : "weapons",
+            "pbrMetallicRoughness" : {
+                "baseColorTexture" : {
+                    "index" : 0
+                },
+                "metallicFactor" : 0,
+                "roughnessFactor" : 0.5
+            }
+        }
+    ],
+    "meshes" : [
+        {
+            "extras" : {
+                "targetNames" : [
+                    "Draw"
+                ]
+            },
+            "name" : "bow_C_withString",
+            "primitives" : [
+                {
+                    "attributes" : {
+                        "POSITION" : 0,
+                        "TEXCOORD_0" : 1,
+                        "NORMAL" : 2
+                    },
+                    "indices" : 3,
+                    "material" : 0,
+                    "targets" : [
+                        {
+                            "POSITION" : 4,
+                            "NORMAL" : 5
+                        }
+                    ]
+                }
+            ],
+            "weights" : [
+                0
+            ]
+        }
+    ],
+    "textures" : [
+        {
+            "sampler" : 0,
+            "source" : 0
+        }
+    ],
+    "images" : [
+        {
+            "mimeType" : "image/png",
+            "name" : "weapons_bits_texture",
+            "uri" : "weapons_bits_texture.png"
+        }
+    ],
+    "accessors" : [
+        {
+            "bufferView" : 0,
+            "componentType" : 5126,
+            "count" : 1450,
+            "max" : [
+                1.3704500198364258,
+                0.06439807265996933,
+                0.06594981998205185
+            ],
+            "min" : [
+                -1.3704500198364258,
+                -0.06439808011054993,
+                -0.498656302690506
+            ],
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 1,
+            "componentType" : 5126,
+            "count" : 1450,
+            "type" : "VEC2"
+        },
+        {
+            "bufferView" : 2,
+            "componentType" : 5126,
+            "count" : 1450,
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 3,
+            "componentType" : 5123,
+            "count" : 3900,
+            "type" : "SCALAR"
+        },
+        {
+            "bufferView" : 4,
+            "componentType" : 5126,
+            "count" : 1450,
+            "max" : [
+                0.25272661447525024,
+                0.0009046671912074089,
+                -0.0001116432249546051
+            ],
+            "min" : [
+                -0.25272661447525024,
+                -0.0009046141058206558,
+                -0.44106414914131165
+            ],
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 5,
+            "componentType" : 5126,
+            "count" : 1450,
+            "type" : "VEC3"
+        }
+    ],
+    "bufferViews" : [
+        {
+            "buffer" : 0,
+            "byteLength" : 17400,
+            "byteOffset" : 0,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 11600,
+            "byteOffset" : 17400,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 17400,
+            "byteOffset" : 29000,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 7800,
+            "byteOffset" : 46400,
+            "target" : 34963
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 17400,
+            "byteOffset" : 54200,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 17400,
+            "byteOffset" : 71600,
+            "target" : 34962
+        }
+    ],
+    "samplers" : [
+        {
+            "magFilter" : 9729,
+            "minFilter" : 9987
+        }
+    ],
+    "buffers" : [
+        {
+            "byteLength" : 89000,
+            "uri" : "bow_C_withString.bin"
+        }
+    ]
+}
