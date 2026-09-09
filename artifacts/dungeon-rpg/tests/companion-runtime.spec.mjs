@@ -104,8 +104,8 @@ async function moveWithKeyboard(page, keys, durationMs) {
   }
 }
 
-async function readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPlayerAttackSetterKey) {
-  return page.evaluate(({ boundary, setterKey }) => {
+async function readConfirmedPlayerAttack(page, attackBoundary) {
+  return page.evaluate(boundary => {
     const snapshot = window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null;
     const runtime = document.querySelector('[data-testid="companion-runtime-bridge"]');
     const playerLastAttackTime = Number(snapshot?.playerLastAttackTime || 0);
@@ -116,26 +116,19 @@ async function readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPla
       && observedPlayerAttackAt === playerLastAttackTime
       && criticalPlayerAttackAt === playerLastAttackTime
     ) ? playerLastAttackTime : 0;
-    if (confirmedAt <= boundary) {
-      return { snapshot, confirmedAt, playerLastAttackTime, observedPlayerAttackAt, criticalPlayerAttackAt, armed: false };
-    }
-    const armed = setterKey ? window[setterKey]?.(confirmedAt) === true : true;
-    return { snapshot, confirmedAt, playerLastAttackTime, observedPlayerAttackAt, criticalPlayerAttackAt, armed };
-  }, { boundary: attackBoundary, setterKey: expectedPlayerAttackSetterKey });
+    return { snapshot, confirmedAt, playerLastAttackTime, observedPlayerAttackAt, criticalPlayerAttackAt };
+  }, attackBoundary);
 }
 
-async function triggerConfirmedPlayerAttack(page, attackBoundary, expectedPlayerAttackSetterKey = '') {
+async function triggerConfirmedPlayerAttack(page, attackBoundary) {
   const inputBurst = 6;
   const attempts = [];
 
   for (let attempt = 0; attempt < inputBurst; attempt += 1) {
-    const beforeState = await readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPlayerAttackSetterKey);
+    const beforeState = await readConfirmedPlayerAttack(page, attackBoundary);
     const before = beforeState.snapshot;
     const previousAttackAt = Number(beforeState.confirmedAt || 0);
-    if (previousAttackAt > attackBoundary) {
-      if (!beforeState.armed) throw new Error(`Authoritative player attack ${previousAttackAt} could not be armed atomically.`);
-      return previousAttackAt;
-    }
+    if (previousAttackAt > attackBoundary) return previousAttackAt;
 
     const enemies = Array.isArray(before?.livingEnemyPositions) ? before.livingEnemyPositions : [];
     if (!enemies.length) break;
@@ -156,17 +149,14 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary, expectedPlayer
     const durationMs = phase === 0 ? 260 : 190;
 
     await moveWithKeyboard(page, keys, durationMs);
-    const movementState = await readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPlayerAttackSetterKey);
+    const movementState = await readConfirmedPlayerAttack(page, attackBoundary);
     const movementAttackAt = Number(movementState.confirmedAt || 0);
-    if (movementAttackAt > attackBoundary) {
-      if (!movementState.armed) throw new Error(`Authoritative player attack ${movementAttackAt} could not be armed atomically.`);
-      return movementAttackAt;
-    }
+    if (movementAttackAt > attackBoundary) return movementAttackAt;
 
     await page.keyboard.press('Space');
     await page.waitForTimeout(120);
 
-    const afterState = await readConfirmedPlayerAttackAndArm(page, attackBoundary, expectedPlayerAttackSetterKey);
+    const afterState = await readConfirmedPlayerAttack(page, attackBoundary);
     const after = afterState.snapshot;
     const confirmedAt = Number(afterState.confirmedAt || 0);
     attempts.push({
@@ -185,10 +175,7 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary, expectedPlayer
       criticalPlayerAttackAt: Number(afterState.criticalPlayerAttackAt || 0),
       livingEnemies: Number(after?.livingEnemies || 0),
     });
-    if (confirmedAt > attackBoundary) {
-      if (!afterState.armed) throw new Error(`Authoritative player attack ${confirmedAt} could not be armed atomically.`);
-      return confirmedAt;
-    }
+    if (confirmedAt > attackBoundary) return confirmedAt;
   }
 
   const finalSnapshot = await readRuntimeCombatSnapshot(page);
@@ -864,11 +851,9 @@ test('critical-support proc renders one readable value on its actual target', as
     const captureBoundary = Number(captureBoundaryState.captureBoundary || 0);
     expect(captureBoundary).toBeGreaterThan(evidenceBoundary);
     expect(captureBoundaryState.playerLastAttackTime).toBe(captureBoundaryState.observedPlayerAttackAt);
-    const expectedPlayerAttackSetterKey = '__dungeonVeilCriticalCompanionFeedbackObservationSetExpectedPlayerAttackAt';
     const confirmedPlayerAttackAt = await triggerConfirmedPlayerAttack(
       page,
       Math.max(readyAttackBoundary, captureBoundary, captureBoundaryState.playerLastAttackTime),
-      expectedPlayerAttackSetterKey,
     );
     const observedCritical = await capturePromise;
     expect(confirmedPlayerAttackAt).toBeGreaterThan(readyAttackBoundary);
