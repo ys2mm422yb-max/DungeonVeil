@@ -207,7 +207,7 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
   }
 
   const finalSnapshot = await readRuntimeCombatSnapshot(page);
-  throw new Error(`No browser-accepted authoritative player attack occurred after ${attackBoundary}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
+  throw new Error(`No authoritative player attack occurred after ${attackBoundary}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
 }
 
 async function readTransientRoomTitleState(page) {
@@ -525,9 +525,13 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             continue;
           }
           if (expectedCritical) {
+            const exactPlayerAttackAt = (
+              playerLastAttackTime === criticalPlayerAttackAt
+              && observedPlayerAttackAt === criticalPlayerAttackAt
+            ) ? criticalPlayerAttackAt : 0;
             if (!Number.isFinite(expectedPlayerAttackAt)) {
-              scope[expectedPlayerAttackStateKey] = criticalPlayerAttackAt;
-              expectedPlayerAttackAt = criticalPlayerAttackAt;
+              scope[expectedPlayerAttackStateKey] = exactPlayerAttackAt;
+              expectedPlayerAttackAt = exactPlayerAttackAt;
             }
             if (
               criticalPlayerAttackAt !== expectedPlayerAttackAt
