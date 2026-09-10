@@ -120,11 +120,27 @@ async function readConfirmedPlayerAttack(page, attackBoundary) {
   }, attackBoundary);
 }
 
+async function readLockedCriticalPlayerAttack(page, attackBoundary) {
+  return page.evaluate(boundary => {
+    const observation = window.__dungeonVeilCriticalCompanionFeedbackObservation;
+    const expectedPlayerAttackAt = Number(observation?.expectedPlayerAttackAt || 0);
+    if (expectedPlayerAttackAt <= boundary) return 0;
+    return (
+      Number(observation?.criticalPlayerAttackAt || 0) === expectedPlayerAttackAt
+      && Number(observation?.playerLastAttackTime || 0) === expectedPlayerAttackAt
+      && Number(observation?.observedPlayerAttackAt || 0) === expectedPlayerAttackAt
+    ) ? expectedPlayerAttackAt : 0;
+  }, attackBoundary);
+}
+
 async function triggerConfirmedPlayerAttack(page, attackBoundary) {
   const inputBurst = 6;
   const attempts = [];
 
   for (let attempt = 0; attempt < inputBurst; attempt += 1) {
+    const lockedBeforeInputAt = await readLockedCriticalPlayerAttack(page, attackBoundary);
+    if (lockedBeforeInputAt > attackBoundary) return lockedBeforeInputAt;
+
     const beforeState = await readConfirmedPlayerAttack(page, attackBoundary);
     const before = beforeState.snapshot;
     const previousAttackAt = Number(beforeState.confirmedAt || 0);
@@ -151,6 +167,8 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
     await moveWithKeyboard(page, keys, durationMs);
     const movementState = await readConfirmedPlayerAttack(page, attackBoundary);
     const movementAttackAt = Number(movementState.confirmedAt || 0);
+    const lockedMovementAttackAt = await readLockedCriticalPlayerAttack(page, attackBoundary);
+    if (lockedMovementAttackAt > attackBoundary) return lockedMovementAttackAt;
     if (movementAttackAt > attackBoundary) return movementAttackAt;
 
     await page.keyboard.press('Space');
@@ -159,6 +177,7 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
     const afterState = await readConfirmedPlayerAttack(page, attackBoundary);
     const after = afterState.snapshot;
     const confirmedAt = Number(afterState.confirmedAt || 0);
+    const lockedAfterInputAt = await readLockedCriticalPlayerAttack(page, attackBoundary);
     attempts.push({
       attempt,
       keys,
@@ -170,11 +189,13 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
       targetY: target.y,
       previousAttackAt,
       confirmedAt,
+      lockedAfterInputAt,
       playerLastAttackTime: Number(afterState.playerLastAttackTime || 0),
       observedPlayerAttackAt: Number(afterState.observedPlayerAttackAt || 0),
       criticalPlayerAttackAt: Number(afterState.criticalPlayerAttackAt || 0),
       livingEnemies: Number(after?.livingEnemies || 0),
     });
+    if (lockedAfterInputAt > attackBoundary) return lockedAfterInputAt;
     if (confirmedAt > attackBoundary) return confirmedAt;
   }
 
