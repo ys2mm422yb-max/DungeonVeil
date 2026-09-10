@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
@@ -71,15 +71,41 @@ test('renderer recovery saves and freezes a real Solo run while the transition H
     document.documentElement.dataset.dungeonVeilRendererRecoveredAt = '';
     const pageIdentity = `${Date.now()}-${Math.random()}`;
     const previousSave = JSON.parse(localStorage.getItem('dungeon-veil-save') || '{}');
-    window.__dvTransitionRecoveryEvidence = { pageIdentity, preparing: 0, lost: 0, ready: 0 };
+    const readDiagnostics = () => {
+      try { return JSON.parse(localStorage.getItem('dungeon-veil-runtime-diagnostics') || '{}'); }
+      catch { return {}; }
+    };
+    const recordRecoveryEvent = (type, event) => {
+      const detail = event.detail ?? {};
+      window.__dvTransitionRecoveryEvidence.events.push({
+        type,
+        eventTimeStamp: event.timeStamp,
+        performanceNow: performance.now(),
+        dateNow: Date.now(),
+        detail: { ...detail },
+        rendererState: document.documentElement.dataset.dungeonVeilRendererState || '',
+        rendererRecoveredAt: Number(document.documentElement.dataset.dungeonVeilRendererRecoveredAt || 0),
+        roomBuildState: document.documentElement.dataset.dungeonVeilRoomBuildState || '',
+        diagnostics: readDiagnostics(),
+        connectedCanvasCount: document.querySelectorAll('[data-testid="run-three-host"] canvas').length,
+      });
+    };
+    window.__dvTransitionRecoveryEvidence = { pageIdentity, preparing: 0, lost: 0, ready: 0, events: [] };
     window.addEventListener('dungeon-veil-room-preparing', event => {
       const detail = event.detail ?? {};
       const recoveryPreparing = detail.rendererRecovery || detail.owner === 'game-canvas-recovery' || detail.reason === 'webglcontextlost';
-      if (recoveryPreparing) window.__dvTransitionRecoveryEvidence.preparing += 1;
+      if (!recoveryPreparing) return;
+      window.__dvTransitionRecoveryEvidence.preparing += 1;
+      recordRecoveryEvent('dungeon-veil-room-preparing', event);
     });
-    window.addEventListener('dungeon-veil-renderer-lost', () => { window.__dvTransitionRecoveryEvidence.lost += 1; });
+    window.addEventListener('dungeon-veil-renderer-lost', event => {
+      window.__dvTransitionRecoveryEvidence.lost += 1;
+      recordRecoveryEvent('dungeon-veil-renderer-lost', event);
+    });
     window.addEventListener('dungeon-veil-room-ready', event => {
-      if (event.detail?.recovered) window.__dvTransitionRecoveryEvidence.ready += 1;
+      if (!event.detail?.recovered) return;
+      window.__dvTransitionRecoveryEvidence.ready += 1;
+      recordRecoveryEvent('dungeon-veil-room-ready', event);
     });
     return { pageIdentity, savedAt: Number(previousSave.savedAt || 0) };
   });
@@ -98,9 +124,25 @@ test('renderer recovery saves and freezes a real Solo run while the transition H
   await expect.poll(() => page.evaluate(() => Number(document.documentElement.dataset.dungeonVeilRendererRecoveredAt || 0)), { timeout: 20_000 }).toBeGreaterThan(0);
 
   const recovered = await page.evaluate(() => ({
-    evidence: { ...window.__dvTransitionRecoveryEvidence },
+    evidence: {
+      ...window.__dvTransitionRecoveryEvidence,
+      events: window.__dvTransitionRecoveryEvidence.events.map(event => ({ ...event, detail: { ...event.detail }, diagnostics: { ...event.diagnostics } })),
+    },
     save: JSON.parse(localStorage.getItem('dungeon-veil-save') || '{}'),
+    finalRendererState: document.documentElement.dataset.dungeonVeilRendererState || '',
+    finalRendererRecoveredAt: Number(document.documentElement.dataset.dungeonVeilRendererRecoveredAt || 0),
+    finalDiagnostics: (() => {
+      try { return JSON.parse(localStorage.getItem('dungeon-veil-runtime-diagnostics') || '{}'); }
+      catch { return {}; }
+    })(),
   }));
+  await mkdir(OUTPUT, { recursive: true });
+  await writeFile(
+    `${OUTPUT}/renderer-recovery-event-chronology-${testInfo.project.name}.json`,
+    `${JSON.stringify(recovered, null, 2)}\n`,
+    'utf8',
+  );
+  console.info('DUNGEON_VEIL_RENDERER_RECOVERY_CHRONOLOGY', JSON.stringify(recovered.evidence));
   expect(recovered.evidence.pageIdentity).toBe(setup.pageIdentity);
   expect(recovered.evidence.preparing, JSON.stringify(recovered.evidence)).toBe(1);
   expect(recovered.evidence.lost, JSON.stringify(recovered.evidence)).toBe(1);
@@ -149,6 +191,5 @@ test('renderer recovery saves and freezes a real Solo run while the transition H
   });
   await expect(page.getByTestId('run-hud')).toBeVisible();
   await waitForPaintedCanvas(page);
-  await mkdir(OUTPUT, { recursive: true });
   await page.screenshot({ path: `${OUTPUT}/webgl-recovered-hidden-hud-${testInfo.project.name}.png`, fullPage: false });
 });
