@@ -97,11 +97,11 @@ jobs:
 
           mapfile -d '' -t videos < <(find artifacts/dungeon-rpg/temporal-test-results -type f -name 'video.webm' -print0)
           test "${#videos[@]}" -eq 1
-          cp "${videos[0]}" "$evidence_dir/critical-support-${BROWSER_PROJECT}.webm"
+          cp "${videos[0]}" "$evidence_dir/companion-damage-feedback-critical-${BROWSER_PROJECT}.webm"
 
           mapfile -d '' -t screenshots < <(find artifacts/dungeon-rpg/test-results -type f -name "companion-damage-feedback-critical-${BROWSER_PROJECT}.png" -print0)
           test "${#screenshots[@]}" -eq 1
-          cp "${screenshots[0]}" "$evidence_dir/critical-support-${BROWSER_PROJECT}.png"
+          cp "${screenshots[0]}" "$evidence_dir/companion-damage-feedback-critical-${BROWSER_PROJECT}.png"
 
           receipt_line="$(grep -F 'DUNGEON_VEIL_CRITICAL_SUPPORT_TIMING_RECEIPT ' "$log" | tail -n 1)"
           test -n "$receipt_line"
