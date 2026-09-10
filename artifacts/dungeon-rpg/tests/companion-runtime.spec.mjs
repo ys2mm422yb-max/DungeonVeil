@@ -144,7 +144,6 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
     const beforeState = await readConfirmedPlayerAttack(page, attackBoundary);
     const before = beforeState.snapshot;
     const previousAttackAt = Number(beforeState.confirmedAt || 0);
-    if (previousAttackAt > attackBoundary) return previousAttackAt;
 
     const enemies = Array.isArray(before?.livingEnemyPositions) ? before.livingEnemyPositions : [];
     if (!enemies.length) break;
@@ -168,8 +167,12 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
     const movementState = await readConfirmedPlayerAttack(page, attackBoundary);
     const movementAttackAt = Number(movementState.confirmedAt || 0);
     const lockedMovementAttackAt = await readLockedCriticalPlayerAttack(page, attackBoundary);
-    if (lockedMovementAttackAt > attackBoundary) return lockedMovementAttackAt;
-    if (movementAttackAt > attackBoundary) return movementAttackAt;
+    if (lockedMovementAttackAt > attackBoundary) {
+      if (movementAttackAt === lockedMovementAttackAt) {
+        if (movementAttackAt > attackBoundary) return movementAttackAt;
+      }
+      return lockedMovementAttackAt;
+    }
 
     await page.keyboard.press('Space');
     await page.waitForTimeout(120);
@@ -195,12 +198,16 @@ async function triggerConfirmedPlayerAttack(page, attackBoundary) {
       criticalPlayerAttackAt: Number(afterState.criticalPlayerAttackAt || 0),
       livingEnemies: Number(after?.livingEnemies || 0),
     });
-    if (lockedAfterInputAt > attackBoundary) return lockedAfterInputAt;
-    if (confirmedAt > attackBoundary) return confirmedAt;
+    if (lockedAfterInputAt > attackBoundary) {
+      if (confirmedAt === lockedAfterInputAt) {
+        if (confirmedAt > attackBoundary) return confirmedAt;
+      }
+      return lockedAfterInputAt;
+    }
   }
 
   const finalSnapshot = await readRuntimeCombatSnapshot(page);
-  throw new Error(`No authoritative player attack occurred after ${attackBoundary}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
+  throw new Error(`No browser-accepted authoritative player attack occurred after ${attackBoundary}. Attempts: ${JSON.stringify(attempts)}. Final snapshot: ${JSON.stringify(finalSnapshot)}`);
 }
 
 async function readTransientRoomTitleState(page) {
@@ -478,14 +485,13 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
               schedulePaintReinspection();
               continue;
             }
-            if (!Number.isFinite(expectedPlayerAttackAt)) {
-              scope[expectedPlayerAttackStateKey] = exactPlayerAttackAt;
-              expectedPlayerAttackAt = exactPlayerAttackAt;
-            }
             if (
-              criticalPlayerAttackAt !== expectedPlayerAttackAt
-              || playerLastAttackTime !== expectedPlayerAttackAt
-              || observedPlayerAttackAt !== expectedPlayerAttackAt
+              Number.isFinite(expectedPlayerAttackAt)
+              && (
+                criticalPlayerAttackAt !== expectedPlayerAttackAt
+                || playerLastAttackTime !== expectedPlayerAttackAt
+                || observedPlayerAttackAt !== expectedPlayerAttackAt
+              )
             ) {
               recordRejection('critical-player-attack-source-mismatch', node, {
                 criticalPlayerAttackAt,
@@ -517,6 +523,26 @@ async function captureLiveCompanionFeedbackEvidence(page, { role, critical, notB
             recordRejection('opacity-below-threshold', node, { opacity });
             schedulePaintReinspection();
             continue;
+          }
+          if (expectedCritical) {
+            if (!Number.isFinite(expectedPlayerAttackAt)) {
+              scope[expectedPlayerAttackStateKey] = criticalPlayerAttackAt;
+              expectedPlayerAttackAt = criticalPlayerAttackAt;
+            }
+            if (
+              criticalPlayerAttackAt !== expectedPlayerAttackAt
+              || playerLastAttackTime !== expectedPlayerAttackAt
+              || observedPlayerAttackAt !== expectedPlayerAttackAt
+            ) {
+              recordRejection('critical-player-attack-source-mismatch', node, {
+                criticalPlayerAttackAt,
+                playerLastAttackTime,
+                observedPlayerAttackAt,
+                expectedPlayerAttackAt,
+              });
+              schedulePaintReinspection();
+              continue;
+            }
           }
           const layer = document.querySelector('[data-testid="companion-damage-feedback-layer"]');
           const payload = {
