@@ -1,0 +1,141 @@
+name: Companion Temporal Evidence QA
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/companion-temporal-evidence.yml'
+      - 'artifacts/dungeon-rpg/playwright.companion-temporal.config.mjs'
+      - 'artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.run_attempt }}
+  cancel-in-progress: true
+
+env:
+  PLAYWRIGHT_VERSION: '1.55.0'
+  BASE_PATH: /DungeonVeil/
+  DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
+
+jobs:
+  critical-support-temporal-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - project: iphone-webkit
+            browser: webkit
+          - project: android-chromium
+            browser: chromium
+          - project: ipad-portrait-webkit
+            browser: webkit
+          - project: android-tablet-chromium
+            browser: chromium
+    env:
+      BROWSER_PROJECT: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install deterministic browser runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@${PLAYWRIGHT_VERSION} --lockfile=false
+      - name: Restore browser engine cache
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
+      - name: Install browser system dependencies
+        run: .github/scripts/install-playwright-deps-bounded.sh "${{ matrix.browser }}"
+      - name: Install browser engine
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --dir artifacts/dungeon-rpg exec playwright install ${{ matrix.browser }}
+      - name: Build production app
+        run: BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg run build
+      - name: Run focused Critical Support temporal journey
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="/tmp/dungeon-veil-critical-support-temporal-${BROWSER_PROJECT}.log"
+          BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview --config vite.config.ts --host 127.0.0.1 --port 4173 > "/tmp/dungeon-veil-critical-support-preview-${BROWSER_PROJECT}.log" 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for attempt in {1..40}; do
+            if curl --fail --silent "$DUNGEON_VEIL_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          timeout --signal=TERM --kill-after=30s 8m pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            tests/companion-runtime.spec.mjs \
+            --config=playwright.companion-temporal.config.mjs \
+            --project="$BROWSER_PROJECT" \
+            --grep "critical-support proc renders one readable value on its actual target" \
+            --reporter=line \
+            2>&1 | tee "$log"
+      - name: Package Critical Support video and timing receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="/tmp/dungeon-veil-critical-support-temporal-${BROWSER_PROJECT}.log"
+          evidence_dir="artifacts/dungeon-rpg/temporal-evidence/critical-support-${BROWSER_PROJECT}"
+          mkdir -p "$evidence_dir"
+
+          mapfile -d '' -t videos < <(find artifacts/dungeon-rpg/temporal-test-results -type f -name 'video.webm' -print0)
+          test "${#videos[@]}" -eq 1
+          cp "${videos[0]}" "$evidence_dir/critical-support-${BROWSER_PROJECT}.webm"
+
+          mapfile -d '' -t screenshots < <(find artifacts/dungeon-rpg/test-results -type f -name "companion-damage-feedback-critical-${BROWSER_PROJECT}.png" -print0)
+          test "${#screenshots[@]}" -eq 1
+          cp "${screenshots[0]}" "$evidence_dir/critical-support-${BROWSER_PROJECT}.png"
+
+          receipt_line="$(grep -F 'DUNGEON_VEIL_CRITICAL_SUPPORT_TIMING_RECEIPT ' "$log" | tail -n 1)"
+          test -n "$receipt_line"
+          RECEIPT_LINE="$receipt_line" RECEIPT_PATH="$evidence_dir/critical-support-${BROWSER_PROJECT}.timing.json" node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const prefix = 'DUNGEON_VEIL_CRITICAL_SUPPORT_TIMING_RECEIPT ';
+          const line = process.env.RECEIPT_LINE || '';
+          const at = line.indexOf(prefix);
+          if (at < 0) throw new Error('Critical Support timing receipt marker missing');
+          const receipt = JSON.parse(line.slice(at + prefix.length));
+          if (receipt.project !== process.env.BROWSER_PROJECT) throw new Error('Critical Support timing receipt project mismatch');
+          if (receipt.maxAgeMs !== 250) throw new Error('Critical Support maxAgeMs changed');
+          if (!Number.isFinite(receipt.diagnosticActionAgeMs) || receipt.diagnosticActionAgeMs < 0 || receipt.diagnosticActionAgeMs > 250) {
+            throw new Error(`Critical Support action age outside 0..250ms: ${receipt.diagnosticActionAgeMs}`);
+          }
+          const timestamps = [receipt.criticalPlayerAttackAt, receipt.playerLastAttackTime, receipt.observedPlayerAttackAt, receipt.expectedPlayerAttackAt];
+          if (!timestamps.every(value => Number.isFinite(value) && value === timestamps[0])) throw new Error('Critical Support attack timestamps diverged');
+          if (receipt.actionRole !== 'critical-support' || receipt.feedbackRole !== 'critical-support') throw new Error('Critical Support role identity mismatch');
+          if (!receipt.actionTargetId || receipt.actionTargetId !== receipt.feedbackTargetId) throw new Error('Critical Support target identity mismatch');
+          fs.writeFileSync(process.env.RECEIPT_PATH, `${JSON.stringify(receipt, null, 2)}\n`);
+          NODE
+
+          node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs \
+            "$evidence_dir" \
+            "$evidence_dir/critical-support-${BROWSER_PROJECT}.manifest.json"
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs \
+            --max-mb 100 \
+            --label "critical-support-temporal-${BROWSER_PROJECT}" \
+            "$evidence_dir"
+      - name: Upload Critical Support temporal evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: companion-critical-support-temporal-evidence-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+          path: artifacts/dungeon-rpg/temporal-evidence/critical-support-${{ matrix.project }}
