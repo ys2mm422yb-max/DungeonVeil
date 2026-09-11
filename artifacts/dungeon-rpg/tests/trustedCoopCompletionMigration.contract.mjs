@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const migrationPath = process.argv[2];
-if (!migrationPath) throw new Error('migration path required');
-const sql = fs.readFileSync(migrationPath, 'utf8');
+const migrationPaths = process.argv.slice(2);
+if (migrationPaths.length < 1) throw new Error('at least one migration path required');
+const sql = migrationPaths.map((migrationPath) => fs.readFileSync(migrationPath, 'utf8')).join('\n');
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -18,6 +18,13 @@ test('creates exact-run trusted completion ledger with RLS', () => {
 test('client roles cannot mutate or read trusted proof ledger', () => {
   contains(/revoke all on table public\.coop_trusted_encounter_completions from public, anon, authenticated/i);
   assert.doesNotMatch(sql, /grant\s+(?:select|insert|update|delete|all)[^;]*coop_trusted_encounter_completions[^;]*\b(?:anon|authenticated)\b/i);
+});
+
+test('service role has no direct ledger privileges after migrations', () => {
+  const serviceTableStatements = [...sql.matchAll(/(?:grant|revoke)[^;]*on table public\.coop_trusted_encounter_completions[^;]*service_role[^;]*;/gi)];
+  assert.ok(serviceTableStatements.length >= 1, 'service_role table privileges must be explicitly finalized');
+  const finalStatement = serviceTableStatements.at(-1)[0];
+  assert.match(finalStatement, /revoke all on table public\.coop_trusted_encounter_completions from service_role/i);
 });
 
 test('only service role can execute proof recorder', () => {
