@@ -43,6 +43,8 @@ export type AuthorityActorInput = Readonly<{
   attack: number;
   x: number;
   y: number;
+  width: number;
+  height: number;
   active?: boolean;
 }>;
 
@@ -60,6 +62,8 @@ export type AuthorityActor = Readonly<{
   attackCooldownMs: number;
   x: number;
   y: number;
+  width: number;
+  height: number;
   active: boolean;
   nextBasicHitAtMs: number;
 }>;
@@ -72,6 +76,8 @@ export type AuthorityEnemyState = Readonly<{
   defense: number;
   x: number;
   y: number;
+  width: number;
+  height: number;
 }>;
 
 export type CanonicalEncounterState = Readonly<{
@@ -133,13 +139,21 @@ function assertFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
 }
 
+function assertFinitePositive(value: number, label: string): void {
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`${label} must be finite and positive`);
+}
+
 function stableEncounterId(input: Pick<CreateCanonicalEncounterInput, 'runId' | 'runAttempt' | 'chapter' | 'room' | 'seed'>): string {
   return `${input.runId}:${input.runAttempt}:${input.chapter}:${input.room}:${input.seed}`;
 }
 
 function isWithinBasicHitRange(actor: AuthorityActor, enemy: AuthorityEnemyState): boolean {
-  const dx = actor.x - enemy.x;
-  const dy = actor.y - enemy.y;
+  const actorCenterX = actor.x + actor.width / 2;
+  const actorCenterY = actor.y + actor.height / 2;
+  const enemyCenterX = enemy.x + enemy.width / 2;
+  const enemyCenterY = enemy.y + enemy.height / 2;
+  const dx = actorCenterX - enemyCenterX;
+  const dy = actorCenterY - enemyCenterY;
   return dx * dx + dy * dy <= actor.attackRange * actor.attackRange;
 }
 
@@ -162,6 +176,8 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
     assertFiniteNonNegative(actor.attack, 'actor.attack');
     assertFinite(actor.x, 'actor.x');
     assertFinite(actor.y, 'actor.y');
+    assertFinitePositive(actor.width, 'actor.width');
+    assertFinitePositive(actor.height, 'actor.height');
     return Object.freeze({
       actorId: actor.actorId,
       classKey: actor.classKey,
@@ -170,6 +186,8 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
       attackCooldownMs: classCombat.attackCooldownMs,
       x: actor.x,
       y: actor.y,
+      width: actor.width,
+      height: actor.height,
       active: actor.active !== false,
       nextBasicHitAtMs: 0,
     });
@@ -193,6 +211,8 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
       defense: base.defense,
       x: enemy.x,
       y: enemy.y,
+      width: base.size,
+      height: base.size,
     });
   });
 
