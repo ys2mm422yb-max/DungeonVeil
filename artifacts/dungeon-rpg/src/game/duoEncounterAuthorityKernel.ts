@@ -1,4 +1,5 @@
 export type AuthorityEnemyType = 'slime' | 'goblin' | 'skeleton' | 'orc' | 'spider' | 'vampire' | 'demon' | 'golem' | 'boss';
+export type AuthorityClassKey = 'warrior' | 'mage' | 'archer';
 
 export type AuthorityEnemyManifestEntry = Readonly<{
   hp: number;
@@ -10,7 +11,16 @@ export type AuthorityEnemyManifestEntry = Readonly<{
   color: string;
 }>;
 
-export const BASIC_HIT_COOLDOWN_MS = 350;
+export type AuthorityClassCombatEntry = Readonly<{
+  attackRange: number;
+  attackCooldownMs: number;
+}>;
+
+export const CANONICAL_CLASS_COMBAT_MANIFEST: Readonly<Record<AuthorityClassKey, AuthorityClassCombatEntry>> = Object.freeze({
+  warrior: Object.freeze({ attackRange: 65, attackCooldownMs: 350 }),
+  mage: Object.freeze({ attackRange: 55, attackCooldownMs: 550 }),
+  archer: Object.freeze({ attackRange: 105, attackCooldownMs: 270 }),
+});
 
 // Mirrors the current runEngine enemy combat constants so the future server reducer has
 // one browser-free manifest to consume. Slice 1 intentionally does not change reward
@@ -29,13 +39,27 @@ export const CANONICAL_ENEMY_COMBAT_MANIFEST: Readonly<Record<AuthorityEnemyType
 
 export type AuthorityActorInput = Readonly<{
   actorId: string;
+  classKey: AuthorityClassKey;
   attack: number;
+  x: number;
+  y: number;
   active?: boolean;
+}>;
+
+export type AuthorityEnemyInput = Readonly<{
+  enemyType: AuthorityEnemyType;
+  x: number;
+  y: number;
 }>;
 
 export type AuthorityActor = Readonly<{
   actorId: string;
+  classKey: AuthorityClassKey;
   attack: number;
+  attackRange: number;
+  attackCooldownMs: number;
+  x: number;
+  y: number;
   active: boolean;
   nextBasicHitAtMs: number;
 }>;
@@ -46,6 +70,8 @@ export type AuthorityEnemyState = Readonly<{
   hp: number;
   maxHp: number;
   defense: number;
+  x: number;
+  y: number;
 }>;
 
 export type CanonicalEncounterState = Readonly<{
@@ -92,7 +118,7 @@ export type CreateCanonicalEncounterInput = Readonly<{
   room: number;
   seed: number;
   actors: readonly AuthorityActorInput[];
-  enemyTypes: readonly AuthorityEnemyType[];
+  enemies: readonly AuthorityEnemyInput[];
 }>;
 
 function assertPositiveInteger(value: number, label: string): void {
@@ -103,8 +129,18 @@ function assertFiniteNonNegative(value: number, label: string): void {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${label} must be finite and non-negative`);
 }
 
+function assertFinite(value: number, label: string): void {
+  if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
+}
+
 function stableEncounterId(input: Pick<CreateCanonicalEncounterInput, 'runId' | 'runAttempt' | 'chapter' | 'room' | 'seed'>): string {
   return `${input.runId}:${input.runAttempt}:${input.chapter}:${input.room}:${input.seed}`;
+}
+
+function isWithinBasicHitRange(actor: AuthorityActor, enemy: AuthorityEnemyState): boolean {
+  const dx = actor.x - enemy.x;
+  const dy = actor.y - enemy.y;
+  return dx * dx + dy * dy <= actor.attackRange * actor.attackRange;
 }
 
 export function createCanonicalEncounterState(input: CreateCanonicalEncounterInput): CanonicalEncounterState {
@@ -114,17 +150,26 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
   assertPositiveInteger(input.room, 'room');
   if (!Number.isSafeInteger(input.seed)) throw new Error('seed must be a safe integer');
   if (input.actors.length < 1 || input.actors.length > 2) throw new Error('Duo authority requires one or two actors');
-  if (input.enemyTypes.length < 1) throw new Error('encounter requires at least one enemy');
+  if (input.enemies.length < 1) throw new Error('encounter requires at least one enemy');
 
   const actorIds = new Set<string>();
   const actors = input.actors.map(actor => {
     if (!actor.actorId.trim()) throw new Error('actorId is required');
     if (actorIds.has(actor.actorId)) throw new Error(`duplicate actorId: ${actor.actorId}`);
     actorIds.add(actor.actorId);
+    const classCombat = CANONICAL_CLASS_COMBAT_MANIFEST[actor.classKey];
+    if (!classCombat) throw new Error(`unknown classKey: ${String(actor.classKey)}`);
     assertFiniteNonNegative(actor.attack, 'actor.attack');
+    assertFinite(actor.x, 'actor.x');
+    assertFinite(actor.y, 'actor.y');
     return Object.freeze({
       actorId: actor.actorId,
+      classKey: actor.classKey,
       attack: actor.attack,
+      attackRange: classCombat.attackRange,
+      attackCooldownMs: classCombat.attackCooldownMs,
+      x: actor.x,
+      y: actor.y,
       active: actor.active !== false,
       nextBasicHitAtMs: 0,
     });
@@ -134,16 +179,20 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
   const roomScale = 1 + (input.room - 1) * 0.055;
   const scale = chapterScale * roomScale;
   const encounterId = stableEncounterId(input);
-  const enemies = input.enemyTypes.map((enemyType, index) => {
-    const base = CANONICAL_ENEMY_COMBAT_MANIFEST[enemyType];
-    if (!base) throw new Error(`unknown enemy type: ${String(enemyType)}`);
+  const enemies = input.enemies.map((enemy, index) => {
+    const base = CANONICAL_ENEMY_COMBAT_MANIFEST[enemy.enemyType];
+    if (!base) throw new Error(`unknown enemy type: ${String(enemy.enemyType)}`);
+    assertFinite(enemy.x, 'enemy.x');
+    assertFinite(enemy.y, 'enemy.y');
     const maxHp = Math.round(base.hp * scale);
     return Object.freeze({
-      enemyId: `${encounterId}:${index}:${enemyType}`,
-      enemyType,
+      enemyId: `${encounterId}:${index}:${enemy.enemyType}`,
+      enemyType: enemy.enemyType,
       hp: maxHp,
       maxHp,
       defense: base.defense,
+      x: enemy.x,
+      y: enemy.y,
     });
   });
 
@@ -185,13 +234,15 @@ export function reduceAuthorityIntent(
   const targetIndex = state.enemies.findIndex(enemy => enemy.enemyId === intent.targetEnemyId && enemy.hp > 0);
   if (targetIndex < 0) throw new Error('target is not a living canonical enemy');
   const target = state.enemies[targetIndex];
+  if (!isWithinBasicHitRange(actor, target)) throw new Error('target is outside canonical basic-hit range');
+
   const damage = Math.max(1, Math.round(actor.attack - target.defense * 0.5));
   const nextHp = Math.max(0, target.hp - damage);
   const enemies = state.enemies.map((enemy, index) => index === targetIndex
     ? Object.freeze({ ...enemy, hp: nextHp })
     : enemy);
   const actors = state.actors.map((candidate, index) => index === actorIndex
-    ? Object.freeze({ ...candidate, nextBasicHitAtMs: authorityNowMs + BASIC_HIT_COOLDOWN_MS })
+    ? Object.freeze({ ...candidate, nextBasicHitAtMs: authorityNowMs + actor.attackCooldownMs })
     : candidate);
   const nextVersion = state.version + 1;
   const completed = enemies.every(enemy => enemy.hp <= 0);
