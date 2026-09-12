@@ -272,8 +272,8 @@ export function reduceAuthorityIntent(
     const magnitudeSquared = intent.directionX * intent.directionX + intent.directionY * intent.directionY;
     if (magnitudeSquared > 1.000001) throw new Error('movement direction magnitude exceeds one');
     const elapsedMs = authorityNowMs - actor.lastAuthorityAtMs;
-    if (elapsedMs > MAX_AUTHORITY_MOVEMENT_STEP_MS) throw new Error('movement step exceeds authority time budget');
-    const distance = actor.speed * (elapsedMs / 1000);
+    const movementAccepted = elapsedMs <= MAX_AUTHORITY_MOVEMENT_STEP_MS;
+    const distance = movementAccepted ? actor.speed * (elapsedMs / 1000) : 0;
     const actors = state.actors.map((candidate, index) => index === actorIndex
       ? Object.freeze({
           ...candidate,
