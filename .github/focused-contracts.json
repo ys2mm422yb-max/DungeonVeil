@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "contracts": {
+    "duo-canonical-encounter-factory": {
+      "path": "artifacts/dungeon-rpg/tests/duo-canonical-encounter-factory.contract.mjs",
+      "runner": "node-test"
+    }
+  }
+}
