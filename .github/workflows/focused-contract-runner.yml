@@ -1,20 +1,11 @@
 name: Focused Contract Runner
 
 on:
-  workflow_dispatch:
-    inputs:
-      expected_head:
-        description: Exact current PR head SHA to execute
-        required: true
-        type: string
-      contract_id:
-        description: Allowlisted contract id from .github/focused-contracts.json
-        required: true
-        type: string
-      pr_number:
-        description: PR number whose current head must equal expected_head
-        required: true
-        type: string
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    types:
+      - labeled
 
 permissions:
   contents: read
@@ -22,33 +13,40 @@ permissions:
 
 jobs:
   focused-contract:
+    if: startsWith(github.event.label.name, 'focused-contract:')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Validate dispatch inputs
+      - name: Validate trigger and derive exact inputs
         id: inputs
         env:
-          EXPECTED_HEAD: ${{ inputs.expected_head }}
-          CONTRACT_ID: ${{ inputs.contract_id }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          TRIGGER_LABEL: ${{ github.event.label.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          set -euo pipefail
           node -e "if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD || '')) process.exit(1)"
           node -e "if (!/^[1-9][0-9]*$/.test(process.env.PR_NUMBER || '')) process.exit(1)"
-          node -e "if (!/^[A-Za-z0-9._-]+$/.test(process.env.CONTRACT_ID || '')) process.exit(1)"
+          node -e "if (!/^focused-contract:[A-Za-z0-9._-]+$/.test(process.env.TRIGGER_LABEL || '')) process.exit(1)"
+          CONTRACT_ID="${TRIGGER_LABEL#focused-contract:}"
+          test -n "$CONTRACT_ID"
+          printf 'contract_id=%s\n' "$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+          printf 'expected_head=%s\n' "$EXPECTED_HEAD" >> "$GITHUB_OUTPUT"
+          printf 'pr_number=%s\n' "$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout exact requested head
+      - name: Checkout exact PR event head
         id: checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.expected_head }}
+          ref: ${{ steps.inputs.outputs.expected_head }}
           path: repo
           persist-credentials: false
 
       - name: Verify checkout and current PR head
         id: head_guard
         env:
-          EXPECTED_HEAD: ${{ inputs.expected_head }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD: ${{ steps.inputs.outputs.expected_head }}
+          PR_NUMBER: ${{ steps.inputs.outputs.pr_number }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -85,7 +83,7 @@ jobs:
         id: contract
         working-directory: repo
         env:
-          CONTRACT_ID: ${{ inputs.contract_id }}
+          CONTRACT_ID: ${{ steps.inputs.outputs.contract_id }}
         run: |
           node <<'NODE' >> "$GITHUB_OUTPUT"
           const fs = require('node:fs');
@@ -116,10 +114,11 @@ jobs:
         id: classify
         if: always()
         env:
-          EXPECTED_HEAD: ${{ inputs.expected_head }}
-          CONTRACT_ID: ${{ inputs.contract_id }}
+          EXPECTED_HEAD: ${{ steps.inputs.outputs.expected_head }}
+          CONTRACT_ID: ${{ steps.inputs.outputs.contract_id }}
           CONTRACT_PATH: ${{ steps.contract.outputs.path }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ steps.inputs.outputs.pr_number }}
+          TRIGGER_LABEL: ${{ github.event.label.name }}
           INPUT_OUTCOME: ${{ steps.inputs.outcome }}
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
           HEAD_GUARD_OUTCOME: ${{ steps.head_guard.outcome }}
@@ -137,7 +136,7 @@ jobs:
 
           if [ "$INPUT_OUTCOME" != "success" ]; then
             RESULT="not_executed"
-            FAILURE_STAGE="input_validation"
+            FAILURE_STAGE="trigger_validation"
           elif [ "$CHECKOUT_OUTCOME" != "success" ]; then
             RESULT="infrastructure_failure"
             FAILURE_STAGE="checkout"
@@ -185,6 +184,7 @@ jobs:
             actual_head: process.env.ACTUAL_HEAD ?? '',
             current_pr_head: process.env.CURRENT_PR_HEAD ?? '',
             current_pr_state: process.env.CURRENT_PR_STATE ?? '',
+            trigger_label: process.env.TRIGGER_LABEL ?? '',
             contract_id: process.env.CONTRACT_ID ?? '',
             contract_path: process.env.CONTRACT_PATH ?? '',
             contract_blob: process.env.CONTRACT_BLOB ?? '',
