@@ -135,6 +135,33 @@ jobs:
           mkdir -p "$RECEIPT_DIR"
           node --test "$CONTRACT_PATH" 2>&1 | tee "$RECEIPT_DIR/test-output.tap"
 
+      - name: Revalidate current PR after execution
+        id: final_head_guard
+        if: always()
+        continue-on-error: true
+        env:
+          EXPECTED_HEAD: ${{ steps.inputs.outputs.expected_head }}
+          PR_NUMBER: ${{ steps.inputs.outputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          FINAL_PR_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          FINAL_PR_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.state')"
+          FINAL_PR_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.base.ref')"
+          FINAL_GUARD_STATUS="ok"
+          if [ "$FINAL_PR_STATE" != "open" ]; then
+            FINAL_GUARD_STATUS="state_changed"
+          elif [ "$FINAL_PR_BASE" != "fix/mobile-telegraphs-room-21-50-balance" ]; then
+            FINAL_GUARD_STATUS="base_changed"
+          elif [ "$FINAL_PR_HEAD" != "$EXPECTED_HEAD" ]; then
+            FINAL_GUARD_STATUS="head_changed"
+          fi
+          printf '%s\n' "$FINAL_PR_HEAD" > final-pr-head.txt
+          printf '%s\n' "$FINAL_PR_STATE" > final-pr-state.txt
+          printf '%s\n' "$FINAL_PR_BASE" > final-pr-base.txt
+          printf '%s\n' "$FINAL_GUARD_STATUS" > final-pr-guard-status.txt
+          test "$FINAL_GUARD_STATUS" = "ok"
+
       - name: Classify and record terminal result
         id: classify
         if: always()
@@ -155,12 +182,15 @@ jobs:
           INSTALL_OUTCOME: ${{ steps.install.outcome }}
           CONTRACT_OUTCOME: ${{ steps.contract.outcome }}
           EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
+          FINAL_HEAD_GUARD_OUTCOME: ${{ steps.final_head_guard.outcome }}
         run: |
           set -u
           mkdir -p focused-contract-receipt
 
           RESULT="not_executed"
           FAILURE_STAGE="none"
+          FINAL_GUARD_STATUS=""
+          if [ -f final-pr-guard-status.txt ]; then FINAL_GUARD_STATUS="$(cat final-pr-guard-status.txt)"; fi
 
           if [ "$INPUT_OUTCOME" != "success" ]; then
             RESULT="not_executed"
@@ -183,6 +213,14 @@ jobs:
           elif [ "$CONTRACT_OUTCOME" != "success" ]; then
             RESULT="not_executed"
             FAILURE_STAGE="contract_resolution"
+          elif [ "$FINAL_HEAD_GUARD_OUTCOME" != "success" ]; then
+            if [ -n "$FINAL_GUARD_STATUS" ] && [ "$FINAL_GUARD_STATUS" != "ok" ]; then
+              RESULT="not_executed"
+              FAILURE_STAGE="final_head_guard"
+            else
+              RESULT="infrastructure_failure"
+              FAILURE_STAGE="final_head_revalidation"
+            fi
           elif [ "$EXECUTE_OUTCOME" = "success" ]; then
             RESULT="executed_pass"
           elif [ "$EXECUTE_OUTCOME" = "failure" ]; then
@@ -200,6 +238,9 @@ jobs:
           CURRENT_PR_HEAD=""
           CURRENT_PR_STATE=""
           CURRENT_PR_BASE=""
+          FINAL_PR_HEAD=""
+          FINAL_PR_STATE=""
+          FINAL_PR_BASE=""
 
           if [ -d repo/.git ]; then
             ACTUAL_HEAD="$(git -C repo rev-parse HEAD 2>/dev/null || true)"
@@ -214,17 +255,24 @@ jobs:
           if [ -f current-pr-head.txt ]; then CURRENT_PR_HEAD="$(cat current-pr-head.txt)"; fi
           if [ -f current-pr-state.txt ]; then CURRENT_PR_STATE="$(cat current-pr-state.txt)"; fi
           if [ -f current-pr-base.txt ]; then CURRENT_PR_BASE="$(cat current-pr-base.txt)"; fi
+          if [ -f final-pr-head.txt ]; then FINAL_PR_HEAD="$(cat final-pr-head.txt)"; fi
+          if [ -f final-pr-state.txt ]; then FINAL_PR_STATE="$(cat final-pr-state.txt)"; fi
+          if [ -f final-pr-base.txt ]; then FINAL_PR_BASE="$(cat final-pr-base.txt)"; fi
 
-          export RESULT FAILURE_STAGE ACTUAL_HEAD CONFIG_HEAD MANIFEST_BLOB CONTRACT_BLOB CURRENT_PR_HEAD CURRENT_PR_STATE CURRENT_PR_BASE
+          export RESULT FAILURE_STAGE ACTUAL_HEAD CONFIG_HEAD MANIFEST_BLOB CONTRACT_BLOB CURRENT_PR_HEAD CURRENT_PR_STATE CURRENT_PR_BASE FINAL_PR_HEAD FINAL_PR_STATE FINAL_PR_BASE FINAL_GUARD_STATUS
           node <<'NODE'
           const fs = require('node:fs');
           const receipt = {
             pr_number: process.env.PR_NUMBER ?? '',
             expected_head: process.env.EXPECTED_HEAD ?? '',
             actual_head: process.env.ACTUAL_HEAD ?? '',
-            current_pr_head: process.env.CURRENT_PR_HEAD ?? '',
-            current_pr_state: process.env.CURRENT_PR_STATE ?? '',
-            current_pr_base: process.env.CURRENT_PR_BASE ?? '',
+            initial_pr_head: process.env.CURRENT_PR_HEAD ?? '',
+            initial_pr_state: process.env.CURRENT_PR_STATE ?? '',
+            initial_pr_base: process.env.CURRENT_PR_BASE ?? '',
+            final_pr_head: process.env.FINAL_PR_HEAD ?? '',
+            final_pr_state: process.env.FINAL_PR_STATE ?? '',
+            final_pr_base: process.env.FINAL_PR_BASE ?? '',
+            final_pr_guard_status: process.env.FINAL_GUARD_STATUS ?? '',
             trusted_config_expected_head: process.env.BASE_SHA ?? '',
             trusted_config_actual_head: process.env.CONFIG_HEAD ?? '',
             trigger_label: process.env.TRIGGER_LABEL ?? '',
@@ -247,6 +295,7 @@ jobs:
               install: process.env.INSTALL_OUTCOME ?? '',
               contract_resolution: process.env.CONTRACT_OUTCOME ?? '',
               execute: process.env.EXECUTE_OUTCOME ?? '',
+              final_head_guard: process.env.FINAL_HEAD_GUARD_OUTCOME ?? '',
             },
           };
           fs.writeFileSync('focused-contract-receipt/receipt.json', `${JSON.stringify(receipt, null, 2)}\n`);
