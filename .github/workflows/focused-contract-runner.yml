@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       expected_head:
-        description: Exact commit SHA to execute
+        description: Exact current PR head SHA to execute
         required: true
         type: string
       contract_id:
@@ -12,52 +12,78 @@ on:
         required: true
         type: string
       pr_number:
-        description: PR number for receipt attribution
+        description: PR number whose current head must equal expected_head
         required: true
         type: string
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   focused-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Validate exact SHA input
+      - name: Validate dispatch inputs
+        id: inputs
         env:
           EXPECTED_HEAD: ${{ inputs.expected_head }}
+          CONTRACT_ID: ${{ inputs.contract_id }}
+          PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           node -e "if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD || '')) process.exit(1)"
+          node -e "if (!/^[1-9][0-9]*$/.test(process.env.PR_NUMBER || '')) process.exit(1)"
+          node -e "if (!/^[A-Za-z0-9._-]+$/.test(process.env.CONTRACT_ID || '')) process.exit(1)"
 
       - name: Checkout exact requested head
+        id: checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.expected_head }}
+          path: repo
           persist-credentials: false
 
-      - name: Verify unchanged exact head
+      - name: Verify checkout and current PR head
+        id: head_guard
         env:
           EXPECTED_HEAD: ${{ inputs.expected_head }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PR_NUMBER: ${{ inputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ACTUAL_HEAD="$(git -C repo rev-parse HEAD)"
+          test "$ACTUAL_HEAD" = "$EXPECTED_HEAD"
+          CURRENT_PR_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          CURRENT_PR_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.state')"
+          printf '%s\n' "$CURRENT_PR_HEAD" > current-pr-head.txt
+          printf '%s\n' "$CURRENT_PR_STATE" > current-pr-state.txt
+          test "$CURRENT_PR_STATE" = "open"
+          test "$CURRENT_PR_HEAD" = "$EXPECTED_HEAD"
 
       - name: Set up pnpm
+        id: pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.4.1
           run_install: false
 
       - name: Set up Node
+        id: node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
 
       - name: Install locked workspace dependencies
+        id: install
+        working-directory: repo
         run: pnpm install --frozen-lockfile
 
       - name: Resolve allowlisted contract
         id: contract
+        working-directory: repo
         env:
           CONTRACT_ID: ${{ inputs.contract_id }}
         run: |
@@ -74,48 +100,125 @@ jobs:
           console.log(`path=${normalized}`);
           NODE
 
-      - name: Record pre-run receipt
+      - name: Execute focused contract
+        id: execute
+        continue-on-error: true
+        working-directory: repo
+        env:
+          CONTRACT_PATH: ${{ steps.contract.outputs.path }}
+          RECEIPT_DIR: ${{ github.workspace }}/focused-contract-receipt
+        run: |
+          set -o pipefail
+          mkdir -p "$RECEIPT_DIR"
+          node --test "$CONTRACT_PATH" 2>&1 | tee "$RECEIPT_DIR/test-output.tap"
+
+      - name: Classify and record terminal result
+        id: classify
+        if: always()
         env:
           EXPECTED_HEAD: ${{ inputs.expected_head }}
           CONTRACT_ID: ${{ inputs.contract_id }}
           CONTRACT_PATH: ${{ steps.contract.outputs.path }}
           PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_OUTCOME: ${{ steps.inputs.outcome }}
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+          HEAD_GUARD_OUTCOME: ${{ steps.head_guard.outcome }}
+          PNPM_OUTCOME: ${{ steps.pnpm.outcome }}
+          NODE_OUTCOME: ${{ steps.node.outcome }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          CONTRACT_OUTCOME: ${{ steps.contract.outcome }}
+          EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
         run: |
+          set -u
           mkdir -p focused-contract-receipt
-          {
-            echo "pr_number=$PR_NUMBER"
-            echo "expected_head=$EXPECTED_HEAD"
-            echo "actual_head=$(git rev-parse HEAD)"
-            echo "contract_id=$CONTRACT_ID"
-            echo "contract_path=$CONTRACT_PATH"
-            echo "contract_blob=$(git rev-parse HEAD:$CONTRACT_PATH)"
-            echo "manifest_blob=$(git rev-parse HEAD:.github/focused-contracts.json)"
-          } > focused-contract-receipt/receipt.txt
 
-      - name: Execute focused contract
-        id: execute
-        continue-on-error: true
-        env:
-          CONTRACT_PATH: ${{ steps.contract.outputs.path }}
-        run: |
-          set -o pipefail
-          node --test "$CONTRACT_PATH" 2>&1 | tee focused-contract-receipt/test-output.tap
+          RESULT="not_executed"
+          FAILURE_STAGE="none"
 
-      - name: Record terminal result
-        if: always()
-        env:
-          OUTCOME: ${{ steps.execute.outcome }}
-        run: echo "result=$OUTCOME" >> focused-contract-receipt/receipt.txt
+          if [ "$INPUT_OUTCOME" != "success" ]; then
+            RESULT="not_executed"
+            FAILURE_STAGE="input_validation"
+          elif [ "$CHECKOUT_OUTCOME" != "success" ]; then
+            RESULT="infrastructure_failure"
+            FAILURE_STAGE="checkout"
+          elif [ "$HEAD_GUARD_OUTCOME" != "success" ]; then
+            RESULT="not_executed"
+            FAILURE_STAGE="head_guard"
+          elif [ "$PNPM_OUTCOME" != "success" ] || [ "$NODE_OUTCOME" != "success" ] || [ "$INSTALL_OUTCOME" != "success" ]; then
+            RESULT="infrastructure_failure"
+            FAILURE_STAGE="dependency_setup"
+          elif [ "$CONTRACT_OUTCOME" != "success" ]; then
+            RESULT="not_executed"
+            FAILURE_STAGE="contract_resolution"
+          elif [ "$EXECUTE_OUTCOME" = "success" ]; then
+            RESULT="executed_pass"
+          elif [ "$EXECUTE_OUTCOME" = "failure" ]; then
+            RESULT="executed_fail"
+            FAILURE_STAGE="contract_execution"
+          else
+            RESULT="infrastructure_failure"
+            FAILURE_STAGE="execution_unavailable"
+          fi
+
+          ACTUAL_HEAD=""
+          MANIFEST_BLOB=""
+          CONTRACT_BLOB=""
+          CURRENT_PR_HEAD=""
+          CURRENT_PR_STATE=""
+
+          if [ -d repo/.git ]; then
+            ACTUAL_HEAD="$(git -C repo rev-parse HEAD 2>/dev/null || true)"
+            MANIFEST_BLOB="$(git -C repo rev-parse HEAD:.github/focused-contracts.json 2>/dev/null || true)"
+            if [ -n "${CONTRACT_PATH:-}" ]; then
+              CONTRACT_BLOB="$(git -C repo rev-parse "HEAD:${CONTRACT_PATH}" 2>/dev/null || true)"
+            fi
+          fi
+          if [ -f current-pr-head.txt ]; then CURRENT_PR_HEAD="$(cat current-pr-head.txt)"; fi
+          if [ -f current-pr-state.txt ]; then CURRENT_PR_STATE="$(cat current-pr-state.txt)"; fi
+
+          export RESULT FAILURE_STAGE ACTUAL_HEAD MANIFEST_BLOB CONTRACT_BLOB CURRENT_PR_HEAD CURRENT_PR_STATE
+          node <<'NODE'
+          const fs = require('node:fs');
+          const receipt = {
+            pr_number: process.env.PR_NUMBER ?? '',
+            expected_head: process.env.EXPECTED_HEAD ?? '',
+            actual_head: process.env.ACTUAL_HEAD ?? '',
+            current_pr_head: process.env.CURRENT_PR_HEAD ?? '',
+            current_pr_state: process.env.CURRENT_PR_STATE ?? '',
+            contract_id: process.env.CONTRACT_ID ?? '',
+            contract_path: process.env.CONTRACT_PATH ?? '',
+            contract_blob: process.env.CONTRACT_BLOB ?? '',
+            manifest_blob: process.env.MANIFEST_BLOB ?? '',
+            workflow_run_id: process.env.GITHUB_RUN_ID ?? '',
+            workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT ?? '',
+            result: process.env.RESULT ?? 'infrastructure_failure',
+            failure_stage: process.env.FAILURE_STAGE ?? 'classification',
+            step_outcomes: {
+              input: process.env.INPUT_OUTCOME ?? '',
+              checkout: process.env.CHECKOUT_OUTCOME ?? '',
+              head_guard: process.env.HEAD_GUARD_OUTCOME ?? '',
+              pnpm: process.env.PNPM_OUTCOME ?? '',
+              node: process.env.NODE_OUTCOME ?? '',
+              install: process.env.INSTALL_OUTCOME ?? '',
+              contract_resolution: process.env.CONTRACT_OUTCOME ?? '',
+              execute: process.env.EXECUTE_OUTCOME ?? '',
+            },
+          };
+          fs.writeFileSync('focused-contract-receipt/receipt.json', `${JSON.stringify(receipt, null, 2)}\n`);
+          NODE
+          echo "result=$RESULT" >> "$GITHUB_OUTPUT"
 
       - name: Upload focused receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: focused-contract-${{ inputs.pr_number }}-${{ inputs.contract_id }}-${{ inputs.expected_head }}
+          name: focused-contract-receipt-${{ github.run_id }}-${{ github.run_attempt }}
           path: focused-contract-receipt/
           retention-days: 14
           if-no-files-found: error
 
-      - name: Enforce contract result
-        if: steps.execute.outcome != 'success'
-        run: exit 1
+      - name: Enforce focused runner result
+        if: always()
+        env:
+          RESULT: ${{ steps.classify.outputs.result }}
+        run: test "$RESULT" = "executed_pass"
