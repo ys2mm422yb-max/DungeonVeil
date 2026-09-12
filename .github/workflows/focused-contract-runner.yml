@@ -1,0 +1,121 @@
+name: Focused Contract Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_head:
+        description: Exact commit SHA to execute
+        required: true
+        type: string
+      contract_id:
+        description: Allowlisted contract id from .github/focused-contracts.json
+        required: true
+        type: string
+      pr_number:
+        description: PR number for receipt attribution
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  focused-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate exact SHA input
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: |
+          node -e "if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD || '')) process.exit(1)"
+
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_head }}
+          persist-credentials: false
+
+      - name: Verify unchanged exact head
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install locked workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve allowlisted contract
+        id: contract
+        env:
+          CONTRACT_ID: ${{ inputs.contract_id }}
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = JSON.parse(fs.readFileSync('.github/focused-contracts.json', 'utf8'));
+          const entry = manifest.contracts?.[process.env.CONTRACT_ID];
+          if (!entry || entry.runner !== 'node-test') throw new Error('contract id is not allowlisted for node-test');
+          const normalized = path.posix.normalize(entry.path);
+          if (normalized !== entry.path || normalized.startsWith('/') || normalized.startsWith('../') || normalized.includes('/../')) throw new Error('unsafe contract path');
+          if (!/^artifacts\/dungeon-rpg\/tests\/[A-Za-z0-9._/-]+\.mjs$/.test(normalized)) throw new Error('contract path outside allowlisted test surface');
+          if (!fs.statSync(normalized).isFile()) throw new Error('allowlisted contract is not a file');
+          console.log(`path=${normalized}`);
+          NODE
+
+      - name: Record pre-run receipt
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          CONTRACT_ID: ${{ inputs.contract_id }}
+          CONTRACT_PATH: ${{ steps.contract.outputs.path }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          mkdir -p focused-contract-receipt
+          {
+            echo "pr_number=$PR_NUMBER"
+            echo "expected_head=$EXPECTED_HEAD"
+            echo "actual_head=$(git rev-parse HEAD)"
+            echo "contract_id=$CONTRACT_ID"
+            echo "contract_path=$CONTRACT_PATH"
+            echo "contract_blob=$(git rev-parse HEAD:$CONTRACT_PATH)"
+            echo "manifest_blob=$(git rev-parse HEAD:.github/focused-contracts.json)"
+          } > focused-contract-receipt/receipt.txt
+
+      - name: Execute focused contract
+        id: execute
+        continue-on-error: true
+        env:
+          CONTRACT_PATH: ${{ steps.contract.outputs.path }}
+        run: |
+          set -o pipefail
+          node --test "$CONTRACT_PATH" 2>&1 | tee focused-contract-receipt/test-output.tap
+
+      - name: Record terminal result
+        if: always()
+        env:
+          OUTCOME: ${{ steps.execute.outcome }}
+        run: echo "result=$OUTCOME" >> focused-contract-receipt/receipt.txt
+
+      - name: Upload focused receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-contract-${{ inputs.pr_number }}-${{ inputs.contract_id }}-${{ inputs.expected_head }}
+          path: focused-contract-receipt/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Enforce contract result
+        if: steps.execute.outcome != 'success'
+        run: exit 1
