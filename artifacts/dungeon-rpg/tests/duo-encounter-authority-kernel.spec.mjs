@@ -59,11 +59,23 @@ test('movement is server-integrated from direction, canonical speed and authorit
   assert.equal(moved.state.lastClientSeqByActor.host, 1);
 });
 
-test('teleport vectors, oversized movement time steps and backwards authority time fail closed', () => {
+test('teleport vectors and backwards authority time fail closed while oversized idle gaps resynchronize without displacement', () => {
   const base = createBase();
   assert.throws(() => move(base, 1, 1100, 2, 0), /magnitude exceeds one/);
-  assert.throws(() => move(base, 1, 1300, 1, 0), /time budget/);
   assert.throws(() => move(base, 1, 999, 1, 0), /time cannot move backwards/);
+
+  const resynced = move(base, 1, 1300, 1, 0);
+  assert.equal(resynced.state.actors[0].x, 0);
+  assert.equal(resynced.state.actors[0].y, 0);
+  assert.equal(resynced.state.actors[0].lastAuthorityAtMs, 1300);
+  assert.equal(resynced.state.lastClientSeqByActor.host, 1);
+  assert.equal(resynced.state.version, 1);
+
+  const moved = move(resynced.state, 2, 1400, 1, 0);
+  assert.equal(moved.state.actors[0].x, 11.8);
+  assert.equal(moved.state.actors[0].lastAuthorityAtMs, 1400);
+  assert.equal(moved.state.lastClientSeqByActor.host, 2);
+
   assert.equal(base.version, 0);
   assert.equal(base.actors[0].x, 0);
 });
@@ -97,9 +109,14 @@ test('server-owned cadence and movement clock cannot be bypassed by caller times
   const base = createBase({ actors: [actor({ classKey: 'mage' })], enemies: [enemy({ x: 30 })] });
   const first = hit(base, 1, 1000);
   assert.throws(() => hit(first.state, 2, 1200, first.state.enemies[0].enemyId, { timestamp: 999999, cooldown: 0 }), /cadence not ready/);
-  assert.throws(() => move(first.state, 2, 1300, 1), /time budget/);
-  const moved = move(first.state, 2, 1250, 1);
-  assert.equal(moved.state.actors[0].x, 32.5);
+
+  const resynced = move(first.state, 2, 1300, 1);
+  assert.equal(resynced.state.actors[0].x, 0);
+  assert.equal(resynced.state.actors[0].lastAuthorityAtMs, 1300);
+
+  const moved = move(resynced.state, 3, 1400, 1);
+  assert.equal(moved.state.actors[0].x, 13);
+  assert.equal(moved.state.actors[0].lastAuthorityAtMs, 1400);
 });
 
 test('completion still requires canonical enemy hp to reach zero', () => {
@@ -124,6 +141,8 @@ test('authority intent contract exposes direction but no trusted absolute positi
   assert.match(source, /directionX: number/);
   assert.match(source, /directionY: number/);
   assert.match(source, /MAX_AUTHORITY_MOVEMENT_STEP_MS = 250/);
+  assert.match(source, /movementAccepted = elapsedMs <= MAX_AUTHORITY_MOVEMENT_STEP_MS/);
+  assert.match(source, /distance = movementAccepted \? actor\.speed \* \(elapsedMs \/ 1000\) : 0/);
   assert.match(source, /attack: classCombat\.attack/);
   assert.match(source, /speed: classCombat\.speed/);
   assert.match(source, /intent\.clientSeq !== previousSeq \+ 1/);
