@@ -21,17 +21,22 @@ jobs:
         id: inputs
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           TRIGGER_LABEL: ${{ github.event.label.name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           node -e "if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD || '')) process.exit(1)"
+          node -e "if (!/^[0-9a-f]{40}$/.test(process.env.BASE_SHA || '')) process.exit(1)"
           node -e "if (!/^[1-9][0-9]*$/.test(process.env.PR_NUMBER || '')) process.exit(1)"
           node -e "if (!/^focused-contract:[A-Za-z0-9._-]+$/.test(process.env.TRIGGER_LABEL || '')) process.exit(1)"
+          test "$BASE_REF" = "fix/mobile-telegraphs-room-21-50-balance"
           CONTRACT_ID="${TRIGGER_LABEL#focused-contract:}"
           test -n "$CONTRACT_ID"
           printf 'contract_id=%s\n' "$CONTRACT_ID" >> "$GITHUB_OUTPUT"
           printf 'expected_head=%s\n' "$EXPECTED_HEAD" >> "$GITHUB_OUTPUT"
+          printf 'base_sha=%s\n' "$BASE_SHA" >> "$GITHUB_OUTPUT"
           printf 'pr_number=%s\n' "$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact PR event head
@@ -54,10 +59,30 @@ jobs:
           test "$ACTUAL_HEAD" = "$EXPECTED_HEAD"
           CURRENT_PR_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
           CURRENT_PR_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.state')"
+          CURRENT_PR_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.base.ref')"
           printf '%s\n' "$CURRENT_PR_HEAD" > current-pr-head.txt
           printf '%s\n' "$CURRENT_PR_STATE" > current-pr-state.txt
+          printf '%s\n' "$CURRENT_PR_BASE" > current-pr-base.txt
           test "$CURRENT_PR_STATE" = "open"
+          test "$CURRENT_PR_BASE" = "fix/mobile-telegraphs-room-21-50-balance"
           test "$CURRENT_PR_HEAD" = "$EXPECTED_HEAD"
+
+      - name: Checkout trusted target runner config
+        id: config_checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.inputs.outputs.base_sha }}
+          path: runner-config
+          persist-credentials: false
+          sparse-checkout: |
+            .github/focused-contracts.json
+          sparse-checkout-cone-mode: false
+
+      - name: Verify trusted runner config head
+        id: config_guard
+        env:
+          BASE_SHA: ${{ steps.inputs.outputs.base_sha }}
+        run: test "$(git -C runner-config rev-parse HEAD)" = "$BASE_SHA"
 
       - name: Set up pnpm
         id: pnpm
@@ -79,7 +104,7 @@ jobs:
         working-directory: repo
         run: pnpm install --frozen-lockfile
 
-      - name: Resolve allowlisted contract
+      - name: Resolve allowlisted contract from trusted target config
         id: contract
         working-directory: repo
         env:
@@ -88,13 +113,13 @@ jobs:
           node <<'NODE' >> "$GITHUB_OUTPUT"
           const fs = require('node:fs');
           const path = require('node:path');
-          const manifest = JSON.parse(fs.readFileSync('.github/focused-contracts.json', 'utf8'));
+          const manifest = JSON.parse(fs.readFileSync('../runner-config/.github/focused-contracts.json', 'utf8'));
           const entry = manifest.contracts?.[process.env.CONTRACT_ID];
           if (!entry || entry.runner !== 'node-test') throw new Error('contract id is not allowlisted for node-test');
           const normalized = path.posix.normalize(entry.path);
           if (normalized !== entry.path || normalized.startsWith('/') || normalized.startsWith('../') || normalized.includes('/../')) throw new Error('unsafe contract path');
           if (!/^artifacts\/dungeon-rpg\/tests\/[A-Za-z0-9._/-]+\.mjs$/.test(normalized)) throw new Error('contract path outside allowlisted test surface');
-          if (!fs.statSync(normalized).isFile()) throw new Error('allowlisted contract is not a file');
+          if (!fs.statSync(normalized).isFile()) throw new Error('allowlisted contract is not a file in exact PR head');
           console.log(`path=${normalized}`);
           NODE
 
@@ -115,6 +140,7 @@ jobs:
         if: always()
         env:
           EXPECTED_HEAD: ${{ steps.inputs.outputs.expected_head }}
+          BASE_SHA: ${{ steps.inputs.outputs.base_sha }}
           CONTRACT_ID: ${{ steps.inputs.outputs.contract_id }}
           CONTRACT_PATH: ${{ steps.contract.outputs.path }}
           PR_NUMBER: ${{ steps.inputs.outputs.pr_number }}
@@ -122,6 +148,8 @@ jobs:
           INPUT_OUTCOME: ${{ steps.inputs.outcome }}
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
           HEAD_GUARD_OUTCOME: ${{ steps.head_guard.outcome }}
+          CONFIG_CHECKOUT_OUTCOME: ${{ steps.config_checkout.outcome }}
+          CONFIG_GUARD_OUTCOME: ${{ steps.config_guard.outcome }}
           PNPM_OUTCOME: ${{ steps.pnpm.outcome }}
           NODE_OUTCOME: ${{ steps.node.outcome }}
           INSTALL_OUTCOME: ${{ steps.install.outcome }}
@@ -143,6 +171,12 @@ jobs:
           elif [ "$HEAD_GUARD_OUTCOME" != "success" ]; then
             RESULT="not_executed"
             FAILURE_STAGE="head_guard"
+          elif [ "$CONFIG_CHECKOUT_OUTCOME" != "success" ]; then
+            RESULT="infrastructure_failure"
+            FAILURE_STAGE="trusted_config_checkout"
+          elif [ "$CONFIG_GUARD_OUTCOME" != "success" ]; then
+            RESULT="not_executed"
+            FAILURE_STAGE="trusted_config_guard"
           elif [ "$PNPM_OUTCOME" != "success" ] || [ "$NODE_OUTCOME" != "success" ] || [ "$INSTALL_OUTCOME" != "success" ]; then
             RESULT="infrastructure_failure"
             FAILURE_STAGE="dependency_setup"
@@ -160,22 +194,28 @@ jobs:
           fi
 
           ACTUAL_HEAD=""
+          CONFIG_HEAD=""
           MANIFEST_BLOB=""
           CONTRACT_BLOB=""
           CURRENT_PR_HEAD=""
           CURRENT_PR_STATE=""
+          CURRENT_PR_BASE=""
 
           if [ -d repo/.git ]; then
             ACTUAL_HEAD="$(git -C repo rev-parse HEAD 2>/dev/null || true)"
-            MANIFEST_BLOB="$(git -C repo rev-parse HEAD:.github/focused-contracts.json 2>/dev/null || true)"
             if [ -n "${CONTRACT_PATH:-}" ]; then
               CONTRACT_BLOB="$(git -C repo rev-parse "HEAD:${CONTRACT_PATH}" 2>/dev/null || true)"
             fi
           fi
+          if [ -d runner-config/.git ]; then
+            CONFIG_HEAD="$(git -C runner-config rev-parse HEAD 2>/dev/null || true)"
+            MANIFEST_BLOB="$(git -C runner-config rev-parse HEAD:.github/focused-contracts.json 2>/dev/null || true)"
+          fi
           if [ -f current-pr-head.txt ]; then CURRENT_PR_HEAD="$(cat current-pr-head.txt)"; fi
           if [ -f current-pr-state.txt ]; then CURRENT_PR_STATE="$(cat current-pr-state.txt)"; fi
+          if [ -f current-pr-base.txt ]; then CURRENT_PR_BASE="$(cat current-pr-base.txt)"; fi
 
-          export RESULT FAILURE_STAGE ACTUAL_HEAD MANIFEST_BLOB CONTRACT_BLOB CURRENT_PR_HEAD CURRENT_PR_STATE
+          export RESULT FAILURE_STAGE ACTUAL_HEAD CONFIG_HEAD MANIFEST_BLOB CONTRACT_BLOB CURRENT_PR_HEAD CURRENT_PR_STATE CURRENT_PR_BASE
           node <<'NODE'
           const fs = require('node:fs');
           const receipt = {
@@ -184,6 +224,9 @@ jobs:
             actual_head: process.env.ACTUAL_HEAD ?? '',
             current_pr_head: process.env.CURRENT_PR_HEAD ?? '',
             current_pr_state: process.env.CURRENT_PR_STATE ?? '',
+            current_pr_base: process.env.CURRENT_PR_BASE ?? '',
+            trusted_config_expected_head: process.env.BASE_SHA ?? '',
+            trusted_config_actual_head: process.env.CONFIG_HEAD ?? '',
             trigger_label: process.env.TRIGGER_LABEL ?? '',
             contract_id: process.env.CONTRACT_ID ?? '',
             contract_path: process.env.CONTRACT_PATH ?? '',
@@ -197,6 +240,8 @@ jobs:
               input: process.env.INPUT_OUTCOME ?? '',
               checkout: process.env.CHECKOUT_OUTCOME ?? '',
               head_guard: process.env.HEAD_GUARD_OUTCOME ?? '',
+              trusted_config_checkout: process.env.CONFIG_CHECKOUT_OUTCOME ?? '',
+              trusted_config_guard: process.env.CONFIG_GUARD_OUTCOME ?? '',
               pnpm: process.env.PNPM_OUTCOME ?? '',
               node: process.env.NODE_OUTCOME ?? '',
               install: process.env.INSTALL_OUTCOME ?? '',
