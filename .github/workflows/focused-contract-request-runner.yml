@@ -1,0 +1,441 @@
+name: Focused Contract Request Runner
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    types:
+      - labeled
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  focused-contract-request:
+    if: github.event.label.name == 'focused-contract-request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate trusted request trigger provenance
+        id: trigger
+        env:
+          REQUEST_PR: ${{ github.event.pull_request.number }}
+          REQUEST_HEAD: ${{ github.event.pull_request.head.sha }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          TRIGGER_LABEL: ${{ github.event.label.name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node -e "if (!/^[1-9][0-9]*$/.test(process.env.REQUEST_PR || '')) process.exit(1)"
+          for value in "$REQUEST_HEAD" "$EVENT_BASE_SHA" "$WORKFLOW_SHA"; do
+            printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
+          done
+          test "$BASE_REF" = "fix/mobile-telegraphs-room-21-50-balance"
+          test "$TRIGGER_LABEL" = "focused-contract-request"
+          LIVE_TARGET_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/fix/mobile-telegraphs-room-21-50-balance" --jq '.object.sha')"
+          REQUEST_PR_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.head.sha')"
+          REQUEST_PR_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.state')"
+          REQUEST_PR_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.base.ref')"
+          test "$LIVE_TARGET_HEAD" = "$EVENT_BASE_SHA"
+          test "$WORKFLOW_SHA" = "$EVENT_BASE_SHA"
+          test "$REQUEST_PR_STATE" = "open"
+          test "$REQUEST_PR_BASE" = "fix/mobile-telegraphs-room-21-50-balance"
+          test "$REQUEST_PR_HEAD" = "$REQUEST_HEAD"
+          mapfile -t CHANGED_FILES < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}/files?per_page=100" --jq '.[].filename')
+          test "${#CHANGED_FILES[@]}" -eq 1
+          test "${CHANGED_FILES[0]}" = ".github/focused-contract-request.json"
+          printf 'request_pr=%s\nrequest_head=%s\ntrusted_target_head=%s\nworkflow_sha=%s\n' \
+            "$REQUEST_PR" "$REQUEST_HEAD" "$LIVE_TARGET_HEAD" "$WORKFLOW_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact request head as data only
+        id: request_checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.trigger.outputs.request_head }}
+          path: request-repo
+          persist-credentials: false
+          sparse-checkout: |
+            .github/focused-contract-request.json
+          sparse-checkout-cone-mode: false
+
+      - name: Parse strict request contract
+        id: request
+        env:
+          REQUEST_PR: ${{ steps.trigger.outputs.request_pr }}
+          REQUEST_HEAD: ${{ steps.trigger.outputs.request_head }}
+        run: |
+          set -euo pipefail
+          test "$(git -C request-repo rev-parse HEAD)" = "$REQUEST_HEAD"
+          REQUEST_BLOB="$(git -C request-repo rev-parse 'HEAD:.github/focused-contract-request.json')"
+          test "$(git -C request-repo hash-object '.github/focused-contract-request.json')" = "$REQUEST_BLOB"
+          export REQUEST_BLOB
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const request = JSON.parse(fs.readFileSync('request-repo/.github/focused-contract-request.json', 'utf8'));
+          const keys = Object.keys(request).sort();
+          const expected = ['contract_id', 'expected_head', 'schema_version', 'target_pr'];
+          if (JSON.stringify(keys) !== JSON.stringify(expected)) throw new Error('unsupported request keys');
+          if (request.schema_version !== 1) throw new Error('unsupported request schema');
+          if (!Number.isInteger(request.target_pr) || request.target_pr <= 0) throw new Error('invalid target_pr');
+          if (!/^[0-9a-f]{40}$/.test(request.expected_head ?? '')) throw new Error('invalid expected_head');
+          if (!/^[A-Za-z0-9._-]+$/.test(request.contract_id ?? '')) throw new Error('invalid contract_id');
+          if (String(request.target_pr) === process.env.REQUEST_PR) throw new Error('request PR cannot target itself');
+          console.log(`target_pr=${request.target_pr}`);
+          console.log(`expected_head=${request.expected_head}`);
+          console.log(`contract_id=${request.contract_id}`);
+          console.log(`request_blob=${process.env.REQUEST_BLOB}`);
+          NODE
+
+      - name: Verify unchanged target PR
+        id: target_guard
+        env:
+          TARGET_PR: ${{ steps.request.outputs.target_pr }}
+          EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.head.sha')"
+          TARGET_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.state')"
+          TARGET_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.base.ref')"
+          test "$TARGET_STATE" = "open"
+          test "$TARGET_BASE" = "fix/mobile-telegraphs-room-21-50-balance"
+          test "$TARGET_HEAD" = "$EXPECTED_HEAD"
+
+      - name: Checkout exact target PR head
+        id: target_checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.expected_head }}
+          path: repo
+          persist-credentials: false
+
+      - name: Checkout trusted target config
+        id: config_checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.trigger.outputs.trusted_target_head }}
+          path: runner-config
+          persist-credentials: false
+          sparse-checkout: |
+            .github/focused-contracts.json
+          sparse-checkout-cone-mode: false
+
+      - name: Set up pnpm
+        id: pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Set up Node
+        id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: repo/pnpm-lock.yaml
+
+      - name: Validate install hook isolation
+        id: install_isolation
+        run: |
+          set -euo pipefail
+          PNPM_VERSION="$(pnpm --version)"
+          printf '%s\n' "$PNPM_VERSION" | grep -Eq '^10\.[0-9]+\.[0-9]+$'
+
+          reject_pnpm_hook_config() {
+            local root="$1"
+            if find "$root" -type f \( -name '.pnpmfile.cjs' -o -name '.pnpmfile.js' \) -print -quit | grep -q .; then
+              return 1
+            fi
+            while IFS= read -r -d '' config; do
+              if grep -Eiq 'pnpm[-_]?file' "$config"; then
+                return 1
+              fi
+            done < <(find "$root" -type f \( -name '.npmrc' -o -name 'pnpm-workspace.yaml' -o -name 'pnpm-workspace.yml' \) -print0)
+          }
+
+          PROBE="$RUNNER_TEMP/focused-contract-install-probe"
+          rm -rf "$PROBE"
+          mkdir -p "$PROBE"
+          cat > "$PROBE/package.json" <<'JSON'
+          {"name":"focused-contract-install-probe","private":true,"version":"1.0.0","scripts":{"preinstall":"node -e \"require('fs').writeFileSync('lifecycle-poisoned','x')\"","postinstall":"node -e \"require('fs').writeFileSync('lifecycle-poisoned-post','x')\""}}
+          JSON
+          cat > "$PROBE/.pnpmfile.cjs" <<'JS'
+          require('fs').writeFileSync('pnpmfile-poisoned', 'x');
+          module.exports = { hooks: {} };
+          JS
+          printf 'pnpmfile=.pnpmfile.cjs\n' > "$PROBE/.npmrc"
+          if reject_pnpm_hook_config "$PROBE"; then
+            echo 'pnpm hook config guard failed open' >&2
+            exit 1
+          fi
+          test ! -e "$PROBE/pnpmfile-poisoned"
+          rm -f "$PROBE/.pnpmfile.cjs" "$PROBE/.npmrc"
+          reject_pnpm_hook_config "$PROBE"
+          (
+            cd "$PROBE"
+            env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+              pnpm install --ignore-scripts --lockfile=false
+          )
+          test ! -e "$PROBE/lifecycle-poisoned"
+          test ! -e "$PROBE/lifecycle-poisoned-post"
+          test ! -e "$PROBE/pnpmfile-poisoned"
+          printf 'pnpm_version=%s\npnpmfile_guard=blocked\nlifecycle_scripts=suppressed\n' "$PNPM_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve allowlisted contract and capture pre-install identity
+        id: identity_capture
+        env:
+          EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
+          TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
+          REQUEST_HEAD: ${{ steps.trigger.outputs.request_head }}
+          REQUEST_BLOB: ${{ steps.request.outputs.request_blob }}
+          CONTRACT_ID: ${{ steps.request.outputs.contract_id }}
+        run: |
+          set -euo pipefail
+          test "$(git -C repo rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git -C runner-config rev-parse HEAD)" = "$TRUSTED_TARGET_HEAD"
+          test "$(git -C request-repo rev-parse HEAD)" = "$REQUEST_HEAD"
+          git -C repo diff --quiet HEAD --
+          git -C repo diff --cached --quiet
+          SOURCE_TREE="$(git -C repo rev-parse 'HEAD^{tree}')"
+          LOCK_BLOB="$(git -C repo rev-parse 'HEAD:pnpm-lock.yaml')"
+          WORKSPACE_BLOB="$(git -C repo rev-parse 'HEAD:pnpm-workspace.yaml')"
+          ROOT_PACKAGE_BLOB="$(git -C repo rev-parse 'HEAD:package.json')"
+          APP_PACKAGE_BLOB="$(git -C repo rev-parse 'HEAD:artifacts/dungeon-rpg/package.json')"
+          MANIFEST_BLOB="$(git -C runner-config rev-parse 'HEAD:.github/focused-contracts.json')"
+          test "$(git -C request-repo hash-object '.github/focused-contract-request.json')" = "$REQUEST_BLOB"
+          export CONTRACT_ID
+          CONTRACT_PATH="$(node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = JSON.parse(fs.readFileSync('runner-config/.github/focused-contracts.json', 'utf8'));
+          const entry = manifest.contracts?.[process.env.CONTRACT_ID];
+          if (!entry || entry.runner !== 'node-test') throw new Error('contract not allowlisted');
+          const p = path.posix.normalize(entry.path);
+          if (p !== entry.path || !/^artifacts\/dungeon-rpg\/tests\/[A-Za-z0-9._/-]+\.mjs$/.test(p) || p.includes('/../')) throw new Error('unsafe contract path');
+          process.stdout.write(p);
+          NODE
+          )"
+          test -f "repo/$CONTRACT_PATH"
+          CONTRACT_BLOB="$(git -C repo rev-parse "HEAD:${CONTRACT_PATH}")"
+          test "$(git -C repo hash-object "$CONTRACT_PATH")" = "$CONTRACT_BLOB"
+          for value in "$SOURCE_TREE" "$LOCK_BLOB" "$WORKSPACE_BLOB" "$ROOT_PACKAGE_BLOB" "$APP_PACKAGE_BLOB" "$MANIFEST_BLOB" "$CONTRACT_BLOB"; do
+            printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
+          done
+          printf 'source_tree=%s\nlock_blob=%s\nworkspace_blob=%s\nroot_package_blob=%s\napp_package_blob=%s\nmanifest_blob=%s\ncontract_blob=%s\ncontract_path=%s\n' \
+            "$SOURCE_TREE" "$LOCK_BLOB" "$WORKSPACE_BLOB" "$ROOT_PACKAGE_BLOB" "$APP_PACKAGE_BLOB" "$MANIFEST_BLOB" "$CONTRACT_BLOB" "$CONTRACT_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Install frozen dependencies with hook configs blocked
+        id: install
+        working-directory: repo
+        run: |
+          set -euo pipefail
+          if find . -type f \( -name '.pnpmfile.cjs' -o -name '.pnpmfile.js' \) -print -quit | grep -q .; then
+            echo 'pnpm hook file is not allowed in focused runner target' >&2
+            exit 1
+          fi
+          while IFS= read -r -d '' config; do
+            if grep -Eiq 'pnpm[-_]?file' "$config"; then
+              echo "pnpm hook config is not allowed: $config" >&2
+              exit 1
+            fi
+          done < <(find . -type f \( -name '.npmrc' -o -name 'pnpm-workspace.yaml' -o -name 'pnpm-workspace.yml' \) -print0)
+          env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+            pnpm install --frozen-lockfile --ignore-scripts
+          git diff --quiet HEAD --
+          git diff --cached --quiet
+          test "$(git rev-parse 'HEAD^{tree}')" = "${{ steps.identity_capture.outputs.source_tree }}"
+
+      - name: Execute focused contract
+        id: execute
+        continue-on-error: true
+        working-directory: repo
+        env:
+          CONTRACT_PATH: ${{ steps.identity_capture.outputs.contract_path }}
+          RECEIPT_DIR: ${{ github.workspace }}/focused-contract-request-receipt
+        run: |
+          set -o pipefail
+          mkdir -p "$RECEIPT_DIR"
+          env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+            node --test "$CONTRACT_PATH" 2>&1 | tee "$RECEIPT_DIR/test-output.tap"
+
+      - name: Revalidate exact source and identities after execution
+        id: identity_guard
+        if: always()
+        continue-on-error: true
+        env:
+          EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
+          TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
+          REQUEST_HEAD: ${{ steps.trigger.outputs.request_head }}
+          REQUEST_BLOB: ${{ steps.request.outputs.request_blob }}
+          PRE_SOURCE_TREE: ${{ steps.identity_capture.outputs.source_tree }}
+          PRE_LOCK_BLOB: ${{ steps.identity_capture.outputs.lock_blob }}
+          PRE_WORKSPACE_BLOB: ${{ steps.identity_capture.outputs.workspace_blob }}
+          PRE_ROOT_PACKAGE_BLOB: ${{ steps.identity_capture.outputs.root_package_blob }}
+          PRE_APP_PACKAGE_BLOB: ${{ steps.identity_capture.outputs.app_package_blob }}
+          PRE_MANIFEST_BLOB: ${{ steps.identity_capture.outputs.manifest_blob }}
+          PRE_CONTRACT_BLOB: ${{ steps.identity_capture.outputs.contract_blob }}
+          CONTRACT_PATH: ${{ steps.identity_capture.outputs.contract_path }}
+        run: |
+          set -euo pipefail
+          test "$(git -C repo rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git -C runner-config rev-parse HEAD)" = "$TRUSTED_TARGET_HEAD"
+          test "$(git -C request-repo rev-parse HEAD)" = "$REQUEST_HEAD"
+          git -C repo diff --quiet HEAD --
+          git -C repo diff --cached --quiet
+          test "$(git -C repo rev-parse 'HEAD^{tree}')" = "$PRE_SOURCE_TREE"
+          test "$(git -C request-repo hash-object '.github/focused-contract-request.json')" = "$REQUEST_BLOB"
+          test "$(git -C repo rev-parse 'HEAD:pnpm-lock.yaml')" = "$PRE_LOCK_BLOB"
+          test "$(git -C repo rev-parse 'HEAD:pnpm-workspace.yaml')" = "$PRE_WORKSPACE_BLOB"
+          test "$(git -C repo rev-parse 'HEAD:package.json')" = "$PRE_ROOT_PACKAGE_BLOB"
+          test "$(git -C repo rev-parse 'HEAD:artifacts/dungeon-rpg/package.json')" = "$PRE_APP_PACKAGE_BLOB"
+          test "$(git -C runner-config rev-parse 'HEAD:.github/focused-contracts.json')" = "$PRE_MANIFEST_BLOB"
+          test "$(git -C repo rev-parse "HEAD:${CONTRACT_PATH}")" = "$PRE_CONTRACT_BLOB"
+          test "$(git -C repo hash-object "$CONTRACT_PATH")" = "$PRE_CONTRACT_BLOB"
+          printf 'source_head=%s\nconfig_head=%s\nsource_tree=%s\ncontract_blob=%s\nmanifest_blob=%s\n' \
+            "$EXPECTED_HEAD" "$TRUSTED_TARGET_HEAD" "$PRE_SOURCE_TREE" "$PRE_CONTRACT_BLOB" "$PRE_MANIFEST_BLOB" >> "$GITHUB_OUTPUT"
+
+      - name: Revalidate request, target PR, target branch and workflow provenance
+        id: final_guard
+        if: always()
+        continue-on-error: true
+        env:
+          REQUEST_PR: ${{ steps.trigger.outputs.request_pr }}
+          REQUEST_HEAD: ${{ steps.trigger.outputs.request_head }}
+          TARGET_PR: ${{ steps.request.outputs.target_pr }}
+          EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
+          TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
+          WORKFLOW_SHA: ${{ steps.trigger.outputs.workflow_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REQUEST_FINAL_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.head.sha')"
+          REQUEST_FINAL_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.state')"
+          REQUEST_FINAL_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.base.ref')"
+          TARGET_FINAL_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.head.sha')"
+          TARGET_FINAL_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.state')"
+          TARGET_FINAL_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.base.ref')"
+          LIVE_TARGET_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/fix/mobile-telegraphs-room-21-50-balance" --jq '.object.sha')"
+          FINAL_STATUS="ok"
+          if [ "$REQUEST_FINAL_STATE" != "open" ] || [ "$REQUEST_FINAL_BASE" != "fix/mobile-telegraphs-room-21-50-balance" ] || [ "$REQUEST_FINAL_HEAD" != "$REQUEST_HEAD" ]; then FINAL_STATUS="request_changed";
+          elif [ "$TARGET_FINAL_STATE" != "open" ] || [ "$TARGET_FINAL_BASE" != "fix/mobile-telegraphs-room-21-50-balance" ] || [ "$TARGET_FINAL_HEAD" != "$EXPECTED_HEAD" ]; then FINAL_STATUS="target_changed";
+          elif [ "$LIVE_TARGET_HEAD" != "$TRUSTED_TARGET_HEAD" ]; then FINAL_STATUS="target_branch_changed";
+          elif [ "$WORKFLOW_SHA" != "$TRUSTED_TARGET_HEAD" ]; then FINAL_STATUS="workflow_provenance_changed"; fi
+          printf '%s\n' "$REQUEST_FINAL_HEAD" > final-request-pr-head.txt
+          printf '%s\n' "$REQUEST_FINAL_STATE" > final-request-pr-state.txt
+          printf '%s\n' "$REQUEST_FINAL_BASE" > final-request-pr-base.txt
+          printf '%s\n' "$TARGET_FINAL_HEAD" > final-target-pr-head.txt
+          printf '%s\n' "$TARGET_FINAL_STATE" > final-target-pr-state.txt
+          printf '%s\n' "$TARGET_FINAL_BASE" > final-target-pr-base.txt
+          printf '%s\n' "$LIVE_TARGET_HEAD" > final-target-branch-head.txt
+          printf '%s\n' "$FINAL_STATUS" > final-guard-status.txt
+          test "$FINAL_STATUS" = "ok"
+
+      - name: Classify and write durable request receipt
+        id: classify
+        if: always()
+        env:
+          REQUEST_PR: ${{ steps.trigger.outputs.request_pr }}
+          REQUEST_HEAD: ${{ steps.trigger.outputs.request_head }}
+          REQUEST_BLOB: ${{ steps.request.outputs.request_blob }}
+          TARGET_PR: ${{ steps.request.outputs.target_pr }}
+          EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
+          CONTRACT_ID: ${{ steps.request.outputs.contract_id }}
+          CONTRACT_PATH: ${{ steps.identity_capture.outputs.contract_path }}
+          WORKFLOW_SHA: ${{ steps.trigger.outputs.workflow_sha }}
+          TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
+          PNPM_VERSION: ${{ steps.install_isolation.outputs.pnpm_version }}
+          PNPMFILE_GUARD: ${{ steps.install_isolation.outputs.pnpmfile_guard }}
+          LIFECYCLE_SCRIPTS: ${{ steps.install_isolation.outputs.lifecycle_scripts }}
+          SOURCE_HEAD: ${{ steps.identity_guard.outputs.source_head }}
+          CONFIG_HEAD: ${{ steps.identity_guard.outputs.config_head }}
+          SOURCE_TREE: ${{ steps.identity_guard.outputs.source_tree }}
+          CONTRACT_BLOB: ${{ steps.identity_guard.outputs.contract_blob }}
+          MANIFEST_BLOB: ${{ steps.identity_guard.outputs.manifest_blob }}
+          TRIGGER_OUTCOME: ${{ steps.trigger.outcome }}
+          REQUEST_CHECKOUT_OUTCOME: ${{ steps.request_checkout.outcome }}
+          REQUEST_OUTCOME: ${{ steps.request.outcome }}
+          TARGET_GUARD_OUTCOME: ${{ steps.target_guard.outcome }}
+          TARGET_CHECKOUT_OUTCOME: ${{ steps.target_checkout.outcome }}
+          CONFIG_CHECKOUT_OUTCOME: ${{ steps.config_checkout.outcome }}
+          PNPM_OUTCOME: ${{ steps.pnpm.outcome }}
+          NODE_OUTCOME: ${{ steps.node.outcome }}
+          INSTALL_ISOLATION_OUTCOME: ${{ steps.install_isolation.outcome }}
+          IDENTITY_CAPTURE_OUTCOME: ${{ steps.identity_capture.outcome }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
+          IDENTITY_GUARD_OUTCOME: ${{ steps.identity_guard.outcome }}
+          FINAL_GUARD_OUTCOME: ${{ steps.final_guard.outcome }}
+        run: |
+          set -u
+          mkdir -p focused-contract-request-receipt
+          FINAL_STATUS=""
+          [ ! -f final-guard-status.txt ] || FINAL_STATUS="$(cat final-guard-status.txt)"
+          RESULT="not_executed"; FAILURE_STAGE="none"
+          if [ "$TRIGGER_OUTCOME" != "success" ]; then FAILURE_STAGE="trusted_trigger_provenance";
+          elif [ "$REQUEST_CHECKOUT_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="request_checkout";
+          elif [ "$REQUEST_OUTCOME" != "success" ]; then FAILURE_STAGE="request_validation";
+          elif [ "$TARGET_GUARD_OUTCOME" != "success" ]; then FAILURE_STAGE="target_head_guard";
+          elif [ "$TARGET_CHECKOUT_OUTCOME" != "success" ] || [ "$CONFIG_CHECKOUT_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="checkout";
+          elif [ "$PNPM_OUTCOME" != "success" ] || [ "$NODE_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="dependency_setup";
+          elif [ "$INSTALL_ISOLATION_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="install_isolation";
+          elif [ "$IDENTITY_CAPTURE_OUTCOME" != "success" ]; then FAILURE_STAGE="identity_capture";
+          elif [ "$INSTALL_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="dependency_install";
+          elif [ "$FINAL_GUARD_OUTCOME" != "success" ]; then FAILURE_STAGE="final_guard";
+          elif [ "$IDENTITY_GUARD_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="identity_integrity";
+          elif [ "$EXECUTE_OUTCOME" = "success" ]; then RESULT="executed_pass";
+          elif [ "$EXECUTE_OUTCOME" = "failure" ]; then RESULT="executed_fail"; FAILURE_STAGE="contract_execution";
+          else RESULT="infrastructure_failure"; FAILURE_STAGE="execution_unavailable"; fi
+          export RESULT FAILURE_STAGE FINAL_STATUS
+          node <<'NODE'
+          const fs = require('node:fs');
+          const read = p => fs.existsSync(p) ? fs.readFileSync(p, 'utf8').trim() : '';
+          const receipt = {
+            request_pr: process.env.REQUEST_PR ?? '',
+            request_head: process.env.REQUEST_HEAD ?? '',
+            request_blob: process.env.REQUEST_BLOB ?? '',
+            target_pr: process.env.TARGET_PR ?? '',
+            expected_target_head: process.env.EXPECTED_HEAD ?? '',
+            actual_target_head: process.env.SOURCE_HEAD ?? '',
+            source_tree: process.env.SOURCE_TREE ?? '',
+            trusted_target_head: process.env.TRUSTED_TARGET_HEAD ?? '',
+            workflow_sha: process.env.WORKFLOW_SHA ?? '',
+            contract_id: process.env.CONTRACT_ID ?? '',
+            contract_path: process.env.CONTRACT_PATH ?? '',
+            contract_blob: process.env.CONTRACT_BLOB ?? '',
+            manifest_blob: process.env.MANIFEST_BLOB ?? '',
+            dependency_environment: {
+              pnpm_version: process.env.PNPM_VERSION ?? '',
+              pnpmfile_hooks: process.env.PNPMFILE_GUARD ?? '',
+              lifecycle_scripts: process.env.LIFECYCLE_SCRIPTS ?? ''
+            },
+            final_request_pr: { head: read('final-request-pr-head.txt'), state: read('final-request-pr-state.txt'), base: read('final-request-pr-base.txt') },
+            final_target_pr: { head: read('final-target-pr-head.txt'), state: read('final-target-pr-state.txt'), base: read('final-target-pr-base.txt') },
+            final_target_branch_head: read('final-target-branch-head.txt'),
+            final_guard_status: process.env.FINAL_STATUS ?? '',
+            workflow_run_id: process.env.GITHUB_RUN_ID ?? '',
+            workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT ?? '',
+            result: process.env.RESULT ?? 'infrastructure_failure',
+            failure_stage: process.env.FAILURE_STAGE ?? 'classification'
+          };
+          fs.writeFileSync('focused-contract-request-receipt/receipt.json', JSON.stringify(receipt, null, 2) + '\n');
+          NODE
+          printf 'result=%s\n' "$RESULT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload durable request receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-contract-request-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: focused-contract-request-receipt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce focused contract result
+        if: always()
+        env:
+          RESULT: ${{ steps.classify.outputs.result }}
+        run: test "$RESULT" = "executed_pass"
