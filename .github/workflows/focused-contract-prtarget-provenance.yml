@@ -1,0 +1,83 @@
+name: Focused Contract PR Target Provenance
+
+on:
+  pull_request_target:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    types:
+      - labeled
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  provenance:
+    if: github.event.label.name == 'focused-contract-provenance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Prove workflow source is current fixed target
+        id: prove
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          TRIGGER_LABEL: ${{ github.event.label.name }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$TRIGGER_LABEL" = "focused-contract-provenance"
+          test "$EVENT_BASE_REF" = "fix/mobile-telegraphs-room-21-50-balance"
+          test "$WORKFLOW_REF" = "refs/heads/fix/mobile-telegraphs-room-21-50-balance"
+          for value in "$EVENT_HEAD_SHA" "$EVENT_BASE_SHA" "$WORKFLOW_SHA"; do
+            printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
+          done
+          printf '%s\n' "$PR_NUMBER" | grep -Eq '^[1-9][0-9]*$'
+
+          LIVE_TARGET_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/fix/mobile-telegraphs-room-21-50-balance" --jq '.object.sha')"
+          CURRENT_PR_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          CURRENT_PR_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.base.ref')"
+          CURRENT_PR_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.state')"
+
+          for value in "$LIVE_TARGET_SHA" "$CURRENT_PR_HEAD"; do
+            printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
+          done
+          test "$CURRENT_PR_STATE" = "open"
+          test "$CURRENT_PR_BASE" = "fix/mobile-telegraphs-room-21-50-balance"
+          test "$CURRENT_PR_HEAD" = "$EVENT_HEAD_SHA"
+          test "$LIVE_TARGET_SHA" = "$WORKFLOW_SHA"
+
+          mkdir -p focused-contract-provenance
+          export LIVE_TARGET_SHA CURRENT_PR_HEAD CURRENT_PR_BASE CURRENT_PR_STATE
+          node <<'NODE'
+          const fs = require('node:fs');
+          const receipt = {
+            pr_number: process.env.PR_NUMBER,
+            trigger_label: process.env.TRIGGER_LABEL,
+            event_head_sha: process.env.EVENT_HEAD_SHA,
+            event_base_sha: process.env.EVENT_BASE_SHA,
+            event_base_ref: process.env.EVENT_BASE_REF,
+            workflow_sha: process.env.WORKFLOW_SHA,
+            workflow_ref: process.env.WORKFLOW_REF,
+            live_target_sha: process.env.LIVE_TARGET_SHA,
+            current_pr_head: process.env.CURRENT_PR_HEAD,
+            current_pr_base: process.env.CURRENT_PR_BASE,
+            current_pr_state: process.env.CURRENT_PR_STATE,
+            workflow_source_is_live_target: process.env.WORKFLOW_SHA === process.env.LIVE_TARGET_SHA,
+            workflow_run_id: process.env.GITHUB_RUN_ID,
+            workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT
+          };
+          fs.writeFileSync('focused-contract-provenance/receipt.json', `${JSON.stringify(receipt, null, 2)}\n`);
+          NODE
+
+      - name: Upload provenance receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-contract-provenance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: focused-contract-provenance/receipt.json
+          retention-days: 14
+          if-no-files-found: error
