@@ -35,27 +35,20 @@ jobs:
           done
           test "$BASE_REF" = "fix/mobile-telegraphs-room-21-50-balance"
           test "$TRIGGER_LABEL" = "focused-contract-request"
-
           LIVE_TARGET_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/fix/mobile-telegraphs-room-21-50-balance" --jq '.object.sha')"
           REQUEST_PR_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.head.sha')"
           REQUEST_PR_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.state')"
           REQUEST_PR_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.base.ref')"
-
-          printf '%s\n' "$LIVE_TARGET_HEAD" | grep -Eq '^[0-9a-f]{40}$'
           test "$LIVE_TARGET_HEAD" = "$EVENT_BASE_SHA"
           test "$WORKFLOW_SHA" = "$EVENT_BASE_SHA"
           test "$REQUEST_PR_STATE" = "open"
           test "$REQUEST_PR_BASE" = "fix/mobile-telegraphs-room-21-50-balance"
           test "$REQUEST_PR_HEAD" = "$REQUEST_HEAD"
-
           mapfile -t CHANGED_FILES < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}/files?per_page=100" --jq '.[].filename')
           test "${#CHANGED_FILES[@]}" -eq 1
           test "${CHANGED_FILES[0]}" = ".github/focused-contract-request.json"
-
-          printf 'request_pr=%s\n' "$REQUEST_PR" >> "$GITHUB_OUTPUT"
-          printf 'request_head=%s\n' "$REQUEST_HEAD" >> "$GITHUB_OUTPUT"
-          printf 'trusted_target_head=%s\n' "$LIVE_TARGET_HEAD" >> "$GITHUB_OUTPUT"
-          printf 'workflow_sha=%s\n' "$WORKFLOW_SHA" >> "$GITHUB_OUTPUT"
+          printf 'request_pr=%s\nrequest_head=%s\ntrusted_target_head=%s\nworkflow_sha=%s\n' \
+            "$REQUEST_PR" "$REQUEST_HEAD" "$LIVE_TARGET_HEAD" "$WORKFLOW_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact request head as data only
         id: request_checkout
@@ -77,15 +70,14 @@ jobs:
           set -euo pipefail
           test "$(git -C request-repo rev-parse HEAD)" = "$REQUEST_HEAD"
           REQUEST_BLOB="$(git -C request-repo rev-parse 'HEAD:.github/focused-contract-request.json')"
-          REQUEST_HASH="$(git -C request-repo hash-object '.github/focused-contract-request.json')"
-          test "$REQUEST_BLOB" = "$REQUEST_HASH"
-          export REQUEST_BLOB REQUEST_HASH
+          test "$(git -C request-repo hash-object '.github/focused-contract-request.json')" = "$REQUEST_BLOB"
+          export REQUEST_BLOB
           node <<'NODE' >> "$GITHUB_OUTPUT"
           const fs = require('node:fs');
           const request = JSON.parse(fs.readFileSync('request-repo/.github/focused-contract-request.json', 'utf8'));
           const keys = Object.keys(request).sort();
-          const expectedKeys = ['contract_id', 'expected_head', 'schema_version', 'target_pr'];
-          if (JSON.stringify(keys) !== JSON.stringify(expectedKeys)) throw new Error('request must contain only the exact supported keys');
+          const expected = ['contract_id', 'expected_head', 'schema_version', 'target_pr'];
+          if (JSON.stringify(keys) !== JSON.stringify(expected)) throw new Error('unsupported request keys');
           if (request.schema_version !== 1) throw new Error('unsupported request schema');
           if (!Number.isInteger(request.target_pr) || request.target_pr <= 0) throw new Error('invalid target_pr');
           if (!/^[0-9a-f]{40}$/.test(request.expected_head ?? '')) throw new Error('invalid expected_head');
@@ -95,10 +87,9 @@ jobs:
           console.log(`expected_head=${request.expected_head}`);
           console.log(`contract_id=${request.contract_id}`);
           console.log(`request_blob=${process.env.REQUEST_BLOB}`);
-          console.log(`request_hash=${process.env.REQUEST_HASH}`);
           NODE
 
-      - name: Verify unchanged target PR and checkout exact target head
+      - name: Verify unchanged target PR
         id: target_guard
         env:
           TARGET_PR: ${{ steps.request.outputs.target_pr }}
@@ -112,9 +103,6 @@ jobs:
           test "$TARGET_STATE" = "open"
           test "$TARGET_BASE" = "fix/mobile-telegraphs-room-21-50-balance"
           test "$TARGET_HEAD" = "$EXPECTED_HEAD"
-          printf '%s\n' "$TARGET_HEAD" > initial-target-pr-head.txt
-          printf '%s\n' "$TARGET_STATE" > initial-target-pr-state.txt
-          printf '%s\n' "$TARGET_BASE" > initial-target-pr-base.txt
 
       - name: Checkout exact target PR head
         id: target_checkout
@@ -123,14 +111,6 @@ jobs:
           ref: ${{ steps.request.outputs.expected_head }}
           path: repo
           persist-credentials: false
-
-      - name: Verify exact target checkout
-        id: target_checkout_guard
-        env:
-          EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
-        run: |
-          set -euo pipefail
-          test "$(git -C repo rev-parse HEAD)" = "$EXPECTED_HEAD"
 
       - name: Checkout trusted target config
         id: config_checkout
@@ -142,14 +122,6 @@ jobs:
           sparse-checkout: |
             .github/focused-contracts.json
           sparse-checkout-cone-mode: false
-
-      - name: Verify trusted config checkout
-        id: config_guard
-        env:
-          TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
-        run: |
-          set -euo pipefail
-          test "$(git -C runner-config rev-parse HEAD)" = "$TRUSTED_TARGET_HEAD"
 
       - name: Set up pnpm
         id: pnpm
@@ -166,149 +138,129 @@ jobs:
           cache: pnpm
           cache-dependency-path: repo/pnpm-lock.yaml
 
-      - name: Capture locked dependency identity
-        id: dependency_identity
+      - name: Validate lifecycle-script isolation
+        id: install_isolation
         run: |
           set -euo pipefail
           PNPM_VERSION="$(pnpm --version)"
           printf '%s\n' "$PNPM_VERSION" | grep -Eq '^10\.[0-9]+\.[0-9]+$'
-          for path in pnpm-lock.yaml pnpm-workspace.yaml package.json artifacts/dungeon-rpg/package.json; do
-            test -f "repo/$path"
-          done
-          LOCK_BLOB="$(git -C repo rev-parse 'HEAD:pnpm-lock.yaml')"
-          WORKSPACE_BLOB="$(git -C repo rev-parse 'HEAD:pnpm-workspace.yaml')"
-          ROOT_PACKAGE_BLOB="$(git -C repo rev-parse 'HEAD:package.json')"
-          APP_PACKAGE_BLOB="$(git -C repo rev-parse 'HEAD:artifacts/dungeon-rpg/package.json')"
-          LOCK_HASH="$(git -C repo hash-object 'pnpm-lock.yaml')"
-          WORKSPACE_HASH="$(git -C repo hash-object 'pnpm-workspace.yaml')"
-          ROOT_PACKAGE_HASH="$(git -C repo hash-object 'package.json')"
-          APP_PACKAGE_HASH="$(git -C repo hash-object 'artifacts/dungeon-rpg/package.json')"
-          for value in "$LOCK_BLOB" "$WORKSPACE_BLOB" "$ROOT_PACKAGE_BLOB" "$APP_PACKAGE_BLOB" "$LOCK_HASH" "$WORKSPACE_HASH" "$ROOT_PACKAGE_HASH" "$APP_PACKAGE_HASH"; do
-            printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
-          done
-          test "$LOCK_HASH" = "$LOCK_BLOB"
-          test "$WORKSPACE_HASH" = "$WORKSPACE_BLOB"
-          test "$ROOT_PACKAGE_HASH" = "$ROOT_PACKAGE_BLOB"
-          test "$APP_PACKAGE_HASH" = "$APP_PACKAGE_BLOB"
+          PROBE="$RUNNER_TEMP/focused-contract-install-probe"
+          rm -rf "$PROBE"
+          mkdir -p "$PROBE"
+          cat > "$PROBE/package.json" <<'JSON'
+          {"name":"focused-contract-install-probe","private":true,"version":"1.0.0","scripts":{"preinstall":"node -e \"require('fs').writeFileSync('lifecycle-poisoned','x')\"","postinstall":"node -e \"require('fs').writeFileSync('lifecycle-poisoned-post','x')\""}}
+          JSON
+          (
+            cd "$PROBE"
+            env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+              pnpm install --ignore-scripts --lockfile=false
+          )
+          test ! -e "$PROBE/lifecycle-poisoned"
+          test ! -e "$PROBE/lifecycle-poisoned-post"
           printf 'pnpm_version=%s\n' "$PNPM_VERSION" >> "$GITHUB_OUTPUT"
-          printf 'lock_blob=%s\nworkspace_blob=%s\nroot_package_blob=%s\napp_package_blob=%s\n' "$LOCK_BLOB" "$WORKSPACE_BLOB" "$ROOT_PACKAGE_BLOB" "$APP_PACKAGE_BLOB" >> "$GITHUB_OUTPUT"
 
-      - name: Install locked workspace dependencies
-        id: install
-        working-directory: repo
-        run: pnpm install --frozen-lockfile
-
-      - name: Resolve allowlisted contract from trusted target config
-        id: contract
-        working-directory: repo
-        env:
-          CONTRACT_ID: ${{ steps.request.outputs.contract_id }}
-        run: |
-          node <<'NODE' >> "$GITHUB_OUTPUT"
-          const fs = require('node:fs');
-          const path = require('node:path');
-          const manifest = JSON.parse(fs.readFileSync('../runner-config/.github/focused-contracts.json', 'utf8'));
-          const entry = manifest.contracts?.[process.env.CONTRACT_ID];
-          if (!entry || entry.runner !== 'node-test') throw new Error('contract id is not allowlisted for node-test');
-          const normalized = path.posix.normalize(entry.path);
-          if (normalized !== entry.path || normalized.startsWith('/') || normalized.startsWith('../') || normalized.includes('/../')) throw new Error('unsafe contract path');
-          if (!/^artifacts\/dungeon-rpg\/tests\/[A-Za-z0-9._/-]+\.mjs$/.test(normalized)) throw new Error('contract path outside allowlisted test surface');
-          if (!fs.statSync(normalized).isFile()) throw new Error('allowlisted contract is not a file in exact target head');
-          console.log(`path=${normalized}`);
-          NODE
-
-      - name: Capture immutable identities before execution
+      - name: Resolve allowlisted contract and capture pre-install identity
         id: identity_capture
         env:
           EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
           TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
           REQUEST_HEAD: ${{ steps.trigger.outputs.request_head }}
           REQUEST_BLOB: ${{ steps.request.outputs.request_blob }}
-          CONTRACT_PATH: ${{ steps.contract.outputs.path }}
+          CONTRACT_ID: ${{ steps.request.outputs.contract_id }}
         run: |
           set -euo pipefail
-          SOURCE_HEAD="$(git -C repo rev-parse HEAD)"
-          CONFIG_HEAD="$(git -C runner-config rev-parse HEAD)"
-          REQUEST_ACTUAL_HEAD="$(git -C request-repo rev-parse HEAD)"
-          REQUEST_ACTUAL_BLOB="$(git -C request-repo rev-parse 'HEAD:.github/focused-contract-request.json')"
-          REQUEST_WORKTREE_HASH="$(git -C request-repo hash-object '.github/focused-contract-request.json')"
-          CONTRACT_BLOB="$(git -C repo rev-parse "HEAD:${CONTRACT_PATH}")"
+          test "$(git -C repo rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git -C runner-config rev-parse HEAD)" = "$TRUSTED_TARGET_HEAD"
+          test "$(git -C request-repo rev-parse HEAD)" = "$REQUEST_HEAD"
+          git -C repo diff --quiet HEAD --
+          git -C repo diff --cached --quiet
+          SOURCE_TREE="$(git -C repo rev-parse 'HEAD^{tree}')"
+          LOCK_BLOB="$(git -C repo rev-parse 'HEAD:pnpm-lock.yaml')"
+          WORKSPACE_BLOB="$(git -C repo rev-parse 'HEAD:pnpm-workspace.yaml')"
+          ROOT_PACKAGE_BLOB="$(git -C repo rev-parse 'HEAD:package.json')"
+          APP_PACKAGE_BLOB="$(git -C repo rev-parse 'HEAD:artifacts/dungeon-rpg/package.json')"
           MANIFEST_BLOB="$(git -C runner-config rev-parse 'HEAD:.github/focused-contracts.json')"
-          CONTRACT_WORKTREE_HASH="$(git -C repo hash-object "$CONTRACT_PATH")"
-          MANIFEST_WORKTREE_HASH="$(git -C runner-config hash-object '.github/focused-contracts.json')"
-          for value in "$SOURCE_HEAD" "$CONFIG_HEAD" "$REQUEST_ACTUAL_HEAD" "$REQUEST_ACTUAL_BLOB" "$REQUEST_WORKTREE_HASH" "$CONTRACT_BLOB" "$MANIFEST_BLOB" "$CONTRACT_WORKTREE_HASH" "$MANIFEST_WORKTREE_HASH"; do
+          test "$(git -C request-repo hash-object '.github/focused-contract-request.json')" = "$REQUEST_BLOB"
+          export CONTRACT_ID
+          CONTRACT_PATH="$(node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = JSON.parse(fs.readFileSync('runner-config/.github/focused-contracts.json', 'utf8'));
+          const entry = manifest.contracts?.[process.env.CONTRACT_ID];
+          if (!entry || entry.runner !== 'node-test') throw new Error('contract not allowlisted');
+          const p = path.posix.normalize(entry.path);
+          if (p !== entry.path || !/^artifacts\/dungeon-rpg\/tests\/[A-Za-z0-9._/-]+\.mjs$/.test(p) || p.includes('/../')) throw new Error('unsafe contract path');
+          process.stdout.write(p);
+          NODE
+          )"
+          test -f "repo/$CONTRACT_PATH"
+          CONTRACT_BLOB="$(git -C repo rev-parse "HEAD:${CONTRACT_PATH}")"
+          test "$(git -C repo hash-object "$CONTRACT_PATH")" = "$CONTRACT_BLOB"
+          for value in "$SOURCE_TREE" "$LOCK_BLOB" "$WORKSPACE_BLOB" "$ROOT_PACKAGE_BLOB" "$APP_PACKAGE_BLOB" "$MANIFEST_BLOB" "$CONTRACT_BLOB"; do
             printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
           done
-          test "$SOURCE_HEAD" = "$EXPECTED_HEAD"
-          test "$CONFIG_HEAD" = "$TRUSTED_TARGET_HEAD"
-          test "$REQUEST_ACTUAL_HEAD" = "$REQUEST_HEAD"
-          test "$REQUEST_ACTUAL_BLOB" = "$REQUEST_BLOB"
-          test "$REQUEST_WORKTREE_HASH" = "$REQUEST_BLOB"
-          test "$CONTRACT_WORKTREE_HASH" = "$CONTRACT_BLOB"
-          test "$MANIFEST_WORKTREE_HASH" = "$MANIFEST_BLOB"
-          printf 'source_head=%s\nconfig_head=%s\nrequest_head=%s\nrequest_blob=%s\ncontract_blob=%s\nmanifest_blob=%s\nrequest_worktree_hash=%s\ncontract_worktree_hash=%s\nmanifest_worktree_hash=%s\n' "$SOURCE_HEAD" "$CONFIG_HEAD" "$REQUEST_ACTUAL_HEAD" "$REQUEST_ACTUAL_BLOB" "$CONTRACT_BLOB" "$MANIFEST_BLOB" "$REQUEST_WORKTREE_HASH" "$CONTRACT_WORKTREE_HASH" "$MANIFEST_WORKTREE_HASH" >> "$GITHUB_OUTPUT"
+          printf 'source_tree=%s\nlock_blob=%s\nworkspace_blob=%s\nroot_package_blob=%s\napp_package_blob=%s\nmanifest_blob=%s\ncontract_blob=%s\ncontract_path=%s\n' \
+            "$SOURCE_TREE" "$LOCK_BLOB" "$WORKSPACE_BLOB" "$ROOT_PACKAGE_BLOB" "$APP_PACKAGE_BLOB" "$MANIFEST_BLOB" "$CONTRACT_BLOB" "$CONTRACT_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Install frozen dependencies without lifecycle scripts
+        id: install
+        working-directory: repo
+        run: |
+          set -euo pipefail
+          env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+            pnpm install --frozen-lockfile --ignore-scripts
+          git diff --quiet HEAD --
+          git diff --cached --quiet
+          test "$(git rev-parse 'HEAD^{tree}')" = "${{ steps.identity_capture.outputs.source_tree }}"
 
       - name: Execute focused contract
         id: execute
         continue-on-error: true
         working-directory: repo
         env:
-          CONTRACT_PATH: ${{ steps.contract.outputs.path }}
+          CONTRACT_PATH: ${{ steps.identity_capture.outputs.contract_path }}
           RECEIPT_DIR: ${{ github.workspace }}/focused-contract-request-receipt
         run: |
           set -o pipefail
           mkdir -p "$RECEIPT_DIR"
-          env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY node --test "$CONTRACT_PATH" 2>&1 | tee "$RECEIPT_DIR/test-output.tap"
+          env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+            node --test "$CONTRACT_PATH" 2>&1 | tee "$RECEIPT_DIR/test-output.tap"
 
-      - name: Revalidate immutable identities after execution
+      - name: Revalidate exact source and identities after execution
         id: identity_guard
         if: always()
         continue-on-error: true
         env:
-          CONTRACT_PATH: ${{ steps.contract.outputs.path }}
-          PRE_SOURCE_HEAD: ${{ steps.identity_capture.outputs.source_head }}
-          PRE_CONFIG_HEAD: ${{ steps.identity_capture.outputs.config_head }}
-          PRE_REQUEST_HEAD: ${{ steps.identity_capture.outputs.request_head }}
-          PRE_REQUEST_BLOB: ${{ steps.identity_capture.outputs.request_blob }}
-          PRE_CONTRACT_BLOB: ${{ steps.identity_capture.outputs.contract_blob }}
+          EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
+          TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
+          REQUEST_HEAD: ${{ steps.trigger.outputs.request_head }}
+          REQUEST_BLOB: ${{ steps.request.outputs.request_blob }}
+          PRE_SOURCE_TREE: ${{ steps.identity_capture.outputs.source_tree }}
+          PRE_LOCK_BLOB: ${{ steps.identity_capture.outputs.lock_blob }}
+          PRE_WORKSPACE_BLOB: ${{ steps.identity_capture.outputs.workspace_blob }}
+          PRE_ROOT_PACKAGE_BLOB: ${{ steps.identity_capture.outputs.root_package_blob }}
+          PRE_APP_PACKAGE_BLOB: ${{ steps.identity_capture.outputs.app_package_blob }}
           PRE_MANIFEST_BLOB: ${{ steps.identity_capture.outputs.manifest_blob }}
-          PRE_LOCK_BLOB: ${{ steps.dependency_identity.outputs.lock_blob }}
-          PRE_WORKSPACE_BLOB: ${{ steps.dependency_identity.outputs.workspace_blob }}
-          PRE_ROOT_PACKAGE_BLOB: ${{ steps.dependency_identity.outputs.root_package_blob }}
-          PRE_APP_PACKAGE_BLOB: ${{ steps.dependency_identity.outputs.app_package_blob }}
+          PRE_CONTRACT_BLOB: ${{ steps.identity_capture.outputs.contract_blob }}
+          CONTRACT_PATH: ${{ steps.identity_capture.outputs.contract_path }}
         run: |
-          set -u
-          POST_SOURCE_HEAD="$(git -C repo rev-parse HEAD 2>/dev/null || true)"
-          POST_CONFIG_HEAD="$(git -C runner-config rev-parse HEAD 2>/dev/null || true)"
-          POST_REQUEST_HEAD="$(git -C request-repo rev-parse HEAD 2>/dev/null || true)"
-          POST_REQUEST_BLOB="$(git -C request-repo rev-parse 'HEAD:.github/focused-contract-request.json' 2>/dev/null || true)"
-          POST_REQUEST_HASH="$(git -C request-repo hash-object '.github/focused-contract-request.json' 2>/dev/null || true)"
-          POST_CONTRACT_BLOB="$(git -C repo rev-parse "HEAD:${CONTRACT_PATH}" 2>/dev/null || true)"
-          POST_MANIFEST_BLOB="$(git -C runner-config rev-parse 'HEAD:.github/focused-contracts.json' 2>/dev/null || true)"
-          POST_CONTRACT_HASH="$(git -C repo hash-object "$CONTRACT_PATH" 2>/dev/null || true)"
-          POST_MANIFEST_HASH="$(git -C runner-config hash-object '.github/focused-contracts.json' 2>/dev/null || true)"
-          POST_LOCK_HASH="$(git -C repo hash-object 'pnpm-lock.yaml' 2>/dev/null || true)"
-          POST_WORKSPACE_HASH="$(git -C repo hash-object 'pnpm-workspace.yaml' 2>/dev/null || true)"
-          POST_ROOT_PACKAGE_HASH="$(git -C repo hash-object 'package.json' 2>/dev/null || true)"
-          POST_APP_PACKAGE_HASH="$(git -C repo hash-object 'artifacts/dungeon-rpg/package.json' 2>/dev/null || true)"
-          printf 'source_head=%s\nconfig_head=%s\nrequest_head=%s\nrequest_blob=%s\nrequest_hash=%s\ncontract_blob=%s\nmanifest_blob=%s\ncontract_hash=%s\nmanifest_hash=%s\nlock_hash=%s\nworkspace_hash=%s\nroot_package_hash=%s\napp_package_hash=%s\n' "$POST_SOURCE_HEAD" "$POST_CONFIG_HEAD" "$POST_REQUEST_HEAD" "$POST_REQUEST_BLOB" "$POST_REQUEST_HASH" "$POST_CONTRACT_BLOB" "$POST_MANIFEST_BLOB" "$POST_CONTRACT_HASH" "$POST_MANIFEST_HASH" "$POST_LOCK_HASH" "$POST_WORKSPACE_HASH" "$POST_ROOT_PACKAGE_HASH" "$POST_APP_PACKAGE_HASH" >> "$GITHUB_OUTPUT"
-          set -e
-          for value in "$PRE_SOURCE_HEAD" "$PRE_CONFIG_HEAD" "$PRE_REQUEST_HEAD" "$PRE_REQUEST_BLOB" "$PRE_CONTRACT_BLOB" "$PRE_MANIFEST_BLOB" "$PRE_LOCK_BLOB" "$PRE_WORKSPACE_BLOB" "$PRE_ROOT_PACKAGE_BLOB" "$PRE_APP_PACKAGE_BLOB" "$POST_SOURCE_HEAD" "$POST_CONFIG_HEAD" "$POST_REQUEST_HEAD" "$POST_REQUEST_BLOB" "$POST_REQUEST_HASH" "$POST_CONTRACT_BLOB" "$POST_MANIFEST_BLOB" "$POST_CONTRACT_HASH" "$POST_MANIFEST_HASH" "$POST_LOCK_HASH" "$POST_WORKSPACE_HASH" "$POST_ROOT_PACKAGE_HASH" "$POST_APP_PACKAGE_HASH"; do
-            printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
-          done
-          test "$POST_SOURCE_HEAD" = "$PRE_SOURCE_HEAD"
-          test "$POST_CONFIG_HEAD" = "$PRE_CONFIG_HEAD"
-          test "$POST_REQUEST_HEAD" = "$PRE_REQUEST_HEAD"
-          test "$POST_REQUEST_BLOB" = "$PRE_REQUEST_BLOB"
-          test "$POST_REQUEST_HASH" = "$PRE_REQUEST_BLOB"
-          test "$POST_CONTRACT_BLOB" = "$PRE_CONTRACT_BLOB"
-          test "$POST_CONTRACT_HASH" = "$PRE_CONTRACT_BLOB"
-          test "$POST_MANIFEST_BLOB" = "$PRE_MANIFEST_BLOB"
-          test "$POST_MANIFEST_HASH" = "$PRE_MANIFEST_BLOB"
-          test "$POST_LOCK_HASH" = "$PRE_LOCK_BLOB"
-          test "$POST_WORKSPACE_HASH" = "$PRE_WORKSPACE_BLOB"
-          test "$POST_ROOT_PACKAGE_HASH" = "$PRE_ROOT_PACKAGE_BLOB"
-          test "$POST_APP_PACKAGE_HASH" = "$PRE_APP_PACKAGE_BLOB"
+          set -euo pipefail
+          test "$(git -C repo rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git -C runner-config rev-parse HEAD)" = "$TRUSTED_TARGET_HEAD"
+          test "$(git -C request-repo rev-parse HEAD)" = "$REQUEST_HEAD"
+          git -C repo diff --quiet HEAD --
+          git -C repo diff --cached --quiet
+          test "$(git -C repo rev-parse 'HEAD^{tree}')" = "$PRE_SOURCE_TREE"
+          test "$(git -C request-repo hash-object '.github/focused-contract-request.json')" = "$REQUEST_BLOB"
+          test "$(git -C repo rev-parse 'HEAD:pnpm-lock.yaml')" = "$PRE_LOCK_BLOB"
+          test "$(git -C repo rev-parse 'HEAD:pnpm-workspace.yaml')" = "$PRE_WORKSPACE_BLOB"
+          test "$(git -C repo rev-parse 'HEAD:package.json')" = "$PRE_ROOT_PACKAGE_BLOB"
+          test "$(git -C repo rev-parse 'HEAD:artifacts/dungeon-rpg/package.json')" = "$PRE_APP_PACKAGE_BLOB"
+          test "$(git -C runner-config rev-parse 'HEAD:.github/focused-contracts.json')" = "$PRE_MANIFEST_BLOB"
+          test "$(git -C repo rev-parse "HEAD:${CONTRACT_PATH}")" = "$PRE_CONTRACT_BLOB"
+          test "$(git -C repo hash-object "$CONTRACT_PATH")" = "$PRE_CONTRACT_BLOB"
+          printf 'source_head=%s\nconfig_head=%s\nsource_tree=%s\ncontract_blob=%s\nmanifest_blob=%s\n' \
+            "$EXPECTED_HEAD" "$TRUSTED_TARGET_HEAD" "$PRE_SOURCE_TREE" "$PRE_CONTRACT_BLOB" "$PRE_MANIFEST_BLOB" >> "$GITHUB_OUTPUT"
 
       - name: Revalidate request, target PR, target branch and workflow provenance
         id: final_guard
@@ -352,62 +304,49 @@ jobs:
         env:
           REQUEST_PR: ${{ steps.trigger.outputs.request_pr }}
           REQUEST_HEAD: ${{ steps.trigger.outputs.request_head }}
+          REQUEST_BLOB: ${{ steps.request.outputs.request_blob }}
           TARGET_PR: ${{ steps.request.outputs.target_pr }}
           EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
           CONTRACT_ID: ${{ steps.request.outputs.contract_id }}
-          CONTRACT_PATH: ${{ steps.contract.outputs.path }}
+          CONTRACT_PATH: ${{ steps.identity_capture.outputs.contract_path }}
           WORKFLOW_SHA: ${{ steps.trigger.outputs.workflow_sha }}
           TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
+          PNPM_VERSION: ${{ steps.install_isolation.outputs.pnpm_version }}
+          SOURCE_HEAD: ${{ steps.identity_guard.outputs.source_head }}
+          CONFIG_HEAD: ${{ steps.identity_guard.outputs.config_head }}
+          SOURCE_TREE: ${{ steps.identity_guard.outputs.source_tree }}
+          CONTRACT_BLOB: ${{ steps.identity_guard.outputs.contract_blob }}
+          MANIFEST_BLOB: ${{ steps.identity_guard.outputs.manifest_blob }}
           TRIGGER_OUTCOME: ${{ steps.trigger.outcome }}
           REQUEST_CHECKOUT_OUTCOME: ${{ steps.request_checkout.outcome }}
           REQUEST_OUTCOME: ${{ steps.request.outcome }}
           TARGET_GUARD_OUTCOME: ${{ steps.target_guard.outcome }}
           TARGET_CHECKOUT_OUTCOME: ${{ steps.target_checkout.outcome }}
-          TARGET_CHECKOUT_GUARD_OUTCOME: ${{ steps.target_checkout_guard.outcome }}
           CONFIG_CHECKOUT_OUTCOME: ${{ steps.config_checkout.outcome }}
-          CONFIG_GUARD_OUTCOME: ${{ steps.config_guard.outcome }}
           PNPM_OUTCOME: ${{ steps.pnpm.outcome }}
           NODE_OUTCOME: ${{ steps.node.outcome }}
-          DEPENDENCY_IDENTITY_OUTCOME: ${{ steps.dependency_identity.outcome }}
-          INSTALL_OUTCOME: ${{ steps.install.outcome }}
-          CONTRACT_OUTCOME: ${{ steps.contract.outcome }}
+          INSTALL_ISOLATION_OUTCOME: ${{ steps.install_isolation.outcome }}
           IDENTITY_CAPTURE_OUTCOME: ${{ steps.identity_capture.outcome }}
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
           EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
           IDENTITY_GUARD_OUTCOME: ${{ steps.identity_guard.outcome }}
           FINAL_GUARD_OUTCOME: ${{ steps.final_guard.outcome }}
-          REQUEST_BLOB: ${{ steps.request.outputs.request_blob }}
-          SOURCE_HEAD: ${{ steps.identity_guard.outputs.source_head }}
-          CONFIG_HEAD: ${{ steps.identity_guard.outputs.config_head }}
-          CONTRACT_BLOB: ${{ steps.identity_guard.outputs.contract_blob }}
-          MANIFEST_BLOB: ${{ steps.identity_guard.outputs.manifest_blob }}
-          PNPM_VERSION: ${{ steps.dependency_identity.outputs.pnpm_version }}
-          LOCK_BLOB: ${{ steps.dependency_identity.outputs.lock_blob }}
-          WORKSPACE_BLOB: ${{ steps.dependency_identity.outputs.workspace_blob }}
-          ROOT_PACKAGE_BLOB: ${{ steps.dependency_identity.outputs.root_package_blob }}
-          APP_PACKAGE_BLOB: ${{ steps.dependency_identity.outputs.app_package_blob }}
         run: |
           set -u
           mkdir -p focused-contract-request-receipt
-          RESULT="not_executed"
-          FAILURE_STAGE="none"
           FINAL_STATUS=""
-          if [ -f final-guard-status.txt ]; then FINAL_STATUS="$(cat final-guard-status.txt)"; fi
-          if [ "$TRIGGER_OUTCOME" != "success" ]; then RESULT="not_executed"; FAILURE_STAGE="trusted_trigger_provenance";
+          [ ! -f final-guard-status.txt ] || FINAL_STATUS="$(cat final-guard-status.txt)"
+          RESULT="not_executed"; FAILURE_STAGE="none"
+          if [ "$TRIGGER_OUTCOME" != "success" ]; then FAILURE_STAGE="trusted_trigger_provenance";
           elif [ "$REQUEST_CHECKOUT_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="request_checkout";
-          elif [ "$REQUEST_OUTCOME" != "success" ]; then RESULT="not_executed"; FAILURE_STAGE="request_validation";
-          elif [ "$TARGET_GUARD_OUTCOME" != "success" ]; then RESULT="not_executed"; FAILURE_STAGE="target_head_guard";
-          elif [ "$TARGET_CHECKOUT_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="target_checkout";
-          elif [ "$TARGET_CHECKOUT_GUARD_OUTCOME" != "success" ]; then RESULT="not_executed"; FAILURE_STAGE="target_checkout_guard";
-          elif [ "$CONFIG_CHECKOUT_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="trusted_config_checkout";
-          elif [ "$CONFIG_GUARD_OUTCOME" != "success" ]; then RESULT="not_executed"; FAILURE_STAGE="trusted_config_guard";
+          elif [ "$REQUEST_OUTCOME" != "success" ]; then FAILURE_STAGE="request_validation";
+          elif [ "$TARGET_GUARD_OUTCOME" != "success" ]; then FAILURE_STAGE="target_head_guard";
+          elif [ "$TARGET_CHECKOUT_OUTCOME" != "success" ] || [ "$CONFIG_CHECKOUT_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="checkout";
           elif [ "$PNPM_OUTCOME" != "success" ] || [ "$NODE_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="dependency_setup";
-          elif [ "$DEPENDENCY_IDENTITY_OUTCOME" != "success" ]; then RESULT="not_executed"; FAILURE_STAGE="dependency_identity";
+          elif [ "$INSTALL_ISOLATION_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="install_isolation";
+          elif [ "$IDENTITY_CAPTURE_OUTCOME" != "success" ]; then FAILURE_STAGE="identity_capture";
           elif [ "$INSTALL_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="dependency_install";
-          elif [ "$CONTRACT_OUTCOME" != "success" ]; then RESULT="not_executed"; FAILURE_STAGE="contract_resolution";
-          elif [ "$IDENTITY_CAPTURE_OUTCOME" != "success" ]; then RESULT="not_executed"; FAILURE_STAGE="identity_capture";
-          elif [ "$FINAL_GUARD_OUTCOME" != "success" ]; then
-            if [ -n "$FINAL_STATUS" ] && [ "$FINAL_STATUS" != "ok" ]; then RESULT="not_executed"; FAILURE_STAGE="final_guard";
-            else RESULT="infrastructure_failure"; FAILURE_STAGE="final_revalidation"; fi
+          elif [ "$FINAL_GUARD_OUTCOME" != "success" ]; then FAILURE_STAGE="final_guard";
           elif [ "$IDENTITY_GUARD_OUTCOME" != "success" ]; then RESULT="infrastructure_failure"; FAILURE_STAGE="identity_integrity";
           elif [ "$EXECUTE_OUTCOME" = "success" ]; then RESULT="executed_pass";
           elif [ "$EXECUTE_OUTCOME" = "failure" ]; then RESULT="executed_fail"; FAILURE_STAGE="contract_execution";
@@ -415,7 +354,7 @@ jobs:
           export RESULT FAILURE_STAGE FINAL_STATUS
           node <<'NODE'
           const fs = require('node:fs');
-          const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8').trim() : '';
+          const read = p => fs.existsSync(p) ? fs.readFileSync(p, 'utf8').trim() : '';
           const receipt = {
             request_pr: process.env.REQUEST_PR ?? '',
             request_head: process.env.REQUEST_HEAD ?? '',
@@ -423,19 +362,14 @@ jobs:
             target_pr: process.env.TARGET_PR ?? '',
             expected_target_head: process.env.EXPECTED_HEAD ?? '',
             actual_target_head: process.env.SOURCE_HEAD ?? '',
+            source_tree: process.env.SOURCE_TREE ?? '',
             trusted_target_head: process.env.TRUSTED_TARGET_HEAD ?? '',
             workflow_sha: process.env.WORKFLOW_SHA ?? '',
             contract_id: process.env.CONTRACT_ID ?? '',
             contract_path: process.env.CONTRACT_PATH ?? '',
             contract_blob: process.env.CONTRACT_BLOB ?? '',
             manifest_blob: process.env.MANIFEST_BLOB ?? '',
-            dependency_environment: {
-              pnpm_version: process.env.PNPM_VERSION ?? '',
-              lock_blob: process.env.LOCK_BLOB ?? '',
-              workspace_blob: process.env.WORKSPACE_BLOB ?? '',
-              root_package_blob: process.env.ROOT_PACKAGE_BLOB ?? '',
-              app_package_blob: process.env.APP_PACKAGE_BLOB ?? ''
-            },
+            dependency_environment: { pnpm_version: process.env.PNPM_VERSION ?? '', lifecycle_scripts: 'suppressed' },
             final_request_pr: { head: read('final-request-pr-head.txt'), state: read('final-request-pr-state.txt'), base: read('final-request-pr-base.txt') },
             final_target_pr: { head: read('final-target-pr-head.txt'), state: read('final-target-pr-state.txt'), base: read('final-target-pr-base.txt') },
             final_target_branch_head: read('final-target-branch-head.txt'),
@@ -443,41 +377,22 @@ jobs:
             workflow_run_id: process.env.GITHUB_RUN_ID ?? '',
             workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT ?? '',
             result: process.env.RESULT ?? 'infrastructure_failure',
-            failure_stage: process.env.FAILURE_STAGE ?? 'classification',
-            step_outcomes: {
-              trusted_trigger: process.env.TRIGGER_OUTCOME ?? '',
-              request_checkout: process.env.REQUEST_CHECKOUT_OUTCOME ?? '',
-              request_validation: process.env.REQUEST_OUTCOME ?? '',
-              target_guard: process.env.TARGET_GUARD_OUTCOME ?? '',
-              target_checkout: process.env.TARGET_CHECKOUT_OUTCOME ?? '',
-              target_checkout_guard: process.env.TARGET_CHECKOUT_GUARD_OUTCOME ?? '',
-              config_checkout: process.env.CONFIG_CHECKOUT_OUTCOME ?? '',
-              config_guard: process.env.CONFIG_GUARD_OUTCOME ?? '',
-              pnpm: process.env.PNPM_OUTCOME ?? '',
-              node: process.env.NODE_OUTCOME ?? '',
-              dependency_identity: process.env.DEPENDENCY_IDENTITY_OUTCOME ?? '',
-              install: process.env.INSTALL_OUTCOME ?? '',
-              contract_resolution: process.env.CONTRACT_OUTCOME ?? '',
-              identity_capture: process.env.IDENTITY_CAPTURE_OUTCOME ?? '',
-              execute: process.env.EXECUTE_OUTCOME ?? '',
-              identity_guard: process.env.IDENTITY_GUARD_OUTCOME ?? '',
-              final_guard: process.env.FINAL_GUARD_OUTCOME ?? ''
-            }
+            failure_stage: process.env.FAILURE_STAGE ?? 'classification'
           };
-          fs.writeFileSync('focused-contract-request-receipt/receipt.json', `${JSON.stringify(receipt, null, 2)}\n`);
+          fs.writeFileSync('focused-contract-request-receipt/receipt.json', JSON.stringify(receipt, null, 2) + '\n');
           NODE
           printf 'result=%s\n' "$RESULT" >> "$GITHUB_OUTPUT"
 
-      - name: Upload focused request receipt
+      - name: Upload durable request receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: focused-contract-request-receipt-${{ github.run_id }}-${{ github.run_attempt }}
-          path: focused-contract-request-receipt/
-          retention-days: 14
+          path: focused-contract-request-receipt
           if-no-files-found: error
+          retention-days: 30
 
-      - name: Enforce focused request runner result
+      - name: Enforce focused contract result
         if: always()
         env:
           RESULT: ${{ steps.classify.outputs.result }}
