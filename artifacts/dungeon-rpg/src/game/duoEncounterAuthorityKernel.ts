@@ -12,19 +12,24 @@ export type AuthorityEnemyManifestEntry = Readonly<{
 }>;
 
 export type AuthorityClassCombatEntry = Readonly<{
+  attack: number;
+  speed: number;
+  actorSize: number;
   attackRange: number;
   attackCooldownMs: number;
 }>;
 
 export const CANONICAL_CLASS_COMBAT_MANIFEST: Readonly<Record<AuthorityClassKey, AuthorityClassCombatEntry>> = Object.freeze({
-  warrior: Object.freeze({ attackRange: 65, attackCooldownMs: 350 }),
-  mage: Object.freeze({ attackRange: 55, attackCooldownMs: 550 }),
-  archer: Object.freeze({ attackRange: 105, attackCooldownMs: 270 }),
+  warrior: Object.freeze({ attack: 12, speed: 118, actorSize: 32, attackRange: 65, attackCooldownMs: 350 }),
+  mage: Object.freeze({ attack: 20, speed: 130, actorSize: 32, attackRange: 55, attackCooldownMs: 550 }),
+  archer: Object.freeze({ attack: 10, speed: 218, actorSize: 32, attackRange: 105, attackCooldownMs: 270 }),
 });
 
+export const MAX_AUTHORITY_MOVEMENT_STEP_MS = 250;
+
 // Mirrors the current runEngine enemy combat constants so the future server reducer has
-// one browser-free manifest to consume. Slice 1 intentionally does not change reward
-// eligibility or claim this module is already the production authority boundary.
+// one browser-free manifest to consume. This module remains a producer prerequisite until
+// lobby/run binding, canonical encounter construction and durable state are wired server-side.
 export const CANONICAL_ENEMY_COMBAT_MANIFEST: Readonly<Record<AuthorityEnemyType, AuthorityEnemyManifestEntry>> = Object.freeze({
   slime: { hp: 24, attack: 4, defense: 0, speed: 42, size: 32, xp: 18, color: '#43c968' },
   goblin: { hp: 34, attack: 6, defense: 1, speed: 68, size: 30, xp: 24, color: '#89a94b' },
@@ -40,11 +45,8 @@ export const CANONICAL_ENEMY_COMBAT_MANIFEST: Readonly<Record<AuthorityEnemyType
 export type AuthorityActorInput = Readonly<{
   actorId: string;
   classKey: AuthorityClassKey;
-  attack: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  spawnX: number;
+  spawnY: number;
   active?: boolean;
 }>;
 
@@ -58,6 +60,7 @@ export type AuthorityActor = Readonly<{
   actorId: string;
   classKey: AuthorityClassKey;
   attack: number;
+  speed: number;
   attackRange: number;
   attackCooldownMs: number;
   x: number;
@@ -66,6 +69,7 @@ export type AuthorityActor = Readonly<{
   height: number;
   active: boolean;
   nextBasicHitAtMs: number;
+  lastAuthorityAtMs: number;
 }>;
 
 export type AuthorityEnemyState = Readonly<{
@@ -94,12 +98,20 @@ export type CanonicalEncounterState = Readonly<{
   completed: boolean;
 }>;
 
-export type AuthorityIntent = Readonly<{
-  kind: 'basic-hit';
-  actorId: string;
-  targetEnemyId: string;
-  clientSeq: number;
-}>;
+export type AuthorityIntent =
+  | Readonly<{
+      kind: 'move';
+      actorId: string;
+      directionX: number;
+      directionY: number;
+      clientSeq: number;
+    }>
+  | Readonly<{
+      kind: 'basic-hit';
+      actorId: string;
+      targetEnemyId: string;
+      clientSeq: number;
+    }>;
 
 export type EncounterCompletedEvent = Readonly<{
   kind: 'encounter-completed';
@@ -123,6 +135,7 @@ export type CreateCanonicalEncounterInput = Readonly<{
   chapter: number;
   room: number;
   seed: number;
+  authorityStartedAtMs: number;
   actors: readonly AuthorityActorInput[];
   enemies: readonly AuthorityEnemyInput[];
 }>;
@@ -139,10 +152,6 @@ function assertFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
 }
 
-function assertFinitePositive(value: number, label: string): void {
-  if (!Number.isFinite(value) || value <= 0) throw new Error(`${label} must be finite and positive`);
-}
-
 function stableEncounterId(input: Pick<CreateCanonicalEncounterInput, 'runId' | 'runAttempt' | 'chapter' | 'room' | 'seed'>): string {
   return `${input.runId}:${input.runAttempt}:${input.chapter}:${input.room}:${input.seed}`;
 }
@@ -157,12 +166,30 @@ function isWithinBasicHitRange(actor: AuthorityActor, enemy: AuthorityEnemyState
   return dx * dx + dy * dy <= actor.attackRange * actor.attackRange;
 }
 
+function assertSequencedIntent(state: CanonicalEncounterState, intent: AuthorityIntent, authorityNowMs: number): { actorIndex: number; actor: AuthorityActor } {
+  if (state.completed) throw new Error('encounter already completed');
+  if (!Number.isInteger(intent.clientSeq) || intent.clientSeq <= 0) throw new Error('clientSeq must be a positive integer');
+  assertFiniteNonNegative(authorityNowMs, 'authorityNowMs');
+
+  const actorIndex = state.actors.findIndex(candidate => candidate.actorId === intent.actorId);
+  if (actorIndex < 0) throw new Error('actor is not part of the canonical encounter');
+  const actor = state.actors[actorIndex];
+  if (!actor.active) throw new Error('actor is not active in the canonical encounter');
+  if (authorityNowMs < actor.lastAuthorityAtMs) throw new Error('authority time cannot move backwards');
+
+  const previousSeq = state.lastClientSeqByActor[intent.actorId] ?? 0;
+  if (intent.clientSeq <= previousSeq) throw new Error('replayed or out-of-order intent');
+  if (intent.clientSeq !== previousSeq + 1) throw new Error('clientSeq gap is not allowed');
+  return { actorIndex, actor };
+}
+
 export function createCanonicalEncounterState(input: CreateCanonicalEncounterInput): CanonicalEncounterState {
   if (!input.runId.trim()) throw new Error('runId is required');
   assertPositiveInteger(input.runAttempt, 'runAttempt');
   assertPositiveInteger(input.chapter, 'chapter');
   assertPositiveInteger(input.room, 'room');
   if (!Number.isSafeInteger(input.seed)) throw new Error('seed must be a safe integer');
+  assertFiniteNonNegative(input.authorityStartedAtMs, 'authorityStartedAtMs');
   if (input.actors.length < 1 || input.actors.length > 2) throw new Error('Duo authority requires one or two actors');
   if (input.enemies.length < 1) throw new Error('encounter requires at least one enemy');
 
@@ -173,23 +200,22 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
     actorIds.add(actor.actorId);
     const classCombat = CANONICAL_CLASS_COMBAT_MANIFEST[actor.classKey];
     if (!classCombat) throw new Error(`unknown classKey: ${String(actor.classKey)}`);
-    assertFiniteNonNegative(actor.attack, 'actor.attack');
-    assertFinite(actor.x, 'actor.x');
-    assertFinite(actor.y, 'actor.y');
-    assertFinitePositive(actor.width, 'actor.width');
-    assertFinitePositive(actor.height, 'actor.height');
+    assertFinite(actor.spawnX, 'actor.spawnX');
+    assertFinite(actor.spawnY, 'actor.spawnY');
     return Object.freeze({
       actorId: actor.actorId,
       classKey: actor.classKey,
-      attack: actor.attack,
+      attack: classCombat.attack,
+      speed: classCombat.speed,
       attackRange: classCombat.attackRange,
       attackCooldownMs: classCombat.attackCooldownMs,
-      x: actor.x,
-      y: actor.y,
-      width: actor.width,
-      height: actor.height,
+      x: actor.spawnX,
+      y: actor.spawnY,
+      width: classCombat.actorSize,
+      height: classCombat.actorSize,
       active: actor.active !== false,
-      nextBasicHitAtMs: 0,
+      nextBasicHitAtMs: input.authorityStartedAtMs,
+      lastAuthorityAtMs: input.authorityStartedAtMs,
     });
   });
 
@@ -236,19 +262,38 @@ export function reduceAuthorityIntent(
   intent: AuthorityIntent,
   authorityNowMs: number,
 ): AuthorityReduceResult {
-  if (state.completed) throw new Error('encounter already completed');
+  const { actorIndex, actor } = assertSequencedIntent(state, intent, authorityNowMs);
+  const nextVersion = state.version + 1;
+  const lastClientSeqByActor = Object.freeze({ ...state.lastClientSeqByActor, [intent.actorId]: intent.clientSeq });
+
+  if (intent.kind === 'move') {
+    assertFinite(intent.directionX, 'directionX');
+    assertFinite(intent.directionY, 'directionY');
+    const magnitudeSquared = intent.directionX * intent.directionX + intent.directionY * intent.directionY;
+    if (magnitudeSquared > 1.000001) throw new Error('movement direction magnitude exceeds one');
+    const elapsedMs = authorityNowMs - actor.lastAuthorityAtMs;
+    const movementAccepted = elapsedMs <= MAX_AUTHORITY_MOVEMENT_STEP_MS;
+    const distance = movementAccepted ? actor.speed * (elapsedMs / 1000) : 0;
+    const actors = state.actors.map((candidate, index) => index === actorIndex
+      ? Object.freeze({
+          ...candidate,
+          x: candidate.x + intent.directionX * distance,
+          y: candidate.y + intent.directionY * distance,
+          lastAuthorityAtMs: authorityNowMs,
+        })
+      : candidate);
+    return Object.freeze({
+      state: Object.freeze({
+        ...state,
+        version: nextVersion,
+        actors: Object.freeze(actors),
+        lastClientSeqByActor,
+      }),
+      event: null,
+    });
+  }
+
   if (intent.kind !== 'basic-hit') throw new Error('unsupported intent');
-  if (!Number.isInteger(intent.clientSeq) || intent.clientSeq <= 0) throw new Error('clientSeq must be a positive integer');
-  assertFiniteNonNegative(authorityNowMs, 'authorityNowMs');
-
-  const actorIndex = state.actors.findIndex(candidate => candidate.actorId === intent.actorId);
-  if (actorIndex < 0) throw new Error('actor is not part of the canonical encounter');
-  const actor = state.actors[actorIndex];
-  if (!actor.active) throw new Error('actor is not active in the canonical encounter');
-
-  const previousSeq = state.lastClientSeqByActor[intent.actorId] ?? 0;
-  if (intent.clientSeq <= previousSeq) throw new Error('replayed or out-of-order intent');
-  if (intent.clientSeq !== previousSeq + 1) throw new Error('clientSeq gap is not allowed');
   if (authorityNowMs < actor.nextBasicHitAtMs) throw new Error('basic-hit cadence not ready');
 
   const targetIndex = state.enemies.findIndex(enemy => enemy.enemyId === intent.targetEnemyId && enemy.hp > 0);
@@ -262,11 +307,13 @@ export function reduceAuthorityIntent(
     ? Object.freeze({ ...enemy, hp: nextHp })
     : enemy);
   const actors = state.actors.map((candidate, index) => index === actorIndex
-    ? Object.freeze({ ...candidate, nextBasicHitAtMs: authorityNowMs + actor.attackCooldownMs })
+    ? Object.freeze({
+        ...candidate,
+        nextBasicHitAtMs: authorityNowMs + actor.attackCooldownMs,
+        lastAuthorityAtMs: authorityNowMs,
+      })
     : candidate);
-  const nextVersion = state.version + 1;
   const completed = enemies.every(enemy => enemy.hp <= 0);
-  const lastClientSeqByActor = Object.freeze({ ...state.lastClientSeqByActor, [intent.actorId]: intent.clientSeq });
   const nextState: CanonicalEncounterState = Object.freeze({
     ...state,
     version: nextVersion,
