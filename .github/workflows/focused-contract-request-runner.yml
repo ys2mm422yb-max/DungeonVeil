@@ -138,18 +138,43 @@ jobs:
           cache: pnpm
           cache-dependency-path: repo/pnpm-lock.yaml
 
-      - name: Validate lifecycle-script isolation
+      - name: Validate install hook isolation
         id: install_isolation
         run: |
           set -euo pipefail
           PNPM_VERSION="$(pnpm --version)"
           printf '%s\n' "$PNPM_VERSION" | grep -Eq '^10\.[0-9]+\.[0-9]+$'
+
+          reject_pnpm_hook_config() {
+            local root="$1"
+            if find "$root" -type f \( -name '.pnpmfile.cjs' -o -name '.pnpmfile.js' \) -print -quit | grep -q .; then
+              return 1
+            fi
+            while IFS= read -r -d '' config; do
+              if grep -Eiq 'pnpm[-_]?file' "$config"; then
+                return 1
+              fi
+            done < <(find "$root" -type f \( -name '.npmrc' -o -name 'pnpm-workspace.yaml' -o -name 'pnpm-workspace.yml' \) -print0)
+          }
+
           PROBE="$RUNNER_TEMP/focused-contract-install-probe"
           rm -rf "$PROBE"
           mkdir -p "$PROBE"
           cat > "$PROBE/package.json" <<'JSON'
           {"name":"focused-contract-install-probe","private":true,"version":"1.0.0","scripts":{"preinstall":"node -e \"require('fs').writeFileSync('lifecycle-poisoned','x')\"","postinstall":"node -e \"require('fs').writeFileSync('lifecycle-poisoned-post','x')\""}}
           JSON
+          cat > "$PROBE/.pnpmfile.cjs" <<'JS'
+          require('fs').writeFileSync('pnpmfile-poisoned', 'x');
+          module.exports = { hooks: {} };
+          JS
+          printf 'pnpmfile=.pnpmfile.cjs\n' > "$PROBE/.npmrc"
+          if reject_pnpm_hook_config "$PROBE"; then
+            echo 'pnpm hook config guard failed open' >&2
+            exit 1
+          fi
+          test ! -e "$PROBE/pnpmfile-poisoned"
+          rm -f "$PROBE/.pnpmfile.cjs" "$PROBE/.npmrc"
+          reject_pnpm_hook_config "$PROBE"
           (
             cd "$PROBE"
             env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
@@ -157,7 +182,8 @@ jobs:
           )
           test ! -e "$PROBE/lifecycle-poisoned"
           test ! -e "$PROBE/lifecycle-poisoned-post"
-          printf 'pnpm_version=%s\n' "$PNPM_VERSION" >> "$GITHUB_OUTPUT"
+          test ! -e "$PROBE/pnpmfile-poisoned"
+          printf 'pnpm_version=%s\npnpmfile_guard=blocked\nlifecycle_scripts=suppressed\n' "$PNPM_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Resolve allowlisted contract and capture pre-install identity
         id: identity_capture
@@ -202,11 +228,21 @@ jobs:
           printf 'source_tree=%s\nlock_blob=%s\nworkspace_blob=%s\nroot_package_blob=%s\napp_package_blob=%s\nmanifest_blob=%s\ncontract_blob=%s\ncontract_path=%s\n' \
             "$SOURCE_TREE" "$LOCK_BLOB" "$WORKSPACE_BLOB" "$ROOT_PACKAGE_BLOB" "$APP_PACKAGE_BLOB" "$MANIFEST_BLOB" "$CONTRACT_BLOB" "$CONTRACT_PATH" >> "$GITHUB_OUTPUT"
 
-      - name: Install frozen dependencies without lifecycle scripts
+      - name: Install frozen dependencies with hook configs blocked
         id: install
         working-directory: repo
         run: |
           set -euo pipefail
+          if find . -type f \( -name '.pnpmfile.cjs' -o -name '.pnpmfile.js' \) -print -quit | grep -q .; then
+            echo 'pnpm hook file is not allowed in focused runner target' >&2
+            exit 1
+          fi
+          while IFS= read -r -d '' config; do
+            if grep -Eiq 'pnpm[-_]?file' "$config"; then
+              echo "pnpm hook config is not allowed: $config" >&2
+              exit 1
+            fi
+          done < <(find . -type f \( -name '.npmrc' -o -name 'pnpm-workspace.yaml' -o -name 'pnpm-workspace.yml' \) -print0)
           env -u GITHUB_ENV -u GITHUB_OUTPUT -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
             pnpm install --frozen-lockfile --ignore-scripts
           git diff --quiet HEAD --
@@ -312,6 +348,8 @@ jobs:
           WORKFLOW_SHA: ${{ steps.trigger.outputs.workflow_sha }}
           TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
           PNPM_VERSION: ${{ steps.install_isolation.outputs.pnpm_version }}
+          PNPMFILE_GUARD: ${{ steps.install_isolation.outputs.pnpmfile_guard }}
+          LIFECYCLE_SCRIPTS: ${{ steps.install_isolation.outputs.lifecycle_scripts }}
           SOURCE_HEAD: ${{ steps.identity_guard.outputs.source_head }}
           CONFIG_HEAD: ${{ steps.identity_guard.outputs.config_head }}
           SOURCE_TREE: ${{ steps.identity_guard.outputs.source_tree }}
@@ -369,7 +407,11 @@ jobs:
             contract_path: process.env.CONTRACT_PATH ?? '',
             contract_blob: process.env.CONTRACT_BLOB ?? '',
             manifest_blob: process.env.MANIFEST_BLOB ?? '',
-            dependency_environment: { pnpm_version: process.env.PNPM_VERSION ?? '', lifecycle_scripts: 'suppressed' },
+            dependency_environment: {
+              pnpm_version: process.env.PNPM_VERSION ?? '',
+              pnpmfile_hooks: process.env.PNPMFILE_GUARD ?? '',
+              lifecycle_scripts: process.env.LIFECYCLE_SCRIPTS ?? ''
+            },
             final_request_pr: { head: read('final-request-pr-head.txt'), state: read('final-request-pr-state.txt'), base: read('final-request-pr-base.txt') },
             final_target_pr: { head: read('final-target-pr-head.txt'), state: read('final-target-pr-state.txt'), base: read('final-target-pr-base.txt') },
             final_target_branch_head: read('final-target-branch-head.txt'),
