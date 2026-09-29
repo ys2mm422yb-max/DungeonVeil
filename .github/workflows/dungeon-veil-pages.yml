@@ -1,13 +1,10 @@
 name: Deploy Dungeon Veil Test Site
 
-# Deploy review branches to the shared project-root test site.
+# The public test site is an integration artifact: only the fixed target branch may publish it.
 on:
   push:
     branches:
-      - work/blocks-1-7-production-pass
-      - 'fix/**'
-      - 'work/block-*'
-      - test/final-balance-integration
+      - fix/mobile-telegraphs-room-21-50-balance
     paths-ignore:
       - '.ci/**'
   workflow_dispatch:
@@ -24,8 +21,8 @@ concurrency:
 
 jobs:
   build:
-    # The final integration branch requires an explicit deployment approval marker.
-    if: github.event_name == 'workflow_dispatch' || github.ref_name != 'test/final-balance-integration' || contains(github.event.head_commit.message, '[deploy-test]')
+    # Fail closed for manual dispatches or stale workflow copies on any non-target ref.
+    if: github.ref == 'refs/heads/fix/mobile-telegraphs-room-21-50-balance'
     runs-on: ubuntu-latest
     timeout-minutes: 65
     outputs:
