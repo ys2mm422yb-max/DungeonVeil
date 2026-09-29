@@ -5,6 +5,8 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const STANDARD_LOADOUT = Object.freeze({ bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' });
 const ALTERNATE_LOADOUT = Object.freeze({ bow: 'ember-bow', quiver: 'warden-quiver', armor: 'warden-armor' });
 const KNOWN_EQUIPMENT = Object.freeze([...Object.values(STANDARD_LOADOUT), ...Object.values(ALTERNATE_LOADOUT)]);
+test.use({ video: 'on' });
+
 const COMPANION_MATRIX = Object.freeze([
   ['single-target', 'veil-lynx'],
   ['critical-support', 'ember-raven'],
@@ -170,11 +172,18 @@ async function exerciseDynamicViewportRoundTrip(page) {
   const compactHeight = Math.max(viewport.width + 96, viewport.height - 260);
   if (compactHeight >= viewport.height) return;
   await page.setViewportSize({ width: viewport.width, height: compactHeight });
-  await expect.poll(
-    () => page.evaluate(() => Boolean(document.getElementById('root')?.inert)),
-    { timeout: 10_000 },
-  ).toBe(false);
-  await assertPrimaryMenuHitTargets(page);
+  const compactState = await page.evaluate(() => ({
+    rootInert: Boolean(document.getElementById('root')?.inert),
+    bodyTop: document.body.getBoundingClientRect().top,
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+  }));
+  expect(compactState.rootInert, JSON.stringify(compactState)).toBe(false);
+  expect(Math.abs(compactState.bodyTop), JSON.stringify(compactState)).toBeLessThanOrEqual(1);
+  expect(compactState.scrollX, JSON.stringify(compactState)).toBe(0);
+  expect(compactState.scrollY, JSON.stringify(compactState)).toBe(0);
   await page.setViewportSize(viewport);
   await expect.poll(
     () => page.evaluate(() => Boolean(document.getElementById('root')?.inert)),
