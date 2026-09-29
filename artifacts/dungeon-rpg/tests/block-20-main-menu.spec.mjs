@@ -116,6 +116,73 @@ async function assertNoHorizontalOverflow(page) {
   expect(Math.max(overflow.document, overflow.body) - overflow.viewport, JSON.stringify(overflow)).toBeLessThanOrEqual(4);
 }
 
+
+async function assertCenterHitTarget(locator, label) {
+  await expect(locator, `${label} is not visible before hit-test`).toBeVisible({ timeout: 30_000 });
+  const diagnostic = await locator.evaluate((element, name) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    const root = document.getElementById('root');
+    return {
+      label: name,
+      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      viewport: {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        visualWidth: window.visualViewport?.width ?? null,
+        visualHeight: window.visualViewport?.height ?? null,
+        visualOffsetTop: window.visualViewport?.offsetTop ?? null,
+        visualOffsetLeft: window.visualViewport?.offsetLeft ?? null,
+      },
+      bodyTop: document.body.getBoundingClientRect().top,
+      rootInert: Boolean(root?.inert),
+      hitTag: hit?.tagName ?? null,
+      hitTestId: hit instanceof HTMLElement ? hit.dataset.testid ?? null : null,
+      hitMatches: hit === element || Boolean(hit && element.contains(hit)),
+    };
+  }, label);
+  expect(diagnostic.rootInert, JSON.stringify(diagnostic)).toBe(false);
+  expect(diagnostic.hitMatches, JSON.stringify(diagnostic)).toBe(true);
+}
+
+async function assertPrimaryMenuHitTargets(page) {
+  const targets = [
+    ['profile', page.getByTestId('main-menu-profile-badge')],
+    ['dust', page.getByTestId('main-menu-dust-button')],
+    ['gold', page.getByTestId('main-menu-gold-button')],
+    ['settings', page.getByTestId('main-menu-settings-button')],
+    ['quests', page.getByTestId('npc-questmaster')],
+    ['mail', page.getByTestId('npc-postmaster')],
+    ['friends', page.getByTestId('npc-scout')],
+    ['guild', page.getByTestId('npc-guildmaster')],
+    ['play', page.getByRole('button', { name: /Spielen|Play/i }).first()],
+    ['equipment', page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first()],
+    ['codex', page.getByRole('button', { name: /Kodex|Codex/i }).first()],
+  ];
+  for (const [label, locator] of targets) await assertCenterHitTarget(locator, label);
+}
+
+async function exerciseDynamicViewportRoundTrip(page) {
+  const viewport = page.viewportSize();
+  if (!viewport) return;
+  const compactHeight = Math.max(viewport.width + 96, viewport.height - 260);
+  if (compactHeight >= viewport.height) return;
+  await page.setViewportSize({ width: viewport.width, height: compactHeight });
+  await expect.poll(
+    () => page.evaluate(() => Boolean(document.getElementById('root')?.inert)),
+    { timeout: 10_000 },
+  ).toBe(false);
+  await assertPrimaryMenuHitTargets(page);
+  await page.setViewportSize(viewport);
+  await expect.poll(
+    () => page.evaluate(() => Boolean(document.getElementById('root')?.inert)),
+    { timeout: 10_000 },
+  ).toBe(false);
+  await assertPrimaryMenuHitTargets(page);
+}
+
 async function capture(page, name, projectName) {
   await assertNoHorizontalOverflow(page);
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
@@ -237,6 +304,8 @@ test('Block 20 genuine touch taps open and close only the intended menu surface'
   await seedBlock20State(page, { activeCompanion: 'single-target' });
   await gotoMenu(page);
   await waitForLiveMenuPaint(page);
+  await assertPrimaryMenuHitTargets(page);
+  await exerciseDynamicViewportRoundTrip(page);
 
   await page.getByTestId('main-menu-profile-badge').tap();
   await expect(page.getByTestId('player-profile-panel')).toBeVisible({ timeout: 30_000 });

@@ -131,13 +131,20 @@
   }
 
   body {
-    position: fixed;
-    inset: 0;
+    position: relative;
+    height: 100svh;
+    height: 100dvh;
+    min-height: 100svh;
+    min-height: 100dvh;
   }
 
   #root {
-    @apply w-full h-full;
+    @apply w-full;
+    position: relative;
+    height: 100svh;
+    height: 100dvh;
     min-height: 100svh;
+    min-height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: none;
