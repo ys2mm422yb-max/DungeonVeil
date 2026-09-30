@@ -4,7 +4,7 @@ import { TileType } from '../game/dungeon';
 import { skillRank } from '../game/runSkills';
 import { CHAPTER_ROOMS } from '../game/chapterRun';
 import { RUN_CAMERA, updateRunCamera } from './RunCameraRig';
-import { loadKayKitRanger, type KayKitPlayerRig } from './kaykitPlayer3D';
+import { loadKayKitRanger, PLAYER_DEATH_EVENT, type KayKitPlayerRig } from './kaykitPlayer3D';
 import { buildKayKitDungeonRoom, preloadKayKitDungeonRoom } from './kaykitRoom3D';
 import { buildKayKitRoomTheme, preloadKayKitRoomTheme } from './kaykitRoomThemes3D';
 import { createKayKitEnemyVisual, updateKayKitEnemyVisual, type KayKitEnemyVisual } from './kaykitEnemy3D';
@@ -36,6 +36,19 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+
+    const handlePlayerDeathSignal = (event: Event) => {
+      const detail = (event as CustomEvent<{ dead?: boolean; gameState?: GameState }>).detail;
+      if (detail?.dead && detail.gameState) {
+        // Consume the authoritative terminal snapshot without forcing the surrounding
+        // CombatStage tree through a synchronous React reconciliation. This lets the render
+        // loop freeze its one final pose while the overlay commits independently.
+        stateRef.current = detail.gameState;
+      } else if (!detail?.dead && stateRef.current.status === 'gameover') {
+        stateRef.current = { ...stateRef.current, status: 'playing' };
+      }
+    };
+    window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
 
     let disposed = false;
     let raf = 0;
@@ -1108,6 +1121,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       roomGeneration += 1;
       clearRoomPaintState();
       cancelAnimationFrame(raf);
+      window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
       window.removeEventListener('resize', resize);
       window.removeEventListener('dungeon-veil-meta-changed', refreshEquippedPlayerRig);
       window.removeEventListener('dungeon-veil-cloud-save-restored', refreshEquippedPlayerRig);
