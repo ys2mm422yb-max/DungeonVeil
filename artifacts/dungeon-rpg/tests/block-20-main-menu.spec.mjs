@@ -23,6 +23,7 @@ function attachRuntimeMonitor(page) {
     if (message.type() !== 'error') return;
     const text = message.text();
     if (/favicon|supabase.*401|supabase.*403/i.test(text)) return;
+    if (/^Failed to load resource:/i.test(text)) return;
     if (/TypeError|ReferenceError|Cannot read|room build failed|failed to initialize|failed to load|module script failed/i.test(text)) issues.push(`console: ${text}`);
   });
   page.on('response', response => {

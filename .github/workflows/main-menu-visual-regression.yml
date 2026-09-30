@@ -178,7 +178,7 @@ jobs:
           compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/block20-*-${{ matrix.project }}.png
-            artifacts/dungeon-rpg/test-results/**/*.webm
+            artifacts/dungeon-rpg/test-results/*/video.webm
       - name: Enforce focused Block 20 failure budget
         if: steps.menu-tests.outcome == 'failure'
         run: >-

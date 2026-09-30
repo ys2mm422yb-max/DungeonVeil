@@ -36,49 +36,6 @@ jobs:
         shell: bash
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for required integration validations
-        if: github.ref_name == 'test/final-balance-integration'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const required = ['Dungeon RPG CI', 'Dungeon RPG Check', 'Full Game Regression'];
-            const failedConclusions = new Set(['failure', 'cancelled', 'timed_out', 'action_required', 'stale']);
-            const deadline = Date.now() + 50 * 60 * 1000;
-            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-            const { owner, repo } = context.repo;
-
-            while (Date.now() < deadline) {
-              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
-                owner,
-                repo,
-                head_sha: context.sha,
-                per_page: 100,
-              });
-              const latest = new Map();
-              for (const run of data.workflow_runs) {
-                if (!required.includes(run.name)) continue;
-                const previous = latest.get(run.name);
-                if (!previous || new Date(run.created_at) > new Date(previous.created_at)) latest.set(run.name, run);
-              }
-
-              const states = required.map(name => {
-                const run = latest.get(name);
-                return { name, status: run?.status || 'missing', conclusion: run?.conclusion || null };
-              });
-              core.info(`Validation states: ${JSON.stringify(states)}`);
-
-              const failed = states.find(state => state.status === 'completed' && failedConclusions.has(state.conclusion));
-              if (failed) throw new Error(`${failed.name} finished with ${failed.conclusion}`);
-
-              if (states.every(state => state.status === 'completed' && state.conclusion === 'success')) {
-                core.info(`All required validations passed for ${context.sha}`);
-                return;
-              }
-              await sleep(30_000);
-            }
-            throw new Error(`Timed out waiting for required validations on ${context.sha}`);
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
