@@ -26,7 +26,7 @@ const MAX_DAMAGE_VISUALS = IS_ANDROID ? 7 : IS_IOS ? 10 : IS_MOBILE ? 12 : 28;
 const PERFORMANCE_KEY = 'dungeon-veil-performance';
 const LOW_GPU_KEY = 'dungeon-veil-low-gpu';
 const ENEMY_VISUAL_ABSENCE_GRACE_MS = 5000;
-const GAMEOVER_RENDER_INTERVAL_MS = 40;
+const TERMINAL_DEATH_POSE_SECONDS = 0.72;
 
 export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -71,7 +71,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     let perfWindowStarted = performance.now();
     let perfFrames = 0;
     let lowFpsWindows = 0;
-    let lastGameoverRenderAt = -Infinity;
+    let terminalFrameRendered = false;
     let resizeObserver: ResizeObserver | null = null;
     let lastRenderWidth = 0;
     let lastRenderHeight = 0;
@@ -958,18 +958,21 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       const gameover = state.status === 'gameover';
       const wallNow = Date.now();
       const gameNow = performance.now();
-      if (gameover && gameNow - lastGameoverRenderAt < GAMEOVER_RENDER_INTERVAL_MS) {
+      if (gameover && terminalFrameRendered) {
         raf = requestAnimationFrame(renderLoop);
         return;
+      }
+      if (!gameover && terminalFrameRendered) {
+        terminalFrameRendered = false;
+        delete host.dataset.terminalRenderMode;
+        delete host.dataset.terminalRenderFrames;
       }
       const delta = Math.min(clock.getDelta(), 0.05);
       const playerX = mapX(state, state.player.x);
       const playerZ = mapZ(state, state.player.y);
 
-      // Keep the current room and its presentation contract alive through the death beat,
-      // but stop speculative next-room work once the authoritative run is over.
-      buildRoom(state);
       if (!gameover) {
+        buildRoom(state);
         applyRoomEnvironment(roomRoot);
         preloadNextRoom(state);
       }
@@ -985,9 +988,10 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
           if (state.player.lastAttackTime > lastAttack) { lastAttack = state.player.lastAttackTime; playerRig.triggerAttack(); }
           if (state.player.lastDodgeTime > lastDodge) { lastDodge = state.player.lastDodgeTime; playerRig.triggerDash(); }
         }
-        // The rig mixer must keep advancing so an already-started death/final animation
-        // cannot freeze merely because the run reached gameover.
-        playerRig.update(delta);
+        // Commit one deterministic final death pose, then retain that already-drawn canvas
+        // throughout the overlay beat. Repeated software-WebGL draws can monopolize loaded
+        // tablet main threads and make the fixed 1100 ms overlay deadline visibly late.
+        playerRig.update(gameover ? TERMINAL_DEATH_POSE_SECONDS : delta);
       }
 
       if (!gameover) {
@@ -1000,22 +1004,18 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         syncLoot(state, wallNow);
         syncPortal(state, gameNow, wallNow);
         syncPlayerFeedback(state, wallNow, gameNow);
-      } else {
-        // Preserve ambient enemy rig motion without re-running spawn/fallback/state-sync
-        // machinery. This keeps the death scene visually alive while removing the heavy
-        // post-gameover main-thread competitor that delayed the React `settled` commit.
-        for (const visual of enemyVisuals.values()) visual.mixer?.update?.(delta);
       }
 
-      camera.userData.dungeonPlayerX = playerX + RUN_CAMERA.playerCenterOffset;
-      camera.userData.dungeonPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
-      updateRunCamera(camera, cameraGoal, playerX, playerZ, state.roomClearReady);
+      if (!gameover) {
+        camera.userData.dungeonPlayerX = playerX + RUN_CAMERA.playerCenterOffset;
+        camera.userData.dungeonPlayerZ = playerZ + RUN_CAMERA.playerCenterOffset;
+        updateRunCamera(camera, cameraGoal, playerX, playerZ, state.roomClearReady);
+      }
       renderer.render(scene, camera);
       if (gameover) {
-        // Measure the terminal cadence from the end of the expensive draw. If a loaded
-        // software/mobile WebGL frame itself exceeds 40 ms, stamping before render makes
-        // the next rAF immediately eligible and can starve the fixed death-overlay deadline.
-        lastGameoverRenderAt = performance.now();
+        terminalFrameRendered = true;
+        host.dataset.terminalRenderMode = 'frozen-final-pose';
+        host.dataset.terminalRenderFrames = '1';
       }
       if (roomPaintRoot === roomRoot && roomPaintKey && host.dataset.roomPaintExpectedKey === roomPaintKey) {
         roomPaintPresentationFrames += 1;
@@ -1130,6 +1130,8 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       renderer?.domElement?.remove?.();
       delete host.dataset.equippedArmor;
       delete host.dataset.equippedArmorFallback;
+      delete host.dataset.terminalRenderMode;
+      delete host.dataset.terminalRenderFrames;
     };
   }, []);
 
