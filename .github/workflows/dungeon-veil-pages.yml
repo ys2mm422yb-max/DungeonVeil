@@ -132,7 +132,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const issueNumber = 376;
+            const issueNumber = 481;
             const productSha = process.env.PRODUCT_SHA;
             const pageUrl = process.env.PAGE_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
             const runAttempt = process.env.WORKFLOW_RUN_ATTEMPT;
