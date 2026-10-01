@@ -134,6 +134,9 @@ test('solo death uses an explicit visual death state before the final overlay', 
   await expect(overlay).toBeVisible();
   const playerRenderer = page.locator('[data-player-death-state="active"]');
   await expect(playerRenderer, 'renderer must publish an active death-state instead of freezing in idle/run').toBeVisible({ timeout: 2_000 });
+  const rendererHost = page.getByTestId('run-three-host');
+  await expect(rendererHost, 'terminal renderer must retain one final death pose without continuing software-WebGL draws').toHaveAttribute('data-terminal-render-mode', 'frozen-final-pose', { timeout: 2_000 });
+  await expect(rendererHost, 'terminal renderer must bound the death presentation to exactly one final WebGL frame').toHaveAttribute('data-terminal-render-frames', '1');
   const after = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(after?.status).toBe('gameover');
   expect(Number(after?.hp ?? 1)).toBeLessThanOrEqual(0);
@@ -147,7 +150,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(postDeathAttackAfterWindow.attackAt, 'player attacks must stay blocked after death').toBe(postDeathAttackObservation.attackAt);
   const deathSequence = await overlay.getAttribute('data-death-sequence');
   const rendererDeathState = await playerRenderer.getAttribute('data-player-death-state');
-  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, deathSequence, deathSequenceStates: deathSequenceObservation.states, deathSequenceObservedMs: deathSequenceObservation.elapsedMs, deathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
+  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, deathSequence, deathSequenceStates: deathSequenceObservation.states, deathSequenceObservedMs: deathSequenceObservation.elapsedMs, deathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, terminalRenderMode: await rendererHost.getAttribute('data-terminal-render-mode'), terminalRenderFrames: Number(await rendererHost.getAttribute('data-terminal-render-frames')), postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
   // WebKit's iPhone video encoder trails the already-rendered terminal DOM by more than the generic EOF hold.
   // Keep only that project alive longer after all assertions so the final card is actually encoded into the video.

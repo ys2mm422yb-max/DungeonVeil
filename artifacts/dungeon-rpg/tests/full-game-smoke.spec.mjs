@@ -71,7 +71,7 @@ async function assertNoHorizontalOverflow(page) {
 
 async function clickAnimatedUi(locator) {
   await expect(locator).toBeVisible({ timeout: 30_000 });
-  await locator.click({ force: true, noWaitAfter: true });
+  await locator.click({ noWaitAfter: true });
 }
 
 async function reloadMenu(page, projectName) {

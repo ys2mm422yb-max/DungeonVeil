@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import type { GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { activeCompanionV5 } from '../game/companionCollectionV5';
@@ -91,14 +90,11 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   useEffect(() => {
     const handlePlayerDeathSignal = (event: Event) => {
       const detail = (event as CustomEvent<{ dead?: boolean }>).detail;
-      // The renderer fast path must be committed before the terminal overlay's synchronous
-      // work begins; otherwise loaded WebKit can keep the canvas on its previous `playing`
-      // snapshot long enough to starve the fixed death-overlay deadline.
-      flushSync(() => setPlayerDead(Boolean(detail?.dead)));
+      // The terminal renderer consumes the death signal directly. Defer this decorative
+      // viewport/companion reconciliation so a synchronous React tree flush cannot delay the
+      // product's death overlay commit on loaded Android browsers.
+      window.setTimeout(() => setPlayerDead(Boolean(detail?.dead)), 0);
     };
-    // TerminalDeathOverlay is mounted before the in-run CombatStage and performs a
-    // synchronous terminal commit. Capture ordering plus this synchronous lightweight
-    // renderer update guarantees the existing gameover cadence is active first.
     window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
     return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
   }, []);

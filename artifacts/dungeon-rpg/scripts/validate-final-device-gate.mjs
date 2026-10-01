@@ -92,7 +92,14 @@ const checks = [
     && completeRuntimeWorkflow.includes('tests/post-clear-player-hazards.spec.mjs')
     && completeRuntimeWorkflow.includes('tests/atomic-room-readiness.spec.mjs')
     && completeRuntimeWorkflow.includes('tests/worldboss-block1.spec.mjs'), 'complete runtime workflow no longer skips draft synchronizations while preserving per-device evidence for ready PRs, manual runs and the target branch'],
-  [pagesWorkflow.includes("- 'work/block-*'") && pagesWorkflow.includes('Write deployment marker') && pagesWorkflow.includes('Deploy Dungeon Veil Test Site'), 'final block branches are not deployed with a recorded commit'],
+  [pagesWorkflow.includes('- fix/mobile-telegraphs-room-21-50-balance')
+    && !pagesWorkflow.includes("'fix/**'")
+    && !pagesWorkflow.includes("'work/block-*'")
+    && !pagesWorkflow.includes('test/final-balance-integration')
+    && pagesWorkflow.includes("if: github.ref == 'refs/heads/fix/mobile-telegraphs-room-21-50-balance'")
+    && pagesWorkflow.includes('Write deployment marker')
+    && pagesWorkflow.includes('Deploy Dungeon Veil Test Site'),
+    'public Pages deployment is not fail-closed to the fixed target branch'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
