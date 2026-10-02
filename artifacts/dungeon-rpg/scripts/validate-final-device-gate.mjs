@@ -17,6 +17,7 @@ const [
   regressionWorkflow,
   completeRuntimeWorkflow,
   pagesWorkflow,
+  combatStage,
 ] = await Promise.all([
   read('../playwright.regression.config.mjs'),
   read('../playwright.complete-runtime.config.mjs'),
@@ -24,6 +25,7 @@ const [
   read('../../../.github/workflows/full-game-regression.yml'),
   read('../../../.github/workflows/complete-runtime-evidence-qa.yml'),
   read('../../../.github/workflows/dungeon-veil-pages.yml'),
+  read('../src/components/CombatStage.tsx'),
 ]);
 
 const extractConfigProjects = source => {
@@ -100,6 +102,11 @@ const checks = [
     && pagesWorkflow.includes('Write deployment marker')
     && pagesWorkflow.includes('Deploy Dungeon Veil Test Site'),
     'public Pages deployment is not fail-closed to the fixed target branch'],
+  [combatStage.includes('const DEATH_OVERLAY_PRIORITY_WINDOW_MS = 1_200')
+    && combatStage.includes("stageRef.current.dataset.playerDeathState = dead ? 'active' : 'idle'")
+    && combatStage.includes('}, DEATH_OVERLAY_PRIORITY_WINDOW_MS)')
+    && !/setTimeout\(\(\) => setPlayerDead\([^)]*\),\s*0\)/s.test(combatStage),
+    'terminal death still lets broad CombatStage reconciliation compete with the 1.1-second overlay priority window'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
