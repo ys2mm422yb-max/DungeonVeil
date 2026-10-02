@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "target_pr": 472,
+  "expected_head": "fc86c7dc580aab660da049fb652c787bfd55e60e",
+  "contract_id": "duo-canonical-encounter-factory"
+}
