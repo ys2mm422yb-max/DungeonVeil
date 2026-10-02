@@ -23,32 +23,44 @@ jobs:
           REQUEST_PR: ${{ github.event.pull_request.number }}
           REQUEST_HEAD: ${{ github.event.pull_request.head.sha }}
           EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
           TRIGGER_LABEL: ${{ github.event.label.name }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           node -e "if (!/^[1-9][0-9]*$/.test(process.env.REQUEST_PR || '')) process.exit(1)"
-          for value in "$REQUEST_HEAD" "$EVENT_BASE_SHA" "$WORKFLOW_SHA"; do
+          for value in "$REQUEST_HEAD" "$EVENT_BASE_SHA" "$EVENT_MERGE_SHA" "$WORKFLOW_SHA"; do
             printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
           done
           test "$BASE_REF" = "fix/mobile-telegraphs-room-21-50-balance"
           test "$TRIGGER_LABEL" = "focused-contract-request"
+          test "$WORKFLOW_REF" = "${GITHUB_REPOSITORY}/.github/workflows/focused-contract-request-runner.yml@refs/pull/${REQUEST_PR}/merge"
           LIVE_TARGET_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/fix/mobile-telegraphs-room-21-50-balance" --jq '.object.sha')"
           REQUEST_PR_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.head.sha')"
           REQUEST_PR_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.state')"
           REQUEST_PR_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.base.ref')"
+          REQUEST_PR_MERGE_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.merge_commit_sha')"
+          WORKFLOW_PATH='.github/workflows/focused-contract-request-runner.yml'
+          WORKFLOW_BLOB="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${WORKFLOW_PATH}?ref=${WORKFLOW_SHA}" --jq '.sha')"
+          TRUSTED_WORKFLOW_BLOB="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${WORKFLOW_PATH}?ref=${LIVE_TARGET_HEAD}" --jq '.sha')"
           test "$LIVE_TARGET_HEAD" = "$EVENT_BASE_SHA"
-          test "$WORKFLOW_SHA" = "$EVENT_BASE_SHA"
           test "$REQUEST_PR_STATE" = "open"
           test "$REQUEST_PR_BASE" = "fix/mobile-telegraphs-room-21-50-balance"
           test "$REQUEST_PR_HEAD" = "$REQUEST_HEAD"
+          test "$WORKFLOW_SHA" = "$EVENT_MERGE_SHA"
+          test "$WORKFLOW_SHA" = "$REQUEST_PR_MERGE_SHA"
+          for value in "$WORKFLOW_BLOB" "$TRUSTED_WORKFLOW_BLOB"; do
+            printf '%s\n' "$value" | grep -Eq '^[0-9a-f]{40}$'
+          done
+          test "$WORKFLOW_BLOB" = "$TRUSTED_WORKFLOW_BLOB"
           mapfile -t CHANGED_FILES < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}/files?per_page=100" --jq '.[].filename')
           test "${#CHANGED_FILES[@]}" -eq 1
           test "${CHANGED_FILES[0]}" = ".github/focused-contract-request.json"
-          printf 'request_pr=%s\nrequest_head=%s\ntrusted_target_head=%s\nworkflow_sha=%s\n' \
-            "$REQUEST_PR" "$REQUEST_HEAD" "$LIVE_TARGET_HEAD" "$WORKFLOW_SHA" >> "$GITHUB_OUTPUT"
+          printf 'request_pr=%s\nrequest_head=%s\ntrusted_target_head=%s\nworkflow_sha=%s\nworkflow_blob=%s\n' \
+            "$REQUEST_PR" "$REQUEST_HEAD" "$LIVE_TARGET_HEAD" "$WORKFLOW_SHA" "$WORKFLOW_BLOB" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact request head as data only
         id: request_checkout
@@ -309,28 +321,37 @@ jobs:
           EXPECTED_HEAD: ${{ steps.request.outputs.expected_head }}
           TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
           WORKFLOW_SHA: ${{ steps.trigger.outputs.workflow_sha }}
+          WORKFLOW_BLOB: ${{ steps.trigger.outputs.workflow_blob }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           REQUEST_FINAL_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.head.sha')"
           REQUEST_FINAL_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.state')"
           REQUEST_FINAL_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.base.ref')"
+          REQUEST_FINAL_MERGE_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${REQUEST_PR}" --jq '.merge_commit_sha')"
           TARGET_FINAL_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.head.sha')"
           TARGET_FINAL_STATE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.state')"
           TARGET_FINAL_BASE="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${TARGET_PR}" --jq '.base.ref')"
           LIVE_TARGET_HEAD="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/fix/mobile-telegraphs-room-21-50-balance" --jq '.object.sha')"
+          WORKFLOW_PATH='.github/workflows/focused-contract-request-runner.yml'
+          FINAL_WORKFLOW_BLOB="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${WORKFLOW_PATH}?ref=${WORKFLOW_SHA}" --jq '.sha')"
+          FINAL_TRUSTED_WORKFLOW_BLOB="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${WORKFLOW_PATH}?ref=${LIVE_TARGET_HEAD}" --jq '.sha')"
           FINAL_STATUS="ok"
           if [ "$REQUEST_FINAL_STATE" != "open" ] || [ "$REQUEST_FINAL_BASE" != "fix/mobile-telegraphs-room-21-50-balance" ] || [ "$REQUEST_FINAL_HEAD" != "$REQUEST_HEAD" ]; then FINAL_STATUS="request_changed";
+          elif [ "$REQUEST_FINAL_MERGE_SHA" != "$WORKFLOW_SHA" ]; then FINAL_STATUS="request_merge_changed";
           elif [ "$TARGET_FINAL_STATE" != "open" ] || [ "$TARGET_FINAL_BASE" != "fix/mobile-telegraphs-room-21-50-balance" ] || [ "$TARGET_FINAL_HEAD" != "$EXPECTED_HEAD" ]; then FINAL_STATUS="target_changed";
           elif [ "$LIVE_TARGET_HEAD" != "$TRUSTED_TARGET_HEAD" ]; then FINAL_STATUS="target_branch_changed";
-          elif [ "$WORKFLOW_SHA" != "$TRUSTED_TARGET_HEAD" ]; then FINAL_STATUS="workflow_provenance_changed"; fi
+          elif [ "$FINAL_WORKFLOW_BLOB" != "$WORKFLOW_BLOB" ] || [ "$FINAL_TRUSTED_WORKFLOW_BLOB" != "$WORKFLOW_BLOB" ]; then FINAL_STATUS="workflow_provenance_changed"; fi
           printf '%s\n' "$REQUEST_FINAL_HEAD" > final-request-pr-head.txt
           printf '%s\n' "$REQUEST_FINAL_STATE" > final-request-pr-state.txt
           printf '%s\n' "$REQUEST_FINAL_BASE" > final-request-pr-base.txt
+          printf '%s\n' "$REQUEST_FINAL_MERGE_SHA" > final-request-pr-merge-sha.txt
           printf '%s\n' "$TARGET_FINAL_HEAD" > final-target-pr-head.txt
           printf '%s\n' "$TARGET_FINAL_STATE" > final-target-pr-state.txt
           printf '%s\n' "$TARGET_FINAL_BASE" > final-target-pr-base.txt
           printf '%s\n' "$LIVE_TARGET_HEAD" > final-target-branch-head.txt
+          printf '%s\n' "$FINAL_WORKFLOW_BLOB" > final-workflow-blob.txt
+          printf '%s\n' "$FINAL_TRUSTED_WORKFLOW_BLOB" > final-trusted-workflow-blob.txt
           printf '%s\n' "$FINAL_STATUS" > final-guard-status.txt
           test "$FINAL_STATUS" = "ok"
 
@@ -346,6 +367,7 @@ jobs:
           CONTRACT_ID: ${{ steps.request.outputs.contract_id }}
           CONTRACT_PATH: ${{ steps.identity_capture.outputs.contract_path }}
           WORKFLOW_SHA: ${{ steps.trigger.outputs.workflow_sha }}
+          WORKFLOW_BLOB: ${{ steps.trigger.outputs.workflow_blob }}
           TRUSTED_TARGET_HEAD: ${{ steps.trigger.outputs.trusted_target_head }}
           PNPM_VERSION: ${{ steps.install_isolation.outputs.pnpm_version }}
           PNPMFILE_GUARD: ${{ steps.install_isolation.outputs.pnpmfile_guard }}
@@ -403,6 +425,7 @@ jobs:
             source_tree: process.env.SOURCE_TREE ?? '',
             trusted_target_head: process.env.TRUSTED_TARGET_HEAD ?? '',
             workflow_sha: process.env.WORKFLOW_SHA ?? '',
+            workflow_blob: process.env.WORKFLOW_BLOB ?? '',
             contract_id: process.env.CONTRACT_ID ?? '',
             contract_path: process.env.CONTRACT_PATH ?? '',
             contract_blob: process.env.CONTRACT_BLOB ?? '',
@@ -412,9 +435,11 @@ jobs:
               pnpmfile_hooks: process.env.PNPMFILE_GUARD ?? '',
               lifecycle_scripts: process.env.LIFECYCLE_SCRIPTS ?? ''
             },
-            final_request_pr: { head: read('final-request-pr-head.txt'), state: read('final-request-pr-state.txt'), base: read('final-request-pr-base.txt') },
+            final_request_pr: { head: read('final-request-pr-head.txt'), state: read('final-request-pr-state.txt'), base: read('final-request-pr-base.txt'), merge_sha: read('final-request-pr-merge-sha.txt') },
             final_target_pr: { head: read('final-target-pr-head.txt'), state: read('final-target-pr-state.txt'), base: read('final-target-pr-base.txt') },
             final_target_branch_head: read('final-target-branch-head.txt'),
+            final_workflow_blob: read('final-workflow-blob.txt'),
+            final_trusted_workflow_blob: read('final-trusted-workflow-blob.txt'),
             final_guard_status: process.env.FINAL_STATUS ?? '',
             workflow_run_id: process.env.GITHUB_RUN_ID ?? '',
             workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT ?? '',

@@ -11,6 +11,7 @@ on:
       - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.github/workflows/focused-contract-request-runner.yml'
   pull_request:
     branches: [main, work/blocks-1-7-production-pass, 'fix/**', 'work/block-*']
     paths:
@@ -21,6 +22,7 @@ on:
       - 'pnpm-workspace.yaml'
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.github/workflows/dungeon-rpg-ci.yml'
+      - '.github/workflows/focused-contract-request-runner.yml'
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
@@ -31,6 +33,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Focused request provenance contract
+        run: node artifacts/dungeon-rpg/scripts/validate-focused-contract-request-provenance.mjs
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
