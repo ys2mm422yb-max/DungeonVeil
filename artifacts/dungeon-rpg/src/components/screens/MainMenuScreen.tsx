@@ -245,7 +245,7 @@ export function MainMenuScreen(props: Props) {
     </div>
   </div>;
 
-  return <div className="fixed inset-0 z-50 select-none overflow-hidden bg-[#050308] text-white">
+  return <div className="absolute inset-0 z-50 select-none overflow-hidden bg-[#050308] text-white">
     {overlay !== 'worldBoss' && <MainMenuDungeonScene />}
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_49%,rgba(126,54,216,.15),transparent_38%),linear-gradient(to_bottom,rgba(2,1,5,.4),rgba(4,2,7,.02)_42%,rgba(5,3,8,.18)_74%,#050307_96%)]" />
     <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/66 to-transparent" />

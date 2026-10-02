@@ -5,6 +5,8 @@ const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.i
 const STANDARD_LOADOUT = Object.freeze({ bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' });
 const ALTERNATE_LOADOUT = Object.freeze({ bow: 'ember-bow', quiver: 'warden-quiver', armor: 'warden-armor' });
 const KNOWN_EQUIPMENT = Object.freeze([...Object.values(STANDARD_LOADOUT), ...Object.values(ALTERNATE_LOADOUT)]);
+test.use({ video: 'on' });
+
 const COMPANION_MATRIX = Object.freeze([
   ['single-target', 'veil-lynx'],
   ['critical-support', 'ember-raven'],
@@ -21,6 +23,7 @@ function attachRuntimeMonitor(page) {
     if (message.type() !== 'error') return;
     const text = message.text();
     if (/favicon|supabase.*401|supabase.*403/i.test(text)) return;
+    if (/^Failed to load resource:/i.test(text)) return;
     if (/TypeError|ReferenceError|Cannot read|room build failed|failed to initialize|failed to load|module script failed/i.test(text)) issues.push(`console: ${text}`);
   });
   page.on('response', response => {
@@ -114,6 +117,80 @@ async function assertNoHorizontalOverflow(page) {
     body: document.body.scrollWidth,
   }));
   expect(Math.max(overflow.document, overflow.body) - overflow.viewport, JSON.stringify(overflow)).toBeLessThanOrEqual(4);
+}
+
+
+async function assertCenterHitTarget(locator, label) {
+  await expect(locator, `${label} is not visible before hit-test`).toBeVisible({ timeout: 30_000 });
+  const diagnostic = await locator.evaluate((element, name) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    const root = document.getElementById('root');
+    return {
+      label: name,
+      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      viewport: {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        visualWidth: window.visualViewport?.width ?? null,
+        visualHeight: window.visualViewport?.height ?? null,
+        visualOffsetTop: window.visualViewport?.offsetTop ?? null,
+        visualOffsetLeft: window.visualViewport?.offsetLeft ?? null,
+      },
+      bodyTop: document.body.getBoundingClientRect().top,
+      rootInert: Boolean(root?.inert),
+      hitTag: hit?.tagName ?? null,
+      hitTestId: hit instanceof HTMLElement ? hit.dataset.testid ?? null : null,
+      hitMatches: hit === element || Boolean(hit && element.contains(hit)),
+    };
+  }, label);
+  expect(diagnostic.rootInert, JSON.stringify(diagnostic)).toBe(false);
+  expect(diagnostic.hitMatches, JSON.stringify(diagnostic)).toBe(true);
+}
+
+async function assertPrimaryMenuHitTargets(page) {
+  const targets = [
+    ['profile', page.getByTestId('main-menu-profile-badge')],
+    ['dust', page.getByTestId('main-menu-dust-button')],
+    ['gold', page.getByTestId('main-menu-gold-button')],
+    ['settings', page.getByTestId('main-menu-settings-button')],
+    ['quests', page.getByTestId('npc-questmaster')],
+    ['mail', page.getByTestId('npc-postmaster')],
+    ['friends', page.getByTestId('npc-scout')],
+    ['guild', page.getByTestId('npc-guildmaster')],
+    ['play', page.getByRole('button', { name: /Spielen|Play/i }).first()],
+    ['equipment', page.getByRole('button', { name: /Ausrüstung|Equipment/i }).first()],
+    ['codex', page.getByRole('button', { name: /Kodex|Codex/i }).first()],
+  ];
+  for (const [label, locator] of targets) await assertCenterHitTarget(locator, label);
+}
+
+async function exerciseDynamicViewportRoundTrip(page) {
+  const viewport = page.viewportSize();
+  if (!viewport) return;
+  const compactHeight = Math.max(viewport.width + 96, viewport.height - 260);
+  if (compactHeight >= viewport.height) return;
+  await page.setViewportSize({ width: viewport.width, height: compactHeight });
+  const compactState = await page.evaluate(() => ({
+    rootInert: Boolean(document.getElementById('root')?.inert),
+    bodyTop: document.body.getBoundingClientRect().top,
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+  }));
+  expect(compactState.rootInert, JSON.stringify(compactState)).toBe(false);
+  expect(Math.abs(compactState.bodyTop), JSON.stringify(compactState)).toBeLessThanOrEqual(1);
+  expect(compactState.scrollX, JSON.stringify(compactState)).toBe(0);
+  expect(compactState.scrollY, JSON.stringify(compactState)).toBe(0);
+  await page.setViewportSize(viewport);
+  await expect.poll(
+    () => page.evaluate(() => Boolean(document.getElementById('root')?.inert)),
+    { timeout: 10_000 },
+  ).toBe(false);
+  await assertPrimaryMenuHitTargets(page);
 }
 
 async function capture(page, name, projectName) {
@@ -237,6 +314,8 @@ test('Block 20 genuine touch taps open and close only the intended menu surface'
   await seedBlock20State(page, { activeCompanion: 'single-target' });
   await gotoMenu(page);
   await waitForLiveMenuPaint(page);
+  await assertPrimaryMenuHitTargets(page);
+  await exerciseDynamicViewportRoundTrip(page);
 
   await page.getByTestId('main-menu-profile-badge').tap();
   await expect(page.getByTestId('player-profile-panel')).toBeVisible({ timeout: 30_000 });
