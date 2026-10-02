@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState } from '../game/runEngine';
 import type { CoopPlayerPresence } from '../game/coopRealtimePresence';
 import { activeCompanionV5 } from '../game/companionCollectionV5';
@@ -47,6 +47,11 @@ const TerminalStableGameCanvas = React.memo(
   (previous, next) => previous.gameState === next.gameState,
 );
 
+// The terminal overlay owns the first 1.1 seconds after the authoritative death event.
+// Keep broad CombatStage reconciliation outside that window so loaded Android browsers can
+// commit the lightweight overlay without contending with the renderer/companion subtree.
+const DEATH_OVERLAY_PRIORITY_WINDOW_MS = 1_200;
+
 export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const previousHpRef = useRef(gameState.player.hp);
   const previousFloorRef = useRef(gameState.floor);
@@ -54,6 +59,8 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   const shakeTimerRef = useRef<number | null>(null);
   const hurtFlashTimerRef = useRef<number | null>(null);
   const hitFlashTimerRef = useRef<number | null>(null);
+  const deathReconcileTimerRef = useRef<number | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const [shakeClass, setShakeClass] = useState('');
   const [hurtFlash, setHurtFlash] = useState(false);
   const [hitFlash, setHitFlash] = useState(false);
@@ -68,6 +75,11 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   // the lightweight renderer marker responsive to the authoritative death event instead
   // of requiring that heavy snapshot to reconcile first.
   const [playerDead, setPlayerDead] = useState(playerDeadFromGameState);
+  const playerDeadRef = useRef(playerDeadFromGameState);
+  const bindStageRef = useCallback((node: HTMLDivElement | null) => {
+    stageRef.current = node;
+    if (node) node.dataset.playerDeathState = playerDeadRef.current ? 'active' : 'idle';
+  }, []);
   const terminalSoloDeath = runMode === 'solo' && playerDead;
   const rendererGameState = useMemo<GameState>(
     () => playerDead && gameState.status !== 'gameover'
@@ -89,19 +101,36 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
 
   useEffect(() => {
     const handlePlayerDeathSignal = (event: Event) => {
-      const detail = (event as CustomEvent<{ dead?: boolean }>).detail;
-      // The terminal renderer consumes the death signal directly. Defer this decorative
-      // viewport/companion reconciliation so a synchronous React tree flush cannot delay the
-      // product's death overlay commit on loaded Android browsers.
-      window.setTimeout(() => setPlayerDead(Boolean(detail?.dead)), 0);
+      const dead = Boolean((event as CustomEvent<{ dead?: boolean }>).detail?.dead);
+      playerDeadRef.current = dead;
+      if (stageRef.current) stageRef.current.dataset.playerDeathState = dead ? 'active' : 'idle';
+      if (deathReconcileTimerRef.current !== null) {
+        window.clearTimeout(deathReconcileTimerRef.current);
+        deathReconcileTimerRef.current = null;
+      }
+      if (!dead) {
+        setPlayerDead(false);
+        return;
+      }
+      // GameCanvas consumes the authoritative event directly and freezes the final pose.
+      // Reconcile decorative companion/UI state only after the overlay's visual beat commits.
+      deathReconcileTimerRef.current = window.setTimeout(() => {
+        setPlayerDead(true);
+        deathReconcileTimerRef.current = null;
+      }, DEATH_OVERLAY_PRIORITY_WINDOW_MS);
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
-    return () => window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
+    return () => {
+      window.removeEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
+      if (deathReconcileTimerRef.current !== null) {
+        window.clearTimeout(deathReconcileTimerRef.current);
+        deathReconcileTimerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
     if (!playerDeadFromGameState) return undefined;
-    setPlayerDead(true);
     window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true } }));
     return () => {
       window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: false } }));
@@ -201,6 +230,7 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
 
   return (
     <div
+      ref={bindStageRef}
       className="fixed overflow-hidden bg-black"
       style={{ left: viewport.left, top: viewport.top, width: viewport.width, height: viewport.height }}
       data-testid="run-visual-viewport"
@@ -208,7 +238,6 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
       data-viewport-height={viewport.height}
       data-run-companion={runCompanion?.definition.species ?? 'none'}
       data-room-title={roomTitle}
-      data-player-death-state={playerDead ? 'active' : 'idle'}
       data-hurt-flash={hurtFlash ? 'active' : 'idle'}
       data-hit-flash={hitFlash ? 'active' : 'idle'}
     >
