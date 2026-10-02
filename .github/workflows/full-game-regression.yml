@@ -52,7 +52,9 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Verify regression coverage
-        run: node artifacts/dungeon-rpg/scripts/validate-full-game-regression-scope.mjs
+        run: |
+          node artifacts/dungeon-rpg/scripts/validate-full-game-regression-scope.mjs
+          node artifacts/dungeon-rpg/scripts/prepare-player-death-success-evidence.mjs --self-test
       - name: Audit every asset
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Audit all social and menu systems
@@ -357,6 +359,51 @@ jobs:
           path: |
             artifacts/dungeon-rpg/test-results/full-game-results.json
             /tmp/dungeon-veil-preview.log
+      - name: Prepare focused successful solo-death evidence
+        if: >-
+          steps.browser-tests.outcome == 'success' &&
+          github.event_name == 'pull_request' &&
+          (matrix.project == 'android-chromium' || matrix.project == 'android-tablet-chromium')
+        shell: bash
+        run: |
+          node artifacts/dungeon-rpg/scripts/prepare-player-death-success-evidence.mjs \
+            --report artifacts/dungeon-rpg/test-results/full-game-results.json \
+            --results-root artifacts/dungeon-rpg/test-results \
+            --output-root "/tmp/player-death-success-evidence-${BROWSER_PROJECT}" \
+            --project "$BROWSER_PROJECT" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --checkout-sha "${{ github.sha }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}"
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs \
+            --max-mb 25 \
+            --label "focused player-death success evidence ${BROWSER_PROJECT}" \
+            "/tmp/player-death-success-evidence-${BROWSER_PROJECT}/video" \
+            "/tmp/player-death-success-evidence-${BROWSER_PROJECT}/evidence"
+      - name: Upload focused successful solo-death video
+        if: >-
+          steps.browser-tests.outcome == 'success' &&
+          github.event_name == 'pull_request' &&
+          (matrix.project == 'android-chromium' || matrix.project == 'android-tablet-chromium')
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-death-success-video-${{ github.event.pull_request.head.sha }}-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+          path: /tmp/player-death-success-evidence-${{ matrix.project }}/video
+      - name: Upload focused successful solo-death trace and screenshot
+        if: >-
+          steps.browser-tests.outcome == 'success' &&
+          github.event_name == 'pull_request' &&
+          (matrix.project == 'android-chromium' || matrix.project == 'android-tablet-chromium')
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-death-success-proof-${{ github.event.pull_request.head.sha }}-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+          path: /tmp/player-death-success-evidence-${{ matrix.project }}/evidence
       - name: Upload failure traces for device
         if: steps.browser-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
