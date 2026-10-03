@@ -69,6 +69,8 @@ test('security-definer hardening and executable PostgreSQL evidence are permanen
   const workflow = fs.readFileSync(new URL('../../../.github/workflows/dungeon-rpg-check.yml', import.meta.url), 'utf8');
   assert.match(fixture, /create table public\.coop_lobbies/i);
   assert.match(fixture, /create table auth\.users/i);
+  assert.match(fixture, /if not exists \(select 1 from pg_roles where rolname = 'service_role'\)/i);
+  assert.doesNotMatch(fixture, /drop role/i);
   for (const proof of [
     /rolls back lobby start atomically/i,
     /snapshots exactly two canonical actors/i,
