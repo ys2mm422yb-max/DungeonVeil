@@ -6,6 +6,7 @@ on:
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
+      - 'supabase/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -17,6 +18,7 @@ on:
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
+      - 'supabase/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -63,3 +65,38 @@ jobs:
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg build
+
+  duo-authority-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Execute Duo authority migration integration
+        env:
+          DUO_AUTHORITY_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          DUO_AUTHORITY_POSTGRES_VERSION: '17'
+          DUO_AUTHORITY_RECEIPT_DIR: ${{ github.workspace }}/duo-authority-postgres-receipt
+        run: bash artifacts/dungeon-rpg/scripts/run-duo-authority-postgres-integration.sh
+      - name: Upload exact-head PostgreSQL receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duo-authority-postgres-receipt-${{ github.sha }}-${{ github.run_attempt }}
+          path: duo-authority-postgres-receipt
+          if-no-files-found: error
+          retention-days: 30

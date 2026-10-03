@@ -51,6 +51,41 @@ test('all authority tables are deny-by-default with no direct service-role DML',
   assert.match(sql, /revoke all on function private\.bootstrap_coop_authority_run\(uuid, integer, bigint\)[\s\S]*from public, anon, authenticated, service_role/i);
 });
 
+test('security-definer hardening and executable PostgreSQL evidence are permanent', () => {
+  for (const name of [
+    'private.bootstrap_coop_authority_run',
+    'public.read_coop_authority_state',
+    'public.persist_coop_authority_transition',
+    'public.start_coop_lobby',
+    'public.restart_coop_run_attempt',
+  ]) {
+    assert.match(functionBody(name), /security definer[\s\S]*set search_path\s*=\s*''/i, `${name} must use an empty search_path`);
+  }
+  assert.doesNotMatch(sql, /set search_path\s*=\s*(?:public|private|pg_temp)/i);
+
+  const fixture = fs.readFileSync(new URL('../../../supabase/tests/duo_authority_bootstrap_fixture.sql', import.meta.url), 'utf8');
+  const integration = fs.readFileSync(new URL('../../../supabase/tests/duo_authority_bootstrap_integration.sql', import.meta.url), 'utf8');
+  const runner = fs.readFileSync(new URL('../scripts/run-duo-authority-postgres-integration.sh', import.meta.url), 'utf8');
+  const workflow = fs.readFileSync(new URL('../../../.github/workflows/dungeon-rpg-check.yml', import.meta.url), 'utf8');
+  assert.match(fixture, /create table public\.coop_lobbies/i);
+  for (const proof of [
+    /rolls back lobby start atomically/i,
+    /snapshots exactly two canonical actors/i,
+    /reentrant bootstrap/i,
+    /reconnect read creates and completes nothing/i,
+    /service role cannot directly mutate/i,
+    /sequence gaps fail closed/i,
+    /identical replay/i,
+    /conflicting replay/i,
+    /old-attempt transition fails/i,
+    /concurrent CAS advances/i,
+  ]) assert.match(integration, proof);
+  assert.match(runner, /rollback-fixture\.log/);
+  assert.match(runner, /receipt\.json/);
+  assert.match(workflow, /duo-authority-postgres-receipt-\$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /postgres:17/);
+});
+
 test('service persistence enforces exact attempt, membership, sequence, replay and CAS', () => {
   const persist = functionBody('public.persist_coop_authority_transition');
   for (const required of [

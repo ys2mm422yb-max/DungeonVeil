@@ -114,7 +114,7 @@ create or replace function private.bootstrap_coop_authority_run(
 returns uuid
 language plpgsql
 security definer
-set search_path = public, private, pg_temp
+set search_path = ''
 as $$
 declare
   v_lobby public.coop_lobbies%rowtype;
@@ -229,7 +229,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public, private, pg_temp
+set search_path = ''
 as $$
 begin
   return query
@@ -296,7 +296,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public, private, pg_temp
+set search_path = ''
 as $$
 declare
   v_lobby public.coop_lobbies%rowtype;
@@ -437,7 +437,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public, private, pg_temp
+set search_path = ''
 as $$
 declare
   v_user_id uuid := auth.uid();
@@ -494,7 +494,7 @@ create or replace function public.restart_coop_run_attempt()
 returns integer
 language plpgsql
 security definer
-set search_path = public, private, pg_temp
+set search_path = ''
 as $$
 declare
   v_user_id uuid := auth.uid();
