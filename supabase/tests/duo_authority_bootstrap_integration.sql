@@ -55,9 +55,11 @@ select test.expect_error(
 reset role;
 
 -- A failed start must roll the lobby status back with the failed authority bootstrap.
+-- Only the host has a trusted auth identity at first. The lobby/member tables can
+-- represent the guest, but the private actor snapshot must reject that untrusted
+-- identity through its auth.users foreign key after start_coop_lobby changes status.
 insert into auth.users (id) values
-  ('10000000-0000-0000-0000-000000000001'),
-  ('10000000-0000-0000-0000-000000000002');
+  ('10000000-0000-0000-0000-000000000001');
 insert into public.coop_lobbies (id, invite_code, host_user_id, run_seed)
 values ('00000000-0000-0000-0000-000000000001','BAD001','10000000-0000-0000-0000-000000000001',11);
 insert into public.coop_lobby_members (lobby_id,user_id,role,ready)
@@ -65,12 +67,17 @@ values ('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-00000000
        ('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','guest',true);
 set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',false);
-select test.expect_error('select * from public.start_coop_lobby()', 'two trusted ready authority members required', 'invalid selection aborts start');
+select test.expect_error(
+  'select * from public.start_coop_lobby()',
+  'violates foreign key constraint',
+  'untrusted member identity aborts start');
 reset role;
-select test.assert_true((select status='waiting' from public.coop_lobbies where id='00000000-0000-0000-0000-000000000001'), 'invalid selection rolls back lobby start atomically');
+select test.assert_true(
+  (select status='waiting' from public.coop_lobbies where id='00000000-0000-0000-0000-000000000001'),
+  'failed authority snapshot rolls back lobby start atomically');
 
-update public.coop_lobby_members set authority_class_key='archer', authority_loadout_key='canonical-base-v1'
-where lobby_id='00000000-0000-0000-0000-000000000001';
+insert into auth.users (id) values
+  ('10000000-0000-0000-0000-000000000002');
 set role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',false);
 select * from public.start_coop_lobby();
