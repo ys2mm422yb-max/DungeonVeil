@@ -45,6 +45,47 @@ create table public.coop_lobby_members (
   primary key (lobby_id, user_id)
 );
 
+create table public.coop_trusted_encounter_completions (
+  lobby_id uuid not null references public.coop_lobbies(id) on delete cascade,
+  run_attempt integer not null,
+  run_seed bigint not null,
+  chapter integer not null,
+  room integer not null,
+  authority_version text not null,
+  final_state_seq bigint not null,
+  completion_digest text not null,
+  primary key (lobby_id, run_attempt, run_seed, chapter, room)
+);
+
+create or replace function public.record_trusted_coop_completion(
+  p_lobby_id uuid, p_run_attempt integer, p_run_seed bigint,
+  p_chapter integer, p_room integer, p_authority_version text,
+  p_final_state_seq bigint, p_completion_digest text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  insert into public.coop_trusted_encounter_completions (
+    lobby_id, run_attempt, run_seed, chapter, room,
+    authority_version, final_state_seq, completion_digest
+  ) values (
+    p_lobby_id, p_run_attempt, p_run_seed, p_chapter, p_room,
+    p_authority_version, p_final_state_seq, p_completion_digest
+  ) on conflict do nothing;
+  return found;
+end;
+$$;
+
+revoke all on function public.record_trusted_coop_completion(
+  uuid, integer, bigint, integer, integer, text, bigint, text
+) from public, anon, authenticated;
+grant execute on function public.record_trusted_coop_completion(
+  uuid, integer, bigint, integer, integer, text, bigint, text
+) to service_role;
+
 grant usage on schema public, auth to anon, authenticated, service_role;
 grant execute on function auth.uid() to authenticated;
 grant select, insert, update, delete on public.coop_lobbies, public.coop_lobby_members to authenticated, service_role;

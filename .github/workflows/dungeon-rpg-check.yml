@@ -48,6 +48,8 @@ jobs:
           cache: pnpm
       - name: Install workspace
         run: pnpm install --frozen-lockfile
+      - name: Duo authority Edge producer contract
+        run: node --test artifacts/dungeon-rpg/tests/duo-authority-edge-producer.contract.mjs
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Write KayKit animation inventory
