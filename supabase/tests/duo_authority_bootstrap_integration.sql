@@ -55,6 +55,9 @@ select test.expect_error(
 reset role;
 
 -- A failed start must roll the lobby status back with the failed authority bootstrap.
+insert into auth.users (id) values
+  ('10000000-0000-0000-0000-000000000001'),
+  ('10000000-0000-0000-0000-000000000002');
 insert into public.coop_lobbies (id, invite_code, host_user_id, run_seed)
 values ('00000000-0000-0000-0000-000000000001','BAD001','10000000-0000-0000-0000-000000000001',11);
 insert into public.coop_lobby_members (lobby_id,user_id,role,ready)

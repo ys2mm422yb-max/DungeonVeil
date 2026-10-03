@@ -51,7 +51,7 @@ const hashes = Object.fromEntries(files.map(file => {
   return [file, crypto.createHash('sha256').update(bytes).digest('hex')];
 }));
 fs.writeFileSync(output, JSON.stringify({
-  source_head: process.env.GITHUB_SHA || 'local',
+  source_head: process.env.DUO_AUTHORITY_SOURCE_HEAD || process.env.GITHUB_SHA || 'local',
   workflow_run_id: process.env.GITHUB_RUN_ID || 'local',
   workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT || '1',
   postgres_version: process.env.DUO_AUTHORITY_POSTGRES_VERSION || '17',

@@ -84,19 +84,22 @@ jobs:
     steps:
       - name: Checkout exact head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Execute Duo authority migration integration
         env:
           DUO_AUTHORITY_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           DUO_AUTHORITY_POSTGRES_VERSION: '17'
+          DUO_AUTHORITY_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           DUO_AUTHORITY_RECEIPT_DIR: ${{ github.workspace }}/duo-authority-postgres-receipt
         run: bash artifacts/dungeon-rpg/scripts/run-duo-authority-postgres-integration.sh
       - name: Upload exact-head PostgreSQL receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: duo-authority-postgres-receipt-${{ github.sha }}-${{ github.run_attempt }}
+          name: duo-authority-postgres-receipt-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
           path: duo-authority-postgres-receipt
           if-no-files-found: error
           retention-days: 30

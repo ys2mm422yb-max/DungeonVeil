@@ -68,6 +68,7 @@ test('security-definer hardening and executable PostgreSQL evidence are permanen
   const runner = fs.readFileSync(new URL('../scripts/run-duo-authority-postgres-integration.sh', import.meta.url), 'utf8');
   const workflow = fs.readFileSync(new URL('../../../.github/workflows/dungeon-rpg-check.yml', import.meta.url), 'utf8');
   assert.match(fixture, /create table public\.coop_lobbies/i);
+  assert.match(fixture, /create table auth\.users/i);
   for (const proof of [
     /rolls back lobby start atomically/i,
     /snapshots exactly two canonical actors/i,
@@ -82,7 +83,8 @@ test('security-definer hardening and executable PostgreSQL evidence are permanen
   ]) assert.match(integration, proof);
   assert.match(runner, /rollback-fixture\.log/);
   assert.match(runner, /receipt\.json/);
-  assert.match(workflow, /duo-authority-postgres-receipt-\$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /duo-authority-postgres-receipt-\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+  assert.match(workflow, /ref:\s*\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.match(workflow, /postgres:17/);
 });
 
