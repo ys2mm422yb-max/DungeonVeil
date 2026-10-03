@@ -176,7 +176,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 9
-          path: artifacts/dungeon-rpg/test-results/block20-*-${{ matrix.project }}.png
+          path: |
+            artifacts/dungeon-rpg/test-results/block20-*-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/*/video.webm
       - name: Enforce focused Block 20 failure budget
         if: steps.menu-tests.outcome == 'failure'
         run: >-

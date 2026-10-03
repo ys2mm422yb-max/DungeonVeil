@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { GameEngine, GameState } from '../game/runEngine';
 import type { EnemyType } from '../game/entities';
 import type { EnemyFamilyId } from '../game/enemyRegistry';
@@ -165,7 +164,11 @@ function TerminalDeathOverlay({ onRetry, onMainMenu }: { onRetry: () => void; on
         return;
       }
       const terminalSnapshot = detail.gameState;
-      if (terminalSnapshot) flushSync(() => setTerminalGameState(terminalSnapshot));
+      // Let React schedule this lightweight terminal subtree instead of forcing the whole
+      // root to reconcile inside the engine's lethal update. On loaded Android tablets the
+      // synchronous flush could occupy the main thread past the unchanged 2 s deadline;
+      // GameOverScreen already anchors its 1100 ms beat to the lethal engine timestamp.
+      if (terminalSnapshot) setTerminalGameState(terminalSnapshot);
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handleDeathState);
     return () => window.removeEventListener(PLAYER_DEATH_EVENT, handleDeathState);

@@ -85,6 +85,12 @@ const fullGameWorkflow = workflows.get('full-game-regression.yml') ?? '';
 assert(fullGameWorkflow.includes('dungeon-veil-pages-build-${{ github.sha }}'), 'Full Game Regression must reuse one exact-head production build.');
 assert(fullGameWorkflow.includes("if: steps.browser-tests.outcome == 'failure'"), 'Full Game Regression traces must remain failure-only.');
 assert(!fullGameWorkflow.includes('artifacts/dungeon-rpg/test-results/**\n'), 'Full Game Regression must not upload the whole test-results tree.');
+assert(fullGameWorkflow.includes('prepare-player-death-success-evidence.mjs'), 'Full Game Regression must prepare focused successful player-death evidence.');
+assert(fullGameWorkflow.includes('assert-artifact-budget.mjs'), 'Focused successful player-death evidence must enforce a fail-closed artifact budget.');
+assert(fullGameWorkflow.includes('player-death-success-video-${{ github.event.pull_request.head.sha }}-${{ matrix.project }}'), 'Player-death success video must be a separate exact-head/project artifact.');
+assert(fullGameWorkflow.includes('player-death-success-proof-${{ github.event.pull_request.head.sha }}-${{ matrix.project }}'), 'Player-death screenshot and trace must be a separate exact-head/project artifact.');
+assert(fullGameWorkflow.includes('if-no-files-found: error'), 'Focused successful player-death evidence must fail when files are missing.');
+assert(fullGameWorkflow.includes('retention-days: 14'), 'Focused successful player-death evidence must remain available for independent review.');
 
 const productWorkflow = workflows.get('product-autopilot-qa.yml') ?? '';
 assert(productWorkflow.includes('assert-artifact-budget.mjs'), 'Product Autopilot QA must enforce artifact budgets before upload.');
