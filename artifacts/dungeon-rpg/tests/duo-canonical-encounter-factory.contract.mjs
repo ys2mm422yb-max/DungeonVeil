@@ -55,6 +55,23 @@ function encounterInput(room, actors) {
   };
 }
 
+const buildIdentity = (modules, classKey) => {
+  const combat = modules.kernel.CANONICAL_CLASS_COMBAT_MANIFEST[classKey];
+  return {
+    buildRevision: 0, buildDigest: 'a'.repeat(64),
+    buildSnapshot: {
+      profileVersion: 'duo-profile-v1', catalogVersion: 'duo-build-catalog-v1',
+      classKey, loadoutKey: 'canonical-base-v1', skillRanks: {},
+      maxHp: combat.maxHp, attack: combat.attack, defense: combat.defense, speed: combat.speed,
+      attackRange: combat.attackRange, skillRange: combat.skillRange,
+      attackCooldownMs: combat.attackCooldownMs, skillCooldownMs: combat.skillCooldownMs,
+    },
+  };
+};
+const identity = (modules, actorId, classKey, extra = {}) => ({
+  actorId, classKey, ...buildIdentity(modules, classKey), ...extra,
+});
+
 function findRepresentativeRoom({ boss, encounterPlan, chapterRun, roomSpawn3D }) {
   for (let room = 1; room <= 50; room += 1) {
     if (chapterRun.isBossRoom(room) !== boss) continue;
@@ -115,7 +132,7 @@ test('only the derived actor and enemy lists reach the canonical reducer state c
 test('normal room executes the real factory and matches authored encounter types and exact spawn conversion', async () => {
   const modules = await runtime();
   const room = findRepresentativeRoom({ boss: false, ...modules });
-  const forgedActor = { actorId: 'p1', classKey: 'warrior', active: true, spawnX: 999999, spawnY: -999999, attack: 999999, speed: 999999 };
+  const forgedActor = identity(modules, 'p1', 'warrior', { active: true, spawnX: 999999, spawnY: -999999, attack: 999999, speed: 999999 });
   const state = modules.factory.createRoomBoundCanonicalEncounterState({ ...encounterInput(room, [forgedActor]), enemies: [{ enemyType: 'boss', x: 1, y: 1 }] });
   const map = modules.chapterRun.generateRunRoom(room);
   const plan = modules.encounterPlan.getEncounterPlan(room);
@@ -132,7 +149,7 @@ test('normal room executes the real factory and matches authored encounter types
 test('boss room executes the real factory and derives exactly the canonical boss from authored spawn data', async () => {
   const modules = await runtime();
   const room = findRepresentativeRoom({ boss: true, ...modules });
-  const state = modules.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [{ actorId: 'p1', classKey: 'mage' }]));
+  const state = modules.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [identity(modules, 'p1', 'mage')]));
   const map = modules.chapterRun.generateRunRoom(room);
   const points = modules.roomSpawn3D.getRoomSpawnPoints(room);
 
@@ -144,10 +161,10 @@ test('one and two actor cases execute with canonical walkable non-colliding star
   const modules = await runtime();
   const room = findRepresentativeRoom({ boss: false, ...modules });
   const map = modules.chapterRun.generateRunRoom(room);
-  const one = modules.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [{ actorId: 'p1', classKey: 'archer' }]));
+  const one = modules.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [identity(modules, 'p1', 'archer')]));
   const two = modules.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [
-    { actorId: 'p1', classKey: 'archer' },
-    { actorId: 'p2', classKey: 'mage' },
+    identity(modules, 'p1', 'archer'),
+    identity(modules, 'p2', 'mage'),
   ]));
 
   assert.equal(one.actors.length, 1);
@@ -161,9 +178,9 @@ test('invalid actor cardinality fails closed in the real factory', async () => {
   const room = findRepresentativeRoom({ boss: false, ...modules });
   assert.throws(() => modules.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [])), /one or two actor identities/);
   assert.throws(() => modules.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [
-    { actorId: 'p1', classKey: 'warrior' },
-    { actorId: 'p2', classKey: 'mage' },
-    { actorId: 'p3', classKey: 'archer' },
+    identity(modules, 'p1', 'warrior'),
+    identity(modules, 'p2', 'mage'),
+    identity(modules, 'p3', 'archer'),
   ])), /one or two actor identities/);
 });
 
@@ -187,5 +204,5 @@ test('insufficient authored enemy spawn data fails closed before any synthetic s
     }],
   });
 
-  assert.throws(() => mocked.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [{ actorId: 'p1', classKey: 'warrior' }])), /insufficient canonical enemy spawn points/);
+  assert.throws(() => mocked.factory.createRoomBoundCanonicalEncounterState(encounterInput(room, [identity(mocked, 'p1', 'warrior')])), /insufficient canonical enemy spawn points/);
 });

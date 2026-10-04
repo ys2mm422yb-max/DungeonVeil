@@ -14,18 +14,38 @@ export type AuthorityEnemyManifestEntry = Readonly<{
 }>;
 
 export type AuthorityClassCombatEntry = Readonly<{
+  maxHp: number;
   attack: number;
+  defense: number;
   speed: number;
   actorSize: number;
   attackRange: number;
+  skillRange: number;
   attackCooldownMs: number;
+  skillCooldownMs: number;
 }>;
 
 export const CANONICAL_CLASS_COMBAT_MANIFEST: Readonly<Record<AuthorityClassKey, AuthorityClassCombatEntry>> = Object.freeze({
-  warrior: Object.freeze({ attack: 12, speed: 118, actorSize: 32, attackRange: 65, attackCooldownMs: 350 }),
-  mage: Object.freeze({ attack: 20, speed: 130, actorSize: 32, attackRange: 55, attackCooldownMs: 550 }),
-  archer: Object.freeze({ attack: 10, speed: 218, actorSize: 32, attackRange: 105, attackCooldownMs: 270 }),
+  warrior: Object.freeze({ maxHp: 150, attack: 12, defense: 8, speed: 118, actorSize: 32, attackRange: 65, skillRange: 130, attackCooldownMs: 350, skillCooldownMs: 6000 }),
+  mage: Object.freeze({ maxHp: 80, attack: 20, defense: 2, speed: 130, actorSize: 32, attackRange: 55, skillRange: 175, attackCooldownMs: 550, skillCooldownMs: 4000 }),
+  archer: Object.freeze({ maxHp: 100, attack: 10, defense: 4, speed: 218, actorSize: 32, attackRange: 105, skillRange: 95, attackCooldownMs: 270, skillCooldownMs: 3000 }),
 });
+
+export type AuthorityBuildSnapshot = Readonly<{
+  profileVersion: 'duo-profile-v1';
+  catalogVersion: 'duo-build-catalog-v1';
+  classKey: AuthorityClassKey;
+  loadoutKey: 'canonical-base-v1';
+  skillRanks: Readonly<Record<string, number>>;
+  maxHp: number;
+  attack: number;
+  defense: number;
+  speed: number;
+  attackRange: number;
+  skillRange: number;
+  attackCooldownMs: number;
+  skillCooldownMs: number;
+}>;
 
 export const MAX_AUTHORITY_MOVEMENT_STEP_MS = 250;
 
@@ -47,6 +67,9 @@ export const CANONICAL_ENEMY_COMBAT_MANIFEST: Readonly<Record<AuthorityEnemyType
 export type AuthorityActorInput = Readonly<{
   actorId: string;
   classKey: AuthorityClassKey;
+  buildRevision: number;
+  buildDigest: string;
+  buildSnapshot: AuthorityBuildSnapshot;
   spawnX: number;
   spawnY: number;
   active?: boolean;
@@ -61,10 +84,18 @@ export type AuthorityEnemyInput = Readonly<{
 export type AuthorityActor = Readonly<{
   actorId: string;
   classKey: AuthorityClassKey;
+  buildRevision: number;
+  buildDigest: string;
+  skillRanks: Readonly<Record<string, number>>;
+  hp: number;
+  maxHp: number;
   attack: number;
+  defense: number;
   speed: number;
   attackRange: number;
+  skillRange: number;
   attackCooldownMs: number;
+  skillCooldownMs: number;
   x: number;
   y: number;
   width: number;
@@ -152,6 +183,47 @@ function assertFiniteNonNegative(value: number, label: string): void {
 
 function assertFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
+}
+
+const AUTHORITY_BUILD_OPTIONS = new Set([
+  'attack', 'maxHp', 'speed', 'defense', 'attackSpeed',
+  'multishot', 'ricochet', 'fireArrow', 'iceArrow', 'piercing',
+]);
+
+function assertBoundedStat(value: number, label: string, minimum: number, maximum: number): void {
+  if (!Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(`${label} is outside the canonical authority bounds`);
+  }
+}
+
+function assertAuthorityBuildSnapshot(actor: AuthorityActorInput): AuthorityBuildSnapshot {
+  const snapshot = actor.buildSnapshot;
+  if (!snapshot || typeof snapshot !== 'object') throw new Error('server build snapshot is required');
+  if (snapshot.profileVersion !== 'duo-profile-v1' || snapshot.catalogVersion !== 'duo-build-catalog-v1') {
+    throw new Error('unsupported authority build provenance version');
+  }
+  if (snapshot.classKey !== actor.classKey || snapshot.loadoutKey !== 'canonical-base-v1') {
+    throw new Error('authority build snapshot identity mismatch');
+  }
+  if (!Number.isSafeInteger(actor.buildRevision) || actor.buildRevision < 0) throw new Error('invalid authority build revision');
+  if (!/^[0-9a-f]{64}$/.test(actor.buildDigest)) throw new Error('invalid authority build digest');
+  if (!snapshot.skillRanks || typeof snapshot.skillRanks !== 'object' || Array.isArray(snapshot.skillRanks)) {
+    throw new Error('invalid authority skill ranks');
+  }
+  for (const [optionId, rank] of Object.entries(snapshot.skillRanks)) {
+    if (!AUTHORITY_BUILD_OPTIONS.has(optionId) || !Number.isInteger(rank) || rank < 0 || rank > 3) {
+      throw new Error('invalid authority skill rank');
+    }
+  }
+  assertBoundedStat(snapshot.maxHp, 'build.maxHp', 1, 10000);
+  assertBoundedStat(snapshot.attack, 'build.attack', 1, 1000);
+  assertBoundedStat(snapshot.defense, 'build.defense', 0, 1000);
+  assertBoundedStat(snapshot.speed, 'build.speed', 1, 1000);
+  assertBoundedStat(snapshot.attackRange, 'build.attackRange', 1, 1000);
+  assertBoundedStat(snapshot.skillRange, 'build.skillRange', 1, 1000);
+  assertBoundedStat(snapshot.attackCooldownMs, 'build.attackCooldownMs', 125, 60000);
+  assertBoundedStat(snapshot.skillCooldownMs, 'build.skillCooldownMs', 125, 60000);
+  return snapshot;
 }
 
 function stableEncounterId(input: Pick<CreateCanonicalEncounterInput, 'runId' | 'runAttempt' | 'chapter' | 'room' | 'seed'>): string {
@@ -285,15 +357,24 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
     actorIds.add(actor.actorId);
     const classCombat = CANONICAL_CLASS_COMBAT_MANIFEST[actor.classKey];
     if (!classCombat) throw new Error(`unknown classKey: ${String(actor.classKey)}`);
+    const build = assertAuthorityBuildSnapshot(actor);
     assertFinite(actor.spawnX, 'actor.spawnX');
     assertFinite(actor.spawnY, 'actor.spawnY');
     return Object.freeze({
       actorId: actor.actorId,
       classKey: actor.classKey,
-      attack: classCombat.attack,
-      speed: classCombat.speed,
-      attackRange: classCombat.attackRange,
-      attackCooldownMs: classCombat.attackCooldownMs,
+      buildRevision: actor.buildRevision,
+      buildDigest: actor.buildDigest,
+      skillRanks: Object.freeze({ ...build.skillRanks }),
+      hp: build.maxHp,
+      maxHp: build.maxHp,
+      attack: build.attack,
+      defense: build.defense,
+      speed: build.speed,
+      attackRange: build.attackRange,
+      skillRange: build.skillRange,
+      attackCooldownMs: build.attackCooldownMs,
+      skillCooldownMs: build.skillCooldownMs,
       x: actor.spawnX,
       y: actor.spawnY,
       width: classCombat.actorSize,

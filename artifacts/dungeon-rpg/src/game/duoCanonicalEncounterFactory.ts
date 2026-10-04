@@ -8,6 +8,7 @@ import {
   CANONICAL_ENEMY_COMBAT_MANIFEST,
   createCanonicalEncounterState,
   type AuthorityActorInput,
+  type AuthorityBuildSnapshot,
   type AuthorityClassKey,
   type AuthorityEnemyInput,
   type AuthorityEnemyType,
@@ -17,6 +18,9 @@ import {
 export type CanonicalDuoActorIdentity = Readonly<{
   actorId: string;
   classKey: AuthorityClassKey;
+  buildRevision: number;
+  buildDigest: string;
+  buildSnapshot: AuthorityBuildSnapshot;
   active?: boolean;
 }>;
 
@@ -50,7 +54,16 @@ function canonicalActorSpawn(room: number, actor: CanonicalDuoActorIdentity, slo
     const centerY = y + combat.actorSize / 2;
     if (!isWalkable(map, centerX, centerY)) continue;
     if (collidesWithRoomProp(room, map.width, map.height, x, y, combat.actorSize, combat.actorSize, 0.12)) continue;
-    return Object.freeze({ actorId: actor.actorId, classKey: actor.classKey, spawnX: x, spawnY: y, active: actor.active });
+    return Object.freeze({
+      actorId: actor.actorId,
+      classKey: actor.classKey,
+      buildRevision: actor.buildRevision,
+      buildDigest: actor.buildDigest,
+      buildSnapshot: actor.buildSnapshot,
+      spawnX: x,
+      spawnY: y,
+      active: actor.active,
+    });
   }
   throw new Error(`room ${room} has no canonical safe actor spawn for slot ${slot}`);
 }

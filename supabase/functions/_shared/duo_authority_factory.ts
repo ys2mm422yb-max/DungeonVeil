@@ -3,12 +3,16 @@ import {
   CANONICAL_CLASS_COMBAT_MANIFEST,
   createCanonicalEncounterState,
   type AuthorityClassKey,
+  type AuthorityBuildSnapshot,
   type CanonicalEncounterState,
 } from './duo_authority_kernel.ts';
 
 export type CanonicalDuoActorIdentity = Readonly<{
   actorId: string;
   classKey: AuthorityClassKey;
+  buildRevision: number;
+  buildDigest: string;
+  buildSnapshot: AuthorityBuildSnapshot;
   active?: boolean;
 }>;
 
@@ -41,6 +45,9 @@ export function createRoomBoundCanonicalEncounterState(
     return Object.freeze({
       actorId: actor.actorId,
       classKey: actor.classKey,
+      buildRevision: actor.buildRevision,
+      buildDigest: actor.buildDigest,
+      buildSnapshot: actor.buildSnapshot,
       spawnX: spawn.x,
       spawnY: spawn.y,
       active: actor.active,

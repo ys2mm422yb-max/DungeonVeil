@@ -5,6 +5,7 @@ import {
 import {
   reduceAuthorityIntent,
   type AuthorityIntent,
+  type AuthorityBuildSnapshot,
   type CanonicalEncounterState,
 } from "../_shared/duo_authority_kernel.ts";
 
@@ -18,6 +19,9 @@ export type DuoAuthorityService = {
 type AuthorityActorRow = {
   user_id: string;
   class_key: CanonicalDuoActorIdentity["classKey"];
+  build_revision: number;
+  build_digest: string;
+  derived_snapshot: AuthorityBuildSnapshot;
   last_intent_sequence: number;
 };
 
@@ -97,7 +101,14 @@ function assertRequest(body: DuoAuthorityBody): void {
 
 function bindSnapshot(row: AuthorityStateRow, authorityNowMs: number): CanonicalEncounterState {
   if (row.canonical_snapshot) return row.canonical_snapshot;
-  const actors = row.actors.map(actor => ({ actorId: actor.user_id, classKey: actor.class_key, active: true }));
+  const actors = row.actors.map(actor => ({
+    actorId: actor.user_id,
+    classKey: actor.class_key,
+    buildRevision: Number(actor.build_revision),
+    buildDigest: actor.build_digest,
+    buildSnapshot: actor.derived_snapshot,
+    active: true,
+  }));
   const created = createRoomBoundCanonicalEncounterState({
     runId: row.lobby_id,
     runAttempt: row.run_attempt,

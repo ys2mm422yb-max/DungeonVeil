@@ -19,9 +19,24 @@ const [browserFactory, edgeFactory, kernel, manifestModule] = await Promise.all(
   server.ssrLoadModule('/supabase/functions/_shared/duo_authority_room_manifest.ts'),
 ]);
 
+const buildIdentity = classKey => {
+  const combat = kernel.CANONICAL_CLASS_COMBAT_MANIFEST[classKey];
+  return {
+    buildRevision: 0, buildDigest: 'a'.repeat(64),
+    buildSnapshot: {
+      profileVersion: 'duo-profile-v1', catalogVersion: 'duo-build-catalog-v1',
+      classKey, loadoutKey: 'canonical-base-v1', skillRanks: {},
+      maxHp: combat.maxHp, attack: combat.attack, defense: combat.defense, speed: combat.speed,
+      attackRange: combat.attackRange, skillRange: combat.skillRange,
+      attackCooldownMs: combat.attackCooldownMs, skillCooldownMs: combat.skillCooldownMs,
+    },
+  };
+};
+
 const actorInput = (x, y, classKey = 'warrior') => ({
   actorId: 'host',
   classKey,
+  ...buildIdentity(classKey),
   spawnX: x,
   spawnY: y,
 });
@@ -47,8 +62,8 @@ test('checked-in Edge manifest matches all 100 authored browser room factories',
       seed: 7,
       authorityStartedAtMs: 1000,
       actors: [
-        { actorId: 'host', classKey: 'warrior' },
-        { actorId: 'guest', classKey: 'archer' },
+        { actorId: 'host', classKey: 'warrior', ...buildIdentity('warrior') },
+        { actorId: 'guest', classKey: 'archer', ...buildIdentity('archer') },
       ],
     };
     const browser = browserFactory.createRoomBoundCanonicalEncounterState(input);
@@ -74,7 +89,7 @@ test('legal movement remains available inside the authored room', () => {
     room: 1,
     seed: 1,
     authorityStartedAtMs: 1000,
-    actors: [{ actorId: 'host', classKey: 'warrior' }],
+    actors: [{ actorId: 'host', classKey: 'warrior', ...buildIdentity('warrior') }],
   });
   const moved = kernel.reduceAuthorityIntent(
     state,

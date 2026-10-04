@@ -27,6 +27,25 @@ async function runtime() {
 
 after(async () => { await server?.close(); });
 
+const buildSnapshot = (classKey = 'archer', overrides = {}) => ({
+  profileVersion: 'duo-profile-v1', catalogVersion: 'duo-build-catalog-v1',
+  classKey, loadoutKey: 'canonical-base-v1', skillRanks: {},
+  maxHp: classKey === 'warrior' ? 150 : classKey === 'mage' ? 80 : 100,
+  attack: classKey === 'warrior' ? 12 : classKey === 'mage' ? 20 : 10,
+  defense: classKey === 'warrior' ? 8 : classKey === 'mage' ? 2 : 4,
+  speed: classKey === 'warrior' ? 118 : classKey === 'mage' ? 130 : 218,
+  attackRange: classKey === 'warrior' ? 65 : classKey === 'mage' ? 55 : 105,
+  skillRange: classKey === 'warrior' ? 130 : classKey === 'mage' ? 175 : 95,
+  attackCooldownMs: classKey === 'warrior' ? 350 : classKey === 'mage' ? 550 : 270,
+  skillCooldownMs: classKey === 'warrior' ? 6000 : classKey === 'mage' ? 4000 : 3000,
+  ...overrides,
+});
+const actorRow = (userId, classKey = 'archer', overrides = {}) => ({
+  user_id: userId, class_key: classKey, last_intent_sequence: 0,
+  build_revision: 0, build_digest: 'a'.repeat(64), derived_snapshot: buildSnapshot(classKey),
+  ...overrides,
+});
+
 test('Edge boundary authenticates JWT and never accepts caller actor, time, state, combat stats or completion', () => {
   assert.match(entry, /get\("Authorization"\)/);
   assert.match(service, /service\.auth\.getUser\(token\)/);
@@ -116,7 +135,11 @@ test('real producer ignores forged authority fields and persists a canonical act
     lobby_id: lobbyId, run_attempt: 1, run_seed: 42, chapter: 1, room: 1,
     encounter_id: encounterId, state_version: 0, authority_version: 'duo-authority-bootstrap-v1',
     status: 'awaiting_canonical_state', canonical_snapshot: null, canonical_snapshot_digest: null,
-    actors: [{ user_id: actorId, class_key: 'archer', last_intent_sequence: 0 }],
+    actors: [actorRow(actorId, 'archer', {
+      build_revision: 2,
+      build_digest: 'b'.repeat(64),
+      derived_snapshot: buildSnapshot('archer', { skillRanks: { attack: 2, speed: 1 }, attack: 14, speed: 230 }),
+    })],
   };
   const api = {
     auth: { getUser: async () => ({ data: { user: { id: actorId } }, error: null }) },
@@ -139,6 +162,10 @@ test('real producer ignores forged authority fields and persists a canonical act
   assert.equal(persisted.p_next_snapshot.encounterId, encounterId);
   assert.equal(persisted.p_next_snapshot.completed, false);
   assert.equal(persisted.p_next_snapshot.version, 1);
+  assert.equal(persisted.p_next_snapshot.actors[0].buildRevision, 2);
+  assert.equal(persisted.p_next_snapshot.actors[0].buildDigest, 'b'.repeat(64));
+  assert.equal(persisted.p_next_snapshot.actors[0].attack, 14);
+  assert.equal(persisted.p_next_snapshot.actors[0].speed, 230);
   assert.equal(result.stateVersion, 1);
 });
 
@@ -157,7 +184,7 @@ test('lost-response retry reaches the database receipt path instead of re-reduci
         lobby_id: lobbyId, run_attempt: 1, run_seed: 9, chapter: 1, room: 1, encounter_id: encounterId,
         state_version: 1, authority_version: 'duo-authority-bootstrap-v1', status: 'active',
         canonical_snapshot: current, canonical_snapshot_digest: 'a'.repeat(64),
-        actors: [{ user_id: actorId, class_key: 'archer', last_intent_sequence: 1 }],
+        actors: [actorRow(actorId, 'archer', { last_intent_sequence: 1 })],
       }], error: null };
       persisted = args;
       return { data: [{ state_version: 1, canonical_snapshot: current,
@@ -183,7 +210,7 @@ test('fresh encounter resumes the global actor sequence and advance stays actor-
     lobby_id: lobbyId, run_attempt: 1, run_seed: 12, chapter: 1, room: 2,
     encounter_id: encounterId, state_version: 0, authority_version: 'duo-authority-bootstrap-v1',
     status: 'awaiting_canonical_state', canonical_snapshot: null, canonical_snapshot_digest: null,
-    actors: [{ user_id: actorId, class_key: 'archer', last_intent_sequence: 7 }],
+    actors: [actorRow(actorId, 'archer', { last_intent_sequence: 7 })],
   };
   const calls = [];
   const api = {
@@ -232,4 +259,31 @@ test('invalid identity and non-member requests fail before a transition is emitt
     auth: { getUser: async () => ({ data: { user: { id: '20000000-0000-4000-8000-000000000004' } }, error: null }) },
     rpc: async () => ({ data: [row], error: null }),
   }, 'valid', { action: 'state', lobbyId, runAttempt: 1 }), /active_actor_required/);
+});
+
+test('mismatched or malformed server build provenance fails before persistence', async () => {
+  const { executeDuoAuthority } = await runtime();
+  const lobbyId = '10000000-0000-4000-8000-000000000005';
+  const actorId = '20000000-0000-4000-8000-000000000005';
+  let persisted = false;
+  const api = {
+    auth: { getUser: async () => ({ data: { user: { id: actorId } }, error: null }) },
+    rpc: async (name) => {
+      if (name !== 'read_coop_authority_state') { persisted = true; return { data: [], error: null }; }
+      return { data: [{
+        lobby_id: lobbyId, run_attempt: 1, run_seed: 1, chapter: 1, room: 1,
+        encounter_id: '30000000-0000-4000-8000-000000000005', state_version: 0,
+        authority_version: 'duo-authority-bootstrap-v1', status: 'awaiting_canonical_state',
+        canonical_snapshot: null, canonical_snapshot_digest: null,
+        actors: [actorRow(actorId, 'archer', { derived_snapshot: buildSnapshot('warrior') })],
+      }], error: null };
+    },
+  };
+  await assert.rejects(() => executeDuoAuthority(api, 'valid', {
+    action: 'intent', lobbyId, runAttempt: 1,
+    encounterId: '30000000-0000-4000-8000-000000000005',
+    intentId: '40000000-0000-4000-8000-000000000005', expectedStateVersion: 0, actorSequence: 1,
+    intent: { kind: 'move', directionX: 0, directionY: 0 },
+  }, 1000), /snapshot identity mismatch/);
+  assert.equal(persisted, false);
 });

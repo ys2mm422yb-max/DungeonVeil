@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 bootstrap_migration="$repo_root/supabase/migrations/20261003052000_add_duo_authority_bootstrap.sql"
 completion_migration="$repo_root/supabase/migrations/20261003142500_connect_duo_authority_completion.sql"
 build_profile_migration="$repo_root/supabase/migrations/20261004154000_add_duo_authority_build_profiles.sql"
+build_binding_migration="$repo_root/supabase/migrations/20261004230000_bind_duo_authority_build_snapshot.sql"
 fixture="$repo_root/supabase/tests/duo_authority_bootstrap_fixture.sql"
 contract="$repo_root/supabase/tests/duo_authority_bootstrap_integration.sql"
 build_profile_contract="$repo_root/supabase/tests/duo_authority_build_profile_integration.sql"
@@ -15,6 +16,7 @@ mkdir -p "$receipt_dir"
 test -f "$bootstrap_migration"
 test -f "$completion_migration"
 test -f "$build_profile_migration"
+test -f "$build_binding_migration"
 test -f "$fixture"
 test -f "$contract"
 test -f "$build_profile_contract"
@@ -33,6 +35,8 @@ psql "$rollback_url" -v ON_ERROR_STOP=1 -f "$fixture" > "$receipt_dir/rollback-f
   cat "$completion_migration"
   printf '\n'
   cat "$build_profile_migration"
+  printf '\n'
+  cat "$build_binding_migration"
   printf '\nrollback;\n'
 } | psql "$rollback_url" -v ON_ERROR_STOP=1 > "$receipt_dir/rollback-apply.log"
 psql "$rollback_url" -v ON_ERROR_STOP=1 -Atc \
@@ -40,6 +44,7 @@ psql "$rollback_url" -v ON_ERROR_STOP=1 -Atc \
 psql "$rollback_url" -v ON_ERROR_STOP=1 -f "$bootstrap_migration" > "$receipt_dir/recovery-bootstrap-apply.log"
 psql "$rollback_url" -v ON_ERROR_STOP=1 -f "$completion_migration" > "$receipt_dir/recovery-completion-apply.log"
 psql "$rollback_url" -v ON_ERROR_STOP=1 -f "$build_profile_migration" > "$receipt_dir/recovery-build-profile-apply.log"
+psql "$rollback_url" -v ON_ERROR_STOP=1 -f "$build_binding_migration" > "$receipt_dir/recovery-build-binding-apply.log"
 psql "$rollback_url" -v ON_ERROR_STOP=1 -Atc \
   "select to_regclass('private.coop_authority_runs') is not null" | grep -qx t
 
@@ -47,6 +52,7 @@ psql "$database_url" -v ON_ERROR_STOP=1 -f "$fixture" > "$receipt_dir/fixture.lo
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$bootstrap_migration" > "$receipt_dir/bootstrap-migration-apply.log"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$completion_migration" > "$receipt_dir/completion-migration-apply.log"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$build_profile_migration" > "$receipt_dir/build-profile-migration-apply.log"
+psql "$database_url" -v ON_ERROR_STOP=1 -f "$build_binding_migration" > "$receipt_dir/build-binding-migration-apply.log"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$contract" 2>&1 | tee "$receipt_dir/test-output.tap"
 psql "$database_url" -v ON_ERROR_STOP=1 -f "$build_profile_contract" 2>&1 | tee -a "$receipt_dir/test-output.tap"
 
@@ -60,6 +66,7 @@ const files = [
   'supabase/migrations/20261003052000_add_duo_authority_bootstrap.sql',
   'supabase/migrations/20261003142500_connect_duo_authority_completion.sql',
   'supabase/migrations/20261004154000_add_duo_authority_build_profiles.sql',
+  'supabase/migrations/20261004230000_bind_duo_authority_build_snapshot.sql',
   'supabase/tests/duo_authority_bootstrap_fixture.sql',
   'supabase/tests/duo_authority_bootstrap_integration.sql',
   'supabase/tests/duo_authority_build_profile_integration.sql',

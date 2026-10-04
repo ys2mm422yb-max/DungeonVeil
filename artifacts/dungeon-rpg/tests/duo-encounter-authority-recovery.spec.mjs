@@ -16,6 +16,19 @@ const server = await createServer({
 const kernel = await server.ssrLoadModule('/supabase/functions/_shared/duo_authority_kernel.ts');
 after(async () => server.close());
 
+const warrior = kernel.CANONICAL_CLASS_COMBAT_MANIFEST.warrior;
+const warriorBuild = {
+  buildRevision: 0,
+  buildDigest: 'a'.repeat(64),
+  buildSnapshot: {
+    profileVersion: 'duo-profile-v1', catalogVersion: 'duo-build-catalog-v1',
+    classKey: 'warrior', loadoutKey: 'canonical-base-v1', skillRanks: {},
+    maxHp: warrior.maxHp, attack: warrior.attack, defense: warrior.defense, speed: warrior.speed,
+    attackRange: warrior.attackRange, skillRange: warrior.skillRange,
+    attackCooldownMs: warrior.attackCooldownMs, skillCooldownMs: warrior.skillCooldownMs,
+  },
+};
+
 const createBase = () => kernel.createCanonicalEncounterState({
   runId: 'run-461-recovery',
   runAttempt: 3,
@@ -23,7 +36,7 @@ const createBase = () => kernel.createCanonicalEncounterState({
   room: 1,
   seed: 461250,
   authorityStartedAtMs: 1000,
-  actors: [{ actorId: 'host', classKey: 'warrior', spawnX: 100, spawnY: 100 }],
+  actors: [{ actorId: 'host', classKey: 'warrior', ...warriorBuild, spawnX: 100, spawnY: 100 }],
   enemies: [{ enemyType: 'slime', x: 300, y: 100 }],
 });
 

@@ -16,13 +16,24 @@ const server = await createServer({
 const kernel = await server.ssrLoadModule('/supabase/functions/_shared/duo_authority_kernel.ts');
 after(async () => server.close());
 
-const actor = (overrides = {}) => ({
-  actorId: 'host',
-  classKey: 'warrior',
-  spawnX: 100,
-  spawnY: 100,
-  ...overrides,
-});
+const buildIdentity = classKey => {
+  const combat = kernel.CANONICAL_CLASS_COMBAT_MANIFEST[classKey];
+  return {
+    buildRevision: 0,
+    buildDigest: 'a'.repeat(64),
+    buildSnapshot: {
+      profileVersion: 'duo-profile-v1', catalogVersion: 'duo-build-catalog-v1',
+      classKey, loadoutKey: 'canonical-base-v1', skillRanks: {},
+      maxHp: combat.maxHp, attack: combat.attack, defense: combat.defense, speed: combat.speed,
+      attackRange: combat.attackRange, skillRange: combat.skillRange,
+      attackCooldownMs: combat.attackCooldownMs, skillCooldownMs: combat.skillCooldownMs,
+    },
+  };
+};
+const actor = (overrides = {}) => {
+  const classKey = overrides.classKey ?? 'warrior';
+  return { actorId: 'host', classKey, ...buildIdentity(classKey), spawnX: 100, spawnY: 100, ...overrides };
+};
 const enemy = (overrides = {}) => ({ enemyType: 'slime', x: 180, y: 100, ...overrides });
 const createBase = (overrides = {}) => kernel.createCanonicalEncounterState({
   runId: 'run-461', runAttempt: 2, chapter: 1, room: 1, seed: 424242, authorityStartedAtMs: 1000,
@@ -148,8 +159,8 @@ test('authority intent contract exposes direction but no trusted absolute positi
   assert.match(source, /MAX_AUTHORITY_MOVEMENT_STEP_MS = 250/);
   assert.match(source, /movementAccepted = elapsedMs <= MAX_AUTHORITY_MOVEMENT_STEP_MS/);
   assert.match(source, /distance = movementAccepted \? actor\.speed \* \(elapsedMs \/ 1000\) : 0/);
-  assert.match(source, /attack: classCombat\.attack/);
-  assert.match(source, /speed: classCombat\.speed/);
+  assert.match(source, /attack: build\.attack/);
+  assert.match(source, /speed: build\.speed/);
   assert.match(source, /intent\.clientSeq !== previousSeq \+ 1/);
   assert.match(source, /authorityNowMs < actor\.lastAuthorityAtMs/);
   assert.match(source, /isWithinBasicHitRange\(actor, target\)/);

@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 const migration = fs.readFileSync('supabase/migrations/20261004154000_add_duo_authority_build_profiles.sql', 'utf8');
+const bindingMigration = fs.readFileSync('supabase/migrations/20261004230000_bind_duo_authority_build_snapshot.sql', 'utf8');
+const service = fs.readFileSync('supabase/functions/duo-authority/service.ts', 'utf8');
+const kernel = fs.readFileSync('supabase/functions/_shared/duo_authority_kernel.ts', 'utf8');
 const runner = fs.readFileSync('artifacts/dungeon-rpg/scripts/run-duo-authority-postgres-integration.sh', 'utf8');
 const workflow = fs.readFileSync('.github/workflows/dungeon-rpg-check.yml', 'utf8');
 
@@ -57,10 +60,26 @@ test('private provenance tables are forced-RLS and directly inaccessible', () =>
 
 test('permanent cheap and PostgreSQL gates include the provenance slice', () => {
   assert.match(runner, /20261004154000_add_duo_authority_build_profiles\.sql/);
+  assert.match(runner, /20261004230000_bind_duo_authority_build_snapshot\.sql/);
   assert.match(runner, /duo_authority_build_profile_integration\.sql/);
   assert.match(workflow, /duo-authority-build-profile\.contract\.mjs/);
   assert.ok(
     workflow.indexOf('Duo authority build provenance contract') < workflow.indexOf('Install workspace'),
     'cheap provenance contract must execute before dependency installation',
   );
+});
+
+test('trusted build snapshot is bound fail-closed into canonical Edge actors', () => {
+  assert.match(bindingMigration, /v_base_hp := 150/);
+  assert.match(bindingMigration, /v_base_hp := 80/);
+  assert.match(bindingMigration, /join private\.coop_authority_build_profiles as profile/);
+  assert.match(bindingMigration, /profile\.build_digest = encode\(extensions\.digest\(profile\.derived_snapshot::text, 'sha256'\), 'hex'\)/);
+  assert.match(bindingMigration, /having count\(actor\.user_id\) = 2/);
+  for (const field of ['build_revision', 'build_digest', 'derived_snapshot']) {
+    assert.match(bindingMigration, new RegExp("'" + field + "'"));
+  }
+  assert.match(service, /buildSnapshot: actor\.derived_snapshot/);
+  assert.match(kernel, /assertAuthorityBuildSnapshot\(actor\)/);
+  assert.match(kernel, /attack: build\.attack/);
+  assert.match(kernel, /speed: build\.speed/);
 });

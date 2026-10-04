@@ -2,7 +2,7 @@
 \pset tuples_only on
 \pset format unaligned
 
-select '1..12';
+select '1..15';
 
 insert into auth.users(id) values
   ('71000000-0000-4000-8000-000000000001'),
@@ -180,4 +180,48 @@ select 'ok 12 - reconnect restores exact server-owned build snapshot';
 select 'not ok 12 - reconnect build snapshot mismatch';
 \endif
 
+reset role;
+
+set role service_role;
+select jsonb_array_length(actors) = 2
+       and (actors -> 0) ? 'build_revision'
+       and (actors -> 0) ? 'build_digest'
+       and (actors -> 0) ? 'derived_snapshot'
+       and (actors -> 1) ? 'derived_snapshot' as authority_build_bound
+from public.read_coop_authority_state(
+  '72000000-0000-4000-8000-000000000001', 1
+) \gset
+\if :authority_build_bound
+select 'ok 13 - authority read binds trusted build provenance for every actor';
+\else
+select 'not ok 13 - authority read omitted trusted build provenance';
+\endif
+reset role;
+
+select (private.canonical_duo_build_snapshot('warrior', '{}'::jsonb) ->> 'maxHp')::integer = 150
+       and (private.canonical_duo_build_snapshot('mage', '{}'::jsonb) ->> 'maxHp')::integer = 80
+       and (private.canonical_duo_build_snapshot('archer', '{}'::jsonb) ->> 'maxHp')::integer = 100
+       as browser_hp_parity \gset
+\if :browser_hp_parity
+select 'ok 14 - server class HP baselines match shipped browser classes';
+\else
+select 'not ok 14 - server class HP baselines drift from browser classes';
+\endif
+
+update private.coop_authority_build_profiles
+set build_digest = repeat('0', 64)
+where lobby_id = '72000000-0000-4000-8000-000000000001'
+  and run_attempt = 1
+  and user_id = '71000000-0000-4000-8000-000000000002';
+
+set role service_role;
+select count(*) = 0 as corrupt_profile_hidden
+from public.read_coop_authority_state(
+  '72000000-0000-4000-8000-000000000001', 1
+) \gset
+\if :corrupt_profile_hidden
+select 'ok 15 - corrupt actor build digest fails the complete authority read closed';
+\else
+select 'not ok 15 - corrupt actor build digest leaked partial authority state';
+\endif
 reset role;
