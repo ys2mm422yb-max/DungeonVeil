@@ -102,6 +102,10 @@ export function CombatStage({ gameState, remotePlayer = null }: Props) {
   useEffect(() => {
     const handlePlayerDeathSignal = (event: Event) => {
       const dead = Boolean((event as CustomEvent<{ dead?: boolean }>).detail?.dead);
+      // The renderer signal can be followed by the reconciled game-state signal. Treat that
+      // duplicate as idempotent so a loaded mobile main thread cannot restart the fixed death
+      // beat and push the visible terminal overlay beyond its two-second acceptance window.
+      if (dead && playerDeadRef.current) return;
       playerDeadRef.current = dead;
       if (stageRef.current) stageRef.current.dataset.playerDeathState = dead ? 'active' : 'idle';
       if (deathReconcileTimerRef.current !== null) {

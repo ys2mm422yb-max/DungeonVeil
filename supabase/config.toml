@@ -1,0 +1,2 @@
+[functions.duo-authority]
+verify_jwt = true
