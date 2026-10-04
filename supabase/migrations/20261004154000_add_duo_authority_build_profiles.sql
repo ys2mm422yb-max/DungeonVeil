@@ -16,6 +16,108 @@ alter table private.coop_authority_actors
   add constraint coop_authority_actors_class_key_check
   check (class_key in ('warrior', 'mage', 'archer'));
 
+create or replace function private.bootstrap_coop_authority_run(
+  p_lobby_id uuid,
+  p_run_attempt integer,
+  p_run_seed bigint
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_lobby public.coop_lobbies%rowtype;
+  v_member_count integer;
+  v_existing private.coop_authority_runs%rowtype;
+  v_encounter_id uuid;
+begin
+  select lobby.* into v_lobby
+  from public.coop_lobbies as lobby
+  where lobby.id = p_lobby_id
+  for update;
+
+  if v_lobby.id is null
+     or v_lobby.status <> 'in_run'
+     or v_lobby.run_attempt <> p_run_attempt
+     or v_lobby.run_seed <> p_run_seed then
+    raise exception 'exact active coop run required';
+  end if;
+
+  select count(*) into v_member_count
+  from public.coop_lobby_members as member
+  where member.lobby_id = v_lobby.id
+    and member.left_at is null
+    and member.ready
+    and member.authority_class_key in ('warrior', 'mage', 'archer')
+    and member.authority_loadout_key = 'canonical-base-v1';
+
+  if v_member_count <> 2 then
+    raise exception 'two trusted ready authority members required';
+  end if;
+
+  select authority_run.* into v_existing
+  from private.coop_authority_runs as authority_run
+  where authority_run.lobby_id = v_lobby.id
+    and authority_run.run_attempt = v_lobby.run_attempt
+  for update;
+
+  if v_existing.lobby_id is not null then
+    if v_existing.run_seed <> v_lobby.run_seed
+       or v_existing.chapter <> 1
+       or v_existing.room <> 1
+       or v_existing.state_version <> 0
+       or v_existing.status <> 'awaiting_canonical_state' then
+      raise exception 'authority bootstrap conflict';
+    end if;
+    return v_existing.encounter_id;
+  end if;
+
+  update private.coop_authority_runs as prior
+  set status = 'invalidated',
+      updated_at = clock_timestamp()
+  where prior.lobby_id = v_lobby.id
+    and prior.run_attempt <> v_lobby.run_attempt
+    and prior.status in ('awaiting_canonical_state', 'active');
+
+  insert into private.coop_authority_runs (
+    lobby_id, run_attempt, run_seed, chapter, room,
+    state_version, authority_version, status
+  ) values (
+    v_lobby.id, v_lobby.run_attempt, v_lobby.run_seed, 1, 1,
+    0, 'duo-authority-bootstrap-v1', 'awaiting_canonical_state'
+  )
+  returning encounter_id into v_encounter_id;
+
+  insert into private.coop_authority_actors (
+    lobby_id, run_attempt, user_id, role, actor_slot, class_key, loadout_key
+  )
+  select v_lobby.id,
+         v_lobby.run_attempt,
+         member.user_id,
+         member.role,
+         (row_number() over (
+           order by case when member.role = 'host' then 0 else 1 end, member.joined_at, member.user_id
+         ) - 1)::smallint,
+         member.authority_class_key,
+         member.authority_loadout_key
+  from public.coop_lobby_members as member
+  where member.lobby_id = v_lobby.id
+    and member.left_at is null
+    and member.ready;
+
+  if (select count(*) from private.coop_authority_actors as actor
+      where actor.lobby_id = v_lobby.id and actor.run_attempt = v_lobby.run_attempt) <> 2 then
+    raise exception 'authority actor snapshot failed';
+  end if;
+
+  return v_encounter_id;
+end;
+$$;
+
+revoke all on function private.bootstrap_coop_authority_run(uuid, integer, bigint)
+  from public, anon, authenticated, service_role;
+
 create table private.coop_authority_build_catalog (
   option_id text primary key,
   max_rank smallint not null check (max_rank between 1 and 3),

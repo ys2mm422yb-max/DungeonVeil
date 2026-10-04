@@ -23,6 +23,7 @@ test('catalog, class and build snapshots are server-owned and versioned', () => 
   assert.match(migration, /duo-build-catalog-v1/);
   assert.match(migration, /canonical_duo_build_snapshot/);
   assert.match(migration, /authority_class_key in \('warrior', 'mage', 'archer'\)/);
+  assert.match(migration, /create or replace function private\.bootstrap_coop_authority_run[\s\S]*?set search_path = ''[\s\S]*?member\.authority_class_key in \('warrior', 'mage', 'archer'\)/i);
   assert.match(migration, /build_digest text not null check \(build_digest ~ '\^\[0-9a-f\]\{64\}\$'\)/);
 });
 
