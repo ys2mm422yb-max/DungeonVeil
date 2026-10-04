@@ -82,7 +82,6 @@
 [data-testid='main-menu-gold-button'],
 [data-testid='main-menu-settings-button'] {
   position: relative;
-  transform: translateZ(0);
   touch-action: manipulation;
   transition: transform 150ms ease, border-color 180ms ease, filter 180ms ease, box-shadow 180ms ease;
 }
