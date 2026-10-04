@@ -45,6 +45,8 @@ jobs:
         run: deno check --config supabase/functions/duo-authority/deno.json supabase/functions/duo-authority/service.ts
       - name: Check deployable Duo authority Edge entry graph
         run: deno check --config supabase/functions/duo-authority/deno.json supabase/functions/duo-authority/index.ts
+      - name: Duo authority build provenance contract
+        run: node --test artifacts/dungeon-rpg/tests/duo-authority-build-profile.contract.mjs
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:

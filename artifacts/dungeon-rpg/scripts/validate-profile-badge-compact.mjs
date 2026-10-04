@@ -12,11 +12,11 @@ const referenceLogoSeparation = menu.includes('<ProfileBadge')
   && menu.includes('DUNGEON VEIL');
 
 const checks = [
-  [badge.includes('w-[min(43vw,160px)]') && badge.includes('h-[44px]') && badge.includes('h-7 w-7'), 'profile badge does not use the tighter 160px/44px mobile layout'],
+  [badge.includes('w-[min(43vw,160px)]') && badge.includes('h-[60px]') && badge.includes('h-9 w-9'), 'profile badge does not align to the shared 160px/60px top-HUD row'],
   [badge.includes('top-[max(10px,calc(env(safe-area-inset-top)+4px))]'), 'profile badge safe-area position is incorrect'],
-  [badge.includes('rounded-[13px]') && badge.includes('px-1.5 py-1'), 'profile badge spacing does not match the restrained layout'],
-  [badge.includes('text-[8.5px]') && badge.includes('text-[5px]'), 'profile badge typography is not compact enough for the mobile composition'],
-  [badge.includes('backdrop-blur-xl') && badge.includes('borderColor: `${card.border}9c`'), 'profile badge has lost its restrained translucent treatment'],
+  [badge.includes('rounded-[15px]') && badge.includes('px-2 py-1.5'), 'profile badge spacing does not match the aligned top-HUD layout'],
+  [badge.includes('text-[9px]') && badge.includes('text-[5.5px]'), 'profile badge typography is not legible within the mobile top-HUD composition'],
+  [!badge.includes('backdrop-blur') && badge.includes('borderColor: `${card.border}9c`'), 'profile badge must keep its card identity without WebKit backdrop rasterization blur'],
   [referenceLogoSeparation || legacyLogoSeparation, 'main menu profile integration is missing'],
 ];
 

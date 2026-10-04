@@ -20,14 +20,14 @@ export function ProfileBadge({ profile, playerName, rank, language, onOpen }: Pr
     type="button"
     aria-label={language === 'de' ? 'Profil öffnen' : 'Open profile'}
     onClick={event => { event.preventDefault(); event.stopPropagation(); onOpen(); }}
-    className="absolute left-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-30 flex h-[44px] w-[min(43vw,160px)] items-center gap-1.5 rounded-[13px] border px-1.5 py-1 text-left shadow-[0_7px_18px_rgba(0,0,0,.38)] backdrop-blur-xl active:scale-[.97]"
+    className="absolute left-3 top-[max(10px,calc(env(safe-area-inset-top)+4px))] z-30 flex h-[60px] w-[min(43vw,160px)] items-center gap-2 rounded-[15px] border px-2 py-1.5 text-left shadow-[0_7px_18px_rgba(0,0,0,.38)] active:scale-[.97]"
     style={{ background: card.background, borderColor: `${card.border}9c`, boxShadow: `0 7px 18px rgba(0,0,0,.38),0 0 10px ${card.glow}` }}
     data-testid="main-menu-profile-badge"
   >
-    <ProfileAvatarPortrait avatar={avatar} className="h-7 w-7 shrink-0 rounded-[9px] border border-white/14" />
+    <ProfileAvatarPortrait avatar={avatar} className="h-9 w-9 shrink-0 rounded-[10px] border border-white/14" />
     <div className="min-w-0 flex-1 leading-none">
-      <div className="truncate text-[8.5px] font-black tracking-[.025em] text-white/90">{playerName}</div>
-      <div className="mt-1 truncate text-[5px] font-black uppercase tracking-[.075em] text-white/46">
+      <div className="truncate text-[9px] font-black tracking-[.025em] text-white/90">{playerName}</div>
+      <div className="mt-1 truncate text-[5.5px] font-black uppercase tracking-[.075em] text-white/46">
         {language === 'de' ? `Rang ${rank}` : `Rank ${rank}`} · {language === 'de' ? title.nameDe : title.nameEn}
       </div>
     </div>

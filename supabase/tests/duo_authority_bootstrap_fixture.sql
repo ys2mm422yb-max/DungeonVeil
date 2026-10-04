@@ -11,6 +11,8 @@ do $$ begin
 end $$;
 create schema auth;
 create schema private;
+create schema extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table auth.users (
   id uuid primary key
