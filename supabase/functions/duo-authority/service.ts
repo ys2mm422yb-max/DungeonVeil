@@ -12,7 +12,7 @@ type RpcResult = { data: unknown; error: { message: string } | null };
 
 export type DuoAuthorityService = {
   auth: { getUser(token: string): Promise<{ data: { user: { id: string } | null }; error: unknown }> };
-  rpc(name: string, args: Record<string, unknown>): Promise<RpcResult>;
+  rpc(name: string, args: Record<string, unknown>): PromiseLike<RpcResult>;
 };
 
 type AuthorityActorRow = {
