@@ -1,24 +1,29 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import test from 'node:test';
-import ts from 'typescript';
+import test, { after } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { createServer } from 'vite';
 
-const sourcePath = new URL('../src/game/duoEncounterAuthorityKernel.ts', import.meta.url);
+const sourcePath = new URL('../../../supabase/functions/_shared/duo_authority_kernel.ts', import.meta.url);
 const source = fs.readFileSync(sourcePath, 'utf8');
-const transpiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022 },
-  fileName: 'duoEncounterAuthorityKernel.ts',
-}).outputText;
-const kernel = await import(`data:text/javascript;base64,${Buffer.from(transpiled).toString('base64')}`);
+const server = await createServer({
+  root: fileURLToPath(new URL('../../../', import.meta.url)),
+  configFile: false,
+  logLevel: 'silent',
+  appType: 'custom',
+  server: { middlewareMode: true },
+});
+const kernel = await server.ssrLoadModule('/supabase/functions/_shared/duo_authority_kernel.ts');
+after(async () => server.close());
 
 const actor = (overrides = {}) => ({
   actorId: 'host',
   classKey: 'warrior',
-  spawnX: 0,
-  spawnY: 0,
+  spawnX: 100,
+  spawnY: 100,
   ...overrides,
 });
-const enemy = (overrides = {}) => ({ enemyType: 'slime', x: 80, y: 0, ...overrides });
+const enemy = (overrides = {}) => ({ enemyType: 'slime', x: 180, y: 100, ...overrides });
 const createBase = (overrides = {}) => kernel.createCanonicalEncounterState({
   runId: 'run-461', runAttempt: 2, chapter: 1, room: 1, seed: 424242, authorityStartedAtMs: 1000,
   actors: [actor()], enemies: [enemy()], ...overrides,
@@ -52,8 +57,8 @@ test('canonical class manifest owns base attack, speed, size, range and cadence'
 test('movement is server-integrated from direction, canonical speed and authority time', () => {
   const base = createBase();
   const moved = move(base, 1, 1100, 1);
-  assert.equal(moved.state.actors[0].x, 11.8);
-  assert.equal(moved.state.actors[0].y, 0);
+  assert.equal(moved.state.actors[0].x, 111.8);
+  assert.equal(moved.state.actors[0].y, 100);
   assert.equal(moved.state.actors[0].lastAuthorityAtMs, 1100);
   assert.equal(moved.state.version, 1);
   assert.equal(moved.state.lastClientSeqByActor.host, 1);
@@ -65,30 +70,30 @@ test('teleport vectors and backwards authority time fail closed while oversized 
   assert.throws(() => move(base, 1, 999, 1, 0), /time cannot move backwards/);
 
   const resynced = move(base, 1, 1300, 1, 0);
-  assert.equal(resynced.state.actors[0].x, 0);
-  assert.equal(resynced.state.actors[0].y, 0);
+  assert.equal(resynced.state.actors[0].x, 100);
+  assert.equal(resynced.state.actors[0].y, 100);
   assert.equal(resynced.state.actors[0].lastAuthorityAtMs, 1300);
   assert.equal(resynced.state.lastClientSeqByActor.host, 1);
   assert.equal(resynced.state.version, 1);
 
   const moved = move(resynced.state, 2, 1400, 1, 0);
-  assert.equal(moved.state.actors[0].x, 11.8);
+  assert.equal(moved.state.actors[0].x, 111.8);
   assert.equal(moved.state.actors[0].lastAuthorityAtMs, 1400);
   assert.equal(moved.state.lastClientSeqByActor.host, 2);
 
   assert.equal(base.version, 0);
-  assert.equal(base.actors[0].x, 0);
+  assert.equal(base.actors[0].x, 100);
 });
 
 test('forged absolute position fields cannot move an actor into hit range', () => {
-  const base = createBase({ actors: [actor({ classKey: 'warrior' })], enemies: [enemy({ x: 120 })] });
-  assert.throws(() => hit(base, 1, 1000, base.enemies[0].enemyId, { x: 120, y: 0, actorX: 120, targetX: 120 }), /outside canonical basic-hit range/);
+  const base = createBase({ actors: [actor({ classKey: 'warrior' })], enemies: [enemy({ x: 220 })] });
+  assert.throws(() => hit(base, 1, 1000, base.enemies[0].enemyId, { x: 220, y: 100, actorX: 220, targetX: 220 }), /outside canonical basic-hit range/);
   const moved = move(base, 1, 1250, 1);
   assert.throws(() => hit(moved.state, 2, 1250), /outside canonical basic-hit range/);
 });
 
 test('sequencing spans movement and hits, blocking replay and gaps', () => {
-  const base = createBase({ enemies: [enemy({ x: 60 })] });
+  const base = createBase({ enemies: [enemy({ x: 140 })] });
   const moved = move(base, 1, 1100, 0.5);
   assert.throws(() => move(moved.state, 1, 1200, 0.5), /replayed|out-of-order/);
   assert.throws(() => hit(moved.state, 3, 1200), /gap/);
@@ -98,7 +103,7 @@ test('sequencing spans movement and hits, blocking replay and gaps', () => {
 });
 
 test('canonical attack cannot be inflated through forged hit payload fields', () => {
-  const base = createBase({ actors: [actor({ classKey: 'warrior' })], enemies: [enemy({ x: 30 })] });
+  const base = createBase({ actors: [actor({ classKey: 'warrior' })], enemies: [enemy({ x: 130 })] });
   const normal = hit(base, 1, 1000);
   const forged = hit(base, 1, 1000, base.enemies[0].enemyId, { damage: 999999, attack: 999999, room_clear: true, chapter: 999999 });
   assert.deepEqual(forged, normal);
@@ -106,21 +111,21 @@ test('canonical attack cannot be inflated through forged hit payload fields', ()
 });
 
 test('server-owned cadence and movement clock cannot be bypassed by caller timestamps', () => {
-  const base = createBase({ actors: [actor({ classKey: 'mage' })], enemies: [enemy({ x: 30 })] });
+  const base = createBase({ actors: [actor({ classKey: 'mage' })], enemies: [enemy({ x: 130 })] });
   const first = hit(base, 1, 1000);
   assert.throws(() => hit(first.state, 2, 1200, first.state.enemies[0].enemyId, { timestamp: 999999, cooldown: 0 }), /cadence not ready/);
 
   const resynced = move(first.state, 2, 1300, 1);
-  assert.equal(resynced.state.actors[0].x, 0);
+  assert.equal(resynced.state.actors[0].x, 100);
   assert.equal(resynced.state.actors[0].lastAuthorityAtMs, 1300);
 
   const moved = move(resynced.state, 3, 1400, 1);
-  assert.equal(moved.state.actors[0].x, 13);
+  assert.equal(moved.state.actors[0].x, 113);
   assert.equal(moved.state.actors[0].lastAuthorityAtMs, 1400);
 });
 
 test('completion still requires canonical enemy hp to reach zero', () => {
-  let state = createBase({ actors: [actor({ classKey: 'mage' })], enemies: [enemy({ x: 20 })] });
+  let state = createBase({ actors: [actor({ classKey: 'mage' })], enemies: [enemy({ x: 120 })] });
   let seq = 1;
   let now = 1000;
   let event = null;

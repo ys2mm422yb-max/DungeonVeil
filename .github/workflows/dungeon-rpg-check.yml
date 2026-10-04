@@ -37,6 +37,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Focused request provenance contract
         run: node artifacts/dungeon-rpg/scripts/validate-focused-contract-request-provenance.mjs
+      - name: Setup Deno for Supabase Edge parity
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - name: Check pure Duo authority service graph
+        run: deno check --config supabase/functions/duo-authority/deno.json supabase/functions/duo-authority/service.ts
+      - name: Check deployable Duo authority Edge entry graph
+        run: deno check --config supabase/functions/duo-authority/deno.json supabase/functions/duo-authority/index.ts
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -49,7 +57,7 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Duo authority Edge producer contract
-        run: node --test artifacts/dungeon-rpg/tests/duo-authority-edge-producer.contract.mjs
+        run: node --test artifacts/dungeon-rpg/tests/duo-authority-edge-producer.contract.mjs artifacts/dungeon-rpg/tests/duo-authority-room-geometry.contract.mjs
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Write KayKit animation inventory

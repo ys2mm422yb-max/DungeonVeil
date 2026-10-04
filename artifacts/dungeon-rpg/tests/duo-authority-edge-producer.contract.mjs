@@ -9,6 +9,9 @@ const entry = fs.readFileSync(new URL('../../../supabase/functions/duo-authority
 const migration = fs.readFileSync(new URL('../../../supabase/migrations/20261003142500_connect_duo_authority_completion.sql', import.meta.url), 'utf8');
 const edgeConfig = fs.readFileSync(new URL('../../../supabase/config.toml', import.meta.url), 'utf8');
 const denoConfig = JSON.parse(fs.readFileSync(new URL('../../../supabase/functions/duo-authority/deno.json', import.meta.url), 'utf8'));
+const sharedFactory = fs.readFileSync(new URL('../../../supabase/functions/_shared/duo_authority_factory.ts', import.meta.url), 'utf8');
+const sharedKernel = fs.readFileSync(new URL('../../../supabase/functions/_shared/duo_authority_kernel.ts', import.meta.url), 'utf8');
+const workflow = fs.readFileSync(new URL('../../../.github/workflows/dungeon-rpg-check.yml', import.meta.url), 'utf8');
 let server;
 
 async function runtime() {
@@ -39,6 +42,19 @@ test('Edge deploy contract pins dependencies and preserves platform JWT verifica
   assert.equal(denoConfig.imports.supabase, 'npm:@supabase/supabase-js@2.57.4');
   assert.match(entry, /from "supabase"/);
   assert.match(edgeConfig, /\[functions\.duo-authority\][\s\S]*verify_jwt\s*=\s*true/);
+  assert.match(workflow, /deno check --config supabase\/functions\/duo-authority\/deno\.json supabase\/functions\/duo-authority\/service\.ts/);
+  assert.match(workflow, /deno check --config supabase\/functions\/duo-authority\/deno\.json supabase\/functions\/duo-authority\/index\.ts/);
+  assert.ok(
+    workflow.indexOf('Check pure Duo authority service graph') < workflow.indexOf('Install workspace'),
+    'Deno source fast-fail must precede workspace installation and broad checks',
+  );
+  assert.doesNotMatch(service, /artifacts\/dungeon-rpg|\.\.\/\.\.\/\.\.\/artifacts/);
+  for (const [label, source] of [['service', service], ['factory', sharedFactory], ['kernel', sharedKernel]]) {
+    assert.doesNotMatch(source, /CanvasRenderingContext2D|\bwindow\b|\bdocument\b|sprites\.ts/, `${label} must remain browser-free`);
+    for (const match of source.matchAll(/from\s+['"](\.\.?\/[^'"]+)['"]/g)) {
+      assert.match(match[1], /\.ts$/, `${label} relative import must use an explicit .ts extension`);
+    }
+  }
 });
 
 test('producer constructs canonical state from durable run and repository factory before reducing intent', () => {

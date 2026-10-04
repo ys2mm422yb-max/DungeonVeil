@@ -1,4 +1,3 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "supabase";
 import { executeDuoAuthority, type DuoAuthorityBody } from "./service.ts";
 

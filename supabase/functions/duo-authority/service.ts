@@ -1,12 +1,12 @@
 import {
   createRoomBoundCanonicalEncounterState,
   type CanonicalDuoActorIdentity,
-} from "../../../artifacts/dungeon-rpg/src/game/duoCanonicalEncounterFactory.ts";
+} from "../_shared/duo_authority_factory.ts";
 import {
   reduceAuthorityIntent,
   type AuthorityIntent,
   type CanonicalEncounterState,
-} from "../../../artifacts/dungeon-rpg/src/game/duoEncounterAuthorityKernel.ts";
+} from "../_shared/duo_authority_kernel.ts";
 
 type RpcResult = { data: unknown; error: { message: string } | null };
 
