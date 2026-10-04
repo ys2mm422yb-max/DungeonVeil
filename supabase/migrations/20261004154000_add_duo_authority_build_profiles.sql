@@ -543,18 +543,20 @@ begin
   v_snapshot := private.canonical_duo_build_snapshot(v_profile.class_key, v_next_ranks);
   v_digest := encode(extensions.digest(v_snapshot::text, 'sha256'), 'hex');
 
-  update private.coop_authority_build_profiles
-  set build_revision = build_revision + 1,
+  update private.coop_authority_build_profiles as profile
+  set build_revision = profile.build_revision + 1,
       choice_ordinal = v_offer.choice_ordinal,
       skill_ranks = v_next_ranks,
       derived_snapshot = v_snapshot,
       build_digest = v_digest,
       updated_at = clock_timestamp()
-  where lobby_id = p_lobby_id and run_attempt = p_run_attempt and user_id = v_user_id;
+  where profile.lobby_id = p_lobby_id
+    and profile.run_attempt = p_run_attempt
+    and profile.user_id = v_user_id;
 
-  update private.coop_authority_choice_offers
+  update private.coop_authority_choice_offers as offer
   set selected_option = p_option_id, selected_at = clock_timestamp()
-  where offer_id = p_offer_id;
+  where offer.offer_id = p_offer_id;
 
   return query select v_profile.build_revision + 1, v_offer.choice_ordinal, v_snapshot, v_digest, false;
 end;

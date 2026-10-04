@@ -41,6 +41,11 @@ test('choice endpoint enforces CAS, exact replay and current issued option', () 
   assert.match(migration, /p_option_id = any\(v_offer\.offered_options\)/);
   assert.match(migration, /authority choice replay conflict/);
   assert.match(migration, /v_profile\.build_revision = p_expected_build_revision \+ 1/);
+  assert.match(
+    migration,
+    /update private\.coop_authority_build_profiles as profile[\s\S]*?set build_revision = profile\.build_revision \+ 1/i,
+  );
+  assert.doesNotMatch(migration, /set build_revision = build_revision \+ 1/i);
 });
 
 test('private provenance tables are forced-RLS and directly inaccessible', () => {
