@@ -244,6 +244,7 @@ create table private.coop_authority_choice_offers (
   lobby_id uuid not null,
   run_attempt integer not null,
   user_id uuid not null,
+  encounter_id uuid not null,
   choice_ordinal integer not null check (choice_ordinal >= 1),
   progression_key text not null check (progression_key ~ '^[a-z0-9][a-z0-9:_-]{0,95}$'),
   catalog_version text not null check (catalog_version = 'duo-build-catalog-v1'),
@@ -253,7 +254,7 @@ create table private.coop_authority_choice_offers (
   selected_at timestamptz,
   created_at timestamptz not null default clock_timestamp(),
   unique (lobby_id, run_attempt, user_id, choice_ordinal),
-  unique (lobby_id, run_attempt, user_id, progression_key),
+  unique (lobby_id, run_attempt, user_id, encounter_id, progression_key),
   foreign key (lobby_id, run_attempt, user_id)
     references private.coop_authority_build_profiles(lobby_id, run_attempt, user_id) on delete cascade,
   check ((selected_option is null) = (selected_at is null)),
@@ -378,9 +379,10 @@ begin
   from private.coop_authority_runs as authority_run
   where authority_run.lobby_id = p_lobby_id
     and authority_run.run_attempt = p_run_attempt
-    and authority_run.status in ('awaiting_canonical_state', 'active')
+    and authority_run.status = 'awaiting_canonical_state'
+    and authority_run.canonical_snapshot is null
   for update;
-  if v_run.lobby_id is null then raise exception 'mutable authority run required'; end if;
+  if v_run.lobby_id is null then raise exception 'inter-encounter authority boundary required'; end if;
 
   if not exists (
     select 1 from public.coop_lobby_members as member
@@ -390,7 +392,8 @@ begin
   select offer.* into v_existing
   from private.coop_authority_choice_offers as offer
   where offer.lobby_id = p_lobby_id and offer.run_attempt = p_run_attempt
-    and offer.user_id = p_actor_user_id and offer.progression_key = p_progression_key;
+    and offer.user_id = p_actor_user_id and offer.encounter_id = v_run.encounter_id
+    and offer.progression_key = p_progression_key;
   if v_existing.offer_id is not null then
     return query select v_existing.offer_id, v_existing.choice_ordinal, v_existing.catalog_version,
                         v_existing.offered_options, v_existing.offer_digest, true;
@@ -426,17 +429,17 @@ begin
   v_digest := encode(extensions.digest(
     jsonb_build_object(
       'offerId', v_offer_id, 'lobbyId', p_lobby_id, 'runAttempt', p_run_attempt,
-      'actorId', p_actor_user_id, 'progressionKey', p_progression_key,
+      'encounterId', v_run.encounter_id, 'actorId', p_actor_user_id, 'progressionKey', p_progression_key,
       'choiceOrdinal', v_ordinal, 'catalogVersion', v_profile.catalog_version,
       'offeredOptions', to_jsonb(v_options)
     )::text, 'sha256'
   ), 'hex');
 
   insert into private.coop_authority_choice_offers (
-    offer_id, lobby_id, run_attempt, user_id, choice_ordinal,
+    offer_id, lobby_id, run_attempt, user_id, encounter_id, choice_ordinal,
     progression_key, catalog_version, offered_options, offer_digest
   ) values (
-    v_offer_id, p_lobby_id, p_run_attempt, p_actor_user_id, v_ordinal,
+    v_offer_id, p_lobby_id, p_run_attempt, p_actor_user_id, v_run.encounter_id, v_ordinal,
     p_progression_key, v_profile.catalog_version, v_options, v_digest
   );
 
@@ -469,6 +472,7 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_lobby public.coop_lobbies%rowtype;
+  v_run private.coop_authority_runs%rowtype;
   v_profile private.coop_authority_build_profiles%rowtype;
   v_offer private.coop_authority_choice_offers%rowtype;
   v_catalog private.coop_authority_build_catalog%rowtype;
@@ -488,6 +492,14 @@ begin
     and lobby.status = 'in_run' and lobby.expires_at > clock_timestamp()
   for update;
   if v_lobby.id is null then raise exception 'exact active coop attempt required'; end if;
+
+  select authority_run.* into v_run
+  from private.coop_authority_runs as authority_run
+  where authority_run.lobby_id = p_lobby_id
+    and authority_run.run_attempt = p_run_attempt
+    and authority_run.status <> 'invalidated'
+  for update;
+  if v_run.lobby_id is null then raise exception 'authority run required'; end if;
 
   if not exists (
     select 1 from public.coop_lobby_members as member
@@ -517,6 +529,12 @@ begin
       return;
     end if;
     raise exception 'authority choice replay conflict';
+  end if;
+
+  if v_run.status <> 'awaiting_canonical_state'
+     or v_run.canonical_snapshot is not null
+     or v_offer.encounter_id <> v_run.encounter_id then
+    raise exception 'inter-encounter authority boundary required';
   end if;
 
   if v_profile.build_revision <> p_expected_build_revision then
@@ -603,11 +621,17 @@ begin
          profile.derived_snapshot, profile.build_digest,
          (
            select jsonb_build_object(
-             'offerId', offer.offer_id, 'choiceOrdinal', offer.choice_ordinal,
-             'progressionKey', offer.progression_key, 'catalogVersion', offer.catalog_version,
+             'offerId', offer.offer_id, 'encounterId', offer.encounter_id,
+             'choiceOrdinal', offer.choice_ordinal, 'progressionKey', offer.progression_key,
+             'catalogVersion', offer.catalog_version,
              'offeredOptions', to_jsonb(offer.offered_options), 'offerDigest', offer.offer_digest
            )
            from private.coop_authority_choice_offers as offer
+           join private.coop_authority_runs as authority_run
+             on authority_run.lobby_id = offer.lobby_id and authority_run.run_attempt = offer.run_attempt
+            and authority_run.encounter_id = offer.encounter_id
+            and authority_run.status = 'awaiting_canonical_state'
+            and authority_run.canonical_snapshot is null
            where offer.lobby_id = profile.lobby_id and offer.run_attempt = profile.run_attempt
              and offer.user_id = profile.user_id and offer.selected_option is null
            order by offer.choice_ordinal

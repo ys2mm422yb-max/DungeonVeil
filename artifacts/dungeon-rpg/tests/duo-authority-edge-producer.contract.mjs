@@ -287,3 +287,49 @@ test('mismatched or malformed server build provenance fails before persistence',
   }, 1000), /snapshot identity mismatch/);
   assert.equal(persisted, false);
 });
+
+
+test('stored actor provenance drift fails reconnect and intent before persistence', async () => {
+  const { executeDuoAuthority } = await runtime();
+  const lobbyId = '10000000-0000-4000-8000-000000000006';
+  const actorId = '20000000-0000-4000-8000-000000000006';
+  const encounterId = '30000000-0000-4000-8000-000000000006';
+  const stored = {
+    runId: lobbyId, runAttempt: 1, seed: 6, chapter: 1, room: 1, encounterId,
+    version: 1,
+    actors: [{ actorId, classKey: 'archer', buildRevision: 0, buildDigest: 'a'.repeat(64) }],
+    enemies: [], lastClientSeqByActor: { [actorId]: 0 }, completed: false,
+  };
+  let transitionCalls = 0;
+  const api = {
+    auth: { getUser: async () => ({ data: { user: { id: actorId } }, error: null }) },
+    rpc: async name => {
+      if (name !== 'read_coop_authority_state') {
+        transitionCalls += 1;
+        return { data: [], error: null };
+      }
+      return { data: [{
+        lobby_id: lobbyId, run_attempt: 1, run_seed: 6, chapter: 1, room: 1,
+        encounter_id: encounterId, state_version: 1,
+        authority_version: 'duo-authority-bootstrap-v1', status: 'active',
+        canonical_snapshot: stored, canonical_snapshot_digest: 'c'.repeat(64),
+        actors: [actorRow(actorId, 'archer', { build_revision: 1, build_digest: 'b'.repeat(64) })],
+      }], error: null };
+    },
+  };
+
+  await assert.rejects(
+    () => executeDuoAuthority(api, 'valid', { action: 'state', lobbyId, runAttempt: 1 }, 1000),
+    /authority_snapshot_build_binding_conflict/,
+  );
+  await assert.rejects(
+    () => executeDuoAuthority(api, 'valid', {
+      action: 'intent', lobbyId, runAttempt: 1, encounterId,
+      intentId: '40000000-0000-4000-8000-000000000006',
+      expectedStateVersion: 1, actorSequence: 1,
+      intent: { kind: 'move', directionX: 0, directionY: 0 },
+    }, 1000),
+    /authority_snapshot_build_binding_conflict/,
+  );
+  assert.equal(transitionCalls, 0);
+});

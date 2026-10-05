@@ -83,3 +83,13 @@ test('trusted build snapshot is bound fail-closed into canonical Edge actors', (
   assert.match(kernel, /attack: build\.attack/);
   assert.match(kernel, /speed: build\.speed/);
 });
+
+
+test('upgrade offers and choices are bound to an empty exact encounter boundary', () => {
+  assert.match(migration, /encounter_id uuid not null/);
+  assert.match(migration, /authority_run\.status = 'awaiting_canonical_state'[\s\S]*authority_run\.canonical_snapshot is null/);
+  assert.match(migration, /offer\.encounter_id = v_run\.encounter_id/);
+  assert.match(migration, /v_offer\.encounter_id <> v_run\.encounter_id/);
+  assert.match(migration, /inter-encounter authority boundary required/);
+  assert.match(migration, /authority_run\.encounter_id = offer\.encounter_id[\s\S]*authority_run\.canonical_snapshot is null/);
+});

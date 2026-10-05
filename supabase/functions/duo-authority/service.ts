@@ -131,6 +131,16 @@ function assertStoredBinding(row: AuthorityStateRow, state: CanonicalEncounterSt
   if (state.runId !== row.lobby_id || state.runAttempt !== row.run_attempt || state.seed !== row.run_seed
       || state.chapter !== row.chapter || state.room !== row.room || state.encounterId !== row.encounter_id
       || state.version !== row.state_version) throw new Error("authority_snapshot_binding_conflict");
+  const storedActors = new Map(state.actors.map(candidate => [candidate.actorId, candidate]));
+  if (storedActors.size !== row.actors.length) throw new Error("authority_snapshot_build_binding_conflict");
+  for (const actor of row.actors) {
+    const stored = storedActors.get(actor.user_id);
+    if (!stored || stored.classKey !== actor.class_key
+        || stored.buildRevision !== Number(actor.build_revision)
+        || stored.buildDigest !== actor.build_digest) {
+      throw new Error("authority_snapshot_build_binding_conflict");
+    }
+  }
 }
 
 export async function executeDuoAuthority(
@@ -152,6 +162,7 @@ export async function executeDuoAuthority(
   if (!row || row.status === "invalidated") throw new Error("authority_state_not_found");
   const actor = row.actors.find(candidate => candidate.user_id === authData.user!.id);
   if (!actor) throw new Error("active_actor_required");
+  if (row.canonical_snapshot) assertStoredBinding(row, row.canonical_snapshot);
 
   if (body.action === "state") {
     return { stateVersion: row.state_version, state: row.canonical_snapshot, actors: row.actors, reconnect: true };
