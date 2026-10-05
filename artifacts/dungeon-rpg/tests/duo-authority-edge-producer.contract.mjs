@@ -175,7 +175,9 @@ test('lost-response retry reaches the database receipt path instead of re-reduci
   const actorId = '20000000-0000-4000-8000-000000000002';
   const encounterId = '30000000-0000-4000-8000-000000000002';
   const current = { runId: lobbyId, runAttempt: 1, chapter: 1, room: 1, encounterId,
-    seed: 9, version: 1, actors: [], enemies: [], lastClientSeqByActor: { [actorId]: 1 }, completed: false };
+    seed: 9, version: 1,
+    actors: [{ actorId, classKey: 'archer', buildRevision: 0, buildDigest: 'a'.repeat(64) }],
+    enemies: [], lastClientSeqByActor: { [actorId]: 1 }, completed: false };
   let persisted;
   const api = {
     auth: { getUser: async () => ({ data: { user: { id: actorId } }, error: null }) },
