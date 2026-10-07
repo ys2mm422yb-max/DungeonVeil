@@ -93,3 +93,18 @@ test('upgrade offers and choices are bound to an empty exact encounter boundary'
   assert.match(migration, /inter-encounter authority boundary required/);
   assert.match(migration, /authority_run\.encounter_id = offer\.encounter_id[\s\S]*authority_run\.canonical_snapshot is null/);
 });
+
+test('stale unselected offers release the next ordinal without deleting replay history', () => {
+  assert.match(
+    migration,
+    /delete from private\.coop_authority_choice_offers as stale_offer[\s\S]*?stale_offer\.selected_option is null[\s\S]*?stale_offer\.encounter_id <> v_run\.encounter_id/i,
+  );
+  assert.match(
+    migration,
+    /pending_offer\.encounter_id = v_run\.encounter_id[\s\S]*?pending_offer\.selected_option is null[\s\S]*?pending authority choice required/i,
+  );
+  const staleCleanup = migration.match(
+    /delete from private\.coop_authority_choice_offers as stale_offer[\s\S]*?stale_offer\.encounter_id <> v_run\.encounter_id;/i,
+  )?.[0] ?? '';
+  assert.match(staleCleanup, /stale_offer\.selected_option is null/i);
+});

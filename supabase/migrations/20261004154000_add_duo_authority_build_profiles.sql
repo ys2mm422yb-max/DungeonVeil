@@ -407,6 +407,31 @@ begin
   for update;
   if v_profile.user_id is null then raise exception 'authority build profile required'; end if;
 
+  -- A player may legitimately leave an offer unselected before the canonical
+  -- encounter starts. Once the trusted authority advances to a new encounter,
+  -- that old pending row must no longer reserve the profile's next globally
+  -- unique choice ordinal. The run row above serializes encounter changes and
+  -- the profile row serializes this cleanup with offer issuance. Selected rows
+  -- are durable replay history and are deliberately never removed.
+  delete from private.coop_authority_choice_offers as stale_offer
+  where stale_offer.lobby_id = p_lobby_id
+    and stale_offer.run_attempt = p_run_attempt
+    and stale_offer.user_id = p_actor_user_id
+    and stale_offer.selected_option is null
+    and stale_offer.encounter_id <> v_run.encounter_id;
+
+  if exists (
+    select 1
+    from private.coop_authority_choice_offers as pending_offer
+    where pending_offer.lobby_id = p_lobby_id
+      and pending_offer.run_attempt = p_run_attempt
+      and pending_offer.user_id = p_actor_user_id
+      and pending_offer.encounter_id = v_run.encounter_id
+      and pending_offer.selected_option is null
+  ) then
+    raise exception 'pending authority choice required';
+  end if;
+
   v_ordinal := v_profile.choice_ordinal + 1;
   select array_agg(candidate.option_id order by candidate.sort_key)
   into v_options

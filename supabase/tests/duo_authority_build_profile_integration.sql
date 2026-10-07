@@ -2,7 +2,7 @@
 \pset tuples_only on
 \pset format unaligned
 
-select '1..18';
+select '1..23';
 
 insert into auth.users(id) values
   ('71000000-0000-4000-8000-000000000001'),
@@ -246,6 +246,143 @@ select 'not ok 15 - settled choice replay was rejected';
 
 reset role;
 
+-- Complete the canonical encounter through the trusted producer boundary, then
+-- advance from its exact proof. The skipped offer must release ordinal 2 while
+-- selected ordinal 1 remains durable replay history.
+create temporary table skipped_encounter as
+select encounter_id
+from private.coop_authority_runs
+where lobby_id = '72000000-0000-4000-8000-000000000001'
+  and run_attempt = 1;
+
+set role service_role;
+select * from public.persist_coop_authority_transition_and_record(
+  '72000000-0000-4000-8000-000000000001', 1,
+  (select encounter_id from skipped_encounter),
+  '71000000-0000-4000-8000-000000000001',
+  '73000000-0000-4000-8000-000000000001', 1, 0,
+  repeat('b', 64),
+  jsonb_build_object(
+    'runId', '72000000-0000-4000-8000-000000000001',
+    'runAttempt', 1,
+    'seed', 424242,
+    'chapter', 1,
+    'room', 1,
+    'encounterId', (select encounter_id::text from skipped_encounter),
+    'version', 1,
+    'actors', '[]'::jsonb,
+    'enemies', jsonb_build_array(jsonb_build_object('hp', 0)),
+    'lastClientSeqByActor', jsonb_build_object(
+      '71000000-0000-4000-8000-000000000001', 1,
+      '71000000-0000-4000-8000-000000000002', 0
+    ),
+    'completed', true
+  ),
+  repeat('c', 64)
+);
+select * from public.advance_coop_authority_encounter(
+  '72000000-0000-4000-8000-000000000001', 1,
+  (select encounter_id from skipped_encounter),
+  '71000000-0000-4000-8000-000000000001'
+);
+reset role;
+
+select chapter = 1
+       and room = 2
+       and status = 'awaiting_canonical_state'
+       and canonical_snapshot is null
+       and encounter_id <> (select encounter_id from skipped_encounter)
+       as trusted_advance_ready
+from private.coop_authority_runs
+where lobby_id = '72000000-0000-4000-8000-000000000001'
+  and run_attempt = 1 \gset
+\if :trusted_advance_ready
+select 'ok 16 - trusted completion advances to the next empty authority boundary';
+\else
+select 'not ok 16 - trusted completion did not open the next authority boundary';
+\endif
+
+set role service_role;
+select * from public.issue_coop_authority_upgrade_offer(
+  '72000000-0000-4000-8000-000000000001', 1,
+  '71000000-0000-4000-8000-000000000001', 'room:2:clear'
+) \gset next_offer_
+reset role;
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '71000000-0000-4000-8000-000000000001', false);
+select pending_offer ->> 'offerId' = :'next_offer_offer_id'
+       and (pending_offer ->> 'choiceOrdinal')::integer = 2
+       and (
+         select count(*) = 1
+         from private.coop_authority_choice_offers as offer
+         where offer.lobby_id = '72000000-0000-4000-8000-000000000001'
+           and offer.run_attempt = 1
+           and offer.user_id = '71000000-0000-4000-8000-000000000001'
+           and offer.selected_option is null
+       )
+       and not exists (
+         select 1
+         from private.coop_authority_choice_offers as offer
+         where offer.offer_id = :'boundary_offer_offer_id'::uuid
+       ) as next_offer_visible
+from public.read_my_coop_authority_build(
+  '72000000-0000-4000-8000-000000000001', 1
+) \gset
+\if :next_offer_visible
+select 'ok 17 - next boundary issues exactly one visible offer and expires the skipped row';
+\else
+select 'not ok 17 - skipped offer still blocks or leaks into the next boundary';
+\endif
+
+\set ON_ERROR_STOP off
+select * from public.choose_my_coop_authority_upgrade(
+  '72000000-0000-4000-8000-000000000001', 1,
+  :'boundary_offer_offer_id'::uuid, :'boundary_option', 1
+);
+\if :ERROR
+select 'ok 18 - expired skipped offer cannot be selected after trusted advance';
+\else
+select 'not ok 18 - expired skipped offer remained selectable';
+\endif
+\set ON_ERROR_STOP on
+reset role;
+
+set role service_role;
+select replayed
+       and offer_id = :'next_offer_offer_id'::uuid
+       and (
+         select count(*) = 1
+         from private.coop_authority_choice_offers as offer
+         where offer.offer_id = :'next_offer_offer_id'::uuid
+       ) as deterministic_next_replay
+from public.issue_coop_authority_upgrade_offer(
+  '72000000-0000-4000-8000-000000000001', 1,
+  '71000000-0000-4000-8000-000000000001', 'room:2:clear'
+) \gset
+reset role;
+\if :deterministic_next_replay
+select 'ok 19 - exact next-boundary offer replay is idempotent without duplicates';
+\else
+select 'not ok 19 - next-boundary offer replay changed identity or duplicated';
+\endif
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '71000000-0000-4000-8000-000000000001', false);
+select replayed
+       and build_revision = 1
+       and choice_ordinal = 1 as selected_history_replays
+from public.choose_my_coop_authority_upgrade(
+  '72000000-0000-4000-8000-000000000001', 1,
+  :'offer_offer_id'::uuid, :'selected_option', 0
+) \gset
+\if :selected_history_replays
+select 'ok 20 - selected exact replay history survives trusted encounter advance';
+\else
+select 'not ok 20 - selected exact replay history was lost during stale cleanup';
+\endif
+reset role;
+
 set role service_role;
 select jsonb_array_length(actors) = 2
        and (actors -> 0) ? 'build_revision'
@@ -256,9 +393,9 @@ from public.read_coop_authority_state(
   '72000000-0000-4000-8000-000000000001', 1
 ) \gset
 \if :authority_build_bound
-select 'ok 16 - authority read binds trusted build provenance for every actor';
+select 'ok 21 - authority read binds trusted build provenance for every actor';
 \else
-select 'not ok 16 - authority read omitted trusted build provenance';
+select 'not ok 21 - authority read omitted trusted build provenance';
 \endif
 reset role;
 
@@ -267,9 +404,9 @@ select (private.canonical_duo_build_snapshot('warrior', '{}'::jsonb) ->> 'maxHp'
        and (private.canonical_duo_build_snapshot('archer', '{}'::jsonb) ->> 'maxHp')::integer = 100
        as browser_hp_parity \gset
 \if :browser_hp_parity
-select 'ok 17 - server class HP baselines match shipped browser classes';
+select 'ok 22 - server class HP baselines match shipped browser classes';
 \else
-select 'not ok 17 - server class HP baselines drift from browser classes';
+select 'not ok 22 - server class HP baselines drift from browser classes';
 \endif
 
 update private.coop_authority_build_profiles
@@ -284,8 +421,8 @@ from public.read_coop_authority_state(
   '72000000-0000-4000-8000-000000000001', 1
 ) \gset
 \if :corrupt_profile_hidden
-select 'ok 18 - corrupt actor build digest fails the complete authority read closed';
+select 'ok 23 - corrupt actor build digest fails the complete authority read closed';
 \else
-select 'not ok 18 - corrupt actor build digest leaked partial authority state';
+select 'not ok 23 - corrupt actor build digest leaked partial authority state';
 \endif
 reset role;
