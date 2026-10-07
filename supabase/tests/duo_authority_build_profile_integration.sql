@@ -249,16 +249,15 @@ reset role;
 -- Complete the canonical encounter through the trusted producer boundary, then
 -- advance from its exact proof. The skipped offer must release ordinal 2 while
 -- selected ordinal 1 remains durable replay history.
-create temporary table skipped_encounter as
-select encounter_id
+select encounter_id as skipped_encounter_id
 from private.coop_authority_runs
 where lobby_id = '72000000-0000-4000-8000-000000000001'
-  and run_attempt = 1;
+  and run_attempt = 1 \gset
 
 set role service_role;
 select * from public.persist_coop_authority_transition_and_record(
   '72000000-0000-4000-8000-000000000001', 1,
-  (select encounter_id from skipped_encounter),
+  :'skipped_encounter_id'::uuid,
   '71000000-0000-4000-8000-000000000001',
   '73000000-0000-4000-8000-000000000001', 1, 0,
   repeat('b', 64),
@@ -268,7 +267,7 @@ select * from public.persist_coop_authority_transition_and_record(
     'seed', 424242,
     'chapter', 1,
     'room', 1,
-    'encounterId', (select encounter_id::text from skipped_encounter),
+    'encounterId', :'skipped_encounter_id',
     'version', 1,
     'actors', '[]'::jsonb,
     'enemies', jsonb_build_array(jsonb_build_object('hp', 0)),
@@ -282,7 +281,7 @@ select * from public.persist_coop_authority_transition_and_record(
 );
 select * from public.advance_coop_authority_encounter(
   '72000000-0000-4000-8000-000000000001', 1,
-  (select encounter_id from skipped_encounter),
+  :'skipped_encounter_id'::uuid,
   '71000000-0000-4000-8000-000000000001'
 );
 reset role;
@@ -291,7 +290,7 @@ select chapter = 1
        and room = 2
        and status = 'awaiting_canonical_state'
        and canonical_snapshot is null
-       and encounter_id <> (select encounter_id from skipped_encounter)
+       and encounter_id <> :'skipped_encounter_id'::uuid
        as trusted_advance_ready
 from private.coop_authority_runs
 where lobby_id = '72000000-0000-4000-8000-000000000001'
