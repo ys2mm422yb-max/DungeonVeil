@@ -310,8 +310,15 @@ reset role;
 
 set role authenticated;
 select set_config('request.jwt.claim.sub', '71000000-0000-4000-8000-000000000001', false);
-select pending_offer ->> 'offerId' = :'next_offer_offer_id'
-       and (pending_offer ->> 'choiceOrdinal')::integer = 2
+select pending_offer ->> 'offerId' as visible_offer_id,
+       pending_offer ->> 'choiceOrdinal' as visible_choice_ordinal
+from public.read_my_coop_authority_build(
+  '72000000-0000-4000-8000-000000000001', 1
+) \gset
+reset role;
+
+select :'visible_offer_id'::uuid = :'next_offer_offer_id'::uuid
+       and :'visible_choice_ordinal'::integer = 2
        and (
          select count(*) = 1
          from private.coop_authority_choice_offers as offer
@@ -324,16 +331,15 @@ select pending_offer ->> 'offerId' = :'next_offer_offer_id'
          select 1
          from private.coop_authority_choice_offers as offer
          where offer.offer_id = :'boundary_offer_offer_id'::uuid
-       ) as next_offer_visible
-from public.read_my_coop_authority_build(
-  '72000000-0000-4000-8000-000000000001', 1
-) \gset
+       ) as next_offer_visible \gset
 \if :next_offer_visible
 select 'ok 17 - next boundary issues exactly one visible offer and expires the skipped row';
 \else
 select 'not ok 17 - skipped offer still blocks or leaks into the next boundary';
 \endif
 
+set role authenticated;
+select set_config('request.jwt.claim.sub', '71000000-0000-4000-8000-000000000001', false);
 \set ON_ERROR_STOP off
 select * from public.choose_my_coop_authority_upgrade(
   '72000000-0000-4000-8000-000000000001', 1,
@@ -348,18 +354,20 @@ select 'not ok 18 - expired skipped offer remained selectable';
 reset role;
 
 set role service_role;
-select replayed
-       and offer_id = :'next_offer_offer_id'::uuid
-       and (
-         select count(*) = 1
-         from private.coop_authority_choice_offers as offer
-         where offer.offer_id = :'next_offer_offer_id'::uuid
-       ) as deterministic_next_replay
+select replayed as next_offer_replayed,
+       offer_id as replay_offer_id
 from public.issue_coop_authority_upgrade_offer(
   '72000000-0000-4000-8000-000000000001', 1,
   '71000000-0000-4000-8000-000000000001', 'room:2:clear'
 ) \gset
 reset role;
+select :'next_offer_replayed'::boolean
+       and :'replay_offer_id'::uuid = :'next_offer_offer_id'::uuid
+       and (
+         select count(*) = 1
+         from private.coop_authority_choice_offers as offer
+         where offer.offer_id = :'next_offer_offer_id'::uuid
+       ) as deterministic_next_replay \gset
 \if :deterministic_next_replay
 select 'ok 19 - exact next-boundary offer replay is idempotent without duplicates';
 \else
