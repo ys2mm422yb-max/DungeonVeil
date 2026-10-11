@@ -6,13 +6,13 @@ import { chapterRoomRewardAmounts, rewardChapterRoomClear } from '../game/chapte
 import { recordPlayerProfileRoomClear } from '../game/playerProfile';
 import { pushCloudSave } from '../game/cloudSave';
 import { dispatchCoopBossLootOpen } from '../game/coopBossLootOnline';
+import { readCompletedDuoAuthorityEncounter } from '../game/duoAuthorityOnline';
 import {
   acknowledgeCoopRoomReward,
   COOP_CHECKPOINT_MS,
   COOP_ROOM_CLEAR_EVENT,
   COOP_RUN_RESTART_EVENT,
   getMyCoopRoomRewardState,
-  getMyCoopRunCheckpoint,
   listMyPendingCoopRoomRewards,
   prepareCoopRoomRewards,
   saveMyCoopRunCheckpoint,
@@ -64,6 +64,7 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
   const originalCanExitRef = useRef<GameEngine['canExitRoom'] | null>(null);
   const guardedEngineRef = useRef<GameEngine | null>(null);
   const clearRef = useRef<CoopRoomClearDetail | null>(null);
+  const reconciliationRequestedRef = useRef(false);
   const preparingRef = useRef(false);
   const applyingRef = useRef(new Set<string>());
   const [state, setState] = useState<PersistenceState>('idle');
@@ -92,13 +93,15 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
     };
   };
 
-  const saveCheckpoint = async (roomClear?: boolean) => {
+  const saveCheckpoint = async () => {
     if (!active || !context) return;
     const engine = getEngineRef.current();
     if (!engine) return;
     setState('saving');
     try {
-      await saveMyCoopRunCheckpoint(context.lobbyId, context.runSeed, engine, roomClear ?? engine.state.roomClearReady);
+      // Checkpoints remain resume-only. A browser-owned room-clear bit must never be
+      // persisted as evidence; canonical completion is recovered from Duo authority.
+      await saveMyCoopRunCheckpoint(context.lobbyId, context.runSeed, engine, false);
       setState('saved');
       setError('');
     } catch (saveError) {
@@ -109,15 +112,15 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
   };
 
   const prepareCurrentReward = async () => {
-    if (!context || !clearRef.current || preparingRef.current) return;
+    if (!context || (!reconciliationRequestedRef.current && !clearRef.current) || preparingRef.current) return;
     preparingRef.current = true;
-    const clear = clearRef.current;
     try {
-      await saveCheckpoint(true);
-      await prepareCoopRoomRewards(context.lobbyId, context.runSeed, clear.chapter, clear.room);
+      const completed = await readCompletedDuoAuthorityEncounter(context.lobbyId, context.runSeed);
+      clearRef.current = { chapter: completed.chapter, room: completed.room };
+      await prepareCoopRoomRewards(context.lobbyId, context.runSeed, completed.chapter, completed.room);
       setError('');
     } catch (prepareError) {
-      setError(prepareError instanceof Error ? prepareError.message : 'Duo-Belohnung wartet auf den Host-Zwischenstand.');
+      setError(prepareError instanceof Error ? prepareError.message : 'Duo-Belohnung wartet auf die Server-Bestätigung.');
     } finally {
       preparingRef.current = false;
     }
@@ -150,7 +153,10 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
       if (isBossRoom(reward.room)) dispatchCoopBossLootOpen(reward.chapter, reward.room);
 
       const clear = clearRef.current;
-      if (clear && clear.chapter === reward.chapter && clear.room === reward.room) clearRef.current = null;
+      if (clear && clear.chapter === reward.chapter && clear.room === reward.room) {
+        clearRef.current = null;
+        reconciliationRequestedRef.current = false;
+      }
       setError('');
     } finally {
       applyingRef.current.delete(reward.entitlement_id);
@@ -161,9 +167,8 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
     if (!context) return;
     const engine = getEngineRef.current();
     if (!engine) return;
-    const checkpoint = await getMyCoopRunCheckpoint(context.lobbyId, context.runSeed);
-    if (!checkpoint?.authoritative_room_clear) return;
-    if (engine.state.chapter !== checkpoint.authoritative_chapter || engine.state.floor !== checkpoint.authoritative_room) return;
+    const completed = await readCompletedDuoAuthorityEncounter(context.lobbyId, context.runSeed);
+    if (engine.state.chapter !== completed.chapter || engine.state.floor !== completed.room) return;
 
     engine.state.enemies = [];
     engine.state.items = [];
@@ -171,8 +176,8 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
     engine.state.roomClearAt = performance.now();
     engine.state.status = 'playing';
     clearRef.current = {
-      chapter: checkpoint.authoritative_chapter,
-      room: checkpoint.authoritative_room,
+      chapter: completed.chapter,
+      room: completed.room,
     };
     engine.onStateChange({ ...engine.state, player: { ...engine.state.player } });
   };
@@ -188,12 +193,14 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
     );
     if (!rewardState?.claimed) return;
     clearRef.current = null;
+    reconciliationRequestedRef.current = false;
     if (isBossRoom(clear.room)) dispatchCoopBossLootOpen(clear.chapter, clear.room);
   };
 
   useEffect(() => {
     if (!active || !context) {
       clearRef.current = null;
+      reconciliationRequestedRef.current = false;
       preparingRef.current = false;
       applyingRef.current.clear();
       setPendingRewards(0);
@@ -205,11 +212,10 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
 
     installExitGuard();
     const onClear = (event: Event) => {
-      const detail = (event as CustomEvent<CoopRoomClearDetail>).detail;
-      clearRef.current = {
-        chapter: Math.max(1, Math.floor(Number(detail?.chapter) || 1)),
-        room: Math.max(1, Math.min(50, Math.floor(Number(detail?.room) || 1))),
-      };
+      // Local room-clear is only a reconciliation trigger. The exact chapter/room and
+      // completion decision are read from the authenticated canonical authority state.
+      void event;
+      reconciliationRequestedRef.current = true;
       const engine = getEngineRef.current();
       if (engine) {
         engine.input.joyX = 0;
@@ -223,11 +229,12 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
     };
     const onRestart = () => {
       clearRef.current = null;
+      reconciliationRequestedRef.current = false;
       preparingRef.current = false;
       applyingRef.current.clear();
       setPendingRewards(0);
       setError('');
-      void saveCheckpoint(false).catch(() => {});
+      void saveCheckpoint().catch(() => {});
     };
 
     window.addEventListener(COOP_ROOM_CLEAR_EVENT, onClear);
@@ -236,11 +243,9 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
     const pageHide = () => { void saveCheckpoint().catch(() => {}); };
     window.addEventListener('pagehide', pageHide);
     void (async () => {
-      try {
-        await recoverClearedRoom();
-        if (clearRef.current) await prepareCurrentReward();
-        else await saveCheckpoint();
-      } catch {}
+      await recoverClearedRoom().catch(() => {});
+      if (clearRef.current) await prepareCurrentReward().catch(() => {});
+      else await saveCheckpoint().catch(() => {});
     })();
 
     return () => {
@@ -259,7 +264,7 @@ export function CoopRunPersistenceBridge({ active, context, getEngine, language 
 
     const poll = async () => {
       try {
-        if (clearRef.current) await prepareCurrentReward();
+        if (reconciliationRequestedRef.current || clearRef.current) await prepareCurrentReward();
         const rewards = await listMyPendingCoopRoomRewards(context.lobbyId, context.runSeed);
         if (stopped) return;
         setPendingRewards(rewards.length);

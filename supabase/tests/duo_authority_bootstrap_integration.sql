@@ -31,14 +31,15 @@ grant execute on function test.assert_true(boolean,text), test.expect_error(text
   to anon, authenticated, service_role;
 
 select test.assert_true(
-  (select count(*) = 7 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  (select count(*) = 8 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where (n.nspname, p.proname) in (
      ('private','bootstrap_coop_authority_run'), ('public','read_coop_authority_state'),
      ('public','persist_coop_authority_transition'), ('public','start_coop_lobby'),
      ('public','restart_coop_run_attempt'), ('public','persist_coop_authority_transition_and_record'),
-     ('public','advance_coop_authority_encounter'))
+     ('public','advance_coop_authority_encounter'),
+     ('public','get_my_coop_authority_binding'))
    and p.prosecdef and p.proconfig @> array['search_path=""']::text[]),
-  'all seven authority SECURITY DEFINER routines compile with an empty search_path');
+  'all eight authority SECURITY DEFINER routines compile with an empty search_path');
 
 select test.assert_true(
   has_function_privilege('service_role', 'public.read_coop_authority_state(uuid,integer)', 'EXECUTE')
@@ -55,6 +56,11 @@ select test.assert_true(
   and not has_function_privilege('authenticated', 'public.persist_coop_authority_transition_and_record(uuid,integer,uuid,uuid,uuid,bigint,bigint,text,jsonb,text)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.advance_coop_authority_encounter(uuid,integer,uuid,uuid)', 'EXECUTE'),
   'completion and encounter-advance RPCs are service-role-only');
+
+select test.assert_true(
+  has_function_privilege('authenticated', 'public.get_my_coop_authority_binding(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.get_my_coop_authority_binding(uuid)', 'EXECUTE'),
+  'browser authority binding is authenticated-only');
 
 set role service_role;
 select test.expect_error(
@@ -92,6 +98,24 @@ select * from public.start_coop_lobby();
 reset role;
 select test.assert_true((select count(*)=2 from private.coop_authority_actors where lobby_id='00000000-0000-0000-0000-000000000001' and run_attempt=1), 'start snapshots exactly two canonical actors');
 select test.assert_true((select count(*)=1 from private.coop_authority_runs where lobby_id='00000000-0000-0000-0000-000000000001' and run_attempt=1), 'start creates one authority run');
+
+set role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',false);
+select test.assert_true(
+  (select count(*)=1 and min(run_attempt)=1 and min(run_seed)=11
+   from public.get_my_coop_authority_binding('00000000-0000-0000-0000-000000000001')),
+  'host discovers the exact current server-owned authority binding');
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',false);
+select test.assert_true(
+  (select count(*)=1 and min(run_attempt)=1 and min(run_seed)=11
+   from public.get_my_coop_authority_binding('00000000-0000-0000-0000-000000000001')),
+  'guest discovers the same exact current server-owned authority binding');
+select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000099',false);
+select test.assert_true(
+  (select count(*)=0
+   from public.get_my_coop_authority_binding('00000000-0000-0000-0000-000000000001')),
+  'non-member cannot discover an authority binding');
+reset role;
 
 -- Reentrant private bootstrap is stable while the attempt remains untouched.
 select test.assert_true(
@@ -212,6 +236,6 @@ select test.assert_true(not exists (
   where n.nspname in ('public','private') and p.proname in (
     'bootstrap_coop_authority_run','read_coop_authority_state','persist_coop_authority_transition',
     'persist_coop_authority_transition_and_record','advance_coop_authority_encounter',
-    'start_coop_lobby','restart_coop_run_attempt')
+    'get_my_coop_authority_binding','start_coop_lobby','restart_coop_run_attempt')
   and not (p.proconfig @> array['search_path=""']::text[])
 ), 'no new SECURITY DEFINER routine retains a writable-schema search path');
