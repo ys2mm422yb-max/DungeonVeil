@@ -61,7 +61,9 @@ test('private provenance tables are forced-RLS and directly inaccessible', () =>
 test('permanent cheap and PostgreSQL gates include the provenance slice', () => {
   assert.match(runner, /20261004154000_add_duo_authority_build_profiles\.sql/);
   assert.match(runner, /20261004230000_bind_duo_authority_build_snapshot\.sql/);
+  assert.match(runner, /20261008001000_complete_duo_authority_lifecycle\.sql/);
   assert.match(runner, /duo_authority_build_profile_integration\.sql/);
+  assert.match(runner, /duo_authority_lifecycle_integration\.sql/);
   assert.match(workflow, /duo-authority-build-profile\.contract\.mjs/);
   assert.ok(
     workflow.indexOf('Duo authority build provenance contract') < workflow.indexOf('Install workspace'),

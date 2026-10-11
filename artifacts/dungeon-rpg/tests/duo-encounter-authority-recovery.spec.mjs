@@ -29,16 +29,24 @@ const warriorBuild = {
   },
 };
 
-const createBase = () => kernel.createCanonicalEncounterState({
-  runId: 'run-461-recovery',
-  runAttempt: 3,
-  chapter: 1,
-  room: 1,
-  seed: 461250,
-  authorityStartedAtMs: 1000,
-  actors: [{ actorId: 'host', classKey: 'warrior', ...warriorBuild, spawnX: 100, spawnY: 100 }],
-  enemies: [{ enemyType: 'slime', x: 300, y: 100 }],
-});
+const createBase = () => {
+  const state = kernel.createCanonicalEncounterState({
+    runId: 'run-461-recovery',
+    runAttempt: 3,
+    chapter: 1,
+    room: 1,
+    seed: 461250,
+    authorityStartedAtMs: 1000,
+    actors: [{ actorId: 'host', classKey: 'warrior', ...warriorBuild, spawnX: 100, spawnY: 100 }],
+    enemies: [{ enemyType: 'slime', x: 300, y: 100 }],
+  });
+  return Object.freeze({
+    ...state,
+    authorityStartedAtMs: 1000,
+    startAcknowledgedByActor: Object.freeze({ host: true }),
+    lifecycle: 'running',
+  });
+};
 
 const move = (state, clientSeq, authorityNowMs, directionX = 1, directionY = 0) =>
   kernel.reduceAuthorityIntent(state, { kind: 'move', actorId: 'host', directionX, directionY, clientSeq }, authorityNowMs);

@@ -19,13 +19,18 @@ Deno.serve(async (request: Request) => {
   if (!token) return json(401, { error: "missing_authorization" });
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !serviceKey) return json(500, { error: "server_configuration_error" });
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !serviceKey || !anonKey) return json(500, { error: "server_configuration_error" });
   let body: DuoAuthorityBody;
   try { body = await request.json(); }
   catch { return json(400, { error: "invalid_json" }); }
   try {
     const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-    return json(200, await executeDuoAuthority(service, token, body));
+    const userService = createClient(url, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    return json(200, await executeDuoAuthority(service, token, body, Date.now(), userService));
   } catch (error) {
     const message = error instanceof Error ? error.message : "authority_rejected";
     if (message === "invalid_token") return json(401, { error: message });

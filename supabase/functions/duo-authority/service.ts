@@ -49,12 +49,18 @@ type IntentBody = {
   expectedStateVersion: number;
   actorSequence: number;
   intent: { kind: "move"; directionX: number; directionY: number }
-    | { kind: "basic-hit"; targetEnemyId: string };
+    | { kind: "basic-hit"; targetEnemyId: string }
+    | { kind: "dodge"; directionX: number; directionY: number }
+    | { kind: "sync" }
+    | { kind: "start-ack" }
+    | { kind: "revive-hold"; targetActorId: string };
 };
 
 type StateBody = { action: "state"; lobbyId: string; runAttempt: number };
 type AdvanceBody = { action: "advance"; lobbyId: string; runAttempt: number; encounterId: string };
-export type DuoAuthorityBody = IntentBody | StateBody | AdvanceBody;
+type RestartBody = { action: "restart"; lobbyId: string; runAttempt: number; requestId: string };
+type ExitBody = { action: "exit"; lobbyId: string; runAttempt: number; requestId: string };
+export type DuoAuthorityBody = IntentBody | StateBody | AdvanceBody | RestartBody | ExitBody;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -84,6 +90,10 @@ function assertRequest(body: DuoAuthorityBody): void {
   if (!UUID.test(body.lobbyId)) throw new Error("invalid_lobby");
   exactPositiveInteger(body.runAttempt, "run_attempt");
   if (body.action === "state") return;
+  if (body.action === "restart" || body.action === "exit") {
+    if (!UUID.test(body.requestId)) throw new Error("invalid_request_id");
+    return;
+  }
   if (body.action === "advance") {
     if (!UUID.test(body.encounterId)) throw new Error("invalid_encounter_id");
     return;
@@ -92,11 +102,17 @@ function assertRequest(body: DuoAuthorityBody): void {
   if (!UUID.test(body.intentId)) throw new Error("invalid_intent_id");
   if (!Number.isSafeInteger(body.expectedStateVersion) || body.expectedStateVersion < 0) throw new Error("invalid_state_version");
   exactPositiveInteger(body.actorSequence, "actor_sequence");
-  if (!body.intent || (body.intent.kind !== "move" && body.intent.kind !== "basic-hit")) throw new Error("invalid_intent");
+  if (!body.intent || !["move", "basic-hit", "dodge", "sync", "start-ack", "revive-hold"].includes(body.intent.kind)) {
+    throw new Error("invalid_intent");
+  }
   if (body.intent.kind === "move" && (!Number.isFinite(body.intent.directionX) || !Number.isFinite(body.intent.directionY))) {
     throw new Error("invalid_move");
   }
+  if (body.intent.kind === "dodge" && (!Number.isFinite(body.intent.directionX) || !Number.isFinite(body.intent.directionY))) {
+    throw new Error("invalid_dodge");
+  }
   if (body.intent.kind === "basic-hit" && typeof body.intent.targetEnemyId !== "string") throw new Error("invalid_target");
+  if (body.intent.kind === "revive-hold" && typeof body.intent.targetActorId !== "string") throw new Error("invalid_revive_target");
 }
 
 function bindSnapshot(row: AuthorityStateRow, authorityNowMs: number): CanonicalEncounterState {
@@ -148,10 +164,31 @@ export async function executeDuoAuthority(
   token: string,
   body: DuoAuthorityBody,
   authorityNowMs = Date.now(),
+  userService?: Pick<DuoAuthorityService, "rpc">,
 ): Promise<Record<string, unknown>> {
   assertRequest(body);
   const { data: authData, error: authError } = await service.auth.getUser(token);
   if (authError || !authData.user) throw new Error("invalid_token");
+
+  // Restart and exit invalidate the old run/lobby. Reach their caller-scoped
+  // durable receipt before attempting a service-role read of that old state,
+  // otherwise an exact lost-response retry would fail before replay.
+  if (body.action === "restart" || body.action === "exit") {
+    if (!userService) throw new Error("user_authority_service_required");
+    const rpcName = body.action === "restart"
+      ? "restart_coop_authority_attempt"
+      : "exit_my_coop_authority_attempt";
+    const lifecycle = await userService.rpc(rpcName, {
+      p_lobby_id: body.lobbyId,
+      p_run_attempt: body.runAttempt,
+      p_request_id: body.requestId,
+    });
+    if (lifecycle.error) throw new Error(`authority_${body.action}_rejected:${lifecycle.error.message}`);
+    return {
+      ...rows<Record<string, unknown>>(lifecycle.data)[0],
+      [body.action === "restart" ? "restarted" : "exited"]: true,
+    };
+  }
 
   const read = await service.rpc("read_coop_authority_state", {
     p_lobby_id: body.lobbyId,
@@ -165,6 +202,10 @@ export async function executeDuoAuthority(
   if (row.canonical_snapshot) assertStoredBinding(row, row.canonical_snapshot);
 
   if (body.action === "state") {
+    if (!row.canonical_snapshot) {
+      return { stateVersion: row.state_version, state: null, actors: row.actors, reconnect: true, bootstrapRequired: true };
+    }
+    assertStoredBinding(row, row.canonical_snapshot);
     return { stateVersion: row.state_version, state: row.canonical_snapshot, actors: row.actors, reconnect: true };
   }
   if (body.action === "advance") {
@@ -179,11 +220,16 @@ export async function executeDuoAuthority(
     const next = rows<Record<string, unknown>>(advanced.data)[0];
     return { ...next, advanced: true };
   }
-  const intent: AuthorityIntent = body.intent.kind === "move"
-    ? { kind: "move", actorId: authData.user.id, clientSeq: body.actorSequence,
+  const intent: AuthorityIntent = body.intent.kind === "move" || body.intent.kind === "dodge"
+    ? { kind: body.intent.kind, actorId: authData.user.id, clientSeq: body.actorSequence,
         directionX: body.intent.directionX, directionY: body.intent.directionY }
-    : { kind: "basic-hit", actorId: authData.user.id, clientSeq: body.actorSequence,
-        targetEnemyId: body.intent.targetEnemyId };
+    : body.intent.kind === "basic-hit"
+      ? { kind: "basic-hit", actorId: authData.user.id, clientSeq: body.actorSequence,
+          targetEnemyId: body.intent.targetEnemyId }
+      : body.intent.kind === "revive-hold"
+        ? { kind: "revive-hold", actorId: authData.user.id, clientSeq: body.actorSequence,
+            targetActorId: body.intent.targetActorId }
+        : { kind: body.intent.kind, actorId: authData.user.id, clientSeq: body.actorSequence };
   const intentDigest = await sha256(intent);
   const persist = async (snapshot: CanonicalEncounterState, snapshotDigest: string) => {
     const result = await service.rpc("persist_coop_authority_transition_and_record", {

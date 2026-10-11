@@ -41,7 +41,13 @@ const actorInput = (x, y, classKey = 'warrior') => ({
   spawnY: y,
 });
 const enemyInput = (x, y) => ({ enemyType: 'slime', x, y });
-const stateAt = (room, actor, enemy) => kernel.createCanonicalEncounterState({
+const runningFixture = state => Object.freeze({
+  ...state,
+  authorityStartedAtMs: 1000,
+  startAcknowledgedByActor: Object.freeze(Object.fromEntries(state.actors.map(actor => [actor.actorId, true]))),
+  lifecycle: 'running',
+});
+const stateAt = (room, actor, enemy) => runningFixture(kernel.createCanonicalEncounterState({
   runId: 'geometry-contract',
   runAttempt: 1,
   chapter: 1,
@@ -50,7 +56,7 @@ const stateAt = (room, actor, enemy) => kernel.createCanonicalEncounterState({
   authorityStartedAtMs: 1000,
   actors: [actor],
   enemies: [enemy],
-});
+}));
 
 test('checked-in Edge manifest matches all 100 authored browser room factories', () => {
   for (let room = 1; room <= 100; room += 1) {
@@ -82,7 +88,7 @@ test('checked-in Edge manifest matches all 100 authored browser room factories',
 });
 
 test('legal movement remains available inside the authored room', () => {
-  const state = edgeFactory.createRoomBoundCanonicalEncounterState({
+  const state = runningFixture(edgeFactory.createRoomBoundCanonicalEncounterState({
     runId: 'legal-move',
     runAttempt: 1,
     chapter: 1,
@@ -90,7 +96,7 @@ test('legal movement remains available inside the authored room', () => {
     seed: 1,
     authorityStartedAtMs: 1000,
     actors: [{ actorId: 'host', classKey: 'warrior', ...buildIdentity('warrior') }],
-  });
+  }));
   const moved = kernel.reduceAuthorityIntent(
     state,
     { kind: 'move', actorId: 'host', directionX: -1, directionY: 0, clientSeq: 1 },

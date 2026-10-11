@@ -7,6 +7,7 @@ import { createServer } from 'vite';
 const service = fs.readFileSync(new URL('../../../supabase/functions/duo-authority/service.ts', import.meta.url), 'utf8');
 const entry = fs.readFileSync(new URL('../../../supabase/functions/duo-authority/index.ts', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../../../supabase/migrations/20261003142500_connect_duo_authority_completion.sql', import.meta.url), 'utf8');
+const lifecycleMigration = fs.readFileSync(new URL('../../../supabase/migrations/20261008001000_complete_duo_authority_lifecycle.sql', import.meta.url), 'utf8');
 const edgeConfig = fs.readFileSync(new URL('../../../supabase/config.toml', import.meta.url), 'utf8');
 const denoConfig = JSON.parse(fs.readFileSync(new URL('../../../supabase/functions/duo-authority/deno.json', import.meta.url), 'utf8'));
 const sharedFactory = fs.readFileSync(new URL('../../../supabase/functions/_shared/duo_authority_factory.ts', import.meta.url), 'utf8');
@@ -154,7 +155,7 @@ test('real producer ignores forged authority fields and persists a canonical act
     action: 'intent', lobbyId, runAttempt: 1,
     encounterId,
     intentId: '40000000-0000-4000-8000-000000000001', expectedStateVersion: 0, actorSequence: 1,
-    intent: { kind: 'move', directionX: 0, directionY: 0, actorId: 'forged', completed: true, damage: 999999 },
+    intent: { kind: 'start-ack', actorId: 'forged', completed: true, damage: 999999 },
   }, 1000);
   const persisted = calls.find(call => call.name === 'persist_coop_authority_transition_and_record').args;
   assert.equal(persisted.p_actor_user_id, actorId);
@@ -197,7 +198,7 @@ test('lost-response retry reaches the database receipt path instead of re-reduci
     action: 'intent', lobbyId, runAttempt: 1,
     encounterId,
     intentId: '40000000-0000-4000-8000-000000000002', expectedStateVersion: 0, actorSequence: 1,
-    intent: { kind: 'move', directionX: 0, directionY: 0 },
+    intent: { kind: 'start-ack' },
   }, 2000);
   assert.equal(persisted.p_expected_state_version, 0);
   assert.equal(result.replayed, true);
@@ -229,7 +230,7 @@ test('fresh encounter resumes the global actor sequence and advance stays actor-
     action: 'intent', lobbyId, runAttempt: 1,
     encounterId,
     intentId: '40000000-0000-4000-8000-000000000003', expectedStateVersion: 0, actorSequence: 8,
-    intent: { kind: 'move', directionX: 0, directionY: 0 },
+    intent: { kind: 'start-ack' },
   }, 3000);
   const persisted = calls.find(call => call.name === 'persist_coop_authority_transition_and_record').args;
   assert.equal(persisted.p_next_snapshot.lastClientSeqByActor[actorId], 8);
@@ -334,4 +335,154 @@ test('stored actor provenance drift fails reconnect and intent before persistenc
     /authority_snapshot_build_binding_conflict/,
   );
   assert.equal(transitionCalls, 0);
+});
+
+test('Edge lifecycle intents remain actor-bound and server-clocked', () => {
+  const body = service.match(/type IntentBody = \{([\s\S]*?)\n\};/)?.[1] ?? '';
+  assert.match(body, /kind: "sync"/);
+  assert.match(body, /kind: "start-ack"/);
+  assert.match(body, /kind: "dodge"; directionX: number; directionY: number/);
+  assert.doesNotMatch(body, /kind: "skill"|kind: "active-skill"/);
+  assert.match(body, /kind: "revive-hold"; targetActorId: string/);
+  assert.doesNotMatch(body, /authorityNowMs\??\s*:/);
+  assert.doesNotMatch(body, /damage\??\s*:/);
+  assert.match(service, /authorityNowMs = Date\.now\(\)/);
+  assert.match(service, /actorId: authData\.user\.id/);
+  assert.match(sharedKernel, /advanceCanonicalSimulation\(state: CanonicalEncounterState, authorityNowMs: number\)/);
+  assert.match(sharedKernel, /AUTHORITY_START_COUNTDOWN_MS = 1200/);
+  assert.doesNotMatch(sharedKernel, /AUTHORITY_PRESENCE_LEASE_MS|pauseReason: 'all-actors-disconnected'/);
+  assert.doesNotMatch(service.match(/if \(body\.action === "state"\) \{([\s\S]*?)\n  \}/)?.[1] ?? '', /advanceCanonicalSimulation/);
+  assert.match(service, /state: row\.canonical_snapshot/);
+  assert.match(sharedKernel, /lifeState: 'alive' \| 'downed' \| 'fallen'/);
+  assert.match(sharedKernel, /invulnerableUntilMs: number/);
+  assert.match(sharedKernel, /dodgeCooldownMs: number/);
+  assert.match(sharedKernel, /lifecycle: 'awaiting-start' \| 'running' \| 'team-defeated' \| 'completed'/);
+});
+
+test('restart and exit use the caller-scoped auth client before invalidated-state reads', () => {
+  assert.match(entry, /SUPABASE_ANON_KEY/);
+  assert.match(entry, /global:\s*\{\s*headers:\s*\{\s*Authorization:\s*`Bearer \$\{token\}`/);
+  const lifecycleDispatchIndex = service.indexOf('const lifecycle = await userService.rpc(rpcName');
+  const stateReadIndex = service.indexOf('service.rpc("read_coop_authority_state"');
+  assert.notEqual(lifecycleDispatchIndex, -1, 'lifecycle action must dispatch through the caller-scoped client');
+  assert.ok(
+    lifecycleDispatchIndex < stateReadIndex,
+    'lost-response lifecycle replay must reach its receipt before the old attempt read',
+  );
+  assert.match(lifecycleMigration, /restart_coop_authority_attempt/);
+  assert.match(lifecycleMigration, /exit_my_coop_authority_attempt/);
+});
+
+test('lifecycle SQL is caller-authenticated, receipt-idempotent and least-privilege', () => {
+  assert.match(lifecycleMigration, /create table private\.coop_authority_attempt_receipts/i);
+  assert.match(lifecycleMigration, /alter table private\.coop_authority_attempt_receipts force row level security/i);
+  for (const fn of ['restart_coop_authority_attempt', 'exit_my_coop_authority_attempt']) {
+    const start = lifecycleMigration.indexOf(`create or replace function public.${fn}`);
+    assert.notEqual(start, -1, `${fn} must exist`);
+    const body = lifecycleMigration.slice(start, lifecycleMigration.indexOf('\n$$;', start) + 4);
+    assert.match(body, /security definer/i);
+    assert.match(body, /set search_path = ''/i);
+    assert.match(body, /auth\.uid\(\)/i);
+    assert.match(body, /coop_authority_attempt_receipts/i);
+    assert.match(lifecycleMigration, new RegExp(`revoke all on function public\\.${fn}\\([\\s\\S]*?from public, anon, service_role`, 'i'));
+    assert.match(lifecycleMigration, new RegExp(`grant execute on function public\\.${fn}\\([\\s\\S]*?to authenticated`, 'i'));
+  }
+});
+
+test('restart and exit exact retries bypass stale authority state and return committed receipts', async () => {
+  const { executeDuoAuthority } = await runtime();
+  const lobbyId = '10000000-0000-4000-8000-000000000010';
+  const actorId = '20000000-0000-4000-8000-000000000010';
+  const serviceCalls = [];
+  const userCalls = [];
+  const api = {
+    auth: { getUser: async () => ({ data: { user: { id: actorId } }, error: null }) },
+    rpc: async (name) => {
+      serviceCalls.push(name);
+      throw new Error('lifecycle replay must not read invalidated state');
+    },
+  };
+  const userApi = {
+    rpc: async (name, args) => {
+      userCalls.push({ name, args });
+      return { data: [{ lobby_id: lobbyId, previous_run_attempt: 1, run_attempt: 2, replayed: true }], error: null };
+    },
+  };
+  const restart = await executeDuoAuthority(api, 'valid', {
+    action: 'restart', lobbyId, runAttempt: 1,
+    requestId: '40000000-0000-4000-8000-000000000010',
+  }, 1000, userApi);
+  assert.equal(restart.restarted, true);
+  assert.equal(restart.replayed, true);
+  assert.equal(serviceCalls.length, 0);
+  assert.deepEqual(userCalls[0], {
+    name: 'restart_coop_authority_attempt',
+    args: { p_lobby_id: lobbyId, p_run_attempt: 1, p_request_id: '40000000-0000-4000-8000-000000000010' },
+  });
+
+  userApi.rpc = async (name, args) => {
+    userCalls.push({ name, args });
+    return { data: [{ lobby_id: lobbyId, run_attempt: 1, replayed: true }], error: null };
+  };
+  const exit = await executeDuoAuthority(api, 'valid', {
+    action: 'exit', lobbyId, runAttempt: 1,
+    requestId: '40000000-0000-4000-8000-000000000011',
+  }, 1000, userApi);
+  assert.equal(exit.exited, true);
+  assert.equal(exit.replayed, true);
+  assert.equal(serviceCalls.length, 0);
+  assert.equal(userCalls[1].name, 'exit_my_coop_authority_attempt');
+});
+
+test('state reads are byte-stable durable reads and never emit a phantom transition', async () => {
+  const { executeDuoAuthority } = await runtime();
+  const lobbyId = '10000000-0000-4000-8000-000000000013';
+  const actorId = '20000000-0000-4000-8000-000000000013';
+  const encounterId = '30000000-0000-4000-8000-000000000013';
+  const snapshot = {
+    runId: lobbyId, runAttempt: 1, chapter: 1, room: 1, encounterId, seed: 13, version: 7,
+    actors: [{ actorId, classKey: 'archer', buildRevision: 0, buildDigest: 'a'.repeat(64) }],
+    enemies: [], lastClientSeqByActor: { [actorId]: 2 }, completed: false,
+    authorityNowMs: 5000, authorityStartedAtMs: 2000, startAcknowledgedByActor: { [actorId]: true }, lifecycle: 'running',
+  };
+  const calls = [];
+  const api = {
+    auth: { getUser: async () => ({ data: { user: { id: actorId } }, error: null }) },
+    rpc: async (name) => {
+      calls.push(name);
+      assert.equal(name, 'read_coop_authority_state');
+      return { data: [{
+        lobby_id: lobbyId, run_attempt: 1, run_seed: 13, chapter: 1, room: 1, encounter_id: encounterId,
+        state_version: 7, authority_version: 'duo-authority-bootstrap-v1', status: 'active',
+        canonical_snapshot: snapshot, canonical_snapshot_digest: 'd'.repeat(64), actors: [actorRow(actorId)],
+      }], error: null };
+    },
+  };
+  const body = { action: 'state', lobbyId, runAttempt: 1 };
+  const [first, second] = await Promise.all([
+    executeDuoAuthority(api, 'valid', body, 9000),
+    executeDuoAuthority(api, 'valid', body, 12000),
+  ]);
+  assert.deepEqual(first, second);
+  assert.equal(first.stateVersion, 7);
+  assert.deepEqual(first.state, snapshot);
+  assert.deepEqual(calls, ['read_coop_authority_state', 'read_coop_authority_state']);
+});
+
+test('unknown and skill-shaped intents fail closed before state access', async () => {
+  const { executeDuoAuthority } = await runtime();
+  let reads = 0;
+  const api = {
+    auth: { getUser: async () => ({ data: { user: { id: '20000000-0000-4000-8000-000000000012' } }, error: null }) },
+    rpc: async () => { reads += 1; return { data: [], error: null }; },
+  };
+  for (const kind of ['skill', 'active-skill', 'unknown']) {
+    await assert.rejects(() => executeDuoAuthority(api, 'valid', {
+      action: 'intent', lobbyId: '10000000-0000-4000-8000-000000000012', runAttempt: 1,
+      encounterId: '30000000-0000-4000-8000-000000000012',
+      intentId: '40000000-0000-4000-8000-000000000012', expectedStateVersion: 0, actorSequence: 1,
+      intent: { kind },
+    }), /invalid_intent/);
+  }
+  assert.equal(reads, 0);
 });
