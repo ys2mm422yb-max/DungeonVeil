@@ -203,10 +203,10 @@ export async function executeDuoAuthority(
 
   if (body.action === "state") {
     if (!row.canonical_snapshot) {
-      return { stateVersion: row.state_version, state: null, actors: row.actors, reconnect: true, bootstrapRequired: true };
+      return { encounterId: row.encounter_id, stateVersion: row.state_version, state: null, actors: row.actors, reconnect: true, bootstrapRequired: true };
     }
     assertStoredBinding(row, row.canonical_snapshot);
-    return { stateVersion: row.state_version, state: row.canonical_snapshot, actors: row.actors, reconnect: true };
+    return { encounterId: row.encounter_id, stateVersion: row.state_version, state: row.canonical_snapshot, actors: row.actors, reconnect: true };
   }
   if (body.action === "advance") {
     if (body.encounterId !== row.encounter_id) throw new Error("authority_encounter_conflict");

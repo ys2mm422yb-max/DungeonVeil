@@ -9,6 +9,7 @@ export type DuoAuthorityBinding = Readonly<{
 
 export type DuoAuthorityState = Readonly<{
   binding: DuoAuthorityBinding;
+  encounterId: string;
   stateVersion: number;
   state: CanonicalEncounterState | null;
   bootstrapRequired: boolean;
@@ -21,10 +22,45 @@ type BindingRow = {
 };
 
 type StateResponse = {
+  encounterId?: string;
   stateVersion?: number;
   state?: CanonicalEncounterState | null;
   bootstrapRequired?: boolean;
 };
+
+export type DuoAuthorityIntent =
+  | Readonly<{ kind: 'move'; directionX: number; directionY: number }>
+  | Readonly<{ kind: 'basic-hit'; targetEnemyId: string }>
+  | Readonly<{ kind: 'dodge'; directionX: number; directionY: number }>
+  | Readonly<{ kind: 'sync' }>
+  | Readonly<{ kind: 'start-ack' }>
+  | Readonly<{ kind: 'revive-hold'; targetActorId: string }>;
+
+export type DuoAuthorityTransition = Readonly<{
+  stateVersion: number;
+  state: CanonicalEncounterState;
+  replayed: boolean;
+  completed: boolean;
+}>;
+
+function uuid(): string {
+  if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID();
+  throw new Error('Sicherer Duo-Request-Identifier ist nicht verfügbar.');
+}
+
+function exactState(
+  binding: DuoAuthorityBinding,
+  stateVersionValue: unknown,
+  stateValue: unknown,
+): { stateVersion: number; state: CanonicalEncounterState } {
+  const stateVersion = nonNegativeSafeInteger(stateVersionValue, 'state_version');
+  const state = stateValue as CanonicalEncounterState | null | undefined;
+  if (!state || state.runId !== binding.lobbyId || state.runAttempt !== binding.runAttempt
+      || state.seed !== binding.runSeed || state.version !== stateVersion || !state.encounterId) {
+    throw new Error('Duo-Autoritätsantwort ist nicht exakt an diesen Lauf gebunden.');
+  }
+  return { stateVersion, state };
+}
 
 function nonNegativeSafeInteger(value: unknown, label: string): number {
   const normalized = Number(value);
@@ -60,11 +96,72 @@ export async function readMyDuoAuthorityState(lobbyId: string, expectedRunSeed: 
   });
   const stateVersion = Math.max(0, Math.floor(Number(response.stateVersion) || 0));
   const state = response.state ?? null;
+  const encounterId = String(response.encounterId ?? state?.encounterId ?? '');
+  if (!encounterId) throw new Error('Duo-Autoritätsbegegnung fehlt.');
   if (state && (state.runId !== lobbyId || state.runAttempt !== binding.runAttempt || state.seed !== binding.runSeed
-      || state.version !== stateVersion)) {
+      || state.version !== stateVersion || state.encounterId !== encounterId)) {
     throw new Error('Duo-Autoritätszustand ist nicht exakt an diesen Lauf gebunden.');
   }
-  return Object.freeze({ binding, stateVersion, state, bootstrapRequired: Boolean(response.bootstrapRequired) });
+  return Object.freeze({ binding, encounterId, stateVersion, state, bootstrapRequired: Boolean(response.bootstrapRequired) });
+}
+
+export async function submitDuoAuthorityIntent(
+  binding: DuoAuthorityBinding,
+  encounterId: string,
+  expectedStateVersion: number,
+  actorSequence: number,
+  intent: DuoAuthorityIntent,
+  intentId = uuid(),
+): Promise<DuoAuthorityTransition> {
+  const response = await authenticatedSupabaseFunction<Record<string, unknown>>('duo-authority', {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'intent',
+      lobbyId: binding.lobbyId,
+      runAttempt: binding.runAttempt,
+      encounterId,
+      intentId,
+      expectedStateVersion: nonNegativeSafeInteger(expectedStateVersion, 'expected_state_version'),
+      actorSequence: positiveInteger(actorSequence, 'actor_sequence'),
+      intent,
+    }),
+  });
+  const exact = exactState(binding, response.stateVersion, response.state);
+  return Object.freeze({
+    ...exact,
+    replayed: Boolean(response.replayed),
+    completed: Boolean(response.completed),
+  });
+}
+
+export async function advanceDuoAuthorityEncounter(
+  binding: DuoAuthorityBinding,
+  encounterId: string,
+): Promise<void> {
+  await authenticatedSupabaseFunction('duo-authority', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'advance', lobbyId: binding.lobbyId, runAttempt: binding.runAttempt, encounterId }),
+  });
+}
+
+export async function restartDuoAuthorityAttempt(binding: DuoAuthorityBinding, requestId = uuid()): Promise<void> {
+  await authenticatedSupabaseFunction('duo-authority', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'restart', lobbyId: binding.lobbyId, runAttempt: binding.runAttempt, requestId }),
+  });
+}
+
+export async function exitDuoAuthorityAttempt(binding: DuoAuthorityBinding, requestId = uuid()): Promise<void> {
+  await authenticatedSupabaseFunction('duo-authority', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'exit', lobbyId: binding.lobbyId, runAttempt: binding.runAttempt, requestId }),
+  });
+}
+
+export async function exitMyDuoAuthorityAttempt(lobbyId: string, expectedRunSeed: number): Promise<void> {
+  const binding = await getMyDuoAuthorityBinding(lobbyId);
+  if (binding.runSeed !== expectedRunSeed) throw new Error('Duo-Autoritätslauf stimmt nicht mit der Lobby überein.');
+  await exitDuoAuthorityAttempt(binding);
 }
 
 export async function readCompletedDuoAuthorityEncounter(

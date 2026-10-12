@@ -13,7 +13,7 @@ import { VirtualJoystick } from '../components/VirtualJoystick';
 import { ActionButtons } from '../components/ActionButtons';
 import { HUD } from '../components/HUD';
 import { GameSessionBridge } from '../components/GameSessionBridge';
-import { CoopRunRealtimeBridge } from '../components/CoopRunRealtimeBridge';
+import { CoopAuthorityRuntimeBridge } from '../components/CoopAuthorityRuntimeBridge';
 import { CoopRunPersistenceBridge } from '../components/CoopRunPersistenceBridge';
 import { GamePausePanel } from '../components/GamePausePanel';
 import { GameOverScreen } from '../components/screens/GameOverScreen';
@@ -590,7 +590,7 @@ export default function Game() {
         getEngine={() => engineRef.current}
         language={language}
       />
-      <CoopRunRealtimeBridge
+      <CoopAuthorityRuntimeBridge
         active={uiState === 'game' && Boolean(duoContext)}
         context={duoContext}
         getEngine={() => engineRef.current}

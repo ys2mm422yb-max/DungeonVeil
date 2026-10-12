@@ -6,6 +6,9 @@ import { createServer } from 'vite';
 
 const browserClient = fs.readFileSync(new URL('../src/game/duoAuthorityOnline.ts', import.meta.url), 'utf8');
 const persistenceBridge = fs.readFileSync(new URL('../src/components/CoopRunPersistenceBridge.tsx', import.meta.url), 'utf8');
+const authorityBridge = fs.readFileSync(new URL('../src/components/CoopAuthorityRuntimeBridge.tsx', import.meta.url), 'utf8');
+const gamePage = fs.readFileSync(new URL('../src/pages/game.tsx', import.meta.url), 'utf8');
+const edgeService = fs.readFileSync(new URL('../../../supabase/functions/duo-authority/service.ts', import.meta.url), 'utf8');
 const supabaseOnline = fs.readFileSync(new URL('../src/game/supabaseOnline.ts', import.meta.url), 'utf8');
 const bindingMigration = fs.readFileSync(new URL('../../../supabase/migrations/20261011211500_expose_my_duo_authority_binding.sql', import.meta.url), 'utf8');
 let server;
@@ -83,6 +86,7 @@ test('runtime resolves a zero seed binding and accepts only the exact canonical 
       return new Response(JSON.stringify([{ lobby_id: 'lobby-1', run_attempt: 3, run_seed: 0 }]), { status: 200 });
     }
     return new Response(JSON.stringify({
+      encounterId: 'encounter-1',
       stateVersion: 7,
       bootstrapRequired: false,
       state: {
@@ -103,4 +107,61 @@ test('runtime resolves a zero seed binding and accepts only the exact canonical 
     assert.ok(request.init.headers.apikey);
   }
   assert.deepEqual(JSON.parse(requests[1].init.body), { action: 'state', lobbyId: 'lobby-1', runAttempt: 3 });
+});
+
+test('live Duo gameplay routes through the canonical authority bridge, not host-owned combat', () => {
+  assert.match(gamePage, /<CoopAuthorityRuntimeBridge/);
+  assert.doesNotMatch(gamePage, /<CoopRunRealtimeBridge/);
+  assert.match(authorityBridge, /engine\.update = timestamp => \{ engine\.lastTime = timestamp; \}/);
+  for (const kind of ['start-ack', 'move', 'basic-hit', 'dodge', 'sync', 'revive-hold']) {
+    assert.match(authorityBridge, new RegExp(`kind: '${kind}'`));
+  }
+  assert.match(authorityBridge, /state\.lastClientSeqByActor\[userId\].*\+ 1/);
+  assert.match(authorityBridge, /state\.completed && atExit/);
+  assert.match(authorityBridge, /if \(intent\.kind === 'dodge'\) liveEngine\.input\.dodge = false/);
+  assert.match(authorityBridge, /if \(intent\.kind === 'basic-hit'\) liveEngine\.input\.attack = false/);
+  assert.match(edgeService, /encounterId: row\.encounter_id, stateVersion/);
+});
+
+test('intent client binds exact attempt, encounter, version and sequence while overwriting forged auth headers', async () => {
+  const requests = [];
+  globalThis.fetch = async (url, init = {}) => {
+    requests.push({ url: String(url), init });
+    return new Response(JSON.stringify({
+      stateVersion: 8,
+      replayed: false,
+      completed: false,
+      state: {
+        runId: 'lobby-1', runAttempt: 3, seed: 0, version: 8, encounterId: 'encounter-1',
+        chapter: 1, room: 1, completed: false, lifecycle: 'running', enemies: [], actors: [],
+      },
+    }), { status: 200 });
+  };
+  const client = await runtime();
+  await client.submitDuoAuthorityIntent(
+    { lobbyId: 'lobby-1', runAttempt: 3, runSeed: 0 },
+    'encounter-1', 7, 4, { kind: 'sync' }, 'intent-1',
+  );
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].init.headers.authorization, 'Bearer actor-token');
+  assert.notEqual(requests[0].init.headers.authorization, 'Bearer forged');
+  assert.deepEqual(JSON.parse(requests[0].init.body), {
+    action: 'intent', lobbyId: 'lobby-1', runAttempt: 3, encounterId: 'encounter-1',
+    intentId: 'intent-1', expectedStateVersion: 7, actorSequence: 4, intent: { kind: 'sync' },
+  });
+});
+
+test('intent client rejects a mismatched canonical response before browser projection', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    stateVersion: 8,
+    state: { runId: 'other-lobby', runAttempt: 3, seed: 0, version: 8, encounterId: 'encounter-1' },
+  }), { status: 200 });
+  const client = await runtime();
+  await assert.rejects(
+    client.submitDuoAuthorityIntent(
+      { lobbyId: 'lobby-1', runAttempt: 3, runSeed: 0 },
+      'encounter-1', 7, 4, { kind: 'sync' }, 'intent-2',
+    ),
+    /nicht exakt an diesen Lauf gebunden/,
+  );
 });
