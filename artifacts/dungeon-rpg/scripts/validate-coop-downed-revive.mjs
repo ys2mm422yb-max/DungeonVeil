@@ -10,6 +10,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const lifecycle = read('src/game/coopLifeCycle.ts');
 const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
+const authorityBridge = read('src/components/CoopAuthorityRuntimeBridge.tsx');
 const runtimeDuoEvidence = read('src/components/RuntimeDuoEvidenceQa.tsx');
 const teammateUi = read('src/components/CoopTeammateUI.tsx');
 const page = read('src/pages/game.tsx');
@@ -77,6 +78,11 @@ assert(teammateUi.includes('DOWNED') && teammateUi.includes('FALLEN · NEXT ROOM
 assert(teammateUi.includes('{copy.teammate} · {teammateName}') && teammateUi.includes('copy.inRange(teammateName)') && teammateUi.includes('copy.approach(distanceTiles, teammateName)') && teammateUi.includes('{copy.reviveSpent}'), 'Teammate HUD does not consistently render selected-language copy.');
 
 assert(page.includes("active={uiState === 'game' && Boolean(duoContext)}"), 'Lifecycle bridge can activate outside a duo run.');
+assert(page.includes('<CoopAuthorityRuntimeBridge'), 'Canonical authority lifecycle is not mounted in the visible run.');
+assert(authorityBridge.includes('engine.input.interact') && authorityBridge.includes('data-testid="coop-revive-control"'), 'Canonical revive is not driven by an explicit mobile hold control.');
+assert(authorityBridge.includes('onPointerCancel={() => setReviveHeld(false)}') && authorityBridge.includes('revivePartnerInRange'), 'Canonical revive hold does not cancel safely or continuously enforce range.');
+assert(authorityBridge.includes('data-testid="coop-local-life-state"') && authorityBridge.includes('data-testid="coop-teammate-disconnected"'), 'Canonical authority lifecycle omits downed/fallen or disconnect presentation.');
+assert(authorityBridge.includes("if (engine.state.status !== 'paused') engine.state.status = 'playing'"), 'Canonical reconciliation can overwrite a user pause.');
 assert(engine.includes("status: 'playing' | 'gameover' | 'levelup' | 'paused'"), 'Solo engine status contract was modified for duo lifecycle.');
 assert(!engine.includes('COOP_DOWNED_DURATION_MS') && !engine.includes('COOP_REVIVE_HOLD_MS'), 'Duo lifecycle leaked into the solo engine.');
 assert(!realtime.includes("sendBroadcast('loot"), 'Lifecycle block must not synchronize loot or rewards.');

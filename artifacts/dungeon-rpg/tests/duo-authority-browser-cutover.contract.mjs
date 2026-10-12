@@ -112,7 +112,11 @@ test('runtime resolves a zero seed binding and accepts only the exact canonical 
 test('live Duo gameplay routes through the canonical authority bridge, not host-owned combat', () => {
   assert.match(gamePage, /<CoopAuthorityRuntimeBridge/);
   assert.doesNotMatch(gamePage, /<CoopRunRealtimeBridge/);
-  assert.match(authorityBridge, /engine\.update = timestamp => \{ engine\.lastTime = timestamp; \}/);
+  assert.match(authorityBridge, /engine\.update = timestamp => agePresentation\(engine, timestamp\)/);
+  assert.match(authorityBridge, /partner && engine\.input\.interact/);
+  assert.match(authorityBridge, /data-testid="coop-revive-control"/);
+  assert.match(authorityBridge, /data-testid="coop-local-life-state"/);
+  assert.match(authorityBridge, /data-testid="coop-teammate-disconnected"/);
   for (const kind of ['start-ack', 'move', 'basic-hit', 'dodge', 'sync', 'revive-hold']) {
     assert.match(authorityBridge, new RegExp(`kind: '${kind}'`));
   }
@@ -121,6 +125,8 @@ test('live Duo gameplay routes through the canonical authority bridge, not host-
   assert.match(authorityBridge, /if \(intent\.kind === 'dodge'\) liveEngine\.input\.dodge = false/);
   assert.match(authorityBridge, /if \(intent\.kind === 'basic-hit'\) liveEngine\.input\.attack = false/);
   assert.match(edgeService, /encounterId: row\.encounter_id, stateVersion/);
+  assert.match(gamePage, /exitMyDuoAuthorityAttempt\(leavingContext\.lobbyId, leavingContext\.runSeed\)/);
+  assert.match(gamePage, /Promise\.allSettled\(\[/);
 });
 
 test('intent client binds exact attempt, encounter, version and sequence while overwriting forged auth headers', async () => {

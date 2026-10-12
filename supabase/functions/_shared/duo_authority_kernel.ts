@@ -65,7 +65,7 @@ export type AuthorityBuildSnapshot = Readonly<{
 export const MAX_AUTHORITY_MOVEMENT_STEP_MS = 250;
 export const MAX_AUTHORITY_SIMULATION_STEP_MS = 100;
 export const AUTHORITY_START_COUNTDOWN_MS = 1200;
-export const AUTHORITY_REVIVE_HOLD_MS = 1500;
+export const AUTHORITY_REVIVE_HOLD_MS = 3000;
 export const AUTHORITY_DOWNED_TO_FALLEN_MS = 30000;
 
 export const AUTHORITY_ENEMY_ARCHETYPES: Readonly<Record<AuthorityEnemyType, AuthorityEnemyArchetype>> = Object.freeze({
@@ -161,6 +161,7 @@ export type AuthorityActor = Readonly<{
   invulnerableUntilMs: number;
   lastAuthorityAtMs: number;
   lifeState: 'alive' | 'downed' | 'fallen';
+  revivesUsed: number;
   downedAtMs: number | null;
   reviveTargetActorId: string | null;
   reviveStartedAtMs: number | null;
@@ -632,7 +633,7 @@ function advanceSimulationStep(
       actors[targetIndex] = {
         ...lockedTarget,
         hp,
-        lifeState: hp <= 0 ? 'downed' : lockedTarget.lifeState,
+        lifeState: hp <= 0 ? (lockedTarget.revivesUsed >= 1 ? 'fallen' : 'downed') : lockedTarget.lifeState,
         downedAtMs: hp <= 0 ? stepNowMs : lockedTarget.downedAtMs,
         reviveTargetActorId: null,
         reviveStartedAtMs: null,
@@ -899,6 +900,7 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
       invulnerableUntilMs: 0,
       lastAuthorityAtMs: input.authorityStartedAtMs,
       lifeState: 'alive' as const,
+      revivesUsed: 0,
       downedAtMs: null,
       reviveTargetActorId: null,
       reviveStartedAtMs: null,
@@ -1134,6 +1136,7 @@ export function reduceAuthorityIntent(
     if (targetIndex < 0 || targetIndex === actorIndex) throw new Error('invalid revive target');
     const target = simulated.actors[targetIndex];
     if (!target.active || target.lifeState !== 'downed') throw new Error('revive target is not downed');
+    if (target.revivesUsed >= 1) throw new Error('revive already used for this room');
     if (squaredDistance(actor, target) > 72 * 72) throw new Error('revive target is outside canonical range');
     const continuing = actor.reviveTargetActorId === target.actorId && actor.reviveStartedAtMs !== null;
     const startedAtMs = continuing ? actor.reviveStartedAtMs! : authorityNowMs;
@@ -1149,6 +1152,7 @@ export function reduceAuthorityIntent(
         ...candidate,
         hp: Math.max(1, Math.ceil(candidate.maxHp * 0.35)),
         lifeState: 'alive' as const,
+        revivesUsed: candidate.revivesUsed + 1,
         downedAtMs: null,
         lastAuthorityAtMs: authorityNowMs,
       });

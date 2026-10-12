@@ -588,19 +588,26 @@ test('revive hold uses canonical elapsed time and restores only a downed nearby 
   ).state;
   assert.equal(started.actors[0].lifeState, 'downed');
   assert.equal(started.actors[1].reviveTargetActorId, 'a');
-  const revived = kernel.reduceAuthorityIntent(
+  const stillHolding = kernel.reduceAuthorityIntent(
     started,
     { kind: 'revive-hold', actorId: 'b', targetActorId: 'a', clientSeq: 3 },
     3060,
   ).state;
+  assert.equal(stillHolding.actors[0].lifeState, 'downed');
+  const revived = kernel.reduceAuthorityIntent(
+    stillHolding,
+    { kind: 'revive-hold', actorId: 'b', targetActorId: 'a', clientSeq: 4 },
+    4560,
+  ).state;
   assert.equal(revived.actors[0].lifeState, 'alive');
   assert.equal(revived.actors[0].hp, Math.ceil(revived.actors[0].maxHp * 0.35));
+  assert.equal(revived.actors[0].revivesUsed, 1);
   assert.equal(revived.actors[1].reviveTargetActorId, null);
   assert.throws(
     () => kernel.reduceAuthorityIntent(
       revived,
-      { kind: 'revive-hold', actorId: 'b', targetActorId: 'a', clientSeq: 4 },
-      3061,
+      { kind: 'revive-hold', actorId: 'b', targetActorId: 'a', clientSeq: 5 },
+      4561,
     ),
     /revive target is not downed/,
   );

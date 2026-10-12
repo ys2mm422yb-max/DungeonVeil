@@ -41,6 +41,7 @@ import { leaveCoopLobby, type CoopLobbySnapshot } from '../game/coopLobbyOnline'
 import { createDuoRunContext, createSoloRunContext, isDuoRun, type RunContext } from '../game/coopRunMode';
 import type { CoopPlayerPresence, CoopRealtimeStatus } from '../game/coopRealtimePresence';
 import { getMyCoopRunCheckpoint } from '../game/coopRunPersistenceOnline';
+import { exitMyDuoAuthorityAttempt } from '../game/duoAuthorityOnline';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 const RUN_ENTRY_PRELOAD_ATTEMPTS = 4;
@@ -493,7 +494,7 @@ export default function Game() {
   }, [activeCoopLobby, beginDuoRun, beginFreshRun, clearTerminalGameState, language, runContext, saveData?.playerName]);
 
   const handleMainMenu = useCallback(() => {
-    const leavingDuo = isDuoRun(runContext);
+    const leavingContext = isDuoRun(runContext) ? runContext : null;
     clearTerminalGameState();
     saveCurrentGame();
     resetMovement();
@@ -504,7 +505,12 @@ export default function Game() {
     setRunContext(createSoloRunContext());
     setActiveCoopLobby(null);
     document.documentElement.dataset.dungeonVeilRunMode = 'solo';
-    if (leavingDuo) void leaveCoopLobby().catch(error => console.error('Duo lobby leave failed', error));
+    if (leavingContext) void Promise.allSettled([
+      exitMyDuoAuthorityAttempt(leavingContext.lobbyId, leavingContext.runSeed),
+      leaveCoopLobby(),
+    ]).then(results => {
+      for (const result of results) if (result.status === 'rejected') console.error('Duo exit failed', result.reason);
+    });
   }, [clearTerminalGameState, resetMovement, runContext, saveCurrentGame]);
 
   const handleSettingsBack = useCallback(() => {

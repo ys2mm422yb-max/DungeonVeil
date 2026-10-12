@@ -5,6 +5,8 @@ import type { GameEngine } from '../game/runEngine';
 import type { DuoRunContext } from '../game/coopRunMode';
 import type { CoopPlayerPresence, CoopRealtimeStatus } from '../game/coopRealtimePresence';
 import type { AuthorityActor, AuthorityEnemyState, CanonicalEncounterState } from '../game/duoEncounterAuthorityKernel';
+import { AUTHORITY_DOWNED_TO_FALLEN_MS, AUTHORITY_REVIVE_HOLD_MS } from '../game/duoEncounterAuthorityKernel';
+import { useLanguage } from '../i18n/LanguageContext';
 import { currentOnlineSession } from '../game/supabaseOnline';
 import {
   advanceDuoAuthorityEncounter,
@@ -18,6 +20,7 @@ import { COOP_ROOM_CLEAR_EVENT, COOP_RUN_RESTART_EVENT } from '../game/coopRunPe
 import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge';
 
 const AUTHORITY_TICK_MS = 250;
+const REVIVE_RANGE = 72;
 const ENEMY_COLORS: Record<string, string> = {
   slime: '#43c968', goblin: '#89a94b', skeleton: '#d1ccb0', orc: '#627c38', spider: '#342d42',
   vampire: '#9e304b', demon: '#c53827', golem: '#696985', boss: '#ff493a',
@@ -60,7 +63,7 @@ function remotePresence(context: DuoRunContext, state: CanonicalEncounterState, 
     version: 1, lobbyId: context.lobbyId, runSeed: context.runSeed, userId: actor.actorId,
     displayName: 'Teammate', chapter: state.chapter, room: state.room, x: actor.x, y: actor.y,
     facingX: 0, facingY: 1, state: actor.lifeState === 'alive' ? 'moving' : 'idle',
-    lifeState: actor.lifeState, revivesUsed: actor.lifeState === 'alive' ? 0 : 1,
+    lifeState: actor.lifeState, revivesUsed: actor.revivesUsed,
     downedUntil: actor.lifeState === 'downed' && actor.downedAtMs ? actor.downedAtMs + 30_000 : 0,
     hp: actor.hp, maxHp: actor.maxHp, defense: actor.defense,
     lastAttackTime: actor.nextBasicHitAtMs, lastDodgeTime: actor.nextDodgeAtMs,
@@ -68,11 +71,16 @@ function remotePresence(context: DuoRunContext, state: CanonicalEncounterState, 
   };
 }
 
+function revivePartnerInRange(state: CanonicalEncounterState, actor: AuthorityActor): AuthorityActor | null {
+  const partner = state.actors.find(candidate => candidate.actorId !== actor.actorId && candidate.lifeState === 'downed');
+  return partner && Math.hypot(partner.x - actor.x, partner.y - actor.y) <= REVIVE_RANGE ? partner : null;
+}
+
 function chooseIntent(engine: GameEngine, state: CanonicalEncounterState, actor: AuthorityActor): DuoAuthorityIntent {
   if (!state.startAcknowledgedByActor[actor.actorId]) return { kind: 'start-ack' };
   if (state.lifecycle !== 'running') return { kind: 'sync' };
-  const partner = state.actors.find(candidate => candidate.actorId !== actor.actorId && candidate.lifeState === 'downed');
-  if (partner && Math.hypot(partner.x - actor.x, partner.y - actor.y) <= 72) {
+  const partner = revivePartnerInRange(state, actor);
+  if (partner && engine.input.interact) {
     return { kind: 'revive-hold', targetActorId: partner.actorId };
   }
   const magnitude = Math.hypot(engine.input.joyX, engine.input.joyY);
@@ -91,6 +99,13 @@ function chooseIntent(engine: GameEngine, state: CanonicalEncounterState, actor:
     return { kind: 'basic-hit', targetEnemyId: target.enemyId };
   }
   return { kind: 'sync' };
+}
+
+function agePresentation(engine: GameEngine, timestamp: number): void {
+  const elapsed = Math.max(0, Math.min(100, timestamp - engine.lastTime));
+  engine.lastTime = timestamp;
+  for (const number of engine.state.damageNumbers) number.lifeTime += elapsed;
+  engine.state.damageNumbers = engine.state.damageNumbers.filter(number => number.lifeTime < number.maxLifeTime);
 }
 
 function project(engine: GameEngine, state: CanonicalEncounterState, localActor: AuthorityActor): void {
@@ -141,19 +156,25 @@ function project(engine: GameEngine, state: CanonicalEncounterState, localActor:
   ];
   if (engine.state.damageNumbers.length > 32) engine.state.damageNumbers.splice(0, engine.state.damageNumbers.length - 32);
   engine.state.roomClearReady = state.completed && state.lifecycle === 'completed' && engine.state.enemies.length === 0;
-  engine.state.status = 'playing';
+  if (engine.state.status !== 'paused') engine.state.status = 'playing';
   engine.state.camera.x = player.x + player.width / 2;
   engine.state.camera.y = player.y + player.height / 2;
   engine.onStateChange({ ...engine.state, player: { ...player }, enemies: [...engine.state.enemies] });
 }
 
 export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemotePlayer, onStatus }: Props) {
+  const { language } = useLanguage();
   const getEngineRef = useRef(getEngine);
   const clearEventRef = useRef('');
   const advanceRef = useRef('');
   const bindingRef = useRef<DuoAuthorityBinding | null>(null);
   const [teamDefeated, setTeamDefeated] = useState(false);
   const [restartBusy, setRestartBusy] = useState(false);
+  const [localActor, setLocalActor] = useState<AuthorityActor | null>(null);
+  const [reviveTarget, setReviveTarget] = useState<AuthorityActor | null>(null);
+  const [authorityNowMs, setAuthorityNowMs] = useState(0);
+  const [connectionPaused, setConnectionPaused] = useState(false);
+  const pausedForConnectionRef = useRef(false);
   getEngineRef.current = getEngine;
 
   useEffect(() => {
@@ -162,6 +183,9 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
       onRemotePlayer(null);
       onStatus('offline');
       setTeamDefeated(false);
+      setLocalActor(null);
+      setReviveTarget(null);
+      setConnectionPaused(false);
       return;
     }
     let stopped = false;
@@ -169,7 +193,7 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
     let inFlight = false;
     const engine = getEngineRef.current();
     const originalUpdate = engine?.update;
-    if (engine) engine.update = timestamp => { engine.lastTime = timestamp; };
+    if (engine) engine.update = timestamp => agePresentation(engine, timestamp);
     onStatus('connecting');
 
     const schedule = (delay = AUTHORITY_TICK_MS) => {
@@ -212,8 +236,16 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
         }
         project(liveEngine, state, actor);
         const partner = state.actors.find(candidate => candidate.actorId !== userId);
+        setLocalActor(actor);
+        setReviveTarget(revivePartnerInRange(state, actor));
+        setAuthorityNowMs(state.authorityNowMs);
         onRemotePlayer(partner ? remotePresence(context, state, partner) : null);
         setTeamDefeated(state.lifecycle === 'team-defeated');
+        setConnectionPaused(false);
+        if (pausedForConnectionRef.current && liveEngine.state.status === 'paused') {
+          pausedForConnectionRef.current = false;
+          liveEngine.state.status = 'playing';
+        }
         onStatus('connected');
         const clearKey = `${state.encounterId}:${state.version}`;
         if (state.completed && clearEventRef.current !== clearKey) {
@@ -228,6 +260,14 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
       } catch (error) {
         if (!stopped) {
           onStatus('reconnecting');
+          const liveEngine = getEngineRef.current();
+          if (liveEngine && liveEngine.state.status === 'playing') {
+            liveEngine.state.status = 'paused';
+            pausedForConnectionRef.current = true;
+          }
+          if (liveEngine) liveEngine.input.interact = false;
+          setConnectionPaused(true);
+          setReviveTarget(null);
           console.error('Duo authority reconciliation failed', error);
           schedule(500);
         }
@@ -240,6 +280,7 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
       stopped = true;
       window.clearTimeout(timer);
       if (engine && originalUpdate) engine.update = originalUpdate;
+      if (engine) engine.input.interact = false;
       onRemotePlayer(null);
       onStatus('offline');
     };
@@ -261,7 +302,36 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
     }
   };
 
-  return active && context && teamDefeated
-    ? <CoopTeamDefeatOverlay role={context.role} restartBusy={restartBusy} onRestart={() => void restart()} />
-    : null;
+  const setReviveHeld = (held: boolean) => {
+    const engine = getEngineRef.current();
+    if (engine) engine.input.interact = held;
+  };
+
+  const downedRemaining = localActor?.lifeState === 'downed' && localActor.downedAtMs !== null
+    ? Math.max(0, AUTHORITY_DOWNED_TO_FALLEN_MS - (authorityNowMs - localActor.downedAtMs))
+    : 0;
+  const reviveProgress = reviveTarget && localActor?.reviveTargetActorId === reviveTarget.actorId && localActor.reviveStartedAtMs !== null
+    ? Math.max(0, Math.min(1, (authorityNowMs - localActor.reviveStartedAtMs) / AUTHORITY_REVIVE_HOLD_MS))
+    : 0;
+  const copy = language === 'de' ? {
+    paused: 'DUO-RUN PAUSIERT', disconnected: 'MITSTREITER GETRENNT', reconnecting: 'Wiederverbindung läuft. Kampf und Fortschritt bleiben eingefroren.',
+    downed: 'NIEDERGESCHLAGEN', fallen: 'GEFALLEN', revive: 'WIEDERBELEBEN HALTEN',
+  } : {
+    paused: 'DUO RUN PAUSED', disconnected: 'TEAMMATE DISCONNECTED', reconnecting: 'Reconnecting. Combat and progress remain frozen.',
+    downed: 'DOWNED', fallen: 'FALLEN', revive: 'HOLD TO REVIVE',
+  };
+
+  if (!active || !context) return null;
+  return <>
+    {connectionPaused && !teamDefeated && <div data-testid="coop-teammate-disconnected" className="pointer-events-auto absolute inset-0 z-[88] flex items-center justify-center bg-black/72 px-5 backdrop-blur-sm">
+      <div className="w-[min(88vw,420px)] rounded-3xl border border-violet-200/25 bg-[#100d18]/96 p-7 text-center shadow-2xl"><div className="text-[9px] font-black tracking-[.28em] text-violet-200/55">{copy.paused}</div><div className="mt-2 font-serif text-2xl text-violet-50">{copy.disconnected}</div><div className="mt-3 text-[10px] text-violet-100/62">{copy.reconnecting}</div></div>
+    </div>}
+    {localActor && localActor.lifeState !== 'alive' && !teamDefeated && <div data-testid="coop-local-life-state" data-life-state={localActor.lifeState} className="pointer-events-none absolute left-1/2 top-[18%] z-[70] w-[min(86vw,360px)] -translate-x-1/2 rounded-2xl border border-red-200/25 bg-black/82 px-5 py-4 text-center shadow-2xl">
+      <div className="font-serif text-xl text-red-100">{localActor.lifeState === 'downed' ? copy.downed : copy.fallen}</div>{localActor.lifeState === 'downed' && <div className="mt-2 text-[9px] font-black text-red-100/65">{Math.ceil(downedRemaining / 1000)}s</div>}
+    </div>}
+    {reviveTarget && !connectionPaused && !teamDefeated && <button type="button" data-testid="coop-revive-control" onPointerDown={() => setReviveHeld(true)} onPointerUp={() => setReviveHeld(false)} onPointerCancel={() => setReviveHeld(false)} onPointerLeave={() => setReviveHeld(false)} className="pointer-events-auto absolute bottom-[max(104px,calc(env(safe-area-inset-bottom)+92px))] left-1/2 z-[75] w-[min(78vw,300px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-cyan-100/35 bg-cyan-950/88 px-5 py-4 text-center text-[10px] font-black tracking-[.18em] text-cyan-50 shadow-2xl">
+      <span className="relative z-10">{copy.revive}</span><span className="absolute inset-y-0 left-0 bg-cyan-300/22" style={{ width: `${Math.round(reviveProgress * 100)}%` }} />
+    </button>}
+    {teamDefeated && <CoopTeamDefeatOverlay role={context.role} restartBusy={restartBusy} onRestart={() => void restart()} />}
+  </>;
 }
