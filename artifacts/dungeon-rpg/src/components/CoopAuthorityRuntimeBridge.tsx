@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { TILE_SIZE, TileType } from '../game/dungeon';
 import type { Enemy } from '../game/entities';
 import type { GameEngine } from '../game/runEngine';
@@ -10,6 +10,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { currentOnlineSession } from '../game/supabaseOnline';
 import {
   advanceDuoAuthorityEncounter,
+  exitMyDuoAuthorityAttempt,
   readMyDuoAuthorityState,
   restartDuoAuthorityAttempt,
   submitDuoAuthorityIntent,
@@ -32,7 +33,60 @@ type Props = {
   getEngine: () => GameEngine | null;
   onRemotePlayer: (presence: CoopPlayerPresence | null) => void;
   onStatus: (status: CoopRealtimeStatus) => void;
+  transport?: CoopAuthorityRuntimeTransport;
+  tickMs?: number;
 };
+
+export type CoopAuthorityRuntimeTransport = Readonly<{
+  currentSession: () => CoopAuthorityRuntimeSession | null;
+  read: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof readMyDuoAuthorityState>) => ReturnType<typeof readMyDuoAuthorityState>;
+  submit: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof submitDuoAuthorityIntent>) => ReturnType<typeof submitDuoAuthorityIntent>;
+  advance: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof advanceDuoAuthorityEncounter>) => ReturnType<typeof advanceDuoAuthorityEncounter>;
+  restart: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof restartDuoAuthorityAttempt>) => ReturnType<typeof restartDuoAuthorityAttempt>;
+  exitMy: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof exitMyDuoAuthorityAttempt>) => ReturnType<typeof exitMyDuoAuthorityAttempt>;
+}>;
+
+export type CoopAuthorityRuntimeSession = Readonly<{ actorId: string; credentialGeneration: number }>;
+
+export type CoopAuthorityRuntimeBridgeHandle = Readonly<{
+  exitAuthorityAttempt: () => Promise<void>;
+}>;
+
+function currentProductionSession(): CoopAuthorityRuntimeSession | null {
+  const session = currentOnlineSession();
+  return session ? Object.freeze({ actorId: session.user.id, credentialGeneration: session.expires_at }) : null;
+}
+
+function assertProductionSession(expected: CoopAuthorityRuntimeSession): void {
+  const current = currentProductionSession();
+  if (!current || current.actorId !== expected.actorId || current.credentialGeneration !== expected.credentialGeneration) {
+    throw new Error('Die authentifizierte Duo-Sitzung hat sich geändert.');
+  }
+}
+
+const productionTransport: CoopAuthorityRuntimeTransport = Object.freeze({
+  currentSession: currentProductionSession,
+  read: async (session, ...args) => {
+    assertProductionSession(session);
+    return readMyDuoAuthorityState(...args);
+  },
+  submit: async (session, ...args) => {
+    assertProductionSession(session);
+    return submitDuoAuthorityIntent(...args);
+  },
+  advance: async (session, ...args) => {
+    assertProductionSession(session);
+    return advanceDuoAuthorityEncounter(...args);
+  },
+  restart: async (session, ...args) => {
+    assertProductionSession(session);
+    return restartDuoAuthorityAttempt(...args);
+  },
+  exitMy: async (session, ...args) => {
+    assertProductionSession(session);
+    return exitMyDuoAuthorityAttempt(...args);
+  },
+});
 
 type EngineInternals = { nextRoom: () => void };
 
@@ -162,7 +216,10 @@ function project(engine: GameEngine, state: CanonicalEncounterState, localActor:
   engine.onStateChange({ ...engine.state, player: { ...player }, enemies: [...engine.state.enemies] });
 }
 
-export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemotePlayer, onStatus }: Props) {
+export const CoopAuthorityRuntimeBridge = forwardRef<CoopAuthorityRuntimeBridgeHandle, Props>(function CoopAuthorityRuntimeBridge(
+  { active, context, getEngine, onRemotePlayer, onStatus, transport = productionTransport, tickMs = AUTHORITY_TICK_MS },
+  ref,
+) {
   const { language } = useLanguage();
   const getEngineRef = useRef(getEngine);
   const clearEventRef = useRef('');
@@ -176,6 +233,18 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
   const [connectionPaused, setConnectionPaused] = useState(false);
   const pausedForConnectionRef = useRef(false);
   getEngineRef.current = getEngine;
+
+  useImperativeHandle(ref, () => ({
+    exitAuthorityAttempt: async () => {
+      if (!active || !context) throw new Error('Kein aktiver Duo-Autoritätslauf.');
+      const session = transport.currentSession();
+      if (!session) throw new Error('Aktive Duo-Sitzung fehlt.');
+      await transport.exitMy(session, context.lobbyId, context.runSeed);
+      bindingRef.current = null;
+      clearEventRef.current = '';
+      advanceRef.current = '';
+    },
+  }), [active, context, transport]);
 
   useEffect(() => {
     if (!active || !context) {
@@ -196,7 +265,7 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
     if (engine) engine.update = timestamp => agePresentation(engine, timestamp);
     onStatus('connecting');
 
-    const schedule = (delay = AUTHORITY_TICK_MS) => {
+    const schedule = (delay = tickMs) => {
       if (!stopped) timer = window.setTimeout(() => void tick(), delay);
     };
     const tick = async () => {
@@ -204,21 +273,22 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
       inFlight = true;
       try {
         const liveEngine = getEngineRef.current();
-        const userId = currentOnlineSession()?.user.id;
-        if (!liveEngine || !userId) throw new Error('Aktive Duo-Sitzung fehlt.');
-        let authority = await readMyDuoAuthorityState(context.lobbyId, context.runSeed);
+        const session = transport.currentSession();
+        if (!liveEngine || !session) throw new Error('Aktive Duo-Sitzung fehlt.');
+        const userId = session.actorId;
+        let authority = await transport.read(session, context.lobbyId, context.runSeed);
         bindingRef.current = authority.binding;
         let state = authority.state;
         if (!state) {
-          const transition = await submitDuoAuthorityIntent(authority.binding, authority.encounterId, authority.stateVersion, 1, { kind: 'start-ack' });
+          const transition = await transport.submit(session, authority.binding, authority.encounterId, authority.stateVersion, 1, { kind: 'start-ack' });
           state = transition.state;
-        } else if (!state.completed) {
+        } else if (!state.completed && state.lifecycle !== 'team-defeated') {
           const actor = state.actors.find(candidate => candidate.actorId === userId);
           if (!actor) throw new Error('Aktiver Duo-Akteur fehlt im kanonischen Zustand.');
           const sequence = (state.lastClientSeqByActor[userId] ?? 0) + 1;
           const intent = chooseIntent(liveEngine, state, actor);
-          const transition = await submitDuoAuthorityIntent(
-            authority.binding, state.encounterId, state.version, sequence, intent,
+          const transition = await transport.submit(
+            session, authority.binding, state.encounterId, state.version, sequence, intent,
           );
           if (intent.kind === 'dodge') liveEngine.input.dodge = false;
           if (intent.kind === 'basic-hit') liveEngine.input.attack = false;
@@ -236,8 +306,10 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
         }
         project(liveEngine, state, actor);
         const partner = state.actors.find(candidate => candidate.actorId !== userId);
+        const currentReviveTarget = revivePartnerInRange(state, actor);
         setLocalActor(actor);
-        setReviveTarget(revivePartnerInRange(state, actor));
+        setReviveTarget(currentReviveTarget);
+        if (!currentReviveTarget) liveEngine.input.interact = false;
         setAuthorityNowMs(state.authorityNowMs);
         onRemotePlayer(partner ? remotePresence(context, state, partner) : null);
         setTeamDefeated(state.lifecycle === 'team-defeated');
@@ -254,7 +326,7 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
         }
         if (state.completed && atExit(liveEngine, actor) && advanceRef.current !== state.encounterId) {
           advanceRef.current = state.encounterId;
-          await advanceDuoAuthorityEncounter(authority.binding, state.encounterId);
+          await transport.advance(session, authority.binding, state.encounterId);
         }
         schedule();
       } catch (error) {
@@ -284,14 +356,16 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
       onRemotePlayer(null);
       onStatus('offline');
     };
-  }, [active, context?.lobbyId, context?.runSeed]);
+  }, [active, context?.lobbyId, context?.runSeed, tickMs, transport]);
 
   const restart = async () => {
     const binding = bindingRef.current;
     if (!binding || !context || context.role !== 'host' || restartBusy) return;
+    const session = transport.currentSession();
+    if (!session) return;
     setRestartBusy(true);
     try {
-      await restartDuoAuthorityAttempt(binding);
+      await transport.restart(session, binding);
       bindingRef.current = null;
       clearEventRef.current = '';
       advanceRef.current = '';
@@ -334,4 +408,4 @@ export function CoopAuthorityRuntimeBridge({ active, context, getEngine, onRemot
     </button>}
     {teamDefeated && <CoopTeamDefeatOverlay role={context.role} restartBusy={restartBusy} onRestart={() => void restart()} />}
   </>;
-}
+});
