@@ -24,6 +24,11 @@ async function runtime() {
   return server.ssrLoadModule('/src/game/duoAuthorityOnline.ts');
 }
 
+async function bridgeRuntime() {
+  await runtime();
+  return server.ssrLoadModule('/src/components/CoopAuthorityRuntimeBridge.tsx');
+}
+
 after(async () => { await server?.close(); });
 
 test('browser discovers its exact server-owned attempt through an actor-bound RPC', () => {
@@ -120,13 +125,77 @@ test('live Duo gameplay routes through the canonical authority bridge, not host-
   for (const kind of ['start-ack', 'move', 'basic-hit', 'dodge', 'sync', 'revive-hold']) {
     assert.match(authorityBridge, new RegExp(`kind: '${kind}'`));
   }
-  assert.match(authorityBridge, /state\.lastClientSeqByActor\[userId\].*\+ 1/);
+  assert.match(authorityBridge, /state\.lastClientSeqByActor\[actorId\].*\+ 1/);
   assert.match(authorityBridge, /state\.completed && atExit/);
-  assert.match(authorityBridge, /if \(intent\.kind === 'dodge'\) liveEngine\.input\.dodge = false/);
-  assert.match(authorityBridge, /if \(intent\.kind === 'basic-hit'\) liveEngine\.input\.attack = false/);
+  assert.match(authorityBridge, /if \(acceptedIntent\.kind === 'dodge'\) liveEngine\.input\.dodge = false/);
+  assert.match(authorityBridge, /if \(acceptedIntent\.kind === 'basic-hit'\) liveEngine\.input\.attack = false/);
   assert.match(edgeService, /encounterId: row\.encounter_id, stateVersion/);
   assert.match(gamePage, /exitMyDuoAuthorityAttempt\(leavingContext\.lobbyId, leavingContext\.runSeed\)/);
   assert.match(gamePage, /Promise\.allSettled\(\[/);
+});
+
+test('mounted bridge catches up with sync before retrying an automatic action', async () => {
+  const { submitAuthorityIntentWithCatchUpRecovery } = await bridgeRuntime();
+  const calls = [];
+  const state = {
+    encounterId: 'encounter-1', version: 7,
+    lastClientSeqByActor: { 'actor-1': 3 },
+  };
+  const transport = {
+    submit: async (_session, _binding, encounterId, version, sequence, intent) => {
+      calls.push({ encounterId, version, sequence, intent });
+      if (calls.length === 1) throw new Error('authority catch-up requires sync');
+      return {
+        state: {
+          ...state,
+          version: version + 1,
+          lastClientSeqByActor: { 'actor-1': sequence },
+        },
+      };
+    },
+  };
+  const session = { actorId: 'actor-1', credentialGeneration: 1 };
+  const binding = { lobbyId: 'lobby-1', runAttempt: 3, runSeed: 11 };
+  const basicHit = { kind: 'basic-hit', targetEnemyId: 'enemy-1' };
+
+  const recovered = await submitAuthorityIntentWithCatchUpRecovery(
+    transport, session, binding, state, 'actor-1', basicHit,
+  );
+  assert.deepEqual(calls.map(call => call.intent.kind), ['basic-hit', 'sync']);
+  assert.deepEqual(calls.map(call => call.sequence), [4, 4]);
+  assert.deepEqual(calls.map(call => call.version), [7, 7]);
+  assert.equal(recovered.acceptedIntent.kind, 'sync');
+
+  const resumed = await submitAuthorityIntentWithCatchUpRecovery(
+    transport, session, binding, recovered.transition.state, 'actor-1', basicHit,
+  );
+  assert.equal(calls.at(-1).intent.kind, 'basic-hit');
+  assert.equal(calls.at(-1).sequence, 5);
+  assert.equal(calls.at(-1).version, 8);
+  assert.equal(resumed.acceptedIntent.kind, 'basic-hit');
+});
+
+test('mounted bridge keeps unrelated transport failures fail-closed', async () => {
+  const { submitAuthorityIntentWithCatchUpRecovery } = await bridgeRuntime();
+  let submissions = 0;
+  const transport = {
+    submit: async () => {
+      submissions += 1;
+      throw new Error('network unavailable');
+    },
+  };
+  await assert.rejects(
+    submitAuthorityIntentWithCatchUpRecovery(
+      transport,
+      { actorId: 'actor-1', credentialGeneration: 1 },
+      { lobbyId: 'lobby-1', runAttempt: 3, runSeed: 11 },
+      { encounterId: 'encounter-1', version: 7, lastClientSeqByActor: { 'actor-1': 3 } },
+      'actor-1',
+      { kind: 'basic-hit', targetEnemyId: 'enemy-1' },
+    ),
+    /network unavailable/,
+  );
+  assert.equal(submissions, 1);
 });
 
 test('intent client binds exact attempt, encounter, version and sequence while overwriting forged auth headers', async () => {

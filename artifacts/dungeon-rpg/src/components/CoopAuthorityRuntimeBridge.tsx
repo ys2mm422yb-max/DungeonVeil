@@ -155,6 +155,37 @@ function chooseIntent(engine: GameEngine, state: CanonicalEncounterState, actor:
   return { kind: 'sync' };
 }
 
+function requiresAuthorityCatchUp(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('authority catch-up requires sync');
+}
+
+export async function submitAuthorityIntentWithCatchUpRecovery(
+  transport: CoopAuthorityRuntimeTransport,
+  session: CoopAuthorityRuntimeSession,
+  binding: DuoAuthorityBinding,
+  state: CanonicalEncounterState,
+  actorId: string,
+  intent: DuoAuthorityIntent,
+): Promise<Readonly<{
+  transition: Awaited<ReturnType<CoopAuthorityRuntimeTransport['submit']>>;
+  acceptedIntent: DuoAuthorityIntent;
+}>> {
+  const sequence = (state.lastClientSeqByActor[actorId] ?? 0) + 1;
+  try {
+    const transition = await transport.submit(
+      session, binding, state.encounterId, state.version, sequence, intent,
+    );
+    return Object.freeze({ transition, acceptedIntent: intent });
+  } catch (error) {
+    if (intent.kind === 'sync' || !requiresAuthorityCatchUp(error)) throw error;
+    const acceptedIntent = Object.freeze({ kind: 'sync' as const });
+    const transition = await transport.submit(
+      session, binding, state.encounterId, state.version, sequence, acceptedIntent,
+    );
+    return Object.freeze({ transition, acceptedIntent });
+  }
+}
+
 function agePresentation(engine: GameEngine, timestamp: number): void {
   const elapsed = Math.max(0, Math.min(100, timestamp - engine.lastTime));
   engine.lastTime = timestamp;
@@ -285,13 +316,12 @@ export const CoopAuthorityRuntimeBridge = forwardRef<CoopAuthorityRuntimeBridgeH
         } else if (!state.completed && state.lifecycle !== 'team-defeated') {
           const actor = state.actors.find(candidate => candidate.actorId === userId);
           if (!actor) throw new Error('Aktiver Duo-Akteur fehlt im kanonischen Zustand.');
-          const sequence = (state.lastClientSeqByActor[userId] ?? 0) + 1;
           const intent = chooseIntent(liveEngine, state, actor);
-          const transition = await transport.submit(
-            session, authority.binding, state.encounterId, state.version, sequence, intent,
+          const { transition, acceptedIntent } = await submitAuthorityIntentWithCatchUpRecovery(
+            transport, session, authority.binding, state, userId, intent,
           );
-          if (intent.kind === 'dodge') liveEngine.input.dodge = false;
-          if (intent.kind === 'basic-hit') liveEngine.input.attack = false;
+          if (acceptedIntent.kind === 'dodge') liveEngine.input.dodge = false;
+          if (acceptedIntent.kind === 'basic-hit') liveEngine.input.attack = false;
           state = transition.state;
         }
         const actor = state.actors.find(candidate => candidate.actorId === userId);
