@@ -16,7 +16,7 @@ import { GameSessionBridge } from '../components/GameSessionBridge';
 import { CoopAuthorityRuntimeBridge } from '../components/CoopAuthorityRuntimeBridge';
 import { CoopRunPersistenceBridge } from '../components/CoopRunPersistenceBridge';
 import { GamePausePanel } from '../components/GamePausePanel';
-import { GameOverScreen } from '../components/screens/GameOverScreen';
+import { GameOverScreen, type GameOverScreenHandle } from '../components/screens/GameOverScreen';
 import { LevelUpScreen } from '../components/screens/LevelUpScreen';
 import { LanguageSelectScreen } from '../components/screens/LanguageSelectScreen';
 import { MainMenuScreen } from '../components/screens/MainMenuScreen';
@@ -154,30 +154,32 @@ const TerminalStableCombatStage = React.memo(
   (previous, next) => previous.gameState === next.gameState && previous.remotePlayer === next.remotePlayer,
 );
 
-function TerminalDeathOverlay({ onRetry, onMainMenu }: { onRetry: () => void; onMainMenu: () => void }) {
+function TerminalDeathOverlay({ gameState, onRetry, onMainMenu }: { gameState: GameState | null; onRetry: () => void; onMainMenu: () => void }) {
   const [terminalGameState, setTerminalGameState] = useState<GameState | null>(null);
+  const presentationRef = useRef<GameOverScreenHandle | null>(null);
 
   useEffect(() => {
     const handleDeathState = (event: Event) => {
       const detail = (event as CustomEvent<PlayerDeathEventDetail>).detail;
       if (!detail?.dead) {
+        presentationRef.current?.resetDeathPresentation();
         setTerminalGameState(null);
         return;
       }
       const terminalSnapshot = detail.gameState;
-      // Let React schedule this lightweight terminal subtree instead of forcing the whole
-      // root to reconcile inside the engine's lethal update. On loaded Android tablets the
-      // synchronous flush could occupy the main thread past the unchanged 2 s deadline;
-      // GameOverScreen already anchors its 1100 ms beat to the lethal engine timestamp.
-      if (terminalSnapshot) setTerminalGameState(terminalSnapshot);
+      if (terminalSnapshot) {
+        presentationRef.current?.beginDeathPresentation(terminalSnapshot.player.lastHitTime);
+        setTerminalGameState(terminalSnapshot);
+      }
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handleDeathState);
     return () => window.removeEventListener(PLAYER_DEATH_EVENT, handleDeathState);
   }, []);
 
-  if (!terminalGameState) return null;
-  return <div data-terminal-death-host="active">
-    <GameOverScreen gameState={terminalGameState} onRetry={onRetry} onMainMenu={onMainMenu} />
+  const presentationState = terminalGameState ?? gameState;
+  if (!presentationState) return null;
+  return <div data-terminal-death-host={terminalGameState ? 'active' : 'ready'}>
+    <GameOverScreen ref={presentationRef} gameState={presentationState} onRetry={onRetry} onMainMenu={onMainMenu} />
   </div>;
 }
 
@@ -622,7 +624,7 @@ export default function Game() {
           <ActionButtons gameState={gameState} onDodge={handleDodge} />
         </>}
       </>}
-      <TerminalDeathOverlay onRetry={handleRetry} onMainMenu={handleMainMenu} />
+      <TerminalDeathOverlay gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />
       {confirmingNewRun && saveData && <NewRunConfirmDialog
         language={language}
         chapter={saveData.chapter ?? 1}

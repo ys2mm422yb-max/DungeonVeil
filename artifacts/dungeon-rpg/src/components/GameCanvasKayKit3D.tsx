@@ -37,15 +37,22 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     const host = hostRef.current;
     if (!host) return;
 
+    let commitTerminalFrame: ((state: GameState) => boolean) | null = null;
+    let resumeRenderLoop: (() => void) | null = null;
+
     const handlePlayerDeathSignal = (event: Event) => {
       const detail = (event as CustomEvent<{ dead?: boolean; gameState?: GameState }>).detail;
       if (detail?.dead && detail.gameState) {
-        // Consume the authoritative terminal snapshot without forcing the surrounding
-        // CombatStage tree through a synchronous React reconciliation. This lets the render
-        // loop freeze its one final pose while the overlay commits independently.
         stateRef.current = detail.gameState;
+        cancelAnimationFrame(raf);
+        raf = 0;
+        commitTerminalFrame?.(detail.gameState);
       } else if (!detail?.dead && stateRef.current.status === 'gameover') {
         stateRef.current = { ...stateRef.current, status: 'playing' };
+        terminalFrameRendered = false;
+        delete host.dataset.terminalRenderMode;
+        delete host.dataset.terminalRenderFrames;
+        resumeRenderLoop?.();
       }
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handlePlayerDeathSignal, true);
@@ -965,14 +972,28 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       camera.updateProjectionMatrix();
     };
 
+    commitTerminalFrame = (state: GameState) => {
+      if (disposed || terminalFrameRendered || !renderer || !scene || !camera || !playerRig) return false;
+      const playerX = mapX(state, state.player.x);
+      const playerZ = mapZ(state, state.player.y);
+      playerRig.root.position.set(playerX, 0, playerZ);
+      playerRig.update(TERMINAL_DEATH_POSE_SECONDS);
+      renderer.render(scene, camera);
+      terminalFrameRendered = true;
+      host.dataset.terminalRenderMode = 'frozen-final-pose';
+      host.dataset.terminalRenderFrames = '1';
+      return true;
+    };
+
     const renderLoop = () => {
+      raf = 0;
       if (disposed || !renderer || !scene || !camera || !clock) return;
       const state = stateRef.current;
       const gameover = state.status === 'gameover';
       const wallNow = Date.now();
       const gameNow = performance.now();
-      if (gameover && terminalFrameRendered) {
-        raf = requestAnimationFrame(renderLoop);
+      if (gameover) {
+        commitTerminalFrame?.(state);
         return;
       }
       if (!gameover && terminalFrameRendered) {
@@ -1025,11 +1046,6 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
         updateRunCamera(camera, cameraGoal, playerX, playerZ, state.roomClearReady);
       }
       renderer.render(scene, camera);
-      if (gameover) {
-        terminalFrameRendered = true;
-        host.dataset.terminalRenderMode = 'frozen-final-pose';
-        host.dataset.terminalRenderFrames = '1';
-      }
       if (roomPaintRoot === roomRoot && roomPaintKey && host.dataset.roomPaintExpectedKey === roomPaintKey) {
         roomPaintPresentationFrames += 1;
         if (roomPaintPresentationFrames >= 2) {
@@ -1041,8 +1057,12 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       } else {
         roomPaintPresentationFrames = 0;
       }
-      if (!gameover) updatePerformanceDiagnostics(gameNow);
+      updatePerformanceDiagnostics(gameNow);
       raf = requestAnimationFrame(renderLoop);
+    };
+
+    resumeRenderLoop = () => {
+      if (!disposed && raf === 0 && renderer && scene && camera && clock) raf = requestAnimationFrame(renderLoop);
     };
 
     const boot = async () => {

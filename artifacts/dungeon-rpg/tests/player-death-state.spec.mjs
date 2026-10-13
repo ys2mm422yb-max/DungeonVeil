@@ -70,12 +70,22 @@ test('solo death uses an explicit visual death state before the final overlay', 
   const terminalDeathPreparation = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.prepareTerminalDeathEvidence?.() ?? null);
   expect(terminalDeathPreparation, 'terminal-death evidence preconditioning must complete before the unchanged browser-clock acceptance timer starts').toBeTruthy();
   expect(Number(terminalDeathPreparation?.snapshot?.hp || 0), 'preconditioning must leave the live player alive before the measured lethal transition').toBeGreaterThan(0);
+  const preMountedBoundary = await page.evaluate(() => {
+    const overlay = document.querySelector('[data-testid="game-over-screen"]');
+    return overlay instanceof HTMLElement
+      ? { exists: true, sequence: overlay.dataset.deathSequence, ariaHidden: overlay.getAttribute('aria-hidden') }
+      : { exists: false, sequence: null, ariaHidden: null };
+  });
+  expect(preMountedBoundary.exists, 'terminal overlay presentation boundary must exist before lethal input').toBe(true);
+  expect(preMountedBoundary.sequence, 'pre-mounted terminal boundary must be inactive before lethal input').toBe('inactive');
+  expect(preMountedBoundary.ariaHidden, 'inactive terminal boundary must not obstruct live gameplay').toBe('true');
   const deathSequenceObservation = await page.evaluate(async () => {
     const startedAt = performance.now();
     const deadline = startedAt + 2_000;
     const states = [];
     let settledAt = null;
     let settledCommittedAt = null;
+    let synchronousDeathBoundary = null;
 
     return await new Promise(resolve => {
       let finished = false;
@@ -91,6 +101,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
           sawSettling: states.includes('settling'),
           elapsedMs: settledAt ?? performance.now() - startedAt,
           settledCommittedAt,
+          synchronousDeathBoundary,
         });
       };
       const recordState = (element) => {
@@ -115,7 +126,25 @@ test('solo death uses an explicit visual death state before the final overlay', 
         }
       });
       observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-death-sequence'] });
-      window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
+      const originalRequestAnimationFrame = window.requestAnimationFrame;
+      let withheldAnimationFrames = 0;
+      window.requestAnimationFrame = () => {
+        withheldAnimationFrames += 1;
+        return 900_000 + withheldAnimationFrames;
+      };
+      try {
+        window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
+        const synchronousOverlay = document.querySelector('[data-testid="game-over-screen"]');
+        const synchronousRenderer = document.querySelector('[data-testid="run-three-host"]');
+        synchronousDeathBoundary = {
+          overlaySequence: synchronousOverlay?.getAttribute('data-death-sequence') ?? null,
+          terminalRenderMode: synchronousRenderer?.getAttribute('data-terminal-render-mode') ?? null,
+          terminalRenderFrames: synchronousRenderer?.getAttribute('data-terminal-render-frames') ?? null,
+          withheldAnimationFrames,
+        };
+      } finally {
+        window.requestAnimationFrame = originalRequestAnimationFrame;
+      }
       const overlay = document.querySelector('[data-testid="game-over-screen"]');
       if (overlay instanceof HTMLElement) recordState(overlay);
       if (finished) return;
@@ -129,12 +158,18 @@ test('solo death uses an explicit visual death state before the final overlay', 
     });
   });
   expect(deathSequenceObservation.sawSettling, 'death overlay must expose the explicit visual settling state before final defeat').toBe(true);
+  expect(deathSequenceObservation.synchronousDeathBoundary?.overlaySequence, 'authoritative death event must synchronously publish the real settling boundary').toBe('settling');
+  expect(deathSequenceObservation.synchronousDeathBoundary?.terminalRenderMode, 'withholding future rAF callbacks must not prevent the real frozen terminal render').toBe('frozen-final-pose');
+  expect(deathSequenceObservation.synchronousDeathBoundary?.terminalRenderFrames, 'authoritative death event must commit exactly one final WebGL frame').toBe('1');
   expect(deathSequenceObservation.state, 'death overlay must transition from the visual death beat to a settled defeat state').toBe('settled');
   expect(Number.isFinite(deathSequenceObservation.settledCommittedAt), 'settled death DOM must publish its exact product commit timestamp').toBe(true);
   expect(deathSequenceObservation.elapsedMs, 'death overlay must not settle before the measured lethal transition').toBeGreaterThanOrEqual(0);
   expect(deathSequenceObservation.elapsedMs, 'death overlay must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
   const overlay = page.getByTestId('game-over-screen');
   await expect(overlay).toBeVisible();
+  await expect(overlay, 'pre-mounted presentation must reconcile the real terminal player and controls').toContainText('Death State QA');
+  await expect(page.getByTestId('button-retry'), 'retry control must remain usable after the pre-mounted boundary activates').toBeVisible();
+  await expect(page.getByTestId('button-main-menu'), 'main-menu control must remain usable after the pre-mounted boundary activates').toBeVisible();
   const playerRenderer = page.locator('[data-player-death-state="active"]');
   await expect(playerRenderer, 'renderer must publish an active death-state instead of freezing in idle/run').toBeVisible({ timeout: 2_000 });
   const rendererHost = page.getByTestId('run-three-host');
@@ -153,7 +188,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(postDeathAttackAfterWindow.attackAt, 'player attacks must stay blocked after death').toBe(postDeathAttackObservation.attackAt);
   const deathSequence = await overlay.getAttribute('data-death-sequence');
   const rendererDeathState = await playerRenderer.getAttribute('data-player-death-state');
-  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, deathSequence, deathSequenceStates: deathSequenceObservation.states, deathSequenceObservedMs: deathSequenceObservation.elapsedMs, deathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, terminalRenderMode: await rendererHost.getAttribute('data-terminal-render-mode'), terminalRenderFrames: Number(await rendererHost.getAttribute('data-terminal-render-frames')), postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
+  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, preMountedBoundary, synchronousDeathBoundary: deathSequenceObservation.synchronousDeathBoundary, deathSequence, deathSequenceStates: deathSequenceObservation.states, deathSequenceObservedMs: deathSequenceObservation.elapsedMs, deathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, terminalRenderMode: await rendererHost.getAttribute('data-terminal-render-mode'), terminalRenderFrames: Number(await rendererHost.getAttribute('data-terminal-render-frames')), postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
   // WebKit's iPhone video encoder trails the already-rendered terminal DOM by more than the generic EOF hold.
   // Keep only that project alive longer after all assertions so the final card is actually encoded into the video.

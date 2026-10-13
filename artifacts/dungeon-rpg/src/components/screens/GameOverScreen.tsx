@@ -1,12 +1,16 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { GameState } from '../../game/engine';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 interface Props {
   gameState: GameState;
-  deathBeatStartedAt?: number;
   onRetry: () => void;
   onMainMenu: () => void;
+}
+
+export interface GameOverScreenHandle {
+  beginDeathPresentation: (transitionStartedAt?: number) => void;
+  resetDeathPresentation: () => void;
 }
 
 const DEATH_BEAT_MS = 1_100;
@@ -31,39 +35,71 @@ function resolveDeathBeatStartedAt(key: string, transitionStartedAt?: number): n
   return startedAt;
 }
 
-export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStartedAt, onRetry, onMainMenu }: Props) {
+export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function GameOverScreen(
+  { gameState, onRetry, onMainMenu },
+  presentationRef,
+) {
   const { t } = useLanguage();
   const { player } = gameState;
   const deathBeatKey = `${player.spawnTime}`;
-  // Enemy damage stamps player.lastHitTime with the same engine-frame timestamp that
-  // can make HP lethal. Reuse that authoritative transition origin so React mount/main-
-  // thread delay cannot restart the fixed 1100 ms presentation beat. Explicit callers
-  // may still provide an even more specific transition timestamp for non-hit deaths.
-  const lethalHitStartedAt = player.hp <= 0 && Number.isFinite(player.lastHitTime) && Number(player.lastHitTime) > 0
-    ? Number(player.lastHitTime)
-    : undefined;
-  const authoritativeTransitionStartedAt = transitionStartedAt ?? lethalHitStartedAt;
-  const deathBeatStartedAt = useMemo(
-    () => resolveDeathBeatStartedAt(deathBeatKey, authoritativeTransitionStartedAt),
-    [deathBeatKey, authoritativeTransitionStartedAt],
-  );
-  // Always commit the explicit settling state once. The fixed browser-clock deadline still
-  // uses the timeout, rAF watchdog and render-timeline signal. When that deadline fires,
-  // publish the already-due terminal DOM presentation before asking React to reconcile the
-  // same state. Loaded WebKit can delay a React commit even after the deadline callback gets
-  // a browser turn; the direct DOM commit removes that extra scheduler dependency without
-  // shortening the 1100 ms visual beat or changing the <=2000 ms acceptance contract.
+  const [presented, setPresented] = useState(false);
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const settledAtRef = useRef<number | null>(null);
+  const cancelDeadlineRef = useRef<(() => void) | null>(null);
 
-  useLayoutEffect(() => {
+  const resetDeathPresentation = () => {
+    cancelDeadlineRef.current?.();
+    cancelDeadlineRef.current = null;
+    settledAtRef.current = null;
+    const overlay = overlayRef.current;
+    const content = contentRef.current;
+    if (overlay) {
+      delete overlay.dataset.deathSettledAt;
+      overlay.dataset.deathSequence = 'inactive';
+      overlay.classList.add('hidden', 'pointer-events-none');
+      overlay.classList.remove('bg-black/92', 'backdrop-blur-sm');
+      overlay.classList.add('bg-black/35');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+    if (content) {
+      content.classList.remove('opacity-100');
+      content.classList.add('pointer-events-none', 'opacity-0');
+    }
+    setPresented(false);
+    setDeathSequence('settling');
+  };
+
+  const beginDeathPresentation = (transitionStartedAt?: number) => {
+    cancelDeadlineRef.current?.();
     let settledOnce = false;
     let frame = 0;
     let timer: number | null = null;
     let deadlineAnimation: Animation | null = null;
+    const deathBeatStartedAt = resolveDeathBeatStartedAt(deathBeatKey, transitionStartedAt);
     const deadline = deathBeatStartedAt + DEATH_BEAT_MS;
+    const overlay = overlayRef.current;
+    const content = contentRef.current;
+
+    // This subtree is mounted while the run is alive. Publish the real settling boundary
+    // synchronously in the authoritative death event instead of waiting for React to mount
+    // a conditional tree on a loaded WebKit main thread.
+    settledAtRef.current = null;
+    if (overlay) {
+      delete overlay.dataset.deathSettledAt;
+      overlay.dataset.deathSequence = 'settling';
+      overlay.classList.remove('hidden', 'pointer-events-none', 'bg-black/92', 'backdrop-blur-sm');
+      overlay.classList.add('bg-black/35');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+    if (content) {
+      content.classList.remove('opacity-100');
+      content.classList.add('pointer-events-none', 'opacity-0');
+    }
+    setPresented(true);
+    setDeathSequence('settling');
+
     const settle = () => {
       if (settledOnce) return;
       settledOnce = true;
@@ -97,9 +133,6 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       frame = window.requestAnimationFrame(watchDeadline);
     };
 
-    settledAtRef.current = null;
-    if (overlayRef.current) delete overlayRef.current.dataset.deathSettledAt;
-    setDeathSequence('settling');
     const remaining = Math.max(0, deadline - performance.now());
 
     if (remaining === 0) {
@@ -121,23 +154,27 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       }
     }
 
-    return () => {
+    cancelDeadlineRef.current = () => {
       settledOnce = true;
       if (timer !== null) window.clearTimeout(timer);
       window.cancelAnimationFrame(frame);
       deadlineAnimation?.cancel();
     };
-  }, [deathBeatStartedAt]);
+  };
+
+  useImperativeHandle(presentationRef, () => ({ beginDeathPresentation, resetDeathPresentation }));
+  useLayoutEffect(() => () => cancelDeadlineRef.current?.(), []);
 
   const settled = deathSequence === 'settled';
 
   return (
     <div
       ref={overlayRef}
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center text-foreground touch-none select-none transition-[background-color,backdrop-filter] duration-500 ${settled ? 'bg-black/92 backdrop-blur-sm' : 'bg-black/35'}`}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center text-foreground touch-none select-none transition-[background-color,backdrop-filter] duration-500 ${presented ? '' : 'hidden pointer-events-none'} ${settled ? 'bg-black/92 backdrop-blur-sm' : 'bg-black/35'}`}
       data-testid="game-over-screen"
-      data-death-sequence={deathSequence}
+      data-death-sequence={presented ? deathSequence : 'inactive'}
       data-death-settled-at={settled ? settledAtRef.current ?? undefined : undefined}
+      aria-hidden={presented ? 'false' : 'true'}
     >
       <div
         ref={contentRef}
@@ -180,7 +217,7 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       </div>
     </div>
   );
-}
+});
 
 function StatRow({ label, value }: { label: string; value: number }) {
   return (
