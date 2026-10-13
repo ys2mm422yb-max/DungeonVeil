@@ -336,8 +336,8 @@ jobs:
           const classify = title => {
             const normalized = String(title || '').toLowerCase();
             if (normalized === 'solo death uses an explicit visual death state before the final overlay') return 'solo';
-            if (normalized === 'duo lifecycle emits downed -> revived -> fallen -> team defeat temporal evidence (de)') return 'duo-de';
-            if (normalized === 'duo lifecycle emits downed -> revived -> fallen -> team defeat temporal evidence (en)') return 'duo-en';
+            if (normalized === 'mounted authority bridge proves held revive -> second-death fallen -> team defeat (de)') return 'duo-de';
+            if (normalized === 'mounted authority bridge proves held revive -> second-death fallen -> team defeat (en)') return 'duo-en';
             return null;
           };
           const visit = (suites = []) => {
