@@ -96,6 +96,7 @@ const productWorkflow = workflows.get('product-autopilot-qa.yml') ?? '';
 assert(productWorkflow.includes('assert-artifact-budget.mjs'), 'Product Autopilot QA must enforce artifact budgets before upload.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'success'"), 'Product success evidence must upload only after success.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'failure'"), 'Product diagnostics must upload only after failure.');
+assert(productWorkflow.includes('outputRootReal = fs.realpathSync(outputRoot)') && productWorkflow.includes("path.resolve('artifacts/dungeon-rpg', attachmentPath)"), 'Product player-death evidence must resolve package-relative video attachments inside the real results root.');
 assert(!productWorkflow.includes('artifacts/dungeon-rpg/test-results/**\n'), 'Product QA must not upload the entire test-results tree.');
 assert(!productWorkflow.includes('artifacts/dungeon-rpg/playwright-report/**'), 'Product QA must not upload the full HTML report.');
 

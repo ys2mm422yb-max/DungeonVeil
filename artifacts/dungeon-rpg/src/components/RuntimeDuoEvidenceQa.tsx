@@ -24,6 +24,7 @@ declare global {
       prepareTeamDefeat: () => void;
       interruptNextRead: () => void;
       rejectNextSubmitAsStale: () => void;
+      releaseTransportFailure: () => void;
       interruptNextActorSession: () => void;
       refreshActorSession: () => void;
       movePartnerOutOfReviveRange: () => void;
@@ -80,6 +81,7 @@ function RuntimeDuoEvidenceScene() {
       prepareTeamDefeat: () => fixture.prepareTeamDefeat(),
       interruptNextRead: () => fixture.interruptNextRead(),
       rejectNextSubmitAsStale: () => fixture.rejectNextSubmitAsStale(),
+      releaseTransportFailure: () => fixture.releaseTransportFailure(),
       interruptNextActorSession: () => fixture.interruptNextActorSession(),
       refreshActorSession: () => fixture.refreshActorSession(),
       movePartnerOutOfReviveRange: () => fixture.movePartnerOutOfReviveRange(),

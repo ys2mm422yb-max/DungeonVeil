@@ -43,6 +43,7 @@ async function openDuoLifecycleQa(page, projectName, language) {
     localStorage.clear();
     sessionStorage.setItem(runtimeEvidenceMarker, '1');
     localStorage.setItem('dungeon-veil-language', language);
+    localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
     if (ipad) Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 5 });
   }, { ipad: projectName.includes('ipad'), runtimeEvidenceMarker: RUNTIME_EVIDENCE_MARKER, language });
   const url = new URL(APP_URL);
@@ -216,6 +217,7 @@ for (const language of ['de', 'en']) {
       await page.evaluate(triggerName => window.__dungeonVeilDuoAuthorityEvidence[triggerName](), trigger);
       await expect(host).toHaveAttribute('data-connection-status', 'reconnecting', { timeout: 2_000 });
       await expect(page.getByTestId('coop-teammate-disconnected')).toBeVisible();
+      await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.releaseTransportFailure());
       await expect(host).toHaveAttribute('data-connection-status', 'connected', { timeout: 3_000 });
       await expect(page.getByTestId('coop-teammate-disconnected')).toHaveCount(0);
       await observe('downed', 'downed');

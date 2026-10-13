@@ -67,6 +67,8 @@ assert(bridge.includes('export function CoopTeamDefeatOverlay') && bridge.includ
 assert(runtimeDuoEvidence.includes("from './CoopAuthorityRuntimeBridge'") && runtimeDuoEvidence.includes('<CoopAuthorityRuntimeBridge'), 'Runtime Duo evidence does not mount the production authority bridge.');
 assert(authorityBridge.includes("import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge'") && authorityBridge.includes('<CoopTeamDefeatOverlay'), 'Canonical authority runtime does not render the production team-defeat presentation.');
 assert(runtimeDuoSpec.includes("getByTestId('coop-team-game-over')") && runtimeDuoSpec.includes('finalTeamDefeatVisible: true'), 'Runtime Duo journey does not assert and record the mounted production team-defeat presentation.');
+assert(runtimeDuoSpec.includes("localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1')"), 'Runtime Duo evidence must deterministically start without the first-run tutorial obstruction.');
+assert(runtimeDuoSpec.includes('releaseTransportFailure()') && runtimeDuoEvidence.includes('releaseTransportFailure: () => fixture.releaseTransportFailure()'), 'Runtime Duo reconnect evidence does not hold and explicitly release the failed transport state.');
 assert(!runtimeDuoEvidence.includes('teamDefeatCopy') && !runtimeDuoEvidence.includes('BOTH FALLEN'), 'Runtime Duo evidence still contains duplicated team-defeat copy.');
 
 assert(teammateUi.includes('COOP_REVIVE_RANGE') && teammateUi.includes('distance <= COOP_REVIVE_RANGE'), 'Revive proximity UI does not use the authoritative revive range.');

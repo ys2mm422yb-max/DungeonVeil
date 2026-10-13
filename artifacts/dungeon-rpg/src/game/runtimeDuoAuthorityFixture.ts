@@ -71,8 +71,7 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
   readonly partnerId = PARTNER_ID;
   private readonly binding: DuoAuthorityBinding = Object.freeze({ lobbyId: LOBBY_ID, runAttempt: 1, runSeed: RUN_SEED });
   private state: CanonicalEncounterState;
-  private failReads = 0;
-  private failSubmits = 0;
+  private heldTransportFailure: 'read' | 'submit' | null = null;
   private sessionAvailable = true;
   private sessionGeneration = 1;
   private attemptStatus: 'active' | 'invalidated' = 'active';
@@ -113,8 +112,7 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
       this.invalidatedReadRejections += 1;
       throw new Error('Runtime authority fixture rejected read for invalidated attempt');
     }
-    if (this.failReads > 0) {
-      this.failReads -= 1;
+    if (this.heldTransportFailure === 'read') {
       throw new Error('Deterministic authority transport interruption');
     }
     if (lobbyId !== LOBBY_ID || expectedRunSeed !== RUN_SEED) throw new Error('Runtime authority fixture binding mismatch');
@@ -140,8 +138,7 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
       this.invalidatedSubmitRejections += 1;
       throw new Error('Runtime authority fixture rejected intent for invalidated attempt');
     }
-    if (this.failSubmits > 0) {
-      this.failSubmits -= 1;
+    if (this.heldTransportFailure === 'submit') {
       throw new Error('Deterministic authority fixture rejected stale version');
     }
     this.assertBinding(binding, encounterId);
@@ -207,11 +204,15 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
   }
 
   interruptNextRead(): void {
-    this.failReads += 1;
+    this.heldTransportFailure = 'read';
   }
 
   rejectNextSubmitAsStale(): void {
-    this.failSubmits += 1;
+    this.heldTransportFailure = 'submit';
+  }
+
+  releaseTransportFailure(): void {
+    this.heldTransportFailure = null;
   }
 
   interruptNextActorSession(): void {
