@@ -12,6 +12,7 @@ const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
 const authorityBridge = read('src/components/CoopAuthorityRuntimeBridge.tsx');
 const runtimeDuoEvidence = read('src/components/RuntimeDuoEvidenceQa.tsx');
+const runtimeDuoSpec = read('tests/player-death-state.spec.mjs');
 const teammateUi = read('src/components/CoopTeammateUI.tsx');
 const page = read('src/pages/game.tsx');
 const engine = read('src/game/runEngine.ts');
@@ -63,8 +64,9 @@ for (const label of ['DOWNED', 'FALLEN', 'HOLD TO REVIVE', 'BOTH HAVE FALLEN', '
 assert(!bridge.includes('NIEDERGESCHLAGEN · DOWNED') && !bridge.includes('WIEDERBELEBEN HALTEN · HOLD TO REVIVE'), 'Duo lifecycle overlay still renders mixed-language labels.');
 assert(bridge.includes('{copy.pausedEyebrow}') && bridge.includes('{copy.disconnectedTitle}') && bridge.includes('copy.downedBody(downedSeconds)') && bridge.includes('{copy.reviveHold}') && bridge.includes('{copy.teamDefeatTitle}'), 'Duo lifecycle UI does not consistently render the selected-language copy.');
 assert(bridge.includes('export function CoopTeamDefeatOverlay') && bridge.includes('<CoopTeamDefeatOverlay'), 'Production Duo team defeat does not render through the shared presentation component.');
-assert(runtimeDuoEvidence.includes("import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge'"), 'Runtime Duo evidence does not import the production team-defeat presentation.');
-assert(runtimeDuoEvidence.includes('<CoopTeamDefeatOverlay') && runtimeDuoEvidence.includes('testId="runtime-duo-team-game-over"'), 'Runtime Duo evidence does not render the production team-defeat presentation.');
+assert(runtimeDuoEvidence.includes("from './CoopAuthorityRuntimeBridge'") && runtimeDuoEvidence.includes('<CoopAuthorityRuntimeBridge'), 'Runtime Duo evidence does not mount the production authority bridge.');
+assert(authorityBridge.includes("import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge'") && authorityBridge.includes('<CoopTeamDefeatOverlay'), 'Canonical authority runtime does not render the production team-defeat presentation.');
+assert(runtimeDuoSpec.includes("getByTestId('coop-team-game-over')") && runtimeDuoSpec.includes('finalTeamDefeatVisible: true'), 'Runtime Duo journey does not assert and record the mounted production team-defeat presentation.');
 assert(!runtimeDuoEvidence.includes('teamDefeatCopy') && !runtimeDuoEvidence.includes('BOTH FALLEN'), 'Runtime Duo evidence still contains duplicated team-defeat copy.');
 
 assert(teammateUi.includes('COOP_REVIVE_RANGE') && teammateUi.includes('distance <= COOP_REVIVE_RANGE'), 'Revive proximity UI does not use the authoritative revive range.');
