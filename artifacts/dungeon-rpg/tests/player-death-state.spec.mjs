@@ -185,6 +185,11 @@ for (const language of ['de', 'en']) {
       phases.push(phase);
       if (remoteLifeStates.at(-1) !== lifeState) remoteLifeStates.push(lifeState);
     };
+    const resetDownedBoundary = async () => {
+      await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.resetPartnerDownedEvidenceBoundary());
+      await observe('downed', 'downed');
+      await expect(page.getByTestId('coop-revive-control')).toBeVisible({ timeout: 2_000 });
+    };
     await observe('downed', 'downed');
 
     const revive = page.getByTestId('coop-revive-control');
@@ -195,6 +200,7 @@ for (const language of ['de', 'en']) {
     await page.waitForTimeout(350);
     await observe('downed', 'downed');
     const afterPointerCancel = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
+    await resetDownedBoundary();
 
     await revive.dispatchEvent('pointerdown', { pointerId: 71, pointerType: 'touch', isPrimary: true });
     await page.waitForTimeout(500);
@@ -202,6 +208,7 @@ for (const language of ['de', 'en']) {
     await page.waitForTimeout(350);
     await observe('downed', 'downed');
     const afterPointerUp = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
+    await resetDownedBoundary();
 
     await revive.dispatchEvent('pointerdown', { pointerId: 72, pointerType: 'touch', isPrimary: true });
     await page.waitForTimeout(500);
@@ -211,7 +218,7 @@ for (const language of ['de', 'en']) {
     await observe('downed', 'downed');
     const afterRangeLoss = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.movePartnerIntoReviveRange());
-    await expect(page.getByTestId('coop-revive-control')).toBeVisible({ timeout: 2_000 });
+    await resetDownedBoundary();
 
     const assertReconnectRecovery = async trigger => {
       await page.evaluate(triggerName => window.__dungeonVeilDuoAuthorityEvidence[triggerName](), trigger);
@@ -223,7 +230,9 @@ for (const language of ['de', 'en']) {
       await observe('downed', 'downed');
     };
     await assertReconnectRecovery('interruptNextRead');
+    await resetDownedBoundary();
     await assertReconnectRecovery('rejectNextSubmitAsStale');
+    await resetDownedBoundary();
     const sessionBefore = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.interruptNextActorSession());
     await expect(host).toHaveAttribute('data-connection-status', 'reconnecting', { timeout: 2_000 });
@@ -239,12 +248,13 @@ for (const language of ['de', 'en']) {
     expect(sessionAfter.consumedSessions.some(entry => entry.operation === 'submit'
       && entry.actorId === 'runtime-authority-host'
       && entry.credentialGeneration === sessionAfter.sessionGeneration)).toBe(true);
-    await observe('downed', 'downed');
+    await resetDownedBoundary();
 
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.setUserPaused(true));
     await assertReconnectRecovery('interruptNextRead');
     expect(await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.engineStatus())).toBe('paused');
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.setUserPaused(false));
+    await resetDownedBoundary();
 
     const holdStartedAt = await page.evaluate(() => performance.now());
     await revive.dispatchEvent('pointerdown', { pointerId: 8, pointerType: 'touch', isPrimary: true });

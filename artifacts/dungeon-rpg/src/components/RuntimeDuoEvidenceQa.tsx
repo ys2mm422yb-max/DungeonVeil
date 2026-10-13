@@ -20,6 +20,7 @@ declare global {
   interface Window {
     __dungeonVeilDuoAuthorityEvidence?: {
       preparePartnerDowned: () => void;
+      resetPartnerDownedEvidenceBoundary: () => void;
       preparePartnerSecondDeath: () => void;
       prepareTeamDefeat: () => void;
       interruptNextRead: () => void;
@@ -77,6 +78,7 @@ function RuntimeDuoEvidenceScene() {
     setState(cloneState(engine));
     window.__dungeonVeilDuoAuthorityEvidence = {
       preparePartnerDowned: () => fixture.preparePartnerDowned(),
+      resetPartnerDownedEvidenceBoundary: () => fixture.resetPartnerDownedEvidenceBoundary(),
       preparePartnerSecondDeath: () => fixture.preparePartnerSecondDeath(),
       prepareTeamDefeat: () => fixture.prepareTeamDefeat(),
       interruptNextRead: () => fixture.interruptNextRead(),

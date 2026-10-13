@@ -49,6 +49,19 @@ function actor(actorId: string, spawnX: number, maxHp: number, defense: number):
   };
 }
 
+function createFixtureState(authorityStartedAtMs: number): CanonicalEncounterState {
+  return createCanonicalEncounterState({
+    runId: LOBBY_ID,
+    runAttempt: 1,
+    chapter: 1,
+    room: 1,
+    seed: RUN_SEED,
+    authorityStartedAtMs,
+    actors: [actor(HOST_ID, 160, 1, 0), actor(PARTNER_ID, 112, 1, 0)],
+    enemies: [{ enemyType: 'boss', x: 112, y: 120 }],
+  });
+}
+
 export type RuntimeDuoAuthoritySnapshot = Readonly<{
   state: CanonicalEncounterState;
   intents: readonly Readonly<{ actorId: string; kind: AuthorityIntent['kind']; authorityNowMs: number }>[];
@@ -87,16 +100,7 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
   private readonly intents: Array<Readonly<{ actorId: string; kind: AuthorityIntent['kind']; authorityNowMs: number }>> = [];
 
   constructor() {
-    this.state = createCanonicalEncounterState({
-      runId: LOBBY_ID,
-      runAttempt: 1,
-      chapter: 1,
-      room: 1,
-      seed: RUN_SEED,
-      authorityStartedAtMs: 1_000,
-      actors: [actor(HOST_ID, 160, 1, 0), actor(PARTNER_ID, 112, 1, 0)],
-      enemies: [{ enemyType: 'boss', x: 112, y: 120 }],
-    });
+    this.state = createFixtureState(this.serverNowMs);
     this.parkEnemy();
   }
 
@@ -259,6 +263,32 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
     this.armEnemyAt(PARTNER_ID);
     this.advanceActorUntil(PARTNER_ID, actorState => actorState.lifeState === 'downed');
     this.parkEnemy();
+  }
+
+  resetPartnerDownedEvidenceBoundary(): void {
+    if (this.attemptStatus !== 'active') throw new Error('Cannot reset an invalidated authority evidence attempt');
+    // Each adversarial pointer/reconnect proof gets a fresh canonical downed window. Rebuild
+    // and advance the real authority kernel instead of mutating life-state flags or extending
+    // the production 30 s contract, so slow device automation cannot consume the next proof's
+    // lifecycle budget while retaining the same authenticated attempt/session boundary.
+    const previousSequences = this.state.lastClientSeqByActor;
+    this.serverNowMs += 1;
+    this.state = createFixtureState(this.serverNowMs);
+    this.parkEnemy();
+    this.serverNowMs += 1;
+    this.apply(HOST_ID, 1, { kind: 'start-ack' }, this.serverNowMs);
+    this.serverNowMs += 1;
+    this.apply(PARTNER_ID, 1, { kind: 'start-ack' }, this.serverNowMs);
+    this.state = Object.freeze({
+      ...this.state,
+      lastClientSeqByActor: Object.freeze({
+        [HOST_ID]: Math.max(1, previousSequences[HOST_ID] ?? 0),
+        [PARTNER_ID]: Math.max(1, previousSequences[PARTNER_ID] ?? 0),
+      }),
+    });
+    this.lastWallMs = performance.now();
+    this.preparePartnerDowned();
+    this.lastWallMs = performance.now();
   }
 
   preparePartnerSecondDeath(): void {
