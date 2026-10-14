@@ -66,10 +66,13 @@ assert(bridge.includes('{copy.pausedEyebrow}') && bridge.includes('{copy.disconn
 assert(bridge.includes('export function CoopTeamDefeatOverlay') && bridge.includes('<CoopTeamDefeatOverlay'), 'Production Duo team defeat does not render through the shared presentation component.');
 assert(runtimeDuoEvidence.includes("from './CoopAuthorityRuntimeBridge'") && runtimeDuoEvidence.includes('<CoopAuthorityRuntimeBridge'), 'Runtime Duo evidence does not mount the production authority bridge.');
 assert(authorityBridge.includes("import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge'") && authorityBridge.includes('<CoopTeamDefeatOverlay'), 'Canonical authority runtime does not render the production team-defeat presentation.');
-assert(runtimeDuoSpec.includes("getByTestId('coop-team-game-over')") && runtimeDuoSpec.includes('finalTeamDefeatVisible: true'), 'Runtime Duo journey does not assert and record the mounted production team-defeat presentation.');
+assert(runtimeDuoSpec.includes("document.querySelector('[data-testid=\"coop-team-game-over\"]')")
+  && runtimeDuoSpec.includes('teamDefeatVisible: true')
+  && runtimeDuoSpec.includes('captureSnapshot: true')
+  && runtimeDuoSpec.includes('teamDefeatObservation.snapshot'), 'Runtime Duo journey does not assert and record the mounted production team-defeat presentation.');
 assert(runtimeDuoSpec.includes("localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1')"), 'Runtime Duo evidence must deterministically start without the first-run tutorial obstruction.');
-assert(runtimeDuoSpec.includes('releaseTransportFailure()') && runtimeDuoEvidence.includes('releaseTransportFailure: () => fixture.releaseTransportFailure()'), 'Runtime Duo reconnect evidence does not hold and explicitly release the failed transport state.');
-assert(runtimeDuoSpec.includes('resetPartnerDownedEvidenceBoundary()')
+assert(runtimeDuoSpec.includes("action: 'releaseTransportFailure'") && runtimeDuoEvidence.includes('releaseTransportFailure: () => fixture.releaseTransportFailure()'), 'Runtime Duo reconnect evidence does not hold and explicitly release the failed transport state.');
+assert(runtimeDuoSpec.includes("action: 'resetPartnerDownedEvidenceBoundary'")
   && runtimeDuoEvidence.includes('resetPartnerDownedEvidenceBoundary: () => fixture.resetPartnerDownedEvidenceBoundary()'), 'Runtime Duo adversarial proofs do not use fresh canonical downed evidence boundaries.');
 assert((runtimeDuoSpec.match(/await resetDownedBoundary\(\);/g) ?? []).length >= 6
   && runtimeDuoSpec.includes("await assertReconnectRecovery('interruptNextRead');\n    await resetDownedBoundary();\n    await assertReconnectRecovery('rejectNextSubmitAsStale');"), 'Runtime Duo reconnect and pointer proofs can still consume one shared canonical downed lifetime.');
