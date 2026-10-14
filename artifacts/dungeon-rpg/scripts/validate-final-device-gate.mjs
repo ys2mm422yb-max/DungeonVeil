@@ -18,6 +18,8 @@ const [
   completeRuntimeWorkflow,
   pagesWorkflow,
   combatStage,
+  gamePage,
+  gameOverScreen,
 ] = await Promise.all([
   read('../playwright.regression.config.mjs'),
   read('../playwright.complete-runtime.config.mjs'),
@@ -26,6 +28,8 @@ const [
   read('../../../.github/workflows/complete-runtime-evidence-qa.yml'),
   read('../../../.github/workflows/dungeon-veil-pages.yml'),
   read('../src/components/CombatStage.tsx'),
+  read('../src/pages/game.tsx'),
+  read('../src/components/screens/GameOverScreen.tsx'),
 ]);
 
 const extractConfigProjects = source => {
@@ -107,6 +111,12 @@ const checks = [
     && combatStage.includes('}, DEATH_OVERLAY_PRIORITY_WINDOW_MS)')
     && !/setTimeout\(\(\) => setPlayerDead\([^)]*\),\s*0\)/s.test(combatStage),
     'terminal death still lets broad CombatStage reconciliation compete with the 1.1-second overlay priority window'],
+  [gameOverScreen.includes('onSettled?: () => void')
+    && gameOverScreen.includes('setDeathSequence(\'settled\');\n      onSettled?.();')
+    && !/content\.classList\.add\('pointer-events-none', 'opacity-0'\);\s*}\s*setPresented\(true\)/s.test(gameOverScreen)
+    && gamePage.includes('() => setTerminalGameState(terminalSnapshot)')
+    && !gamePage.includes('setTerminalGameState(terminalSnapshot);'),
+    'terminal death still schedules React snapshot reconciliation inside the fixed 1.1-second visual priority window'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);

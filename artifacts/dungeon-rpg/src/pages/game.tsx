@@ -168,8 +168,13 @@ function TerminalDeathOverlay({ gameState, onRetry, onMainMenu }: { gameState: G
       }
       const terminalSnapshot = detail.gameState;
       if (terminalSnapshot) {
-        presentationRef.current?.beginDeathPresentation(terminalSnapshot.player.lastHitTime);
-        setTerminalGameState(terminalSnapshot);
+        // The pre-mounted presentation owns the entire fixed death beat imperatively. Defer
+        // React's snapshot reconciliation until that boundary has settled so loaded WebKit
+        // cannot spend the deadline window rendering terminal copy that is already present.
+        presentationRef.current?.beginDeathPresentation(
+          terminalSnapshot.player.lastHitTime,
+          () => setTerminalGameState(terminalSnapshot),
+        );
       }
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handleDeathState);

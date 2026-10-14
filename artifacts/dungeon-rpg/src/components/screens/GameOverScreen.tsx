@@ -9,7 +9,7 @@ interface Props {
 }
 
 export interface GameOverScreenHandle {
-  beginDeathPresentation: (transitionStartedAt?: number) => void;
+  beginDeathPresentation: (transitionStartedAt?: number, onSettled?: () => void) => void;
   resetDeathPresentation: () => void;
 }
 
@@ -71,7 +71,7 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
     setDeathSequence('settling');
   };
 
-  const beginDeathPresentation = (transitionStartedAt?: number) => {
+  const beginDeathPresentation = (transitionStartedAt?: number, onSettled?: () => void) => {
     cancelDeadlineRef.current?.();
     let settledOnce = false;
     let frame = 0;
@@ -97,8 +97,9 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
       content.classList.remove('opacity-100');
       content.classList.add('pointer-events-none', 'opacity-0');
     }
-    setPresented(true);
-    setDeathSequence('settling');
+    // Do not enqueue React work inside the fixed visual priority window. The mounted DOM
+    // boundary above is already the player-visible source of truth; reconciling the terminal
+    // snapshot here can compete with WebKit's deadline callback after a long Product run.
 
     const settle = () => {
       if (settledOnce) return;
@@ -122,7 +123,9 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
         content.classList.add('opacity-100');
       }
 
+      setPresented(true);
       setDeathSequence('settled');
+      onSettled?.();
     };
     const watchDeadline = () => {
       if (settledOnce) return;
