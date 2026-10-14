@@ -56,6 +56,105 @@ async function openDuoLifecycleQa(page, projectName, language) {
   await page.getByTestId('runtime-duo-lifecycle-start').click();
 }
 
+async function observeDuoUi(page, expected, {
+  action = null,
+  actionArgs = [],
+  timeoutMs = 5_000,
+  captureSnapshot = false,
+} = {}) {
+  const observation = await page.evaluate(async ({
+    expected,
+    action,
+    actionArgs,
+    timeoutMs,
+    captureSnapshot,
+  }) => {
+    const evidence = window.__dungeonVeilDuoAuthorityEvidence;
+    if (!evidence) throw new Error('Duo authority evidence API is unavailable');
+
+    const isVisible = element => {
+      if (!(element instanceof HTMLElement) || element.hidden) return false;
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+    const read = () => {
+      const host = document.querySelector('[data-testid="runtime-duo-evidence-qa"]');
+      const teamPanel = document.querySelector('[data-testid="coop-team-health-panel"]');
+      const revive = document.querySelector('[data-testid="coop-revive-control"]');
+      const disconnected = document.querySelector('[data-testid="coop-teammate-disconnected"]');
+      const teamDefeat = document.querySelector('[data-testid="coop-team-game-over"]');
+      return {
+        phase: host instanceof HTMLElement ? host.dataset.lifecyclePhase ?? null : null,
+        lifeState: teamPanel instanceof HTMLElement ? teamPanel.dataset.lifeState ?? null : null,
+        connectionStatus: host instanceof HTMLElement ? host.dataset.connectionStatus ?? null : null,
+        reviveVisible: isVisible(revive),
+        disconnectedVisible: isVisible(disconnected),
+        teamDefeatVisible: isVisible(teamDefeat),
+        teamDefeatText: teamDefeat?.textContent ?? '',
+        advanceCount: document.querySelectorAll('[data-testid="runtime-duo-lifecycle-advance"]').length,
+      };
+    };
+    const matches = state => Object.entries(expected).every(([key, value]) => {
+      if (key === 'teamDefeatTextIncludes') return value.every(fragment => state.teamDefeatText.includes(fragment));
+      return state[key] === value;
+    });
+    const waitForExpectedState = () => new Promise((resolve, reject) => {
+      const startedAt = performance.now();
+      let intervalId = 0;
+      let timeoutId = 0;
+      const observer = new MutationObserver(check);
+      function cleanup() {
+        observer.disconnect();
+        window.clearInterval(intervalId);
+        window.clearTimeout(timeoutId);
+      }
+      function check() {
+        const state = read();
+        if (!matches(state)) return;
+        cleanup();
+        resolve(state);
+      }
+      observer.observe(document.documentElement, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+      intervalId = window.setInterval(check, 25);
+      timeoutId = window.setTimeout(() => {
+        const state = read();
+        cleanup();
+        reject(new Error(`Duo UI did not reach ${JSON.stringify(expected)} within ${timeoutMs} ms; observed ${JSON.stringify(state)} after ${Math.round(performance.now() - startedAt)} ms`));
+      }, timeoutMs);
+      check();
+    });
+
+    if (action) {
+      const operation = evidence[action];
+      if (typeof operation !== 'function') throw new Error(`Unknown Duo evidence action: ${action}`);
+      await operation(...actionArgs);
+    }
+    const state = await waitForExpectedState();
+    return {
+      ...state,
+      observedAt: performance.now(),
+      engineStatus: evidence.engineStatus(),
+      snapshot: captureSnapshot ? evidence.snapshot() : null,
+    };
+  }, { expected, action, actionArgs, timeoutMs, captureSnapshot });
+
+  for (const [key, value] of Object.entries(expected)) {
+    if (key === 'teamDefeatTextIncludes') {
+      for (const fragment of value) expect(observation.teamDefeatText).toContain(fragment);
+    } else {
+      expect(observation[key]).toBe(value);
+    }
+  }
+  return observation;
+}
+
 test('solo death uses an explicit visual death state before the final overlay', async ({ page }, testInfo) => {
   await openMenu(page, testInfo.project.name);
   await startFreshRun(page);
@@ -209,21 +308,24 @@ const TEAM_DEFEAT_COPY = {
 for (const language of ['de', 'en']) {
   test(`mounted authority bridge proves held revive -> second-death Fallen -> Team Defeat (${language})`, async ({ page }, testInfo) => {
     await openDuoLifecycleQa(page, testInfo.project.name, language);
-    const host = page.getByTestId('runtime-duo-evidence-qa');
-    const teamPanel = page.getByTestId('coop-team-health-panel');
     const startedAt = await page.evaluate(() => performance.now());
     const phases = [];
     const remoteLifeStates = [];
-    const observe = async (phase, lifeState) => {
-      await expect(host).toHaveAttribute('data-lifecycle-phase', phase, { timeout: 5_000 });
-      await expect(teamPanel).toHaveAttribute('data-life-state', lifeState, { timeout: 5_000 });
+    const observe = async (phase, lifeState, options) => {
+      const observation = await observeDuoUi(page, { phase, lifeState }, options);
       phases.push(phase);
       if (remoteLifeStates.at(-1) !== lifeState) remoteLifeStates.push(lifeState);
+      return observation;
     };
     const resetDownedBoundary = async () => {
-      await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.resetPartnerDownedEvidenceBoundary());
-      await observe('downed', 'downed');
-      await expect(page.getByTestId('coop-revive-control')).toBeVisible({ timeout: 2_000 });
+      const observation = await observeDuoUi(
+        page,
+        { phase: 'downed', lifeState: 'downed', reviveVisible: true },
+        { action: 'resetPartnerDownedEvidenceBoundary', timeoutMs: 2_000 },
+      );
+      phases.push('downed');
+      if (remoteLifeStates.at(-1) !== 'downed') remoteLifeStates.push('downed');
+      return observation;
     };
     await observe('downed', 'downed');
 
@@ -233,16 +335,14 @@ for (const language of ['de', 'en']) {
     await page.waitForTimeout(700);
     await revive.dispatchEvent('pointercancel', { pointerId: 7, pointerType: 'touch', isPrimary: true });
     await page.waitForTimeout(350);
-    await observe('downed', 'downed');
-    const afterPointerCancel = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
+    const afterPointerCancel = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await resetDownedBoundary();
 
     await revive.dispatchEvent('pointerdown', { pointerId: 71, pointerType: 'touch', isPrimary: true });
     await page.waitForTimeout(500);
     await revive.dispatchEvent('pointerup', { pointerId: 71, pointerType: 'touch', isPrimary: true });
     await page.waitForTimeout(350);
-    await observe('downed', 'downed');
-    const afterPointerUp = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
+    const afterPointerUp = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await resetDownedBoundary();
 
     await revive.dispatchEvent('pointerdown', { pointerId: 72, pointerType: 'touch', isPrimary: true });
@@ -250,31 +350,41 @@ for (const language of ['de', 'en']) {
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.movePartnerOutOfReviveRange());
     await expect(revive).toHaveCount(0, { timeout: 2_000 });
     await page.waitForTimeout(3_100);
-    await observe('downed', 'downed');
-    const afterRangeLoss = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
+    const afterRangeLoss = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.movePartnerIntoReviveRange());
     await resetDownedBoundary();
 
     const assertReconnectRecovery = async trigger => {
-      await page.evaluate(triggerName => window.__dungeonVeilDuoAuthorityEvidence[triggerName](), trigger);
-      await expect(host).toHaveAttribute('data-connection-status', 'reconnecting', { timeout: 2_000 });
-      await expect(page.getByTestId('coop-teammate-disconnected')).toBeVisible();
-      await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.releaseTransportFailure());
-      await expect(host).toHaveAttribute('data-connection-status', 'connected', { timeout: 3_000 });
-      await expect(page.getByTestId('coop-teammate-disconnected')).toHaveCount(0);
-      await observe('downed', 'downed');
+      await observeDuoUi(
+        page,
+        { connectionStatus: 'reconnecting', disconnectedVisible: true },
+        { action: trigger, timeoutMs: 2_000 },
+      );
+      const observation = await observeDuoUi(
+        page,
+        { phase: 'downed', lifeState: 'downed', connectionStatus: 'connected', disconnectedVisible: false },
+        { action: 'releaseTransportFailure', timeoutMs: 3_000 },
+      );
+      phases.push('downed');
+      if (remoteLifeStates.at(-1) !== 'downed') remoteLifeStates.push('downed');
+      return observation;
     };
     await assertReconnectRecovery('interruptNextRead');
     await resetDownedBoundary();
     await assertReconnectRecovery('rejectNextSubmitAsStale');
     await resetDownedBoundary();
     const sessionBefore = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
-    await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.interruptNextActorSession());
-    await expect(host).toHaveAttribute('data-connection-status', 'reconnecting', { timeout: 2_000 });
-    await expect(page.getByTestId('coop-teammate-disconnected')).toBeVisible();
-    await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.refreshActorSession());
-    await expect(host).toHaveAttribute('data-connection-status', 'connected', { timeout: 3_000 });
-    const sessionAfter = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
+    await observeDuoUi(
+      page,
+      { connectionStatus: 'reconnecting', disconnectedVisible: true },
+      { action: 'interruptNextActorSession', timeoutMs: 2_000 },
+    );
+    const sessionRecovery = await observeDuoUi(
+      page,
+      { connectionStatus: 'connected', disconnectedVisible: false },
+      { action: 'refreshActorSession', timeoutMs: 3_000, captureSnapshot: true },
+    );
+    const sessionAfter = sessionRecovery.snapshot;
     expect(sessionAfter.sessionGeneration).toBe(sessionBefore.sessionGeneration + 1);
     expect(sessionAfter.sessionAvailable).toBe(true);
     expect(sessionAfter.consumedSessions.some(entry => entry.operation === 'read'
@@ -286,51 +396,65 @@ for (const language of ['de', 'en']) {
     await resetDownedBoundary();
 
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.setUserPaused(true));
-    await assertReconnectRecovery('interruptNextRead');
-    expect(await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.engineStatus())).toBe('paused');
+    const pausedRecovery = await assertReconnectRecovery('interruptNextRead');
+    expect(pausedRecovery.engineStatus).toBe('paused');
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.setUserPaused(false));
     await resetDownedBoundary();
 
     const holdStartedAt = await page.evaluate(() => performance.now());
     await revive.dispatchEvent('pointerdown', { pointerId: 8, pointerType: 'touch', isPrimary: true });
-    await expect(host).toHaveAttribute('data-lifecycle-phase', 'revived', { timeout: 5_000 });
-    const holdElapsedMs = await page.evaluate(start => performance.now() - start, holdStartedAt);
-    await observe('revived', 'alive');
+    const revivedObservation = await observe('revived', 'alive');
+    const holdElapsedMs = revivedObservation.observedAt - holdStartedAt;
 
-    await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.prepareHostTelegraph());
-    await expect.poll(() => page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.authorityPresentation().length)).toBeGreaterThan(0);
-    const presentationBefore = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.authorityPresentation()[0]);
-    await page.waitForTimeout(120);
-    const presentationAfter = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.authorityPresentation()[0]);
+    const { presentationBefore, presentationAfter } = await page.evaluate(async () => {
+      const evidence = window.__dungeonVeilDuoAuthorityEvidence;
+      evidence.prepareHostTelegraph();
+      const deadline = performance.now() + 5_000;
+      while (evidence.authorityPresentation().length === 0 && performance.now() < deadline) {
+        await new Promise(resolve => window.setTimeout(resolve, 25));
+      }
+      const presentationBefore = evidence.authorityPresentation()[0];
+      if (!presentationBefore) throw new Error('Authority telegraph presentation did not become visible within 5000 ms');
+      await new Promise(resolve => window.setTimeout(resolve, 120));
+      const presentationAfter = evidence.authorityPresentation()[0];
+      evidence.clearHostTelegraph();
+      return { presentationBefore, presentationAfter };
+    });
     const presentationAgedOrExpired = presentationAfter === undefined
       || (presentationAfter.lifeTime > presentationBefore.lifeTime && presentationAfter.lifeTime <= presentationAfter.maxLifeTime);
     expect(presentationAgedOrExpired, 'authority telegraph presentation must age forward and disappear at its bounded lifetime').toBe(true);
-    await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.clearHostTelegraph());
 
-    await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.preparePartnerSecondDeath());
-    await observe('fallen', 'fallen');
+    await observe('fallen', 'fallen', { action: 'preparePartnerSecondDeath' });
 
-    await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.prepareTeamDefeat());
-    await observe('team-defeat', 'fallen');
-    const elapsedMs = await page.evaluate(start => performance.now() - start, startedAt);
+    const teamDefeatObservation = await observeDuoUi(
+      page,
+      {
+        phase: 'team-defeat',
+        lifeState: 'fallen',
+        teamDefeatVisible: true,
+        teamDefeatTextIncludes: [TEAM_DEFEAT_COPY[language].title, TEAM_DEFEAT_COPY[language].body],
+        advanceCount: 0,
+      },
+      { action: 'prepareTeamDefeat', captureSnapshot: true },
+    );
+    phases.push('team-defeat');
+    if (remoteLifeStates.at(-1) !== 'fallen') remoteLifeStates.push('fallen');
+    const elapsedMs = teamDefeatObservation.observedAt - startedAt;
     const phaseTransitions = phases.filter((phase, index) => index === 0 || phases[index - 1] !== phase);
     expect(phaseTransitions).toEqual(['downed', 'revived', 'fallen', 'team-defeat']);
     expect(remoteLifeStates).toEqual(['downed', 'alive', 'fallen']);
     expect(holdElapsedMs, 'revive evidence must retain a continuous real pointer hold for at least the server contract').toBeGreaterThanOrEqual(3_000);
-    const authoritySnapshot = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
+    const authoritySnapshot = teamDefeatObservation.snapshot;
     const hostReviveIntents = authoritySnapshot.intents.filter(intent => intent.actorId === 'runtime-authority-host' && intent.kind === 'revive-hold');
     expect(hostReviveIntents.length, 'mounted bridge must submit repeated revive-hold intents through the deterministic authority transport').toBeGreaterThan(2);
     expect(authoritySnapshot.state.actors.find(actor => actor.actorId === 'runtime-authority-partner')?.revivesUsed).toBe(1);
     expect(authoritySnapshot.state.actors.find(actor => actor.actorId === 'runtime-authority-partner')?.lifeState).toBe('fallen');
-    const teamDefeat = page.getByTestId('coop-team-game-over');
-    await expect(teamDefeat).toBeVisible();
-    await expect(teamDefeat).toContainText(TEAM_DEFEAT_COPY[language].title);
-    await expect(teamDefeat).toContainText(TEAM_DEFEAT_COPY[language].body);
-    await expect(page.getByTestId('coop-team-health-panel')).toHaveAttribute('data-life-state', 'fallen');
-    await expect(page.getByTestId('runtime-duo-lifecycle-advance')).toHaveCount(0);
-    await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.exitAuthorityAttempt());
-    const invalidatedProbe = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.probeInvalidatedAttempt());
-    const afterExit = await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.snapshot());
+    const { invalidatedProbe, afterExit } = await page.evaluate(async () => {
+      const evidence = window.__dungeonVeilDuoAuthorityEvidence;
+      await evidence.exitAuthorityAttempt();
+      const invalidatedProbe = await evidence.probeInvalidatedAttempt();
+      return { invalidatedProbe, afterExit: evidence.snapshot() };
+    });
     expect(afterExit.attemptStatus).toBe('invalidated');
     expect(afterExit.sessionAvailable).toBe(true);
     expect(afterExit.exitCalls).toBe(1);
