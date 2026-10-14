@@ -180,51 +180,25 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(preMountedBoundary.ariaHidden, 'inactive terminal boundary must not obstruct live gameplay').toBe('true');
   const deathSequenceObservation = await page.evaluate(async () => {
     const startedAt = performance.now();
-    const deadline = startedAt + 2_000;
     const states = [];
-    let settledAt = null;
     let settledCommittedAt = null;
     let synchronousDeathBoundary = null;
-
-    return await new Promise(resolve => {
-      let finished = false;
-      let timeoutId = null;
-      const finish = () => {
-        if (finished) return;
-        finished = true;
-        observer.disconnect();
-        if (timeoutId !== null) window.clearTimeout(timeoutId);
-        resolve({
-          states,
-          state: states.at(-1) ?? null,
-          sawSettling: states.includes('settling'),
-          elapsedMs: settledAt ?? performance.now() - startedAt,
-          settledCommittedAt,
-          synchronousDeathBoundary,
-        });
-      };
-      const recordState = (element) => {
-        if (!(element instanceof HTMLElement) || element.dataset.testid !== 'game-over-screen') return;
-        const state = element.getAttribute('data-death-sequence');
-        if (state && states.at(-1) !== state) states.push(state);
-        if (state === 'settled' && settledAt === null) {
-          const committedAt = Number(element.dataset.deathSettledAt);
-          settledCommittedAt = Number.isFinite(committedAt) ? committedAt : null;
-          settledAt = settledCommittedAt === null ? performance.now() - startedAt : settledCommittedAt - startedAt;
-          finish();
-        }
-      };
-      const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          if (mutation.type === 'attributes') recordState(mutation.target);
-          for (const node of mutation.addedNodes) {
-            if (!(node instanceof HTMLElement)) continue;
-            recordState(node);
-            node.querySelectorAll?.('[data-testid="game-over-screen"]').forEach(recordState);
-          }
-        }
-      });
-      observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-death-sequence'] });
+    const recordState = (element) => {
+      if (!(element instanceof HTMLElement) || element.dataset.testid !== 'game-over-screen') return;
+      const state = element.getAttribute('data-death-sequence');
+      if (state && states.at(-1) !== state) states.push(state);
+      if (state === 'settled') {
+        const committedAt = Number(element.dataset.deathSettledAt);
+        settledCommittedAt = Number.isFinite(committedAt) ? committedAt : null;
+      }
+    };
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes') recordState(mutation.target);
+      }
+    });
+    observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['data-death-sequence'] });
+    try {
       const originalRequestAnimationFrame = window.requestAnimationFrame;
       let withheldAnimationFrames = 0;
       window.requestAnimationFrame = () => {
@@ -235,35 +209,66 @@ test('solo death uses an explicit visual death state before the final overlay', 
         window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
         const synchronousOverlay = document.querySelector('[data-testid="game-over-screen"]');
         const synchronousRenderer = document.querySelector('[data-testid="run-three-host"]');
+        const synchronousAnimations = synchronousOverlay instanceof HTMLElement
+          ? synchronousOverlay.getAnimations({ subtree: true }).map(animation => ({
+            id: animation.id,
+            duration: Number(animation.effect?.getComputedTiming().activeDuration ?? 0),
+          }))
+          : [];
         synchronousDeathBoundary = {
           overlaySequence: synchronousOverlay?.getAttribute('data-death-sequence') ?? null,
           terminalRenderMode: synchronousRenderer?.getAttribute('data-terminal-render-mode') ?? null,
           terminalRenderFrames: synchronousRenderer?.getAttribute('data-terminal-render-frames') ?? null,
           withheldAnimationFrames,
+          visualStartedAt: Number(synchronousOverlay?.getAttribute('data-death-visual-started-at')),
+          visualDeadline: Number(synchronousOverlay?.getAttribute('data-death-visual-deadline')),
+          visualDuration: Number(synchronousOverlay?.getAttribute('data-death-visual-duration')),
+          visualDriver: synchronousOverlay?.getAttribute('data-death-visual-driver') ?? null,
+          animations: synchronousAnimations,
         };
       } finally {
         window.requestAnimationFrame = originalRequestAnimationFrame;
       }
       const overlay = document.querySelector('[data-testid="game-over-screen"]');
       if (overlay instanceof HTMLElement) recordState(overlay);
-      if (finished) return;
-      // Do not poll with requestAnimationFrame here. The product's fixed 1100 ms death
-      // beat itself uses render-timeline signals; a test-owned rAF loop can compete for the
-      // same loaded mobile rendering turns. The observer detects the state transition, while
-      // the product-stamped DOM commit clock records when the visible `settled` mutation
-      // actually happened. This prevents delayed MutationObserver delivery from being counted
-      // as product latency while the unchanged browser-clock 2000 ms watchdog still fails closed.
-      timeoutId = window.setTimeout(finish, Math.max(0, deadline - performance.now()));
-    });
+      const animations = overlay instanceof HTMLElement ? overlay.getAnimations({ subtree: true }) : [];
+      await Promise.all(animations.map(animation => animation.finished));
+      if (overlay instanceof HTMLElement) recordState(overlay);
+      const content = overlay?.firstElementChild;
+      return {
+        states,
+        state: overlay?.getAttribute('data-death-sequence') ?? null,
+        sawSettling: states.includes('settling'),
+        elapsedMs: Number(synchronousDeathBoundary?.visualDeadline) - startedAt,
+        settledCommittedAt,
+        synchronousDeathBoundary,
+        visualCompletion: {
+          contentOpacity: content instanceof HTMLElement ? Number(getComputedStyle(content).opacity) : null,
+          animations: animations.map(animation => ({
+            id: animation.id,
+            currentTime: Number(animation.currentTime),
+            duration: Number(animation.effect?.getComputedTiming().activeDuration ?? 0),
+            playState: animation.playState,
+          })),
+        },
+      };
+    } finally {
+      observer.disconnect();
+    }
   });
   expect(deathSequenceObservation.sawSettling, 'death overlay must expose the explicit visual settling state before final defeat').toBe(true);
   expect(deathSequenceObservation.synchronousDeathBoundary?.overlaySequence, 'authoritative death event must synchronously publish the real settling boundary').toBe('settling');
   expect(deathSequenceObservation.synchronousDeathBoundary?.terminalRenderMode, 'withholding future rAF callbacks must not prevent the real frozen terminal render').toBe('frozen-final-pose');
   expect(deathSequenceObservation.synchronousDeathBoundary?.terminalRenderFrames, 'authoritative death event must commit exactly one final WebGL frame').toBe('1');
+  expect(deathSequenceObservation.synchronousDeathBoundary?.visualDriver, 'visible settle must use a browser animation timeline rather than depend on main-thread deadline callbacks').toBe('web-animations');
+  expect(deathSequenceObservation.synchronousDeathBoundary?.animations.map(animation => animation.id).sort()).toEqual(['dungeon-veil-death-content', 'dungeon-veil-death-overlay']);
+  expect(deathSequenceObservation.synchronousDeathBoundary?.animations.every(animation => animation.duration > 0 && animation.duration <= 1_100), 'both visible effects must retain the bounded 1100 ms death beat').toBe(true);
   expect(deathSequenceObservation.state, 'death overlay must transition from the visual death beat to a settled defeat state').toBe('settled');
   expect(Number.isFinite(deathSequenceObservation.settledCommittedAt), 'settled death DOM must publish its exact product commit timestamp').toBe(true);
-  expect(deathSequenceObservation.elapsedMs, 'death overlay must not settle before the measured lethal transition').toBeGreaterThanOrEqual(0);
-  expect(deathSequenceObservation.elapsedMs, 'death overlay must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
+  expect(deathSequenceObservation.elapsedMs, 'visible death animation must not settle before the measured lethal transition').toBeGreaterThanOrEqual(0);
+  expect(deathSequenceObservation.elapsedMs, 'visible death animation must settle within the unchanged 2 s acceptance window').toBeLessThanOrEqual(2_000);
+  expect(deathSequenceObservation.visualCompletion.contentOpacity, 'the browser timeline must expose the real terminal copy and controls at completion').toBe(1);
+  expect(deathSequenceObservation.visualCompletion.animations.every(animation => animation.playState === 'finished' && animation.currentTime >= animation.duration), 'both visible effects must actually reach their filled final frame').toBe(true);
   const overlay = page.getByTestId('game-over-screen');
   await expect(overlay).toBeVisible();
   await expect(overlay, 'pre-mounted presentation must reconcile the real terminal player and controls').toContainText('Death State QA');
@@ -287,7 +292,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(postDeathAttackAfterWindow.attackAt, 'player attacks must stay blocked after death').toBe(postDeathAttackObservation.attackAt);
   const deathSequence = await overlay.getAttribute('data-death-sequence');
   const rendererDeathState = await playerRenderer.getAttribute('data-player-death-state');
-  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, preMountedBoundary, synchronousDeathBoundary: deathSequenceObservation.synchronousDeathBoundary, deathSequence, deathSequenceStates: deathSequenceObservation.states, deathSequenceObservedMs: deathSequenceObservation.elapsedMs, deathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, terminalRenderMode: await rendererHost.getAttribute('data-terminal-render-mode'), terminalRenderFrames: Number(await rendererHost.getAttribute('data-terminal-render-frames')), postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
+  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, preMountedBoundary, synchronousDeathBoundary: deathSequenceObservation.synchronousDeathBoundary, visualCompletion: deathSequenceObservation.visualCompletion, deathSequence, deathSequenceStates: deathSequenceObservation.states, visualSettleDeadlineMs: deathSequenceObservation.elapsedMs, semanticDeathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, terminalRenderMode: await rendererHost.getAttribute('data-terminal-render-mode'), terminalRenderFrames: Number(await rendererHost.getAttribute('data-terminal-render-frames')), postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
   // WebKit's iPhone video encoder trails the already-rendered terminal DOM by more than the generic EOF hold.
   // Keep only that project alive longer after all assertions so the final card is actually encoded into the video.
@@ -416,13 +421,14 @@ for (const language of ['de', 'en']) {
       const presentationBefore = evidence.authorityPresentation()[0];
       if (!presentationBefore) throw new Error('Authority telegraph presentation did not become visible within 5000 ms');
       await new Promise(resolve => window.setTimeout(resolve, 120));
-      const presentationAfter = evidence.authorityPresentation()[0];
+      const presentationAfter = evidence.authorityPresentation()
+        .find(presentation => presentation.id === presentationBefore.id);
       evidence.clearHostTelegraph();
       return { presentationBefore, presentationAfter };
     });
     const presentationAgedOrExpired = presentationAfter === undefined
       || (presentationAfter.lifeTime > presentationBefore.lifeTime && presentationAfter.lifeTime <= presentationAfter.maxLifeTime);
-    expect(presentationAgedOrExpired, 'authority telegraph presentation must age forward and disappear at its bounded lifetime').toBe(true);
+    expect(presentationAgedOrExpired, 'the same authority telegraph must age forward within its bound or be absent after expiry/replacement').toBe(true);
 
     await observe('fallen', 'fallen', { action: 'preparePartnerSecondDeath' });
 

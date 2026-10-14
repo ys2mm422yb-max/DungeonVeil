@@ -20,6 +20,7 @@ const [
   combatStage,
   gamePage,
   gameOverScreen,
+  playerDeathState,
 ] = await Promise.all([
   read('../playwright.regression.config.mjs'),
   read('../playwright.complete-runtime.config.mjs'),
@@ -30,6 +31,7 @@ const [
   read('../src/components/CombatStage.tsx'),
   read('../src/pages/game.tsx'),
   read('../src/components/screens/GameOverScreen.tsx'),
+  read('../tests/player-death-state.spec.mjs'),
 ]);
 
 const extractConfigProjects = source => {
@@ -113,10 +115,21 @@ const checks = [
     'terminal death still lets broad CombatStage reconciliation compete with the 1.1-second overlay priority window'],
   [gameOverScreen.includes('onSettled?: () => void')
     && gameOverScreen.includes('setDeathSequence(\'settled\');\n      onSettled?.();')
+    && gameOverScreen.includes("overlay.dataset.deathVisualDriver = 'web-animations'")
+    && gameOverScreen.includes("overlayAnimation.id = 'dungeon-veil-death-overlay'")
+    && gameOverScreen.includes("contentAnimation.id = 'dungeon-veil-death-content'")
+    && gameOverScreen.includes("{ duration: remaining, easing: 'ease-out', fill: 'both', iterations: 1 }")
+    && gameOverScreen.includes("{ opacity: 1, offset: 1 }")
     && !/content\.classList\.add\('pointer-events-none', 'opacity-0'\);\s*}\s*setPresented\(true\)/s.test(gameOverScreen)
     && gamePage.includes('() => setTerminalGameState(terminalSnapshot)')
     && !gamePage.includes('setTerminalGameState(terminalSnapshot);'),
     'terminal death still schedules React snapshot reconciliation inside the fixed 1.1-second visual priority window'],
+  [playerDeathState.includes("visualDriver, 'visible settle must use a browser animation timeline")
+    && playerDeathState.includes("visualCompletion.contentOpacity")
+    && playerDeathState.includes("toBeLessThanOrEqual(2_000)")
+    && playerDeathState.includes(".find(presentation => presentation.id === presentationBefore.id)")
+    && playerDeathState.includes('the same authority telegraph must age forward within its bound or be absent after expiry/replacement'),
+    'terminal-death compositor evidence or identity-aware telegraph expiry coverage is missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);

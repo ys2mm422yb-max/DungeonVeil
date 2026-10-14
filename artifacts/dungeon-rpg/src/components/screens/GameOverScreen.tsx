@@ -57,6 +57,10 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
     const content = contentRef.current;
     if (overlay) {
       delete overlay.dataset.deathSettledAt;
+      delete overlay.dataset.deathVisualStartedAt;
+      delete overlay.dataset.deathVisualDeadline;
+      delete overlay.dataset.deathVisualDuration;
+      delete overlay.dataset.deathVisualDriver;
       overlay.dataset.deathSequence = 'inactive';
       overlay.classList.add('hidden', 'pointer-events-none');
       overlay.classList.remove('bg-black/92', 'backdrop-blur-sm');
@@ -76,7 +80,7 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
     let settledOnce = false;
     let frame = 0;
     let timer: number | null = null;
-    let deadlineAnimation: Animation | null = null;
+    const visualAnimations: Animation[] = [];
     const deathBeatStartedAt = resolveDeathBeatStartedAt(deathBeatKey, transitionStartedAt);
     const deadline = deathBeatStartedAt + DEATH_BEAT_MS;
     const overlay = overlayRef.current;
@@ -138,30 +142,54 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
 
     const remaining = Math.max(0, deadline - performance.now());
 
+    // Start the player-visible transition synchronously at the authoritative boundary.
+    // Opacity and backdrop effects continue on the browser animation timeline even when a
+    // loaded WebKit main thread cannot deliver timers, rAF, or Promise callbacks on time.
+    // React still reconciles semantics after the beat, but it is no longer responsible for
+    // making the final card visible within the acceptance window.
+    if (overlay && content && remaining > 0 && overlay.animate && content.animate) {
+      const visualStartedAt = performance.now();
+      overlay.dataset.deathVisualStartedAt = String(visualStartedAt);
+      overlay.dataset.deathVisualDeadline = String(deadline);
+      overlay.dataset.deathVisualDuration = String(remaining);
+      overlay.dataset.deathVisualDriver = 'web-animations';
+
+      const overlayAnimation = overlay.animate(
+        [
+          { backgroundColor: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(0px)' },
+          { backgroundColor: 'rgba(0, 0, 0, 0.92)', backdropFilter: 'blur(4px)' },
+        ],
+        { duration: remaining, easing: 'ease-out', fill: 'both', iterations: 1 },
+      );
+      overlayAnimation.id = 'dungeon-veil-death-overlay';
+      const contentAnimation = content.animate(
+        [
+          { opacity: 0, offset: 0 },
+          { opacity: 0, offset: 0.55 },
+          { opacity: 1, offset: 1 },
+        ],
+        { duration: remaining, easing: 'ease-out', fill: 'both', iterations: 1 },
+      );
+      contentAnimation.id = 'dungeon-veil-death-content';
+      visualAnimations.push(overlayAnimation, contentAnimation);
+    }
+
     if (remaining === 0) {
-      queueMicrotask(settle);
+      settle();
     } else {
       timer = window.setTimeout(settle, remaining);
       frame = window.requestAnimationFrame(watchDeadline);
-
-      if (overlayRef.current?.animate) {
-        deadlineAnimation = overlayRef.current.animate(
-          [{ opacity: 1 }, { opacity: 1 }],
-          { duration: remaining, easing: 'linear', iterations: 1 },
-        );
-        void deadlineAnimation.finished.then(() => {
-          if (performance.now() >= deadline) settle();
-        }).catch(() => {
-          // Cancellation during unmount/retry is expected and must not create a late settle.
-        });
-      }
+      const visualDeadline = visualAnimations[0];
+      if (visualDeadline) void visualDeadline.finished.then(settle).catch(() => {
+        // Cancellation during unmount/retry is expected and must not create a late settle.
+      });
     }
 
     cancelDeadlineRef.current = () => {
       settledOnce = true;
       if (timer !== null) window.clearTimeout(timer);
       window.cancelAnimationFrame(frame);
-      deadlineAnimation?.cancel();
+      visualAnimations.forEach(animation => animation.cancel());
     };
   };
 
