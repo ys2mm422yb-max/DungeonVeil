@@ -20,6 +20,7 @@ const [
   combatStage,
   gamePage,
   gameOverScreen,
+  transientUiVisualQa,
   playerDeathState,
 ] = await Promise.all([
   read('../playwright.regression.config.mjs'),
@@ -31,6 +32,7 @@ const [
   read('../src/components/CombatStage.tsx'),
   read('../src/pages/game.tsx'),
   read('../src/components/screens/GameOverScreen.tsx'),
+  read('../src/components/TransientUiVisualQa.tsx'),
   read('../tests/player-death-state.spec.mjs'),
 ]);
 
@@ -120,10 +122,16 @@ const checks = [
     && gameOverScreen.includes("contentAnimation.id = 'dungeon-veil-death-content'")
     && gameOverScreen.includes("{ duration: remaining, easing: 'ease-out', fill: 'both', iterations: 1 }")
     && gameOverScreen.includes("{ opacity: 1, offset: 1 }")
+    && gameOverScreen.includes('const deathBeatStartedAtRef = useRef<number | null>(null)')
+    && gameOverScreen.includes('deathBeatStartedAtRef.current = null')
+    && !gameOverScreen.includes('deathBeatStartedAtByRun')
+    && transientUiVisualQa.includes('const presentationRef = useRef<GameOverScreenHandle | null>(null)')
+    && transientUiVisualQa.includes('presentationRef.current?.beginDeathPresentation(performance.now())')
+    && transientUiVisualQa.includes("view === 'gameover' && <GameOverQa gameState={gameState} />")
     && !/content\.classList\.add\('pointer-events-none', 'opacity-0'\);\s*}\s*setPresented\(true\)/s.test(gameOverScreen)
     && gamePage.includes('() => setTerminalGameState(terminalSnapshot)')
     && !gamePage.includes('setTerminalGameState(terminalSnapshot);'),
-    'terminal death still schedules React snapshot reconciliation inside the fixed 1.1-second visual priority window'],
+    'terminal death or transient QA bypasses the resettable real 1.1-second presentation boundary'],
   [playerDeathState.includes("visualDriver, 'visible settle must use a browser animation timeline")
     && playerDeathState.includes("visualCompletion.contentOpacity")
     && playerDeathState.includes("toBeLessThanOrEqual(2_000)")

@@ -14,26 +14,8 @@ export interface GameOverScreenHandle {
 }
 
 const DEATH_BEAT_MS = 1_100;
-const DEATH_BEAT_CACHE_TTL_MS = 60_000;
-
-const deathBeatStartedAtByRun = new Map<string, number>();
 
 type DeathSequence = 'settling' | 'settled';
-
-function resolveDeathBeatStartedAt(key: string, transitionStartedAt?: number): number {
-  const now = performance.now();
-  for (const [cachedKey, startedAt] of deathBeatStartedAtByRun) {
-    if (now - startedAt > DEATH_BEAT_CACHE_TTL_MS) deathBeatStartedAtByRun.delete(cachedKey);
-  }
-
-  const existing = deathBeatStartedAtByRun.get(key);
-  if (existing !== undefined) return existing;
-  const startedAt = Number.isFinite(transitionStartedAt) && Number(transitionStartedAt) > 0 && Number(transitionStartedAt) <= now
-    ? Number(transitionStartedAt)
-    : now;
-  deathBeatStartedAtByRun.set(key, startedAt);
-  return startedAt;
-}
 
 export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function GameOverScreen(
   { gameState, onRetry, onMainMenu },
@@ -41,18 +23,19 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
 ) {
   const { t } = useLanguage();
   const { player } = gameState;
-  const deathBeatKey = `${player.spawnTime}`;
   const [presented, setPresented] = useState(false);
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const settledAtRef = useRef<number | null>(null);
+  const deathBeatStartedAtRef = useRef<number | null>(null);
   const cancelDeadlineRef = useRef<(() => void) | null>(null);
 
   const resetDeathPresentation = () => {
     cancelDeadlineRef.current?.();
     cancelDeadlineRef.current = null;
     settledAtRef.current = null;
+    deathBeatStartedAtRef.current = null;
     const overlay = overlayRef.current;
     const content = contentRef.current;
     if (overlay) {
@@ -81,7 +64,12 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
     let frame = 0;
     let timer: number | null = null;
     const visualAnimations: Animation[] = [];
-    const deathBeatStartedAt = resolveDeathBeatStartedAt(deathBeatKey, transitionStartedAt);
+    const now = performance.now();
+    const deathBeatStartedAt = deathBeatStartedAtRef.current
+      ?? (Number.isFinite(transitionStartedAt) && Number(transitionStartedAt) > 0 && Number(transitionStartedAt) <= now
+        ? Number(transitionStartedAt)
+        : now);
+    deathBeatStartedAtRef.current = deathBeatStartedAt;
     const deadline = deathBeatStartedAt + DEATH_BEAT_MS;
     const overlay = overlayRef.current;
     const content = contentRef.current;

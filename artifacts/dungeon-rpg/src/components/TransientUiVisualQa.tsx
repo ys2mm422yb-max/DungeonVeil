@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LanguageProvider } from '../i18n/LanguageContext';
 import type { GameState } from '../game/runEngine';
 import { GamePausePanel } from './GamePausePanel';
 import { UnlockPresentationLayer } from './UnlockPresentationLayer';
 import { NewRunConfirmDialog } from './NewRunConfirmDialog';
-import { GameOverScreen } from './screens/GameOverScreen';
+import { GameOverScreen, type GameOverScreenHandle } from './screens/GameOverScreen';
 import { LevelUpScreen } from './screens/LevelUpScreen';
 
 type QaView = 'pause' | 'levelup' | 'gameover' | 'new-run' | 'unlock';
@@ -55,6 +55,23 @@ function QaBackdrop() {
     <div className="absolute bottom-[max(36px,env(safe-area-inset-bottom))] left-5 h-24 w-24 rounded-full border border-white/10 bg-black/28" />
     <div className="absolute bottom-[max(42px,env(safe-area-inset-bottom))] right-6 h-20 w-20 rounded-full border border-cyan-200/12 bg-cyan-400/[.06]" />
   </div>;
+}
+
+function GameOverQa({ gameState }: { gameState: GameState }) {
+  const presentationRef = useRef<GameOverScreenHandle | null>(null);
+
+  useLayoutEffect(() => {
+    // Exercise the same imperative boundary as the authoritative PLAYER_DEATH_EVENT path.
+    // A terminal snapshot alone intentionally leaves the pre-mounted overlay inactive.
+    presentationRef.current?.beginDeathPresentation(performance.now());
+  }, []);
+
+  return <GameOverScreen
+    ref={presentationRef}
+    gameState={{ ...gameState, status: 'gameover' } as GameState}
+    onRetry={() => {}}
+    onMainMenu={() => {}}
+  />;
 }
 
 function seedUnlockState() {
@@ -124,7 +141,7 @@ export function TransientUiVisualQa() {
         onRestartRoom={() => {}}
       />}
       {view === 'levelup' && <LevelUpScreen choices={['elementalStorm', 'maxHp', 'attackSpeed']} runSkills={gameState.runSkills} onSelect={() => {}} />}
-      {view === 'gameover' && <GameOverScreen gameState={{ ...gameState, status: 'gameover' } as any} onRetry={() => {}} onMainMenu={() => {}} />}
+      {view === 'gameover' && <GameOverQa gameState={gameState} />}
       {view === 'new-run' && <NewRunConfirmDialog language="de" chapter={3} room={24} onCancel={() => {}} onConfirm={() => {}} />}
       {view === 'unlock' && unlockReady && <UnlockPresentationLayer />}
     </div>

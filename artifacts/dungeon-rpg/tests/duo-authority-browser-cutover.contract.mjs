@@ -29,7 +29,28 @@ async function bridgeRuntime() {
   return server.ssrLoadModule('/src/components/CoopAuthorityRuntimeBridge.tsx');
 }
 
+async function fixtureRuntime() {
+  await runtime();
+  return server.ssrLoadModule('/src/game/runtimeDuoAuthorityFixture.ts');
+}
+
 after(async () => { await server?.close(); });
+
+test('runtime evidence rooms execute the real canonical fixture path with bounded builds', async () => {
+  const { RuntimeDuoAuthorityFixture } = await fixtureRuntime();
+  const fixture = new RuntimeDuoAuthorityFixture();
+
+  for (let room = 1; room <= 100; room += 1) {
+    fixture.loadEvidenceRoom(room);
+    const snapshot = fixture.snapshot();
+    assert.equal(snapshot.state.room, room);
+    assert.equal(snapshot.state.actors.length, 2);
+    for (const actor of snapshot.state.actors) {
+      assert.ok(actor.maxHp > 0 && actor.maxHp <= 10_000, `room ${room} maxHp escaped canonical bounds`);
+      assert.ok(actor.defense >= 0 && actor.defense <= 1_000, `room ${room} defense escaped canonical bounds`);
+    }
+  }
+});
 
 test('browser discovers its exact server-owned attempt through an actor-bound RPC', () => {
   assert.match(bindingMigration, /get_my_coop_authority_binding\(p_lobby_id uuid\)/i);

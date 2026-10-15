@@ -25,6 +25,8 @@ const LOBBY_ID = 'runtime-authority-fixture';
 const RUN_SEED = 424242;
 const HOST_ID = 'runtime-authority-host';
 const PARTNER_ID = 'runtime-authority-partner';
+const EVIDENCE_ACTOR_MAX_HP = 9_999;
+const EVIDENCE_ACTOR_DEFENSE = 1_000;
 
 function identity(actorId: string, maxHp: number, defense: number): CanonicalDuoActorIdentity {
   const combat = CANONICAL_CLASS_COMBAT_MANIFEST.archer;
@@ -275,7 +277,13 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
       room,
       seed: RUN_SEED,
       authorityStartedAtMs: this.serverNowMs,
-      actors: [identity(HOST_ID, 9_999, 5_000), identity(PARTNER_ID, 9_999, 5_000)],
+      // Keep the long-running evidence actors durable without bypassing the canonical
+      // server-owned build contract. The factory validates every snapshot and production
+      // authority intentionally rejects defense above 1,000.
+      actors: [
+        identity(HOST_ID, EVIDENCE_ACTOR_MAX_HP, EVIDENCE_ACTOR_DEFENSE),
+        identity(PARTNER_ID, EVIDENCE_ACTOR_MAX_HP, EVIDENCE_ACTOR_DEFENSE),
+      ],
     });
     this.serverNowMs += 1;
     this.apply(HOST_ID, 1, { kind: 'start-ack' }, this.serverNowMs);
