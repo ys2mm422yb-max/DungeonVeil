@@ -15,6 +15,7 @@ import {
   type RuntimeDuoAuthoritySnapshot,
 } from '../game/runtimeDuoAuthorityFixture';
 import { LanguageProvider } from '../i18n/LanguageContext';
+import { CHAPTER_ROOMS } from '../game/chapterRun';
 
 declare global {
   interface Window {
@@ -74,7 +75,10 @@ function RuntimeDuoEvidenceScene() {
     document.documentElement.dataset.dungeonVeilRunMode = 'duo';
     engine.onStateChange = () => setState(cloneState(engine));
     engine.startNewGame('Duo Host', 'archer');
-    attachRuntimeEvidenceEngine(engine);
+    attachRuntimeEvidenceEngine(engine, {
+      onLoadRoom: room => fixture.loadEvidenceRoom(room),
+      onKillLivingEnemies: () => fixture.completeEvidenceEncounter(),
+    });
     setState(cloneState(engine));
     window.__dungeonVeilDuoAuthorityEvidence = {
       preparePartnerDowned: () => fixture.preparePartnerDowned(),
@@ -158,7 +162,7 @@ function RuntimeDuoEvidenceScene() {
       className="pointer-events-auto absolute left-1/2 top-4 z-[95] -translate-x-1/2 rounded-xl border border-cyan-200/40 bg-black/80 px-4 py-3 text-[9px] font-black uppercase tracking-[.16em] text-cyan-50"
     >START AUTHORITY LIFECYCLE</button>}
     <div className="pointer-events-none absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-cyan-200/25 bg-black/72 px-4 py-2 text-[8px] font-black tracking-[.18em] text-cyan-100">
-      DUO AUTHORITY · {lifecyclePhase.toUpperCase()} · ROOM {state.floor}/50
+      DUO AUTHORITY · {lifecyclePhase.toUpperCase()} · ROOM {state.floor}/{CHAPTER_ROOMS}
     </div>
   </div>;
 }

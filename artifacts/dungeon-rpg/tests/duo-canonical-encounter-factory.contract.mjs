@@ -73,7 +73,7 @@ const identity = (modules, actorId, classKey, extra = {}) => ({
 });
 
 function findRepresentativeRoom({ boss, encounterPlan, chapterRun, roomSpawn3D }) {
-  for (let room = 1; room <= 50; room += 1) {
+  for (let room = 1; room <= 100; room += 1) {
     if (chapterRun.isBossRoom(room) !== boss) continue;
     const planLength = boss ? 1 : encounterPlan.getEncounterPlan(room).length;
     if (planLength > 0 && roomSpawn3D.getRoomSpawnPoints(room).length >= planLength) return room;

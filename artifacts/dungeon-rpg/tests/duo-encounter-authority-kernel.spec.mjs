@@ -83,6 +83,52 @@ test('canonical class manifest owns base attack, speed, size, range and cadence'
   }
 });
 
+test('storm rooms publish one canonical warning boundary, settle authority damage, and stop on completion', () => {
+  const awaiting = factory.createRoomBoundCanonicalEncounterState({
+    runId: 'storm-proof', runAttempt: 1, chapter: 1, room: 13, seed: 424242, authorityStartedAtMs: 1000,
+    actors: [{ actorId: 'host', classKey: 'warrior', ...buildIdentity('warrior') }],
+  });
+  const started = kernel.reduceAuthorityIntent(
+    awaiting,
+    { kind: 'start-ack', actorId: 'host', clientSeq: 1 },
+    1001,
+  ).state;
+  const parked = Object.freeze({
+    ...started,
+    enemies: Object.freeze(started.enemies.map(item => Object.freeze({ ...item, nextAttackAtMs: 10000 }))),
+  });
+  const warned = kernel.reduceAuthorityIntent(
+    parked,
+    { kind: 'sync', actorId: 'host', clientSeq: 2 },
+    2301,
+  ).state;
+  assert.equal(warned.runeStorm.active, true);
+  assert.equal(warned.runeStorm.ordinal, 1);
+  assert.equal(warned.runeStorm.strikeAtMs, 3201);
+  assert.equal(warned.actors[0].hp, warned.actors[0].maxHp);
+
+  const impacted = kernel.reduceAuthorityIntent(
+    warned,
+    { kind: 'sync', actorId: 'host', clientSeq: 3 },
+    3201,
+  ).state;
+  assert.ok(impacted.actors[0].hp < impacted.actors[0].maxHp);
+  assert.equal(impacted.runeStorm.strikeAtMs, null);
+
+  const dying = Object.freeze({
+    ...impacted,
+    enemies: Object.freeze(impacted.enemies.map(item => Object.freeze({ ...item, hp: 0 }))),
+  });
+  const completed = kernel.reduceAuthorityIntent(
+    dying,
+    { kind: 'sync', actorId: 'host', clientSeq: 4 },
+    3301,
+  ).state;
+  assert.equal(completed.completed, true);
+  assert.equal(completed.runeStorm.active, false);
+  assert.equal(completed.runeStorm.strikeAtMs, null);
+});
+
 test('authority enemy roles and boss profiles match the shipped browser combat contract', () => {
   assert.deepEqual(kernel.AUTHORITY_ENEMY_ARCHETYPES, {
     slime: 'skeleton', goblin: 'skeleton', skeleton: 'skeleton',

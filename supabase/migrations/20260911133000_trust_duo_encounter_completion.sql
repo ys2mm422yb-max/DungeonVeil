@@ -8,7 +8,7 @@ create table if not exists public.coop_trusted_encounter_completions (
   run_attempt integer not null check (run_attempt >= 1),
   run_seed bigint not null check (run_seed >= 0),
   chapter integer not null check (chapter >= 1),
-  room integer not null check (room between 1 and 50),
+  room integer not null check (room between 1 and 100),
   authority_version text not null check (length(btrim(authority_version)) between 1 and 80),
   final_state_seq bigint not null check (final_state_seq >= 0),
   completion_digest text not null check (completion_digest ~ '^[0-9a-f]{64}$'),
@@ -79,7 +79,7 @@ begin
   if p_run_attempt is null or p_run_attempt < 1 then raise exception 'invalid run attempt'; end if;
   if p_run_seed is null or p_run_seed < 0 then raise exception 'invalid run seed'; end if;
   if p_chapter is null or p_chapter < 1 then raise exception 'invalid chapter'; end if;
-  if p_room is null or p_room < 1 or p_room > 50 then raise exception 'invalid room'; end if;
+  if p_room is null or p_room < 1 or p_room > 100 then raise exception 'invalid room'; end if;
   if p_authority_version is null or length(btrim(p_authority_version)) not between 1 and 80 then
     raise exception 'invalid authority version';
   end if;
@@ -250,7 +250,7 @@ declare
 begin
   if v_user_id is null then raise exception 'authentication required'; end if;
   if p_lobby_id is null then raise exception 'lobby required'; end if;
-  if p_room not in (10, 20, 30, 40, 50) then raise exception 'boss room required'; end if;
+  if p_room not in (10, 20, 30, 40, 50, 60, 70, 80, 90, 100) then raise exception 'boss room required'; end if;
   if p_chapter is null or p_chapter < 1 or p_run_seed is null or p_run_seed < 0 then
     raise exception 'invalid run context';
   end if;
@@ -295,6 +295,11 @@ begin
       when 30 then 2200
       when 40 then 2500
       when 50 then 4200
+      when 60 then 1800
+      when 70 then 2000
+      when 80 then 2200
+      when 90 then 2500
+      when 100 then 4200
       else 0
     end;
     v_drop_available := mod(
@@ -333,11 +338,11 @@ begin
         from catalog
         where catalog.unlock_chapter <= p_chapter
           and (
-            p_room = 50
-            or (p_room = 10 and catalog.source = 'forge')
-            or (p_room = 20 and catalog.source = 'ritual')
-            or (p_room = 30 and catalog.source = 'warden')
-            or (p_room = 40 and catalog.source = 'depth')
+            p_room in (50, 100)
+            or (p_room in (10, 60) and catalog.source = 'forge')
+            or (p_room in (20, 70) and catalog.source = 'ritual')
+            or (p_room in (30, 80) and catalog.source = 'warden')
+            or (p_room in (40, 90) and catalog.source = 'depth')
           )
       )
       select count(*)::integer into v_item_count from eligible;
@@ -378,11 +383,11 @@ begin
           from catalog
           where catalog.unlock_chapter <= p_chapter
             and (
-              p_room = 50
-              or (p_room = 10 and catalog.source = 'forge')
-              or (p_room = 20 and catalog.source = 'ritual')
-              or (p_room = 30 and catalog.source = 'warden')
-              or (p_room = 40 and catalog.source = 'depth')
+              p_room in (50, 100)
+              or (p_room in (10, 60) and catalog.source = 'forge')
+              or (p_room in (20, 70) and catalog.source = 'ritual')
+              or (p_room in (30, 80) and catalog.source = 'warden')
+              or (p_room in (40, 90) and catalog.source = 'depth')
             )
           order by catalog.item_id
         )

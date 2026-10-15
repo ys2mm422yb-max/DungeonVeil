@@ -7,6 +7,8 @@ import { createServer } from 'vite';
 const service = fs.readFileSync(new URL('../../../supabase/functions/duo-authority/service.ts', import.meta.url), 'utf8');
 const entry = fs.readFileSync(new URL('../../../supabase/functions/duo-authority/index.ts', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../../../supabase/migrations/20261003142500_connect_duo_authority_completion.sql', import.meta.url), 'utf8');
+const bootstrapMigration = fs.readFileSync(new URL('../../../supabase/migrations/20261003052000_add_duo_authority_bootstrap.sql', import.meta.url), 'utf8');
+const trustedCompletionMigration = fs.readFileSync(new URL('../../../supabase/migrations/20260911133000_trust_duo_encounter_completion.sql', import.meta.url), 'utf8');
 const lifecycleMigration = fs.readFileSync(new URL('../../../supabase/migrations/20261008001000_complete_duo_authority_lifecycle.sql', import.meta.url), 'utf8');
 const edgeConfig = fs.readFileSync(new URL('../../../supabase/config.toml', import.meta.url), 'utf8');
 const denoConfig = JSON.parse(fs.readFileSync(new URL('../../../supabase/functions/duo-authority/deno.json', import.meta.url), 'utf8'));
@@ -118,12 +120,19 @@ test('completion recording is atomic, zero-enemy guarded and marks terminal auth
 test('encounter advance is service-only and derives progression from exact durable proof', () => {
   assert.match(migration, /create or replace function public\.advance_coop_authority_encounter/i);
   assert.match(migration, /security definer\s+set search_path = ''/i);
-  assert.match(migration, /v_run\.room = 50[\s\S]*v_next_chapter := v_run\.chapter \+ 1/i);
+  assert.match(migration, /v_run\.room = 100[\s\S]*v_next_chapter := v_run\.chapter \+ 1/i);
   assert.match(migration, /from public\.coop_trusted_encounter_completions as proof/i);
   assert.match(migration, /proof\.completion_digest = v_run\.canonical_snapshot_digest/i);
   assert.match(migration, /revoke all on function public\.advance_coop_authority_encounter\([\s\S]*from public, anon, authenticated/i);
   const body = service.match(/type AdvanceBody = \{([^}]+)\}/)?.[1] ?? '';
   assert.doesNotMatch(body, /\b(?:chapter|room|seed|nextRoom)\??\s*:/);
+});
+
+test('authority persistence and rewards cover the complete 100-room chapter contract', () => {
+  assert.match(bootstrapMigration, /room integer not null default 1 check \(room between 1 and 100\)/i);
+  assert.match(trustedCompletionMigration, /room integer not null check \(room between 1 and 100\)/i);
+  assert.match(trustedCompletionMigration, /p_room > 100/i);
+  assert.match(trustedCompletionMigration, /10, 20, 30, 40, 50, 60, 70, 80, 90, 100/i);
 });
 
 test('real producer ignores forged authority fields and persists a canonical actor-bound transition', async () => {

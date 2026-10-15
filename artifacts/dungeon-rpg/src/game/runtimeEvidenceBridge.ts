@@ -36,6 +36,11 @@ type RuntimeEvidenceApi = {
   setLivingEnemyFamilies: (families: string[]) => Record<string, unknown> | null;
 };
 
+type RuntimeEvidenceHooks = Readonly<{
+  onLoadRoom?: (room: number) => void;
+  onKillLivingEnemies?: () => void;
+}>;
+
 declare global {
   interface Window {
     __dungeonVeilRuntimeEvidence?: RuntimeEvidenceApi;
@@ -45,6 +50,7 @@ declare global {
 let currentEngine: GameEngine | null = null;
 let installed = false;
 let terminalDeathTransitionArm: TerminalDeathTransitionArm | null = null;
+let evidenceHooks: RuntimeEvidenceHooks = {};
 
 function allowed(): boolean {
   if (typeof window === 'undefined') return false;
@@ -217,6 +223,7 @@ function attachApi(): void {
       engine.state.player.defense = 5_000;
       engine.state.status = 'playing';
       engine.lastTime = performance.now();
+      evidenceHooks.onLoadRoom?.(room);
       emit(engine);
       if (!roomChanges) {
         document.documentElement.dataset.dungeonVeilRoomBuildState = 'ready';
@@ -229,6 +236,7 @@ function attachApi(): void {
     killLivingEnemies: () => {
       const engine = currentEngine;
       if (!engine) return null;
+      evidenceHooks.onKillLivingEnemies?.();
       for (const enemy of engine.state.enemies) {
         if (!enemy.isDead && enemy.hp > 0) enemy.hp = 0;
       }
@@ -369,9 +377,10 @@ function attachApi(): void {
   };
 }
 
-export function attachRuntimeEvidenceEngine(engine: GameEngine): void {
+export function attachRuntimeEvidenceEngine(engine: GameEngine, hooks: RuntimeEvidenceHooks = {}): void {
   if (!allowed()) return;
   currentEngine = engine;
+  evidenceHooks = hooks;
   attachApi();
 }
 

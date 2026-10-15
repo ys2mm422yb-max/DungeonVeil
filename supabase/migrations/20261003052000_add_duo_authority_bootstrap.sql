@@ -30,7 +30,7 @@ create table if not exists private.coop_authority_runs (
   run_attempt integer not null check (run_attempt between 1 and 1000000),
   run_seed bigint not null check (run_seed >= 0),
   chapter integer not null default 1 check (chapter >= 1),
-  room integer not null default 1 check (room between 1 and 50),
+  room integer not null default 1 check (room between 1 and 100),
   encounter_id uuid not null default gen_random_uuid(),
   state_version bigint not null default 0 check (state_version >= 0),
   authority_version text not null default 'duo-authority-bootstrap-v1',

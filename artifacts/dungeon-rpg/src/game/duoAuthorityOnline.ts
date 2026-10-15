@@ -1,4 +1,5 @@
 import type { CanonicalEncounterState } from './duoEncounterAuthorityKernel';
+import { CHAPTER_ROOMS } from './chapterRun';
 import { authenticatedSupabaseFunction, authenticatedSupabaseRest } from './supabaseOnline';
 
 export type DuoAuthorityBinding = Readonly<{
@@ -173,7 +174,7 @@ export async function readCompletedDuoAuthorityEncounter(
   if (!state || !state.completed || state.lifecycle !== 'completed' || state.enemies.some(enemy => enemy.hp > 0)) {
     throw new Error('Raumabschluss wurde vom Duo-Server noch nicht bestätigt.');
   }
-  if (!state.encounterId || state.chapter < 1 || state.room < 1 || state.room > 50) {
+  if (!state.encounterId || state.chapter < 1 || state.room < 1 || state.room > CHAPTER_ROOMS) {
     throw new Error('Ungültiger bestätigter Duo-Raumabschluss.');
   }
   return state;

@@ -16,13 +16,17 @@ import type {
   DuoAuthorityState,
   DuoAuthorityTransition,
 } from './duoAuthorityOnline';
+import {
+  createRoomBoundCanonicalEncounterState,
+  type CanonicalDuoActorIdentity,
+} from './duoCanonicalEncounterFactory';
 
 const LOBBY_ID = 'runtime-authority-fixture';
 const RUN_SEED = 424242;
 const HOST_ID = 'runtime-authority-host';
 const PARTNER_ID = 'runtime-authority-partner';
 
-function actor(actorId: string, spawnX: number, maxHp: number, defense: number): AuthorityActorInput {
+function identity(actorId: string, maxHp: number, defense: number): CanonicalDuoActorIdentity {
   const combat = CANONICAL_CLASS_COMBAT_MANIFEST.archer;
   return {
     actorId,
@@ -44,9 +48,11 @@ function actor(actorId: string, spawnX: number, maxHp: number, defense: number):
       attackCooldownMs: combat.attackCooldownMs,
       skillCooldownMs: combat.skillCooldownMs,
     },
-    spawnX,
-    spawnY: 120,
   };
+}
+
+function actor(actorId: string, spawnX: number, maxHp: number, defense: number): AuthorityActorInput {
+  return { ...identity(actorId, maxHp, defense), spawnX, spawnY: 120 };
 }
 
 function createFixtureState(authorityStartedAtMs: number): CanonicalEncounterState {
@@ -257,6 +263,41 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
 
   clearHostTelegraph(): void {
     this.parkEnemy();
+  }
+
+  loadEvidenceRoom(room: number): void {
+    if (!Number.isInteger(room) || room < 1 || room > 100) throw new Error('Runtime authority evidence room is invalid');
+    this.serverNowMs += 1;
+    this.state = createRoomBoundCanonicalEncounterState({
+      runId: LOBBY_ID,
+      runAttempt: 1,
+      chapter: 1,
+      room,
+      seed: RUN_SEED,
+      authorityStartedAtMs: this.serverNowMs,
+      actors: [identity(HOST_ID, 9_999, 5_000), identity(PARTNER_ID, 9_999, 5_000)],
+    });
+    this.serverNowMs += 1;
+    this.apply(HOST_ID, 1, { kind: 'start-ack' }, this.serverNowMs);
+    this.serverNowMs += 1;
+    this.apply(PARTNER_ID, 1, { kind: 'start-ack' }, this.serverNowMs);
+    this.parkEnemy();
+    this.lastWallMs = performance.now();
+  }
+
+  completeEvidenceEncounter(): void {
+    if (this.state.completed) return;
+    this.state = Object.freeze({
+      ...this.state,
+      version: this.state.version + 1,
+      enemies: Object.freeze(this.state.enemies.map(enemy => Object.freeze({ ...enemy, hp: 0 }))),
+      runeStorm: Object.freeze({ ...this.state.runeStorm, active: false, strikeAtMs: null }),
+      completed: true,
+      lifecycle: 'completed',
+    });
+    if (!this.completionProofLedger.includes(this.state.encounterId)) {
+      this.completionProofLedger.push(this.state.encounterId);
+    }
   }
 
   preparePartnerDowned(): void {

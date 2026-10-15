@@ -193,7 +193,7 @@ begin
     raise exception 'exact trusted completion proof required';
   end if;
 
-  if v_run.room = 50 then
+  if v_run.room = 100 then
     v_next_chapter := v_run.chapter + 1;
     v_next_room := 1;
   else

@@ -134,6 +134,12 @@ test('live Duo gameplay routes through the canonical authority bridge, not host-
   assert.match(gamePage, /Promise\.allSettled\(\[/);
 });
 
+test('browser authority validation and reconciliation share the 100-room chapter constant', () => {
+  assert.match(browserClient, /import \{ CHAPTER_ROOMS \} from '\.\/chapterRun'/);
+  assert.match(browserClient, /state\.room > CHAPTER_ROOMS/);
+  assert.match(authorityBridge, /liveEngine\.state\.floor === CHAPTER_ROOMS/);
+});
+
 test('mounted bridge catches up with sync before retrying an automatic action', async () => {
   const { submitAuthorityIntentWithCatchUpRecovery } = await bridgeRuntime();
   const calls = [];

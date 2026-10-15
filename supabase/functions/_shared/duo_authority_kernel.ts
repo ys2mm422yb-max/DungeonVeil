@@ -201,6 +201,15 @@ export type AuthorityEnemyState = Readonly<{
   spawnedAtMs: number;
 }>;
 
+export type AuthorityRuneStormState = Readonly<{
+  active: boolean;
+  nextStrikeAtMs: number;
+  strikeAtMs: number | null;
+  strikeX: number;
+  strikeY: number;
+  ordinal: number;
+}>;
+
 export type CanonicalEncounterState = Readonly<{
   runId: string;
   runAttempt: number;
@@ -211,6 +220,7 @@ export type CanonicalEncounterState = Readonly<{
   version: number;
   actors: readonly AuthorityActor[];
   enemies: readonly AuthorityEnemyState[];
+  runeStorm: AuthorityRuneStormState;
   lastClientSeqByActor: Readonly<Record<string, number>>;
   completed: boolean;
   authorityNowMs: number;
@@ -580,7 +590,11 @@ function advanceSimulationStep(
   state: CanonicalEncounterState,
   stepNowMs: number,
   stepMs: number,
-): Pick<CanonicalEncounterState, 'actors' | 'enemies' | 'lifecycle' | 'completed'> & Readonly<{ telegraphStarted: boolean; attackSettled: boolean }> {
+): Pick<CanonicalEncounterState, 'actors' | 'enemies' | 'runeStorm' | 'lifecycle' | 'completed'> & Readonly<{
+  telegraphStarted: boolean;
+  attackSettled: boolean;
+  hazardBoundary: boolean;
+}> {
   let actors = state.actors.map(actor => ({
     ...actor,
     lifeState: actor.lifeState === 'downed' && actor.downedAtMs !== null
@@ -589,6 +603,47 @@ function advanceSimulationStep(
   const enemies = state.enemies.map(enemy => ({ ...enemy }));
   let telegraphStarted = false;
   let attackSettled = false;
+  let hazardBoundary = false;
+  let runeStorm = { ...state.runeStorm };
+
+  if (runeStorm.active) {
+    if (runeStorm.strikeAtMs !== null && stepNowMs >= runeStorm.strikeAtMs) {
+      actors = actors.map(actor => {
+        if (!actor.active || actor.lifeState !== 'alive' || stepNowMs <= actor.invulnerableUntilMs) return actor;
+        const centerX = actor.x + actor.width / 2;
+        const centerY = actor.y + actor.height / 2;
+        if (Math.hypot(centerX - runeStorm.strikeX, centerY - runeStorm.strikeY) > 70) return actor;
+        const hp = Math.max(0, actor.hp - Math.min(24, 8 + Math.floor(state.room * 0.55)));
+        return {
+          ...actor,
+          hp,
+          lifeState: hp <= 0 ? (actor.revivesUsed >= 1 ? 'fallen' as const : 'downed' as const) : actor.lifeState,
+          downedAtMs: hp <= 0 ? stepNowMs : actor.downedAtMs,
+          reviveTargetActorId: null,
+          reviveStartedAtMs: null,
+        };
+      });
+      runeStorm = {
+        ...runeStorm,
+        strikeAtMs: null,
+        nextStrikeAtMs: stepNowMs + 4600,
+      };
+      hazardBoundary = true;
+    } else if (runeStorm.strikeAtMs === null && stepNowMs >= runeStorm.nextStrikeAtMs) {
+      const target = actors.filter(actor => actor.active && actor.lifeState === 'alive')
+        .slice().sort((left, right) => left.actorId.localeCompare(right.actorId))[0];
+      if (target) {
+        runeStorm = {
+          ...runeStorm,
+          strikeAtMs: stepNowMs + 900,
+          strikeX: target.x + target.width / 2,
+          strikeY: target.y + target.height / 2,
+          ordinal: runeStorm.ordinal + 1,
+        };
+        hazardBoundary = true;
+      }
+    }
+  }
   const settlingAttackBoundaryId = enemies
     .filter(enemy => {
       if (enemy.hp <= 0 || enemy.attackPhase !== 'telegraph') return false;
@@ -686,10 +741,16 @@ function advanceSimulationStep(
       bossPhase: enemy.enemyType === 'boss' && enemy.hp <= enemy.maxHp / 3 ? 3
         : enemy.enemyType === 'boss' && enemy.hp <= enemy.maxHp * 2 / 3 ? 2 : 1,
     }))),
+    runeStorm: Object.freeze(completed ? {
+      ...runeStorm,
+      active: false,
+      strikeAtMs: null,
+    } : runeStorm),
     completed,
     lifecycle: completed ? 'completed' : teamDefeated ? 'team-defeated' : state.lifecycle,
     telegraphStarted,
     attackSettled,
+    hazardBoundary,
   };
 }
 
@@ -706,13 +767,13 @@ export function advanceCanonicalSimulation(state: CanonicalEncounterState, autho
   for (let cursor = firstSimulationAtMs; cursor < simulatedUntil;) {
     const next = Math.min(simulatedUntil, cursor + MAX_AUTHORITY_SIMULATION_STEP_MS);
     const step = advanceSimulationStep(advanced, next, next - cursor);
-    const { telegraphStarted, attackSettled, ...stateStep } = step;
+    const { telegraphStarted, attackSettled, hazardBoundary, ...stateStep } = step;
     advanced = Object.freeze({ ...advanced, ...stateStep, authorityNowMs: next });
     cursor = next;
     // Persist exactly one outcome boundary per version. A transition may either
     // announce a future attack or settle one announced by an earlier version,
     // never create and resolve an attack invisibly in the same request.
-    if (telegraphStarted || attackSettled) break;
+    if (telegraphStarted || attackSettled || hazardBoundary) break;
     if (advanced.lifecycle !== 'running') break;
   }
   return advanced;
@@ -963,6 +1024,14 @@ export function createCanonicalEncounterState(input: CreateCanonicalEncounterInp
     version: 0,
     actors: Object.freeze(actors),
     enemies: Object.freeze(enemies),
+    runeStorm: Object.freeze({
+      active: input.room === 13 || input.room === 16 || input.room === 19,
+      nextStrikeAtMs: input.authorityStartedAtMs,
+      strikeAtMs: null,
+      strikeX: 0,
+      strikeY: 0,
+      ordinal: 0,
+    }),
     lastClientSeqByActor: Object.freeze({}),
     completed: false,
     authorityNowMs: input.authorityStartedAtMs,
@@ -1017,6 +1086,10 @@ export function reduceAuthorityIntent(
         lastClientSeqByActor,
         actors: forecastActors,
         enemies: Object.freeze(enemies),
+        runeStorm: Object.freeze({
+          ...currentState.runeStorm,
+          nextStrikeAtMs: authorityStartedAtMs ?? currentState.runeStorm.nextStrikeAtMs,
+        }),
       }),
       event: null,
     });

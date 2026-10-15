@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { TILE_SIZE, TileType } from '../game/dungeon';
+import { CHAPTER_ROOMS } from '../game/chapterRun';
 import type { Enemy } from '../game/entities';
 import type { GameEngine } from '../game/runEngine';
 import type { DuoRunContext } from '../game/coopRunMode';
@@ -225,7 +226,8 @@ function project(engine: GameEngine, state: CanonicalEncounterState, localActor:
   }
   engine.state.enemies = state.enemies.filter(enemy => enemy.hp > 0).map(enemy => enemyView(enemy, previous.get(enemy.enemyId)));
   engine.state.effects = [
-    ...engine.state.effects.filter(effect => !effect.id.startsWith('authority-telegraph-')),
+    ...engine.state.effects.filter(effect => !effect.id.startsWith('authority-telegraph-')
+      && !effect.id.startsWith('rune-warning-authority-')),
     ...state.enemies.filter(enemy => enemy.hp > 0 && enemy.attackPhase === 'telegraph').map(enemy => ({
       id: `authority-telegraph-${enemy.telegraphKey}`,
       x: enemy.x + enemy.width / 2,
@@ -238,6 +240,18 @@ function project(engine: GameEngine, state: CanonicalEncounterState, localActor:
       type: 'circle' as const,
       element: enemy.attackElement,
     })),
+    ...(state.runeStorm.active && state.runeStorm.strikeAtMs !== null && !state.completed ? [{
+      id: `rune-warning-authority-${state.runeStorm.ordinal}`,
+      x: state.runeStorm.strikeX,
+      y: state.runeStorm.strikeY,
+      radius: Math.max(0, 70 * (state.authorityNowMs - (state.runeStorm.strikeAtMs - 900)) / 900),
+      maxRadius: 70,
+      color: '#c2a2ff',
+      lifeTime: Math.max(0, state.authorityNowMs - (state.runeStorm.strikeAtMs - 900)),
+      maxLifeTime: 900,
+      type: 'circle' as const,
+      element: 'arcane' as const,
+    }] : []),
   ];
   if (engine.state.damageNumbers.length > 32) engine.state.damageNumbers.splice(0, engine.state.damageNumbers.length - 32);
   engine.state.roomClearReady = state.completed && state.lifecycle === 'completed' && engine.state.enemies.length === 0;
@@ -327,8 +341,8 @@ export const CoopAuthorityRuntimeBridge = forwardRef<CoopAuthorityRuntimeBridgeH
         const actor = state.actors.find(candidate => candidate.actorId === userId);
         if (!actor) throw new Error('Duo-Akteur ist nicht an den Authority-Zustand gebunden.');
         if (liveEngine.state.chapter !== state.chapter || liveEngine.state.floor !== state.room) {
-          const nextRoom = liveEngine.state.floor === 50 ? 1 : liveEngine.state.floor + 1;
-          const nextChapter = liveEngine.state.floor === 50 ? liveEngine.state.chapter + 1 : liveEngine.state.chapter;
+          const nextRoom = liveEngine.state.floor === CHAPTER_ROOMS ? 1 : liveEngine.state.floor + 1;
+          const nextChapter = liveEngine.state.floor === CHAPTER_ROOMS ? liveEngine.state.chapter + 1 : liveEngine.state.chapter;
           if (state.room !== nextRoom || state.chapter !== nextChapter) throw new Error('Kanonischer Raumfortschritt ist nicht zusammenhängend.');
           liveEngine.state.enemies = [];
           liveEngine.state.roomClearReady = true;
