@@ -158,6 +158,7 @@ async function observeDuoUi(page, expected, {
 test('solo death uses an explicit visual death state before the final overlay', async ({ page }, testInfo) => {
   await openMenu(page, testInfo.project.name);
   await startFreshRun(page);
+  await expect(page.getByTestId('run-three-host'), 'starvation proof requires the real KayKit player rig before lethal input').toHaveAttribute('data-run-renderer-ready', 'true');
   const capability = await page.evaluate(() => ({
     prepareTerminalDeathEvidence: typeof window.__dungeonVeilRuntimeEvidence?.prepareTerminalDeathEvidence === 'function',
     forcePlayerDeath: typeof window.__dungeonVeilRuntimeEvidence?.forcePlayerDeath === 'function',

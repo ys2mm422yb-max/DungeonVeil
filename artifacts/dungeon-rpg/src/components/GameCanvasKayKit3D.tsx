@@ -1124,6 +1124,10 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
       scene.add(playerRig.root);
       clock = new THREE.Clock();
       resize();
+      // Terminal evidence and real input may only require a frozen pose once the authored
+      // ranger rig actually exists. Publish readiness at that exact product boundary rather
+      // than treating canvas allocation as a usable renderer.
+      host.dataset.runRendererReady = 'true';
       renderLoop();
     };
 
@@ -1138,6 +1142,7 @@ export function GameCanvasKayKit3D({ gameState }: { gameState: GameState }) {
     boot().catch(error => console.error('KayKit run renderer failed', error));
     return () => {
       disposed = true;
+      delete host.dataset.runRendererReady;
       roomGeneration += 1;
       clearRoomPaintState();
       cancelAnimationFrame(raf);

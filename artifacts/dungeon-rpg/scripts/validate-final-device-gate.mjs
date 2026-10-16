@@ -18,6 +18,7 @@ const [
   completeRuntimeWorkflow,
   pagesWorkflow,
   combatStage,
+  gameCanvas,
   runEngine,
   runtimeEvidenceBridge,
   gamePage,
@@ -32,6 +33,7 @@ const [
   read('../../../.github/workflows/complete-runtime-evidence-qa.yml'),
   read('../../../.github/workflows/dungeon-veil-pages.yml'),
   read('../src/components/CombatStage.tsx'),
+  read('../src/components/GameCanvasKayKit3D.tsx'),
   read('../src/game/runEngine.ts'),
   read('../src/game/runtimeEvidenceBridge.ts'),
   read('../src/pages/game.tsx'),
@@ -139,6 +141,8 @@ const checks = [
     && gamePage.includes('() => setTerminalGameState(terminalSnapshot)')
     && gamePage.includes('engine.onLethalTransition = transitionStartedAt =>')
     && gamePage.includes('presentationRef.current?.completeDeathPresentation(() => setTerminalGameState(terminalSnapshot))')
+    && gameCanvas.includes("host.dataset.runRendererReady = 'true'")
+    && playerDeathState.includes("toHaveAttribute('data-run-renderer-ready', 'true')")
     && runEngine.includes('this.onLethalTransition(transitionStartedAt);\n    this.state.status = \'gameover\';\n    this.emit();')
     && runtimeEvidenceBridge.includes('forcePlayerDeathWithStarvedTerminalEmit: (delayMs = 1_250) => forcePlayerDeath(delayMs)')
     && !gamePage.includes('setTerminalGameState(terminalSnapshot);'),
