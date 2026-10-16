@@ -50,7 +50,7 @@ const RUN_ENTRY_PRELOAD_DEADLINE_MS = 8_000;
 type UiState = 'lang_select' | 'main_menu' | 'run_name' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
 type MoveVector = { x: number; y: number };
 type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
-type PlayerDeathEventDetail = { dead?: boolean; gameState?: GameState };
+type PlayerDeathEventDetail = { dead?: boolean; gameState?: GameState; transitionStartedAt?: number };
 
 function normalizeMove({ x, y }: MoveVector): MoveVector {
   const length = Math.hypot(x, y);
@@ -167,14 +167,16 @@ function TerminalDeathOverlay({ gameState, onRetry, onMainMenu }: { gameState: G
         return;
       }
       const terminalSnapshot = detail.gameState;
+      const transitionStartedAt = Number(detail.transitionStartedAt);
+      if (Number.isFinite(transitionStartedAt) && transitionStartedAt > 0) {
+        presentationRef.current?.beginDeathPresentation(transitionStartedAt);
+      }
       if (terminalSnapshot) {
-        // The pre-mounted presentation owns the entire fixed death beat imperatively. Defer
-        // React's snapshot reconciliation until that boundary has settled so loaded WebKit
-        // cannot spend the deadline window rendering terminal copy that is already present.
-        presentationRef.current?.beginDeathPresentation(
-          terminalSnapshot.player.lastHitTime,
-          () => setTerminalGameState(terminalSnapshot),
-        );
+        // The engine publishes the authoritative lethal clock before its synchronous
+        // terminal emit. This call is an idempotent fallback for non-engine producers; the
+        // real snapshot is reconciled separately only after the already-running beat settles.
+        presentationRef.current?.beginDeathPresentation(terminalSnapshot.player.lastHitTime);
+        presentationRef.current?.completeDeathPresentation(() => setTerminalGameState(terminalSnapshot));
       }
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handleDeathState);
@@ -257,6 +259,11 @@ export default function Game() {
     let cancelled = false;
     engineRef.current = engine;
     originalSaveNowRef.current = engine.saveNow.bind(engine);
+    engine.onLethalTransition = transitionStartedAt => {
+      window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, {
+        detail: { dead: true, transitionStartedAt },
+      }));
+    };
     engine.onStateChange = state => {
       const live = engine.state;
       prepareGiftChoices(live);
@@ -277,7 +284,9 @@ export default function Game() {
       // terminal snapshot through the existing death event, so loaded mobile runtimes do
       // not need to reconcile this large parent tree before the fixed 1100 ms beat can run.
       if (live.status === 'gameover') {
-        window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true, gameState: nextState } }));
+        window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, {
+          detail: { dead: true, gameState: nextState, transitionStartedAt: live.player.lastHitTime },
+        }));
         return;
       }
       setGameState(nextState);

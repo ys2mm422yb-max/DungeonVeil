@@ -85,6 +85,7 @@ export class GameEngine {
 
   input = { joyX: 0, joyY: 0, attack: false, skill: false, dodge: false, interact: false };
   onStateChange: (state: RunGameState) => void = () => {};
+  onLethalTransition: (transitionStartedAt: number) => void = () => {};
 
   constructor() {
     const map = generateRunRoom(1);
@@ -247,6 +248,15 @@ export class GameEngine {
 
   private enterGameOverIfLethal(): boolean {
     if (this.state.player.hp > 0) return false;
+    const recordedHitTime = Number(this.state.player.lastHitTime);
+    const transitionStartedAt = Number.isFinite(recordedHitTime) && recordedHitTime > 0
+      ? recordedHitTime
+      : performance.now();
+    // Publish the authoritative lethal boundary before cloning/emitting the terminal
+    // snapshot. The emit is intentionally synchronous and can take longer than the visual
+    // beat on a loaded mobile WebKit main thread; presentation must already be owned by the
+    // browser timeline while that work completes.
+    this.onLethalTransition(transitionStartedAt);
     this.state.status = 'gameover';
     this.emit();
     return true;

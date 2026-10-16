@@ -25,6 +25,7 @@ type RuntimeEvidenceApi = {
   snapshot: () => Record<string, unknown> | null;
   prepareTerminalDeathEvidence: () => Record<string, unknown> | null;
   forcePlayerDeath: () => Record<string, unknown> | null;
+  forcePlayerDeathWithStarvedTerminalEmit: (delayMs?: number) => Record<string, unknown> | null;
   loadRoom: (room: number, mode?: EvidenceMode) => Record<string, unknown> | null;
   killLivingEnemies: () => Record<string, unknown> | null;
   moveToExit: () => Record<string, unknown> | null;
@@ -126,6 +127,52 @@ function setMode(mode: EvidenceMode): void {
   document.documentElement.dataset.dungeonVeilRunMode = mode;
 }
 
+function forcePlayerDeath(terminalEmitStarvationMs: number): Record<string, unknown> | null {
+  const engine = currentEngine;
+  if (!engine) return null;
+  terminalDeathTransitionArm = null;
+  const beforeEnsure = terminalDeathRunDiagnostics();
+  const runMode: EvidenceMode = document.documentElement.dataset.dungeonVeilRunMode === 'duo' ? 'duo' : 'solo';
+  if (runMode === 'solo' && !ensureVeilHeartConsumedForCurrentRun()) {
+    throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ runMode, beforeEnsure })}`);
+  }
+  const afterEnsure = terminalDeathRunDiagnostics();
+  const lethalTime = performance.now();
+  const starvationMs = Math.max(0, Math.min(2_000, Number(terminalEmitStarvationMs) || 0));
+  const originalOnStateChange = engine.onStateChange;
+  if (starvationMs > 0) {
+    engine.onStateChange = state => {
+      const releaseAt = performance.now() + starvationMs;
+      while (performance.now() < releaseAt) {
+        // Deliberately starve only the terminal snapshot emit. The engine's real lethal hook
+        // must have published the presentation before this deterministic harness delay.
+      }
+      originalOnStateChange(state);
+    };
+  }
+  engine.state.player.lastHitTime = lethalTime;
+  engine.state.player.hp = 0;
+  try {
+    engine.update(lethalTime + 17);
+  } finally {
+    engine.onStateChange = originalOnStateChange;
+  }
+  const afterUpdate = terminalDeathRunDiagnostics();
+  const snapshot = stateSnapshot(engine);
+  if (engine.state.status !== 'gameover' || engine.state.player.hp > 0) {
+    throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ runMode, beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
+  }
+  terminalDeathTransitionArm = {
+    armedAt: performance.now(),
+    updateIndex: 0,
+    lastObservedStatus: engine.state.status,
+    lastObservedHp: engine.state.player.hp,
+    sourceDiagnostics: afterUpdate,
+    sourceSnapshot: snapshot ?? {},
+  };
+  return { ...snapshot, lethalTime, terminalEmitStarvationMs: starvationMs };
+}
+
 function attachApi(): void {
   if (!allowed()) return;
   window.__dungeonVeilRuntimeEvidence = {
@@ -144,35 +191,8 @@ function attachApi(): void {
         snapshot: stateSnapshot(engine),
       };
     },
-    forcePlayerDeath: () => {
-      const engine = currentEngine;
-      if (!engine) return null;
-      terminalDeathTransitionArm = null;
-      const beforeEnsure = terminalDeathRunDiagnostics();
-      const runMode: EvidenceMode = document.documentElement.dataset.dungeonVeilRunMode === 'duo' ? 'duo' : 'solo';
-      if (runMode === 'solo' && !ensureVeilHeartConsumedForCurrentRun()) {
-        throw new Error(`Terminal death evidence requires a current run id before forcing 0 HP: ${JSON.stringify({ runMode, beforeEnsure })}`);
-      }
-      const afterEnsure = terminalDeathRunDiagnostics();
-      const lethalTime = performance.now();
-      engine.state.player.lastHitTime = lethalTime;
-      engine.state.player.hp = 0;
-      engine.update(lethalTime + 17);
-      const afterUpdate = terminalDeathRunDiagnostics();
-      const snapshot = stateSnapshot(engine);
-      if (engine.state.status !== 'gameover' || engine.state.player.hp > 0) {
-        throw new Error(`Terminal death evidence revived during lethal update: ${JSON.stringify({ runMode, beforeEnsure, afterEnsure, afterUpdate, snapshot })}`);
-      }
-      terminalDeathTransitionArm = {
-        armedAt: performance.now(),
-        updateIndex: 0,
-        lastObservedStatus: engine.state.status,
-        lastObservedHp: engine.state.player.hp,
-        sourceDiagnostics: afterUpdate,
-        sourceSnapshot: snapshot ?? {},
-      };
-      return snapshot;
-    },
+    forcePlayerDeath: () => forcePlayerDeath(0),
+    forcePlayerDeathWithStarvedTerminalEmit: (delayMs = 1_250) => forcePlayerDeath(delayMs),
     loadRoom: (requestedRoom, mode = 'solo') => {
       const engine = currentEngine;
       if (!engine) return null;

@@ -10,6 +10,7 @@ interface Props {
 
 export interface GameOverScreenHandle {
   beginDeathPresentation: (transitionStartedAt?: number, onSettled?: () => void) => void;
+  completeDeathPresentation: (onSettled: () => void) => void;
   resetDeathPresentation: () => void;
 }
 
@@ -29,6 +30,7 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
   const contentRef = useRef<HTMLDivElement | null>(null);
   const settledAtRef = useRef<number | null>(null);
   const deathBeatStartedAtRef = useRef<number | null>(null);
+  const settledCallbackRef = useRef<(() => void) | null>(null);
   const cancelDeadlineRef = useRef<(() => void) | null>(null);
 
   const resetDeathPresentation = () => {
@@ -36,6 +38,7 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
     cancelDeadlineRef.current = null;
     settledAtRef.current = null;
     deathBeatStartedAtRef.current = null;
+    settledCallbackRef.current = null;
     const overlay = overlayRef.current;
     const content = contentRef.current;
     if (overlay) {
@@ -58,7 +61,19 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
     setDeathSequence('settling');
   };
 
+  const completeDeathPresentation = (onSettled: () => void) => {
+    if (settledAtRef.current !== null) {
+      onSettled();
+      return;
+    }
+    settledCallbackRef.current = onSettled;
+  };
+
   const beginDeathPresentation = (transitionStartedAt?: number, onSettled?: () => void) => {
+    if (deathBeatStartedAtRef.current !== null) {
+      if (onSettled) completeDeathPresentation(onSettled);
+      return;
+    }
     cancelDeadlineRef.current?.();
     let settledOnce = false;
     let frame = 0;
@@ -70,6 +85,7 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
         ? Number(transitionStartedAt)
         : now);
     deathBeatStartedAtRef.current = deathBeatStartedAt;
+    settledCallbackRef.current = onSettled ?? null;
     const deadline = deathBeatStartedAt + DEATH_BEAT_MS;
     const overlay = overlayRef.current;
     const content = contentRef.current;
@@ -117,7 +133,9 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
 
       setPresented(true);
       setDeathSequence('settled');
-      onSettled?.();
+      const settledCallback = settledCallbackRef.current;
+      settledCallbackRef.current = null;
+      settledCallback?.();
     };
     const watchDeadline = () => {
       if (settledOnce) return;
@@ -181,7 +199,7 @@ export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function G
     };
   };
 
-  useImperativeHandle(presentationRef, () => ({ beginDeathPresentation, resetDeathPresentation }));
+  useImperativeHandle(presentationRef, () => ({ beginDeathPresentation, completeDeathPresentation, resetDeathPresentation }));
   useLayoutEffect(() => () => cancelDeadlineRef.current?.(), []);
 
   const settled = deathSequence === 'settled';

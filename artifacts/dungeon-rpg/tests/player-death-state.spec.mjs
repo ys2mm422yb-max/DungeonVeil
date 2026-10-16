@@ -161,9 +161,11 @@ test('solo death uses an explicit visual death state before the final overlay', 
   const capability = await page.evaluate(() => ({
     prepareTerminalDeathEvidence: typeof window.__dungeonVeilRuntimeEvidence?.prepareTerminalDeathEvidence === 'function',
     forcePlayerDeath: typeof window.__dungeonVeilRuntimeEvidence?.forcePlayerDeath === 'function',
+    forcePlayerDeathWithStarvedTerminalEmit: typeof window.__dungeonVeilRuntimeEvidence?.forcePlayerDeathWithStarvedTerminalEmit === 'function',
   }));
   expect(capability.prepareTerminalDeathEvidence, 'localhost evidence API must expose terminal-death preconditioning outside the measured lethal transition').toBe(true);
   expect(capability.forcePlayerDeath, 'localhost evidence API must expose a real player-death trigger').toBe(true);
+  expect(capability.forcePlayerDeathWithStarvedTerminalEmit, 'localhost evidence API must expose deterministic terminal-emit starvation without fabricating product state').toBe(true);
   const before = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.snapshot() ?? null);
   expect(Number(before?.hp || 0)).toBeGreaterThan(0);
   const terminalDeathPreparation = await page.evaluate(() => window.__dungeonVeilRuntimeEvidence?.prepareTerminalDeathEvidence?.() ?? null);
@@ -183,6 +185,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
     const states = [];
     let settledCommittedAt = null;
     let synchronousDeathBoundary = null;
+    let preEmitDeathBoundary = null;
     const recordState = (element) => {
       if (!(element instanceof HTMLElement) || element.dataset.testid !== 'game-over-screen') return;
       const state = element.getAttribute('data-death-sequence');
@@ -198,6 +201,23 @@ test('solo death uses an explicit visual death state before the final overlay', 
       }
     });
     observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['data-death-sequence'] });
+    const capturePreEmitBoundary = (event) => {
+      const detail = event.detail;
+      if (!detail?.dead || detail.gameState || !Number.isFinite(Number(detail.transitionStartedAt))) return;
+      const overlay = document.querySelector('[data-testid="game-over-screen"]');
+      preEmitDeathBoundary = {
+        observedAt: performance.now(),
+        transitionStartedAt: Number(detail.transitionStartedAt),
+        overlaySequence: overlay?.getAttribute('data-death-sequence') ?? null,
+        visualStartedAt: Number(overlay?.getAttribute('data-death-visual-started-at')),
+        visualDeadline: Number(overlay?.getAttribute('data-death-visual-deadline')),
+        visualDriver: overlay?.getAttribute('data-death-visual-driver') ?? null,
+        animations: overlay instanceof HTMLElement
+          ? overlay.getAnimations({ subtree: true }).map(animation => animation.id).sort()
+          : [],
+      };
+    };
+    window.addEventListener('dungeon-veil-player-death-v1', capturePreEmitBoundary);
     try {
       const originalRequestAnimationFrame = window.requestAnimationFrame;
       let withheldAnimationFrames = 0;
@@ -206,7 +226,8 @@ test('solo death uses an explicit visual death state before the final overlay', 
         return 900_000 + withheldAnimationFrames;
       };
       try {
-        window.__dungeonVeilRuntimeEvidence.forcePlayerDeath();
+        const starvationStartedAt = performance.now();
+        const forcedDeath = window.__dungeonVeilRuntimeEvidence.forcePlayerDeathWithStarvedTerminalEmit(1_250);
         const synchronousOverlay = document.querySelector('[data-testid="game-over-screen"]');
         const synchronousRenderer = document.querySelector('[data-testid="run-three-host"]');
         const synchronousAnimations = synchronousOverlay instanceof HTMLElement
@@ -225,6 +246,8 @@ test('solo death uses an explicit visual death state before the final overlay', 
           visualDuration: Number(synchronousOverlay?.getAttribute('data-death-visual-duration')),
           visualDriver: synchronousOverlay?.getAttribute('data-death-visual-driver') ?? null,
           animations: synchronousAnimations,
+          terminalEmitStarvationMs: Number(forcedDeath?.terminalEmitStarvationMs),
+          blockedElapsedMs: performance.now() - starvationStartedAt,
         };
       } finally {
         window.requestAnimationFrame = originalRequestAnimationFrame;
@@ -241,6 +264,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
         sawSettling: states.includes('settling'),
         elapsedMs: Number(synchronousDeathBoundary?.visualDeadline) - startedAt,
         settledCommittedAt,
+        preEmitDeathBoundary,
         synchronousDeathBoundary,
         visualCompletion: {
           contentOpacity: content instanceof HTMLElement ? Number(getComputedStyle(content).opacity) : null,
@@ -253,9 +277,16 @@ test('solo death uses an explicit visual death state before the final overlay', 
         },
       };
     } finally {
+      window.removeEventListener('dungeon-veil-player-death-v1', capturePreEmitBoundary);
       observer.disconnect();
     }
   });
+  expect(deathSequenceObservation.preEmitDeathBoundary?.overlaySequence, 'presentation boundary must already be settling before the terminal snapshot emit is starved').toBe('settling');
+  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDriver, 'pre-emit lethal boundary must start the browser animation timeline').toBe('web-animations');
+  expect(deathSequenceObservation.preEmitDeathBoundary?.animations).toEqual(['dungeon-veil-death-content', 'dungeon-veil-death-overlay']);
+  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDeadline - deathSequenceObservation.preEmitDeathBoundary?.transitionStartedAt, 'pre-emit animations must preserve the original lethal clock and unchanged 1100 ms beat').toBe(1_100);
+  expect(deathSequenceObservation.synchronousDeathBoundary?.terminalEmitStarvationMs, 'starvation proof must exceed the unchanged death beat').toBeGreaterThan(1_100);
+  expect(deathSequenceObservation.synchronousDeathBoundary?.blockedElapsedMs, 'real terminal snapshot emit must remain blocked long enough to reproduce loaded iPad/WebKit').toBeGreaterThanOrEqual(1_100);
   expect(deathSequenceObservation.sawSettling, 'death overlay must expose the explicit visual settling state before final defeat').toBe(true);
   expect(deathSequenceObservation.synchronousDeathBoundary?.overlaySequence, 'authoritative death event must synchronously publish the real settling boundary').toBe('settling');
   expect(deathSequenceObservation.synchronousDeathBoundary?.terminalRenderMode, 'withholding future rAF callbacks must not prevent the real frozen terminal render').toBe('frozen-final-pose');
@@ -292,7 +323,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(postDeathAttackAfterWindow.attackAt, 'player attacks must stay blocked after death').toBe(postDeathAttackObservation.attackAt);
   const deathSequence = await overlay.getAttribute('data-death-sequence');
   const rendererDeathState = await playerRenderer.getAttribute('data-player-death-state');
-  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, preMountedBoundary, synchronousDeathBoundary: deathSequenceObservation.synchronousDeathBoundary, visualCompletion: deathSequenceObservation.visualCompletion, deathSequence, deathSequenceStates: deathSequenceObservation.states, visualSettleDeadlineMs: deathSequenceObservation.elapsedMs, semanticDeathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, terminalRenderMode: await rendererHost.getAttribute('data-terminal-render-mode'), terminalRenderFrames: Number(await rendererHost.getAttribute('data-terminal-render-frames')), postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
+  await writeFile(testInfo.outputPath(`player-death-solo-${testInfo.project.name}.trace.json`), JSON.stringify({ project: testInfo.project.name, before: { status: before?.status ?? null, hp: Number(before?.hp || 0) }, after: { status: after?.status ?? null, hp: Number(after?.hp ?? 1), playerLastAttackTime: postDeathAttackObservation.attackAt }, preMountedBoundary, preEmitDeathBoundary: deathSequenceObservation.preEmitDeathBoundary, synchronousDeathBoundary: deathSequenceObservation.synchronousDeathBoundary, visualCompletion: deathSequenceObservation.visualCompletion, deathSequence, deathSequenceStates: deathSequenceObservation.states, visualSettleDeadlineMs: deathSequenceObservation.elapsedMs, semanticDeathSequenceCommittedAt: deathSequenceObservation.settledCommittedAt, rendererDeathState, terminalRenderMode: await rendererHost.getAttribute('data-terminal-render-mode'), terminalRenderFrames: Number(await rendererHost.getAttribute('data-terminal-render-frames')), postDeathAttackObservedMs: postDeathAttackAfterWindow.elapsedMs, postDeathAttackBlocked: true }, null, 2));
   await page.screenshot({ path: testInfo.outputPath(`player-death-solo-${testInfo.project.name}.png`), fullPage: true });
   // WebKit's iPhone video encoder trails the already-rendered terminal DOM by more than the generic EOF hold.
   // Keep only that project alive longer after all assertions so the final card is actually encoded into the video.
