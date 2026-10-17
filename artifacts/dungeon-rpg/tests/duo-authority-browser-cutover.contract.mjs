@@ -84,8 +84,10 @@ test('runtime evidence freezes canonical hazards across failed room builds and r
   fixture.completeEvidenceEncounter();
   assert.equal(fixture.isStateCurrent(resumed.state), false);
   assert.equal(fixture.snapshot().state.completed, true);
-  assert.match(runtimeEvidenceQa, /dungeon-veil-room-preparing[\s\S]*setEvidencePaused\(true\)/);
-  assert.match(runtimeEvidenceQa, /dungeon-veil-room-ready[\s\S]*detail\?\.failed === true/);
+  assert.match(runtimeEvidenceQa, /const onRoomPreparing = \(\) => fixture\.setEvidencePaused\(true\);/);
+  assert.match(runtimeEvidenceQa, /addEventListener\('dungeon-veil-room-preparing', onRoomPreparing\)/);
+  assert.match(runtimeEvidenceQa, /const onRoomReady = \(event: Event\) => \{[\s\S]*fixture\.setEvidencePaused\(detail\?\.failed === true\);[\s\S]*\};/);
+  assert.match(runtimeEvidenceQa, /addEventListener\('dungeon-veil-room-ready', onRoomReady\)/);
   assert.match(authorityBridge, /transport\.isStateCurrent && !transport\.isStateCurrent\(state\)/);
 });
 
