@@ -96,6 +96,7 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
   private sessionAvailable = true;
   private sessionGeneration = 1;
   private attemptStatus: 'active' | 'invalidated' = 'active';
+  private evidencePaused = false;
   private exitCalls = 0;
   private invalidatedReadRejections = 0;
   private invalidatedSubmitRejections = 0;
@@ -111,6 +112,8 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
     this.state = createFixtureState(this.serverNowMs);
     this.parkEnemy();
   }
+
+  isStateCurrent = (state: CanonicalEncounterState): boolean => state === this.state;
 
   currentSession = (): CoopAuthorityRuntimeSession | null => {
     return this.sessionAvailable
@@ -155,6 +158,14 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
     }
     this.assertBinding(binding, encounterId);
     if (expectedStateVersion !== this.state.version) throw new Error('Deterministic authority fixture rejected stale version');
+    if (this.evidencePaused) {
+      return Object.freeze({
+        stateVersion: this.state.version,
+        state: this.state,
+        replayed: false,
+        completed: this.state.completed,
+      });
+    }
     const wallNowMs = performance.now();
     this.serverNowMs += Math.max(1, Math.floor(wallNowMs - this.lastWallMs));
     this.lastWallMs = wallNowMs;
@@ -267,6 +278,21 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
     this.parkEnemy();
   }
 
+  setEvidencePaused(paused: boolean): void {
+    this.evidencePaused = paused;
+    this.lastWallMs = performance.now();
+    if (!paused || !this.state.runeStorm.active) return;
+    this.state = Object.freeze({
+      ...this.state,
+      version: this.state.version + 1,
+      runeStorm: Object.freeze({
+        ...this.state.runeStorm,
+        strikeAtMs: null,
+        nextStrikeAtMs: Math.max(this.state.runeStorm.nextStrikeAtMs, this.serverNowMs + 900),
+      }),
+    });
+  }
+
   loadEvidenceRoom(room: number): void {
     if (!Number.isInteger(room) || room < 1 || room > 100) throw new Error('Runtime authority evidence room is invalid');
     this.serverNowMs += 1;
@@ -295,9 +321,17 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
 
   completeEvidenceEncounter(): void {
     if (this.state.completed) return;
+    this.evidencePaused = true;
+    // The post-clear probe starts at this explicit evidence boundary. Reset only the
+    // evidence actors so damage settled before completion cannot masquerade as a
+    // post-clear ghost hit; any damage after this boundary still fails the probe.
     this.state = Object.freeze({
       ...this.state,
       version: this.state.version + 1,
+      actors: Object.freeze(this.state.actors.map(actorState => Object.freeze({
+        ...actorState,
+        hp: actorState.maxHp,
+      }))),
       enemies: Object.freeze(this.state.enemies.map(enemy => Object.freeze({ ...enemy, hp: 0 }))),
       runeStorm: Object.freeze({ ...this.state.runeStorm, active: false, strikeAtMs: null }),
       completed: true,

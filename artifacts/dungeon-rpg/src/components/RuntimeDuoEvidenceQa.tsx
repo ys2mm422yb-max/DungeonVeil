@@ -42,7 +42,6 @@ declare global {
     };
   }
 }
-
 function cloneState(engine: GameEngine): GameState {
   return {
     ...engine.state,
@@ -79,6 +78,13 @@ function RuntimeDuoEvidenceScene() {
       onLoadRoom: room => fixture.loadEvidenceRoom(room),
       onKillLivingEnemies: () => fixture.completeEvidenceEncounter(),
     });
+    const onRoomPreparing = () => fixture.setEvidencePaused(true);
+    const onRoomReady = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : null;
+      fixture.setEvidencePaused(detail?.failed === true);
+    };
+    window.addEventListener('dungeon-veil-room-preparing', onRoomPreparing);
+    window.addEventListener('dungeon-veil-room-ready', onRoomReady);
     setState(cloneState(engine));
     window.__dungeonVeilDuoAuthorityEvidence = {
       preparePartnerDowned: () => fixture.preparePartnerDowned(),
@@ -118,6 +124,8 @@ function RuntimeDuoEvidenceScene() {
     frame = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(frame);
+      window.removeEventListener('dungeon-veil-room-preparing', onRoomPreparing);
+      window.removeEventListener('dungeon-veil-room-ready', onRoomReady);
       delete window.__dungeonVeilDuoAuthorityEvidence;
       document.documentElement.dataset.dungeonVeilRunMode = 'solo';
     };

@@ -7,6 +7,7 @@ import { createServer } from 'vite';
 const browserClient = fs.readFileSync(new URL('../src/game/duoAuthorityOnline.ts', import.meta.url), 'utf8');
 const persistenceBridge = fs.readFileSync(new URL('../src/components/CoopRunPersistenceBridge.tsx', import.meta.url), 'utf8');
 const authorityBridge = fs.readFileSync(new URL('../src/components/CoopAuthorityRuntimeBridge.tsx', import.meta.url), 'utf8');
+const runtimeEvidenceQa = fs.readFileSync(new URL('../src/components/RuntimeDuoEvidenceQa.tsx', import.meta.url), 'utf8');
 const gamePage = fs.readFileSync(new URL('../src/pages/game.tsx', import.meta.url), 'utf8');
 const edgeService = fs.readFileSync(new URL('../../../supabase/functions/duo-authority/service.ts', import.meta.url), 'utf8');
 const supabaseOnline = fs.readFileSync(new URL('../src/game/supabaseOnline.ts', import.meta.url), 'utf8');
@@ -50,6 +51,42 @@ test('runtime evidence rooms execute the real canonical fixture path with bounde
       assert.ok(actor.defense >= 0 && actor.defense <= 1_000, `room ${room} defense escaped canonical bounds`);
     }
   }
+});
+test('runtime evidence freezes canonical hazards across failed room builds and rejects stale projections', async () => {
+  const { RuntimeDuoAuthorityFixture } = await fixtureRuntime();
+  const fixture = new RuntimeDuoAuthorityFixture();
+  fixture.loadEvidenceRoom(13);
+  fixture.setEvidencePaused(true);
+  const before = fixture.snapshot().state;
+  const session = fixture.currentSession();
+  assert.ok(session);
+  const paused = await fixture.submit(
+    session,
+    { lobbyId: fixture.lobbyId, runAttempt: 1, runSeed: fixture.runSeed },
+    before.encounterId,
+    before.version,
+    (before.lastClientSeqByActor[fixture.hostId] ?? 0) + 1,
+    { kind: 'sync' },
+  );
+  assert.equal(paused.state, before);
+  assert.equal(paused.state.actors.find(actor => actor.actorId === fixture.hostId)?.hp, before.actors.find(actor => actor.actorId === fixture.hostId)?.hp);
+  assert.equal(paused.state.runeStorm.strikeAtMs, null);
+  fixture.setEvidencePaused(false);
+  const resumed = await fixture.submit(
+    session,
+    { lobbyId: fixture.lobbyId, runAttempt: 1, runSeed: fixture.runSeed },
+    paused.state.encounterId,
+    paused.state.version,
+    (paused.state.lastClientSeqByActor[fixture.hostId] ?? 0) + 1,
+    { kind: 'sync' },
+  );
+  assert.equal(fixture.isStateCurrent(resumed.state), true);
+  fixture.completeEvidenceEncounter();
+  assert.equal(fixture.isStateCurrent(resumed.state), false);
+  assert.equal(fixture.snapshot().state.completed, true);
+  assert.match(runtimeEvidenceQa, /dungeon-veil-room-preparing[\s\S]*setEvidencePaused\(true\)/);
+  assert.match(runtimeEvidenceQa, /dungeon-veil-room-ready[\s\S]*detail\?\.failed === true/);
+  assert.match(authorityBridge, /transport\.isStateCurrent && !transport\.isStateCurrent\(state\)/);
 });
 
 test('browser discovers its exact server-owned attempt through an actor-bound RPC', () => {

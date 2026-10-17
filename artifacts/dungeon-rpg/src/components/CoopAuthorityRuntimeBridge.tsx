@@ -45,6 +45,7 @@ export type CoopAuthorityRuntimeTransport = Readonly<{
   advance: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof advanceDuoAuthorityEncounter>) => ReturnType<typeof advanceDuoAuthorityEncounter>;
   restart: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof restartDuoAuthorityAttempt>) => ReturnType<typeof restartDuoAuthorityAttempt>;
   exitMy: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof exitMyDuoAuthorityAttempt>) => ReturnType<typeof exitMyDuoAuthorityAttempt>;
+  isStateCurrent?: (state: CanonicalEncounterState) => boolean;
 }>;
 
 export type CoopAuthorityRuntimeSession = Readonly<{ actorId: string; credentialGeneration: number }>;
@@ -88,7 +89,6 @@ const productionTransport: CoopAuthorityRuntimeTransport = Object.freeze({
     return exitMyDuoAuthorityAttempt(...args);
   },
 });
-
 type EngineInternals = { nextRoom: () => void };
 
 function atExit(engine: GameEngine, actor: AuthorityActor): boolean {
@@ -337,6 +337,10 @@ export const CoopAuthorityRuntimeBridge = forwardRef<CoopAuthorityRuntimeBridgeH
           if (acceptedIntent.kind === 'dodge') liveEngine.input.dodge = false;
           if (acceptedIntent.kind === 'basic-hit') liveEngine.input.attack = false;
           state = transition.state;
+        }
+        if (transport.isStateCurrent && !transport.isStateCurrent(state)) {
+          schedule(0);
+          return;
         }
         const actor = state.actors.find(candidate => candidate.actorId === userId);
         if (!actor) throw new Error('Duo-Akteur ist nicht an den Authority-Zustand gebunden.');
