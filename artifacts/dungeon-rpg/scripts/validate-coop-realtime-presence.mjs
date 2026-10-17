@@ -9,6 +9,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 
 const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
+const authorityBridge = read('src/components/CoopAuthorityRuntimeBridge.tsx');
 const projectileBridge = read('src/components/CoopProjectileRealtimeBridge.tsx');
 const teammateScene = read('src/components/CoopTeammateScene3D.tsx');
 const teammateUi = read('src/components/CoopTeammateUI.tsx');
@@ -59,7 +60,9 @@ assert(menu.includes('onStartCoop') && menu.includes('onStartRun={lobby =>'), 'M
 assert(page.includes('createDuoRunContext') && page.includes('runSeed'), 'Game page does not preserve the shared duo run context.');
 assert(page.includes('engine.saveNow = () => false'), 'Duo mode can overwrite the existing solo save.');
 assert(page.includes('markActiveRun(false)') && page.includes("dataset.dungeonVeilRunMode = 'duo'"), 'Duo run is not isolated from solo session restoration.');
-assert(page.includes('<CoopRunRealtimeBridge') && page.includes('remotePlayer={duoContext ? remotePlayer : null}'), 'Realtime bridge is not connected to the visible run.');
+assert(page.includes('<CoopAuthorityRuntimeBridge') && page.includes('remotePlayer={duoContext ? remotePlayer : null}'), 'Canonical authority bridge is not connected to the visible run.');
+assert(authorityBridge.includes('onRemotePlayer(partner ? remotePresence(context, state, partner) : null)'), 'Canonical authority state is not projected into the visible teammate presentation.');
+assert(authorityBridge.includes("onStatus('reconnecting')") && authorityBridge.includes('setConnectionPaused(true)'), 'Canonical authority reconnect does not fail closed into the visible paused state.');
 assert(!realtime.includes("sendBroadcast('loot") && !projectileBridge.includes("broadcast('loot"), 'Presence or projectile transport must not synchronize loot.');
 
 const server = await createServer({ root, logLevel: 'silent', server: { middlewareMode: true }, appType: 'custom' });

@@ -311,14 +311,33 @@ jobs:
           const path = require('node:path');
           const manifestPath = 'artifacts/dungeon-rpg/test-results/full-game-results.json';
           const outputRoot = 'artifacts/dungeon-rpg/test-results';
+          const outputRootReal = fs.realpathSync(outputRoot);
           const browserProject = process.env.BROWSER_PROJECT;
           const report = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
           const videos = new Map();
+          const resolveAttachment = attachmentPath => {
+            const candidates = path.isAbsolute(attachmentPath)
+              ? [attachmentPath]
+              : [
+                  path.resolve(attachmentPath),
+                  path.resolve('artifacts/dungeon-rpg', attachmentPath),
+                  path.resolve(outputRoot, attachmentPath.replace(/^test-results[\\/]/, '')),
+                ];
+            const matches = [...new Set(candidates
+              .filter(candidate => fs.existsSync(candidate))
+              .map(candidate => fs.realpathSync(candidate))
+              .filter(candidate => {
+                const relative = path.relative(outputRootReal, candidate);
+                return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+              }))];
+            if (matches.length !== 1) throw new Error(`player-death video attachment must resolve exactly once inside results root, found ${matches.length}`);
+            return matches[0];
+          };
           const classify = title => {
             const normalized = String(title || '').toLowerCase();
             if (normalized === 'solo death uses an explicit visual death state before the final overlay') return 'solo';
-            if (normalized === 'duo lifecycle emits downed -> revived -> fallen -> team defeat temporal evidence (de)') return 'duo-de';
-            if (normalized === 'duo lifecycle emits downed -> revived -> fallen -> team defeat temporal evidence (en)') return 'duo-en';
+            if (normalized === 'mounted authority bridge proves held revive -> second-death fallen -> team defeat (de)') return 'duo-de';
+            if (normalized === 'mounted authority bridge proves held revive -> second-death fallen -> team defeat (en)') return 'duo-en';
             return null;
           };
           const visit = (suites = []) => {
@@ -344,8 +363,9 @@ jobs:
           };
           visit(report.suites);
           for (const kind of ['solo', 'duo-de', 'duo-en']) {
-            const source = videos.get(kind);
-            if (!source || !fs.existsSync(source)) throw new Error(`missing ${kind} player-death video attachment`);
+            const attachmentPath = videos.get(kind);
+            if (!attachmentPath) throw new Error(`missing ${kind} player-death video attachment`);
+            const source = resolveAttachment(attachmentPath);
             const target = path.join(outputRoot, `player-death-${kind}-${browserProject}.webm`);
             fs.renameSync(source, target);
           }

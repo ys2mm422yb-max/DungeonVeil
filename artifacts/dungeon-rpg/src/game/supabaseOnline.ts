@@ -192,13 +192,28 @@ async function requireSession(): Promise<OnlineSession> {
 }
 
 async function performRestRequest(path: string, init: RequestInit, session: OnlineSession): Promise<RestResult> {
+  const { headers: callerHeaders, ...requestInit } = init;
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...init,
+    ...requestInit,
     headers: {
+      ...(callerHeaders ?? {}),
       apikey: SUPABASE_KEY,
       authorization: `Bearer ${session.access_token}`,
       'content-type': 'application/json',
-      ...(init.headers ?? {}),
+    },
+  });
+  return { response, payload: await parseJson(response) };
+}
+
+async function performFunctionRequest(path: string, init: RequestInit, session: OnlineSession): Promise<RestResult> {
+  const { headers: callerHeaders, ...requestInit } = init;
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/${path}`, {
+    ...requestInit,
+    headers: {
+      ...(callerHeaders ?? {}),
+      apikey: SUPABASE_KEY,
+      authorization: `Bearer ${session.access_token}`,
+      'content-type': 'application/json',
     },
   });
   return { response, payload: await parseJson(response) };
@@ -230,6 +245,31 @@ async function restRequest<T>(path: string, init: RequestInit = {}): Promise<T> 
 
   if (!result.response.ok) {
     throw new Error(errorMessage(result.payload, `Online-Anfrage fehlgeschlagen (${result.response.status})`));
+  }
+  return result.payload as T;
+}
+
+async function functionRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let session = await requireSession();
+  let result = await performFunctionRequest(path, init, session);
+  if (!result.response.ok) {
+    let message = errorMessage(result.payload, `Online-Funktion fehlgeschlagen (${result.response.status})`);
+    if (isJwtTimingError(message)) {
+      await wait(1800);
+      result = await performFunctionRequest(path, init, session);
+      if (result.response.ok) return result.payload as T;
+      message = errorMessage(result.payload, `Online-Funktion fehlgeschlagen (${result.response.status})`);
+    }
+    if (shouldRefreshJwt(result.response.status, message)) {
+      const refreshed = await refreshSession(loadStoredSession() ?? session);
+      if (refreshed) {
+        session = refreshed;
+        result = await performFunctionRequest(path, init, session);
+      }
+    }
+  }
+  if (!result.response.ok) {
+    throw new Error(errorMessage(result.payload, `Online-Funktion fehlgeschlagen (${result.response.status})`));
   }
   return result.payload as T;
 }
@@ -463,5 +503,9 @@ export async function submitWorldBossHit(eventId: string, damage: number, hitTok
 
 export async function authenticatedSupabaseRest<T>(path: string, init: RequestInit = {}): Promise<T> {
   return restRequest<T>(path, init);
+}
+
+export async function authenticatedSupabaseFunction<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return functionRequest<T>(path, init);
 }
 

@@ -6,6 +6,7 @@ on:
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
+      - 'supabase/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -17,6 +18,7 @@ on:
     paths:
       - 'artifacts/dungeon-rpg/**'
       - 'lib/**'
+      - 'supabase/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -35,6 +37,16 @@ jobs:
         uses: actions/checkout@v4
       - name: Focused request provenance contract
         run: node artifacts/dungeon-rpg/scripts/validate-focused-contract-request-provenance.mjs
+      - name: Setup Deno for Supabase Edge parity
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - name: Check pure Duo authority service graph
+        run: deno check --config supabase/functions/duo-authority/deno.json supabase/functions/duo-authority/service.ts
+      - name: Check deployable Duo authority Edge entry graph
+        run: deno check --config supabase/functions/duo-authority/deno.json supabase/functions/duo-authority/index.ts
+      - name: Duo authority build provenance contract
+        run: node --test artifacts/dungeon-rpg/tests/duo-authority-build-profile.contract.mjs
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -46,6 +58,8 @@ jobs:
           cache: pnpm
       - name: Install workspace
         run: pnpm install --frozen-lockfile
+      - name: Duo authority Edge producer contract
+        run: node --test artifacts/dungeon-rpg/tests/duo-authority-edge-producer.contract.mjs artifacts/dungeon-rpg/tests/duo-authority-room-geometry.contract.mjs
       - name: Asset audit
         run: pnpm --filter @workspace/dungeon-rpg audit:assets
       - name: Write KayKit animation inventory
@@ -63,3 +77,41 @@ jobs:
         run: pnpm --filter @workspace/dungeon-rpg typecheck
       - name: Build Dungeon Veil
         run: pnpm --filter @workspace/dungeon-rpg build
+
+  duo-authority-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Execute Duo authority migration integration
+        env:
+          DUO_AUTHORITY_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          DUO_AUTHORITY_POSTGRES_VERSION: '17'
+          DUO_AUTHORITY_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          DUO_AUTHORITY_RECEIPT_DIR: ${{ github.workspace }}/duo-authority-postgres-receipt
+        run: bash artifacts/dungeon-rpg/scripts/run-duo-authority-postgres-integration.sh
+      - name: Upload exact-head PostgreSQL receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duo-authority-postgres-receipt-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: duo-authority-postgres-receipt
+          if-no-files-found: error
+          retention-days: 30

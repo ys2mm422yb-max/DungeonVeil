@@ -1,69 +1,114 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { GameState } from '../../game/engine';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 interface Props {
   gameState: GameState;
-  deathBeatStartedAt?: number;
   onRetry: () => void;
   onMainMenu: () => void;
 }
 
-const DEATH_BEAT_MS = 1_100;
-const DEATH_BEAT_CACHE_TTL_MS = 60_000;
+export interface GameOverScreenHandle {
+  beginDeathPresentation: (transitionStartedAt?: number, onSettled?: () => void) => void;
+  completeDeathPresentation: (onSettled: () => void) => void;
+  resetDeathPresentation: () => void;
+}
 
-const deathBeatStartedAtByRun = new Map<string, number>();
+const DEATH_BEAT_MS = 1_100;
 
 type DeathSequence = 'settling' | 'settled';
 
-function resolveDeathBeatStartedAt(key: string, transitionStartedAt?: number): number {
-  const now = performance.now();
-  for (const [cachedKey, startedAt] of deathBeatStartedAtByRun) {
-    if (now - startedAt > DEATH_BEAT_CACHE_TTL_MS) deathBeatStartedAtByRun.delete(cachedKey);
-  }
-
-  const existing = deathBeatStartedAtByRun.get(key);
-  if (existing !== undefined) return existing;
-  const startedAt = Number.isFinite(transitionStartedAt) && Number(transitionStartedAt) > 0 && Number(transitionStartedAt) <= now
-    ? Number(transitionStartedAt)
-    : now;
-  deathBeatStartedAtByRun.set(key, startedAt);
-  return startedAt;
-}
-
-export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStartedAt, onRetry, onMainMenu }: Props) {
+export const GameOverScreen = forwardRef<GameOverScreenHandle, Props>(function GameOverScreen(
+  { gameState, onRetry, onMainMenu },
+  presentationRef,
+) {
   const { t } = useLanguage();
   const { player } = gameState;
-  const deathBeatKey = `${player.spawnTime}`;
-  // Enemy damage stamps player.lastHitTime with the same engine-frame timestamp that
-  // can make HP lethal. Reuse that authoritative transition origin so React mount/main-
-  // thread delay cannot restart the fixed 1100 ms presentation beat. Explicit callers
-  // may still provide an even more specific transition timestamp for non-hit deaths.
-  const lethalHitStartedAt = player.hp <= 0 && Number.isFinite(player.lastHitTime) && Number(player.lastHitTime) > 0
-    ? Number(player.lastHitTime)
-    : undefined;
-  const authoritativeTransitionStartedAt = transitionStartedAt ?? lethalHitStartedAt;
-  const deathBeatStartedAt = useMemo(
-    () => resolveDeathBeatStartedAt(deathBeatKey, authoritativeTransitionStartedAt),
-    [deathBeatKey, authoritativeTransitionStartedAt],
-  );
-  // Always commit the explicit settling state once. The fixed browser-clock deadline still
-  // uses the timeout, rAF watchdog and render-timeline signal. When that deadline fires,
-  // publish the already-due terminal DOM presentation before asking React to reconcile the
-  // same state. Loaded WebKit can delay a React commit even after the deadline callback gets
-  // a browser turn; the direct DOM commit removes that extra scheduler dependency without
-  // shortening the 1100 ms visual beat or changing the <=2000 ms acceptance contract.
+  const [presented, setPresented] = useState(false);
   const [deathSequence, setDeathSequence] = useState<DeathSequence>('settling');
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const settledAtRef = useRef<number | null>(null);
+  const deathBeatStartedAtRef = useRef<number | null>(null);
+  const settledCallbackRef = useRef<(() => void) | null>(null);
+  const cancelDeadlineRef = useRef<(() => void) | null>(null);
 
-  useLayoutEffect(() => {
+  const resetDeathPresentation = () => {
+    cancelDeadlineRef.current?.();
+    cancelDeadlineRef.current = null;
+    settledAtRef.current = null;
+    deathBeatStartedAtRef.current = null;
+    settledCallbackRef.current = null;
+    const overlay = overlayRef.current;
+    const content = contentRef.current;
+    if (overlay) {
+      delete overlay.dataset.deathSettledAt;
+      delete overlay.dataset.deathVisualStartedAt;
+      delete overlay.dataset.deathVisualDeadline;
+      delete overlay.dataset.deathVisualDuration;
+      delete overlay.dataset.deathVisualDriver;
+      overlay.dataset.deathSequence = 'inactive';
+      overlay.classList.add('hidden', 'pointer-events-none');
+      overlay.classList.remove('bg-black/92', 'backdrop-blur-sm');
+      overlay.classList.add('bg-black/35');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+    if (content) {
+      content.classList.remove('opacity-100');
+      content.classList.add('pointer-events-none', 'opacity-0');
+    }
+    setPresented(false);
+    setDeathSequence('settling');
+  };
+
+  const completeDeathPresentation = (onSettled: () => void) => {
+    if (settledAtRef.current !== null) {
+      onSettled();
+      return;
+    }
+    settledCallbackRef.current = onSettled;
+  };
+
+  const beginDeathPresentation = (transitionStartedAt?: number, onSettled?: () => void) => {
+    if (deathBeatStartedAtRef.current !== null) {
+      if (onSettled) completeDeathPresentation(onSettled);
+      return;
+    }
+    cancelDeadlineRef.current?.();
     let settledOnce = false;
     let frame = 0;
     let timer: number | null = null;
-    let deadlineAnimation: Animation | null = null;
+    const visualAnimations: Animation[] = [];
+    const now = performance.now();
+    const deathBeatStartedAt = deathBeatStartedAtRef.current
+      ?? (Number.isFinite(transitionStartedAt) && Number(transitionStartedAt) > 0 && Number(transitionStartedAt) <= now
+        ? Number(transitionStartedAt)
+        : now);
+    deathBeatStartedAtRef.current = deathBeatStartedAt;
+    settledCallbackRef.current = onSettled ?? null;
     const deadline = deathBeatStartedAt + DEATH_BEAT_MS;
+    const overlay = overlayRef.current;
+    const content = contentRef.current;
+
+    // This subtree is mounted while the run is alive. Publish the real settling boundary
+    // synchronously in the authoritative death event instead of waiting for React to mount
+    // a conditional tree on a loaded WebKit main thread.
+    settledAtRef.current = null;
+    if (overlay) {
+      delete overlay.dataset.deathSettledAt;
+      overlay.dataset.deathSequence = 'settling';
+      overlay.classList.remove('hidden', 'pointer-events-none', 'bg-black/92', 'backdrop-blur-sm');
+      overlay.classList.add('bg-black/35');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+    if (content) {
+      content.classList.remove('opacity-100');
+      content.classList.add('pointer-events-none', 'opacity-0');
+    }
+    // Do not enqueue React work inside the fixed visual priority window. The mounted DOM
+    // boundary above is already the player-visible source of truth; reconciling the terminal
+    // snapshot here can compete with WebKit's deadline callback after a long Product run.
+
     const settle = () => {
       if (settledOnce) return;
       settledOnce = true;
@@ -86,7 +131,11 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
         content.classList.add('opacity-100');
       }
 
+      setPresented(true);
       setDeathSequence('settled');
+      const settledCallback = settledCallbackRef.current;
+      settledCallbackRef.current = null;
+      settledCallback?.();
     };
     const watchDeadline = () => {
       if (settledOnce) return;
@@ -97,47 +146,72 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       frame = window.requestAnimationFrame(watchDeadline);
     };
 
-    settledAtRef.current = null;
-    if (overlayRef.current) delete overlayRef.current.dataset.deathSettledAt;
-    setDeathSequence('settling');
     const remaining = Math.max(0, deadline - performance.now());
 
+    // Start the player-visible transition synchronously at the authoritative boundary.
+    // Opacity and backdrop effects continue on the browser animation timeline even when a
+    // loaded WebKit main thread cannot deliver timers, rAF, or Promise callbacks on time.
+    // React still reconciles semantics after the beat, but it is no longer responsible for
+    // making the final card visible within the acceptance window.
+    if (overlay && content && remaining > 0 && overlay.animate && content.animate) {
+      const visualStartedAt = performance.now();
+      overlay.dataset.deathVisualStartedAt = String(visualStartedAt);
+      overlay.dataset.deathVisualDeadline = String(deadline);
+      overlay.dataset.deathVisualDuration = String(remaining);
+      overlay.dataset.deathVisualDriver = 'web-animations';
+
+      const overlayAnimation = overlay.animate(
+        [
+          { backgroundColor: 'rgba(0, 0, 0, 0.35)', backdropFilter: 'blur(0px)' },
+          { backgroundColor: 'rgba(0, 0, 0, 0.92)', backdropFilter: 'blur(4px)' },
+        ],
+        { duration: remaining, easing: 'ease-out', fill: 'both', iterations: 1 },
+      );
+      overlayAnimation.id = 'dungeon-veil-death-overlay';
+      const contentAnimation = content.animate(
+        [
+          { opacity: 0, offset: 0 },
+          { opacity: 0, offset: 0.55 },
+          { opacity: 1, offset: 1 },
+        ],
+        { duration: remaining, easing: 'ease-out', fill: 'both', iterations: 1 },
+      );
+      contentAnimation.id = 'dungeon-veil-death-content';
+      visualAnimations.push(overlayAnimation, contentAnimation);
+    }
+
     if (remaining === 0) {
-      queueMicrotask(settle);
+      settle();
     } else {
       timer = window.setTimeout(settle, remaining);
       frame = window.requestAnimationFrame(watchDeadline);
-
-      if (overlayRef.current?.animate) {
-        deadlineAnimation = overlayRef.current.animate(
-          [{ opacity: 1 }, { opacity: 1 }],
-          { duration: remaining, easing: 'linear', iterations: 1 },
-        );
-        void deadlineAnimation.finished.then(() => {
-          if (performance.now() >= deadline) settle();
-        }).catch(() => {
-          // Cancellation during unmount/retry is expected and must not create a late settle.
-        });
-      }
+      const visualDeadline = visualAnimations[0];
+      if (visualDeadline) void visualDeadline.finished.then(settle).catch(() => {
+        // Cancellation during unmount/retry is expected and must not create a late settle.
+      });
     }
 
-    return () => {
+    cancelDeadlineRef.current = () => {
       settledOnce = true;
       if (timer !== null) window.clearTimeout(timer);
       window.cancelAnimationFrame(frame);
-      deadlineAnimation?.cancel();
+      visualAnimations.forEach(animation => animation.cancel());
     };
-  }, [deathBeatStartedAt]);
+  };
+
+  useImperativeHandle(presentationRef, () => ({ beginDeathPresentation, completeDeathPresentation, resetDeathPresentation }));
+  useLayoutEffect(() => () => cancelDeadlineRef.current?.(), []);
 
   const settled = deathSequence === 'settled';
 
   return (
     <div
       ref={overlayRef}
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center text-foreground touch-none select-none transition-[background-color,backdrop-filter] duration-500 ${settled ? 'bg-black/92 backdrop-blur-sm' : 'bg-black/35'}`}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center text-foreground touch-none select-none transition-[background-color,backdrop-filter] duration-500 ${presented ? '' : 'hidden pointer-events-none'} ${settled ? 'bg-black/92 backdrop-blur-sm' : 'bg-black/35'}`}
       data-testid="game-over-screen"
-      data-death-sequence={deathSequence}
+      data-death-sequence={presented ? deathSequence : 'inactive'}
       data-death-settled-at={settled ? settledAtRef.current ?? undefined : undefined}
+      aria-hidden={presented ? 'false' : 'true'}
     >
       <div
         ref={contentRef}
@@ -180,7 +254,7 @@ export function GameOverScreen({ gameState, deathBeatStartedAt: transitionStarte
       </div>
     </div>
   );
-}
+});
 
 function StatRow({ label, value }: { label: string; value: number }) {
   return (
