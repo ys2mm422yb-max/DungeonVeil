@@ -78,10 +78,29 @@ function RuntimeDuoEvidenceScene() {
       onLoadRoom: room => fixture.loadEvidenceRoom(room),
       onKillLivingEnemies: () => fixture.completeEvidenceEncounter(),
     });
-    const onRoomPreparing = () => fixture.setEvidencePaused(true);
-    const onRoomReady = (event: Event) => {
+    let activeRoomBuild: Readonly<{ key: string; floor: number }> | null = null;
+    const roomBuildIdentity = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : null;
-      fixture.setEvidencePaused(detail?.failed === true);
+      const key = typeof detail?.key === 'string' ? detail.key : '';
+      const floor = Number(detail?.floor);
+      return key && Number.isInteger(floor) ? { detail, key, floor } : null;
+    };
+    const onRoomPreparing = (event: Event) => {
+      const identity = roomBuildIdentity(event);
+      if (!identity) return;
+      activeRoomBuild = Object.freeze({ key: identity.key, floor: identity.floor });
+      fixture.setEvidencePaused(true);
+    };
+    const onRoomReady = (event: Event) => {
+      const identity = roomBuildIdentity(event);
+      if (!identity || !activeRoomBuild
+        || identity.key !== activeRoomBuild.key || identity.floor !== activeRoomBuild.floor) return;
+      if (identity.detail?.failed === true) {
+        fixture.setEvidencePaused(true);
+        return;
+      }
+      activeRoomBuild = null;
+      fixture.setEvidencePaused(false);
     };
     window.addEventListener('dungeon-veil-room-preparing', onRoomPreparing);
     window.addEventListener('dungeon-veil-room-ready', onRoomReady);

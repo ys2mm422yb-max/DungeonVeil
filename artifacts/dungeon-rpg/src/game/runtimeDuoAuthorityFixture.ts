@@ -115,6 +115,8 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
 
   isStateCurrent = (state: CanonicalEncounterState): boolean => state === this.state;
 
+  canProjectState = (state: CanonicalEncounterState): boolean => !this.evidencePaused && state === this.state;
+
   currentSession = (): CoopAuthorityRuntimeSession | null => {
     return this.sessionAvailable
       ? Object.freeze({ actorId: HOST_ID, credentialGeneration: this.sessionGeneration })
@@ -279,17 +281,20 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
   }
 
   setEvidencePaused(paused: boolean): void {
+    const wasPaused = this.evidencePaused;
     this.evidencePaused = paused;
     this.lastWallMs = performance.now();
-    if (!paused || !this.state.runeStorm.active) return;
+    if (!paused || wasPaused) return;
     this.state = Object.freeze({
       ...this.state,
       version: this.state.version + 1,
-      runeStorm: Object.freeze({
-        ...this.state.runeStorm,
-        strikeAtMs: null,
-        nextStrikeAtMs: Math.max(this.state.runeStorm.nextStrikeAtMs, this.serverNowMs + 900),
-      }),
+      runeStorm: this.state.runeStorm.active
+        ? Object.freeze({
+            ...this.state.runeStorm,
+            strikeAtMs: null,
+            nextStrikeAtMs: Math.max(this.state.runeStorm.nextStrikeAtMs, this.serverNowMs + 900),
+          })
+        : this.state.runeStorm,
     });
   }
 

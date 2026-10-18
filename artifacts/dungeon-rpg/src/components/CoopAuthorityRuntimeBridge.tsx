@@ -46,6 +46,7 @@ export type CoopAuthorityRuntimeTransport = Readonly<{
   restart: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof restartDuoAuthorityAttempt>) => ReturnType<typeof restartDuoAuthorityAttempt>;
   exitMy: (session: CoopAuthorityRuntimeSession, ...args: Parameters<typeof exitMyDuoAuthorityAttempt>) => ReturnType<typeof exitMyDuoAuthorityAttempt>;
   isStateCurrent?: (state: CanonicalEncounterState) => boolean;
+  canProjectState?: (state: CanonicalEncounterState) => boolean;
 }>;
 
 export type CoopAuthorityRuntimeSession = Readonly<{ actorId: string; credentialGeneration: number }>;
@@ -340,6 +341,10 @@ export const CoopAuthorityRuntimeBridge = forwardRef<CoopAuthorityRuntimeBridgeH
         }
         if (transport.isStateCurrent && !transport.isStateCurrent(state)) {
           schedule(0);
+          return;
+        }
+        if (transport.canProjectState && !transport.canProjectState(state)) {
+          schedule();
           return;
         }
         const actor = state.actors.find(candidate => candidate.actorId === userId);

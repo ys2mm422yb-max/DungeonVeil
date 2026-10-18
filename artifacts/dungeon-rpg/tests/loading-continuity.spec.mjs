@@ -21,6 +21,10 @@ test('boot presentation uses the violet Dungeon Veil D identity', async ({ page 
 test('fast room swaps stay seamless and slow swaps use the lightweight veil', async ({ page }) => {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
+  await expect.poll(
+    () => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState),
+    { timeout: 60_000 },
+  ).toBe('ready');
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('dungeon-veil-room-preparing', { detail: { key: 'audit-fast', floor: 7 } })));
   await page.waitForTimeout(260);

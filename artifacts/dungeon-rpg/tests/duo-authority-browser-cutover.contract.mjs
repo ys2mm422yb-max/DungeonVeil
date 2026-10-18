@@ -56,8 +56,13 @@ test('runtime evidence freezes canonical hazards across failed room builds and r
   const { RuntimeDuoAuthorityFixture } = await fixtureRuntime();
   const fixture = new RuntimeDuoAuthorityFixture();
   fixture.loadEvidenceRoom(13);
+  const beforePause = fixture.snapshot().state;
   fixture.setEvidencePaused(true);
   const before = fixture.snapshot().state;
+  assert.notEqual(before, beforePause);
+  assert.equal(fixture.isStateCurrent(beforePause), false);
+  assert.equal(fixture.canProjectState(beforePause), false);
+  assert.equal(fixture.canProjectState(before), false);
   const session = fixture.currentSession();
   assert.ok(session);
   const paused = await fixture.submit(
@@ -72,6 +77,7 @@ test('runtime evidence freezes canonical hazards across failed room builds and r
   assert.equal(paused.state.actors.find(actor => actor.actorId === fixture.hostId)?.hp, before.actors.find(actor => actor.actorId === fixture.hostId)?.hp);
   assert.equal(paused.state.runeStorm.strikeAtMs, null);
   fixture.setEvidencePaused(false);
+  assert.equal(fixture.canProjectState(paused.state), true);
   const resumed = await fixture.submit(
     session,
     { lobbyId: fixture.lobbyId, runAttempt: 1, runSeed: fixture.runSeed },
@@ -83,12 +89,17 @@ test('runtime evidence freezes canonical hazards across failed room builds and r
   assert.equal(fixture.isStateCurrent(resumed.state), true);
   fixture.completeEvidenceEncounter();
   assert.equal(fixture.isStateCurrent(resumed.state), false);
+  assert.equal(fixture.canProjectState(resumed.state), false);
   assert.equal(fixture.snapshot().state.completed, true);
-  assert.match(runtimeEvidenceQa, /const onRoomPreparing = \(\) => fixture\.setEvidencePaused\(true\);/);
+  assert.match(runtimeEvidenceQa, /activeRoomBuild = Object\.freeze\(\{ key: identity\.key, floor: identity\.floor \}\);/);
+  assert.match(runtimeEvidenceQa, /const onRoomPreparing = \(event: Event\) => \{[\s\S]*fixture\.setEvidencePaused\(true\);[\s\S]*\};/);
   assert.match(runtimeEvidenceQa, /addEventListener\('dungeon-veil-room-preparing', onRoomPreparing\)/);
-  assert.match(runtimeEvidenceQa, /const onRoomReady = \(event: Event\) => \{[\s\S]*fixture\.setEvidencePaused\(detail\?\.failed === true\);[\s\S]*\};/);
+  assert.match(runtimeEvidenceQa, /identity\.key !== activeRoomBuild\.key \|\| identity\.floor !== activeRoomBuild\.floor/);
+  assert.match(runtimeEvidenceQa, /identity\.detail\?\.failed === true[\s\S]*fixture\.setEvidencePaused\(true\);/);
+  assert.match(runtimeEvidenceQa, /activeRoomBuild = null;[\s\S]*fixture\.setEvidencePaused\(false\);/);
   assert.match(runtimeEvidenceQa, /addEventListener\('dungeon-veil-room-ready', onRoomReady\)/);
   assert.match(authorityBridge, /transport\.isStateCurrent && !transport\.isStateCurrent\(state\)/);
+  assert.match(authorityBridge, /transport\.canProjectState && !transport\.canProjectState\(state\)[\s\S]*schedule\(\);[\s\S]*return;/);
 });
 
 test('browser discovers its exact server-owned attempt through an actor-bound RPC', () => {
