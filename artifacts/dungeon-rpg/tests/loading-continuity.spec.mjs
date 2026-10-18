@@ -9,6 +9,22 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+async function clickUi(locator) {
+  await locator.click({ force: true });
+}
+
+async function startActualRun(page) {
+  await clickUi(page.getByRole('button', { name: /Spielen|Play/i }).first());
+  await clickUi(page.getByRole('button', { name: /Solo-Run|Solo Run/i }).first());
+  const nameInput = page.getByRole('textbox').first();
+  await expect(nameInput).toBeVisible({ timeout: 30_000 });
+  await nameInput.fill('Loading Audit');
+  const confirm = page.getByTestId('run-name-confirm');
+  await expect(confirm).toBeEnabled();
+  await clickUi(confirm);
+  await expect(page.getByTestId('run-hud')).toBeVisible({ timeout: 60_000 });
+}
+
 test('boot presentation uses the violet Dungeon Veil D identity', async ({ page }) => {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   const boot = page.getByTestId('app-boot-loading-screen');
@@ -21,6 +37,7 @@ test('boot presentation uses the violet Dungeon Veil D identity', async ({ page 
 test('fast room swaps stay seamless and slow swaps use the lightweight veil', async ({ page }) => {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await expect(page.getByTestId('app-boot-loading-screen')).toBeHidden({ timeout: 60_000 });
+  await startActualRun(page);
   await expect.poll(
     () => page.evaluate(() => document.documentElement.dataset.dungeonVeilRoomBuildState),
     { timeout: 60_000 },

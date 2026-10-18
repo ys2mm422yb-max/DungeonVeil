@@ -10,6 +10,9 @@ const requireText = (source, token, message) => {
 const loadingScreen = read('src/components/LoadingScreen.tsx');
 const globalLayer = read('src/components/GlobalLoadingLayer.tsx');
 const main = read('src/main.tsx');
+const roomReadyFailureGuard = read('src/game/roomReadyFailureGuard.ts');
+const gameCanvas = read('src/components/GameCanvasKayKit3D.tsx');
+const loadingContinuity = read('tests/loading-continuity.spec.mjs');
 const characterCreation = read('src/components/screens/CharacterCreationModern.tsx');
 const worldBoss = read('src/components/WorldBossBattleScreenV4.tsx');
 
@@ -29,6 +32,22 @@ requireText(globalLayer, 'ROOM_LOADING_SHOW_AFTER_MS', 'Fast room swaps still sh
 requireText(globalLayer, 'seamless-violet-veil', 'Slow room swaps do not use the lightweight veil transition');
 requireText(globalLayer, 'BOOT_SESSION_KEY', 'The boot presentation can replay repeatedly in one tab session');
 requireText(main, '<GlobalLoadingLayer />', 'Global loading layer is not mounted');
+requireText(main, 'installRoomReadyFailureGuard();', 'Room readiness lifecycle guard is not installed');
+requireText(roomReadyFailureGuard, "dungeonVeilRoomBuildState = 'ready'", 'Room readiness dataset has no successful lifecycle producer');
+requireText(gameCanvas, "new CustomEvent('dungeon-veil-room-preparing'", 'Room canvas no longer emits the preparing lifecycle');
+requireText(gameCanvas, "new CustomEvent('dungeon-veil-room-ready'", 'Room canvas no longer emits the ready lifecycle');
+requireText(loadingContinuity, 'await startActualRun(page);', 'Loading continuity consumes room readiness before starting a real run');
+requireText(loadingContinuity, 'document.documentElement.dataset.dungeonVeilRoomBuildState', 'Loading continuity no longer consumes the source-backed room readiness state');
+const runStartIndex = loadingContinuity.indexOf('await startActualRun(page);');
+const readinessConsumerIndex = loadingContinuity.indexOf('document.documentElement.dataset.dungeonVeilRoomBuildState');
+if (runStartIndex < 0 || readinessConsumerIndex < 0 || runStartIndex > readinessConsumerIndex) {
+  throw new Error('Loading continuity must start a real run before consuming room readiness');
+}
+const guardInstallIndex = main.indexOf('installRoomReadyFailureGuard();');
+const reactMountIndex = main.indexOf("createRoot(document.getElementById('root')!).render(appView);");
+if (guardInstallIndex < 0 || reactMountIndex < 0 || guardInstallIndex > reactMountIndex) {
+  throw new Error('Room readiness lifecycle guard must be installed before React mount');
+}
 requireText(characterCreation, 'new-run-loading-screen', 'New-run full-screen loader is missing');
 requireText(characterCreation, 'RUN_PRELOAD_MAX_MS', 'New-run asset loading has no hard deadline');
 requireText(characterCreation, 'Promise.race([preloadRun(), delay(RUN_PRELOAD_MAX_MS)])', 'A stalled optional model can still block a new run indefinitely');
