@@ -18,6 +18,13 @@ const [
   completeRuntimeWorkflow,
   pagesWorkflow,
   combatStage,
+  gameCanvas,
+  runEngine,
+  runtimeEvidenceBridge,
+  gamePage,
+  gameOverScreen,
+  transientUiVisualQa,
+  playerDeathState,
 ] = await Promise.all([
   read('../playwright.regression.config.mjs'),
   read('../playwright.complete-runtime.config.mjs'),
@@ -26,6 +33,13 @@ const [
   read('../../../.github/workflows/complete-runtime-evidence-qa.yml'),
   read('../../../.github/workflows/dungeon-veil-pages.yml'),
   read('../src/components/CombatStage.tsx'),
+  read('../src/components/GameCanvasKayKit3D.tsx'),
+  read('../src/game/runEngine.ts'),
+  read('../src/game/runtimeEvidenceBridge.ts'),
+  read('../src/pages/game.tsx'),
+  read('../src/components/screens/GameOverScreen.tsx'),
+  read('../src/components/TransientUiVisualQa.tsx'),
+  read('../tests/player-death-state.spec.mjs'),
 ]);
 
 const extractConfigProjects = source => {
@@ -107,6 +121,40 @@ const checks = [
     && combatStage.includes('}, DEATH_OVERLAY_PRIORITY_WINDOW_MS)')
     && !/setTimeout\(\(\) => setPlayerDead\([^)]*\),\s*0\)/s.test(combatStage),
     'terminal death still lets broad CombatStage reconciliation compete with the 1.1-second overlay priority window'],
+  [gameOverScreen.includes('onSettled?: () => void')
+    && gameOverScreen.includes('completeDeathPresentation: (onSettled: () => void) => void')
+    && gameOverScreen.includes('settledCallbackRef.current = onSettled')
+    && gameOverScreen.includes('const settledCallback = settledCallbackRef.current')
+    && gameOverScreen.includes('settledCallback?.();')
+    && gameOverScreen.includes("overlay.dataset.deathVisualDriver = 'web-animations'")
+    && gameOverScreen.includes("overlayAnimation.id = 'dungeon-veil-death-overlay'")
+    && gameOverScreen.includes("contentAnimation.id = 'dungeon-veil-death-content'")
+    && gameOverScreen.includes("{ duration: remaining, easing: 'ease-out', fill: 'both', iterations: 1 }")
+    && gameOverScreen.includes("{ opacity: 1, offset: 1 }")
+    && gameOverScreen.includes('const deathBeatStartedAtRef = useRef<number | null>(null)')
+    && gameOverScreen.includes('deathBeatStartedAtRef.current = null')
+    && !gameOverScreen.includes('deathBeatStartedAtByRun')
+    && transientUiVisualQa.includes('const presentationRef = useRef<GameOverScreenHandle | null>(null)')
+    && transientUiVisualQa.includes('presentationRef.current?.beginDeathPresentation(performance.now())')
+    && transientUiVisualQa.includes("view === 'gameover' && <GameOverQa gameState={gameState} />")
+    && !/content\.classList\.add\('pointer-events-none', 'opacity-0'\);\s*}\s*setPresented\(true\)/s.test(gameOverScreen)
+    && gamePage.includes('() => setTerminalGameState(terminalSnapshot)')
+    && gamePage.includes('engine.onLethalTransition = transitionStartedAt =>')
+    && gamePage.includes('presentationRef.current?.completeDeathPresentation(() => setTerminalGameState(terminalSnapshot))')
+    && gameCanvas.includes("host.dataset.runRendererReady = 'true'")
+    && playerDeathState.includes("toHaveAttribute('data-run-renderer-ready', 'true')")
+    && runEngine.includes('this.onLethalTransition(transitionStartedAt);\n    this.state.status = \'gameover\';\n    this.emit();')
+    && runtimeEvidenceBridge.includes('forcePlayerDeathWithStarvedTerminalEmit: (delayMs = 1_250) => forcePlayerDeath(delayMs)')
+    && !gamePage.includes('setTerminalGameState(terminalSnapshot);'),
+    'terminal death or transient QA bypasses the resettable real 1.1-second presentation boundary'],
+  [playerDeathState.includes("visualDriver, 'visible settle must use a browser animation timeline")
+    && playerDeathState.includes('forcePlayerDeathWithStarvedTerminalEmit(1_250)')
+    && playerDeathState.includes('presentation boundary must already be settling before the terminal snapshot emit is starved')
+    && playerDeathState.includes("visualCompletion.contentOpacity")
+    && playerDeathState.includes("toBeLessThanOrEqual(2_000)")
+    && playerDeathState.includes(".find(presentation => presentation.id === presentationBefore.id)")
+    && playerDeathState.includes('the same authority telegraph must age forward within its bound or be absent after expiry/replacement'),
+    'terminal-death compositor evidence or identity-aware telegraph expiry coverage is missing'],
 ];
 
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);

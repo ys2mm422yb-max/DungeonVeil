@@ -13,10 +13,10 @@ import { VirtualJoystick } from '../components/VirtualJoystick';
 import { ActionButtons } from '../components/ActionButtons';
 import { HUD } from '../components/HUD';
 import { GameSessionBridge } from '../components/GameSessionBridge';
-import { CoopRunRealtimeBridge } from '../components/CoopRunRealtimeBridge';
+import { CoopAuthorityRuntimeBridge } from '../components/CoopAuthorityRuntimeBridge';
 import { CoopRunPersistenceBridge } from '../components/CoopRunPersistenceBridge';
 import { GamePausePanel } from '../components/GamePausePanel';
-import { GameOverScreen } from '../components/screens/GameOverScreen';
+import { GameOverScreen, type GameOverScreenHandle } from '../components/screens/GameOverScreen';
 import { LevelUpScreen } from '../components/screens/LevelUpScreen';
 import { LanguageSelectScreen } from '../components/screens/LanguageSelectScreen';
 import { MainMenuScreen } from '../components/screens/MainMenuScreen';
@@ -41,6 +41,7 @@ import { leaveCoopLobby, type CoopLobbySnapshot } from '../game/coopLobbyOnline'
 import { createDuoRunContext, createSoloRunContext, isDuoRun, type RunContext } from '../game/coopRunMode';
 import type { CoopPlayerPresence, CoopRealtimeStatus } from '../game/coopRealtimePresence';
 import { getMyCoopRunCheckpoint } from '../game/coopRunPersistenceOnline';
+import { exitMyDuoAuthorityAttempt } from '../game/duoAuthorityOnline';
 
 const ACTIVE_RUN_SESSION_KEY = 'dungeon-veil-active-run-session';
 const RUN_ENTRY_PRELOAD_ATTEMPTS = 4;
@@ -49,7 +50,7 @@ const RUN_ENTRY_PRELOAD_DEADLINE_MS = 8_000;
 type UiState = 'lang_select' | 'main_menu' | 'run_name' | 'settings' | 'credits' | 'veil_chamber' | 'codex' | 'game';
 type MoveVector = { x: number; y: number };
 type KeyState = { up: boolean; down: boolean; left: boolean; right: boolean };
-type PlayerDeathEventDetail = { dead?: boolean; gameState?: GameState };
+type PlayerDeathEventDetail = { dead?: boolean; gameState?: GameState; transitionStartedAt?: number };
 
 function normalizeMove({ x, y }: MoveVector): MoveVector {
   const length = Math.hypot(x, y);
@@ -153,30 +154,39 @@ const TerminalStableCombatStage = React.memo(
   (previous, next) => previous.gameState === next.gameState && previous.remotePlayer === next.remotePlayer,
 );
 
-function TerminalDeathOverlay({ onRetry, onMainMenu }: { onRetry: () => void; onMainMenu: () => void }) {
+function TerminalDeathOverlay({ gameState, onRetry, onMainMenu }: { gameState: GameState | null; onRetry: () => void; onMainMenu: () => void }) {
   const [terminalGameState, setTerminalGameState] = useState<GameState | null>(null);
+  const presentationRef = useRef<GameOverScreenHandle | null>(null);
 
   useEffect(() => {
     const handleDeathState = (event: Event) => {
       const detail = (event as CustomEvent<PlayerDeathEventDetail>).detail;
       if (!detail?.dead) {
+        presentationRef.current?.resetDeathPresentation();
         setTerminalGameState(null);
         return;
       }
       const terminalSnapshot = detail.gameState;
-      // Let React schedule this lightweight terminal subtree instead of forcing the whole
-      // root to reconcile inside the engine's lethal update. On loaded Android tablets the
-      // synchronous flush could occupy the main thread past the unchanged 2 s deadline;
-      // GameOverScreen already anchors its 1100 ms beat to the lethal engine timestamp.
-      if (terminalSnapshot) setTerminalGameState(terminalSnapshot);
+      const transitionStartedAt = Number(detail.transitionStartedAt);
+      if (Number.isFinite(transitionStartedAt) && transitionStartedAt > 0) {
+        presentationRef.current?.beginDeathPresentation(transitionStartedAt);
+      }
+      if (terminalSnapshot) {
+        // The engine publishes the authoritative lethal clock before its synchronous
+        // terminal emit. This call is an idempotent fallback for non-engine producers; the
+        // real snapshot is reconciled separately only after the already-running beat settles.
+        presentationRef.current?.beginDeathPresentation(terminalSnapshot.player.lastHitTime);
+        presentationRef.current?.completeDeathPresentation(() => setTerminalGameState(terminalSnapshot));
+      }
     };
     window.addEventListener(PLAYER_DEATH_EVENT, handleDeathState);
     return () => window.removeEventListener(PLAYER_DEATH_EVENT, handleDeathState);
   }, []);
 
-  if (!terminalGameState) return null;
-  return <div data-terminal-death-host="active">
-    <GameOverScreen gameState={terminalGameState} onRetry={onRetry} onMainMenu={onMainMenu} />
+  const presentationState = terminalGameState ?? gameState;
+  if (!presentationState) return null;
+  return <div data-terminal-death-host={terminalGameState ? 'active' : 'ready'}>
+    <GameOverScreen ref={presentationRef} gameState={presentationState} onRetry={onRetry} onMainMenu={onMainMenu} />
   </div>;
 }
 
@@ -249,6 +259,11 @@ export default function Game() {
     let cancelled = false;
     engineRef.current = engine;
     originalSaveNowRef.current = engine.saveNow.bind(engine);
+    engine.onLethalTransition = transitionStartedAt => {
+      window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, {
+        detail: { dead: true, transitionStartedAt },
+      }));
+    };
     engine.onStateChange = state => {
       const live = engine.state;
       prepareGiftChoices(live);
@@ -269,7 +284,9 @@ export default function Game() {
       // terminal snapshot through the existing death event, so loaded mobile runtimes do
       // not need to reconcile this large parent tree before the fixed 1100 ms beat can run.
       if (live.status === 'gameover') {
-        window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, { detail: { dead: true, gameState: nextState } }));
+        window.dispatchEvent(new CustomEvent(PLAYER_DEATH_EVENT, {
+          detail: { dead: true, gameState: nextState, transitionStartedAt: live.player.lastHitTime },
+        }));
         return;
       }
       setGameState(nextState);
@@ -493,7 +510,7 @@ export default function Game() {
   }, [activeCoopLobby, beginDuoRun, beginFreshRun, clearTerminalGameState, language, runContext, saveData?.playerName]);
 
   const handleMainMenu = useCallback(() => {
-    const leavingDuo = isDuoRun(runContext);
+    const leavingContext = isDuoRun(runContext) ? runContext : null;
     clearTerminalGameState();
     saveCurrentGame();
     resetMovement();
@@ -504,7 +521,12 @@ export default function Game() {
     setRunContext(createSoloRunContext());
     setActiveCoopLobby(null);
     document.documentElement.dataset.dungeonVeilRunMode = 'solo';
-    if (leavingDuo) void leaveCoopLobby().catch(error => console.error('Duo lobby leave failed', error));
+    if (leavingContext) void Promise.allSettled([
+      exitMyDuoAuthorityAttempt(leavingContext.lobbyId, leavingContext.runSeed),
+      leaveCoopLobby(),
+    ]).then(results => {
+      for (const result of results) if (result.status === 'rejected') console.error('Duo exit failed', result.reason);
+    });
   }, [clearTerminalGameState, resetMovement, runContext, saveCurrentGame]);
 
   const handleSettingsBack = useCallback(() => {
@@ -590,7 +612,7 @@ export default function Game() {
         getEngine={() => engineRef.current}
         language={language}
       />
-      <CoopRunRealtimeBridge
+      <CoopAuthorityRuntimeBridge
         active={uiState === 'game' && Boolean(duoContext)}
         context={duoContext}
         getEngine={() => engineRef.current}
@@ -616,7 +638,7 @@ export default function Game() {
           <ActionButtons gameState={gameState} onDodge={handleDodge} />
         </>}
       </>}
-      <TerminalDeathOverlay onRetry={handleRetry} onMainMenu={handleMainMenu} />
+      <TerminalDeathOverlay gameState={gameState} onRetry={handleRetry} onMainMenu={handleMainMenu} />
       {confirmingNewRun && saveData && <NewRunConfirmDialog
         language={language}
         chapter={saveData.chapter ?? 1}

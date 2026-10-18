@@ -77,10 +77,18 @@ function collectMatches(report, project) {
   return matches;
 }
 
+function traceTiming(trace) {
+  return {
+    observedMs: trace.visualSettleDeadlineMs ?? trace.deathSequenceObservedMs,
+    committedAt: trace.semanticDeathSequenceCommittedAt ?? trace.deathSequenceCommittedAt,
+  };
+}
+
 function validateTrace(trace, project) {
   if (trace.project !== project) fail(`trace project ${trace.project ?? '<missing>'} does not match ${project}`);
-  if (!Number.isFinite(trace.deathSequenceObservedMs) || trace.deathSequenceObservedMs < 0 || trace.deathSequenceObservedMs > 2_000) {
-    fail(`deathSequenceObservedMs must be finite and within 0..2000, found ${trace.deathSequenceObservedMs}`);
+  const timing = traceTiming(trace);
+  if (!Number.isFinite(timing.observedMs) || timing.observedMs < 0 || timing.observedMs > 2_000) {
+    fail(`visual settle deadline must be finite and within 0..2000, found ${timing.observedMs}`);
   }
   if (!Array.isArray(trace.deathSequenceStates) || !trace.deathSequenceStates.includes('settling') || !trace.deathSequenceStates.includes('settled')) {
     fail('deathSequenceStates must contain settling and settled');
@@ -89,7 +97,7 @@ function validateTrace(trace, project) {
     fail('deathSequenceStates must transition from settling to settled');
   }
   if (trace.deathSequence !== 'settled') fail(`terminal deathSequence must be settled, found ${trace.deathSequence}`);
-  if (!Number.isFinite(trace.deathSequenceCommittedAt)) fail('deathSequenceCommittedAt must be finite');
+  if (!Number.isFinite(timing.committedAt)) fail('semantic death-sequence commit timestamp must be finite');
   if (trace.rendererDeathState !== 'active') fail(`rendererDeathState must be active, found ${trace.rendererDeathState}`);
   if (trace.terminalRenderMode !== 'frozen-final-pose') fail(`terminalRenderMode must be frozen-final-pose, found ${trace.terminalRenderMode}`);
   if (trace.terminalRenderFrames !== 1) fail(`terminalRenderFrames must be 1, found ${trace.terminalRenderFrames}`);
@@ -180,7 +188,8 @@ export async function prepareEvidence(options) {
     runId: Number(options['run-id']),
     runAttempt: Number(options['run-attempt']),
     traceAcceptance: {
-      deathSequenceObservedMs: traceJson.deathSequenceObservedMs,
+      visualSettleDeadlineMs: traceTiming(traceJson).observedMs,
+      semanticDeathSequenceCommittedAt: traceTiming(traceJson).committedAt,
       deathSequenceStates: traceJson.deathSequenceStates,
       terminalRenderMode: traceJson.terminalRenderMode,
       terminalRenderFrames: traceJson.terminalRenderFrames,
@@ -203,7 +212,7 @@ async function selfTest() {
     const project = 'android-tablet-chromium';
     const video = path.join(testOutput, 'video.webm');
     await fs.writeFile(video, Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
-    const trace = { project, deathSequence: 'settled', deathSequenceStates: ['settling', 'settled'], deathSequenceObservedMs: 1_100, deathSequenceCommittedAt: 2_200, rendererDeathState: 'active', terminalRenderMode: 'frozen-final-pose', terminalRenderFrames: 1, after: { status: 'gameover', hp: 0 }, postDeathAttackObservedMs: 750, postDeathAttackBlocked: true };
+    const trace = { project, deathSequence: 'settled', deathSequenceStates: ['settling', 'settled'], visualSettleDeadlineMs: 1_100, semanticDeathSequenceCommittedAt: 2_200, rendererDeathState: 'active', terminalRenderMode: 'frozen-final-pose', terminalRenderFrames: 1, after: { status: 'gameover', hp: 0 }, postDeathAttackObservedMs: 750, postDeathAttackBlocked: true };
     await fs.writeFile(path.join(testOutput, `player-death-solo-${project}.trace.json`), JSON.stringify(trace));
     await fs.writeFile(path.join(testOutput, `player-death-solo-${project}.png`), Buffer.concat([PNG_SIGNATURE, Buffer.alloc(16)]));
     const reportPath = path.join(resultsRoot, 'full-game-results.json');
@@ -223,7 +232,7 @@ async function selfTest() {
       try { await prepareEvidence({ ...options, 'output-root': path.join(root, `${STAGING_PREFIX}-${label}`) }); } catch { rejected = true; }
       if (!rejected) fail(`negative self-test was accepted: ${label}`);
     };
-    await reject('timing', async () => fs.writeFile(path.join(testOutput, `player-death-solo-${project}.trace.json`), JSON.stringify({ ...trace, deathSequenceObservedMs: 2_001 })));
+    await reject('timing', async () => fs.writeFile(path.join(testOutput, `player-death-solo-${project}.trace.json`), JSON.stringify({ ...trace, visualSettleDeadlineMs: 2_001 })));
     await fs.writeFile(path.join(testOutput, `player-death-solo-${project}.trace.json`), JSON.stringify(trace));
     const outsideVideo = path.join(root, 'outside.webm');
     await fs.writeFile(outsideVideo, 'outside');

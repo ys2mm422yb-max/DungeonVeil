@@ -75,6 +75,8 @@ assert(completeConfig.includes('retries: 0'), 'Complete runtime config must keep
 assert(!completeConfig.includes("['html'"), 'Complete runtime must not generate an HTML report in normal PR evidence.');
 assert(completeConfig.includes("size: { width: 360, height: 640 }"), 'Complete runtime review video size must remain 360x640.');
 
+const playerDeathSpec = await read(join(appRoot, 'tests', 'player-death-state.spec.mjs'));
+
 const completeWorkflow = workflows.get('complete-runtime-evidence-qa.yml') ?? '';
 assert(completeWorkflow.includes('prepare-complete-runtime-review-media.mjs'), 'Complete runtime workflow must prepare compact review media.');
 assert(completeWorkflow.includes('complete-runtime-review-screenshots-${{ matrix.project }}'), 'Complete runtime screenshots must remain separate.');
@@ -96,6 +98,12 @@ const productWorkflow = workflows.get('product-autopilot-qa.yml') ?? '';
 assert(productWorkflow.includes('assert-artifact-budget.mjs'), 'Product Autopilot QA must enforce artifact budgets before upload.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'success'"), 'Product success evidence must upload only after success.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'failure'"), 'Product diagnostics must upload only after failure.');
+assert(productWorkflow.includes('outputRootReal = fs.realpathSync(outputRoot)') && productWorkflow.includes("path.resolve('artifacts/dungeon-rpg', attachmentPath)"), 'Product player-death evidence must resolve package-relative video attachments inside the real results root.');
+assert(playerDeathSpec.includes('mounted authority bridge proves held revive -> second-death Fallen -> Team Defeat (${language})'), 'Player-death spec is missing the mounted localized authority title contract.');
+for (const language of ['de', 'en']) {
+  const mountedTitle = `mounted authority bridge proves held revive -> second-death Fallen -> Team Defeat (${language})`;
+  assert(productWorkflow.includes(mountedTitle.toLowerCase()), `Product player-death collector classifier drifted from the mounted ${language.toUpperCase()} authority title.`);
+}
 assert(!productWorkflow.includes('artifacts/dungeon-rpg/test-results/**\n'), 'Product QA must not upload the entire test-results tree.');
 assert(!productWorkflow.includes('artifacts/dungeon-rpg/playwright-report/**'), 'Product QA must not upload the full HTML report.');
 

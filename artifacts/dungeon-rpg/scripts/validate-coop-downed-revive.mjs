@@ -10,7 +10,9 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const lifecycle = read('src/game/coopLifeCycle.ts');
 const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
+const authorityBridge = read('src/components/CoopAuthorityRuntimeBridge.tsx');
 const runtimeDuoEvidence = read('src/components/RuntimeDuoEvidenceQa.tsx');
+const runtimeDuoSpec = read('tests/player-death-state.spec.mjs');
 const teammateUi = read('src/components/CoopTeammateUI.tsx');
 const page = read('src/pages/game.tsx');
 const engine = read('src/game/runEngine.ts');
@@ -62,8 +64,18 @@ for (const label of ['DOWNED', 'FALLEN', 'HOLD TO REVIVE', 'BOTH HAVE FALLEN', '
 assert(!bridge.includes('NIEDERGESCHLAGEN · DOWNED') && !bridge.includes('WIEDERBELEBEN HALTEN · HOLD TO REVIVE'), 'Duo lifecycle overlay still renders mixed-language labels.');
 assert(bridge.includes('{copy.pausedEyebrow}') && bridge.includes('{copy.disconnectedTitle}') && bridge.includes('copy.downedBody(downedSeconds)') && bridge.includes('{copy.reviveHold}') && bridge.includes('{copy.teamDefeatTitle}'), 'Duo lifecycle UI does not consistently render the selected-language copy.');
 assert(bridge.includes('export function CoopTeamDefeatOverlay') && bridge.includes('<CoopTeamDefeatOverlay'), 'Production Duo team defeat does not render through the shared presentation component.');
-assert(runtimeDuoEvidence.includes("import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge'"), 'Runtime Duo evidence does not import the production team-defeat presentation.');
-assert(runtimeDuoEvidence.includes('<CoopTeamDefeatOverlay') && runtimeDuoEvidence.includes('testId="runtime-duo-team-game-over"'), 'Runtime Duo evidence does not render the production team-defeat presentation.');
+assert(runtimeDuoEvidence.includes("from './CoopAuthorityRuntimeBridge'") && runtimeDuoEvidence.includes('<CoopAuthorityRuntimeBridge'), 'Runtime Duo evidence does not mount the production authority bridge.');
+assert(authorityBridge.includes("import { CoopTeamDefeatOverlay } from './CoopRunRealtimeBridge'") && authorityBridge.includes('<CoopTeamDefeatOverlay'), 'Canonical authority runtime does not render the production team-defeat presentation.');
+assert(runtimeDuoSpec.includes("document.querySelector('[data-testid=\"coop-team-game-over\"]')")
+  && runtimeDuoSpec.includes('teamDefeatVisible: true')
+  && runtimeDuoSpec.includes('captureSnapshot: true')
+  && runtimeDuoSpec.includes('teamDefeatObservation.snapshot'), 'Runtime Duo journey does not assert and record the mounted production team-defeat presentation.');
+assert(runtimeDuoSpec.includes("localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1')"), 'Runtime Duo evidence must deterministically start without the first-run tutorial obstruction.');
+assert(runtimeDuoSpec.includes("action: 'releaseTransportFailure'") && runtimeDuoEvidence.includes('releaseTransportFailure: () => fixture.releaseTransportFailure()'), 'Runtime Duo reconnect evidence does not hold and explicitly release the failed transport state.');
+assert(runtimeDuoSpec.includes("action: 'resetPartnerDownedEvidenceBoundary'")
+  && runtimeDuoEvidence.includes('resetPartnerDownedEvidenceBoundary: () => fixture.resetPartnerDownedEvidenceBoundary()'), 'Runtime Duo adversarial proofs do not use fresh canonical downed evidence boundaries.');
+assert((runtimeDuoSpec.match(/await resetDownedBoundary\(\);/g) ?? []).length >= 6
+  && runtimeDuoSpec.includes("await assertReconnectRecovery('interruptNextRead');\n    await resetDownedBoundary();\n    await assertReconnectRecovery('rejectNextSubmitAsStale');"), 'Runtime Duo reconnect and pointer proofs can still consume one shared canonical downed lifetime.');
 assert(!runtimeDuoEvidence.includes('teamDefeatCopy') && !runtimeDuoEvidence.includes('BOTH FALLEN'), 'Runtime Duo evidence still contains duplicated team-defeat copy.');
 
 assert(teammateUi.includes('COOP_REVIVE_RANGE') && teammateUi.includes('distance <= COOP_REVIVE_RANGE'), 'Revive proximity UI does not use the authoritative revive range.');
@@ -77,6 +89,11 @@ assert(teammateUi.includes('DOWNED') && teammateUi.includes('FALLEN · NEXT ROOM
 assert(teammateUi.includes('{copy.teammate} · {teammateName}') && teammateUi.includes('copy.inRange(teammateName)') && teammateUi.includes('copy.approach(distanceTiles, teammateName)') && teammateUi.includes('{copy.reviveSpent}'), 'Teammate HUD does not consistently render selected-language copy.');
 
 assert(page.includes("active={uiState === 'game' && Boolean(duoContext)}"), 'Lifecycle bridge can activate outside a duo run.');
+assert(page.includes('<CoopAuthorityRuntimeBridge'), 'Canonical authority lifecycle is not mounted in the visible run.');
+assert(authorityBridge.includes('engine.input.interact') && authorityBridge.includes('data-testid="coop-revive-control"'), 'Canonical revive is not driven by an explicit mobile hold control.');
+assert(authorityBridge.includes('onPointerCancel={() => setReviveHeld(false)}') && authorityBridge.includes('revivePartnerInRange'), 'Canonical revive hold does not cancel safely or continuously enforce range.');
+assert(authorityBridge.includes('data-testid="coop-local-life-state"') && authorityBridge.includes('data-testid="coop-teammate-disconnected"'), 'Canonical authority lifecycle omits downed/fallen or disconnect presentation.');
+assert(authorityBridge.includes("if (engine.state.status !== 'paused') engine.state.status = 'playing'"), 'Canonical reconciliation can overwrite a user pause.');
 assert(engine.includes("status: 'playing' | 'gameover' | 'levelup' | 'paused'"), 'Solo engine status contract was modified for duo lifecycle.');
 assert(!engine.includes('COOP_DOWNED_DURATION_MS') && !engine.includes('COOP_REVIVE_HOLD_MS'), 'Duo lifecycle leaked into the solo engine.');
 assert(!realtime.includes("sendBroadcast('loot"), 'Lifecycle block must not synchronize loot or rewards.');
@@ -109,6 +126,27 @@ try {
   assert(module.normalizeCoopReviveConfirm({ ...reviveRequest, userId: 'host', targetUserId: 'other' }, expected, 'guest') === null, 'Revive confirmation for another player was accepted.');
   assert(module.normalizeCoopTeamRetryEvent({ ...reviveRequest, userId: 'host' }, expected, 'guest')?.room === 8, 'Valid host retry was rejected.');
   assert(module.normalizeCoopRoomAdvanceRequest({ ...reviveRequest, targetUserId: undefined }, expected, 'host')?.userId === 'guest', 'Valid room advance request was rejected.');
+
+  const authorityKernel = await server.ssrLoadModule('/src/game/duoEncounterAuthorityKernel.ts');
+  assert(authorityKernel.AUTHORITY_DOWNED_TO_FALLEN_MS === 30_000, 'Canonical authority downed window is not exactly 30 seconds.');
+  const fixtureModule = await server.ssrLoadModule('/src/game/runtimeDuoAuthorityFixture.ts');
+  const fixture = new fixtureModule.RuntimeDuoAuthorityFixture();
+  const session = fixture.currentSession();
+  assert(session, 'Runtime authority fixture did not expose its authenticated evidence session.');
+  const binding = { lobbyId: fixture.lobbyId, runAttempt: 1, runSeed: fixture.runSeed };
+  let fixtureSnapshot = fixture.snapshot();
+  await fixture.submit(session, binding, fixtureSnapshot.state.encounterId, fixtureSnapshot.state.version, 1, { kind: 'start-ack' });
+  fixture.preparePartnerDowned();
+  const firstDowned = fixture.snapshot();
+  const firstPartner = firstDowned.state.actors.find(actor => actor.actorId === fixture.partnerId);
+  assert(firstPartner?.lifeState === 'downed' && Number.isFinite(firstPartner.downedAtMs), 'Runtime authority fixture did not reach the first canonical downed boundary.');
+  fixture.resetPartnerDownedEvidenceBoundary();
+  const resetDowned = fixture.snapshot();
+  const resetPartner = resetDowned.state.actors.find(actor => actor.actorId === fixture.partnerId);
+  assert(resetPartner?.lifeState === 'downed' && Number(resetPartner.downedAtMs) > Number(firstPartner?.downedAtMs), 'Fresh evidence boundary did not create a later canonical downed window.');
+  const nextHostSequence = (resetDowned.state.lastClientSeqByActor[fixture.hostId] ?? 0) + 1;
+  await fixture.submit(session, binding, resetDowned.state.encounterId, resetDowned.state.version, nextHostSequence, { kind: 'sync' });
+  assert(fixture.snapshot().state.actors.find(actor => actor.actorId === fixture.partnerId)?.lifeState === 'downed', 'Fresh evidence boundary rejected the bridge sequence or mutated lifecycle early.');
 } finally {
   await server.close();
 }
