@@ -1,0 +1,162 @@
+name: Duo Authority Production Rollout
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact target-branch commit approved by the independent verifier
+        required: true
+        type: string
+      operation:
+        description: Preflight is read-only; apply requires the protected production gate
+        required: true
+        default: preflight
+        type: choice
+        options:
+          - preflight
+          - apply-and-verify
+      confirmation:
+        description: For apply, enter APPLY_ISSUE_461_TO_hfndwqfghyomwapqsked_AT_<expected_sha>
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dungeon-veil-duo-authority-production
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: dungeon-veil-production
+    env:
+      PROJECT_REF: hfndwqfghyomwapqsked
+      EXPECTED_SHA: ${{ github.event.inputs.expected_sha }}
+      OPERATION: ${{ github.event.inputs.operation }}
+      CONFIRMATION: ${{ github.event.inputs.confirmation }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.DUNGEON_VEIL_SUPABASE_DB_PASSWORD }}
+      SUPABASE_ANON_KEY: ${{ secrets.DUNGEON_VEIL_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout requested exact target head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.expected_sha }}
+          fetch-depth: 1
+
+      - name: Enforce target, exact head and explicit production authorization
+        shell: bash
+        env:
+          ROLLOUT_ENABLED: ${{ vars.DUNGEON_VEIL_PRODUCTION_ROLLOUT_ENABLED }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF}" = 'refs/heads/fix/mobile-telegraphs-room-21-50-balance'
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          test -n "${SUPABASE_ACCESS_TOKEN}"
+          test -n "${SUPABASE_DB_PASSWORD}"
+          test -n "${SUPABASE_ANON_KEY}"
+          if [[ "${OPERATION}" = 'apply-and-verify' ]]; then
+            test "${ROLLOUT_ENABLED}" = 'true'
+            test "${CONFIRMATION}" = "APPLY_ISSUE_461_TO_${PROJECT_REF}_AT_${EXPECTED_SHA}"
+          else
+            test "${OPERATION}" = 'preflight'
+          fi
+
+      - name: Validate immutable rollout contract
+        run: |
+          node scripts/verify-duo-authority-production-plan.mjs
+          node artifacts/dungeon-rpg/tests/trustedCoopCompletionMigration.contract.mjs \
+            supabase/migrations/20260911133000_trust_duo_encounter_completion.sql \
+            supabase/migrations/20260911160500_lock_down_trusted_coop_completion.sql
+          node --test artifacts/dungeon-rpg/tests/duo-authority-production-rollout.contract.mjs
+
+      - name: Setup pinned Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+
+      - name: Link only the Dungeon Veil project
+        run: supabase link --project-ref "${PROJECT_REF}" --password "${SUPABASE_DB_PASSWORD}"
+
+      - name: Capture and validate exact remote migration precondition
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p duo-authority-production-receipt
+          supabase migration list --linked --password "${SUPABASE_DB_PASSWORD}" \
+            > duo-authority-production-receipt/pre-migration-list.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --pre-list duo-authority-production-receipt/pre-migration-list.txt
+
+      - name: Dry-run the exact version-preserving push
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --linked --dry-run --skip-vault --password "${SUPABASE_DB_PASSWORD}" 2>&1 \
+            | tee duo-authority-production-receipt/db-push-dry-run.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --dry-run duo-authority-production-receipt/db-push-dry-run.txt
+
+      - name: Apply exact repository migrations
+        if: github.event.inputs.operation == 'apply-and-verify'
+        run: supabase db push --linked --skip-vault --password "${SUPABASE_DB_PASSWORD}" --yes
+
+      - name: Verify exact preserved remote migration versions
+        if: github.event.inputs.operation == 'apply-and-verify'
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --linked --password "${SUPABASE_DB_PASSWORD}" \
+            > duo-authority-production-receipt/post-migration-list.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --post-list duo-authority-production-receipt/post-migration-list.txt
+
+      - name: Deploy JWT-protected Duo authority function
+        if: github.event.inputs.operation == 'apply-and-verify'
+        run: supabase functions deploy duo-authority --project-ref "${PROJECT_REF}"
+
+      - name: Run authenticated adversarial production smoke
+        if: github.event.inputs.operation == 'apply-and-verify'
+        env:
+          DUNGEON_VEIL_SMOKE_HOST_EMAIL: ${{ secrets.DUNGEON_VEIL_SMOKE_HOST_EMAIL }}
+          DUNGEON_VEIL_SMOKE_HOST_PASSWORD: ${{ secrets.DUNGEON_VEIL_SMOKE_HOST_PASSWORD }}
+          DUNGEON_VEIL_SMOKE_GUEST_EMAIL: ${{ secrets.DUNGEON_VEIL_SMOKE_GUEST_EMAIL }}
+          DUNGEON_VEIL_SMOKE_GUEST_PASSWORD: ${{ secrets.DUNGEON_VEIL_SMOKE_GUEST_PASSWORD }}
+          DUNGEON_VEIL_SMOKE_OUTSIDER_EMAIL: ${{ secrets.DUNGEON_VEIL_SMOKE_OUTSIDER_EMAIL }}
+          DUNGEON_VEIL_SMOKE_OUTSIDER_PASSWORD: ${{ secrets.DUNGEON_VEIL_SMOKE_OUTSIDER_PASSWORD }}
+          DUO_AUTHORITY_SMOKE_RECEIPT: duo-authority-production-receipt/smoke.json
+        run: node scripts/duo-authority-production-smoke.mjs
+
+      - name: Capture deployed function metadata
+        if: github.event.inputs.operation == 'apply-and-verify'
+        run: supabase functions list --project-ref "${PROJECT_REF}" --output json > duo-authority-production-receipt/functions.json
+
+      - name: Write exact-head receipt
+        if: always()
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          fs.mkdirSync('duo-authority-production-receipt', { recursive: true });
+          fs.writeFileSync('duo-authority-production-receipt/workflow.json', JSON.stringify({
+            project_ref: process.env.PROJECT_REF,
+            expected_sha: process.env.EXPECTED_SHA,
+            actual_sha: process.env.GITHUB_SHA,
+            operation: process.env.OPERATION,
+            workflow_run_id: process.env.GITHUB_RUN_ID,
+            workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT,
+          }, null, 2) + '\n');
+          NODE
+
+      - name: Upload redacted rollout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duo-authority-production-receipt-${{ github.sha }}-${{ github.run_attempt }}
+          path: duo-authority-production-receipt
+          if-no-files-found: error
+          retention-days: 30

@@ -3,7 +3,9 @@ import fs from 'node:fs';
 
 const migrationPaths = process.argv.slice(2);
 if (migrationPaths.length < 1) throw new Error('at least one migration path required');
-const sql = migrationPaths.map((migrationPath) => fs.readFileSync(migrationPath, 'utf8')).join('\n');
+const migrationSources = migrationPaths.map((migrationPath) => fs.readFileSync(migrationPath, 'utf8'));
+const firstMigration = migrationSources[0];
+const sql = migrationSources.join('\n');
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -25,6 +27,13 @@ test('service role has no direct ledger privileges after migrations', () => {
   assert.ok(serviceTableStatements.length >= 1, 'service_role table privileges must be explicitly finalized');
   const finalStatement = serviceTableStatements.at(-1)[0];
   assert.match(finalStatement, /revoke all on table public\.coop_trusted_encounter_completions from service_role/i);
+});
+
+test('first migration is independently fail-closed at a partial-apply boundary', () => {
+  assert.match(firstMigration, /revoke all on table public\.coop_trusted_encounter_completions from service_role/i);
+  assert.doesNotMatch(firstMigration, /grant\s+(?:select|insert|update|delete|all)[^;]*coop_trusted_encounter_completions[^;]*service_role/i);
+  assert.match(firstMigration, /revoke all on function private\.require_trusted_coop_completion\(uuid, integer, bigint, integer, integer\)\s+from public, anon, authenticated, service_role/i);
+  assert.doesNotMatch(firstMigration, /grant execute on function private\.require_trusted_coop_completion\([^)]+\)\s+to service_role/i);
 });
 
 test('only service role can execute proof recorder', () => {
