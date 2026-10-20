@@ -1,50 +1,151 @@
 name: Duo Authority Production Rollout
 
 on:
-  workflow_dispatch:
-    inputs:
-      expected_sha:
-        description: Exact target-branch commit approved by the independent verifier
-        required: true
-        type: string
-      operation:
-        description: Preflight is read-only; apply requires the protected production gate
-        required: true
-        default: preflight
-        type: choice
-        options:
-          - preflight
-          - apply-and-verify
-      confirmation:
-        description: For apply, enter APPLY_ISSUE_461_TO_hfndwqfghyomwapqsked_AT_<expected_sha>
-        required: false
-        type: string
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/duo-authority-production-rollout.yml'
+      - 'artifacts/dungeon-rpg/tests/duo-authority-production-rollout.contract.mjs'
+      - 'docs/DUO_AUTHORITY_PRODUCTION_ROLLOUT.md'
+      - 'scripts/duo-authority-production-history.json'
+      - 'scripts/duo-authority-production-smoke.mjs'
+      - 'scripts/verify-duo-authority-production-plan.mjs'
+      - 'supabase/config.toml'
+      - 'supabase/functions/duo-authority/**'
+      - 'supabase/migrations/20260911133000_trust_duo_encounter_completion.sql'
+      - 'supabase/migrations/20260911160500_lock_down_trusted_coop_completion.sql'
+      - 'supabase/migrations/20261003052000_add_duo_authority_bootstrap.sql'
+      - 'supabase/migrations/20261003142500_connect_duo_authority_completion.sql'
+      - 'supabase/migrations/20261004154000_add_duo_authority_build_profiles.sql'
+      - 'supabase/migrations/20261004230000_bind_duo_authority_build_snapshot.sql'
+      - 'supabase/migrations/20261008001000_complete_duo_authority_lifecycle.sql'
+      - 'supabase/migrations/20261011211500_expose_my_duo_authority_binding.sql'
+  push:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    paths:
+      - '.github/workflows/duo-authority-production-rollout.yml'
+      - 'artifacts/dungeon-rpg/tests/duo-authority-production-rollout.contract.mjs'
+      - 'docs/DUO_AUTHORITY_PRODUCTION_ROLLOUT.md'
+      - 'scripts/duo-authority-production-history.json'
+      - 'scripts/duo-authority-production-smoke.mjs'
+      - 'scripts/verify-duo-authority-production-plan.mjs'
+      - 'supabase/config.toml'
+      - 'supabase/functions/duo-authority/**'
+      - 'supabase/migrations/20260911133000_trust_duo_encounter_completion.sql'
+      - 'supabase/migrations/20260911160500_lock_down_trusted_coop_completion.sql'
+      - 'supabase/migrations/20261003052000_add_duo_authority_bootstrap.sql'
+      - 'supabase/migrations/20261003142500_connect_duo_authority_completion.sql'
+      - 'supabase/migrations/20261004154000_add_duo_authority_build_profiles.sql'
+      - 'supabase/migrations/20261004230000_bind_duo_authority_build_snapshot.sql'
+      - 'supabase/migrations/20261008001000_complete_duo_authority_lifecycle.sql'
+      - 'supabase/migrations/20261011211500_expose_my_duo_authority_binding.sql'
 
 permissions:
+  actions: read
   contents: read
+  issues: read
 
 concurrency:
   group: dungeon-veil-duo-authority-production
   cancel-in-progress: false
 
 jobs:
+  resolve_operation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      expected_sha: ${{ steps.resolve.outputs.expected_sha }}
+      operation: ${{ steps.resolve.outputs.operation }}
+      authorization_comment_id: ${{ steps.resolve.outputs.authorization_comment_id }}
+    steps:
+      - name: Resolve exact head and one-use production authorization
+        id: resolve
+        uses: actions/github-script@v7
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        with:
+          script: |
+            const target = 'fix/mobile-telegraphs-room-21-50-balance';
+            const projectRef = 'hfndwqfghyomwapqsked';
+            const runAttempt = Number(process.env.RUN_ATTEMPT);
+            let expectedSha;
+
+            if (context.eventName === 'pull_request') {
+              const pull = context.payload.pull_request;
+              if (!pull || pull.base.ref !== target) throw new Error('wrong pull request target');
+              if (pull.head.repo.full_name !== '${{ github.repository }}') {
+                throw new Error('production preflight rejects fork pull requests');
+              }
+              expectedSha = pull.head.sha;
+            } else if (context.eventName === 'push') {
+              if (context.ref !== 'refs/heads/' + target) throw new Error('wrong push target');
+              expectedSha = context.sha;
+            } else {
+              throw new Error('unsupported rollout event');
+            }
+
+            if (!/^[0-9a-f]{40}$/.test(expectedSha)) throw new Error('expected head must be a full SHA');
+            core.setOutput('expected_sha', expectedSha);
+            core.setOutput('operation', 'preflight');
+            core.setOutput('authorization_comment_id', '');
+
+            if (context.eventName !== 'push' || runAttempt !== 2) return;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 481,
+              per_page: 100,
+            });
+            const parse = (body) => {
+              const fields = {};
+              for (const line of body.split(/\r?\n/)) {
+                const match = line.match(/^([a-z_]+):\s*(.+)$/);
+                if (match) fields[match[1]] = match[2].trim();
+              }
+              return fields;
+            };
+            const confirmation = 'APPLY_ISSUE_461_TO_' + projectRef + '_AT_' + expectedSha;
+            const authorization = comments.slice().reverse().find((comment) => {
+              if (comment.user?.login !== context.repo.owner) return false;
+              if (!comment.body.includes('<!-- dungeon-veil-production-authorization -->')) return false;
+              const fields = parse(comment.body);
+              return fields.worker === 'verifier'
+                && fields.status === 'terminal'
+                && fields.task_key === 'issue461-production-rollout-authorization'
+                && fields.exact_head === expectedSha
+                && fields.workflow_run_id === String(context.runId)
+                && fields.workflow_run_attempt === String(runAttempt)
+                && fields.decision === 'accept'
+                && fields.production_authorization === 'approved'
+                && fields.confirmation === confirmation;
+            });
+            if (!authorization) return;
+
+            core.setOutput('operation', 'apply-and-verify');
+            core.setOutput('authorization_comment_id', String(authorization.id));
+
   rollout:
+    needs: resolve_operation
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: dungeon-veil-production
     env:
       PROJECT_REF: hfndwqfghyomwapqsked
-      EXPECTED_SHA: ${{ github.event.inputs.expected_sha }}
-      OPERATION: ${{ github.event.inputs.operation }}
-      CONFIRMATION: ${{ github.event.inputs.confirmation }}
+      EXPECTED_SHA: ${{ needs.resolve_operation.outputs.expected_sha }}
+      OPERATION: ${{ needs.resolve_operation.outputs.operation }}
+      AUTHORIZATION_COMMENT_ID: ${{ needs.resolve_operation.outputs.authorization_comment_id }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.DUNGEON_VEIL_SUPABASE_DB_PASSWORD }}
       SUPABASE_ANON_KEY: ${{ secrets.DUNGEON_VEIL_SUPABASE_ANON_KEY }}
     steps:
-      - name: Checkout requested exact target head
+      - name: Checkout exact event head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.expected_sha }}
+          ref: ${{ needs.resolve_operation.outputs.expected_sha }}
           fetch-depth: 1
 
       - name: Prepare isolated rollout workdirs
@@ -57,20 +158,28 @@ jobs:
       - name: Enforce target, exact head and explicit production authorization
         shell: bash
         env:
-          ROLLOUT_ENABLED: ${{ vars.DUNGEON_VEIL_PRODUCTION_ROLLOUT_ENABLED }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          test "${GITHUB_REF}" = 'refs/heads/fix/mobile-telegraphs-room-21-50-balance'
           test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
           [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
           test -n "${SUPABASE_ACCESS_TOKEN}"
           test -n "${SUPABASE_DB_PASSWORD}"
           test -n "${SUPABASE_ANON_KEY}"
-          if [[ "${OPERATION}" = 'apply-and-verify' ]]; then
-            test "${ROLLOUT_ENABLED}" = 'true'
-            test "${CONFIRMATION}" = "APPLY_ISSUE_461_TO_${PROJECT_REF}_AT_${EXPECTED_SHA}"
-          else
+          if [[ "${EVENT_NAME}" = 'pull_request' ]]; then
+            test "${GITHUB_BASE_REF}" = 'fix/mobile-telegraphs-room-21-50-balance'
             test "${OPERATION}" = 'preflight'
+            test -z "${AUTHORIZATION_COMMENT_ID}"
+          else
+            test "${EVENT_NAME}" = 'push'
+            test "${GITHUB_REF}" = 'refs/heads/fix/mobile-telegraphs-room-21-50-balance'
+            if [[ "${OPERATION}" = 'apply-and-verify' ]]; then
+              test "${RUN_ATTEMPT}" = '2'
+              test -n "${AUTHORIZATION_COMMENT_ID}"
+            else
+              test "${OPERATION}" = 'preflight'
+            fi
           fi
 
       - name: Validate immutable rollout contract
@@ -150,13 +259,13 @@ jobs:
             --dry-run duo-authority-production-receipt/db-push-dry-run.txt
 
       - name: Apply exact repository migrations
-        if: github.event.inputs.operation == 'apply-and-verify'
+        if: env.OPERATION == 'apply-and-verify'
         run: >-
           supabase --workdir "${ROLLOUT_WORKDIR}" db push --linked --skip-vault
           --password "${SUPABASE_DB_PASSWORD}" --yes
 
       - name: Verify exact preserved remote migration versions
-        if: github.event.inputs.operation == 'apply-and-verify'
+        if: env.OPERATION == 'apply-and-verify'
         shell: bash
         run: |
           set -euo pipefail
@@ -167,11 +276,11 @@ jobs:
             --post-list duo-authority-production-receipt/post-migration-list.txt
 
       - name: Deploy JWT-protected Duo authority function
-        if: github.event.inputs.operation == 'apply-and-verify'
+        if: env.OPERATION == 'apply-and-verify'
         run: supabase functions deploy duo-authority --project-ref "${PROJECT_REF}"
 
       - name: Run authenticated adversarial production smoke
-        if: github.event.inputs.operation == 'apply-and-verify'
+        if: env.OPERATION == 'apply-and-verify'
         env:
           DUNGEON_VEIL_SMOKE_HOST_EMAIL: ${{ secrets.DUNGEON_VEIL_SMOKE_HOST_EMAIL }}
           DUNGEON_VEIL_SMOKE_HOST_PASSWORD: ${{ secrets.DUNGEON_VEIL_SMOKE_HOST_PASSWORD }}
@@ -183,7 +292,7 @@ jobs:
         run: node scripts/duo-authority-production-smoke.mjs
 
       - name: Capture deployed function metadata
-        if: github.event.inputs.operation == 'apply-and-verify'
+        if: env.OPERATION == 'apply-and-verify'
         run: supabase functions list --project-ref "${PROJECT_REF}" --output json > duo-authority-production-receipt/functions.json
 
       - name: Write exact-head receipt
@@ -197,7 +306,12 @@ jobs:
             project_ref: process.env.PROJECT_REF,
             expected_sha: process.env.EXPECTED_SHA,
             actual_sha: process.env.GITHUB_SHA,
+            event_name: process.env.GITHUB_EVENT_NAME,
+            ref: process.env.GITHUB_REF,
+            base_ref: process.env.GITHUB_BASE_REF || null,
+            head_ref: process.env.GITHUB_HEAD_REF || null,
             operation: process.env.OPERATION,
+            authorization_comment_id: process.env.AUTHORIZATION_COMMENT_ID || null,
             workflow_run_id: process.env.GITHUB_RUN_ID,
             workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT,
           }, null, 2) + '\n');
@@ -207,7 +321,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: duo-authority-production-receipt-${{ github.sha }}-${{ github.run_attempt }}
+          name: duo-authority-production-receipt-${{ needs.resolve_operation.outputs.expected_sha }}-${{ github.run_attempt }}
           path: duo-authority-production-receipt
           if-no-files-found: error
           retention-days: 30

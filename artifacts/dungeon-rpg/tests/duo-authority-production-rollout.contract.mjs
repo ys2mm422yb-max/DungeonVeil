@@ -56,17 +56,30 @@ test("first migration is fail-closed without relying on its successor", () => {
   );
 });
 
-test("rollout is a permanent manual exact-head target-only workflow", () => {
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.doesNotMatch(workflow, /\n\s+(?:push|pull_request):/);
+test("rollout has a real target trigger and one-use exact-head authorization", () => {
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /push:/);
+  assert.doesNotMatch(workflow, /workflow_dispatch:/);
   assert.match(
     workflow,
-    /refs\/heads\/fix\/mobile-telegraphs-room-21-50-balance/,
+    /branches:\s*\n\s*- fix\/mobile-telegraphs-room-21-50-balance/g,
   );
+  assert.match(workflow, /expectedSha = pull\.head\.sha/);
+  assert.match(workflow, /context\.eventName === 'pull_request'/);
+  assert.match(workflow, /context\.eventName === 'push'/);
+  assert.match(workflow, /production preflight rejects fork pull requests/);
+  assert.match(workflow, /issue_number:\s*481/);
+  assert.match(workflow, /dungeon-veil-production-authorization/);
+  assert.match(workflow, /worker === 'verifier'/);
+  assert.match(workflow, /workflow_run_id === String\(context\.runId\)/);
+  assert.match(workflow, /workflow_run_attempt === String\(runAttempt\)/);
+  assert.match(workflow, /runAttempt !== 2/);
+  assert.match(workflow, /production_authorization === 'approved'/);
+  assert.match(workflow, /APPLY_ISSUE_461_TO_/);
   assert.match(workflow, /git rev-parse HEAD/);
-  assert.match(workflow, /github\.event\.inputs\.expected_sha/);
-  assert.match(workflow, /DUNGEON_VEIL_PRODUCTION_ROLLOUT_ENABLED/);
   assert.match(workflow, /environment:\s*dungeon-veil-production/);
+  assert.match(workflow, /if: env\.OPERATION == 'apply-and-verify'/);
+  assert.doesNotMatch(workflow, /github\.event\.inputs/);
   assert.doesNotMatch(workflow, /\$\{\{\s*runner\.temp\s*\}\}/);
   assert.match(
     workflow,
