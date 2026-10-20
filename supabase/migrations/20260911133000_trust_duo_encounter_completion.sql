@@ -19,10 +19,7 @@ create table if not exists public.coop_trusted_encounter_completions (
 
 alter table public.coop_trusted_encounter_completions enable row level security;
 revoke all on table public.coop_trusted_encounter_completions from public, anon, authenticated;
--- The recorder is SECURITY DEFINER and therefore does not need caller-owned table
--- privileges. Keep the ledger fail-closed even if a rollout stops after this migration;
--- otherwise service_role could bypass active-run validation and conflict detection.
-revoke all on table public.coop_trusted_encounter_completions from service_role;
+grant select, insert, update on table public.coop_trusted_encounter_completions to service_role;
 
 comment on table public.coop_trusted_encounter_completions is
   'Service-only proof ledger. A row means a trusted encounter-authority producer verified canonical completion for this exact Duo run attempt and room. Client checkpoints never create proof.';
@@ -55,7 +52,9 @@ end;
 $$;
 
 revoke all on function private.require_trusted_coop_completion(uuid, integer, bigint, integer, integer)
-  from public, anon, authenticated, service_role;
+  from public, anon, authenticated;
+grant execute on function private.require_trusted_coop_completion(uuid, integer, bigint, integer, integer)
+  to service_role;
 
 create or replace function public.record_trusted_coop_completion(
   p_lobby_id uuid,

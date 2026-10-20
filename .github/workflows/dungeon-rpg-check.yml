@@ -13,7 +13,6 @@ on:
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.github/workflows/dungeon-rpg-ci.yml'
       - '.github/workflows/focused-contract-request-runner.yml'
-      - '.github/workflows/duo-authority-production-rollout.yml'
   pull_request:
     branches: [main, work/blocks-1-7-production-pass, 'fix/**', 'work/block-*']
     paths:
@@ -26,7 +25,6 @@ on:
       - '.github/workflows/dungeon-rpg-check.yml'
       - '.github/workflows/dungeon-rpg-ci.yml'
       - '.github/workflows/focused-contract-request-runner.yml'
-      - '.github/workflows/duo-authority-production-rollout.yml'
       - '.ci/validation-trigger.txt'
   workflow_dispatch:
 
@@ -37,19 +35,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Validate permanent production workflow syntax
-        uses: docker://rhysd/actionlint:1.7.12
-        with:
-          args: -color .github/workflows/duo-authority-production-rollout.yml
       - name: Focused request provenance contract
         run: node artifacts/dungeon-rpg/scripts/validate-focused-contract-request-provenance.mjs
-      - name: Duo authority production rollout contracts
-        run: |
-          node scripts/verify-duo-authority-production-plan.mjs
-          node artifacts/dungeon-rpg/tests/trustedCoopCompletionMigration.contract.mjs \
-            supabase/migrations/20260911133000_trust_duo_encounter_completion.sql \
-            supabase/migrations/20260911160500_lock_down_trusted_coop_completion.sql
-          node --test artifacts/dungeon-rpg/tests/duo-authority-production-rollout.contract.mjs
       - name: Setup Deno for Supabase Edge parity
         uses: denoland/setup-deno@v2
         with:

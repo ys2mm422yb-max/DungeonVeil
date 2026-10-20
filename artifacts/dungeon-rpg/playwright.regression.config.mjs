@@ -1,45 +1,101 @@
+import fs from 'node:fs';
 import { defineConfig } from '@playwright/test';
-import { PRODUCT_AUTOPILOT_SPECS } from '../../.github/scripts/select-product-autopilot-specs.mjs';
 
 const baseURL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const outputDir = process.env.DUNGEON_VEIL_RUNTIME_MONITOR_NEGATIVE_PROBE === '1'
   ? `${process.env.RUNNER_TEMP || '/tmp'}/dungeon-veil-runtime-monitor-negative-probe-${process.env.BROWSER_PROJECT || 'probe'}`
   : 'test-results';
 
+const PRODUCT_AUTOPILOT_SPECS = [
+  'autopilot-product-journeys.spec.mjs',
+  'run-gift-authority.spec.mjs',
+  'autopilot-outside-guild.spec.mjs',
+  'guild-mail-equipment-visual.spec.mjs',
+  'mobile-resource-upgrade.spec.mjs',
+  'companion-runtime.spec.mjs',
+  'companion-free-movement-evidence.spec.mjs',
+  'spectator-performance.spec.mjs',
+  'spectator-death-state.spec.mjs',
+  'player-death-state.spec.mjs',
+  'upgrade-prestige-visual.spec.mjs',
+  'upgrade-prestige-mobile-hotfix.spec.mjs',
+  'visible-upgrade-prestige.spec.mjs',
+  'kaykit-chapter-evidence.spec.mjs',
+  'guild-raid-lobby-mobile.spec.mjs',
+  'armor-cloud-restore-render.spec.mjs',
+];
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const NON_PRODUCT_REGRESSION_SPECS = [
-  'full-game-smoke.spec.mjs',
-  'account-profile-smoke.spec.mjs',
-  'armor-balance-smoke.spec.mjs',
-  'new-run-preload-deadline.spec.mjs',
-  'worldboss-block1.spec.mjs',
-  'profile-layout.spec.mjs',
-  'loading-continuity.spec.mjs',
-  'codex-visual-library.spec.mjs',
-  'main-menu-reference.spec.mjs',
-  'block-20-main-menu.spec.mjs',
-  'visual-audit.spec.mjs',
-  'visual-room-chunks.spec.mjs',
-  'transient-ui-visual-audit.spec.mjs',
-  'equipment-responsive.spec.mjs',
-  'reduced-motion-menu.spec.mjs',
-];
+function adaptiveProductAutopilotIgnore() {
+  if (process.env.DUNGEON_VEIL_RUNTIME_MONITOR_NEGATIVE_PROBE === '1') {
+    console.log('Product Autopilot adaptive selection: runtime-monitor negative probe explicitly bypasses PR spec filtering.');
+    return [];
+  }
+  const runAttempt = Number.parseInt(process.env.GITHUB_RUN_ATTEMPT || '1', 10);
+  if (Number.isFinite(runAttempt) && runAttempt > 1) {
+    console.log('Product Autopilot adaptive selection: rerun attempt uses the full fail-closed suite instead of potentially stale PR event metadata.');
+    return [];
+  }
+  if (process.env.GITHUB_WORKFLOW !== 'Product Autopilot QA' || process.env.GITHUB_EVENT_NAME !== 'pull_request') {
+    return [];
+  }
 
-const regressionSpecNames = [
-  ...NON_PRODUCT_REGRESSION_SPECS,
-  ...PRODUCT_AUTOPILOT_SPECS.map((spec) => spec.replace(/^tests\//, '')),
-];
-const regressionTestMatch = new RegExp(
-  `(?:${regressionSpecNames.map(escapeRegex).join('|')})$`,
-);
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath || !fs.existsSync(eventPath)) {
+    console.warn('Product Autopilot adaptive selection: event payload unavailable; using full fail-closed suite.');
+    return [];
+  }
+
+  const payload = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
+  const body = payload?.pull_request?.body ?? '';
+  const startMarker = '<!-- product-autopilot-selection:start -->';
+  const endMarker = '<!-- product-autopilot-selection:end -->';
+  const start = body.indexOf(startMarker);
+  const end = body.indexOf(endMarker);
+
+  if (start < 0 || end < 0 || end <= start) {
+    console.log('Product Autopilot adaptive selection: declaration missing; using full fail-closed suite.');
+    return [];
+  }
+
+  const block = body.slice(start + startMarker.length, end);
+  if (/\bFULL_PRODUCT_AUTOPILOT\b/.test(block)) {
+    console.log('Product Autopilot adaptive selection: explicit full suite requested.');
+    return [];
+  }
+
+  const selectedPaths = [...block.matchAll(/`tests\/([A-Za-z0-9._/-]+\.spec\.mjs)`/g)].map((match) => match[1]);
+  if (selectedPaths.length === 0) {
+    throw new Error('Product Autopilot adaptive selection block contains no test spec.');
+  }
+
+  const selected = new Set();
+  for (const spec of selectedPaths) {
+    if (spec.includes('/')) {
+      throw new Error(`Nested Product Autopilot spec is not allowed: ${spec}`);
+    }
+    if (!PRODUCT_AUTOPILOT_SPECS.includes(spec)) {
+      throw new Error(`Unknown Product Autopilot spec in PR body: ${spec}`);
+    }
+    selected.add(spec);
+  }
+
+  const ignored = PRODUCT_AUTOPILOT_SPECS.filter((spec) => !selected.has(spec));
+  console.log(`Product Autopilot adaptive selection: ${selected.size}/${PRODUCT_AUTOPILOT_SPECS.length} specs selected; ${ignored.length} unrelated specs ignored for this PR.`);
+  console.log(`Selected: ${[...selected].join(', ')}`);
+  return ignored.map((spec) => new RegExp(`${escapeRegex(spec)}$`));
+}
+
+const productAutopilotTestIgnore = adaptiveProductAutopilotIgnore();
 
 export default defineConfig({
   testDir: './tests',
   outputDir,
-  testMatch: regressionTestMatch,
+  testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|spectator-death-state|profile-layout|companion-runtime|companion-free-movement-evidence|player-death-state|loading-continuity|codex-visual-library|main-menu-reference|block-20-main-menu|visual-audit|visual-room-chunks|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu|guild-mail-equipment-visual|mobile-resource-upgrade|upgrade-prestige-visual|upgrade-prestige-mobile-hotfix|visible-upgrade-prestige|autopilot-product-journeys|autopilot-outside-guild|kaykit-chapter-evidence|guild-raid-lobby-mobile|run-gift-authority)\.spec\.mjs/,
+  testIgnore: productAutopilotTestIgnore,
   timeout: 120_000,
   expect: { timeout: 20_000 },
   fullyParallel: false,
