@@ -77,8 +77,52 @@ jobs:
           pnpm --filter @workspace/dungeon-rpg audit:worldboss
           pnpm --filter @workspace/dungeon-rpg audit:spectator
 
-  automatic-product-journeys:
+  product-discovery-preflight:
     needs: product-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install deterministic Playwright discovery runner
+        run: pnpm --dir artifacts/dungeon-rpg add -D @playwright/test@${PLAYWRIGHT_VERSION} --lockfile=false
+      - name: Prove selected specs load in the actual Playwright config
+        shell: bash
+        env:
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
+        run: |
+          set -euo pipefail
+          : > /tmp/dungeon-veil-changed-files.txt
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            base_sha='${{ github.event.pull_request.base.sha }}'
+            git fetch --no-tags --depth=1 origin "${base_sha}"
+            git diff --name-only "${base_sha}" "${GITHUB_SHA}" > /tmp/dungeon-veil-changed-files.txt
+          fi
+          node .github/scripts/select-product-autopilot-specs.mjs \
+            --event "${GITHUB_EVENT_NAME}" \
+            --changed-files /tmp/dungeon-veil-changed-files.txt \
+            --output /tmp/dungeon-veil-product-specs.txt
+          mapfile -t product_specs < /tmp/dungeon-veil-product-specs.txt
+          test "${#product_specs[@]}" -gt 0
+          pnpm --dir artifacts/dungeon-rpg exec playwright test \
+            "${product_specs[@]}" \
+            --config=playwright.regression.config.mjs \
+            --project=android-chromium \
+            --list | tee /tmp/dungeon-veil-product-discovery.txt
+          for spec in "${product_specs[@]}"; do
+            grep -Fq "${spec#tests/}" /tmp/dungeon-veil-product-discovery.txt
+          done
+
+  automatic-product-journeys:
+    needs: [product-contracts, product-discovery-preflight]
     runs-on: ubuntu-latest
     timeout-minutes: 65
     strategy:

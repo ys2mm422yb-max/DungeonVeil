@@ -37,6 +37,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validate permanent production workflow syntax
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color .github/workflows/duo-authority-production-rollout.yml
       - name: Focused request provenance contract
         run: node artifacts/dungeon-rpg/scripts/validate-focused-contract-request-provenance.mjs
       - name: Duo authority production rollout contracts

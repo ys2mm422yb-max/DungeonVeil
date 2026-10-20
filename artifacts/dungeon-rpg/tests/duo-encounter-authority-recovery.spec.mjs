@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { test } from '@playwright/test';
 import { createServer } from 'vite';
 
 const sourcePath = new URL('../../../supabase/functions/_shared/duo_authority_kernel.ts', import.meta.url);
@@ -14,7 +14,7 @@ const server = await createServer({
   server: { middlewareMode: true },
 });
 const kernel = await server.ssrLoadModule('/supabase/functions/_shared/duo_authority_kernel.ts');
-after(async () => server.close());
+test.afterAll(async () => server.close());
 
 const warrior = kernel.CANONICAL_CLASS_COMBAT_MANIFEST.warrior;
 const warriorBuild = {

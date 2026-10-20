@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import { pathToFileURL } from "node:url";
 
-const ALL_SPECS = [
+export const PRODUCT_AUTOPILOT_SPECS = Object.freeze([
   "tests/autopilot-product-journeys.spec.mjs",
   "tests/run-gift-authority.spec.mjs",
   "tests/autopilot-outside-guild.spec.mjs",
@@ -21,9 +22,9 @@ const ALL_SPECS = [
   "tests/player-death-state.spec.mjs",
   "tests/duo-encounter-authority-kernel.spec.mjs",
   "tests/duo-encounter-authority-recovery.spec.mjs",
-];
+]);
 
-const SPEC_SET = new Set(ALL_SPECS);
+const SPEC_SET = new Set(PRODUCT_AUTOPILOT_SPECS);
 const START = "<!-- product-autopilot-selection:start -->";
 const END = "<!-- product-autopilot-selection:end -->";
 
@@ -37,7 +38,8 @@ function parseExplicitSelection(body) {
   const end = body.indexOf(END);
   if (start < 0 || end < 0 || end <= start) return null;
   const block = body.slice(start + START.length, end);
-  if (/\bFULL_PRODUCT_AUTOPILOT\b/.test(block)) return [...ALL_SPECS];
+  if (/\bFULL_PRODUCT_AUTOPILOT\b/.test(block))
+    return [...PRODUCT_AUTOPILOT_SPECS];
 
   const listed = [
     ...block.matchAll(/`(tests\/[A-Za-z0-9._/-]+\.spec\.mjs)`/g),
@@ -59,7 +61,7 @@ function addSafetySpecs(selected, changedFiles) {
   const add = (...specs) => specs.forEach((spec) => selected.add(spec));
 
   // A directly changed Product Autopilot spec can never be omitted by the PR body.
-  for (const spec of ALL_SPECS) {
+  for (const spec of PRODUCT_AUTOPILOT_SPECS) {
     if (changedFiles.includes(`artifacts/dungeon-rpg/${spec}`)) add(spec);
   }
 
@@ -138,16 +140,16 @@ function addSafetySpecs(selected, changedFiles) {
 }
 
 function resolveSelection({ eventName, body, changedFiles }) {
-  if (eventName !== "pull_request") return [...ALL_SPECS];
+  if (eventName !== "pull_request") return [...PRODUCT_AUTOPILOT_SPECS];
 
   const explicit = parseExplicitSelection(body);
   // Fail closed for existing PRs that have not adopted the new declaration yet.
-  if (explicit === null) return [...ALL_SPECS];
+  if (explicit === null) return [...PRODUCT_AUTOPILOT_SPECS];
 
   const selected = addSafetySpecs(new Set(explicit), changedFiles);
   if (selected.size === 0)
     throw new Error("Adaptive Product Autopilot resolved to zero specs.");
-  return ALL_SPECS.filter((spec) => selected.has(spec));
+  return PRODUCT_AUTOPILOT_SPECS.filter((spec) => selected.has(spec));
 }
 
 function selfTest() {
@@ -159,7 +161,7 @@ function selfTest() {
     body: "",
     changedFiles: [],
   });
-  if (legacy.length !== ALL_SPECS.length)
+  if (legacy.length !== PRODUCT_AUTOPILOT_SPECS.length)
     throw new Error("Missing declaration must fail closed to full suite.");
 
   const spectator = resolveSelection({
@@ -238,7 +240,7 @@ function selfTest() {
     body: block(["tests/spectator-performance.spec.mjs"]),
     changedFiles: [],
   });
-  if (push.length !== ALL_SPECS.length)
+  if (push.length !== PRODUCT_AUTOPILOT_SPECS.length)
     throw new Error(
       "Target-branch push must retain full Product Autopilot coverage.",
     );
@@ -259,27 +261,32 @@ function selfTest() {
   console.log("Adaptive Product Autopilot selector self-test passed.");
 }
 
-if (process.argv.includes("--self-test")) {
-  selfTest();
-  process.exit(0);
-}
+const invokedAsScript =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-const eventName = arg("--event") ?? process.env.GITHUB_EVENT_NAME ?? "";
-const changedFilesPath = arg("--changed-files");
-const outputPath = arg("--output");
-const body = process.env.PR_BODY ?? "";
-const changedFiles =
-  changedFilesPath && fs.existsSync(changedFilesPath)
-    ? fs
-        .readFileSync(changedFilesPath, "utf8")
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-    : [];
-const resolved = resolveSelection({ eventName, body, changedFiles });
-const text = `${resolved.join("\n")}\n`;
-if (outputPath) fs.writeFileSync(outputPath, text);
-else process.stdout.write(text);
-console.error(
-  `Product Autopilot selected ${resolved.length}/${ALL_SPECS.length} specs for ${eventName || "unknown event"}.`,
-);
+if (invokedAsScript) {
+  if (process.argv.includes("--self-test")) {
+    selfTest();
+    process.exit(0);
+  }
+
+  const eventName = arg("--event") ?? process.env.GITHUB_EVENT_NAME ?? "";
+  const changedFilesPath = arg("--changed-files");
+  const outputPath = arg("--output");
+  const body = process.env.PR_BODY ?? "";
+  const changedFiles =
+    changedFilesPath && fs.existsSync(changedFilesPath)
+      ? fs
+          .readFileSync(changedFilesPath, "utf8")
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+      : [];
+  const resolved = resolveSelection({ eventName, body, changedFiles });
+  const text = `${resolved.join("\n")}\n`;
+  if (outputPath) fs.writeFileSync(outputPath, text);
+  else process.stdout.write(text);
+  console.error(
+    `Product Autopilot selected ${resolved.length}/${PRODUCT_AUTOPILOT_SPECS.length} specs for ${eventName || "unknown event"}.`,
+  );
+}

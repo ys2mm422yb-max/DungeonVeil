@@ -40,14 +40,19 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.DUNGEON_VEIL_SUPABASE_DB_PASSWORD }}
       SUPABASE_ANON_KEY: ${{ secrets.DUNGEON_VEIL_SUPABASE_ANON_KEY }}
-      ROOT_AUDIT_WORKDIR: ${{ runner.temp }}/duo-authority-repository-history
-      ROLLOUT_WORKDIR: ${{ runner.temp }}/duo-authority-rollout
     steps:
       - name: Checkout requested exact target head
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.expected_sha }}
           fetch-depth: 1
+
+      - name: Prepare isolated rollout workdirs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ROOT_AUDIT_WORKDIR=${RUNNER_TEMP}/duo-authority-repository-history" >> "${GITHUB_ENV}"
+          echo "ROLLOUT_WORKDIR=${RUNNER_TEMP}/duo-authority-rollout" >> "${GITHUB_ENV}"
 
       - name: Enforce target, exact head and explicit production authorization
         shell: bash

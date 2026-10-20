@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { test } from '@playwright/test';
 import { createServer } from 'vite';
 
 const sourcePath = new URL('../../../supabase/functions/_shared/duo_authority_kernel.ts', import.meta.url);
@@ -17,7 +17,7 @@ const server = await createServer({
 });
 const kernel = await server.ssrLoadModule('/supabase/functions/_shared/duo_authority_kernel.ts');
 const factory = await server.ssrLoadModule('/supabase/functions/_shared/duo_authority_factory.ts');
-after(async () => server.close());
+test.afterAll(async () => server.close());
 
 const buildIdentity = classKey => {
   const combat = kernel.CANONICAL_CLASS_COMBAT_MANIFEST[classKey];

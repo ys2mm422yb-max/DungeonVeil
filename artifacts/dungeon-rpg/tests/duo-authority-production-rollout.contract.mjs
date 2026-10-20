@@ -67,6 +67,15 @@ test("rollout is a permanent manual exact-head target-only workflow", () => {
   assert.match(workflow, /github\.event\.inputs\.expected_sha/);
   assert.match(workflow, /DUNGEON_VEIL_PRODUCTION_ROLLOUT_ENABLED/);
   assert.match(workflow, /environment:\s*dungeon-veil-production/);
+  assert.doesNotMatch(workflow, /\$\{\{\s*runner\.temp\s*\}\}/);
+  assert.match(
+    workflow,
+    /ROOT_AUDIT_WORKDIR=\$\{RUNNER_TEMP\}\/duo-authority-repository-history/,
+  );
+  assert.match(
+    workflow,
+    /ROLLOUT_WORKDIR=\$\{RUNNER_TEMP\}\/duo-authority-rollout/,
+  );
 });
 
 test("rollout preserves versions and cannot broaden the migration set", () => {
