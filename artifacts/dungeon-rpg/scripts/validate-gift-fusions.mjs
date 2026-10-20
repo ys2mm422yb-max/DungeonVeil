@@ -1,9 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { PRODUCT_AUTOPILOT_SPECS } from '../../../.github/scripts/select-product-autopilot-specs.mjs';
-import regressionPlaywrightConfig from '../playwright.regression.config.mjs';
 
 const read = relative => readFile(new URL(relative, import.meta.url), 'utf8');
-const [skills, controller, progression, fusionEffects, levelUp, hud, translations, saveManager, game, bridge, currency, recoveryBaseline, main, runEngine] = await Promise.all([
+const [skills, controller, progression, fusionEffects, levelUp, hud, translations, saveManager, game, bridge, currency, recoveryBaseline, main, runEngine, regressionConfig] = await Promise.all([
   read('../src/game/runSkills.ts'),
   read('../src/game/giftUpgradeController.ts'),
   read('../src/game/runGiftProgression.ts'),
@@ -18,6 +17,7 @@ const [skills, controller, progression, fusionEffects, levelUp, hud, translation
   read('../src/game/rendererRecoveryStableBaseline.ts'),
   read('../src/main.tsx'),
   read('../src/game/runEngine.ts'),
+  read('../playwright.regression.config.mjs'),
 ]);
 
 const REQUIRED_REGRESSION_SPECS = Object.freeze([
@@ -26,26 +26,12 @@ const REQUIRED_REGRESSION_SPECS = Object.freeze([
   'tests/duo-encounter-authority-recovery.spec.mjs',
 ]);
 
-const regressionMatchers = Array.isArray(regressionPlaywrightConfig.testMatch)
-  ? regressionPlaywrightConfig.testMatch
-  : [regressionPlaywrightConfig.testMatch];
-
-function matchesEffectiveRegressionConfig(spec) {
-  const filename = spec.replace(/^tests\//, '');
-  return regressionMatchers.some(matcher => {
-    if (matcher instanceof RegExp) {
-      matcher.lastIndex = 0;
-      return matcher.test(filename);
-    }
-    return typeof matcher === 'string' && filename.endsWith(matcher.replace(/^\*\*\//, ''));
-  });
-}
-
-const canonicalRegressionCoverage = REQUIRED_REGRESSION_SPECS.every(
-  spec =>
-    PRODUCT_AUTOPILOT_SPECS.includes(spec) &&
-    matchesEffectiveRegressionConfig(spec),
-);
+const canonicalRegressionCoverage =
+  REQUIRED_REGRESSION_SPECS.every(spec => PRODUCT_AUTOPILOT_SPECS.includes(spec)) &&
+  regressionConfig.includes("from '../../.github/scripts/select-product-autopilot-specs.mjs'") &&
+  regressionConfig.includes('...PRODUCT_AUTOPILOT_SPECS.map') &&
+  regressionConfig.includes('const regressionTestMatch = new RegExp(') &&
+  regressionConfig.includes('testMatch: regressionTestMatch,');
 
 const checks = [
   [skills.includes("elementalStorm: ['fireArrow', 'iceArrow']") && skills.includes("arrowStorm: ['multishot', 'attackSpeed']") && skills.includes("veilChain: ['ricochet', 'piercing']"), 'the three fusion recipes are missing or overlap incorrectly'],
