@@ -5,17 +5,19 @@ const runtimePath = 'artifacts/dungeon-rpg/src/components/CompanionRuntimeBridge
 const runtimeEvidencePath = 'artifacts/dungeon-rpg/src/game/runtimeEvidenceBridge.ts';
 const journeyPath = 'artifacts/dungeon-rpg/tests/companion-runtime.spec.mjs';
 const workflowPath = '.github/workflows/product-autopilot-qa.yml';
+const selectorPath = '.github/scripts/select-product-autopilot-specs.mjs';
 const readabilityPath = 'artifacts/dungeon-rpg/src/companion-damage-feedback.css';
 const componentReadabilityPath = 'artifacts/dungeon-rpg/src/components/companionDamageFeedback.css';
 const combatStagePath = 'artifacts/dungeon-rpg/src/components/CombatStage.tsx';
 const appPath = 'artifacts/dungeon-rpg/src/App.tsx';
 const manifestGeneratorPath = 'artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs';
 
-const [runtime, runtimeEvidence, journey, workflow, readability, componentReadability, combatStage, app, manifestGenerator] = await Promise.all([
+const [runtime, runtimeEvidence, journey, workflow, selector, readability, componentReadability, combatStage, app, manifestGenerator] = await Promise.all([
   readFile(runtimePath, 'utf8'),
   readFile(runtimeEvidencePath, 'utf8'),
   readFile(journeyPath, 'utf8'),
   readFile(workflowPath, 'utf8'),
+  readFile(selectorPath, 'utf8'),
   readFile(readabilityPath, 'utf8'),
   readFile(componentReadabilityPath, 'utf8'),
   readFile(combatStagePath, 'utf8'),
@@ -260,7 +262,8 @@ assert.match(journey, /DUNGEON_VEIL_CRITICAL_SUPPORT_TIMING_RECEIPT \$\{JSON\.st
   'the successful exact timing tuple must be emitted into the durable Product job log');
 assert.match(journey, /expect\(observedCritical\.at\)\.toBeGreaterThan\(observedCritical\.criticalPlayerAttackAt\);/,
   'the accepted critical value must be a strictly newer authoritative companion action than the actual proc source');
-assert.match(workflow, /tests\/companion-runtime\.spec\.mjs/);
+assert.match(workflow, /\.github\/scripts\/select-product-autopilot-specs\.mjs/);
+assert.match(selector, /tests\/companion-runtime\.spec\.mjs/);
 assert.match(workflow, /companion-damage-feedback-\$\{\{ matrix\.project \}\}\.png/);
 assert.match(workflow, /companion-damage-feedback-critical-\$\{\{ matrix\.project \}\}\.png/);
 assert.match(manifestGenerator, /'companion-damage-feedback-',/);
