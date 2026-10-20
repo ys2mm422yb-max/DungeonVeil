@@ -55,6 +55,11 @@ const rpc = (token, name, body = {}, expected = [200]) =>
   request(`/rest/v1/rpc/${name}`, { token, body, expected });
 const edge = (token, body, expected = [200]) =>
   request("/functions/v1/duo-authority", { token, body, expected });
+const edgeReject = async (token, body, status, error) => {
+  const result = await edge(token, body, [status]);
+  assert.deepEqual(result.payload, { error });
+  return result;
+};
 const first = (result, label) => {
   const value = Array.isArray(result.payload)
     ? result.payload[0]
@@ -121,26 +126,27 @@ try {
   assert.equal(String(bindingHost.run_seed), String(started.run_seed));
   record("exact_member_binding");
 
-  await edge(
+  await edgeReject(
     "",
     {
       action: "state",
       lobbyId: lobby.lobby_id,
       runAttempt: bindingHost.run_attempt,
     },
-    [401],
+    401,
+    "missing_authorization",
   );
   record("unauthenticated_rejected");
-  const nonmember = await edge(
+  await edgeReject(
     outsider.token,
     {
       action: "state",
       lobbyId: lobby.lobby_id,
       runAttempt: bindingHost.run_attempt,
     },
-    [400],
+    400,
+    "active_actor_required",
   );
-  assert.equal(nonmember.payload?.error, "active_actor_required");
   record("nonmember_rejected");
 
   const bootstrap = await edge(host.token, {
@@ -182,7 +188,7 @@ try {
   assert.equal(guestSync.payload?.stateVersion, 2);
   record("legitimate_two_member_intents");
 
-  await edge(
+  await edgeReject(
     host.token,
     {
       action: "intent",
@@ -194,10 +200,11 @@ try {
       actorSequence: 2,
       intent: { kind: "sync" },
     },
-    [409],
+    409,
+    "authority_transition_rejected:authority state version conflict",
   );
   record("stale_state_rejected");
-  await edge(
+  await edgeReject(
     host.token,
     {
       action: "intent",
@@ -209,10 +216,11 @@ try {
       actorSequence: 2,
       intent: { kind: "sync" },
     },
-    [409],
+    409,
+    "authority_transition_rejected:authority state version conflict",
   );
   record("future_state_rejected");
-  await edge(
+  await edgeReject(
     guest.token,
     {
       action: "intent",
@@ -224,19 +232,21 @@ try {
       actorSequence: 3,
       intent: { kind: "sync" },
     },
-    [409],
+    409,
+    "authority_transition_rejected:authority actor sequence gap",
   );
   record("actor_sequence_gap_rejected");
-  await edge(
+  await edgeReject(
     host.token,
     {
       action: "state",
       lobbyId: lobby.lobby_id,
       runAttempt: bindingHost.run_attempt + 1,
     },
-    [400, 404],
+    404,
+    "authority_state_not_found",
   );
-  record("stale_attempt_rejected");
+  record("future_attempt_rejected");
 
   const exitBody = {
     action: "exit",
@@ -245,10 +255,36 @@ try {
     requestId: crypto.randomUUID(),
   };
   const exited = await edge(host.token, exitBody);
+  assert.equal(exited.payload?.exited, true);
   assert.equal(exited.payload?.status, "closed");
   const exitReplay = await edge(host.token, exitBody);
+  assert.equal(exitReplay.payload?.exited, true);
   assert.equal(exitReplay.payload?.replayed, true);
   record("exit_replay_idempotent");
+
+  await edgeReject(
+    guest.token,
+    {
+      action: "state",
+      lobbyId: lobby.lobby_id,
+      runAttempt: bindingHost.run_attempt,
+    },
+    404,
+    "authority_state_not_found",
+  );
+  record("stale_attempt_rejected");
+
+  const [hostBindingAfterExit, guestBindingAfterExit] = await Promise.all([
+    rpc(host.token, "get_my_coop_authority_binding", {
+      p_lobby_id: lobby.lobby_id,
+    }),
+    rpc(guest.token, "get_my_coop_authority_binding", {
+      p_lobby_id: lobby.lobby_id,
+    }),
+  ]);
+  assert.deepEqual(hostBindingAfterExit.payload, []);
+  assert.deepEqual(guestBindingAfterExit.payload, []);
+  record("binding_cleanup_confirmed");
 
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
   fs.writeFileSync(

@@ -40,6 +40,8 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.DUNGEON_VEIL_SUPABASE_DB_PASSWORD }}
       SUPABASE_ANON_KEY: ${{ secrets.DUNGEON_VEIL_SUPABASE_ANON_KEY }}
+      ROOT_AUDIT_WORKDIR: ${{ runner.temp }}/duo-authority-repository-history
+      ROLLOUT_WORKDIR: ${{ runner.temp }}/duo-authority-rollout
     steps:
       - name: Checkout requested exact target head
         uses: actions/checkout@v4
@@ -79,15 +81,55 @@ jobs:
         with:
           version: 2.121.0
 
-      - name: Link only the Dungeon Veil project
-        run: supabase link --project-ref "${PROJECT_REF}" --password "${SUPABASE_DB_PASSWORD}"
-
-      - name: Capture and validate exact remote migration precondition
+      - name: Prove repository-root migration history is blocked
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p duo-authority-production-receipt
-          supabase migration list --linked --password "${SUPABASE_DB_PASSWORD}" \
+          mkdir -p "${ROOT_AUDIT_WORKDIR}/supabase/migrations"
+          cp supabase/config.toml "${ROOT_AUDIT_WORKDIR}/supabase/config.toml"
+          cp supabase/migrations/*.sql "${ROOT_AUDIT_WORKDIR}/supabase/migrations/"
+          supabase --workdir "${ROOT_AUDIT_WORKDIR}" link \
+            --project-ref "${PROJECT_REF}" --password "${SUPABASE_DB_PASSWORD}"
+          supabase --workdir "${ROOT_AUDIT_WORKDIR}" migration list --linked \
+            --password "${SUPABASE_DB_PASSWORD}" \
+            > duo-authority-production-receipt/repository-migration-list.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --assert-repository-list-blocked duo-authority-production-receipt/repository-migration-list.txt
+
+      - name: Fetch and validate exact production history in isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${ROLLOUT_WORKDIR}/supabase/migrations"
+          cp supabase/config.toml "${ROLLOUT_WORKDIR}/supabase/config.toml"
+          supabase --workdir "${ROLLOUT_WORKDIR}" link \
+            --project-ref "${PROJECT_REF}" --password "${SUPABASE_DB_PASSWORD}"
+          supabase --workdir "${ROLLOUT_WORKDIR}" migration fetch --linked --yes
+          supabase --workdir "${ROLLOUT_WORKDIR}" migration list --linked \
+            --password "${SUPABASE_DB_PASSWORD}" \
+            > duo-authority-production-receipt/fetched-migration-list.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --fetched-list duo-authority-production-receipt/fetched-migration-list.txt
+
+      - name: Stage only the eight reviewed migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in \
+            20260911133000_trust_duo_encounter_completion.sql \
+            20260911160500_lock_down_trusted_coop_completion.sql \
+            20261003052000_add_duo_authority_bootstrap.sql \
+            20261003142500_connect_duo_authority_completion.sql \
+            20261004154000_add_duo_authority_build_profiles.sql \
+            20261004230000_bind_duo_authority_build_snapshot.sql \
+            20261008001000_complete_duo_authority_lifecycle.sql \
+            20261011211500_expose_my_duo_authority_binding.sql
+          do
+            cp "supabase/migrations/${migration}" "${ROLLOUT_WORKDIR}/supabase/migrations/${migration}"
+          done
+          supabase --workdir "${ROLLOUT_WORKDIR}" migration list --linked \
+            --password "${SUPABASE_DB_PASSWORD}" \
             > duo-authority-production-receipt/pre-migration-list.txt
           node scripts/verify-duo-authority-production-plan.mjs \
             --pre-list duo-authority-production-receipt/pre-migration-list.txt
@@ -96,21 +138,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase db push --linked --dry-run --skip-vault --password "${SUPABASE_DB_PASSWORD}" 2>&1 \
+          supabase --workdir "${ROLLOUT_WORKDIR}" db push --linked --dry-run --skip-vault \
+            --password "${SUPABASE_DB_PASSWORD}" 2>&1 \
             | tee duo-authority-production-receipt/db-push-dry-run.txt
           node scripts/verify-duo-authority-production-plan.mjs \
             --dry-run duo-authority-production-receipt/db-push-dry-run.txt
 
       - name: Apply exact repository migrations
         if: github.event.inputs.operation == 'apply-and-verify'
-        run: supabase db push --linked --skip-vault --password "${SUPABASE_DB_PASSWORD}" --yes
+        run: >-
+          supabase --workdir "${ROLLOUT_WORKDIR}" db push --linked --skip-vault
+          --password "${SUPABASE_DB_PASSWORD}" --yes
 
       - name: Verify exact preserved remote migration versions
         if: github.event.inputs.operation == 'apply-and-verify'
         shell: bash
         run: |
           set -euo pipefail
-          supabase migration list --linked --password "${SUPABASE_DB_PASSWORD}" \
+          supabase --workdir "${ROLLOUT_WORKDIR}" migration list --linked \
+            --password "${SUPABASE_DB_PASSWORD}" \
             > duo-authority-production-receipt/post-migration-list.txt
           node scripts/verify-duo-authority-production-plan.mjs \
             --post-list duo-authority-production-receipt/post-migration-list.txt

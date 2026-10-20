@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const PROJECT_REF = "hfndwqfghyomwapqsked";
-export const BASELINE_VERSION = "20260906214205";
 export const EXPECTED_MIGRATIONS = Object.freeze([
   "20260911133000_trust_duo_encounter_completion.sql",
   "20260911160500_lock_down_trusted_coop_completion.sql",
@@ -17,103 +16,204 @@ export const EXPECTED_MIGRATIONS = Object.freeze([
 
 const EXPECTED_VERSIONS = EXPECTED_MIGRATIONS.map((name) => name.slice(0, 14));
 const root = path.resolve(import.meta.dirname, "..");
+const manifestPath = path.join(
+  root,
+  "scripts/duo-authority-production-history.json",
+);
 
 function stripAnsi(value) {
   return value.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
-function migrationRows(value) {
-  return stripAnsi(value)
-    .split(/\r?\n/)
-    .map((line) => {
-      const columns = line.split("|").map((column) => column.trim());
-      const versions = [...line.matchAll(/\b20\d{12}\b/g)].map(
-        (match) => match[0],
-      );
-      return { line, columns, versions };
-    });
+function sortedUnique(values) {
+  return [...new Set(values)].sort();
 }
 
-function assertExactPostBaselineVersions(versions, label) {
-  const observed = [
-    ...new Set(versions.filter((version) => version > BASELINE_VERSION)),
-  ].sort();
+function migrationVersionsIn(directory) {
+  return fs
+    .readdirSync(directory)
+    .filter((name) => /^20\d{12}_.+\.sql$/.test(name))
+    .map((name) => name.slice(0, 14))
+    .sort();
+}
+
+function migrationSets(value) {
+  const local = [];
+  const remote = [];
+  for (const line of stripAnsi(value).split(/\r?\n/)) {
+    const columns = line.split("|").map((column) => column.trim());
+    if (/^20\d{12}$/.test(columns[0] ?? "")) local.push(columns[0]);
+    if (/^20\d{12}$/.test(columns[1] ?? "")) remote.push(columns[1]);
+  }
+  return { local: sortedUnique(local), remote: sortedUnique(remote) };
+}
+
+function readManifest() {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  assert.equal(manifest.project_ref, PROJECT_REF);
+  assert.ok(Array.isArray(manifest.migrations));
+  const versions = manifest.migrations.map(({ version }) => version);
+  assert.ok(versions.every((version) => /^20\d{12}$/.test(version)));
   assert.deepEqual(
-    observed,
-    EXPECTED_VERSIONS,
-    `${label} must contain exactly the expected eight post-baseline versions`,
+    versions,
+    sortedUnique(versions),
+    "production history manifest must be sorted and unique",
+  );
+  assert.equal(
+    versions.length,
+    70,
+    "production history manifest count drifted",
+  );
+  assert.equal(
+    versions.at(-1),
+    "20260906214205",
+    "production history tail drifted",
+  );
+  return versions;
+}
+
+const REMOTE_BASELINE_VERSIONS = readManifest();
+const POST_APPLY_VERSIONS = [
+  ...REMOTE_BASELINE_VERSIONS,
+  ...EXPECTED_VERSIONS,
+].sort();
+
+function validateRepositoryInventory() {
+  const migrationDirectory = path.join(root, "supabase/migrations");
+  const names = fs
+    .readdirSync(migrationDirectory)
+    .filter((name) => /^20\d{12}_.+\.sql$/.test(name))
+    .sort();
+  const postBaseline = names.filter(
+    (name) => name.slice(0, 14) > REMOTE_BASELINE_VERSIONS.at(-1),
+  );
+  assert.deepEqual(
+    postBaseline,
+    EXPECTED_MIGRATIONS,
+    "local post-baseline migration inventory drifted",
+  );
+
+  const repositoryVersions = migrationVersionsIn(migrationDirectory);
+  const baselineIntersection = repositoryVersions.filter((version) =>
+    REMOTE_BASELINE_VERSIONS.includes(version),
+  );
+  assert.deepEqual(
+    baselineIntersection,
+    [],
+    "repository history unexpectedly changed; re-audit the isolated fetch plan",
+  );
+  return repositoryVersions;
+}
+
+const REPOSITORY_VERSIONS = validateRepositoryInventory();
+
+function readList(file) {
+  return migrationSets(fs.readFileSync(file, "utf8"));
+}
+
+function assertRemoteBaseline(remote, label) {
+  assert.deepEqual(
+    remote,
+    REMOTE_BASELINE_VERSIONS,
+    `${label} remote history must exactly match the reviewed production baseline`,
   );
 }
 
-function validateLocalInventory() {
-  const names = fs
-    .readdirSync(path.join(root, "supabase/migrations"))
-    .filter(
-      (name) =>
-        /^20\d{12}_.+\.sql$/.test(name) && name.slice(0, 14) > BASELINE_VERSION,
-    )
-    .sort();
+function validateRepositoryList(file) {
+  const { local, remote } = readList(file);
   assert.deepEqual(
-    names,
-    EXPECTED_MIGRATIONS,
-    "local post-baseline migration inventory drifted",
+    local,
+    REPOSITORY_VERSIONS,
+    "repository migration list local side drifted",
+  );
+  assertRemoteBaseline(remote, "repository migration list");
+  const overlap = local.filter((version) => remote.includes(version));
+  assert.deepEqual(
+    overlap,
+    [],
+    "repository/live history is no longer the reviewed zero-overlap blocker",
+  );
+  throw new Error(
+    "unsafe root db push blocked: production migration history is not a subset of repository migrations",
+  );
+}
+
+function assertRepositoryListBlocked(file) {
+  try {
+    validateRepositoryList(file);
+  } catch (error) {
+    assert.match(String(error), /unsafe root db push blocked/);
+    return;
+  }
+  assert.fail("repository migration list must fail closed");
+}
+
+function validateFetchedList(file) {
+  const { local, remote } = readList(file);
+  assertRemoteBaseline(remote, "fetched migration list");
+  assert.deepEqual(
+    local,
+    REMOTE_BASELINE_VERSIONS,
+    "migration fetch must materialize every reviewed remote version locally",
   );
 }
 
 function validatePreList(file) {
-  const rows = migrationRows(fs.readFileSync(file, "utf8"));
-  for (const version of EXPECTED_VERSIONS) {
-    const row = rows.find((candidate) => candidate.columns[0] === version);
-    assert.ok(
-      row,
-      `preflight migration list is missing local version ${version}`,
-    );
-    assert.ok(
-      !row.columns[1],
-      `version ${version} is already recorded remotely; refuse a first rollout`,
-    );
-  }
-  assertExactPostBaselineVersions(
-    rows.flatMap((row) => row.versions),
-    "preflight migration list",
+  const { local, remote } = readList(file);
+  assertRemoteBaseline(remote, "isolated rollout pre-list");
+  assert.deepEqual(
+    local,
+    POST_APPLY_VERSIONS,
+    "isolated rollout workspace must contain the fetched baseline plus exactly eight new versions",
   );
 }
 
 function validateDryRun(file) {
-  const rows = migrationRows(fs.readFileSync(file, "utf8"));
-  assertExactPostBaselineVersions(
-    rows.flatMap((row) => row.versions),
-    "db push dry-run",
+  const versions = sortedUnique(
+    [...stripAnsi(fs.readFileSync(file, "utf8")).matchAll(/\b20\d{12}\b/g)].map(
+      (match) => match[0],
+    ),
+  );
+  assert.deepEqual(
+    versions,
+    EXPECTED_VERSIONS,
+    "db push dry-run must name exactly the eight reviewed migrations",
   );
 }
 
 function validatePostList(file) {
-  const rows = migrationRows(fs.readFileSync(file, "utf8"));
-  for (const version of EXPECTED_VERSIONS) {
-    const row = rows.find(
-      (candidate) =>
-        candidate.columns[0] === version && candidate.columns[1] === version,
-    );
-    assert.ok(row, `remote history does not preserve exact version ${version}`);
-  }
-  assertExactPostBaselineVersions(
-    rows.flatMap((row) => row.versions),
-    "post-apply migration list",
+  const { local, remote } = readList(file);
+  assert.deepEqual(
+    local,
+    POST_APPLY_VERSIONS,
+    "post-apply local history drifted",
+  );
+  assert.deepEqual(
+    remote,
+    POST_APPLY_VERSIONS,
+    "post-apply remote history did not preserve exact versions",
   );
 }
 
-validateLocalInventory();
+const validators = new Map([
+  ["--repository-list", validateRepositoryList],
+  ["--assert-repository-list-blocked", assertRepositoryListBlocked],
+  ["--fetched-list", validateFetchedList],
+  ["--pre-list", validatePreList],
+  ["--dry-run", validateDryRun],
+  ["--post-list", validatePostList],
+]);
+
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index += 2) {
   const flag = args[index];
   const file = args[index + 1];
   assert.ok(file, `${flag} requires a file path`);
-  if (flag === "--pre-list") validatePreList(file);
-  else if (flag === "--dry-run") validateDryRun(file);
-  else if (flag === "--post-list") validatePostList(file);
-  else throw new Error(`unknown argument: ${flag}`);
+  const validate = validators.get(flag);
+  assert.ok(validate, `unknown argument: ${flag}`);
+  validate(file);
 }
 
 console.log(
-  `Duo authority production plan validated for ${PROJECT_REF}: ${EXPECTED_VERSIONS.join(", ")}`,
+  `Duo authority production plan validated for ${PROJECT_REF}: root history blocked, ${REMOTE_BASELINE_VERSIONS.length} fetched baseline versions, ${EXPECTED_VERSIONS.length} pending versions.`,
 );

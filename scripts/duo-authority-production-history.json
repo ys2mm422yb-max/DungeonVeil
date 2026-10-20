@@ -1,0 +1,178 @@
+{
+  "project_ref": "hfndwqfghyomwapqsked",
+  "captured_at": "2026-10-20T07:13:00Z",
+  "migrations": [
+    { "version": "20260711230154", "name": "create_profiles_and_cloud_saves" },
+    { "version": "20260711230206", "name": "create_guild_foundation" },
+    { "version": "20260711230231", "name": "create_world_boss_foundation" },
+    { "version": "20260711230307", "name": "enable_rls_and_secure_access" },
+    { "version": "20260711230516", "name": "create_private_guild_helpers" },
+    { "version": "20260711230532", "name": "use_private_guild_helpers" },
+    {
+      "version": "20260711230542",
+      "name": "make_invite_acceptance_rls_invoker"
+    },
+    { "version": "20260711230610", "name": "rate_limit_world_boss_hits" },
+    { "version": "20260711231647", "name": "optimize_online_rls_and_indexes" },
+    { "version": "20260712070332", "name": "use_google_profile_name" },
+    {
+      "version": "20260712160258",
+      "name": "guild_leave_and_transfer_leadership"
+    },
+    {
+      "version": "20260713015756",
+      "name": "guild_invite_links_and_player_mailbox"
+    },
+    { "version": "20260713020826", "name": "harden_guild_invite_mail_trigger" },
+    {
+      "version": "20260713021021",
+      "name": "restrict_guild_mailbox_rpc_access"
+    },
+    {
+      "version": "20260713021030",
+      "name": "add_guild_invite_links_deny_policy"
+    },
+    {
+      "version": "20260713021123",
+      "name": "revoke_public_mail_trigger_execution"
+    },
+    { "version": "20260713021927", "name": "add_friends_system" },
+    { "version": "20260713022711", "name": "harden_friend_pair_uniqueness" },
+    {
+      "version": "20260713033712",
+      "name": "add_social_profiles_worldboss_rewards"
+    },
+    {
+      "version": "20260713035343",
+      "name": "add_social_acceptance_mailbox_notices"
+    },
+    {
+      "version": "20260713035701",
+      "name": "prepare_recent_world_boss_rewards"
+    },
+    { "version": "20260713040501", "name": "extend_social_profile_cards" },
+    {
+      "version": "20260713041230",
+      "name": "restrict_guild_management_rpc_access"
+    },
+    { "version": "20260713212834", "name": "world_boss_24h_attempt_lock" },
+    { "version": "20260714052630", "name": "world_boss_five_minute_resume" },
+    { "version": "20260714172852", "name": "guild_text_chat" },
+    { "version": "20260714172943", "name": "guild_text_chat_user_index" },
+    {
+      "version": "20260714174157",
+      "name": "fix_guild_invite_mailbox_permission"
+    },
+    { "version": "20260715113422", "name": "fix_friend_query_ambiguity" },
+    {
+      "version": "20260715113732",
+      "name": "fix_friend_query_mailbox_ambiguity"
+    },
+    {
+      "version": "20260715223453",
+      "name": "add_friend_spectating_and_public_career_stats"
+    },
+    {
+      "version": "20260715223525",
+      "name": "add_friend_spectating_and_public_career_stats"
+    },
+    {
+      "version": "20260715223637",
+      "name": "deny_direct_spectator_snapshot_access"
+    },
+    {
+      "version": "20260715223804",
+      "name": "deny_direct_spectator_snapshot_access"
+    },
+    {
+      "version": "20260716204113",
+      "name": "expand_spectating_and_public_equipment"
+    },
+    {
+      "version": "20260716215125",
+      "name": "cloud_conflict_guard_and_spectator_presence"
+    },
+    {
+      "version": "20260716215212",
+      "name": "cloud_conflict_guard_and_spectator_presence"
+    },
+    { "version": "20260717173317", "name": "add_coop_lobby_foundation" },
+    { "version": "20260717173615", "name": "harden_coop_lobby_helper" },
+    {
+      "version": "20260718171754",
+      "name": "fix_coop_join_invite_code_ambiguity"
+    },
+    { "version": "20260718171832", "name": "add_coop_direct_social_invites" },
+    {
+      "version": "20260718182402",
+      "name": "fix_all_coop_rpc_output_column_ambiguities"
+    },
+    {
+      "version": "20260718182721",
+      "name": "fix_coop_lobby_rpc_output_column_ambiguity"
+    },
+    {
+      "version": "20260718231748",
+      "name": "add_guild_search_and_join_requests"
+    },
+    { "version": "20260718233033", "name": "add_coop_boss_loot_claims" },
+    { "version": "20260718233245", "name": "fix_coop_boss_loot_rpc_ambiguity" },
+    {
+      "version": "20260718233738",
+      "name": "make_coop_boss_loot_server_authoritative"
+    },
+    { "version": "20260718234048", "name": "index_coop_boss_loot_winner" },
+    {
+      "version": "20260719002023",
+      "name": "add_coop_run_persistence_and_rewards"
+    },
+    { "version": "20260719002712", "name": "harden_coop_checkpoint_rejoin" },
+    { "version": "20260719130258", "name": "add_confirmed_player_names" },
+    { "version": "20260719134147", "name": "rebalance_coop_boss_loot_v4" },
+    {
+      "version": "20260719134637",
+      "name": "harden_player_name_confirmation_v2"
+    },
+    {
+      "version": "20260719134713",
+      "name": "version_world_boss_balance_v4_schema"
+    },
+    {
+      "version": "20260719134753",
+      "name": "version_world_boss_balance_v4_attempts"
+    },
+    {
+      "version": "20260719134803",
+      "name": "harden_player_name_confirmation_v2"
+    },
+    { "version": "20260719134814", "name": "version_world_boss_balance_v4" },
+    {
+      "version": "20260719134842",
+      "name": "version_world_boss_balance_v4_hits"
+    },
+    { "version": "20260721133747", "name": "mailbox_delete_rpc" },
+    { "version": "20260721140648", "name": "add_safe_mailbox_delete_rpc" },
+    {
+      "version": "20260721143739",
+      "name": "harden_mailbox_delete_rpc_contract"
+    },
+    { "version": "20260726094337", "name": "guild_raid_lobby_block_10" },
+    { "version": "20260726094424", "name": "guild_raid_lobby_actions_a" },
+    { "version": "20260726094514", "name": "guild_raid_lobby_actions_b" },
+    { "version": "20260726094613", "name": "guild_raid_lobby_start_realtime" },
+    {
+      "version": "20260828201914",
+      "name": "guild_raid_synchronized_state_block_11_reconcile"
+    },
+    {
+      "version": "20260828202107",
+      "name": "guild_raid_boss_rewards_block_14_reconcile"
+    },
+    {
+      "version": "20260903084908",
+      "name": "harden_guild_raid_block14_rpc_execute"
+    },
+    { "version": "20260906214043", "name": "create_freelancer_crm" },
+    { "version": "20260906214205", "name": "remove_freelancer_crm_schema" }
+  ]
+}

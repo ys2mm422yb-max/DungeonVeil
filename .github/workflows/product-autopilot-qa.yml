@@ -6,17 +6,17 @@ on:
     branches:
       - fix/mobile-telegraphs-room-21-50-balance
     paths:
-      - '.github/workflows/product-autopilot-qa.yml'
-      - 'artifacts/dungeon-rpg/**'
-      - 'supabase/migrations/**'
+      - ".github/workflows/product-autopilot-qa.yml"
+      - "artifacts/dungeon-rpg/**"
+      - "supabase/migrations/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - fix/mobile-telegraphs-room-21-50-balance
     paths:
-      - '.github/workflows/product-autopilot-qa.yml'
-      - 'artifacts/dungeon-rpg/**'
-      - 'supabase/migrations/**'
+      - ".github/workflows/product-autopilot-qa.yml"
+      - "artifacts/dungeon-rpg/**"
+      - "supabase/migrations/**"
 
 permissions:
   contents: read
@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PLAYWRIGHT_VERSION: '1.55.0'
+  PLAYWRIGHT_VERSION: "1.55.0"
   BASE_PATH: /DungeonVeil/
   DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
 
@@ -49,6 +49,8 @@ jobs:
         run: node artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs
       - name: Verify product evidence file manifest
         run: node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs --self-test
+      - name: Verify adaptive Product Autopilot selector
+        run: node .github/scripts/select-product-autopilot-specs.mjs --self-test
       - name: Verify focused UX contracts
         run: node artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs
       - name: Verify TypeScript
@@ -96,6 +98,23 @@ jobs:
       BROWSER_PROJECT: ${{ matrix.project }}
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve fail-closed Product Autopilot coverage
+        shell: bash
+        env:
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
+        run: |
+          set -euo pipefail
+          : > /tmp/dungeon-veil-changed-files.txt
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            base_sha='${{ github.event.pull_request.base.sha }}'
+            git fetch --no-tags --depth=1 origin "${base_sha}"
+            git diff --name-only "${base_sha}" "${GITHUB_SHA}" > /tmp/dungeon-veil-changed-files.txt
+          fi
+          node .github/scripts/select-product-autopilot-specs.mjs \
+            --event "${GITHUB_EVENT_NAME}" \
+            --changed-files /tmp/dungeon-veil-changed-files.txt \
+            --output /tmp/dungeon-veil-product-specs.txt
+          test -s /tmp/dungeon-veil-product-specs.txt
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -140,23 +159,10 @@ jobs:
             sleep 1
           done
           curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          mapfile -t product_specs < /tmp/dungeon-veil-product-specs.txt
+          test "${#product_specs[@]}" -gt 0
           timeout --signal=TERM --kill-after=30s 55m pnpm --dir artifacts/dungeon-rpg exec playwright test \
-            tests/autopilot-product-journeys.spec.mjs \
-            tests/run-gift-authority.spec.mjs \
-            tests/autopilot-outside-guild.spec.mjs \
-            tests/guild-mail-equipment-visual.spec.mjs \
-            tests/mobile-resource-upgrade.spec.mjs \
-            tests/companion-runtime.spec.mjs \
-            tests/companion-free-movement-evidence.spec.mjs \
-            tests/spectator-performance.spec.mjs \
-            tests/spectator-death-state.spec.mjs \
-            tests/player-death-state.spec.mjs \
-            tests/upgrade-prestige-visual.spec.mjs \
-            tests/upgrade-prestige-mobile-hotfix.spec.mjs \
-            tests/visible-upgrade-prestige.spec.mjs \
-            tests/kaykit-chapter-evidence.spec.mjs \
-            tests/guild-raid-lobby-mobile.spec.mjs \
-            tests/armor-cloud-restore-render.spec.mjs \
+            "${product_specs[@]}" \
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
@@ -228,36 +234,18 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
 
-          let selected = null;
-          if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
-            const eventPath = process.env.GITHUB_EVENT_PATH;
-            if (eventPath && fs.existsSync(eventPath)) {
-              const payload = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
-              const body = payload?.pull_request?.body ?? '';
-              const startMarker = '<!-- product-autopilot-selection:start -->';
-              const endMarker = '<!-- product-autopilot-selection:end -->';
-              const start = body.indexOf(startMarker);
-              const end = body.indexOf(endMarker);
-              if (start >= 0 && end > start) {
-                const block = body.slice(start + startMarker.length, end);
-                if (!/\bFULL_PRODUCT_AUTOPILOT\b/.test(block)) {
-                  const specs = [...block.matchAll(/`tests\/([A-Za-z0-9._/-]+\.spec\.mjs)`/g)].map((match) => match[1]);
-                  if (specs.length > 0) selected = new Set(specs);
-                }
-              }
-            }
-          }
-
-          const required = (spec) => selected === null || selected.has(spec);
+          const selectionPath = '/tmp/dungeon-veil-product-specs.txt';
+          if (!fs.existsSync(selectionPath)) throw new Error('Resolved Product Autopilot selection is missing.');
+          const selected = new Set(fs.readFileSync(selectionPath, 'utf8').split(/\r?\n/).filter(Boolean));
+          if (selected.size === 0) throw new Error('Resolved Product Autopilot selection is empty.');
+          const required = (spec) => selected.has(spec);
           const outputs = [
-            `spectator_performance=${required('spectator-performance.spec.mjs')}`,
-            `spectator_death=${required('spectator-death-state.spec.mjs')}`,
-            `player_death=${required('player-death-state.spec.mjs')}`,
+            `spectator_performance=${required('tests/spectator-performance.spec.mjs')}`,
+            `spectator_death=${required('tests/spectator-death-state.spec.mjs')}`,
+            `player_death=${required('tests/player-death-state.spec.mjs')}`,
           ];
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
-          console.log(selected === null
-            ? 'Product evidence requirements: full fail-closed suite.'
-            : `Product evidence requirements: adaptive selection (${[...selected].join(', ')}).`);
+          console.log(`Product evidence requirements: resolved selection (${[...selected].join(', ')}).`);
           NODE
       - name: Collect focused spectator review screenshots
         if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.spectator_performance == 'true'
