@@ -43,6 +43,17 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Validate adaptive Product selection before expensive work
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/select-product-autopilot-specs.mjs --self-test
+          node .github/scripts/select-product-autopilot-specs.mjs \
+            --event pull_request \
+            --output "${RUNNER_TEMP}/product-autopilot-selected-specs.txt"
+          test -s "${RUNNER_TEMP}/product-autopilot-selected-specs.txt"
       - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Validate repository evidence budgets

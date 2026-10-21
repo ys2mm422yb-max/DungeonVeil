@@ -1,0 +1,368 @@
+name: Duo Authority Production Rollout
+
+on:
+  pull_request:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/duo-authority-production-rollout.yml'
+      - 'artifacts/dungeon-rpg/tests/duo-authority-production-rollout.contract.mjs'
+      - 'docs/DUO_AUTHORITY_PRODUCTION_ROLLOUT.md'
+      - 'scripts/duo-authority-production-history.json'
+      - 'scripts/duo-authority-production-smoke.mjs'
+      - 'scripts/verify-duo-authority-production-plan.mjs'
+      - 'supabase/config.toml'
+      - 'supabase/functions/duo-authority/**'
+      - 'supabase/migrations/20260911133000_trust_duo_encounter_completion.sql'
+      - 'supabase/migrations/20260911160500_lock_down_trusted_coop_completion.sql'
+      - 'supabase/migrations/20261003052000_add_duo_authority_bootstrap.sql'
+      - 'supabase/migrations/20261003142500_connect_duo_authority_completion.sql'
+      - 'supabase/migrations/20261004154000_add_duo_authority_build_profiles.sql'
+      - 'supabase/migrations/20261004230000_bind_duo_authority_build_snapshot.sql'
+      - 'supabase/migrations/20261008001000_complete_duo_authority_lifecycle.sql'
+      - 'supabase/migrations/20261011211500_expose_my_duo_authority_binding.sql'
+  push:
+    branches:
+      - fix/mobile-telegraphs-room-21-50-balance
+    # Bootstrap-only files are intentionally absent. Merging the bootstrap
+    # cannot mount the production environment; a later payload merge triggers
+    # the trusted target-branch preflight.
+    paths:
+      - 'scripts/duo-authority-production-history.json'
+      - 'scripts/duo-authority-production-smoke.mjs'
+      - 'scripts/verify-duo-authority-production-plan.mjs'
+      - 'supabase/config.toml'
+      - 'supabase/functions/duo-authority/**'
+      - 'supabase/migrations/20260911133000_trust_duo_encounter_completion.sql'
+      - 'supabase/migrations/20260911160500_lock_down_trusted_coop_completion.sql'
+      - 'supabase/migrations/20261003052000_add_duo_authority_bootstrap.sql'
+      - 'supabase/migrations/20261003142500_connect_duo_authority_completion.sql'
+      - 'supabase/migrations/20261004154000_add_duo_authority_build_profiles.sql'
+      - 'supabase/migrations/20261004230000_bind_duo_authority_build_snapshot.sql'
+      - 'supabase/migrations/20261008001000_complete_duo_authority_lifecycle.sql'
+      - 'supabase/migrations/20261011211500_expose_my_duo_authority_binding.sql'
+
+permissions:
+  actions: read
+  contents: read
+  issues: read
+
+concurrency:
+  group: dungeon-veil-duo-authority-production
+  cancel-in-progress: false
+
+jobs:
+  pr_contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact untrusted PR head without credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove secretless bootstrap contract
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+          node --test artifacts/dungeon-rpg/tests/duo-authority-production-rollout.contract.mjs
+
+  resolve_operation:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      expected_sha: ${{ steps.resolve.outputs.expected_sha }}
+      operation: ${{ steps.resolve.outputs.operation }}
+      authorization_comment_id: ${{ steps.resolve.outputs.authorization_comment_id }}
+    steps:
+      - name: Resolve exact trusted target head and one-use authorization
+        id: resolve
+        uses: actions/github-script@v7
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        with:
+          script: |
+            const target = 'fix/mobile-telegraphs-room-21-50-balance';
+            const projectRef = 'hfndwqfghyomwapqsked';
+            const runAttempt = Number(process.env.RUN_ATTEMPT);
+            if (context.eventName !== 'push') throw new Error('credentialed rollout requires a trusted target push');
+            if (context.ref !== 'refs/heads/' + target) throw new Error('wrong push target');
+            const expectedSha = context.sha;
+            if (!/^[0-9a-f]{40}$/.test(expectedSha)) throw new Error('expected head must be a full SHA');
+
+            core.setOutput('expected_sha', expectedSha);
+            core.setOutput('operation', 'preflight');
+            core.setOutput('authorization_comment_id', '');
+            if (runAttempt !== 2) return;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 481,
+              per_page: 100,
+            });
+            const parse = (body) => {
+              const fields = {};
+              for (const line of body.split(/\r?\n/)) {
+                const match = line.match(/^([a-z_]+):\s*(.+)$/);
+                if (match) fields[match[1]] = match[2].trim();
+              }
+              return fields;
+            };
+            const confirmation = 'APPLY_ISSUE_461_TO_' + projectRef + '_AT_' + expectedSha;
+            const authorization = comments.slice().reverse().find((comment) => {
+              if (comment.user?.login !== context.repo.owner) return false;
+              if (!comment.body.includes('<!-- dungeon-veil-production-authorization -->')) return false;
+              const fields = parse(comment.body);
+              return fields.worker === 'verifier'
+                && fields.status === 'terminal'
+                && fields.task_key === 'issue461-production-rollout-authorization'
+                && fields.exact_head === expectedSha
+                && fields.workflow_run_id === String(context.runId)
+                && fields.workflow_run_attempt === String(runAttempt)
+                && fields.decision === 'accept'
+                && fields.production_authorization === 'approved'
+                && fields.confirmation === confirmation;
+            });
+            if (!authorization) return;
+
+            core.setOutput('operation', 'apply-and-verify');
+            core.setOutput('authorization_comment_id', String(authorization.id));
+
+  rollout:
+    if: github.event_name == 'push'
+    needs: resolve_operation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: dungeon-veil-production
+    env:
+      PROJECT_REF: hfndwqfghyomwapqsked
+      EXPECTED_SHA: ${{ needs.resolve_operation.outputs.expected_sha }}
+      OPERATION: ${{ needs.resolve_operation.outputs.operation }}
+      AUTHORIZATION_COMMENT_ID: ${{ needs.resolve_operation.outputs.authorization_comment_id }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.DUNGEON_VEIL_SUPABASE_DB_PASSWORD }}
+      SUPABASE_ANON_KEY: ${{ secrets.DUNGEON_VEIL_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout exact trusted target head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve_operation.outputs.expected_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prepare isolated rollout workdirs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p duo-authority-production-receipt
+          echo prepare > duo-authority-production-receipt/stage.txt
+          echo "ROOT_AUDIT_WORKDIR=${RUNNER_TEMP}/duo-authority-repository-history" >> "${GITHUB_ENV}"
+          echo "ROLLOUT_WORKDIR=${RUNNER_TEMP}/duo-authority-rollout" >> "${GITHUB_ENV}"
+
+      - name: Enforce trusted target, exact head and explicit authorization
+        shell: bash
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          echo guard > duo-authority-production-receipt/stage.txt
+          test "${GITHUB_EVENT_NAME}" = 'push'
+          test "${GITHUB_REF}" = 'refs/heads/fix/mobile-telegraphs-room-21-50-balance'
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          test -n "${SUPABASE_ACCESS_TOKEN}"
+          test -n "${SUPABASE_DB_PASSWORD}"
+          test -n "${SUPABASE_ANON_KEY}"
+          if [[ "${OPERATION}" = 'apply-and-verify' ]]; then
+            test "${RUN_ATTEMPT}" = '2'
+            test -n "${AUTHORIZATION_COMMENT_ID}"
+          else
+            test "${OPERATION}" = 'preflight'
+            test -z "${AUTHORIZATION_COMMENT_ID}"
+          fi
+
+      - name: Validate immutable rollout contract
+        run: |
+          set -euo pipefail
+          echo contract > duo-authority-production-receipt/stage.txt
+          node scripts/verify-duo-authority-production-plan.mjs
+          node artifacts/dungeon-rpg/tests/trustedCoopCompletionMigration.contract.mjs \
+            supabase/migrations/20260911133000_trust_duo_encounter_completion.sql \
+            supabase/migrations/20260911160500_lock_down_trusted_coop_completion.sql
+          node --test artifacts/dungeon-rpg/tests/duo-authority-production-rollout.contract.mjs
+
+      - name: Setup pinned Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+
+      - name: Prove repository-root migration history is blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo repository-history > duo-authority-production-receipt/stage.txt
+          mkdir -p "${ROOT_AUDIT_WORKDIR}/supabase/migrations"
+          cp supabase/config.toml "${ROOT_AUDIT_WORKDIR}/supabase/config.toml"
+          cp supabase/migrations/*.sql "${ROOT_AUDIT_WORKDIR}/supabase/migrations/"
+          supabase --workdir "${ROOT_AUDIT_WORKDIR}" link \
+            --project-ref "${PROJECT_REF}" --password "${SUPABASE_DB_PASSWORD}"
+          supabase --workdir "${ROOT_AUDIT_WORKDIR}" migration list --linked \
+            --password "${SUPABASE_DB_PASSWORD}" \
+            > duo-authority-production-receipt/repository-migration-list.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --assert-repository-list-blocked duo-authority-production-receipt/repository-migration-list.txt
+
+      - name: Fetch and validate exact production history in isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo fetched-history > duo-authority-production-receipt/stage.txt
+          mkdir -p "${ROLLOUT_WORKDIR}/supabase/migrations"
+          cp supabase/config.toml "${ROLLOUT_WORKDIR}/supabase/config.toml"
+          supabase --workdir "${ROLLOUT_WORKDIR}" link \
+            --project-ref "${PROJECT_REF}" --password "${SUPABASE_DB_PASSWORD}"
+          supabase --workdir "${ROLLOUT_WORKDIR}" migration fetch --linked --yes
+          supabase --workdir "${ROLLOUT_WORKDIR}" migration list --linked \
+            --password "${SUPABASE_DB_PASSWORD}" \
+            > duo-authority-production-receipt/fetched-migration-list.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --fetched-list duo-authority-production-receipt/fetched-migration-list.txt
+
+      - name: Stage only the eight reviewed migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo stage-migrations > duo-authority-production-receipt/stage.txt
+          for migration in \
+            20260911133000_trust_duo_encounter_completion.sql \
+            20260911160500_lock_down_trusted_coop_completion.sql \
+            20261003052000_add_duo_authority_bootstrap.sql \
+            20261003142500_connect_duo_authority_completion.sql \
+            20261004154000_add_duo_authority_build_profiles.sql \
+            20261004230000_bind_duo_authority_build_snapshot.sql \
+            20261008001000_complete_duo_authority_lifecycle.sql \
+            20261011211500_expose_my_duo_authority_binding.sql
+          do
+            cp "supabase/migrations/${migration}" "${ROLLOUT_WORKDIR}/supabase/migrations/${migration}"
+          done
+          supabase --workdir "${ROLLOUT_WORKDIR}" migration list --linked \
+            --password "${SUPABASE_DB_PASSWORD}" \
+            > duo-authority-production-receipt/pre-migration-list.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --pre-list duo-authority-production-receipt/pre-migration-list.txt
+
+      - name: Dry-run the exact version-preserving push
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo dry-run > duo-authority-production-receipt/stage.txt
+          supabase --workdir "${ROLLOUT_WORKDIR}" db push --linked --dry-run --skip-vault \
+            --password "${SUPABASE_DB_PASSWORD}" 2>&1 \
+            | tee duo-authority-production-receipt/db-push-dry-run.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --dry-run duo-authority-production-receipt/db-push-dry-run.txt
+
+      - name: Apply exact repository migrations
+        if: env.OPERATION == 'apply-and-verify'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo apply-migrations > duo-authority-production-receipt/stage.txt
+          supabase --workdir "${ROLLOUT_WORKDIR}" db push --linked --skip-vault \
+            --password "${SUPABASE_DB_PASSWORD}" --yes
+
+      - name: Verify exact preserved remote migration versions
+        if: env.OPERATION == 'apply-and-verify'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo verify-migrations > duo-authority-production-receipt/stage.txt
+          supabase --workdir "${ROLLOUT_WORKDIR}" migration list --linked \
+            --password "${SUPABASE_DB_PASSWORD}" \
+            > duo-authority-production-receipt/post-migration-list.txt
+          node scripts/verify-duo-authority-production-plan.mjs \
+            --post-list duo-authority-production-receipt/post-migration-list.txt
+
+      - name: Deploy JWT-protected Duo authority function
+        if: env.OPERATION == 'apply-and-verify'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo deploy-function > duo-authority-production-receipt/stage.txt
+          supabase functions deploy duo-authority --project-ref "${PROJECT_REF}"
+
+      - name: Run authenticated adversarial production smoke
+        if: env.OPERATION == 'apply-and-verify'
+        env:
+          DUNGEON_VEIL_SMOKE_HOST_EMAIL: ${{ secrets.DUNGEON_VEIL_SMOKE_HOST_EMAIL }}
+          DUNGEON_VEIL_SMOKE_HOST_PASSWORD: ${{ secrets.DUNGEON_VEIL_SMOKE_HOST_PASSWORD }}
+          DUNGEON_VEIL_SMOKE_GUEST_EMAIL: ${{ secrets.DUNGEON_VEIL_SMOKE_GUEST_EMAIL }}
+          DUNGEON_VEIL_SMOKE_GUEST_PASSWORD: ${{ secrets.DUNGEON_VEIL_SMOKE_GUEST_PASSWORD }}
+          DUNGEON_VEIL_SMOKE_OUTSIDER_EMAIL: ${{ secrets.DUNGEON_VEIL_SMOKE_OUTSIDER_EMAIL }}
+          DUNGEON_VEIL_SMOKE_OUTSIDER_PASSWORD: ${{ secrets.DUNGEON_VEIL_SMOKE_OUTSIDER_PASSWORD }}
+          DUO_AUTHORITY_SMOKE_RECEIPT: duo-authority-production-receipt/smoke.json
+        run: |
+          set -euo pipefail
+          echo authenticated-smoke > duo-authority-production-receipt/stage.txt
+          node scripts/duo-authority-production-smoke.mjs
+
+      - name: Capture deployed function metadata
+        if: env.OPERATION == 'apply-and-verify'
+        run: |
+          set -euo pipefail
+          echo function-metadata > duo-authority-production-receipt/stage.txt
+          supabase functions list --project-ref "${PROJECT_REF}" --output json \
+            > duo-authority-production-receipt/functions.json
+
+      - name: Write truthful exact-head receipt
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          fs.mkdirSync('duo-authority-production-receipt', { recursive: true });
+          const stagePath = 'duo-authority-production-receipt/stage.txt';
+          const stage = fs.existsSync(stagePath)
+            ? fs.readFileSync(stagePath, 'utf8').trim()
+            : 'checkout';
+          let actualSha = null;
+          try {
+            actualSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+              encoding: 'utf8',
+            }).trim();
+          } catch {}
+          const result = process.env.JOB_STATUS === 'success' ? 'pass' : 'fail';
+          fs.writeFileSync('duo-authority-production-receipt/workflow.json', JSON.stringify({
+            result,
+            failure_stage: result === 'pass' ? null : stage,
+            project_ref: process.env.PROJECT_REF,
+            expected_sha: process.env.EXPECTED_SHA,
+            actual_sha: actualSha,
+            event_name: process.env.GITHUB_EVENT_NAME,
+            ref: process.env.GITHUB_REF,
+            operation: process.env.OPERATION,
+            authorization_comment_id: process.env.AUTHORIZATION_COMMENT_ID || null,
+            workflow_run_id: process.env.GITHUB_RUN_ID,
+            workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT,
+          }, null, 2) + '\n');
+          NODE
+
+      - name: Upload redacted rollout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duo-authority-production-receipt-${{ needs.resolve_operation.outputs.expected_sha }}-${{ github.run_attempt }}
+          path: duo-authority-production-receipt
+          if-no-files-found: error
+          retention-days: 30
