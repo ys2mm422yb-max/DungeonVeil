@@ -142,6 +142,25 @@ function selfTest() {
   }
   if (!rejectedUnknown) throw new Error('Unknown declared spec must fail validation.');
 
+  const workflow = fs.readFileSync(new URL('../workflows/product-autopilot-qa.yml', import.meta.url), 'utf8');
+  const journeyStart = workflow.indexOf('- name: Run portrait-mobile product journeys');
+  const journeyEnd = workflow.indexOf('- name: Prove post-rearm runtime monitor fails closed', journeyStart);
+  if (journeyStart < 0 || journeyEnd <= journeyStart) {
+    throw new Error('Product workflow primary Playwright invocation could not be located.');
+  }
+  const journeyStep = workflow.slice(journeyStart, journeyEnd);
+  for (const spec of ALL_SPECS) {
+    if (!journeyStep.includes(spec)) throw new Error(`Product workflow invocation cannot reach selectable spec: ${spec}`);
+  }
+  for (const contract of [
+    "guild_raid_language=${required('guild-raid-language-portals.spec.mjs')}",
+    'prepare-guild-raid-language-evidence.mjs',
+    'autopilot-guild-raid-language-portals-*-${{ matrix.project }}.png',
+    'autopilot-guild-raid-language-portals-*-${{ matrix.project }}.webm',
+  ]) {
+    if (!workflow.includes(contract)) throw new Error(`Product workflow is missing dynamic evidence coverage: ${contract}`);
+  }
+
   console.log('Adaptive Product Autopilot selector self-test passed.');
 }
 

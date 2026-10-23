@@ -60,6 +60,8 @@ jobs:
         run: node artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs
       - name: Verify product evidence file manifest
         run: node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs --self-test
+      - name: Verify Guild Raid language evidence packaging
+        run: node artifacts/dungeon-rpg/scripts/prepare-guild-raid-language-evidence.mjs --self-test
       - name: Verify focused UX contracts
         run: node artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs
       - name: Verify TypeScript
@@ -167,6 +169,7 @@ jobs:
             tests/visible-upgrade-prestige.spec.mjs \
             tests/kaykit-chapter-evidence.spec.mjs \
             tests/guild-raid-lobby-mobile.spec.mjs \
+            tests/guild-raid-language-portals.spec.mjs \
             tests/armor-cloud-restore-render.spec.mjs \
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
@@ -264,12 +267,19 @@ jobs:
             `spectator_performance=${required('spectator-performance.spec.mjs')}`,
             `spectator_death=${required('spectator-death-state.spec.mjs')}`,
             `player_death=${required('player-death-state.spec.mjs')}`,
+            `guild_raid_language=${required('guild-raid-language-portals.spec.mjs')}`,
           ];
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
           console.log(selected === null
             ? 'Product evidence requirements: full fail-closed suite.'
             : `Product evidence requirements: adaptive selection (${[...selected].join(', ')}).`);
           NODE
+      - name: Collect focused Guild Raid language review evidence
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.guild_raid_language == 'true'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/prepare-guild-raid-language-evidence.mjs
+          --project "${BROWSER_PROJECT}"
+          --results-root artifacts/dungeon-rpg/test-results
       - name: Collect focused spectator review screenshots
         if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.spectator_performance == 'true'
         shell: bash
@@ -509,6 +519,8 @@ jobs:
             artifacts/dungeon-rpg/test-results/companion-damage-feedback-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/companion-damage-feedback-critical-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/autopilot-guild-raid-language-portals-*-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/autopilot-guild-raid-language-portals-*-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.trace.json
