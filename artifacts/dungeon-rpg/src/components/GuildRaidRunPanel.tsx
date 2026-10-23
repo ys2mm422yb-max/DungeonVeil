@@ -25,11 +25,22 @@ const roleLabels = {
 } as const;
 const zoneLabels = { de: { north: 'Nord', south: 'Süd', east: 'Ost' }, en: { north: 'North', south: 'South', east: 'East' } } as const;
 
+function guildRaidRunErrorMessage(reason: unknown, language: 'de' | 'en') {
+  const de = language === 'de';
+  const raw = (reason instanceof Error ? reason.message : String(reason)).trim();
+  if (raw === 'Nicht angemeldet') return de ? 'Nicht angemeldet.' : 'Not signed in.';
+  if (raw === 'Ungültiger Raid-Run-Serverstand.') return de ? raw : 'Invalid raid run server state.';
+  if (raw === 'Raid-Run-ID fehlt im Serverstand.') return de ? raw : 'Raid run ID is missing from server state.';
+  const requestStatus = raw.match(/^Raid-Run-Anfrage fehlgeschlagen \((\d{3})\)$/)?.[1];
+  if (requestStatus) return de ? `Raid-Run-Anfrage fehlgeschlagen (${requestStatus}).` : `Raid run request failed (${requestStatus}).`;
+  return de ? 'Der Raid-Run konnte nicht geladen werden. Bitte erneut versuchen.' : 'The raid run could not be loaded. Please try again.';
+}
+
 export function GuildRaidRunPanel({ raidRunId, language, onClose }: Props) {
   const de = language === 'de';
   const locale = de ? 'de' : 'en';
   const [snapshot, setSnapshot] = useState<GuildRaidRunSnapshot | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [realtime, setRealtime] = useState('connecting');
   const [reward, setReward] = useState<GuildRaidRewardClaim | null>(null);
@@ -41,7 +52,7 @@ export function GuildRaidRunPanel({ raidRunId, language, onClose }: Props) {
     setSnapshot(next);
   }, [raidRunId]);
 
-  useEffect(() => { void refresh().catch(reason => setError(String(reason))); }, [refresh]);
+  useEffect(() => { void refresh().catch(reason => setError(reason)); }, [refresh]);
   useEffect(() => {
     if (!snapshot) return;
     return watchGuildRaidRun(snapshot.raidRunId, snapshot.stateVersion, (version, gap) => {
@@ -67,7 +78,7 @@ export function GuildRaidRunPanel({ raidRunId, language, onClose }: Props) {
 
   const act = async (action: GuildRaidRoomAction | GuildRaidAdvancedRoomAction | GuildRaidBossAction) => {
     if (!snapshot || busy) return;
-    setBusy(true); setError('');
+    setBusy(true); setError(null);
     try {
       const next = bossActive
         ? await submitAuthoritativeGuildRaidBossAction(snapshot, action as GuildRaidBossAction)
@@ -77,16 +88,16 @@ export function GuildRaidRunPanel({ raidRunId, language, onClose }: Props) {
       versionRef.current = next.stateVersion;
       setSnapshot(next);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError(reason);
       await refresh().catch(() => undefined);
     } finally { setBusy(false); }
   };
 
   const claimReward = async () => {
     if (!snapshot || busy) return;
-    setBusy(true); setError('');
+    setBusy(true); setError(null);
     try { setReward(await claimGuildRaidReward(snapshot.raidRunId)); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    catch (reason) { setError(reason); }
     finally { setBusy(false); }
   };
 
@@ -101,6 +112,7 @@ export function GuildRaidRunPanel({ raidRunId, language, onClose }: Props) {
   const mechanicPhaseLabel = phaseLabels[locale][mechanic.phase as keyof typeof phaseLabels.de] ?? mechanic.phase;
   const bossPhaseLabel = phaseLabels[locale][boss.phase];
   const realtimeLabel = realtimeLabels[locale][realtime as keyof typeof realtimeLabels.de] ?? realtime;
+  const errorMessage = error == null ? '' : guildRaidRunErrorMessage(error, language);
 
   const roomControls = <>
     <div className="rounded-2xl border border-white/10 bg-black/25 p-3"><div className="flex justify-between text-[8px] uppercase text-white/40"><span>{de ? 'Stand' : 'Revision'} {mechanic.revision}</span><span>{mechanicPhaseLabel}</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8"><div className="h-full bg-violet-300/70" style={{ width: `${Math.min(100, progress)}%` }} /></div></div>
@@ -130,5 +142,6 @@ export function GuildRaidRunPanel({ raidRunId, language, onClose }: Props) {
     {boss.phase === 'defeated' && <div className="space-y-3 rounded-2xl border border-amber-200/25 bg-amber-400/10 p-5 text-center"><div className="text-xl font-black">{de ? 'RAID ABGESCHLOSSEN' : 'RAID COMPLETED'}</div><div className="text-[9px] text-white/55">{de ? 'Der Server prüft den genau einmaligen Belohnungsanspruch.' : 'The server verifies the exactly-once reward entitlement.'}</div>{rewardPanel ?? <button data-testid="guild-raid-claim-reward" disabled={busy} onClick={() => void claimReward()} className="min-h-14 w-full rounded-xl border border-amber-100/30 bg-amber-200/15 font-black disabled:opacity-35">{busy ? (de ? 'Wird geprüft…' : 'Checking…') : (de ? 'Belohnung beanspruchen' : 'Claim reward')}</button>}</div>}
   </div>;
 
-  return <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/80 p-2 backdrop-blur-sm sm:items-center" data-testid="guild-raid-run-overlay"><section className="flex h-[min(94dvh,850px)] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-violet-200/25 bg-[radial-gradient(circle_at_top,rgba(125,72,190,.25),transparent_35%),linear-gradient(160deg,#171020,#09070d)] p-3 text-white" data-testid="guild-raid-run-panel"><header className="relative border-b border-white/10 pb-3 pr-14"><button aria-label={de ? 'Raid schließen' : 'Close raid'} onClick={onClose} className="absolute right-0 top-0 h-11 w-11 rounded-xl border border-white/10 bg-black/30 text-xl">×</button><div className="text-[7px] font-black uppercase tracking-[.2em] text-violet-100/55">{bossActive ? (de ? 'Gildenraid · Boss' : 'Guild raid · Boss') : `${de ? 'Gildenraid · Raum' : 'Guild raid · Room'} ${room}/10`} · {realtimeLabel}</div><h2 className="mt-1 text-xl font-black">{bossActive ? (de ? 'Der Verschleierte Archon' : 'The Veiled Archon') : (de ? definition.titleDe : definition.titleEn)}</h2><p className="mt-1 text-[9px] text-white/45">{bossActive ? (de ? 'Breche den Panzer, binde die Echos und überlebt den Zusammenbruch gemeinsam.' : 'Break the armor, bind the echoes and survive the collapse together.') : (de ? definition.objectiveDe : definition.objectiveEn)}</p></header>{error && <div className="mt-2 rounded-xl border border-red-300/25 bg-red-500/10 p-2 text-[9px] text-red-100">{error}</div>}<div className="min-h-0 flex-1 overflow-y-auto pt-3">{!snapshot ? <div className="grid min-h-48 place-items-center text-sm text-white/40">{de ? 'Serverstand wird geladen…' : 'Loading server state…'}</div> : <div className="space-y-3"><div className="grid grid-cols-4 gap-2">{snapshot.participants.map(player => <div key={player.slot} className={`rounded-xl border p-2 text-center ${player.status === 'active' ? 'border-emerald-300/20 bg-emerald-400/8' : 'border-amber-300/20 bg-amber-400/8'}`}><div className="text-xs font-black">P{player.slot}</div><div className="text-[6px] uppercase text-white/40">{participantLabels[locale][player.status]}</div></div>)}</div>{bossActive ? bossControls : roomControls}</div>}</div></section></div>;
+  return <div className="fixed inset-0 z-[150] flex items-end justify-center bg-black/80 p-2 backdrop-blur-sm sm:items-center" data-testid="guild-raid-run-overlay"><section className="flex h-[min(94dvh,850px)] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-violet-200/25 bg-[radial-gradient(circle_at_top,rgba(125,72,190,.25),transparent_35%),linear-gradient(160deg,#171020,#09070d)] p-3 text-white" data-testid="guild-raid-run-panel"><header className="relative border-b border-white/10 pb-3 pr-14"><button aria-label={de ? 'Raid schließen' : 'Close raid'} onClick={onClose} className="absolute right-0 top-0 h-11 w-11 rounded-xl border border-white/10 bg-black/30 text-xl">×</button><div className="text-[7px] font-black uppercase tracking-[.2em] text-violet-100/55">{bossActive ? (de ? 'Gildenraid · Boss' : 'Guild raid · Boss') : `${de ? 'Gildenraid · Raum' : 'Guild raid · Room'} ${room}/10`} · {realtimeLabel}</div><h2 className="mt-1 text-xl font-black">{bossActive ? (de ? 'Der Verschleierte Archon' : 'The Veiled Archon') : (de ? definition.titleDe : definition.titleEn)}</h2><p className="mt-1 text-[9px] text-white/45">{bossActive ? (de ? 'Breche den Panzer, binde die Echos und überlebt den Zusammenbruch gemeinsam.' : 'Break the armor, bind the echoes and survive the collapse together.') : (de ? definition.objectiveDe : definition.objectiveEn)}</p></header>{errorMessage && <div data-testid="guild-raid-run-error" className="mt-2 rounded-xl border border-red-300/25 bg-red-500/10 p-2 text-[9px] text-red-100">{errorMessage}</div>}<div className="min-h-0 flex-1 overflow-y-auto pt-3">{!snapshot ? <div className="grid min-h-48 place-items-center text-sm text-white/40">{de ? 'Serverstand wird geladen…' : 'Loading server state…'}</div> : <div className="space-y-3"><div className="grid grid-cols-4 gap-2">{snapshot.participants.map(player => <div key={player.slot} className={`rounded-xl border p-2 text-center ${player.status === 'active' ? 'border-emerald-300/20 bg-emerald-400/8' : 'border-amber-300/20 bg-amber-400/8'}`}><div className="text-xs font-black">P{player.slot}</div><div className="text-[6px] uppercase text-white/40">{participantLabels[locale][player.status]}</div></div>)}</div>{bossActive ? bossControls : roomControls}</div>}</div></section></div>;
 }
+

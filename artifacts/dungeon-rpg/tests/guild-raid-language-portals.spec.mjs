@@ -12,6 +12,7 @@ const copy = {
     lobbyLabel: 'Gildenraid-Lobby',
     enter: 'Raid-Raum betreten',
     runClose: 'Raid schließen',
+    runError: 'Raid-Run-ID fehlt im Serverstand.',
   },
   en: {
     mode: 'Guild Raid',
@@ -19,6 +20,7 @@ const copy = {
     lobbyLabel: 'Guild raid lobby',
     enter: 'Enter raid room',
     runClose: 'Close raid',
+    runError: 'Raid run ID is missing from server state.',
   },
 };
 
@@ -165,6 +167,7 @@ async function assertPortalCopy(page, language) {
 
   await page.getByTestId('guild-raid-enter-run').tap();
   await expect(page.getByTestId('guild-raid-run-panel')).toBeVisible();
+  await expect(page.getByTestId('guild-raid-run-error')).toHaveText(copy[language].runError);
   await expect(page.getByRole('button', { name: copy[language].runClose })).toBeVisible();
   await page.getByRole('button', { name: copy[language].runClose }).tap();
 }
@@ -199,3 +202,4 @@ for (const initialLanguage of ['de', 'en']) {
     expect(issues, issues.join('\n')).toEqual([]);
   });
 }
+

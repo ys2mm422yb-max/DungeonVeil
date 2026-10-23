@@ -100,6 +100,35 @@ function resolveSelection({ eventName, body, changedFiles }) {
   return ALL_SPECS.filter((spec) => selected.has(spec));
 }
 
+function executedSpecsFromReport(report) {
+  const executed = new Set();
+  const visit = (suites = []) => {
+    for (const suite of suites) {
+      for (const spec of suite.specs ?? []) {
+        const file = String(spec.file ?? suite.file ?? '').replaceAll('\\\\', '/');
+        const hasExecutedResult = (spec.tests ?? []).some(test =>
+          (test.results ?? []).some(result => result.status !== 'skipped'),
+        );
+        if (!hasExecutedResult) continue;
+        const registered = ALL_SPECS.find(candidate => file.endsWith(candidate));
+        if (registered) executed.add(registered);
+      }
+      visit(suite.suites);
+    }
+  };
+  visit(report.suites);
+  return executed;
+}
+
+function assertSelectedSpecsExecuted({ report, selected }) {
+  const executed = executedSpecsFromReport(report);
+  const missing = selected.filter(spec => !executed.has(spec));
+  if (missing.length > 0) {
+    throw new Error(`Product result manifest omitted selected executed specs: ${missing.join(', ')}`);
+  }
+  console.log(`Product result manifest proves ${selected.length}/${selected.length} selected specs executed.`);
+}
+
 function selfTest() {
   const block = (specs) => `${START}\n### Selected Product Autopilot specs\n${specs.map((s) => `- \`${s}\``).join('\n')}\n${END}`;
 
@@ -142,6 +171,31 @@ function selfTest() {
   }
   if (!rejectedUnknown) throw new Error('Unknown declared spec must fail validation.');
 
+  assertSelectedSpecsExecuted({
+    selected: ['tests/autopilot-product-journeys.spec.mjs', 'tests/guild-raid-language-portals.spec.mjs'],
+    report: {
+      suites: [{
+        suites: ALL_SPECS.slice(0, 2).map(file => ({
+          file: `/repo/${file}`,
+          specs: [{ tests: [{ results: [{ status: 'passed' }] }] }],
+        })),
+      }, {
+        file: '/repo/tests/guild-raid-language-portals.spec.mjs',
+        specs: [{ tests: [{ results: [{ status: 'passed' }] }] }],
+      }],
+    },
+  });
+  let rejectedMissingResult = false;
+  try {
+    assertSelectedSpecsExecuted({
+      selected: ['tests/autopilot-product-journeys.spec.mjs', 'tests/guild-raid-language-portals.spec.mjs'],
+      report: { suites: [{ file: '/repo/tests/guild-raid-language-portals.spec.mjs', specs: [{ tests: [{ results: [{ status: 'passed' }] }] }] }] },
+    });
+  } catch {
+    rejectedMissingResult = true;
+  }
+  if (!rejectedMissingResult) throw new Error('Missing selected Product result must fail validation.');
+
   const workflow = fs.readFileSync(new URL('../workflows/product-autopilot-qa.yml', import.meta.url), 'utf8');
   const journeyStart = workflow.indexOf('- name: Run portrait-mobile product journeys');
   const journeyEnd = workflow.indexOf('- name: Prove post-rearm runtime monitor fails closed', journeyStart);
@@ -177,7 +231,16 @@ const changedFiles = changedFilesPath && fs.existsSync(changedFilesPath)
   ? fs.readFileSync(changedFilesPath, 'utf8').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
   : [];
 const resolved = resolveSelection({ eventName, body, changedFiles });
+const reportPath = arg('--assert-report');
+if (reportPath) {
+  assertSelectedSpecsExecuted({
+    report: JSON.parse(fs.readFileSync(reportPath, 'utf8')),
+    selected: resolved,
+  });
+  process.exit(0);
+}
 const text = `${resolved.join('\n')}\n`;
 if (outputPath) fs.writeFileSync(outputPath, text);
 else process.stdout.write(text);
 console.error(`Product Autopilot selected ${resolved.length}/${ALL_SPECS.length} specs for ${eventName || 'unknown event'}.`);
+
