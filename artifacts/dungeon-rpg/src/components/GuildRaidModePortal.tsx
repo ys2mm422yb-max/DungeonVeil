@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { currentOnlineSession, getMyGuildMembership, onlineSessionEventName } from '../game/supabaseOnline';
+import { useLanguage } from '../i18n/LanguageContext';
 import { GuildRaidLobbyPanel } from './GuildRaidLobbyPanel';
 
 function findPlayModeTarget(): HTMLElement | null {
@@ -14,6 +15,7 @@ function findPlayModeTarget(): HTMLElement | null {
 }
 
 export function GuildRaidModePortal() {
+  const { language } = useLanguage();
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [eligible, setEligible] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -49,7 +51,6 @@ export function GuildRaidModePortal() {
     return () => window.removeEventListener(eventName, refresh);
   }, [refreshEligibility, target]);
 
-  const language = document.documentElement.lang === 'en' ? 'en' : 'de';
   const button = target ? createPortal(
     <button
       type="button"
