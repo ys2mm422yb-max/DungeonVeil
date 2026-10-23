@@ -22,6 +22,7 @@ const PRODUCT_AUTOPILOT_SPECS = [
   'visible-upgrade-prestige.spec.mjs',
   'kaykit-chapter-evidence.spec.mjs',
   'guild-raid-lobby-mobile.spec.mjs',
+  'guild-raid-language-portals.spec.mjs',
   'armor-cloud-restore-render.spec.mjs',
 ];
 
@@ -94,7 +95,7 @@ const productAutopilotTestIgnore = adaptiveProductAutopilotIgnore();
 export default defineConfig({
   testDir: './tests',
   outputDir,
-  testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|spectator-death-state|profile-layout|companion-runtime|companion-free-movement-evidence|player-death-state|loading-continuity|codex-visual-library|main-menu-reference|block-20-main-menu|visual-audit|visual-room-chunks|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu|guild-mail-equipment-visual|mobile-resource-upgrade|upgrade-prestige-visual|upgrade-prestige-mobile-hotfix|visible-upgrade-prestige|autopilot-product-journeys|autopilot-outside-guild|kaykit-chapter-evidence|guild-raid-lobby-mobile|run-gift-authority)\.spec\.mjs/,
+  testMatch: /(?:full-game-smoke|account-profile-smoke|armor-balance-smoke|new-run-preload-deadline|worldboss-block1|spectator-performance|spectator-death-state|profile-layout|companion-runtime|companion-free-movement-evidence|player-death-state|loading-continuity|codex-visual-library|main-menu-reference|block-20-main-menu|visual-audit|visual-room-chunks|transient-ui-visual-audit|equipment-responsive|reduced-motion-menu|guild-mail-equipment-visual|mobile-resource-upgrade|upgrade-prestige-visual|upgrade-prestige-mobile-hotfix|visible-upgrade-prestige|autopilot-product-journeys|autopilot-outside-guild|kaykit-chapter-evidence|guild-raid-language-portals|guild-raid-lobby-mobile|run-gift-authority)\.spec\.mjs/,
   testIgnore: productAutopilotTestIgnore,
   timeout: 120_000,
   expect: { timeout: 20_000 },
