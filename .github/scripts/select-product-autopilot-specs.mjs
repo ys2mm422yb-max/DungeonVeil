@@ -110,7 +110,11 @@ function executedSpecsFromReport(report) {
           (test.results ?? []).some(result => result.status !== 'skipped'),
         );
         if (!hasExecutedResult) continue;
-        const registered = ALL_SPECS.find(candidate => file.endsWith(candidate));
+        const reportedBasename = file.slice(file.lastIndexOf('/') + 1);
+        const registered = ALL_SPECS.find(candidate => {
+          const candidateBasename = candidate.slice(candidate.lastIndexOf('/') + 1);
+          return file === candidate || file.endsWith(`/${candidate}`) || reportedBasename === candidateBasename;
+        });
         if (registered) executed.add(registered);
       }
       visit(suite.suites);
@@ -175,8 +179,8 @@ function selfTest() {
     selected: ['tests/autopilot-product-journeys.spec.mjs', 'tests/guild-raid-language-portals.spec.mjs'],
     report: {
       suites: [{
-        suites: ALL_SPECS.slice(0, 2).map(file => ({
-          file: `/repo/${file}`,
+        suites: ALL_SPECS.slice(0, 2).map((file, index) => ({
+          file: index === 0 ? file.slice(file.lastIndexOf('/') + 1) : `/repo/${file}`,
           specs: [{ tests: [{ results: [{ status: 'passed' }] }] }],
         })),
       }, {
