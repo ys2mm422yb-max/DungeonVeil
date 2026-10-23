@@ -16,6 +16,7 @@ const ALL_SPECS = [
   'tests/visible-upgrade-prestige.spec.mjs',
   'tests/kaykit-chapter-evidence.spec.mjs',
   'tests/guild-raid-lobby-mobile.spec.mjs',
+  'tests/guild-raid-language-portals.spec.mjs',
   'tests/armor-cloud-restore-render.spec.mjs',
 ];
 
