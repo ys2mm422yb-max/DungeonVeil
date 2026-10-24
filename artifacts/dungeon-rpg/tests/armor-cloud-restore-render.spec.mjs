@@ -73,7 +73,6 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
       rewardLedger: [],
       currentRunId: '',
     }));
-    localStorage.removeItem('dungeon-veil-active-session-v1');
   }, { fixtureSentinel: FIXTURE_SENTINEL });
 
   const viewport = page.viewportSize();
@@ -128,6 +127,13 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
       ...meta,
       equipped: { ...meta.equipped, armor: 'warden-armor' },
     };
+    if (sessionStorage.getItem('dungeon-veil-active-run-session') !== '1') {
+      throw new Error('cloud restore evidence must begin from the active run that produced the exported save');
+    }
+    sessionStorage.removeItem('dungeon-veil-active-run-session');
+    const activeRunSessionReleased =
+      sessionStorage.getItem('dungeon-veil-active-run-session') === null;
+
     const imported = api.importSaveBundle({
       ...bundle,
       updatedAt: new Date(Date.now() + 1_000).toISOString(),
@@ -138,6 +144,7 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
     });
     return {
       imported,
+      activeRunSessionReleased,
       playerName: save.playerName,
       floor: save.floor,
       chapter: save.chapter,
@@ -146,6 +153,7 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
   });
   expect(restore).toMatchObject({
     imported: true,
+    activeRunSessionReleased: true,
     playerName: 'Armor Paint QA',
     floor: 1,
     chapter: 1,
