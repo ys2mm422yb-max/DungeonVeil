@@ -5,6 +5,8 @@ import { advanceUncoveredViewportWindow } from './viewport-uncovered-window-cont
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const FIXTURE_SENTINEL = 'dungeon-veil-armor-restore-fixture-v1';
 
+test.use({ video: 'on' });
+
 async function tap(locator) {
   await expect(locator).toBeVisible({ timeout: 60_000 });
   await locator.tap();
