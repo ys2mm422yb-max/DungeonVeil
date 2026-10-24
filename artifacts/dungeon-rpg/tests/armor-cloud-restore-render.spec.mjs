@@ -17,15 +17,32 @@ async function waitForStableUncoveredRoom(page) {
   let hiddenSince = 0;
 
   await expect.poll(async () => {
-    const count = await roomTitles.count();
-    const titleBoxes = [];
-    for (let index = 0; index < count; index += 1) {
-      const box = await roomTitles.nth(index).boundingBox();
-      if (box) titleBoxes.push(box);
-    }
+    const titlePaintStates = await roomTitles.evaluateAll((titles) => titles.map((title) => {
+      const rect = title.getBoundingClientRect();
+      let effectivelyPainted = rect.width > 0 && rect.height > 0;
+
+      for (let element = title; effectivelyPainted && element; element = element.parentElement) {
+        const style = getComputedStyle(element);
+        const opacity = Number.parseFloat(style.opacity);
+        if (
+          style.display === 'none'
+          || style.visibility === 'hidden'
+          || style.visibility === 'collapse'
+          || style.contentVisibility === 'hidden'
+          || (Number.isFinite(opacity) && opacity <= 0)
+        ) {
+          effectivelyPainted = false;
+        }
+      }
+
+      return {
+        box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        effectivelyPainted,
+      };
+    }));
 
     const state = advanceUncoveredViewportWindow({
-      boxes: titleBoxes,
+      titlePaintStates,
       viewport,
       hiddenSince,
       now: Date.now(),
@@ -36,7 +53,7 @@ async function waitForStableUncoveredRoom(page) {
   }, {
     timeout: 120_000,
     intervals: [100, 250, 500],
-    message: 'every room-title transition must remain outside the visible viewport for three continuous seconds before evidence capture',
+    message: 'every painted room-title transition must remain outside the visible viewport for three continuous seconds before evidence capture',
   }).toBe(true);
 
   await page.evaluate(() => new Promise((resolve) => {

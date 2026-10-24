@@ -13,20 +13,25 @@ export function rectIntersectsViewport(rect, viewport) {
     && y + height > 0;
 }
 
+export function blocksUncoveredViewportWindow(titlePaintState, viewport) {
+  if (!titlePaintState || titlePaintState.effectivelyPainted !== true) return false;
+  return rectIntersectsViewport(titlePaintState.box, viewport);
+}
+
 export function advanceUncoveredViewportWindow({
-  boxes,
+  titlePaintStates,
   viewport,
   hiddenSince,
   now,
   requiredMs,
 }) {
-  if (!Array.isArray(boxes)) throw new TypeError('boxes must be an array');
+  if (!Array.isArray(titlePaintStates)) throw new TypeError('titlePaintStates must be an array');
   if (!Number.isFinite(now)) throw new TypeError('now must be finite');
   if (!Number.isFinite(requiredMs) || requiredMs <= 0) {
     throw new TypeError('requiredMs must be positive');
   }
 
-  if (boxes.some((box) => rectIntersectsViewport(box, viewport))) {
+  if (titlePaintStates.some((state) => blocksUncoveredViewportWindow(state, viewport))) {
     return { hiddenSince: 0, settled: false };
   }
 
@@ -41,12 +46,17 @@ function selfTest() {
   const viewport = { width: 390, height: 844 };
   const offscreenTitle = { x: 40, y: -80, width: 210, height: 44 };
   const intersectingTitle = { x: 40, y: -43, width: 210, height: 44 };
+  const offscreenPaintedTitle = { box: offscreenTitle, effectivelyPainted: true };
+  const transparentIntersectingTitle = { box: intersectingTitle, effectivelyPainted: false };
+  const paintedIntersectingTitle = { box: intersectingTitle, effectivelyPainted: true };
 
   assert.equal(rectIntersectsViewport(offscreenTitle, viewport), false);
   assert.equal(rectIntersectsViewport(intersectingTitle, viewport), true);
+  assert.equal(blocksUncoveredViewportWindow(transparentIntersectingTitle, viewport), false);
+  assert.equal(blocksUncoveredViewportWindow(paintedIntersectingTitle, viewport), true);
 
   const started = advanceUncoveredViewportWindow({
-    boxes: [offscreenTitle],
+    titlePaintStates: [offscreenPaintedTitle, transparentIntersectingTitle],
     viewport,
     hiddenSince: 0,
     now: 1_000,
@@ -55,7 +65,7 @@ function selfTest() {
   assert.deepEqual(started, { hiddenSince: 1_000, settled: false });
 
   const settled = advanceUncoveredViewportWindow({
-    boxes: [offscreenTitle],
+    titlePaintStates: [offscreenPaintedTitle, transparentIntersectingTitle],
     viewport,
     hiddenSince: started.hiddenSince,
     now: 4_000,
@@ -64,7 +74,7 @@ function selfTest() {
   assert.deepEqual(settled, { hiddenSince: 1_000, settled: true });
 
   const reset = advanceUncoveredViewportWindow({
-    boxes: [intersectingTitle],
+    titlePaintStates: [paintedIntersectingTitle],
     viewport,
     hiddenSince: settled.hiddenSince,
     now: 4_100,
@@ -73,7 +83,7 @@ function selfTest() {
   assert.deepEqual(reset, { hiddenSince: 0, settled: false });
 
   const restarted = advanceUncoveredViewportWindow({
-    boxes: [offscreenTitle],
+    titlePaintStates: [offscreenPaintedTitle, transparentIntersectingTitle],
     viewport,
     hiddenSince: reset.hiddenSince,
     now: 4_200,
@@ -81,7 +91,7 @@ function selfTest() {
   });
   assert.deepEqual(restarted, { hiddenSince: 4_200, settled: false });
 
-  console.log('Room-title viewport contract self-test passed.');
+  console.log('Room-title painted-visibility viewport contract self-test passed.');
 }
 
 if (process.argv.includes('--self-test')) selfTest();
