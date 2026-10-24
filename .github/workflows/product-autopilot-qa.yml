@@ -64,6 +64,8 @@ jobs:
         run: node artifacts/dungeon-rpg/scripts/prepare-guild-raid-language-evidence.mjs --self-test
       - name: Verify focused UX contracts
         run: node artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs
+      - name: Verify room-title viewport contract before expensive journeys
+        run: node artifacts/dungeon-rpg/tests/viewport-uncovered-window-contract.mjs --self-test
       - name: Verify TypeScript
         run: pnpm run typecheck
       - name: Build GitHub Pages output once
@@ -609,4 +611,5 @@ jobs:
       - name: Fail product journeys after diagnostics
         if: steps.product-tests.outcome == 'failure'
         run: exit 1
+
 

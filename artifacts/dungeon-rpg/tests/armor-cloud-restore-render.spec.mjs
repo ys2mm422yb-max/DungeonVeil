@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
+import { advanceUncoveredViewportWindow } from './viewport-uncovered-window-contract.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const FIXTURE_SENTINEL = 'dungeon-veil-armor-restore-fixture-v1';
@@ -11,19 +12,27 @@ async function tap(locator) {
 
 async function waitForStableUncoveredRoom(page) {
   const roomTitles = page.getByText(/VERSORGUNGSPOSTEN|SUPPLY POST/i);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error('room-title viewport contract requires a fixed viewport');
   let hiddenSince = 0;
 
   await expect.poll(async () => {
     const count = await roomTitles.count();
+    const titleBoxes = [];
     for (let index = 0; index < count; index += 1) {
-      if (await roomTitles.nth(index).isVisible()) {
-        hiddenSince = 0;
-        return false;
-      }
+      const box = await roomTitles.nth(index).boundingBox();
+      if (box) titleBoxes.push(box);
     }
 
-    if (hiddenSince === 0) hiddenSince = Date.now();
-    return Date.now() - hiddenSince >= 3_000;
+    const state = advanceUncoveredViewportWindow({
+      boxes: titleBoxes,
+      viewport,
+      hiddenSince,
+      now: Date.now(),
+      requiredMs: 3_000,
+    });
+    hiddenSince = state.hiddenSince;
+    return state.settled;
   }, {
     timeout: 120_000,
     intervals: [100, 250, 500],
@@ -193,3 +202,4 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
     fullPage: false,
   });
 });
+
