@@ -210,6 +210,29 @@ function selfTest() {
   for (const spec of ALL_SPECS) {
     if (!journeyStep.includes(spec)) throw new Error(`Product workflow invocation cannot reach selectable spec: ${spec}`);
   }
+
+  const configSource = fs.readFileSync(
+    new URL('../../artifacts/dungeon-rpg/playwright.regression.config.mjs', import.meta.url),
+    'utf8',
+  );
+  const registryMatch = configSource.match(/const PRODUCT_AUTOPILOT_SPECS = \[([\s\S]*?)\];/);
+  if (!registryMatch) throw new Error('Playwright Product Autopilot registry could not be located.');
+  const configRegistry = new Set(
+    [...registryMatch[1].matchAll(/'([^']+\.spec\.mjs)'/g)].map((match) => match[1]),
+  );
+  const testMatchLiteral = configSource.match(/\btestMatch:\s*\/((?:\\.|[^/])+)\/([dgimsuvy]*)\s*,/);
+  if (!testMatchLiteral) throw new Error('Playwright testMatch regular expression could not be located.');
+  const effectiveTestMatch = new RegExp(testMatchLiteral[1], testMatchLiteral[2]);
+  for (const spec of ALL_SPECS) {
+    const basename = spec.slice(spec.lastIndexOf('/') + 1);
+    if (!configRegistry.has(basename)) {
+      throw new Error(`Playwright Product Autopilot registry cannot reach selectable spec: ${spec}`);
+    }
+    effectiveTestMatch.lastIndex = 0;
+    if (!effectiveTestMatch.test(basename)) {
+      throw new Error(`Playwright testMatch cannot reach selectable spec: ${spec}`);
+    }
+  }
   for (const contract of [
     "guild_raid_language=${required('guild-raid-language-portals.spec.mjs')}",
     'prepare-guild-raid-language-evidence.mjs',
