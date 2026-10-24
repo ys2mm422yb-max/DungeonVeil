@@ -180,6 +180,12 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
   await expect(restoredRenderer).toHaveAttribute('data-equipped-armor', 'warden-armor', { timeout: 120_000 });
   await expect(restoredRenderer).toHaveAttribute('data-equipped-armor-fallback', 'false');
 
+  const unlockNoticeClose = page.getByRole('button', { name: /Hinweis schließen|Dismiss notice/i }).first();
+  if (await unlockNoticeClose.isVisible()) {
+    await tap(unlockNoticeClose);
+    await expect(unlockNoticeClose).toBeHidden({ timeout: 60_000 });
+  }
+
   await waitForStableUncoveredRoom(page);
   await waitForPaintedCanvas(page, canvas, 120_000);
   await page.screenshot({
