@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
+const FIXTURE_SENTINEL = 'dungeon-veil-armor-restore-fixture-v1';
 
 async function tap(locator) {
   await expect(locator).toBeVisible({ timeout: 60_000 });
@@ -36,10 +37,16 @@ async function waitForStableUncoveredRoom(page) {
 
 test('cloud-restored armour keeps a visibly painted run frame', async ({ page }, testInfo) => {
   test.setTimeout(360_000);
-  await page.addInitScript(() => {
+  await page.addInitScript(({ fixtureSentinel }) => {
+    if (sessionStorage.getItem(fixtureSentinel) === 'seeded') {
+      sessionStorage.setItem('dungeon-veil-runtime-evidence-v1', '1');
+      return;
+    }
+
     const now = Date.now();
     localStorage.clear();
     sessionStorage.clear();
+    sessionStorage.setItem(fixtureSentinel, 'seeded');
     sessionStorage.setItem('dungeon-veil-runtime-evidence-v1', '1');
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
@@ -67,7 +74,7 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
       currentRunId: '',
     }));
     localStorage.removeItem('dungeon-veil-active-session-v1');
-  });
+  }, { fixtureSentinel: FIXTURE_SENTINEL });
 
   const viewport = page.viewportSize();
   expect(viewport, `${testInfo.project.name} must expose a fixed portrait viewport`).not.toBeNull();
@@ -91,9 +98,6 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
   }
 
   await expect(runHud).toBeVisible({ timeout: 120_000 });
-  // WebKit can schedule the room-intro portal after the HUD is already visible.
-  // Let that fixed product animation complete before changing the equipped rig so
-  // the armour evidence cannot be captured inside the initial transition.
   await page.waitForTimeout(10_000);
   const canvas = page.locator('canvas').first();
   await waitForPaintedCanvas(page, canvas, 120_000);
@@ -109,7 +113,15 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
     if (!api) throw new Error('runtime evidence bridge is unavailable');
     const bundle = api.exportSaveBundle();
     const save = JSON.parse(bundle.data['dungeon-veil-save'] || '{}');
-    if (save.inDungeon !== true) throw new Error('cloud restore evidence requires a persisted active run');
+    if (typeof save.playerName !== 'string' || save.playerName.length === 0) {
+      throw new Error('cloud restore evidence requires a persisted player identity');
+    }
+    if (!Number.isFinite(save.floor) || save.floor < 1 || !Number.isFinite(save.chapter) || save.chapter < 1) {
+      throw new Error('cloud restore evidence requires a structurally loadable room');
+    }
+    if (!save.overworldMap || !Array.isArray(save.overworldMap.tiles)) {
+      throw new Error('cloud restore evidence requires a persisted map');
+    }
 
     const meta = JSON.parse(bundle.data['dungeon-veil-meta'] || '{}');
     const restoredMeta = {
@@ -126,16 +138,31 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
     });
     return {
       imported,
-      inDungeon: save.inDungeon === true,
+      playerName: save.playerName,
+      floor: save.floor,
+      chapter: save.chapter,
       armor: restoredMeta.equipped?.armor ?? null,
     };
   });
-  expect(restore).toEqual({ imported: true, inDungeon: true, armor: 'warden-armor' });
+  expect(restore).toMatchObject({
+    imported: true,
+    playerName: 'Armor Paint QA',
+    floor: 1,
+    chapter: 1,
+    armor: 'warden-armor',
+  });
   await reloadPromise;
 
   const restoredBoot = page.getByTestId('app-boot-loading-screen');
   if (await restoredBoot.count()) await expect(restoredBoot).toBeHidden({ timeout: 60_000 });
   await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => page.evaluate(() => {
+    const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
+    return meta.equipped?.armor ?? null;
+  }), {
+    timeout: 60_000,
+    message: 'the imported Warden bundle must survive the intentional reload',
+  }).toBe('warden-armor');
   const continueButton = page.getByRole('button', { name: /Fortsetzen|Continue/i }).first();
   await expect(continueButton).toBeEnabled({ timeout: 60_000 });
   await tap(continueButton);
@@ -145,8 +172,6 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
   await expect(restoredRenderer).toHaveAttribute('data-equipped-armor', 'warden-armor', { timeout: 120_000 });
   await expect(restoredRenderer).toHaveAttribute('data-equipped-armor-fallback', 'false');
 
-  // iOS can schedule the initial room transition after the first hidden-title check.
-  // Require a continuously uncovered interval so delayed overlays cannot race the capture.
   await waitForStableUncoveredRoom(page);
   await waitForPaintedCanvas(page, canvas, 120_000);
   await page.screenshot({
