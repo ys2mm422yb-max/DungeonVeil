@@ -399,6 +399,48 @@ jobs:
             fs.renameSync(source, target);
           }
           NODE
+      - name: Compact curated player-death videos without trimming
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.player_death == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          videos=(artifacts/dungeon-rpg/test-results/player-death-*-"${BROWSER_PROJECT}".webm)
+          test "${#videos[@]}" -eq 3
+          total_before=0
+          total_after=0
+          for video in "${videos[@]}"; do
+            compacted="${video%.webm}.vp9.webm"
+            before_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video")"
+            before_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$video")"
+            before_size="$(stat -c '%s' "$video")"
+            ffmpeg -hide_banner -loglevel error -y -i "$video" \
+              -c:v libvpx-vp9 -crf 32 -b:v 0 -deadline good -cpu-used 2 -row-mt 1 -an "$compacted"
+            after_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$compacted")"
+            after_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$compacted")"
+            node -e '
+              const before = Number(process.argv[1]);
+              const after = Number(process.argv[2]);
+              if (!Number.isFinite(before) || !Number.isFinite(after) || Math.abs(before - after) > 0.1) {
+                throw new Error(`temporal evidence duration drifted: ${before} -> ${after}`);
+              }
+              if (process.argv[3] !== process.argv[4]) {
+                throw new Error(`temporal evidence dimensions drifted: ${process.argv[3]} -> ${process.argv[4]}`);
+              }
+            ' "$before_duration" "$after_duration" "$before_dimensions" "$after_dimensions"
+            after_size="$(stat -c '%s' "$compacted")"
+            total_before=$((total_before + before_size))
+            if (( after_size < before_size )); then
+              mv "$compacted" "$video"
+              total_after=$((total_after + after_size))
+            else
+              rm -f "$compacted"
+              total_after=$((total_after + before_size))
+            fi
+          done
+          test "$total_after" -lt "$total_before"
+          echo "Compacted three full-duration, full-resolution player-death videos by $((total_before - total_after)) bytes."
+
       - name: Prepare compact companion prestige review video
         if: steps.product-tests.outcome == 'success'
         shell: bash

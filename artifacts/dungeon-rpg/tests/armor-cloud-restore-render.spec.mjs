@@ -40,6 +40,7 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
     const now = Date.now();
     localStorage.clear();
     sessionStorage.clear();
+    sessionStorage.setItem('dungeon-veil-runtime-evidence-v1', '1');
     localStorage.setItem('dungeon-veil-language', 'de');
     localStorage.setItem('dungeon-veil-tutorial-completed-v1', '1');
     localStorage.setItem('dungeon-veil-accessibility-v1', JSON.stringify({ version: 2, contrast: 'standard', textSize: 'standard', updatedAt: now }));
@@ -99,17 +100,50 @@ test('cloud-restored armour keeps a visibly painted run frame', async ({ page },
   const renderer = page.getByTestId('run-three-host');
   await expect(renderer).toHaveAttribute('data-equipped-armor', 'ranger-cloak');
 
-  await page.evaluate(() => {
-    const meta = JSON.parse(localStorage.getItem('dungeon-veil-meta') || '{}');
-    localStorage.setItem('dungeon-veil-meta', JSON.stringify({
+  const reloadPromise = page.waitForEvent('framenavigated', {
+    predicate: (frame) => frame === page.mainFrame(),
+    timeout: 60_000,
+  });
+  const restore = await page.evaluate(() => {
+    const api = window.__dungeonVeilRuntimeEvidence;
+    if (!api) throw new Error('runtime evidence bridge is unavailable');
+    const bundle = api.exportSaveBundle();
+    const save = JSON.parse(bundle.data['dungeon-veil-save'] || '{}');
+    if (save.inDungeon !== true) throw new Error('cloud restore evidence requires a persisted active run');
+
+    const meta = JSON.parse(bundle.data['dungeon-veil-meta'] || '{}');
+    const restoredMeta = {
       ...meta,
       equipped: { ...meta.equipped, armor: 'warden-armor' },
-    }));
-    window.dispatchEvent(new Event('dungeon-veil-cloud-save-restored'));
+    };
+    const imported = api.importSaveBundle({
+      ...bundle,
+      updatedAt: new Date(Date.now() + 1_000).toISOString(),
+      data: {
+        ...bundle.data,
+        'dungeon-veil-meta': JSON.stringify(restoredMeta),
+      },
+    });
+    return {
+      imported,
+      inDungeon: save.inDungeon === true,
+      armor: restoredMeta.equipped?.armor ?? null,
+    };
   });
+  expect(restore).toEqual({ imported: true, inDungeon: true, armor: 'warden-armor' });
+  await reloadPromise;
 
-  await expect(renderer).toHaveAttribute('data-equipped-armor', 'warden-armor', { timeout: 120_000 });
-  await expect(renderer).toHaveAttribute('data-equipped-armor-fallback', 'false');
+  const restoredBoot = page.getByTestId('app-boot-loading-screen');
+  if (await restoredBoot.count()) await expect(restoredBoot).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('main-menu-control-stack')).toBeVisible({ timeout: 60_000 });
+  const continueButton = page.getByRole('button', { name: /Fortsetzen|Continue/i }).first();
+  await expect(continueButton).toBeEnabled({ timeout: 60_000 });
+  await tap(continueButton);
+  await expect(runHud).toBeVisible({ timeout: 120_000 });
+
+  const restoredRenderer = page.getByTestId('run-three-host');
+  await expect(restoredRenderer).toHaveAttribute('data-equipped-armor', 'warden-armor', { timeout: 120_000 });
+  await expect(restoredRenderer).toHaveAttribute('data-equipped-armor-fallback', 'false');
 
   // iOS can schedule the initial room transition after the first hidden-title check.
   // Require a continuously uncovered interval so delayed overlays cannot race the capture.
