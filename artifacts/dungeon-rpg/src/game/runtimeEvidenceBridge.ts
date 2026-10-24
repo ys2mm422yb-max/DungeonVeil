@@ -5,6 +5,7 @@ import type { GameState } from './runEngine';
 import { GameEngine } from './runEngine';
 import { isEnemyFamilyId, runtimeEnemyTypeForFamily, type EnemyFamilyId } from './enemyRegistry';
 import { ensureVeilHeartConsumedForCurrentRun } from './veilRelics';
+import { exportSaveBundle, importSaveBundle, type DungeonVeilSaveBundle } from './persistentSaveBundle';
 
 const MARKER = 'dungeon-veil-runtime-evidence-v1';
 const META_KEY = 'dungeon-veil-meta';
@@ -35,6 +36,8 @@ type RuntimeEvidenceApi = {
   setMode: (mode: EvidenceMode) => void;
   setPlayerStats: (attack: number, defense: number) => Record<string, unknown> | null;
   setLivingEnemyFamilies: (families: string[]) => Record<string, unknown> | null;
+  exportSaveBundle: () => DungeonVeilSaveBundle;
+  importSaveBundle: (bundle: DungeonVeilSaveBundle) => boolean;
 };
 
 type RuntimeEvidenceHooks = Readonly<{
@@ -177,6 +180,8 @@ function attachApi(): void {
   if (!allowed()) return;
   window.__dungeonVeilRuntimeEvidence = {
     snapshot: () => stateSnapshot(),
+    exportSaveBundle,
+    importSaveBundle,
     prepareTerminalDeathEvidence: () => {
       const engine = currentEngine;
       if (!engine) return null;
