@@ -37,6 +37,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Focused request provenance contract
         run: node artifacts/dungeon-rpg/scripts/validate-focused-contract-request-provenance.mjs
+      - name: Social profile trust-boundary contract
+        run: node --test artifacts/dungeon-rpg/tests/social-profile-trust-boundary.contract.mjs
       - name: Setup Deno for Supabase Edge parity
         uses: denoland/setup-deno@v2
         with:
