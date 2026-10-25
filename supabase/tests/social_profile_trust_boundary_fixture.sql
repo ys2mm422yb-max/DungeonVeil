@@ -44,3 +44,14 @@ insert into public.profiles(
   '46000000-0000-4000-8000-000000000001', 'Trust Probe', 'DV-TRUST1', 999, 9999,
   '{"highestChapter":999,"highestRoom":50,"roomsCleared":999999,"equippedItems":[{"id":"forged"}]}'::jsonb
 );
+
+-- Minimal dependency schema for the unchanged repository social readers.
+alter table public.profiles add column created_at timestamptz not null default now(),
+  add column activity_state text not null default 'menu',
+  add column activity_chapter integer not null default 1,
+  add column activity_room integer not null default 1;
+drop table if exists public.friendships, public.guild_members, public.guilds, public.world_boss_contributions cascade;
+create table public.friendships (user_id uuid, friend_user_id uuid, created_at timestamptz default now());
+create table public.guilds (id uuid primary key, name text, tag text);
+create table public.guild_members (user_id uuid, guild_id uuid);
+create table public.world_boss_contributions (user_id uuid, damage bigint);

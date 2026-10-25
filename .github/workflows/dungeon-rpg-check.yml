@@ -143,4 +143,14 @@ jobs:
       - name: Execute social profile trust-boundary integration
         env:
           SOCIAL_TRUST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          SOCIAL_TRUST_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOCIAL_TRUST_RECEIPT_DIR: ${{ github.workspace }}/social-trust-postgres-receipt
         run: bash artifacts/dungeon-rpg/scripts/run-social-profile-trust-postgres-integration.sh
+      - name: Upload social trust exact-head PostgreSQL receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: social-trust-postgres-receipt-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: social-trust-postgres-receipt
+          if-no-files-found: error
+          retention-days: 30

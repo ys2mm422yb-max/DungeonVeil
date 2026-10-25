@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const migration = await readFile(
-  new URL('./20261025132500_harden_social_profile_trust_boundary.sql', import.meta.url),
+  new URL('../../../supabase/migrations/20261025132500_harden_social_profile_trust_boundary.sql', import.meta.url),
   'utf8',
 );
 
