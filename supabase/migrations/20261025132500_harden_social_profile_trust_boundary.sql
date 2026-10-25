@@ -2,13 +2,40 @@
 --
 -- Historical values in these columns came exclusively from client-controlled
 -- inputs. There is no trustworthy way to distinguish legitimate values from
--- forged values, so the safe forward reconciliation is a neutral projection.
+-- forged values, so the public reconciliation is a neutral projection. Preserve
+-- the original claims privately; preservation does not establish their truth.
 -- Trusted server producers may populate these columns in a later migration;
 -- browser callers cannot do so after this migration.
+
+-- Run as one transaction. Exclude concurrent writers between preservation and
+-- reconciliation, including writes already in flight when privileges change.
+lock table public.profiles in share row exclusive mode;
+
+create schema if not exists dungeon_veil_social_private;
+revoke all on schema dungeon_veil_social_private from public, anon, authenticated, service_role;
+create table if not exists dungeon_veil_social_private.original_profile_claims (
+  profile_id uuid primary key references auth.users(id) on delete cascade,
+  current_chapter integer,
+  current_rank integer,
+  public_stats jsonb,
+  archived_at timestamptz not null default now()
+);
+alter table dungeon_veil_social_private.original_profile_claims enable row level security;
+revoke all on table dungeon_veil_social_private.original_profile_claims
+  from public, anon, authenticated, service_role;
+comment on table dungeon_veil_social_private.original_profile_claims is
+  'Unverified pre-hardening social claims for operator-only reconciliation; never an authoritative progression source. Removed with auth user deletion.';
 
 revoke insert, update on table public.profiles from authenticated;
 grant update (display_name, avatar_key) on table public.profiles to authenticated;
 
+with preserved as (
+  insert into dungeon_veil_social_private.original_profile_claims
+    (profile_id, current_chapter, current_rank, public_stats)
+  select id, current_chapter, current_rank, public_stats from public.profiles
+  on conflict (profile_id) do nothing
+  returning profile_id
+)
 update public.profiles
 set current_chapter = 1,
     current_rank = 1,
@@ -24,7 +51,8 @@ set current_chapter = 1,
       'itemsFound', 0,
       'equippedItems', '[]'::jsonb
     ),
-    updated_at = now();
+    updated_at = now()
+where id in (select profile_id from preserved);
 
 create or replace function public.sync_profile_progress(
   p_chapter integer,

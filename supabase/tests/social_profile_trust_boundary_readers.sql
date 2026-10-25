@@ -8,7 +8,8 @@ insert into auth.users(id) values
   ('46000000-0000-4000-8000-000000000003'),
   ('46000000-0000-4000-8000-000000000004');
 insert into public.profiles(id, display_name, friend_code)
-select id, 'Reader Probe', id::text from auth.users where id <> '46000000-0000-4000-8000-000000000001';
+select u.id, 'Reader Probe', u.id::text from auth.users u
+where not exists (select 1 from public.profiles p where p.id = u.id);
 insert into public.friendships(user_id, friend_user_id) values
   ('46000000-0000-4000-8000-000000000002', '46000000-0000-4000-8000-000000000001');
 insert into public.guilds values ('46000000-0000-4000-8000-000000000010', 'Trust Guild', 'TRUST');

@@ -61,8 +61,8 @@ do $$ begin raise exception 'social trust assertion failed'; end $$;
 \endif
 
 select public.sync_public_profile_stats(
-  '{"highestChapter":999,"highestRoom":50,"roomsCleared":999999,"equippedItems":[{"id":"forged"}]}'::jsonb
-)->>'highestChapter' = '1' as ok \gset
+  '{"highestChapter":999,"highestRoom":50,"roomsCleared":999999,"enemiesDefeated":999999,"bossesDefeated":999999,"questsCompleted":999999,"playTimeMs":999999999999999999999999999999,"totalDamage":999999999999999999999999999999,"itemsFound":999999,"equippedItems":[{"id":"forged"}],"unknownFutureKey":"forged"}'::jsonb
+) = '{"highestChapter":1,"highestRoom":1,"roomsCleared":0,"enemiesDefeated":0,"bossesDefeated":0,"questsCompleted":0,"playTimeMs":0,"totalDamage":0,"itemsFound":0,"equippedItems":[]}'::jsonb as ok \gset
 \if :ok
 select 'ok 6 - malicious stat payload is ignored';
 \else

@@ -19,6 +19,16 @@ test('unverifiable historical social claims reconcile fail-closed', () => {
   assert.match(migration, /'equippedItems', '\[\]'::jsonb/is);
 });
 
+test('historical claims are preserved privately before public reconciliation', () => {
+  assert.match(migration, /create schema if not exists dungeon_veil_social_private/i);
+  assert.match(migration, /original_profile_claims[\s\S]*references auth\.users\(id\) on delete cascade/i);
+  assert.match(migration, /original_profile_claims enable row level security/i);
+  assert.match(migration, /revoke all on schema dungeon_veil_social_private from public, anon, authenticated, service_role/i);
+  assert.match(migration, /revoke all on table dungeon_veil_social_private\.original_profile_claims\s+from public, anon, authenticated, service_role/i);
+  assert.match(migration, /on conflict \(profile_id\) do nothing\s+returning profile_id/i);
+  assert.match(migration, /where id in \(select profile_id from preserved\)/i);
+});
+
 test('compatibility RPCs ignore raw progression and stat payloads', () => {
   const progressBody = migration.match(/create or replace function public\.sync_profile_progress[\s\S]*?\$\$;/i)?.[0] ?? '';
   const statsBody = migration.match(/create or replace function public\.sync_public_profile_stats[\s\S]*?\$\$;/i)?.[0] ?? '';

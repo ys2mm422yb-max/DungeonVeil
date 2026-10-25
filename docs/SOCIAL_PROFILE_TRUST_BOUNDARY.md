@@ -18,21 +18,37 @@ achievements until a trusted producer exists. It does not validate or restore a
 trusted producer by itself. It does not edit cloud saves, inventory, reward rows,
 friendships, guild membership or World Boss contribution records.
 
-This is a deliberately lossy public projection reconciliation, not a claim that
-all historical values were fraudulent. The migration is not approved for live
-application merely because the SQL fixture passes. The verifier must compare
-this strategy with Issue #460's legitimate-data preservation criterion.
+Before neutralizing any public projection, the migration retains its original
+chapter, rank and complete stats JSON in
+`dungeon_veil_social_private.original_profile_claims`, keyed by profile ID.
+Unknown JSON fields are preserved. This dedicated schema must remain outside the Data API exposed schema list. PUBLIC, anon, authenticated and service_role have neither schema
+access nor table privileges; RLS is enabled with no client policy. Only the
+privileged database operator can use it for reconciliation. There is no RPC or
+public reader exposing the archive, and preservation does not establish truth.
+
+The migration takes a writer-excluding lock and must execute in one transaction.
+A failed preservation/reconciliation rolls back schema, data and privilege
+changes together. ON CONFLICT DO NOTHING preserves the first snapshot. Only
+newly archived profiles are neutralized; reapplication cannot erase a later
+trusted projection. The archive follows auth-user deletion through ON DELETE
+CASCADE, so deleted accounts do not leave orphaned archived claims.
+
+This deliberately reduces public display completeness while preserving original
+data privately, not a claim that all historical values were fraudulent. The
+verifier must independently assess the strategy and privileges before approval.
 
 ## Required reconciliation and rollout evidence
 
 Before integration approval, independently inspect actual writer/reader paths,
 function signatures, grants, policies and the source of all historical values.
-Before production application, preserve a recoverable pre-change snapshot of the
-three projection columns keyed by profile ID in the project's approved private
-backup system, and prove restoration access. Never place player rows, credentials
-or database dumps in GitHub, test artifacts or the public site. Record snapshot
-identity and aggregate affected-row counts without personal data. If a safe
-snapshot cannot be established, park production application.
+Before production application, verify the dedicated archive schema is absent or
+matches the accepted definition, is not in the exposed schema list, and has no
+unexpected inherited access. Verify the project's normal backup/restore readiness.
+Apply the migration as one transaction; never execute its statements individually.
+Afterward, verify aggregate archive row counts equal the pre-apply profile count,
+original field fidelity and owner-only access without exporting player values.
+Never place player rows, credentials or database dumps in GitHub, test artifacts
+or the public site. If preservation or access checks fail, park application.
 
 Apply only the independently accepted repository migration after merge, after a
 fresh project-identity and migration-drift check. Re-read function definitions,
@@ -43,7 +59,7 @@ application or backup verification is claimed by this document.
 
 ## Recovery
 
-Prefer a forward migration. Preserve the private snapshot for investigation;
+Prefer a forward migration. Preserve the private archive for investigation;
 do not restore its unverified fields into the trusted public projection or
 restore arbitrary browser write authority. A later trusted producer may recover
 only independently validated progression/equipment state. Cosmetic identity,
@@ -61,6 +77,14 @@ expected permission-denial probe. The CI receipt binds server version and output
 to the tested source head.
 
 Two local negative probes forced each fixed-search-path assertion false; both
-exited with PostgreSQL status 3. This is harness validation, not independent
-product acceptance. Four-device presentation evidence and independent verifier
-acceptance remain separate Ready gates.
+exited with PostgreSQL status 3. Five additional preservation checks prove exact
+historical fidelity for both malicious-looking and plausibly legitimate values,
+unknown JSON preservation, reapply behavior, ACL/RLS and real access denial
+(including BYPASSRLS service_role), and account-deletion cleanup. An injected
+UPDATE failure proves full transactional rollback before the successful migration.
+This is implementer evidence, not independent product acceptance. Four-device
+presentation evidence and independent verifier acceptance remain Ready gates.
+
+Additional local mutation probes deliberately exposed the archive and stripped an
+unknown historical JSON field. Both were rejected by the preservation assertions.
+They validate the new tests; they do not constitute independent acceptance.

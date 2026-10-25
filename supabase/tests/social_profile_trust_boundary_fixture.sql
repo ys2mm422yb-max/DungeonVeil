@@ -2,10 +2,12 @@
 
 drop schema if exists auth cascade;
 drop table if exists public.profiles cascade;
+drop schema if exists dungeon_veil_social_private cascade;
 
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin bypassrls; end if;
 end $$;
 
 create schema auth;
@@ -36,6 +38,10 @@ create policy profiles_update_self on public.profiles for update to authenticate
 grant usage on schema public, auth to anon, authenticated;
 grant execute on function auth.uid() to authenticated;
 grant select, insert, update on public.profiles to authenticated;
+-- Include independent column grants in the adversarial starting privileges
+-- and prove the table-level REVOKE removes them on PostgreSQL 17.
+grant insert (current_chapter), update (current_chapter, public_stats)
+  on public.profiles to authenticated;
 
 insert into auth.users(id) values ('46000000-0000-4000-8000-000000000001');
 insert into public.profiles(
@@ -44,6 +50,13 @@ insert into public.profiles(
   '46000000-0000-4000-8000-000000000001', 'Trust Probe', 'DV-TRUST1', 999, 9999,
   '{"highestChapter":999,"highestRoom":50,"roomsCleared":999999,"equippedItems":[{"id":"forged"}]}'::jsonb
 );
+
+-- Plausibly legitimate historical values must be preserved too, without
+-- being promoted to trusted data merely because their magnitudes look normal.
+insert into auth.users(id) values ('46000000-0000-4000-8000-000000000005');
+insert into public.profiles(id, display_name, friend_code, current_chapter, current_rank, public_stats)
+values ('46000000-0000-4000-8000-000000000005', 'Honest History', 'DV-HONEST', 3, 7,
+  '{"highestChapter":3,"highestRoom":8,"roomsCleared":12,"equippedItems":[{"id":"honest-history"}],"unknownFutureKey":"preserve-me"}'::jsonb);
 
 -- Minimal dependency schema for the unchanged repository social readers.
 alter table public.profiles add column created_at timestamptz not null default now(),
