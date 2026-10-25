@@ -117,3 +117,30 @@ jobs:
           path: duo-authority-postgres-receipt
           if-no-files-found: error
           retention-days: 30
+
+  social-profile-trust-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Execute social profile trust-boundary integration
+        env:
+          SOCIAL_TRUST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: bash artifacts/dungeon-rpg/scripts/run-social-profile-trust-postgres-integration.sh
