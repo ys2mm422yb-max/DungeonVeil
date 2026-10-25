@@ -102,7 +102,7 @@ async function installGuildApiMocks(page, observedProfileIds = new Set()) {
     }
 
     if (resource === 'get_my_social_profile') {
-      body = {
+      body = [{
         id: 'qa-owner',
         display_name: 'Maxi',
         avatar_key: 'ranger',
@@ -111,7 +111,7 @@ async function installGuildApiMocks(page, observedProfileIds = new Set()) {
         current_rank: 1,
         character_key: 'archer',
         last_active_at: new Date().toISOString(),
-      };
+      }];
     } else if (resource === 'list_friends_v2') {
       body = [{
         user_id: 'qa-member',
@@ -134,7 +134,7 @@ async function installGuildApiMocks(page, observedProfileIds = new Set()) {
         'qa-member': neutralSocialCard('qa-member', 'Torven', 'guardian', guild.name, guild.tag),
         'qa-officer': neutralSocialCard('qa-officer', 'Nyra', 'veil', guild.name, guild.tag),
       };
-      body = cards[requestedId] ?? neutralSocialCard(requestedId || 'qa-missing', 'Unbekannt', 'ranger');
+      body = [cards[requestedId] ?? neutralSocialCard(requestedId || 'qa-missing', 'Unbekannt', 'ranger')];
     } else if (resource === 'guild_members' && url.searchParams.has('user_id')) {
       body = [{ role: 'owner', guilds: guild }];
     } else if (resource === 'guild_members' && url.searchParams.has('guild_id')) {
@@ -397,7 +397,7 @@ test('neutral server social projection is visible for self, friend and guild pee
   await captureNeutralSocialProfile(page, 'self', testInfo.project.name, 'Maxi');
   await pointer(page.getByTestId('public-player-profile-close'));
 
-  await pointer(page.getByTestId('friend-profile-button').filter({ hasText: 'Torven' }).first());
+  await pointer(page.getByTestId('friend-card').filter({ hasText: 'Torven' }).getByTestId('friend-profile-button'));
   await captureNeutralSocialProfile(page, 'friend', testInfo.project.name, 'Torven');
   await pointer(page.getByTestId('public-player-profile-close'));
 
