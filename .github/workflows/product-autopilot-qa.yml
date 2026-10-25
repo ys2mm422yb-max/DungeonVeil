@@ -60,10 +60,14 @@ jobs:
         run: node artifacts/dungeon-rpg/scripts/validate-evidence-budget-contracts.mjs
       - name: Verify product evidence file manifest
         run: node artifacts/dungeon-rpg/scripts/create-product-evidence-file-manifest.mjs --self-test
+      - name: Verify armor restore temporal evidence packaging
+        run: node artifacts/dungeon-rpg/scripts/prepare-armor-cloud-restore-evidence.mjs --self-test
       - name: Verify Guild Raid language evidence packaging
         run: node artifacts/dungeon-rpg/scripts/prepare-guild-raid-language-evidence.mjs --self-test
       - name: Verify focused UX contracts
         run: node artifacts/dungeon-rpg/tests/guild-mail-equipment-ux-contract.mjs
+      - name: Verify room-title viewport contract before expensive journeys
+        run: node artifacts/dungeon-rpg/tests/viewport-uncovered-window-contract.mjs --self-test
       - name: Verify TypeScript
         run: pnpm run typecheck
       - name: Build GitHub Pages output once
@@ -276,12 +280,51 @@ jobs:
             `spectator_death=${required('spectator-death-state.spec.mjs')}`,
             `player_death=${required('player-death-state.spec.mjs')}`,
             `guild_raid_language=${required('guild-raid-language-portals.spec.mjs')}`,
+            `armor_restore=${required('armor-cloud-restore-render.spec.mjs')}`,
           ];
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
           console.log(selected === null
             ? 'Product evidence requirements: full fail-closed suite.'
             : `Product evidence requirements: adaptive selection (${[...selected].join(', ')}).`);
           NODE
+      - name: Collect focused armor restore temporal evidence
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.armor_restore == 'true'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/prepare-armor-cloud-restore-evidence.mjs
+          --project "${BROWSER_PROJECT}"
+          --results-root artifacts/dungeon-rpg/test-results
+      - name: Compact armor restore video without trimming
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.armor_restore == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          video="artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${BROWSER_PROJECT}.webm"
+          compacted="${video%.webm}.vp9.webm"
+          test -s "$video"
+          before_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video")"
+          before_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$video")"
+          before_size="$(stat -c '%s' "$video")"
+          ffmpeg -hide_banner -loglevel error -y -i "$video" \
+            -c:v libvpx-vp9 -crf 32 -b:v 0 -deadline good -cpu-used 2 -row-mt 1 -an "$compacted"
+          after_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$compacted")"
+          after_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$compacted")"
+          node -e '
+            const before = Number(process.argv[1]);
+            const after = Number(process.argv[2]);
+            if (!Number.isFinite(before) || !Number.isFinite(after) || Math.abs(before - after) > 0.1) {
+              throw new Error(`armor temporal evidence duration drifted: ${before} -> ${after}`);
+            }
+            if (process.argv[3] !== process.argv[4]) {
+              throw new Error(`armor temporal evidence dimensions drifted: ${process.argv[3]} -> ${process.argv[4]}`);
+            }
+          ' "$before_duration" "$after_duration" "$before_dimensions" "$after_dimensions"
+          after_size="$(stat -c '%s' "$compacted")"
+          if (( after_size < before_size )); then
+            mv "$compacted" "$video"
+          else
+            rm -f "$compacted"
+          fi
+          test -s "$video"
       - name: Collect focused Guild Raid language review evidence
         if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.guild_raid_language == 'true'
         run: >-
@@ -399,6 +442,48 @@ jobs:
             fs.renameSync(source, target);
           }
           NODE
+      - name: Compact curated player-death videos without trimming
+        if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.player_death == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          videos=(artifacts/dungeon-rpg/test-results/player-death-*-"${BROWSER_PROJECT}".webm)
+          test "${#videos[@]}" -eq 3
+          total_before=0
+          total_after=0
+          for video in "${videos[@]}"; do
+            compacted="${video%.webm}.vp9.webm"
+            before_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video")"
+            before_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$video")"
+            before_size="$(stat -c '%s' "$video")"
+            ffmpeg -hide_banner -loglevel error -y -i "$video" \
+              -c:v libvpx-vp9 -crf 32 -b:v 0 -deadline good -cpu-used 2 -row-mt 1 -an "$compacted"
+            after_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$compacted")"
+            after_dimensions="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$compacted")"
+            node -e '
+              const before = Number(process.argv[1]);
+              const after = Number(process.argv[2]);
+              if (!Number.isFinite(before) || !Number.isFinite(after) || Math.abs(before - after) > 0.1) {
+                throw new Error(`temporal evidence duration drifted: ${before} -> ${after}`);
+              }
+              if (process.argv[3] !== process.argv[4]) {
+                throw new Error(`temporal evidence dimensions drifted: ${process.argv[3]} -> ${process.argv[4]}`);
+              }
+            ' "$before_duration" "$after_duration" "$before_dimensions" "$after_dimensions"
+            after_size="$(stat -c '%s' "$compacted")"
+            total_before=$((total_before + before_size))
+            if (( after_size < before_size )); then
+              mv "$compacted" "$video"
+              total_after=$((total_after + after_size))
+            else
+              rm -f "$compacted"
+              total_after=$((total_after + before_size))
+            fi
+          done
+          test "$total_after" -lt "$total_before"
+          echo "Compacted three full-duration, full-resolution player-death videos by $((total_before - total_after)) bytes."
+
       - name: Prepare compact companion prestige review video
         if: steps.product-tests.outcome == 'success'
         shell: bash
@@ -527,6 +612,7 @@ jobs:
             artifacts/dungeon-rpg/test-results/companion-damage-feedback-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/companion-damage-feedback-critical-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/test-results/armor-cloud-restore-painted-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/autopilot-guild-raid-language-portals-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/autopilot-guild-raid-language-portals-*-${{ matrix.project }}.webm
             artifacts/dungeon-rpg/test-results/player-death-solo-${{ matrix.project }}.png
@@ -567,4 +653,5 @@ jobs:
       - name: Fail product journeys after diagnostics
         if: steps.product-tests.outcome == 'failure'
         run: exit 1
+
 
