@@ -26,7 +26,41 @@ function attachRuntimeMonitor(page) {
   return issues;
 }
 
-async function installGuildApiMocks(page) {
+function neutralSocialCard(id, displayName, avatarKey, guildName = null, guildTag = null) {
+  return {
+    id,
+    display_name: displayName,
+    avatar_key: avatarKey,
+    friend_code: `DV-${id.replace('qa-', '').toUpperCase()}`,
+    current_chapter: 1,
+    current_rank: 1,
+    character_key: 'archer',
+    last_active_at: new Date().toISOString(),
+    guild_name: guildName,
+    guild_tag: guildTag,
+    joined_at: '2026-06-01T10:00:00.000Z',
+    account_level: 1,
+    lifetime_world_boss_damage: 0,
+    world_boss_events: 0,
+    friend_count: 1,
+    achievement_keys: [],
+    activity_state: 'menu',
+    activity_chapter: 1,
+    activity_room: 1,
+    highest_chapter: 1,
+    highest_room: 1,
+    rooms_cleared: 0,
+    enemies_defeated: 0,
+    bosses_defeated: 0,
+    quests_completed: 0,
+    play_time_ms: 0,
+    total_damage: 0,
+    items_found: 0,
+    equipped_items: [],
+  };
+}
+
+async function installGuildApiMocks(page, observedProfileIds = new Set()) {
   const guild = {
     id: 'qa-guild',
     name: 'Hüter des Schleiers',
@@ -58,8 +92,50 @@ async function installGuildApiMocks(page) {
     const resource = url.pathname.split('/').pop() || '';
     const select = url.searchParams.get('select') || '';
     let body = [];
+    let requestBody = {};
+    if (request.method() === 'POST' && request.postData()) {
+      try {
+        requestBody = request.postDataJSON();
+      } catch {
+        requestBody = {};
+      }
+    }
 
-    if (resource === 'guild_members' && url.searchParams.has('user_id')) {
+    if (resource === 'get_my_social_profile') {
+      body = {
+        id: 'qa-owner',
+        display_name: 'Maxi',
+        avatar_key: 'ranger',
+        friend_code: 'DV-MAXI',
+        current_chapter: 1,
+        current_rank: 1,
+        character_key: 'archer',
+        last_active_at: new Date().toISOString(),
+      };
+    } else if (resource === 'list_friends_v2') {
+      body = [{
+        user_id: 'qa-member',
+        display_name: 'Torven',
+        avatar_key: 'guardian',
+        friend_code: 'DV-TORVEN',
+        current_chapter: 1,
+        current_rank: 1,
+        character_key: 'archer',
+        friends_since: '2026-07-02T20:10:00.000Z',
+        last_active_at: new Date().toISOString(),
+      }];
+    } else if (resource === 'list_friend_requests' || resource === 'list_friend_requests_v2') {
+      body = [];
+    } else if (resource === 'get_social_profile_card') {
+      const requestedId = requestBody?.p_user_id;
+      observedProfileIds.add(requestedId);
+      const cards = {
+        'qa-owner': neutralSocialCard('qa-owner', 'Maxi', 'ranger', guild.name, guild.tag),
+        'qa-member': neutralSocialCard('qa-member', 'Torven', 'guardian', guild.name, guild.tag),
+        'qa-officer': neutralSocialCard('qa-officer', 'Nyra', 'veil', guild.name, guild.tag),
+      };
+      body = cards[requestedId] ?? neutralSocialCard(requestedId || 'qa-missing', 'Unbekannt', 'ranger');
+    } else if (resource === 'guild_members' && url.searchParams.has('user_id')) {
       body = [{ role: 'owner', guilds: guild }];
     } else if (resource === 'guild_members' && url.searchParams.has('guild_id')) {
       body = members;
@@ -159,6 +235,19 @@ async function gotoMenu(page, projectName) {
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
 }
 
+async function gotoSocialMenu(page, projectName, observedProfileIds) {
+  await installGuildApiMocks(page, observedProfileIds);
+  await seedUxState(page, projectName);
+  const url = new URL(APP_URL);
+  url.searchParams.delete('visualQa');
+  await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.bringToFront();
+  const boot = page.getByTestId('app-boot-loading-screen');
+  if (await boot.count()) await expect(boot).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
+}
+
 async function pointer(locator) {
   await expect(locator).toBeVisible({ timeout: 30_000 });
   await locator.tap();
@@ -173,6 +262,29 @@ async function capture(page, name, projectName) {
 async function closeStandardOverlay(page) {
   const close = page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).last();
   await pointer(close);
+}
+
+async function captureNeutralSocialProfile(page, kind, projectName, expectedName) {
+  const card = page.getByTestId('player-profile-card');
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('public-player-profile-header')).toContainText(expectedName);
+  await expect(card).toContainText(/Rang\s*1|Rank\s*1/i);
+  const progress = page.getByTestId('public-player-profile-best-progress');
+  await expect(progress).toContainText(/Kapitel\s*1|Chapter\s*1/i);
+  await expect(progress).toContainText(/Raum\s*1|Room\s*1/i);
+  await expect(page.getByTestId('public-player-profile-cosmetics')).toBeVisible();
+  await capture(page, `visual-social-trust-${kind}-identity-progress`, projectName);
+
+  const equipment = page.getByTestId('public-player-profile-equipment');
+  await equipment.scrollIntoViewIfNeeded();
+  await expect(equipment).toContainText('0/3');
+  for (const slot of ['bow', 'quiver', 'armor']) {
+    await expect(page.getByTestId(`public-player-profile-equipment-slot-${slot}`)).toHaveAttribute('data-equipped', 'false');
+  }
+  const achievements = page.getByTestId('public-player-profile-achievements');
+  await achievements.scrollIntoViewIfNeeded();
+  await expect(achievements).toContainText(/Noch keine öffentlichen Erfolge|No public achievements/i);
+  await capture(page, `visual-social-trust-${kind}-neutral-loadout`, projectName);
 }
 
 test('filled guild, mailbox, shop and options views are functional and reviewable', async ({ page }, testInfo) => {
@@ -269,6 +381,41 @@ test('profile cosmetics and optional equipment can be inspected and unequipped',
   await pointer(page.getByTestId('companion-unequip-button'));
   await expect(page.getByTestId('companion-active-role')).toHaveAttribute('data-companion-role', 'none');
   await capture(page, 'visual-equipment-companion-unequipped', testInfo.project.name);
+  expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
+});
+
+
+test('neutral server social projection is visible for self, friend and guild peer', async ({ page }, testInfo) => {
+  test.setTimeout(300_000);
+  const runtimeIssues = attachRuntimeMonitor(page);
+  const observedProfileIds = new Set();
+  await gotoSocialMenu(page, testInfo.project.name, observedProfileIds);
+
+  await pointer(page.getByTestId('npc-scout'));
+  await expect(page.getByTestId('friends-panel')).toBeVisible({ timeout: 30_000 });
+  await pointer(page.getByTestId('friends-self-profile').getByRole('button').first());
+  await captureNeutralSocialProfile(page, 'self', testInfo.project.name, 'Maxi');
+  await pointer(page.getByTestId('public-player-profile-close'));
+
+  await pointer(page.getByTestId('friend-profile-button').filter({ hasText: 'Torven' }).first());
+  await captureNeutralSocialProfile(page, 'friend', testInfo.project.name, 'Torven');
+  await pointer(page.getByTestId('public-player-profile-close'));
+
+  const cleanUrl = new URL(APP_URL);
+  cleanUrl.searchParams.delete('visualQa');
+  await page.goto(cleanUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  const boot = page.getByTestId('app-boot-loading-screen');
+  if (await boot.count()) await expect(boot).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible({ timeout: 60_000 });
+
+  await pointer(page.getByTestId('npc-guildmaster'));
+  await expect(page.getByTestId('guild-panel-shell')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: /Mitglieder|Members/i }).click();
+  await expect(page.getByTestId('guild-member-card')).toHaveCount(4, { timeout: 30_000 });
+  await pointer(page.getByTestId('guild-member-profile-button').filter({ hasText: 'Nyra' }).first());
+  await captureNeutralSocialProfile(page, 'guild-peer', testInfo.project.name, 'Nyra');
+
+  expect([...observedProfileIds].sort()).toEqual(['qa-member', 'qa-officer', 'qa-owner']);
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
 });
 
