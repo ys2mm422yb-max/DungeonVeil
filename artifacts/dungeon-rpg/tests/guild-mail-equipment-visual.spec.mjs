@@ -61,6 +61,13 @@ function neutralSocialCard(id, displayName, avatarKey, guildName = null, guildTa
 }
 
 async function installGuildApiMocks(page, observedProfileIds = new Set()) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': new URL(APP_URL).origin,
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, prefer',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    Vary: 'Origin',
+  };
   const guild = {
     id: 'qa-guild',
     name: 'Hüter des Schleiers',
@@ -88,9 +95,14 @@ async function installGuildApiMocks(page, observedProfileIds = new Set()) {
 
   await page.route(`${SUPABASE_REST}**`, async route => {
     const request = route.request();
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
     const url = new URL(request.url());
     const resource = url.pathname.split('/').pop() || '';
     const select = url.searchParams.get('select') || '';
+    let status = 200;
     let body = [];
     let requestBody = {};
     if (request.method() === 'POST' && request.postData()) {
@@ -142,20 +154,27 @@ async function installGuildApiMocks(page, observedProfileIds = new Set()) {
     } else if (resource === 'guild_invites') {
       body = [];
     } else if (resource === 'guild_messages') {
-      body = request.method() === 'GET' ? messages : null;
+      if (request.method() === 'GET') body = messages;
+      else {
+        status = 204;
+        body = null;
+      }
+    } else if (resource === 'upsert_guarded_game_save') {
+      body = { accepted: true, payload: null };
+    } else if (resource === 'profiles' && request.method() === 'PATCH' && request.headers().prefer?.includes('return=minimal')) {
+      status = 204;
+      body = null;
     } else if (resource === 'profiles' && select.includes('last_active_at')) {
       body = profiles.map(({ id, last_active_at }) => ({ id, last_active_at }));
     } else if (resource === 'profiles') {
       body = profiles;
-    } else if (resource.startsWith('rpc')) {
+    } else if (url.pathname.includes('/rpc/')) {
       body = [];
     }
 
-    await route.fulfill({
-      status: request.method() === 'POST' && resource === 'guild_messages' ? 204 : 200,
-      contentType: 'application/json',
-      body: body === null ? '' : JSON.stringify(body),
-    });
+    await route.fulfill(body === null
+      ? { status, headers: corsHeaders }
+      : { status, headers: corsHeaders, contentType: 'application/json', body: JSON.stringify(body) });
   });
 }
 

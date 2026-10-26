@@ -6,6 +6,7 @@ const migration = await readFile(
   new URL('../../../supabase/migrations/20261025132500_harden_social_profile_trust_boundary.sql', import.meta.url),
   'utf8',
 );
+const socialJourney = await readFile(new URL('./guild-mail-equipment-visual.spec.mjs', import.meta.url), 'utf8');
 
 test('browser table writes are reduced to cosmetic columns', () => {
   assert.match(migration, /revoke insert, update on table public\.profiles from authenticated/i);
@@ -45,4 +46,18 @@ test('SECURITY DEFINER functions are fixed-path and least privilege', () => {
   assert.equal((migration.match(/set search_path = ''/gi) ?? []).length, 2);
   assert.match(migration, /revoke all on function public\.sync_profile_progress[\s\S]*from public, anon/is);
   assert.match(migration, /revoke all on function public\.sync_public_profile_stats[\s\S]*from public, anon/is);
+});
+
+test('focused social fixture is cross-origin complete for WebKit', () => {
+  assert.match(socialJourney, /Access-Control-Allow-Origin[\s\S]*Access-Control-Allow-Credentials/is);
+  assert.match(socialJourney, /Access-Control-Allow-Headers[\s\S]*authorization[\s\S]*apikey[\s\S]*content-type[\s\S]*prefer/is);
+  assert.match(socialJourney, /Access-Control-Allow-Methods[\s\S]*GET[\s\S]*POST[\s\S]*PATCH[\s\S]*DELETE[\s\S]*OPTIONS/is);
+  assert.match(socialJourney, /request\.method\(\) === 'OPTIONS'[\s\S]*status: 204[\s\S]*headers: corsHeaders/is);
+});
+
+test('focused social fixture models background write responses exactly', () => {
+  assert.match(socialJourney, /resource === 'upsert_guarded_game_save'[\s\S]*accepted: true, payload: null/is);
+  assert.match(socialJourney, /resource === 'profiles'[\s\S]*request\.method\(\) === 'PATCH'[\s\S]*return=minimal/is);
+  assert.match(socialJourney, /return=minimal[\s\S]*status = 204[\s\S]*body = null/is);
+  assert.doesNotMatch(socialJourney, /resource\.startsWith\(['"]rpc/is);
 });
