@@ -57,6 +57,29 @@ reads, denied unauthorized reads, security/performance advisors and relevant
 logs. Keep Issue #460 open until these production checks succeed. No production
 application or backup verification is claimed by this document.
 
+## Production migration-history mapping
+
+The accepted SQL was merged in commit
+`37410dcf101414fb14cc00622523e9348cd1649b` at repository path
+`supabase/migrations/20261025132500_harden_social_profile_trust_boundary.sql`.
+Its SHA-256 is recorded and enforced by
+`scripts/social-profile-production-history.json` and the permanent focused
+contract test.
+
+Supabase MCP `apply_migration` applied that exact SQL to project
+`hfndwqfghyomwapqsked`, but the transport generates its own history version.
+Production therefore records
+`20261026113943_harden_social_profile_trust_boundary`. The reviewed repository
+mapping is the durable reconciliation between those two identifiers. It is not
+a second migration and does not assert that the SQL ran twice.
+
+Do not rename or reapply the accepted migration, delete the generated production
+record, edit `supabase_migrations.schema_migrations` directly, or run
+`migration repair` merely to make the timestamps look identical. Any future
+history repair requires its own live-state proof and independent review. The
+mapping contract fails if the repository path, merged SQL hash, project ref,
+live version or migration name changes silently.
+
 ## Recovery
 
 Prefer a forward migration. Preserve the private archive for investigation;
