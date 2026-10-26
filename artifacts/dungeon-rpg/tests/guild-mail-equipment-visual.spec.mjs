@@ -420,12 +420,9 @@ test('neutral server social projection is visible for self, friend and guild pee
   await captureNeutralSocialProfile(page, 'friend', testInfo.project.name, 'Torven');
   await pointer(page.getByTestId('public-player-profile-close'));
 
-  const cleanUrl = new URL(APP_URL);
-  cleanUrl.searchParams.delete('visualQa');
-  await page.goto(cleanUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  const boot = page.getByTestId('app-boot-loading-screen');
-  if (await boot.count()) await expect(boot).toBeHidden({ timeout: 60_000 });
-  await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible({ timeout: 60_000 });
+  await pointer(page.getByRole('button', { name: /SCHLIESSEN|CLOSE/i }).last());
+  await expect(page.getByTestId('friends-panel')).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId('main-menu-profile-badge')).toBeVisible({ timeout: 30_000 });
 
   await pointer(page.getByTestId('npc-guildmaster'));
   await expect(page.getByTestId('guild-panel-shell')).toBeVisible({ timeout: 30_000 });

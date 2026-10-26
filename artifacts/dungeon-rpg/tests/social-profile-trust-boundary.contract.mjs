@@ -7,6 +7,11 @@ const migration = await readFile(
   'utf8',
 );
 const socialJourney = await readFile(new URL('./guild-mail-equipment-visual.spec.mjs', import.meta.url), 'utf8');
+const focusedSocialJourney = socialJourney.match(
+  /test\('neutral server social projection is visible for self, friend and guild peer'[\s\S]*?\n\}\);/,
+)?.[0];
+
+assert.ok(focusedSocialJourney, 'focused social journey must remain registered');
 
 test('browser table writes are reduced to cosmetic columns', () => {
   assert.match(migration, /revoke insert, update on table public\.profiles from authenticated/i);
@@ -60,4 +65,12 @@ test('focused social fixture models background write responses exactly', () => {
   assert.match(socialJourney, /resource === 'profiles'[\s\S]*request\.method\(\) === 'PATCH'[\s\S]*return=minimal/is);
   assert.match(socialJourney, /return=minimal[\s\S]*status = 204[\s\S]*body = null/is);
   assert.doesNotMatch(socialJourney, /resource\.startsWith\(['"]rpc/is);
+});
+
+test('focused social journey stays in one document between friends and guild', () => {
+  assert.equal((focusedSocialJourney.match(/page\.goto\(/g) ?? []).length, 0);
+  assert.match(
+    focusedSocialJourney,
+    /public-player-profile-close[\s\S]*SCHLIESSEN\|CLOSE[\s\S]*friends-panel[\s\S]*toHaveCount\(0[\s\S]*npc-guildmaster/is,
+  );
 });
