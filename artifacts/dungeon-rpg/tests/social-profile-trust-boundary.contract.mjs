@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const migration = await readFile(
-  new URL('../../../supabase/migrations/20261025132500_harden_social_profile_trust_boundary.sql', import.meta.url),
-  'utf8',
+const migrationUrl = new URL(
+  '../../../supabase/migrations/20261025132500_harden_social_profile_trust_boundary.sql',
+  import.meta.url,
+);
+const migration = await readFile(migrationUrl, 'utf8');
+const productionHistory = JSON.parse(
+  await readFile(new URL('../../../scripts/social-profile-production-history.json', import.meta.url), 'utf8'),
 );
 const socialJourney = await readFile(new URL('./guild-mail-equipment-visual.spec.mjs', import.meta.url), 'utf8');
 const focusedSocialJourney = socialJourney.match(
@@ -12,6 +17,31 @@ const focusedSocialJourney = socialJourney.match(
 )?.[0];
 
 assert.ok(focusedSocialJourney, 'focused social journey must remain registered');
+
+
+test('production history mapping binds the reviewed SQL without mutating remote history', () => {
+  const expectedPath = 'supabase/migrations/20261025132500_harden_social_profile_trust_boundary.sql';
+  const sqlSha256 = createHash('sha256').update(migration).digest('hex');
+
+  assert.equal(productionHistory.schema_version, 1);
+  assert.equal(productionHistory.project_ref, 'hfndwqfghyomwapqsked');
+  assert.deepEqual(productionHistory.repository, {
+    path: expectedPath,
+    version: '20261025132500',
+    name: 'harden_social_profile_trust_boundary',
+    merge_commit: '37410dcf101414fb14cc00622523e9348cd1649b',
+    sql_sha256: sqlSha256,
+  });
+  assert.deepEqual(productionHistory.production, {
+    version: '20261026113943',
+    name: productionHistory.repository.name,
+    observed_at: '2026-10-26T11:43:00Z',
+  });
+  assert.equal(productionHistory.apply_transport, 'supabase_mcp_apply_migration');
+  assert.equal(productionHistory.reconciliation, 'reviewed_repo_mapping');
+  assert.equal(productionHistory.remote_history_mutated, false);
+  assert.match(migrationUrl.pathname, /20261025132500_harden_social_profile_trust_boundary\.sql$/);
+});
 
 test('browser table writes are reduced to cosmetic columns', () => {
   assert.match(migration, /revoke insert, update on table public\.profiles from authenticated/i);
