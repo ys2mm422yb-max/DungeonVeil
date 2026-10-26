@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "project_ref": "hfndwqfghyomwapqsked",
+  "repository": {
+    "path": "supabase/migrations/20261025132500_harden_social_profile_trust_boundary.sql",
+    "version": "20261025132500",
+    "name": "harden_social_profile_trust_boundary",
+    "merge_commit": "37410dcf101414fb14cc00622523e9348cd1649b",
+    "sql_sha256": "0a7b0658a8888be45cd33d4a484915292544d3e7e831ad369672e5881ff050f9"
+  },
+  "production": {
+    "version": "20261026113943",
+    "name": "harden_social_profile_trust_boundary",
+    "observed_at": "2026-10-26T11:43:00Z"
+  },
+  "apply_transport": "supabase_mcp_apply_migration",
+  "reconciliation": "reviewed_repo_mapping",
+  "remote_history_mutated": false
+}
