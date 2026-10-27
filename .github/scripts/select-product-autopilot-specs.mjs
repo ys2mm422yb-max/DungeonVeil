@@ -11,6 +11,8 @@ const ALL_SPECS = [
   'tests/companion-runtime.spec.mjs',
   'tests/companion-free-movement-evidence.spec.mjs',
   'tests/spectator-performance.spec.mjs',
+  'tests/spectator-death-state.spec.mjs',
+  'tests/player-death-state.spec.mjs',
   'tests/upgrade-prestige-visual.spec.mjs',
   'tests/upgrade-prestige-mobile-hotfix.spec.mjs',
   'tests/visible-upgrade-prestige.spec.mjs',
@@ -98,6 +100,22 @@ function resolveSelection({ eventName, body, changedFiles }) {
   const selected = addSafetySpecs(new Set(explicit), changedFiles);
   if (selected.size === 0) throw new Error('Adaptive Product Autopilot resolved to zero specs.');
   return ALL_SPECS.filter((spec) => selected.has(spec));
+}
+
+function parseResolvedSelection(text) {
+  const listed = text.split(/\s+/).map((line) => line.trim()).filter(Boolean);
+  if (listed.length === 0) throw new Error('Resolved Product Autopilot selection is empty.');
+  if (new Set(listed).size !== listed.length) {
+    throw new Error('Resolved Product Autopilot selection contains duplicate specs.');
+  }
+  for (const spec of listed) {
+    if (!SPEC_SET.has(spec)) throw new Error(`Unknown resolved Product Autopilot spec: ${spec}`);
+  }
+  const canonical = ALL_SPECS.filter((spec) => listed.includes(spec));
+  if (canonical.join('\n') !== listed.join('\n')) {
+    throw new Error('Resolved Product Autopilot selection is not in canonical registry order.');
+  }
+  return listed;
 }
 
 function executedSpecsFromReport(report) {
@@ -207,8 +225,25 @@ function selfTest() {
     throw new Error('Product workflow primary Playwright invocation could not be located.');
   }
   const journeyStep = workflow.slice(journeyStart, journeyEnd);
-  for (const spec of ALL_SPECS) {
-    if (!journeyStep.includes(spec)) throw new Error(`Product workflow invocation cannot reach selectable spec: ${spec}`);
+  for (const contract of [
+    'SELECTED_PRODUCT_SPECS: ${{ needs.product-contracts.outputs.selected_specs }}',
+    'read -r -a selected_specs <<< "$SELECTED_PRODUCT_SPECS"',
+    '"${selected_specs[@]}"',
+    '--resolved-selection "$SELECTED_PRODUCT_SPECS"',
+  ]) {
+    if (!workflow.includes(contract)) throw new Error(`Product workflow selection handoff is missing: ${contract}`);
+  }
+
+  const parsed = parseResolvedSelection(ALL_SPECS.join('\n'));
+  if (parsed.join('\n') !== ALL_SPECS.join('\n')) throw new Error('Resolved selection parser changed registry order.');
+  for (const rejected of ['', 'tests/not-real.spec.mjs', `${ALL_SPECS[0]}\n${ALL_SPECS[0]}`, `${ALL_SPECS[1]}\n${ALL_SPECS[0]}`]) {
+    let didReject = false;
+    try {
+      parseResolvedSelection(rejected);
+    } catch {
+      didReject = true;
+    }
+    if (!didReject) throw new Error(`Invalid resolved selection was accepted: ${JSON.stringify(rejected)}`);
   }
 
   const configSource = fs.readFileSync(
@@ -260,9 +295,10 @@ const changedFiles = changedFilesPath && fs.existsSync(changedFilesPath)
 const resolved = resolveSelection({ eventName, body, changedFiles });
 const reportPath = arg('--assert-report');
 if (reportPath) {
+  const resolvedSelection = arg('--resolved-selection');
   assertSelectedSpecsExecuted({
     report: JSON.parse(fs.readFileSync(reportPath, 'utf8')),
-    selected: resolved,
+    selected: resolvedSelection === undefined ? resolved : parseResolvedSelection(resolvedSelection),
   });
   process.exit(0);
 }
