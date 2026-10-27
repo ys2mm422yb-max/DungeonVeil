@@ -28,6 +28,7 @@ const visualSpec = read('tests/guild-mail-equipment-visual.spec.mjs');
 const resourceSpec = read('tests/mobile-resource-upgrade.spec.mjs');
 const regressionConfig = read('playwright.regression.config.mjs');
 const autopilotWorkflow = read('../../.github/workflows/product-autopilot-qa.yml');
+const autopilotSelector = read('../../.github/scripts/select-product-autopilot-specs.mjs');
 
 assert.match(mailbox, /mailbox-delete-completed/);
 assert.match(mailbox, /canDeleteMessage/);
@@ -134,14 +135,19 @@ for (const marker of [
   'Build GitHub Pages output once',
   'dungeon-veil-product-build-${{ github.sha }}',
   'actions/download-artifact@v4',
-  'tests/autopilot-product-journeys.spec.mjs',
-  'tests/autopilot-outside-guild.spec.mjs',
-  'tests/guild-mail-equipment-visual.spec.mjs',
-  'tests/mobile-resource-upgrade.spec.mjs',
+  'SELECTED_PRODUCT_SPECS',
+  '${selected_specs[@]}',
   'product-autopilot-evidence-${{ matrix.project }}',
   'product-autopilot-failure-${{ matrix.project }}',
   'fix/mobile-telegraphs-room-21-50-balance',
 ]) assert.match(autopilotWorkflow, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
+for (const spec of [
+  'tests/autopilot-product-journeys.spec.mjs',
+  'tests/autopilot-outside-guild.spec.mjs',
+  'tests/guild-mail-equipment-visual.spec.mjs',
+  'tests/mobile-resource-upgrade.spec.mjs',
+]) assert.match(autopilotSelector, new RegExp(spec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
 const supportedProjects = ['iphone-webkit', 'android-chromium', 'ipad-portrait-webkit', 'android-tablet-chromium'];
 const workflowProjects = [...autopilotWorkflow.matchAll(/- project:\s*([^\s]+)/g)].map(match => match[1]);
