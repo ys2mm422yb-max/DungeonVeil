@@ -185,6 +185,26 @@ function selfTest() {
   const push = resolveSelection({ eventName: 'push', body: block(['tests/spectator-performance.spec.mjs']), changedFiles: [] });
   if (push.length !== ALL_SPECS.length) throw new Error('Target-branch push must retain full Product Autopilot coverage.');
 
+  const safetyExpanded = resolveSelection({
+    eventName: 'pull_request',
+    body: block(['tests/autopilot-product-journeys.spec.mjs']),
+    changedFiles: [
+      '.github/workflows/product-autopilot-qa.yml',
+      'artifacts/dungeon-rpg/scripts/validate-block-10-guild-raid-lobby.mjs',
+    ],
+  });
+  const expectedExpanded = [
+    'tests/autopilot-product-journeys.spec.mjs',
+    'tests/autopilot-outside-guild.spec.mjs',
+    'tests/guild-raid-lobby-mobile.spec.mjs',
+  ];
+  if (safetyExpanded.join('\n') !== expectedExpanded.join('\n')) {
+    throw new Error(`Safety-expanded multi-spec fixture drifted: ${safetyExpanded.join(', ')}`);
+  }
+  if (parseResolvedSelection(safetyExpanded.join(' ')).join('\n') !== expectedExpanded.join('\n')) {
+    throw new Error('Canonical multi-spec handoff changed before Playwright discovery.');
+  }
+
   let rejectedUnknown = false;
   try {
     resolveSelection({ eventName: 'pull_request', body: block(['tests/not-real.spec.mjs']), changedFiles: [] });
@@ -250,6 +270,18 @@ function selfTest() {
     new URL('../../artifacts/dungeon-rpg/playwright.regression.config.mjs', import.meta.url),
     'utf8',
   );
+  for (const contract of [
+    'const resolvedText = process.env.SELECTED_PRODUCT_SPECS',
+    'Product Autopilot canonical selection:',
+    "resolvedText.split(/\\s+/)",
+  ]) {
+    if (!configSource.includes(contract)) {
+      throw new Error(`Playwright discovery does not consume the canonical selection: ${contract}`);
+    }
+  }
+  if (configSource.includes('GITHUB_EVENT_PATH') || configSource.includes('pull_request?.body')) {
+    throw new Error('Playwright discovery must not independently reparse PR metadata.');
+  }
   const registryMatch = configSource.match(/const PRODUCT_AUTOPILOT_SPECS = \[([\s\S]*?)\];/);
   if (!registryMatch) throw new Error('Playwright Product Autopilot registry could not be located.');
   const configRegistry = new Set(
