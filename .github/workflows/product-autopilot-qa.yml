@@ -34,8 +34,12 @@ jobs:
   product-contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      selected_specs: ${{ steps.product_selection.outputs.selected_specs }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -44,16 +48,27 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Validate adaptive Product selection before expensive work
-        if: github.event_name == 'pull_request'
+        id: product_selection
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           node .github/scripts/select-product-autopilot-specs.mjs --self-test
+          changed_files_args=()
+          if [[ "$GITHUB_EVENT_NAME" == 'pull_request' ]]; then
+            git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA" > "${RUNNER_TEMP}/product-autopilot-changed-files.txt"
+            changed_files_args=(--changed-files "${RUNNER_TEMP}/product-autopilot-changed-files.txt")
+          fi
           node .github/scripts/select-product-autopilot-specs.mjs \
-            --event pull_request \
+            --event "$GITHUB_EVENT_NAME" \
+            "${changed_files_args[@]}" \
             --output "${RUNNER_TEMP}/product-autopilot-selected-specs.txt"
           test -s "${RUNNER_TEMP}/product-autopilot-selected-specs.txt"
+          selected_specs="$(tr '\n' ' ' < "${RUNNER_TEMP}/product-autopilot-selected-specs.txt" | sed 's/[[:space:]]*$//')"
+          test -n "$selected_specs"
+          echo "selected_specs=$selected_specs" >> "$GITHUB_OUTPUT"
       - name: Install workspace
         run: pnpm install --frozen-lockfile
       - name: Validate repository evidence budgets
@@ -111,6 +126,7 @@ jobs:
             browser: chromium
     env:
       BROWSER_PROJECT: ${{ matrix.project }}
+      SELECTED_PRODUCT_SPECS: ${{ needs.product-contracts.outputs.selected_specs }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -157,34 +173,18 @@ jobs:
             sleep 1
           done
           curl --fail "$DUNGEON_VEIL_URL" > /dev/null
+          read -r -a selected_specs <<< "$SELECTED_PRODUCT_SPECS"
+          test "${#selected_specs[@]}" -gt 0
           timeout --signal=TERM --kill-after=30s 55m pnpm --dir artifacts/dungeon-rpg exec playwright test \
-            tests/autopilot-product-journeys.spec.mjs \
-            tests/run-gift-authority.spec.mjs \
-            tests/autopilot-outside-guild.spec.mjs \
-            tests/guild-mail-equipment-visual.spec.mjs \
-            tests/mobile-resource-upgrade.spec.mjs \
-            tests/companion-runtime.spec.mjs \
-            tests/companion-free-movement-evidence.spec.mjs \
-            tests/spectator-performance.spec.mjs \
-            tests/spectator-death-state.spec.mjs \
-            tests/player-death-state.spec.mjs \
-            tests/upgrade-prestige-visual.spec.mjs \
-            tests/upgrade-prestige-mobile-hotfix.spec.mjs \
-            tests/visible-upgrade-prestige.spec.mjs \
-            tests/kaykit-chapter-evidence.spec.mjs \
-            tests/guild-raid-lobby-mobile.spec.mjs \
-            tests/guild-raid-language-portals.spec.mjs \
-            tests/armor-cloud-restore-render.spec.mjs \
+            "${selected_specs[@]}" \
             --config=playwright.regression.config.mjs \
             --project="$BROWSER_PROJECT" \
             2>&1 | tee "/tmp/dungeon-veil-product-playwright-${BROWSER_PROJECT}.log"
       - name: Prove every selected Product spec executed
         if: steps.product-tests.outcome == 'success'
-        env:
-          PR_BODY: ${{ github.event.pull_request.body }}
         run: >-
           node .github/scripts/select-product-autopilot-specs.mjs
-          --event "${GITHUB_EVENT_NAME}"
+          --resolved-selection "$SELECTED_PRODUCT_SPECS"
           --assert-report artifacts/dungeon-rpg/test-results/full-game-results.json
       - name: Prove post-rearm runtime monitor fails closed
         if: steps.product-tests.outcome == 'success' && (matrix.project == 'iphone-webkit' || matrix.project == 'android-chromium')
@@ -254,27 +254,16 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
 
-          let selected = null;
-          if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
-            const eventPath = process.env.GITHUB_EVENT_PATH;
-            if (eventPath && fs.existsSync(eventPath)) {
-              const payload = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
-              const body = payload?.pull_request?.body ?? '';
-              const startMarker = '<!-- product-autopilot-selection:start -->';
-              const endMarker = '<!-- product-autopilot-selection:end -->';
-              const start = body.indexOf(startMarker);
-              const end = body.indexOf(endMarker);
-              if (start >= 0 && end > start) {
-                const block = body.slice(start + startMarker.length, end);
-                if (!/\bFULL_PRODUCT_AUTOPILOT\b/.test(block)) {
-                  const specs = [...block.matchAll(/`tests\/([A-Za-z0-9._/-]+\.spec\.mjs)`/g)].map((match) => match[1]);
-                  if (specs.length > 0) selected = new Set(specs);
-                }
-              }
-            }
-          }
+          const selected = new Set(
+            String(process.env.SELECTED_PRODUCT_SPECS ?? '')
+              .split(/\s+/)
+              .map((spec) => spec.trim())
+              .filter(Boolean)
+              .map((spec) => spec.replace(/^tests\//, '')),
+          );
+          if (selected.size === 0) throw new Error('Product evidence requirements received an empty selection.');
 
-          const required = (spec) => selected === null || selected.has(spec);
+          const required = (spec) => selected.has(spec);
           const outputs = [
             `spectator_performance=${required('spectator-performance.spec.mjs')}`,
             `spectator_death=${required('spectator-death-state.spec.mjs')}`,
@@ -283,9 +272,7 @@ jobs:
             `armor_restore=${required('armor-cloud-restore-render.spec.mjs')}`,
           ];
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
-          console.log(selected === null
-            ? 'Product evidence requirements: full fail-closed suite.'
-            : `Product evidence requirements: adaptive selection (${[...selected].join(', ')}).`);
+          console.log(`Product evidence requirements: resolved selection (${[...selected].join(', ')}).`);
           NODE
       - name: Collect focused armor restore temporal evidence
         if: steps.product-tests.outcome == 'success' && steps.evidence-requirements.outputs.armor_restore == 'true'

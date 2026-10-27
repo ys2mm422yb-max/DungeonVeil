@@ -35,58 +35,39 @@ function adaptiveProductAutopilotIgnore() {
     console.log('Product Autopilot adaptive selection: runtime-monitor negative probe explicitly bypasses PR spec filtering.');
     return [];
   }
-  const runAttempt = Number.parseInt(process.env.GITHUB_RUN_ATTEMPT || '1', 10);
-  if (Number.isFinite(runAttempt) && runAttempt > 1) {
-    console.log('Product Autopilot adaptive selection: rerun attempt uses the full fail-closed suite instead of potentially stale PR event metadata.');
-    return [];
-  }
   if (process.env.GITHUB_WORKFLOW !== 'Product Autopilot QA' || process.env.GITHUB_EVENT_NAME !== 'pull_request') {
     return [];
   }
 
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath || !fs.existsSync(eventPath)) {
-    console.warn('Product Autopilot adaptive selection: event payload unavailable; using full fail-closed suite.');
+  const resolvedText = process.env.SELECTED_PRODUCT_SPECS;
+  if (!resolvedText?.trim()) {
+    console.warn('Product Autopilot adaptive selection: canonical resolved selection unavailable; using full fail-closed suite.');
     return [];
   }
 
-  const payload = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
-  const body = payload?.pull_request?.body ?? '';
-  const startMarker = '<!-- product-autopilot-selection:start -->';
-  const endMarker = '<!-- product-autopilot-selection:end -->';
-  const start = body.indexOf(startMarker);
-  const end = body.indexOf(endMarker);
-
-  if (start < 0 || end < 0 || end <= start) {
-    console.log('Product Autopilot adaptive selection: declaration missing; using full fail-closed suite.');
-    return [];
+  const resolvedPaths = resolvedText.split(/\s+/).map((value) => value.trim()).filter(Boolean);
+  if (new Set(resolvedPaths).size !== resolvedPaths.length) {
+    throw new Error('Canonical Product Autopilot selection contains duplicate specs.');
   }
-
-  const block = body.slice(start + startMarker.length, end);
-  if (/\bFULL_PRODUCT_AUTOPILOT\b/.test(block)) {
-    console.log('Product Autopilot adaptive selection: explicit full suite requested.');
-    return [];
-  }
-
-  const selectedPaths = [...block.matchAll(/`tests\/([A-Za-z0-9._/-]+\.spec\.mjs)`/g)].map((match) => match[1]);
-  if (selectedPaths.length === 0) {
-    throw new Error('Product Autopilot adaptive selection block contains no test spec.');
-  }
-
-  const selected = new Set();
-  for (const spec of selectedPaths) {
-    if (spec.includes('/')) {
-      throw new Error(`Nested Product Autopilot spec is not allowed: ${spec}`);
+  const resolvedBasenames = resolvedPaths.map((spec) => {
+    if (!spec.startsWith('tests/') || spec.slice('tests/'.length).includes('/')) {
+      throw new Error(`Invalid canonical Product Autopilot spec path: ${spec}`);
     }
-    if (!PRODUCT_AUTOPILOT_SPECS.includes(spec)) {
-      throw new Error(`Unknown Product Autopilot spec in PR body: ${spec}`);
+    const basename = spec.slice('tests/'.length);
+    if (!PRODUCT_AUTOPILOT_SPECS.includes(basename)) {
+      throw new Error(`Unknown canonical Product Autopilot spec: ${spec}`);
     }
-    selected.add(spec);
+    return basename;
+  });
+  const canonical = PRODUCT_AUTOPILOT_SPECS.filter((spec) => resolvedBasenames.includes(spec));
+  if (canonical.join('\n') !== resolvedBasenames.join('\n')) {
+    throw new Error('Canonical Product Autopilot selection is not in registry order.');
   }
 
+  const selected = new Set(resolvedBasenames);
   const ignored = PRODUCT_AUTOPILOT_SPECS.filter((spec) => !selected.has(spec));
-  console.log(`Product Autopilot adaptive selection: ${selected.size}/${PRODUCT_AUTOPILOT_SPECS.length} specs selected; ${ignored.length} unrelated specs ignored for this PR.`);
-  console.log(`Selected: ${[...selected].join(', ')}`);
+  console.log(`Product Autopilot canonical selection: ${selected.size}/${PRODUCT_AUTOPILOT_SPECS.length} specs selected; ${ignored.length} unrelated specs ignored for this PR.`);
+  console.log(`Selected: ${resolvedBasenames.join(', ')}`);
   return ignored.map((spec) => new RegExp(`${escapeRegex(spec)}$`));
 }
 

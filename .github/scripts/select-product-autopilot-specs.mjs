@@ -11,6 +11,8 @@ const ALL_SPECS = [
   'tests/companion-runtime.spec.mjs',
   'tests/companion-free-movement-evidence.spec.mjs',
   'tests/spectator-performance.spec.mjs',
+  'tests/spectator-death-state.spec.mjs',
+  'tests/player-death-state.spec.mjs',
   'tests/upgrade-prestige-visual.spec.mjs',
   'tests/upgrade-prestige-mobile-hotfix.spec.mjs',
   'tests/visible-upgrade-prestige.spec.mjs',
@@ -100,6 +102,22 @@ function resolveSelection({ eventName, body, changedFiles }) {
   return ALL_SPECS.filter((spec) => selected.has(spec));
 }
 
+function parseResolvedSelection(text) {
+  const listed = text.split(/\s+/).map((line) => line.trim()).filter(Boolean);
+  if (listed.length === 0) throw new Error('Resolved Product Autopilot selection is empty.');
+  if (new Set(listed).size !== listed.length) {
+    throw new Error('Resolved Product Autopilot selection contains duplicate specs.');
+  }
+  for (const spec of listed) {
+    if (!SPEC_SET.has(spec)) throw new Error(`Unknown resolved Product Autopilot spec: ${spec}`);
+  }
+  const canonical = ALL_SPECS.filter((spec) => listed.includes(spec));
+  if (canonical.join('\n') !== listed.join('\n')) {
+    throw new Error('Resolved Product Autopilot selection is not in canonical registry order.');
+  }
+  return listed;
+}
+
 function executedSpecsFromReport(report) {
   const executed = new Set();
   const visit = (suites = []) => {
@@ -167,6 +185,26 @@ function selfTest() {
   const push = resolveSelection({ eventName: 'push', body: block(['tests/spectator-performance.spec.mjs']), changedFiles: [] });
   if (push.length !== ALL_SPECS.length) throw new Error('Target-branch push must retain full Product Autopilot coverage.');
 
+  const safetyExpanded = resolveSelection({
+    eventName: 'pull_request',
+    body: block(['tests/autopilot-product-journeys.spec.mjs']),
+    changedFiles: [
+      '.github/workflows/product-autopilot-qa.yml',
+      'artifacts/dungeon-rpg/scripts/validate-block-10-guild-raid-lobby.mjs',
+    ],
+  });
+  const expectedExpanded = [
+    'tests/autopilot-product-journeys.spec.mjs',
+    'tests/autopilot-outside-guild.spec.mjs',
+    'tests/guild-raid-lobby-mobile.spec.mjs',
+  ];
+  if (safetyExpanded.join('\n') !== expectedExpanded.join('\n')) {
+    throw new Error(`Safety-expanded multi-spec fixture drifted: ${safetyExpanded.join(', ')}`);
+  }
+  if (parseResolvedSelection(safetyExpanded.join(' ')).join('\n') !== expectedExpanded.join('\n')) {
+    throw new Error('Canonical multi-spec handoff changed before Playwright discovery.');
+  }
+
   let rejectedUnknown = false;
   try {
     resolveSelection({ eventName: 'pull_request', body: block(['tests/not-real.spec.mjs']), changedFiles: [] });
@@ -207,14 +245,43 @@ function selfTest() {
     throw new Error('Product workflow primary Playwright invocation could not be located.');
   }
   const journeyStep = workflow.slice(journeyStart, journeyEnd);
-  for (const spec of ALL_SPECS) {
-    if (!journeyStep.includes(spec)) throw new Error(`Product workflow invocation cannot reach selectable spec: ${spec}`);
+  for (const contract of [
+    'SELECTED_PRODUCT_SPECS: ${{ needs.product-contracts.outputs.selected_specs }}',
+    'read -r -a selected_specs <<< "$SELECTED_PRODUCT_SPECS"',
+    '"${selected_specs[@]}"',
+    '--resolved-selection "$SELECTED_PRODUCT_SPECS"',
+  ]) {
+    if (!workflow.includes(contract)) throw new Error(`Product workflow selection handoff is missing: ${contract}`);
+  }
+
+  const parsed = parseResolvedSelection(ALL_SPECS.join('\n'));
+  if (parsed.join('\n') !== ALL_SPECS.join('\n')) throw new Error('Resolved selection parser changed registry order.');
+  for (const rejected of ['', 'tests/not-real.spec.mjs', `${ALL_SPECS[0]}\n${ALL_SPECS[0]}`, `${ALL_SPECS[1]}\n${ALL_SPECS[0]}`]) {
+    let didReject = false;
+    try {
+      parseResolvedSelection(rejected);
+    } catch {
+      didReject = true;
+    }
+    if (!didReject) throw new Error(`Invalid resolved selection was accepted: ${JSON.stringify(rejected)}`);
   }
 
   const configSource = fs.readFileSync(
     new URL('../../artifacts/dungeon-rpg/playwright.regression.config.mjs', import.meta.url),
     'utf8',
   );
+  for (const contract of [
+    'const resolvedText = process.env.SELECTED_PRODUCT_SPECS',
+    'Product Autopilot canonical selection:',
+    "resolvedText.split(/\\s+/)",
+  ]) {
+    if (!configSource.includes(contract)) {
+      throw new Error(`Playwright discovery does not consume the canonical selection: ${contract}`);
+    }
+  }
+  if (configSource.includes('GITHUB_EVENT_PATH') || configSource.includes('pull_request?.body')) {
+    throw new Error('Playwright discovery must not independently reparse PR metadata.');
+  }
   const registryMatch = configSource.match(/const PRODUCT_AUTOPILOT_SPECS = \[([\s\S]*?)\];/);
   if (!registryMatch) throw new Error('Playwright Product Autopilot registry could not be located.');
   const configRegistry = new Set(
@@ -260,9 +327,10 @@ const changedFiles = changedFilesPath && fs.existsSync(changedFilesPath)
 const resolved = resolveSelection({ eventName, body, changedFiles });
 const reportPath = arg('--assert-report');
 if (reportPath) {
+  const resolvedSelection = arg('--resolved-selection');
   assertSelectedSpecsExecuted({
     report: JSON.parse(fs.readFileSync(reportPath, 'utf8')),
-    selected: resolved,
+    selected: resolvedSelection === undefined ? resolved : parseResolvedSelection(resolvedSelection),
   });
   process.exit(0);
 }
