@@ -27,7 +27,8 @@ If the bootstrap workflow is not already present on the fixed target branch, no 
 - The bootstrap slice contains no migrations, function bundle, history manifest, smoke identities, or production validator.
 - The payload slice remains critical security work and must retain its full adaptive plan, migration/RLS/RPC/Edge contracts, Deno/PostgreSQL checks, historically binding browser checks, and independent exact-head decision.
 - Production access exists only in the trusted target-push job. The job checks the full 40-character target SHA against `git rev-parse HEAD`, uses `persist-credentials: false`, and targets only `hfndwqfghyomwapqsked`.
-- The repository's historical migration filenames and the reviewed 70-version production history have zero overlap. A repository-root `db push` is unsafe and must fail closed.
+- The repository's historical migration versions and the reviewed 71-version production history have zero version overlap. The production manifest records the reviewed repository-source mapping for `20261026113943_harden_social_profile_trust_boundary` (`20261025132500` in the repository, with its exact SQL SHA-256). A repository-root `db push` is unsafe and must fail closed.
+- Pending rollout scope is calculated as an exact set difference: the nine explicitly reviewed repository files minus repository sources already mapped into the 71-version production baseline must equal exactly the eight Duo migrations. No `later than production tail` timestamp heuristic is permitted.
 - The payload workflow uses pinned Supabase CLI, official `migration fetch --linked` in an isolated workdir, exactly eight explicitly copied migrations, exact-set validators, dry-run before apply, and no `migration repair`, `--include-all`, direct history edits, or arbitrary SQL.
 - Production apply and Edge deployment remain impossible on attempt 1. Attempt 2 still requires the verifier-owned one-use authorization.
 

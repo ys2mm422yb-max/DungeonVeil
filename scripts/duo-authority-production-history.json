@@ -1,6 +1,6 @@
 {
   "project_ref": "hfndwqfghyomwapqsked",
-  "captured_at": "2026-10-20T07:13:00Z",
+  "captured_at": "2026-10-26T11:43:00Z",
   "migrations": [
     { "version": "20260711230154", "name": "create_profiles_and_cloud_saves" },
     { "version": "20260711230206", "name": "create_guild_foundation" },
@@ -173,6 +173,15 @@
       "name": "harden_guild_raid_block14_rpc_execute"
     },
     { "version": "20260906214043", "name": "create_freelancer_crm" },
-    { "version": "20260906214205", "name": "remove_freelancer_crm_schema" }
+    { "version": "20260906214205", "name": "remove_freelancer_crm_schema" },
+    {
+      "version": "20261026113943",
+      "name": "harden_social_profile_trust_boundary",
+      "repository_source": {
+        "path": "supabase/migrations/20261025132500_harden_social_profile_trust_boundary.sql",
+        "version": "20261025132500",
+        "sql_sha256": "0a7b0658a8888be45cd33d4a484915292544d3e7e831ad369672e5881ff050f9"
+      }
+    }
   ]
 }
