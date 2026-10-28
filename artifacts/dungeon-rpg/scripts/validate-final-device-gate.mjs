@@ -15,6 +15,7 @@ const [
   completeRuntimeConfig,
   smoke,
   regressionWorkflow,
+  regressionSelector,
   completeRuntimeWorkflow,
   pagesWorkflow,
   combatStage,
@@ -30,6 +31,7 @@ const [
   read('../playwright.complete-runtime.config.mjs'),
   read('../tests/full-game-smoke.spec.mjs'),
   read('../../../.github/workflows/full-game-regression.yml'),
+  read('../../../.github/scripts/select-full-game-regression-mode.mjs'),
   read('../../../.github/workflows/complete-runtime-evidence-qa.yml'),
   read('../../../.github/workflows/dungeon-veil-pages.yml'),
   read('../src/components/CombatStage.tsx'),
@@ -89,11 +91,19 @@ const checks = [
     && regressionWorkflow.includes('actions/download-artifact@v4')
     && regressionWorkflow.includes('BASE_PATH=/DungeonVeil/ pnpm --dir artifacts/dungeon-rpg exec vite preview')
     && regressionWorkflow.includes('http://127.0.0.1:4173/DungeonVeil/')
+    && regressionWorkflow.includes('fgr-plan:')
+    && regressionWorkflow.includes('node .github/scripts/select-full-game-regression-mode.mjs --self-test')
+    && regressionWorkflow.includes('git diff --name-only "$PR_BASE_SHA...$PR_HEAD_SHA"')
+    && regressionWorkflow.includes('full-game-regression-selection-${{ github.event.pull_request.head.sha || github.sha }}')
     && regressionWorkflow.includes('browser-smoke:')
     && regressionWorkflow.includes('browser-regression:')
-    && regressionWorkflow.includes("github.event.pull_request.draft == true")
-    && regressionWorkflow.includes("github.event.pull_request.draft == false")
-    && regressionWorkflow.includes("github.ref_name == 'fix/mobile-telegraphs-room-21-50-balance'")
+    && regressionWorkflow.includes("needs.fgr-plan.outputs.mode != 'omit'")
+    && regressionWorkflow.includes("needs.fgr-plan.outputs.mode == 'smoke'")
+    && regressionWorkflow.includes("needs.fgr-plan.outputs.mode == 'full'")
+    && regressionSelector.includes('safe_contract_only_diff')
+    && regressionSelector.includes('unsafe_changed_files_fail_closed')
+    && regressionSelector.includes('non_pull_request_full')
+    && regressionSelector.includes("eventName: 'workflow_dispatch'")
     && regressionWorkflow.includes('full-game-regression-results-${{ matrix.project }}')
     && regressionWorkflow.includes("GREP_INVERT='rooms 1-50 produce stable visual evidence across the full run|full room visual evidence'")
     && !regressionWorkflow.includes('desktop-room-regression:')
@@ -164,4 +174,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Final device gate passed: draft synchronizations use one shared Pages build and compact iPhone plus Android phone smoke checks while exhaustive runtime media is skipped; ready PRs, manual runs and the fixed target branch retain zero-retry evidence on all four supported portrait mobile projects, with desktop and playable landscape excluded.');
+console.log('Final device gate passed: allowlisted contract/docs PRs may stop before install/build, unsafe Draft PRs retain one shared Pages build and compact phone smoke, and unsafe Ready PRs plus manual/target runs retain zero-retry evidence on all four portrait projects without desktop or playable landscape.');
