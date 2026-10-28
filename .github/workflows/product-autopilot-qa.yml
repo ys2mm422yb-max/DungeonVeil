@@ -529,7 +529,7 @@ jobs:
               rm -f "$tmp" || true
               continue
             fi
-            if ! ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 "$tmp"; then
+            if ! ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 -pred mixed "$tmp"; then
               echo "::warning file=$png::Skipping PNG compaction because lossless re-encode failed."
               rm -f "$tmp" || true
               continue

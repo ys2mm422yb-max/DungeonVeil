@@ -98,6 +98,9 @@ const productWorkflow = workflows.get('product-autopilot-qa.yml') ?? '';
 assert(productWorkflow.includes('assert-artifact-budget.mjs'), 'Product Autopilot QA must enforce artifact budgets before upload.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'success'"), 'Product success evidence must upload only after success.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'failure'"), 'Product diagnostics must upload only after failure.');
+assert(productWorkflow.includes('-c:v png -compression_level 9 -pred mixed'), 'Product success PNG evidence must use the deterministic lossless mixed predictor.');
+assert(productWorkflow.includes('if [[ "$before_pixels" != "$after_pixels" ]]'), 'Product success PNG compaction must verify decoded RGBA pixel identity.');
+assert(productWorkflow.includes('if (( after_size < before_size )); then'), 'Product success PNG compaction must keep only smaller lossless output.');
 assert(productWorkflow.includes('outputRootReal = fs.realpathSync(outputRoot)') && productWorkflow.includes("path.resolve('artifacts/dungeon-rpg', attachmentPath)"), 'Product player-death evidence must resolve package-relative video attachments inside the real results root.');
 assert(playerDeathSpec.includes('mounted authority bridge proves held revive -> second-death Fallen -> Team Defeat (${language})'), 'Player-death spec is missing the mounted localized authority title contract.');
 for (const language of ['de', 'en']) {
