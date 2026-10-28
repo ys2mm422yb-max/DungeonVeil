@@ -579,9 +579,26 @@ jobs:
         if: steps.product-tests.outcome == 'success'
         run: >-
           node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --manifest artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json
           --max-mb 100
           --label "product-success-${{ matrix.project }}"
           artifacts/dungeon-rpg/test-results
+      - name: Prove product evidence composition manifests exist
+        if: always() && steps.product-tests.outcome == 'success'
+        run: |
+          test -s artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
+          test -s artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json
+      - name: Upload product evidence composition manifests
+        if: always() && steps.product-tests.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-autopilot-evidence-composition-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
+            artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json
       - name: Upload successful portrait screenshots and review video
         if: steps.product-tests.outcome == 'success'
         uses: actions/upload-artifact@v4

@@ -1,5 +1,5 @@
-import { readdir, realpath, stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readdir, realpath, stat, writeFile } from 'node:fs/promises';
+import { basename, extname, relative, resolve } from 'node:path';
 
 const INDEPENDENT_NESTED_ARTIFACT_DIR_PREFIXES = [
   'runtime-monitor-negative-probe-',
@@ -9,6 +9,7 @@ function parseArgs(argv) {
   const args = [...argv];
   let maxMb = null;
   let label = 'artifact';
+  let manifestPath = null;
   const paths = [];
 
   while (args.length > 0) {
@@ -21,6 +22,11 @@ function parseArgs(argv) {
       label = String(args.shift() ?? label);
       continue;
     }
+    if (arg === '--manifest') {
+      manifestPath = args.shift();
+      if (!manifestPath) throw new Error('--manifest requires an output path.');
+      continue;
+    }
     paths.push(arg);
   }
 
@@ -31,7 +37,7 @@ function parseArgs(argv) {
     throw new Error('At least one file or directory path is required.');
   }
 
-  return { maxBytes: Math.floor(maxMb * 1024 * 1024), maxMb, label, paths };
+  return { maxBytes: Math.floor(maxMb * 1024 * 1024), maxMb, label, manifestPath, paths };
 }
 
 function isIndependentNestedArtifactDirectory(name) {
@@ -73,7 +79,25 @@ async function collectFiles(inputPath, files, missing, skippedIndependentArtifac
   }
 }
 
-const { maxBytes, maxMb, label, paths } = parseArgs(process.argv.slice(2));
+function budgetClass(filePath) {
+  const name = basename(filePath).toLowerCase();
+  if (name === 'full-game-results.json') return 'playwright-result-report';
+  if (name.startsWith('product-evidence-file-manifest-')) return 'curated-evidence-manifest';
+  if (name.endsWith('.trace.json') || name.endsWith('.trace.zip')) return 'trace';
+  const extension = extname(name);
+  if (extension === '.png') return 'png';
+  if (extension === '.webm' || extension === '.mp4') return 'video';
+  if (extension === '.log') return 'log';
+  if (extension === '.json') return 'json';
+  return extension ? extension.slice(1) : 'other';
+}
+
+function displayPath(filePath) {
+  const candidate = relative(process.cwd(), filePath).split('\\').join('/');
+  return candidate && !candidate.startsWith('../') ? candidate : filePath;
+}
+
+const { maxBytes, maxMb, label, manifestPath, paths } = parseArgs(process.argv.slice(2));
 const files = [];
 const missing = [];
 const skippedIndependentArtifacts = [];
@@ -88,6 +112,19 @@ if (files.length === 0) {
 const uniqueFiles = [...new Map(files.map(file => [file.path, file])).values()];
 const totalBytes = uniqueFiles.reduce((sum, file) => sum + file.bytes, 0);
 const totalMiB = totalBytes / 1024 / 1024;
+const inventory = uniqueFiles
+  .map(file => ({ path: displayPath(file.path), bytes: file.bytes, class: budgetClass(file.path) }))
+  .sort((left, right) => right.bytes - left.bytes || left.path.localeCompare(right.path));
+const totalsByClass = new Map();
+for (const file of inventory) {
+  const aggregate = totalsByClass.get(file.class) ?? { class: file.class, fileCount: 0, totalBytes: 0 };
+  aggregate.fileCount += 1;
+  aggregate.totalBytes += file.bytes;
+  totalsByClass.set(file.class, aggregate);
+}
+const classTotals = [...totalsByClass.values()]
+  .map(entry => ({ ...entry, totalMiB: Number((entry.totalBytes / 1024 / 1024).toFixed(2)) }))
+  .sort((left, right) => right.totalBytes - left.totalBytes || left.class.localeCompare(right.class));
 const result = {
   label,
   fileCount: uniqueFiles.length,
@@ -99,7 +136,22 @@ const result = {
   skippedIndependentArtifacts,
 };
 
-console.log(JSON.stringify(result, null, 2));
+const diagnostic = {
+  version: 1,
+  ...result,
+  classTotals,
+  files: inventory,
+};
+if (manifestPath) {
+  await writeFile(resolve(manifestPath), `${JSON.stringify(diagnostic, null, 2)}\n`, 'utf8');
+}
+
+console.log(JSON.stringify({
+  ...result,
+  classTotals,
+  largestFiles: inventory.slice(0, 20),
+  manifestPath: manifestPath ?? null,
+}, null, 2));
 if (totalBytes > maxBytes) {
   throw new Error(`${label} exceeds its budget: ${totalMiB.toFixed(2)} MiB > ${maxMb} MiB.`);
 }

@@ -96,6 +96,11 @@ assert(fullGameWorkflow.includes('retention-days: 14'), 'Focused successful play
 
 const productWorkflow = workflows.get('product-autopilot-qa.yml') ?? '';
 assert(productWorkflow.includes('assert-artifact-budget.mjs'), 'Product Autopilot QA must enforce artifact budgets before upload.');
+assert(productWorkflow.includes('--manifest artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json'), 'Product Autopilot QA must persist the exact post-compaction budget inventory before failing closed.');
+assert(productWorkflow.includes('Upload product evidence composition manifests'), 'Product Autopilot QA must publish its small evidence-composition diagnostics.');
+assert(productWorkflow.includes("if: always() && steps.product-tests.outcome == 'success'"), 'Product evidence-composition diagnostics must remain available after a success-evidence budget failure.');
+assert(productWorkflow.includes('product-autopilot-evidence-composition-${{ matrix.project }}'), 'Product evidence-composition diagnostics must be device-specific.');
+assert(productWorkflow.includes('product-evidence-file-manifest-${{ matrix.project }}.json') && productWorkflow.includes('product-artifact-budget-manifest-${{ matrix.project }}.json'), 'Product evidence-composition artifact must contain both curated-media and complete-budget inventories.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'success'"), 'Product success evidence must upload only after success.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'failure'"), 'Product diagnostics must upload only after failure.');
 assert(productWorkflow.includes('-c:v png -compression_level 9 -pred mixed'), 'Product success PNG evidence must use the deterministic lossless mixed predictor.');
