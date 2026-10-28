@@ -63,6 +63,32 @@ Rules:
 
 The purpose is to remove unrelated work, not relevant work. A spectator-only change should not spend time on Guild Raid, Run Gifts, unrelated upgrade prestige and chapter evidence unless those contracts are actually affected; a Guild Raid, Supabase, renderer or final-release change can still legitimately require broad coverage.
 
+## Executable Full Game Regression selection
+
+Full Game Regression resolves its PR breadth before any dependency installation, production build, or browser runner starts. The PR may request one mode with this exact block:
+
+```md
+<!-- full-game-regression-selection:start -->
+### Requested Full Game Regression mode
+`omit`
+
+### Selection rationale
+Explain why the exact base/head diff contains only allowlisted non-runtime contracts or documentation and why no binding Full Game Regression failure exists.
+<!-- full-game-regression-selection:end -->
+```
+
+The executable selector, not prose alone, makes the final decision:
+
+- `omit` is allowed only when the canonical adaptive-plan validator passes, GitHub-derived exact base/head changed files are non-empty and every file matches the narrow selector allowlist, and the trusted Full Game Regression history lookup reports no failed, cancelled, timed-out, stale, or action-required run for the PR.
+- Missing, duplicated, malformed, contradictory, placeholder, or understated declarations fail closed to the historical Draft/Ready breadth.
+- An unavailable, incomplete, or ambiguous binding-history lookup fails closed. A historically relevant red, cancelled, stale, or missing gate remains mandatory after a fix.
+- Runtime, UI, gameplay, renderer, WebGL, assets, browser specs/configuration, shared build/dependency files, workflow files, selector files, and validator/policy files fail closed to browser coverage. Draft PRs receive the two-phone smoke; Ready PRs receive the complete four-device portrait regression.
+- Target-branch pushes and manual executions remain complete four-device runs.
+- A successful `omit` produces a small exact-head JSON receipt containing the canonical base/head SHAs, resolved mode, reasons, adaptive-plan result, binding history, sorted changed-file list, and SHA-256 digest. It must not execute package installation, typecheck, production build, asset/social/room audits, Playwright installation, or browser jobs.
+- The permanent selector self-test includes known safe contract-only shapes plus adversarial runtime, UI, asset, browser, shared-build, self-change, malformed-metadata, invalid-plan, binding-failure, and unknown-history fixtures.
+
+Changing the selector or its workflow is itself critical workflow scope and can never use `omit`. A real safe-omit receipt must come from a later unchanged selector head on a genuinely allowlisted PR; fixture output is not a substitute for that live receipt.
+
 ## GitHub and Supabase maintenance
 
 Adaptive testing does not reduce repository or backend hygiene.

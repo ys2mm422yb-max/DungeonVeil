@@ -48,6 +48,20 @@ Verifier rationale: pending independent review.
 
 <!-- adaptive-test-plan:end -->
 
+## Full Game Regression selection
+
+<!-- full-game-regression-selection:start -->
+
+### Requested Full Game Regression mode
+
+`omit | smoke | full`
+
+### Selection rationale
+
+Explain why the exact base/head diff and binding failure history make this mode sufficient. `omit` is valid only for the repository's fail-closed contract/document allowlist.
+
+<!-- full-game-regression-selection:end -->
+
 ## Results
 
 Record exact head, commands, workflow/run/job IDs, artifacts, hashes, actually opened media, visible findings, and any plan escalation.
