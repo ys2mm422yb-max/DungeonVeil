@@ -580,9 +580,10 @@ jobs:
         run: >-
           node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
           --manifest artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json
+          --file-manifest artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
           --max-mb 100
           --label "product-success-${{ matrix.project }}"
-          artifacts/dungeon-rpg/test-results
+          artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
       - name: Prove product evidence composition manifests exist
         if: always() && steps.product-tests.outcome == 'success'
         run: |
