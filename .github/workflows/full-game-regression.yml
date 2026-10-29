@@ -12,17 +12,26 @@ on:
     branches: [test/full-game-regression-pass, 'fix/**', 'work/block-*']
     paths:
       - '.github/workflows/full-game-regression.yml'
+      - '.github/scripts/select-full-game-regression-mode.mjs'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
       - 'artifacts/dungeon-rpg/**'
+      - 'docs/ADAPTIVE_TEST_POLICY.md'
+      - 'scripts/validate-adaptive-test-plan.mjs'
       - '.ci/full-game-regression-trigger*.txt'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, 'fix/**', 'work/block-*']
     paths:
       - '.github/workflows/full-game-regression.yml'
+      - '.github/scripts/select-full-game-regression-mode.mjs'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
       - 'artifacts/dungeon-rpg/**'
+      - 'docs/ADAPTIVE_TEST_POLICY.md'
+      - 'scripts/validate-adaptive-test-plan.mjs'
       - '.ci/full-game-regression-trigger*.txt'
 
 permissions:
+  actions: read
   contents: read
   issues: write
   pull-requests: write
@@ -37,7 +46,110 @@ env:
   DUNGEON_VEIL_URL: http://127.0.0.1:4173/DungeonVeil/
 
 jobs:
+  fgr-plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      mode: ${{ steps.select.outputs.mode }}
+    steps:
+      - name: Check out exact requested head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Resolve fail-closed exact-head regression mode
+        id: select
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/select-full-game-regression-mode.mjs --self-test
+          body_file="${RUNNER_TEMP}/full-game-regression-pr-body.md"
+          changed_files="${RUNNER_TEMP}/full-game-regression-changed-files.txt"
+          plan_result="${RUNNER_TEMP}/full-game-regression-adaptive-plan.txt"
+          binding_history="${RUNNER_TEMP}/full-game-regression-binding-history.txt"
+          mode_file="${RUNNER_TEMP}/full-game-regression-mode.txt"
+          receipt="${RUNNER_TEMP}/full-game-regression-selection-receipt.json"
+          selector_args=(
+            --event "$GITHUB_EVENT_NAME"
+            --output "$mode_file"
+            --receipt "$receipt"
+          )
+
+          if [[ "$GITHUB_EVENT_NAME" == 'pull_request' ]]; then
+            test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+            printf '%s' "$PR_BODY" > "$body_file"
+            git diff --name-only "$PR_BASE_SHA...$PR_HEAD_SHA" > "$changed_files"
+
+            if PR_BODY="$PR_BODY" PR_NUMBER="$PR_NUMBER" \
+              node scripts/validate-adaptive-test-plan.mjs > "$plan_result" 2>&1; then
+              :
+            else
+              printf '\nCanonical adaptive validator rejected this PR body; selection must fail closed.\n' >> "$plan_result"
+            fi
+            cat "$plan_result"
+
+            if history_json="$(gh api --method GET \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/full-game-regression.yml/runs" \
+              -f event=pull_request -f branch="$PR_HEAD_REF" -f per_page=100 2>/dev/null)"; then
+              history_count="$(jq -r '.total_count // "unknown"' <<< "$history_json" 2>/dev/null || echo unknown)"
+              if [[ ! "$history_count" =~ ^[0-9]+$ || "$history_count" -gt 100 ]]; then
+                echo unknown > "$binding_history"
+              else
+                if ! jq -r --argjson pr "$PR_NUMBER" --argjson current "$GITHUB_RUN_ID" '
+                  [.workflow_runs[]
+                    | select(.id != $current)
+                    | select(any(.pull_requests[]?; .number == $pr))
+                    | .conclusion]
+                  | if length == 0 then ["success"] else . end
+                  | .[]
+                ' <<< "$history_json" > "$binding_history"; then
+                  echo unknown > "$binding_history"
+                fi
+              fi
+            else
+              echo unknown > "$binding_history"
+            fi
+
+            selector_args+=(
+              --base-sha "$PR_BASE_SHA"
+              --head-sha "$PR_HEAD_SHA"
+              --draft "$PR_DRAFT"
+              --body-file "$body_file"
+              --changed-files "$changed_files"
+              --adaptive-plan-result "$plan_result"
+              --binding-history "$binding_history"
+            )
+          else
+            test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+            selector_args+=(--head-sha "$GITHUB_SHA")
+          fi
+
+          node .github/scripts/select-full-game-regression-mode.mjs "${selector_args[@]}"
+          mode="$(tr -d '[:space:]' < "$mode_file")"
+          [[ "$mode" == 'omit' || "$mode" == 'smoke' || "$mode" == 'full' ]]
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          cp "$receipt" full-game-regression-selection-receipt.json
+      - name: Upload exact-head selection receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-game-regression-selection-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 9
+          path: full-game-regression-selection-receipt.json
+
   static-regression:
+    needs: fgr-plan
+    if: needs.fgr-plan.outputs.mode != 'omit'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -109,11 +221,8 @@ jobs:
           path: artifacts/dungeon-rpg/dist/public
 
   browser-smoke:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.full_evidence != true) ||
-      (github.event_name == 'push' && github.ref_name != 'fix/mobile-telegraphs-room-21-50-balance') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == true)
-    needs: static-regression
+    if: needs.fgr-plan.outputs.mode == 'smoke'
+    needs: [fgr-plan, static-regression]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -217,11 +326,8 @@ jobs:
         run: exit 1
 
   browser-regression:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.full_evidence == true) ||
-      (github.event_name == 'push' && github.ref_name == 'fix/mobile-telegraphs-room-21-50-balance') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
-    needs: static-regression
+    if: needs.fgr-plan.outputs.mode == 'full'
+    needs: [fgr-plan, static-regression]
     runs-on: ubuntu-latest
     timeout-minutes: 75
     strategy:

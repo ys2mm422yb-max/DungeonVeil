@@ -1,9 +1,13 @@
-import { readFile, readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { promisify } from 'node:util';
 
 const root = process.cwd();
 const workflowRoot = join(root, '.github', 'workflows');
 const appRoot = join(root, 'artifacts', 'dungeon-rpg');
+const execFileAsync = promisify(execFile);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -96,8 +100,21 @@ assert(fullGameWorkflow.includes('retention-days: 14'), 'Focused successful play
 
 const productWorkflow = workflows.get('product-autopilot-qa.yml') ?? '';
 assert(productWorkflow.includes('assert-artifact-budget.mjs'), 'Product Autopilot QA must enforce artifact budgets before upload.');
+assert(productWorkflow.includes('--manifest artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json'), 'Product Autopilot QA must persist the exact post-compaction budget inventory before failing closed.');
+assert(productWorkflow.includes('--file-manifest artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json'), 'Product success budget must consume the canonical curated evidence manifest.');
+assert(productWorkflow.includes(`--label "product-success-\${{ matrix.project }}"
+          artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-\${{ matrix.project }}.json`), 'Product success budget must include the curated manifest that is uploaded with the evidence.');
+assert(productWorkflow.includes('Upload product evidence composition manifests'), 'Product Autopilot QA must publish its small evidence-composition diagnostics.');
+assert(productWorkflow.includes("if: always() && steps.product-tests.outcome == 'success'"), 'Product evidence-composition diagnostics must remain available after a success-evidence budget failure.');
+assert(productWorkflow.includes('product-autopilot-evidence-composition-${{ matrix.project }}'), 'Product evidence-composition diagnostics must be device-specific.');
+assert(productWorkflow.includes('product-evidence-file-manifest-${{ matrix.project }}.json') && productWorkflow.includes('product-artifact-budget-manifest-${{ matrix.project }}.json'), 'Product evidence-composition artifact must contain both curated-media and complete-budget inventories.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'success'"), 'Product success evidence must upload only after success.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'failure'"), 'Product diagnostics must upload only after failure.');
+assert(productWorkflow.includes('-c:v png -compression_level 9 -pred mixed'), 'Product success PNG evidence must use the deterministic lossless mixed predictor.');
+assert(productWorkflow.includes('recompress-png-idat.mjs "$tmp" "$filtered_tmp"'), 'Product success PNG evidence must try dependency-free filtered IDAT recompression after the mixed predictor.');
+assert(productWorkflow.includes('(( filtered_size < mixed_size ))'), 'Product success PNG compaction must retain filtered IDAT output only when it is smaller.');
+assert(productWorkflow.includes('if [[ "$before_pixels" != "$after_pixels" ]]'), 'Product success PNG compaction must verify decoded RGBA pixel identity.');
+assert(productWorkflow.includes('if (( after_size < before_size )); then'), 'Product success PNG compaction must keep only smaller lossless output.');
 assert(productWorkflow.includes('outputRootReal = fs.realpathSync(outputRoot)') && productWorkflow.includes("path.resolve('artifacts/dungeon-rpg', attachmentPath)"), 'Product player-death evidence must resolve package-relative video attachments inside the real results root.');
 assert(playerDeathSpec.includes('mounted authority bridge proves held revive -> second-death Fallen -> Team Defeat (${language})'), 'Player-death spec is missing the mounted localized authority title contract.');
 for (const language of ['de', 'en']) {
@@ -106,6 +123,67 @@ for (const language of ['de', 'en']) {
 }
 assert(!productWorkflow.includes('artifacts/dungeon-rpg/test-results/**\n'), 'Product QA must not upload the entire test-results tree.');
 assert(!productWorkflow.includes('artifacts/dungeon-rpg/playwright-report/**'), 'Product QA must not upload the full HTML report.');
+
+const pngRecompressor = join(appRoot, 'scripts', 'recompress-png-idat.mjs');
+const pngRecompressorResult = await execFileAsync(process.execPath, [pngRecompressor, '--self-test']);
+assert(pngRecompressorResult.stdout.includes('PNG IDAT recompression self-test passed'), 'Dependency-free PNG IDAT recompression self-test did not pass.');
+
+const budgetScript = join(appRoot, 'scripts', 'assert-artifact-budget.mjs');
+const budgetFixture = await mkdtemp(join(root, '.product-budget-contract-'));
+try {
+  const curatedBytes = Buffer.from('curated-success-evidence');
+  const traceBytes = Buffer.from('{"state":"defeat"}');
+  const curatedPath = join(budgetFixture, 'autopilot-curated-device.webm');
+  const tracePath = join(budgetFixture, 'player-death-solo-device.trace.json');
+  const uncuratedPath = join(budgetFixture, 'companion-run-device.png');
+  const fileManifestPath = join(budgetFixture, 'product-evidence-file-manifest-device.json');
+  const budgetManifestPath = join(budgetFixture, 'budget-diagnostic.json');
+  await writeFile(curatedPath, curatedBytes);
+  await writeFile(tracePath, traceBytes);
+  await writeFile(uncuratedPath, Buffer.alloc(2 * 1024 * 1024, 1));
+  const fileManifest = {
+    version: 1,
+    files: [
+      {
+        path: basename(curatedPath),
+        bytes: curatedBytes.length,
+        sha256: createHash('sha256').update(curatedBytes).digest('hex'),
+      },
+      {
+        path: basename(tracePath),
+        bytes: traceBytes.length,
+        sha256: createHash('sha256').update(traceBytes).digest('hex'),
+      },
+    ],
+  };
+  await writeFile(fileManifestPath, `${JSON.stringify(fileManifest)}\n`);
+  await execFileAsync(process.execPath, [
+    budgetScript,
+    '--file-manifest', fileManifestPath,
+    '--manifest', budgetManifestPath,
+    '--max-mb', '1',
+    '--label', 'curated-success-contract',
+    fileManifestPath,
+  ]);
+  const diagnostic = JSON.parse(await readFile(budgetManifestPath, 'utf8'));
+  assert(diagnostic.validatedFileManifest === fileManifestPath, 'Budget diagnostic must identify the validated curated manifest.');
+  assert(diagnostic.files.some((entry) => entry.path.endsWith('/autopilot-curated-device.webm')), 'Curated evidence file was not budgeted.');
+  assert(diagnostic.files.some((entry) => entry.path.endsWith('/player-death-solo-device.trace.json')), 'Uploaded trace evidence was not budgeted.');
+  assert(diagnostic.files.some((entry) => entry.path.endsWith('/product-evidence-file-manifest-device.json')), 'Uploaded evidence manifest was not budgeted.');
+  assert(!diagnostic.files.some((entry) => entry.path.endsWith('/companion-run-device.png')), 'Uncurated file outside the success upload set affected its budget.');
+
+  fileManifest.files[0].bytes += 1;
+  await writeFile(fileManifestPath, `${JSON.stringify(fileManifest)}\n`);
+  let driftRejected = false;
+  try {
+    await execFileAsync(process.execPath, [budgetScript, '--file-manifest', fileManifestPath, '--max-mb', '1']);
+  } catch (error) {
+    driftRejected = String(error.stderr).includes('byte count drifted');
+  }
+  assert(driftRejected, 'Curated manifest/file byte drift must fail closed.');
+} finally {
+  await rm(budgetFixture, { recursive: true, force: true });
+}
 
 const menuWorkflow = workflows.get('main-menu-visual-regression.yml') ?? '';
 assert(menuWorkflow.includes('assert-artifact-budget.mjs'), 'Main-menu evidence must enforce artifact budgets before upload.');

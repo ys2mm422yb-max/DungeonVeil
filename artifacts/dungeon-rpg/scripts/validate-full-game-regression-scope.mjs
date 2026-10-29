@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, worldBossSmoke, roomAudit, packageJson, fullGameWorkflow, completeRuntimeWorkflow] = await Promise.all([
+const [config, smoke, worldBossSmoke, roomAudit, packageJson, fullGameWorkflow, completeRuntimeWorkflow, fullGameSelector] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/worldboss-block1.spec.mjs', import.meta.url), 'utf8'),
@@ -8,6 +8,7 @@ const [config, smoke, worldBossSmoke, roomAudit, packageJson, fullGameWorkflow, 
   readFile(new URL('../package.json', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/full-game-regression.yml', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/complete-runtime-evidence-qa.yml', import.meta.url), 'utf8'),
+  readFile(new URL('../../../.github/scripts/select-full-game-regression-mode.mjs', import.meta.url), 'utf8'),
 ]);
 
 const supportedProjects = ['iphone-webkit', 'android-chromium', 'ipad-portrait-webkit', 'android-tablet-chromium'];
@@ -83,6 +84,15 @@ requireMarkers(fullGameWorkflow, 'optimized workflow', [
   'ready_for_review',
   'cancel-in-progress: true',
   'Build GitHub Pages production output once',
+  'fgr-plan:',
+  'Resolve fail-closed exact-head regression mode',
+  'git diff --name-only "$PR_BASE_SHA...$PR_HEAD_SHA"',
+  'node scripts/validate-adaptive-test-plan.mjs',
+  'full-game-regression-binding-history.txt',
+  'full-game-regression-selection-${{ github.event.pull_request.head.sha || github.sha }}',
+  "needs.fgr-plan.outputs.mode != 'omit'",
+  "needs.fgr-plan.outputs.mode == 'smoke'",
+  "needs.fgr-plan.outputs.mode == 'full'",
   'dungeon-veil-pages-build-${{ github.sha }}',
   'browser-smoke:',
   'max-parallel: 2',
@@ -92,9 +102,6 @@ requireMarkers(fullGameWorkflow, 'optimized workflow', [
   'Restore browser engine cache',
   'actions/download-artifact@v4',
   'browser-regression:',
-  "github.event.pull_request.draft == true",
-  "github.event.pull_request.draft == false",
-  "github.ref_name == 'fix/mobile-telegraphs-room-21-50-balance'",
   "GREP_INVERT='rooms 1-50 produce stable visual evidence across the full run|full room visual evidence'",
   'Test complete non-room regression on current portrait mobile device',
   'full-game-regression-results-${{ matrix.project }}',
@@ -111,6 +118,15 @@ requireMarkers(fullGameWorkflow, 'optimized workflow', [
   'retention-days: 3',
   'retention-days: 5',
   'compression-level: 9',
+]);
+requireMarkers(fullGameSelector, 'adaptive Full Game Regression selector', [
+  'safe_contract_only_diff',
+  'adaptive_plan_invalid_fail_closed',
+  'binding_history_',
+  'unsafe_changed_files_fail_closed',
+  'non_pull_request_full',
+  'changed_files_sha256',
+  'Adaptive Full Game Regression selector self-test passed.',
 ]);
 requireMarkers(completeRuntimeWorkflow, 'complete runtime delegation', [
   'types: [opened, synchronize, reopened, ready_for_review]',
@@ -134,7 +150,16 @@ if (unsupportedProjectPattern.test(completeRuntimeWorkflow)) failures.push('comp
 if (fullGameWorkflow.includes('desktop-room-regression:')) failures.push('full-game regression still duplicates exhaustive room evidence');
 if (/Build current branch for browser regression|Build current branch for desktop room evidence/.test(fullGameWorkflow)) failures.push('browser jobs still rebuild production output instead of reusing the shared build');
 if (!fullGameWorkflow.includes("if: steps.browser-cache.outputs.cache-hit != 'true'")) failures.push('browser engine cache misses are not handled deterministically');
-if (!fullGameWorkflow.includes("github.event_name == 'workflow_dispatch' && inputs.full_evidence == true")) failures.push('manual full-evidence execution is missing');
+if (!fullGameSelector.includes("eventName: 'workflow_dispatch'")) failures.push('manual execution is not proven to retain full coverage');
+
+const planJob = jobSection(fullGameWorkflow, 'fgr-plan');
+const staticJob = jobSection(fullGameWorkflow, 'static-regression');
+for (const expensiveMarker of ['pnpm install', 'pnpm/action-setup', 'actions/setup-node', 'playwright install', ' run build']) {
+  if (planJob.includes(expensiveMarker)) failures.push(`FGR plan job performs expensive work before omit resolution: ${expensiveMarker}`);
+}
+if (!staticJob.includes("if: needs.fgr-plan.outputs.mode != 'omit'")) failures.push('static install/build work is not guarded by the resolved non-omit mode');
+if (!fullGameWorkflow.includes('actions: read')) failures.push('binding-history lookup lacks explicit read permission');
+if (!fullGameWorkflow.includes('persist-credentials: false')) failures.push('exact-head plan checkout still persists GitHub credentials');
 
 for (const command of ['audit:assets', 'audit:social', 'audit:rooms', 'typecheck', 'build']) {
   if (!packageJson.includes(`"${command}"`)) failures.push(`missing package command: ${command}`);
@@ -146,4 +171,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Full-game regression contract passed: draft commits reuse one Pages build for compact iPhone and Android phone smoke checks and skip exhaustive runtime media; ready PRs, manual full-evidence runs and the fixed target branch retain the four supported portrait mobile projects without desktop gameplay.');
+console.log('Full-game regression contract passed: exact-head planning can omit only allowlisted contract/docs PRs before install/build, unsafe Draft PRs retain the two-phone smoke, and unsafe Ready PRs plus manual/target runs retain all four portrait projects without desktop gameplay.');

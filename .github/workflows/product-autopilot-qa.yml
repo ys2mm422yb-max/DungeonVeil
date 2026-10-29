@@ -529,10 +529,25 @@ jobs:
               rm -f "$tmp" || true
               continue
             fi
-            if ! ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 "$tmp"; then
+            if ! ffmpeg -hide_banner -loglevel error -y -i "$png" -frames:v 1 -c:v png -compression_level 9 -pred mixed "$tmp"; then
               echo "::warning file=$png::Skipping PNG compaction because lossless re-encode failed."
               rm -f "$tmp" || true
               continue
+            fi
+            filtered_tmp=""
+            if filtered_tmp="$(mktemp --suffix=.png)"; then
+              if node artifacts/dungeon-rpg/scripts/recompress-png-idat.mjs "$tmp" "$filtered_tmp"; then
+                if filtered_size="$(stat -c '%s' "$filtered_tmp")" && mixed_size="$(stat -c '%s' "$tmp")" && (( filtered_size < mixed_size )); then
+                  mv "$filtered_tmp" "$tmp"
+                else
+                  rm -f "$filtered_tmp" || true
+                fi
+              else
+                echo "::warning file=$png::Keeping the FFmpeg lossless output because filtered IDAT recompression failed."
+                rm -f "$filtered_tmp" || true
+              fi
+            else
+              echo "::warning file=$png::Keeping the FFmpeg lossless output because the filtered temporary file could not be created."
             fi
             if ! after_pixels="$(ffmpeg -hide_banner -loglevel error -i "$tmp" -vf format=rgba -f framemd5 - | tail -n 1)"; then
               echo "::warning file=$png::Skipping PNG compaction because compacted decode failed."
@@ -579,9 +594,27 @@ jobs:
         if: steps.product-tests.outcome == 'success'
         run: >-
           node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --manifest artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json
+          --file-manifest artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
           --max-mb 100
           --label "product-success-${{ matrix.project }}"
-          artifacts/dungeon-rpg/test-results
+          artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
+      - name: Prove product evidence composition manifests exist
+        if: always() && steps.product-tests.outcome == 'success'
+        run: |
+          test -s artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
+          test -s artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json
+      - name: Upload product evidence composition manifests
+        if: always() && steps.product-tests.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-autopilot-evidence-composition-${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+          path: |
+            artifacts/dungeon-rpg/test-results/product-evidence-file-manifest-${{ matrix.project }}.json
+            artifacts/dungeon-rpg/test-results/product-artifact-budget-manifest-${{ matrix.project }}.json
       - name: Upload successful portrait screenshots and review video
         if: steps.product-tests.outcome == 'success'
         uses: actions/upload-artifact@v4
