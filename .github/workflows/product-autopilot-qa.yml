@@ -534,6 +534,21 @@ jobs:
               rm -f "$tmp" || true
               continue
             fi
+            filtered_tmp=""
+            if filtered_tmp="$(mktemp --suffix=.png)"; then
+              if node artifacts/dungeon-rpg/scripts/recompress-png-idat.mjs "$tmp" "$filtered_tmp"; then
+                if filtered_size="$(stat -c '%s' "$filtered_tmp")" && mixed_size="$(stat -c '%s' "$tmp")" && (( filtered_size < mixed_size )); then
+                  mv "$filtered_tmp" "$tmp"
+                else
+                  rm -f "$filtered_tmp" || true
+                fi
+              else
+                echo "::warning file=$png::Keeping the FFmpeg lossless output because filtered IDAT recompression failed."
+                rm -f "$filtered_tmp" || true
+              fi
+            else
+              echo "::warning file=$png::Keeping the FFmpeg lossless output because the filtered temporary file could not be created."
+            fi
             if ! after_pixels="$(ffmpeg -hide_banner -loglevel error -i "$tmp" -vf format=rgba -f framemd5 - | tail -n 1)"; then
               echo "::warning file=$png::Skipping PNG compaction because compacted decode failed."
               rm -f "$tmp" || true

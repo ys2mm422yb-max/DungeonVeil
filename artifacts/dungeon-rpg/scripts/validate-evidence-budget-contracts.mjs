@@ -111,6 +111,8 @@ assert(productWorkflow.includes('product-evidence-file-manifest-${{ matrix.proje
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'success'"), 'Product success evidence must upload only after success.');
 assert(productWorkflow.includes("if: steps.product-tests.outcome == 'failure'"), 'Product diagnostics must upload only after failure.');
 assert(productWorkflow.includes('-c:v png -compression_level 9 -pred mixed'), 'Product success PNG evidence must use the deterministic lossless mixed predictor.');
+assert(productWorkflow.includes('recompress-png-idat.mjs "$tmp" "$filtered_tmp"'), 'Product success PNG evidence must try dependency-free filtered IDAT recompression after the mixed predictor.');
+assert(productWorkflow.includes('(( filtered_size < mixed_size ))'), 'Product success PNG compaction must retain filtered IDAT output only when it is smaller.');
 assert(productWorkflow.includes('if [[ "$before_pixels" != "$after_pixels" ]]'), 'Product success PNG compaction must verify decoded RGBA pixel identity.');
 assert(productWorkflow.includes('if (( after_size < before_size )); then'), 'Product success PNG compaction must keep only smaller lossless output.');
 assert(productWorkflow.includes('outputRootReal = fs.realpathSync(outputRoot)') && productWorkflow.includes("path.resolve('artifacts/dungeon-rpg', attachmentPath)"), 'Product player-death evidence must resolve package-relative video attachments inside the real results root.');
@@ -121,6 +123,10 @@ for (const language of ['de', 'en']) {
 }
 assert(!productWorkflow.includes('artifacts/dungeon-rpg/test-results/**\n'), 'Product QA must not upload the entire test-results tree.');
 assert(!productWorkflow.includes('artifacts/dungeon-rpg/playwright-report/**'), 'Product QA must not upload the full HTML report.');
+
+const pngRecompressor = join(appRoot, 'scripts', 'recompress-png-idat.mjs');
+const pngRecompressorResult = await execFileAsync(process.execPath, [pngRecompressor, '--self-test']);
+assert(pngRecompressorResult.stdout.includes('PNG IDAT recompression self-test passed'), 'Dependency-free PNG IDAT recompression self-test did not pass.');
 
 const budgetScript = join(appRoot, 'scripts', 'assert-artifact-budget.mjs');
 const budgetFixture = await mkdtemp(join(root, '.product-budget-contract-'));
