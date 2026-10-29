@@ -1,5 +1,6 @@
 const RUN_HOST_SELECTOR = '[data-testid="run-three-host"]';
 const PRIMARY_RECOVERY_GRACE_MS = 5_000;
+const NATIVE_CONTEXT_LOST_EVENT_GRACE_MS = 100;
 
 declare global {
   interface Window {
@@ -8,6 +9,7 @@ declare global {
 }
 
 let boundCanvas: HTMLCanvasElement | null = null;
+let fallbackProbeTimer = 0;
 let restoreTimer = 0;
 let reloadTimer = 0;
 let lostSince = 0;
@@ -18,7 +20,13 @@ function runRendererIsMounted(): boolean {
   return Boolean(document.querySelector(RUN_HOST_SELECTOR));
 }
 
+function clearFallbackProbe(): void {
+  if (fallbackProbeTimer) window.clearTimeout(fallbackProbeTimer);
+  fallbackProbeTimer = 0;
+}
+
 function clearRecoveryTimers(): void {
+  clearFallbackProbe();
   if (restoreTimer) window.clearTimeout(restoreTimer);
   if (reloadTimer) window.clearTimeout(reloadTimer);
   restoreTimer = 0;
@@ -82,6 +90,19 @@ function announceFallbackLost(canvas: HTMLCanvasElement, reason: string): void {
   }, 5_500);
 }
 
+function scheduleFallbackLost(canvas: HTMLCanvasElement): void {
+  if (fallbackProbeTimer || fallbackActive || primaryRecoveryHasGrace()) return;
+  fallbackProbeTimer = window.setTimeout(() => {
+    fallbackProbeTimer = 0;
+    discoverCanvas();
+    const liveCanvas = boundCanvas ?? canvas;
+    if (!runRendererIsMounted() || fallbackActive || primaryRecoveryHasGrace()) return;
+    const live = contextFor(liveCanvas);
+    if (!live?.isContextLost()) return;
+    announceFallbackLost(liveCanvas, 'webgl-context-watchdog');
+  }, NATIVE_CONTEXT_LOST_EVENT_GRACE_MS);
+}
+
 function announceFallbackRestored(reason: string): void {
   markRestored(reason);
   window.dispatchEvent(new Event('resize'));
@@ -104,7 +125,10 @@ export function installRunRendererRecovery(): void {
   // A second native context listener caused duplicate Preparing/Lost events.
   window.addEventListener('dungeon-veil-renderer-lost', event => {
     const detail = (event as CustomEvent<{ reason?: string; fallback?: boolean }>).detail;
-    if (!detail?.fallback) primaryRecoveryStartedAt = performance.now();
+    if (!detail?.fallback) {
+      primaryRecoveryStartedAt = performance.now();
+      clearFallbackProbe();
+    }
     markRecovering(detail?.reason ?? 'renderer-lost');
   });
   window.addEventListener('dungeon-veil-room-ready', event => {
@@ -124,7 +148,7 @@ export function installRunRendererRecovery(): void {
     const gl = contextFor(canvas);
     const now = performance.now();
     if (gl?.isContextLost() && !fallbackActive && !primaryRecoveryHasGrace(now)) {
-      announceFallbackLost(canvas, 'webgl-context-watchdog');
+      scheduleFallbackLost(canvas);
     } else if (fallbackActive && lostSince && gl && !gl.isContextLost() && now - lostSince > 250) {
       announceFallbackRestored('webgl-watchdog-recovered');
     }
