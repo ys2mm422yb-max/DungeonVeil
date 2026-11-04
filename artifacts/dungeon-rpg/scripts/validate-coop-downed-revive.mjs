@@ -12,6 +12,7 @@ const realtime = read('src/game/coopRealtimePresence.ts');
 const bridge = read('src/components/CoopRunRealtimeBridge.tsx');
 const authorityBridge = read('src/components/CoopAuthorityRuntimeBridge.tsx');
 const runtimeDuoEvidence = read('src/components/RuntimeDuoEvidenceQa.tsx');
+const runtimeDuoFixture = read('src/game/runtimeDuoAuthorityFixture.ts');
 const runtimeDuoSpec = read('tests/player-death-state.spec.mjs');
 const teammateUi = read('src/components/CoopTeammateUI.tsx');
 const page = read('src/pages/game.tsx');
@@ -74,6 +75,7 @@ assert(runtimeDuoSpec.includes("localStorage.setItem('dungeon-veil-tutorial-comp
 assert(runtimeDuoSpec.includes("action: 'releaseTransportFailure'") && runtimeDuoEvidence.includes('releaseTransportFailure: () => fixture.releaseTransportFailure()'), 'Runtime Duo reconnect evidence does not hold and explicitly release the failed transport state.');
 assert(runtimeDuoSpec.includes("action: 'resetPartnerDownedEvidenceBoundary'")
   && runtimeDuoEvidence.includes('resetPartnerDownedEvidenceBoundary: () => fixture.resetPartnerDownedEvidenceBoundary()'), 'Runtime Duo adversarial proofs do not use fresh canonical downed evidence boundaries.');
+assert(/preparePartnerDowned\(\): void \{[\s\S]*advanceActorUntil\(PARTNER_ID,[\s\S]*this\.lastWallMs = performance\.now\(\);[\s\S]*\n  \}/.test(runtimeDuoFixture), 'The initial runtime Duo downed boundary still counts page-start delay toward the three-second revive hold.');
 assert((runtimeDuoSpec.match(/await resetDownedBoundary\(\);/g) ?? []).length >= 6
   && runtimeDuoSpec.includes("await assertReconnectRecovery('interruptNextRead');\n    await resetDownedBoundary();\n    await assertReconnectRecovery('rejectNextSubmitAsStale');"), 'Runtime Duo reconnect and pointer proofs can still consume one shared canonical downed lifetime.');
 assert(!runtimeDuoEvidence.includes('teamDefeatCopy') && !runtimeDuoEvidence.includes('BOTH FALLEN'), 'Runtime Duo evidence still contains duplicated team-defeat copy.');
@@ -136,7 +138,10 @@ try {
   const binding = { lobbyId: fixture.lobbyId, runAttempt: 1, runSeed: fixture.runSeed };
   let fixtureSnapshot = fixture.snapshot();
   await fixture.submit(session, binding, fixtureSnapshot.state.encounterId, fixtureSnapshot.state.version, 1, { kind: 'start-ack' });
+  const preDownedBoundaryClock = fixture.lastWallMs;
+  await new Promise(resolve => setTimeout(resolve, 80));
   fixture.preparePartnerDowned();
+  assert(fixture.lastWallMs > preDownedBoundaryClock + 50 && performance.now() - fixture.lastWallMs < 1_000, 'Initial downed evidence boundary did not rebase the revive hold clock after startup delay.');
   const firstDowned = fixture.snapshot();
   const firstPartner = firstDowned.state.actors.find(actor => actor.actorId === fixture.partnerId);
   assert(firstPartner?.lifeState === 'downed' && Number.isFinite(firstPartner.downedAtMs), 'Runtime authority fixture did not reach the first canonical downed boundary.');

@@ -351,6 +351,10 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
     this.armEnemyAt(PARTNER_ID);
     this.advanceActorUntil(PARTNER_ID, actorState => actorState.lifeState === 'downed');
     this.parkEnemy();
+    // The evidence hold starts at this freshly presented downed boundary. Page boot,
+    // renderer setup, and language setup must not be counted as canonical hold time;
+    // otherwise a loaded device can revive on its first intent before pointer-cancel.
+    this.lastWallMs = performance.now();
   }
 
   resetPartnerDownedEvidenceBoundary(): void {
