@@ -212,6 +212,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
         overlaySequence: overlay?.getAttribute('data-death-sequence') ?? null,
         visualStartedAt: Number(overlay?.getAttribute('data-death-visual-started-at')),
         visualDeadline: Number(overlay?.getAttribute('data-death-visual-deadline')),
+        visualDuration: Number(overlay?.getAttribute('data-death-visual-duration')),
         visualDriver: overlay?.getAttribute('data-death-visual-driver') ?? null,
         animations: overlay instanceof HTMLElement
           ? overlay.getAnimations({ subtree: true }).map(animation => animation.id).sort()
@@ -285,7 +286,9 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(deathSequenceObservation.preEmitDeathBoundary?.overlaySequence, 'presentation boundary must already be settling before the terminal snapshot emit is starved').toBe('settling');
   expect(deathSequenceObservation.preEmitDeathBoundary?.visualDriver, 'pre-emit lethal boundary must start the browser animation timeline').toBe('web-animations');
   expect(deathSequenceObservation.preEmitDeathBoundary?.animations).toEqual(['dungeon-veil-death-content', 'dungeon-veil-death-overlay']);
-  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDeadline - deathSequenceObservation.preEmitDeathBoundary?.transitionStartedAt, 'pre-emit animations must preserve the original lethal clock and unchanged 1100 ms beat').toBe(1_100);
+  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDeadline, 'pre-emit animations must preserve the original lethal clock and unchanged 1100 ms beat').toBe(deathSequenceObservation.preEmitDeathBoundary?.transitionStartedAt + 1_100);
+  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDuration, 'pre-emit browser animation must retain a positive remaining duration').toBeGreaterThan(0);
+  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDuration, 'pre-emit browser animation must never exceed the unchanged 1100 ms beat').toBeLessThanOrEqual(1_100);
   expect(deathSequenceObservation.synchronousDeathBoundary?.terminalEmitStarvationMs, 'starvation proof must exceed the unchanged death beat').toBeGreaterThan(1_100);
   expect(deathSequenceObservation.synchronousDeathBoundary?.blockedElapsedMs, 'real terminal snapshot emit must remain blocked long enough to reproduce loaded iPad/WebKit').toBeGreaterThanOrEqual(1_100);
   expect(deathSequenceObservation.sawSettling, 'death overlay must expose the explicit visual settling state before final defeat').toBe(true);
