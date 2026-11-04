@@ -60,7 +60,9 @@ jobs:
 
   complete-browser-evidence:
     needs: runtime-contracts
-    runs-on: ubuntu-latest
+    # Complete Runtime is the final four-device release proof; do not let an
+    # ubuntu-latest rollover change the Playwright 1.55 WebKit host ABI.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false

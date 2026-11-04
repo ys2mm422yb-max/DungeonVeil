@@ -109,7 +109,8 @@ jobs:
 
   automatic-product-journeys:
     needs: product-contracts
-    runs-on: ubuntu-latest
+    # Keep the host ABI aligned with the pinned Playwright 1.55 WebKit build.
+    runs-on: ubuntu-24.04
     timeout-minutes: 65
     strategy:
       fail-fast: false
