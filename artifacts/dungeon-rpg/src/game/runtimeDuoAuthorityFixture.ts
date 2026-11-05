@@ -104,6 +104,8 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
   private readonly consumedSessions: Array<Readonly<{ operation: string; actorId: string; credentialGeneration: number }>> = [];
   private serverNowMs = 1_000;
   private lastWallMs = performance.now();
+  private manualEvidenceClock = false;
+  private manualEvidenceElapsedMs = 0;
   private advances = 0;
   private restarts = 0;
   private readonly intents: Array<Readonly<{ actorId: string; kind: AuthorityIntent['kind']; authorityNowMs: number }>> = [];
@@ -169,7 +171,7 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
       });
     }
     const wallNowMs = performance.now();
-    this.serverNowMs += Math.max(1, Math.floor(wallNowMs - this.lastWallMs));
+    if (!this.manualEvidenceClock) this.serverNowMs += Math.max(1, Math.floor(wallNowMs - this.lastWallMs));
     this.lastWallMs = wallNowMs;
     const authorityNowMs = this.serverNowMs;
     this.apply(HOST_ID, actorSequence, intent, authorityNowMs);
@@ -238,6 +240,28 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
 
   releaseTransportFailure(): void {
     this.heldTransportFailure = null;
+  }
+
+  beginManualEvidenceClock(): void {
+    this.manualEvidenceClock = true;
+    this.manualEvidenceElapsedMs = 0;
+    this.lastWallMs = performance.now();
+  }
+
+  advanceManualEvidenceClock(elapsedMs: number): void {
+    if (!this.manualEvidenceClock) throw new Error('Runtime authority manual evidence clock is not active');
+    if (!Number.isInteger(elapsedMs) || elapsedMs < 0 || this.manualEvidenceElapsedMs + elapsedMs >= 3_000) {
+      throw new Error('Runtime authority manual evidence clock only accepts a sub-threshold partial hold');
+    }
+    this.serverNowMs += elapsedMs;
+    this.manualEvidenceElapsedMs += elapsedMs;
+    this.lastWallMs = performance.now();
+  }
+
+  releaseManualEvidenceClock(): void {
+    this.manualEvidenceClock = false;
+    this.manualEvidenceElapsedMs = 0;
+    this.lastWallMs = performance.now();
   }
 
   interruptNextActorSession(): void {
@@ -359,6 +383,7 @@ export class RuntimeDuoAuthorityFixture implements CoopAuthorityRuntimeTransport
 
   resetPartnerDownedEvidenceBoundary(): void {
     if (this.attemptStatus !== 'active') throw new Error('Cannot reset an invalidated authority evidence attempt');
+    if (this.manualEvidenceClock) throw new Error('Release the manual evidence clock before resetting the downed boundary');
     // Each adversarial pointer/reconnect proof gets a fresh canonical downed window. Rebuild
     // and advance the real authority kernel instead of mutating life-state flags or extending
     // the production 30 s contract, so slow device automation cannot consume the next proof's

@@ -367,28 +367,49 @@ for (const language of ['de', 'en']) {
       if (remoteLifeStates.at(-1) !== 'downed') remoteLifeStates.push('downed');
       return observation;
     };
+    const revive = page.getByTestId('coop-revive-control');
+    const beginCanonicalPartialHold = async (pointerId, elapsedMs) => {
+      const reviveIntentCount = await page.evaluate(() => {
+        const evidence = window.__dungeonVeilDuoAuthorityEvidence;
+        evidence.beginManualEvidenceClock();
+        return evidence.snapshot().intents.filter(intent => intent.kind === 'revive-hold').length;
+      });
+      await revive.dispatchEvent('pointerdown', { pointerId, pointerType: 'touch', isPrimary: true });
+      await page.waitForFunction(count => window.__dungeonVeilDuoAuthorityEvidence.snapshot().intents
+        .filter(intent => intent.kind === 'revive-hold').length > count, reviveIntentCount);
+      const preAdvanceIntentCount = await page.evaluate(ms => {
+        const evidence = window.__dungeonVeilDuoAuthorityEvidence;
+        const count = evidence.snapshot().intents.filter(intent => intent.kind === 'revive-hold').length;
+        evidence.advanceManualEvidenceClock(ms);
+        return count;
+      }, elapsedMs);
+      await page.waitForFunction(count => window.__dungeonVeilDuoAuthorityEvidence.snapshot().intents
+        .filter(intent => intent.kind === 'revive-hold').length > count, preAdvanceIntentCount);
+    };
+    const releaseManualEvidenceClock = async () => page.evaluate(() => {
+      window.__dungeonVeilDuoAuthorityEvidence.releaseManualEvidenceClock();
+    });
     await observe('downed', 'downed');
 
-    const revive = page.getByTestId('coop-revive-control');
     await expect(revive).toBeVisible();
-    await revive.dispatchEvent('pointerdown', { pointerId: 7, pointerType: 'touch', isPrimary: true });
-    await page.waitForTimeout(700);
+    await beginCanonicalPartialHold(7, 700);
     await revive.dispatchEvent('pointercancel', { pointerId: 7, pointerType: 'touch', isPrimary: true });
+    await releaseManualEvidenceClock();
     await page.waitForTimeout(350);
     const afterPointerCancel = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await resetDownedBoundary();
 
-    await revive.dispatchEvent('pointerdown', { pointerId: 71, pointerType: 'touch', isPrimary: true });
-    await page.waitForTimeout(500);
+    await beginCanonicalPartialHold(71, 500);
     await revive.dispatchEvent('pointerup', { pointerId: 71, pointerType: 'touch', isPrimary: true });
+    await releaseManualEvidenceClock();
     await page.waitForTimeout(350);
     const afterPointerUp = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await resetDownedBoundary();
 
-    await revive.dispatchEvent('pointerdown', { pointerId: 72, pointerType: 'touch', isPrimary: true });
-    await page.waitForTimeout(500);
+    await beginCanonicalPartialHold(72, 500);
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.movePartnerOutOfReviveRange());
     await expect(revive).toHaveCount(0, { timeout: 2_000 });
+    await releaseManualEvidenceClock();
     await page.waitForTimeout(3_100);
     const afterRangeLoss = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.movePartnerIntoReviveRange());

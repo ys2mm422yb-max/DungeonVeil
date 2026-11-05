@@ -27,6 +27,9 @@ declare global {
       interruptNextRead: () => void;
       rejectNextSubmitAsStale: () => void;
       releaseTransportFailure: () => void;
+      beginManualEvidenceClock: () => void;
+      advanceManualEvidenceClock: (elapsedMs: number) => void;
+      releaseManualEvidenceClock: () => void;
       interruptNextActorSession: () => void;
       refreshActorSession: () => void;
       movePartnerOutOfReviveRange: () => void;
@@ -113,6 +116,9 @@ function RuntimeDuoEvidenceScene() {
       interruptNextRead: () => fixture.interruptNextRead(),
       rejectNextSubmitAsStale: () => fixture.rejectNextSubmitAsStale(),
       releaseTransportFailure: () => fixture.releaseTransportFailure(),
+      beginManualEvidenceClock: () => fixture.beginManualEvidenceClock(),
+      advanceManualEvidenceClock: elapsedMs => fixture.advanceManualEvidenceClock(elapsedMs),
+      releaseManualEvidenceClock: () => fixture.releaseManualEvidenceClock(),
       interruptNextActorSession: () => fixture.interruptNextActorSession(),
       refreshActorSession: () => fixture.refreshActorSession(),
       movePartnerOutOfReviveRange: () => fixture.movePartnerOutOfReviveRange(),
