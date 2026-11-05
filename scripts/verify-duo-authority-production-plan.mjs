@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -61,18 +62,49 @@ function readManifest() {
   );
   assert.equal(
     versions.length,
-    70,
+    71,
     "production history manifest count drifted",
   );
   assert.equal(
     versions.at(-1),
-    "20260906214205",
+    "20261026113943",
     "production history tail drifted",
   );
-  return versions;
+
+  const repositorySources = manifest.migrations
+    .filter(({ repository_source: source }) => source)
+    .map(({ version: productionVersion, name, repository_source: source }) => {
+      assert.match(source.path, /^supabase\/migrations\/20\d{12}_.+\.sql$/);
+      assert.equal(source.version, path.basename(source.path).slice(0, 14));
+      assert.equal(name, path.basename(source.path).slice(15, -4));
+      assert.match(source.sql_sha256, /^[a-f0-9]{64}$/);
+      assert.equal(
+        createHash("sha256")
+          .update(fs.readFileSync(path.join(root, source.path)))
+          .digest("hex"),
+        source.sql_sha256,
+        `${source.path} no longer matches the reviewed production-history mapping`,
+      );
+      return {
+        productionVersion,
+        repositoryVersion: source.version,
+        repositoryFile: path.basename(source.path),
+      };
+    });
+  assert.deepEqual(repositorySources, [
+    {
+      productionVersion: "20261026113943",
+      repositoryVersion: "20261025132500",
+      repositoryFile: "20261025132500_harden_social_profile_trust_boundary.sql",
+    },
+  ]);
+  return { versions, repositorySources };
 }
 
-const REMOTE_BASELINE_VERSIONS = readManifest();
+const {
+  versions: REMOTE_BASELINE_VERSIONS,
+  repositorySources: BASELINE_REPOSITORY_SOURCES,
+} = readManifest();
 const POST_APPLY_VERSIONS = [
   ...REMOTE_BASELINE_VERSIONS,
   ...EXPECTED_VERSIONS,
@@ -84,13 +116,29 @@ function validateRepositoryInventory() {
     .readdirSync(migrationDirectory)
     .filter((name) => /^20\d{12}_.+\.sql$/.test(name))
     .sort();
-  const postBaseline = names.filter(
-    (name) => name.slice(0, 14) > REMOTE_BASELINE_VERSIONS.at(-1),
+  const rolloutScope = sortedUnique([
+    ...EXPECTED_MIGRATIONS,
+    ...BASELINE_REPOSITORY_SOURCES.map(({ repositoryFile }) => repositoryFile),
+  ]);
+  const presentScope = names.filter((name) => rolloutScope.includes(name));
+  assert.deepEqual(
+    presentScope,
+    rolloutScope,
+    "reviewed rollout-scope migration inventory drifted",
+  );
+
+  const appliedRepositoryVersions = new Set(
+    BASELINE_REPOSITORY_SOURCES.map(
+      ({ repositoryVersion }) => repositoryVersion,
+    ),
+  );
+  const pendingMigrations = presentScope.filter(
+    (name) => !appliedRepositoryVersions.has(name.slice(0, 14)),
   );
   assert.deepEqual(
-    postBaseline,
+    pendingMigrations,
     EXPECTED_MIGRATIONS,
-    "local post-baseline migration inventory drifted",
+    "exact production/repository set difference must contain only the eight reviewed Duo migrations",
   );
 
   const repositoryVersions = migrationVersionsIn(migrationDirectory);
