@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises';
 
-const [config, smoke, worldBossSmoke, roomAudit, packageJson, fullGameWorkflow, completeRuntimeWorkflow, fullGameSelector] = await Promise.all([
+const [config, smoke, worldBossSmoke, roomAudit, packageJson, fullGameWorkflow, productWorkflow, completeRuntimeWorkflow, fullGameSelector] = await Promise.all([
   readFile(new URL('../playwright.regression.config.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/full-game-smoke.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/worldboss-block1.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../tests/visual-room-chunks.spec.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../package.json', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/full-game-regression.yml', import.meta.url), 'utf8'),
+  readFile(new URL('../../../.github/workflows/product-autopilot-qa.yml', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/workflows/complete-runtime-evidence-qa.yml', import.meta.url), 'utf8'),
   readFile(new URL('../../../.github/scripts/select-full-game-regression-mode.mjs', import.meta.url), 'utf8'),
 ]);
@@ -151,6 +152,17 @@ if (fullGameWorkflow.includes('desktop-room-regression:')) failures.push('full-g
 if (/Build current branch for browser regression|Build current branch for desktop room evidence/.test(fullGameWorkflow)) failures.push('browser jobs still rebuild production output instead of reusing the shared build');
 if (!fullGameWorkflow.includes("if: steps.browser-cache.outputs.cache-hit != 'true'")) failures.push('browser engine cache misses are not handled deterministically');
 if (!fullGameSelector.includes("eventName: 'workflow_dispatch'")) failures.push('manual execution is not proven to retain full coverage');
+
+for (const [label, source, jobName] of [
+  ['Full Game Regression smoke', fullGameWorkflow, 'browser-smoke'],
+  ['Full Game Regression full', fullGameWorkflow, 'browser-regression'],
+  ['Product Autopilot', productWorkflow, 'automatic-product-journeys'],
+  ['Complete Runtime', completeRuntimeWorkflow, 'complete-browser-evidence'],
+]) {
+  if (!jobSection(source, jobName).includes('runs-on: ubuntu-24.04')) {
+    failures.push(`${label} browser job is not pinned to the Playwright 1.55 Ubuntu 24.04 ABI`);
+  }
+}
 
 const planJob = jobSection(fullGameWorkflow, 'fgr-plan');
 const staticJob = jobSection(fullGameWorkflow, 'static-regression');

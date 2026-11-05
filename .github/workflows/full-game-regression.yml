@@ -223,7 +223,10 @@ jobs:
   browser-smoke:
     if: needs.fgr-plan.outputs.mode == 'smoke'
     needs: [fgr-plan, static-regression]
-    runs-on: ubuntu-latest
+    # Playwright 1.55 WebKit is built against Ubuntu 24.04 libraries. Pin the
+    # browser runner so an ubuntu-latest image rollover cannot invalidate the
+    # cached browser engine or make install-deps silently incomplete.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -328,7 +331,7 @@ jobs:
   browser-regression:
     if: needs.fgr-plan.outputs.mode == 'full'
     needs: [fgr-plan, static-regression]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     strategy:
       fail-fast: false

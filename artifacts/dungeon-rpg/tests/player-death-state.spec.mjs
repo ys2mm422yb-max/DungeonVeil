@@ -212,6 +212,7 @@ test('solo death uses an explicit visual death state before the final overlay', 
         overlaySequence: overlay?.getAttribute('data-death-sequence') ?? null,
         visualStartedAt: Number(overlay?.getAttribute('data-death-visual-started-at')),
         visualDeadline: Number(overlay?.getAttribute('data-death-visual-deadline')),
+        visualDuration: Number(overlay?.getAttribute('data-death-visual-duration')),
         visualDriver: overlay?.getAttribute('data-death-visual-driver') ?? null,
         animations: overlay instanceof HTMLElement
           ? overlay.getAnimations({ subtree: true }).map(animation => animation.id).sort()
@@ -285,7 +286,9 @@ test('solo death uses an explicit visual death state before the final overlay', 
   expect(deathSequenceObservation.preEmitDeathBoundary?.overlaySequence, 'presentation boundary must already be settling before the terminal snapshot emit is starved').toBe('settling');
   expect(deathSequenceObservation.preEmitDeathBoundary?.visualDriver, 'pre-emit lethal boundary must start the browser animation timeline').toBe('web-animations');
   expect(deathSequenceObservation.preEmitDeathBoundary?.animations).toEqual(['dungeon-veil-death-content', 'dungeon-veil-death-overlay']);
-  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDeadline - deathSequenceObservation.preEmitDeathBoundary?.transitionStartedAt, 'pre-emit animations must preserve the original lethal clock and unchanged 1100 ms beat').toBe(1_100);
+  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDeadline, 'pre-emit animations must preserve the original lethal clock and unchanged 1100 ms beat').toBe(deathSequenceObservation.preEmitDeathBoundary?.transitionStartedAt + 1_100);
+  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDuration, 'pre-emit browser animation must retain a positive remaining duration').toBeGreaterThan(0);
+  expect(deathSequenceObservation.preEmitDeathBoundary?.visualDuration, 'pre-emit browser animation must never exceed the unchanged 1100 ms beat').toBeLessThanOrEqual(1_100);
   expect(deathSequenceObservation.synchronousDeathBoundary?.terminalEmitStarvationMs, 'starvation proof must exceed the unchanged death beat').toBeGreaterThan(1_100);
   expect(deathSequenceObservation.synchronousDeathBoundary?.blockedElapsedMs, 'real terminal snapshot emit must remain blocked long enough to reproduce loaded iPad/WebKit').toBeGreaterThanOrEqual(1_100);
   expect(deathSequenceObservation.sawSettling, 'death overlay must expose the explicit visual settling state before final defeat').toBe(true);
@@ -364,28 +367,49 @@ for (const language of ['de', 'en']) {
       if (remoteLifeStates.at(-1) !== 'downed') remoteLifeStates.push('downed');
       return observation;
     };
+    const revive = page.getByTestId('coop-revive-control');
+    const beginCanonicalPartialHold = async (pointerId, elapsedMs) => {
+      const reviveIntentCount = await page.evaluate(() => {
+        const evidence = window.__dungeonVeilDuoAuthorityEvidence;
+        evidence.beginManualEvidenceClock();
+        return evidence.snapshot().intents.filter(intent => intent.kind === 'revive-hold').length;
+      });
+      await revive.dispatchEvent('pointerdown', { pointerId, pointerType: 'touch', isPrimary: true });
+      await page.waitForFunction(count => window.__dungeonVeilDuoAuthorityEvidence.snapshot().intents
+        .filter(intent => intent.kind === 'revive-hold').length > count, reviveIntentCount);
+      const preAdvanceIntentCount = await page.evaluate(ms => {
+        const evidence = window.__dungeonVeilDuoAuthorityEvidence;
+        const count = evidence.snapshot().intents.filter(intent => intent.kind === 'revive-hold').length;
+        evidence.advanceManualEvidenceClock(ms);
+        return count;
+      }, elapsedMs);
+      await page.waitForFunction(count => window.__dungeonVeilDuoAuthorityEvidence.snapshot().intents
+        .filter(intent => intent.kind === 'revive-hold').length > count, preAdvanceIntentCount);
+    };
+    const releaseManualEvidenceClock = async () => page.evaluate(() => {
+      window.__dungeonVeilDuoAuthorityEvidence.releaseManualEvidenceClock();
+    });
     await observe('downed', 'downed');
 
-    const revive = page.getByTestId('coop-revive-control');
     await expect(revive).toBeVisible();
-    await revive.dispatchEvent('pointerdown', { pointerId: 7, pointerType: 'touch', isPrimary: true });
-    await page.waitForTimeout(700);
+    await beginCanonicalPartialHold(7, 700);
     await revive.dispatchEvent('pointercancel', { pointerId: 7, pointerType: 'touch', isPrimary: true });
+    await releaseManualEvidenceClock();
     await page.waitForTimeout(350);
     const afterPointerCancel = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await resetDownedBoundary();
 
-    await revive.dispatchEvent('pointerdown', { pointerId: 71, pointerType: 'touch', isPrimary: true });
-    await page.waitForTimeout(500);
+    await beginCanonicalPartialHold(71, 500);
     await revive.dispatchEvent('pointerup', { pointerId: 71, pointerType: 'touch', isPrimary: true });
+    await releaseManualEvidenceClock();
     await page.waitForTimeout(350);
     const afterPointerUp = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await resetDownedBoundary();
 
-    await revive.dispatchEvent('pointerdown', { pointerId: 72, pointerType: 'touch', isPrimary: true });
-    await page.waitForTimeout(500);
+    await beginCanonicalPartialHold(72, 500);
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.movePartnerOutOfReviveRange());
     await expect(revive).toHaveCount(0, { timeout: 2_000 });
+    await releaseManualEvidenceClock();
     await page.waitForTimeout(3_100);
     const afterRangeLoss = (await observe('downed', 'downed', { captureSnapshot: true })).snapshot;
     await page.evaluate(() => window.__dungeonVeilDuoAuthorityEvidence.movePartnerIntoReviveRange());

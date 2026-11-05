@@ -37,6 +37,10 @@ requireText(recovery, /dungeon-veil-room-ready/, 'Renderer recovery must resume 
 requireText(recovery, /runRendererIsMounted\(\)/, 'Renderer recovery must depend on the mounted run renderer, not HUD visibility.');
 requireText(recovery, /only synchronous webglcontextlost owner/, 'The global recovery runtime must explicitly remain watchdog-only.');
 requireText(recovery, /PRIMARY_RECOVERY_GRACE_MS = 5_000/, 'Mobile WebKit primary remounts must receive a five-second grace period before fallback.');
+requireText(recovery, /NATIVE_CONTEXT_LOST_EVENT_GRACE_MS = 100/, 'The watchdog must allow the native context-loss owner to claim a newly observed loss.');
+requireText(recovery, /function scheduleFallbackLost\(canvas[\s\S]*setTimeout[\s\S]*discoverCanvas\(\)[\s\S]*boundCanvas \?\? canvas[\s\S]*primaryRecoveryHasGrace\(\)[\s\S]*isContextLost\(\)[\s\S]*announceFallbackLost/s, 'Watchdog fallback must wait, rediscover the live canvas, and recheck native ownership plus context loss before announcing.');
+requireText(recovery, /if \(!detail\?\.fallback\) \{[\s\S]*primaryRecoveryStartedAt = performance\.now\(\);[\s\S]*clearFallbackProbe\(\);[\s\S]*\}/, 'The native recovery lifecycle must cancel any pending watchdog probe.');
+requireText(recovery, /if \(gl\?\.isContextLost\(\)[\s\S]*scheduleFallbackLost\(canvas\);/, 'The periodic watchdog must schedule the ownership probe instead of announcing recovery immediately.');
 requireText(recovery, /primaryRecoveryStartedAt/, 'The watchdog must track when the primary recovery started.');
 requireText(recovery, /!primaryRecoveryHasGrace\(now\)/, 'The watchdog must not race the primary renderer remount.');
 requireText(recovery, /fallbackActive/, 'The global renderer recovery must be an idempotent fallback.');
