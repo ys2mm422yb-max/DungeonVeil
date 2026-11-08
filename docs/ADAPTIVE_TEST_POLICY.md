@@ -95,7 +95,7 @@ Adaptive testing does not reduce repository or backend hygiene.
 
 - GitHub remains the durable source of truth for exact heads, PR/issue state, test plans, evidence, blockers and next operations.
 - Dungeon Veil production Supabase is project `hfndwqfghyomwapqsked`. The DokoHilf project `efifbuqctylsujiauabg` must never be used for Dungeon Veil.
-- Any Supabase migration, SQL, RPC, RLS policy, Realtime contract or Edge Function change must be represented by repository code where applicable and documented in the relevant PR/issue/#376 handoff.
+- Any Supabase migration, SQL, RPC, RLS policy, Realtime contract or Edge Function change must be represented by repository code where applicable and documented in the relevant PR/issue/#481 handoff; #376 remains the immutable historical archive.
 - Backend documentation must include project ref, purpose, security impact, rollback/recovery path and production verification.
 - After DDL/RLS/RPC changes, security/performance advisors and relevant logs/functions must be checked as applicable.
 - Silent production-only database changes are not acceptable.

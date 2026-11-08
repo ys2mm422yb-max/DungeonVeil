@@ -16,17 +16,17 @@ These instructions apply to the entire repository. GitHub is the source of truth
 
 ## Start every task from live GitHub state
 
-1. Read Issue #376 completely, especially its body and newest comments.
+1. Read Issue #376 as the immutable historical archive, then Issue #481 as the current writable coordination source with the newest leases and handoffs. New task changes must follow #481.
 2. Read the full task issue, linked PR, current user comments, reviews, review threads, checklists, exact-head Actions, artifacts, and deployments.
 3. Check live worker leases before every write. Never overlap a leased issue, PR, branch, file set, or task scope.
 4. Verify the current target-branch head before creating a focused branch.
 5. Create new product work as a Draft PR against `fix/mobile-telegraphs-room-21-50-balance`.
 
-Task-specific product, gameplay, visual, and acceptance requirements belong in the relevant issue, PR, review thread, or Issue #376 handoff.
+Task-specific product, gameplay, visual, and acceptance requirements belong in the relevant issue, PR, review thread, or Issue #481 handoff (while #376 remains binding archive history).
 
-## Active operating model: exactly two regular workers
+## Active operating model: two regular product workers plus supervisor and visual scout
 
-Dungeon Veil uses exactly two regular ChatGPT automation roles in `Europe/Berlin`. Their actual enabled schedules are external automation state and must be read live; do not hard-code clock times here or infer them from historical comments.
+Dungeon Veil uses exactly two regular **product-development and release-verification** worker roles in `Europe/Berlin`, plus an existing separate administrative Pflege supervisor and a newly user-authorized fourth **read-only** visual QA observer. Schedules, enabled states, runtime capabilities and quota must always be verified through the actual automation service, not inferred from historical comments.
 
 1. **Master implementer** (`worker: primary`)
    - owns the highest-priority free product task;
@@ -38,9 +38,19 @@ Dungeon Veil uses exactly two regular ChatGPT automation roles in `Europe/Berlin
    - may safely implement a focused correction when it does not overlap the primary lease;
    - performs final acceptance, Expected-Head merge without auto-merge, retains branches, and verifies publication.
 
+3. **Autopilot Pflege** (administrative supervisor, not a product worker; task ID `6aab8f91183c8191b47931723496466d`)
+   - monitors all four scheduled tasks, their run results, staleness and correct configuration without writing game code;
+   - never becomes a third developer or overrides required product/release gates.
+4. **Visual QA Scout** (optional strictly read-only observer; task ID `6af10069d0ac81919da1dfa8dd2e575a`, explicitly user-approved 2026-11-09)
+   - explores actual public player journeys when a real browser is available and records reproducible findings in #481;
+   - owns no code, branches, PRs, tests, review acceptance, releases or product leases, and cannot block primary or verifier;
+   - can use Work's cloud browser only when it is actually available: the scheduled ChatGPT automation itself does **not** prove Work-mode execution. TinyFish or another verified browser may substitute for optional discovery;
+   - cannot replace true iPhone standalone PWA evidence or the mandatory four-device Playwright/renderer evidence;
+   - if unavailable, quota-limited, or stale, records an optional visual-unavailable outcome without blocking any required worker or gate.
+
 The actual enabled automation configuration is authoritative for execution times. If repository text and live automation state disagree only about schedule, correct the stale documentation; do not change worker scope or create an extra regular worker just to match an old clock time.
 
-There are no scheduled `secondary` or `visual` workers. Historical comments using those names are audit records only and do not authorize new leases or work. Do not create additional regular workers unless the user explicitly changes this operating model.
+There are no additional scheduled `secondary` or `visual` **product** workers. The specifically authorized fourth Visual QA Scout is an observer only, not an implementer or verifier. Historical `secondary`/`visual` worker lease comments remain audit records; do not create product-scope leases under these roles. The scout may use a narrowly scoped short-lived `background` lease solely to publish one new deduplicated #481 finding. Do not create more regular product workers without explicit user authorization.
 
 `worker: background` is permitted only for a short-lived, explicitly separate coordination or migration task. It is never a third scheduled product worker.
 
@@ -62,7 +72,7 @@ A worker may not merely report the same exact head, state, and blocker in three 
 
 ## Queue and WIP contract
 
-Rebuild the live queue from open issues and comments, PRs, reviews and threads, roadmap #323, Issue #376, Actions, deployments, artifacts, user rejections, and self-discovered product defects.
+Rebuild the live queue from open issues and comments, PRs, reviews and threads, roadmap #323, Issue #481 current coordination plus Issue #376 immutable history, Actions, deployments, artifacts, user rejections, independent visual-scout findings when materially grounded, and self-discovered product defects.
 
 Prioritize:
 
@@ -78,13 +88,13 @@ Across both workers, keep at most one actively modified or verified product PR p
 
 ## Worker coordination and leases
 
-Use the lease protocol in Issue #376. Allowed new worker values are:
+Use the lease protocol in current Issue #481; Issue #376 is read-only audit history. Allowed new **writing** lease worker values are:
 
 - `primary`
 - `verifier`
 - `background` only for explicit coordination or migration
 
-Do not create new `secondary` or `visual` leases.
+Do not create new `secondary` or `visual` leases. Visual QA Scout does not hold product leases or WIP slots; a deduplicated finding may be posted only with a short-lived, narrow `background` metadata lease scoped to #481 itself, immediately terminalized.
 
 Before every GitHub write:
 
@@ -102,7 +112,7 @@ Only a current, unexpired, exact-head overlapping lease blocks work. Historical,
 
 ## Durable handoff memory
 
-Every active-task handoff in Issue #376 must include:
+Every active-task handoff in current writable Issue #481 must include:
 
 - `task_key`
 - `state`
