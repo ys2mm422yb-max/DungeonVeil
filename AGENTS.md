@@ -38,7 +38,7 @@ Dungeon Veil uses exactly two regular **product-development and release-verifica
    - may safely implement a focused correction when it does not overlap the primary lease;
    - performs final acceptance, Expected-Head merge without auto-merge, retains branches, and verifies publication.
 
-3. **Autopilot Pflege** (administrative supervisor, not a product worker; task ID `6aab8f91183c8191b47931723496466d`)
+3. **Autopilot Pflege** (administrative supervisor, not a product worker; task ID `Automation_c85ca0ce57f48191bbf8c342904df389`)
    - monitors all four scheduled tasks, their run results, staleness and correct configuration without writing game code;
    - never becomes a third developer or overrides required product/release gates.
 4. **Visual QA Scout** (optional strictly read-only observer; task ID `6af10069d0ac81919da1dfa8dd2e575a`, explicitly user-approved 2026-11-09)
@@ -47,6 +47,8 @@ Dungeon Veil uses exactly two regular **product-development and release-verifica
    - can use Work's cloud browser only when it is actually available: the scheduled ChatGPT automation itself does **not** prove Work-mode execution. TinyFish or another verified browser may substitute for optional discovery;
    - cannot replace true iPhone standalone PWA evidence or the mandatory four-device Playwright/renderer evidence;
    - if unavailable, quota-limited, or stale, records an optional visual-unavailable outcome without blocking any required worker or gate.
+
+**Worker executor recovery (2026-11-09):** The active Primary task ID is `Automation_34ca60f42a188191a7b20b2ca0d83647`; active Pflege supervisor `Automation_c85ca0ce57f48191bbf8c342904df389`; active independent Verifier `Automation_9b9ceb3312648191bb2ae79ba4be8b84`. The historic tasks `6a6fb1e2494881919f8f4d8b135cce7f` (old Primary), `6aab8f91183c8191b47931723496466d` (old Pflege), and `6a6fac856d5c81919267a1f5d9c3f29d` (old Verifier) have been explicitly paused because of repeated sub-three-second `no_update` without any new worker chat session or actual GitHub work; **do not automatically reactivate them**. Source-of-truth for active identities is current Issue #481 and live Automations status. The fresh replacement tasks still require a real scheduled-run and GitHub-progress verification before considering the stall resolved.
 
 The actual enabled automation configuration is authoritative for execution times. If repository text and live automation state disagree only about schedule, correct the stale documentation; do not change worker scope or create an extra regular worker just to match an old clock time.
 
