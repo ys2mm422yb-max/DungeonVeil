@@ -163,7 +163,7 @@ test('renderer recovery saves and freezes a real Solo run while the transition H
   });
   await expect.poll(
     () => page.evaluate(() => window.__dungeonVeilRuntimeEvidence.snapshot()?.effects.some(id => id.startsWith('rune-warning-'))),
-    { timeout: 8_000 },
+    { timeout: 8_000, intervals: [100, 200, 300] },
   ).toBe(true);
   await page.evaluate(() => {
     const hud = document.querySelector('[data-testid="run-hud"]');

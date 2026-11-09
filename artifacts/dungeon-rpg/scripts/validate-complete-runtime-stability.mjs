@@ -88,6 +88,16 @@ requireText(spec, /warningPrefix[\s\S]*expect\.poll/s, 'The room hazard regressi
 if (/waitForTimeout\(3_650\)/.test(spec)) throw new Error('Fixed room-hazard timing is not reliable across mobile renderers.');
 requireText(spec, /room hazards stop before the final enemy death animation finishes/, 'The ghost-damage regression must be tested.');
 requireText(spec, /lost WebGL context recovers/, 'The black-room recovery must be tested.');
+
+const runeWarningPoll = hiddenHudSpec.match(
+  /await expect\.poll\(\s*\(\) => page\.evaluate\(\(\) => window\.__dungeonVeilRuntimeEvidence\.snapshot\(\)\?\.effects\.some\(id => id\.startsWith\('rune-warning-'\)\)\),\s*\{\s*timeout:\s*8_000,\s*intervals:\s*\[([0-9_,\s]+)\]\s*\},\s*\)\.toBe\(true\)/,
+);
+if (!runeWarningPoll) throw new Error('Hidden-HUD rune evidence must use an explicit sub-900ms poll cadence and preserve the 8s timeout.');
+const runeWarningIntervals = runeWarningPoll[1].split(',').map(value => value.trim()).filter(Boolean).map(value => Number(value.replaceAll('_', '')));
+if (!runeWarningIntervals.length || runeWarningIntervals.some(value => !Number.isFinite(value) || value <= 0 || value >= 900)) {
+  throw new Error('Rune warning sampling must always stay below the immutable 900ms telegraph lifetime.');
+}
+
 requireText(hiddenHudSpec, /dungeonVeilRoomBuildState = ''/, 'Recovery evidence must clear stale room readiness before loading room 13.');
 requireText(hiddenHudSpec, /__dvRoom13AtomicReady/, 'Recovery evidence must wait for room 13 atomic readiness before forcing context loss.');
 requireText(hiddenHudSpec, /dungeonVeilRoomBuildState\).*toBe\('ready'\)/, 'Recovery evidence must observe final room readiness.');
