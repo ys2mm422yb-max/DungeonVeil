@@ -3,14 +3,15 @@ import assert from 'node:assert/strict';
 import { captureStandaloneHudGeometry } from './issue491-standalone-hud-probe.mjs';
 
 test('captures upper HUD without text and cleans up temporary safe-area element', () => {
-  const rect = top => ({ x: 10, y: top, top, width: 40, height: 20 });
+  const rect = top => ({ x: 10, y: top, top, bottom: top + 20, width: 40, height: 20 });
   const root = { tagName: 'HTML', id: '', className: '', parentElement: null, getBoundingClientRect: () => rect(0) };
   const body = { tagName: 'BODY', id: '', className: '', parentElement: root, getBoundingClientRect: () => rect(0) };
   const hud = { tagName: 'BUTTON', id: 'hud', className: 'hud', parentElement: body, getBoundingClientRect: () => rect(12), get textContent() { throw Error('private text accessed'); } };
   const below = { tagName: 'BUTTON', id: 'below', className: '', parentElement: body, getBoundingClientRect: () => rect(500) };
+  const currency = { tagName: 'DIV', id: 'currency', className: '', parentElement: body, getBoundingClientRect: () => rect(-4), get textContent() { throw Error('private currency text accessed'); } };
   let appended = 0, removed = 0;
   body.appendChild = el => { appended++; el.remove = () => removed++; };
-  const document = { documentElement: root, body, createElement: () => ({ style: {}, getBoundingClientRect: () => ({ top: 47 }) }), querySelectorAll: () => [hud, below] };
+  const document = { documentElement: root, body, createElement: () => ({ style: {}, getBoundingClientRect: () => ({ top: 47 }) }), querySelectorAll: selector => selector.includes('data-testid') ? [currency] : [hud, below] };
   const style = { position: 'fixed', top: '47px', transform: 'none', filter: 'none', backdropFilter: 'none', willChange: 'auto', contain: 'none', isolation: 'auto', opacity: '1', fontSize: '9px', fontWeight: '400', lineHeight: 'normal', textRendering: 'auto', webkitFontSmoothing: 'auto' };
   const globals = { document, window: { visualViewport: { width: 390, height: 800, scale: 1, offsetTop: 0, offsetLeft: 0, pageTop: 0, pageLeft: 0 }, innerHeight: 800 }, navigator: { standalone: true }, screen: { width: 390, height: 844 }, devicePixelRatio: 3, innerWidth: 390, innerHeight: 800, matchMedia: () => ({ matches: true }), getComputedStyle: () => style };
   const originals = new Map();
@@ -26,7 +27,9 @@ test('captures upper HUD without text and cleans up temporary safe-area element'
     assert.equal(result.displayModeStandalone, true);
     assert.equal(result.safeAreaTop, 47);
     assert.equal(result.devicePixelRatio, 3);
-    assert.equal(result.upperControlCount, 1);
+    assert.equal(result.upperControlCount, 2);
+    assert.equal(result.explicitHudCount, 1);
+    assert.equal(result.nodes.some(n => n.id === 'currency'), true);
     assert.equal(result.nodes.some(n => n.id === 'hud'), true);
     assert.equal(result.nodes.some(n => n.id === 'below'), false);
     assert.equal(result.nodes.find(n => n.id === 'hud').fontSize, '9px');
