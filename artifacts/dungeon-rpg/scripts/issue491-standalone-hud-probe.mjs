@@ -21,6 +21,7 @@ export function captureStandaloneHudGeometry() {
     return {
       tag: el.tagName.toLowerCase(),
       id: el.id || null,
+      testId: el.getAttribute?.('data-testid') || null,
       classNames: typeof el.className === 'string' ? el.className.slice(0, 180) : null,
       rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       position: style.position,
@@ -40,24 +41,29 @@ export function captureStandaloneHudGeometry() {
     };
   };
 
-  // Include named HUD roots even when non-interactive; never read user text.
-  // Reserve explicit HUD slots so generic controls cannot crowd them out.
-  const hudSelector = '[data-testid="main-menu-profile-badge"], [data-testid*="currency"], [data-testid*="wallet"], [data-testid="main-menu-gold-button"], [data-testid="main-menu-dust-button"], [data-testid*="gold"], [data-testid*="gem"]';
+  // Query required named targets separately; missing controls are never masked by
+  // a generic control or a combined selector match.
+  const requiredHudTestIds = ['main-menu-profile-badge', 'main-menu-dust-button',
+    'main-menu-gold-button', 'main-menu-settings-button'];
   const visibleUpper = el => {
     const rect = el.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0 && rect.bottom > 0 &&
       rect.top < Math.min(200, window.innerHeight * 0.35);
   };
-  const explicitHud = [...document.querySelectorAll(hudSelector)].filter(visibleUpper).slice(0, 16);
+  const hudMatches = requiredHudTestIds.map(testId => {
+    const element = document.querySelector('[data-testid="' + testId + '"]');
+    return { testId, element, found: Boolean(element), visible: Boolean(element && visibleUpper(element)) };
+  });
+  const explicitHud = hudMatches.filter(match => match.visible).map(match => match.element);
   const upperControls = [...new Set([
     ...explicitHud,
     ...[...document.querySelectorAll('button, a, [role="button"]')].filter(visibleUpper)
   ])].slice(0, 32);
   const nodes = new Set([root, body]);
   for (const control of upperControls) {
-    for (let node = control; node && node !== document; node = node.parentElement) {
-      nodes.add(node);
-    }
+    for (let node = control; node && node !== document; node = node.parentElement) nodes.add(node);
+    // Bounded structural text/icon sampling; never read textContent or innerText.
+    for (const child of [...control.querySelectorAll('span, svg, img, [role="img"], [class*="icon"]')].slice(0, 12)) nodes.add(child);
   }
 
   const result = {
@@ -77,6 +83,8 @@ export function captureStandaloneHudGeometry() {
     safeAreaTop: safeRect.top,
     upperControlCount: upperControls.length,
     explicitHudCount: explicitHud.length,
+    requiredHud: hudMatches.map(({ testId, found, visible }) => ({ testId, found, visible })),
+    missingHudTestIds: hudMatches.filter(match => !match.found).map(match => match.testId),
     nodes: [...nodes].map(styleOf)
   };
   console.log('ISSUE491_HUD_GEOMETRY', JSON.stringify(result, null, 2));
