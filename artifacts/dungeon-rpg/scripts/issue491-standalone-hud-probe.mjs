@@ -40,14 +40,19 @@ export function captureStandaloneHudGeometry() {
     };
   };
 
-  // Only visible upper-screen controls and their ancestors; never collect user text.
-  const upperControls = [...document.querySelectorAll('button, a, [role="button"]')]
-    .filter(el => {
-      const rect = el.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0 && rect.top >= 0 &&
-        rect.top < Math.min(160, window.innerHeight * 0.3);
-    })
-    .slice(0, 16);
+  // Include named HUD roots even when non-interactive; never read user text.
+  // Reserve explicit HUD slots so generic controls cannot crowd them out.
+  const hudSelector = '[data-testid="main-menu-profile-badge"], [data-testid*="currency"], [data-testid*="wallet"], [data-testid*="gold"], [data-testid*="gem"]';
+  const visibleUpper = el => {
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && rect.bottom > 0 &&
+      rect.top < Math.min(200, window.innerHeight * 0.35);
+  };
+  const explicitHud = [...document.querySelectorAll(hudSelector)].filter(visibleUpper).slice(0, 16);
+  const upperControls = [...new Set([
+    ...explicitHud,
+    ...[...document.querySelectorAll('button, a, [role="button"]')].filter(visibleUpper)
+  ])].slice(0, 32);
   const nodes = new Set([root, body]);
   for (const control of upperControls) {
     for (let node = control; node && node !== document; node = node.parentElement) {
@@ -71,6 +76,7 @@ export function captureStandaloneHudGeometry() {
     } : null,
     safeAreaTop: safeRect.top,
     upperControlCount: upperControls.length,
+    explicitHudCount: explicitHud.length,
     nodes: [...nodes].map(styleOf)
   };
   console.log('ISSUE491_HUD_GEOMETRY', JSON.stringify(result, null, 2));
