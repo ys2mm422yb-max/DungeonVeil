@@ -42,7 +42,7 @@ export function captureStandaloneHudGeometry() {
 
   // Include named HUD roots even when non-interactive; never read user text.
   // Reserve explicit HUD slots so generic controls cannot crowd them out.
-  const hudSelector = '[data-testid="main-menu-profile-badge"], [data-testid*="currency"], [data-testid*="wallet"], [data-testid*="gold"], [data-testid*="gem"]';
+  const hudSelector = '[data-testid="main-menu-profile-badge"], [data-testid*="currency"], [data-testid*="wallet"], [data-testid="main-menu-gold-button"], [data-testid="main-menu-dust-button"], [data-testid*="gold"], [data-testid*="gem"]';
   const visibleUpper = el => {
     const rect = el.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0 && rect.bottom > 0 &&
