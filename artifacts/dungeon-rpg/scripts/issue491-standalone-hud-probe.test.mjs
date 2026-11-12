@@ -27,7 +27,7 @@ function runProbe(missing = []) {
     documentElement: root, body,
     createElement: () => ({ style: {}, getBoundingClientRect: () => ({ top: 47 }) }),
     querySelector: selector => {
-      const match = /^\\[data-testid="([^"]+)"\\]$/.exec(selector);
+      const match = /^\[data-testid="([^"]+)"\]$/.exec(selector);
       assert.ok(match, 'required HUD queried individually');
       return controls.get(match[1]) || null;
     },
