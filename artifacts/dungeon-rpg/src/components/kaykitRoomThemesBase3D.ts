@@ -46,8 +46,13 @@ async function prototypeFor(path: string) {
     });
     return gltf.scene;
   })();
-  modelPromises.set(path, promise);
-  return promise;
+  const cachedPromise = promise.catch((error: unknown) => {
+    // A transient WebKit asset failure must not poison subsequent room loads.
+    if (modelPromises.get(path) === cachedPromise) modelPromises.delete(path);
+    throw error;
+  });
+  modelPromises.set(path, cachedPromise);
+  return cachedPromise;
 }
 
 async function prototypeForPiece(piece: LogicalRoomSetpiece) {
