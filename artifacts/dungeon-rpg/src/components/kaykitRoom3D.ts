@@ -34,8 +34,16 @@ async function gltfLoader() {
 }
 
 async function loadAsset(name: AssetName) {
-  if (!cache.has(name)) cache.set(name, (async () => (await gltfLoader()).loadAsync(`${DUNGEON_ROOT}${ASSETS[name]}`))());
-  return cache.get(name)!;
+  const existing = cache.get(name);
+  if (existing) return existing;
+  const pending = (async () => (await gltfLoader()).loadAsync(`${DUNGEON_ROOT}${ASSETS[name]}`))();
+  const cachedPromise = pending.catch((error: unknown) => {
+    // Failed preloads must be retryable on the next room entry.
+    if (cache.get(name) === cachedPromise) cache.delete(name);
+    throw error;
+  });
+  cache.set(name, cachedPromise);
+  return cachedPromise;
 }
 
 function isOutdoorSpec(spec: RoomBibleSpec) {
