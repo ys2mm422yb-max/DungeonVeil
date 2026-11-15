@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureStandaloneHudGeometry } from './issue491-standalone-hud-probe.mjs';
 
-function runProbe(missing = []) {
-  const rect = top => ({ x: 10, y: top, top, bottom: top + 20, width: 40, height: 20 });
+function runProbe(missing = [], hidden = [], zeroHeight = []) {
+  const rect = (top, height = 20) => ({ x: 10, y: top, top, bottom: top + height, width: 40, height });
   const element = (tagName, id, top, parentElement, testId = null) => ({
     tagName, id, className: '', parentElement,
-    getBoundingClientRect: () => rect(top),
+    getBoundingClientRect: () => rect(top, zeroHeight.includes(testId) ? 0 : 20),
     getAttribute: key => key === 'data-testid' ? testId : null,
     querySelectorAll: () => [],
     get textContent() { throw Error('private text accessed'); },
@@ -36,7 +36,7 @@ function runProbe(missing = []) {
       return [...controls.values(), below];
     }
   };
-  const style = { position: 'fixed', top: '47px', transform: 'none', filter: 'none',
+  const style = { display: 'block', visibility: 'visible', overflow: 'visible', overflowX: 'visible', overflowY: 'visible', clipPath: 'none', position: 'fixed', top: '47px', transform: 'none', filter: 'none',
     backdropFilter: 'none', willChange: 'auto', contain: 'none', isolation: 'auto',
     opacity: '1', fontSize: '9px', fontWeight: '400', lineHeight: 'normal',
     textRendering: 'auto', webkitFontSmoothing: 'auto' };
@@ -44,7 +44,7 @@ function runProbe(missing = []) {
     scale: 1, offsetTop: 0, offsetLeft: 0, pageTop: 0, pageLeft: 0 }, innerHeight: 800 },
     navigator: { standalone: true }, screen: { width: 390, height: 844 },
     devicePixelRatio: 3, innerWidth: 390, innerHeight: 800,
-    matchMedia: () => ({ matches: true }), getComputedStyle: () => style };
+    matchMedia: () => ({ matches: true }), getComputedStyle: el => hidden.includes(el.getAttribute?.('data-testid')) ? { ...style, visibility: 'hidden' } : style };
   const originals = new Map();
   for (const [key, value] of Object.entries(globals)) {
     originals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -87,4 +87,22 @@ test('reports a missing mandatory HUD target instead of accepting a selector-str
   assert.deepEqual(result.missingHudTestIds, ['main-menu-dust-button']);
   assert.equal(result.explicitHudCount, 3);
   assert.equal(result.requiredHud.find(x => x.testId === 'main-menu-dust-button').found, false);
+});
+
+
+test('hidden mandatory HUD is found but not visible, with ancestry and clipping styles', () => {
+  const { result } = runProbe([], ['main-menu-dust-button']);
+  assert.deepEqual(result.missingHudTestIds, []);
+  assert.deepEqual(result.notVisibleHudTestIds, ['main-menu-dust-button']);
+  assert.equal(result.explicitHudCount, 3);
+  const dust = result.nodes.find(n => n.testId === 'main-menu-dust-button');
+  assert.equal(dust.visibility, 'hidden');
+  assert.equal(dust.clipPath, 'none');
+  assert.equal(dust.overflow, 'visible');
+});
+
+test('zero-height mandatory HUD remains in diagnostic ancestry', () => {
+  const { result } = runProbe([], [], ['main-menu-settings-button']);
+  assert.deepEqual(result.notVisibleHudTestIds, ['main-menu-settings-button']);
+  assert.ok(result.nodes.some(n => n.testId === 'main-menu-settings-button' && n.rect.height === 0));
 });
