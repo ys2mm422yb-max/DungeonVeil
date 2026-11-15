@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureStandaloneHudGeometry } from './issue491-standalone-hud-probe.mjs';
 
-function runProbe(missing = [], hidden = [], zeroHeight = []) {
+function runProbe(missing = [], hidden = [], zeroHeight = [], ancestorStyle = {}) {
   const rect = (top, height = 20) => ({ x: 10, y: top, top, bottom: top + height, width: 40, height });
   const element = (tagName, id, top, parentElement, testId = null) => ({
     tagName, id, className: '', parentElement,
@@ -18,6 +18,8 @@ function runProbe(missing = [], hidden = [], zeroHeight = []) {
     'main-menu-gold-button', 'main-menu-settings-button'];
   const controls = new Map(ids.filter(id => !missing.includes(id)).map((id, index) =>
     [id, element('BUTTON', 'hud-' + index, 10 + index * 4, body, id)]));
+  const ancestor = element('DIV', 'hud-ancestor', 8, body);
+  for (const control of controls.values()) control.parentElement = ancestor;
   const icon = element('SVG', 'profile-icon', 12, controls.get(ids[0]) || body);
   if (controls.has(ids[0])) controls.get(ids[0]).querySelectorAll = () => [icon];
   const below = element('BUTTON', 'below', 500, body);
@@ -44,7 +46,7 @@ function runProbe(missing = [], hidden = [], zeroHeight = []) {
     scale: 1, offsetTop: 0, offsetLeft: 0, pageTop: 0, pageLeft: 0 }, innerHeight: 800 },
     navigator: { standalone: true }, screen: { width: 390, height: 844 },
     devicePixelRatio: 3, innerWidth: 390, innerHeight: 800,
-    matchMedia: () => ({ matches: true }), getComputedStyle: el => hidden.includes(el.getAttribute?.('data-testid')) ? { ...style, visibility: 'hidden' } : style };
+    matchMedia: () => ({ matches: true }), getComputedStyle: el => el === ancestor ? { ...style, ...ancestorStyle } : hidden.includes(el.getAttribute?.('data-testid')) ? { ...style, visibility: 'hidden' } : style };
   const originals = new Map();
   for (const [key, value] of Object.entries(globals)) {
     originals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
@@ -105,4 +107,20 @@ test('zero-height mandatory HUD remains in diagnostic ancestry', () => {
   const { result } = runProbe([], [], ['main-menu-settings-button']);
   assert.deepEqual(result.notVisibleHudTestIds, ['main-menu-settings-button']);
   assert.ok(result.nodes.some(n => n.testId === 'main-menu-settings-button' && n.rect.height === 0));
+});
+
+test('hidden ancestor makes all required HUD controls invisible and remains in diagnostic ancestry', () => {
+  const { result } = runProbe([], [], [], { visibility: 'hidden' });
+  assert.deepEqual(result.missingHudTestIds, []);
+  assert.equal(result.explicitHudCount, 0);
+  assert.deepEqual(result.notVisibleHudTestIds, result.requiredHud.map(item => item.testId));
+  assert.ok(result.nodes.some(node => node.id === 'hud-ancestor' && node.visibility === 'hidden'));
+});
+
+test('zero-opacity ancestor makes all required HUD controls invisible without losing geometry', () => {
+  const { result } = runProbe([], [], [], { opacity: '0' });
+  assert.equal(result.explicitHudCount, 0);
+  assert.deepEqual(result.notVisibleHudTestIds, result.requiredHud.map(item => item.testId));
+  assert.ok(result.nodes.some(node => node.id === 'hud-ancestor' && node.opacity === '0'));
+  assert.ok(result.nodes.some(node => node.testId === 'main-menu-profile-badge' && node.rect.height > 0));
 });
