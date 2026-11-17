@@ -65,6 +65,18 @@ async function check(file, functionName, setup) {
   if (setup === 'room') assert.equal(result.scene, scene); else assert.equal(result, scene);
   await load(key);
   assert.equal(requests.length, 2, file + ': successful result must remain cached');
+  // A late rejection must never delete a newer cache entry for the same key.
+  cache.delete(key);
+  const stale = load(key);
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+  assert.equal(requests.length, 3, file + ': stale request must be in flight');
+  const replacement = Promise.resolve({ scene: { traverse() {} } });
+  cache.set(key, replacement);
+  requests[2].reject(new Error('late GLTF failure'));
+  await assert.rejects(stale, /late GLTF failure/);
+  assert.equal(cache.get(key), replacement, file + ': stale rejection must preserve replacement');
+  await load(key);
+  assert.equal(requests.length, 3, file + ': replacement cache must not trigger a new request');
 }
 await check('kaykitRoom3D.ts', 'loadAsset', 'room');
 await check('kaykitRoomThemesBase3D.ts', 'prototypeFor', 'theme');
