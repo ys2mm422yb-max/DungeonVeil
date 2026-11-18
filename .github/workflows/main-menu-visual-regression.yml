@@ -57,7 +57,8 @@ env:
 jobs:
   build-and-static:
     name: build-and-static
-    runs-on: ubuntu-latest
+    # Keep the prerequisite build on the same supported runner as the four-device evidence jobs.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
