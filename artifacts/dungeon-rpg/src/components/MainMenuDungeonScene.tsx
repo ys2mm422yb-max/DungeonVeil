@@ -24,6 +24,8 @@ export function MainMenuDungeonScene() {
   // Pre-mounted: show synchronously on context loss, even before React commits a state update.
   const actorFallbackRef = useRef<HTMLDivElement>(null);
   const recoveryBlockedRef = useRef(false);
+  // The old generation must never report ready after a context-lost event.
+  const pendingRecoveryGenerationRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleSpectatorRenderer = (event: Event) => {
@@ -62,6 +64,7 @@ export function MainMenuDungeonScene() {
     const handleContextLost = (event: Event) => {
       event.preventDefault();
       if (recoveryBlockedRef.current) return;
+      pendingRecoveryGenerationRef.current = rendererGeneration + 1;
       actorFallbackRef.current?.style.setProperty('visibility', 'visible');
       setWebglState('lost');
       window.clearTimeout(recoveryTimer);
@@ -84,6 +87,7 @@ export function MainMenuDungeonScene() {
 
   useEffect(() => {
     if (reducedMotion) {
+      pendingRecoveryGenerationRef.current = null;
       recoveryBlockedRef.current = true;
       setWebglState('reduced-motion');
       return () => { recoveryBlockedRef.current = false; };
@@ -94,9 +98,13 @@ export function MainMenuDungeonScene() {
     setWebglState(rendererGeneration > 0 ? 'recovering' : 'booting');
 
     const markRendererReady = () => {
+      // A still-running OLD canvas is not proof of restored WebGL. It previously
+      // re-hid the static actor in WebKit before the replacement renderer mounted.
+      if (pendingRecoveryGenerationRef.current !== null && rendererGeneration < pendingRecoveryGenerationRef.current) return;
       const liveScene = frame.querySelector<HTMLElement>('[data-testid="live-hybrid-main-menu-scene"]');
       const canvas = frame.querySelector('canvas[data-testid="live-hybrid-main-menu-canvas"]');
       if (liveScene?.dataset.animationState !== 'running' || liveScene.dataset.rangerLoaded !== 'true' || !canvas) return;
+      if (pendingRecoveryGenerationRef.current !== null && rendererGeneration >= pendingRecoveryGenerationRef.current) pendingRecoveryGenerationRef.current = null;
       recoveryBlockedRef.current = false;
       setWebglState('ready');
     };

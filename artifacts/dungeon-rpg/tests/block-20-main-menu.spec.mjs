@@ -382,11 +382,18 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
       companionVisible: paintable(companion),
       companionSpecies: companion?.getAttribute('data-species') ?? null,
     };
+    const stateDiagnostic = {
+      fallbackVisibility: fallback ? getComputedStyle(fallback).visibility : 'missing',
+      rangerVisibility: ranger ? getComputedStyle(ranger).visibility : 'missing',
+      actorBounds: ranger?.getBoundingClientRect().toJSON() ?? null,
+      companionBounds: companion?.getBoundingClientRect().toJSON() ?? null,
+      menuWebglState: document.querySelector('[data-testid="main-menu-scene-presentation"]')?.getAttribute('data-webgl-state') ?? null,
+    };
     canvas.dispatchEvent(new Event('webglcontextrestored', { bubbles: true, cancelable: false }));
-    return { defaultPrevented: lost.defaultPrevented, dispatchAccepted, intermediate };
+    return { defaultPrevented: lost.defaultPrevented, dispatchAccepted, intermediate, stateDiagnostic };
   });
   expect(loss.defaultPrevented || loss.dispatchAccepted === false).toBe(true);
-  expect(loss.intermediate, 'WebGL loss must retain a paintable Ranger and the equipped companion').toEqual({
+  expect(loss.intermediate, `WebGL loss must retain a paintable Ranger and the equipped companion: ${JSON.stringify(loss.stateDiagnostic)}`).toEqual({
     actorVisible: true,
     companionVisible: true,
     companionSpecies: 'rune-sentinel',
