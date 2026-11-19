@@ -103,7 +103,11 @@ export function MainMenuDungeonScene() {
       if (pendingRecoveryGenerationRef.current !== null && rendererGeneration < pendingRecoveryGenerationRef.current) return;
       const liveScene = frame.querySelector<HTMLElement>('[data-testid="live-hybrid-main-menu-scene"]');
       const canvas = frame.querySelector('canvas[data-testid="live-hybrid-main-menu-canvas"]');
-      if (liveScene?.dataset.animationState !== 'running' || liveScene.dataset.rangerLoaded !== 'true' || !canvas) return;
+      // A loaded rig is not yet a composited Ranger. iPad WebKit original video
+      // showed a portal-only gap while the replacement canvas had too few frames.
+      // Match the existing minimum in waitForLiveMenuPaint before hiding fallback.
+      const renderedFrames = Number(liveScene?.dataset.animationFrames ?? 0);
+      if (liveScene?.dataset.animationState !== 'running' || liveScene.dataset.rangerLoaded !== 'true' || !canvas || renderedFrames < 10) return;
       if (pendingRecoveryGenerationRef.current !== null && rendererGeneration >= pendingRecoveryGenerationRef.current) pendingRecoveryGenerationRef.current = null;
       recoveryBlockedRef.current = false;
       setWebglState('ready');

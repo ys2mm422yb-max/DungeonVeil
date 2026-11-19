@@ -403,7 +403,10 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   await expect(presentation).toHaveAttribute('data-renderer-generation', '1', { timeout: 30_000 });
   await expect(presentation).toHaveAttribute('data-webgl-state', 'ready', { timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
+  const framesOnRecovery = Number(await page.getByTestId('live-hybrid-main-menu-scene').getAttribute('data-animation-frames') || 0);
+  expect(framesOnRecovery, 'WebGL recovery must not hide actor fallback before ten Ranger render frames').toBeGreaterThanOrEqual(10);
   await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), 60_000);
+  await expect(page.getByTestId('main-menu-actor-recovery-fallback')).toBeHidden();
   await capture(page, 'webgl-after-recovery', testInfo.project.name);
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -420,7 +423,10 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'false', { timeout: 20_000 });
   await expect(presentation).toHaveAttribute('data-webgl-state', 'ready', { timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
+  const framesAfterMotionExit = Number(await page.getByTestId('live-hybrid-main-menu-scene').getAttribute('data-animation-frames') || 0);
+  expect(framesAfterMotionExit, 'Reduced-motion exit must restore ten rendered Ranger frames before releasing fallback').toBeGreaterThanOrEqual(10);
   await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), 60_000);
+  await expect(page.getByTestId('main-menu-actor-recovery-fallback')).toBeHidden();
 
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
 });
