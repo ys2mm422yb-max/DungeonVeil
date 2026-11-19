@@ -376,7 +376,7 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
     const fallback = document.querySelector('[data-testid="main-menu-actor-recovery-fallback"]');
     const ranger = fallback?.querySelector('[data-testid="main-menu-static-ranger-fallback"]');
     const companion = fallback?.querySelector('[data-testid="main-menu-static-companion-fallback"]');
-    const paintable = element => Boolean(element && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0);
+    const paintable = element => Boolean(element && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0 && getComputedStyle(element).visibility === 'visible' && Number(getComputedStyle(element).opacity) > 0);
     const intermediate = {
       actorVisible: paintable(ranger),
       companionVisible: paintable(companion),

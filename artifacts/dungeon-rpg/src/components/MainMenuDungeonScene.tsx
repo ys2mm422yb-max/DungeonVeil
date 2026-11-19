@@ -21,6 +21,8 @@ export function MainMenuDungeonScene() {
   const [webglState, setWebglState] = useState<MenuWebglState>('booting');
   const [activeCompanion, setActiveCompanion] = useState(() => activeCompanionV5()?.definition ?? null);
   const liveFrameRef = useRef<HTMLDivElement>(null);
+  // Pre-mounted: show synchronously on context loss, even before React commits a state update.
+  const actorFallbackRef = useRef<HTMLDivElement>(null);
   const recoveryBlockedRef = useRef(false);
 
   useEffect(() => {
@@ -52,6 +54,7 @@ export function MainMenuDungeonScene() {
     const restartRenderer = () => {
       if (recoveryBlockedRef.current) return;
       recoveryBlockedRef.current = true;
+      actorFallbackRef.current?.style.setProperty('visibility', 'visible');
       setWebglRecoveries(value => value + 1);
       setWebglState('recovering');
       setRendererGeneration(value => value + 1);
@@ -59,6 +62,7 @@ export function MainMenuDungeonScene() {
     const handleContextLost = (event: Event) => {
       event.preventDefault();
       if (recoveryBlockedRef.current) return;
+      actorFallbackRef.current?.style.setProperty('visibility', 'visible');
       setWebglState('lost');
       window.clearTimeout(recoveryTimer);
       recoveryTimer = window.setTimeout(restartRenderer, 120);
@@ -163,9 +167,11 @@ export function MainMenuDungeonScene() {
       aria-hidden="true"
       className="absolute inset-[20%_18%_27%] z-[4] rounded-[50%] bg-[radial-gradient(ellipse_at_center,rgba(151,96,226,.16),rgba(31,14,47,.08)_48%,transparent_73%)] opacity-90 blur-[2px]"
     />}
-    {showActorFallback && <div
+    <div
+      ref={actorFallbackRef}
       data-testid={reducedMotion ? "main-menu-reduced-motion-fallback" : "main-menu-actor-recovery-fallback"}
       aria-hidden="true"
+      style={{ visibility: showActorFallback ? 'visible' : 'hidden' }}
       className="absolute inset-[15%_13%_25%] z-[5] flex items-end justify-center"
     >
       <svg data-testid="main-menu-static-ranger-fallback" viewBox="0 0 520 620" className="h-full max-h-[620px] w-full max-w-[520px] overflow-visible drop-shadow-[0_28px_38px_rgba(0,0,0,.65)]" role="presentation">
@@ -233,7 +239,7 @@ export function MainMenuDungeonScene() {
           </>}
         </g>}
       </svg>
-    </div>}
+    </div>
     <div className="dv-main-menu-grounding" aria-hidden="true" />
     <div aria-hidden="true" className="absolute inset-x-[9%] top-[28%] h-[30%] rounded-full bg-violet-500/[.035] blur-[80px] mix-blend-screen" />
     <div aria-hidden="true" className="absolute inset-x-[-10%] bottom-[10%] h-[35%] bg-[radial-gradient(ellipse_at_center,rgba(87,58,123,.055),rgba(20,13,29,.035)_43%,transparent_74%)] blur-2xl" />
