@@ -409,6 +409,24 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   await expect(page.getByTestId('main-menu-actor-recovery-fallback')).toBeHidden();
   await capture(page, 'webgl-after-recovery', testInfo.project.name);
 
+  // Sample every browser frame; endpoint-only assertions missed a four-second blank.
+  await page.evaluate(() => {
+    window.__dvMotionContinuity = { samples: [], active: true };
+    const sample = () => {
+      const monitor = window.__dvMotionContinuity;
+      if (!monitor?.active) return;
+      const root = document.querySelector('[data-testid="main-menu-scene-presentation"]');
+      const ranger = root?.querySelector('[data-testid="main-menu-static-ranger-fallback"]');
+      const companion = root?.querySelector('[data-testid="main-menu-static-companion-fallback"]');
+      const canvas = root?.querySelector('canvas[data-testid="live-hybrid-main-menu-canvas"]');
+      const scene = root?.querySelector('[data-testid="live-hybrid-main-menu-scene"]');
+      const visible = node => Boolean(node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0 && getComputedStyle(node).visibility === 'visible' && getComputedStyle(node).display !== 'none');
+      monitor.samples.push({ t: performance.now(), state: root?.getAttribute('data-webgl-state'), fallback: visible(ranger) && visible(companion), canvas: visible(canvas) && scene?.getAttribute('data-ranger-loaded') === 'true' && Number(scene?.getAttribute('data-animation-frames') || 0) >= 10 });
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'true', { timeout: 20_000 });
   await expect(presentation).toHaveAttribute('data-webgl-state', 'reduced-motion');
@@ -427,6 +445,14 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   expect(framesAfterMotionExit, 'Reduced-motion exit must restore ten rendered Ranger frames before releasing fallback').toBeGreaterThanOrEqual(10);
   await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), 60_000);
   await expect(page.getByTestId('main-menu-actor-recovery-fallback')).toBeHidden();
+
+  const motionContinuity = await page.evaluate(() => {
+    window.__dvMotionContinuity.active = false;
+    return window.__dvMotionContinuity.samples;
+  });
+  expect(motionContinuity.length, 'Reduced-motion transition monitor must collect animation frames').toBeGreaterThan(10);
+  const actorFreeFrames = motionContinuity.filter(frame => !frame.fallback && !frame.canvas);
+  expect(actorFreeFrames, 'Every sampled transition frame must retain actor+companion fallback or a ready Ranger canvas: ' + JSON.stringify(actorFreeFrames.slice(0, 12))).toEqual([]);
 
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
 });
