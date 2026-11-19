@@ -32,7 +32,12 @@ export function MainMenuDungeonScene() {
       setSuspended(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
     };
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const handleMotionPreference = () => setReducedMotion(media.matches);
+    const handleMotionPreference = () => {
+      // A WebKit media-query change can paint before React commits its new tree.
+      // Keep the already-mounted Ranger and companion visible throughout that gap.
+      actorFallbackRef.current?.style.setProperty('visibility', 'visible');
+      setReducedMotion(media.matches);
+    };
     const syncCompanion = () => setActiveCompanion(activeCompanionV5()?.definition ?? null);
     handleMotionPreference();
     syncCompanion();
