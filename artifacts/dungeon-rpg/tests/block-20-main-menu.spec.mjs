@@ -368,14 +368,29 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   await expect(page.locator('canvas')).toHaveCount(1);
   await capture(page, 'webgl-before-loss', testInfo.project.name);
 
-  const loss = await page.getByTestId('live-hybrid-main-menu-canvas').evaluate(canvas => {
+  const loss = await page.getByTestId('live-hybrid-main-menu-canvas').evaluate(async canvas => {
     const lost = new Event('webglcontextlost', { bubbles: true, cancelable: true });
     const dispatchAccepted = canvas.dispatchEvent(lost);
-    const restored = new Event('webglcontextrestored', { bubbles: true, cancelable: false });
-    canvas.dispatchEvent(restored);
-    return { defaultPrevented: lost.defaultPrevented, dispatchAccepted };
+    // Prove the intermediate fallback before dispatching recovery, not just the eventual canvas.
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const fallback = document.querySelector('[data-testid="main-menu-actor-recovery-fallback"]');
+    const ranger = fallback?.querySelector('[data-testid="main-menu-static-ranger-fallback"]');
+    const companion = fallback?.querySelector('[data-testid="main-menu-static-companion-fallback"]');
+    const paintable = element => Boolean(element && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0);
+    const intermediate = {
+      actorVisible: paintable(ranger),
+      companionVisible: paintable(companion),
+      companionSpecies: companion?.getAttribute('data-species') ?? null,
+    };
+    canvas.dispatchEvent(new Event('webglcontextrestored', { bubbles: true, cancelable: false }));
+    return { defaultPrevented: lost.defaultPrevented, dispatchAccepted, intermediate };
   });
   expect(loss.defaultPrevented || loss.dispatchAccepted === false).toBe(true);
+  expect(loss.intermediate, 'WebGL loss must retain a paintable Ranger and the equipped companion').toEqual({
+    actorVisible: true,
+    companionVisible: true,
+    companionSpecies: 'rune-sentinel',
+  });
 
   await expect(presentation).toHaveAttribute('data-webgl-recoveries', '1', { timeout: 30_000 });
   await expect(presentation).toHaveAttribute('data-renderer-generation', '1', { timeout: 30_000 });
@@ -388,6 +403,9 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'true', { timeout: 20_000 });
   await expect(presentation).toHaveAttribute('data-webgl-state', 'reduced-motion');
   await expect(page.getByTestId('main-menu-reduced-motion-fallback')).toBeVisible();
+  await expect(page.getByTestId('main-menu-static-ranger-fallback')).toBeVisible();
+  await expect(page.getByTestId('main-menu-static-companion-fallback')).toBeVisible();
+  await expect(page.getByTestId('main-menu-static-companion-fallback')).toHaveAttribute('data-species', 'rune-sentinel');
   await expect(page.locator('canvas')).toHaveCount(0);
   await capture(page, 'reduced-motion-static', testInfo.project.name);
 
