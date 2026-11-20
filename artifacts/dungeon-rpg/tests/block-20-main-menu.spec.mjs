@@ -1,6 +1,68 @@
 import { test, expect } from '@playwright/test';
-import { unlink } from 'node:fs/promises';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
+import { deflateSync, inflateSync } from 'node:zlib';
 import { waitForLiveMenuPaint, waitForPaintedCanvas } from './visual-render-readiness.mjs';
+
+
+function pngCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+// Recompress only PNG IDAT bytes. Keep all non-image chunks, dimensions and
+// decoded scanlines identical; on malformed or non-smaller output keep original.
+async function recompressPngLosslessly(path) {
+  const original = await readFile(path);
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (!original.subarray(0, 8).equals(signature)) return;
+  try {
+    const chunks = [];
+    const idats = [];
+    let offset = 8;
+    let ended = false;
+    while (offset + 12 <= original.length) {
+      const start = offset;
+      const length = original.readUInt32BE(offset);
+      const end = offset + 12 + length;
+      if (end > original.length) return;
+      const type = original.toString('ascii', offset + 4, offset + 8);
+      const data = original.subarray(offset + 8, offset + 8 + length);
+      const crc = original.readUInt32BE(offset + 8 + length);
+      if (pngCrc32(original.subarray(offset + 4, offset + 8 + length)) !== crc) return;
+      chunks.push({ type, bytes: original.subarray(start, end) });
+      if (type === 'IDAT') idats.push(data);
+      offset = end;
+      if (type === 'IEND') { ended = true; break; }
+    }
+    if (!ended || offset !== original.length || idats.length === 0) return;
+    const decoded = inflateSync(Buffer.concat(idats));
+    const encoded = deflateSync(decoded, { level: 9 });
+    if (encoded.length >= idats.reduce((sum, data) => sum + data.length, 0)) return;
+    const type = Buffer.from('IDAT');
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(encoded.length);
+    const checksum = Buffer.alloc(4);
+    checksum.writeUInt32BE(pngCrc32(Buffer.concat([type, encoded])));
+    const replacement = Buffer.concat([length, type, encoded, checksum]);
+    const parts = [signature];
+    let inserted = false;
+    for (const chunk of chunks) {
+      if (chunk.type === 'IDAT') {
+        if (!inserted) { parts.push(replacement); inserted = true; }
+      } else parts.push(chunk.bytes);
+    }
+    const optimized = Buffer.concat(parts);
+    if (optimized.length >= original.length) return;
+    if (!inflateSync(encoded).equals(decoded)) throw new Error('PNG decoded scanline mismatch');
+    await writeFile(path, optimized);
+  } catch (error) {
+    throw new Error(`Lossless PNG evidence validation failed for ${path}: ${error.message}`);
+  }
+}
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const STANDARD_LOADOUT = Object.freeze({ bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' });
@@ -438,6 +500,7 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
       const started = Date.now();
       const path = testInfo.outputPath(`motion-handoff-composited-${String(sample).padStart(2, '0')}.png`);
       await page.screenshot({ animations: 'allow', timeout: 15_000, path });
+      await recompressPngLosslessly(path);
       motionPixelEvidence.push({ sample, path });
       await new Promise(resolve => setTimeout(resolve, Math.max(0, 80 - (Date.now() - started))));
     }
