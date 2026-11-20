@@ -91,9 +91,10 @@ async function recompressPngLosslessly(path) {
     const decoded = inflateSync(Buffer.concat(idats));
     const ihdr = chunks.find(chunk => chunk.type === 'IHDR')?.bytes;
     let filtered = null;
-    if (ihdr && ihdr.length === 25 && ihdr[24] === 0) {
+    if (ihdr && ihdr.length === 25 && ihdr[20] === 0) {
       filtered = refilterPngScanlines(decoded, ihdr.readUInt32BE(8), ihdr.readUInt32BE(12), ihdr[16], ihdr[17]);
     }
+    if (filtered && !refilterPngScanlines(filtered, ihdr.readUInt32BE(8), ihdr.readUInt32BE(12), ihdr[16], ihdr[17]).equals(filtered)) throw new Error('PNG adaptive row filter round-trip mismatch');
     const baseline = deflateSync(decoded, { level: 9 });
     const adaptive = filtered ? deflateSync(filtered, { level: 9 }) : null;
     const encoded = adaptive && adaptive.length < baseline.length ? adaptive : baseline;
