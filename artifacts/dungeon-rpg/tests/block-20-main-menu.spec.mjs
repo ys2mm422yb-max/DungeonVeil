@@ -13,6 +13,55 @@ function pngCrc32(bytes) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+
+function refilterPngScanlines(decoded, width, height, bitDepth, colorType) {
+  const channels = ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 })[colorType];
+  if (!channels || !width || !height) return null;
+  const stride = Math.ceil(width * channels * bitDepth / 8);
+  const bpp = Math.max(1, Math.ceil(channels * bitDepth / 8));
+  if (decoded.length !== height * (stride + 1)) return null;
+  const output = Buffer.alloc(decoded.length);
+  let prior = Buffer.alloc(stride);
+  for (let y = 0; y < height; y++) {
+    const start = y * (stride + 1);
+    const filter = decoded[start];
+    if (filter > 4) return null;
+    const raw = Buffer.alloc(stride);
+    for (let x = 0; x < stride; x++) {
+      const left = x >= bpp ? raw[x - bpp] : 0;
+      const above = prior[x];
+      const upperLeft = x >= bpp ? prior[x - bpp] : 0;
+      const p = left + above - upperLeft;
+      const a = Math.abs(p - left), b = Math.abs(p - above), c = Math.abs(p - upperLeft);
+      const paeth = a <= b && a <= c ? left : b <= c ? above : upperLeft;
+      const predictor = [0, left, above, Math.floor((left + above) / 2), paeth][filter];
+      raw[x] = (decoded[start + 1 + x] + predictor) & 255;
+    }
+    let bestScore = Infinity, bestType = 0, best = null;
+    for (let type = 0; type < 5; type++) {
+      const candidate = Buffer.alloc(stride);
+      let score = 0;
+      for (let x = 0; x < stride; x++) {
+        const left = x >= bpp ? raw[x - bpp] : 0;
+        const above = prior[x];
+        const upperLeft = x >= bpp ? prior[x - bpp] : 0;
+        const p = left + above - upperLeft;
+        const a = Math.abs(p - left), b = Math.abs(p - above), c = Math.abs(p - upperLeft);
+        const paeth = a <= b && a <= c ? left : b <= c ? above : upperLeft;
+        const predictor = [0, left, above, Math.floor((left + above) / 2), paeth][type];
+        const value = (raw[x] - predictor + 256) & 255;
+        candidate[x] = value;
+        score += value < 128 ? value : 256 - value;
+      }
+      if (score < bestScore) { bestScore = score; bestType = type; best = candidate; }
+    }
+    output[start] = bestType;
+    best.copy(output, start + 1);
+    prior = raw;
+  }
+  return output;
+}
+
 // Recompress only PNG IDAT bytes. Keep all non-image chunks, dimensions and
 // decoded scanlines identical; on malformed or non-smaller output keep original.
 async function recompressPngLosslessly(path) {
@@ -40,7 +89,15 @@ async function recompressPngLosslessly(path) {
     }
     if (!ended || offset !== original.length || idats.length === 0) return;
     const decoded = inflateSync(Buffer.concat(idats));
-    const encoded = deflateSync(decoded, { level: 9 });
+    const ihdr = chunks.find(chunk => chunk.type === 'IHDR')?.bytes;
+    let filtered = null;
+    if (ihdr && ihdr.length === 25 && ihdr[24] === 0) {
+      filtered = refilterPngScanlines(decoded, ihdr.readUInt32BE(8), ihdr.readUInt32BE(12), ihdr[16], ihdr[17]);
+    }
+    const baseline = deflateSync(decoded, { level: 9 });
+    const adaptive = filtered ? deflateSync(filtered, { level: 9 }) : null;
+    const encoded = adaptive && adaptive.length < baseline.length ? adaptive : baseline;
+    const expectedScanlines = encoded === adaptive ? filtered : decoded;
     if (encoded.length >= idats.reduce((sum, data) => sum + data.length, 0)) return;
     const type = Buffer.from('IDAT');
     const length = Buffer.alloc(4);
@@ -57,7 +114,7 @@ async function recompressPngLosslessly(path) {
     }
     const optimized = Buffer.concat(parts);
     if (optimized.length >= original.length) return;
-    if (!inflateSync(encoded).equals(decoded)) throw new Error('PNG decoded scanline mismatch');
+    if (!inflateSync(encoded).equals(expectedScanlines)) throw new Error('PNG compressed scanline mismatch');
     await writeFile(path, optimized);
   } catch (error) {
     throw new Error(`Lossless PNG evidence validation failed for ${path}: ${error.message}`);
