@@ -432,9 +432,8 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   // These screenshots are diagnostic evidence, not a substitute for the existing
   // assertions or the independent full-video four-device visual acceptance.
   const motionPixelEvidence = [];
-  let captureMotionPixels = true;
   const motionPixelSampler = (async () => {
-    for (let sample = 0; sample < 32 && captureMotionPixels; sample += 1) {
+    for (let sample = 0; sample < 32; sample += 1) {
       const started = Date.now();
       const png = await page.screenshot({ animations: 'allow', timeout: 15_000 });
       motionPixelEvidence.push({ sample, png });
@@ -461,7 +460,8 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), 60_000);
   await expect(page.getByTestId('main-menu-actor-recovery-fallback')).toBeHidden();
 
-  captureMotionPixels = false;
+  // Complete the fixed capture series on fast Chromium transitions too; never
+  // truncate original pixel evidence just because the DOM assertions finish early.
   await motionPixelSampler;
   expect(motionPixelEvidence.length, 'Motion handoff must produce original pixel evidence').toBeGreaterThan(10);
   for (const { sample, png } of motionPixelEvidence) {
