@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { unlink } from 'node:fs/promises';
 import { waitForLiveMenuPaint, waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
@@ -470,6 +471,9 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
       path,
       contentType: 'image/png',
     });
+    // Playwright copies the original into attachments; avoid packaging a second
+    // identical PNG in test-results while retaining all 32 full-resolution frames.
+    await unlink(path);
   }
 
   const motionContinuity = await page.evaluate(() => {
