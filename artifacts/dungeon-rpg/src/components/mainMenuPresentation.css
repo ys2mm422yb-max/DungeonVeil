@@ -188,6 +188,22 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /*
+   * WebKit can composite the new reduced-motion media style before React's
+   * matchMedia handler/commit. Force the pre-mounted Ranger + companion into
+   * the same paint as the media-query switch, even while React's inline
+   * visibility still says hidden. This closes the portal-only transition
+   * window recorded in the original iPad WebKit evidence at 16.0 seconds.
+   */
+  .dv-main-menu-scene [data-testid='main-menu-actor-recovery-fallback'],
+  .dv-main-menu-scene [data-testid='main-menu-reduced-motion-fallback'] {
+    visibility: visible !important;
+  }
+
+  /* Do not composite an old WebGL frame over the static reduced-motion pair. */
+  .dv-main-menu-scene .dv-main-menu-live-frame {
+    visibility: hidden !important;
+  }
   .dv-main-menu-scene::before {
     animation: none !important;
     opacity: 0.78;
