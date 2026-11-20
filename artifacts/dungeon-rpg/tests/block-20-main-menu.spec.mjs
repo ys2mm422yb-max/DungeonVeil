@@ -435,8 +435,9 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   const motionPixelSampler = (async () => {
     for (let sample = 0; sample < 32; sample += 1) {
       const started = Date.now();
-      const png = await page.screenshot({ animations: 'allow', timeout: 15_000 });
-      motionPixelEvidence.push({ sample, png });
+      const path = testInfo.outputPath(`motion-handoff-composited-${String(sample).padStart(2, '0')}.png`);
+      await page.screenshot({ animations: 'allow', timeout: 15_000, path });
+      motionPixelEvidence.push({ sample, path });
       await new Promise(resolve => setTimeout(resolve, Math.max(0, 80 - (Date.now() - started))));
     }
   })();
@@ -464,9 +465,9 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   // truncate original pixel evidence just because the DOM assertions finish early.
   await motionPixelSampler;
   expect(motionPixelEvidence.length, 'Motion handoff must produce original pixel evidence').toBeGreaterThan(10);
-  for (const { sample, png } of motionPixelEvidence) {
+  for (const { sample, path } of motionPixelEvidence) {
     await testInfo.attach(`motion-handoff-composited-${String(sample).padStart(2, '0')}`, {
-      body: png,
+      path,
       contentType: 'image/png',
     });
   }
