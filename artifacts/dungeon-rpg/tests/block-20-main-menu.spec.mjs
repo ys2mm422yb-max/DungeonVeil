@@ -427,6 +427,21 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
     requestAnimationFrame(sample);
   });
 
+  // Preserve original composited pixels around the WebKit motion handoff. DOM/rAF
+  // visibility alone previously passed while the iPhone video lost both actors.
+  // These screenshots are diagnostic evidence, not a substitute for the existing
+  // assertions or the independent full-video four-device visual acceptance.
+  const motionPixelEvidence = [];
+  let captureMotionPixels = true;
+  const motionPixelSampler = (async () => {
+    for (let sample = 0; sample < 32 && captureMotionPixels; sample += 1) {
+      const started = Date.now();
+      const png = await page.screenshot({ animations: 'allow', timeout: 15_000 });
+      motionPixelEvidence.push({ sample, png });
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, 80 - (Date.now() - started))));
+    }
+  })();
+
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'true', { timeout: 20_000 });
   await expect(presentation).toHaveAttribute('data-webgl-state', 'reduced-motion');
@@ -445,6 +460,16 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   expect(framesAfterMotionExit, 'Reduced-motion exit must restore ten rendered Ranger frames before releasing fallback').toBeGreaterThanOrEqual(10);
   await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), 60_000);
   await expect(page.getByTestId('main-menu-actor-recovery-fallback')).toBeHidden();
+
+  captureMotionPixels = false;
+  await motionPixelSampler;
+  expect(motionPixelEvidence.length, 'Motion handoff must produce original pixel evidence').toBeGreaterThan(10);
+  for (const { sample, png } of motionPixelEvidence) {
+    await testInfo.attach(`motion-handoff-composited-${String(sample).padStart(2, '0')}`, {
+      body: png,
+      contentType: 'image/png',
+    });
+  }
 
   const motionContinuity = await page.evaluate(() => {
     window.__dvMotionContinuity.active = false;
