@@ -36,6 +36,10 @@ export function MainMenuDungeonScene() {
       // A WebKit media-query change can paint before React commits its new tree.
       // Keep the already-mounted Ranger and companion visible throughout that gap.
       actorFallbackRef.current?.style.setProperty('visibility', 'visible');
+      // Invalidate a previously ready canvas in the same React batch as the
+      // preference change, before WebKit can commit a new renderer frame.
+      // The fallback must survive until the fresh renderer passes paint checks.
+      setWebglState(previous => previous === 'ready' ? 'booting' : previous);
       setReducedMotion(media.matches);
     };
     const syncCompanion = () => setActiveCompanion(activeCompanionV5()?.definition ?? null);
