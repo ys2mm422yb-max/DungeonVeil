@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { LiveHybridMainMenuScene } from './LiveHybridMainMenuScene';
+import { activeCompanionV5, COMPANION_COLLECTION_EVENT } from '../game/companionCollectionV5';
 import './mainMenuPresentation.css';
 
 export const SPECTATOR_RENDERER_EVENT = 'dungeon-veil-spectator-renderer';
@@ -18,20 +19,40 @@ export function MainMenuDungeonScene() {
   const [rendererGeneration, setRendererGeneration] = useState(0);
   const [webglRecoveries, setWebglRecoveries] = useState(0);
   const [webglState, setWebglState] = useState<MenuWebglState>('booting');
+  const [activeCompanion, setActiveCompanion] = useState(() => activeCompanionV5()?.definition ?? null);
   const liveFrameRef = useRef<HTMLDivElement>(null);
+  // Pre-mounted: show synchronously on context loss, even before React commits a state update.
+  const actorFallbackRef = useRef<HTMLDivElement>(null);
   const recoveryBlockedRef = useRef(false);
+  // The old generation must never report ready after a context-lost event.
+  const pendingRecoveryGenerationRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleSpectatorRenderer = (event: Event) => {
       setSuspended(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
     };
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const handleMotionPreference = () => setReducedMotion(media.matches);
+    const handleMotionPreference = () => {
+      // A WebKit media-query change can paint before React commits its new tree.
+      // Keep the already-mounted Ranger and companion visible throughout that gap.
+      actorFallbackRef.current?.style.setProperty('visibility', 'visible');
+      // Invalidate a previously ready canvas in the same React batch as the
+      // preference change, before WebKit can commit a new renderer frame.
+      // The fallback must survive until the fresh renderer passes paint checks.
+      setWebglState(previous => previous === 'ready' ? 'booting' : previous);
+      setReducedMotion(media.matches);
+    };
+    const syncCompanion = () => setActiveCompanion(activeCompanionV5()?.definition ?? null);
     handleMotionPreference();
+    syncCompanion();
     window.addEventListener(SPECTATOR_RENDERER_EVENT, handleSpectatorRenderer);
+    window.addEventListener(COMPANION_COLLECTION_EVENT, syncCompanion);
+    window.addEventListener('storage', syncCompanion);
     media.addEventListener?.('change', handleMotionPreference);
     return () => {
       window.removeEventListener(SPECTATOR_RENDERER_EVENT, handleSpectatorRenderer);
+      window.removeEventListener(COMPANION_COLLECTION_EVENT, syncCompanion);
+      window.removeEventListener('storage', syncCompanion);
       media.removeEventListener?.('change', handleMotionPreference);
     };
   }, []);
@@ -44,6 +65,7 @@ export function MainMenuDungeonScene() {
     const restartRenderer = () => {
       if (recoveryBlockedRef.current) return;
       recoveryBlockedRef.current = true;
+      actorFallbackRef.current?.style.setProperty('visibility', 'visible');
       setWebglRecoveries(value => value + 1);
       setWebglState('recovering');
       setRendererGeneration(value => value + 1);
@@ -51,6 +73,8 @@ export function MainMenuDungeonScene() {
     const handleContextLost = (event: Event) => {
       event.preventDefault();
       if (recoveryBlockedRef.current) return;
+      pendingRecoveryGenerationRef.current = rendererGeneration + 1;
+      actorFallbackRef.current?.style.setProperty('visibility', 'visible');
       setWebglState('lost');
       window.clearTimeout(recoveryTimer);
       recoveryTimer = window.setTimeout(restartRenderer, 120);
@@ -72,6 +96,7 @@ export function MainMenuDungeonScene() {
 
   useEffect(() => {
     if (reducedMotion) {
+      pendingRecoveryGenerationRef.current = null;
       recoveryBlockedRef.current = true;
       setWebglState('reduced-motion');
       return () => { recoveryBlockedRef.current = false; };
@@ -82,9 +107,17 @@ export function MainMenuDungeonScene() {
     setWebglState(rendererGeneration > 0 ? 'recovering' : 'booting');
 
     const markRendererReady = () => {
+      // A still-running OLD canvas is not proof of restored WebGL. It previously
+      // re-hid the static actor in WebKit before the replacement renderer mounted.
+      if (pendingRecoveryGenerationRef.current !== null && rendererGeneration < pendingRecoveryGenerationRef.current) return;
       const liveScene = frame.querySelector<HTMLElement>('[data-testid="live-hybrid-main-menu-scene"]');
       const canvas = frame.querySelector('canvas[data-testid="live-hybrid-main-menu-canvas"]');
-      if (liveScene?.dataset.animationState !== 'running' || liveScene.dataset.rangerLoaded !== 'true' || !canvas) return;
+      // A loaded rig is not yet a composited Ranger. iPad WebKit original video
+      // showed a portal-only gap while the replacement canvas had too few frames.
+      // Match the existing minimum in waitForLiveMenuPaint before hiding fallback.
+      const renderedFrames = Number(liveScene?.dataset.animationFrames ?? 0);
+      if (liveScene?.dataset.animationState !== 'running' || liveScene.dataset.rangerLoaded !== 'true' || !canvas || renderedFrames < 10) return;
+      if (pendingRecoveryGenerationRef.current !== null && rendererGeneration >= pendingRecoveryGenerationRef.current) pendingRecoveryGenerationRef.current = null;
       recoveryBlockedRef.current = false;
       setWebglState('ready');
     };
@@ -99,6 +132,8 @@ export function MainMenuDungeonScene() {
 
   if (suspended) return null;
   const heroUrl = `${import.meta.env.BASE_URL}assets/hall/veil-hall-hero.svg`;
+  // Keep an actor and its equipped companion while WebGL remounts or reduced motion is active.
+  const showActorFallback = reducedMotion || webglState !== 'ready';
 
   return <div
     data-testid="main-menu-scene-presentation"
@@ -153,8 +188,14 @@ export function MainMenuDungeonScene() {
       aria-hidden="true"
       className="absolute inset-[20%_18%_27%] z-[4] rounded-[50%] bg-[radial-gradient(ellipse_at_center,rgba(151,96,226,.16),rgba(31,14,47,.08)_48%,transparent_73%)] opacity-90 blur-[2px]"
     />}
-    {reducedMotion && <div data-testid="main-menu-reduced-motion-fallback" aria-hidden="true" className="absolute inset-[15%_13%_25%] flex items-end justify-center">
-      <svg viewBox="0 0 520 620" className="h-full max-h-[620px] w-full max-w-[520px] overflow-visible drop-shadow-[0_28px_38px_rgba(0,0,0,.65)]" role="presentation">
+    <div
+      ref={actorFallbackRef}
+      data-testid={reducedMotion ? "main-menu-reduced-motion-fallback" : "main-menu-actor-recovery-fallback"}
+      aria-hidden="true"
+      style={{ visibility: showActorFallback ? 'visible' : 'hidden' }}
+      className="absolute inset-[15%_13%_25%] z-[5] flex items-end justify-center"
+    >
+      <svg data-testid="main-menu-static-ranger-fallback" viewBox="0 0 520 620" className="h-full max-h-[620px] w-full max-w-[520px] overflow-visible drop-shadow-[0_28px_38px_rgba(0,0,0,.65)]" role="presentation">
         <defs>
           <radialGradient id="reducedPortal" cx="50%" cy="44%" r="58%">
             <stop offset="0%" stopColor="#d8c5ff" stopOpacity=".64" />
@@ -184,8 +225,42 @@ export function MainMenuDungeonScene() {
         <path d="M327 191l44 146" stroke="#69533d" strokeWidth="17" strokeLinecap="round" />
         <path d="M344 186l39 132M358 181l39 119M371 181l37 103" stroke="#d8bd88" strokeWidth="4" strokeLinecap="round" />
         <path d="M208 478h104l19 52H188z" fill="#0a0710" opacity=".72" />
+        {activeCompanion && <g
+          data-testid="main-menu-static-companion-fallback"
+          data-species={activeCompanion.species}
+          transform="translate(405 394)"
+        >
+          <ellipse cx="0" cy="107" rx="53" ry="14" fill="#0c0712" opacity=".55" />
+          <ellipse cx="0" cy="42" rx="52" ry="76" fill={activeCompanion.accent} opacity=".12" />
+          {activeCompanion.species === 'veil-lynx' && <>
+            <path d="M-25 73Q-41 30-24 8L-15-25 0-11 15-25 25 8Q43 30 25 73Z" fill="#273b4e" stroke={activeCompanion.accent} strokeWidth="4" />
+            <path d="M-15 69Q-48 86-39 49" fill="none" stroke="#86b1c5" strokeWidth="8" strokeLinecap="round" />
+            <path d="M-18 21l11 4M18 21L7 25" stroke="#e9faff" strokeWidth="5" strokeLinecap="round" />
+          </>}
+          {activeCompanion.species === 'ember-raven' && <>
+            <path d="M-18 17Q-72-31-83 20L-24 52 0 68 24 52 83 20Q72-31 18 17L0-10Z" fill="#32232f" stroke={activeCompanion.accent} strokeWidth="4" />
+            <path d="M-18 13Q0-25 18 13L10 58H-10Z" fill="#4b2b29" />
+            <path d="M-12 12H12L0 29Z" fill="#ffd395" />
+            <circle cx="-8" cy="5" r="4" fill="#fff4d9" /><circle cx="8" cy="5" r="4" fill="#fff4d9" />
+          </>}
+          {activeCompanion.species === 'rune-sentinel' && <>
+            <path d="M-32 12L-20-32 20-32 32 12 27 72-27 72Z" fill="#334b45" stroke={activeCompanion.accent} strokeWidth="5" />
+            <path d="M-44 14L-32 35M44 14L32 35M-16 74L-24 96M16 74L24 96" stroke="#758f79" strokeWidth="15" strokeLinecap="round" />
+            <path d="M0-21L15 12 0 37-15 12Z" fill={activeCompanion.accent} opacity=".85" />
+          </>}
+          {activeCompanion.species === 'lantern-wisp' && <>
+            <path d="M0-42Q47-5 33 33Q32 66 0 83Q-32 66-33 33Q-47-5 0-42Z" fill="#8b6943" stroke={activeCompanion.accent} strokeWidth="5" />
+            <path d="M0-21Q26 10 15 36Q6 53 0 55Q-25 36-15 13Z" fill={activeCompanion.accent} opacity=".85" />
+            <path d="M-30 21L30 21M-25 42L25 42" stroke="#ffe4a8" strokeWidth="4" />
+          </>}
+          {activeCompanion.species === 'dusk-drake' && <>
+            <path d="M-18 22Q-75-27-79 25L-28 61 0 79 28 61 79 25Q75-27 18 22L0-21Z" fill="#422a62" stroke={activeCompanion.accent} strokeWidth="4" />
+            <path d="M-24 3L-15-32 0-19 15-32 24 3 18 48-18 48Z" fill="#615077" />
+            <path d="M-10 17L-2 21M10 17L2 21" stroke="#e9dfff" strokeWidth="5" strokeLinecap="round" />
+          </>}
+        </g>}
       </svg>
-    </div>}
+    </div>
     <div className="dv-main-menu-grounding" aria-hidden="true" />
     <div aria-hidden="true" className="absolute inset-x-[9%] top-[28%] h-[30%] rounded-full bg-violet-500/[.035] blur-[80px] mix-blend-screen" />
     <div aria-hidden="true" className="absolute inset-x-[-10%] bottom-[10%] h-[35%] bg-[radial-gradient(ellipse_at_center,rgba(87,58,123,.055),rgba(20,13,29,.035)_43%,transparent_74%)] blur-2xl" />

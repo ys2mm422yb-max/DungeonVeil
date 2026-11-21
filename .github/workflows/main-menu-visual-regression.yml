@@ -57,7 +57,8 @@ env:
 jobs:
   build-and-static:
     name: build-and-static
-    runs-on: ubuntu-latest
+    # Keep the prerequisite build on the same supported runner as the four-device evidence jobs.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +89,8 @@ jobs:
   mobile-main-menu-evidence:
     name: ${{ matrix.project }}-menu-evidence
     needs: build-and-static
-    runs-on: ubuntu-latest
+    # Playwright 1.55 WebKit dependencies are supported on Ubuntu 24.04; ubuntu-latest may resolve to 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
       fail-fast: false
