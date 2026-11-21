@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { deflateSync, inflateSync } from 'node:zlib';
+import { Worker } from 'node:worker_threads';
 import { waitForLiveMenuPaint, waitForPaintedCanvas } from './visual-render-readiness.mjs';
 
 
@@ -120,6 +121,38 @@ async function recompressPngLosslessly(path) {
   } catch (error) {
     throw new Error(`Lossless PNG evidence validation failed for ${path}: ${error.message}`);
   }
+}
+
+// PNG optimization is CPU-heavy. Execute it off the Playwright event loop so
+// original screenshot capture and the concurrent reduced-motion transition are
+// not starved by PNG row filtering or zlib. Limit worker concurrency to two.
+const pngWorkerSource = `
+  const { parentPort, workerData } = require('node:worker_threads');
+  const { readFile, writeFile } = require('node:fs/promises');
+  const { deflateSync, inflateSync } = require('node:zlib');
+  ${pngCrc32.toString()}
+  ${refilterPngScanlines.toString()}
+  ${recompressPngLosslessly.toString()}
+  recompressPngLosslessly(workerData.path).then(
+    () => parentPort.postMessage({ ok: true }),
+    error => parentPort.postMessage({ ok: false, error: String(error) }),
+  );
+`;
+
+function optimizePngInWorker(path) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(pngWorkerSource, { eval: true, workerData: { path } });
+    let settled = false;
+    worker.once('message', message => {
+      settled = true;
+      if (message.ok) resolve();
+      else reject(new Error(message.error));
+    });
+    worker.once('error', error => { settled = true; reject(error); });
+    worker.once('exit', code => {
+      if (!settled) reject(new Error(`PNG optimization worker exited with code ${code}`));
+    });
+  });
 }
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
@@ -553,12 +586,16 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   // These screenshots are diagnostic evidence, not a substitute for the existing
   // assertions or the independent full-video four-device visual acceptance.
   const motionPixelEvidence = [];
+  const pngOptimizations = [];
   const motionPixelSampler = (async () => {
     for (let sample = 0; sample < 32; sample += 1) {
       const started = Date.now();
       const path = testInfo.outputPath(`motion-handoff-composited-${String(sample).padStart(2, '0')}.png`);
       await page.screenshot({ animations: 'allow', timeout: 15_000, path });
-      await recompressPngLosslessly(path);
+      // Keep at most two CPU workers active; do not block browser screenshot work.
+      const predecessor = pngOptimizations.length >= 2 ? pngOptimizations[pngOptimizations.length - 2] : Promise.resolve();
+      const optimization = predecessor.then(() => optimizePngInWorker(path));
+      pngOptimizations.push(optimization);
       motionPixelEvidence.push({ sample, path });
       await new Promise(resolve => setTimeout(resolve, Math.max(0, 80 - (Date.now() - started))));
     }
@@ -586,6 +623,7 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   // Complete the fixed capture series on fast Chromium transitions too; never
   // truncate original pixel evidence just because the DOM assertions finish early.
   await motionPixelSampler;
+  await Promise.all(pngOptimizations);
   expect(motionPixelEvidence.length, 'Motion handoff must produce original pixel evidence').toBeGreaterThan(10);
   for (const { sample, path } of motionPixelEvidence) {
     await testInfo.attach(`motion-handoff-composited-${String(sample).padStart(2, '0')}`, {
