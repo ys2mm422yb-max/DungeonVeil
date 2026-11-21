@@ -163,13 +163,8 @@ jobs:
           retention-days: 7
           compression-level: 9
           path: artifacts/dungeon-rpg/test-results/full-game-results.json
-      - name: Enforce focused Block 20 success budget
-        if: steps.menu-tests.outcome == 'success'
-        run: >-
-          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
-          --max-mb 100
-          --label "block20-success-${{ matrix.project }}"
-          artifacts/dungeon-rpg/test-results
+      # Preserve exact-head original media even when the binding 100-MiB gate fails.
+      # Upload success does not override the subsequent budget failure.
       - name: Upload focused Block 20 visual evidence
         if: steps.menu-tests.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -181,6 +176,13 @@ jobs:
           path: |
             artifacts/dungeon-rpg/test-results/block20-*-${{ matrix.project }}.png
             artifacts/dungeon-rpg/test-results/*/video.webm
+      - name: Enforce focused Block 20 success budget
+        if: steps.menu-tests.outcome == 'success'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --max-mb 100
+          --label "block20-success-${{ matrix.project }}"
+          artifacts/dungeon-rpg/test-results
       - name: Enforce focused Block 20 failure budget
         if: steps.menu-tests.outcome == 'failure'
         run: >-
