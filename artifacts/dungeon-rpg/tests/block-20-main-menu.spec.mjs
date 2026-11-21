@@ -34,7 +34,7 @@ function refilterPngScanlines(decoded, width, height, bitDepth, colorType) {
       const p = left + above - upperLeft;
       const a = Math.abs(p - left), b = Math.abs(p - above), c = Math.abs(p - upperLeft);
       const paeth = a <= b && a <= c ? left : b <= c ? above : upperLeft;
-      const predictor = [0, left, above, Math.floor((left + above) / 2), paeth][filter];
+      const predictor = filter === 0 ? 0 : filter === 1 ? left : filter === 2 ? above : filter === 3 ? ((left + above) >>> 1) : paeth;
       raw[x] = (decoded[start + 1 + x] + predictor) & 255;
     }
     let bestScore = Infinity, bestType = 0, best = null;
@@ -48,7 +48,7 @@ function refilterPngScanlines(decoded, width, height, bitDepth, colorType) {
         const p = left + above - upperLeft;
         const a = Math.abs(p - left), b = Math.abs(p - above), c = Math.abs(p - upperLeft);
         const paeth = a <= b && a <= c ? left : b <= c ? above : upperLeft;
-        const predictor = [0, left, above, Math.floor((left + above) / 2), paeth][type];
+        const predictor = type === 0 ? 0 : type === 1 ? left : type === 2 ? above : type === 3 ? ((left + above) >>> 1) : paeth;
         const value = (raw[x] - predictor + 256) & 255;
         candidate[x] = value;
         score += value < 128 ? value : 256 - value;
@@ -94,7 +94,7 @@ async function recompressPngLosslessly(path) {
     if (ihdr && ihdr.length === 25 && ihdr[20] === 0) {
       filtered = refilterPngScanlines(decoded, ihdr.readUInt32BE(8), ihdr.readUInt32BE(12), ihdr[16], ihdr[17]);
     }
-    if (filtered && !refilterPngScanlines(filtered, ihdr.readUInt32BE(8), ihdr.readUInt32BE(12), ihdr[16], ihdr[17]).equals(filtered)) throw new Error('PNG adaptive row filter round-trip mismatch');
+    // Avoid a second full-image refilter pass; final encoded scanlines are verified below.
     const baseline = deflateSync(decoded, { level: 9 });
     const adaptive = filtered ? deflateSync(filtered, { level: 9 }) : null;
     const encoded = adaptive && adaptive.length < baseline.length ? adaptive : baseline;
