@@ -154,6 +154,20 @@ jobs:
             tests/block-20-main-menu.spec.mjs \
             --config=playwright.regression.config.mjs \
             --project=${{ matrix.project }}
+      # Diagnostic only: enumerate every PNG, including the 32 Playwright attachments,
+      # before the binding budget gate. Do not delete, resize or recompress evidence.
+      - name: Report exact PNG evidence sizes
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('artifacts/dungeon-rpg/test-results')
+          files = sorted(root.rglob('*.png'), key=lambda p: (-p.stat().st_size, str(p)))
+          print(f'PNG evidence inventory: {len(files)} files; {sum(p.stat().st_size for p in files)} bytes total')
+          for path in files:
+              print(f'{path.stat().st_size:>12} {path.relative_to(root)}')
+          PY
       - name: Upload compact Block 20 result manifest
         if: always()
         uses: actions/upload-artifact@v4
