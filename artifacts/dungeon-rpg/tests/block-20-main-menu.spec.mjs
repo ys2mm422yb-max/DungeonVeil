@@ -350,7 +350,12 @@ async function exerciseDynamicViewportRoundTrip(page) {
 async function capture(page, name, projectName) {
   await assertNoHorizontalOverflow(page);
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
-  return page.screenshot({ path: `test-results/block20-${name}-${projectName}.png`, fullPage: false });
+  const path = `test-results/block20-${name}-${projectName}.png`;
+  const screenshot = await page.screenshot({ path, fullPage: false });
+  // Preserve the original decoded pixels while reducing the ten top-level
+  // screenshots as well as the separately optimized motion-handoff attachments.
+  await optimizePngInWorker(path);
+  return screenshot;
 }
 
 async function updateEquipment(page, loadout, quiverVisible) {
