@@ -354,19 +354,14 @@ async function capture(page, name, projectName) {
   const screenshotStart = performance.now();
   const screenshot = await page.screenshot({ path, fullPage: false });
   const screenshotMs = performance.now() - screenshotStart;
-  // Preserve the original decoded pixels while reducing the ten top-level
-  // screenshots as well as the separately optimized motion-handoff attachments.
-  const optimizeStart = performance.now();
-  try {
-    await optimizePngInWorker(path);
-  } finally {
-    console.log('[block20-evidence-timing] ' + JSON.stringify({
-      capture: name,
-      project: projectName,
-      screenshotMs: Math.round(screenshotMs),
-      optimizeMs: Math.round(performance.now() - optimizeStart),
-    }));
-  }
+  // Preserve the original pixels; defer lossless optimization until Playwright closes videos.
+  console.log('[block20-evidence-timing] ' + JSON.stringify({
+    capture: name,
+    project: projectName,
+    screenshotMs: Math.round(screenshotMs),
+    optimizeMs: 0,
+    deferredOptimization: true,
+  }));
   return screenshot;
 }
 
@@ -603,16 +598,11 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   // These screenshots are diagnostic evidence, not a substitute for the existing
   // assertions or the independent full-video four-device visual acceptance.
   const motionPixelEvidence = [];
-  const pngOptimizations = [];
   const motionPixelSampler = (async () => {
     for (let sample = 0; sample < 32; sample += 1) {
       const started = Date.now();
       const path = testInfo.outputPath(`motion-handoff-composited-${String(sample).padStart(2, '0')}.png`);
       await page.screenshot({ animations: 'allow', timeout: 15_000, path });
-      // Keep at most two CPU workers active; do not block browser screenshot work.
-      const predecessor = pngOptimizations.length >= 2 ? pngOptimizations[pngOptimizations.length - 2] : Promise.resolve();
-      const optimization = predecessor.then(() => optimizePngInWorker(path));
-      pngOptimizations.push(optimization);
       motionPixelEvidence.push({ sample, path });
       await new Promise(resolve => setTimeout(resolve, Math.max(0, 80 - (Date.now() - started))));
     }
@@ -640,7 +630,6 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   // Complete the fixed capture series on fast Chromium transitions too; never
   // truncate original pixel evidence just because the DOM assertions finish early.
   await motionPixelSampler;
-  await Promise.all(pngOptimizations);
   expect(motionPixelEvidence.length, 'Motion handoff must produce original pixel evidence').toBeGreaterThan(10);
   for (const { sample, path } of motionPixelEvidence) {
     await testInfo.attach(`motion-handoff-composited-${String(sample).padStart(2, '0')}`, {
