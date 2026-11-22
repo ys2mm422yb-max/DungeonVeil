@@ -351,10 +351,22 @@ async function capture(page, name, projectName) {
   await assertNoHorizontalOverflow(page);
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
   const path = `test-results/block20-${name}-${projectName}.png`;
+  const screenshotStart = performance.now();
   const screenshot = await page.screenshot({ path, fullPage: false });
+  const screenshotMs = performance.now() - screenshotStart;
   // Preserve the original decoded pixels while reducing the ten top-level
   // screenshots as well as the separately optimized motion-handoff attachments.
-  await optimizePngInWorker(path);
+  const optimizeStart = performance.now();
+  try {
+    await optimizePngInWorker(path);
+  } finally {
+    console.log('[block20-evidence-timing] ' + JSON.stringify({
+      capture: name,
+      project: projectName,
+      screenshotMs: Math.round(screenshotMs),
+      optimizeMs: Math.round(performance.now() - optimizeStart),
+    }));
+  }
   return screenshot;
 }
 
