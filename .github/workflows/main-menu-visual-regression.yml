@@ -177,6 +177,34 @@ jobs:
           retention-days: 7
           compression-level: 9
           path: artifacts/dungeon-rpg/test-results/full-game-results.json
+      # Curate full-resolution motion attachments separately from raw Playwright diagnostics.
+      # Preserve source bytes and provenance; do not change the binding budget inventory.
+      - name: Curate Block 20 motion attachment originals
+        if: steps.menu-tests.outcome == 'success'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+          from shutil import copyfile
+          import json
+          root = Path('artifacts/dungeon-rpg/test-results')
+          output = Path('artifacts/dungeon-rpg/curated-block20-attachments')
+          output.mkdir(parents=True, exist_ok=True)
+          sources = sorted(p for p in root.rglob('*.png') if p.parent != root)
+          if not sources:
+              raise SystemExit('Missing original Playwright motion PNG attachments')
+          manifest = []
+          for index, source in enumerate(sources):
+              destination = output / f'motion-attachment-{index:03d}.png'
+              copyfile(source, destination)
+              original = source.read_bytes()
+              if destination.read_bytes() != original:
+                  raise SystemExit(f'Attachment copy mismatch: {source}')
+              manifest.append({'source': str(source.relative_to(root)), 'file': destination.name, 'bytes': len(original), 'sha256': sha256(original).hexdigest()})
+          (output / 'manifest.json').write_text(json.dumps({'version': 1, 'attachments': manifest}, indent=2) + '\\n')
+          print(f'Curated {len(manifest)} original full-resolution PNG attachments with SHA-256 provenance')
+          PY
       # Preserve exact-head original media even when the binding 100-MiB gate fails.
       # Upload success does not override the subsequent budget failure.
       - name: Upload focused Block 20 visual evidence
@@ -189,7 +217,8 @@ jobs:
           compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/block20-*-${{ matrix.project }}.png
-            artifacts/dungeon-rpg/test-results/**/*.png
+            artifacts/dungeon-rpg/curated-block20-attachments/*.png
+            artifacts/dungeon-rpg/curated-block20-attachments/manifest.json
             artifacts/dungeon-rpg/test-results/*/video.webm
       - name: Enforce focused Block 20 success budget
         if: steps.menu-tests.outcome == 'success'
