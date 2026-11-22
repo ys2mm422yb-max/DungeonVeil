@@ -154,8 +154,13 @@ jobs:
             tests/block-20-main-menu.spec.mjs \
             --config=playwright.regression.config.mjs \
             --project=${{ matrix.project }}
+      # Playwright has exited and closed the continuous original WebM recordings.
+      # Optimize all 42 original PNGs losslessly, before evidence curation and binding budget.
+      - name: Optimize original Block 20 PNGs after video closure
+        if: steps.menu-tests.outcome == 'success'
+        run: node artifacts/dungeon-rpg/scripts/optimize-block20-evidence.mjs artifacts/dungeon-rpg/test-results
       # Diagnostic only: enumerate every PNG, including the 32 Playwright attachments,
-      # before the binding budget gate. Do not delete, resize or recompress evidence.
+      # before the binding budget gate. Do not delete or resize evidence.
       - name: Report exact PNG evidence sizes
         if: always()
         shell: bash
