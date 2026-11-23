@@ -57,7 +57,8 @@ env:
 jobs:
   build-and-static:
     name: build-and-static
-    runs-on: ubuntu-latest
+    # Keep the prerequisite build on the same supported runner as the four-device evidence jobs.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +89,8 @@ jobs:
   mobile-main-menu-evidence:
     name: ${{ matrix.project }}-menu-evidence
     needs: build-and-static
-    runs-on: ubuntu-latest
+    # Playwright 1.55 WebKit dependencies are supported on Ubuntu 24.04; ubuntu-latest may resolve to 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
       fail-fast: false
@@ -152,6 +154,25 @@ jobs:
             tests/block-20-main-menu.spec.mjs \
             --config=playwright.regression.config.mjs \
             --project=${{ matrix.project }}
+      # Playwright has exited and closed the continuous original WebM recordings.
+      # Optimize all 42 original PNGs losslessly, before evidence curation and binding budget.
+      - name: Optimize original Block 20 PNGs after video closure
+        if: steps.menu-tests.outcome == 'success'
+        run: node artifacts/dungeon-rpg/scripts/optimize-block20-evidence.mjs artifacts/dungeon-rpg/test-results
+      # Diagnostic only: enumerate every PNG, including the 32 Playwright attachments,
+      # before the binding budget gate. Do not delete or resize evidence.
+      - name: Report exact PNG evidence sizes
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('artifacts/dungeon-rpg/test-results')
+          files = sorted(root.rglob('*.png'), key=lambda p: (-p.stat().st_size, str(p)))
+          print(f'PNG evidence inventory: {len(files)} files; {sum(p.stat().st_size for p in files)} bytes total')
+          for path in files:
+              print(f'{path.stat().st_size:>12} {path.relative_to(root)}')
+          PY
       - name: Upload compact Block 20 result manifest
         if: always()
         uses: actions/upload-artifact@v4
@@ -161,13 +182,36 @@ jobs:
           retention-days: 7
           compression-level: 9
           path: artifacts/dungeon-rpg/test-results/full-game-results.json
-      - name: Enforce focused Block 20 success budget
+      # Curate full-resolution motion attachments separately from raw Playwright diagnostics.
+      # Preserve source bytes and provenance; do not change the binding budget inventory.
+      - name: Curate Block 20 motion attachment originals
         if: steps.menu-tests.outcome == 'success'
-        run: >-
-          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
-          --max-mb 100
-          --label "block20-success-${{ matrix.project }}"
-          artifacts/dungeon-rpg/test-results
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+          from shutil import copyfile
+          import json
+          root = Path('artifacts/dungeon-rpg/test-results')
+          output = Path('artifacts/dungeon-rpg/curated-block20-attachments')
+          output.mkdir(parents=True, exist_ok=True)
+          sources = sorted(p for p in root.rglob('*.png') if p.parent != root)
+          if not sources:
+              raise SystemExit('Missing original Playwright motion PNG attachments')
+          manifest = []
+          for index, source in enumerate(sources):
+              destination = output / f'motion-attachment-{index:03d}.png'
+              copyfile(source, destination)
+              original = source.read_bytes()
+              if destination.read_bytes() != original:
+                  raise SystemExit(f'Attachment copy mismatch: {source}')
+              manifest.append({'source': str(source.relative_to(root)), 'file': destination.name, 'bytes': len(original), 'sha256': sha256(original).hexdigest()})
+          (output / 'manifest.json').write_text(json.dumps({'version': 1, 'attachments': manifest}, indent=2) + '\n')
+          print(f'Curated {len(manifest)} original full-resolution PNG attachments with SHA-256 provenance')
+          PY
+      # Preserve exact-head original media even when the binding 100-MiB gate fails.
+      # Upload success does not override the subsequent budget failure.
       - name: Upload focused Block 20 visual evidence
         if: steps.menu-tests.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -178,7 +222,16 @@ jobs:
           compression-level: 9
           path: |
             artifacts/dungeon-rpg/test-results/block20-*-${{ matrix.project }}.png
+            artifacts/dungeon-rpg/curated-block20-attachments/*.png
+            artifacts/dungeon-rpg/curated-block20-attachments/manifest.json
             artifacts/dungeon-rpg/test-results/*/video.webm
+      - name: Enforce focused Block 20 success budget
+        if: steps.menu-tests.outcome == 'success'
+        run: >-
+          node artifacts/dungeon-rpg/scripts/assert-artifact-budget.mjs
+          --max-mb 100
+          --label "block20-success-${{ matrix.project }}"
+          artifacts/dungeon-rpg/test-results
       - name: Enforce focused Block 20 failure budget
         if: steps.menu-tests.outcome == 'failure'
         run: >-

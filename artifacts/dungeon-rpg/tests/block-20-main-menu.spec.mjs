@@ -1,5 +1,159 @@
 import { test, expect } from '@playwright/test';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
+import { deflateSync, inflateSync } from 'node:zlib';
+import { Worker } from 'node:worker_threads';
 import { waitForLiveMenuPaint, waitForPaintedCanvas } from './visual-render-readiness.mjs';
+
+
+function pngCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+
+function refilterPngScanlines(decoded, width, height, bitDepth, colorType) {
+  const channels = ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 })[colorType];
+  if (!channels || !width || !height) return null;
+  const stride = Math.ceil(width * channels * bitDepth / 8);
+  const bpp = Math.max(1, Math.ceil(channels * bitDepth / 8));
+  if (decoded.length !== height * (stride + 1)) return null;
+  const output = Buffer.alloc(decoded.length);
+  let prior = Buffer.alloc(stride);
+  for (let y = 0; y < height; y++) {
+    const start = y * (stride + 1);
+    const filter = decoded[start];
+    if (filter > 4) return null;
+    const raw = Buffer.alloc(stride);
+    for (let x = 0; x < stride; x++) {
+      const left = x >= bpp ? raw[x - bpp] : 0;
+      const above = prior[x];
+      const upperLeft = x >= bpp ? prior[x - bpp] : 0;
+      const p = left + above - upperLeft;
+      const a = Math.abs(p - left), b = Math.abs(p - above), c = Math.abs(p - upperLeft);
+      const paeth = a <= b && a <= c ? left : b <= c ? above : upperLeft;
+      const predictor = filter === 0 ? 0 : filter === 1 ? left : filter === 2 ? above : filter === 3 ? ((left + above) >>> 1) : paeth;
+      raw[x] = (decoded[start + 1 + x] + predictor) & 255;
+    }
+    let bestScore = Infinity, bestType = 0, best = null;
+    for (let type = 0; type < 5; type++) {
+      const candidate = Buffer.alloc(stride);
+      let score = 0;
+      for (let x = 0; x < stride; x++) {
+        const left = x >= bpp ? raw[x - bpp] : 0;
+        const above = prior[x];
+        const upperLeft = x >= bpp ? prior[x - bpp] : 0;
+        const p = left + above - upperLeft;
+        const a = Math.abs(p - left), b = Math.abs(p - above), c = Math.abs(p - upperLeft);
+        const paeth = a <= b && a <= c ? left : b <= c ? above : upperLeft;
+        const predictor = type === 0 ? 0 : type === 1 ? left : type === 2 ? above : type === 3 ? ((left + above) >>> 1) : paeth;
+        const value = (raw[x] - predictor + 256) & 255;
+        candidate[x] = value;
+        score += value < 128 ? value : 256 - value;
+      }
+      if (score < bestScore) { bestScore = score; bestType = type; best = candidate; }
+    }
+    output[start] = bestType;
+    best.copy(output, start + 1);
+    prior = raw;
+  }
+  return output;
+}
+
+// Recompress only PNG IDAT bytes. Keep all non-image chunks, dimensions and
+// decoded scanlines identical; on malformed or non-smaller output keep original.
+async function recompressPngLosslessly(path) {
+  const original = await readFile(path);
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (!original.subarray(0, 8).equals(signature)) return;
+  try {
+    const chunks = [];
+    const idats = [];
+    let offset = 8;
+    let ended = false;
+    while (offset + 12 <= original.length) {
+      const start = offset;
+      const length = original.readUInt32BE(offset);
+      const end = offset + 12 + length;
+      if (end > original.length) return;
+      const type = original.toString('ascii', offset + 4, offset + 8);
+      const data = original.subarray(offset + 8, offset + 8 + length);
+      const crc = original.readUInt32BE(offset + 8 + length);
+      if (pngCrc32(original.subarray(offset + 4, offset + 8 + length)) !== crc) return;
+      chunks.push({ type, bytes: original.subarray(start, end) });
+      if (type === 'IDAT') idats.push(data);
+      offset = end;
+      if (type === 'IEND') { ended = true; break; }
+    }
+    if (!ended || offset !== original.length || idats.length === 0) return;
+    const decoded = inflateSync(Buffer.concat(idats));
+    const ihdr = chunks.find(chunk => chunk.type === 'IHDR')?.bytes;
+    let filtered = null;
+    if (ihdr && ihdr.length === 25 && ihdr[20] === 0) {
+      filtered = refilterPngScanlines(decoded, ihdr.readUInt32BE(8), ihdr.readUInt32BE(12), ihdr[16], ihdr[17]);
+    }
+    // Avoid a second full-image refilter pass; final encoded scanlines are verified below.
+    const baseline = deflateSync(decoded, { level: 9 });
+    const adaptive = filtered ? deflateSync(filtered, { level: 9 }) : null;
+    const encoded = adaptive && adaptive.length < baseline.length ? adaptive : baseline;
+    const expectedScanlines = encoded === adaptive ? filtered : decoded;
+    if (encoded.length >= idats.reduce((sum, data) => sum + data.length, 0)) return;
+    const type = Buffer.from('IDAT');
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(encoded.length);
+    const checksum = Buffer.alloc(4);
+    checksum.writeUInt32BE(pngCrc32(Buffer.concat([type, encoded])));
+    const replacement = Buffer.concat([length, type, encoded, checksum]);
+    const parts = [signature];
+    let inserted = false;
+    for (const chunk of chunks) {
+      if (chunk.type === 'IDAT') {
+        if (!inserted) { parts.push(replacement); inserted = true; }
+      } else parts.push(chunk.bytes);
+    }
+    const optimized = Buffer.concat(parts);
+    if (optimized.length >= original.length) return;
+    if (!inflateSync(encoded).equals(expectedScanlines)) throw new Error('PNG compressed scanline mismatch');
+    await writeFile(path, optimized);
+  } catch (error) {
+    throw new Error(`Lossless PNG evidence validation failed for ${path}: ${error.message}`);
+  }
+}
+
+// PNG optimization is CPU-heavy. Execute it off the Playwright event loop so
+// original screenshot capture and the concurrent reduced-motion transition are
+// not starved by PNG row filtering or zlib. Limit worker concurrency to two.
+const pngWorkerSource = `
+  const { parentPort, workerData } = require('node:worker_threads');
+  const { readFile, writeFile } = require('node:fs/promises');
+  const { deflateSync, inflateSync } = require('node:zlib');
+  ${pngCrc32.toString()}
+  ${refilterPngScanlines.toString()}
+  ${recompressPngLosslessly.toString()}
+  recompressPngLosslessly(workerData.path).then(
+    () => parentPort.postMessage({ ok: true }),
+    error => parentPort.postMessage({ ok: false, error: String(error) }),
+  );
+`;
+
+function optimizePngInWorker(path) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(pngWorkerSource, { eval: true, workerData: { path } });
+    let settled = false;
+    worker.once('message', message => {
+      settled = true;
+      if (message.ok) resolve();
+      else reject(new Error(message.error));
+    });
+    worker.once('error', error => { settled = true; reject(error); });
+    worker.once('exit', code => {
+      if (!settled) reject(new Error(`PNG optimization worker exited with code ${code}`));
+    });
+  });
+}
 
 const APP_URL = process.env.DUNGEON_VEIL_URL || 'https://ys2mm422yb-max.github.io/DungeonVeil/';
 const STANDARD_LOADOUT = Object.freeze({ bow: 'ash-bow', quiver: 'ranger-quiver', armor: 'ranger-cloak' });
@@ -26,8 +180,35 @@ function attachRuntimeMonitor(page) {
     if (/^Failed to load resource:/i.test(text)) return;
     if (/TypeError|ReferenceError|Cannot read|room build failed|failed to initialize|failed to load|module script failed/i.test(text)) issues.push(`console: ${text}`);
   });
+  // Diagnostic-only asset telemetry: retain existing runtime assertions unchanged.
+  // Strip query strings and credentials; never log cookies or authorization headers.
+  const assetPath = url => {
+    try {
+      const parsed = new URL(url);
+      return /\.(?:gltf|glb)$/i.test(parsed.pathname) ? parsed.pathname : null;
+    } catch { return null; }
+  };
+  page.on('requestfailed', request => {
+    const path = assetPath(request.url());
+    if (!path) return;
+    console.log('[block20-asset-network] ' + JSON.stringify({
+      event: 'requestfailed', path, method: request.method(),
+      failure: request.failure()?.errorText ?? 'unknown',
+      redirectedFrom: assetPath(request.redirectedFrom()?.url() ?? ''),
+    }));
+  });
   page.on('response', response => {
     if (response.url().startsWith(appOrigin) && response.status() >= 400) issues.push(`http ${response.status()}: ${response.url()}`);
+    const path = assetPath(response.url());
+    if (!path) return;
+    const headers = response.headers();
+    console.log('[block20-asset-network] ' + JSON.stringify({
+      event: 'response', path, status: response.status(),
+      contentType: headers['content-type'] ?? null,
+      allowOrigin: headers['access-control-allow-origin'] ?? null,
+      location: headers.location ? assetPath(new URL(headers.location, response.url()).href) : null,
+      redirectedFrom: assetPath(response.request().redirectedFrom()?.url() ?? ''),
+    }));
   });
   return issues;
 }
@@ -196,7 +377,19 @@ async function exerciseDynamicViewportRoundTrip(page) {
 async function capture(page, name, projectName) {
   await assertNoHorizontalOverflow(page);
   await expect(page.getByTestId('unlock-presentation-layer')).toHaveCount(0, { timeout: 20_000 });
-  return page.screenshot({ path: `test-results/block20-${name}-${projectName}.png`, fullPage: false });
+  const path = `test-results/block20-${name}-${projectName}.png`;
+  const screenshotStart = performance.now();
+  const screenshot = await page.screenshot({ path, fullPage: false });
+  const screenshotMs = performance.now() - screenshotStart;
+  // Preserve the original pixels; defer lossless optimization until Playwright closes videos.
+  console.log('[block20-evidence-timing] ' + JSON.stringify({
+    capture: name,
+    project: projectName,
+    screenshotMs: Math.round(screenshotMs),
+    optimizeMs: 0,
+    deferredOptimization: true,
+  }));
+  return screenshot;
 }
 
 async function updateEquipment(page, loadout, quiverVisible) {
@@ -368,26 +561,87 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   await expect(page.locator('canvas')).toHaveCount(1);
   await capture(page, 'webgl-before-loss', testInfo.project.name);
 
-  const loss = await page.getByTestId('live-hybrid-main-menu-canvas').evaluate(canvas => {
+  const loss = await page.getByTestId('live-hybrid-main-menu-canvas').evaluate(async canvas => {
     const lost = new Event('webglcontextlost', { bubbles: true, cancelable: true });
     const dispatchAccepted = canvas.dispatchEvent(lost);
-    const restored = new Event('webglcontextrestored', { bubbles: true, cancelable: false });
-    canvas.dispatchEvent(restored);
-    return { defaultPrevented: lost.defaultPrevented, dispatchAccepted };
+    // Prove the intermediate fallback before dispatching recovery, not just the eventual canvas.
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const fallback = document.querySelector('[data-testid="main-menu-actor-recovery-fallback"]');
+    const ranger = fallback?.querySelector('[data-testid="main-menu-static-ranger-fallback"]');
+    const companion = fallback?.querySelector('[data-testid="main-menu-static-companion-fallback"]');
+    const paintable = element => Boolean(element && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0 && getComputedStyle(element).visibility === 'visible' && Number(getComputedStyle(element).opacity) > 0);
+    const intermediate = {
+      actorVisible: paintable(ranger),
+      companionVisible: paintable(companion),
+      companionSpecies: companion?.getAttribute('data-species') ?? null,
+    };
+    const stateDiagnostic = {
+      fallbackVisibility: fallback ? getComputedStyle(fallback).visibility : 'missing',
+      rangerVisibility: ranger ? getComputedStyle(ranger).visibility : 'missing',
+      actorBounds: ranger?.getBoundingClientRect().toJSON() ?? null,
+      companionBounds: companion?.getBoundingClientRect().toJSON() ?? null,
+      menuWebglState: document.querySelector('[data-testid="main-menu-scene-presentation"]')?.getAttribute('data-webgl-state') ?? null,
+    };
+    canvas.dispatchEvent(new Event('webglcontextrestored', { bubbles: true, cancelable: false }));
+    return { defaultPrevented: lost.defaultPrevented, dispatchAccepted, intermediate, stateDiagnostic };
   });
   expect(loss.defaultPrevented || loss.dispatchAccepted === false).toBe(true);
+  expect(loss.intermediate, `WebGL loss must retain a paintable Ranger and the equipped companion: ${JSON.stringify(loss.stateDiagnostic)}`).toEqual({
+    actorVisible: true,
+    companionVisible: true,
+    companionSpecies: 'rune-sentinel',
+  });
 
   await expect(presentation).toHaveAttribute('data-webgl-recoveries', '1', { timeout: 30_000 });
   await expect(presentation).toHaveAttribute('data-renderer-generation', '1', { timeout: 30_000 });
   await expect(presentation).toHaveAttribute('data-webgl-state', 'ready', { timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
+  const framesOnRecovery = Number(await page.getByTestId('live-hybrid-main-menu-scene').getAttribute('data-animation-frames') || 0);
+  expect(framesOnRecovery, 'WebGL recovery must not hide actor fallback before ten Ranger render frames').toBeGreaterThanOrEqual(10);
   await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), 60_000);
+  await expect(page.getByTestId('main-menu-actor-recovery-fallback')).toBeHidden();
   await capture(page, 'webgl-after-recovery', testInfo.project.name);
+
+  // Sample every browser frame; endpoint-only assertions missed a four-second blank.
+  await page.evaluate(() => {
+    window.__dvMotionContinuity = { samples: [], active: true };
+    const sample = () => {
+      const monitor = window.__dvMotionContinuity;
+      if (!monitor?.active) return;
+      const root = document.querySelector('[data-testid="main-menu-scene-presentation"]');
+      const ranger = root?.querySelector('[data-testid="main-menu-static-ranger-fallback"]');
+      const companion = root?.querySelector('[data-testid="main-menu-static-companion-fallback"]');
+      const canvas = root?.querySelector('canvas[data-testid="live-hybrid-main-menu-canvas"]');
+      const scene = root?.querySelector('[data-testid="live-hybrid-main-menu-scene"]');
+      const visible = node => Boolean(node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0 && getComputedStyle(node).visibility === 'visible' && getComputedStyle(node).display !== 'none');
+      monitor.samples.push({ t: performance.now(), state: root?.getAttribute('data-webgl-state'), fallback: visible(ranger) && visible(companion), canvas: visible(canvas) && scene?.getAttribute('data-ranger-loaded') === 'true' && Number(scene?.getAttribute('data-animation-frames') || 0) >= 10 });
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+
+  // Preserve original composited pixels around the WebKit motion handoff. DOM/rAF
+  // visibility alone previously passed while the iPhone video lost both actors.
+  // These screenshots are diagnostic evidence, not a substitute for the existing
+  // assertions or the independent full-video four-device visual acceptance.
+  const motionPixelEvidence = [];
+  const motionPixelSampler = (async () => {
+    for (let sample = 0; sample < 32; sample += 1) {
+      const started = Date.now();
+      const path = testInfo.outputPath(`motion-handoff-composited-${String(sample).padStart(2, '0')}.png`);
+      await page.screenshot({ animations: 'allow', timeout: 15_000, path });
+      motionPixelEvidence.push({ sample, path });
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, 80 - (Date.now() - started))));
+    }
+  })();
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'true', { timeout: 20_000 });
   await expect(presentation).toHaveAttribute('data-webgl-state', 'reduced-motion');
   await expect(page.getByTestId('main-menu-reduced-motion-fallback')).toBeVisible();
+  await expect(page.getByTestId('main-menu-static-ranger-fallback')).toBeVisible();
+  await expect(page.getByTestId('main-menu-static-companion-fallback')).toBeVisible();
+  await expect(page.getByTestId('main-menu-static-companion-fallback')).toHaveAttribute('data-species', 'rune-sentinel');
   await expect(page.locator('canvas')).toHaveCount(0);
   await capture(page, 'reduced-motion-static', testInfo.project.name);
 
@@ -395,7 +649,32 @@ test('Block 20 recovers one live canvas after WebGL loss and keeps reduced-motio
   await expect(presentation).toHaveAttribute('data-reduced-motion-active', 'false', { timeout: 20_000 });
   await expect(presentation).toHaveAttribute('data-webgl-state', 'ready', { timeout: 60_000 });
   await expect(page.locator('canvas')).toHaveCount(1, { timeout: 60_000 });
+  const framesAfterMotionExit = Number(await page.getByTestId('live-hybrid-main-menu-scene').getAttribute('data-animation-frames') || 0);
+  expect(framesAfterMotionExit, 'Reduced-motion exit must restore ten rendered Ranger frames before releasing fallback').toBeGreaterThanOrEqual(10);
   await waitForPaintedCanvas(page, page.getByTestId('live-hybrid-main-menu-canvas'), 60_000);
+  await expect(page.getByTestId('main-menu-actor-recovery-fallback')).toBeHidden();
+
+  // Complete the fixed capture series on fast Chromium transitions too; never
+  // truncate original pixel evidence just because the DOM assertions finish early.
+  await motionPixelSampler;
+  expect(motionPixelEvidence.length, 'Motion handoff must produce original pixel evidence').toBeGreaterThan(10);
+  for (const { sample, path } of motionPixelEvidence) {
+    await testInfo.attach(`motion-handoff-composited-${String(sample).padStart(2, '0')}`, {
+      path,
+      contentType: 'image/png',
+    });
+    // Playwright copies the original into attachments; avoid packaging a second
+    // identical PNG in test-results while retaining all 32 full-resolution frames.
+    await unlink(path);
+  }
+
+  const motionContinuity = await page.evaluate(() => {
+    window.__dvMotionContinuity.active = false;
+    return window.__dvMotionContinuity.samples;
+  });
+  expect(motionContinuity.length, 'Reduced-motion transition monitor must collect animation frames').toBeGreaterThan(10);
+  const actorFreeFrames = motionContinuity.filter(frame => !frame.fallback && !frame.canvas);
+  expect(actorFreeFrames, 'Every sampled transition frame must retain actor+companion fallback or a ready Ranger canvas: ' + JSON.stringify(actorFreeFrames.slice(0, 12))).toEqual([]);
 
   expect(runtimeIssues, runtimeIssues.join('\n')).toEqual([]);
 });
