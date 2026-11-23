@@ -180,8 +180,35 @@ function attachRuntimeMonitor(page) {
     if (/^Failed to load resource:/i.test(text)) return;
     if (/TypeError|ReferenceError|Cannot read|room build failed|failed to initialize|failed to load|module script failed/i.test(text)) issues.push(`console: ${text}`);
   });
+  // Diagnostic-only asset telemetry: retain existing runtime assertions unchanged.
+  // Strip query strings and credentials; never log cookies or authorization headers.
+  const assetPath = url => {
+    try {
+      const parsed = new URL(url);
+      return /\\.(?:gltf|glb)$/i.test(parsed.pathname) ? parsed.pathname : null;
+    } catch { return null; }
+  };
+  page.on('requestfailed', request => {
+    const path = assetPath(request.url());
+    if (!path) return;
+    console.log('[block20-asset-network] ' + JSON.stringify({
+      event: 'requestfailed', path, method: request.method(),
+      failure: request.failure()?.errorText ?? 'unknown',
+      redirectedFrom: assetPath(request.redirectedFrom()?.url() ?? ''),
+    }));
+  });
   page.on('response', response => {
     if (response.url().startsWith(appOrigin) && response.status() >= 400) issues.push(`http ${response.status()}: ${response.url()}`);
+    const path = assetPath(response.url());
+    if (!path) return;
+    const headers = response.headers();
+    console.log('[block20-asset-network] ' + JSON.stringify({
+      event: 'response', path, status: response.status(),
+      contentType: headers['content-type'] ?? null,
+      allowOrigin: headers['access-control-allow-origin'] ?? null,
+      location: headers.location ? assetPath(new URL(headers.location, response.url()).href) : null,
+      redirectedFrom: assetPath(response.request().redirectedFrom()?.url() ?? ''),
+    }));
   });
   return issues;
 }
