@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: KayKit rejected-promise cache contract
+        run: pnpm --dir artifacts/dungeon-rpg run audit:kaykit-cache
+
       - name: Typecheck
         id: typecheck
         continue-on-error: true
