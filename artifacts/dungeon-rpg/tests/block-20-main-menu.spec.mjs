@@ -185,7 +185,7 @@ function attachRuntimeMonitor(page) {
   const assetPath = url => {
     try {
       const parsed = new URL(url);
-      return /\\.(?:gltf|glb)$/i.test(parsed.pathname) ? parsed.pathname : null;
+      return /\.(?:gltf|glb)$/i.test(parsed.pathname) ? parsed.pathname : null;
     } catch { return null; }
   };
   page.on('requestfailed', request => {
